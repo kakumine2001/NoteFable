@@ -65,10 +65,15 @@ export function validateAttachmentFiles(files: File[]) {
 
 export function validateMultipartRequestSize(request: Request) {
   const rawContentLength = request.headers.get("content-length");
-  const contentLength = rawContentLength ? Number(rawContentLength) : 0;
 
-  if (!rawContentLength || !Number.isFinite(contentLength)) {
-    throw new AttachmentValidationError("Request body size is required.");
+  if (!rawContentLength) {
+    return;
+  }
+
+  const contentLength = Number(rawContentLength);
+
+  if (!Number.isFinite(contentLength)) {
+    throw new AttachmentValidationError("Request body size is invalid.");
   }
 
   if (contentLength > MAX_MULTIPART_REQUEST_BYTES) {

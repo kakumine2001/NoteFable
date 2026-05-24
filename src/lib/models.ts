@@ -67,7 +67,7 @@ export function normalizeModel(value: FormDataEntryValue | null) {
 
 export function normalizeReasoning(value: FormDataEntryValue | null, model = DEFAULT_MODEL) {
   const option = getModelOption(model);
-  const effort = typeof value === "string" ? value : "xhigh";
+  const effort = typeof value === "string" ? value : option.defaultReasoning;
   return option.reasoningEfforts.includes(effort as ReasoningEffort)
     ? (effort as ReasoningEffort)
     : option.defaultReasoning;
