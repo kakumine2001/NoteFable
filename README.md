@@ -89,6 +89,8 @@ npx prisma validate
 
 图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
+Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` 时会使用实例本地临时目录，重新部署、重启或休眠后上传图片可能丢失。
+
 ## API 保护
 
 当前按 IP 的限流存储在 PostgreSQL 的 `ApiRateLimit` 表中：
@@ -104,7 +106,7 @@ npx prisma validate
 
 - Web Service：`studymate`
 - PostgreSQL：`studymate-db`
-- Disk：`studymate-storage` 挂载到 `/var/data/studymate`
+- Plan：Free Web Service + Free Render Postgres
 - Build：`npm ci && npm run build`
 - Start：`npm run prisma:migrate && npm run start`
 
