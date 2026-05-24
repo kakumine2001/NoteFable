@@ -233,6 +233,8 @@ export default function Home() {
     if (activeSessionId) body.append("sessionId", activeSessionId);
     submittedFiles.forEach(({ file }) => body.append("files", file));
 
+    let shouldCleanupSubmittedPreviews = false;
+
     try {
       if (imageGenerationMode) {
         const generatedImageId = crypto.randomUUID();
@@ -347,6 +349,7 @@ export default function Home() {
       await loadSessions();
       if (resolvedSessionId) {
         await loadMessages(resolvedSessionId);
+        shouldCleanupSubmittedPreviews = true;
       }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unknown error.";
@@ -358,8 +361,10 @@ export default function Home() {
         ),
       );
     } finally {
-      revokeUploadPreviews(submittedFiles);
-      setMessages((current) => current.map(stripAttachmentPreviewUrls));
+      if (shouldCleanupSubmittedPreviews) {
+        revokeUploadPreviews(submittedFiles);
+        setMessages((current) => current.map(stripAttachmentPreviewUrls));
+      }
       setIsStreaming(false);
       setStreamStartedAt(null);
     }

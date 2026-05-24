@@ -200,19 +200,17 @@ export async function POST(request: Request) {
 
   try {
     const user = await getOrCreateAnonymousUser();
-    const session = sessionId
-      ? await prisma.session.findFirst({
-          where: { id: sessionId, userId: user.id },
-        })
-      : await prisma.session.create({
-          data: {
-            userId: user.id,
-            title: makeTitle(prompt),
-          },
-        });
+    let existingSession: { id: string; title: string } | null = null;
 
-    if (!session) {
-      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    if (sessionId) {
+      existingSession = await prisma.session.findFirst({
+        where: { id: sessionId, userId: user.id },
+        select: { id: true, title: true },
+      });
+
+      if (!existingSession) {
+        return NextResponse.json({ error: "Session not found." }, { status: 404 });
+      }
     }
 
     const upstream = await createUpstreamImageStream(
@@ -228,6 +226,7 @@ export async function POST(request: Request) {
     const stream = new ReadableStream({
       async start(controller) {
         let latestImageBase64 = "";
+        let session = existingSession;
 
         try {
           while (true) {
@@ -265,6 +264,13 @@ export async function POST(request: Request) {
                 }
                 const imageBuffer = Buffer.from(imageBase64, "base64");
                 const imageStoragePath = await writeStoredImage(imageBuffer, "image/png");
+                session ??= await prisma.session.create({
+                  data: {
+                    userId: user.id,
+                    title: makeTitle(prompt),
+                  },
+                  select: { id: true, title: true },
+                });
 
                 await prisma.message.create({
                   data: {
