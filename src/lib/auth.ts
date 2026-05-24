@@ -38,6 +38,11 @@ function unpack(value?: string) {
   return deviceId;
 }
 
+export async function getAnonymousDeviceId() {
+  const cookieStore = await cookies();
+  return unpack(cookieStore.get(COOKIE_NAME)?.value);
+}
+
 export async function getOrCreateAnonymousUser() {
   const cookieStore = await cookies();
   const existingDeviceId = unpack(cookieStore.get(COOKIE_NAME)?.value);

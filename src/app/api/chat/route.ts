@@ -239,7 +239,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 413 });
   }
 
-  const formData = await request.formData();
+  let formData: FormData;
+
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json({ error: "Invalid multipart form data." }, { status: 400 });
+  }
+
   const message = String(formData.get("message") ?? "").trim();
   const sessionId = String(formData.get("sessionId") ?? "").trim();
   const model = normalizeModel(formData.get("model"));
