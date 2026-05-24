@@ -13,10 +13,7 @@ type RateLimitResult = {
   resetAt: number;
 };
 
-async function getRateLimitSubject(request: Request) {
-  const trustedIp = request.headers.get("cf-connecting-ip");
-  if (trustedIp) return `ip:${trustedIp}`;
-
+async function getRateLimitSubject() {
   const deviceId = await getAnonymousDeviceId();
   return deviceId ? `device:${deviceId}` : "unknown";
 }
@@ -26,7 +23,8 @@ export async function checkRateLimit(
   options: RateLimitOptions,
 ): Promise<RateLimitResult> {
   const resetAt = new Date(Date.now() + options.windowMs);
-  const key = `${options.namespace}:${await getRateLimitSubject(request)}`;
+  void request;
+  const key = `${options.namespace}:${await getRateLimitSubject()}`;
   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
     VALUES (${key}, 1, ${resetAt}, NOW())

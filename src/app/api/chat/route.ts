@@ -435,16 +435,19 @@ export async function POST(request: Request) {
         controller.close();
       } catch (error) {
         const errorText = `Request failed: ${getErrorMessage(error)}`;
+        const persistedText = assistantText
+          ? `${assistantText}\n\n${errorText}`
+          : errorText;
 
-        if (!assistantText) {
-          controller.enqueue(encoder.encode(errorText));
-        }
+        controller.enqueue(
+          encoder.encode(assistantText ? `\n\n${errorText}` : errorText),
+        );
 
         await prisma.message.create({
           data: {
             sessionId: session.id,
             role: "ASSISTANT",
-            content: assistantText || errorText,
+            content: persistedText,
             model,
             reasoningEffort: toDbReasoning(reasoning),
           },
