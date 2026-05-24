@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getAnonymousDeviceId } from "@/lib/auth";
+import { ensureAnonymousDeviceId } from "@/lib/auth";
 
 type RateLimitOptions = {
   namespace: string;
@@ -14,8 +14,8 @@ type RateLimitResult = {
 };
 
 async function getRateLimitSubject() {
-  const deviceId = await getAnonymousDeviceId();
-  return deviceId ? `device:${deviceId}` : "unknown";
+  const deviceId = await ensureAnonymousDeviceId();
+  return `device:${deviceId}`;
 }
 
 export async function checkRateLimit(

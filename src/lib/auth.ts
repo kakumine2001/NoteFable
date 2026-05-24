@@ -43,7 +43,7 @@ export async function getAnonymousDeviceId() {
   return unpack(cookieStore.get(COOKIE_NAME)?.value);
 }
 
-export async function getOrCreateAnonymousUser() {
+export async function ensureAnonymousDeviceId() {
   const cookieStore = await cookies();
   const existingDeviceId = unpack(cookieStore.get(COOKIE_NAME)?.value);
   const deviceId = existingDeviceId ?? randomUUID();
@@ -57,6 +57,12 @@ export async function getOrCreateAnonymousUser() {
       maxAge: MAX_AGE,
     });
   }
+
+  return deviceId;
+}
+
+export async function getOrCreateAnonymousUser() {
+  const deviceId = await ensureAnonymousDeviceId();
 
   return prisma.anonymousUser.upsert({
     where: { deviceId },

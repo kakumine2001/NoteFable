@@ -367,26 +367,6 @@ export async function POST(request: Request) {
     },
   ];
 
-  const upstream =
-    modelOption.provider === "deepseek"
-      ? await createDeepSeekStream({ model: upstreamModel, input, reasoning })
-      : await createResponsesStream({
-          model: upstreamModel,
-          instructions:
-            [
-              "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
-              "Answer in the user's language unless they ask otherwise.",
-              "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
-              "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
-            ].join(" "),
-          input,
-          reasoning: {
-            effort: reasoning,
-          },
-          store: false,
-          stream: true,
-        });
-  const reader = upstream.getReader();
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
   let assistantText = "";
@@ -395,6 +375,27 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        const upstream =
+          modelOption.provider === "deepseek"
+            ? await createDeepSeekStream({ model: upstreamModel, input, reasoning })
+            : await createResponsesStream({
+                model: upstreamModel,
+                instructions:
+                  [
+                    "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
+                    "Answer in the user's language unless they ask otherwise.",
+                    "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
+                    "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+                  ].join(" "),
+                input,
+                reasoning: {
+                  effort: reasoning,
+                },
+                store: false,
+                stream: true,
+              });
+        const reader = upstream.getReader();
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
