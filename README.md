@@ -105,7 +105,7 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 `render.yaml` 定义：
 
 - Web Service：`studymate`
-- PostgreSQL：`studymate-db`
+- PostgreSQL：使用现有 `render_db`
 - Plan：Free Web Service + Free Render Postgres
 - Build：`npm ci && npm run build`
 - Start：`npm run prisma:migrate && npm run start`

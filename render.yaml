@@ -18,9 +18,5 @@ services:
         generateValue: true
       - key: DATABASE_URL
         fromDatabase:
-          name: studymate-db
+          name: render_db
           property: connectionString
-
-databases:
-  - name: studymate-db
-    plan: free
