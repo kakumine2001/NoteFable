@@ -13,11 +13,7 @@ type RateLimitResult = {
 };
 
 function getClientIp(request: Request) {
-  return (
-    request.headers.get("cf-connecting-ip") ||
-    request.headers.get("x-real-ip") ||
-    "unknown"
-  );
+  return request.headers.get("cf-connecting-ip") || "unknown";
 }
 
 export async function checkRateLimit(

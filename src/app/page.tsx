@@ -171,8 +171,8 @@ export default function Home() {
       content: userContent,
       model,
       reasoningEffort: reasoning.toUpperCase(),
-      attachments: submittedFiles.map(({ file, previewUrl }) => ({
-        id: `${file.name}-${file.size}`,
+      attachments: submittedFiles.map(({ id, file, previewUrl }) => ({
+        id,
         filename: file.name,
         mimeType: file.type || "application/octet-stream",
         size: file.size,
