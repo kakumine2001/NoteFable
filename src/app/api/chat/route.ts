@@ -329,7 +329,7 @@ export async function POST(request: Request) {
       sessionId: session.id,
       id: { not: userMessage.id },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "desc" },
     take: 30,
   });
 
@@ -357,7 +357,7 @@ export async function POST(request: Request) {
   ];
 
   const input: { role: string; content: unknown }[] = [
-    ...history.map((item) => ({
+    ...history.reverse().map((item) => ({
       role: toClientRole(item.role),
       content: item.content,
     })),
