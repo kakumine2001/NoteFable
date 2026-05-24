@@ -322,6 +322,7 @@ export default function Home() {
       }
 
       const nextSessionId = response.headers.get("X-Session-Id");
+      const resolvedSessionId = nextSessionId ?? activeSessionId;
       if (nextSessionId && nextSessionId !== activeSessionId) {
         setActiveSessionId(nextSessionId);
       }
@@ -344,6 +345,9 @@ export default function Home() {
       }
 
       await loadSessions();
+      if (resolvedSessionId) {
+        await loadMessages(resolvedSessionId);
+      }
     } catch (error) {
       const detail = error instanceof Error ? error.message : "Unknown error.";
       setMessages((current) =>
