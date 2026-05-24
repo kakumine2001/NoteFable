@@ -77,19 +77,21 @@ export const ChatMessage = memo(function ChatMessage({
               <div className="flex flex-wrap justify-end gap-2">
                 {message.attachments
                   .filter((attachment) => isImageMimeType(attachment.mimeType))
-                  .map((attachment) =>
-                    attachment.previewUrl ? (
+                  .map((attachment) => {
+                    const imageUrl = attachment.previewUrl ?? attachment.dataUrl;
+
+                    return imageUrl ? (
                       <Image
                         key={attachment.id}
-                        src={attachment.previewUrl}
+                        src={imageUrl}
                         alt={attachment.filename}
                         width={144}
                         height={144}
                         unoptimized
                         className="h-36 w-36 rounded-[1.6rem] object-cover"
                       />
-                    ) : null,
-                  )}
+                    ) : null;
+                  })}
               </div>
             )}
             {message.content && (

@@ -10,9 +10,11 @@ function toPublicAttachment<T extends { imageStoragePath?: string | null; id: st
   attachment: T,
 ) {
   const { imageStoragePath: _imageStoragePath, ...rest } = attachment;
-  void _imageStoragePath;
 
-  return rest;
+  return {
+    ...rest,
+    dataUrl: _imageStoragePath ? `/api/attachments/${attachment.id}/image` : undefined,
+  };
 }
 
 export async function GET(_request: Request, context: RouteContext) {

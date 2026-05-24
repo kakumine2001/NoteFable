@@ -21,6 +21,7 @@ export type Message = {
     filename: string;
     mimeType: string;
     size: number;
+    dataUrl?: string;
     previewUrl?: string;
   }[];
 };

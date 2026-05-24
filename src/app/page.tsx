@@ -76,7 +76,7 @@ export default function Home() {
   const activeSessionIdRef = useRef<string | null>(null);
   const filesRef = useRef<UploadFile[]>([]);
 
-  const canSend = (input.trim().length > 0 || files.length > 0) && !isStreaming;
+  const canSend = input.trim().length > 0 && !isStreaming;
   const selectedModel = getModelOption(model);
 
   function changeModel(nextModel: string) {
