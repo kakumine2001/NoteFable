@@ -104,8 +104,8 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {message.content && (
-              <div className="rounded-full bg-[#dff1ff] px-5 py-2.5 text-base leading-6 text-slate-950">
-                <div className="whitespace-pre-wrap break-words">{message.content}</div>
+              <div className="max-w-full rounded-[1.6rem] bg-[#dff1ff] px-5 py-2.5 text-base leading-6 text-slate-950">
+                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</div>
               </div>
             )}
           </>
