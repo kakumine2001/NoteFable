@@ -140,6 +140,11 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Unknown error.";
 }
 
+function encodeTextStreamEvent(delta: string) {
+  // 本番プロキシに通常テキストとして圧縮・結合されないよう、本文差分は SSE として送る。
+  return `data: ${JSON.stringify(delta)}\n\n`;
+}
+
 function getUpstreamModel(model: string) {
   // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。
   // 環境変数で差し替えできるようにして、画面側の選択肢は固定のまま運用できる。
@@ -470,7 +475,7 @@ export async function POST(request: Request) {
 
             // クライアントへ返したものと DB 保存内容がずれないよう、同じ delta を累積する。
             assistantText += delta;
-            controller.enqueue(encoder.encode(delta));
+            controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
           }
         }
 
@@ -501,7 +506,7 @@ export async function POST(request: Request) {
           : errorText;
 
         controller.enqueue(
-          encoder.encode(assistantText ? `\n\n${errorText}` : errorText),
+          encoder.encode(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText)),
         );
 
         await prisma.message.create({
@@ -526,8 +531,10 @@ export async function POST(request: Request) {
 
   return new Response(stream, {
     headers: {
-      "Content-Type": "text/plain; charset=utf-8",
+      "Content-Type": "text/event-stream; charset=utf-8",
       "Cache-Control": "no-cache, no-transform",
+      "X-Accel-Buffering": "no",
+      "X-Content-Type-Options": "nosniff",
       "X-Session-Id": session.id,
     },
   });

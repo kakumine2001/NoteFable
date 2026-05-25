@@ -67,6 +67,17 @@ function parseImageStreamLine(line: string) {
   return JSON.parse(trimmed) as ImageStreamEvent;
 }
 
+function parseTextStreamLine(line: string) {
+  // チャット API は SSE 形式。data には JSON 文字列化した本文差分だけを入れる。
+  const trimmed = line.trim();
+  if (!trimmed.startsWith("data:")) return "";
+
+  const payload = trimmed.replace(/^data:\s*/, "");
+  if (!payload || payload === "[DONE]") return "";
+
+  return JSON.parse(payload) as string;
+}
+
 async function readJsonObject(response: Response) {
   // API 側が落ちた時に空 body や HTML が返っても、画面全体を unhandled rejection で壊さない。
   const text = await response.text();
@@ -412,23 +423,37 @@ export default function Home() {
         setActiveSessionId(nextSessionId);
       }
 
-      // テキストストリームをバイト列から文字列へ変換しながら読む。
+      // SSE ストリームをバイト列から文字列へ変換しながら読む。
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let streamBuffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
-        const chunk = decoder.decode(value, { stream: true });
-        setMessages((current) =>
-          current.map((message) =>
-            message.id === assistantMessageId
-              ? { ...message, content: message.content + chunk }
-              : message,
-          ),
-        );
+        streamBuffer += decoder.decode(value, { stream: true });
+        // SSE は空行区切り。最後の要素は途中イベントの可能性があるので次回へ持ち越す。
+        const events = streamBuffer.split(/\r?\n\r?\n/);
+        streamBuffer = events.pop() ?? "";
+
+        for (const eventText of events) {
+          const chunk = eventText
+            .split(/\r?\n/)
+            .map(parseTextStreamLine)
+            .join("");
+
+          if (!chunk) continue;
+
+          // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === assistantMessageId
+                ? { ...message, content: message.content + chunk }
+                : message,
+            ),
+          );
+        }
       }
 
       await loadSessions();
