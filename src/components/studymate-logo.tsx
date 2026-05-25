@@ -1,4 +1,5 @@
 export function StudyMateLogo({ compact = false }: { compact?: boolean }) {
+  // compact=true の時はアイコンだけにし、狭い場所でも使えるロゴにする。
   return (
     <div className="flex items-center gap-3">
       <div className="grid h-10 w-10 place-items-center rounded-xl bg-[#f7f6f2] shadow-sm ring-1 ring-slate-200">

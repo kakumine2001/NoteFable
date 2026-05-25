@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "fs/promises";
 import path from "path";
 import { optionalEnv } from "@/lib/env";
 
+// 保存時に MIME type から拡張子を決めるための対応表。
 const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/gif": ".gif",
   "image/jpeg": ".jpg",
@@ -10,9 +11,11 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
   "image/webp": ".webp",
 };
 
+// 保存先が環境変数で指定されていない場合のデフォルトルート。
 const DEFAULT_STORAGE_ROOT = path.join("data", "storage");
 
 function getStorageRoot() {
+  // STUDYMATE_STORAGE_DIR があれば、画像保存先としてそれを使う。
   const configuredRoot = optionalEnv("STUDYMATE_STORAGE_DIR");
 
   if (!configuredRoot) {
@@ -20,13 +23,17 @@ function getStorageRoot() {
   }
 
   if (path.isAbsolute(configuredRoot)) {
+    // 絶対パス指定はそのまま保存先にする。
     return configuredRoot;
   }
 
+  // 相対パス指定はアプリの実行ディレクトリ基準で扱う。
   return configuredRoot;
 }
 
 function normalizeStoragePath(storagePath: string) {
+  // 画像取得 API は DB に保存されたパスをもとにファイルを読む。
+  // 絶対パスや .. を含むパスを拒否し、保存領域の外にあるファイルを読めないようにする。
   const normalized = path.normalize(storagePath);
 
   if (path.isAbsolute(normalized) || normalized.startsWith("..")) {
@@ -37,10 +44,13 @@ function normalizeStoragePath(storagePath: string) {
 }
 
 export function getImageExtension(mimeType: string) {
+  // 未知の画像 MIME type は .bin に倒し、拡張子から形式を断定しない。
   return IMAGE_EXTENSIONS[mimeType] ?? ".bin";
 }
 
 export async function writeStoredImage(buffer: Buffer, mimeType: string) {
+  // 画像は日付ごとのフォルダに分け、ファイル名は UUID にする。
+  // DB には storage root からの相対パスだけを保存し、環境ごとの保存先変更に追従しやすくする。
   const date = new Date();
   const folder = path.join(
     "images",

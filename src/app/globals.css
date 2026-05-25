@@ -1,17 +1,21 @@
 @import "tailwindcss";
 
 :root {
+  /* アプリ全体の基本色。Tailwind の theme 変数にも渡している。 */
   --background: #ffffff;
   --foreground: #0c1730;
+  /* UI テキスト用フォント。日本語/中国語環境でも崩れにくい CJK フォントを優先する。 */
   --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
     "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC",
     "Noto Sans SC", Arial, sans-serif;
+  /* Markdown 回答本文用フォント。長文の CJK 表示を UI と同じ系統に揃える。 */
   --font-cjk: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
     "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC",
     "Noto Sans SC", Arial, sans-serif;
 }
 
 @theme inline {
+  /* Tailwind の bg-background/text-foreground/font-sans などから参照できるよう CSS 変数を接続する。 */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-ui);
@@ -24,6 +28,7 @@ body {
 }
 
 body {
+  /* Next.js ルート全体の標準背景・文字色・フォント。個別画面の Tailwind 指定より下地になる。 */
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-ui);
@@ -33,14 +38,17 @@ button,
 select,
 textarea,
 input {
+  /* フォーム要素だけブラウザ既定フォントに戻らないよう、親のフォントを継承させる。 */
   font: inherit;
 }
 
 * {
+  /* padding/border を含めて幅計算する。Tailwind レイアウトの想定と合わせるための全体指定。 */
   box-sizing: border-box;
 }
 
 .markdown-body {
+  /* アシスタント回答本文のベース。Markdown の要素間余白やコード表示は下の個別ルールで調整する。 */
   font-family: var(--font-cjk);
   font-size: 1rem;
   font-weight: 400;
@@ -58,6 +66,7 @@ input {
 }
 
 .thinking-indicator {
+  /* AI 応答待機中に表示するテキスト。グラデーションを文字色として動かす。 */
   position: relative;
   z-index: 1;
   display: inline-flex;
@@ -76,6 +85,7 @@ input {
 }
 
 .thinking-page-background {
+  /* 応答待機中の画面背景。通常会話と違う状態であることを控えめに示す。 */
   background:
     radial-gradient(ellipse 76% 46% at 50% 62%, rgba(186, 230, 253, 0.72), transparent 68%),
     radial-gradient(ellipse 52% 34% at 28% 74%, rgba(125, 211, 252, 0.36), transparent 64%),
@@ -205,6 +215,7 @@ input {
 }
 
 .generated-image-grid {
+  /* 生成画像を本文とは別のまとまりとして表示するためのグリッド。 */
   display: grid;
   max-width: 36rem;
   gap: 0.75rem;
@@ -212,6 +223,7 @@ input {
 }
 
 .generated-image-shell {
+  /* ダウンロードボタンを画像右下に重ねるため、画像コンテナを相対配置にする。 */
   position: relative;
   overflow: hidden;
   border-radius: 1.5rem;
@@ -228,6 +240,7 @@ input {
 }
 
 .generated-image-download {
+  /* 生成画像の保存操作。画像の上でも読めるよう半透明の濃色背景にする。 */
   position: absolute;
   right: 0.9rem;
   bottom: 0.9rem;
@@ -251,6 +264,7 @@ input {
 }
 
 .markdown-body pre {
+  /* コードブロック本体。右上のコピー按钮と重ならないよう右 padding を広めに取る。 */
   margin: 0;
   overflow-x: auto;
   border-radius: 1.5rem;
@@ -268,6 +282,7 @@ input {
 }
 
 .markdown-code-shell {
+  /* pre とコピー按钮をまとめる外枠。MarkdownCodeBlock コンポーネントから使われる。 */
   position: relative;
   margin: 1rem 0;
   overflow: hidden;
@@ -277,6 +292,7 @@ input {
 }
 
 .markdown-code-copy {
+  /* コードコピー按钮。pre のスクロール領域とは独立して右上に固定する。 */
   position: absolute;
   top: 1rem;
   right: 1rem;
@@ -298,6 +314,7 @@ input {
 }
 
 .markdown-inline-code {
+  /* 文中コード用の軽い強調。ブロックコードとは背景と余白を分ける。 */
   border-radius: 0.35rem;
   background: #e2e8f0;
   color: #0f172a;
@@ -307,6 +324,7 @@ input {
 }
 
 .markdown-body table {
+  /* Markdown の表は横に長くなりやすいので、本文幅を超えたら横スクロールにする。 */
   display: block;
   max-width: 100%;
   overflow-x: auto;

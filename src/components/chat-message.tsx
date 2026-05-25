@@ -8,6 +8,7 @@ import { isImageMimeType } from "@/lib/client-files";
 import type { Message } from "@/types/chat";
 
 function ThinkingIndicator({ seconds }: { seconds: number }) {
+  // アシスタント枠はあるが本文がまだ届いていない時に、経過秒数を表示する。
   return (
     <div className="thinking-indicator" aria-live="polite">
       Thinking time: {seconds}s
@@ -17,8 +18,11 @@ function ThinkingIndicator({ seconds }: { seconds: number }) {
 }
 
 type ChatMessageProps = {
+  // 表示対象の 1 メッセージ。role によってレイアウトを切り替える。
   message: Message;
+  // 現在ストリーミング中かどうか。空のアシスタント本文を待機表示にする判断で使う。
   isStreaming: boolean;
+  // ThinkingIndicator に出す経過秒数。
   thinkingSeconds: number;
 };
 
@@ -27,6 +31,8 @@ export const ChatMessage = memo(function ChatMessage({
   isStreaming,
   thinkingSeconds,
 }: ChatMessageProps) {
+  // メッセージの役割ごとに表示密度を変える。
+  // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
   return (
     <article className={`flex gap-3 ${message.role === "USER" ? "justify-end" : "justify-start"}`}>
       <div
@@ -39,6 +45,7 @@ export const ChatMessage = memo(function ChatMessage({
         {message.role === "ASSISTANT" ? (
           <div className="markdown-body">
             {!!message.generatedImages?.length && (
+              // 画像生成モードの結果。本文とは別に、ダウンロード可能な画像として表示する。
               <div className="generated-image-grid">
                 {message.generatedImages.map((image) => (
                   <div key={image.id} className="generated-image-shell">
@@ -74,10 +81,12 @@ export const ChatMessage = memo(function ChatMessage({
             {!!message.attachments?.some((attachment) =>
               isImageMimeType(attachment.mimeType),
             ) && (
+              // ユーザーが添付した画像は、本文吹き出しの上にサムネイルとして並べる。
               <div className="flex flex-wrap justify-end gap-2">
                 {message.attachments
                   .filter((attachment) => isImageMimeType(attachment.mimeType))
                   .map((attachment) => {
+                    // 送信直後は previewUrl、履歴取得後はサーバーの dataUrl を使う。
                     const imageUrl = attachment.previewUrl ?? attachment.dataUrl;
 
                     return imageUrl ? (
@@ -105,6 +114,7 @@ export const ChatMessage = memo(function ChatMessage({
           (attachment) =>
             message.role === "ASSISTANT" || !isImageMimeType(attachment.mimeType),
         ) && (
+          // 画像以外のユーザー添付と、アシスタント側の通常添付はファイルチップとして表示する。
           <div className="mt-3 flex flex-wrap gap-2">
             {message.attachments
               .filter(
@@ -132,11 +142,14 @@ export const ChatMessage = memo(function ChatMessage({
 }, areChatMessagePropsEqual);
 
 function areChatMessagePropsEqual(previous: ChatMessageProps, next: ChatMessageProps) {
+  // 大きな Markdown や画像を含むメッセージは再描画コストが高い。
+  // 通常は message オブジェクトが変わった時だけ描画し、待機中アシスタントだけ秒数更新で再描画する。
   if (previous.message !== next.message || previous.isStreaming !== next.isStreaming) {
     return false;
   }
 
   const isWaitingAssistant =
+    // 空本文のアシスタントがストリーミング中なら、経過秒数の更新だけは再描画対象にする。
     next.message.role === "ASSISTANT" && next.message.content.length === 0 && next.isStreaming;
 
   return !isWaitingAssistant || previous.thinkingSeconds === next.thinkingSeconds;

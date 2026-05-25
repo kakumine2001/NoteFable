@@ -4,6 +4,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { getModelOption, MODEL_OPTIONS } from "@/lib/models";
 
+// 推論強度の短い表示名。ボタン内とメニュー内で共通利用する。
 const reasoningLabels: Record<string, string> = {
   low: "Low",
   medium: "Medium",
@@ -11,6 +12,7 @@ const reasoningLabels: Record<string, string> = {
   xhigh: "XHigh",
 };
 
+// 各推論強度の補足説明。選択時の判断材料としてメニューに表示する。
 const reasoningDescriptions: Record<string, string> = {
   low: "Light reasoning",
   medium: "Balanced for most tasks",
@@ -18,6 +20,7 @@ const reasoningDescriptions: Record<string, string> = {
   xhigh: "Maximum reasoning depth",
 };
 
+// 各モデルの簡単な用途説明。MODEL_OPTIONS には UI 文言を増やしすぎないためここで分ける。
 const modelDescriptions: Record<string, string> = {
   "gpt-5.5": "OpenAI general reasoning",
   "deepseek-v4-flash": "DeepSeek fast model",
@@ -30,15 +33,23 @@ export function ReasoningSelect({
   xhighLabel = "XHigh",
   onChange,
 }: {
+  // 現在選択されている推論強度。
   value: string;
+  // 選択中モデルで利用できる推論強度だけが渡される。
   options: readonly string[];
+  // DeepSeek では xhigh を Max と表示するための差し替えラベル。
   xhighLabel?: string;
+  // 選択変更時に親コンポーネントの reasoning state を更新する。
   onChange: (value: string) => void;
 }) {
+  // メニューの開閉状態。
   const [open, setOpen] = useState(false);
+  // 外側クリック判定の基準になるメニュー全体の DOM。
   const menuRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
+    // メニューが開いている間だけ document にクリック監視を付ける。
+    // 外側クリックで閉じられるようにしつつ、閉じている間は不要なグローバルリスナーを持たない。
     function closeOnOutsideClick(event: MouseEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -72,6 +83,7 @@ export function ReasoningSelect({
         >
           <div className="space-y-1 p-2">
             {options.map((item) => {
+              // 今描画している選択肢が現在値かどうか。背景色とチェックアイコンに使う。
               const selected = item === value;
 
               return (
@@ -113,14 +125,21 @@ export function ModelSelect({
   value,
   onChange,
 }: {
+  // 現在選択されているモデル ID。
   value: string;
+  // 選択変更時に親コンポーネントの model state を更新する。
   onChange: (value: string) => void;
 }) {
+  // モデルメニューの開閉状態。
   const [open, setOpen] = useState(false);
+  // 外側クリックで閉じるためにメニュー全体を参照する。
   const menuRef = useRef<HTMLDivElement | null>(null);
+  // 現在のモデル ID から表示名や対応機能を引いた設定。
   const currentModel = getModelOption(value);
 
   useEffect(() => {
+    // モデル選択も Reasoning と同じ外側クリック挙動にする。
+    // 入力フォーム内に複数の小さなメニューがあるため、閉じ方を揃えて操作の迷いを減らす。
     function closeOnOutsideClick(event: MouseEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
         setOpen(false);
@@ -154,6 +173,7 @@ export function ModelSelect({
         >
           <div className="space-y-1 p-2">
             {MODEL_OPTIONS.map((item) => {
+              // 現在選択中のモデルかどうか。選択済み表示に使う。
               const selected = item.id === value;
 
               return (
