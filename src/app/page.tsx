@@ -19,6 +19,8 @@ import { isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import type { ImageStreamEvent, Message, Session, UploadFile } from "@/types/chat";
 
+const INPUT_RESTORE_GUARD_MS = 5000;
+
 function createUploadFile(file: File): UploadFile {
   // ブラウザが MIME type を返さないファイルもあるため、未設定時は汎用バイナリとして扱う。
   const mimeType = file.type || "application/octet-stream";
@@ -125,6 +127,13 @@ export default function Home() {
   const filesRef = useRef<UploadFile[]>([]);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // state 更新前に連続 submit が入っても、同じ本文を二重送信しない。
+  const isSubmittingRef = useRef(false);
+  // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
+  const submittedInputRestoreGuardRef = useRef<{
+    value: string;
+    expiresAt: number;
+  } | null>(null);
 
   // 送信可能条件。空文字とストリーミング中は送信ボタンを無効にする。
   const canSend = input.trim().length > 0 && !isStreaming;
@@ -225,11 +234,36 @@ export default function Home() {
     });
   }
 
+  function changeInput(nextInput: string, element: HTMLTextAreaElement) {
+    const guard = submittedInputRestoreGuardRef.current;
+
+    if (guard) {
+      if (Date.now() > guard.expiresAt) {
+        submittedInputRestoreGuardRef.current = null;
+      } else if (nextInput.startsWith(guard.value)) {
+        // 送信済み本文がブラウザイベントで復元された場合は、その部分だけ落とす。
+        const recoveredInput = nextInput.slice(guard.value.length);
+        element.value = recoveredInput;
+        setInput(recoveredInput);
+        if (recoveredInput) {
+          submittedInputRestoreGuardRef.current = null;
+        }
+        return;
+      }
+    }
+
+    submittedInputRestoreGuardRef.current = null;
+    setInput(nextInput);
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
 
-    const userContent = (inputRef.current?.value ?? input).trim();
-    if (!userContent || isStreaming) return;
+    const submittedInputValue = inputRef.current?.value ?? input;
+    const userContent = submittedInputValue.trim();
+    if (!userContent || isStreaming || isSubmittingRef.current) return;
+
+    isSubmittingRef.current = true;
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
     // API の応答を待ってから描画すると体感が遅くなるため、先に表示してストリーム差分で埋めていく。
@@ -265,6 +299,10 @@ export default function Home() {
         reasoningEffort: reasoning.toUpperCase(),
       },
     ]);
+    submittedInputRestoreGuardRef.current = {
+      value: submittedInputValue,
+      expiresAt: Date.now() + INPUT_RESTORE_GUARD_MS,
+    };
     setInput("");
     if (inputRef.current) {
       inputRef.current.value = "";
@@ -282,6 +320,7 @@ export default function Home() {
             : message,
         ),
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -296,6 +335,7 @@ export default function Home() {
             : message,
         ),
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -479,6 +519,7 @@ export default function Home() {
       }
       setIsStreaming(false);
       setStreamStartedAt(null);
+      isSubmittingRef.current = false;
     }
   }
 
@@ -772,7 +813,7 @@ export default function Home() {
                   <textarea
                     ref={inputRef}
                     value={input}
-                    onChange={(event) => setInput(event.target.value)}
+                    onChange={(event) => changeInput(event.target.value, event.currentTarget)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                         event.preventDefault();
