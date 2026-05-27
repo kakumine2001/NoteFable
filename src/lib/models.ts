@@ -24,6 +24,8 @@ type ModelOption = {
   supportsImageInput: boolean;
   // 画像生成モードを利用できるかどうか。
   supportsImageGeneration: boolean;
+  // OpenAI の Web 検索ツールを利用できるかどうか。
+  supportsWebSearch: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];
   // 推論強度が未指定または非対応値だった場合の初期値。
@@ -38,6 +40,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     provider: "openai",
     supportsImageInput: true,
     supportsImageGeneration: true,
+    supportsWebSearch: true,
     reasoningEfforts: ["low", "medium", "high", "xhigh"],
     defaultReasoning: "medium",
   },
@@ -47,6 +50,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     provider: "deepseek",
     supportsImageInput: false,
     supportsImageGeneration: false,
+    supportsWebSearch: false,
     reasoningEfforts: ["high", "xhigh"],
     defaultReasoning: "high",
   },
@@ -56,6 +60,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     provider: "deepseek",
     supportsImageInput: false,
     supportsImageGeneration: false,
+    supportsWebSearch: false,
     reasoningEfforts: ["high", "xhigh"],
     defaultReasoning: "high",
   },

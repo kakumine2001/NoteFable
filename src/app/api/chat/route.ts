@@ -45,6 +45,10 @@ type ResponsesStreamRequest = {
   reasoning: {
     effort: string;
   };
+  tools?: {
+    type: "web_search";
+  }[];
+  tool_choice?: "auto";
   store: false;
   stream: true;
 };
@@ -291,6 +295,9 @@ export async function POST(request: Request) {
   const modelOption = getModelOption(model);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
   const reasoning = normalizeReasoning(formData.get("reasoning"), model);
+  // Web 検索は GPT の Responses API 呼び出しだけで有効化する。
+  const webSearch =
+    modelOption.supportsWebSearch && String(formData.get("webSearch") ?? "") === "true";
 
   if (!message) {
     return NextResponse.json({ error: "Message is required." }, { status: 400 });
@@ -448,6 +455,12 @@ export async function POST(request: Request) {
                 reasoning: {
                   effort: reasoning,
                 },
+                ...(webSearch
+                  ? {
+                      tools: [{ type: "web_search" }],
+                      tool_choice: "auto" as const,
+                    }
+                  : {}),
                 store: false,
                 stream: true,
               });

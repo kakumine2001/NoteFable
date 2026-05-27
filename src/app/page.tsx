@@ -1,7 +1,10 @@
 "use client";
 
 import {
+  ArrowDown,
   ArrowUp,
+  Globe2,
+  ImagePlus,
   Menu,
   Paperclip,
   PanelLeft,
@@ -107,6 +110,8 @@ export default function Home() {
   const [reasoning, setReasoning] = useState("medium");
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
+  // GPT の通常チャットで OpenAI Web 検索ツールを使うかどうか。
+  const [webSearchMode, setWebSearchMode] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // AI からのストリーム応答を受信中かどうか。二重送信防止と待機表示に使う。
@@ -119,8 +124,10 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
   const [sidebarVisible, setSidebarVisible] = useState(true);
-  // 新しいメッセージが追加された時に末尾へスクロールするための目印。
-  const scrollRef = useRef<HTMLDivElement | null>(null);
+  // 最下部にいる時は手動スクロールボタンを隠す。
+  const [isAtChatBottom, setIsAtChatBottom] = useState(true);
+  // 会話本文のスクロール領域。手動で最下部へ移動するボタンだけで使う。
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
   const activeSessionIdRef = useRef<string | null>(null);
   // アンマウント時のクリーンアップで最新の添付一覧を参照するための ref。
@@ -147,6 +154,9 @@ export default function Home() {
     setModel(option.id);
     if (!option.supportsImageGeneration) {
       setImageGenerationMode(false);
+    }
+    if (!option.supportsWebSearch) {
+      setWebSearchMode(false);
     }
     if (!option.supportsImageInput) {
       setFiles((current) => {
@@ -232,6 +242,26 @@ export default function Home() {
 
       return current.filter((item) => item.id !== fileId);
     });
+  }
+
+  function scrollChatToBottom() {
+    const scroller = chatScrollRef.current;
+    if (!scroller) return;
+
+    scroller.scrollTop = scroller.scrollHeight;
+    setIsAtChatBottom(true);
+    window.requestAnimationFrame(() => {
+      scroller.scrollTop = scroller.scrollHeight;
+      setIsAtChatBottom(true);
+    });
+  }
+
+  function updateChatBottomState() {
+    const scroller = chatScrollRef.current;
+    if (!scroller) return;
+
+    const distanceToBottom = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
+    setIsAtChatBottom(distanceToBottom <= 8);
   }
 
   function changeInput(nextInput: string, element: HTMLTextAreaElement) {
@@ -347,6 +377,7 @@ export default function Home() {
     body.append("message", userContent);
     body.append("model", model);
     body.append("reasoning", reasoning);
+    body.append("webSearch", String(webSearchMode && selectedModel.supportsWebSearch));
     if (activeSessionId) body.append("sessionId", activeSessionId);
     submittedFiles.forEach(({ file }) => body.append("files", file));
 
@@ -546,7 +577,17 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    const scroller = chatScrollRef.current;
+    if (!scroller) return;
+
+    updateChatBottomState();
+    scroller.addEventListener("scroll", updateChatBottomState, { passive: true });
+
+    return () => scroller.removeEventListener("scroll", updateChatBottomState);
+  }, [messages.length]);
+
+  useEffect(() => {
+    window.requestAnimationFrame(updateChatBottomState);
   }, [messages]);
 
   useEffect(() => {
@@ -709,7 +750,6 @@ export default function Home() {
             )}
             <div className={`min-w-0 ${emptyState ? "hidden" : ""}`}>
               <div className="truncate text-sm font-semibold text-slate-900">{activeTitle}</div>
-              <div className="text-xs text-slate-500">Learn smarter. Ask anything.</div>
             </div>
           </div>
 
@@ -718,7 +758,7 @@ export default function Home() {
           </div>
         </header>
 
-        <div className="relative z-0 flex-1 overflow-y-auto">
+        <div ref={chatScrollRef} className="relative z-0 flex-1 overflow-y-auto">
           <div
             className={`mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-10 ${
               emptyState ? "items-center justify-center pb-44 pt-16" : "py-8"
@@ -736,7 +776,6 @@ export default function Home() {
                     thinkingSeconds={thinkingSeconds}
                   />
                 ))}
-                <div ref={scrollRef} />
               </div>
             )}
           </div>
@@ -749,6 +788,19 @@ export default function Home() {
               : ""
           }`}
         >
+          {!emptyState && !isAtChatBottom && (
+            <div className="mx-auto mb-2 flex max-w-4xl justify-center">
+              <button
+                type="button"
+                onClick={scrollChatToBottom}
+                className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-900"
+                aria-label="Scroll to bottom"
+                title="Scroll to bottom"
+              >
+                <ArrowDown size={20} strokeWidth={2.1} />
+              </button>
+            </div>
+          )}
           <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
             {!!files.length && (
               <div className="mb-3 flex flex-wrap gap-2">
@@ -833,17 +885,36 @@ export default function Home() {
                     xhighLabel={selectedModel.provider === "deepseek" ? "Max" : "XHigh"}
                     onChange={setReasoning}
                   />
+                  {selectedModel.supportsWebSearch && !imageGenerationMode && (
+                    <button
+                      type="button"
+                      onClick={() => setWebSearchMode((current) => !current)}
+                      className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${
+                        webSearchMode
+                          ? "bg-[#e9e7e5] text-slate-950"
+                          : "text-slate-900 hover:bg-[#e9e7e5]"
+                      }`}
+                      aria-label="Web search"
+                      aria-pressed={webSearchMode}
+                      title="Web search"
+                    >
+                      <Globe2 size={18} />
+                    </button>
+                  )}
                   {selectedModel.supportsImageGeneration && (
                     <button
                       type="button"
                       onClick={() => setImageGenerationMode((current) => !current)}
-                      className={`h-10 rounded-full px-3 text-sm font-medium transition-colors ${
+                      className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${
                         imageGenerationMode
                           ? "bg-[#e9e7e5] text-slate-950"
                           : "text-slate-900 hover:bg-[#e9e7e5]"
                       }`}
+                      aria-label="Image generation"
+                      aria-pressed={imageGenerationMode}
+                      title="Image generation"
                     >
-                      Image generation
+                      <ImagePlus size={18} />
                     </button>
                   )}
                 </div>
