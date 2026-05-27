@@ -1,0 +1,311 @@
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+Failed to load sessions Error [PrismaClientKnownRequestError]: 
+Invalid `__TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert()` invocation in
+A:\projects\StudyMate\.next\dev\server\chunks\[root-of-the-server]__0tn53id._.js:465:155
+
+  462 // DB 上の AnonymousUser と Cookie の deviceId を対応させる。
+  463 // 初回アクセスなら create、既存ならそのまま返す。
+  464 const deviceId = await ensureAnonymousDeviceId();
+→ 465 return __TURBOPACK__imported__module__$5b$project$5d2f$src$2f$lib$2f$prisma$2e$ts__$5b$app$2d$route$5d$__$28$ecmascript$29$__["prisma"].anonymousUser.upsert(
+
+    at <unknown> (src\lib\auth.ts:80:31)
+    at async GET (src\app\api\sessions\route.ts:10:18)
+  78 |   const deviceId = await ensureAnonymousDeviceId();
+  79 |
+> 80 |   return prisma.anonymousUser.upsert({
+     |                               ^
+  81 |     where: { deviceId },
+  82 |     update: {},
+  83 |     create: { deviceId }, {
+  code: 'ECONNREFUSED',
+  meta: { modelName: 'AnonymousUser' },
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+Failed to check chat rate limit Error [PrismaClientKnownRequestError]: 
+Invalid `prisma.$queryRaw()` invocation:
+
+
+
+    at async checkRateLimit (src\lib\rate-limit.ts:40:20)
+    at async POST (src\app\api\chat\route.ts:245:17)
+  38 |   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
+  39 |   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+> 40 |   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
+     |                    ^
+  41 |     INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+  42 |     VALUES (${key}, 1, ${resetAt}, NOW())
+  43 |     ON CONFLICT ("key") DO UPDATE SET {
+  code: 'ECONNREFUSED',
+  meta: undefined,
+  clientVersion: '7.8.0'
+}
+[browser] A tree hydrated but some attributes of the server rendered HTML didn't match the client properties. This won't be patched up. This can happen if a SSR-ed Client Component used:
+
+- A server/client branch `if (typeof window !== 'undefined')`.
+- Variable input such as `Date.now()` or `Math.random()` which changes each time it's called.
+- Date formatting in a user's locale which doesn't match the server.
+- External changing data without sending a snapshot of it along with the HTML.
+- Invalid HTML tag nesting.
+
+It can also happen if the client has a browser extension installed which messes with the HTML before React loaded.
+
+https://react.dev/link/hydration-mismatch
+
+  ...
+    <HotReload globalError={[...]} webSocket={WebSocket} staticIndicatorState={{pathname:null, ...}}>
+      <AppDevOverlayErrorBoundary globalError={[...]}>
+        <ReplaySsrOnlyErrors>
+        <DevRootHTTPAccessFallbackBoundary>
+          <HTTPAccessFallbackBoundary notFound={<NotAllowedRootHTTPFallbackError>}>
+            <HTTPAccessFallbackErrorBoundary pathname="/" notFound={<NotAllowedRootHTTPFallbackError>} ...>
+              <RedirectBoundary>
+                <RedirectErrorBoundary router={{...}}>
+                  <Head>
+                  <__next_root_layout_boundary__>
+                    <SegmentViewNode type="layout" pagePath="layout.tsx">
+                      <SegmentTrieNode>
+                      <link>
+                      <script>
+                      <script>
+                      <RootLayout>
+                        <html
+                          lang="zh-CN"
+                          className="geist_a71539c9-module__T19VSG__variable geist_mono_8d43a2aa-module__8Li5zG__variable"
+-                         data-immersive-translate-page-theme="light"
+                        >
+                  ...
+ 
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⨯ ReferenceError: Cannot access 'emptyState' before initialization
+    at Home (src\app\page.tsx:587:7)
+  585 |
+  586 |     return () => scroller.removeEventListener("scroll", updateChatBottomState);
+> 587 |   }, [emptyState]);
+      |       ^
+  588 |
+  589 |   useEffect(() => {
+  590 |     window.requestAnimationFrame(updateChatBottomState); {
+  digest: '777792290'
+}
+⨯ ReferenceError: Cannot access 'emptyState' before initialization
+    at Home (src\app\page.tsx:587:7)
+  585 |
+  586 |     return () => scroller.removeEventListener("scroll", updateChatBottomState);
+> 587 |   }, [emptyState]);
+      |       ^
+  588 |
+  589 |   useEffect(() => {
+  590 |     window.requestAnimationFrame(updateChatBottomState); {
+  digest: '777792290'
+}
+[browser] Uncaught ReferenceError: Cannot access 'emptyState' before initialization
+    at Home (src/app/page.tsx:587:7)
+  585 |
+  586 |     return () => scroller.removeEventListener("scroll", updateChatBottomState);
+> 587 |   }, [emptyState]);
+      |       ^
+  588 |
+  589 |   useEffect(() => {
+  590 |     window.requestAnimationFrame(updateChatBottomState);
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
+⚠ Fast Refresh had to perform a full reload due to a runtime error.
