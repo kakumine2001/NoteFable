@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import {
+  AttachmentValidationError,
+  isImageFile,
+  validateAttachmentFiles,
+  validateMultipartRequestSize,
+} from "@/lib/files";
+import {
   DEFAULT_MODEL,
   getModelOption,
   normalizeModel,
@@ -19,11 +25,24 @@ type ImageQuality = "low" | "medium" | "high" | "auto";
 
 type ImageRequestBody = {
   prompt?: unknown;
+  message?: unknown;
   size?: unknown;
   quality?: unknown;
   sessionId?: unknown;
   model?: unknown;
   reasoning?: unknown;
+};
+
+type ImageRequestInput = ImageRequestBody & {
+  files: File[];
+};
+
+type ImageInputAttachment = {
+  filename: string;
+  mimeType: string;
+  size: number;
+  buffer: Buffer;
+  imageInputDataUrl: string;
 };
 
 type ImageGenerationResponse = {
@@ -71,8 +90,45 @@ function normalizeQuality(value: unknown): ImageQuality {
 }
 
 function normalizeReasoningValue(value: unknown, model: string) {
-  // JSON body の reasoning は unknown なので、文字列の場合だけ共通の正規化関数へ渡す。
+  // リクエスト由来の reasoning は unknown なので、文字列の場合だけ共通の正規化関数へ渡す。
   return normalizeReasoning(typeof value === "string" ? value : null, model);
+}
+
+function firstFormString(formData: FormData, ...names: string[]) {
+  // multipart と既存 JSON 呼び出しのキー差を吸収する。
+  for (const name of names) {
+    const value = formData.get(name);
+    if (typeof value === "string") return value;
+  }
+
+  return undefined;
+}
+
+async function readImageRequest(request: Request): Promise<ImageRequestInput> {
+  // 参照画像つき生成は multipart、従来のテキストだけの生成は JSON でも受ける。
+  const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
+
+  if (!contentType.includes("multipart/form-data")) {
+    const body = (await request.json()) as ImageRequestBody;
+    return { ...body, files: [] };
+  }
+
+  validateMultipartRequestSize(request);
+
+  const formData = await request.formData();
+  const files = formData
+    .getAll("files")
+    .filter((value): value is File => value instanceof File);
+
+  return {
+    prompt: firstFormString(formData, "prompt", "message"),
+    size: firstFormString(formData, "size"),
+    quality: firstFormString(formData, "quality"),
+    sessionId: firstFormString(formData, "sessionId"),
+    model: firstFormString(formData, "model"),
+    reasoning: firstFormString(formData, "reasoning"),
+    files,
+  };
 }
 
 function getErrorMessage(error: unknown) {
@@ -112,7 +168,54 @@ function findCompletedImage(data?: ImageGenerationResponse) {
   return data?.output?.find((item) => item.type === "image_generation_call")?.result;
 }
 
-async function createUpstreamImageStream(prompt: string, size: ImageSize, quality: ImageQuality) {
+async function prepareImageInputs(files: File[]) {
+  // 参照画像はDB保存より先に、上流 API へ渡す data URL として組み立てる。
+  const inputs: ImageInputAttachment[] = [];
+
+  for (const file of files) {
+    if (file.size === 0) continue;
+
+    const mimeType = file.type || "application/octet-stream";
+    const buffer = Buffer.from(await file.arrayBuffer());
+
+    inputs.push({
+      filename: file.name,
+      mimeType,
+      size: file.size,
+      buffer,
+      imageInputDataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
+    });
+  }
+
+  return inputs;
+}
+
+function buildImageGenerationInput(prompt: string, imageInputs: ImageInputAttachment[]) {
+  if (!imageInputs.length) return prompt;
+
+  return [
+    {
+      role: "user",
+      content: [
+        {
+          type: "input_text",
+          text: prompt,
+        },
+        ...imageInputs.map((image) => ({
+          type: "input_image",
+          image_url: image.imageInputDataUrl,
+        })),
+      ],
+    },
+  ];
+}
+
+async function createUpstreamImageStream(
+  prompt: string,
+  size: ImageSize,
+  quality: ImageQuality,
+  imageInputs: ImageInputAttachment[],
+) {
   // Responses API に image_generation ツールを明示し、テキスト回答ではなく画像生成を必ず実行させる。
   // partial_images を有効にして、完成前の途中画像も UI に返せるようにする。
   // OpenAI API キーは画像生成で必須。未設定ならここで分かりやすく失敗させる。
@@ -129,7 +232,7 @@ async function createUpstreamImageStream(prompt: string, size: ImageSize, qualit
     },
     body: JSON.stringify({
       model: optionalEnv("OPENAI_IMAGE_RESPONSE_MODEL") || "gpt-5.5",
-      input: prompt,
+      input: buildImageGenerationInput(prompt, imageInputs),
       stream: true,
       tools: [
         {
@@ -194,17 +297,21 @@ export async function POST(request: Request) {
     );
   }
 
-  // JSON body の解析結果。各フィールドは後で個別に型チェックする。
-  let body: ImageRequestBody;
+  // リクエスト本文の解析結果。各フィールドは後で個別に型チェックする。
+  let body: ImageRequestInput;
 
   try {
-    body = (await request.json()) as ImageRequestBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    body = await readImageRequest(request);
+  } catch (error) {
+    const status = error instanceof AttachmentValidationError ? error.status : 400;
+    const message = error instanceof Error ? error.message : "Invalid request body.";
+
+    return NextResponse.json({ error: message }, { status });
   }
 
   // 画像生成の元になるプロンプト。文字列でない場合は空文字として扱い、後で必須チェックする。
-  const prompt = typeof body.prompt === "string" ? body.prompt.trim() : "";
+  const rawPrompt = typeof body.prompt === "string" ? body.prompt : body.message;
+  const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : "";
   // 既存会話へ画像生成結果を追加する場合のセッション ID。新規なら空文字。
   const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
   // UI から送られたモデル ID。許可済みでなければ DEFAULT_MODEL へ戻す。
@@ -230,6 +337,24 @@ export async function POST(request: Request) {
   }
 
   try {
+    validateAttachmentFiles(body.files);
+  } catch (error) {
+    const status = error instanceof AttachmentValidationError ? error.status : 400;
+    const message = error instanceof Error ? error.message : "Invalid attachment.";
+
+    return NextResponse.json({ error: message }, { status });
+  }
+
+  if (body.files.some((file) => !isImageFile(file))) {
+    return NextResponse.json(
+      { error: "Image generation only accepts image uploads." },
+      { status: 400 },
+    );
+  }
+
+  const imageInputs = await prepareImageInputs(body.files);
+
+  try {
     // 匿名ユーザーを確定し、既存セッションが指定されている場合は所有者確認に使う。
     const user = await getOrCreateAnonymousUser();
     // sessionId が指定された場合だけ既存セッションを入れる。未指定なら completed 時に作成する。
@@ -251,6 +376,7 @@ export async function POST(request: Request) {
       prompt,
       normalizeSize(body.size),
       normalizeQuality(body.quality),
+      imageInputs,
     );
     // upstream の byte stream を読む reader。
     const reader = upstream.getReader();
@@ -321,6 +447,15 @@ export async function POST(request: Request) {
                   select: { id: true, title: true },
                 });
 
+                const inputAttachmentCreates = await Promise.all(
+                  imageInputs.map(async (image) => ({
+                    filename: image.filename,
+                    mimeType: image.mimeType,
+                    size: image.size,
+                    imageStoragePath: await writeStoredImage(image.buffer, image.mimeType),
+                  })),
+                );
+
                 // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。
                 await prisma.message.create({
                   data: {
@@ -329,6 +464,11 @@ export async function POST(request: Request) {
                     content: prompt,
                     model,
                     reasoningEffort: toDbReasoning(reasoning),
+                    attachments: inputAttachmentCreates.length
+                      ? {
+                          create: inputAttachmentCreates,
+                        }
+                      : undefined,
                   },
                 });
 

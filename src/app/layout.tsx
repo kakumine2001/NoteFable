@@ -19,6 +19,10 @@ export const metadata: Metadata = {
   title: "StudyMate",
   // Next.js の Metadata API へ渡すページ説明。
   description: "AI study assistant powered by OpenAI.",
+  // Render などの古い favicon キャッシュを拾いにくくするため、使うアイコンを明示する。
+  icons: {
+    icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
+  },
 };
 
 export default function RootLayout({

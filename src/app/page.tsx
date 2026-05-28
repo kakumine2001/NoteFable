@@ -354,13 +354,16 @@ export default function Home() {
       return;
     }
 
-    if (imageGenerationMode && submittedFiles.length > 0) {
+    if (
+      imageGenerationMode &&
+      submittedFiles.some((item) => !isImageMimeType(item.file.type || "application/octet-stream"))
+    ) {
       setMessages((current) =>
         current.map((message) =>
           message.id === assistantMessageId
             ? {
                 ...message,
-                content: "Image generation does not accept file uploads yet. Remove attachments or turn off Image generation.",
+                content: "Image generation only accepts image uploads. Remove non-image files or turn off Image generation.",
               }
             : message,
         ),
@@ -392,18 +395,17 @@ export default function Home() {
         const generatedImageId = crypto.randomUUID();
         // 送信開始時点のセッション ID。途中でユーザーが別セッションを開いたかの判定に使う。
         const requestSessionId = activeSessionId;
-        // 画像生成 API は JSON を受け、画像の途中経過を NDJSON ストリームで返す。
+        // 参照画像を一緒に送れるよう、画像生成 API へも multipart/form-data で渡す。
+        const imageBody = new FormData();
+        imageBody.append("prompt", userContent);
+        imageBody.append("model", model);
+        imageBody.append("reasoning", reasoning);
+        if (requestSessionId) imageBody.append("sessionId", requestSessionId);
+        submittedFiles.forEach(({ file }) => imageBody.append("files", file));
+        // 画像生成 API は画像の途中経過を NDJSON ストリームで返す。
         const response = await fetch("/api/images", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            prompt: userContent,
-            sessionId: requestSessionId,
-            model,
-            reasoning,
-          }),
+          body: imageBody,
         });
 
         if (!response.ok || !response.body) {
@@ -416,6 +418,7 @@ export default function Home() {
         const decoder = new TextDecoder();
         // chunk の境目で JSON 1 行が分断されることがあるため、未処理の末尾を保持する。
         let streamBuffer = "";
+        let completedSessionId = requestSessionId;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -438,6 +441,10 @@ export default function Home() {
             }
 
             if ((event.type === "partial" || event.type === "completed") && event.image?.dataUrl) {
+              if (event.sessionId) {
+                completedSessionId = event.sessionId;
+              }
+
               if (
                 event.sessionId &&
                 event.sessionId !== activeSessionIdRef.current &&
@@ -445,6 +452,7 @@ export default function Home() {
               ) {
                 // 新規チャットから画像生成した場合、完了時にサーバー側でセッションが作られる。
                 // ユーザーが途中で別セッションへ移動していなければ、その新しいセッションを現在表示に採用する。
+                activeSessionIdRef.current = event.sessionId;
                 setActiveSessionId(event.sessionId);
               }
 
@@ -470,6 +478,10 @@ export default function Home() {
         }
 
         await loadSessions();
+        if (completedSessionId && activeSessionIdRef.current === completedSessionId) {
+          await loadMessages(completedSessionId);
+          shouldCleanupSubmittedPreviews = true;
+        }
         return;
       }
 
@@ -788,19 +800,21 @@ export default function Home() {
               : ""
           }`}
         >
-          {!emptyState && !isAtChatBottom && (
-            <div className="mx-auto mb-2 flex max-w-4xl justify-center">
-              <button
-                type="button"
-                onClick={scrollChatToBottom}
-                className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-900"
-                aria-label="Scroll to bottom"
-                title="Scroll to bottom"
-              >
-                <ArrowDown size={20} strokeWidth={2.1} />
-              </button>
-            </div>
-          )}
+          <div
+            className={`mx-auto mb-2 flex max-w-4xl justify-center ${
+              !emptyState && !isAtChatBottom ? "" : "invisible"
+            }`}
+          >
+            <button
+              type="button"
+              onClick={scrollChatToBottom}
+              className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              aria-label="Scroll to bottom"
+              title="Scroll to bottom"
+            >
+              <ArrowDown size={20} strokeWidth={2.1} />
+            </button>
+          </div>
           <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
             {!!files.length && (
               <div className="mb-3 flex flex-wrap gap-2">

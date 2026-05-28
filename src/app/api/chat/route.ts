@@ -73,6 +73,18 @@ type ChatCompletionStreamEvent = {
   };
 };
 
+type TavilySearchResponse = {
+  answer?: string;
+  results?: {
+    title?: string;
+    url?: string;
+    content?: string;
+  }[];
+  error?: {
+    message?: string;
+  };
+};
+
 function parseResponsesDelta(line: string) {
   // OpenAI Responses API は SSE で複数種類のイベントを返す。
   // クライアントへ流す必要があるのは本文差分だけなので、output_text.delta 以外は無視する。
@@ -147,6 +159,103 @@ function getErrorMessage(error: unknown) {
 function encodeTextStreamEvent(delta: string) {
   // 本番プロキシに通常テキストとして圧縮・結合されないよう、本文差分は SSE として送る。
   return `data: ${JSON.stringify(delta)}\n\n`;
+}
+
+function trimSearchText(text: string) {
+  // 検索結果をそのまま入れすぎると通常会話の文脈を圧迫するため、各項目を短くする。
+  return text.replace(/\s+/g, " ").trim().slice(0, 900);
+}
+
+function buildTavilySearchPrompt(query: string, data: TavilySearchResponse) {
+  const results = (data.results ?? []).slice(0, 5);
+
+  if (!data.answer && results.length === 0) {
+    throw new Error("Tavily returned no search results.");
+  }
+
+  const sources = results.map((result, index) =>
+    [
+      `[${index + 1}] ${result.title || "Untitled"}`,
+      `URL: ${result.url || "Unknown"}`,
+      result.content ? `Snippet: ${trimSearchText(result.content)}` : "",
+    ]
+      .filter(Boolean)
+      .join("\n"),
+  );
+
+  return [
+    "以下はTavilyのWeb検索結果。最新情報が必要な場合はこの検索結果を優先し、使った情報にはURLを含めて答える。",
+    `検索日時: ${new Date().toISOString()}`,
+    `検索クエリ: ${query}`,
+    data.answer ? `検索概要: ${trimSearchText(data.answer)}` : "",
+    sources.length ? `検索結果:\n${sources.join("\n\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function withWebSearchPrompt(
+  input: { role: string; content: unknown }[],
+  webSearchPrompt: string,
+) {
+  const lastIndex = input.length - 1;
+
+  return input.map((item, index) => {
+    if (index !== lastIndex || item.role !== "user") return item;
+
+    if (typeof item.content === "string") {
+      return {
+        ...item,
+        content: `${webSearchPrompt}\n\n${item.content}`,
+      };
+    }
+
+    return {
+      ...item,
+      content: [
+        {
+          type: "input_text",
+          text: webSearchPrompt,
+        },
+        ...(Array.isArray(item.content) ? item.content : []),
+      ],
+    };
+  });
+}
+
+async function createTavilySearchPrompt(query: string) {
+  const apiKey = requireEnv("TAVILY_API_KEY");
+
+  const response = await fetch("https://api.tavily.com/search", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      query,
+      search_depth: "basic",
+      max_results: 5,
+      include_answer: "basic",
+      include_raw_content: false,
+      include_images: false,
+    }),
+  });
+
+  const text = await response.text();
+  let data: TavilySearchResponse = {};
+
+  try {
+    data = text ? (JSON.parse(text) as TavilySearchResponse) : {};
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(data.error?.message ?? (text || `Tavily request failed: ${response.status}`));
+  }
+
+  return buildTavilySearchPrompt(query, data);
 }
 
 function getUpstreamModel(model: string) {
@@ -295,7 +404,7 @@ export async function POST(request: Request) {
   const modelOption = getModelOption(model);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
   const reasoning = normalizeReasoning(formData.get("reasoning"), model);
-  // Web 検索は GPT の Responses API 呼び出しだけで有効化する。
+  // OpenAI は組み込み検索、DeepSeek はTavilyの検索結果を文脈として渡す。
   const webSearch =
     modelOption.supportsWebSearch && String(formData.get("webSearch") ?? "") === "true";
 
@@ -423,6 +532,13 @@ export async function POST(request: Request) {
       content: currentUserContent,
     },
   ];
+  const deepSeekSearchPrompt =
+    webSearch && modelOption.provider === "deepseek"
+      ? await createTavilySearchPrompt(message)
+      : null;
+  const upstreamInput = deepSeekSearchPrompt
+    ? withWebSearchPrompt(input, deepSeekSearchPrompt)
+    : input;
 
   // 上流 API の byte stream を文字列として読むためのデコーダー。
   const decoder = new TextDecoder();
@@ -440,7 +556,7 @@ export async function POST(request: Request) {
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const upstream =
           modelOption.provider === "deepseek"
-            ? await createDeepSeekStream({ model: upstreamModel, input, reasoning })
+            ? await createDeepSeekStream({ model: upstreamModel, input: upstreamInput, reasoning })
             : await createResponsesStream({
                 model: upstreamModel,
                 instructions:
@@ -451,7 +567,7 @@ export async function POST(request: Request) {
                     "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
                     "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
                   ].join(" "),
-                input,
+                input: upstreamInput,
                 reasoning: {
                   effort: reasoning,
                 },

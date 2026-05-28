@@ -37,6 +37,7 @@ OPENAI_API_KEY="sk-..."
 OPENAI_BASE_URL="https://api.openai.com/v1"
 DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
+TAVILY_API_KEY="tvly-..."
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
