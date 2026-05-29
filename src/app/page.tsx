@@ -20,9 +20,14 @@ import { ModelSelect, ReasoningSelect } from "@/components/model-controls";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
-import type { ImageStreamEvent, Message, Session, UploadFile } from "@/types/chat";
+import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
+const NEW_SESSION_MESSAGES_KEY = "__new_session__";
+
+function getMessagesKey(sessionId: string | null) {
+  return sessionId ?? NEW_SESSION_MESSAGES_KEY;
+}
 
 function createUploadFile(file: File): UploadFile {
   // ブラウザが MIME type を返さないファイルもあるため、未設定時は汎用バイナリとして扱う。
@@ -62,14 +67,6 @@ function stripAttachmentPreviewUrls(message: Message): Message {
       return attachment;
     }),
   };
-}
-
-function parseImageStreamLine(line: string) {
-  // 画像生成 API は NDJSON 形式なので、1 行ごとに空行を除いて JSON として読む。
-  const trimmed = line.trim();
-  if (!trimmed) return null;
-
-  return JSON.parse(trimmed) as ImageStreamEvent;
 }
 
 function parseTextStreamLine(line: string) {
@@ -114,10 +111,8 @@ export default function Home() {
   const [webSearchMode, setWebSearchMode] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
-  // AI からのストリーム応答を受信中かどうか。二重送信防止と待機表示に使う。
-  const [isStreaming, setIsStreaming] = useState(false);
-  // ストリーム開始時刻。Thinking 表示の経過秒数を計算する基準になる。
-  const [streamStartedAt, setStreamStartedAt] = useState<number | null>(null);
+  // 会話ごとのストリーム開始時刻。複数会話を並行生成できるよう、会話キー別に持つ。
+  const [streamingSessions, setStreamingSessions] = useState<Record<string, number>>({});
   // 経過秒数を再計算するための現在時刻。ストリーミング中だけ interval で更新する。
   const [now, setNow] = useState(() => Date.now());
   // モバイル表示でサイドバーのオーバーレイを開いているかどうか。
@@ -130,22 +125,118 @@ export default function Home() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
   const activeSessionIdRef = useRef<string | null>(null);
+  // 会話ごとの表示中メッセージ。ストリーミング中に別会話へ移動しても一時表示を失わない。
+  const sessionMessagesRef = useRef<Record<string, Message[]>>({});
+  // 会話ごとの生成状態。切り替え時にDB履歴で上書きしないために使う。
+  const streamingSessionsRef = useRef<Record<string, number>>({});
   // アンマウント時のクリーンアップで最新の添付一覧を参照するための ref。
   const filesRef = useRef<UploadFile[]>([]);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  // state 更新前に連続 submit が入っても、同じ本文を二重送信しない。
-  const isSubmittingRef = useRef(false);
+  // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
+  const submittingSessionKeysRef = useRef<Set<string>>(new Set());
   // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
   const submittedInputRestoreGuardRef = useRef<{
     value: string;
     expiresAt: number;
   } | null>(null);
 
-  // 送信可能条件。空文字とストリーミング中は送信ボタンを無効にする。
-  const canSend = input.trim().length > 0 && !isStreaming;
+  const activeSessionKey = getMessagesKey(activeSessionId);
+  const activeStreamStartedAt = streamingSessions[activeSessionKey] ?? null;
+  const isActiveSessionStreaming = activeStreamStartedAt !== null;
+  // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
+  const canSend = input.trim().length > 0 && !isActiveSessionStreaming;
   // モデル ID から、対応機能や表示名をまとめた設定を引く。
   const selectedModel = getModelOption(model);
+
+  function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
+    sessionMessagesRef.current = {
+      ...sessionMessagesRef.current,
+      [sessionKey]: nextMessages,
+    };
+
+    if (getMessagesKey(activeSessionIdRef.current) === sessionKey) {
+      setMessages(nextMessages);
+    }
+  }
+
+  function updateCachedMessages(
+    sessionKey: string,
+    updater: (current: Message[]) => Message[],
+  ) {
+    replaceCachedMessages(
+      sessionKey,
+      updater(sessionMessagesRef.current[sessionKey] ?? []),
+    );
+  }
+
+  function startStreamingSession(sessionKey: string, startedAt: number) {
+    const nextStreamingSessions = {
+      ...streamingSessionsRef.current,
+      [sessionKey]: startedAt,
+    };
+    streamingSessionsRef.current = nextStreamingSessions;
+    setStreamingSessions(nextStreamingSessions);
+  }
+
+  function finishStreamingSession(sessionKey: string) {
+    if (!streamingSessionsRef.current[sessionKey]) return;
+
+    const nextStreamingSessions = { ...streamingSessionsRef.current };
+    delete nextStreamingSessions[sessionKey];
+    streamingSessionsRef.current = nextStreamingSessions;
+    setStreamingSessions(nextStreamingSessions);
+  }
+
+  function migrateCachedMessages(fromKey: string, toSessionId: string) {
+    if (fromKey === toSessionId) return;
+
+    const cachedMessages = sessionMessagesRef.current[fromKey];
+    if (!cachedMessages) return;
+
+    const nextMessagesBySession = {
+      ...sessionMessagesRef.current,
+      [toSessionId]: cachedMessages,
+    };
+    delete nextMessagesBySession[fromKey];
+    sessionMessagesRef.current = nextMessagesBySession;
+
+    const streamingStartedAt = streamingSessionsRef.current[fromKey];
+    if (streamingStartedAt) {
+      const nextStreamingSessions = {
+        ...streamingSessionsRef.current,
+        [toSessionId]: streamingStartedAt,
+      };
+      delete nextStreamingSessions[fromKey];
+      streamingSessionsRef.current = nextStreamingSessions;
+      setStreamingSessions(nextStreamingSessions);
+    }
+
+    if (getMessagesKey(activeSessionIdRef.current) === fromKey) {
+      activeSessionIdRef.current = toSessionId;
+      setActiveSessionId(toSessionId);
+      setMessages(cachedMessages);
+    }
+  }
+
+  async function fetchSessionMessages(sessionId: string) {
+    const response = await fetch(`/api/sessions/${sessionId}/messages`, {
+      cache: "no-store",
+    });
+
+    if (!response.ok) return null;
+
+    const data = await readJsonObject(response);
+    return Array.isArray(data.messages) ? (data.messages as Message[]) : [];
+  }
+
+  async function refreshSessionMessages(sessionId: string) {
+    const fetchedMessages = await fetchSessionMessages(sessionId);
+    if (!fetchedMessages) return false;
+
+    replaceCachedMessages(sessionId, fetchedMessages);
+    return true;
+  }
 
   function changeModel(nextModel: string) {
     // モデルごとに使える機能が違うため、選択変更時に UI の状態も合わせて正規化する。
@@ -185,17 +276,23 @@ export default function Home() {
   }
 
   async function loadMessages(sessionId: string) {
-    // サイドバーで選ばれたセッションの本文だけを取得する。
-    const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-      cache: "no-store",
-    });
+    if (streamingSessionsRef.current[sessionId]) {
+      // 生成中の会話はDB保存前の差分を持つため、ローカル表示を優先する。
+      setMessages(sessionMessagesRef.current[sessionId] ?? []);
+      activeSessionIdRef.current = sessionId;
+      setActiveSessionId(sessionId);
+      setSidebarOpen(false);
+      return;
+    }
 
-    if (!response.ok) return;
+    const fetchedMessages = await fetchSessionMessages(sessionId);
+    if (!fetchedMessages) return;
 
     // 取得した履歴を表示対象にし、現在のセッション ID とモバイルサイドバーを更新する。
-    const data = await readJsonObject(response);
-    setMessages(Array.isArray(data.messages) ? (data.messages as Message[]) : []);
+    replaceCachedMessages(sessionId, fetchedMessages);
+    activeSessionIdRef.current = sessionId;
     setActiveSessionId(sessionId);
+    setMessages(fetchedMessages);
     setSidebarOpen(false);
   }
 
@@ -214,6 +311,8 @@ export default function Home() {
     const session = data.session as Session | undefined;
     if (!session) return;
     setSessions((current) => [session, ...current]);
+    replaceCachedMessages(session.id, []);
+    activeSessionIdRef.current = session.id;
     setActiveSessionId(session.id);
     setMessages([]);
     setSidebarOpen(false);
@@ -225,8 +324,12 @@ export default function Home() {
     if (!response.ok) return;
     // サイドバーから対象セッションを即座に消す。
     setSessions((current) => current.filter((session) => session.id !== sessionId));
+    const nextMessagesBySession = { ...sessionMessagesRef.current };
+    delete nextMessagesBySession[sessionId];
+    sessionMessagesRef.current = nextMessagesBySession;
     if (activeSessionId === sessionId) {
       // 表示中のセッションを削除した場合は、新規チャット状態へ戻す。
+      activeSessionIdRef.current = null;
       setActiveSessionId(null);
       setMessages([]);
     }
@@ -268,14 +371,16 @@ export default function Home() {
     const guard = submittedInputRestoreGuardRef.current;
 
     if (guard) {
-      if (Date.now() > guard.expiresAt) {
+      if (new Date().getTime() > guard.expiresAt) {
         submittedInputRestoreGuardRef.current = null;
       } else if (nextInput.startsWith(guard.value)) {
         // 送信済み本文がブラウザイベントで復元された場合は、その部分だけ落とす。
         const recoveredInput = nextInput.slice(guard.value.length);
-        element.value = recoveredInput;
-        setInput(recoveredInput);
-        if (recoveredInput) {
+        const nextRecoveredInput =
+          recoveredInput === "\n" || recoveredInput === "\r\n" ? "" : recoveredInput;
+        element.value = nextRecoveredInput;
+        setInput(nextRecoveredInput);
+        if (nextRecoveredInput) {
           submittedInputRestoreGuardRef.current = null;
         }
         return;
@@ -291,9 +396,18 @@ export default function Home() {
 
     const submittedInputValue = inputRef.current?.value ?? input;
     const userContent = submittedInputValue.trim();
-    if (!userContent || isStreaming || isSubmittingRef.current) return;
+    const requestSessionId = activeSessionId;
+    let requestSessionKey = getMessagesKey(requestSessionId);
+    const initialRequestSessionKey = requestSessionKey;
+    if (
+      !userContent ||
+      streamingSessionsRef.current[requestSessionKey] ||
+      submittingSessionKeysRef.current.has(requestSessionKey)
+    ) {
+      return;
+    }
 
-    isSubmittingRef.current = true;
+    submittingSessionKeysRef.current.add(requestSessionKey);
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
     // API の応答を待ってから描画すると体感が遅くなるため、先に表示してストリーム差分で埋めていく。
@@ -318,7 +432,7 @@ export default function Home() {
     // ストリームで本文や画像を流し込む対象の、空のアシスタントメッセージ ID。
     const assistantMessageId = crypto.randomUUID();
 
-    setMessages((current) => [
+    updateCachedMessages(requestSessionKey, (current) => [
       ...current,
       localUserMessage,
       {
@@ -327,11 +441,12 @@ export default function Home() {
         content: "",
         model,
         reasoningEffort: reasoning.toUpperCase(),
+        isGeneratingImage: imageGenerationMode,
       },
     ]);
     submittedInputRestoreGuardRef.current = {
       value: submittedInputValue,
-      expiresAt: Date.now() + INPUT_RESTORE_GUARD_MS,
+      expiresAt: new Date().getTime() + INPUT_RESTORE_GUARD_MS,
     };
     setInput("");
     if (inputRef.current) {
@@ -340,7 +455,7 @@ export default function Home() {
     setFiles([]);
 
     if (imageGenerationMode && !selectedModel.supportsImageGeneration) {
-      setMessages((current) =>
+      updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
             ? {
@@ -350,7 +465,7 @@ export default function Home() {
             : message,
         ),
       );
-      isSubmittingRef.current = false;
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       return;
     }
 
@@ -358,7 +473,7 @@ export default function Home() {
       imageGenerationMode &&
       submittedFiles.some((item) => !isImageMimeType(item.file.type || "application/octet-stream"))
     ) {
-      setMessages((current) =>
+      updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
             ? {
@@ -368,12 +483,11 @@ export default function Home() {
             : message,
         ),
       );
-      isSubmittingRef.current = false;
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       return;
     }
 
-    setStreamStartedAt(Date.now());
-    setIsStreaming(true);
+    startStreamingSession(requestSessionKey, new Date().getTime());
 
     // 通常チャット API は multipart/form-data を受けるため、本文・モデル設定・添付を FormData に詰める。
     const body = new FormData();
@@ -381,7 +495,7 @@ export default function Home() {
     body.append("model", model);
     body.append("reasoning", reasoning);
     body.append("webSearch", String(webSearchMode && selectedModel.supportsWebSearch));
-    if (activeSessionId) body.append("sessionId", activeSessionId);
+    if (requestSessionId) body.append("sessionId", requestSessionId);
     submittedFiles.forEach(({ file }) => body.append("files", file));
 
     // 送信完了後にサーバー履歴へ差し替えられた時だけ、楽観表示用 previewUrl を解放する。
@@ -390,11 +504,8 @@ export default function Home() {
     try {
       if (imageGenerationMode) {
         // 画像生成はテキストチャットとは別 API に送る。
-        // サーバーからは partial/completed の NDJSON が届くため、同じアシスタント枠の画像を差し替えながら表示する。
-        // 画面上で生成画像を同じ ID として扱うためのローカル ID。
+        // UI では完成前の部分画像を出さず、固定の生成中プレビューから完成画像へ一度だけ差し替える。
         const generatedImageId = crypto.randomUUID();
-        // 送信開始時点のセッション ID。途中でユーザーが別セッションを開いたかの判定に使う。
-        const requestSessionId = activeSessionId;
         // 参照画像を一緒に送れるよう、画像生成 API へも multipart/form-data で渡す。
         const imageBody = new FormData();
         imageBody.append("prompt", userContent);
@@ -402,85 +513,59 @@ export default function Home() {
         imageBody.append("reasoning", reasoning);
         if (requestSessionId) imageBody.append("sessionId", requestSessionId);
         submittedFiles.forEach(({ file }) => imageBody.append("files", file));
-        // 画像生成 API は画像の途中経過を NDJSON ストリームで返す。
+        // 画像生成 API は完成画像だけを JSON で返す。
         const response = await fetch("/api/images", {
           method: "POST",
           body: imageBody,
         });
 
-        if (!response.ok || !response.body) {
+        if (!response.ok) {
           const data = await response.json().catch(() => ({}));
           throw new Error(data.error ?? "Failed to generate image.");
         }
 
-        // ReadableStream を chunk 単位で読み、TextDecoder で文字列化する。
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        // chunk の境目で JSON 1 行が分断されることがあるため、未処理の末尾を保持する。
-        let streamBuffer = "";
+        const event = (await response.json()) as ImageGenerationResult;
         let completedSessionId = requestSessionId;
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        if (event.error) {
+          throw new Error(event.error);
+        }
 
-          streamBuffer += decoder.decode(value, { stream: true });
-          // NDJSON は改行区切り。最後の要素は途中行の可能性があるので次回へ持ち越す。
-          const lines = streamBuffer.split(/\r?\n/);
-          streamBuffer = lines.pop() ?? "";
+        if (!event.image?.dataUrl) {
+          throw new Error("Failed to generate image.");
+        }
 
-          for (const line of lines) {
-            if (!line.trim()) continue;
-
-            // partial/completed/error のいずれかのイベントとして解釈する。
-            const event = parseImageStreamLine(line);
-            if (!event) continue;
-
-            if (event.type === "error") {
-              throw new Error(event.error ?? "Failed to generate image.");
-            }
-
-            if ((event.type === "partial" || event.type === "completed") && event.image?.dataUrl) {
-              if (event.sessionId) {
-                completedSessionId = event.sessionId;
-              }
-
-              if (
-                event.sessionId &&
-                event.sessionId !== activeSessionIdRef.current &&
-                activeSessionIdRef.current === requestSessionId
-              ) {
-                // 新規チャットから画像生成した場合、完了時にサーバー側でセッションが作られる。
-                // ユーザーが途中で別セッションへ移動していなければ、その新しいセッションを現在表示に採用する。
-                activeSessionIdRef.current = event.sessionId;
-                setActiveSessionId(event.sessionId);
-              }
-
-              setMessages((current) =>
-                current.map((message) =>
-                  message.id === assistantMessageId
-                    ? {
-                        ...message,
-                        content: "",
-                        generatedImages: [
-                          {
-                            id: generatedImageId,
-                            dataUrl: event.image?.dataUrl ?? "",
-                            mimeType: event.image?.mimeType ?? "image/png",
-                          },
-                        ],
-                      }
-                    : message,
-                ),
-              );
-            }
+        if (event.sessionId) {
+          completedSessionId = event.sessionId;
+          if (requestSessionKey !== event.sessionId) {
+            // 新規チャットから画像生成した場合、完成時のセッション ID へローカル表示を移す。
+            migrateCachedMessages(requestSessionKey, event.sessionId);
+            requestSessionKey = event.sessionId;
           }
         }
 
+        updateCachedMessages(requestSessionKey, (current) =>
+          current.map((message) =>
+            message.id === assistantMessageId
+              ? {
+                  ...message,
+                  content: "",
+                  isGeneratingImage: false,
+                  generatedImages: [
+                    {
+                      id: generatedImageId,
+                      dataUrl: event.image?.dataUrl ?? "",
+                      mimeType: event.image?.mimeType ?? "image/png",
+                    },
+                  ],
+                }
+              : message,
+          ),
+        );
+
         await loadSessions();
-        if (completedSessionId && activeSessionIdRef.current === completedSessionId) {
-          await loadMessages(completedSessionId);
-          shouldCleanupSubmittedPreviews = true;
+        if (completedSessionId) {
+          shouldCleanupSubmittedPreviews = await refreshSessionMessages(completedSessionId);
         }
         return;
       }
@@ -501,9 +586,11 @@ export default function Home() {
       // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
       const nextSessionId = response.headers.get("X-Session-Id");
       // 既存セッションなら activeSessionId、新規ならヘッダー値を使って最後に履歴を再取得する。
-      const resolvedSessionId = nextSessionId ?? activeSessionId;
-      if (nextSessionId && nextSessionId !== activeSessionId) {
-        setActiveSessionId(nextSessionId);
+      const resolvedSessionId = nextSessionId ?? requestSessionId;
+      if (nextSessionId && requestSessionKey !== nextSessionId) {
+        migrateCachedMessages(requestSessionKey, nextSessionId);
+        requestSessionKey = nextSessionId;
+        void loadSessions();
       }
 
       // SSE ストリームをバイト列から文字列へ変換しながら読む。
@@ -529,7 +616,7 @@ export default function Home() {
           if (!chunk) continue;
 
           // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
-          setMessages((current) =>
+          updateCachedMessages(requestSessionKey, (current) =>
             current.map((message) =>
               message.id === assistantMessageId
                 ? { ...message, content: message.content + chunk }
@@ -541,13 +628,12 @@ export default function Home() {
 
       await loadSessions();
       if (resolvedSessionId) {
-        await loadMessages(resolvedSessionId);
-        shouldCleanupSubmittedPreviews = true;
+        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
       const detail = error instanceof Error ? error.message : "Unknown error.";
-      setMessages((current) =>
+      updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
             ? { ...message, content: `Request failed: ${detail}` }
@@ -558,11 +644,13 @@ export default function Home() {
       if (shouldCleanupSubmittedPreviews) {
         // DB から再取得した添付情報に置き換わったので、送信前 previewUrl は不要になる。
         revokeUploadPreviews(submittedFiles);
-        setMessages((current) => current.map(stripAttachmentPreviewUrls));
+        updateCachedMessages(requestSessionKey, (current) =>
+          current.map(stripAttachmentPreviewUrls),
+        );
       }
-      setIsStreaming(false);
-      setStreamStartedAt(null);
-      isSubmittingRef.current = false;
+      finishStreamingSession(requestSessionKey);
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      submittingSessionKeysRef.current.delete(requestSessionKey);
     }
   }
 
@@ -605,14 +693,14 @@ export default function Home() {
   useEffect(() => {
     // アシスタント本文がまだ空の間、待機表示の秒数を更新する。
     // 通常時は interval を作らず、ストリーミング中だけ最小限の再描画にする。
-    if (!isStreaming || streamStartedAt === null) return;
+    if (Object.keys(streamingSessions).length === 0) return;
 
     const interval = window.setInterval(() => {
       setNow(Date.now());
     }, 250);
 
     return () => window.clearInterval(interval);
-  }, [isStreaming, streamStartedAt]);
+  }, [streamingSessions]);
 
   useEffect(() => {
     function toggleSidebarShortcut(event: KeyboardEvent) {
@@ -639,7 +727,9 @@ export default function Home() {
   );
   // Thinking 表示に出す秒数。0 秒表示を避けるため、ストリーム中は最低 1 秒に丸める。
   const thinkingSeconds =
-    streamStartedAt === null ? 0 : Math.max(1, Math.round((now - streamStartedAt) / 1000));
+    activeStreamStartedAt === null
+      ? 0
+      : Math.max(1, Math.round((now - activeStreamStartedAt) / 1000));
 
   // デスクトップでは常設、モバイルではオーバーレイとして再利用するサイドバー UI。
   const sidebar = (
@@ -707,10 +797,6 @@ export default function Home() {
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
-  // 空のアシスタントメッセージがありストリーミング中なら、Thinking 背景と待機表示を有効にする。
-  const isThinking = isStreaming && messages.some(
-    (message) => message.role === "ASSISTANT" && message.content.length === 0,
-  );
 
   return (
     <main className="flex h-dvh bg-white text-slate-900">
@@ -728,13 +814,7 @@ export default function Home() {
       )}
 
       <section
-        className={`relative flex min-w-0 flex-1 flex-col overflow-hidden ${
-          emptyState
-            ? "bg-[radial-gradient(ellipse_92%_58%_at_56%_58%,#cde9ff_0%,#e9f6ff_42%,#ffffff_78%)]"
-            : isThinking
-              ? "thinking-page-background"
-              : "bg-white"
-        }`}
+        className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f7ffff] bg-[url(/chat-gradient-background.png)] bg-cover bg-center bg-no-repeat"
       >
         <header
           className={`relative z-10 flex h-16 items-center justify-between px-4 ${
@@ -780,14 +860,24 @@ export default function Home() {
               <div className="flex-1" />
             ) : (
               <div className="space-y-8">
-                {messages.map((message) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    isStreaming={isStreaming}
-                    thinkingSeconds={thinkingSeconds}
-                  />
-                ))}
+                {messages.map((message, index) => {
+                  const isWaitingAssistant =
+                    message.role === "ASSISTANT" &&
+                    !message.content &&
+                    !message.generatedImages?.length &&
+                    index === messages.length - 1;
+
+                  return (
+                    <ChatMessage
+                      key={message.id}
+                      message={message}
+                      isStreaming={isActiveSessionStreaming && isWaitingAssistant}
+                      thinkingSeconds={
+                        isActiveSessionStreaming && isWaitingAssistant ? thinkingSeconds : 0
+                      }
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -854,8 +944,8 @@ export default function Home() {
               </div>
             )}
 
-            <div className="flex min-h-20 items-center gap-2 rounded-[2rem] border border-slate-100 bg-white px-5 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.16)] focus-within:border-slate-200">
-              <label className="grid h-11 w-8 shrink-0 cursor-pointer place-items-center text-slate-950 hover:text-blue-600">
+            <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-[1.75rem] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.16)] focus-within:border-slate-200 sm:flex sm:gap-2 sm:rounded-[2rem] sm:px-5">
+              <label className="col-start-1 row-start-2 grid h-9 w-9 shrink-0 cursor-pointer place-items-center text-slate-950 hover:text-blue-600 sm:row-start-1 sm:h-11 sm:w-8">
                 <Plus size={30} strokeWidth={1.8} />
                 <input
                   type="file"
@@ -874,69 +964,67 @@ export default function Home() {
                   }}
                 />
               </label>
-              <div className="flex min-w-0 flex-1 items-center gap-2 max-sm:flex-col max-sm:items-stretch">
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  <textarea
-                    ref={inputRef}
-                    value={input}
-                    onChange={(event) => changeInput(event.target.value, event.currentTarget)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-                        event.preventDefault();
-                        event.currentTarget.form?.requestSubmit();
-                      }
-                    }}
-                    rows={1}
-                    placeholder=""
-                    className="max-h-40 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1 py-2.5 text-base leading-6 text-slate-900 outline-none placeholder:text-slate-500"
-                  />
-                </div>
-                <div className="flex shrink-0 items-center gap-1 max-sm:self-end">
-                  <ModelSelect value={model} onChange={changeModel} />
-                  <ReasoningSelect
-                    value={reasoning}
-                    options={selectedModel.reasoningEfforts}
-                    xhighLabel={selectedModel.provider === "deepseek" ? "Max" : "XHigh"}
-                    onChange={setReasoning}
-                  />
-                  {selectedModel.supportsWebSearch && !imageGenerationMode && (
-                    <button
-                      type="button"
-                      onClick={() => setWebSearchMode((current) => !current)}
-                      className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${
-                        webSearchMode
-                          ? "bg-[#e9e7e5] text-slate-950"
-                          : "text-slate-900 hover:bg-[#e9e7e5]"
-                      }`}
-                      aria-label="Web search"
-                      aria-pressed={webSearchMode}
-                      title="Web search"
-                    >
-                      <Globe2 size={18} />
-                    </button>
-                  )}
-                  {selectedModel.supportsImageGeneration && (
-                    <button
-                      type="button"
-                      onClick={() => setImageGenerationMode((current) => !current)}
-                      className={`grid h-10 w-10 place-items-center rounded-full transition-colors ${
-                        imageGenerationMode
-                          ? "bg-[#e9e7e5] text-slate-950"
-                          : "text-slate-900 hover:bg-[#e9e7e5]"
-                      }`}
-                      aria-label="Image generation"
-                      aria-pressed={imageGenerationMode}
-                      title="Image generation"
-                    >
-                      <ImagePlus size={18} />
-                    </button>
-                  )}
-                </div>
+              <div className="col-span-2 row-start-1 flex min-w-0 items-center sm:col-span-1 sm:flex-1">
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={(event) => changeInput(event.target.value, event.currentTarget)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                      event.preventDefault();
+                      event.currentTarget.form?.requestSubmit();
+                    }
+                  }}
+                  rows={1}
+                  placeholder=""
+                  className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-6 text-slate-900 outline-none placeholder:text-slate-500 sm:min-h-11 sm:py-2.5"
+                />
+              </div>
+              <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-start gap-0.5 sm:col-span-1 sm:col-start-auto sm:shrink-0 sm:flex-nowrap sm:gap-1">
+                <ModelSelect value={model} onChange={changeModel} />
+                <ReasoningSelect
+                  value={reasoning}
+                  options={selectedModel.reasoningEfforts}
+                  xhighLabel={selectedModel.provider === "deepseek" ? "Max" : "XHigh"}
+                  onChange={setReasoning}
+                />
+                {selectedModel.supportsWebSearch && !imageGenerationMode && (
+                  <button
+                    type="button"
+                    onClick={() => setWebSearchMode((current) => !current)}
+                    className={`grid h-8 w-8 place-items-center rounded-full transition-colors sm:h-10 sm:w-10 ${
+                      webSearchMode
+                        ? "bg-[#e9e7e5] text-slate-950"
+                        : "text-slate-900 hover:bg-[#e9e7e5]"
+                    }`}
+                    aria-label="Web search"
+                    aria-pressed={webSearchMode}
+                    title="Web search"
+                  >
+                    <Globe2 size={18} />
+                  </button>
+                )}
+                {selectedModel.supportsImageGeneration && (
+                  <button
+                    type="button"
+                    onClick={() => setImageGenerationMode((current) => !current)}
+                    className={`grid h-8 w-8 place-items-center rounded-full transition-colors sm:h-10 sm:w-10 ${
+                      imageGenerationMode
+                        ? "bg-[#e9e7e5] text-slate-950"
+                        : "text-slate-900 hover:bg-[#e9e7e5]"
+                    }`}
+                    aria-label="Image generation"
+                    aria-pressed={imageGenerationMode}
+                    title="Image generation"
+                  >
+                    <ImagePlus size={18} />
+                  </button>
+                )}
               </div>
               <button
                 type="submit"
                 disabled={!canSend}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
+                className="col-start-3 row-start-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:h-11 sm:w-11"
                 aria-label="Send message"
               >
                 <ArrowUp size={24} strokeWidth={2.1} />

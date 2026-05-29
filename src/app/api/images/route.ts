@@ -48,20 +48,11 @@ type ImageInputAttachment = {
 type ImageGenerationResponse = {
   output?: {
     type?: string;
-    result?: string;
+    result?: unknown;
   }[];
   error?: {
     message?: string;
   } | null;
-};
-
-type ImageGenerationStreamEvent = {
-  type?: string;
-  partial_image_b64?: string;
-  response?: ImageGenerationResponse;
-  error?: {
-    message?: string;
-  };
 };
 
 const SUPPORTED_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
@@ -136,36 +127,16 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Image generation failed.";
 }
 
-function makeImageEvent(
-  type: "partial" | "completed",
-  imageBase64: string,
-  sessionId?: string,
-) {
-  // 画像生成の進捗は JSON を 1 行ずつ流す NDJSON に統一する。
-  // partial と completed を同じ形にしておくと、フロントエンド側は dataUrl を差し替えるだけでよい。
-  return `${JSON.stringify({
-    type,
-    sessionId,
-    image: {
-      mimeType: "image/png",
-      dataUrl: `data:image/png;base64,${imageBase64}`,
-    },
-  })}\n`;
-}
+export function findCompletedImage(data?: ImageGenerationResponse): string | undefined {
+  // output 配列から、最終画像の base64 を持つ image_generation_call を探す。
+  const imageOutput = data?.output?.find(
+    (item): item is { type?: string; result: string } =>
+      item.type === "image_generation_call" &&
+      typeof item.result === "string" &&
+      item.result.length > 0,
+  );
 
-function parseStreamPayload(line: string) {
-  // OpenAI からは data: で始まる SSE 行が届く。
-  // 空行や [DONE] は制御用なので捨て、実データだけを画像生成イベントとして JSON パースする。
-  const payload = line.replace(/^data:\s*/, "").trim();
-
-  if (!payload || payload === "[DONE]") return null;
-
-  return JSON.parse(payload) as ImageGenerationStreamEvent;
-}
-
-function findCompletedImage(data?: ImageGenerationResponse) {
-  // completed イベントの output 配列から、最終画像の base64 を持つ image_generation_call を探す。
-  return data?.output?.find((item) => item.type === "image_generation_call")?.result;
+  return imageOutput?.result;
 }
 
 async function prepareImageInputs(files: File[]) {
@@ -210,14 +181,14 @@ function buildImageGenerationInput(prompt: string, imageInputs: ImageInputAttach
   ];
 }
 
-async function createUpstreamImageStream(
+async function createUpstreamImageResponse(
   prompt: string,
   size: ImageSize,
   quality: ImageQuality,
   imageInputs: ImageInputAttachment[],
 ) {
   // Responses API に image_generation ツールを明示し、テキスト回答ではなく画像生成を必ず実行させる。
-  // partial_images を有効にして、完成前の途中画像も UI に返せるようにする。
+  // UI には完成画像だけ返すため、上流も非ストリームで受け取り final result を読む。
   // OpenAI API キーは画像生成で必須。未設定ならここで分かりやすく失敗させる。
   const apiKey = requireEnv("OPENAI_API_KEY");
   // API の向き先は環境変数で差し替え可能。未設定なら公式エンドポイントを使う。
@@ -228,12 +199,10 @@ async function createUpstreamImageStream(
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      Accept: "text/event-stream",
     },
     body: JSON.stringify({
       model: optionalEnv("OPENAI_IMAGE_RESPONSE_MODEL") || "gpt-5.5",
       input: buildImageGenerationInput(prompt, imageInputs),
-      stream: true,
       tools: [
         {
           type: "image_generation",
@@ -241,7 +210,6 @@ async function createUpstreamImageStream(
           size,
           quality,
           output_format: "png",
-          partial_images: 1,
         },
       ],
       tool_choice: {
@@ -266,16 +234,12 @@ async function createUpstreamImageStream(
     );
   }
 
-  if (!response.body) {
-    throw new Error("OpenAI response did not include a stream body.");
-  }
-
-  return response.body;
+  return (await response.json()) as ImageGenerationResponse;
 }
 
 export async function POST(request: Request) {
   // 画像生成専用 API。
-  // 入力検証と権限確認をしたうえで、生成中の画像をストリームし、完了画像だけを保存・履歴化する。
+  // 入力検証と権限確認をしたうえで、完了画像だけを保存・履歴化して返す。
   let rateLimit: Awaited<ReturnType<typeof checkRateLimit>>;
 
   try {
@@ -371,159 +335,100 @@ export async function POST(request: Request) {
       }
     }
 
-    // OpenAI 画像生成ストリーム。部分画像と完了イベントの両方が SSE として流れてくる。
-    const upstream = await createUpstreamImageStream(
+    // OpenAI 側から完成済みレスポンスを受け、image_generation_call の result を保存する。
+    const upstream = await createUpstreamImageResponse(
       prompt,
       normalizeSize(body.size),
       normalizeQuality(body.quality),
       imageInputs,
     );
-    // upstream の byte stream を読む reader。
-    const reader = upstream.getReader();
-    // SSE の byte chunk を文字列へ変換する。
-    const decoder = new TextDecoder();
-    // クライアントへ返す NDJSON を byte stream に戻す。
-    const encoder = new TextEncoder();
-    // SSE 行が chunk 境界で分断された時の未処理部分。
-    let buffer = "";
+    // 既存セッションがあればそれを使い、新規なら完了時に作ったセッションをここへ入れる。
+    let session = existingSession;
 
-    const stream = new ReadableStream({
-      async start(controller) {
-        // partial だけ届いて completed 側に result がない場合の保険として、最新の部分画像を保持する。
-        let latestImageBase64 = "";
-        // 既存セッションがあればそれを使い、新規なら完了時に作ったセッションをここへ入れる。
-        let session = existingSession;
+    const imageBase64 = findCompletedImage(upstream);
+    if (!imageBase64) {
+      throw new Error("OpenAI did not return image data.");
+    }
+    // 保存処理には base64 ではなく Buffer が必要なので変換する。
+    const imageBuffer = Buffer.from(imageBase64, "base64");
+    // 生成画像をローカルストレージへ保存し、DB には相対パスを記録する。
+    const imageStoragePath = await writeStoredImage(imageBuffer, "image/png");
+    // 新規チャットから生成した場合は、完了画像ができた時点でセッションを作る。
+    session ??= await prisma.session.create({
+      data: {
+        userId: user.id,
+        title: makeTitle(prompt),
+      },
+      select: { id: true, title: true },
+    });
 
-        try {
-          // 部分画像は保存せず即時返却するだけにする。
-          // 完成画像が確定した時点でファイル保存、ユーザー発言、アシスタント添付をまとめて作成する。
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+    const inputAttachmentCreates = await Promise.all(
+      imageInputs.map(async (image) => ({
+        filename: image.filename,
+        mimeType: image.mimeType,
+        size: image.size,
+        imageStoragePath: await writeStoredImage(image.buffer, image.mimeType),
+      })),
+    );
 
-            buffer += decoder.decode(value, { stream: true });
-            // SSE は改行区切り。末尾は未完成行かもしれないため次の chunk へ持ち越す。
-            const lines = buffer.split(/\r?\n/);
-            buffer = lines.pop() ?? "";
-
-            for (const line of lines) {
-              if (!line.startsWith("data:")) continue;
-
-              // OpenAI の SSE 行を、画像生成イベントのオブジェクトへ変換する。
-              const event = parseStreamPayload(line);
-              if (!event) continue;
-
-              if (event.type === "error") {
-                throw new Error(event.error?.message ?? "OpenAI stream returned an error.");
-              }
-
-              if (
-                event.type === "response.image_generation_call.partial_image" &&
-                event.partial_image_b64
-              ) {
-                // 部分画像は履歴保存せず、UI の進捗表示用にそのまま返す。
-                latestImageBase64 = event.partial_image_b64;
-                controller.enqueue(
-                  encoder.encode(makeImageEvent("partial", event.partial_image_b64)),
-                );
-              }
-
-              if (event.type === "response.completed") {
-                // 完了イベントに最終画像が含まれる想定だが、なければ最後の partial を採用する。
-                const imageBase64 = findCompletedImage(event.response) ?? latestImageBase64;
-                if (!imageBase64) {
-                  throw new Error("OpenAI did not return image data.");
-                }
-                // 保存処理には base64 ではなく Buffer が必要なので変換する。
-                const imageBuffer = Buffer.from(imageBase64, "base64");
-                // 生成画像をローカルストレージへ保存し、DB には相対パスを記録する。
-                const imageStoragePath = await writeStoredImage(imageBuffer, "image/png");
-                // 新規チャットから生成した場合は、完了画像ができた時点でセッションを作る。
-                session ??= await prisma.session.create({
-                  data: {
-                    userId: user.id,
-                    title: makeTitle(prompt),
-                  },
-                  select: { id: true, title: true },
-                });
-
-                const inputAttachmentCreates = await Promise.all(
-                  imageInputs.map(async (image) => ({
-                    filename: image.filename,
-                    mimeType: image.mimeType,
-                    size: image.size,
-                    imageStoragePath: await writeStoredImage(image.buffer, image.mimeType),
-                  })),
-                );
-
-                // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。
-                await prisma.message.create({
-                  data: {
-                    sessionId: session.id,
-                    role: "USER",
-                    content: prompt,
-                    model,
-                    reasoningEffort: toDbReasoning(reasoning),
-                    attachments: inputAttachmentCreates.length
-                      ? {
-                          create: inputAttachmentCreates,
-                        }
-                      : undefined,
-                  },
-                });
-
-                // アシスタント発言は本文なしで、生成画像を添付として保存する。
-                await prisma.message.create({
-                  data: {
-                    sessionId: session.id,
-                    role: "ASSISTANT",
-                    content: "",
-                    model,
-                    reasoningEffort: toDbReasoning(reasoning),
-                    attachments: {
-                      create: {
-                        filename: "generated-image.png",
-                        mimeType: "image/png",
-                        size: imageBuffer.byteLength,
-                        imageStoragePath,
-                      },
-                    },
-                  },
-                });
-
-                // 既存の New chat ならタイトルを付け直し、一覧の並び替え用に updatedAt も進める。
-                await prisma.session.update({
-                  where: { id: session.id },
-                  data: {
-                    title: session.title === "New chat" ? makeTitle(prompt) : session.title,
-                    updatedAt: new Date(),
-                  },
-                });
-
-                // completed には sessionId も含め、フロント側が新規セッションへ切り替えられるようにする。
-                controller.enqueue(encoder.encode(makeImageEvent("completed", imageBase64, session.id)));
-              }
+    // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。
+    await prisma.message.create({
+      data: {
+        sessionId: session.id,
+        role: "USER",
+        content: prompt,
+        model,
+        reasoningEffort: toDbReasoning(reasoning),
+        attachments: inputAttachmentCreates.length
+          ? {
+              create: inputAttachmentCreates,
             }
-          }
-
-          controller.close();
-        } catch (error) {
-          controller.enqueue(
-            encoder.encode(
-              `${JSON.stringify({ type: "error", error: getErrorMessage(error) })}\n`,
-            ),
-          );
-          controller.close();
-        }
+          : undefined,
       },
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "application/x-ndjson; charset=utf-8",
-        "Cache-Control": "no-cache, no-transform",
+    // アシスタント発言は本文なしで、生成画像を添付として保存する。
+    await prisma.message.create({
+      data: {
+        sessionId: session.id,
+        role: "ASSISTANT",
+        content: "",
+        model,
+        reasoningEffort: toDbReasoning(reasoning),
+        attachments: {
+          create: {
+            filename: "generated-image.png",
+            mimeType: "image/png",
+            size: imageBuffer.byteLength,
+            imageStoragePath,
+          },
+        },
       },
     });
+
+    // 既存の New chat ならタイトルを付け直し、一覧の並び替え用に updatedAt も進める。
+    await prisma.session.update({
+      where: { id: session.id },
+      data: {
+        title: session.title === "New chat" ? makeTitle(prompt) : session.title,
+        updatedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(
+      {
+        sessionId: session.id,
+        image: {
+          mimeType: "image/png",
+          dataUrl: `data:image/png;base64,${imageBase64}`,
+        },
+      },
+      {
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
   } catch (error) {
     return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
   }

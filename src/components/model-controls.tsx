@@ -68,7 +68,7 @@ export function ReasoningSelect({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-10 items-center gap-1 rounded-full px-3 text-sm font-medium text-slate-900 hover:bg-[#e9e7e5]"
+        className="flex h-9 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 hover:bg-[#e9e7e5] sm:h-10 sm:gap-1 sm:px-3 sm:text-sm"
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -78,10 +78,10 @@ export function ReasoningSelect({
 
       {open && (
         <div
-          className="absolute bottom-full right-0 z-30 mb-3 w-80 overflow-hidden rounded-[1.35rem] bg-white py-2 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200"
+          className="fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
           role="menu"
         >
-          <div className="space-y-1 p-2">
+          <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
             {options.map((item) => {
               // 今描画している選択肢が現在値かどうか。背景色とチェックアイコンに使う。
               const selected = item === value;
@@ -94,7 +94,7 @@ export function ReasoningSelect({
                     onChange(item);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left ${
+                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
                     selected ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
                   }`}
                   role="menuitemradio"
@@ -104,10 +104,10 @@ export function ReasoningSelect({
                     {selected ? <Check size={16} strokeWidth={2.3} /> : null}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-950">
+                    <span className="block text-xs font-semibold text-slate-950 sm:text-sm">
                       {item === "xhigh" ? xhighLabel : reasoningLabels[item]}
                     </span>
-                    <span className="mt-0.5 block text-sm leading-5 text-slate-500">
+                    <span className="mt-0.5 block text-xs leading-4 text-slate-500 sm:text-sm sm:leading-5">
                       {reasoningDescriptions[item]}
                     </span>
                   </span>
@@ -158,7 +158,7 @@ export function ModelSelect({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-10 max-w-44 items-center gap-1 rounded-full px-3 text-sm font-medium text-slate-900 hover:bg-[#e9e7e5] sm:max-w-none"
+        className="flex h-9 max-w-32 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 hover:bg-[#e9e7e5] sm:h-10 sm:max-w-none sm:gap-1 sm:px-3 sm:text-sm"
         aria-haspopup="menu"
         aria-expanded={open}
       >
@@ -168,10 +168,10 @@ export function ModelSelect({
 
       {open && (
         <div
-          className="absolute bottom-full left-0 z-30 mb-3 w-80 overflow-hidden rounded-[1.35rem] bg-white py-2 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200"
+          className="fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
           role="menu"
         >
-          <div className="space-y-1 p-2">
+          <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
             {MODEL_OPTIONS.map((item) => {
               // 現在選択中のモデルかどうか。選択済み表示に使う。
               const selected = item.id === value;
@@ -184,7 +184,7 @@ export function ModelSelect({
                     onChange(item.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-3 rounded-2xl px-3 py-3 text-left ${
+                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
                     selected ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
                   }`}
                   role="menuitemradio"
@@ -194,10 +194,10 @@ export function ModelSelect({
                     {selected ? <Check size={16} strokeWidth={2.3} /> : null}
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block text-sm font-semibold text-slate-950">
+                    <span className="block text-xs font-semibold text-slate-950 sm:text-sm">
                       {item.label}
                     </span>
-                    <span className="mt-0.5 block text-sm leading-5 text-slate-500">
+                    <span className="mt-0.5 block text-xs leading-4 text-slate-500 sm:text-sm sm:leading-5">
                       {modelDescriptions[item.id]}
                     </span>
                   </span>

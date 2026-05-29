@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Download, Paperclip } from "lucide-react";
+import { Download, ImagePlus, Paperclip } from "lucide-react";
 import { memo } from "react";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { isImageMimeType } from "@/lib/client-files";
@@ -13,6 +13,20 @@ function ThinkingIndicator({ seconds }: { seconds: number }) {
     <div className="thinking-indicator" aria-live="polite">
       Thinking time: {seconds}s
       <span aria-hidden="true">›</span>
+    </div>
+  );
+}
+
+function GeneratingImagePreview() {
+  // 完成前の部分画像は出さず、画像生成中だと分かる固定プレビューだけ出す。
+  return (
+    <div className="generated-image-grid" aria-label="Generating image">
+      <div className="generated-image-placeholder">
+        <div className="generated-image-placeholder-frame">
+          <ImagePlus size={34} />
+          <div className="generated-image-placeholder-glow" />
+        </div>
+      </div>
     </div>
   );
 }
@@ -33,6 +47,15 @@ export const ChatMessage = memo(function ChatMessage({
 }: ChatMessageProps) {
   // メッセージの役割ごとに表示密度を変える。
   // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
+  const generatedImages = message.generatedImages ?? [];
+  const hasGeneratedImages = generatedImages.length > 0;
+  const shouldShowImagePreview = !!message.isGeneratingImage && !hasGeneratedImages;
+  const shouldShowThinking =
+    isStreaming &&
+    message.role === "ASSISTANT" &&
+    !message.content &&
+    !hasGeneratedImages;
+
   return (
     <article className={`flex gap-3 ${message.role === "USER" ? "justify-end" : "justify-start"}`}>
       <div
@@ -44,10 +67,10 @@ export const ChatMessage = memo(function ChatMessage({
       >
         {message.role === "ASSISTANT" ? (
           <div className="markdown-body">
-            {!!message.generatedImages?.length && (
+            {hasGeneratedImages && (
               // 画像生成モードの結果。本文とは別に、ダウンロード可能な画像として表示する。
               <div className="generated-image-grid">
-                {message.generatedImages.map((image) => (
+                {generatedImages.map((image) => (
                   <div key={image.id} className="generated-image-shell">
                     <Image
                       src={image.dataUrl}
@@ -70,10 +93,11 @@ export const ChatMessage = memo(function ChatMessage({
                 ))}
               </div>
             )}
+            {shouldShowImagePreview && <GeneratingImagePreview />}
             {message.content ? (
               <AssistantMarkdown content={message.content} />
             ) : (
-              isStreaming ? <ThinkingIndicator seconds={thinkingSeconds} /> : ""
+              shouldShowThinking ? <ThinkingIndicator seconds={thinkingSeconds} /> : ""
             )}
           </div>
         ) : (
@@ -150,7 +174,10 @@ function areChatMessagePropsEqual(previous: ChatMessageProps, next: ChatMessageP
 
   const isWaitingAssistant =
     // 空本文のアシスタントがストリーミング中なら、経過秒数の更新だけは再描画対象にする。
-    next.message.role === "ASSISTANT" && next.message.content.length === 0 && next.isStreaming;
+    next.message.role === "ASSISTANT" &&
+    next.message.content.length === 0 &&
+    !next.message.generatedImages?.length &&
+    next.isStreaming;
 
   return !isWaitingAssistant || previous.thinkingSeconds === next.thinkingSeconds;
 }

@@ -29,6 +29,8 @@ export type Message = {
     // 画像の MIME type。現在は主に image/png。
     mimeType: string;
   }[];
+  // 画像生成中だけローカル表示に使う占位状態。DB からは返らない。
+  isGeneratingImage?: boolean;
   // ユーザー添付、または生成画像以外のアシスタント添付。
   attachments?: {
     // 添付 ID。送信前はローカル ID、保存後は DB ID。
@@ -46,19 +48,17 @@ export type Message = {
   }[];
 };
 
-export type ImageStreamEvent = {
-  // 画像生成 API から 1 行ごとに届くイベント種別。
-  type?: "partial" | "completed" | "error";
-  // completed 時に返るセッション ID。新規チャット生成時の切り替えに使う。
+export type ImageGenerationResult = {
+  // 完成時に返るセッション ID。新規チャット生成時の切り替えに使う。
   sessionId?: string;
-  // partial/completed で届く画像データ。
+  // 完成画像のデータ。
   image?: {
     // 表示用の base64 data URL。
     dataUrl?: string;
     // 画像 MIME type。
     mimeType?: string;
   };
-  // error イベント時のメッセージ。
+  // エラー時のメッセージ。
   error?: string;
 };
 
