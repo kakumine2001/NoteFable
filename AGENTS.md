@@ -14,6 +14,8 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - OpenAI handles normal text/image-input chat through `/api/chat`; image generation is an explicit UI mode and goes through `/api/images`. Do not infer image generation from prompt text.
 - Text-like files and PDFs are extracted as text context. Image files are stored through `src/lib/storage.ts`; keep image binaries out of PostgreSQL and store only metadata/storage paths.
 - Render config lives in `render.yaml` and currently uses the existing `render_db` through `DATABASE_URL`. Do not add a new Render database unless explicitly asked.
+- `render_db.public` is shared with Kaku Log. Production and shared database updates must use `prisma migrate deploy` only.
+- Never run `prisma db push`, `prisma db push --accept-data-loss`, `prisma db push --force-reset`, or `prisma migrate reset` against the Render/shared database. Schema-wide sync can delete tables owned by the other project.
 
 ## Validation
 

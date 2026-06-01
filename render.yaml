@@ -3,7 +3,7 @@ services:
     name: studymate
     runtime: node
     plan: free
-    buildCommand: npm ci && npm run prisma:push && npm run build
+    buildCommand: npm ci && npm run prisma:migrate && npm run build
     startCommand: npm run start
     envVars:
       - key: OPENAI_API_KEY
