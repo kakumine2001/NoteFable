@@ -48,6 +48,8 @@ type ImageInputAttachment = {
 type ImageGenerationResponse = {
   output?: {
     type?: string;
+    status?: string;
+    action?: string;
     result?: unknown;
   }[];
   error?: {
@@ -59,6 +61,8 @@ const SUPPORTED_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"])
 const SUPPORTED_QUALITIES = new Set(["low", "medium", "high", "auto"]);
 // 画像生成プロンプトの上限。長すぎる入力で API コストや保存履歴が膨らまないようにする。
 const MAX_PROMPT_CHARS = 4_000;
+// 互換プロキシがまれに画像ツールを実行しないため、保存前に一度だけ再試行する。
+const IMAGE_GENERATION_ATTEMPTS = 2;
 
 function makeTitle(message: string) {
   // 画像生成でもチャットと同じルールで、プロンプト先頭からセッションタイトルを作る。
@@ -161,6 +165,19 @@ export function findCompletedImage(data?: ImageGenerationResponse): string | und
   return imageOutput?.result;
 }
 
+function summarizeImageResponse(data?: ImageGenerationResponse) {
+  // ログには base64 や prompt を出さず、上流が画像ツールを返したかだけ残す。
+  return {
+    error: data?.error?.message,
+    output: data?.output?.map((item) => ({
+      type: item.type,
+      status: item.status,
+      action: item.action,
+      hasResult: typeof item.result === "string" && item.result.length > 0,
+    })),
+  };
+}
+
 async function prepareImageInputs(files: File[]) {
   // 参照画像はDB保存より先に、上流 API へ渡す data URL として組み立てる。
   const inputs: ImageInputAttachment[] = [];
@@ -229,6 +246,7 @@ async function createUpstreamImageResponse(
         {
           type: "image_generation",
           model: optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2",
+          action: "generate",
           size,
           quality,
           output_format: "png",
@@ -358,16 +376,27 @@ export async function POST(request: Request) {
     }
 
     // OpenAI 側から完成済みレスポンスを受け、image_generation_call の result を保存する。
-    const upstream = await createUpstreamImageResponse(
-      prompt,
-      normalizeSize(body.size),
-      normalizeQuality(body.quality),
-      imageInputs,
-    );
+    let imageBase64: string | undefined;
+    for (let attempt = 1; attempt <= IMAGE_GENERATION_ATTEMPTS; attempt += 1) {
+      const upstream = await createUpstreamImageResponse(
+        prompt,
+        normalizeSize(body.size),
+        normalizeQuality(body.quality),
+        imageInputs,
+      );
+
+      imageBase64 = findCompletedImage(upstream);
+      if (imageBase64) break;
+
+      console.warn("OpenAI image generation returned no image", {
+        attempt,
+        upstream: summarizeImageResponse(upstream),
+      });
+    }
+
     // 既存セッションがあればそれを使い、新規なら完了時に作ったセッションをここへ入れる。
     let session = existingSession;
 
-    const imageBase64 = findCompletedImage(upstream);
     if (!imageBase64) {
       throw new Error("OpenAI did not return image data.");
     }

@@ -13,6 +13,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - DeepSeek is text-only in this project. Do not enable image input or image generation for DeepSeek models. DeepSeek web search, when enabled, uses Tavily results as text context.
 - OpenAI handles normal text/image-input chat through `/api/chat`; image generation is an explicit UI mode and goes through `/api/images`. Do not infer image generation from prompt text.
 - Production `OPENAI_BASE_URL` uses a compatible proxy. For `/responses` image generation, send non-ASCII JSON strings as `\uXXXX` escapes because raw UTF-8 prompts can be corrupted by the proxy.
+- The same proxy can intermittently return a completed `/responses` payload without `image_generation_call.result`; image generation should force `action: "generate"` and retry once before failing.
 - Text-like files and PDFs are extracted as text context. Image files are stored through `src/lib/storage.ts`; keep image binaries out of PostgreSQL and store only metadata/storage paths.
 - Render config lives in `render.yaml` and currently uses the existing `render_db` through `DATABASE_URL`. Do not add a new Render database unless explicitly asked.
 - `render_db.public` is shared with Kaku Log. Production and shared database updates must use `prisma migrate deploy` only.
