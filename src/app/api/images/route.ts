@@ -127,6 +127,28 @@ function getErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "Image generation failed.";
 }
 
+function stringifyJsonForProxy(value: unknown) {
+  // 一部の互換プロキシは UTF-8 の非 ASCII 文字を壊すため、JSON 文字列内は \uXXXX で送る。
+  return JSON.stringify(value).replace(/[^\x00-\x7F]/g, (char) =>
+    Array.from(char)
+      .map((item) => {
+        const codePoint = item.codePointAt(0) ?? 0;
+
+        if (codePoint <= 0xffff) {
+          return `\\u${codePoint.toString(16).padStart(4, "0")}`;
+        }
+
+        const high = Math.floor((codePoint - 0x10000) / 0x400) + 0xd800;
+        const low = ((codePoint - 0x10000) % 0x400) + 0xdc00;
+
+        return `\\u${high.toString(16).padStart(4, "0")}\\u${low
+          .toString(16)
+          .padStart(4, "0")}`;
+      })
+      .join(""),
+  );
+}
+
 export function findCompletedImage(data?: ImageGenerationResponse): string | undefined {
   // output 配列から、最終画像の base64 を持つ image_generation_call を探す。
   const imageOutput = data?.output?.find(
@@ -198,9 +220,9 @@ async function createUpstreamImageResponse(
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
+      "Content-Type": "application/json; charset=utf-8",
     },
-    body: JSON.stringify({
+    body: stringifyJsonForProxy({
       model: optionalEnv("OPENAI_IMAGE_RESPONSE_MODEL") || "gpt-5.5",
       input: buildImageGenerationInput(prompt, imageInputs),
       tools: [
