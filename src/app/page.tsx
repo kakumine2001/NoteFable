@@ -275,6 +275,14 @@ export default function Home() {
     setSessions(Array.isArray(data.sessions) ? (data.sessions as Session[]) : []);
   }
 
+  async function createEmptySession() {
+    const response = await fetch("/api/sessions", { method: "POST" });
+    const data = await readJsonObject(response);
+    if (!response.ok) return null;
+
+    return (data.session as Session | undefined) ?? null;
+  }
+
   async function loadMessages(sessionId: string) {
     if (streamingSessionsRef.current[sessionId]) {
       // 生成中の会話はDB保存前の差分を持つため、ローカル表示を優先する。
@@ -305,10 +313,7 @@ export default function Home() {
       return;
     }
 
-    const response = await fetch("/api/sessions", { method: "POST" });
-    const data = await readJsonObject(response);
-    if (!response.ok) return;
-    const session = data.session as Session | undefined;
+    const session = await createEmptySession();
     if (!session) return;
     setSessions((current) => [session, ...current]);
     replaceCachedMessages(session.id, []);
@@ -396,7 +401,7 @@ export default function Home() {
 
     const submittedInputValue = inputRef.current?.value ?? input;
     const userContent = submittedInputValue.trim();
-    const requestSessionId = activeSessionId;
+    let requestSessionId = activeSessionId;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
     if (
@@ -408,6 +413,25 @@ export default function Home() {
     }
 
     submittingSessionKeysRef.current.add(requestSessionKey);
+
+    if (!requestSessionId) {
+      // 未保存の新規チャットは送信開始前に実セッション化する。
+      // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
+      const session = await createEmptySession();
+      if (!session) {
+        submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+        return;
+      }
+
+      requestSessionId = session.id;
+      requestSessionKey = session.id;
+      submittingSessionKeysRef.current.add(requestSessionKey);
+      setSessions((current) =>
+        current.some((item) => item.id === session.id) ? current : [session, ...current],
+      );
+      activeSessionIdRef.current = session.id;
+      setActiveSessionId(session.id);
+    }
 
     // 送信後すぐにユーザー発言と空のアシスタント枠を追加する。
     // API の応答を待ってから描画すると体感が遅くなるため、先に表示してストリーム差分で埋めていく。
