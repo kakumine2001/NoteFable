@@ -26,3 +26,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - Run `npx prisma validate` when Prisma schema or migrations change.
 - For frontend source, UI layout, styling, responsive behavior, or visual appearance changes, verify the requested behavior with the Codex in-app Browser plugin. Check the relevant viewport instead of relying only on code inspection.
 - Do not run Playwright/E2E/deep browser test suites by default unless the user asks.
+
+## running app
+
+本地测试的话先看docker有没有启动,没启动的话先启动

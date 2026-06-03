@@ -22,9 +22,10 @@ function GeneratingImagePreview() {
   return (
     <div className="generated-image-grid" aria-label="Generating image">
       <div className="generated-image-placeholder">
+        <div className="generated-image-placeholder-grid" aria-hidden="true" />
+        <div className="generated-image-placeholder-lights" aria-hidden="true" />
         <div className="generated-image-placeholder-frame">
-          <ImagePlus size={34} />
-          <div className="generated-image-placeholder-glow" />
+          <ImagePlus size={42} strokeWidth={1.9} />
         </div>
       </div>
     </div>
