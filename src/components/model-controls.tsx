@@ -68,17 +68,22 @@ export function ReasoningSelect({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-9 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 hover:bg-[#e9e7e5] sm:h-10 sm:gap-1 sm:px-3 sm:text-sm"
+        className="flex h-9 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] sm:h-10 sm:gap-1 sm:px-3 sm:text-sm"
         aria-haspopup="menu"
         aria-expanded={open}
       >
         <span>{value === "xhigh" ? xhighLabel : reasoningLabels[value]}</span>
-        <ChevronDown className="text-slate-700" size={15} />
+        <ChevronDown
+          className={`text-slate-700 transition-transform duration-150 ease-out ${
+            open ? "rotate-180" : ""
+          }`}
+          size={15}
+        />
       </button>
 
       {open && (
         <div
-          className="fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
+          className="motion-menu fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
           role="menu"
         >
           <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
@@ -94,7 +99,7 @@ export function ReasoningSelect({
                     onChange(item);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
+                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
                     selected ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
                   }`}
                   role="menuitemradio"
@@ -158,17 +163,22 @@ export function ModelSelect({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-9 max-w-32 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 hover:bg-[#e9e7e5] sm:h-10 sm:max-w-none sm:gap-1 sm:px-3 sm:text-sm"
+        className="flex h-9 max-w-32 items-center gap-0.5 rounded-full px-1.5 text-xs font-medium text-slate-900 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] sm:h-10 sm:max-w-none sm:gap-1 sm:px-3 sm:text-sm"
         aria-haspopup="menu"
         aria-expanded={open}
       >
         <span className="truncate">{currentModel.label}</span>
-        <ChevronDown className="shrink-0 text-slate-700" size={15} />
+        <ChevronDown
+          className={`shrink-0 text-slate-700 transition-transform duration-150 ease-out ${
+            open ? "rotate-180" : ""
+          }`}
+          size={15}
+        />
       </button>
 
       {open && (
         <div
-          className="fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
+          className="motion-menu fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-0 sm:mb-3 sm:w-80 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
           role="menu"
         >
           <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
@@ -184,7 +194,7 @@ export function ModelSelect({
                     onChange(item.id);
                     setOpen(false);
                   }}
-                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
+                  className={`flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-[background-color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3 ${
                     selected ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
                   }`}
                   role="menuitemradio"

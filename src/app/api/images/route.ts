@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { writeStoredImage } from "@/lib/storage";
+import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
 export const runtime = "nodejs";
 
@@ -42,15 +43,11 @@ type ImageInputAttachment = {
   mimeType: string;
   size: number;
   buffer: Buffer;
-  imageInputDataUrl: string;
 };
 
-type ImageGenerationResponse = {
-  output?: {
-    type?: string;
-    status?: string;
-    action?: string;
-    result?: unknown;
+type ImageApiResponse = {
+  data?: {
+    b64_json?: unknown;
   }[];
   error?: {
     message?: string;
@@ -59,9 +56,14 @@ type ImageGenerationResponse = {
 
 const SUPPORTED_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
 const SUPPORTED_QUALITIES = new Set(["low", "medium", "high", "auto"]);
+const SUPPORTED_IMAGE_GENERATION_INPUT_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+]);
 // 画像生成プロンプトの上限。長すぎる入力で API コストや保存履歴が膨らまないようにする。
 const MAX_PROMPT_CHARS = 4_000;
-// 互換プロキシがまれに画像ツールを実行しないため、保存前に一度だけ再試行する。
+// 互換プロキシがまれに画像を返さないため、保存前に一度だけ再試行する。
 const IMAGE_GENERATION_ATTEMPTS = 2;
 
 function makeTitle(message: string) {
@@ -128,7 +130,7 @@ async function readImageRequest(request: Request): Promise<ImageRequestInput> {
 
 function getErrorMessage(error: unknown) {
   // ストリーム内外の catch で使う、画像生成向けのエラーメッセージ整形。
-  return error instanceof Error ? error.message : "Image generation failed.";
+  return sanitizeErrorMessage(error, "Image generation failed.");
 }
 
 function stringifyJsonForProxy(value: unknown) {
@@ -153,33 +155,36 @@ function stringifyJsonForProxy(value: unknown) {
   );
 }
 
-export function findCompletedImage(data?: ImageGenerationResponse): string | undefined {
-  // output 配列から、最終画像の base64 を持つ image_generation_call を探す。
-  const imageOutput = data?.output?.find(
-    (item): item is { type?: string; result: string } =>
-      item.type === "image_generation_call" &&
-      typeof item.result === "string" &&
-      item.result.length > 0,
+export function findGeneratedImage(data?: ImageApiResponse): string | undefined {
+  // Images API は data[0].b64_json に完成画像を返す。
+  const image = data?.data?.find(
+    (item): item is { b64_json: string } =>
+      typeof item.b64_json === "string" && item.b64_json.length > 0,
   );
 
-  return imageOutput?.result;
+  return image?.b64_json;
 }
 
-function summarizeImageResponse(data?: ImageGenerationResponse) {
-  // ログには base64 や prompt を出さず、上流が画像ツールを返したかだけ残す。
+function summarizeImageApiResponse(data?: ImageApiResponse) {
+  // Images API の結果も base64 を出さず、画像数だけ記録する。
   return {
     error: data?.error?.message,
-    output: data?.output?.map((item) => ({
-      type: item.type,
-      status: item.status,
-      action: item.action,
-      hasResult: typeof item.result === "string" && item.result.length > 0,
+    data: data?.data?.map((item) => ({
+      hasResult: typeof item.b64_json === "string" && item.b64_json.length > 0,
     })),
   };
 }
 
+function toImageApiSize(size: ImageSize) {
+  return size;
+}
+
+function toImageApiQuality(quality: ImageQuality) {
+  return quality;
+}
+
 async function prepareImageInputs(files: File[]) {
-  // 参照画像はDB保存より先に、上流 API へ渡す data URL として組み立てる。
+  // 参照画像はDB保存より先に、上流 Images API へ渡せる Buffer として組み立てる。
   const inputs: ImageInputAttachment[] = [];
 
   for (const file of files) {
@@ -193,88 +198,109 @@ async function prepareImageInputs(files: File[]) {
       mimeType,
       size: file.size,
       buffer,
-      imageInputDataUrl: `data:${mimeType};base64,${buffer.toString("base64")}`,
     });
   }
 
   return inputs;
 }
 
-function buildImageGenerationInput(prompt: string, imageInputs: ImageInputAttachment[]) {
-  if (!imageInputs.length) return prompt;
-
-  return [
-    {
-      role: "user",
-      content: [
-        {
-          type: "input_text",
-          text: prompt,
-        },
-        ...imageInputs.map((image) => ({
-          type: "input_image",
-          image_url: image.imageInputDataUrl,
-        })),
-      ],
-    },
-  ];
+function isSupportedImageGenerationInput(file: File) {
+  // Images API が安定して受け取る画像形式だけを許可する。
+  return SUPPORTED_IMAGE_GENERATION_INPUT_TYPES.has(file.type || "application/octet-stream");
 }
 
-async function createUpstreamImageResponse(
+async function createImageApiGeneration(
   prompt: string,
   size: ImageSize,
   quality: ImageQuality,
-  imageInputs: ImageInputAttachment[],
 ) {
-  // Responses API に image_generation ツールを明示し、テキスト回答ではなく画像生成を必ず実行させる。
-  // UI には完成画像だけ返すため、上流も非ストリームで受け取り final result を読む。
-  // OpenAI API キーは画像生成で必須。未設定ならここで分かりやすく失敗させる。
+  // テキストだけの画像生成は Images API を使う。互換プロキシ経由の Responses 画像ツールは
+  // 同期完了前に 524 HTML で切られることがある。
   const apiKey = requireEnv("OPENAI_API_KEY");
-  // API の向き先は環境変数で差し替え可能。未設定なら公式エンドポイントを使う。
   const baseURL = optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1";
 
-  const response = await fetch(`${baseURL.replace(/\/$/, "")}/responses`, {
+  const response = await fetch(`${baseURL.replace(/\/$/, "")}/images/generations`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json; charset=utf-8",
     },
     body: stringifyJsonForProxy({
-      model: optionalEnv("OPENAI_IMAGE_RESPONSE_MODEL") || "gpt-5.5",
-      input: buildImageGenerationInput(prompt, imageInputs),
-      tools: [
-        {
-          type: "image_generation",
-          model: optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2",
-          action: "generate",
-          size,
-          quality,
-          output_format: "png",
-        },
-      ],
-      tool_choice: {
-        type: "image_generation",
-      },
-      store: false,
+      model: optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2",
+      prompt,
+      n: 1,
+      size: toImageApiSize(size),
+      quality: toImageApiQuality(quality),
+      output_format: "png",
     }),
   });
 
+  const text = await response.text();
+  let data: ImageApiResponse = {};
+
+  try {
+    data = text ? (JSON.parse(text) as ImageApiResponse) : {};
+  } catch {
+    data = {};
+  }
+
   if (!response.ok) {
-    const text = await response.text();
-    let data: ImageGenerationResponse = {};
-
-    try {
-      data = text ? (JSON.parse(text) as ImageGenerationResponse) : {};
-    } catch {
-      data = {};
-    }
-
     throw new Error(
-      data.error?.message ?? (text || `OpenAI request failed: ${response.status}`),
+      data.error?.message ?? buildUpstreamErrorMessage("OpenAI", response.status, text),
     );
   }
 
-  return (await response.json()) as ImageGenerationResponse;
+  return data;
+}
+
+async function createImageApiEdit(
+  prompt: string,
+  size: ImageSize,
+  quality: ImageQuality,
+  imageInputs: ImageInputAttachment[],
+) {
+  // 参照画像つき生成は Images API の edit endpoint を使う。
+  // Responses 経由だと互換プロキシで HTML timeout が返ることがある。
+  const apiKey = requireEnv("OPENAI_API_KEY");
+  const baseURL = optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1";
+  const formData = new FormData();
+
+  formData.append("model", optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2");
+  formData.append("prompt", prompt);
+  formData.append("n", "1");
+  formData.append("size", toImageApiSize(size));
+  formData.append("quality", toImageApiQuality(quality));
+  formData.append("output_format", "png");
+
+  for (const image of imageInputs) {
+    const blob = new Blob([new Uint8Array(image.buffer)], { type: image.mimeType });
+    formData.append("image", blob, image.filename);
+  }
+
+  const response = await fetch(`${baseURL.replace(/\/$/, "")}/images/edits`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: formData,
+  });
+
+  const text = await response.text();
+  let data: ImageApiResponse = {};
+
+  try {
+    data = text ? (JSON.parse(text) as ImageApiResponse) : {};
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(
+      data.error?.message ?? buildUpstreamErrorMessage("OpenAI", response.status, text),
+    );
+  }
+
+  return data;
 }
 
 export async function POST(request: Request) {
@@ -356,6 +382,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (body.files.some((file) => !isSupportedImageGenerationInput(file))) {
+    return NextResponse.json(
+      { error: "Image generation accepts PNG, JPEG, or WebP reference images only." },
+      { status: 400 },
+    );
+  }
+
   const imageInputs = await prepareImageInputs(body.files);
 
   try {
@@ -377,27 +410,51 @@ export async function POST(request: Request) {
 
     // OpenAI 側から完成済みレスポンスを受け、image_generation_call の result を保存する。
     let imageBase64: string | undefined;
+    const size = normalizeSize(body.size);
+    const quality = normalizeQuality(body.quality);
+    let lastGenerationError: unknown;
+
     for (let attempt = 1; attempt <= IMAGE_GENERATION_ATTEMPTS; attempt += 1) {
-      const upstream = await createUpstreamImageResponse(
-        prompt,
-        normalizeSize(body.size),
-        normalizeQuality(body.quality),
-        imageInputs,
-      );
+      try {
+        if (imageInputs.length) {
+          const upstream = await createImageApiEdit(prompt, size, quality, imageInputs);
 
-      imageBase64 = findCompletedImage(upstream);
-      if (imageBase64) break;
+          imageBase64 = findGeneratedImage(upstream);
+          if (imageBase64) break;
 
-      console.warn("OpenAI image generation returned no image", {
-        attempt,
-        upstream: summarizeImageResponse(upstream),
-      });
+          console.warn("OpenAI image edit API returned no image", {
+            attempt,
+            upstream: summarizeImageApiResponse(upstream),
+          });
+        } else {
+          const upstream = await createImageApiGeneration(prompt, size, quality);
+
+          imageBase64 = findGeneratedImage(upstream);
+          if (imageBase64) break;
+
+          console.warn("OpenAI image API returned no image", {
+            attempt,
+            upstream: summarizeImageApiResponse(upstream),
+          });
+        }
+      } catch (error) {
+        lastGenerationError = error;
+        console.warn("OpenAI image API attempt failed", {
+          attempt,
+          hasReferenceImages: imageInputs.length > 0,
+          error: getErrorMessage(error),
+        });
+      }
     }
 
     // 既存セッションがあればそれを使い、新規なら完了時に作ったセッションをここへ入れる。
     let session = existingSession;
 
     if (!imageBase64) {
+      if (lastGenerationError) {
+        throw lastGenerationError;
+      }
+
       throw new Error("OpenAI did not return image data.");
     }
     // 保存処理には base64 ではなく Buffer が必要なので変換する。
@@ -481,6 +538,14 @@ export async function POST(request: Request) {
       },
     );
   } catch (error) {
-    return NextResponse.json({ error: getErrorMessage(error) }, { status: 500 });
+    const message = getErrorMessage(error);
+
+    console.error("Image generation failed", {
+      hasReferenceImages: imageInputs.length > 0,
+      referenceImageTypes: imageInputs.map((image) => image.mimeType),
+      error: message,
+    });
+
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

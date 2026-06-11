@@ -47,6 +47,78 @@ input {
   box-sizing: border-box;
 }
 
+.motion-menu {
+  animation: motion-menu-enter 160ms ease-out both;
+  transform-origin: var(--motion-origin, bottom center);
+}
+
+.motion-fade-in {
+  animation: motion-fade-in 150ms ease-out both;
+}
+
+.motion-sidebar-panel {
+  animation: motion-sidebar-panel-enter 180ms ease-out both;
+}
+
+.motion-desktop-sidebar {
+  animation: motion-desktop-sidebar-enter 160ms ease-out both;
+}
+
+@keyframes motion-menu-enter {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes motion-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes motion-sidebar-panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-0.75rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes motion-desktop-sidebar-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-0.5rem);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-menu,
+  .motion-fade-in,
+  .motion-sidebar-panel,
+  .motion-desktop-sidebar {
+    animation: none;
+  }
+}
+
 .markdown-body {
   /* アシスタント回答本文のベース。Markdown の要素間余白やコード表示は下の個別ルールで調整する。 */
   font-family: var(--font-cjk);

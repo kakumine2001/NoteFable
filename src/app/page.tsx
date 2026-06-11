@@ -6,6 +6,7 @@ import {
   Globe2,
   ImagePlus,
   Menu,
+  MessageSquare,
   Paperclip,
   PanelLeft,
   Plus,
@@ -24,6 +25,7 @@ import type { ImageGenerationResult, Message, Session, UploadFile } from "@/type
 
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
+const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
 
 function getMessagesKey(sessionId: string | null) {
   return sessionId ?? NEW_SESSION_MESSAGES_KEY;
@@ -92,6 +94,10 @@ async function readJsonObject(response: Response) {
   }
 }
 
+function readErrorMessage(data: Record<string, unknown>, fallback: string) {
+  return typeof data.error === "string" && data.error ? data.error : fallback;
+}
+
 export default function Home() {
   // 左サイドバーに表示するチャットセッション一覧。
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -101,6 +107,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
+  // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
+  const [sendError, setSendError] = useState("");
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
   // 推論強度の UI 選択値。モデルごとに選べる値が違うため、changeModel で補正する。
@@ -109,6 +117,8 @@ export default function Home() {
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
   // GPT の通常チャットで OpenAI Web 検索ツールを使うかどうか。
   const [webSearchMode, setWebSearchMode] = useState(false);
+  // 入力欄を狭めないよう、Chat/Search/Image は一つのモードメニューにまとめる。
+  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 会話ごとのストリーム開始時刻。複数会話を並行生成できるよう、会話キー別に持つ。
@@ -133,6 +143,8 @@ export default function Home() {
   const filesRef = useRef<UploadFile[]>([]);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
+  // モードメニューの外側クリック判定に使う。
+  const modeMenuRef = useRef<HTMLDivElement | null>(null);
   // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
   const submittingSessionKeysRef = useRef<Set<string>>(new Set());
   // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
@@ -148,6 +160,38 @@ export default function Home() {
   const canSend = input.trim().length > 0 && !isActiveSessionStreaming;
   // モデル ID から、対応機能や表示名をまとめた設定を引く。
   const selectedModel = getModelOption(model);
+  const inputPlaceholder = imageGenerationMode
+    ? "作りたい画像を入力"
+    : webSearchMode
+      ? "Webで調べたいことを入力"
+      : "メッセージを入力";
+  const activeInputMode = imageGenerationMode
+    ? { icon: ImagePlus, label: "Image" }
+    : webSearchMode
+      ? { icon: Globe2, label: "WebSearch" }
+      : { icon: MessageSquare, label: "Chat" };
+  const ActiveInputModeIcon = activeInputMode.icon;
+
+  useEffect(() => {
+    // メニューを開いた時だけ外側クリックを監視し、通常時のイベント数を増やさない。
+    function closeModeMenuOnOutsideClick(event: MouseEvent) {
+      if (!modeMenuRef.current?.contains(event.target as Node)) {
+        setModeMenuOpen(false);
+      }
+    }
+
+    if (modeMenuOpen) {
+      document.addEventListener("mousedown", closeModeMenuOnOutsideClick);
+    }
+
+    return () => document.removeEventListener("mousedown", closeModeMenuOnOutsideClick);
+  }, [modeMenuOpen]);
+
+  function chooseInputMode(nextMode: "chat" | "search" | "image") {
+    setImageGenerationMode(nextMode === "image");
+    setWebSearchMode(nextMode === "search");
+    setModeMenuOpen(false);
+  }
 
   function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
     sessionMessagesRef.current = {
@@ -278,9 +322,17 @@ export default function Home() {
   async function createEmptySession() {
     const response = await fetch("/api/sessions", { method: "POST" });
     const data = await readJsonObject(response);
-    if (!response.ok) return null;
+    if (!response.ok) {
+      return {
+        error: readErrorMessage(data, SESSION_CREATE_FALLBACK_ERROR),
+        session: null,
+      };
+    }
 
-    return (data.session as Session | undefined) ?? null;
+    return {
+      error: "",
+      session: (data.session as Session | undefined) ?? null,
+    };
   }
 
   async function loadMessages(sessionId: string) {
@@ -313,8 +365,12 @@ export default function Home() {
       return;
     }
 
-    const session = await createEmptySession();
-    if (!session) return;
+    const { error, session } = await createEmptySession();
+    if (!session) {
+      setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
+      return;
+    }
+    setSendError("");
     setSessions((current) => [session, ...current]);
     replaceCachedMessages(session.id, []);
     activeSessionIdRef.current = session.id;
@@ -356,10 +412,19 @@ export default function Home() {
     const scroller = chatScrollRef.current;
     if (!scroller) return;
 
-    scroller.scrollTop = scroller.scrollHeight;
+    const scrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    scroller.scrollTo({
+      top: scroller.scrollHeight,
+      behavior: scrollBehavior,
+    });
     setIsAtChatBottom(true);
     window.requestAnimationFrame(() => {
-      scroller.scrollTop = scroller.scrollHeight;
+      scroller.scrollTo({
+        top: scroller.scrollHeight,
+        behavior: scrollBehavior,
+      });
       setIsAtChatBottom(true);
     });
   }
@@ -412,13 +477,15 @@ export default function Home() {
       return;
     }
 
+    setSendError("");
     submittingSessionKeysRef.current.add(requestSessionKey);
 
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
-      const session = await createEmptySession();
+      const { error, session } = await createEmptySession();
       if (!session) {
+        setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -762,7 +829,7 @@ export default function Home() {
         <StudyMateLogo />
         <button
           type="button"
-          className="grid h-9 w-9 place-items-center rounded-full text-slate-500 hover:bg-slate-200"
+          className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
           onClick={() => {
             if (window.matchMedia("(min-width: 1024px)").matches) {
               setSidebarVisible(false);
@@ -779,8 +846,9 @@ export default function Home() {
 
       <div className="px-3 pb-3">
         <button
+          type="button"
           onClick={createSession}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#e9e7e5] px-4 text-sm font-semibold text-slate-950 hover:bg-[#dfdddb]"
+          className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#e9e7e5] px-4 text-sm font-semibold text-slate-950 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-[#dfdddb] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.98]"
         >
           <Plus size={17} />
           New chat
@@ -794,20 +862,20 @@ export default function Home() {
           sessions.map((session) => (
             <div
               key={session.id}
-              className={`group mb-1 flex items-center gap-1 rounded-full ${
+              className={`group mb-1 flex items-center gap-1 rounded-full transition-[background-color,transform] duration-150 ease-out ${
                 activeSessionId === session.id ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
               }`}
             >
               <button
                 onClick={() => loadMessages(session.id)}
-                className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm font-medium text-slate-800 hover:text-slate-950"
+                className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm font-medium text-slate-800 transition-colors duration-150 ease-out hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300/60 active:scale-[0.99]"
                 title={session.title}
               >
                 {session.title}
               </button>
               <button
                 onClick={() => deleteSession(session.id)}
-                className="mr-1 grid h-8 w-8 place-items-center rounded-full text-slate-600 opacity-0 hover:bg-white/70 hover:text-red-600 group-hover:opacity-100"
+                className="mr-1 grid h-8 w-8 place-items-center rounded-full text-slate-600 opacity-0 transition-[background-color,color,opacity,transform] duration-150 ease-out hover:bg-white/70 hover:text-red-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 active:scale-[0.96] group-hover:opacity-100"
                 aria-label="Delete session"
               >
                 <Trash2 size={15} />
@@ -824,16 +892,16 @@ export default function Home() {
 
   return (
     <main className="flex h-dvh bg-white text-slate-900">
-      {sidebarVisible && <div className="hidden lg:block">{sidebar}</div>}
+      {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
-            className="absolute inset-0 bg-slate-950/30"
+            className="motion-fade-in absolute inset-0 bg-slate-950/30"
             onClick={() => setSidebarOpen(false)}
             aria-label="Close sidebar overlay"
           />
-          <div className="relative h-full">{sidebar}</div>
+          <div className="motion-sidebar-panel relative h-full w-72">{sidebar}</div>
         </div>
       )}
 
@@ -847,7 +915,7 @@ export default function Home() {
         >
           <div className="flex min-w-0 items-center gap-3">
             <button
-              className="grid h-10 w-10 place-items-center rounded-full text-slate-600 hover:bg-[#e9e7e5] lg:hidden"
+              className="grid h-10 w-10 place-items-center rounded-full text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] lg:hidden"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar"
             >
@@ -856,7 +924,7 @@ export default function Home() {
             {!sidebarVisible && (
               <button
                 type="button"
-                className="hidden h-10 w-10 place-items-center rounded-full text-slate-600 hover:bg-[#e9e7e5] lg:grid"
+                className="hidden h-10 w-10 place-items-center rounded-full text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] lg:grid"
                 onClick={() => setSidebarVisible(true)}
                 aria-label="Open sidebar"
                 title="Toggle sidebar (Ctrl+B)"
@@ -915,26 +983,36 @@ export default function Home() {
           }`}
         >
           <div
-            className={`mx-auto mb-2 flex max-w-4xl justify-center ${
-              !emptyState && !isAtChatBottom ? "" : "invisible"
+            className={`mx-auto mb-2 flex max-w-4xl justify-center transition-[opacity,transform] duration-150 ease-out ${
+              !emptyState && !isAtChatBottom
+                ? "scale-100 opacity-100"
+                : "pointer-events-none scale-95 opacity-0"
             }`}
           >
             <button
               type="button"
               onClick={scrollChatToBottom}
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-slate-900"
+              className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900 hover:shadow-[0_10px_28px_rgba(15,23,42,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.96]"
               aria-label="Scroll to bottom"
               title="Scroll to bottom"
             >
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
           </div>
+          {sendError && (
+            <div
+              className="mx-auto mb-3 max-w-4xl rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700 ring-1 ring-red-100"
+              role="alert"
+            >
+              {sendError}
+            </div>
+          )}
           <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
             {!!files.length && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {files.map(({ id, file, previewUrl }) =>
                   previewUrl ? (
-                    <div key={id} className="group relative h-28 w-28 overflow-hidden rounded-[1.4rem]">
+                    <div key={id} className="group motion-menu relative h-28 w-28 overflow-hidden rounded-[1.4rem]">
                       <Image
                         src={previewUrl}
                         alt={file.name}
@@ -946,7 +1024,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => removeUploadFile(id)}
-                        className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white hover:bg-black/70"
+                        className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white transition-[background-color,transform] duration-150 ease-out hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-[0.94]"
                         aria-label="Remove image"
                       >
                         <X size={15} />
@@ -957,7 +1035,7 @@ export default function Home() {
                       key={id}
                       type="button"
                       onClick={() => removeUploadFile(id)}
-                      className="inline-flex max-w-full items-center gap-2 rounded-full bg-[#e9e7e5] px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-[#dfdddb]"
+                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded-full bg-[#e9e7e5] px-3 py-1.5 text-xs font-medium text-slate-700 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#dfdddb] hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
                     >
                       <Paperclip size={13} />
                       <span className="truncate">{file.name}</span>
@@ -968,8 +1046,8 @@ export default function Home() {
               </div>
             )}
 
-            <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-[1.75rem] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.16)] focus-within:border-slate-200 sm:flex sm:gap-2 sm:rounded-[2rem] sm:px-5">
-              <label className="col-start-1 row-start-2 grid h-9 w-9 shrink-0 cursor-pointer place-items-center text-slate-950 hover:text-blue-600 sm:row-start-1 sm:h-11 sm:w-8">
+            <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-[1.75rem] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.16)] transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-slate-200 focus-within:shadow-[0_14px_36px_rgba(15,23,42,0.18)] sm:flex sm:gap-2 sm:rounded-[2rem] sm:px-5">
+              <label className="col-start-1 row-start-2 grid h-9 w-9 shrink-0 cursor-pointer place-items-center text-slate-950 transition-[color,transform] duration-150 ease-out hover:text-blue-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-300/60 active:scale-[0.96] sm:row-start-1 sm:h-11 sm:w-8">
                 <Plus size={30} strokeWidth={1.8} />
                 <input
                   type="file"
@@ -1000,11 +1078,11 @@ export default function Home() {
                     }
                   }}
                   rows={1}
-                  placeholder=""
+                  placeholder={inputPlaceholder}
                   className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-6 text-slate-900 outline-none placeholder:text-slate-500 sm:min-h-11 sm:py-2.5"
                 />
               </div>
-              <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-start gap-0.5 sm:col-span-1 sm:col-start-auto sm:shrink-0 sm:flex-nowrap sm:gap-1">
+              <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-start gap-1 sm:col-span-1 sm:col-start-auto sm:shrink-0 sm:flex-nowrap">
                 <ModelSelect value={model} onChange={changeModel} />
                 <ReasoningSelect
                   value={reasoning}
@@ -1012,43 +1090,78 @@ export default function Home() {
                   xhighLabel={selectedModel.provider === "deepseek" ? "Max" : "XHigh"}
                   onChange={setReasoning}
                 />
-                {selectedModel.supportsWebSearch && !imageGenerationMode && (
+                <div ref={modeMenuRef} className="relative shrink-0">
                   <button
                     type="button"
-                    onClick={() => setWebSearchMode((current) => !current)}
-                    className={`grid h-8 w-8 place-items-center rounded-full transition-colors sm:h-10 sm:w-10 ${
-                      webSearchMode
-                        ? "bg-[#e9e7e5] text-slate-950"
-                        : "text-slate-900 hover:bg-[#e9e7e5]"
-                    }`}
-                    aria-label="Web search"
-                    aria-pressed={webSearchMode}
-                    title="Web search"
+                    onClick={() => setModeMenuOpen((current) => !current)}
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#f1f5f9] px-3 text-xs font-medium text-slate-900 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] sm:h-10 sm:text-sm"
+                    aria-haspopup="menu"
+                    aria-expanded={modeMenuOpen}
                   >
-                    <Globe2 size={18} />
+                    <ActiveInputModeIcon size={15} />
+                    <span>{activeInputMode.label}</span>
                   </button>
-                )}
-                {selectedModel.supportsImageGeneration && (
-                  <button
-                    type="button"
-                    onClick={() => setImageGenerationMode((current) => !current)}
-                    className={`grid h-8 w-8 place-items-center rounded-full transition-colors sm:h-10 sm:w-10 ${
-                      imageGenerationMode
-                        ? "bg-[#e9e7e5] text-slate-950"
-                        : "text-slate-900 hover:bg-[#e9e7e5]"
-                    }`}
-                    aria-label="Image generation"
-                    aria-pressed={imageGenerationMode}
-                    title="Image generation"
-                  >
-                    <ImagePlus size={18} />
-                  </button>
-                )}
+                  {modeMenuOpen && (
+                    <div
+                      className="motion-menu fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-56 sm:translate-x-0 sm:rounded-[1.35rem]"
+                      role="menu"
+                    >
+                      <div className="space-y-0.5 p-1.5">
+                        <button
+                          type="button"
+                          onClick={() => chooseInputMode("chat")}
+                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                            !imageGenerationMode && !webSearchMode
+                              ? "bg-[#e9e7e5] text-slate-950"
+                              : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                          }`}
+                          role="menuitemradio"
+                          aria-checked={!imageGenerationMode && !webSearchMode}
+                        >
+                          <MessageSquare size={16} />
+                          <span>Chat</span>
+                        </button>
+                        {selectedModel.supportsWebSearch && (
+                          <button
+                            type="button"
+                            onClick={() => chooseInputMode("search")}
+                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                              webSearchMode && !imageGenerationMode
+                                ? "bg-[#e9e7e5] text-slate-950"
+                                : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                            }`}
+                            role="menuitemradio"
+                            aria-checked={webSearchMode && !imageGenerationMode}
+                          >
+                            <Globe2 size={16} />
+                            <span>WebSearch</span>
+                          </button>
+                        )}
+                        {selectedModel.supportsImageGeneration && (
+                          <button
+                            type="button"
+                            onClick={() => chooseInputMode("image")}
+                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                              imageGenerationMode
+                                ? "bg-[#e9e7e5] text-slate-950"
+                                : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                            }`}
+                            role="menuitemradio"
+                            aria-checked={imageGenerationMode}
+                          >
+                            <ImagePlus size={16} />
+                            <span>Image</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <button
                 type="submit"
                 disabled={!canSend}
-                className="col-start-3 row-start-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 hover:bg-sky-400 disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 sm:h-11 sm:w-11"
+                className="col-start-3 row-start-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-sky-400 hover:shadow-[0_8px_20px_rgba(14,165,233,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:translate-y-0 active:scale-[0.96] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100 sm:h-11 sm:w-11"
                 aria-label="Send message"
               >
                 <ArrowUp size={24} strokeWidth={2.1} />

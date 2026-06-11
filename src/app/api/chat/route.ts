@@ -12,6 +12,7 @@ import { optionalEnv, requireEnv } from "@/lib/env";
 import { getModelOption, normalizeModel, normalizeReasoning, toDbReasoning } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
 export const runtime = "nodejs";
 
@@ -125,7 +126,7 @@ async function createResponsesStream(body: ResponsesStreamRequest) {
       data = {};
     }
     throw new Error(
-      data.error?.message ?? (text || `OpenAI request failed: ${response.status}`),
+      data.error?.message ?? buildUpstreamErrorMessage("OpenAI", response.status, text),
     );
   }
 
@@ -153,7 +154,7 @@ function parseChatCompletionDelta(line: string) {
 
 function getErrorMessage(error: unknown) {
   // catch の値は Error とは限らないため、画面表示用の安全な文字列に寄せる。
-  return error instanceof Error ? error.message : "Unknown error.";
+  return sanitizeErrorMessage(error, "Unknown error.");
 }
 
 function encodeTextStreamEvent(delta: string) {
@@ -252,7 +253,9 @@ async function createTavilySearchPrompt(query: string) {
   }
 
   if (!response.ok) {
-    throw new Error(data.error?.message ?? (text || `Tavily request failed: ${response.status}`));
+    throw new Error(
+      data.error?.message ?? buildUpstreamErrorMessage("Tavily", response.status, text),
+    );
   }
 
   return buildTavilySearchPrompt(query, data);
@@ -338,7 +341,7 @@ async function createDeepSeekStream({
       data = {};
     }
     throw new Error(
-      data.error?.message ?? (text || `DeepSeek request failed: ${response.status}`),
+      data.error?.message ?? buildUpstreamErrorMessage("DeepSeek", response.status, text),
     );
   }
 

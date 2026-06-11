@@ -4,29 +4,79 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
-## Project Notes
+## Project
 
-- Keep this file short. Store detailed project structure, deployment notes, and current decisions in the Obsidian vault instead. When local files and the vault disagree, treat the repo files as current.
-- Current StudyMate knowledge note: `C:\Users\kakumine\Desktop\知識倉庫\Projects\StudyMate\StudyMate 当前状态.md`
-- Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7/PostgreSQL, OpenAI Responses API, DeepSeek Chat Completions API, and Render.
-- Model capabilities are centralized in `src/lib/models.ts`. Update that file first when model behavior changes, then keep frontend and API validation aligned with it.
-- DeepSeek is text-only in this project. Do not enable image input or image generation for DeepSeek models. DeepSeek web search, when enabled, uses Tavily results as text context.
-- OpenAI handles normal text/image-input chat through `/api/chat`; image generation is an explicit UI mode and goes through `/api/images`. Do not infer image generation from prompt text.
-- Production `OPENAI_BASE_URL` uses a compatible proxy. For `/responses` image generation, send non-ASCII JSON strings as `\uXXXX` escapes because raw UTF-8 prompts can be corrupted by the proxy.
-- The same proxy can intermittently return a completed `/responses` payload without `image_generation_call.result`; image generation should force `action: "generate"` and retry once before failing.
-- Text-like files and PDFs are extracted as text context. Image files are stored through `src/lib/storage.ts`; keep image binaries out of PostgreSQL and store only metadata/storage paths.
-- Render config lives in `render.yaml` and currently uses the existing `render_db` through `DATABASE_URL`. Do not add a new Render database unless explicitly asked.
-- `render_db.public` is shared with Kaku Log. Production and shared database updates must use `prisma migrate deploy` only.
-- Never run `prisma db push`, `prisma db push --accept-data-loss`, `prisma db push --force-reset`, or `prisma migrate reset` against the Render/shared database. Schema-wide sync can delete tables owned by the other project.
+StudyMate is a multi-model AI study assistant with session chat, file attachments, image generation, and web search.
+
+- Live URL: `https://studymate-lzki.onrender.com`
+- Knowledge vault: `C:\Users\kakumine\Desktop\知識倉庫\Projects\StudyMate\StudyMate 当前状态.md`
+- Tech stack: Next.js 16.2.6 App Router, React 19, Tailwind CSS v4, Prisma 7 / PostgreSQL, Render (free tier)
+
+## Architecture
+
+| Concern | Location |
+|---|---|
+| Model capabilities | `src/lib/models.ts` — single source of truth |
+| Anonymous auth | `src/lib/auth.ts` — signed cookie (`deviceId`) |
+| File/attachment handling | `src/lib/files.ts` |
+| Image binary storage | `src/lib/storage.ts` → `data/storage/images/YYYY/MM/DD/` |
+| Upstream error formatting | `src/lib/upstream-errors.ts` |
+| Chat (text + file input) | `POST /api/chat` — SSE stream, 30 req/h |
+| Image generation | `POST /api/images` — JSON, 10 req/h |
+| Session management | `/api/sessions`, `/api/sessions/[id]`, `/api/sessions/[id]/messages` |
+
+## Models
+
+Current models (defined in `src/lib/models.ts`):
+
+| Model ID | Provider | Image input | Image gen | Web search |
+|---|---|---|---|---|
+| `gpt-5.5` | OpenAI | ✓ | ✓ | ✓ |
+| `deepseek-v4-flash` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
+| `deepseek-v4-pro` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
+
+**Rules:**
+- Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
+- DeepSeek is text-only. Never enable image input or image generation for DeepSeek models.
+- DeepSeek web search injects Tavily results as text context — it does not use native tool calls.
+- OpenAI chat goes through the Responses API (`/responses`); DeepSeek uses Chat Completions.
+
+## API & Proxy Rules
+
+- Production `OPENAI_BASE_URL` is a compatible proxy.
+- **Do not use `/responses` for image generation** — the proxy can return Cloudflare/HTML errors for synchronous calls.
+- `/api/images` always uses `/images/generations` (text-only) or `/images/edits` (reference images).
+- Non-ASCII strings in `/responses` JSON must be sent as `\uXXXX` escapes — raw UTF-8 can be corrupted by the proxy.
+- Image generation is an explicit UI mode triggered by the user; never infer it from prompt text.
+- Leave unspecified `size`/`quality` as `auto`.
+
+## Data & Storage
+
+- Keep image binaries out of PostgreSQL. Store only metadata and `imageStoragePath` in the `Attachment` table.
+- Text files and PDFs are extracted as text context via `src/lib/files.ts`.
+- Images served from local storage via `GET /api/attachments/[id]/image`.
+
+## Database Safety ⚠️
+
+`render_db.public` is **shared with Kaku Log**. Destructive schema operations will delete tables owned by the other project.
+
+- Production schema changes: `prisma migrate deploy` only.
+- **Never run** against the Render/shared database:
+  - `prisma db push`
+  - `prisma db push --accept-data-loss`
+  - `prisma db push --force-reset`
+  - `prisma migrate reset`
+- Do not add a new Render database unless explicitly asked.
 
 ## Validation
 
-- Prefer simple validation by default: `npm run typecheck` and `npm run lint`.
-- Run `render blueprints validate` when `render.yaml` changes.
-- Run `npx prisma validate` when Prisma schema or migrations change.
-- For frontend source, UI layout, styling, responsive behavior, or visual appearance changes, verify the requested behavior with the Codex in-app Browser plugin. Check the relevant viewport instead of relying only on code inspection.
-- Do not run Playwright/E2E/deep browser test suites by default unless the user asks.
+- Default: `npm run typecheck` and `npm run lint`.
+- On `render.yaml` changes: `render blueprints validate`.
+- On Prisma schema/migration changes: `npx prisma validate`.
+- For UI/layout/styling changes: verify with the Codex in-app Browser plugin at the relevant viewport.
+- Do not run Playwright/E2E tests unless explicitly asked.
 
-## running app
+## Local Dev
 
-本地测试的话先看docker有没有启动,没启动的话先启动
+Docker must be running before starting local dev.
+Local PostgreSQL runs in Docker container `pg17-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
