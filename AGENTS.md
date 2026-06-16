@@ -58,15 +58,22 @@ Current models (defined in `src/lib/models.ts`):
 
 ## Database Safety ⚠️
 
-`render_db.public` is **shared with Kaku Log**. Destructive schema operations will delete tables owned by the other project.
+StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 
+- Provider/platform: Neon
+- Environment: production
+- Database: `neondb`, schema `studymate`
+- Host: `ep-frosty-pond-at27m4s8-pooler.c-9.us-east-1.aws.neon.tech`
+- Render service `studymate` (`srv-d89gl33bc2fs73f78fc0`) has `DATABASE_URL` set as a direct secret env var.
+- Current Render `DATABASE_URL` includes `schema=studymate`, but the runtime `pg` search path still resolves to `public`; ensure app connections set `search_path=studymate` or move/query tables consistently before assuming production chat persistence works.
+- `render.yaml` must keep `DATABASE_URL` as `sync: false`; do not point it back to Render `fromDatabase`.
 - Production schema changes: `prisma migrate deploy` only.
-- **Never run** against the Render/shared database:
+- Do not run destructive Prisma commands against production:
   - `prisma db push`
   - `prisma db push --accept-data-loss`
   - `prisma db push --force-reset`
   - `prisma migrate reset`
-- Do not add a new Render database unless explicitly asked.
+- Old Render Postgres `render_db` (`dpg-d82rmsn2gups7397v0t0-a`) is still shared with Kaku Log, expired at `2026-06-13T12:09:22Z`, and is currently `suspended` by `billing`. Do not use it for StudyMate unless explicitly asked.
 
 ## Validation
 
