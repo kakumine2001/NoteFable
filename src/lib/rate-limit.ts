@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
+import { databaseSchema, prisma } from "@/lib/prisma";
 import { ensureAnonymousDeviceId } from "@/lib/auth";
 
 type RateLimitOptions = {
@@ -37,17 +38,20 @@ export async function checkRateLimit(
   void request;
   // namespace と利用者識別子を結合し、API 種別ごとに別バケットにする。
   const key = `${options.namespace}:${await getRateLimitSubject()}`;
+  const apiRateLimitTable = databaseSchema
+    ? Prisma.raw(`"${databaseSchema}"."ApiRateLimit"`)
+    : Prisma.raw('"ApiRateLimit"');
   const [bucket] = await prisma.$queryRaw<{ count: number; resetAt: Date }[]>`
-    INSERT INTO "ApiRateLimit" ("key", "count", "resetAt", "updatedAt")
+    INSERT INTO ${apiRateLimitTable} ("key", "count", "resetAt", "updatedAt")
     VALUES (${key}, 1, ${resetAt}, NOW())
     ON CONFLICT ("key") DO UPDATE SET
       "count" = CASE
-        WHEN "ApiRateLimit"."resetAt" <= NOW() THEN 1
-        ELSE "ApiRateLimit"."count" + 1
+        WHEN ${apiRateLimitTable}."resetAt" <= NOW() THEN 1
+        ELSE ${apiRateLimitTable}."count" + 1
       END,
       "resetAt" = CASE
-        WHEN "ApiRateLimit"."resetAt" <= NOW() THEN ${resetAt}
-        ELSE "ApiRateLimit"."resetAt"
+        WHEN ${apiRateLimitTable}."resetAt" <= NOW() THEN ${resetAt}
+        ELSE ${apiRateLimitTable}."resetAt"
       END,
       "updatedAt" = NOW()
     RETURNING "count", "resetAt"

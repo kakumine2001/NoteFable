@@ -8,7 +8,13 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const databaseUrl = requireEnv("DATABASE_URL");
-const databaseSchema = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
+const schemaParam = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
+
+if (schemaParam && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schemaParam)) {
+  throw new Error("DATABASE_URL schema must be a valid PostgreSQL identifier.");
+}
+
+export const databaseSchema = schemaParam;
 
 // Prisma 7 の PostgreSQL adapter。URL の schema は pg には効かないので adapter に明示する。
 const adapter = new PrismaPg(databaseUrl, { schema: databaseSchema });
