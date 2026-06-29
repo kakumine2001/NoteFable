@@ -50,6 +50,19 @@ Current models (defined in `src/lib/models.ts`):
 - Image generation is an explicit UI mode triggered by the user; never infer it from prompt text.
 - Leave unspecified `size`/`quality` as `auto`.
 
+## Notion Integration
+
+- Notion export uses the direct Notion REST API from the Next.js backend, not MCP.
+- Required env vars:
+  - `NOTION_API_KEY`
+  - `NOTION_DATABASE_ID`
+- `/api/notion/pages` writes a new row/page into the fixed Notion database.
+- StudyMate Notion database verified 2026-06-29:
+  - Database title: `Studymate Inbox`
+  - Database ID: `38e987fd085480298f03ecfcf68764a3`
+  - Current title property: `名前`
+- First version is text-only: edited title/content are written as Notion page body paragraphs; attachment binaries are not uploaded.
+
 ## Data & Storage
 
 - Keep image binaries out of PostgreSQL. Store only metadata and `imageStoragePath` in the `Attachment` table.

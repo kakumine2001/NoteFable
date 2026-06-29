@@ -3,21 +3,24 @@
 import {
   ArrowDown,
   ArrowUp,
+  ExternalLink,
   Globe2,
   ImagePlus,
+  Loader2,
   Menu,
   MessageSquare,
   Paperclip,
   PanelLeft,
   Plus,
   Trash2,
+  UploadCloud,
   X,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ChatMessage } from "@/components/chat-message";
-import { ModelSelect, ReasoningSelect } from "@/components/model-controls";
+import { ModelSelect } from "@/components/model-controls";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
@@ -26,6 +29,7 @@ import type { ImageGenerationResult, Message, Session, UploadFile } from "@/type
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
 const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
+const NOTION_SAVE_FALLBACK_ERROR = "Failed to save to Notion.";
 
 function getMessagesKey(sessionId: string | null) {
   return sessionId ?? NEW_SESSION_MESSAGES_KEY;
@@ -98,6 +102,38 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
 }
 
+function formatMessageForNotion(message: Message) {
+  const label = message.role === "USER" ? "User" : "Assistant";
+  const parts = [`${label}:`, message.content.trim()];
+  const attachments = message.attachments ?? [];
+  const generatedImages = message.generatedImages ?? [];
+
+  if (attachments.length) {
+    parts.push(
+      attachments
+        .map((attachment) => `Attachment: ${attachment.filename} (${attachment.mimeType})`)
+        .join("\n"),
+    );
+  }
+
+  if (generatedImages.length) {
+    parts.push(
+      generatedImages
+        .map((image) => `Generated image: ${image.mimeType} ${image.dataUrl}`)
+        .join("\n"),
+    );
+  }
+
+  return parts.filter(Boolean).join("\n");
+}
+
+function formatTranscriptForNotion(messages: Message[]) {
+  return messages
+    .filter((message) => message.content.trim() || message.attachments?.length || message.generatedImages?.length)
+    .map(formatMessageForNotion)
+    .join("\n\n---\n\n");
+}
+
 export default function Home() {
   // 左サイドバーに表示するチャットセッション一覧。
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -131,6 +167,18 @@ export default function Home() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   // 最下部にいる時は手動スクロールボタンを隠す。
   const [isAtChatBottom, setIsAtChatBottom] = useState(true);
+  // Notion へ保存する前にユーザーが編集できる下書きパネル。
+  const [notionDraftOpen, setNotionDraftOpen] = useState(false);
+  // Notion ページタイトル。会話タイトルを初期値にし、手動メモにも使える。
+  const [notionTitle, setNotionTitle] = useState("");
+  // Notion へ送る本文。会話全文を初期値にするが、自由に貼り替えられる。
+  const [notionContent, setNotionContent] = useState("");
+  // Notion 保存中の二重送信を防ぐ。
+  const [notionSaving, setNotionSaving] = useState(false);
+  // Notion 保存エラーを下書きパネル内に表示する。
+  const [notionError, setNotionError] = useState("");
+  // 保存成功後に Notion ページを開けるよう URL を保持する。
+  const [notionUrl, setNotionUrl] = useState("");
   // 会話本文のスクロール領域。手動で最下部へ移動するボタンだけで使う。
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
@@ -459,6 +507,49 @@ export default function Home() {
 
     submittedInputRestoreGuardRef.current = null;
     setInput(nextInput);
+  }
+
+  function openNotionDraft() {
+    // 現在表示中の会話を初期値にする。空なら自由入力用の空下書きを開く。
+    setNotionTitle(activeTitle);
+    setNotionContent(formatTranscriptForNotion(messages));
+    setNotionError("");
+    setNotionUrl("");
+    setNotionDraftOpen(true);
+  }
+
+  async function saveNotionDraft() {
+    const title = notionTitle.trim();
+    const content = notionContent.trim();
+
+    if (!title || !content || notionSaving) {
+      setNotionError("Title and content are required.");
+      return;
+    }
+
+    setNotionSaving(true);
+    setNotionError("");
+    setNotionUrl("");
+
+    const response = await fetch("/api/notion/pages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title,
+        content,
+        sessionId: activeSessionId ?? undefined,
+      }),
+    });
+    const data = await readJsonObject(response);
+
+    setNotionSaving(false);
+
+    if (!response.ok) {
+      setNotionError(readErrorMessage(data, NOTION_SAVE_FALLBACK_ERROR));
+      return;
+    }
+
+    setNotionUrl(typeof data.url === "string" ? data.url : "");
   }
 
   async function sendMessage(event: FormEvent) {
@@ -811,11 +902,8 @@ export default function Home() {
     return () => window.removeEventListener("keydown", toggleSidebarShortcut);
   }, []);
 
-  const activeTitle = useMemo(
-    // ヘッダーに表示するタイトル。未選択または新規チャット中は固定文言にする。
-    () => sessions.find((session) => session.id === activeSessionId)?.title ?? "New chat",
-    [activeSessionId, sessions],
-  );
+  // ヘッダーに表示するタイトル。未選択または新規チャット中は固定文言にする。
+  const activeTitle = sessions.find((session) => session.id === activeSessionId)?.title ?? "New chat";
   // Thinking 表示に出す秒数。0 秒表示を避けるため、ストリーム中は最低 1 秒に丸める。
   const thinkingSeconds =
     activeStreamStartedAt === null
@@ -937,10 +1025,112 @@ export default function Home() {
             </div>
           </div>
 
-          <div className={`text-xs font-semibold text-slate-500 ${emptyState ? "hidden" : ""}`}>
-            {selectedModel.label}
+          <div className="flex shrink-0 items-center gap-2">
+            <div className={`text-xs font-semibold text-slate-500 ${emptyState ? "hidden" : ""}`}>
+              {selectedModel.label}
+            </div>
+            <button
+              type="button"
+              onClick={openNotionDraft}
+              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white/80 px-3 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.98]"
+              aria-label="Open Notion draft"
+              title="Save to Notion"
+            >
+              <UploadCloud size={15} />
+              <span className="hidden sm:inline">Notion</span>
+            </button>
           </div>
         </header>
+
+        {notionDraftOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
+            <button
+              type="button"
+              className="absolute inset-0 cursor-default"
+              onClick={() => setNotionDraftOpen(false)}
+              aria-label="Close Notion draft"
+            />
+            <aside className="motion-sidebar-panel relative z-10 flex h-full w-full max-w-xl flex-col bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+              <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
+                <div>
+                  <div className="text-sm font-semibold text-slate-950">Save to Notion</div>
+                  <div className="text-xs text-slate-500">Edit or paste anything before saving.</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setNotionDraftOpen(false)}
+                  className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.96]"
+                  aria-label="Close Notion draft"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
+                <label className="grid gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Title
+                  </span>
+                  <input
+                    value={notionTitle}
+                    onChange={(event) => setNotionTitle(event.target.value)}
+                    className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-950 outline-none transition-[border-color,box-shadow] duration-150 ease-out focus:border-sky-300 focus:shadow-[0_0_0_3px_rgba(125,211,252,0.28)]"
+                    placeholder="Notion page title"
+                  />
+                </label>
+
+                <label className="grid min-h-0 flex-1 gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                    Content
+                  </span>
+                  <textarea
+                    value={notionContent}
+                    onChange={(event) => setNotionContent(event.target.value)}
+                    className="min-h-[22rem] flex-1 resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition-[border-color,box-shadow] duration-150 ease-out focus:border-sky-300 focus:shadow-[0_0_0_3px_rgba(125,211,252,0.28)]"
+                    placeholder="Paste or edit the note to save."
+                  />
+                </label>
+
+                {notionError && (
+                  <div className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-red-100">
+                    {notionError}
+                  </div>
+                )}
+
+                {notionUrl && (
+                  <a
+                    href={notionUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-[background-color,transform] duration-150 ease-out hover:bg-emerald-100 active:scale-[0.99]"
+                  >
+                    Saved to Notion
+                    <ExternalLink size={15} />
+                  </a>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setNotionDraftOpen(false)}
+                  className="h-10 rounded-full px-4 text-sm font-semibold text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={saveNotionDraft}
+                  disabled={notionSaving || !notionTitle.trim() || !notionContent.trim()}
+                  className="inline-flex h-10 items-center gap-2 rounded-full bg-sky-300 px-4 text-sm font-semibold text-slate-950 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-sky-400 hover:shadow-[0_8px_20px_rgba(14,165,233,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
+                >
+                  {notionSaving && <Loader2 size={16} className="animate-spin" />}
+                  Save to Notion
+                </button>
+              </div>
+            </aside>
+          </div>
+        )}
 
         <div ref={chatScrollRef} className="relative z-0 flex-1 overflow-y-auto">
           <div
@@ -1083,12 +1273,11 @@ export default function Home() {
                 />
               </div>
               <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-start gap-1 sm:col-span-1 sm:col-start-auto sm:shrink-0 sm:flex-nowrap">
-                <ModelSelect value={model} onChange={changeModel} />
-                <ReasoningSelect
-                  value={reasoning}
-                  options={selectedModel.reasoningEfforts}
-                  xhighLabel={selectedModel.provider === "deepseek" ? "Max" : "XHigh"}
-                  onChange={setReasoning}
+                <ModelSelect
+                  value={model}
+                  reasoning={reasoning}
+                  onModelChange={changeModel}
+                  onReasoningChange={setReasoning}
                 />
                 <div ref={modeMenuRef} className="relative shrink-0">
                   <button

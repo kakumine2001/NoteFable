@@ -16,6 +16,10 @@ services:
         value: https://api.deepseek.com/v1
       - key: TAVILY_API_KEY
         sync: false
+      - key: NOTION_API_KEY
+        sync: false
+      - key: NOTION_DATABASE_ID
+        sync: false
       - key: COOKIE_SECRET
         generateValue: true
       - key: DATABASE_URL
