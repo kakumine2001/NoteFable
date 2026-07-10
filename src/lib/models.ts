@@ -1,12 +1,14 @@
 // 画面初期表示と不正値フォールバックで使う標準モデル。
-export const DEFAULT_MODEL = "gpt-5.5";
+export const DEFAULT_MODEL = "gpt-5.6-sol";
 
 // UI と API が受け付ける推論強度の一覧。as const にして型にも利用する。
 export const REASONING_EFFORTS = [
+  "none",
   "low",
   "medium",
   "high",
   "xhigh",
+  "max",
 ] as const;
 
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
@@ -35,13 +37,13 @@ type ModelOption = {
 // StudyMate で選択可能なモデル定義。UI 表示と API 側の検証で同じ配列を使う。
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
-    id: "gpt-5.5",
-    label: "GPT-5.5",
+    id: "gpt-5.6-sol",
+    label: "GPT-5.6 Sol",
     provider: "openai",
     supportsImageInput: true,
     supportsImageGeneration: true,
     supportsWebSearch: true,
-    reasoningEfforts: ["low", "medium", "high", "xhigh"],
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "medium",
   },
   {
@@ -96,5 +98,5 @@ export function normalizeReasoning(value: FormDataEntryValue | null, model = DEF
 
 export function toDbReasoning(effort: ReasoningEffort) {
   // Prisma の enum は大文字なので、UI/API の小文字表現から変換する。
-  return effort.toUpperCase() as "LOW" | "MEDIUM" | "HIGH" | "XHIGH";
+  return effort.toUpperCase() as "NONE" | "LOW" | "MEDIUM" | "HIGH" | "XHIGH" | "MAX";
 }

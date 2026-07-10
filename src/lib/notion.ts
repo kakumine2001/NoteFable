@@ -56,8 +56,24 @@ function getNotionConfig() {
 function splitText(value: string) {
   const chunks: string[] = [];
 
-  for (let index = 0; index < value.length; index += NOTION_TEXT_CHUNK_SIZE) {
-    chunks.push(value.slice(index, index + NOTION_TEXT_CHUNK_SIZE));
+  for (let index = 0; index < value.length; ) {
+    let end = Math.min(index + NOTION_TEXT_CHUNK_SIZE, value.length);
+    const finalCodeUnit = value.charCodeAt(end - 1);
+    const nextCodeUnit = value.charCodeAt(end);
+
+    // UTF-16 のサロゲートペアを別々の rich text に切り分けない。
+    if (
+      end < value.length &&
+      finalCodeUnit >= 0xd800 &&
+      finalCodeUnit <= 0xdbff &&
+      nextCodeUnit >= 0xdc00 &&
+      nextCodeUnit <= 0xdfff
+    ) {
+      end -= 1;
+    }
+
+    chunks.push(value.slice(index, end));
+    index = end;
   }
 
   return chunks.length ? chunks : [""];
@@ -70,7 +86,7 @@ function toRichText(value: string): NotionRichText[] {
   }));
 }
 
-function toParagraphBlocks(content: string): NotionParagraphBlock[] {
+export function toParagraphBlocks(content: string): NotionParagraphBlock[] {
   // 空行を段落境界にし、Notion 側で読みやすい単位に分ける。
   const paragraphs = content
     .replace(/\r\n/g, "\n")
@@ -78,13 +94,16 @@ function toParagraphBlocks(content: string): NotionParagraphBlock[] {
     .map((paragraph) => paragraph.trim())
     .filter(Boolean);
 
-  return paragraphs.map((paragraph) => ({
-    object: "block",
-    type: "paragraph",
-    paragraph: {
-      rich_text: toRichText(paragraph),
-    },
-  }));
+  return paragraphs.flatMap((paragraph) =>
+    splitText(paragraph).map((chunk) => ({
+      object: "block" as const,
+      type: "paragraph" as const,
+      paragraph: {
+        // 長い段落も 1 block 1 rich text にし、Notion の配列上限を超えないようにする。
+        rich_text: toRichText(chunk),
+      },
+    })),
+  );
 }
 
 async function notionRequest<T>(

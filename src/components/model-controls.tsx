@@ -6,23 +6,27 @@ import { getModelOption, MODEL_OPTIONS } from "@/lib/models";
 
 // 推論強度の短い表示名。ボタン内とメニュー内で共通利用する。
 const reasoningLabels: Record<string, string> = {
+  none: "None",
   low: "Low",
   medium: "Medium",
   high: "High",
   xhigh: "XHigh",
+  max: "Max",
 };
 
 // 各推論強度の補足説明。選択時の判断材料としてメニューに表示する。
 const reasoningDescriptions: Record<string, string> = {
+  none: "No reasoning",
   low: "Light reasoning",
   medium: "Balanced for most tasks",
   high: "Better for complex work",
-  xhigh: "Maximum reasoning depth",
+  xhigh: "Very deep reasoning",
+  max: "Maximum reasoning depth",
 };
 
 // 各モデルの簡単な用途説明。MODEL_OPTIONS には UI 文言を増やしすぎないためここで分ける。
 const modelDescriptions: Record<string, string> = {
-  "gpt-5.5": "OpenAI general reasoning",
+  "gpt-5.6-sol": "OpenAI flagship reasoning",
   "deepseek-v4-flash": "DeepSeek fast model",
   "deepseek-v4-pro": "DeepSeek strongest model",
 };

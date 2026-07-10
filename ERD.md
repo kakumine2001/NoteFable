@@ -73,6 +73,7 @@ ReasoningEffort:
 - MEDIUM
 - HIGH
 - XHIGH
+- MAX
 ```
 
 ## Indexes

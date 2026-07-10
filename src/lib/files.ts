@@ -1,3 +1,5 @@
+import { isSupportedImageMimeType } from "@/lib/image-types";
+
 export type PreparedAttachment = {
   // 元ファイル名。DB 保存とモデルへ渡すファイル境界の説明に使う。
   filename: string;
@@ -28,8 +30,9 @@ export const MAX_MULTIPART_REQUEST_BYTES = 25 * 1024 * 1024;
 const TEXT_EXTENSIONS = [".md", ".markdown", ".json", ".csv", ".tsv", ".txt"];
 
 export class AttachmentValidationError extends Error {
-  // 添付エラーは基本的に payload too large として扱う。呼び出し側で必要なら上書きできる。
-  status = 413;
+  constructor(message: string, readonly status = 400) {
+    super(message);
+  }
 }
 
 function isTextLike(file: File) {
@@ -47,8 +50,8 @@ function isPdf(file: File) {
 }
 
 export function isImageFile(file: File) {
-  // 画像は image/* の MIME type で判定する。対応モデルでは vision 入力として扱う。
-  return file.type.startsWith("image/");
+  // Responses API が受け付ける画像形式だけを vision 入力として扱う。
+  return isSupportedImageMimeType(file.type);
 }
 
 function isSupportedFile(file: File) {
@@ -60,7 +63,10 @@ export function validateAttachmentFiles(files: File[]) {
   // ファイル内容を読み込む前に、数・種類・単体サイズ・合計サイズを確認する。
   // 重い PDF 解析や画像保存に入る前に弾くことで、API の負荷と想定外の入力を抑える。
   if (files.length > MAX_UPLOAD_FILES) {
-    throw new AttachmentValidationError(`Upload up to ${MAX_UPLOAD_FILES} files at a time.`);
+    throw new AttachmentValidationError(
+      `Upload up to ${MAX_UPLOAD_FILES} files at a time.`,
+      413,
+    );
   }
 
   let totalBytes = 0;
@@ -70,16 +76,16 @@ export function validateAttachmentFiles(files: File[]) {
     totalBytes += file.size;
 
     if (!isSupportedFile(file)) {
-      throw new AttachmentValidationError(`Unsupported file type: ${file.name}`);
+      throw new AttachmentValidationError(`Unsupported file type: ${file.name}`, 415);
     }
 
     if (file.size > MAX_UPLOAD_FILE_BYTES) {
-      throw new AttachmentValidationError(`File is too large: ${file.name}`);
+      throw new AttachmentValidationError(`File is too large: ${file.name}`, 413);
     }
   }
 
   if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
-    throw new AttachmentValidationError("Total upload size is too large.");
+    throw new AttachmentValidationError("Total upload size is too large.", 413);
   }
 }
 
@@ -94,12 +100,12 @@ export function validateMultipartRequestSize(request: Request) {
 
   const contentLength = Number(rawContentLength);
 
-  if (!Number.isFinite(contentLength)) {
+  if (!/^\d+$/.test(rawContentLength) || !Number.isSafeInteger(contentLength)) {
     throw new AttachmentValidationError("Request body size is invalid.");
   }
 
   if (contentLength > MAX_MULTIPART_REQUEST_BYTES) {
-    throw new AttachmentValidationError("Request body is too large.");
+    throw new AttachmentValidationError("Request body is too large.", 413);
   }
 }
 

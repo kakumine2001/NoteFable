@@ -24,6 +24,7 @@ enum ReasoningEffort {
   MEDIUM
   HIGH
   XHIGH
+  MAX
 }
 
 model AnonymousUser {

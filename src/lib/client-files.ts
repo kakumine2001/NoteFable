@@ -1,4 +1,6 @@
+import { isSupportedImageMimeType } from "@/lib/image-types";
+
 export function isImageMimeType(mimeType: string) {
-  // クライアント側のプレビュー判定用。image/* なら object URL でサムネイル表示する。
-  return mimeType.startsWith("image/");
+  // API が入力として扱える画像だけをプレビュー対象にする。
+  return isSupportedImageMimeType(mimeType);
 }

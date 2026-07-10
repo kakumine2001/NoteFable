@@ -31,12 +31,13 @@ Current models (defined in `src/lib/models.ts`):
 
 | Model ID | Provider | Image input | Image gen | Web search |
 |---|---|---|---|---|
-| `gpt-5.5` | OpenAI | ✓ | ✓ | ✓ |
+| `gpt-5.6-sol` | OpenAI | ✓ | ✓ | ✓ |
 | `deepseek-v4-flash` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
 | `deepseek-v4-pro` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
 
 **Rules:**
 - Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
+- GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
 - DeepSeek is text-only. Never enable image input or image generation for DeepSeek models.
 - DeepSeek web search injects Tavily results as text context — it does not use native tool calls.
 - OpenAI chat goes through the Responses API (`/responses`); DeepSeek uses Chat Completions.
@@ -90,7 +91,7 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 
 ## Validation
 
-- Default: `npm run typecheck` and `npm run lint`.
+- Default: `npm test`, `npm run typecheck`, and `npm run lint`.
 - On `render.yaml` changes: `render blueprints validate`.
 - On Prisma schema/migration changes: `npx prisma validate`.
 - For UI/layout/styling changes: verify with the Codex in-app Browser plugin at the relevant viewport.

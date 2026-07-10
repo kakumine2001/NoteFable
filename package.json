@@ -13,6 +13,7 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
+    "test": "vitest run",
     "lint": "eslint",
     "typecheck": "prisma generate && tsc --noEmit",
     "prisma:generate": "prisma generate",
@@ -44,6 +45,9 @@
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
     "tsx": "^4.22.3",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vite": "6.4.3",
+    "vite-tsconfig-paths": "5.1.4",
+    "vitest": "3.2.7"
   }
 }
