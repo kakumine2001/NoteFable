@@ -28,27 +28,33 @@ http://localhost:3000
 
 ## 环境变量
 
-创建 `.env`：
+创建 `.env`。应用启动和匿名身份需要：
 
 ```bash
-DATABASE_URL="postgresql://user:password@host:5432/studymate?schema=public"
+DATABASE_URL="postgresql://user:password@host:5432/neondb?schema=studymate"
 COOKIE_SECRET="replace-with-a-long-random-secret"
+```
+
+按启用的功能配置服务密钥：
+
+```bash
 OPENAI_API_KEY="sk-..."
 OPENAI_BASE_URL="https://api.openai.com/v1"
 DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
 TAVILY_API_KEY="tvly-..."
-STUDYMATE_STORAGE_DIR="data/storage"
+NOTION_API_KEY="secret_..."
+NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-可选：
+`TAVILY_API_KEY` 仅在 DeepSeek 开启 Web 搜索时需要；Notion 两项仅在启用 Notion 导出时需要。可选覆盖项：
 
 ```bash
-OPENAI_IMAGE_RESPONSE_MODEL="gpt-5.5"
 OPENAI_IMAGE_MODEL="gpt-image-2"
 OPENAI_TEXT_MODEL="gpt-5.5"
 DEEPSEEK_FLASH_MODEL="deepseek-v4-flash"
 DEEPSEEK_PRO_MODEL="deepseek-v4-pro"
+STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
 ## 数据库
@@ -65,11 +71,14 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
+生产数据库是 Neon PostgreSQL 的 `neondb`，使用 `studymate` schema。生产只运行 `prisma migrate deploy`（即 `npm run prisma:migrate`），不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
+
 ## 校验
 
 ```bash
 npm run typecheck
 npm run lint
+npm test
 npx prisma validate
 ```
 
@@ -81,7 +90,7 @@ npx prisma validate
 - 单文件最大 10 MB
 - 单次上传总量最大 20 MB
 - multipart 请求最大 25 MB
-- 支持文本、Markdown、JSON、CSV、TSV、TXT、PDF、图片
+- 支持文本、Markdown、JSON、CSV、TSV、TXT、PDF，以及 PNG/JPEG/WEBP 图片
 
 模型能力：
 
@@ -94,7 +103,7 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 
 ## API 保护
 
-当前按 IP 的限流存储在 PostgreSQL 的 `ApiRateLimit` 表中：
+当前按签名 `studymate_device` Cookie 中的匿名设备 ID 分桶，计数存储在 PostgreSQL 的 `ApiRateLimit` 表中：
 
 - `/api/chat`：每小时 30 次
 - `/api/images`：每小时 10 次
@@ -106,14 +115,16 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 `render.yaml` 定义：
 
 - Web Service：`studymate`
-- PostgreSQL：使用现有 `render_db`
-- Plan：Free Web Service + Free Render Postgres
+- Plan：Free Web Service
 - Build：`npm ci && npm run prisma:migrate && npm run build`
 - Start：`npm run start`
 
 Render 上需要配置：
 
+- `DATABASE_URL`
 - `OPENAI_API_KEY`
 - `DEEPSEEK_API_KEY`
+- `TAVILY_API_KEY`
+- `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
 
-`DATABASE_URL` 和 `COOKIE_SECRET` 由 Blueprint 注入或生成。
+`DATABASE_URL` 是 Render Web Service 上的直接 secret，`render.yaml` 必须保持 `sync: false`，不能改回 Render 数据库 Blueprint 注入。`COOKIE_SECRET` 由 Blueprint 生成。

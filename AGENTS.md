@@ -90,7 +90,7 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 
 ## Validation
 
-- Default: `npm run typecheck` and `npm run lint`.
+- Default: `npm test`, `npm run typecheck`, and `npm run lint`.
 - On `render.yaml` changes: `render blueprints validate`.
 - On Prisma schema/migration changes: `npx prisma validate`.
 - For UI/layout/styling changes: verify with the Codex in-app Browser plugin at the relevant viewport.

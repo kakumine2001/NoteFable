@@ -15,6 +15,7 @@ import {
   toDbReasoning,
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
+import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { writeStoredImage } from "@/lib/storage";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -131,28 +132,6 @@ async function readImageRequest(request: Request): Promise<ImageRequestInput> {
 function getErrorMessage(error: unknown) {
   // ストリーム内外の catch で使う、画像生成向けのエラーメッセージ整形。
   return sanitizeErrorMessage(error, "Image generation failed.");
-}
-
-function stringifyJsonForProxy(value: unknown) {
-  // 一部の互換プロキシは UTF-8 の非 ASCII 文字を壊すため、JSON 文字列内は \uXXXX で送る。
-  return JSON.stringify(value).replace(/[^\x00-\x7F]/g, (char) =>
-    Array.from(char)
-      .map((item) => {
-        const codePoint = item.codePointAt(0) ?? 0;
-
-        if (codePoint <= 0xffff) {
-          return `\\u${codePoint.toString(16).padStart(4, "0")}`;
-        }
-
-        const high = Math.floor((codePoint - 0x10000) / 0x400) + 0xd800;
-        const low = ((codePoint - 0x10000) % 0x400) + 0xdc00;
-
-        return `\\u${high.toString(16).padStart(4, "0")}\\u${low
-          .toString(16)
-          .padStart(4, "0")}`;
-      })
-      .join(""),
-  );
 }
 
 export function findGeneratedImage(data?: ImageApiResponse): string | undefined {

@@ -11,7 +11,9 @@ import {
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { getModelOption, normalizeModel, normalizeReasoning, toDbReasoning } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
+import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
 export const runtime = "nodejs";
@@ -89,10 +91,7 @@ type TavilySearchResponse = {
 function parseResponsesDelta(line: string) {
   // OpenAI Responses API は SSE で複数種類のイベントを返す。
   // クライアントへ流す必要があるのは本文差分だけなので、output_text.delta 以外は無視する。
-  const payload = line.replace(/^data:\s*/, "").trim();
-  if (!payload || payload === "[DONE]") return "";
-
-  const data = JSON.parse(payload) as ResponsesStreamEvent;
+  const data = JSON.parse(line) as ResponsesStreamEvent;
 
   if (data.type === "error") {
     throw new Error(data.error?.message ?? "OpenAI stream returned an error.");
@@ -114,7 +113,7 @@ async function createResponsesStream(body: ResponsesStreamRequest) {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify(body),
+    body: stringifyJsonForProxy(body),
   });
 
   if (!response.ok) {
@@ -140,10 +139,7 @@ async function createResponsesStream(body: ResponsesStreamRequest) {
 function parseChatCompletionDelta(line: string) {
   // DeepSeek は OpenAI 互換の chat/completions 形式で返る。
   // reasoning_content は画面に出さず、ユーザーに見せる content の差分だけを中継する。
-  const payload = line.replace(/^data:\s*/, "").trim();
-  if (!payload || payload === "[DONE]") return "";
-
-  const data = JSON.parse(payload) as ChatCompletionStreamEvent;
+  const data = JSON.parse(line) as ChatCompletionStreamEvent;
 
   if (data.error?.message) {
     throw new Error(data.error.message);
@@ -380,10 +376,11 @@ export async function POST(request: Request) {
   try {
     validateMultipartRequestSize(request);
   } catch (error) {
+    const status = error instanceof AttachmentValidationError ? error.status : 400;
     const message =
       error instanceof AttachmentValidationError ? error.message : "Request body is too large.";
 
-    return NextResponse.json({ error: message }, { status: 413 });
+    return NextResponse.json({ error: message }, { status });
   }
 
   // multipart/form-data の解析結果。本文と添付ファイルの両方をここから取り出す。
@@ -535,14 +532,6 @@ export async function POST(request: Request) {
       content: currentUserContent,
     },
   ];
-  const deepSeekSearchPrompt =
-    webSearch && modelOption.provider === "deepseek"
-      ? await createTavilySearchPrompt(message)
-      : null;
-  const upstreamInput = deepSeekSearchPrompt
-    ? withWebSearchPrompt(input, deepSeekSearchPrompt)
-    : input;
-
   // 上流 API の byte stream を文字列として読むためのデコーダー。
   const decoder = new TextDecoder();
   // クライアントへ返す text/plain stream を byte stream に戻すためのエンコーダー。
@@ -555,6 +544,15 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
+        // DeepSeek の検索もストリーム内で実行し、失敗時は通常のアシスタントエラーとして保存する。
+        const deepSeekSearchPrompt =
+          webSearch && modelOption.provider === "deepseek"
+            ? await createTavilySearchPrompt(message)
+            : null;
+        const upstreamInput = deepSeekSearchPrompt
+          ? withWebSearchPrompt(input, deepSeekSearchPrompt)
+          : input;
+
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const upstream =
@@ -586,30 +584,37 @@ export async function POST(request: Request) {
         // 上流 AI からの SSE を読み取る reader。
         const reader = upstream.getReader();
 
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          buffer += decoder.decode(value, { stream: true });
-          // SSE は改行区切り。最後の要素は未完成行の可能性があるため buffer に戻す。
-          const lines = buffer.split(/\r?\n/);
-          buffer = lines.pop() ?? "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data:")) continue;
-
+        const forwardData = (data: string[]) => {
+          for (const payload of data) {
             // プロバイダー別の形式から、画面に出す本文差分だけを取り出す。
             const delta =
               modelOption.provider === "deepseek"
-                ? parseChatCompletionDelta(line)
-                : parseResponsesDelta(line);
+                ? parseChatCompletionDelta(payload)
+                : parseResponsesDelta(payload);
             if (!delta) continue;
 
             // クライアントへ返したものと DB 保存内容がずれないよう、同じ delta を累積する。
             assistantText += delta;
             controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
           }
+        };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          // 最後の未完成行は次の chunk と結合する。
+          const batch = consumeSseData(buffer);
+          buffer = batch.remainder;
+          forwardData(batch.data);
         }
+
+        // TextDecoder 内の未確定 byte と、改行なしで終わる最後の data 行を処理する。
+        buffer += decoder.decode();
+        const finalBatch = consumeSseData(buffer, true);
+        buffer = finalBatch.remainder;
+        forwardData(finalBatch.data);
 
         await prisma.message.create({
           data: {

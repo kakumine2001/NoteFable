@@ -24,6 +24,8 @@ import { ModelSelect } from "@/components/model-controls";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
+import { formatTranscriptForNotion } from "@/lib/notion-transcript";
+import { getSubmissionValidationError } from "@/lib/submission-validation";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
@@ -100,38 +102,6 @@ async function readJsonObject(response: Response) {
 
 function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
-}
-
-function formatMessageForNotion(message: Message) {
-  const label = message.role === "USER" ? "User" : "Assistant";
-  const parts = [`${label}:`, message.content.trim()];
-  const attachments = message.attachments ?? [];
-  const generatedImages = message.generatedImages ?? [];
-
-  if (attachments.length) {
-    parts.push(
-      attachments
-        .map((attachment) => `Attachment: ${attachment.filename} (${attachment.mimeType})`)
-        .join("\n"),
-    );
-  }
-
-  if (generatedImages.length) {
-    parts.push(
-      generatedImages
-        .map((image) => `Generated image: ${image.mimeType} ${image.dataUrl}`)
-        .join("\n"),
-    );
-  }
-
-  return parts.filter(Boolean).join("\n");
-}
-
-function formatTranscriptForNotion(messages: Message[]) {
-  return messages
-    .filter((message) => message.content.trim() || message.attachments?.length || message.generatedImages?.length)
-    .map(formatMessageForNotion)
-    .join("\n\n---\n\n");
 }
 
 export default function Home() {
@@ -531,25 +501,29 @@ export default function Home() {
     setNotionError("");
     setNotionUrl("");
 
-    const response = await fetch("/api/notion/pages", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title,
-        content,
-        sessionId: activeSessionId ?? undefined,
-      }),
-    });
-    const data = await readJsonObject(response);
+    try {
+      const response = await fetch("/api/notion/pages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          content,
+          sessionId: activeSessionId ?? undefined,
+        }),
+      });
+      const data = await readJsonObject(response);
 
-    setNotionSaving(false);
+      if (!response.ok) {
+        setNotionError(readErrorMessage(data, NOTION_SAVE_FALLBACK_ERROR));
+        return;
+      }
 
-    if (!response.ok) {
-      setNotionError(readErrorMessage(data, NOTION_SAVE_FALLBACK_ERROR));
-      return;
+      setNotionUrl(typeof data.url === "string" ? data.url : "");
+    } catch {
+      setNotionError(NOTION_SAVE_FALLBACK_ERROR);
+    } finally {
+      setNotionSaving(false);
     }
-
-    setNotionUrl(typeof data.url === "string" ? data.url : "");
   }
 
   async function sendMessage(event: FormEvent) {
@@ -557,6 +531,7 @@ export default function Home() {
 
     const submittedInputValue = inputRef.current?.value ?? input;
     const userContent = submittedInputValue.trim();
+    const submittedFiles = files;
     let requestSessionId = activeSessionId;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
@@ -565,6 +540,17 @@ export default function Home() {
       streamingSessionsRef.current[requestSessionKey] ||
       submittingSessionKeysRef.current.has(requestSessionKey)
     ) {
+      return;
+    }
+
+    const validationError = getSubmissionValidationError({
+      imageGenerationMode,
+      modelLabel: selectedModel.label,
+      supportsImageGeneration: selectedModel.supportsImageGeneration,
+      fileMimeTypes: submittedFiles.map((item) => item.file.type),
+    });
+    if (validationError) {
+      setSendError(validationError);
       return;
     }
 
@@ -595,7 +581,6 @@ export default function Home() {
     // API の応答を待ってから描画すると体感が遅くなるため、先に表示してストリーム差分で埋めていく。
     // 入力欄の値はここで確定する。以降は state を空にしてもこの変数を API 送信用に使う。
     // 送信時点の添付を固定する。setFiles([]) 後もこの配列を使って FormData とプレビュー解放を行う。
-    const submittedFiles = files;
     // API 応答を待たずに画面へ出すユーザー発言。添付には送信前プレビュー URL も含める。
     const localUserMessage: Message = {
       id: crypto.randomUUID(),
@@ -635,39 +620,6 @@ export default function Home() {
       inputRef.current.value = "";
     }
     setFiles([]);
-
-    if (imageGenerationMode && !selectedModel.supportsImageGeneration) {
-      updateCachedMessages(requestSessionKey, (current) =>
-        current.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                content: `${selectedModel.label} does not support image generation. Switch to GPT-5.5 to use images.`,
-              }
-            : message,
-        ),
-      );
-      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
-      return;
-    }
-
-    if (
-      imageGenerationMode &&
-      submittedFiles.some((item) => !isImageMimeType(item.file.type || "application/octet-stream"))
-    ) {
-      updateCachedMessages(requestSessionKey, (current) =>
-        current.map((message) =>
-          message.id === assistantMessageId
-            ? {
-                ...message,
-                content: "Image generation only accepts image uploads. Remove non-image files or turn off Image generation.",
-              }
-            : message,
-        ),
-      );
-      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
-      return;
-    }
 
     startStreamingSession(requestSessionKey, new Date().getTime());
 
