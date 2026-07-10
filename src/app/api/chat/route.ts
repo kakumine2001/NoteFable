@@ -52,6 +52,7 @@ type ResponsesStreamRequest = {
     type: "web_search";
   }[];
   tool_choice?: "auto";
+  safety_identifier: string;
   store: false;
   stream: true;
 };
@@ -260,7 +261,7 @@ async function createTavilySearchPrompt(query: string) {
 function getUpstreamModel(model: string) {
   // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。
   // 環境変数で差し替えできるようにして、画面側の選択肢は固定のまま運用できる。
-  if (model === "gpt-5.5") {
+  if (model === "gpt-5.6-sol") {
     return optionalEnv("OPENAI_TEXT_MODEL") || model;
   }
 
@@ -428,7 +429,7 @@ export async function POST(request: Request) {
 
   if (!modelOption.supportsImageInput && files.some(isImageFile)) {
     return NextResponse.json(
-      { error: `${modelOption.label} does not support image uploads. Use GPT-5.5 for images.` },
+      { error: `${modelOption.label} does not support image uploads. Use GPT-5.6 Sol for images.` },
       { status: 400 },
     );
   }
@@ -572,6 +573,7 @@ export async function POST(request: Request) {
                 reasoning: {
                   effort: reasoning,
                 },
+                safety_identifier: user.id,
                 ...(webSearch
                   ? {
                       tools: [{ type: "web_search" }],

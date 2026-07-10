@@ -51,7 +51,7 @@ NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 
 ```bash
 OPENAI_IMAGE_MODEL="gpt-image-2"
-OPENAI_TEXT_MODEL="gpt-5.5"
+OPENAI_TEXT_MODEL="gpt-5.6-sol"
 DEEPSEEK_FLASH_MODEL="deepseek-v4-flash"
 DEEPSEEK_PRO_MODEL="deepseek-v4-pro"
 STUDYMATE_STORAGE_DIR="data/storage"
@@ -94,7 +94,7 @@ npx prisma validate
 
 模型能力：
 
-- GPT-5.5：支持图片输入和图片生成
+- GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max` 六档推理强度
 - DeepSeek：不支持图片输入和图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送
 
 图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。

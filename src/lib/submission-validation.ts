@@ -16,7 +16,7 @@ export function getSubmissionValidationError({
   if (!imageGenerationMode) return null;
 
   if (!supportsImageGeneration) {
-    return `${modelLabel} does not support image generation. Switch to GPT-5.5 to use images.`;
+    return `${modelLabel} does not support image generation. Switch to GPT-5.6 Sol to use images.`;
   }
 
   if (fileMimeTypes.some((mimeType) => !isImageMimeType(mimeType || "application/octet-stream"))) {

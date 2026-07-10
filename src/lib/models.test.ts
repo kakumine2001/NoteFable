@@ -10,7 +10,7 @@ import {
 
 describe("model configuration", () => {
   it("keeps DeepSeek text-only and GPT image-capable", () => {
-    const openAI = getModelOption("gpt-5.5");
+    const openAI = getModelOption("gpt-5.6-sol");
     const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
 
     expect(openAI.supportsImageInput).toBe(true);
@@ -21,19 +21,39 @@ describe("model configuration", () => {
   });
 
   it("normalizes unknown models to the default", () => {
+    expect(DEFAULT_MODEL).toBe("gpt-5.6-sol");
     expect(normalizeModel("deepseek-v4-pro")).toBe("deepseek-v4-pro");
+    expect(normalizeModel("gpt-5.5")).toBe(DEFAULT_MODEL);
     expect(normalizeModel("unknown-model")).toBe(DEFAULT_MODEL);
     expect(normalizeModel(null)).toBe(DEFAULT_MODEL);
+    expect(getModelOption("gpt-5.5").id).toBe(DEFAULT_MODEL);
     expect(getModelOption("unknown-model").id).toBe(DEFAULT_MODEL);
   });
 
-  it("uses each model's reasoning defaults for unsupported values", () => {
-    expect(normalizeReasoning("low", "gpt-5.5")).toBe("low");
+  it("supports all six Sol reasoning efforts", () => {
+    const sol = getModelOption("gpt-5.6-sol");
+
+    expect(sol.reasoningEfforts).toEqual(["none", "low", "medium", "high", "xhigh", "max"]);
+    expect(sol.defaultReasoning).toBe("medium");
+    expect(normalizeReasoning(null, sol.id)).toBe("medium");
+    expect(normalizeReasoning("invalid", sol.id)).toBe("medium");
+    for (const effort of sol.reasoningEfforts) {
+      expect(normalizeReasoning(effort, sol.id)).toBe(effort);
+    }
+  });
+
+  it("keeps DeepSeek reasoning options and defaults unchanged", () => {
+    const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
+
+    expect(deepSeek.every((model) => model.reasoningEfforts.join(",") === "high,xhigh")).toBe(true);
+    expect(deepSeek.every((model) => model.defaultReasoning === "high")).toBe(true);
     expect(normalizeReasoning("low", "deepseek-v4-flash")).toBe("high");
     expect(normalizeReasoning(null, "deepseek-v4-pro")).toBe("high");
   });
 
   it("maps reasoning values to Prisma enum values", () => {
+    expect(toDbReasoning("none")).toBe("NONE");
     expect(toDbReasoning("xhigh")).toBe("XHIGH");
+    expect(toDbReasoning("max")).toBe("MAX");
   });
 });

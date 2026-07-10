@@ -3,7 +3,7 @@ import { stringifyJsonForProxy } from "./proxy-json";
 
 describe("stringifyJsonForProxy", () => {
   it("preserves ordinary ASCII JSON", () => {
-    const value = { model: "gpt-5.5", enabled: true, count: 2 };
+    const value = { model: "gpt-5.6-sol", enabled: true, count: 2 };
 
     expect(stringifyJsonForProxy(value)).toBe(JSON.stringify(value));
   });

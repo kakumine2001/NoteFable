@@ -336,7 +336,7 @@ export async function POST(request: Request) {
 
   if (!modelOption.supportsImageGeneration) {
     return NextResponse.json(
-      { error: `${modelOption.label} does not support image generation. Use GPT-5.5 for images.` },
+      { error: `${modelOption.label} does not support image generation. Use GPT-5.6 Sol for images.` },
       { status: 400 },
     );
   }
