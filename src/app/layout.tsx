@@ -32,7 +32,7 @@ export default function RootLayout({
 }>) {
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
   return (
-    <html lang="zh-CN" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
       <body>{children}</body>
     </html>
   );

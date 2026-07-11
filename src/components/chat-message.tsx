@@ -58,14 +58,9 @@ export const ChatMessage = memo(function ChatMessage({
     !hasGeneratedImages;
 
   return (
-    <article className={`flex gap-3 ${message.role === "USER" ? "justify-end" : "justify-start"}`}>
-      <div
-        className={`${
-          message.role === "USER"
-            ? "flex max-w-[78%] flex-col items-end gap-3"
-            : "w-full max-w-none text-slate-950"
-        }`}
-      >
+    <article className="notion-turn motion-page-enter">
+      <div className="w-full min-w-0">
+        <div className="notion-role-label">{message.role === "USER" ? "You" : "StudyMate"}</div>
         {message.role === "ASSISTANT" ? (
           <div className="markdown-body">
             {hasGeneratedImages && (
@@ -102,12 +97,12 @@ export const ChatMessage = memo(function ChatMessage({
             )}
           </div>
         ) : (
-          <>
+          <div className="notion-user-block">
             {!!message.attachments?.some((attachment) =>
               isImageMimeType(attachment.mimeType),
             ) && (
               // ユーザーが添付した画像は、本文吹き出しの上にサムネイルとして並べる。
-              <div className="flex flex-wrap justify-end gap-2">
+              <div className="mb-3 flex flex-wrap gap-2">
                 {message.attachments
                   .filter((attachment) => isImageMimeType(attachment.mimeType))
                   .map((attachment) => {
@@ -122,25 +117,25 @@ export const ChatMessage = memo(function ChatMessage({
                         width={144}
                         height={144}
                         unoptimized
-                        className="h-36 w-36 rounded-[1.6rem] object-cover"
+                        className="h-32 w-32 rounded object-cover"
                       />
                     ) : null;
                   })}
               </div>
             )}
             {message.content && (
-              <div className="max-w-full rounded-[1.6rem] bg-[#dff1ff] px-5 py-2.5 text-base leading-6 text-slate-950">
+              <div className="text-[15px] leading-7 text-[var(--notion-text)]">
                 <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</div>
               </div>
             )}
-          </>
+          </div>
         )}
         {!!message.attachments?.some(
           (attachment) =>
             message.role === "ASSISTANT" || !isImageMimeType(attachment.mimeType),
         ) && (
           // 画像以外のユーザー添付と、アシスタント側の通常添付はファイルチップとして表示する。
-          <div className="mt-3 flex flex-wrap gap-2">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {message.attachments
               .filter(
                 (attachment) =>
@@ -149,11 +144,7 @@ export const ChatMessage = memo(function ChatMessage({
               .map((attachment) => (
                 <span
                   key={attachment.id}
-                  className={`inline-flex max-w-full items-center gap-1 rounded-full px-2 py-1 text-xs ${
-                    message.role === "USER"
-                      ? "bg-[#e9e7e5] text-slate-700"
-                      : "bg-white/15"
-                  }`}
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2 py-1 text-xs text-[var(--notion-muted)]"
                 >
                   <Paperclip size={12} />
                   <span className="truncate">{attachment.filename}</span>

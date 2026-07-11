@@ -72,11 +72,19 @@ export function ModelSelect({
       }
     }
 
-    if (open) {
-      document.addEventListener("mousedown", closeOnOutsideClick);
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
     }
 
-    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+    if (open) {
+      document.addEventListener("mousedown", closeOnOutsideClick);
+      document.addEventListener("keydown", closeOnEscape);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
   }, [open]);
 
   return (
@@ -84,15 +92,15 @@ export function ModelSelect({
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="flex h-9 max-w-44 items-center gap-1 rounded-full px-1.5 text-xs font-medium text-slate-900 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] sm:h-10 sm:max-w-none sm:px-3 sm:text-sm"
+        className="notion-composer-control max-w-48 sm:max-w-none"
         aria-haspopup="menu"
         aria-expanded={open}
       >
         <span className="truncate">{currentModel.label}</span>
-        <span className="hidden text-slate-400 sm:inline">/</span>
-        <span className="shrink-0 text-slate-600">{currentReasoningLabel}</span>
+        <span className="hidden text-[var(--notion-faint)] sm:inline">·</span>
+        <span className="shrink-0 text-[var(--notion-muted)]">{currentReasoningLabel}</span>
         <ChevronDown
-          className={`shrink-0 text-slate-700 transition-transform duration-150 ease-out ${
+          className={`shrink-0 text-[var(--notion-muted)] transition-transform duration-100 ${
             open ? "rotate-180" : ""
           }`}
           size={15}
@@ -101,7 +109,7 @@ export function ModelSelect({
 
       {open && (
         <div
-          className="motion-menu fixed bottom-28 left-1/2 z-30 w-72 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-0 sm:mb-3 sm:w-96 sm:translate-x-0 sm:rounded-[1.35rem] sm:py-2"
+          className="notion-menu motion-menu fixed bottom-24 left-2 right-2 z-30 p-1 sm:absolute sm:bottom-full sm:left-0 sm:right-auto sm:mb-2 sm:w-96"
           role="menu"
         >
           <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
@@ -112,33 +120,33 @@ export function ModelSelect({
               return (
                 <div
                   key={item.id}
-                  className={`rounded-xl transition-[background-color] duration-150 ease-out sm:rounded-2xl ${
-                    selected ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
+                  className={`rounded transition-colors duration-100 ${
+                    selected ? "bg-[var(--notion-hover)]" : "hover:bg-[var(--notion-hover)]"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => onModelChange(item.id)}
-                    className="flex w-full items-start gap-2 rounded-xl px-2.5 py-2 text-left transition-[transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] sm:gap-3 sm:rounded-2xl sm:px-3 sm:py-3"
+                    className="flex w-full items-start gap-2 rounded px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
                     role="menuitemradio"
                     aria-checked={selected}
                   >
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center text-slate-950">
+                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center text-[var(--notion-text)]">
                       {selected ? <Check size={16} strokeWidth={2.3} /> : null}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-slate-950 sm:text-sm">
+                      <span className="block text-xs font-medium text-[var(--notion-text)] sm:text-sm">
                         {item.label}
                       </span>
-                      <span className="mt-0.5 block text-xs leading-4 text-slate-500 sm:text-sm sm:leading-5">
+                      <span className="mt-0.5 block text-xs leading-4 text-[var(--notion-muted)]">
                         {modelDescriptions[item.id]}
                       </span>
                     </span>
                   </button>
 
                   {selected && (
-                    <div className="grid gap-1 px-2.5 pb-2 sm:px-3 sm:pb-3" role="group" aria-label="Reasoning effort">
-                      <div className="grid grid-cols-2 gap-1">
+                    <div className="grid gap-1 px-2 pb-2" role="group" aria-label="Reasoning effort">
+                      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
                         {item.reasoningEfforts.map((effort) => {
                           const reasoningSelected = effort === reasoning;
 
@@ -150,16 +158,16 @@ export function ModelSelect({
                                 onReasoningChange(effort);
                                 setOpen(false);
                               }}
-                              className={`rounded-lg px-2 py-1.5 text-left transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] ${
+                              className={`rounded px-2 py-1.5 text-left transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
                                 reasoningSelected
-                                  ? "bg-white text-slate-950 shadow-sm"
-                                  : "text-slate-600 hover:bg-white/70 hover:text-slate-950"
+                                  ? "bg-white text-[var(--notion-text)] ring-1 ring-[var(--notion-border-strong)]"
+                                  : "text-[var(--notion-muted)] hover:bg-white/80 hover:text-[var(--notion-text)]"
                               }`}
                             >
                               <span className="block text-xs font-semibold">
                                 {formatReasoningLabel(effort, item.provider)}
                               </span>
-                              <span className="mt-0.5 block text-[11px] leading-4 text-slate-500">
+                              <span className="mt-0.5 block text-[10px] leading-4 text-[var(--notion-muted)]">
                                 {reasoningDescriptions[effort]}
                               </span>
                             </button>

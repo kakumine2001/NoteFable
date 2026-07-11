@@ -3,25 +3,24 @@
 import {
   ArrowDown,
   ArrowUp,
-  ExternalLink,
   Globe2,
   ImagePlus,
-  Loader2,
   Menu,
   MessageSquare,
   Paperclip,
   PanelLeft,
   Plus,
-  Trash2,
   UploadCloud,
   X,
 } from "lucide-react";
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatMessage } from "@/components/chat-message";
+import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
-import { StudyMateLogo } from "@/components/studymate-logo";
+import { NotionDrawer } from "@/components/notion-drawer";
 import { isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { formatTranscriptForNotion } from "@/lib/notion-transcript";
@@ -179,14 +178,14 @@ export default function Home() {
   // モデル ID から、対応機能や表示名をまとめた設定を引く。
   const selectedModel = getModelOption(model);
   const inputPlaceholder = imageGenerationMode
-    ? "作りたい画像を入力"
+    ? "Describe an image to create..."
     : webSearchMode
-      ? "Webで調べたいことを入力"
-      : "メッセージを入力";
+      ? "Search the web with StudyMate..."
+      : "Ask StudyMate anything...";
   const activeInputMode = imageGenerationMode
     ? { icon: ImagePlus, label: "Image" }
     : webSearchMode
-      ? { icon: Globe2, label: "WebSearch" }
+      ? { icon: Globe2, label: "Search" }
       : { icon: MessageSquare, label: "Chat" };
   const ActiveInputModeIcon = activeInputMode.icon;
 
@@ -198,11 +197,19 @@ export default function Home() {
       }
     }
 
-    if (modeMenuOpen) {
-      document.addEventListener("mousedown", closeModeMenuOnOutsideClick);
+    function closeModeMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setModeMenuOpen(false);
     }
 
-    return () => document.removeEventListener("mousedown", closeModeMenuOnOutsideClick);
+    if (modeMenuOpen) {
+      document.addEventListener("mousedown", closeModeMenuOnOutsideClick);
+      document.addEventListener("keydown", closeModeMenuOnEscape);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", closeModeMenuOnOutsideClick);
+      document.removeEventListener("keydown", closeModeMenuOnEscape);
+    };
   }, [modeMenuOpen]);
 
   function chooseInputMode(nextMode: "chat" | "search" | "image") {
@@ -862,100 +869,47 @@ export default function Home() {
       ? 0
       : Math.max(1, Math.round((now - activeStreamStartedAt) / 1000));
 
-  // デスクトップでは常設、モバイルではオーバーレイとして再利用するサイドバー UI。
+  // デスクトップとモバイルで同じ会話履歴を使い、表示方法だけ切り替える。
   const sidebar = (
-    <aside className="flex h-full w-72 shrink-0 flex-col bg-[#f8fafd]">
-      <div className="flex h-16 items-center justify-between px-4">
-        <StudyMateLogo />
-        <button
-          type="button"
-          className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-200 hover:text-slate-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
-          onClick={() => {
-            if (window.matchMedia("(min-width: 1024px)").matches) {
-              setSidebarVisible(false);
-            } else {
-              setSidebarOpen(false);
-            }
-          }}
-          aria-label="Close sidebar"
-          title="Toggle sidebar (Ctrl+B)"
-        >
-          <PanelLeft size={21} strokeWidth={1.8} />
-        </button>
-      </div>
-
-      <div className="px-3 pb-3">
-        <button
-          type="button"
-          onClick={createSession}
-          className="flex h-11 w-full items-center justify-center gap-2 rounded-full bg-[#e9e7e5] px-4 text-sm font-semibold text-slate-950 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-[#dfdddb] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.98]"
-        >
-          <Plus size={17} />
-          New chat
-        </button>
-      </div>
-
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
-        {sessions.length === 0 ? (
-          <div className="px-3 py-6 text-sm text-slate-500">No sessions yet.</div>
-        ) : (
-          sessions.map((session) => (
-            <div
-              key={session.id}
-              className={`group mb-1 flex items-center gap-1 rounded-full transition-[background-color,transform] duration-150 ease-out ${
-                activeSessionId === session.id ? "bg-[#e9e7e5]" : "hover:bg-[#f1f0ef]"
-              }`}
-            >
-              <button
-                onClick={() => loadMessages(session.id)}
-                className="min-w-0 flex-1 truncate px-3 py-2.5 text-left text-sm font-medium text-slate-800 transition-colors duration-150 ease-out hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-300/60 active:scale-[0.99]"
-                title={session.title}
-              >
-                {session.title}
-              </button>
-              <button
-                onClick={() => deleteSession(session.id)}
-                className="mr-1 grid h-8 w-8 place-items-center rounded-full text-slate-600 opacity-0 transition-[background-color,color,opacity,transform] duration-150 ease-out hover:bg-white/70 hover:text-red-600 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-200 active:scale-[0.96] group-hover:opacity-100"
-                aria-label="Delete session"
-              >
-                <Trash2 size={15} />
-              </button>
-            </div>
-          ))
-        )}
-      </div>
-    </aside>
+    <ChatSidebar
+      sessions={sessions}
+      activeSessionId={activeSessionId}
+      onCreate={createSession}
+      onLoad={loadMessages}
+      onDelete={deleteSession}
+      onClose={() => {
+        if (window.matchMedia("(min-width: 1024px)").matches) {
+          setSidebarVisible(false);
+        } else {
+          setSidebarOpen(false);
+        }
+      }}
+    />
   );
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
 
   return (
-    <main className="flex h-dvh bg-white text-slate-900">
+    <main className="notion-workspace flex h-dvh">
       {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (
         <div className="fixed inset-0 z-40 lg:hidden">
           <button
-            className="motion-fade-in absolute inset-0 bg-slate-950/30"
+            className="motion-fade-in absolute inset-0 bg-black/15"
             onClick={() => setSidebarOpen(false)}
             aria-label="Close sidebar overlay"
           />
-          <div className="motion-sidebar-panel relative h-full w-72">{sidebar}</div>
+          <div className="motion-sidebar-panel relative h-full w-60 max-w-[88vw]">{sidebar}</div>
         </div>
       )}
 
-      <section
-        className="relative flex min-w-0 flex-1 flex-col overflow-hidden bg-[#f7ffff] bg-[url(/chat-gradient-background.png)] bg-cover bg-center bg-no-repeat"
-      >
-        <header
-          className={`relative z-10 flex h-16 items-center justify-between px-4 ${
-            emptyState ? "" : "border-b border-slate-200"
-          }`}
-        >
+      <section className="notion-page">
+        <header className="notion-topbar">
           <div className="flex min-w-0 items-center gap-3">
             <button
-              className="grid h-10 w-10 place-items-center rounded-full text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] lg:hidden"
+              className="notion-icon-button mobile-sidebar-toggle"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open sidebar"
             >
@@ -964,7 +918,7 @@ export default function Home() {
             {!sidebarVisible && (
               <button
                 type="button"
-                className="hidden h-10 w-10 place-items-center rounded-full text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] lg:grid"
+                className="notion-icon-button desktop-sidebar-toggle"
                 onClick={() => setSidebarVisible(true)}
                 aria-label="Open sidebar"
                 title="Toggle sidebar (Ctrl+B)"
@@ -972,19 +926,19 @@ export default function Home() {
                 <PanelLeft size={22} strokeWidth={1.8} />
               </button>
             )}
-            <div className={`min-w-0 ${emptyState ? "hidden" : ""}`}>
-              <div className="truncate text-sm font-semibold text-slate-900">{activeTitle}</div>
+            <div className="min-w-0">
+              <div className="truncate text-sm text-[var(--notion-muted)]">{activeTitle}</div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
-            <div className={`text-xs font-semibold text-slate-500 ${emptyState ? "hidden" : ""}`}>
+            <div className={`hidden text-xs text-[var(--notion-muted)] sm:block ${emptyState ? "sm:hidden" : ""}`}>
               {selectedModel.label}
             </div>
             <button
               type="button"
               onClick={openNotionDraft}
-              className="inline-flex h-9 items-center gap-1.5 rounded-full bg-white/80 px-3 text-xs font-semibold text-slate-700 ring-1 ring-slate-200 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-white hover:text-slate-950 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.98]"
+              className="notion-composer-control"
               aria-label="Open Notion draft"
               title="Save to Notion"
             >
@@ -995,135 +949,57 @@ export default function Home() {
         </header>
 
         {notionDraftOpen && (
-          <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30">
-            <button
-              type="button"
-              className="absolute inset-0 cursor-default"
-              onClick={() => setNotionDraftOpen(false)}
-              aria-label="Close Notion draft"
-            />
-            <aside className="motion-sidebar-panel relative z-10 flex h-full w-full max-w-xl flex-col bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
-              <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
-                <div>
-                  <div className="text-sm font-semibold text-slate-950">Save to Notion</div>
-                  <div className="text-xs text-slate-500">Edit or paste anything before saving.</div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setNotionDraftOpen(false)}
-                  className="grid h-9 w-9 place-items-center rounded-full text-slate-500 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.96]"
-                  aria-label="Close Notion draft"
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-5 py-5">
-                <label className="grid gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Title
-                  </span>
-                  <input
-                    value={notionTitle}
-                    onChange={(event) => setNotionTitle(event.target.value)}
-                    className="h-11 rounded-xl border border-slate-200 px-3 text-sm font-medium text-slate-950 outline-none transition-[border-color,box-shadow] duration-150 ease-out focus:border-sky-300 focus:shadow-[0_0_0_3px_rgba(125,211,252,0.28)]"
-                    placeholder="Notion page title"
-                  />
-                </label>
-
-                <label className="grid min-h-0 flex-1 gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Content
-                  </span>
-                  <textarea
-                    value={notionContent}
-                    onChange={(event) => setNotionContent(event.target.value)}
-                    className="min-h-[22rem] flex-1 resize-none rounded-xl border border-slate-200 px-3 py-3 text-sm leading-6 text-slate-950 outline-none transition-[border-color,box-shadow] duration-150 ease-out focus:border-sky-300 focus:shadow-[0_0_0_3px_rgba(125,211,252,0.28)]"
-                    placeholder="Paste or edit the note to save."
-                  />
-                </label>
-
-                {notionError && (
-                  <div className="rounded-xl bg-red-50 px-3 py-2 text-sm font-medium text-red-700 ring-1 ring-red-100">
-                    {notionError}
-                  </div>
-                )}
-
-                {notionUrl && (
-                  <a
-                    href={notionUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-100 transition-[background-color,transform] duration-150 ease-out hover:bg-emerald-100 active:scale-[0.99]"
-                  >
-                    Saved to Notion
-                    <ExternalLink size={15} />
-                  </a>
-                )}
-              </div>
-
-              <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-5 py-4">
-                <button
-                  type="button"
-                  onClick={() => setNotionDraftOpen(false)}
-                  className="h-10 rounded-full px-4 text-sm font-semibold text-slate-600 transition-[background-color,color,transform] duration-150 ease-out hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={saveNotionDraft}
-                  disabled={notionSaving || !notionTitle.trim() || !notionContent.trim()}
-                  className="inline-flex h-10 items-center gap-2 rounded-full bg-sky-300 px-4 text-sm font-semibold text-slate-950 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-sky-400 hover:shadow-[0_8px_20px_rgba(14,165,233,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:translate-y-0 active:scale-[0.98] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
-                >
-                  {notionSaving && <Loader2 size={16} className="animate-spin" />}
-                  Save to Notion
-                </button>
-              </div>
-            </aside>
-          </div>
+          <NotionDrawer
+            title={notionTitle}
+            content={notionContent}
+            saving={notionSaving}
+            error={notionError}
+            url={notionUrl}
+            onTitleChange={setNotionTitle}
+            onContentChange={setNotionContent}
+            onClose={() => setNotionDraftOpen(false)}
+            onSave={saveNotionDraft}
+          />
         )}
 
         <div ref={chatScrollRef} className="relative z-0 flex-1 overflow-y-auto">
           <div
-            className={`mx-auto flex min-h-full w-full max-w-6xl flex-col px-4 sm:px-6 lg:px-10 ${
-              emptyState ? "items-center justify-center pb-44 pt-16" : "py-8"
-            }`}
+            className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
           >
             {emptyState ? (
-              <div className="flex-1" />
+              <EmptyConversation />
             ) : (
-              <div className="space-y-8">
-                {messages.map((message, index) => {
-                  const isWaitingAssistant =
-                    message.role === "ASSISTANT" &&
-                    !message.content &&
-                    !message.generatedImages?.length &&
-                    index === messages.length - 1;
+              <>
+                <header className="pb-10 pt-12 motion-page-enter">
+                  <h1 className="break-words text-[2rem] font-bold leading-tight tracking-[-0.025em] text-[var(--notion-text)]">{activeTitle}</h1>
+                  <p className="mt-2 text-sm text-[var(--notion-muted)]">StudyMate conversation</p>
+                </header>
+                <div className="space-y-9">
+                  {messages.map((message, index) => {
+                    const isWaitingAssistant =
+                      message.role === "ASSISTANT" &&
+                      !message.content &&
+                      !message.generatedImages?.length &&
+                      index === messages.length - 1;
 
-                  return (
-                    <ChatMessage
-                      key={message.id}
-                      message={message}
-                      isStreaming={isActiveSessionStreaming && isWaitingAssistant}
-                      thinkingSeconds={
-                        isActiveSessionStreaming && isWaitingAssistant ? thinkingSeconds : 0
-                      }
-                    />
-                  );
-                })}
-              </div>
+                    return (
+                      <ChatMessage
+                        key={message.id}
+                        message={message}
+                        isStreaming={isActiveSessionStreaming && isWaitingAssistant}
+                        thinkingSeconds={
+                          isActiveSessionStreaming && isWaitingAssistant ? thinkingSeconds : 0
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         </div>
 
-        <div
-          className={`relative z-10 px-4 py-4 ${
-            emptyState
-              ? "absolute bottom-0 left-0 right-0 pb-6 sm:pb-8"
-              : ""
-          }`}
-        >
+        <div className="notion-composer-wrap">
           <div
             className={`mx-auto mb-2 flex max-w-4xl justify-center transition-[opacity,transform] duration-150 ease-out ${
               !emptyState && !isAtChatBottom
@@ -1134,7 +1010,7 @@ export default function Home() {
             <button
               type="button"
               onClick={scrollChatToBottom}
-              className="grid h-10 w-10 place-items-center rounded-full bg-white text-slate-500 shadow-[0_8px_24px_rgba(15,23,42,0.16)] ring-1 ring-slate-200 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-slate-50 hover:text-slate-900 hover:shadow-[0_10px_28px_rgba(15,23,42,0.18)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:translate-y-0 active:scale-[0.96]"
+              className="notion-icon-button grid bg-white shadow-[var(--notion-shadow)]"
               aria-label="Scroll to bottom"
               title="Scroll to bottom"
             >
@@ -1143,18 +1019,18 @@ export default function Home() {
           </div>
           {sendError && (
             <div
-              className="mx-auto mb-3 max-w-4xl rounded-2xl bg-red-50 px-4 py-2 text-sm font-medium text-red-700 ring-1 ring-red-100"
+              className="notion-error notion-page-column mb-3"
               role="alert"
             >
               {sendError}
             </div>
           )}
-          <form onSubmit={sendMessage} className="mx-auto max-w-4xl">
+          <form onSubmit={sendMessage} className="notion-page-column">
             {!!files.length && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {files.map(({ id, file, previewUrl }) =>
                   previewUrl ? (
-                    <div key={id} className="group motion-menu relative h-28 w-28 overflow-hidden rounded-[1.4rem]">
+                    <div key={id} className="group motion-menu relative h-24 w-24 overflow-hidden rounded-md border border-[var(--notion-border)]">
                       <Image
                         src={previewUrl}
                         alt={file.name}
@@ -1166,7 +1042,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => removeUploadFile(id)}
-                        className="absolute right-2 top-2 grid h-7 w-7 place-items-center rounded-full bg-black/55 text-white transition-[background-color,transform] duration-150 ease-out hover:bg-black/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 active:scale-[0.94]"
+                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100"
                         aria-label="Remove image"
                       >
                         <X size={15} />
@@ -1177,7 +1053,7 @@ export default function Home() {
                       key={id}
                       type="button"
                       onClick={() => removeUploadFile(id)}
-                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded-full bg-[#e9e7e5] px-3 py-1.5 text-xs font-medium text-slate-700 transition-[background-color,color,transform] duration-150 ease-out hover:bg-[#dfdddb] hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98]"
+                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                     >
                       <Paperclip size={13} />
                       <span className="truncate">{file.name}</span>
@@ -1188,9 +1064,9 @@ export default function Home() {
               </div>
             )}
 
-            <div className="grid min-h-20 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-2 rounded-[1.75rem] border border-slate-100 bg-white px-4 py-3 shadow-[0_12px_32px_rgba(15,23,42,0.16)] transition-[border-color,box-shadow] duration-150 ease-out focus-within:border-slate-200 focus-within:shadow-[0_14px_36px_rgba(15,23,42,0.18)] sm:flex sm:gap-2 sm:rounded-[2rem] sm:px-5">
-              <label className="col-start-1 row-start-2 grid h-9 w-9 shrink-0 cursor-pointer place-items-center text-slate-950 transition-[color,transform] duration-150 ease-out hover:text-blue-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-sky-300/60 active:scale-[0.96] sm:row-start-1 sm:h-11 sm:w-8">
-                <Plus size={30} strokeWidth={1.8} />
+            <div className="notion-composer grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-1.5 gap-y-1 p-2.5">
+              <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer">
+                <Plus size={18} strokeWidth={1.8} />
                 <input
                   type="file"
                   multiple
@@ -1208,7 +1084,7 @@ export default function Home() {
                   }}
                 />
               </label>
-              <div className="col-span-2 row-start-1 flex min-w-0 items-center sm:col-span-1 sm:flex-1">
+              <div className="col-span-3 row-start-1 flex min-w-0 items-center">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -1221,10 +1097,10 @@ export default function Home() {
                   }}
                   rows={1}
                   placeholder={inputPlaceholder}
-                  className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-6 text-slate-900 outline-none placeholder:text-slate-500 sm:min-h-11 sm:py-2.5"
+                  className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1 text-[15px] leading-6 text-[var(--notion-text)] outline-none placeholder:text-[var(--notion-faint)]"
                 />
               </div>
-              <div className="col-span-2 col-start-2 row-start-2 flex min-w-0 flex-wrap items-center justify-start gap-1 sm:col-span-1 sm:col-start-auto sm:shrink-0 sm:flex-nowrap">
+              <div className="col-start-2 row-start-2 flex min-w-0 items-center gap-0.5 overflow-visible">
                 <ModelSelect
                   value={model}
                   reasoning={reasoning}
@@ -1235,7 +1111,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setModeMenuOpen((current) => !current)}
-                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#f1f5f9] px-3 text-xs font-medium text-slate-900 transition-[background-color,box-shadow,transform] duration-150 ease-out hover:bg-[#e9e7e5] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.98] sm:h-10 sm:text-sm"
+                    className="notion-composer-control shrink-0"
                     aria-haspopup="menu"
                     aria-expanded={modeMenuOpen}
                   >
@@ -1244,17 +1120,17 @@ export default function Home() {
                   </button>
                   {modeMenuOpen && (
                     <div
-                      className="motion-menu fixed bottom-28 left-1/2 z-30 w-64 -translate-x-1/2 overflow-hidden rounded-2xl bg-white py-1 shadow-[0_16px_42px_rgba(15,23,42,0.18)] ring-1 ring-slate-200 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-3 sm:w-56 sm:translate-x-0 sm:rounded-[1.35rem]"
+                      className="notion-menu motion-menu fixed bottom-24 left-2 right-2 z-30 p-1 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-2 sm:w-56"
                       role="menu"
                     >
                       <div className="space-y-0.5 p-1.5">
                         <button
                           type="button"
                           onClick={() => chooseInputMode("chat")}
-                          className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                          className={`notion-menu-item ${
                             !imageGenerationMode && !webSearchMode
-                              ? "bg-[#e9e7e5] text-slate-950"
-                              : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                              ? "is-selected"
+                              : ""
                           }`}
                           role="menuitemradio"
                           aria-checked={!imageGenerationMode && !webSearchMode}
@@ -1266,32 +1142,32 @@ export default function Home() {
                           <button
                             type="button"
                             onClick={() => chooseInputMode("search")}
-                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                            className={`notion-menu-item ${
                               webSearchMode && !imageGenerationMode
-                                ? "bg-[#e9e7e5] text-slate-950"
-                                : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                                ? "is-selected"
+                                : ""
                             }`}
                             role="menuitemradio"
                             aria-checked={webSearchMode && !imageGenerationMode}
                           >
                             <Globe2 size={16} />
-                            <span>WebSearch</span>
+                            <span>Search the web</span>
                           </button>
                         )}
                         {selectedModel.supportsImageGeneration && (
                           <button
                             type="button"
                             onClick={() => chooseInputMode("image")}
-                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm transition-[background-color,color,transform] duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/60 active:scale-[0.99] ${
+                            className={`notion-menu-item ${
                               imageGenerationMode
-                                ? "bg-[#e9e7e5] text-slate-950"
-                                : "text-slate-700 hover:bg-[#f1f0ef] hover:text-slate-950"
+                                ? "is-selected"
+                                : ""
                             }`}
                             role="menuitemradio"
                             aria-checked={imageGenerationMode}
                           >
                             <ImagePlus size={16} />
-                            <span>Image</span>
+                            <span>Create an image</span>
                           </button>
                         )}
                       </div>
@@ -1302,7 +1178,7 @@ export default function Home() {
               <button
                 type="submit"
                 disabled={!canSend}
-                className="col-start-3 row-start-1 grid h-10 w-10 shrink-0 place-items-center rounded-full bg-sky-300 text-slate-950 transition-[background-color,color,box-shadow,transform] duration-150 ease-out hover:-translate-y-0.5 hover:bg-sky-400 hover:shadow-[0_8px_20px_rgba(14,165,233,0.25)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300/70 active:translate-y-0 active:scale-[0.96] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0 disabled:active:scale-100 sm:h-11 sm:w-11"
+                className="notion-send col-start-3 row-start-2"
                 aria-label="Send message"
               >
                 <ArrowUp size={24} strokeWidth={2.1} />
