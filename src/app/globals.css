@@ -684,189 +684,122 @@ button:disabled {
 
 .generated-image-placeholder {
   position: relative;
-  isolation: isolate;
-  display: grid;
-  width: min(100%, 24rem);
-  aspect-ratio: 1;
-  place-items: center;
+  width: min(100%, 28rem);
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.78);
-  border-radius: 2.2rem;
-  background:
-    radial-gradient(circle at 14% 88%, rgba(255, 255, 255, 0.9), transparent 8%),
-    radial-gradient(circle at 86% 12%, rgba(255, 255, 255, 0.78), transparent 12%),
-    radial-gradient(circle at 68% 70%, rgba(125, 211, 252, 0.3), transparent 34%),
-    linear-gradient(135deg, rgba(255, 255, 255, 0.72), rgba(224, 242, 254, 0.42) 46%, rgba(204, 251, 241, 0.48));
-  box-shadow:
-    0 20px 54px rgba(14, 165, 233, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.92),
-    inset 0 -1px 0 rgba(14, 165, 233, 0.08);
-  animation: generated-image-glass-breathe 5.8s ease-in-out infinite alternate;
+  border: 1px solid var(--notion-border-strong);
+  border-radius: 0.35rem;
+  background: #fff;
 }
 
-.generated-image-placeholder::before {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  content: "";
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.68), transparent 28%),
-    linear-gradient(315deg, rgba(255, 255, 255, 0.42), transparent 30%);
-  pointer-events: none;
-  animation: generated-image-soft-sheen 4.6s ease-in-out infinite;
+.generated-image-placeholder-header {
+  display: flex;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.65rem;
+  border-bottom: 1px solid var(--notion-border);
+  padding: 0.65rem 0.75rem;
 }
 
-.generated-image-placeholder::after {
-  position: absolute;
-  left: 0.65rem;
-  bottom: 0.65rem;
-  z-index: 3;
-  width: 2.4rem;
-  height: 2.4rem;
-  content: "";
+.generated-image-placeholder-icon {
+  display: grid;
+  width: 1.9rem;
+  height: 1.9rem;
+  flex: none;
+  place-items: center;
+  border-radius: 0.3rem;
+  background: var(--notion-sidebar);
+  color: var(--notion-muted);
+}
+
+.generated-image-placeholder-dots {
+  display: inline-flex;
+  flex: none;
+  gap: 0.2rem;
+  padding-right: 0.15rem;
+}
+
+.generated-image-placeholder-dots i {
+  width: 0.24rem;
+  height: 0.24rem;
   border-radius: 999px;
-  background: radial-gradient(circle, rgba(255, 255, 255, 0.96), transparent 58%);
-  filter: blur(2px);
-  opacity: 0.72;
-  animation: generated-image-corner-glow 3.8s ease-in-out infinite alternate;
+  background: var(--notion-faint);
+  animation: generated-image-dot 1.2s ease-in-out infinite;
 }
 
-.generated-image-placeholder-grid {
-  position: absolute;
-  inset: 1.25rem;
-  z-index: 1;
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  border-radius: 1.65rem;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.25) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.25) 1px, transparent 1px);
-  background-size: 3.3rem 3.3rem;
-  box-shadow:
-    inset 0 0 34px rgba(255, 255, 255, 0.22),
-    inset 0 0 0 1px rgba(186, 230, 253, 0.12);
-  animation: generated-image-grid-drift 8s ease-in-out infinite alternate;
+.generated-image-placeholder-dots i:nth-child(2) {
+  animation-delay: 150ms;
 }
 
-.generated-image-placeholder-lights {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  background:
-    radial-gradient(circle at 22% 24%, rgba(255, 255, 255, 0.78) 0 0.12rem, transparent 0.18rem),
-    radial-gradient(circle at 56% 18%, rgba(255, 255, 255, 0.58) 0 0.11rem, transparent 0.18rem),
-    radial-gradient(circle at 82% 44%, rgba(255, 255, 255, 0.82) 0 0.14rem, transparent 0.22rem),
-    radial-gradient(circle at 34% 76%, rgba(255, 255, 255, 0.74) 0 0.16rem, transparent 0.25rem),
-    radial-gradient(circle at 70% 84%, rgba(255, 255, 255, 0.68) 0 0.18rem, transparent 0.28rem),
-    radial-gradient(circle at 18% 92%, rgba(255, 255, 255, 0.92) 0 0.14rem, transparent 0.24rem);
-  opacity: 0.82;
-  pointer-events: none;
-  animation: generated-image-lights-twinkle 4.2s ease-in-out infinite alternate;
+.generated-image-placeholder-dots i:nth-child(3) {
+  animation-delay: 300ms;
 }
 
-.generated-image-placeholder-frame {
+.generated-image-placeholder-canvas {
   position: relative;
-  z-index: 4;
   display: grid;
-  width: 7rem;
-  height: 7rem;
+  aspect-ratio: 16 / 9;
   place-items: center;
   overflow: hidden;
-  border: 2px solid rgba(255, 255, 255, 0.74);
-  border-radius: 1.65rem;
-  background:
-    radial-gradient(circle at 42% 80%, rgba(255, 255, 255, 0.9), transparent 18%),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(186, 230, 253, 0.34) 52%, rgba(204, 251, 241, 0.44));
-  color: #49afd9;
-  box-shadow:
-    0 18px 34px rgba(14, 165, 233, 0.12),
-    0 0 0 1px rgba(255, 255, 255, 0.24),
-    inset 0 0 24px rgba(255, 255, 255, 0.28);
-  animation: generated-image-frame-float 3.6s ease-in-out infinite alternate;
+  background: var(--notion-sidebar);
+  color: var(--notion-faint);
 }
 
-.generated-image-placeholder-frame::before {
+.generated-image-placeholder-canvas::before {
   position: absolute;
-  inset: 0.1rem;
+  inset: 0;
   content: "";
-  border-radius: 1.45rem;
-  background: linear-gradient(140deg, rgba(255, 255, 255, 0.62), transparent 46%);
-  pointer-events: none;
+  background: linear-gradient(100deg, transparent 28%, rgba(255, 255, 255, 0.7) 48%, transparent 68%);
+  transform: translateX(-100%);
+  animation: generated-image-sheen 2s ease-in-out infinite;
 }
 
-.generated-image-placeholder-frame svg {
-  position: relative;
-  z-index: 1;
-  filter: drop-shadow(0 2px 8px rgba(14, 165, 233, 0.12));
-  animation: generated-image-icon-pulse 3.6s ease-in-out infinite alternate;
+.generated-image-placeholder-progress {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 42%;
+  height: 2px;
+  background: var(--notion-blue);
+  transform: translateX(-105%);
+  animation: generated-image-progress 1.8s ease-in-out infinite;
 }
 
-@keyframes generated-image-glass-breathe {
-  to {
-    border-color: rgba(255, 255, 255, 0.92);
-    box-shadow:
-      0 24px 62px rgba(14, 165, 233, 0.14),
-      inset 0 1px 0 rgba(255, 255, 255, 0.96),
-      inset 0 -1px 0 rgba(14, 165, 233, 0.1);
-  }
-}
-
-@keyframes generated-image-soft-sheen {
+@keyframes generated-image-dot {
   0%,
+  60%,
   100% {
-    opacity: 0.72;
+    opacity: 0.35;
+    transform: translateY(0);
   }
 
-  50% {
-    opacity: 0.42;
-  }
-}
-
-@keyframes generated-image-corner-glow {
-  to {
-    opacity: 0.92;
-    transform: translate(0.2rem, -0.15rem) scale(1.12);
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
   }
 }
 
-@keyframes generated-image-grid-drift {
-  to {
-    background-position: 0.55rem 0.35rem, 0.55rem 0.35rem;
-    opacity: 0.78;
+@keyframes generated-image-sheen {
+  55%,
+  100% {
+    transform: translateX(100%);
   }
 }
 
-@keyframes generated-image-lights-twinkle {
-  to {
-    opacity: 0.52;
-    filter: blur(0.2px);
+@keyframes generated-image-progress {
+  0% {
+    transform: translateX(-105%);
   }
-}
 
-@keyframes generated-image-frame-float {
-  to {
-    transform: translateY(-3px);
-    box-shadow:
-      0 22px 38px rgba(14, 165, 233, 0.15),
-      0 0 0 1px rgba(255, 255, 255, 0.3),
-      inset 0 0 26px rgba(255, 255, 255, 0.32);
-  }
-}
-
-@keyframes generated-image-icon-pulse {
-  to {
-    color: #38a8d2;
-    transform: scale(1.04);
+  55%,
+  100% {
+    transform: translateX(240%);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .generated-image-placeholder,
-  .generated-image-placeholder::before,
-  .generated-image-placeholder::after,
-  .generated-image-placeholder-grid,
-  .generated-image-placeholder-lights,
-  .generated-image-placeholder-frame,
-  .generated-image-placeholder-frame svg {
+  .generated-image-placeholder-dots i,
+  .generated-image-placeholder-canvas::before,
+  .generated-image-placeholder-progress {
     animation: none;
   }
 }

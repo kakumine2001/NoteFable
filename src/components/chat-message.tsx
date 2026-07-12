@@ -18,14 +18,27 @@ function ThinkingIndicator({ seconds }: { seconds: number }) {
 }
 
 function GeneratingImagePreview() {
-  // 完成前の部分画像は出さず、画像生成中だと分かる固定プレビューだけ出す。
+  // 生成中は Notion のブロックに近い控えめな状態表示を出し、完成画像より目立たせない。
   return (
     <div className="generated-image-grid" aria-label="Generating image">
       <div className="generated-image-placeholder">
-        <div className="generated-image-placeholder-grid" aria-hidden="true" />
-        <div className="generated-image-placeholder-lights" aria-hidden="true" />
-        <div className="generated-image-placeholder-frame">
-          <ImagePlus size={42} strokeWidth={1.9} />
+        <div className="generated-image-placeholder-header">
+          <span className="generated-image-placeholder-icon" aria-hidden="true">
+            <ImagePlus size={18} strokeWidth={1.7} />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-medium text-[var(--notion-text)]">Generating image</span>
+            <span className="mt-0.5 block text-xs text-[var(--notion-muted)]">This may take a moment</span>
+          </span>
+          <span className="generated-image-placeholder-dots" aria-hidden="true">
+            <i />
+            <i />
+            <i />
+          </span>
+        </div>
+        <div className="generated-image-placeholder-canvas" aria-hidden="true">
+          <ImagePlus size={28} strokeWidth={1.5} />
+          <span className="generated-image-placeholder-progress" />
         </div>
       </div>
     </div>
