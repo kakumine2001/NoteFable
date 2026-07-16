@@ -16,6 +16,7 @@ import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
+import { normalizeWebSearchMode, shouldUseWebSearch } from "@/lib/web-search";
 
 export const runtime = "nodejs";
 
@@ -401,9 +402,11 @@ export async function POST(request: Request) {
   const modelOption = getModelOption(model);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
   const reasoning = normalizeReasoning(formData.get("reasoning"), model);
-  // OpenAI は組み込み検索、DeepSeek はTavilyの検索結果を文脈として渡す。
-  const webSearch =
-    modelOption.supportsWebSearch && String(formData.get("webSearch") ?? "") === "true";
+  // Auto はモデルまたはローカル判定に任せ、Force は必ず検索する。
+  const webSearchMode = normalizeWebSearchMode(
+    formData.get("webSearch"),
+    modelOption.supportsWebSearch,
+  );
 
   if (!message) {
     return NextResponse.json({ error: "Message is required." }, { status: 400 });
@@ -554,7 +557,7 @@ export async function POST(request: Request) {
       try {
         // DeepSeek の検索もストリーム内で実行し、失敗時は通常のアシスタントエラーとして保存する。
         const deepSeekSearchPrompt =
-          webSearch && modelOption.provider === "deepseek"
+          modelOption.provider === "deepseek" && shouldUseWebSearch(webSearchMode, message)
             ? await createTavilySearchPrompt(message)
             : null;
         const upstreamInput = deepSeekSearchPrompt
@@ -575,13 +578,18 @@ export async function POST(request: Request) {
                     "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
                     "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
                     "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+                    ...(webSearchMode === "auto"
+                      ? [
+                          "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
+                        ]
+                      : []),
                   ].join(" "),
                 input: upstreamInput,
                 reasoning: {
                   effort: reasoning,
                 },
                 safety_identifier: user.id,
-                ...(webSearch
+                ...(webSearchMode !== "off"
                   ? {
                       tools: [{ type: "web_search" }],
                       tool_choice: "auto" as const,

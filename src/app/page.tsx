@@ -3,7 +3,6 @@
 import {
   ArrowDown,
   ArrowUp,
-  Globe2,
   ImagePlus,
   Menu,
   MessageSquare,
@@ -121,9 +120,7 @@ export default function Home() {
   const [reasoning, setReasoning] = useState("medium");
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
-  // GPT の通常チャットで OpenAI Web 検索ツールを使うかどうか。
-  const [webSearchMode, setWebSearchMode] = useState(false);
-  // 入力欄を狭めないよう、Chat/Search/Image は一つのモードメニューにまとめる。
+  // 入力欄を狭めないよう、Auto/Image は一つのモードメニューにまとめる。
   const [modeMenuOpen, setModeMenuOpen] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
@@ -184,14 +181,10 @@ export default function Home() {
   const selectedModel = getModelOption(model);
   const inputPlaceholder = imageGenerationMode
     ? "Describe an image to create..."
-    : webSearchMode
-      ? "Search the web with StudyMate..."
-      : "Ask StudyMate anything...";
+    : "Ask anything — StudyMate searches when needed...";
   const activeInputMode = imageGenerationMode
     ? { icon: ImagePlus, label: "Image" }
-    : webSearchMode
-      ? { icon: Globe2, label: "Search" }
-      : { icon: MessageSquare, label: "Chat" };
+    : { icon: MessageSquare, label: "Auto" };
   const ActiveInputModeIcon = activeInputMode.icon;
 
   useEffect(() => {
@@ -217,9 +210,8 @@ export default function Home() {
     };
   }, [modeMenuOpen]);
 
-  function chooseInputMode(nextMode: "chat" | "search" | "image") {
+  function chooseInputMode(nextMode: "chat" | "image") {
     setImageGenerationMode(nextMode === "image");
-    setWebSearchMode(nextMode === "search");
     setModeMenuOpen(false);
   }
 
@@ -324,9 +316,6 @@ export default function Home() {
     setModel(option.id);
     if (!option.supportsImageGeneration) {
       setImageGenerationMode(false);
-    }
-    if (!option.supportsWebSearch) {
-      setWebSearchMode(false);
     }
     if (!option.supportsImageInput) {
       setFiles((current) => {
@@ -696,7 +685,10 @@ export default function Home() {
     body.append("message", userContent);
     body.append("model", model);
     body.append("reasoning", reasoning);
-    body.append("webSearch", String(webSearchMode && selectedModel.supportsWebSearch));
+    body.append(
+      "webSearch",
+      selectedModel.supportsWebSearch ? "auto" : "off",
+    );
     if (requestSessionId) body.append("sessionId", requestSessionId);
     submittedFiles.forEach(({ file }) => body.append("files", file));
 
@@ -1192,32 +1184,16 @@ export default function Home() {
                           type="button"
                           onClick={() => chooseInputMode("chat")}
                           className={`notion-menu-item ${
-                            !imageGenerationMode && !webSearchMode
+                            !imageGenerationMode
                               ? "is-selected"
                               : ""
                           }`}
                           role="menuitemradio"
-                          aria-checked={!imageGenerationMode && !webSearchMode}
+                          aria-checked={!imageGenerationMode}
                         >
                           <MessageSquare size={16} />
-                          <span>Chat</span>
+                          <span>Auto</span>
                         </button>
-                        {selectedModel.supportsWebSearch && (
-                          <button
-                            type="button"
-                            onClick={() => chooseInputMode("search")}
-                            className={`notion-menu-item ${
-                              webSearchMode && !imageGenerationMode
-                                ? "is-selected"
-                                : ""
-                            }`}
-                            role="menuitemradio"
-                            aria-checked={webSearchMode && !imageGenerationMode}
-                          >
-                            <Globe2 size={16} />
-                            <span>Search the web</span>
-                          </button>
-                        )}
                         {selectedModel.supportsImageGeneration && (
                           <button
                             type="button"
