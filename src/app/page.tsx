@@ -30,6 +30,7 @@ import type { ImageGenerationResult, Message, Session, UploadFile } from "@/type
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
 const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
+const SESSION_LOAD_FALLBACK_ERROR = "Failed to load conversation.";
 const NOTION_SAVE_FALLBACK_ERROR = "Failed to save to Notion.";
 
 function getMessagesKey(sessionId: string | null) {
@@ -152,6 +153,10 @@ export default function Home() {
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
   const activeSessionIdRef = useRef<string | null>(null);
+  // 会話切り替えの順序を追跡し、遅れて返った古いレスポンスを無視する。
+  const sessionNavigationIntentRef = useRef(0);
+  // 新しい会話を選んだ時に、直前の履歴取得を中断する。
+  const sessionLoadAbortRef = useRef<AbortController | null>(null);
   // 会話ごとの表示中メッセージ。ストリーミング中に別会話へ移動しても一時表示を失わない。
   const sessionMessagesRef = useRef<Record<string, Message[]>>({});
   // 会話ごとの生成状態。切り替え時にDB履歴で上書きしないために使う。
@@ -288,15 +293,20 @@ export default function Home() {
     }
   }
 
-  async function fetchSessionMessages(sessionId: string) {
-    const response = await fetch(`/api/sessions/${sessionId}/messages`, {
-      cache: "no-store",
-    });
+  async function fetchSessionMessages(sessionId: string, signal?: AbortSignal) {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/messages`, {
+        cache: "no-store",
+        signal,
+      });
 
-    if (!response.ok) return null;
+      if (!response.ok) return null;
 
-    const data = await readJsonObject(response);
-    return Array.isArray(data.messages) ? (data.messages as Message[]) : [];
+      const data = await readJsonObject(response);
+      return Array.isArray(data.messages) ? (data.messages as Message[]) : [];
+    } catch {
+      return null;
+    }
   }
 
   async function refreshSessionMessages(sessionId: string) {
@@ -338,47 +348,85 @@ export default function Home() {
 
   async function loadSessions() {
     // cache: no-store にして、直前に作成・更新されたセッション一覧を常に取りに行く。
-    const response = await fetch("/api/sessions", { cache: "no-store" });
-    // API は { sessions } を返す想定。欠けていても画面が壊れないよう空配列に倒す。
-    const data = await readJsonObject(response);
-    setSessions(Array.isArray(data.sessions) ? (data.sessions as Session[]) : []);
+    try {
+      const response = await fetch("/api/sessions", { cache: "no-store" });
+      if (!response.ok) return false;
+
+      const data = await readJsonObject(response);
+      if (!Array.isArray(data.sessions)) return false;
+
+      setSessions(data.sessions as Session[]);
+      return true;
+    } catch {
+      // 一時的な同期失敗では、現在表示している一覧を消さない。
+      return false;
+    }
   }
 
   async function createEmptySession() {
-    const response = await fetch("/api/sessions", { method: "POST" });
-    const data = await readJsonObject(response);
-    if (!response.ok) {
+    try {
+      const response = await fetch("/api/sessions", { method: "POST" });
+      const data = await readJsonObject(response);
+      if (!response.ok) {
+        return {
+          error: readErrorMessage(data, SESSION_CREATE_FALLBACK_ERROR),
+          session: null,
+        };
+      }
+
       return {
-        error: readErrorMessage(data, SESSION_CREATE_FALLBACK_ERROR),
+        error: "",
+        session: (data.session as Session | undefined) ?? null,
+      };
+    } catch {
+      return {
+        error: SESSION_CREATE_FALLBACK_ERROR,
         session: null,
       };
     }
-
-    return {
-      error: "",
-      session: (data.session as Session | undefined) ?? null,
-    };
   }
 
   async function loadMessages(sessionId: string) {
+    const intent = sessionNavigationIntentRef.current + 1;
+    sessionNavigationIntentRef.current = intent;
+    sessionLoadAbortRef.current?.abort();
+    const controller = new AbortController();
+    sessionLoadAbortRef.current = controller;
+    activeSessionIdRef.current = sessionId;
+    setActiveSessionId(sessionId);
+    setMessages(sessionMessagesRef.current[sessionId] ?? []);
+    setSidebarOpen(false);
+    setSendError("");
+
     if (streamingSessionsRef.current[sessionId]) {
       // 生成中の会話はDB保存前の差分を持つため、ローカル表示を優先する。
-      setMessages(sessionMessagesRef.current[sessionId] ?? []);
-      activeSessionIdRef.current = sessionId;
-      setActiveSessionId(sessionId);
-      setSidebarOpen(false);
       return;
     }
 
-    const fetchedMessages = await fetchSessionMessages(sessionId);
-    if (!fetchedMessages) return;
+    const fetchedMessages = await fetchSessionMessages(sessionId, controller.signal);
+    if (
+      !fetchedMessages ||
+      controller.signal.aborted ||
+      sessionNavigationIntentRef.current !== intent ||
+      activeSessionIdRef.current !== sessionId ||
+      streamingSessionsRef.current[sessionId]
+    ) {
+      if (
+        !controller.signal.aborted &&
+        sessionNavigationIntentRef.current === intent &&
+        activeSessionIdRef.current === sessionId &&
+        !streamingSessionsRef.current[sessionId]
+      ) {
+        setSendError(SESSION_LOAD_FALLBACK_ERROR);
+      }
+      return;
+    }
 
-    // 取得した履歴を表示対象にし、現在のセッション ID とモバイルサイドバーを更新する。
+    // 最新の選択に対応する履歴だけを表示へ反映する。
     replaceCachedMessages(sessionId, fetchedMessages);
-    activeSessionIdRef.current = sessionId;
-    setActiveSessionId(sessionId);
-    setMessages(fetchedMessages);
-    setSidebarOpen(false);
+    if (sessionLoadAbortRef.current === controller) {
+      sessionLoadAbortRef.current = null;
+    }
   }
 
   async function createSession() {
@@ -390,6 +438,9 @@ export default function Home() {
       return;
     }
 
+    const intent = sessionNavigationIntentRef.current + 1;
+    sessionNavigationIntentRef.current = intent;
+    sessionLoadAbortRef.current?.abort();
     const { error, session } = await createEmptySession();
     if (!session) {
       setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
@@ -398,6 +449,8 @@ export default function Home() {
     setSendError("");
     setSessions((current) => [session, ...current]);
     replaceCachedMessages(session.id, []);
+    if (sessionNavigationIntentRef.current !== intent) return;
+
     activeSessionIdRef.current = session.id;
     setActiveSessionId(session.id);
     setMessages([]);
@@ -406,15 +459,23 @@ export default function Home() {
 
   async function deleteSession(sessionId: string) {
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
-    const response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+    let response: Response;
+    try {
+      response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
+    } catch {
+      setSendError("Failed to delete conversation.");
+      return;
+    }
     if (!response.ok) return;
     // サイドバーから対象セッションを即座に消す。
     setSessions((current) => current.filter((session) => session.id !== sessionId));
     const nextMessagesBySession = { ...sessionMessagesRef.current };
     delete nextMessagesBySession[sessionId];
     sessionMessagesRef.current = nextMessagesBySession;
-    if (activeSessionId === sessionId) {
+    if (activeSessionIdRef.current === sessionId) {
       // 表示中のセッションを削除した場合は、新規チャット状態へ戻す。
+      sessionNavigationIntentRef.current += 1;
+      sessionLoadAbortRef.current?.abort();
       activeSessionIdRef.current = null;
       setActiveSessionId(null);
       setMessages([]);
@@ -539,7 +600,7 @@ export default function Home() {
     const submittedInputValue = inputRef.current?.value ?? input;
     const userContent = submittedInputValue.trim();
     const submittedFiles = files;
-    let requestSessionId = activeSessionId;
+    let requestSessionId = activeSessionIdRef.current;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
     if (
@@ -814,7 +875,10 @@ export default function Home() {
   useEffect(() => {
     // files は state のためクリーンアップ関数内だと古い値になりやすい。
     // ref に最新値を持たせ、ページ破棄時に未送信ファイルの previewUrl をまとめて解放する。
-    return () => revokeUploadPreviews(filesRef.current);
+    return () => {
+      sessionLoadAbortRef.current?.abort();
+      revokeUploadPreviews(filesRef.current);
+    };
   }, []);
 
   useEffect(() => {

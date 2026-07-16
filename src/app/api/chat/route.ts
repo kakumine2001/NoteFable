@@ -9,6 +9,7 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
+import { buildHistoryInput } from "@/lib/chat-history";
 import { getModelOption, normalizeModel, normalizeReasoning, toDbReasoning } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
@@ -23,11 +24,6 @@ function makeTitle(message: string) {
   const compact = message.replace(/\s+/g, " ").trim();
   // 長すぎるタイトルはサイドバーで読みにくいため、先頭だけを使う。
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
-}
-
-function toClientRole(role: string) {
-  // DB の enum は大文字、OpenAI/DeepSeek に渡す role は小文字なので変換する。
-  return role === "ASSISTANT" ? "assistant" : "user";
 }
 
 type ChatCompletionResponse = {
@@ -494,6 +490,20 @@ export async function POST(request: Request) {
     },
     orderBy: { createdAt: "desc" },
     take: 30,
+    select: {
+      id: true,
+      role: true,
+      content: true,
+      attachments: {
+        select: {
+          filename: true,
+          mimeType: true,
+          size: true,
+          extractedText: true,
+          imageStoragePath: true,
+        },
+      },
+    },
   });
 
   // 画像入力に対応する添付は、Responses API の input_image パートとして追加する。
@@ -521,13 +531,10 @@ export async function POST(request: Request) {
     ...imageParts,
   ];
 
-  // 過去の会話は通常の role/content として並べ、今回の入力だけ添付テキストや画像を含む複合 content にする。
-  // これによりモデルは会話履歴を保ちながら、今回アップロードされたファイルだけを新しい文脈として読める。
+  // 過去の添付も上限内で復元し、PDF や画像について続けて質問できるようにする。
+  const historyInput = await buildHistoryInput(history, modelOption.supportsImageInput);
   const input: { role: string; content: unknown }[] = [
-    ...history.reverse().map((item) => ({
-      role: toClientRole(item.role),
-      content: item.content,
-    })),
+    ...historyInput,
     {
       role: "user",
       content: currentUserContent,
