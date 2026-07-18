@@ -16,7 +16,12 @@ import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
-import { normalizeWebSearchMode, shouldUseWebSearch } from "@/lib/web-search";
+import {
+  normalizeWebSearchMode,
+  requestDeepSeekWebSearchDecision,
+  shouldUseWebSearch,
+  type WebSearchMode,
+} from "@/lib/web-search";
 
 export const runtime = "nodejs";
 
@@ -253,6 +258,28 @@ async function createTavilySearchPrompt(query: string) {
   }
 
   return buildTavilySearchPrompt(query, data);
+}
+
+async function shouldDeepSeekSearchWeb(
+  mode: WebSearchMode,
+  message: string,
+  input: { role: string; content: unknown }[],
+) {
+  // 明示的な on/off は追加のモデル判定を挟まず、そのまま尊重する。
+  if (mode !== "auto") return shouldUseWebSearch(mode, message);
+
+  try {
+    return await requestDeepSeekWebSearchDecision({
+      input,
+      apiKey: requireEnv("DEEPSEEK_API_KEY"),
+      baseURL: optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com/v1",
+      model: optionalEnv("DEEPSEEK_FLASH_MODEL") || "deepseek-v4-flash",
+    });
+  } catch (error) {
+    // 判定 API が一時的に失敗しても、従来の明示語・時事語ルールで検索可否を決めて会話を継続する。
+    console.warn("DeepSeek web search decision failed; using keyword fallback.", getErrorMessage(error));
+    return shouldUseWebSearch(mode, message);
+  }
 }
 
 function getUpstreamModel(model: string) {
@@ -556,10 +583,13 @@ export async function POST(request: Request) {
     async start(controller) {
       try {
         // DeepSeek の検索もストリーム内で実行し、失敗時は通常のアシスタントエラーとして保存する。
-        const deepSeekSearchPrompt =
-          modelOption.provider === "deepseek" && shouldUseWebSearch(webSearchMode, message)
-            ? await createTavilySearchPrompt(message)
-            : null;
+        const deepSeekShouldSearch =
+          modelOption.provider === "deepseek"
+            ? await shouldDeepSeekSearchWeb(webSearchMode, message, input)
+            : false;
+        const deepSeekSearchPrompt = deepSeekShouldSearch
+          ? await createTavilySearchPrompt(message)
+          : null;
         const upstreamInput = deepSeekSearchPrompt
           ? withWebSearchPrompt(input, deepSeekSearchPrompt)
           : input;

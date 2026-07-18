@@ -47,7 +47,7 @@ Current models (defined in `src/lib/models.ts`):
 - Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
 - GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
 - DeepSeek is text-only. Never enable image input or image generation for DeepSeek models.
-- DeepSeek web search injects Tavily results as text context — it does not use native tool calls.
+- DeepSeek web search does not use native tool calls. In `auto` mode, DeepSeek Flash first classifies the recent conversation as `SEARCH` or `SKIP`; `SEARCH` calls Tavily and injects its results as text context. If classification fails, the server falls back to the local keyword rules in `src/lib/web-search.ts`.
 - Normal chat uses automatic web search: OpenAI receives the native `web_search` tool with automatic selection; DeepSeek calls Tavily only for time-sensitive or explicit search intent.
 - OpenAI chat goes through the Responses API (`/responses`); DeepSeek uses Chat Completions.
 

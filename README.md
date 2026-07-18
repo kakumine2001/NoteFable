@@ -107,6 +107,8 @@ npx prisma validate
 - GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max` 六档推理强度
 - DeepSeek：不支持图片输入和图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送
 
+自动 Web 搜索的实现因模型而异：GPT 使用原生 `web_search` 工具并由模型决定是否调用；DeepSeek 会先用 Flash 模型根据最近对话判断 `SEARCH` 或 `SKIP`，需要搜索时调用 Tavily 并把结果作为文本上下文注入。若判断请求失败，会回退到本地关键词规则。
+
 图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
 Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` 时会使用实例本地临时目录，重新部署、重启或休眠后上传图片可能丢失。
