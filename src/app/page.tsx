@@ -5,7 +5,6 @@ import {
   ArrowUp,
   ImagePlus,
   Menu,
-  MessageSquare,
   Paperclip,
   PanelLeft,
   Plus,
@@ -120,8 +119,6 @@ export default function Home() {
   const [reasoning, setReasoning] = useState("medium");
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
-  // 入力欄を狭めないよう、Auto/Image は一つのモードメニューにまとめる。
-  const [modeMenuOpen, setModeMenuOpen] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 会話ごとのストリーム開始時刻。複数会話を並行生成できるよう、会話キー別に持つ。
@@ -162,8 +159,6 @@ export default function Home() {
   const filesRef = useRef<UploadFile[]>([]);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
-  // モードメニューの外側クリック判定に使う。
-  const modeMenuRef = useRef<HTMLDivElement | null>(null);
   // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
   const submittingSessionKeysRef = useRef<Set<string>>(new Set());
   // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
@@ -182,38 +177,6 @@ export default function Home() {
   const inputPlaceholder = imageGenerationMode
     ? "Describe an image to create..."
     : "Ask anything — StudyMate searches when needed...";
-  const activeInputMode = imageGenerationMode
-    ? { icon: ImagePlus, label: "Image" }
-    : { icon: MessageSquare, label: "Auto" };
-  const ActiveInputModeIcon = activeInputMode.icon;
-
-  useEffect(() => {
-    // メニューを開いた時だけ外側クリックを監視し、通常時のイベント数を増やさない。
-    function closeModeMenuOnOutsideClick(event: MouseEvent) {
-      if (!modeMenuRef.current?.contains(event.target as Node)) {
-        setModeMenuOpen(false);
-      }
-    }
-
-    function closeModeMenuOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setModeMenuOpen(false);
-    }
-
-    if (modeMenuOpen) {
-      document.addEventListener("mousedown", closeModeMenuOnOutsideClick);
-      document.addEventListener("keydown", closeModeMenuOnEscape);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", closeModeMenuOnOutsideClick);
-      document.removeEventListener("keydown", closeModeMenuOnEscape);
-    };
-  }, [modeMenuOpen]);
-
-  function chooseInputMode(nextMode: "chat" | "image") {
-    setImageGenerationMode(nextMode === "image");
-    setModeMenuOpen(false);
-  }
 
   function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
     sessionMessagesRef.current = {
@@ -1163,57 +1126,20 @@ export default function Home() {
                   onModelChange={changeModel}
                   onReasoningChange={setReasoning}
                 />
-                <div ref={modeMenuRef} className="relative shrink-0">
+                {selectedModel.supportsImageGeneration && (
                   <button
                     type="button"
-                    onClick={() => setModeMenuOpen((current) => !current)}
-                    className="notion-composer-control shrink-0"
-                    aria-haspopup="menu"
-                    aria-expanded={modeMenuOpen}
+                    onClick={() => setImageGenerationMode((current) => !current)}
+                    className={`notion-composer-control shrink-0 ${
+                      imageGenerationMode ? "is-active" : ""
+                    }`}
+                    aria-pressed={imageGenerationMode}
+                    aria-label={`${imageGenerationMode ? "Disable" : "Enable"} image generation`}
                   >
-                    <ActiveInputModeIcon size={15} />
-                    <span>{activeInputMode.label}</span>
+                    <ImagePlus size={15} />
+                    <span>Create an image</span>
                   </button>
-                  {modeMenuOpen && (
-                    <div
-                      className="notion-menu motion-menu fixed bottom-24 left-2 right-2 z-30 p-1 sm:absolute sm:bottom-full sm:left-auto sm:right-0 sm:mb-2 sm:w-56"
-                      role="menu"
-                    >
-                      <div className="space-y-0.5 p-1.5">
-                        <button
-                          type="button"
-                          onClick={() => chooseInputMode("chat")}
-                          className={`notion-menu-item ${
-                            !imageGenerationMode
-                              ? "is-selected"
-                              : ""
-                          }`}
-                          role="menuitemradio"
-                          aria-checked={!imageGenerationMode}
-                        >
-                          <MessageSquare size={16} />
-                          <span>Auto</span>
-                        </button>
-                        {selectedModel.supportsImageGeneration && (
-                          <button
-                            type="button"
-                            onClick={() => chooseInputMode("image")}
-                            className={`notion-menu-item ${
-                              imageGenerationMode
-                                ? "is-selected"
-                                : ""
-                            }`}
-                            role="menuitemradio"
-                            aria-checked={imageGenerationMode}
-                          >
-                            <ImagePlus size={16} />
-                            <span>Create an image</span>
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
               <button
                 type="submit"

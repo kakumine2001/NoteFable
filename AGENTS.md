@@ -6,11 +6,19 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 ## Project
 
-StudyMate is a multi-model AI study assistant with session chat, file attachments, image generation, and web search.
+StudyMate is a privately used, personal AI gateway for accessing capable models from environments where signing in to the owner's personal AI accounts is inconvenient. It provides session chat, file attachments, image generation, and web search.
 
 - Live URL: `https://studymate-lzki.onrender.com`
 - Knowledge vault: `C:\Users\kakumine\Desktop\知識倉庫\Projects\StudyMate\StudyMate 当前状态.md`
 - Tech stack: Next.js 16.2.6 App Router, React 19, Tailwind CSS v4, Prisma 7 / PostgreSQL, Render (free tier)
+
+## Product Intent & Scope
+
+- This is a personal utility for the owner's private use, not a public SaaS product or a general-purpose multi-user platform.
+- Its primary purpose is convenient AI access at the owner's workplace without signing in to personal upstream AI accounts on that device.
+- Keep the current anonymous, device-cookie-based session model unless the user explicitly requests an authentication redesign.
+- Do not describe the signed device cookie as access control: it separates session ownership but does not prevent an unknown visitor from using the deployed service.
+- Prefer changes that improve reliable, low-friction personal use over growth, onboarding, billing, organization, or collaboration features.
 
 ## Architecture
 
@@ -46,6 +54,7 @@ Current models (defined in `src/lib/models.ts`):
 ## API & Proxy Rules
 
 - Production `OPENAI_BASE_URL` is a compatible proxy.
+- Verified 2026-07-14: the production proxy does not expose `POST /conversations` (plain `404`). HTTP `POST /responses` rejects `previous_response_id` with `previous_response_id is only supported on Responses WebSocket v2`. `wss://sub.khurio.art/v1/responses` accepts the WebSocket upgrade, but four probes were closed with `1013 no available account`; do not depend on either stateful path unless proxy support changes and is revalidated.
 - **Do not use `/responses` for image generation** — the proxy can return Cloudflare/HTML errors for synchronous calls.
 - `/api/images` always uses `/images/generations` (text-only) or `/images/edits` (reference images).
 - Non-ASCII strings in `/responses` JSON must be sent as `\uXXXX` escapes — raw UTF-8 can be corrupted by the proxy.
