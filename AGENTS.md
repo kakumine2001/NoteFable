@@ -51,6 +51,27 @@ Current models (defined in `src/lib/models.ts`):
 - Normal chat uses automatic web search: OpenAI receives the native `web_search` tool with automatic selection; DeepSeek calls Tavily only for time-sensitive or explicit search intent.
 - OpenAI chat goes through the Responses API (`/responses`); DeepSeek uses Chat Completions.
 
+## Chat System Prompt
+
+The source of truth is `src/app/api/chat/route.ts`. Normal OpenAI and DeepSeek answers share this base system prompt:
+
+```text
+You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
+Answer in the user's language unless they ask otherwise.
+When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.
+Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.
+Do not use horizontal rules, repeated separator lines, or decorative dividers.
+```
+
+OpenAI appends this sentence when Web search mode is `auto`:
+
+```text
+Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
+```
+
+- DeepSeek's separate `SEARCH` / `SKIP` routing request uses the classifier prompt in `src/lib/web-search.ts`; it is not part of the final answer prompt.
+- When changing the chat system prompt, keep both provider branches in `src/app/api/chat/route.ts` aligned and update this section and `README.md`.
+
 ## API & Proxy Rules
 
 - Production `OPENAI_BASE_URL` is a compatible proxy.

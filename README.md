@@ -109,6 +109,26 @@ npx prisma validate
 
 自动 Web 搜索的实现因模型而异：GPT 使用原生 `web_search` 工具并由模型决定是否调用；DeepSeek 会先用 Flash 模型根据最近对话判断 `SEARCH` 或 `SKIP`，需要搜索时调用 Tavily 并把结果作为文本上下文注入。若判断请求失败，会回退到本地关键词规则。
 
+## 系统提示词
+
+普通聊天中，OpenAI 和 DeepSeek 的主回答共用以下基础系统提示词，代码来源为 `src/app/api/chat/route.ts`：
+
+```text
+You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
+Answer in the user's language unless they ask otherwise.
+When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.
+Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.
+Do not use horizontal rules, repeated separator lines, or decorative dividers.
+```
+
+OpenAI 使用自动 Web 搜索时还会追加：
+
+```text
+Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
+```
+
+DeepSeek Flash 用于判断 `SEARCH / SKIP` 的分类提示词位于 `src/lib/web-search.ts`，不会作为最终回答的系统提示词发送。
+
 图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
 Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` 时会使用实例本地临时目录，重新部署、重启或休眠后上传图片可能丢失。
