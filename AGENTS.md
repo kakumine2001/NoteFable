@@ -131,4 +131,6 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 ## Local Dev
 
 Docker must be running before starting local dev.
-Local PostgreSQL runs in Docker container `pg17-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
+Local PostgreSQL 18.4 runs in Docker container `pg18-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
+It uses database `studymate`, schema `public`, and Docker volume `postgres18-docker_pg18-data` mounted at `/var/lib/postgresql`.
+Initialize or update the local schema with `npx prisma migrate deploy`; do not expect a newly created container/volume to contain application tables.

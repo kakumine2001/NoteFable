@@ -19,7 +19,7 @@ import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
 import { NotionDrawer } from "@/components/notion-drawer";
-import { isImageMimeType } from "@/lib/client-files";
+import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { formatTranscriptForNotion } from "@/lib/notion-transcript";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
@@ -1108,6 +1108,25 @@ export default function Home() {
                   ref={inputRef}
                   value={input}
                   onChange={(event) => changeInput(event.target.value, event.currentTarget)}
+                  onPaste={(event) => {
+                    const pastedImages = getClipboardImageFiles(event.clipboardData.items);
+                    if (!pastedImages.length) return;
+
+                    // 画像がある時だけ既定の貼り付けを止め、既存の添付フローへ渡す。
+                    event.preventDefault();
+                    if (!selectedModel.supportsImageInput) {
+                      setSendError(
+                        `${selectedModel.label} does not support image uploads. Use GPT-5.6 Sol for images.`,
+                      );
+                      return;
+                    }
+
+                    setSendError("");
+                    setFiles((current) => [
+                      ...current,
+                      ...pastedImages.map(createUploadFile),
+                    ]);
+                  }}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                       event.preventDefault();
