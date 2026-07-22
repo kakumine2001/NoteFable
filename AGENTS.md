@@ -113,6 +113,7 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 - Current Render `DATABASE_URL` includes `schema=studymate`, but the runtime `pg` search path still resolves to `public`; ensure app connections set `search_path=studymate` or move/query tables consistently before assuming production chat persistence works.
 - `render.yaml` must keep `DATABASE_URL` as `sync: false`; do not point it back to Render `fromDatabase`.
 - Production schema changes: `prisma migrate deploy` only.
+- `npm run prisma:migrate` retries only transient Neon connection failures (`P1001`/`P1002`) up to five times; non-connection migration errors fail immediately.
 - Do not run destructive Prisma commands against production:
   - `prisma db push`
   - `prisma db push --accept-data-loss`

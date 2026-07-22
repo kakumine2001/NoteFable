@@ -81,7 +81,7 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
-生产数据库是 Neon PostgreSQL 的 `neondb`，使用 `studymate` schema。生产只运行 `prisma migrate deploy`（即 `npm run prisma:migrate`），不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
+生产数据库是 Neon PostgreSQL 的 `neondb`，使用 `studymate` schema。生产只运行 `prisma migrate deploy`（即 `npm run prisma:migrate`），不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。迁移脚本会对 Neon 唤醒或临时网络波动产生的 `P1001`/`P1002` 最多重试5次；其他迁移错误立即失败。
 
 ## 校验
 
@@ -150,6 +150,8 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 - Plan：Free Web Service
 - Build：`npm ci && npm run prisma:migrate && npm run build`
 - Start：`npm run start`
+
+`npm run prisma:migrate` 使用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
 
 Render 上需要配置：
 
