@@ -20,6 +20,14 @@ describe("model configuration", () => {
     expect(deepSeek.every((model) => !model.supportsImageGeneration)).toBe(true);
   });
 
+  it("keeps the full model names in the selector", () => {
+    expect(MODEL_OPTIONS.map((model) => model.label)).toEqual([
+      "GPT-5.6 Sol",
+      "DeepSeek-V4-Pro",
+      "DeepSeek-V4-Flash",
+    ]);
+  });
+
   it("normalizes unknown models to the default", () => {
     expect(DEFAULT_MODEL).toBe("gpt-5.6-sol");
     expect(normalizeModel("deepseek-v4-pro")).toBe("deepseek-v4-pro");

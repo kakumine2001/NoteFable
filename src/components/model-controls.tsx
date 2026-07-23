@@ -1,8 +1,25 @@
 "use client";
 
-import { Check, ChevronDown } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { getModelOption, MODEL_OPTIONS } from "@/lib/models";
+import { ChevronDown } from "lucide-react";
+import {
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
+import {
+  getModelOption,
+  MODEL_OPTIONS,
+  REASONING_EFFORTS,
+  type ReasoningEffort,
+} from "@/lib/models";
+import {
+  pointerPositionFromClientX,
+  REASONING_SLIDER_POSITIONS,
+  snapReasoningEffort,
+  stepReasoningEffort,
+} from "@/lib/reasoning-slider";
 
 // 推論強度の短い表示名。ボタン内とメニュー内で共通利用する。
 const reasoningLabels: Record<string, string> = {
@@ -14,7 +31,7 @@ const reasoningLabels: Record<string, string> = {
   max: "Max",
 };
 
-// 各推論強度の補足説明。選択時の判断材料としてメニューに表示する。
+// 各推論強度の補足説明。スライダーのアクセシブル名とツールチップに使う。
 const reasoningDescriptions: Record<string, string> = {
   none: "No reasoning",
   low: "Light reasoning",
@@ -24,12 +41,29 @@ const reasoningDescriptions: Record<string, string> = {
   max: "Maximum reasoning depth",
 };
 
-// 各モデルの簡単な用途説明。MODEL_OPTIONS には UI 文言を増やしすぎないためここで分ける。
-const modelDescriptions: Record<string, string> = {
-  "gpt-5.6-sol": "OpenAI flagship reasoning",
-  "deepseek-v4-flash": "DeepSeek fast model",
-  "deepseek-v4-pro": "DeepSeek strongest model",
-};
+const PARTICLE_COUNT = 14;
+const PARTICLE_TRAVEL_SECONDS = 1.9;
+const WHEEL_STEP_THRESHOLD = 30;
+const WHEEL_RESET_MS = 160;
+
+function seededFraction(index: number, seed: number) {
+  const value = Math.sin((index + 1) * 12.9898 + seed * 78.233) * 43758.5453;
+  return value - Math.floor(value);
+}
+
+// Codex と同じ範囲で速度・位置をずらし、初期表示から粒子が分散するようにする。
+const reasoningParticles = Array.from({ length: PARTICLE_COUNT }, (_, index) => {
+  const speedScale = 1 + (seededFraction(index, 21) - 0.5) * 0.4;
+  const duration = PARTICLE_TRAVEL_SECONDS / speedScale;
+
+  return {
+    duration,
+    opacity: 0.4 + seededFraction(index, 11) * 0.6,
+    scale: 0.5 + seededFraction(index, 12) * 0.45,
+    stagger: index * (PARTICLE_TRAVEL_SECONDS / PARTICLE_COUNT),
+    top: 12 + seededFraction(index, 23) * 76,
+  };
+});
 
 function formatReasoningLabel(value: string, provider: string) {
   // DeepSeek では最上位の推論強度を短く Max と表示する。
@@ -46,37 +80,71 @@ export function ModelSelect({
   onModelChange,
   onReasoningChange,
 }: {
-  // 現在選択されているモデル ID。
   value: string;
-  // 現在選択されている推論強度。
   reasoning: string;
-  // 選択変更時に親コンポーネントの model state を更新する。
   onModelChange: (value: string) => void;
-  // 選択変更時に親コンポーネントの reasoning state を更新する。
   onReasoningChange: (value: string) => void;
 }) {
-  // モデルメニューの開閉状態。
-  const [open, setOpen] = useState(false);
-  // 外側クリックで閉じるためにメニュー全体を参照する。
+  // モデル選択と推論強度を同じピルから別々に開く。
+  const [openPanel, setOpenPanel] = useState<"models" | "reasoning" | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
-  // 現在のモデル ID から表示名や対応機能を引いた設定。
+  const modelTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const reasoningTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const sliderRef = useRef<HTMLDivElement | null>(null);
+  const trackRef = useRef<HTMLSpanElement | null>(null);
+  const pointerActiveRef = useRef(false);
+  const wheelStateRef = useRef({ accumulatedDelta: 0, lastEventTime: 0 });
   const currentModel = getModelOption(value);
   const currentReasoningLabel = formatReasoningLabel(reasoning, currentModel.provider);
+  const supportedEfforts = currentModel.reasoningEfforts;
+  const fallbackEffort = supportedEfforts.includes(reasoning as ReasoningEffort)
+    ? (reasoning as ReasoningEffort)
+    : currentModel.defaultReasoning;
+  const [previewEffort, setPreviewEffort] = useState<ReasoningEffort | null>(null);
+  const [pointerDown, setPointerDown] = useState(false);
+  const visualEffort = previewEffort ?? fallbackEffort;
+  const sliderPosition = REASONING_SLIDER_POSITIONS[visualEffort];
+  const thumbEdgeOffset = 13 - sliderPosition * 0.26;
+  const fillSize = `calc(${sliderPosition}% + ${thumbEdgeOffset}px)`;
+  const reasoningStyle = {
+    "--reasoning-progress": `${sliderPosition}%`,
+    "--reasoning-edge-offset": `${thumbEdgeOffset}px`,
+    "--reasoning-fill-size": fillSize,
+  } as CSSProperties;
+  const latestEffortRef = useRef<ReasoningEffort>(fallbackEffort);
+  const supportedEffortsRef = useRef(supportedEfforts);
+  const onReasoningChangeRef = useRef(onReasoningChange);
 
   useEffect(() => {
-    // モデル選択も Reasoning と同じ外側クリック挙動にする。
-    // 入力フォーム内に複数の小さなメニューがあるため、閉じ方を揃えて操作の迷いを減らす。
+    latestEffortRef.current = visualEffort;
+    supportedEffortsRef.current = supportedEfforts;
+    onReasoningChangeRef.current = onReasoningChange;
+  }, [onReasoningChange, supportedEfforts, visualEffort]);
+
+  useEffect(() => {
+    function resetAndClose() {
+      pointerActiveRef.current = false;
+      setPointerDown(false);
+      setPreviewEffort(null);
+      setOpenPanel(null);
+    }
+
     function closeOnOutsideClick(event: MouseEvent) {
       if (!menuRef.current?.contains(event.target as Node)) {
-        setOpen(false);
+        resetAndClose();
       }
     }
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key !== "Escape") return;
+
+      event.preventDefault();
+      const trigger = openPanel === "reasoning" ? reasoningTriggerRef : modelTriggerRef;
+      resetAndClose();
+      trigger.current?.focus();
     }
 
-    if (open) {
+    if (openPanel) {
       document.addEventListener("mousedown", closeOnOutsideClick);
       document.addEventListener("keydown", closeOnEscape);
     }
@@ -85,101 +153,424 @@ export function ModelSelect({
       document.removeEventListener("mousedown", closeOnOutsideClick);
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [open]);
+  }, [openPanel]);
+
+  useEffect(() => {
+    if (openPanel !== "reasoning") return;
+    const slider = sliderRef.current;
+    if (!slider) return;
+
+    function handleWheel(event: WheelEvent) {
+      if (event.ctrlKey) return;
+
+      let delta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : -event.deltaY;
+      if (
+        "webkitDirectionInvertedFromDevice" in event &&
+        event.webkitDirectionInvertedFromDevice === true
+      ) {
+        delta *= -1;
+      }
+      if (event.deltaMode !== WheelEvent.DOM_DELTA_PIXEL) {
+        delta = Math.sign(delta) * WHEEL_STEP_THRESHOLD;
+      }
+      if (delta === 0) return;
+
+      event.preventDefault();
+      const wheelState = wheelStateRef.current;
+      if (
+        event.timeStamp - wheelState.lastEventTime > WHEEL_RESET_MS ||
+        Math.sign(delta) !== Math.sign(wheelState.accumulatedDelta)
+      ) {
+        wheelState.accumulatedDelta = 0;
+      }
+      wheelState.lastEventTime = event.timeStamp;
+      wheelState.accumulatedDelta += delta;
+      if (Math.abs(wheelState.accumulatedDelta) < WHEEL_STEP_THRESHOLD) return;
+
+      const direction = Math.sign(wheelState.accumulatedDelta);
+      wheelState.accumulatedDelta -= direction * WHEEL_STEP_THRESHOLD;
+      const nextEffort = stepReasoningEffort(
+        latestEffortRef.current,
+        supportedEffortsRef.current,
+        direction > 0 ? "increase" : "decrease",
+      );
+      if (!nextEffort || nextEffort === latestEffortRef.current) {
+        wheelState.accumulatedDelta = 0;
+        return;
+      }
+
+      latestEffortRef.current = nextEffort;
+      onReasoningChangeRef.current(nextEffort);
+    }
+
+    slider.addEventListener("wheel", handleWheel, { passive: false });
+    return () => slider.removeEventListener("wheel", handleWheel);
+  }, [openPanel]);
+
+  useEffect(() => {
+    if (openPanel !== "models") return;
+
+    const frame = window.requestAnimationFrame(() => {
+      menuRef.current
+        ?.querySelector<HTMLButtonElement>(".codex-model-option.is-selected")
+        ?.focus();
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [openPanel]);
+
+  function emitReasoning(effort: ReasoningEffort) {
+    if (latestEffortRef.current === effort) return;
+    latestEffortRef.current = effort;
+    onReasoningChange(effort);
+  }
+
+  function selectReasoningFromPointer(clientX: number) {
+    const track = trackRef.current;
+    if (!track) return;
+
+    const bounds = track.getBoundingClientRect();
+    const position = pointerPositionFromClientX(
+      clientX,
+      bounds.left,
+      bounds.width,
+    );
+    const nextEffort = snapReasoningEffort(position, supportedEfforts);
+    if (nextEffort) {
+      setPreviewEffort(nextEffort);
+      emitReasoning(nextEffort);
+    }
+  }
+
+  function finishPointerInteraction() {
+    pointerActiveRef.current = false;
+    setPointerDown(false);
+    setPreviewEffort(null);
+  }
+
+  function closePanels() {
+    finishPointerInteraction();
+    setOpenPanel(null);
+  }
+
+  function togglePanel(panel: "models" | "reasoning") {
+    finishPointerInteraction();
+    setOpenPanel(openPanel === panel ? null : panel);
+  }
+
+  function handleModelMenuKeyDown(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (event.key === "Tab") {
+      closePanels();
+      return;
+    }
+
+    const options = Array.from(
+      event.currentTarget.querySelectorAll<HTMLButtonElement>(".codex-model-option"),
+    );
+    if (options.length === 0) return;
+
+    const activeIndex = options.indexOf(document.activeElement as HTMLButtonElement);
+    let nextIndex: number | null = null;
+
+    if (event.key === "ArrowDown") {
+      nextIndex = activeIndex < 0 ? 0 : (activeIndex + 1) % options.length;
+    } else if (event.key === "ArrowUp") {
+      nextIndex =
+        activeIndex < 0 ? options.length - 1 : (activeIndex - 1 + options.length) % options.length;
+    } else if (event.key === "Home") {
+      nextIndex = 0;
+    } else if (event.key === "End") {
+      nextIndex = options.length - 1;
+    }
+
+    if (nextIndex == null) return;
+    event.preventDefault();
+    options[nextIndex]?.focus();
+  }
 
   return (
-    <div ref={menuRef} className="relative min-w-0 shrink-0">
-      <button
-        type="button"
-        onClick={() => setOpen((current) => !current)}
-        className="notion-composer-control max-w-48 sm:max-w-none"
-        aria-haspopup="menu"
-        aria-expanded={open}
+    <div ref={menuRef} className="relative z-40 min-w-0 shrink-0" data-testid="model-select">
+      <div
+        className={`codex-model-trigger max-w-48 sm:max-w-none ${openPanel ? "is-open" : ""}`}
       >
-        <span className="truncate">{currentModel.label}</span>
-        <span className="hidden text-[var(--notion-faint)] sm:inline">·</span>
-        <span className="shrink-0 text-[var(--notion-muted)]">{currentReasoningLabel}</span>
-        <ChevronDown
-          className={`shrink-0 text-[var(--notion-muted)] transition-transform duration-100 ${
-            open ? "rotate-180" : ""
-          }`}
-          size={15}
-        />
-      </button>
-
-      {open && (
-        <div
-          className="notion-menu motion-menu fixed bottom-24 left-2 right-2 z-30 p-1 sm:absolute sm:bottom-full sm:left-0 sm:right-auto sm:mb-2 sm:w-96"
-          role="menu"
+        <button
+          ref={modelTriggerRef}
+          type="button"
+          className="codex-model-name"
+          onClick={() => togglePanel("models")}
+          aria-haspopup="menu"
+          aria-expanded={openPanel === "models"}
         >
-          <div className="space-y-0.5 p-1.5 sm:space-y-1 sm:p-2">
-            {MODEL_OPTIONS.map((item) => {
-              // 現在選択中のモデルかどうか。選択済み表示に使う。
-              const selected = item.id === value;
+          <span className="truncate">{currentModel.label}</span>
+        </button>
+        <button
+          ref={reasoningTriggerRef}
+          type="button"
+          className="codex-reasoning-trigger"
+          onClick={() => togglePanel("reasoning")}
+          aria-haspopup="dialog"
+          aria-expanded={openPanel === "reasoning"}
+          aria-label={`Reasoning effort: ${currentReasoningLabel}`}
+        >
+          <span>{currentReasoningLabel}</span>
+          <ChevronDown
+            className={`codex-model-chevron ${
+              openPanel === "reasoning" ? "rotate-180" : ""
+            }`}
+            size={16}
+          />
+        </button>
+      </div>
 
-              return (
+      {openPanel && (
+        <div
+          className={`codex-model-menu fixed bottom-24 left-2 z-30 sm:absolute sm:bottom-full sm:left-0 sm:right-auto sm:mb-2 ${
+            openPanel === "reasoning"
+              ? "codex-reasoning-menu"
+              : "right-2 sm:w-64"
+          }`}
+          role={openPanel === "reasoning" ? "dialog" : "menu"}
+          aria-label={openPanel === "reasoning" ? "Reasoning settings" : "Model"}
+          onKeyDown={
+            openPanel === "models" ? handleModelMenuKeyDown : undefined
+          }
+        >
+          {openPanel === "reasoning" ? (
+            <div className="codex-advanced-panel" data-pointer-down={pointerDown}>
+              {currentModel.provider === "deepseek" ? (
                 <div
-                  key={item.id}
-                  className={`rounded transition-colors duration-100 ${
-                    selected ? "bg-[var(--notion-hover)]" : "hover:bg-[var(--notion-hover)]"
-                  }`}
+                  className="codex-reasoning-segmented"
+                  role="radiogroup"
+                  aria-label="Reasoning effort"
                 >
-                  <button
-                    type="button"
-                    onClick={() => onModelChange(item.id)}
-                    className="flex w-full items-start gap-2 rounded px-2 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300"
-                    role="menuitemradio"
-                    aria-checked={selected}
-                  >
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center text-[var(--notion-text)]">
-                      {selected ? <Check size={16} strokeWidth={2.3} /> : null}
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-medium text-[var(--notion-text)] sm:text-sm">
-                        {item.label}
-                      </span>
-                      <span className="mt-0.5 block text-xs leading-4 text-[var(--notion-muted)]">
-                        {modelDescriptions[item.id]}
-                      </span>
-                    </span>
-                  </button>
+                  {supportedEfforts.map((effort, index) => {
+                    const selected = effort === visualEffort;
 
-                  {selected && (
-                    <div className="grid gap-1 px-2 pb-2" role="group" aria-label="Reasoning effort">
-                      <div className="grid grid-cols-2 gap-1 sm:grid-cols-3">
-                        {item.reasoningEfforts.map((effort) => {
-                          const reasoningSelected = effort === reasoning;
+                    return (
+                      <button
+                        key={effort}
+                        type="button"
+                        className={`codex-reasoning-segment ${
+                          selected ? "is-selected" : ""
+                        }`}
+                        role="radio"
+                        aria-checked={selected}
+                        tabIndex={selected ? 0 : -1}
+                        title={`${formatReasoningLabel(effort, currentModel.provider)} — ${reasoningDescriptions[effort]}`}
+                        onClick={() => emitReasoning(effort)}
+                        onKeyDown={(event) => {
+                          let nextIndex: number | null = null;
+                          if (
+                            event.key === "ArrowLeft" ||
+                            event.key === "ArrowUp"
+                          ) {
+                            nextIndex = Math.max(0, index - 1);
+                          } else if (
+                            event.key === "ArrowRight" ||
+                            event.key === "ArrowDown"
+                          ) {
+                            nextIndex = Math.min(
+                              supportedEfforts.length - 1,
+                              index + 1,
+                            );
+                          } else if (event.key === "Home") {
+                            nextIndex = 0;
+                          } else if (event.key === "End") {
+                            nextIndex = supportedEfforts.length - 1;
+                          }
+
+                          if (nextIndex == null || nextIndex === index) return;
+                          event.preventDefault();
+                          const nextEffort = supportedEfforts[nextIndex];
+                          if (!nextEffort) return;
+
+                          emitReasoning(nextEffort);
+                          event.currentTarget.parentElement
+                            ?.querySelectorAll<HTMLButtonElement>(
+                              ".codex-reasoning-segment",
+                            )
+                            [nextIndex]?.focus();
+                        }}
+                      >
+                        {formatReasoningLabel(effort, currentModel.provider)}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <div className="codex-slider-header" aria-hidden="true">
+                    <div className="codex-slider-endpoints">
+                      <span>Faster</span>
+                      <span>Smarter</span>
+                    </div>
+                    <div className="codex-slider-current">
+                      {formatReasoningLabel(
+                        visualEffort,
+                        currentModel.provider,
+                      )}
+                    </div>
+                  </div>
+
+                  <div
+                    ref={sliderRef}
+                    className="codex-reasoning-slider"
+                    style={reasoningStyle}
+                    data-dragging={pointerDown}
+                    data-at-min={sliderPosition === 0}
+                    role="slider"
+                    tabIndex={0}
+                    aria-label="Reasoning effort"
+                    aria-valuemin={0}
+                    aria-valuemax={supportedEfforts.length - 1}
+                    aria-valuenow={Math.max(
+                      0,
+                      supportedEfforts.indexOf(visualEffort),
+                    )}
+                    aria-valuetext={`${formatReasoningLabel(visualEffort, currentModel.provider)}: ${reasoningDescriptions[visualEffort]}`}
+                    title={`${formatReasoningLabel(visualEffort, currentModel.provider)} — ${reasoningDescriptions[visualEffort]}`}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.currentTarget.focus();
+                      event.currentTarget.setPointerCapture(event.pointerId);
+                      pointerActiveRef.current = true;
+                      setPointerDown(true);
+                      selectReasoningFromPointer(event.clientX);
+                    }}
+                    onPointerMove={(event) => {
+                      if (!pointerActiveRef.current) return;
+                      selectReasoningFromPointer(event.clientX);
+                    }}
+                    onPointerUp={(event) => {
+                      selectReasoningFromPointer(event.clientX);
+                      if (
+                        event.currentTarget.hasPointerCapture(event.pointerId)
+                      ) {
+                        event.currentTarget.releasePointerCapture(
+                          event.pointerId,
+                        );
+                      }
+                      finishPointerInteraction();
+                    }}
+                    onPointerCancel={finishPointerInteraction}
+                    onLostPointerCapture={finishPointerInteraction}
+                    onKeyDown={(event) => {
+                      let nextEffort: ReasoningEffort | null = null;
+                      if (
+                        event.key === "ArrowLeft" ||
+                        event.key === "ArrowDown"
+                      ) {
+                        nextEffort = stepReasoningEffort(
+                          latestEffortRef.current,
+                          supportedEfforts,
+                          "decrease",
+                        );
+                      } else if (
+                        event.key === "ArrowRight" ||
+                        event.key === "ArrowUp"
+                      ) {
+                        nextEffort = stepReasoningEffort(
+                          latestEffortRef.current,
+                          supportedEfforts,
+                          "increase",
+                        );
+                      } else if (event.key === "Home") {
+                        nextEffort = supportedEfforts[0] ?? null;
+                      } else if (event.key === "End") {
+                        nextEffort = supportedEfforts.at(-1) ?? null;
+                      } else {
+                        return;
+                      }
+
+                      event.preventDefault();
+                      if (nextEffort) emitReasoning(nextEffort);
+                    }}
+                  >
+                    <span
+                      ref={trackRef}
+                      className="codex-reasoning-track"
+                      aria-hidden="true"
+                    >
+                      <span className="codex-reasoning-track-fill" />
+                      <span className="codex-reasoning-particle-clip">
+                        <span className="codex-reasoning-particles">
+                          {reasoningParticles.map((particle, index) => {
+                            const delay =
+                              particle.stagger -
+                              particle.duration * (1 - sliderPosition / 100);
+                            const particleStyle = {
+                              "--particle-delay": `${delay}s`,
+                              "--particle-duration": `${particle.duration}s`,
+                              "--particle-opacity": particle.opacity,
+                              "--particle-scale": particle.scale,
+                              "--particle-top": `${particle.top}%`,
+                            } as CSSProperties;
+
+                            return (
+                              <span
+                                key={index}
+                                className="codex-reasoning-particle-path"
+                                style={particleStyle}
+                              >
+                                <i />
+                              </span>
+                            );
+                          })}
+                        </span>
+                      </span>
+                      <span className="codex-reasoning-ticks">
+                        {REASONING_EFFORTS.filter((effort) =>
+                          supportedEfforts.includes(effort),
+                        ).map((effort) => {
+                          const position =
+                            REASONING_SLIDER_POSITIONS[effort];
+                          const offset = 13 - position * 0.26;
 
                           return (
-                            <button
+                            <i
                               key={effort}
-                              type="button"
-                              onClick={() => {
-                                onReasoningChange(effort);
-                                setOpen(false);
+                              data-selected={position <= sliderPosition}
+                              style={{
+                                left: `calc(${position}% + ${offset}px)`,
                               }}
-                              className={`rounded px-2 py-1.5 text-left transition-colors duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-300 ${
-                                reasoningSelected
-                                  ? "bg-white text-[var(--notion-text)] ring-1 ring-[var(--notion-border-strong)]"
-                                  : "text-[var(--notion-muted)] hover:bg-white/80 hover:text-[var(--notion-text)]"
-                              }`}
-                            >
-                              <span className="block text-xs font-semibold">
-                                {formatReasoningLabel(effort, item.provider)}
-                              </span>
-                              <span className="mt-0.5 block text-[10px] leading-4 text-[var(--notion-muted)]">
-                                {reasoningDescriptions[effort]}
-                              </span>
-                            </button>
+                            />
                           );
                         })}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                      </span>
+                    </span>
+                    <span
+                      className="codex-reasoning-thumb"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </>
+              )}
+            </div>
+          ) : (
+            <div className="codex-model-options">
+              {MODEL_OPTIONS.map((item) => {
+                const selected = item.id === value;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => {
+                      onModelChange(item.id);
+                      closePanels();
+                      modelTriggerRef.current?.focus();
+                    }}
+                    className={`codex-model-option ${selected ? "is-selected" : ""}`}
+                    role="menuitemradio"
+                    aria-checked={selected}
+                    tabIndex={selected ? 0 : -1}
+                  >
+                    {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>

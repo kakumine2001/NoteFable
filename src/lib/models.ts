@@ -47,8 +47,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     defaultReasoning: "medium",
   },
   {
-    id: "deepseek-v4-flash",
-    label: "DeepSeek-V4-Flash",
+    id: "deepseek-v4-pro",
+    label: "DeepSeek-V4-Pro",
     provider: "deepseek",
     supportsImageInput: false,
     supportsImageGeneration: false,
@@ -57,8 +57,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     defaultReasoning: "high",
   },
   {
-    id: "deepseek-v4-pro",
-    label: "DeepSeek-V4-Pro",
+    id: "deepseek-v4-flash",
+    label: "DeepSeek-V4-Flash",
     provider: "deepseek",
     supportsImageInput: false,
     supportsImageGeneration: false,
