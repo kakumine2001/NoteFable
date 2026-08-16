@@ -17,9 +17,12 @@ import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import {
+  buildDeepSeekResponsesRequest,
+  parseDeepSeekResponsesDelta,
+} from "@/lib/deepseek-responses";
+import {
+  getDeepSeekWebSearchOptions,
   normalizeWebSearchMode,
-  requestDeepSeekWebSearchDecision,
-  shouldUseWebSearch,
   type WebSearchMode,
 } from "@/lib/web-search";
 
@@ -32,16 +35,22 @@ function makeTitle(message: string) {
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
 
-type ChatCompletionResponse = {
-  choices?: {
-    message?: {
-      content?: string | null;
-    };
-  }[];
-  error?: {
-    message?: string;
-  };
-};
+// OpenAI と DeepSeek が共通で使うシステム指示を組み立てる。
+// 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
+function buildInstructions(webSearchMode: WebSearchMode) {
+  return [
+    "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
+    "Answer in the user's language unless they ask otherwise.",
+    "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
+    "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
+    "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+    ...(webSearchMode === "auto"
+      ? [
+          "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
+        ]
+      : []),
+  ].join(" ");
+}
 
 type ResponsesStreamRequest = {
   model: string;
@@ -62,30 +71,6 @@ type ResponsesStreamRequest = {
 type ResponsesStreamEvent = {
   type?: string;
   delta?: string;
-  error?: {
-    message?: string;
-  };
-};
-
-type ChatCompletionStreamEvent = {
-  choices?: {
-    delta?: {
-      content?: string | null;
-      reasoning_content?: string | null;
-    };
-  }[];
-  error?: {
-    message?: string;
-  };
-};
-
-type TavilySearchResponse = {
-  answer?: string;
-  results?: {
-    title?: string;
-    url?: string;
-    content?: string;
-  }[];
   error?: {
     message?: string;
   };
@@ -121,9 +106,9 @@ async function createResponsesStream(body: ResponsesStreamRequest) {
 
   if (!response.ok) {
     const text = await response.text();
-    let data: ChatCompletionResponse = {};
+    let data: { error?: { message?: string } } = {};
     try {
-      data = text ? (JSON.parse(text) as ChatCompletionResponse) : {};
+      data = text ? (JSON.parse(text) as { error?: { message?: string } }) : {};
     } catch {
       data = {};
     }
@@ -139,18 +124,6 @@ async function createResponsesStream(body: ResponsesStreamRequest) {
   return response.body;
 }
 
-function parseChatCompletionDelta(line: string) {
-  // DeepSeek は OpenAI 互換の chat/completions 形式で返る。
-  // reasoning_content は画面に出さず、ユーザーに見せる content の差分だけを中継する。
-  const data = JSON.parse(line) as ChatCompletionStreamEvent;
-
-  if (data.error?.message) {
-    throw new Error(data.error.message);
-  }
-
-  return data.choices?.[0]?.delta?.content ?? "";
-}
-
 function getErrorMessage(error: unknown) {
   // catch の値は Error とは限らないため、画面表示用の安全な文字列に寄せる。
   return sanitizeErrorMessage(error, "Unknown error.");
@@ -159,127 +132,6 @@ function getErrorMessage(error: unknown) {
 function encodeTextStreamEvent(delta: string) {
   // 本番プロキシに通常テキストとして圧縮・結合されないよう、本文差分は SSE として送る。
   return `data: ${JSON.stringify(delta)}\n\n`;
-}
-
-function trimSearchText(text: string) {
-  // 検索結果をそのまま入れすぎると通常会話の文脈を圧迫するため、各項目を短くする。
-  return text.replace(/\s+/g, " ").trim().slice(0, 900);
-}
-
-function buildTavilySearchPrompt(query: string, data: TavilySearchResponse) {
-  const results = (data.results ?? []).slice(0, 5);
-
-  if (!data.answer && results.length === 0) {
-    throw new Error("Tavily returned no search results.");
-  }
-
-  const sources = results.map((result, index) =>
-    [
-      `[${index + 1}] ${result.title || "Untitled"}`,
-      `URL: ${result.url || "Unknown"}`,
-      result.content ? `Snippet: ${trimSearchText(result.content)}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n"),
-  );
-
-  return [
-    "以下はTavilyのWeb検索結果。最新情報が必要な場合はこの検索結果を優先し、使った情報にはURLを含めて答える。",
-    `検索日時: ${new Date().toISOString()}`,
-    `検索クエリ: ${query}`,
-    data.answer ? `検索概要: ${trimSearchText(data.answer)}` : "",
-    sources.length ? `検索結果:\n${sources.join("\n\n")}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
-}
-
-function withWebSearchPrompt(
-  input: { role: string; content: unknown }[],
-  webSearchPrompt: string,
-) {
-  const lastIndex = input.length - 1;
-
-  return input.map((item, index) => {
-    if (index !== lastIndex || item.role !== "user") return item;
-
-    if (typeof item.content === "string") {
-      return {
-        ...item,
-        content: `${webSearchPrompt}\n\n${item.content}`,
-      };
-    }
-
-    return {
-      ...item,
-      content: [
-        {
-          type: "input_text",
-          text: webSearchPrompt,
-        },
-        ...(Array.isArray(item.content) ? item.content : []),
-      ],
-    };
-  });
-}
-
-async function createTavilySearchPrompt(query: string) {
-  const apiKey = requireEnv("TAVILY_API_KEY");
-
-  const response = await fetch("https://api.tavily.com/search", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      query,
-      search_depth: "basic",
-      max_results: 5,
-      include_answer: "basic",
-      include_raw_content: false,
-      include_images: false,
-    }),
-  });
-
-  const text = await response.text();
-  let data: TavilySearchResponse = {};
-
-  try {
-    data = text ? (JSON.parse(text) as TavilySearchResponse) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.error?.message ?? buildUpstreamErrorMessage("Tavily", response.status, text),
-    );
-  }
-
-  return buildTavilySearchPrompt(query, data);
-}
-
-async function shouldDeepSeekSearchWeb(
-  mode: WebSearchMode,
-  message: string,
-  input: { role: string; content: unknown }[],
-) {
-  // 明示的な on/off は追加のモデル判定を挟まず、そのまま尊重する。
-  if (mode !== "auto") return shouldUseWebSearch(mode, message);
-
-  try {
-    return await requestDeepSeekWebSearchDecision({
-      input,
-      apiKey: requireEnv("DEEPSEEK_API_KEY"),
-      baseURL: optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com/v1",
-      model: optionalEnv("DEEPSEEK_FLASH_MODEL") || "deepseek-v4-flash",
-    });
-  } catch (error) {
-    // 判定 API が一時的に失敗しても、従来の明示語・時事語ルールで検索可否を決めて会話を継続する。
-    console.warn("DeepSeek web search decision failed; using keyword fallback.", getErrorMessage(error));
-    return shouldUseWebSearch(mode, message);
-  }
 }
 
 function getUpstreamModel(model: string) {
@@ -300,64 +152,62 @@ function getUpstreamModel(model: string) {
   return model;
 }
 
-async function createDeepSeekStream({
+function flattenDeepSeekInput(input: { role: string; content: unknown }[]) {
+  return input.map((item) => ({
+    role: item.role,
+    content:
+      typeof item.content === "string"
+        ? item.content
+        : (Array.isArray(item.content) ? item.content : [])
+            .filter(
+              (part): part is { text?: string } =>
+                typeof part === "object" && part !== null,
+            )
+            .filter((part) => typeof part.text === "string")
+            .map((part) => part.text)
+            .join("\n\n"),
+  }));
+}
+
+async function createDeepSeekResponsesStream({
   model,
   input,
   reasoning,
+  webSearchMode,
 }: {
   model: string;
   input: { role: string; content: unknown }[];
   reasoning: string;
+  webSearchMode: WebSearchMode;
 }) {
   // DeepSeek はこのプロジェクトではテキスト専用モデルとして扱う。
-  // OpenAI 向けの input には画像パートなども入り得るため、DeepSeek へ渡す前に text 部分だけへ畳み込む。
+  // input には画像パートなども入り得るため、DeepSeek へ渡す前に text 部分だけへ畳み込む。
   const apiKey = requireEnv("DEEPSEEK_API_KEY");
-  const baseURL = optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com/v1";
-
-  const messages = [
-    {
-      role: "system",
-      content:
-        [
-          "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
-          "Answer in the user's language unless they ask otherwise.",
-          "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
-          "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
-          "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
-        ].join(" "),
-    },
-    ...input.map((item) => ({
-      role: item.role,
-      content:
-        typeof item.content === "string"
-          ? item.content
-          : (item.content as { text?: string }[])
-              .filter((part) => typeof part.text === "string")
-              .map((part) => part.text)
-      .join("\n\n"),
-    })),
-  ];
-  const response = await fetch(`${baseURL.replace(/\/$/, "")}/chat/completions`, {
+  const baseURL = optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com";
+  const instructions = buildInstructions(webSearchMode);
+  const body = buildDeepSeekResponsesRequest({
+    model,
+    instructions,
+    input: flattenDeepSeekInput(input),
+    effort: reasoning === "xhigh" ? "max" : "high",
+    ...getDeepSeekWebSearchOptions(webSearchMode),
+    stream: true,
+  });
+  const response = await fetch(`${baseURL.replace(/\/$/, "")}/responses`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({
-      model,
-      messages,
-      reasoning_effort: reasoning === "xhigh" ? "max" : "high",
-      thinking: { type: "enabled" },
-      stream: true,
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const text = await response.text();
-    let data: ChatCompletionResponse = {};
+    let data: { error?: { message?: string } } = {};
     try {
-      data = text ? (JSON.parse(text) as ChatCompletionResponse) : {};
+      data = text ? (JSON.parse(text) as { error?: { message?: string } }) : {};
     } catch {
       data = {};
     }
@@ -429,7 +279,8 @@ export async function POST(request: Request) {
   const modelOption = getModelOption(model);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
   const reasoning = normalizeReasoning(formData.get("reasoning"), model);
-  // Auto はモデルまたはローカル判定に任せ、Force は必ず検索する。
+  // Auto は各プロバイダーのモデル判断に任せ、Force はDeepSeekのnative検索を必須にする。
+  // フィールド未指定でも検索対応モデルなら auto になる。
   const webSearchMode = normalizeWebSearchMode(
     formData.get("webSearch"),
     modelOption.supportsWebSearch,
@@ -582,39 +433,20 @@ export async function POST(request: Request) {
   const stream = new ReadableStream({
     async start(controller) {
       try {
-        // DeepSeek の検索もストリーム内で実行し、失敗時は通常のアシスタントエラーとして保存する。
-        const deepSeekShouldSearch =
-          modelOption.provider === "deepseek"
-            ? await shouldDeepSeekSearchWeb(webSearchMode, message, input)
-            : false;
-        const deepSeekSearchPrompt = deepSeekShouldSearch
-          ? await createTavilySearchPrompt(message)
-          : null;
-        const upstreamInput = deepSeekSearchPrompt
-          ? withWebSearchPrompt(input, deepSeekSearchPrompt)
-          : input;
-
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const upstream =
           modelOption.provider === "deepseek"
-            ? await createDeepSeekStream({ model: upstreamModel, input: upstreamInput, reasoning })
+            ? await createDeepSeekResponsesStream({
+                model: upstreamModel,
+                input,
+                reasoning,
+                webSearchMode,
+              })
             : await createResponsesStream({
                 model: upstreamModel,
-                instructions:
-                  [
-                    "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
-                    "Answer in the user's language unless they ask otherwise.",
-                    "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
-                    "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
-                    "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
-                    ...(webSearchMode === "auto"
-                      ? [
-                          "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
-                        ]
-                      : []),
-                  ].join(" "),
-                input: upstreamInput,
+                instructions: buildInstructions(webSearchMode),
+                input,
                 reasoning: {
                   effort: reasoning,
                 },
@@ -636,7 +468,7 @@ export async function POST(request: Request) {
             // プロバイダー別の形式から、画面に出す本文差分だけを取り出す。
             const delta =
               modelOption.provider === "deepseek"
-                ? parseChatCompletionDelta(payload)
+                ? parseDeepSeekResponsesDelta(payload)
                 : parseResponsesDelta(payload);
             if (!delta) continue;
 

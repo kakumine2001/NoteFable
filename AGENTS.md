@@ -40,20 +40,22 @@ Current models (defined in `src/lib/models.ts`):
 | Model ID | Provider | Image input | Image gen | Web search |
 |---|---|---|---|---|
 | `gpt-5.6-sol` | OpenAI | ✓ | ✓ | ✓ |
-| `deepseek-v4-flash` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
-| `deepseek-v4-pro` | DeepSeek | ✗ | ✗ | ✓ (Tavily) |
+| `deepseek-v4-flash` | DeepSeek | ✗ | ✗ | ✓ (native `web_search`) |
+| `deepseek-v4-pro` | DeepSeek | ✗ | ✗ | ✓ (native `web_search`) |
 
 **Rules:**
 - Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
 - GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
 - DeepSeek is text-only. Never enable image input or image generation for DeepSeek models.
-- DeepSeek web search does not use native tool calls. In `auto` mode, DeepSeek Flash first classifies the recent conversation as `SEARCH` or `SKIP`; `SEARCH` calls Tavily and injects its results as text context. If classification fails, the server falls back to the local keyword rules in `src/lib/web-search.ts`.
-- Normal chat uses automatic web search: OpenAI receives the native `web_search` tool with automatic selection; DeepSeek calls Tavily only for time-sensitive or explicit search intent.
-- OpenAI chat goes through the Responses API (`/responses`); DeepSeek uses Chat Completions.
+- DeepSeek web search uses the Responses API server-side `web_search` tool. In `auto` mode, DeepSeek decides whether to search; `force` requires the tool and `off` omits it.
+- Normal chat uses automatic web search: OpenAI and DeepSeek receive their provider-native `web_search` tool with automatic selection.
+- OpenAI and DeepSeek chat both go through the Responses API (`/responses`). Neither provider uses a StudyMate-side search-result injection flow.
+- Verified 2026-08-16 (via Render API): production sets `DEEPSEEK_BASE_URL=https://api.deepseek.com` (no `/v1`) and does NOT set `DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`, so upstream model IDs are the UI IDs `deepseek-v4-flash`/`deepseek-v4-pro` (both exist on the official API). Local `.env` matches (`https://api.deepseek.com`); both `/responses` and `/v1/responses` forms work (both return 200).
+- Tavily is fully retired: zero references in `src/`, and `TAVILY_API_KEY` was removed from local `.env`, `render.yaml`, and production (verified 2026-08-16). Do not reintroduce it.
 
 ## Chat System Prompt
 
-The source of truth is `src/app/api/chat/route.ts`. Normal OpenAI and DeepSeek answers share this base system prompt:
+The single source of truth is `buildInstructions(webSearchMode)` in `src/app/api/chat/route.ts`; both the OpenAI and DeepSeek branches call it, so the two providers always receive identical instructions. Base system prompt:
 
 ```text
 You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
@@ -63,14 +65,14 @@ Format answers as clean Markdown: use short headings, bullets or numbered lists 
 Do not use horizontal rules, repeated separator lines, or decorative dividers.
 ```
 
-OpenAI appends this sentence when Web search mode is `auto`:
+Both branches append this sentence when Web search mode is `auto`:
 
 ```text
 Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
 ```
 
-- DeepSeek's separate `SEARCH` / `SKIP` routing request uses the classifier prompt in `src/lib/web-search.ts`; it is not part of the final answer prompt.
-- When changing the chat system prompt, keep both provider branches in `src/app/api/chat/route.ts` aligned and update this section and `README.md`.
+- DeepSeek's native search events are handled inside the final Responses stream; only `response.output_text.delta` is forwarded to the client.
+- When changing the chat system prompt, edit `buildInstructions` only — never inline a separate copy in one provider branch — and update this section and `README.md`.
 
 ## API & Proxy Rules
 
@@ -132,6 +134,6 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 ## Local Dev
 
 Docker must be running before starting local dev.
-Local PostgreSQL 18.4 runs in Docker container `pg18-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
+Local PostgreSQL 18.4 runs in Docker container `studymate-pg18-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
 It uses database `studymate`, schema `public`, and Docker volume `postgres18-docker_pg18-data` mounted at `/var/lib/postgresql`.
 Initialize or update the local schema with `npx prisma migrate deploy`; do not expect a newly created container/volume to contain application tables.

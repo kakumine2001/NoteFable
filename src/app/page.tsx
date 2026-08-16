@@ -648,10 +648,6 @@ export default function Home() {
     body.append("message", userContent);
     body.append("model", model);
     body.append("reasoning", reasoning);
-    body.append(
-      "webSearch",
-      selectedModel.supportsWebSearch ? "auto" : "off",
-    );
     if (requestSessionId) body.append("sessionId", requestSessionId);
     submittedFiles.forEach(({ file }) => body.append("files", file));
 

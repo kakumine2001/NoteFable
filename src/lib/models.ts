@@ -26,7 +26,7 @@ type ModelOption = {
   supportsImageInput: boolean;
   // 画像生成モードを利用できるかどうか。
   supportsImageGeneration: boolean;
-  // Web 検索を利用できるかどうか。OpenAIは組み込み検索、DeepSeekはTavily検索を使う。
+  // Web 検索を利用できるかどうか。OpenAIとDeepSeekは各Responses APIの組み込み検索を使う。
   supportsWebSearch: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];

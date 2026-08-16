@@ -19,7 +19,7 @@
 - Tailwind CSS v4
 - Prisma 7 + PostgreSQL
 - OpenAI Responses API
-- DeepSeek Chat Completions API
+- DeepSeek Responses API
 - Render 部署
 
 ## 本地启动
@@ -51,13 +51,12 @@ COOKIE_SECRET="replace-with-a-long-random-secret"
 OPENAI_API_KEY="sk-..."
 OPENAI_BASE_URL="https://api.openai.com/v1"
 DEEPSEEK_API_KEY="sk-..."
-DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
-TAVILY_API_KEY="tvly-..."
+DEEPSEEK_BASE_URL="https://api.deepseek.com"
 NOTION_API_KEY="secret_..."
 NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-`TAVILY_API_KEY` 仅在 DeepSeek 开启 Web 搜索时需要；Notion 两项仅在启用 Notion 导出时需要。可选覆盖项：
+Notion 两项仅在启用 Notion 导出时需要。可选覆盖项：
 
 ```bash
 OPENAI_IMAGE_MODEL="gpt-image-2"
@@ -107,11 +106,11 @@ npx prisma validate
 - GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max` 六档推理强度
 - DeepSeek：不支持图片输入和图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送
 
-自动 Web 搜索的实现因模型而异：GPT 使用原生 `web_search` 工具并由模型决定是否调用；DeepSeek 会先用 Flash 模型根据最近对话判断 `SEARCH` 或 `SKIP`，需要搜索时调用 Tavily 并把结果作为文本上下文注入。若判断请求失败，会回退到本地关键词规则。
+自动 Web 搜索的实现因模型而异：GPT 和 DeepSeek 都通过各自的 Responses API 原生 `web_search` 工具搜索，并由模型决定是否调用。DeepSeek不再经过StudyMate侧的分类器或搜索结果注入。
 
 ## 系统提示词
 
-普通聊天中，OpenAI 和 DeepSeek 的主回答共用以下基础系统提示词，代码来源为 `src/app/api/chat/route.ts`：
+普通聊天中，OpenAI 和 DeepSeek 共用同一套系统提示词，由 `src/app/api/chat/route.ts` 的 `buildInstructions(webSearchMode)` 统一生成，两个分支不存在提示词差异：
 
 ```text
 You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
@@ -121,13 +120,13 @@ Format answers as clean Markdown: use short headings, bullets or numbered lists 
 Do not use horizontal rules, repeated separator lines, or decorative dividers.
 ```
 
-OpenAI 使用自动 Web 搜索时还会追加：
+使用自动 Web 搜索（auto）时，两个分支都会追加：
 
 ```text
 Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
 ```
 
-DeepSeek Flash 用于判断 `SEARCH / SKIP` 的分类提示词位于 `src/lib/web-search.ts`，不会作为最终回答的系统提示词发送。
+DeepSeek的搜索事件在最终Responses流中由服务端处理；StudyMate只把 `response.output_text.delta` 本文差分转发给前端。DeepSeek返回的引用或URL会按普通Markdown正文显示。
 
 图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
@@ -158,7 +157,6 @@ Render 上需要配置：
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
 - `DEEPSEEK_API_KEY`
-- `TAVILY_API_KEY`
 - `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
 
 `DATABASE_URL` 是 Render Web Service 上的直接 secret，`render.yaml` 必须保持 `sync: false`，不能改回 Render 数据库 Blueprint 注入。`COOKIE_SECRET` 由 Blueprint 生成。
