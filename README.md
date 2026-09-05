@@ -104,7 +104,7 @@ npx prisma validate
 模型能力：
 
 - GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max` 六档推理强度
-- DeepSeek-V4-Flash-Vision：支持图片输入，不支持图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送。Responses API 推理强度支持 `none / low / medium / high / xhigh / max`，默认 `high`
+- DeepSeek-V4-Flash-Vision：支持图片输入，不支持图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送。Responses API 推理强度支持 `none / minimal / low / medium / high / xhigh / max`，默认 `high`
 
 自动 Web 搜索的实现因模型而异：GPT 和 DeepSeek 都通过各自的 Responses API 原生 `web_search` 工具搜索，并由模型决定是否调用。DeepSeek不再经过StudyMate侧的分类器或搜索结果注入。
 

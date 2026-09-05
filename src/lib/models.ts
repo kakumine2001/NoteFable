@@ -4,6 +4,7 @@ export const DEFAULT_MODEL = "gpt-5.6-sol";
 // UI と API が受け付ける推論強度の一覧。as const にして型にも利用する。
 export const REASONING_EFFORTS = [
   "none",
+  "minimal",
   "low",
   "medium",
   "high",
@@ -54,7 +55,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageGeneration: false,
     supportsWebSearch: true,
     // DeepSeek Responses API 官方支持 none / minimal / low / medium / high / xhigh / max。
-    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    reasoningEfforts: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "high",
   },
 ] as const;
