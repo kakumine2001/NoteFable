@@ -1,9 +1,5 @@
 # StudyMate Agent Guide
 
-## Next.js
-
-This project uses Next.js 16.2.6. When a Next.js API, convention, or file structure is uncertain, check the installed documentation under `node_modules/next/dist/docs/` before changing code.
-
 ## Project
 
 Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, DeepSeek, and Notion.
