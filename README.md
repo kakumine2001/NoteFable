@@ -26,12 +26,31 @@
 
 Vercel 的 `iad1` 与 Neon 的 `aws-us-east-1` 都在美国东部，当前部署在网络位置上是合理组合。
 
-## 架构文档
+## 架构总览
+
+README 作为系统总览入口；更细的流程拆在 `docs/architecture/`。
+
+```mermaid
+flowchart LR
+    Browser["Browser"]
+    App["Next.js on Vercel"]
+    Neon["Neon PostgreSQL"]
+    Blob["Private Vercel Blob"]
+    OpenAI["OpenAI APIs"]
+    DeepSeek["DeepSeek API"]
+    Notion["Notion API"]
+
+    Browser --> App
+    App --> Neon
+    App --> Blob
+    App --> OpenAI
+    App --> DeepSeek
+    App --> Notion
+```
 
 几个月没维护、需要重新理解项目时，从这里开始：
 
-- [架构入口：5 分钟恢复上下文](docs/architecture/README.md)
-- [系统总览](docs/architecture/system-overview.md)
+- [详细架构入口：5 分钟恢复上下文](docs/architecture/README.md)
 - [数据库设计](docs/architecture/database.md)
 - [聊天请求流程](docs/architecture/chat-flow.md)
 - [图片上传与生成流程](docs/architecture/image-flow.md)
@@ -54,9 +73,8 @@ Vercel 的 `iad1` 与 Neon 的 `aws-us-east-1` 都在美国东部，当前部署
 - Neon PostgreSQL
 - OpenAI Responses API / Images API
 - DeepSeek Responses API
-- Vercel 部署（GitHub 連携）
+- Vercel 部署（GitHub 联动）
 - Notion API
-- Vercel
 - Vercel Analytics / Speed Insights
 
 ## 本地启动
@@ -142,14 +160,15 @@ OpenAI 与 DeepSeek 的 Web 搜索都由各自 Responses API 的原生搜索能�
 
 ## 图片存储
 
-生产环境的 `src/lib/storage.ts` 通过 `@vercel/blob` 把图片写入私有 Vercel Blob：
+生产环境的 `src/lib/storage.ts` 通过 `@vercel/blob` 把图片写入私有 Vercel Blob。
+
+Blob pathname 结构：
 
 ```text
-STUDYMATE_STORAGE_DIR
-└── images/YYYY/MM/DD/<uuid>.<ext>
+images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-数据库只保存 `Attachment.imageStoragePath`。
+数据库只保存 `Attachment.imageStoragePath`。本地开发未配置 `BLOB_READ_WRITE_TOKEN` 时，才使用 `STUDYMATE_STORAGE_DIR`。
 
 DeepSeek的搜索事件在最终Responses流中由服务端处理；StudyMate只把 `response.output_text.delta` 本文差分转发给前端。DeepSeek返回的引用或URL会按普通Markdown正文显示。
 
@@ -170,7 +189,7 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 - 项目：`studymate`
 - 线上 URL：`https://studymate-lab-ai.vercel.app`
-- 方式：GitHub 連携（main 分支 push で自動デプロイ）
+- 方式：GitHub 联动（main 分支 push 后自动部署）
 - `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用
 
 Vercel 上需要配置的环境变量（与 Render 时代相同的一套）：

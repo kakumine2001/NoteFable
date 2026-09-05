@@ -61,22 +61,14 @@ Schema: studymate
 
 ```mermaid
 flowchart LR
-    DEV["Local Development"]
-    GH["GitHub<br/>kakumine2001/StudyMate<br/>main"]
-    V["Vercel<br/>studymate<br/>Next.js / Node 24"]
-    USERS["Browser"]
-    DB["Neon<br/>neondb / studymate"]
-    OAI["OpenAI"]
-    DS["DeepSeek"]
-    N["Notion"]
-
-    DEV --> GH
-    GH --> V
-    V --> USERS
-    V --> DB
-    V --> OAI
-    V --> DS
-    V --> N
+    Local["Local development"] --> GitHub["GitHub main"]
+    GitHub --> Vercel["Vercel production"]
+    Vercel --> Browser["Browser"]
+    Vercel --> Neon["Neon PostgreSQL"]
+    Vercel --> Blob["Private Vercel Blob"]
+    Vercel --> OpenAI["OpenAI"]
+    Vercel --> DeepSeek["DeepSeek"]
+    Vercel --> Notion["Notion"]
 ```
 
 ## Build
@@ -104,17 +96,9 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 代码库有 migration retry wrapper，用来处理 Neon 短暂连接问题。
 
-但从代码本身不能推断 Vercel 每次 build 一定会执行 migration。
+当前 `vercel.json` 的 Build Command 会先执行 `npm run prisma:migrate`，再执行 `npm run build`。因此从 Vercel 正常构建的 production deployment 会走 migration deploy。
 
-因此部署数据库结构变更时，应明确确认：
-
-```text
-migration 是否已经执行
-        ↓
-再部署依赖新 schema 的代码
-```
-
-不要默认“push 到 main = migration 自动完成”。
+仍需注意：Preview 环境如果复用生产 `DATABASE_URL`，也可能触发 migration，所以环境变量必须明确区分。
 
 ## Database Schema Boundary
 

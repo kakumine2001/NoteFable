@@ -47,52 +47,52 @@ PrismaClient
 
 ```mermaid
 erDiagram
-  AnonymousUser ||--o{ Session : owns
-  Session ||--o{ Message : contains
-  Message ||--o{ Attachment : has
+    AnonymousUser ||--o{ Session : owns
+    Session ||--o{ Message : contains
+    Message ||--o{ Attachment : has
 
-  AnonymousUser {
-    String id PK
-    String deviceId UK
-    DateTime createdAt
-    DateTime updatedAt
-  }
+    AnonymousUser {
+        string id PK
+        string deviceId
+        datetime createdAt
+        datetime updatedAt
+    }
 
-  Session {
-    String id PK
-    String title
-    String userId FK
-    DateTime createdAt
-    DateTime updatedAt
-  }
+    Session {
+        string id PK
+        string title
+        string userId FK
+        datetime createdAt
+        datetime updatedAt
+    }
 
-  Message {
-    String id PK
-    String sessionId FK
-    MessageRole role
-    String content
-    String model
-    ReasoningEffort reasoningEffort
-    DateTime createdAt
-  }
+    Message {
+        string id PK
+        string sessionId FK
+        string role
+        string content
+        string model
+        string reasoningEffort
+        datetime createdAt
+    }
 
-  Attachment {
-    String id PK
-    String messageId FK
-    String filename
-    String mimeType
-    Int size
-    String extractedText
-    String imageStoragePath
-    DateTime createdAt
-  }
+    Attachment {
+        string id PK
+        string messageId FK
+        string filename
+        string mimeType
+        int size
+        string extractedText
+        string imageStoragePath
+        datetime createdAt
+    }
 
-  ApiRateLimit {
-    String key PK
-    Int count
-    DateTime resetAt
-    DateTime updatedAt
-  }
+    ApiRateLimit {
+        string key PK
+        int count
+        datetime resetAt
+        datetime updatedAt
+    }
 ```
 
 ## Table Responsibilities

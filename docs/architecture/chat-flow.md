@@ -8,42 +8,31 @@
 
 ```mermaid
 sequenceDiagram
-    actor U as User
-    participant UI as Browser / page.tsx
-    participant API as POST /api/chat
-    participant AUTH as Anonymous Auth
-    participant DB as Neon PostgreSQL
-    participant FILE as File Processor
-    participant AI as OpenAI or DeepSeek
+    actor User
+    participant Browser
+    participant ChatAPI
+    participant Auth
+    participant Database
+    participant Files
+    participant Provider
 
-    U->>UI: 输入消息 + 可选附件
-    UI->>UI: 生成本地 optimistic message
-    UI->>API: multipart/form-data
+    User->>Browser: Send message and optional files
+    Browser->>ChatAPI: Submit form data
+    ChatAPI->>Auth: Resolve anonymous user
+    Auth->>Database: Find or create user
+    ChatAPI->>Database: Find or create session
 
-    API->>API: 校验 request size / model / reasoning
-    API->>AUTH: 读取或创建匿名设备用户
-    AUTH->>DB: AnonymousUser lookup/create
-
-    API->>DB: 查找或创建 Session
-
-    alt 有附件
-        API->>FILE: prepareAttachments(files)
-        FILE-->>API: extractedText / image data URL / storage path
+    alt Files attached
+        ChatAPI->>Files: Prepare attachments
+        Files-->>ChatAPI: Text image input and storage path
     end
 
-    API->>DB: 保存 USER Message + Attachments
-    API->>DB: 读取最近历史消息
-    DB-->>API: 最近 30 条历史
-
-    API->>AI: Responses API request
-    AI-->>API: SSE output text delta
-    API-->>UI: SSE text stream
-    UI->>UI: 持续追加 assistant text
-
-    API->>DB: 保存最终 ASSISTANT Message
-    API->>DB: 更新 Session.updatedAt
-    UI->>API: 重新读取会话历史
-    API-->>UI: DB 中的最终 Message / Attachment IDs
+    ChatAPI->>Database: Save user message
+    ChatAPI->>Database: Load recent history
+    ChatAPI->>Provider: Start response
+    Provider-->>ChatAPI: Stream text
+    ChatAPI-->>Browser: Stream text
+    ChatAPI->>Database: Save assistant message
 ```
 
 ## 前端发送的数据
@@ -143,14 +132,11 @@ Image
 
 ```mermaid
 flowchart LR
-    Input[Normalized chat input] --> Provider{Model provider}
-
-    Provider -->|OpenAI| OpenAI[createResponsesStream]
-    Provider -->|DeepSeek| DeepSeek[createDeepSeekResponsesStream]
-
-    OpenAI --> Delta[Normalize output text delta]
-    DeepSeek --> Delta
-    Delta --> Client[SSE to browser]
+    Input["Normalized chat input"] --> Provider{"Model provider"}
+    Provider -->|OpenAI| OpenAI["OpenAI response stream"]
+    Provider -->|DeepSeek| DeepSeek["DeepSeek response stream"]
+    OpenAI --> Client["Browser SSE"]
+    DeepSeek --> Client
 ```
 
 ### OpenAI
@@ -205,16 +191,14 @@ Notion 导出不经过 `/api/chat`：
 
 ```mermaid
 sequenceDiagram
-    participant UI as Browser
-    participant API as /api/notion/pages
-    participant DB as Neon
-    participant N as Notion API
+    participant Browser
+    participant NotionRoute
+    participant Database
+    participant Notion
 
-    UI->>API: title + content + optional sessionId
-    alt 带 sessionId
-        API->>DB: 校验当前设备拥有该 Session
-    end
-    API->>N: create page + blocks
-    N-->>API: page URL
-    API-->>UI: page URL
+    Browser->>NotionRoute: Send title and content
+    NotionRoute->>Database: Validate session ownership
+    NotionRoute->>Notion: Create page
+    Notion-->>NotionRoute: Return page URL
+    NotionRoute-->>Browser: Return page URL
 ```

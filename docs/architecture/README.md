@@ -14,7 +14,7 @@
 
 按这个顺序看：
 
-1. [system-overview.md](system-overview.md) — 系统有哪些组件
+1. 本文件 — 系统有哪些组件
 2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么
 3. [image-flow.md](image-flow.md) — 图片上传、AI 生成图片、图片保存
 4. [database.md](database.md) — Neon 里有哪些表、关系是什么
@@ -24,45 +24,30 @@
 
 ```mermaid
 flowchart LR
-    U["Browser / React UI"]
+    Browser["Browser"]
+    App["Next.js on Vercel"]
+    Chat["Chat API"]
+    Images["Image API"]
+    Sessions["Session APIs"]
+    Neon["Neon PostgreSQL"]
+    Blob["Private Vercel Blob"]
+    OpenAI["OpenAI APIs"]
+    DeepSeek["DeepSeek API"]
+    Notion["Notion API"]
 
-    subgraph V[Vercel - Next.js]
-      UI["src/app/page.tsx"]
-      CHAT["/api/chat"]
-      IMG["/api/images"]
-      SES["/api/sessions"]
-      ATT["/api/attachments/:id/image"]
-      NOTION["/api/notion/pages"]
-    end
-
-    DB["Neon PostgreSQL<br/>neondb / studymate schema"]
-    OPENAI["OpenAI<br/>Responses + Images"]
-    DEEPSEEK["DeepSeek<br/>Responses"]
-    N["Notion API"]
-    BLOB["Private Vercel Blob<br/>studymate-images"]
-    FS["Local fallback<br/>STUDYMATE_STORAGE_DIR"]
-
-    U --> UI
-    UI --> CHAT
-    UI --> IMG
-    UI --> SES
-    UI --> NOTION
-
-    CHAT --> DB
-    CHAT --> OPENAI
-    CHAT --> DEEPSEEK
-    CHAT --> BLOB
-
-    IMG --> OPENAI
-    IMG --> DB
-    IMG --> BLOB
-
-    SES --> DB
-    ATT --> DB
-    ATT --> BLOB
-    BLOB -. local dev fallback .-> FS
-    NOTION --> DB
-    NOTION --> N
+    Browser --> App
+    App --> Chat
+    App --> Images
+    App --> Sessions
+    Chat --> Neon
+    Chat --> OpenAI
+    Chat --> DeepSeek
+    Chat --> Blob
+    Images --> OpenAI
+    Images --> Neon
+    Images --> Blob
+    Sessions --> Neon
+    App --> Notion
 ```
 
 ## 最重要的源文件
@@ -85,9 +70,7 @@ flowchart LR
 | `prisma/schema.prisma` | 数据模型 |
 | `prisma/migrations/` | 数据库变更历史 |
 
-## 当前明确的架构债务
-
-### 图片存储
+## 图片存储
 
 当前生产实现：
 

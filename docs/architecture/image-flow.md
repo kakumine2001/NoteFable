@@ -11,27 +11,24 @@ StudyMate 的“图片”其实有两条完全不同的流程：
 
 ```mermaid
 sequenceDiagram
-    actor U as User
-    participant UI as Browser
-    participant CHAT as /api/chat
-    participant FILE as files.ts
-    participant STORE as storage.ts
-    participant DB as Neon PostgreSQL
-    participant AI as OpenAI / DeepSeek
+    actor User
+    participant Browser
+    participant ChatAPI
+    participant Files
+    participant Storage
+    participant Database
+    participant Provider
 
-    U->>UI: 选择 PNG/JPEG/WebP
-    UI->>UI: URL.createObjectURL() 本地预览
-    UI->>CHAT: multipart/form-data
-    CHAT->>FILE: prepareAttachments()
-    FILE->>FILE: File -> Buffer
-    FILE->>STORE: writeStoredImage(Buffer)
-    STORE-->>FILE: relative storage path
-    FILE->>FILE: Buffer -> base64 data URL
-    FILE-->>CHAT: storage path + input data URL
-    CHAT->>DB: Attachment.imageStoragePath
-    CHAT->>AI: input_image data URL
-    AI-->>CHAT: answer stream
-    CHAT-->>UI: answer
+    User->>Browser: Select image
+    Browser->>ChatAPI: Upload form data
+    ChatAPI->>Files: Prepare attachment
+    Files->>Storage: Store image
+    Storage-->>Files: Return storage path
+    Files-->>ChatAPI: Return image input and path
+    ChatAPI->>Database: Save attachment metadata
+    ChatAPI->>Provider: Send image input
+    Provider-->>ChatAPI: Stream answer
+    ChatAPI-->>Browser: Stream answer
 ```
 
 ### 为什么有两份表示
@@ -70,23 +67,21 @@ Create an image
 
 ```mermaid
 sequenceDiagram
-    actor U as User
-    participant UI as Browser
-    participant API as /api/images
-    participant OAI as OpenAI Images API
-    participant STORE as storage.ts
-    participant DB as Neon PostgreSQL
+    actor User
+    participant Browser
+    participant ImageAPI
+    participant OpenAI
+    participant Storage
+    participant Database
 
-    U->>UI: 输入图片 prompt
-    UI->>API: multipart/form-data
-    API->>OAI: POST /images/generations
-    OAI-->>API: data[0].b64_json
-    API->>API: Base64 -> Buffer
-    API->>STORE: writeStoredImage()
-    STORE-->>API: imageStoragePath
-    API->>DB: USER prompt Message
-    API->>DB: ASSISTANT Message + Attachment
-    API-->>UI: data:image/png;base64,...
+    User->>Browser: Enter image prompt
+    Browser->>ImageAPI: Submit request
+    ImageAPI->>OpenAI: Generate or edit image
+    OpenAI-->>ImageAPI: Return image data
+    ImageAPI->>Storage: Store generated image
+    Storage-->>ImageAPI: Return storage path
+    ImageAPI->>Database: Save messages and attachment
+    ImageAPI-->>Browser: Return generated image
 ```
 
 ### 有参考图
@@ -106,23 +101,21 @@ sequenceDiagram
 
 ```mermaid
 sequenceDiagram
-    participant UI as Browser
-    participant MSG as /api/sessions/:id/messages
-    participant DB as Neon
-    participant IMG as /api/attachments/:attachmentId/image
-    participant STORE as storage.ts
+    participant Browser
+    participant MessagesAPI
+    participant Database
+    participant ImageRoute
+    participant Storage
 
-    UI->>MSG: load messages
-    MSG->>DB: query Messages + Attachments
-    DB-->>MSG: imageStoragePath exists
-    MSG-->>UI: /api/attachments/:id/image
-
-    UI->>IMG: GET image
-    IMG->>DB: 检查 Attachment -> Message -> Session -> User ownership
-    DB-->>IMG: storage path
-    IMG->>STORE: readStoredImage(path)
-    STORE-->>IMG: bytes
-    IMG-->>UI: image response
+    Browser->>MessagesAPI: Load messages
+    MessagesAPI->>Database: Read messages and attachments
+    Database-->>MessagesAPI: Return attachment metadata
+    MessagesAPI-->>Browser: Return protected image route
+    Browser->>ImageRoute: Request image
+    ImageRoute->>Database: Check ownership
+    ImageRoute->>Storage: Read stored image
+    Storage-->>ImageRoute: Return image bytes
+    ImageRoute-->>Browser: Return image
 ```
 
 这条受控 API 的设计是对的：浏览器不知道服务器真实文件路径。
@@ -162,10 +155,10 @@ Vercel Production 已配置 `BLOB_READ_WRITE_TOKEN`，并运行通过 Blob 接�
 
 ```mermaid
 flowchart LR
-    UI["Browser"] --> API["Vercel Next.js API"]
-    API --> Blob["Private Vercel Blob"]
-    API --> DB["Neon PostgreSQL"]
-    DB --> Key["Attachment stores<br/>blob pathname / storage key"]
+    Browser["Browser"] --> App["Next.js on Vercel"]
+    App --> Blob["Private Vercel Blob"]
+    App --> Neon["Neon PostgreSQL"]
+    Neon --> Ref["Attachment imageStoragePath"]
 ```
 
 当前职责：
