@@ -19,6 +19,15 @@ Prefer reliable, low-friction personal use over onboarding, billing, organizatio
 - Do not add public multi-user product features unless explicitly requested.
 - Keep secrets and provider credentials server-side.
 
+## Documentation Sync
+
+- Treat `README.md` and `docs/architecture/` as maintained documentation, not as stale reference files.
+- When a material change affects documented behavior or operations — such as hosting, deployment, database/schema, model endpoints, environment variables, storage, authentication, or local development setup — update the affected documentation in the same change.
+- Review this `AGENTS.md` as well when the change affects durable coding guidance or safety rules.
+- Do not create documentation-only churn for incidental refactors, temporary debugging, or implementation details that do not change the documented system state.
+- Replace stale statements instead of appending contradictory history. Add verification dates only when they materially help.
+- Never commit passwords, API keys, tokens, connection secrets, or other private credentials to documentation.
+
 ## Source of Truth
 
 | Concern | Source |
