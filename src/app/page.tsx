@@ -1124,9 +1124,17 @@ export default function Home() {
                     ]);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    // IMEの確定Enter（keyCode 229）は送信せず、通常のEnterだけ送信する。
+                    if (
+                      event.key === "Enter" &&
+                      !event.shiftKey &&
+                      !event.nativeEvent.isComposing &&
+                      event.nativeEvent.keyCode !== 229
+                    ) {
                       event.preventDefault();
-                      event.currentTarget.form?.requestSubmit();
+                      if (event.currentTarget.value.trim()) {
+                        event.currentTarget.form?.requestSubmit();
+                      }
                     }
                   }}
                   rows={1}

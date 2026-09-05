@@ -141,12 +141,8 @@ function getUpstreamModel(model: string) {
     return optionalEnv("OPENAI_TEXT_MODEL") || model;
   }
 
-  if (model === "deepseek-v4-flash") {
-    return optionalEnv("DEEPSEEK_FLASH_MODEL") || model;
-  }
-
-  if (model === "deepseek-v4-pro") {
-    return optionalEnv("DEEPSEEK_PRO_MODEL") || model;
+  if (model === "deepseek-v4-flash-vision-exp") {
+    return optionalEnv("DEEPSEEK_VISION_MODEL") || model;
   }
 
   return model;

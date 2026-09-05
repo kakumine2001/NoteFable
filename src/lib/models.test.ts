@@ -15,22 +15,23 @@ describe("model configuration", () => {
 
     expect(openAI.supportsImageInput).toBe(true);
     expect(openAI.supportsImageGeneration).toBe(true);
-    expect(deepSeek).toHaveLength(2);
-    expect(deepSeek.every((model) => !model.supportsImageInput)).toBe(true);
+    expect(deepSeek).toHaveLength(1);
+    expect(deepSeek.filter((model) => model.supportsImageInput).map((model) => model.id)).toEqual([
+      "deepseek-v4-flash-vision-exp",
+    ]);
     expect(deepSeek.every((model) => !model.supportsImageGeneration)).toBe(true);
   });
 
   it("keeps the full model names in the selector", () => {
     expect(MODEL_OPTIONS.map((model) => model.label)).toEqual([
       "GPT-5.6 Sol",
-      "DeepSeek-V4-Pro",
-      "DeepSeek-V4-Flash",
+      "DeepSeek-V4-Flash-Vision",
     ]);
   });
 
   it("normalizes unknown models to the default", () => {
     expect(DEFAULT_MODEL).toBe("gpt-5.6-sol");
-    expect(normalizeModel("deepseek-v4-pro")).toBe("deepseek-v4-pro");
+    expect(normalizeModel("deepseek-v4-flash-vision-exp")).toBe("deepseek-v4-flash-vision-exp");
     expect(normalizeModel("gpt-5.5")).toBe(DEFAULT_MODEL);
     expect(normalizeModel("unknown-model")).toBe(DEFAULT_MODEL);
     expect(normalizeModel(null)).toBe(DEFAULT_MODEL);
@@ -55,8 +56,8 @@ describe("model configuration", () => {
 
     expect(deepSeek.every((model) => model.reasoningEfforts.join(",") === "high,xhigh")).toBe(true);
     expect(deepSeek.every((model) => model.defaultReasoning === "high")).toBe(true);
-    expect(normalizeReasoning("low", "deepseek-v4-flash")).toBe("high");
-    expect(normalizeReasoning(null, "deepseek-v4-pro")).toBe("high");
+    expect(normalizeReasoning("low", "deepseek-v4-flash-vision-exp")).toBe("high");
+    expect(normalizeReasoning(null, "deepseek-v4-flash-vision-exp")).toBe("high");
   });
 
   it("maps reasoning values to Prisma enum values", () => {
