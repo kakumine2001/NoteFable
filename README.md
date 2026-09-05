@@ -1,16 +1,51 @@
 # StudyMate
 
-供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的强大 AI 模型，无需在工作设备上登录个人 AI 平台账号。
+供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
 
-项目保留 `StudyMate` 这个名称，但当前定位不是对外运营的学习产品或多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索和 Notion 导出。
+项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索和 Notion 导出。
+
+## 当前生产环境
+
+截至 2026-09-05，已核对 GitHub、Vercel 与 Neon 的实际状态：
+
+- 源码：GitHub `kakumine2001/StudyMate`，主分支 `main`
+- 应用托管：Vercel 项目 `studymate`
+- Framework：Next.js
+- Vercel Node.js：24.x
+- Vercel Production region：`iad1`
+- Production aliases：
+  - `studymate-lab-ai.vercel.app`
+  - `studymate-kaku10.vercel.app`
+- 数据库：Neon PostgreSQL
+  - Neon project：`neon_db`
+  - Region：`aws-us-east-1`
+  - PostgreSQL：18
+  - Branch：`production`
+  - Database：`neondb`
+  - Schema：`studymate`
+
+Vercel 的 `iad1` 与 Neon 的 `aws-us-east-1` 都在美国东部，当前部署在网络位置上是合理组合。
+
+## 架构文档
+
+几个月没维护、需要重新理解项目时，从这里开始：
+
+- [架构入口：5 分钟恢复上下文](docs/architecture/README.md)
+- [系统总览](docs/architecture/system-overview.md)
+- [数据库设计](docs/architecture/database.md)
+- [聊天请求流程](docs/architecture/chat-flow.md)
+- [图片上传与生成流程](docs/architecture/image-flow.md)
+- [部署与运行环境](docs/architecture/deployment.md)
+
+根目录的 [ERD.md](ERD.md) 只保留为兼容入口，数据库文档以 `docs/architecture/database.md` 为唯一维护源。
 
 ## 使用边界
 
 - 面向项目所有者本人，优先保证随时可用、操作简单和维护成本低
 - 模型及第三方服务凭据由服务端环境变量统一配置，不暴露给浏览器
-- 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于登录或访问控制
-- 若部署地址可能被其他人获知，应在 Render、反向代理或应用层增加真正的访问认证，避免他人消耗 API 配额
-- 使用时仍需遵守工作地点的网络、信息安全及数据处理规定，不应提交不允许传给外部 AI 服务的内容
+- 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于真正登录认证
+- 若部署地址可能被其他人获知，应在 Vercel 或应用层增加真正的访问认证，避免他人消耗 API 配额
+- 不应提交不允许传给外部 AI 服务的工作资料或敏感数据
 
 ## 技术栈
 
@@ -18,9 +53,12 @@
 - React 19
 - Tailwind CSS v4
 - Prisma 7 + PostgreSQL
-- OpenAI Responses API
+- Neon PostgreSQL
+- OpenAI Responses API / Images API
 - DeepSeek Responses API
-- Render 部署
+- Notion API
+- Vercel
+- Vercel Analytics / Speed Insights
 
 ## 本地启动
 
@@ -45,7 +83,7 @@ DATABASE_URL="postgresql://user:password@host:5432/neondb?schema=studymate"
 COOKIE_SECRET="replace-with-a-long-random-secret"
 ```
 
-按启用的功能配置服务密钥：
+按启用的功能配置：
 
 ```bash
 OPENAI_API_KEY="sk-..."
@@ -56,7 +94,7 @@ NOTION_API_KEY="secret_..."
 NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
-Notion 两项仅在启用 Notion 导出时需要。可选覆盖项：
+可选覆盖项：
 
 ```bash
 OPENAI_IMAGE_MODEL="gpt-image-2"
@@ -80,16 +118,11 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
-生产数据库是 Neon PostgreSQL 的 `neondb`，使用 `studymate` schema。生产只运行 `prisma migrate deploy`（即 `npm run prisma:migrate`），不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。迁移脚本会对 Neon 唤醒或临时网络波动产生的 `P1001`/`P1002` 最多重试5次；其他迁移错误立即失败。
+生产数据库使用 Neon 的 `neondb` 数据库与 `studymate` schema。运行时 `src/lib/prisma.ts` 会读取 `DATABASE_URL` 的 `schema` 参数，并显式传给 Prisma PostgreSQL adapter。
 
-## 校验
+生产只运行 `prisma migrate deploy` 路线，不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
 
-```bash
-npm run typecheck
-npm run lint
-npm test
-npx prisma validate
-```
+注意：当前同一个 Neon database 中还存在 `kaku_log` schema。StudyMate 的数据库操作应限定在 `studymate` schema，不要把另一个 schema 当成 StudyMate 的表。
 
 ## 上传限制
 
@@ -103,34 +136,25 @@ npx prisma validate
 
 模型能力：
 
-- GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max` 六档推理强度
-- DeepSeek-V4-Flash-Vision：支持图片输入，不支持图片生成；文本类文件和 PDF 会提取为文本后随 prompt 一起发送。实际推理强度为 `low / high / max` 三档，默认 `high`
+- GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max`
+- DeepSeek-V4-Flash-Vision：支持图片输入，不支持图片生成；推理强度为 `low / high / max`，默认 `high`
 
-自动 Web 搜索的实现因模型而异：GPT 和 DeepSeek 都通过各自的 Responses API 原生 `web_search` 工具搜索，并由模型决定是否调用。DeepSeek不再经过StudyMate侧的分类器或搜索结果注入。
+OpenAI 与 DeepSeek 的 Web 搜索都由各自 Responses API 的原生搜索能力处理，StudyMate 不自行注入搜索结果。
 
-## 系统提示词
+## 图片存储：当前已知架构缺口
 
-普通聊天中，OpenAI 和 DeepSeek 共用同一套系统提示词，由 `src/app/api/chat/route.ts` 的 `buildInstructions(webSearchMode)` 统一生成，两个分支不存在提示词差异：
-
-```text
-You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
-Answer in the user's language unless they ask otherwise.
-When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.
-Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.
-Do not use horizontal rules, repeated separator lines, or decorative dividers.
-```
-
-使用自动 Web 搜索（auto）时，两个分支都会追加：
+当前代码仍由 `src/lib/storage.ts` 把图片写入本地文件系统：
 
 ```text
-Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
+STUDYMATE_STORAGE_DIR
+└── images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-DeepSeek的搜索事件在最终Responses流中由服务端处理；StudyMate只把 `response.output_text.delta` 本文差分转发给前端。DeepSeek返回的引用或URL会按普通Markdown正文显示。
+数据库只保存 `Attachment.imageStoragePath`。
 
-图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
+这套设计适合有持久磁盘的常驻服务器，但当前生产已经部署到 Vercel Functions，因此不能把本地文件系统当成可靠的持久图片仓库。
 
-Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` 时会使用实例本地临时目录，重新部署、重启或休眠后上传图片可能丢失。
+推荐目标是 **Private Vercel Blob**，但截至本文档更新时间尚未迁移。详细见 [图片上传与生成流程](docs/architecture/image-flow.md)。
 
 ## API 保护
 
@@ -139,24 +163,26 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 - `/api/chat`：每小时 30 次
 - `/api/images`：每小时 10 次
 
-生产环境可以继续叠加 Render/网关层限流。
+## Vercel 部署
 
-## Render 部署
+Vercel 项目已连接 GitHub 仓库 `kakumine2001/StudyMate`。当前生产部署基于 `main` 分支代码。
 
-`render.yaml` 定义：
+代码侧 build script：
 
-- Web Service：`studymate`
-- Plan：Free Web Service
-- Build：`npm ci && npm run prisma:migrate && npm run build`
-- Start：`npm run start`
+```bash
+npm run build
+# prisma generate && next build
+```
 
-`npm run prisma:migrate` 使用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
+数据库迁移脚本 `npm run prisma:migrate` 与 `npm run build` 是分开的。除非 Vercel 项目设置中显式配置了迁移步骤，否则不要假设每次部署都会自动执行 Prisma migration。
 
-Render 上需要配置：
+仓库中的 `render.yaml` 是历史部署配置，不代表当前生产架构。
 
-- `DATABASE_URL`
-- `OPENAI_API_KEY`
-- `DEEPSEEK_API_KEY`
-- `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
+## 校验
 
-`DATABASE_URL` 是 Render Web Service 上的直接 secret，`render.yaml` 必须保持 `sync: false`，不能改回 Render 数据库 Blueprint 注入。`COOKIE_SECRET` 由 Blueprint 生成。
+```bash
+npm run typecheck
+npm run lint
+npm test
+npx prisma validate
+```
