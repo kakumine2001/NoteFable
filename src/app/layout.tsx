@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
 const geistSans = Geist({
@@ -33,7 +35,7 @@ export default function RootLayout({
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
-      <body>{children}</body>
+      <body>{children}<Analytics /><SpeedInsights /></body>
     </html>
   );
 }
