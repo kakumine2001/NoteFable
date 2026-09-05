@@ -6,11 +6,7 @@ This project uses Next.js 16.2.6. When a Next.js API, convention, or file struct
 
 ## Project
 
-StudyMate is a private, personal AI gateway. It is not a public SaaS product.
-
 Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, DeepSeek, and Notion.
-
-Prefer reliable, low-friction personal use over onboarding, billing, organizations, collaboration, or other SaaS features.
 
 ## Scope Rules
 
