@@ -79,7 +79,7 @@ export async function buildHistoryInput(
         remainingImageFiles -= 1;
         remainingImageBytes -= image.byteLength;
       } catch {
-        // Render の一時ディスクから消えた画像は、本文履歴だけで会話を続ける。
+        // 一時ディスク(ホスティング再起動後など)から消えた画像は、本文履歴だけで会話を続ける。
       }
     }
 

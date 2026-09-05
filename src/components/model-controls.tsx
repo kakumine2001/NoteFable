@@ -11,12 +11,11 @@ import {
 import {
   getModelOption,
   MODEL_OPTIONS,
-  REASONING_EFFORTS,
   type ReasoningEffort,
 } from "@/lib/models";
 import {
+  getReasoningSliderPositions,
   pointerPositionFromClientX,
-  REASONING_SLIDER_POSITIONS,
   snapReasoningEffort,
   stepReasoningEffort,
 } from "@/lib/reasoning-slider";
@@ -99,7 +98,8 @@ export function ModelSelect({
   const [previewEffort, setPreviewEffort] = useState<ReasoningEffort | null>(null);
   const [pointerDown, setPointerDown] = useState(false);
   const visualEffort = previewEffort ?? fallbackEffort;
-  const sliderPosition = REASONING_SLIDER_POSITIONS[visualEffort];
+  const sliderPositions = getReasoningSliderPositions(supportedEfforts);
+  const sliderPosition = sliderPositions[visualEffort];
   const thumbEdgeOffset = 13 - sliderPosition * 0.26;
   const fillSize = `calc(${sliderPosition}% + ${thumbEdgeOffset}px)`;
   const reasoningStyle = {
@@ -231,7 +231,11 @@ export function ModelSelect({
       bounds.left,
       bounds.width,
     );
-    const nextEffort = snapReasoningEffort(position, supportedEfforts);
+    const nextEffort = snapReasoningEffort(
+      position,
+      supportedEfforts,
+      sliderPositions,
+    );
     if (nextEffort) {
       setPreviewEffort(nextEffort);
       emitReasoning(nextEffort);
@@ -333,214 +337,149 @@ export function ModelSelect({
         >
           {openPanel === "reasoning" ? (
             <div className="codex-advanced-panel" data-pointer-down={pointerDown}>
-              {currentModel.provider === "deepseek" ? (
-                <div
-                  className="codex-reasoning-segmented"
-                  role="radiogroup"
-                  aria-label="Reasoning effort"
-                >
-                  {supportedEfforts.map((effort, index) => {
-                    const selected = effort === visualEffort;
-
-                    return (
-                      <button
-                        key={effort}
-                        type="button"
-                        className={`codex-reasoning-segment ${
-                          selected ? "is-selected" : ""
-                        }`}
-                        role="radio"
-                        aria-checked={selected}
-                        tabIndex={selected ? 0 : -1}
-                        title={`${formatReasoningLabel(effort, currentModel.provider)} — ${reasoningDescriptions[effort]}`}
-                        onClick={() => emitReasoning(effort)}
-                        onKeyDown={(event) => {
-                          let nextIndex: number | null = null;
-                          if (
-                            event.key === "ArrowLeft" ||
-                            event.key === "ArrowUp"
-                          ) {
-                            nextIndex = Math.max(0, index - 1);
-                          } else if (
-                            event.key === "ArrowRight" ||
-                            event.key === "ArrowDown"
-                          ) {
-                            nextIndex = Math.min(
-                              supportedEfforts.length - 1,
-                              index + 1,
-                            );
-                          } else if (event.key === "Home") {
-                            nextIndex = 0;
-                          } else if (event.key === "End") {
-                            nextIndex = supportedEfforts.length - 1;
-                          }
-
-                          if (nextIndex == null || nextIndex === index) return;
-                          event.preventDefault();
-                          const nextEffort = supportedEfforts[nextIndex];
-                          if (!nextEffort) return;
-
-                          emitReasoning(nextEffort);
-                          event.currentTarget.parentElement
-                            ?.querySelectorAll<HTMLButtonElement>(
-                              ".codex-reasoning-segment",
-                            )
-                            [nextIndex]?.focus();
-                        }}
-                      >
-                        {formatReasoningLabel(effort, currentModel.provider)}
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <>
-                  <div className="codex-slider-header" aria-hidden="true">
-                    <div className="codex-slider-endpoints">
-                      <span>Faster</span>
-                      <span>Smarter</span>
-                    </div>
-                    <div className="codex-slider-current">
-                      {formatReasoningLabel(
-                        visualEffort,
-                        currentModel.provider,
-                      )}
-                    </div>
+              <>
+                <div className="codex-slider-header" aria-hidden="true">
+                  <div className="codex-slider-endpoints">
+                    <span>Faster</span>
+                    <span>Smarter</span>
                   </div>
-
-                  <div
-                    ref={sliderRef}
-                    className="codex-reasoning-slider"
-                    style={reasoningStyle}
-                    data-dragging={pointerDown}
-                    data-at-min={sliderPosition === 0}
-                    role="slider"
-                    tabIndex={0}
-                    aria-label="Reasoning effort"
-                    aria-valuemin={0}
-                    aria-valuemax={supportedEfforts.length - 1}
-                    aria-valuenow={Math.max(
-                      0,
-                      supportedEfforts.indexOf(visualEffort),
+                  <div className="codex-slider-current">
+                    {formatReasoningLabel(
+                      visualEffort,
+                      currentModel.provider,
                     )}
-                    aria-valuetext={`${formatReasoningLabel(visualEffort, currentModel.provider)}: ${reasoningDescriptions[visualEffort]}`}
-                    title={`${formatReasoningLabel(visualEffort, currentModel.provider)} — ${reasoningDescriptions[visualEffort]}`}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.currentTarget.focus();
-                      event.currentTarget.setPointerCapture(event.pointerId);
-                      pointerActiveRef.current = true;
-                      setPointerDown(true);
-                      selectReasoningFromPointer(event.clientX);
-                    }}
-                    onPointerMove={(event) => {
-                      if (!pointerActiveRef.current) return;
-                      selectReasoningFromPointer(event.clientX);
-                    }}
-                    onPointerUp={(event) => {
-                      selectReasoningFromPointer(event.clientX);
-                      if (
-                        event.currentTarget.hasPointerCapture(event.pointerId)
-                      ) {
-                        event.currentTarget.releasePointerCapture(
-                          event.pointerId,
-                        );
-                      }
-                      finishPointerInteraction();
-                    }}
-                    onPointerCancel={finishPointerInteraction}
-                    onLostPointerCapture={finishPointerInteraction}
-                    onKeyDown={(event) => {
-                      let nextEffort: ReasoningEffort | null = null;
-                      if (
-                        event.key === "ArrowLeft" ||
-                        event.key === "ArrowDown"
-                      ) {
-                        nextEffort = stepReasoningEffort(
-                          latestEffortRef.current,
-                          supportedEfforts,
-                          "decrease",
-                        );
-                      } else if (
-                        event.key === "ArrowRight" ||
-                        event.key === "ArrowUp"
-                      ) {
-                        nextEffort = stepReasoningEffort(
-                          latestEffortRef.current,
-                          supportedEfforts,
-                          "increase",
-                        );
-                      } else if (event.key === "Home") {
-                        nextEffort = supportedEfforts[0] ?? null;
-                      } else if (event.key === "End") {
-                        nextEffort = supportedEfforts.at(-1) ?? null;
-                      } else {
-                        return;
-                      }
+                  </div>
+                </div>
 
-                      event.preventDefault();
-                      if (nextEffort) emitReasoning(nextEffort);
-                    }}
+                <div
+                  ref={sliderRef}
+                  className="codex-reasoning-slider"
+                  style={reasoningStyle}
+                  data-dragging={pointerDown}
+                  data-no-reasoning={visualEffort === "none"}
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="Reasoning effort"
+                  aria-valuemin={0}
+                  aria-valuemax={supportedEfforts.length - 1}
+                  aria-valuenow={Math.max(
+                    0,
+                    supportedEfforts.indexOf(visualEffort),
+                  )}
+                  aria-valuetext={`${formatReasoningLabel(visualEffort, currentModel.provider)}: ${reasoningDescriptions[visualEffort]}`}
+                  title={`${formatReasoningLabel(visualEffort, currentModel.provider)} — ${reasoningDescriptions[visualEffort]}`}
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    event.currentTarget.focus();
+                    event.currentTarget.setPointerCapture(event.pointerId);
+                    pointerActiveRef.current = true;
+                    setPointerDown(true);
+                    selectReasoningFromPointer(event.clientX);
+                  }}
+                  onPointerMove={(event) => {
+                    if (!pointerActiveRef.current) return;
+                    selectReasoningFromPointer(event.clientX);
+                  }}
+                  onPointerUp={(event) => {
+                    selectReasoningFromPointer(event.clientX);
+                    if (
+                      event.currentTarget.hasPointerCapture(event.pointerId)
+                    ) {
+                      event.currentTarget.releasePointerCapture(
+                        event.pointerId,
+                      );
+                    }
+                    finishPointerInteraction();
+                  }}
+                  onPointerCancel={finishPointerInteraction}
+                  onLostPointerCapture={finishPointerInteraction}
+                  onKeyDown={(event) => {
+                    let nextEffort: ReasoningEffort | null = null;
+                    if (
+                      event.key === "ArrowLeft" ||
+                      event.key === "ArrowDown"
+                    ) {
+                      nextEffort = stepReasoningEffort(
+                        latestEffortRef.current,
+                        supportedEfforts,
+                        "decrease",
+                      );
+                    } else if (
+                      event.key === "ArrowRight" ||
+                      event.key === "ArrowUp"
+                    ) {
+                      nextEffort = stepReasoningEffort(
+                        latestEffortRef.current,
+                        supportedEfforts,
+                        "increase",
+                      );
+                    } else if (event.key === "Home") {
+                      nextEffort = supportedEfforts[0] ?? null;
+                    } else if (event.key === "End") {
+                      nextEffort = supportedEfforts.at(-1) ?? null;
+                    } else {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    if (nextEffort) emitReasoning(nextEffort);
+                  }}
+                >
+                  <span
+                    ref={trackRef}
+                    className="codex-reasoning-track"
+                    aria-hidden="true"
                   >
-                    <span
-                      ref={trackRef}
-                      className="codex-reasoning-track"
-                      aria-hidden="true"
-                    >
-                      <span className="codex-reasoning-track-fill" />
-                      <span className="codex-reasoning-particle-clip">
-                        <span className="codex-reasoning-particles">
-                          {reasoningParticles.map((particle, index) => {
-                            const delay =
-                              particle.stagger -
-                              particle.duration * (1 - sliderPosition / 100);
-                            const particleStyle = {
-                              "--particle-delay": `${delay}s`,
-                              "--particle-duration": `${particle.duration}s`,
-                              "--particle-opacity": particle.opacity,
-                              "--particle-scale": particle.scale,
-                              "--particle-top": `${particle.top}%`,
-                            } as CSSProperties;
-
-                            return (
-                              <span
-                                key={index}
-                                className="codex-reasoning-particle-path"
-                                style={particleStyle}
-                              >
-                                <i />
-                              </span>
-                            );
-                          })}
-                        </span>
-                      </span>
-                      <span className="codex-reasoning-ticks">
-                        {REASONING_EFFORTS.filter((effort) =>
-                          supportedEfforts.includes(effort),
-                        ).map((effort) => {
-                          const position =
-                            REASONING_SLIDER_POSITIONS[effort];
-                          const offset = 13 - position * 0.26;
+                    <span className="codex-reasoning-track-fill" />
+                    <span className="codex-reasoning-particle-clip">
+                      <span className="codex-reasoning-particles">
+                        {reasoningParticles.map((particle, index) => {
+                          const delay =
+                            particle.stagger -
+                            particle.duration * (1 - sliderPosition / 100);
+                          const particleStyle = {
+                            "--particle-delay": `${delay}s`,
+                            "--particle-duration": `${particle.duration}s`,
+                            "--particle-opacity": particle.opacity,
+                            "--particle-scale": particle.scale,
+                            "--particle-top": `${particle.top}%`,
+                          } as CSSProperties;
 
                           return (
-                            <i
-                              key={effort}
-                              data-selected={position <= sliderPosition}
-                              style={{
-                                left: `calc(${position}% + ${offset}px)`,
-                              }}
-                            />
+                            <span
+                              key={index}
+                              className="codex-reasoning-particle-path"
+                              style={particleStyle}
+                            >
+                              <i />
+                            </span>
                           );
                         })}
                       </span>
                     </span>
-                    <span
-                      className="codex-reasoning-thumb"
-                      aria-hidden="true"
-                    />
-                  </div>
-                </>
-              )}
+                    <span className="codex-reasoning-ticks">
+                      {supportedEfforts.map((effort) => {
+                        const position = sliderPositions[effort];
+                        const offset = 13 - position * 0.26;
+
+                        return (
+                          <i
+                            key={effort}
+                            data-selected={position <= sliderPosition}
+                            style={{
+                              left: `calc(${position}% + ${offset}px)`,
+                            }}
+                          />
+                        );
+                      })}
+                    </span>
+                  </span>
+                  <span
+                    className="codex-reasoning-thumb"
+                    aria-hidden="true"
+                  />
+                </div>
+              </>
             </div>
           ) : (
             <div className="codex-model-options">

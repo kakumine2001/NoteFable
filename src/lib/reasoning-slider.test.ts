@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getReasoningSliderPositions,
   REASONING_SLIDER_POSITIONS,
   pointerPositionFromClientX,
   snapReasoningEffort,
@@ -13,6 +14,17 @@ describe("reasoning slider", () => {
     expect(allEfforts.map((effort) => REASONING_SLIDER_POSITIONS[effort])).toEqual([
       0, 20, 40, 60, 80, 100,
     ]);
+  });
+
+  it("spreads a model's supported efforts across the full slider", () => {
+    const deepSeekEfforts = ["low", "high", "max"] as const;
+    const positions = getReasoningSliderPositions(deepSeekEfforts);
+
+    expect(deepSeekEfforts.map((effort) => positions[effort])).toEqual([
+      0, 50, 100,
+    ]);
+    expect(snapReasoningEffort(20, deepSeekEfforts, positions)).toBe("low");
+    expect(snapReasoningEffort(80, deepSeekEfforts, positions)).toBe("max");
   });
 
   it("maps pointer coordinates to the thumb-center travel range", () => {

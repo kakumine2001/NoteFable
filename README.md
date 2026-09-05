@@ -9,7 +9,7 @@
 - 面向项目所有者本人，优先保证随时可用、操作简单和维护成本低
 - 模型及第三方服务凭据由服务端环境变量统一配置，不暴露给浏览器
 - 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于登录或访问控制
-- 若部署地址可能被其他人获知，应在 Render、反向代理或应用层增加真正的访问认证，避免他人消耗 API 配额
+- 若部署地址可能被其他人获知，应在 Vercel、反向代理或应用层增加真正的访问认证，避免他人消耗 API 配额
 - 使用时仍需遵守工作地点的网络、信息安全及数据处理规定，不应提交不允许传给外部 AI 服务的内容
 
 ## 技术栈
@@ -20,7 +20,7 @@
 - Prisma 7 + PostgreSQL
 - OpenAI Responses API
 - DeepSeek Responses API
-- Render 部署
+- Vercel 部署（GitHub 連携）
 
 ## 本地启动
 
@@ -128,9 +128,9 @@ Use web search when the answer depends on current, changing, niche, or uncertain
 
 DeepSeek的搜索事件在最终Responses流中由服务端处理；StudyMate只把 `response.output_text.delta` 本文差分转发给前端。DeepSeek返回的引用或URL会按普通Markdown正文显示。
 
-图片文件不会长期写入 PostgreSQL。应用会把图片保存到 `STUDYMATE_STORAGE_DIR`，数据库只保存 `imageStoragePath` 引用；读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
+图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `STUDYMATE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
-Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` 时会使用实例本地临时目录，重新部署、重启或休眠后上传图片可能丢失。
+Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/tmp` 也会在实例回收或重新部署后清空。因此 Vercel 部署必须配置 Vercel Blob token；否则图片上传和生成会明确失败，不会静默写入临时磁盘。
 
 ## API 保护
 
@@ -139,24 +139,24 @@ Render 免费版不支持 Persistent Disk；未配置 `STUDYMATE_STORAGE_DIR` �
 - `/api/chat`：每小时 30 次
 - `/api/images`：每小时 10 次
 
-生产环境可以继续叠加 Render/网关层限流。
+生产环境可以继续叠加 Vercel/网关层限流。
 
-## Render 部署
+## Vercel 部署
 
-`render.yaml` 定义：
+- 项目：`studymate-lab-ai`
+- 线上 URL：`https://studymate-lab-ai.vercel.app`
+- 方式：GitHub 連携（main 分支 push で自動デプロイ）
+- `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用
 
-- Web Service：`studymate`
-- Plan：Free Web Service
-- Build：`npm ci && npm run prisma:migrate && npm run build`
-- Start：`npm run start`
-
-`npm run prisma:migrate` 使用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
-
-Render 上需要配置：
+Vercel 上需要配置的环境变量（与 Render 时代相同的一套）：
 
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
+- `OPENAI_BASE_URL`
 - `DEEPSEEK_API_KEY`
+- `DEEPSEEK_BASE_URL`
 - `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
+- `COOKIE_SECRET`
+- `BLOB_READ_WRITE_TOKEN`（Vercel Blob 图片存储，必填）
 
-`DATABASE_URL` 是 Render Web Service 上的直接 secret，`render.yaml` 必须保持 `sync: false`，不能改回 Render 数据库 Blueprint 注入。`COOKIE_SECRET` 由 Blueprint 生成。
+Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。

@@ -31,6 +31,18 @@ function getStorageRoot() {
   return configuredRoot;
 }
 
+function hasVercelBlobToken() {
+  return Boolean(optionalEnv("BLOB_READ_WRITE_TOKEN"));
+}
+
+function assertStorageConfigured() {
+  if (process.env.VERCEL === "1" && !hasVercelBlobToken()) {
+    throw new Error(
+      "BLOB_READ_WRITE_TOKEN is required on Vercel for image storage.",
+    );
+  }
+}
+
 function normalizeStoragePath(storagePath: string) {
   // 画像取得 API は DB に保存されたパスをもとにファイルを読む。
   // 絶対パスや .. を含むパスを拒否し、保存領域の外にあるファイルを読めないようにする。
@@ -60,6 +72,18 @@ export async function writeStoredImage(buffer: Buffer, mimeType: string) {
   );
   const filename = `${randomUUID()}${getImageExtension(mimeType)}`;
   const relativePath = path.join(folder, filename);
+
+  if (hasVercelBlobToken()) {
+    const { put } = await import("@vercel/blob");
+    await put(relativePath.replace(/\\/g, "/"), buffer, {
+      access: "private",
+      contentType: mimeType,
+      addRandomSuffix: false,
+    });
+    return relativePath.replace(/\\/g, "/");
+  }
+
+  assertStorageConfigured();
   const absolutePath = path.join(/*turbopackIgnore: true*/ getStorageRoot(), relativePath);
 
   await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -70,5 +94,17 @@ export async function writeStoredImage(buffer: Buffer, mimeType: string) {
 
 export async function readStoredImage(storagePath: string) {
   const safePath = normalizeStoragePath(storagePath);
+
+  if (hasVercelBlobToken()) {
+    const { get } = await import("@vercel/blob");
+    const result = await get(safePath, { access: "private" });
+    if (!result || result.statusCode !== 200) {
+      throw new Error("Stored image not found.");
+    }
+
+    return Buffer.from(await new Response(result.stream).arrayBuffer());
+  }
+
+  assertStorageConfigured();
   return readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
 }

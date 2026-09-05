@@ -8,9 +8,9 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 StudyMate is a privately used, personal AI gateway for accessing capable models from environments where signing in to the owner's personal AI accounts is inconvenient. It provides session chat, file attachments, image generation, and web search.
 
-- Live URL: `https://studymate-lzki.onrender.com`
+- Live URL: `https://studymate-lab-ai.vercel.app`
 - Knowledge vault: `C:\Users\kakumine\Desktop\知識倉庫\Projects\StudyMate\StudyMate 当前状态.md`
-- Tech stack: Next.js 16.2.6 App Router, React 19, Tailwind CSS v4, Prisma 7 / PostgreSQL, Render (free tier)
+- Tech stack: Next.js 16.2.6 App Router, React 19, Tailwind CSS v4, Prisma 7 / PostgreSQL, Vercel (Git 連携デプロイ)
 
 ## Product Intent & Scope
 
@@ -49,8 +49,8 @@ Current models (defined in `src/lib/models.ts`):
 - DeepSeek web search uses the Responses API server-side `web_search` tool. In `auto` mode, DeepSeek decides whether to search; `force` requires the tool and `off` omits it.
 - Normal chat uses automatic web search: OpenAI and DeepSeek receive their provider-native `web_search` tool with automatic selection.
 - OpenAI and DeepSeek chat both go through the Responses API (`/responses`). Neither provider uses a StudyMate-side search-result injection flow.
-- Verified 2026-08-16 (via Render API): production sets `DEEPSEEK_BASE_URL=https://api.deepseek.com` (no `/v1`) and does NOT set `DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`, so upstream model IDs are the UI IDs `deepseek-v4-flash`/`deepseek-v4-pro` (both exist on the official API). Local `.env` matches (`https://api.deepseek.com`); both `/responses` and `/v1/responses` forms work (both return 200).
-- Tavily is fully retired: zero references in `src/`, and `TAVILY_API_KEY` was removed from local `.env`, `render.yaml`, and production (verified 2026-08-16). Do not reintroduce it.
+- Verified 2026-08-16, carried over to Vercel unchanged on 2026-09-05: production sets `DEEPSEEK_BASE_URL=https://api.deepseek.com` (no `/v1`) and does NOT set `DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`, so upstream model IDs are the UI IDs `deepseek-v4-flash`/`deepseek-v4-pro` (both exist on the official API). Local `.env` matches (`https://api.deepseek.com`); both `/responses` and `/v1/responses` forms work (both return 200).
+- Tavily is fully retired: zero references in `src/`, and `TAVILY_API_KEY` was removed from local `.env` and production (verified 2026-08-16). Do not reintroduce it.
 
 ## Chat System Prompt
 
@@ -100,7 +100,8 @@ Use web search when the answer depends on current, changing, niche, or uncertain
 
 - Keep image binaries out of PostgreSQL. Store only metadata and `imageStoragePath` in the `Attachment` table.
 - Text files and PDFs are extracted as text context via `src/lib/files.ts`.
-- Images served from local storage via `GET /api/attachments/[id]/image`.
+- On Vercel, images are stored in private Vercel Blob via `BLOB_READ_WRITE_TOKEN`; local development falls back to `STUDYMATE_STORAGE_DIR`.
+- Images are served through `GET /api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
 
 ## Database Safety ⚠️
 
@@ -110,9 +111,8 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
 - Environment: production
 - Database: `neondb`, schema `studymate`
 - Host: `ep-frosty-pond-at27m4s8-pooler.c-9.us-east-1.aws.neon.tech`
-- Render service `studymate` (`srv-d89gl33bc2fs73f78fc0`) has `DATABASE_URL` set as a direct secret env var.
-- Current Render `DATABASE_URL` includes `schema=studymate`, but the runtime `pg` search path still resolves to `public`; ensure app connections set `search_path=studymate` or move/query tables consistently before assuming production chat persistence works.
-- `render.yaml` must keep `DATABASE_URL` as `sync: false`; do not point it back to Render `fromDatabase`.
+- The Vercel project (`studymate-lab-ai`) holds the env var set carried over from the retired Render service; `DATABASE_URL` is a secret environment variable.
+- Current `DATABASE_URL` includes `schema=studymate`, but the runtime `pg` search path still resolves to `public`; ensure app connections set `search_path=studymate` or move/query tables consistently before assuming production chat persistence works.
 - Production schema changes: `prisma migrate deploy` only.
 - `npm run prisma:migrate` retries only transient Neon connection failures (`P1001`/`P1002`) up to five times; non-connection migration errors fail immediately.
 - Do not run destructive Prisma commands against production:
@@ -120,12 +120,10 @@ StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
   - `prisma db push --accept-data-loss`
   - `prisma db push --force-reset`
   - `prisma migrate reset`
-- Old Render Postgres `render_db` (`dpg-d82rmsn2gups7397v0t0-a`) is still shared with Kaku Log, expired at `2026-06-13T12:09:22Z`, and is currently `suspended` by `billing`. Do not use it for StudyMate unless explicitly asked.
 
 ## Validation
 
 - Default: `npm test`, `npm run typecheck`, and `npm run lint`.
-- On `render.yaml` changes: `render blueprints validate`.
 - On Prisma schema/migration changes: `npx prisma validate`.
 - For UI/layout/styling changes: verify with the Codex in-app Browser plugin at the relevant viewport.
 - Do not run Playwright/E2E tests unless explicitly asked.
