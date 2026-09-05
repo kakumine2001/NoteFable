@@ -53,7 +53,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageInput: true,
     supportsImageGeneration: false,
     supportsWebSearch: true,
-    reasoningEfforts: ["high", "xhigh"],
+    // DeepSeek Responses API 官方支持 none / minimal / low / medium / high / xhigh / max。
+    reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "high",
   },
 ] as const;

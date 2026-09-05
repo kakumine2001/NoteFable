@@ -40,13 +40,12 @@ Current models (defined in `src/lib/models.ts`):
 | Model ID | Provider | Image input | Image gen | Web search |
 |---|---|---|---|---|
 | `gpt-5.6-sol` | OpenAI | ✓ | ✓ | ✓ |
-| `deepseek-v4-flash` | DeepSeek | ✗ | ✗ | ✓ (native `web_search`) |
-| `deepseek-v4-pro` | DeepSeek | ✗ | ✗ | ✓ (native `web_search`) |
+| `deepseek-v4-flash-vision-exp` | DeepSeek | ✓ | ✗ | ✓ (native `web_search`) |
 
 **Rules:**
 - Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
 - GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
-- DeepSeek is text-only. Never enable image input or image generation for DeepSeek models.
+- DeepSeek-V4-Flash-Vision accepts image input but not image generation. Its Responses API reasoning effort supports `none`, `low`, `medium`, `high`, `xhigh`, and `max`; default is `high`.
 - DeepSeek web search uses the Responses API server-side `web_search` tool. In `auto` mode, DeepSeek decides whether to search; `force` requires the tool and `off` omits it.
 - Normal chat uses automatic web search: OpenAI and DeepSeek receive their provider-native `web_search` tool with automatic selection.
 - OpenAI and DeepSeek chat both go through the Responses API (`/responses`). Neither provider uses a StudyMate-side search-result injection flow.

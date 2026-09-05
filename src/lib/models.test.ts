@@ -51,12 +51,14 @@ describe("model configuration", () => {
     }
   });
 
-  it("keeps DeepSeek reasoning options and defaults unchanged", () => {
+  it("supports all official DeepSeek reasoning efforts", () => {
     const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
 
-    expect(deepSeek.every((model) => model.reasoningEfforts.join(",") === "high,xhigh")).toBe(true);
+    expect(deepSeek.every((model) => model.reasoningEfforts.join(",") === "none,low,medium,high,xhigh,max")).toBe(true);
     expect(deepSeek.every((model) => model.defaultReasoning === "high")).toBe(true);
-    expect(normalizeReasoning("low", "deepseek-v4-flash-vision-exp")).toBe("high");
+    expect(normalizeReasoning("low", "deepseek-v4-flash-vision-exp")).toBe("low");
+    expect(normalizeReasoning("medium", "deepseek-v4-flash-vision-exp")).toBe("medium");
+    expect(normalizeReasoning("max", "deepseek-v4-flash-vision-exp")).toBe("max");
     expect(normalizeReasoning(null, "deepseek-v4-flash-vision-exp")).toBe("high");
   });
 

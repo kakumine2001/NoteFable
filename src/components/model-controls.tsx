@@ -66,11 +66,7 @@ const reasoningParticles = Array.from({ length: PARTICLE_COUNT }, (_, index) => 
 });
 
 function formatReasoningLabel(value: string, provider: string) {
-  // DeepSeek では最上位の推論強度を短く Max と表示する。
-  if (provider === "deepseek" && value === "xhigh") {
-    return "Max";
-  }
-
+  void provider;
   return reasoningLabels[value] ?? value;
 }
 

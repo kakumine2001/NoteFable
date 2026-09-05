@@ -168,7 +168,7 @@ async function createDeepSeekResponsesStream({
     model,
     instructions,
     input,
-    effort: reasoning === "xhigh" ? "max" : "high",
+    effort: reasoning,
     ...getDeepSeekWebSearchOptions(webSearchMode),
     stream: true,
   });
