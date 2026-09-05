@@ -1,136 +1,92 @@
-<!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
+# StudyMate Agent Guide
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
-<!-- END:nextjs-agent-rules -->
+## Next.js
+
+This project uses Next.js 16.2.6. When a Next.js API, convention, or file structure is uncertain, check the installed documentation under `node_modules/next/dist/docs/` before changing code.
 
 ## Project
 
-StudyMate is a privately used, personal AI gateway for accessing capable models from environments where signing in to the owner's personal AI accounts is inconvenient. It provides session chat, file attachments, image generation, and web search.
+StudyMate is a private, personal AI gateway. It is not a public SaaS product.
 
-- Live URL: `https://studymate-lab-ai.vercel.app`
-- Knowledge vault: `C:\Users\kakumine\Desktop\知識倉庫\Projects\StudyMate\StudyMate 当前状态.md`
-- Tech stack: Next.js 16.2.6 App Router, React 19, Tailwind CSS v4, Prisma 7 / PostgreSQL, Vercel (Git 連携デプロイ)
+Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, DeepSeek, and Notion.
 
-## Product Intent & Scope
+Prefer reliable, low-friction personal use over onboarding, billing, organizations, collaboration, or other SaaS features.
 
-- This is a personal utility for the owner's private use, not a public SaaS product or a general-purpose multi-user platform.
-- Its primary purpose is convenient AI access at the owner's workplace without signing in to personal upstream AI accounts on that device.
-- Keep the current anonymous, device-cookie-based session model unless the user explicitly requests an authentication redesign.
-- Do not describe the signed device cookie as access control: it separates session ownership but does not prevent an unknown visitor from using the deployed service.
-- Prefer changes that improve reliable, low-friction personal use over growth, onboarding, billing, organization, or collaboration features.
+## Scope Rules
 
-## Architecture
+- Keep the current anonymous device-cookie session model unless the user explicitly asks for an authentication redesign.
+- The signed device cookie separates session ownership; it is not real access control.
+- Do not add public multi-user product features unless explicitly requested.
+- Keep secrets and provider credentials server-side.
 
-| Concern | Location |
-|---|---|
-| Model capabilities | `src/lib/models.ts` — single source of truth |
-| Anonymous auth | `src/lib/auth.ts` — signed cookie (`deviceId`) |
-| File/attachment handling | `src/lib/files.ts` |
-| Image binary storage | `src/lib/storage.ts` → `data/storage/images/YYYY/MM/DD/` |
-| Upstream error formatting | `src/lib/upstream-errors.ts` |
-| Chat (text + file input) | `POST /api/chat` — SSE stream, 30 req/h |
-| Image generation | `POST /api/images` — JSON, 10 req/h |
-| Session management | `/api/sessions`, `/api/sessions/[id]`, `/api/sessions/[id]/messages` |
+## Source of Truth
 
-## Models
+| Concern | Source |
+| --- | --- |
+| Model capabilities and reasoning levels | `src/lib/models.ts` |
+| Anonymous identity | `src/lib/auth.ts` |
+| Chat flow and system instructions | `src/app/api/chat/route.ts` |
+| Image generation | `src/app/api/images/route.ts` |
+| File and attachment handling | `src/lib/files.ts` |
+| Image storage | `src/lib/storage.ts` |
+| Database connection/schema | `src/lib/prisma.ts` |
+| Database models | `prisma/schema.prisma` |
+| Notion integration | `src/lib/notion.ts` and `src/app/api/notion/pages/route.ts` |
+| Human-readable architecture | `README.md` and `docs/architecture/` |
 
-Current models (defined in `src/lib/models.ts`):
+## Model and API Rules
 
-| Model ID | Provider | Image input | Image gen | Web search |
-|---|---|---|---|---|
-| `gpt-5.6-sol` | OpenAI | ✓ | ✓ | ✓ |
-| `deepseek-v4-flash-vision-exp` | DeepSeek | ✓ | ✗ | ✓ (native `web_search`) |
+- Treat `src/lib/models.ts` as the single source of truth for supported models, capabilities, and reasoning levels.
+- Update model definitions first, then align frontend and API validation.
+- OpenAI and DeepSeek chat both use their Responses API paths and provider-native web search.
+- The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
+- Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
+- `/api/images` uses `/images/generations` for text-only generation and `/images/edits` when reference images are supplied.
+- Do not switch image generation to the Responses API unless the user explicitly asks for that redesign and the current upstream compatibility is revalidated.
+- Keep provider-specific differences behind shared helpers where possible.
 
-**Rules:**
-- Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
-- GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
-- DeepSeek-V4-Flash-Vision accepts image input but not image generation. Its actual reasoning efforts are `low`, `high`, and `max`; default is `high`.
-- DeepSeek web search uses the Responses API server-side `web_search` tool. In `auto` mode, DeepSeek decides whether to search; `force` requires the tool and `off` omits it.
-- Normal chat uses automatic web search: OpenAI and DeepSeek receive their provider-native `web_search` tool with automatic selection.
-- OpenAI and DeepSeek chat both go through the Responses API (`/responses`). Neither provider uses a StudyMate-side search-result injection flow.
-- Verified 2026-08-16, carried over to Vercel unchanged on 2026-09-05: production sets `DEEPSEEK_BASE_URL=https://api.deepseek.com` (no `/v1`) and does NOT set `DEEPSEEK_FLASH_MODEL`/`DEEPSEEK_PRO_MODEL`, so upstream model IDs are the UI IDs `deepseek-v4-flash`/`deepseek-v4-pro` (both exist on the official API). Local `.env` matches (`https://api.deepseek.com`); both `/responses` and `/v1/responses` forms work (both return 200).
-- Tavily is fully retired: zero references in `src/`, and `TAVILY_API_KEY` was removed from local `.env` and production (verified 2026-08-16). Do not reintroduce it.
+## Storage
 
-## Chat System Prompt
+- Production image binaries are stored in Private Vercel Blob through `@vercel/blob`.
+- `BLOB_READ_WRITE_TOKEN` is required on Vercel.
+- Local development may fall back to `STUDYMATE_STORAGE_DIR` when the Blob token is absent.
+- PostgreSQL stores attachment metadata and `imageStoragePath`, not image binaries.
+- Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
 
-The single source of truth is `buildInstructions(webSearchMode)` in `src/app/api/chat/route.ts`; both the OpenAI and DeepSeek branches call it, so the two providers always receive identical instructions. Base system prompt:
+## Database Safety
 
-```text
-You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.
-Answer in the user's language unless they ask otherwise.
-When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.
-Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.
-Do not use horizontal rules, repeated separator lines, or decorative dividers.
-```
-
-Both branches append this sentence when Web search mode is `auto`:
-
-```text
-Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.
-```
-
-- DeepSeek's native search events are handled inside the final Responses stream; only `response.output_text.delta` is forwarded to the client.
-- When changing the chat system prompt, edit `buildInstructions` only — never inline a separate copy in one provider branch — and update this section and `README.md`.
-
-## API & Proxy Rules
-
-- Production `OPENAI_BASE_URL` is a compatible proxy.
-- Verified 2026-07-14: the production proxy does not expose `POST /conversations` (plain `404`). HTTP `POST /responses` rejects `previous_response_id` with `previous_response_id is only supported on Responses WebSocket v2`. `wss://sub.khurio.art/v1/responses` accepts the WebSocket upgrade, but four probes were closed with `1013 no available account`; do not depend on either stateful path unless proxy support changes and is revalidated.
-- **Do not use `/responses` for image generation** — the proxy can return Cloudflare/HTML errors for synchronous calls.
-- `/api/images` always uses `/images/generations` (text-only) or `/images/edits` (reference images).
-- Non-ASCII strings in `/responses` JSON must be sent as `\uXXXX` escapes — raw UTF-8 can be corrupted by the proxy.
-- Image generation is an explicit UI mode triggered by the user; never infer it from prompt text.
-- Leave unspecified `size`/`quality` as `auto`.
-
-## Notion Integration
-
-- Notion export uses the direct Notion REST API from the Next.js backend, not MCP.
-- Required env vars:
-  - `NOTION_API_KEY`
-  - `NOTION_DATABASE_ID`
-- `/api/notion/pages` writes a new row/page into the fixed Notion database.
-- StudyMate Notion database verified 2026-06-29:
-  - Database title: `Studymate Inbox`
-  - Database ID: `38e987fd085480298f03ecfcf68764a3`
-  - Current title property: `名前`
-- First version is text-only: edited title/content are written as Notion page body paragraphs; attachment binaries are not uploaded.
-
-## Data & Storage
-
-- Keep image binaries out of PostgreSQL. Store only metadata and `imageStoragePath` in the `Attachment` table.
-- Text files and PDFs are extracted as text context via `src/lib/files.ts`.
-- On Vercel, images are stored in private Vercel Blob via `BLOB_READ_WRITE_TOKEN`; local development falls back to `STUDYMATE_STORAGE_DIR`.
-- Images are served through `GET /api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
-
-## Database Safety ⚠️
-
-StudyMate production uses Neon PostgreSQL, verified 2026-06-16.
-
-- Provider/platform: Neon
-- Environment: production
-- Database: `neondb`, schema `studymate`
-- Host: `ep-frosty-pond-at27m4s8-pooler.c-9.us-east-1.aws.neon.tech`
-- The Vercel project (`studymate-lab-ai`) holds the env var set carried over from the retired Render service; `DATABASE_URL` is a secret environment variable.
-- Current `DATABASE_URL` includes `schema=studymate`, but the runtime `pg` search path still resolves to `public`; ensure app connections set `search_path=studymate` or move/query tables consistently before assuming production chat persistence works.
-- Production schema changes: `prisma migrate deploy` only.
-- `npm run prisma:migrate` retries only transient Neon connection failures (`P1001`/`P1002`) up to five times; non-connection migration errors fail immediately.
-- Do not run destructive Prisma commands against production:
+- Production database: Neon PostgreSQL, database `neondb`, schema `studymate`.
+- `src/lib/prisma.ts` explicitly passes the schema from `DATABASE_URL` to the Prisma PostgreSQL adapter.
+- Production schema changes must use `npm run prisma:migrate` / `prisma migrate deploy`.
+- Never run destructive Prisma commands against production:
   - `prisma db push`
   - `prisma db push --accept-data-loss`
   - `prisma db push --force-reset`
   - `prisma migrate reset`
+- Vercel builds run migration before application build via `vercel.json`.
+- Do not point Preview deployments at a production database unless that behavior is explicitly intended.
 
 ## Validation
 
-- Default: `npm test`, `npm run typecheck`, and `npm run lint`.
-- On Prisma schema/migration changes: `npx prisma validate`.
-- For UI/layout/styling changes: verify with the Codex in-app Browser plugin at the relevant viewport.
-- Do not run Playwright/E2E tests unless explicitly asked.
+Before finishing code changes, run the checks relevant to the change:
 
-## Local Dev
+- `npm test`
+- `npm run typecheck`
+- `npm run lint`
+- `npx prisma validate` when Prisma schema or migrations change
 
-Docker must be running before starting local dev.
-Local PostgreSQL 18.4 runs in Docker container `studymate-pg18-dev` and exposes `localhost:5432` for the `.env` `DATABASE_URL`.
-It uses database `studymate`, schema `public`, and Docker volume `postgres18-docker_pg18-data` mounted at `/var/lib/postgresql`.
-Initialize or update the local schema with `npx prisma migrate deploy`; do not expect a newly created container/volume to contain application tables.
+For UI/layout changes, verify the affected view in a browser. Do not add or run Playwright/E2E tests unless explicitly requested.
+
+## Keep This File Small
+
+This file is for durable rules that help coding agents avoid breaking the project.
+
+Do not add:
+- dated investigation notes
+- one-off probe results
+- retired infrastructure history
+- personal filesystem paths
+- fixed secret values, database hosts, or IDs
+- long copies of prompts or architecture docs
+
+Put human-facing explanation in `README.md` or `docs/architecture/` instead.
