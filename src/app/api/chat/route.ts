@@ -148,23 +148,6 @@ function getUpstreamModel(model: string) {
   return model;
 }
 
-function flattenDeepSeekInput(input: { role: string; content: unknown }[]) {
-  return input.map((item) => ({
-    role: item.role,
-    content:
-      typeof item.content === "string"
-        ? item.content
-        : (Array.isArray(item.content) ? item.content : [])
-            .filter(
-              (part): part is { text?: string } =>
-                typeof part === "object" && part !== null,
-            )
-            .filter((part) => typeof part.text === "string")
-            .map((part) => part.text)
-            .join("\n\n"),
-  }));
-}
-
 async function createDeepSeekResponsesStream({
   model,
   input,
@@ -176,15 +159,15 @@ async function createDeepSeekResponsesStream({
   reasoning: string;
   webSearchMode: WebSearchMode;
 }) {
-  // DeepSeek はこのプロジェクトではテキスト専用モデルとして扱う。
-  // input には画像パートなども入り得るため、DeepSeek へ渡す前に text 部分だけへ畳み込む。
+  // DeepSeek Vision は Responses API の input_image パートを受け取れるため、
+  // OpenAI と同じ入力構造をそのまま渡す。画像をテキストへ潰すと視覚入力が失われる。
   const apiKey = requireEnv("DEEPSEEK_API_KEY");
   const baseURL = optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com";
   const instructions = buildInstructions(webSearchMode);
   const body = buildDeepSeekResponsesRequest({
     model,
     instructions,
-    input: flattenDeepSeekInput(input),
+    input,
     effort: reasoning === "xhigh" ? "max" : "high",
     ...getDeepSeekWebSearchOptions(webSearchMode),
     stream: true,

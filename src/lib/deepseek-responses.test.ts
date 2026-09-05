@@ -44,6 +44,27 @@ describe("DeepSeek Responses API helpers", () => {
     expect(request.tool_choice).toBe("auto");
   });
 
+  it("preserves image parts in vision input", () => {
+    const imageInput = [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: "What is in this image?" },
+          { type: "input_image", image_url: "data:image/png;base64,abc" },
+        ],
+      },
+    ];
+
+    const request = buildDeepSeekResponsesRequest({
+      model: "deepseek-v4-flash-vision-exp",
+      instructions: "Describe the image.",
+      input: imageInput,
+      stream: true,
+    });
+
+    expect(request.input).toEqual(imageInput);
+  });
+
   it("can require native web search", () => {
     const request = buildDeepSeekResponsesRequest({
       model: "deepseek-v4-pro",
