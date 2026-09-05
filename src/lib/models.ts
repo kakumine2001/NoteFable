@@ -54,8 +54,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageInput: true,
     supportsImageGeneration: false,
     supportsWebSearch: true,
-    // DeepSeek Responses API 官方支持 none / minimal / low / medium / high / xhigh / max。
-    reasoningEfforts: ["none", "minimal", "low", "medium", "high", "xhigh", "max"],
+    // DeepSeek-V4 的实际推理档位是 low / high / max，默认 high。
+    reasoningEfforts: ["low", "high", "max"],
     defaultReasoning: "high",
   },
 ] as const;

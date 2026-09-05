@@ -45,7 +45,7 @@ Current models (defined in `src/lib/models.ts`):
 **Rules:**
 - Update `src/lib/models.ts` first when model behavior changes, then align frontend and API validation.
 - GPT-5.6 Sol supports `none`, `low`, `medium`, `high`, `xhigh`, and `max` reasoning effort; the default is `medium`.
-- DeepSeek-V4-Flash-Vision accepts image input but not image generation. Its Responses API reasoning effort supports `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, and `max`; default is `high`.
+- DeepSeek-V4-Flash-Vision accepts image input but not image generation. Its actual reasoning efforts are `low`, `high`, and `max`; default is `high`.
 - DeepSeek web search uses the Responses API server-side `web_search` tool. In `auto` mode, DeepSeek decides whether to search; `force` requires the tool and `off` omits it.
 - Normal chat uses automatic web search: OpenAI and DeepSeek receive their provider-native `web_search` tool with automatic selection.
 - OpenAI and DeepSeek chat both go through the Responses API (`/responses`). Neither provider uses a StudyMate-side search-result injection flow.

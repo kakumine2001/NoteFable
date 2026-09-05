@@ -24,7 +24,6 @@ import {
 // 推論強度の短い表示名。ボタン内とメニュー内で共通利用する。
 const reasoningLabels: Record<string, string> = {
   none: "None",
-  minimal: "Minimal",
   low: "Low",
   medium: "Medium",
   high: "High",
@@ -35,7 +34,6 @@ const reasoningLabels: Record<string, string> = {
 // 各推論強度の補足説明。スライダーのアクセシブル名とツールチップに使う。
 const reasoningDescriptions: Record<string, string> = {
   none: "No reasoning",
-  minimal: "Minimal reasoning",
   low: "Light reasoning",
   medium: "Balanced for most tasks",
   high: "Better for complex work",

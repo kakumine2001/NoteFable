@@ -2,7 +2,6 @@ import type { ReasoningEffort } from "@/lib/models";
 
 export const REASONING_SLIDER_POSITIONS: Record<ReasoningEffort, number> = {
   none: 0,
-  minimal: 10,
   low: 20,
   medium: 40,
   high: 60,
