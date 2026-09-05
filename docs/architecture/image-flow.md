@@ -156,11 +156,11 @@ PostgreSQL 只存：
 Attachment.imageStoragePath
 ```
 
-## 5. 当前生产环境的问题
+## 5. 当前 production 的实际状态
 
-生产已经是 Vercel Functions。
+Vercel 项目侧已经准备了 Blob Store，但 production 部署所使用的当前代码仍然走本地文件系统。
 
-因此现在存在一个架构不匹配：
+所以现在实际是：
 
 ```text
 应用运行方式：Serverless / Vercel Functions
@@ -171,11 +171,11 @@ Vercel 本地文件系统不应该作为长期用户文件仓库。重新部署�
 
 所以：
 
-> 数据库设计可以保留，但 Storage Layer 应迁移。
+> Blob 基础设施已经有了，但 Storage Layer 还需要真正接到 Blob 上。
 
-## 6. 推荐目标：Private Vercel Blob
+## 6. Vercel Blob 接线目标
 
-截至 2026-09-05，最简单的目标架构：
+完成应用层接入后的结构：
 
 ```mermaid
 flowchart LR
@@ -199,13 +199,16 @@ Neon PostgreSQL
 -> blob pathname / storage key
 ```
 
-### 为什么目前优先 Vercel Blob
+### 当前完成度
 
-当前应用已经运行在 Vercel，Vercel Blob 集成成本最低。
+- Vercel Blob Store：已准备
+- StudyMate production 代码：仍使用 `fs.writeFile()`
+- `@vercel/blob`：当前 `package.json` 尚未依赖
+- Storage Layer 接线：未完成
 
-Neon 也提供 Object Storage，但在 2026-09-05 的产品状态下仍属于 region-gated beta，而当前 StudyMate Neon project 位于 `aws-us-east-1`。因此当前阶段不建议为了文件存储迁移整个数据库项目区域。
+因此“Blob 已经建立”是基础设施状态；“图片已经由 Blob 持久化”要等应用代码切换后才成立。
 
-## 7. 未来迁移时怎么改
+## 7. 应用接线时怎么改
 
 建议只替换 Storage Layer：
 

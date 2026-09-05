@@ -39,7 +39,7 @@ flowchart LR
     OPENAI["OpenAI<br/>Responses + Images"]
     DEEPSEEK["DeepSeek<br/>Responses"]
     N["Notion API"]
-    FS["Current local image storage<br/>STUDYMATE_STORAGE_DIR"]
+    FS["Current app storage path<br/>local filesystem"]
 
     U --> UI
     UI --> CHAT

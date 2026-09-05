@@ -171,13 +171,16 @@ NOTION_API_KEY
 NOTION_DATABASE_ID
 ```
 
-### Current Local Storage
+### Image Storage
+
+Vercel 项目侧已经准备 Blob Store，但当前 production commit 的应用代码仍使用：
 
 ```text
 STUDYMATE_STORAGE_DIR
+fs.writeFile()
 ```
 
-这个变量属于当前旧 Storage Layer。迁移到 Vercel Blob 后应重新整理相关配置。
+也就是说当前是 **Blob 基础设施已准备、应用 Storage Layer 尚未接入**。完成接入后，再把本节更新为实际 Blob token / store 配置，并删除旧的本地存储说明。
 
 ## Production Debug Checklist
 

@@ -37,8 +37,6 @@ Vercel 的 `iad1` 与 Neon 的 `aws-us-east-1` 都在美国东部，当前部署
 - [图片上传与生成流程](docs/architecture/image-flow.md)
 - [部署与运行环境](docs/architecture/deployment.md)
 
-根目录的 [ERD.md](ERD.md) 只保留为兼容入口，数据库文档以 `docs/architecture/database.md` 为唯一维护源。
-
 ## 使用边界
 
 - 面向项目所有者本人，优先保证随时可用、操作简单和维护成本低
@@ -154,7 +152,7 @@ STUDYMATE_STORAGE_DIR
 
 这套设计适合有持久磁盘的常驻服务器，但当前生产已经部署到 Vercel Functions，因此不能把本地文件系统当成可靠的持久图片仓库。
 
-推荐目标是 **Private Vercel Blob**，但截至本文档更新时间尚未迁移。详细见 [图片上传与生成流程](docs/architecture/image-flow.md)。
+因此当前状态应理解为：**Vercel Blob 基础设施已准备，但应用层尚未接线完成**。真正完成迁移的判定标准是 `src/lib/storage.ts` 开始通过 Vercel Blob SDK/API 读写图片，并由 production deployment 使用该实现。详细见 [图片上传与生成流程](docs/architecture/image-flow.md)。
 
 ## API 保护
 
