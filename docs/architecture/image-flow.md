@@ -179,10 +179,10 @@ Vercel 本地文件系统不应该作为长期用户文件仓库。重新部署�
 
 ```mermaid
 flowchart LR
-    UI[Browser] --> API[Vercel Next.js API]
-    API --> Blob[(Private Vercel Blob)]
-    API --> DB[(Neon PostgreSQL)]
-    DB --> Key[Attachment stores<br/>blob pathname / storage key]
+    UI["Browser"] --> API["Vercel Next.js API"]
+    API --> Blob["Private Vercel Blob"]
+    API --> DB["Neon PostgreSQL"]
+    DB --> Key["Attachment stores<br/>blob pathname / storage key"]
 ```
 
 目标职责：

@@ -65,14 +65,14 @@ Schema: studymate
 
 ```mermaid
 flowchart LR
-    DEV[Local Development]
-    GH[GitHub<br/>kakumine2001/StudyMate<br/>main]
-    V[Vercel<br/>studymate<br/>Next.js / Node 24]
-    USERS[Browser]
-    DB[(Neon<br/>neondb / studymate)]
-    OAI[OpenAI]
-    DS[DeepSeek]
-    N[Notion]
+    DEV["Local Development"]
+    GH["GitHub<br/>kakumine2001/StudyMate<br/>main"]
+    V["Vercel<br/>studymate<br/>Next.js / Node 24"]
+    USERS["Browser"]
+    DB["Neon<br/>neondb / studymate"]
+    OAI["OpenAI"]
+    DS["DeepSeek"]
+    N["Notion"]
 
     DEV --> GH
     GH --> V

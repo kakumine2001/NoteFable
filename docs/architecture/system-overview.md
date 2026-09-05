@@ -18,37 +18,37 @@ StudyMate 是单一所有者使用的 AI Web 入口，而不是公开多用户 S
 
 ```mermaid
 flowchart TB
-    Browser[Browser<br/>React 19 UI]
+    Browser["Browser<br/>React 19 UI"]
 
     subgraph Vercel[Vercel - Next.js 16 App Router]
-      Page[src/app/page.tsx]
+      Page["src/app/page.tsx"]
 
       subgraph Routes[Route Handlers]
-        Chat[/api/chat]
-        Images[/api/images]
-        Sessions[/api/sessions]
-        Messages[/api/sessions/:id/messages]
-        AttachmentImage[/api/attachments/:id/image]
-        NotionRoute[/api/notion/pages]
+        Chat["/api/chat"]
+        Images["/api/images"]
+        Sessions["/api/sessions"]
+        Messages["/api/sessions/:id/messages"]
+        AttachmentImage["/api/attachments/:id/image"]
+        NotionRoute["/api/notion/pages"]
       end
 
       subgraph Libraries[Server Libraries]
-        Auth[auth.ts]
-        Models[models.ts]
-        Files[files.ts]
-        Storage[storage.ts]
-        Prisma[prisma.ts]
-        DeepSeek[deepseek-responses.ts]
-        NotionLib[notion.ts]
-        RateLimit[rate-limit.ts]
+        Auth["auth.ts"]
+        Models["models.ts"]
+        Files["files.ts"]
+        Storage["storage.ts"]
+        Prisma["prisma.ts"]
+        DeepSeek["deepseek-responses.ts"]
+        NotionLib["notion.ts"]
+        RateLimit["rate-limit.ts"]
       end
     end
 
-    Neon[(Neon PostgreSQL<br/>project: neon_db<br/>branch: production<br/>db: neondb<br/>schema: studymate)]
-    OpenAI[OpenAI APIs<br/>Responses / Images]
-    DeepSeekAPI[DeepSeek Responses API]
-    NotionAPI[Notion API]
-    LocalStorage[(Current local filesystem<br/>STUDYMATE_STORAGE_DIR)]
+    Neon["Neon PostgreSQL<br/>project: neon_db<br/>branch: production<br/>db: neondb<br/>schema: studymate"]
+    OpenAI["OpenAI APIs<br/>Responses / Images"]
+    DeepSeekAPI["DeepSeek Responses API"]
+    NotionAPI["Notion API"]
+    LocalStorage["Current local filesystem<br/>STUDYMATE_STORAGE_DIR"]
 
     Browser --> Page
     Page --> Chat
@@ -178,11 +178,11 @@ Message / Attachment ownership
 
 ```mermaid
 flowchart LR
-    Device[Signed device cookie] --> User[AnonymousUser]
-    User --> Sessions[Sessions]
-    Sessions --> Messages[Messages]
-    Messages --> Attachments[Attachments]
-    Attachments --> ImageRoute[Protected attachment image route]
+    Device["Signed device cookie"] --> User["AnonymousUser"]
+    User --> Sessions["Sessions"]
+    Sessions --> Messages["Messages"]
+    Messages --> Attachments["Attachments"]
+    Attachments --> ImageRoute["Protected attachment image route"]
 ```
 
 图片读取 API 会从 `Attachment -> Message -> Session -> AnonymousUser` 一路检查当前设备所有权，而不是把服务器真实文件路径直接暴露给浏览器。

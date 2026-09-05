@@ -24,22 +24,22 @@
 
 ```mermaid
 flowchart LR
-    U[Browser / React UI]
+    U["Browser / React UI"]
 
     subgraph V[Vercel - Next.js]
-      UI[src/app/page.tsx]
-      CHAT[/api/chat]
-      IMG[/api/images]
-      SES[/api/sessions]
-      ATT[/api/attachments/:id/image]
-      NOTION[/api/notion/pages]
+      UI["src/app/page.tsx"]
+      CHAT["/api/chat"]
+      IMG["/api/images"]
+      SES["/api/sessions"]
+      ATT["/api/attachments/:id/image"]
+      NOTION["/api/notion/pages"]
     end
 
-    DB[(Neon PostgreSQL<br/>neondb / studymate schema)]
-    OPENAI[OpenAI<br/>Responses + Images]
-    DEEPSEEK[DeepSeek<br/>Responses]
-    N[Notion API]
-    FS[(Current local image storage<br/>STUDYMATE_STORAGE_DIR)]
+    DB["Neon PostgreSQL<br/>neondb / studymate schema"]
+    OPENAI["OpenAI<br/>Responses + Images"]
+    DEEPSEEK["DeepSeek<br/>Responses"]
+    N["Notion API"]
+    FS["Current local image storage<br/>STUDYMATE_STORAGE_DIR"]
 
     U --> UI
     UI --> CHAT
