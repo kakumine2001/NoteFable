@@ -120,6 +120,12 @@ DEEPSEEK_FLASH_MODEL="deepseek-flash"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
+生产环境图片存储（Vercel Blob）必需：
+
+```bash
+BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
+```
+
 模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
 
 模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
