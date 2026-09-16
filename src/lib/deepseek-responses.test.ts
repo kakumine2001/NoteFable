@@ -56,7 +56,7 @@ describe("DeepSeek Responses API helpers", () => {
     ];
 
     const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-v4-flash-vision-exp",
+      model: "deepseek-flash",
       instructions: "Describe the image.",
       input: imageInput,
       stream: true,

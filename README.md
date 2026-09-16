@@ -116,10 +116,19 @@ NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```bash
 OPENAI_IMAGE_MODEL="gpt-image-2"
 OPENAI_TEXT_MODEL="gpt-5.6-sol"
-DEEPSEEK_FLASH_MODEL="deepseek-v4-flash"
+DEEPSEEK_FLASH_MODEL="deepseek-flash"
 DEEPSEEK_PRO_MODEL="deepseek-v4-pro"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
+
+模型显示名也可以在构建时覆盖。`NEXT_PUBLIC_*` 会被内联进客户端 bundle，因此修改后必须重新部署才会生效：
+
+```bash
+NEXT_PUBLIC_OPENAI_TEXT_LABEL="GPT-5.6 Sol"
+NEXT_PUBLIC_DEEPSEEK_FLASH_LABEL="DeepSeek-V4.1-Flash"
+```
+
+模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上流模型名和显示名。
 
 ## 数据库
 
@@ -154,7 +163,7 @@ npm run prisma:migrate
 模型能力：
 
 - GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max`
-- DeepSeek-V4-Flash-Vision：支持图片输入，不支持图片生成；推理强度为 `low / high / max`，默认 `high`
+- DeepSeek-V4.1-Flash：支持图片输入，不支持图片生成；推理强度为 `low / high / max`，默认 `high`
 
 OpenAI 与 DeepSeek 的 Web 搜索都由各自 Responses API 的原生搜索能力处理，StudyMate 不自行注入搜索结果。
 

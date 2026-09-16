@@ -17,7 +17,7 @@ describe("model configuration", () => {
     expect(openAI.supportsImageGeneration).toBe(true);
     expect(deepSeek).toHaveLength(1);
     expect(deepSeek.filter((model) => model.supportsImageInput).map((model) => model.id)).toEqual([
-      "deepseek-v4-flash-vision-exp",
+      "deepseek-flash",
     ]);
     expect(deepSeek.every((model) => !model.supportsImageGeneration)).toBe(true);
   });
@@ -25,13 +25,13 @@ describe("model configuration", () => {
   it("keeps the full model names in the selector", () => {
     expect(MODEL_OPTIONS.map((model) => model.label)).toEqual([
       "GPT-5.6 Sol",
-      "DeepSeek-V4-Flash-Vision",
+      "DeepSeek-V4.1-Flash",
     ]);
   });
 
   it("normalizes unknown models to the default", () => {
     expect(DEFAULT_MODEL).toBe("gpt-5.6-sol");
-    expect(normalizeModel("deepseek-v4-flash-vision-exp")).toBe("deepseek-v4-flash-vision-exp");
+    expect(normalizeModel("deepseek-flash")).toBe("deepseek-flash");
     expect(normalizeModel("gpt-5.5")).toBe(DEFAULT_MODEL);
     expect(normalizeModel("unknown-model")).toBe(DEFAULT_MODEL);
     expect(normalizeModel(null)).toBe(DEFAULT_MODEL);
@@ -56,10 +56,10 @@ describe("model configuration", () => {
 
     expect(deepSeek.every((model) => model.reasoningEfforts.join(",") === "low,high,max")).toBe(true);
     expect(deepSeek.every((model) => model.defaultReasoning === "high")).toBe(true);
-    expect(normalizeReasoning("low", "deepseek-v4-flash-vision-exp")).toBe("low");
-    expect(normalizeReasoning("medium", "deepseek-v4-flash-vision-exp")).toBe("high");
-    expect(normalizeReasoning("max", "deepseek-v4-flash-vision-exp")).toBe("max");
-    expect(normalizeReasoning(null, "deepseek-v4-flash-vision-exp")).toBe("high");
+    expect(normalizeReasoning("low", "deepseek-flash")).toBe("low");
+    expect(normalizeReasoning("medium", "deepseek-flash")).toBe("high");
+    expect(normalizeReasoning("max", "deepseek-flash")).toBe("max");
+    expect(normalizeReasoning(null, "deepseek-flash")).toBe("high");
   });
 
   it("maps reasoning values to Prisma enum values", () => {

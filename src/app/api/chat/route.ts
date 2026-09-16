@@ -141,8 +141,8 @@ function getUpstreamModel(model: string) {
     return optionalEnv("OPENAI_TEXT_MODEL") || model;
   }
 
-  if (model === "deepseek-v4-flash-vision-exp") {
-    return optionalEnv("DEEPSEEK_VISION_MODEL") || model;
+  if (model === "deepseek-flash") {
+    return optionalEnv("DEEPSEEK_FLASH_MODEL") || model;
   }
 
   return model;
@@ -159,7 +159,7 @@ async function createDeepSeekResponsesStream({
   reasoning: string;
   webSearchMode: WebSearchMode;
 }) {
-  // DeepSeek Vision は Responses API の input_image パートを受け取れるため、
+  // DeepSeek-V4.1-Flash は Responses API の input_image パートを受け取れるため、
   // OpenAI と同じ入力構造をそのまま渡す。画像をテキストへ潰すと視覚入力が失われる。
   const apiKey = requireEnv("DEEPSEEK_API_KEY");
   const baseURL = optionalEnv("DEEPSEEK_BASE_URL") || "https://api.deepseek.com";

@@ -4,6 +4,13 @@
 
 Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, DeepSeek, and Notion.
 
+## Task and Context Routing
+
+- Start from the current request: research/design discussion produces a reviewable plan; an implementation request proceeds through relevant validation within its authorized scope.
+- UI changes preserve the established product language, spacing and motion. Inspect the existing implementation and actual screen before adapting controls; do not apply a global visual profile automatically.
+- Production URLs, environment setup and operational details are maintained in [README.md](README.md) and `docs/architecture/`. Verify the actual deployment when diagnosing production; do not maintain a second URL or deployment SHA here.
+- Model/API changes: read the source-of-truth table and Model and API Rules below. Storage/auth/database changes: read the corresponding rules and maintained architecture documents.
+
 ## Scope Rules
 
 - Keep the current anonymous device-cookie session model unless the user explicitly asks for an authentication redesign.
@@ -39,6 +46,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 - Treat `src/lib/models.ts` as the single source of truth for supported models, capabilities, and reasoning levels.
 - Update model definitions first, then align frontend and API validation.
+- Only the upstream model name (`OPENAI_TEXT_MODEL`, `DEEPSEEK_FLASH_MODEL`) and the displayed label (`NEXT_PUBLIC_*_LABEL`) are environment-configurable. Provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
 - OpenAI and DeepSeek chat both use their Responses API paths and provider-native web search.
 - The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
 - Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
