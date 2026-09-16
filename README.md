@@ -120,14 +120,9 @@ DEEPSEEK_FLASH_MODEL="deepseek-flash"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
-模型显示名也可以在构建时覆盖。`NEXT_PUBLIC_*` 会被内联进客户端 bundle，因此修改后必须重新部署才会生效：
+模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
 
-```bash
-NEXT_PUBLIC_OPENAI_TEXT_LABEL="GPT-5.6 Sol"
-NEXT_PUBLIC_DEEPSEEK_FLASH_LABEL="DeepSeek-V4.1-Flash"
-```
-
-模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上流模型名和显示名。
+模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
 
 ## 数据库
 

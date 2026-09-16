@@ -36,12 +36,11 @@ type ModelOption = {
 };
 
 // StudyMate で選択可能なモデル定義。UI 表示と API 側の検証で同じ配列を使う。
-// 表示名だけは NEXT_PUBLIC_* で上書きできる。クライアントへバンドルされる値なので
-// ビルド時にインライン展開され、変更した場合は再デプロイが必要になる。
+// 表示名はここに固定で書き、環境変数では上書きしない。
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
     id: "gpt-5.6-sol",
-    label: process.env.NEXT_PUBLIC_OPENAI_TEXT_LABEL || "GPT-5.6 Sol",
+    label: "GPT-5.6 Sol",
     provider: "openai",
     supportsImageInput: true,
     supportsImageGeneration: true,
@@ -52,7 +51,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
     // DeepSeek の現行モデル名。上流も同じ名前を受け付ける。
     id: "deepseek-flash",
-    label: process.env.NEXT_PUBLIC_DEEPSEEK_FLASH_LABEL || "DeepSeek-V4.1-Flash",
+    label: "DeepSeek-V4.1-Flash",
     provider: "deepseek",
     supportsImageInput: true,
     supportsImageGeneration: false,

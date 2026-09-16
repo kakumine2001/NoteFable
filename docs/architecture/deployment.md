@@ -132,7 +132,6 @@ OPENAI_API_KEY
 OPENAI_BASE_URL
 OPENAI_TEXT_MODEL
 OPENAI_IMAGE_MODEL
-NEXT_PUBLIC_OPENAI_TEXT_LABEL
 ```
 
 ### DeepSeek
@@ -141,10 +140,9 @@ NEXT_PUBLIC_OPENAI_TEXT_LABEL
 DEEPSEEK_API_KEY
 DEEPSEEK_BASE_URL
 DEEPSEEK_FLASH_MODEL
-NEXT_PUBLIC_DEEPSEEK_FLASH_LABEL
 ```
 
-`NEXT_PUBLIC_*` 只用于覆盖选择器里的模型显示名，会被内联进客户端 bundle，因此修改后必须重新部署。模型 ID、能力和推理档位仍然只定义在 `src/lib/models.ts`。
+模型显示名、模型 ID、能力和推理档位都只定义在 `src/lib/models.ts`，不通过环境变量覆盖。
 
 ### Notion
 

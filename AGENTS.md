@@ -46,7 +46,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 - Treat `src/lib/models.ts` as the single source of truth for supported models, capabilities, and reasoning levels.
 - Update model definitions first, then align frontend and API validation.
-- Only the upstream model name (`OPENAI_TEXT_MODEL`, `DEEPSEEK_FLASH_MODEL`) and the displayed label (`NEXT_PUBLIC_*_LABEL`) are environment-configurable. Provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
+- Only the upstream model name (`OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`, `DEEPSEEK_FLASH_MODEL`) and provider base URL are environment-configurable. Display labels, provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
 - OpenAI and DeepSeek chat both use their Responses API paths and provider-native web search.
 - The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
 - Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
