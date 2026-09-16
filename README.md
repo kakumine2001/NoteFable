@@ -117,7 +117,6 @@ NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 OPENAI_IMAGE_MODEL="gpt-image-2"
 OPENAI_TEXT_MODEL="gpt-5.6-sol"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
-DEEPSEEK_PRO_MODEL="deepseek-v4-pro"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
