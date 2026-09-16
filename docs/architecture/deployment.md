@@ -2,7 +2,7 @@
 
 ## 已验证生产状态
 
-截至 2026-09-05：
+GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资源信息于 2026-09-05 核对。
 
 ### GitHub
 
@@ -36,7 +36,7 @@ Vercel 项目已经连接：
 kakumine2001 / StudyMate
 ```
 
-当时最新部署记录显示 source 为 CLI，但部署元数据对应 GitHub `main` commit。因此以后排查“为什么线上不是这个代码”时，要同时看：
+当前生产由 GitHub `main` push 触发，部署记录的 source 为 `git`。排查线上版本时，要同时看：
 
 1. GitHub main HEAD
 2. Vercel deployment commit SHA
@@ -73,6 +73,8 @@ flowchart LR
 
 ## Build
 
+`package.json` 的 `engines.node` 固定为 `24.x`，与本地和 Vercel 运行环境一致，避免自动跨到下一个 Node.js 主版本。
+
 `package.json` 与 `vercel.json` 当前：
 
 ```json
@@ -102,7 +104,7 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 ## Database Schema Boundary
 
-连接字符串必须把 StudyMate 指向：
+生产连接字符串必须把 StudyMate 指向：
 
 ```text
 ?schema=studymate
@@ -115,6 +117,10 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 ```text
 kaku_log
 ```
+
+本地使用独立数据库 `studymate` 的 `public` schema，不共享生产库。启动与迁移步骤见 [README](../../README.md#本地启动)。
+
+生产 `DATABASE_URL` 当前使用 Neon pooled endpoint。Node 运行时会将旧的 SSL 别名明确为 `verify-full`，保持证书与主机名验证；详见 [数据库连接说明](database.md#runtime-connection)。
 
 ## Environment Variable Categories
 

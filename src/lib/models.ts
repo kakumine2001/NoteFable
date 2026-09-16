@@ -56,7 +56,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageInput: true,
     supportsImageGeneration: false,
     supportsWebSearch: true,
-    // DeepSeek-V4.1-Flash 的实际推理档位是 low / high / max，默认 high。
+    // 推論強度は low / high / max に対応し、既定値は high。
     reasoningEfforts: ["low", "high", "max"],
     defaultReasoning: "high",
   },

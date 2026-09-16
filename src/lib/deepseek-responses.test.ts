@@ -7,19 +7,19 @@ import {
 describe("DeepSeek Responses API helpers", () => {
   it("builds a Responses request without Chat Completions fields", () => {
     const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       instructions: "Classify the request.",
       input: "USER: What is the latest news?",
-      effort: "none",
+      effort: "low",
       maxOutputTokens: 16,
       stream: false,
     });
 
     expect(request).toEqual({
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       instructions: "Classify the request.",
       input: "USER: What is the latest news?",
-      reasoning: { effort: "none" },
+      reasoning: { effort: "low" },
       max_output_tokens: 16,
       stream: false,
     });
@@ -32,7 +32,7 @@ describe("DeepSeek Responses API helpers", () => {
 
   it("adds native web search with automatic tool selection", () => {
     const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-v4-flash",
+      model: "deepseek-flash",
       instructions: "Answer the user.",
       input: "What is the latest news?",
       tools: [{ type: "web_search" }],
@@ -67,7 +67,7 @@ describe("DeepSeek Responses API helpers", () => {
 
   it("can require native web search", () => {
     const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-v4-pro",
+      model: "deepseek-flash",
       instructions: "Search before answering.",
       input: "Find the current price.",
       tools: [{ type: "web_search" }],

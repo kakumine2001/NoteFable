@@ -1,13 +1,14 @@
 import { PrismaClient } from "@/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { requireEnv } from "@/lib/env";
+import { normalizeDatabaseSslMode } from "@/lib/database-url";
 
 const globalForPrisma = globalThis as unknown as {
   // 開発時の hot reload で PrismaClient を作り直しすぎないよう、global に退避する。
   prisma?: PrismaClient;
 };
 
-const databaseUrl = requireEnv("DATABASE_URL");
+const databaseUrl = normalizeDatabaseSslMode(requireEnv("DATABASE_URL"));
 const schemaParam = new URL(databaseUrl).searchParams.get("schema") ?? undefined;
 
 if (schemaParam && !/^[A-Za-z_][A-Za-z0-9_]*$/.test(schemaParam)) {

@@ -6,7 +6,7 @@
 
 ## 当前生产环境
 
-截至 2026-09-05，已核对 GitHub、Vercel 与 Neon 的实际状态：
+GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资源信息于 2026-09-05 核对：
 
 - 源码：GitHub `kakumine2001/StudyMate`，主分支 `main`
 - 应用托管：Vercel 项目 `studymate`
@@ -79,9 +79,29 @@ flowchart LR
 
 ## 本地启动
 
+使用 Node.js 24.x（与 Vercel 一致）。先创建下节的 `.env` 并准备 PostgreSQL，再启动应用。
+
+当前开发环境使用 Docker Desktop 中的 `studymate-pg18-dev` 容器（PostgreSQL 18.4，端口 5432）。先打开 Docker Desktop，再启动已有容器：
+
 ```bash
-npm install
+docker start studymate-pg18-dev
+docker exec studymate-pg18-dev pg_isready
+```
+
+当前本地连接使用独立的 `studymate` 数据库与 `public` schema；生产使用 Neon 的 `neondb` 与 `studymate` schema。这个差异是配置边界，不需要移动已有本地表。新机器需先准备独立的 PostgreSQL 数据库和账户；上述命令只启动已有容器，不会创建数据库。
+
+本地 `.env` 的连接示例（替换为本地账户）：
+
+```bash
+DATABASE_URL="postgresql://user:password@localhost:5432/studymate?schema=public"
+```
+
+确认 `DATABASE_URL` 指向本地数据库后执行：
+
+```bash
+npm ci
 npm run prisma:generate
+npm run prisma:migrate
 npm run dev
 ```
 
@@ -90,6 +110,10 @@ npm run dev
 ```text
 http://localhost:3000
 ```
+
+如果页面可以打开但 `/api/sessions` 返回 `503 Database is unavailable.`，先检查 Docker Desktop、数据库容器和连接地址。页面加载或构建成功不代表数据库已连接。
+
+应用还会读取 `.env.local`，其同名变量优先于 `.env`；Prisma CLI 通过 `dotenv/config` 读取 `.env`。把 `DATABASE_URL` 保留在 `.env` 或统一注入的进程环境中，不要在 `.env.local` 覆盖成另一个数据库，以免应用与迁移连接不同的库。
 
 ## 环境变量
 
@@ -146,6 +170,8 @@ npm run prisma:migrate
 
 生产数据库使用 Neon 的 `neondb` 数据库与 `studymate` schema。运行时 `src/lib/prisma.ts` 会读取 `DATABASE_URL` 的 `schema` 参数，并显式传给 Prisma PostgreSQL adapter。
 
+当前生产连接使用 Neon pooled endpoint。Node 运行时通过 `src/lib/database-url.ts` 将旧的 `sslmode=prefer/require/verify-ca` 别名明确为 `verify-full`，保持 pg 8 原有的证书和主机名验证行为；显式的 `uselibpqcompat=true` 配置与本地非 TLS 连接保持不变。
+
 生产只运行 `prisma migrate deploy` 路线，不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
 
 注意：当前同一个 Neon database 中还存在 `kaku_log` schema。StudyMate 的数据库操作应限定在 `studymate` schema，不要把另一个 schema 当成 StudyMate 的表。
@@ -167,6 +193,8 @@ npm run prisma:migrate
 
 OpenAI 与 DeepSeek 的 Web 搜索都由各自 Responses API 的原生搜索能力处理，StudyMate 不自行注入搜索结果。
 
+DeepSeek 的搜索事件由服务端处理；StudyMate 只把 `response.output_text.delta` 正文增量转发给前端。返回的引用或 URL 按普通 Markdown 正文显示。
+
 ## 图片存储
 
 生产环境的 `src/lib/storage.ts` 通过 `@vercel/blob` 把图片写入私有 Vercel Blob。
@@ -177,11 +205,9 @@ Blob pathname 结构：
 images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-数据库只保存 `Attachment.imageStoragePath`。本地开发未配置 `BLOB_READ_WRITE_TOKEN` 时，才使用 `STUDYMATE_STORAGE_DIR`。
-
-DeepSeek的搜索事件在最终Responses流中由服务端处理；StudyMate只把 `response.output_text.delta` 本文差分转发给前端。DeepSeek返回的引用或URL会按普通Markdown正文显示。
-
 图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `STUDYMATE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
+
+本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。
 
 Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/tmp` 也会在实例回收或重新部署后清空。因此 Vercel 部署必须配置 Vercel Blob token；否则图片上传和生成会明确失败，不会静默写入临时磁盘。
 
@@ -201,7 +227,7 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 - 方式：GitHub 联动（main 分支 push 后自动部署）
 - `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用
 
-Vercel 上需要配置的环境变量（与 Render 时代相同的一套）：
+Vercel 上需要配置的环境变量：
 
 - `DATABASE_URL`
 - `OPENAI_API_KEY`
@@ -213,6 +239,7 @@ Vercel 上需要配置的环境变量（与 Render 时代相同的一套）：
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob 图片存储，必填）
 
 Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
+
 ## 校验
 
 ```bash
