@@ -1092,7 +1092,7 @@ export default function Home() {
                     event.preventDefault();
                     if (!selectedModel.supportsImageInput) {
                       setSendError(
-                        `${selectedModel.label} does not support image uploads. Use GPT-5.6 Sol for images.`,
+                        `${selectedModel.label} does not support image uploads. Use GPT-6 Luna for images.`,
                       );
                       return;
                     }

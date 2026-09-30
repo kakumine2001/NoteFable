@@ -139,7 +139,7 @@ function encodeTextStreamEvent(delta: string) {
 function getUpstreamModel(model: string) {
   // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。
   // 環境変数で差し替えできるようにして、画面側の選択肢は固定のまま運用できる。
-  if (model === "gpt-5.6-sol") {
+  if (model === "gpt-6-luna") {
     return optionalEnv("OPENAI_TEXT_MODEL") || model;
   }
 
@@ -286,7 +286,7 @@ export async function POST(request: Request) {
 
   if (!modelOption.supportsImageInput && files.some(isImageFile)) {
     return NextResponse.json(
-      { error: `${modelOption.label} does not support image uploads. Use GPT-5.6 Sol for images.` },
+      { error: `${modelOption.label} does not support image uploads. Use GPT-6 Luna for images.` },
       { status: 400 },
     );
   }

@@ -11,10 +11,10 @@ import {
 describe("model configuration", () => {
   it("only enables web search for a provider that implements it", () => {
     expect(getModelOption("deepseek-flash").supportsWebSearch).toBe(false);
-    expect(getModelOption("gpt-5.6-sol").supportsWebSearch).toBe(true);
+    expect(getModelOption("gpt-6-luna").supportsWebSearch).toBe(true);
   });
   it("keeps DeepSeek text-only and GPT image-capable", () => {
-    const openAI = getModelOption("gpt-5.6-sol");
+    const openAI = getModelOption("gpt-6-luna");
     const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
 
     expect(openAI.supportsImageInput).toBe(true);
@@ -28,13 +28,13 @@ describe("model configuration", () => {
 
   it("keeps the full model names in the selector", () => {
     expect(MODEL_OPTIONS.map((model) => model.label)).toEqual([
-      "GPT-5.6 Sol",
+      "GPT-6 Luna",
       "DeepSeek-V4.1-Flash",
     ]);
   });
 
   it("normalizes unknown models to the default", () => {
-    expect(DEFAULT_MODEL).toBe("gpt-5.6-sol");
+    expect(DEFAULT_MODEL).toBe("gpt-6-luna");
     expect(normalizeModel("deepseek-flash")).toBe("deepseek-flash");
     expect(normalizeModel("gpt-5.5")).toBe(DEFAULT_MODEL);
     expect(normalizeModel("unknown-model")).toBe(DEFAULT_MODEL);
@@ -43,15 +43,15 @@ describe("model configuration", () => {
     expect(getModelOption("unknown-model").id).toBe(DEFAULT_MODEL);
   });
 
-  it("supports all six Sol reasoning efforts", () => {
-    const sol = getModelOption("gpt-5.6-sol");
+  it("supports all six Luna reasoning efforts", () => {
+    const luna = getModelOption("gpt-6-luna");
 
-    expect(sol.reasoningEfforts).toEqual(["none", "low", "medium", "high", "xhigh", "max"]);
-    expect(sol.defaultReasoning).toBe("medium");
-    expect(normalizeReasoning(null, sol.id)).toBe("medium");
-    expect(normalizeReasoning("invalid", sol.id)).toBe("medium");
-    for (const effort of sol.reasoningEfforts) {
-      expect(normalizeReasoning(effort, sol.id)).toBe(effort);
+    expect(luna.reasoningEfforts).toEqual(["none", "low", "medium", "high", "xhigh", "max"]);
+    expect(luna.defaultReasoning).toBe("medium");
+    expect(normalizeReasoning(null, luna.id)).toBe("medium");
+    expect(normalizeReasoning("invalid", luna.id)).toBe("medium");
+    for (const effort of luna.reasoningEfforts) {
+      expect(normalizeReasoning(effort, luna.id)).toBe(effort);
     }
   });
 

@@ -21,14 +21,14 @@ describe("getSubmissionValidationError", () => {
         supportsImageGeneration: false,
         fileMimeTypes: [],
       }),
-    ).toBe("DeepSeek does not support image generation. Switch to GPT-5.6 Sol to use images.");
+    ).toBe("DeepSeek does not support image generation. Switch to GPT-6 Luna to use images.");
   });
 
   it("rejects non-image files before image generation", () => {
     expect(
       getSubmissionValidationError({
         imageGenerationMode: true,
-        modelLabel: "GPT-5.6 Sol",
+        modelLabel: "GPT-6 Luna",
         supportsImageGeneration: true,
         fileMimeTypes: ["image/png", "application/pdf"],
       }),
@@ -41,7 +41,7 @@ describe("getSubmissionValidationError", () => {
     expect(
       getSubmissionValidationError({
         imageGenerationMode: true,
-        modelLabel: "GPT-5.6 Sol",
+        modelLabel: "GPT-6 Luna",
         supportsImageGeneration: true,
         fileMimeTypes: ["image/png", "image/jpeg"],
       }),

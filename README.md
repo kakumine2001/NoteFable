@@ -138,8 +138,8 @@ NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 可选覆盖项：
 
 ```bash
-OPENAI_IMAGE_MODEL="gpt-image-2"
-OPENAI_TEXT_MODEL="gpt-5.6-sol"
+OPENAI_IMAGE_MODEL="gpt-image-2.5-sunburst"
+OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
@@ -196,7 +196,7 @@ npm run prisma:migrate
 
 模型能力：
 
-- GPT-5.6 Sol：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max`
+- GPT-6 Luna：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max`
 - DeepSeek-V4.1-Flash：支持图片输入，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
 
 Web 搜索只使用 OpenAI Responses API 的原生搜索能力。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)。

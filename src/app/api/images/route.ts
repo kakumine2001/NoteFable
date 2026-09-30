@@ -8,6 +8,7 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import {
+  DEFAULT_IMAGE_MODEL,
   DEFAULT_MODEL,
   getModelOption,
   normalizeModel,
@@ -205,7 +206,7 @@ async function createImageApiGeneration(
       "Content-Type": "application/json; charset=utf-8",
     },
     body: stringifyJsonForProxy({
-      model: optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2",
+      model: optionalEnv("OPENAI_IMAGE_MODEL") || DEFAULT_IMAGE_MODEL,
       prompt,
       n: 1,
       size: toImageApiSize(size),
@@ -244,7 +245,7 @@ async function createImageApiEdit(
   const baseURL = optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1";
   const formData = new FormData();
 
-  formData.append("model", optionalEnv("OPENAI_IMAGE_MODEL") || "gpt-image-2");
+  formData.append("model", optionalEnv("OPENAI_IMAGE_MODEL") || DEFAULT_IMAGE_MODEL);
   formData.append("prompt", prompt);
   formData.append("n", "1");
   formData.append("size", toImageApiSize(size));
@@ -336,7 +337,7 @@ export async function POST(request: Request) {
 
   if (!modelOption.supportsImageGeneration) {
     return NextResponse.json(
-      { error: `${modelOption.label} does not support image generation. Use GPT-5.6 Sol for images.` },
+      { error: `${modelOption.label} does not support image generation. Use GPT-6 Luna for images.` },
       { status: 400 },
     );
   }

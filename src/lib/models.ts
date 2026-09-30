@@ -1,5 +1,8 @@
 // 画面初期表示と不正値フォールバックで使う標準モデル。
-export const DEFAULT_MODEL = "gpt-5.6-sol";
+export const DEFAULT_MODEL = "gpt-6-luna";
+
+// 参照画像の編集にも使う標準の画像生成モデル。
+export const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-sunburst";
 
 // UI と API が受け付ける推論強度の一覧。as const にして型にも利用する。
 export const REASONING_EFFORTS = [
@@ -39,8 +42,8 @@ type ModelOption = {
 // 表示名はここに固定で書き、環境変数では上書きしない。
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {
-    id: "gpt-5.6-sol",
-    label: "GPT-5.6 Sol",
+    id: "gpt-6-luna",
+    label: "GPT-6 Luna",
     provider: "openai",
     supportsImageInput: true,
     supportsImageGeneration: true,
