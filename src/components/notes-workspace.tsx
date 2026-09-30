@@ -16,7 +16,6 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
       {loading ? <p className="notes-loading">Loading page…</p> : active && activeId ? <>
         <input className="notes-title" aria-label="Page title" maxLength={200} placeholder="Untitled" value={active.content.title} disabled={busy}
           onChange={(event) => active.edit({ ...active.content, title: event.target.value })} />
-        <p className="mb-8 mt-2 text-sm text-[var(--notion-faint)]">Type / for blocks</p>
         {backupError && <div className="notion-warning mb-4" role="alert">{backupError}</div>}
         {!!active.error && <div className="notion-warning mb-5" role="alert">
           <p>{active.error}</p>
