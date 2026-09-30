@@ -40,6 +40,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Database connection/schema | `src/lib/prisma.ts` |
 | Database models | `prisma/schema.prisma` |
 | Notion integration | `src/lib/notion.ts` and `src/app/api/notion/pages/route.ts` |
+| Internal pages and autosave | `src/lib/note-document.ts`, `src/lib/note-save-queue.ts`, `src/app/api/pages/*` |
 | Notion file export | `src/lib/notion-files.ts`, `src/lib/notion-saves.ts`, `src/app/api/notion/saves/*` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
@@ -56,6 +57,8 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Keep provider-specific differences behind shared helpers where possible.
 
 ## Storage
+
+- Internal Pages store native block JSON in `NotePage`, scoped to `AnonymousUser`. Keep the editor schema and server block validation aligned; use version checks for updates. Local draft caches do not replace server persistence or provide identity recovery.
 
 - Production image binaries are stored in Private Vercel Blob through `@vercel/blob`.
 - `BLOB_READ_WRITE_TOKEN` is required on Vercel.

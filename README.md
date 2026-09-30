@@ -2,7 +2,7 @@
 
 供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
 
-项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索和 Notion 导出（正文里可以自由插入本机文件）。
+项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Pages 笔记和 Notion 导出（正文里可以自由插入本机文件）。
 
 ## 当前生产环境
 
@@ -53,6 +53,7 @@ flowchart LR
 - [详细架构入口：5 分钟恢复上下文](docs/architecture/README.md)
 - [数据库设计](docs/architecture/database.md)
 - [聊天请求流程](docs/architecture/chat-flow.md)
+- [站内页面与自动保存](docs/architecture/notes-flow.md)
 - [图片上传与生成流程](docs/architecture/image-flow.md)
 - [部署与运行环境](docs/architecture/deployment.md)
 
@@ -218,6 +219,18 @@ images/YYYY/MM/DD/<uuid>.<ext>
 本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。
 
 Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/tmp` 也会在实例回收或重新部署后清空。因此 Vercel 部署必须配置 Vercel Blob token；否则图片上传和生成会明确失败，不会静默写入临时磁盘。
+
+## 站内 Pages
+
+顶栏的 `Chat / Pages` 切换在聊天和笔记之间切换。Pages 侧栏支持创建、选择和删除页面，正文顶部可以修改标题。页面平铺排列，按最后保存时间排序。
+
+编辑器使用 BlockNote 社区版，支持段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；通过 `/` 菜单、Markdown 快捷输入、行内格式工具栏和拖动整理内容。首版只开放文字区块。
+
+停止输入约一秒后自动保存，顶部显示 `Unsaved / Saving / Saved`。正文以原生区块 JSON 存入 PostgreSQL 的 `NotePage` 表，并沿用现有签名设备 Cookie 的匿名用户归属。浏览器只缓存尚未成功保存的草稿；失败后可以重试或刷新恢复。两个标签页修改同一页面时通过版本号阻止覆盖，冲突可以保存为新页面或载入最新版本。
+
+页面与同一浏览器、同一域名绑定。清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但当前身份机制无法重新认领；当前没有账号或跨设备恢复功能。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
+
+Pages 和外部 Notion 导出是独立功能；Pages 不调用 AI 或 Notion API。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
 ## 导出到 Notion
 

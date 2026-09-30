@@ -73,6 +73,66 @@ button:disabled {
   color: var(--notion-text);
 }
 
+.workspace-switch {
+  display: inline-flex;
+  gap: 2px;
+  flex: none;
+  padding: 3px;
+  border-radius: 6px;
+  background: var(--notion-sidebar);
+}
+
+.workspace-switch button {
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  color: var(--notion-muted);
+}
+
+.workspace-switch button[aria-pressed="true"] {
+  color: var(--notion-text);
+  background: white;
+  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.08);
+}
+
+.workspace-switch button:focus-visible { outline: 2px solid var(--notion-blue); }
+.notes-save-status { font-size: 12px; color: var(--notion-muted); }
+.notes-save-status.has-error { color: #b45309; }
+.notes-title {
+  display: block;
+  width: 100%;
+  border: 0;
+  outline: 0;
+  padding: 0;
+  background: transparent;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+  color: var(--notion-text);
+}
+.notes-title::placeholder { color: var(--notion-faint); }
+.notes-title:focus-visible { box-shadow: 0 2px var(--notion-border); }
+.notes-empty { padding: 4rem 0; color: var(--notion-text); }
+.notes-loading { font-size: 14px; color: var(--notion-muted); padding: 1rem 0; }
+.notes-block-editor .bn-container {
+  --bn-colors-editor-text: var(--notion-text);
+  --bn-colors-editor-background: var(--notion-bg);
+  --bn-font-family: var(--font-ui);
+  font-family: var(--font-ui);
+}
+.notes-block-editor .bn-editor { padding-inline: 0; font-size: 15px; }
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] { font-family: var(--font-geist-mono), monospace; }
+.notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: white; color: var(--notion-text); box-shadow: var(--notion-shadow); }
+.notes-dialog::backdrop { background: rgba(15, 15, 15, 0.2); }
+.notes-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.2); }
+
+@media (max-width: 639px) {
+  .notes-title { font-size: 1.75rem; }
+  .workspace-switch button { padding-inline: 8px; }
+  .notes-block-editor .bn-side-menu { margin-left: 4px; }
+}
+
 .notion-sidebar {
   display: flex;
   width: 15rem;

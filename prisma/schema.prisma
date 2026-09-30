@@ -52,6 +52,22 @@ model AnonymousUser {
 
   sessions    Session[]
   notionSaves NotionSave[]
+  notePages   NotePage[]
+}
+
+// アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
+model NotePage {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String   @default("Untitled")
+  blocks    Json
+  version   Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
 }
 
 model Session {

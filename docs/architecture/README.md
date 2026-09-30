@@ -20,6 +20,7 @@
 4. [notion-flow.md](notion-flow.md) — 导出到 Notion，包括在正文里插入文件
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
+7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复
 
 ## 一张图先记住整个项目
 
@@ -30,6 +31,7 @@ flowchart LR
     Chat["Chat API"]
     Images["Image API"]
     Sessions["Session APIs"]
+    Pages["Page APIs"]
     NotionExport["Notion Export APIs"]
     Neon["Neon PostgreSQL"]
     Blob["Private Vercel Blob"]
@@ -41,6 +43,7 @@ flowchart LR
     App --> Chat
     App --> Images
     App --> Sessions
+    App --> Pages
     App --> NotionExport
     Browser -.->|直接上传临时文件| Blob
     Chat --> Neon
@@ -51,6 +54,7 @@ flowchart LR
     Images --> Neon
     Images --> Blob
     Sessions --> Neon
+    Pages --> Neon
     NotionExport --> Notion
     NotionExport --> Blob
     NotionExport --> Neon
@@ -64,6 +68,9 @@ flowchart LR
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/api/sessions/*` | 会话与历史消息读取 |
+| `src/app/api/pages/*` | 站内页面 CRUD、匿名归属和版本检查 |
+| `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
+| `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/app/api/notion/pages/route.ts` | 纯文字导出到 Notion（原有路径） |
 | `src/app/api/notion/saves/*` | 带文件的导出：建立保存、分片上传、分段传输、建页面、取消 |

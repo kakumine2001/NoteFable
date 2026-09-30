@@ -19,6 +19,9 @@ import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
 import { NotionDrawer, type NotionDraftState } from "@/components/notion-drawer";
+import { NotesSidebar } from "@/components/notes-sidebar";
+import { NotesWorkspace } from "@/components/notes-workspace";
+import { useNotePages } from "@/lib/use-note-pages";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { createTranscriptBlocks, revokeDraftPreviews } from "@/lib/notion-draft";
@@ -103,6 +106,26 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
 }
 
 export default function Home() {
+  const [workspaceView, setWorkspaceView] = useState<"chat" | "pages">("chat");
+  const notes = useNotePages(workspaceView === "pages");
+
+  useEffect(() => {
+    if (new URL(window.location.href).searchParams.get("view") === "pages") {
+      queueMicrotask(() => setWorkspaceView("pages"));
+    }
+  }, []);
+
+  function changeWorkspace(view: "chat" | "pages") {
+    setWorkspaceView(view);
+    setSidebarOpen(false);
+    setNotionDraftOpen(false);
+    const url = new URL(window.location.href);
+    if (view === "pages") url.searchParams.set("view", "pages");
+    else url.searchParams.delete("view");
+    window.history.replaceState(null, "", url);
+    if (view === "chat") void notes.active?.flush();
+  }
+
   // 左サイドバーに表示するチャットセッション一覧。
   const [sessions, setSessions] = useState<Session[]>([]);
   // 現在表示しているセッション ID。未保存の新規チャットでは null になる。
@@ -846,6 +869,9 @@ export default function Home() {
         return;
       }
 
+      // 編集中の Ctrl+B は区画編集器の太字ショートカットに渡す。
+      if (event.target instanceof HTMLElement && event.target.closest('[contenteditable="true"], input, textarea')) return;
+
       event.preventDefault();
       if (window.matchMedia("(min-width: 1024px)").matches) {
         setSidebarVisible((current) => !current);
@@ -867,20 +893,22 @@ export default function Home() {
       : Math.max(1, Math.round((now - activeStreamStartedAt) / 1000));
 
   // デスクトップとモバイルで同じ会話履歴を使い、表示方法だけ切り替える。
-  const sidebar = (
+  const closeSidebar = () => {
+    if (window.matchMedia("(min-width: 1024px)").matches) setSidebarVisible(false);
+    else setSidebarOpen(false);
+  };
+  const sidebar = workspaceView === "pages" ? (
+    <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
+      onCreate={() => void notes.create()} onSelect={(id) => { void notes.select(id); setSidebarOpen(false); }}
+      onDelete={notes.remove} onClose={closeSidebar} />
+  ) : (
     <ChatSidebar
       sessions={sessions}
       activeSessionId={activeSessionId}
       onCreate={createSession}
       onLoad={loadMessages}
       onDelete={deleteSession}
-      onClose={() => {
-        if (window.matchMedia("(min-width: 1024px)").matches) {
-          setSidebarVisible(false);
-        } else {
-          setSidebarOpen(false);
-        }
-      }}
+      onClose={closeSidebar}
     />
   );
 
@@ -923,12 +951,21 @@ export default function Home() {
                 <PanelLeft size={22} strokeWidth={1.8} />
               </button>
             )}
-            <div className="min-w-0">
-              <div className="truncate text-sm text-[var(--notion-muted)]">{activeTitle}</div>
+            <div className="workspace-switch" role="group" aria-label="Workspace mode">
+              <button type="button" aria-pressed={workspaceView === "chat"} onClick={() => changeWorkspace("chat")}>Chat</button>
+              <button type="button" aria-pressed={workspaceView === "pages"} onClick={() => changeWorkspace("pages")}>Pages</button>
+            </div>
+            <div className="min-w-0 hidden sm:block">
+              <div className="truncate text-sm text-[var(--notion-muted)]">{workspaceView === "pages" ? notes.active?.content.title || "Pages" : activeTitle}</div>
             </div>
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {workspaceView === "pages" ? (
+              <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
+                {notes.active ? ({ saved: "Saved", pending: "Unsaved", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
+              </span>
+            ) : <>
             <div className={`hidden text-xs text-[var(--notion-muted)] sm:block ${emptyState ? "sm:hidden" : ""}`}>
               {selectedModel.label}
             </div>
@@ -936,16 +973,17 @@ export default function Home() {
               type="button"
               onClick={openNotionDraft}
               className="notion-composer-control"
-              aria-label="Open Notion draft"
-              title="Save to Notion"
+              aria-label="Export to Notion"
+              title="Export to Notion"
             >
               <UploadCloud size={15} />
-              <span className="hidden sm:inline">Notion</span>
+              <span className="hidden sm:inline">Export to Notion</span>
             </button>
+            </>}
           </div>
         </header>
 
-        {notionDraftOpen && notionDraft && (
+        {workspaceView === "chat" && notionDraftOpen && notionDraft && (
           <NotionDrawer
             draft={notionDraft}
             sessionId={activeSessionId}
@@ -957,6 +995,11 @@ export default function Home() {
           />
         )}
 
+        <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
+          <NotesWorkspace notes={notes} />
+        </div>
+
+        <div className={workspaceView === "chat" ? "contents" : "hidden"}>
         <div ref={chatScrollRef} className="relative z-0 flex-1 overflow-y-auto">
           <div
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
@@ -1154,6 +1197,7 @@ export default function Home() {
               </button>
             </div>
           </form>
+        </div>
         </div>
       </section>
     </main>

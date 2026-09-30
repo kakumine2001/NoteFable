@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
@@ -26,6 +26,9 @@ export const metadata: Metadata = {
     icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
   },
 };
+
+// モバイルのキーボード表示時も本文の表示領域を追従させる。
+export const viewport: Viewport = { width: "device-width", initialScale: 1, interactiveWidget: "resizes-content" };
 
 export default function RootLayout({
   children,
