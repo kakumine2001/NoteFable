@@ -104,6 +104,9 @@ button:disabled {
   border: 0;
   outline: 0;
   padding: 0;
+  margin-bottom: 24px;
+  resize: none;
+  overflow: hidden;
   background: transparent;
   font-size: 2rem;
   font-weight: 700;
@@ -112,7 +115,6 @@ button:disabled {
   color: var(--notion-text);
 }
 .notes-title::placeholder { color: var(--notion-faint); }
-.notes-title:focus-visible { box-shadow: 0 2px var(--notion-border); }
 .notes-empty { padding: 4rem 0; color: var(--notion-text); }
 .notes-loading { font-size: 14px; color: var(--notion-muted); padding: 1rem 0; }
 .notes-block-editor .bn-container {
@@ -122,6 +124,11 @@ button:disabled {
   font-family: var(--font-ui);
 }
 .notes-block-editor .bn-editor { padding-inline: 0; font-size: 15px; }
+.notes-block-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after { font-style: normal; color: var(--notion-faint); }
+.notes-block-editor [data-content-type="heading"] { --level: 1.875rem; }
+.notes-block-editor [data-content-type="heading"][data-level="2"] { --level: 1.5rem; }
+.notes-block-editor [data-content-type="heading"][data-level="3"] { --level: 1.25rem; }
+.notes-editor-tail { display: block; width: 100%; min-height: 180px; background: transparent; border: 0; cursor: text; }
 .notes-block-editor .bn-block-content[data-content-type="codeBlock"] { font-family: var(--font-geist-mono), monospace; }
 .notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: white; color: var(--notion-text); box-shadow: var(--notion-shadow); }
 .notes-dialog::backdrop { background: rgba(15, 15, 15, 0.2); }

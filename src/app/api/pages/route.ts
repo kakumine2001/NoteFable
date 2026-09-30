@@ -9,7 +9,7 @@ export async function GET() {
   try {
     const user = await getOrCreateAnonymousUser();
     const pages = await prisma.notePage.findMany({
-      where: { userId: user.id }, orderBy: { updatedAt: "desc" },
+      where: { userId: user.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       select: { id: true, title: true, version: true, createdAt: true, updatedAt: true },
     });
     return NextResponse.json({ pages }, { headers: { "Cache-Control": "no-store" } });

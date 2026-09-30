@@ -8,11 +8,13 @@ Pages 是 StudyMate 内部的文字笔记模式。切换模式保留聊天输入
 
 数据库保存 `editor.document` 原生 JSON，标题单独保存。`src/lib/note-document.ts` 校验区块类型、稳定 ID、文字样式、链接协议、区块数量与深度，拒绝不支持的区块和脚本链接。请求流读取上限为 1 MiB，不仅依赖 Content-Length。标题最长 200 字符，正文最多 2,000 个块、8 层嵌套。
 
+`src/lib/note-block-actions.ts` 维护现有文字区块的转换名称与快捷键、复制 ID 规则和代码转换的文字提取。手柄、斜杠菜单和快捷键使用同一份转换定义。复制时递归生成新 ID；转成代码时保留链接显示文字并移除链接和装饰，保持服务器校验兼容。页面列表采用稳定的创建时间顺序，标题立即更新；切换页面和模式写入浏览器历史，后退/前进恢复对应页面。
+
 ## 接口
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 按更新时间返回当前匿名用户的页面摘要 |
+| `GET /api/pages` | 按创建时间返回当前匿名用户的页面摘要 |
 | `POST /api/pages` | 新建 `{ title, blocks }` 页面，也用于保存冲突副本 |
 | `GET /api/pages/:id` | 读取拥有的页面 |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, blocks, version }`，版本递增 |

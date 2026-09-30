@@ -32,9 +32,17 @@ export function useNotePages(enabled: boolean) {
   const started = useRef(false);
   const navigation = useRef(0);
   const actionBusy = useRef(false);
+  const displayedId = useRef<string | null>(null);
+  const pendingId = useRef<string | null>(null);
 
   const upsertSummary = useCallback((page: NotePageSummary) => {
-    setPages((current) => [page, ...current.filter((entry) => entry.id !== page.id)].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)));
+    // 保存のたびに行が動かないよう、作成順を保つ。
+    setPages((current) => {
+      const existing = current.find((entry) => entry.id === page.id);
+      if (!existing) return [page, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+      if (existing.title === page.title && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
+      return current.map((entry) => entry.id === page.id ? page : entry);
+    });
   }, []);
 
   const install = useCallback((page: NotePage) => {
@@ -51,6 +59,7 @@ export function useNotePages(enabled: boolean) {
       upsertSummary(data.page);
       return data.page;
     }, () => {
+      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled" });
       try {
         if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
         else localStorage.removeItem(DRAFT_PREFIX + page.id);
@@ -63,8 +72,14 @@ export function useNotePages(enabled: boolean) {
     return queue;
   }, [upsertSummary]);
 
-  const select = useCallback(async (id: string) => {
+  const select = useCallback(async (id: string, historyMode: "push" | "replace" | "none" = "push") => {
+    if (historyMode === "push" && displayedId.current === id) {
+      // 読み込み中に元のページへ戻った操作も、後から来る応答で上書きしない。
+      if (pendingId.current) { ++navigation.current; pendingId.current = null; setLoading(false); setError(""); }
+      return;
+    }
     const intent = ++navigation.current;
+    pendingId.current = id;
     setLoading(true);
     setError("");
     try {
@@ -73,7 +88,7 @@ export function useNotePages(enabled: boolean) {
       if (intent !== navigation.current) return;
       const existing = queues.current.get(id);
       const queue = existing ?? install(data.page);
-      if (existing && !existing.dirty) {
+      if (existing && !existing.dirty && existing.version !== data.page.version) {
         existing.loadLatest(data.page);
         setEditorEpoch((value) => value + 1);
       }
@@ -83,13 +98,17 @@ export function useNotePages(enabled: boolean) {
         existing.error = "This page was changed in another tab. Save a copy or load the latest version.";
       }
       setActiveId(id);
+      displayedId.current = id;
       setActive(queue);
-      upsertSummary(data.page);
+      upsertSummary({ ...data.page, title: queue.content.title.trim() || "Untitled" });
       const url = new URL(window.location.href);
       url.searchParams.set("page", id);
-      window.history.replaceState(null, "", url);
+      if (historyMode !== "none" && url.searchParams.get("view") === "pages" && url.href !== window.location.href) {
+        if (historyMode === "push") window.history.pushState(null, "", url);
+        else window.history.replaceState(null, "", url);
+      }
     } catch (caught) { if (intent === navigation.current) setError(caught instanceof Error ? caught.message : "Failed to open page."); }
-    finally { if (intent === navigation.current) setLoading(false); }
+    finally { if (intent === navigation.current) { pendingId.current = null; setLoading(false); } }
   }, [install, upsertSummary]);
 
   const load = useCallback(async () => {
@@ -101,8 +120,8 @@ export function useNotePages(enabled: boolean) {
       setPages(data.pages);
       const requested = new URL(window.location.href).searchParams.get("page");
       const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? data.pages[0]?.id;
-      if (id) await select(id);
-      else { setActiveId(null); setActive(undefined); }
+      if (id) await select(id, "replace");
+      else { displayedId.current = null; setActiveId(null); setActive(undefined); }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to load pages."); }
     finally { setLoading(false); }
   }, [select]);
@@ -113,6 +132,16 @@ export function useNotePages(enabled: boolean) {
       queueMicrotask(() => { void load(); });
     }
   }, [enabled, load]);
+
+  useEffect(() => {
+    function onPopState() {
+      const url = new URL(window.location.href);
+      const id = url.searchParams.get("page");
+      if (url.searchParams.get("view") === "pages" && id && id !== displayedId.current) void select(id, "none");
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, [select]);
 
   useEffect(() => {
     function beforeUnload(event: BeforeUnloadEvent) {
@@ -147,12 +176,14 @@ export function useNotePages(enabled: boolean) {
       const queue = install(page);
       upsertSummary(page);
       ++navigation.current;
+      pendingId.current = null;
       setActiveId(page.id);
+      displayedId.current = page.id;
       setActive(queue);
       setLoading(false);
       const url = new URL(window.location.href);
       url.searchParams.set("page", page.id);
-      window.history.replaceState(null, "", url);
+      window.history.pushState(null, "", url);
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to create page."); }
     finally { actionBusy.current = false; setBusy(false); }
   }
@@ -171,12 +202,13 @@ export function useNotePages(enabled: boolean) {
       const remaining = pages.filter((page) => page.id !== id);
       setPages(remaining);
       if (activeId === id) {
+        displayedId.current = null;
         setActiveId(null);
         setActive(undefined);
         const url = new URL(window.location.href);
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
-        if (remaining[0]) await select(remaining[0].id);
+        if (remaining[0]) await select(remaining[0].id, "replace");
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to delete page."); }
     finally { actionBusy.current = false; setBusy(false); }

@@ -110,19 +110,26 @@ export default function Home() {
   const notes = useNotePages(workspaceView === "pages");
 
   useEffect(() => {
-    if (new URL(window.location.href).searchParams.get("view") === "pages") {
-      queueMicrotask(() => setWorkspaceView("pages"));
+    function syncWorkspace() {
+      setWorkspaceView(new URL(window.location.href).searchParams.get("view") === "pages" ? "pages" : "chat");
     }
+    queueMicrotask(syncWorkspace);
+    window.addEventListener("popstate", syncWorkspace);
+    return () => window.removeEventListener("popstate", syncWorkspace);
   }, []);
 
   function changeWorkspace(view: "chat" | "pages") {
+    if (view === workspaceView) return;
     setWorkspaceView(view);
     setSidebarOpen(false);
     setNotionDraftOpen(false);
     const url = new URL(window.location.href);
-    if (view === "pages") url.searchParams.set("view", "pages");
+    if (view === "pages") {
+      url.searchParams.set("view", "pages");
+      if (notes.activeId) url.searchParams.set("page", notes.activeId);
+    }
     else url.searchParams.delete("view");
-    window.history.replaceState(null, "", url);
+    window.history.pushState(null, "", url);
     if (view === "chat") void notes.active?.flush();
   }
 
