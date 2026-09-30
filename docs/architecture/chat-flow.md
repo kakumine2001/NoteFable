@@ -163,7 +163,9 @@ provider-native web_search
 模型自行决定是否搜索
 ```
 
-OpenAI 和 DeepSeek 都在 provider 侧处理搜索能力。
+只有 OpenAI 启用 provider-native `web_search`。DeepSeek 的现行 Responses API 会忽略该工具（[官方说明](https://api-docs.deepseek.com/guides/responses_api/#tools)），因此 `src/lib/models.ts` 将其搜索能力设为 false。旧客户端传来的搜索开关也会归一化为 off，模型指令明确禁止模拟搜索。
+
+DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_result>` 时停止读取并返回错误；不能把异常片段保存成正常回答。`response.incomplete`、空回答和没有 `response.completed` 的断流也会明确报错。过去已保存的异常助手回答保留在数据库中，但不会再次加入模型输入。
 
 ## Persist Timing
 

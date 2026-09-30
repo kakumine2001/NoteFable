@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getDeepSeekWebSearchOptions, normalizeWebSearchMode } from "./web-search";
+import { normalizeWebSearchMode } from "./web-search";
 
 describe("normalizeWebSearchMode", () => {
   it("keeps supported automatic and forced modes", () => {
@@ -22,25 +22,5 @@ describe("normalizeWebSearchMode", () => {
 
   it("keeps explicit off mode for supported models", () => {
     expect(normalizeWebSearchMode("off", true)).toBe("off");
-  });
-});
-
-describe("getDeepSeekWebSearchOptions", () => {
-  it("lets DeepSeek choose whether to use native web search in auto mode", () => {
-    expect(getDeepSeekWebSearchOptions("auto")).toEqual({
-      tools: [{ type: "web_search" }],
-      toolChoice: "auto",
-    });
-  });
-
-  it("requires native web search in force mode", () => {
-    expect(getDeepSeekWebSearchOptions("force")).toEqual({
-      tools: [{ type: "web_search" }],
-      toolChoice: "required",
-    });
-  });
-
-  it("does not add search tools in off mode", () => {
-    expect(getDeepSeekWebSearchOptions("off")).toEqual({});
   });
 });

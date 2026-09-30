@@ -58,6 +58,9 @@ erDiagram
     AnonymousUser ||--o{ Session : owns
     Session ||--o{ Message : contains
     Message ||--o{ Attachment : has
+    AnonymousUser ||--o{ NotionSave : owns
+    Session ||--o{ NotionSave : exports
+    NotionSave ||--o{ NotionSaveFile : stages
 
     AnonymousUser {
         string id PK
@@ -99,6 +102,41 @@ erDiagram
         string key PK
         int count
         datetime resetAt
+        datetime updatedAt
+    }
+
+    NotionSave {
+        string id PK
+        string userId FK
+        string sessionId FK
+        string title
+        string status
+        json blocks
+        string notionPageId
+        string notionPageUrl
+        int notionBlocksWritten
+        boolean pageCreationUnknown
+        boolean appendResultUnknown
+        string errorMessage
+        datetime createdAt
+        datetime updatedAt
+    }
+
+    NotionSaveFile {
+        string id PK
+        string saveId FK
+        string filename
+        string mimeType
+        bigint size
+        string blockType
+        string status
+        string stagingPrefix
+        int stagingChunkCount
+        int partCount
+        int uploadedParts
+        string notionFileUploadId
+        string errorMessage
+        datetime createdAt
         datetime updatedAt
     }
 ```
@@ -198,6 +236,48 @@ Message 1 -> N Attachment
 - chat：30 / hour
 - images：10 / hour
 
+### NotionSave
+
+一次 Notion 导出的处理记录。
+
+核心字段：
+
+- `blocks`：正文的「文字 / 文件」有序数组。文字块直接存字符串，文件块存 `NotionSaveFile.id`。
+- `status`：`STAGING → TRANSFERRING → COMPLETED`，另有 `CANCELLED` / `EXPIRED`。
+- `notionPageId` / `notionPageUrl`：页面创建后立即写入，追加正文失败时可以继续同一个页面。
+- `notionBlocksWritten`：已经写进 Notion 的块数量，续写时从这里开始。
+- `pageCreationUnknown`：页面创建没有拿到响应时为 `true`。此时不会自动重建，必须由用户确认后再建。
+- `appendResultUnknown`：正文追加没有拿到响应时为 `true`。重试可能重复写入，先检查现有页面，再由用户确认是否继续追加。
+
+关系：
+
+```text
+AnonymousUser 1 -> N NotionSave
+Session?      1 -> N NotionSave
+```
+
+删除 Session 时 `sessionId` 置空，导出记录本身保留。
+
+### NotionSaveFile
+
+一次导出里的一个待传文件。与会话附件（`Attachment`）完全分开管理。
+
+核心字段：
+
+- `size`：`BigInt`。5 GiB 超过 `Int` 的范围。
+- `blockType`：`image` 或 `file`，决定在 Notion 里用哪种块。
+- `stagingPrefix`：临时文件在 Private Blob 的路径前缀。删除后置空，也就退出了超时回収范围。
+- `stagingChunkCount` / `partCount` / `uploadedParts`：传输进度。
+- `notionFileUploadId`：Notion `file_uploads` 的 ID。
+
+关系：
+
+```text
+NotionSave 1 -> N NotionSaveFile
+```
+
+详细流程见 [notion-flow.md](notion-flow.md)。
+
 ## Enums
 
 ```text
@@ -213,6 +293,19 @@ ReasoningEffort
 - HIGH
 - XHIGH
 - MAX
+
+NotionSaveStatus
+- STAGING
+- TRANSFERRING
+- COMPLETED
+- CANCELLED
+- EXPIRED
+
+NotionFileStatus
+- PENDING
+- STAGED
+- UPLOADING
+- COMPLETE
 ```
 
 ## 为什么 Attachment 不直接存图片

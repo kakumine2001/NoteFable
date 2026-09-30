@@ -31,6 +31,18 @@ function imageAttachment(filename: string, storagePath: string, size = 3) {
 }
 
 describe("buildHistoryInput", () => {
+  it("excludes broken assistant tool markup without changing user text", async () => {
+    const markup = '<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="search">';
+    const input = await buildHistoryInput([
+      { id: "bad", role: "ASSISTANT", content: markup, attachments: [] },
+      { id: "good", role: "ASSISTANT", content: "Normal answer", attachments: [] },
+      { id: "user", role: "USER", content: markup, attachments: [] },
+    ], false);
+    expect(input).toEqual([
+      { role: "user", content: markup },
+      { role: "assistant", content: "Normal answer" },
+    ]);
+  });
   beforeEach(() => {
     mocks.readStoredImage.mockReset();
   });

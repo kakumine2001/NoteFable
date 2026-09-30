@@ -40,6 +40,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Database connection/schema | `src/lib/prisma.ts` |
 | Database models | `prisma/schema.prisma` |
 | Notion integration | `src/lib/notion.ts` and `src/app/api/notion/pages/route.ts` |
+| Notion file export | `src/lib/notion-files.ts`, `src/lib/notion-saves.ts`, `src/app/api/notion/saves/*` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules
@@ -47,7 +48,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Treat `src/lib/models.ts` as the single source of truth for supported models, capabilities, and reasoning levels.
 - Update model definitions first, then align frontend and API validation.
 - Only the upstream model name (`OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`, `DEEPSEEK_FLASH_MODEL`) and provider base URL are environment-configurable. Display labels, provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
-- OpenAI and DeepSeek chat both use their Responses API paths and provider-native web search.
+- OpenAI and DeepSeek chat both use their Responses API paths. Only OpenAI uses provider-native web search; the current DeepSeek API ignores built-in `web_search`. Do not advertise or send unsupported search tools.
 - The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
 - Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
 - `/api/images` uses `/images/generations` for text-only generation and `/images/edits` when reference images are supplied.
@@ -61,6 +62,14 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Local development may fall back to `STUDYMATE_STORAGE_DIR` when the Blob token is absent.
 - PostgreSQL stores attachment metadata and `imageStoragePath`, not image binaries.
 - Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
+
+## Notion File Export
+
+- Keep the two Notion API versions separate: `NOTION_API_VERSION` for existing page/database calls, `NOTION_FILE_API_VERSION` for `file_uploads`, `users/me`, and appending content blocks. Do not bump the shared version.
+- File metadata rules (supported extensions, size limits, part splitting) live in `src/lib/notion-files.ts` so the drawer and the server validate identically.
+- Browser upload tokens are issued per chunk in `src/app/api/notion/uploads/route.ts`. Keep them scoped to the exact pathname and chunk size, and never expose `BLOB_READ_WRITE_TOKEN` to the client.
+- Staged files live under `notion-staging/<saveId>/<fileId>/<index>` and must be released on success and on cancel. The daily cron route requires `CRON_SECRET`.
+- Keep page creation and content appending as separate recorded steps so a failure continues on the same page instead of creating a second one.
 
 ## Database Safety
 

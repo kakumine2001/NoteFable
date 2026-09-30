@@ -741,6 +741,146 @@ button:disabled {
 .notion-error { background: rgba(255, 226, 221, 0.65); color: #933b34; }
 .notion-success { background: rgba(219, 237, 219, 0.7); color: #346538; }
 
+.notion-warning {
+  display: grid;
+  gap: 0.5rem;
+  border-radius: 0.3rem;
+  background: rgba(253, 235, 200, 0.6);
+  padding: 0.6rem 0.7rem;
+  color: #7a5312;
+  font-size: 0.8rem;
+  line-height: 1.35rem;
+}
+
+.notion-warning .notion-button {
+  justify-self: start;
+  background: rgba(255, 255, 255, 0.75);
+}
+
+/* 本文を「文章・ファイル」の順序付きブロックとして編集する領域。 */
+.notion-block-editor {
+  display: flex;
+  min-height: 12rem;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.35rem;
+  border: 1px solid var(--notion-border);
+  border-radius: 0.45rem;
+  background: var(--notion-sidebar);
+  padding: 0.4rem;
+}
+
+.notion-block-editor.is-drop-active {
+  border-color: rgba(35, 131, 226, 0.55);
+  box-shadow: 0 0 0 1px rgba(35, 131, 226, 0.15);
+}
+
+.notion-block-textarea {
+  display: block;
+  width: 100%;
+  min-height: 1.75rem;
+  resize: none;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background: transparent;
+  padding: 0.2rem 0.35rem;
+  color: var(--notion-text);
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  outline: none;
+}
+
+.notion-block-textarea::placeholder {
+  color: var(--notion-faint);
+}
+
+.notion-block-textarea:focus {
+  background: var(--notion-hover);
+}
+
+.notion-block-empty {
+  display: flex;
+  min-height: 11rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  border: 1px dashed var(--notion-border-strong);
+  border-radius: 0.3rem;
+  color: var(--notion-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.notion-block-empty svg {
+  color: var(--notion-faint);
+}
+
+.notion-block-empty small {
+  display: block;
+  color: var(--notion-faint);
+  font-size: 0.7rem;
+}
+
+/* 挿入したファイル 1 件分の表示。画像はプレビュー、それ以外は名前と容量を出す。 */
+.notion-block-file {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--notion-border);
+  border-radius: 0.3rem;
+  background: var(--notion-sidebar);
+  padding: 0.4rem 0.5rem;
+}
+
+.notion-block-file-preview {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: none;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.25rem;
+  background: white;
+  color: var(--notion-faint);
+}
+
+.notion-block-actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 0.1rem;
+}
+
+.notion-button-quiet {
+  border: 1px solid var(--notion-border-strong);
+  background: white;
+}
+
+.notion-progress {
+  display: grid;
+  gap: 0.5rem;
+  border: 1px solid var(--notion-border);
+  border-radius: 0.3rem;
+  background: var(--notion-sidebar);
+  padding: 0.6rem 0.7rem;
+}
+
+.notion-progress-track {
+  height: 0.25rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--notion-active);
+}
+
+.notion-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--notion-blue);
+  transition: width 150ms ease;
+}
+
 .motion-page-enter { animation: motion-page-enter 180ms ease-out both; }
 .motion-drawer-enter { animation: motion-drawer-enter 160ms ease-out both; }
 

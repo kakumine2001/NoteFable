@@ -27,7 +27,7 @@ type ModelOption = {
   supportsImageInput: boolean;
   // 画像生成モードを利用できるかどうか。
   supportsImageGeneration: boolean;
-  // Web 検索を利用できるかどうか。OpenAIとDeepSeekは各Responses APIの組み込み検索を使う。
+  // 実際に利用できるプロバイダーの検索機能だけを有効にする。
   supportsWebSearch: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];
@@ -55,7 +55,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     provider: "deepseek",
     supportsImageInput: true,
     supportsImageGeneration: false,
-    supportsWebSearch: true,
+    // 現行の DeepSeek Responses API は組み込み web_search を無視する。
+    supportsWebSearch: false,
     // 推論強度は low / high / max に対応し、既定値は high。
     reasoningEfforts: ["low", "high", "max"],
     defaultReasoning: "high",

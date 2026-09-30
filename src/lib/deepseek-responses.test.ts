@@ -5,6 +5,12 @@ import {
 } from "./deepseek-responses";
 
 describe("DeepSeek Responses API helpers", () => {
+  it("rejects incomplete replies and unhandled tool calls", () => {
+    expect(() => parseDeepSeekResponsesDelta(JSON.stringify({ type: "response.incomplete" }))).toThrow("incomplete");
+    expect(() => parseDeepSeekResponsesDelta(JSON.stringify({
+      type: "response.output_item.added", item: { type: "function_call" },
+    }))).toThrow("unavailable tool");
+  });
   it("builds a Responses request without Chat Completions fields", () => {
     const request = buildDeepSeekResponsesRequest({
       model: "deepseek-flash",
@@ -28,20 +34,8 @@ describe("DeepSeek Responses API helpers", () => {
     expect(request).not.toHaveProperty("previous_response_id");
     expect(request).not.toHaveProperty("safety_identifier");
     expect(request).not.toHaveProperty("store");
-  });
-
-  it("adds native web search with automatic tool selection", () => {
-    const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-flash",
-      instructions: "Answer the user.",
-      input: "What is the latest news?",
-      tools: [{ type: "web_search" }],
-      toolChoice: "auto",
-      stream: true,
-    });
-
-    expect(request.tools).toEqual([{ type: "web_search" }]);
-    expect(request.tool_choice).toBe("auto");
+    expect(request).not.toHaveProperty("tools");
+    expect(request).not.toHaveProperty("tool_choice");
   });
 
   it("preserves image parts in vision input", () => {
@@ -63,19 +57,6 @@ describe("DeepSeek Responses API helpers", () => {
     });
 
     expect(request.input).toEqual(imageInput);
-  });
-
-  it("can require native web search", () => {
-    const request = buildDeepSeekResponsesRequest({
-      model: "deepseek-flash",
-      instructions: "Search before answering.",
-      input: "Find the current price.",
-      tools: [{ type: "web_search" }],
-      toolChoice: "required",
-      stream: true,
-    });
-
-    expect(request.tool_choice).toBe("required");
   });
 
   it("forwards only output text deltas from the Responses stream", () => {

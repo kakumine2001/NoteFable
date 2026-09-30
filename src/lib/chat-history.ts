@@ -1,6 +1,7 @@
 import { buildAttachmentPrompt, type PreparedAttachment } from "@/lib/files";
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { readStoredImage } from "@/lib/storage";
+import { hasToolMarkup } from "@/lib/tool-markup-guard";
 
 const MAX_HISTORY_ATTACHMENT_TEXT_CHARS = 120_000;
 const MAX_HISTORY_IMAGE_FILES = 3;
@@ -38,6 +39,9 @@ export async function buildHistoryInput(
 
   for (const message of newestFirstMessages) {
     const role = message.role === "ASSISTANT" ? "assistant" : "user";
+
+    // 過去の壊れた回答を再投入すると、同じツール記法を模倣しやすくなる。
+    if (role === "assistant" && hasToolMarkup(message.content)) continue;
 
     if (role !== "user" || !message.attachments.length) {
       inputByMessageId.set(message.id, { role, content: message.content });
@@ -112,5 +116,8 @@ export async function buildHistoryInput(
 
   return [...newestFirstMessages]
     .reverse()
-    .map((message) => inputByMessageId.get(message.id) as HistoryInput);
+    .flatMap((message) => {
+      const input = inputByMessageId.get(message.id);
+      return input ? [input] : [];
+    });
 }

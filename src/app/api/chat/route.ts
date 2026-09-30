@@ -15,13 +15,13 @@ import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { consumeSseData } from "@/lib/sse";
+import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import {
   buildDeepSeekResponsesRequest,
   parseDeepSeekResponsesDelta,
 } from "@/lib/deepseek-responses";
 import {
-  getDeepSeekWebSearchOptions,
   normalizeWebSearchMode,
   type WebSearchMode,
 } from "@/lib/web-search";
@@ -48,7 +48,9 @@ function buildInstructions(webSearchMode: WebSearchMode) {
       ? [
           "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
         ]
-      : []),
+      : webSearchMode === "off"
+        ? ["Web search is unavailable in this request. Do not simulate searches, tool calls, or tool results. Be explicit when current information cannot be verified."]
+        : []),
   ].join(" ");
 }
 
@@ -169,7 +171,6 @@ async function createDeepSeekResponsesStream({
     instructions,
     input,
     effort: reasoning,
-    ...getDeepSeekWebSearchOptions(webSearchMode),
     stream: true,
   });
   const response = await fetch(`${baseURL.replace(/\/$/, "")}/responses`, {
@@ -258,7 +259,7 @@ export async function POST(request: Request) {
   const modelOption = getModelOption(model);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
   const reasoning = normalizeReasoning(formData.get("reasoning"), model);
-  // Auto は各プロバイダーのモデル判断に任せ、Force はDeepSeekのnative検索を必須にする。
+  // 検索非対応モデルでは、古いクライアントの指定も off に正規化する。
   // フィールド未指定でも検索対応モデルなら auto になる。
   const webSearchMode = normalizeWebSearchMode(
     formData.get("webSearch"),
@@ -411,6 +412,7 @@ export async function POST(request: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
+      let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
@@ -440,7 +442,15 @@ export async function POST(request: Request) {
                 stream: true,
               });
         // 上流 AI からの SSE を読み取る reader。
-        const reader = upstream.getReader();
+        reader = upstream.getReader();
+        const guard = modelOption.provider === "deepseek" ? new ToolMarkupGuard() : null;
+        let completed = false;
+
+        const forwardText = (delta: string) => {
+          if (!delta) return;
+          assistantText += delta;
+          controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
+        };
 
         const forwardData = (data: string[]) => {
           for (const payload of data) {
@@ -449,11 +459,8 @@ export async function POST(request: Request) {
               modelOption.provider === "deepseek"
                 ? parseDeepSeekResponsesDelta(payload)
                 : parseResponsesDelta(payload);
-            if (!delta) continue;
-
-            // クライアントへ返したものと DB 保存内容がずれないよう、同じ delta を累積する。
-            assistantText += delta;
-            controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
+            if (guard && JSON.parse(payload).type === "response.completed") completed = true;
+            forwardText(guard ? guard.push(delta) : delta);
           }
         };
 
@@ -474,6 +481,12 @@ export async function POST(request: Request) {
         buffer = finalBatch.remainder;
         forwardData(finalBatch.data);
 
+        if (guard) {
+          if (!completed) throw new Error("DeepSeek stream ended before completion. Please retry.");
+          forwardText(guard.finish());
+          if (!assistantText.trim()) throw new Error("DeepSeek returned an empty response. Please retry.");
+        }
+
         await prisma.message.create({
           data: {
             sessionId: session.id,
@@ -493,6 +506,8 @@ export async function POST(request: Request) {
 
         controller.close();
       } catch (error) {
+        // 異常出力を検出したら上流の読み取りも止める。
+        await reader?.cancel().catch(() => {});
         // 上流 API が途中で失敗しても、すでにユーザーへ返した本文は失わない。
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
         const errorText = `Request failed: ${getErrorMessage(error)}`;
@@ -520,6 +535,8 @@ export async function POST(request: Request) {
         });
 
         controller.close();
+      } finally {
+        reader?.releaseLock();
       }
     },
   });

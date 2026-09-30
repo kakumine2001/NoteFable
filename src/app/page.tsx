@@ -18,9 +18,10 @@ import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
-import { NotionDrawer } from "@/components/notion-drawer";
+import { NotionDrawer, type NotionDraftState } from "@/components/notion-drawer";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
+import { createTranscriptBlocks, revokeDraftPreviews } from "@/lib/notion-draft";
 import { formatTranscriptForNotion } from "@/lib/notion-transcript";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
@@ -29,7 +30,6 @@ const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
 const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
 const SESSION_LOAD_FALLBACK_ERROR = "Failed to load conversation.";
-const NOTION_SAVE_FALLBACK_ERROR = "Failed to save to Notion.";
 
 function getMessagesKey(sessionId: string | null) {
   return sessionId ?? NEW_SESSION_MESSAGES_KEY;
@@ -133,16 +133,11 @@ export default function Home() {
   const [isAtChatBottom, setIsAtChatBottom] = useState(true);
   // Notion へ保存する前にユーザーが編集できる下書きパネル。
   const [notionDraftOpen, setNotionDraftOpen] = useState(false);
-  // Notion ページタイトル。会話タイトルを初期値にし、手動メモにも使える。
-  const [notionTitle, setNotionTitle] = useState("");
-  // Notion へ送る本文。会話全文を初期値にするが、自由に貼り替えられる。
-  const [notionContent, setNotionContent] = useState("");
-  // Notion 保存中の二重送信を防ぐ。
-  const [notionSaving, setNotionSaving] = useState(false);
-  // Notion 保存エラーを下書きパネル内に表示する。
-  const [notionError, setNotionError] = useState("");
-  // 保存成功後に Notion ページを開けるよう URL を保持する。
-  const [notionUrl, setNotionUrl] = useState("");
+  // Notion 下書き。本文は「文章・ファイル」の順序付きブロックとして持つ。
+  // パネルを閉じても保持し、失敗した保存の続きから再試行できるようにする。
+  const [notionDraft, setNotionDraft] = useState<NotionDraftState | null>(null);
+  // 保存に成功した下書きは、次に開いた時に会話から作り直す。
+  const notionSavedRef = useRef(false);
   // 会話本文のスクロール領域。手動で最下部へ移動するボタンだけで使う。
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
@@ -157,6 +152,8 @@ export default function Home() {
   const streamingSessionsRef = useRef<Record<string, number>>({});
   // アンマウント時のクリーンアップで最新の添付一覧を参照するための ref。
   const filesRef = useRef<UploadFile[]>([]);
+  // Notion 下書きのプレビュー URL も、ページ破棄時にまとめて解放する。
+  const notionDraftRef = useRef<NotionDraftState | null>(null);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
@@ -500,50 +497,28 @@ export default function Home() {
   }
 
   function openNotionDraft() {
-    // 現在表示中の会話を初期値にする。空なら自由入力用の空下書きを開く。
-    setNotionTitle(activeTitle);
-    setNotionContent(formatTranscriptForNotion(messages));
-    setNotionError("");
-    setNotionUrl("");
+    // 初回だけ会話から下書きを作る。編集中の下書きがあればそれを優先し、
+    // 失敗した保存の続きをそのまま再試行できるようにする。
+    if (!notionDraft) {
+      setNotionDraft({
+        title: activeTitle,
+        blocks: createTranscriptBlocks(formatTranscriptForNotion(messages)),
+        resume: null,
+      });
+    }
+
     setNotionDraftOpen(true);
   }
 
-  async function saveNotionDraft() {
-    const title = notionTitle.trim();
-    const content = notionContent.trim();
-
-    if (!title || !content || notionSaving) {
-      setNotionError("Title and content are required.");
-      return;
+  function closeNotionDraft() {
+    // 保存まで終わった下書きは残さない。次に開く時は最新の会話から作り直す。
+    if (notionSavedRef.current && notionDraft) {
+      revokeDraftPreviews(notionDraft.blocks);
+      notionSavedRef.current = false;
+      setNotionDraft(null);
     }
 
-    setNotionSaving(true);
-    setNotionError("");
-    setNotionUrl("");
-
-    try {
-      const response = await fetch("/api/notion/pages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          content,
-          sessionId: activeSessionId ?? undefined,
-        }),
-      });
-      const data = await readJsonObject(response);
-
-      if (!response.ok) {
-        setNotionError(readErrorMessage(data, NOTION_SAVE_FALLBACK_ERROR));
-        return;
-      }
-
-      setNotionUrl(typeof data.url === "string" ? data.url : "");
-    } catch {
-      setNotionError(NOTION_SAVE_FALLBACK_ERROR);
-    } finally {
-      setNotionSaving(false);
-    }
+    setNotionDraftOpen(false);
   }
 
   async function sendMessage(event: FormEvent) {
@@ -824,11 +799,18 @@ export default function Home() {
   }, [files]);
 
   useEffect(() => {
+    notionDraftRef.current = notionDraft;
+  }, [notionDraft]);
+
+  useEffect(() => {
     // files は state のためクリーンアップ関数内だと古い値になりやすい。
     // ref に最新値を持たせ、ページ破棄時に未送信ファイルの previewUrl をまとめて解放する。
     return () => {
       sessionLoadAbortRef.current?.abort();
       revokeUploadPreviews(filesRef.current);
+      if (notionDraftRef.current) {
+        revokeDraftPreviews(notionDraftRef.current.blocks);
+      }
     };
   }, []);
 
@@ -963,17 +945,15 @@ export default function Home() {
           </div>
         </header>
 
-        {notionDraftOpen && (
+        {notionDraftOpen && notionDraft && (
           <NotionDrawer
-            title={notionTitle}
-            content={notionContent}
-            saving={notionSaving}
-            error={notionError}
-            url={notionUrl}
-            onTitleChange={setNotionTitle}
-            onContentChange={setNotionContent}
-            onClose={() => setNotionDraftOpen(false)}
-            onSave={saveNotionDraft}
+            draft={notionDraft}
+            sessionId={activeSessionId}
+            onDraftChange={setNotionDraft}
+            onClose={closeNotionDraft}
+            onSaved={() => {
+              notionSavedRef.current = true;
+            }}
           />
         )}
 

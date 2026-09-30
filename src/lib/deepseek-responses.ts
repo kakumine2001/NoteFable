@@ -3,12 +3,6 @@ export type DeepSeekResponsesInput = {
   content: unknown;
 };
 
-export type DeepSeekResponsesTool = {
-  type: "web_search";
-};
-
-export type DeepSeekResponsesToolChoice = "auto" | "required" | "none";
-
 export type DeepSeekResponsesRequest = {
   model: string;
   instructions: string;
@@ -16,8 +10,6 @@ export type DeepSeekResponsesRequest = {
   reasoning?: {
     effort: string;
   };
-  tools?: DeepSeekResponsesTool[];
-  tool_choice?: DeepSeekResponsesToolChoice;
   max_output_tokens?: number;
   stream: boolean;
 };
@@ -33,6 +25,7 @@ type DeepSeekResponsesEvent = {
       message?: string | null;
     };
   };
+  item?: { type?: string };
 };
 
 export function buildDeepSeekResponsesRequest({
@@ -40,8 +33,6 @@ export function buildDeepSeekResponsesRequest({
   instructions,
   input,
   effort,
-  tools,
-  toolChoice,
   maxOutputTokens,
   stream,
 }: {
@@ -49,8 +40,6 @@ export function buildDeepSeekResponsesRequest({
   instructions: string;
   input: DeepSeekResponsesInput[] | string;
   effort?: string;
-  tools?: DeepSeekResponsesTool[];
-  toolChoice?: DeepSeekResponsesToolChoice;
   maxOutputTokens?: number;
   stream: boolean;
 }): DeepSeekResponsesRequest {
@@ -59,8 +48,6 @@ export function buildDeepSeekResponsesRequest({
     instructions,
     input,
     ...(effort ? { reasoning: { effort } } : {}),
-    ...(tools?.length ? { tools } : {}),
-    ...(toolChoice ? { tool_choice: toolChoice } : {}),
     ...(maxOutputTokens ? { max_output_tokens: maxOutputTokens } : {}),
     stream,
   };
@@ -77,6 +64,14 @@ export function parseDeepSeekResponsesDelta(line: string) {
     );
   }
 
-  // Web検索中のイベントや推論差分は画面に出さず、本文差分だけを転送する。
+  if (data.type === "response.incomplete") {
+    throw new Error("DeepSeek response was incomplete. Please retry.");
+  }
+
+  if (data.item?.type === "function_call" || data.item?.type === "custom_tool_call") {
+    throw new Error("DeepSeek requested an unavailable tool. Use GPT for web search.");
+  }
+
+  // 推論差分は画面に出さず、本文差分だけを転送する。
   return data.type === "response.output_text.delta" ? (data.delta ?? "") : "";
 }

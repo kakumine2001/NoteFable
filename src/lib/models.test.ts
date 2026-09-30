@@ -9,6 +9,10 @@ import {
 } from "./models";
 
 describe("model configuration", () => {
+  it("only enables web search for a provider that implements it", () => {
+    expect(getModelOption("deepseek-flash").supportsWebSearch).toBe(false);
+    expect(getModelOption("gpt-5.6-sol").supportsWebSearch).toBe(true);
+  });
   it("keeps DeepSeek text-only and GPT image-capable", () => {
     const openAI = getModelOption("gpt-5.6-sol");
     const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
