@@ -84,3 +84,38 @@ describe("DeepSeek chat response boundary", () => {
     expect(await send(events)).toContain("Request failed:");
   });
 });
+
+describe("OpenAI web search", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+  });
+
+  it.each([
+    ["auto", "auto"],
+    ["force", "required"],
+  ])("passes %s search through and preserves cited links", async (mode, choice) => {
+    mocks.fetch.mockResolvedValue(new Response([
+      { type: "response.output_text.delta", delta: "検索結果。" },
+      { type: "response.output_text.annotation.added", annotation: {
+        type: "url_citation", url: "https://example.com/news", title: "Example News",
+      } },
+      { type: "response.completed" },
+    ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")));
+
+    const form = new FormData();
+    form.set("message", "最新ニュースは？");
+    form.set("model", "gpt-6-luna");
+    form.set("webSearch", mode);
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    const text = (await response.text()).split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6))).join("");
+    const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
+    expect(body.tools).toEqual([{ type: "web_search" }]);
+    expect(body.tool_choice).toBe(choice);
+    expect(text).toContain("[Example News](<https://example.com/news>)");
+    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
+  });
+});

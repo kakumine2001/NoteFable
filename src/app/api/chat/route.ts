@@ -44,6 +44,9 @@ function buildInstructions(webSearchMode: WebSearchMode) {
     "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
     "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
     "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+    ...(webSearchMode !== "off"
+      ? ["When web search supplies facts, include clickable Markdown links to the sources in the answer."]
+      : []),
     ...(webSearchMode === "auto"
       ? [
           "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
@@ -64,7 +67,7 @@ type ResponsesStreamRequest = {
   tools?: {
     type: "web_search";
   }[];
-  tool_choice?: "auto";
+  tool_choice?: "auto" | "required";
   safety_identifier: string;
   store: false;
   stream: true;
@@ -73,10 +76,39 @@ type ResponsesStreamRequest = {
 type ResponsesStreamEvent = {
   type?: string;
   delta?: string;
+  annotation?: {
+    type?: string;
+    url?: string;
+    title?: string;
+  };
   error?: {
     message?: string;
   };
 };
+
+function getWebCitation(line: string) {
+  const event = JSON.parse(line) as ResponsesStreamEvent;
+  if (event.type !== "response.output_text.annotation.added") return null;
+  const annotation = event.annotation;
+  if (annotation?.type !== "url_citation" || !annotation.url) return null;
+
+  try {
+    const url = new URL(annotation.url);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    return { url: url.href, title: annotation.title?.trim() || url.hostname };
+  } catch {
+    return null;
+  }
+}
+
+function formatWebCitations(citations: Map<string, string>) {
+  if (!citations.size) return "";
+  // Markdown のリンク先と表示名を安全に整えて、検索出典を保存済み本文にも残す。
+  const links = [...citations].map(([url, title]) =>
+    `- [${title.replace(/[\[\]\\]/g, "").replace(/\s+/g, " ")}](<${url.replace(/[<>]/g, (char) => encodeURIComponent(char))}>)`,
+  );
+  return `\n\nSources:\n${links.join("\n")}`;
+}
 
 function parseResponsesDelta(line: string) {
   // OpenAI Responses API は SSE で複数種類のイベントを返す。
@@ -435,7 +467,7 @@ export async function POST(request: Request) {
                 ...(webSearchMode !== "off"
                   ? {
                       tools: [{ type: "web_search" }],
-                      tool_choice: "auto" as const,
+                      tool_choice: webSearchMode === "force" ? "required" as const : "auto" as const,
                     }
                   : {}),
                 store: false,
@@ -445,6 +477,7 @@ export async function POST(request: Request) {
         reader = upstream.getReader();
         const guard = modelOption.provider === "deepseek" ? new ToolMarkupGuard() : null;
         let completed = false;
+        const webCitations = new Map<string, string>();
 
         const forwardText = (delta: string) => {
           if (!delta) return;
@@ -454,6 +487,10 @@ export async function POST(request: Request) {
 
         const forwardData = (data: string[]) => {
           for (const payload of data) {
+            if (modelOption.provider === "openai") {
+              const citation = getWebCitation(payload);
+              if (citation) webCitations.set(citation.url, citation.title);
+            }
             // プロバイダー別の形式から、画面に出す本文差分だけを取り出す。
             const delta =
               modelOption.provider === "deepseek"
@@ -485,6 +522,10 @@ export async function POST(request: Request) {
           if (!completed) throw new Error("DeepSeek stream ended before completion. Please retry.");
           forwardText(guard.finish());
           if (!assistantText.trim()) throw new Error("DeepSeek returned an empty response. Please retry.");
+        }
+
+        if (modelOption.provider === "openai") {
+          forwardText(formatWebCitations(webCitations));
         }
 
         await prisma.message.create({
