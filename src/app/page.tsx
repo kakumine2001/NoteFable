@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  FileText,
   ImagePlus,
   Menu,
   Paperclip,
@@ -20,6 +21,7 @@ import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
 import { NotionDrawer, type NotionDraftState } from "@/components/notion-drawer";
 import { NotesSidebar } from "@/components/notes-sidebar";
+import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
@@ -106,7 +108,7 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
 }
 
 export default function Home() {
-  const [workspaceView, setWorkspaceView] = useState<"chat" | "pages">("chat");
+  const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
 
   useEffect(() => {
@@ -118,7 +120,7 @@ export default function Home() {
     return () => window.removeEventListener("popstate", syncWorkspace);
   }, []);
 
-  function changeWorkspace(view: "chat" | "pages") {
+  function changeWorkspace(view: WorkspaceView) {
     if (view === workspaceView) return;
     setWorkspaceView(view);
     setSidebarOpen(false);
@@ -907,7 +909,7 @@ export default function Home() {
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
       onCreate={() => void notes.create()} onSelect={(id) => { void notes.select(id); setSidebarOpen(false); }}
-      onDelete={notes.remove} onClose={closeSidebar} />
+      onDelete={notes.remove} onClose={closeSidebar} onWorkspaceChange={changeWorkspace} />
   ) : (
     <ChatSidebar
       sessions={sessions}
@@ -916,6 +918,7 @@ export default function Home() {
       onLoad={loadMessages}
       onDelete={deleteSession}
       onClose={closeSidebar}
+      onWorkspaceChange={changeWorkspace}
     />
   );
 
@@ -958,12 +961,11 @@ export default function Home() {
                 <PanelLeft size={22} strokeWidth={1.8} />
               </button>
             )}
-            <div className="workspace-switch" role="group" aria-label="Workspace mode">
-              <button type="button" aria-pressed={workspaceView === "chat"} onClick={() => changeWorkspace("chat")}>Chat</button>
-              <button type="button" aria-pressed={workspaceView === "pages"} onClick={() => changeWorkspace("pages")}>Pages</button>
-            </div>
             <div className="min-w-0 hidden sm:block">
-              <div className="truncate text-sm text-[var(--notion-muted)]">{workspaceView === "pages" ? notes.active?.content.title || "Pages" : activeTitle}</div>
+              <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
+                {workspaceView === "pages" && <FileText size={15} className="shrink-0" />}
+                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Pages" : activeTitle}</span>
+              </div>
             </div>
           </div>
 
@@ -973,9 +975,6 @@ export default function Home() {
                 {notes.active ? ({ saved: "Saved", pending: "Unsaved", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
               </span>
             ) : <>
-            <div className={`hidden text-xs text-[var(--notion-muted)] sm:block ${emptyState ? "sm:hidden" : ""}`}>
-              {selectedModel.label}
-            </div>
             <button
               type="button"
               onClick={openNotionDraft}

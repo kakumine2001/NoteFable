@@ -2,9 +2,11 @@
 
 import { MessageSquareText, PanelLeftClose, Plus, Trash2 } from "lucide-react";
 import { StudyMateLogo } from "@/components/studymate-logo";
+import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import type { Session } from "@/types/chat";
 
 type ChatSidebarProps = {
+  onWorkspaceChange: (view: WorkspaceView) => void;
   sessions: Session[];
   activeSessionId: string | null;
   onClose: () => void;
@@ -20,6 +22,7 @@ export function ChatSidebar({
   onCreate,
   onLoad,
   onDelete,
+  onWorkspaceChange,
 }: ChatSidebarProps) {
   return (
     <aside className="notion-sidebar">
@@ -29,6 +32,8 @@ export function ChatSidebar({
           <PanelLeftClose size={17} />
         </button>
       </div>
+
+      <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
       <div className="px-2 pt-1">
         <button type="button" onClick={onCreate} className="notion-sidebar-action">

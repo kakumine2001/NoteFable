@@ -3,11 +3,12 @@
 import { FileText, PanelLeftClose, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { StudyMateLogo } from "@/components/studymate-logo";
+import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import type { NotePageSummary } from "@/types/notes";
 
-export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDelete, onClose }: {
+export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDelete, onClose, onWorkspaceChange }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
-  onCreate: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
 }) {
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
   const dialog = useRef<HTMLDialogElement>(null);
@@ -20,10 +21,11 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
         <StudyMateLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label="Close sidebar"><PanelLeftClose size={17} /></button>
       </div>
-      <div className="px-2 pt-1">
-        <button type="button" className="notion-sidebar-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New page</span></button>
+      <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
+      <div className="mt-5 flex h-6 items-center justify-between pl-4 pr-3 text-xs font-medium text-[var(--notion-muted)]">
+        <span>Private</span>
+        <button type="button" className="notion-icon-button grid !h-5 !w-5" disabled={busy} onClick={onCreate} aria-label="New page" title="New page"><Plus size={14} /></button>
       </div>
-      <div className="mt-5 px-4 pb-2 text-xs font-medium text-[var(--notion-muted)]">Pages</div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your pages will appear here.</p>}
         {pages.map((page) => (
@@ -34,6 +36,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
             <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Delete ${page.title}`}><Trash2 size={14} /></button>
           </div>
         ))}
+        <button type="button" className="notion-sidebar-action !text-[var(--notion-faint)]" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New page</span></button>
       </div>
       {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
           <h2 id="delete-page-title" className="text-base font-semibold">Delete page?</h2>

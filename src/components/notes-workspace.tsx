@@ -30,6 +30,7 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
     <div className="notion-page-column px-6 pb-24 pt-12 sm:px-12">
       {error && <div className="notion-error mb-5" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div>}
       {loading ? <p className="notes-loading">Loading page…</p> : active && activeId ? <>
+        <FileText size={64} strokeWidth={1} className="notes-page-icon" aria-hidden="true" />
         <textarea ref={titleRef} rows={1} className="notes-title" aria-label="Page title" maxLength={200} placeholder="Untitled" value={active.content.title} disabled={busy}
           onChange={(event) => active.edit({ ...active.content, title: event.target.value.replace(/\r?\n/g, " ") })}
           onKeyDown={(event) => {

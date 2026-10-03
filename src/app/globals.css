@@ -73,29 +73,7 @@ button:disabled {
   color: var(--notion-text);
 }
 
-.workspace-switch {
-  display: inline-flex;
-  gap: 2px;
-  flex: none;
-  padding: 3px;
-  border-radius: 6px;
-  background: var(--notion-sidebar);
-}
-
-.workspace-switch button {
-  padding: 4px 10px;
-  border-radius: 4px;
-  font-size: 12px;
-  color: var(--notion-muted);
-}
-
-.workspace-switch button[aria-pressed="true"] {
-  color: var(--notion-text);
-  background: white;
-  box-shadow: 0 1px 3px rgba(15, 15, 15, 0.08);
-}
-
-.workspace-switch button:focus-visible { outline: 2px solid var(--notion-blue); }
+.notes-page-icon { display: block; margin: 0 0 0.9rem 2px; color: var(--notion-text); opacity: 0.85; }
 .notes-save-status { font-size: 12px; color: var(--notion-muted); }
 .notes-save-status.has-error { color: #b45309; }
 .notes-title {
@@ -108,10 +86,10 @@ button:disabled {
   resize: none;
   overflow: hidden;
   background: transparent;
-  font-size: 2rem;
+  font-size: 2.5rem;
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.025em;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
   color: var(--notion-text);
 }
 .notes-title::placeholder { color: var(--notion-faint); }
@@ -136,7 +114,6 @@ button:disabled {
 
 @media (max-width: 639px) {
   .notes-title { font-size: 1.75rem; }
-  .workspace-switch button { padding-inline: 8px; }
   .notes-block-editor .bn-side-menu { margin-left: 4px; }
 }
 
@@ -191,6 +168,10 @@ button:disabled {
 
 .notion-sidebar-action:hover {
   background: var(--notion-hover);
+}
+
+.notion-sidebar-action.is-active {
+  font-weight: 600;
 }
 
 .notion-session-row {
