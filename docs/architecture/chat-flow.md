@@ -69,10 +69,16 @@ find Session where id + userId match
 
 ```text
 create Session
-title = message 前部生成
+title = message 前部生成（仅作临时标题）
 ```
 
 所以 Session 所有权始终跟匿名设备绑定。
+
+### AI 标题
+
+新建 Session，或给空的 `New chat` 发送第一条消息时，服务端在上游流开始后追加一次非流式请求（`src/lib/chat-title.ts`），只根据用户第一条消息（前 2,000 字符，不含附件和回答）生成简短标题：使用当前所选模型的最低推理强度（OpenAI `none`，DeepSeek `low`），不带搜索工具。
+
+只有标题仍是临时标题时才写入，期间被改过的标题不会被覆盖。请求失败、超时（6 秒）或返回空文本时保留临时标题，不影响聊天本身。服务端在关闭流之前等待该请求，所以客户端在流结束后重新取得会话列表时已能看到新标题。后续消息不再生成标题。图片生成路径（`/api/images`）仍使用截取的标题。
 
 ## Attachment 进入模型的方式
 

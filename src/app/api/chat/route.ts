@@ -10,7 +10,14 @@ import {
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { buildHistoryInput } from "@/lib/chat-history";
-import { getModelOption, normalizeModel, normalizeReasoning, toDbReasoning } from "@/lib/models";
+import { generateChatTitle } from "@/lib/chat-title";
+import {
+  getModelOption,
+  normalizeModel,
+  normalizeReasoning,
+  toDbReasoning,
+  type ModelProvider,
+} from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
@@ -166,6 +173,38 @@ function getErrorMessage(error: unknown) {
 function encodeTextStreamEvent(delta: string) {
   // 本番プロキシに通常テキストとして圧縮・結合されないよう、本文差分は SSE として送る。
   return `data: ${JSON.stringify(delta)}\n\n`;
+}
+
+// 最初のメッセージから AI タイトルを作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
+// 仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
+async function saveGeneratedTitle({
+  sessionId,
+  userId,
+  placeholder,
+  provider,
+  model,
+  message,
+}: {
+  sessionId: string;
+  userId: string;
+  placeholder: string;
+  provider: ModelProvider;
+  model: string;
+  message: string;
+}) {
+  try {
+    const title = await generateChatTitle({ provider, model, message, userId });
+    if (!title) {
+      console.error("Chat title response had no text; keeping the placeholder.");
+      return;
+    }
+    await prisma.session.updateMany({
+      where: { id: sessionId, userId, title: placeholder },
+      data: { title },
+    });
+  } catch (error) {
+    console.error("Failed to generate chat title", getErrorMessage(error));
+  }
 }
 
 function getUpstreamModel(model: string) {
@@ -368,10 +407,14 @@ export async function POST(request: Request) {
     },
   });
 
+  // 新規作成、または空の "New chat" に最初の発言が来たときだけ AI タイトルを作る。
+  const isFirstMessage = !sessionId || session.title === "New chat";
+  const placeholderTitle = makeTitle(message);
+
   if (session.title === "New chat") {
     await prisma.session.update({
       where: { id: session.id },
-      data: { title: makeTitle(message) },
+      data: { title: placeholderTitle },
     });
   }
 
@@ -441,6 +484,8 @@ export async function POST(request: Request) {
   let assistantText = "";
   // SSE の 1 行が chunk の境界で分断されることがあるため、未処理の末尾を保持する。
   let buffer = "";
+  // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
+  let titleTask: Promise<void> = Promise.resolve();
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -473,6 +518,16 @@ export async function POST(request: Request) {
                 store: false,
                 stream: true,
               });
+        if (isFirstMessage) {
+          titleTask = saveGeneratedTitle({
+            sessionId: session.id,
+            userId: user.id,
+            placeholder: placeholderTitle,
+            provider: modelOption.provider,
+            model: upstreamModel,
+            message,
+          });
+        }
         // 上流 AI からの SSE を読み取る reader。
         reader = upstream.getReader();
         const guard = modelOption.provider === "deepseek" ? new ToolMarkupGuard() : null;
@@ -545,6 +600,7 @@ export async function POST(request: Request) {
           data: { updatedAt: new Date() },
         });
 
+        await titleTask;
         controller.close();
       } catch (error) {
         // 異常出力を検出したら上流の読み取りも止める。
@@ -575,6 +631,7 @@ export async function POST(request: Request) {
           data: { updatedAt: new Date() },
         });
 
+        await titleTask;
         controller.close();
       } finally {
         reader?.releaseLock();

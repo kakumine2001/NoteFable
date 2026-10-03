@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   createMessage: vi.fn(),
+  updateManySession: vi.fn(),
   fetch: vi.fn(),
 }));
 
@@ -24,6 +25,8 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
   session: {
     create: async () => ({ id: "session", title: "Test" }),
     update: async () => ({}),
+    updateMany: mocks.updateManySession,
+    findFirst: async () => ({ id: "session", title: "Existing chat" }),
   },
   message: { create: mocks.createMessage, findMany: async () => [] },
 } }));
@@ -50,6 +53,7 @@ describe("DeepSeek chat response boundary", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.createMessage.mockResolvedValue({ id: "message" });
   });
 
@@ -89,6 +93,7 @@ describe("OpenAI web search", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.createMessage.mockResolvedValue({ id: "message" });
   });
 
@@ -117,5 +122,90 @@ describe("OpenAI web search", () => {
     expect(body.tool_choice).toBe(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
+  });
+});
+
+describe("AI chat title", () => {
+  const sse = (events: unknown[]) =>
+    new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""));
+  const titleResponse = (text: string) =>
+    new Response(JSON.stringify({ output: [{ type: "message", content: [{ type: "output_text", text }] }] }));
+
+  async function sendFirst(fields: Record<string, string>) {
+    const form = new FormData();
+    form.set("message", "Prismのmigrateで失敗した原因を教えて");
+    for (const [key, value] of Object.entries(fields)) form.set(key, value);
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    await response.text();
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+  });
+
+  it("replaces the placeholder with an AI title built from the first message only", async () => {
+    mocks.fetch
+      .mockResolvedValueOnce(sse([{ type: "response.output_text.delta", delta: "回答" }, { type: "response.completed" }]))
+      .mockResolvedValueOnce(titleResponse("「Prisma migrate の失敗原因」"));
+    await sendFirst({ model: "gpt-6-luna" });
+
+    const titleBody = JSON.parse(mocks.fetch.mock.calls[1][1].body);
+    expect(titleBody.input).toBe("Prismのmigrateで失敗した原因を教えて");
+    expect(titleBody.reasoning).toEqual({ effort: "none" });
+    expect(titleBody.stream).toBe(false);
+    expect(titleBody).not.toHaveProperty("tools");
+    expect(mocks.updateManySession).toHaveBeenCalledWith({
+      where: { id: "session", userId: "user", title: "Prismのmigrateで失敗した原因を教えて" },
+      data: { title: "Prisma migrate の失敗原因" },
+    });
+  });
+
+  it("keeps the placeholder when the title request fails", async () => {
+    mocks.fetch
+      .mockResolvedValueOnce(sse([{ type: "response.output_text.delta", delta: "回答" }, { type: "response.completed" }]))
+      .mockResolvedValueOnce(new Response("{}", { status: 500 }));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    await sendFirst({ model: "gpt-6-luna" });
+    expect(mocks.updateManySession).not.toHaveBeenCalled();
+  });
+
+  it("does not generate a title for later messages in an existing chat", async () => {
+    mocks.fetch.mockResolvedValueOnce(
+      sse([{ type: "response.output_text.delta", delta: "回答" }, { type: "response.completed" }]),
+    );
+    await sendFirst({ model: "gpt-6-luna", sessionId: "session" });
+    expect(mocks.fetch).toHaveBeenCalledTimes(1);
+    expect(mocks.updateManySession).not.toHaveBeenCalled();
+  });
+});
+
+describe("AI chat title with DeepSeek", () => {
+  it("sends the title request to DeepSeek with a budget large enough for its reasoning", async () => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+    const sse = [{ type: "response.output_text.delta", delta: "回答" }, { type: "response.completed" }]
+      .map((event) => `data: ${JSON.stringify(event)}\n\n`).join("");
+    mocks.fetch
+      .mockResolvedValueOnce(new Response(sse))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        output: [{ type: "reasoning" }, { type: "message", content: [{ type: "output_text", text: "typeとinterfaceの使い分け" }] }],
+      })));
+    const form = new FormData();
+    form.set("message", "TypeScriptのtypeとinterfaceの違いを教えて");
+    form.set("model", "deepseek-flash");
+    await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+
+    const titleBody = JSON.parse(mocks.fetch.mock.calls[1][1].body);
+    expect(titleBody.reasoning).toEqual({ effort: "low" });
+    expect(titleBody.max_output_tokens).toBeGreaterThanOrEqual(1024);
+    expect(titleBody.stream).toBe(false);
+    expect(mocks.updateManySession).toHaveBeenCalledWith(expect.objectContaining({
+      data: { title: "typeとinterfaceの使い分け" },
+    }));
   });
 });
