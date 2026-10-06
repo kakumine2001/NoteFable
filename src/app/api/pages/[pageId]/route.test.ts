@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => {
 import { DELETE, GET, PATCH } from "./route";
 
 const context = { params: Promise.resolve({ pageId: "p1" }) };
-const page = { id: "p1", title: "Saved", blocks: [], version: 2 };
+const page = { id: "p1", title: "Saved", icon: null, cover: null, blocks: [], version: 2 };
 function request(version = 1, title = "Mine") { return new Request("http://localhost/api/pages/p1", { method: "PATCH", body: JSON.stringify({ title, blocks: [], version }) }); }
 
 describe("page ownership and save concurrency", () => {
@@ -60,7 +60,7 @@ describe("page ownership and save concurrency", () => {
     mocks.update.mockResolvedValue({ count: 1 });
     mocks.find.mockResolvedValue(page);
     expect((await PATCH(request(), context)).status).toBe(200);
-    expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "Mine", blocks: [], version: { increment: 1 } });
+    expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "Mine", icon: null, cover: null, blocks: [], version: { increment: 1 } });
     mocks.limited = true;
     expect((await PATCH(request(), context)).status).toBe(429);
     expect(mocks.update).toHaveBeenCalledTimes(1);

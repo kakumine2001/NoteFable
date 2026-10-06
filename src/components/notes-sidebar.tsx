@@ -31,7 +31,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
         {pages.map((page) => (
           <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
             <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={page.title}>
-              <FileText size={15} className="shrink-0 text-[var(--notion-muted)]" /><span className="truncate text-sm">{page.title}</span>
+              <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span><span className="truncate text-sm">{page.title}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Delete ${page.title}`}><Trash2 size={14} /></button>
           </div>

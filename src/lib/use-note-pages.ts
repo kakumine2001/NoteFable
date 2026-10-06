@@ -40,7 +40,7 @@ export function useNotePages(enabled: boolean) {
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
       if (!existing) return [page, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
-      if (existing.title === page.title && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
+      if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
       return current.map((entry) => entry.id === page.id ? page : entry);
     });
   }, []);
@@ -59,7 +59,7 @@ export function useNotePages(enabled: boolean) {
       upsertSummary(data.page);
       return data.page;
     }, () => {
-      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled" });
+      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon });
       try {
         if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
         else localStorage.removeItem(DRAFT_PREFIX + page.id);
@@ -100,7 +100,7 @@ export function useNotePages(enabled: boolean) {
       setActiveId(id);
       displayedId.current = id;
       setActive(queue);
-      upsertSummary({ ...data.page, title: queue.content.title.trim() || "Untitled" });
+      upsertSummary({ ...data.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon });
       const url = new URL(window.location.href);
       url.searchParams.set("page", id);
       if (historyMode !== "none" && url.searchParams.get("view") === "pages" && url.href !== window.location.href) {
@@ -167,7 +167,7 @@ export function useNotePages(enabled: boolean) {
     setError("");
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
-      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", blocks: [] };
+      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, blocks: [] };
       const { page } = await pageRequest("/api/pages", "POST", content);
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);

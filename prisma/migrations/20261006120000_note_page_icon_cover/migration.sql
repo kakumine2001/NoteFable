@@ -1,0 +1,2 @@
+ALTER TABLE "NotePage" ADD COLUMN "icon" TEXT;
+ALTER TABLE "NotePage" ADD COLUMN "cover" TEXT;

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NoteSaveError, NoteSaveQueue } from "./note-save-queue";
 import type { NotePage } from "@/types/notes";
 
-const page: NotePage = { id: "page", title: "First", blocks: [], version: 0, createdAt: "2026-09-30", updatedAt: "2026-09-30" };
+const page: NotePage = { id: "page", title: "First", icon: null, cover: null, blocks: [], version: 0, createdAt: "2026-09-30", updatedAt: "2026-09-30" };
 afterEach(() => { vi.useRealTimers(); });
 
 describe("page autosave queue", () => {
@@ -11,14 +11,14 @@ describe("page autosave queue", () => {
     const save = vi.fn().mockImplementationOnce(() => new Promise<NotePage>((resolve) => { resolveFirst = resolve; }))
       .mockImplementationOnce(async (content, version) => ({ ...page, ...content, version: version + 1 }));
     const queue = new NoteSaveQueue(page, save, () => {});
-    queue.edit({ title: "Second", blocks: [] });
+    queue.edit({ title: "Second", icon: null, cover: null, blocks: [] });
     const first = queue.flush();
-    queue.edit({ title: "Third", blocks: [] });
+    queue.edit({ title: "Third", icon: null, cover: null, blocks: [] });
     expect(save).toHaveBeenCalledTimes(1);
     expect(queue.flush()).toBe(first);
     resolveFirst({ ...page, title: "Second", version: 1 });
     expect(await first).toBe(true);
-    expect(save.mock.calls[1]).toEqual([{ title: "Third", blocks: [] }, 1]);
+    expect(save.mock.calls[1]).toEqual([{ title: "Third", icon: null, cover: null, blocks: [] }, 1]);
     expect(queue.content.title).toBe("Third");
     expect(queue.dirty).toBe(false);
     expect(queue.version).toBe(2);
@@ -28,9 +28,9 @@ describe("page autosave queue", () => {
     vi.useFakeTimers();
     const save = vi.fn().mockRejectedValueOnce(new Error("Offline")).mockResolvedValueOnce({ ...page, title: "Second", version: 1 });
     const queue = new NoteSaveQueue(page, save, () => {});
-    queue.edit({ title: "S", blocks: [] });
+    queue.edit({ title: "S", icon: null, cover: null, blocks: [] });
     await vi.advanceTimersByTimeAsync(700);
-    queue.edit({ title: "Second", blocks: [] });
+    queue.edit({ title: "Second", icon: null, cover: null, blocks: [] });
     await vi.advanceTimersByTimeAsync(999);
     expect(save).not.toHaveBeenCalled();
     await vi.advanceTimersByTimeAsync(1);
@@ -46,9 +46,9 @@ describe("page autosave queue", () => {
     const latest = { ...page, title: "Other tab", version: 2 };
     const save = vi.fn().mockRejectedValue(new NoteSaveError("Conflict", 409, latest));
     const queue = new NoteSaveQueue(page, save, () => {});
-    queue.edit({ title: "Mine", blocks: [] });
+    queue.edit({ title: "Mine", icon: null, cover: null, blocks: [] });
     expect(await queue.flush()).toBe(false);
-    queue.edit({ title: "Mine again", blocks: [] });
+    queue.edit({ title: "Mine again", icon: null, cover: null, blocks: [] });
     await vi.advanceTimersByTimeAsync(2000);
     expect(save).toHaveBeenCalledTimes(1);
     expect(queue.content.title).toBe("Mine again");
@@ -58,9 +58,9 @@ describe("page autosave queue", () => {
   });
 
   it("recovers drafts and protects a stale recovered draft", () => {
-    const pending = new NoteSaveQueue(page, vi.fn(), () => {}, { title: "Recovered", blocks: [], version: 0 });
+    const pending = new NoteSaveQueue(page, vi.fn(), () => {}, { title: "Recovered", icon: null, cover: null, blocks: [], version: 0 });
     expect(pending.status).toBe("pending");
-    const stale = new NoteSaveQueue({ ...page, version: 1 }, vi.fn(), () => {}, { title: "Recovered", blocks: [], version: 0 });
+    const stale = new NoteSaveQueue({ ...page, version: 1 }, vi.fn(), () => {}, { title: "Recovered", icon: null, cover: null, blocks: [], version: 0 });
     expect(stale.status).toBe("conflict");
     expect(stale.content.title).toBe("Recovered");
   });

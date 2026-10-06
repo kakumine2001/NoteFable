@@ -996,7 +996,7 @@ export default function Home() {
             )}
             <div className="min-w-0 hidden sm:block">
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
-                {workspaceView === "pages" && <FileText size={15} className="shrink-0" />}
+                {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
                 <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Pages" : activeTitle}</span>
               </div>
             </div>
@@ -1005,7 +1005,7 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-2">
             {workspaceView === "pages" ? (
               <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
-                {notes.active ? ({ saved: "Saved", pending: "Unsaved", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
+                {notes.active ? ({ saved: "Saved", pending: "Saving…", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
               </span>
             ) : <>
             <button

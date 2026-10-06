@@ -28,11 +28,11 @@ export async function PATCH(request: Request, context: Context) {
     const result = await prisma.$transaction(async (tx) => {
       const changed = await tx.notePage.updateMany({
         where: { id: pageId, userId: user.id, version: update.version },
-        data: { title: update.title, blocks: update.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
+        data: { title: update.title, icon: update.icon, cover: update.cover, blocks: update.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
       });
       const page = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id } });
       // 応答だけ失われた保存の再送は、本文が一致する時に限り成功扱いにする。
-      const alreadySaved = page && page.title === update.title && isDeepStrictEqual(page.blocks, update.blocks);
+      const alreadySaved = page && page.title === update.title && page.icon === update.icon && page.cover === update.cover && isDeepStrictEqual(page.blocks, update.blocks);
       return { page, conflict: !changed.count && !alreadySaved };
     });
     if (!result.page) return NextResponse.json({ error: "Page not found." }, { status: 404 });

@@ -10,7 +10,7 @@ export async function GET() {
     const user = await getOrCreateAnonymousUser();
     const pages = await prisma.notePage.findMany({
       where: { userId: user.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-      select: { id: true, title: true, version: true, createdAt: true, updatedAt: true },
+      select: { id: true, title: true, icon: true, version: true, createdAt: true, updatedAt: true },
     });
     return NextResponse.json({ pages }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return noteApiError(error); }
@@ -22,7 +22,7 @@ export async function POST(request: Request) {
     if (limited) return limited;
     const content = validateNoteContent(await readNoteRequest(request));
     const user = await getOrCreateAnonymousUser();
-    const page = await prisma.notePage.create({ data: { userId: user.id, title: content.title, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
+    const page = await prisma.notePage.create({ data: { userId: user.id, title: content.title, icon: content.icon, cover: content.cover, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

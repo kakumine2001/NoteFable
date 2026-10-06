@@ -4,9 +4,9 @@ import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, type BlockN
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
-import { BasicTextStyleButton, BlockColorsItem, DragHandleButton, DragHandleMenu, FormattingToolbar, FormattingToolbarController, RemoveBlockItem, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, getFormattingToolbarItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem } from "@blocknote/react";
-import { Copy, Plus, Text } from "lucide-react";
-import { useImperativeHandle, type KeyboardEvent, type Ref } from "react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type SuggestionMenuProps } from "@blocknote/react";
+import { CheckSquare, Code2, Copy, Heading1, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type } from "lucide-react";
+import { useEffect, useImperativeHandle, useRef, type KeyboardEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { NOTE_TEXT_BLOCKS, codeBlockText, copyNoteBlocks, selectedRootBlocks, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
@@ -47,6 +47,46 @@ function duplicateBlocks(editor: Editor, blocks = editor.getSelection()?.blocks 
   });
 }
 
+const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
+
+type SlashItem = DefaultReactSuggestionItem & { key?: string; hint?: string };
+
+// Notion のスラッシュメニューに合わせ、アイコンとマークダウン記法のヒントを揃える。
+const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
+  paragraph: { icon: <Type size={18} /> },
+  heading: { icon: <Heading1 size={18} />, hint: "#" },
+  heading_2: { icon: <Heading2 size={18} />, hint: "##" },
+  heading_3: { icon: <Heading3 size={18} />, hint: "###" },
+  check_list: { icon: <CheckSquare size={18} />, hint: "[]" },
+  bullet_list: { icon: <List size={18} />, hint: "-" },
+  numbered_list: { icon: <ListOrdered size={18} />, hint: "1." },
+  code_block: { icon: <Code2 size={18} />, hint: "```" },
+  quote: { icon: <Quote size={18} />, hint: ">" },
+  divider: { icon: <Minus size={18} />, hint: "---" },
+};
+
+function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<SlashItem>) {
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+  if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">No results</div></div>;
+  return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">
+    {items.map((item, index) => {
+      const look = item.key ? SLASH_LOOK[item.key] : undefined;
+      return <div key={`${item.group}:${item.title}`}>
+        {item.group && item.group !== items[index - 1]?.group && <div className="notes-slash-group">{item.group}</div>}
+        <button type="button" role="option" aria-selected={index === selectedIndex} className="notes-slash-item"
+          onMouseDown={(event) => event.preventDefault()} onClick={() => onItemClick?.(item)}>
+          <span className="notes-slash-icon">{look?.icon ?? item.icon}</span>
+          <span className="notes-slash-title">{item.title}</span>
+          {(item.hint ?? look?.hint) && <span className="notes-slash-hint">{item.hint ?? look?.hint}</span>}
+        </button>
+      </div>;
+    })}
+  </div>;
+}
+
 function BlockMenu() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
@@ -67,8 +107,12 @@ function BlockMenu() {
     </Components.Generic.Menu.Root>
     <BlockColorsItem>Color</BlockColorsItem>
     <Components.Generic.Menu.Divider />
-    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, [block])}>Duplicate</Components.Generic.Menu.Item>
-    <RemoveBlockItem>Delete</RemoveBlockItem>
+    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, [block])}>
+      Duplicate<span className="notes-menu-shortcut">{MOD}+D</span>
+    </Components.Generic.Menu.Item>
+    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Trash2 size={16} />} onClick={() => editor.removeBlocks([block])}>
+      Delete<span className="notes-menu-shortcut">Del</span>
+    </Components.Generic.Menu.Item>
   </DragHandleMenu>;
 }
 
@@ -77,7 +121,7 @@ function NoteSideMenu() {
   const Components = useComponentsContext()!;
   const hovered = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   return <SideMenu>
-    <Components.SideMenu.Button className="bn-button" label="Click to add below. Alt-click to add above." icon={<Plus size={18} />}
+    <Components.SideMenu.Button className="bn-button" label="Click to add below. Alt-click to add above." icon={<Plus size={18} strokeWidth={1.8} />}
       onClick={(event) => {
         const block = hovered && editor.getBlock(hovered.id);
         if (!block) return;
@@ -102,8 +146,17 @@ function NoteFormattingToolbar() {
       isSelected: selected.every((block) => block.type === target.type && (target.type !== "heading" || (block.type === "heading" && block.props.level === target.level))),
       onClick: () => convertBlocks(editor, target, selected),
     }))} />
-    {getFormattingToolbarItems().slice(1)}
+    {/* Notion と同じ並び: 種類 | リンク | B I U S コード | 色。配置・インデント操作は出さない。 */}
+    <span className="notes-toolbar-sep" />
+    <CreateLinkButton />
+    <span className="notes-toolbar-sep" />
+    <BasicTextStyleButton basicTextStyle="bold" />
+    <BasicTextStyleButton basicTextStyle="italic" />
+    <BasicTextStyleButton basicTextStyle="underline" />
+    <BasicTextStyleButton basicTextStyle="strike" />
     <BasicTextStyleButton basicTextStyle="code" />
+    <span className="notes-toolbar-sep" />
+    <ColorStyleButton />
   </FormattingToolbar>;
 }
 
@@ -115,7 +168,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     schema,
     tabBehavior: "prefer-indent",
     domAttributes: { editor: { "aria-label": "Page content" } },
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Type '/' for commands", default: "Type '/' for commands" } },
+    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Press '/' for commands…", default: "Press '/' for commands…", heading: "Heading" } },
     initialContent: blocks.length ? blocks as PartialBlock<typeof schema.blockSchema>[] : undefined,
   });
   function focusStart() {
@@ -168,13 +221,13 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} onChange={() => onChange(editor.document)}>
       <FormattingToolbarController formattingToolbar={NoteFormattingToolbar} />
       <SideMenuController sideMenu={NoteSideMenu} />
-      <SuggestionMenuController triggerCharacter="/" getItems={async (query) => {
+      <SuggestionMenuController triggerCharacter="/" suggestionMenuComponent={SlashMenu} getItems={async (query): Promise<SlashItem[]> => {
         const defaults = getDefaultReactSlashMenuItems(editor) as (DefaultReactSuggestionItem & { key: string })[];
         const turning = /^turn(?:\s|$)/i.test(query);
         const textItems = NOTE_TEXT_BLOCKS.map((target) => {
           const item = defaults.find((item) => item.key === target.key)!;
           return { ...item, title: target.title, group: "Basic blocks", aliases: [...(item.aliases ?? []), ...target.aliases],
-            badge: target.digit === undefined ? undefined : `${/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘+⌥" : "Ctrl+Shift"}+${target.digit}`,
+            badge: undefined,
             onItemClick: turning ? () => convertBlocks(editor, target) : item.onItemClick };
         });
         return filterSuggestionItems(turning ? textItems : [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))], turning ? query.replace(/^turn\s*/i, "") : query);

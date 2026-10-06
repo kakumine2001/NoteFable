@@ -60,6 +60,9 @@ model NotePage {
   id        String   @id @default(cuid())
   userId    String
   title     String   @default("Untitled")
+  // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
+  icon      String?
+  cover     String?
   blocks    Json
   version   Int      @default(0)
   createdAt DateTime @default(now())

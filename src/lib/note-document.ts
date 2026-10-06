@@ -5,6 +5,28 @@ export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numb
 export const MAX_NOTE_BYTES = 1024 * 1024;
 export const MAX_NOTE_TITLE = 200;
 
+// Notion のカバーギャラリーに近いプリセット。任意 URL は受け付けず、キーだけを保存する。
+export const NOTE_COVERS = {
+  "gradient-sunset": "linear-gradient(135deg, #f6d365 0%, #fda085 100%)",
+  "gradient-peach": "linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)",
+  "gradient-mint": "linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%)",
+  "gradient-ocean": "linear-gradient(135deg, #89f7fe 0%, #66a6ff 100%)",
+  "gradient-lavender": "linear-gradient(135deg, #e0c3fc 0%, #8ec5fc 100%)",
+  "gradient-night": "linear-gradient(135deg, #30cfd0 0%, #330867 100%)",
+  "solid-red": "#e16259",
+  "solid-yellow": "#dfab01",
+  "solid-green": "#4dab9a",
+  "solid-blue": "#529cca",
+  "solid-purple": "#9a6dd7",
+  "solid-beige": "#e9e5e3",
+} as const;
+export type NoteCover = keyof typeof NOTE_COVERS;
+
+function validIcon(value: unknown) {
+  // 絵文字 1 つ分（肌色や ZWJ 結合を含む）だけを許可する。
+  return typeof value === "string" && value.length <= 16 && /^\p{Extended_Pictographic}/u.test(value) && !/\s/.test(value);
+}
+
 export class NoteValidationError extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }
@@ -69,8 +91,18 @@ export function validateNoteContent(value: unknown): NoteContent {
     });
   }
   if (!validBlocks(value.blocks, 0)) throw new NoteValidationError("This page contains an unsupported or invalid block.");
+  // 旧クライアントや旧下書きには icon/cover がないため、未指定は null として扱う。
+  const icon = value.icon ?? null;
+  const cover = value.cover ?? null;
+  if (icon !== null && !validIcon(icon)) throw new NoteValidationError("Page icon must be a single emoji.");
+  if (cover !== null && !(typeof cover === "string" && Object.hasOwn(NOTE_COVERS, cover))) throw new NoteValidationError("Unsupported page cover.");
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_NOTE_BYTES) throw new NoteValidationError("Page content exceeds 1 MiB.", 413);
-  return { title: value.title.trim() || "Untitled", blocks: value.blocks as Block[] };
+  return { title: value.title.trim() || "Untitled", icon: icon as string | null, cover: cover as string | null, blocks: value.blocks as Block[] };
+}
+
+// 保存済みページから編集対象の本文だけを取り出す。
+export function noteContentOf(page: NoteContent): NoteContent {
+  return { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, blocks: page.blocks };
 }
 
 export async function readNoteRequest(request: Request) {

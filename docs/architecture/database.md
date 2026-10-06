@@ -74,6 +74,8 @@ erDiagram
         string id PK
         string userId FK
         string title
+        string icon
+        string cover
         json blocks
         int version
         datetime createdAt
@@ -173,7 +175,7 @@ AnonymousUser 1 -> N Session
 
 ### NotePage
 
-站内笔记页面，与聊天 `Session` 和外部导出 `NotionSave` 独立。`userId` 关联 `AnonymousUser`，删除匿名用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。
+站内笔记页面，与聊天 `Session` 和外部导出 `NotionSave` 独立。`userId` 关联 `AnonymousUser`，删除匿名用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个emoji，`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键（不接受任意 URL），两者未设置时为 null。
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、匿名用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引用于侧栏列表。所有页面读写限制在当前匿名用户。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 

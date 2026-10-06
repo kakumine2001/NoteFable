@@ -1,3 +1,4 @@
+import { noteContentOf } from "@/lib/note-document";
 import type { NoteContent, NotePage, NoteSaveStatus } from "@/types/notes";
 
 export class NoteSaveError extends Error {
@@ -23,10 +24,10 @@ export class NoteSaveQueue {
     private changed: () => void,
     draft?: NoteDraft,
   ) {
-    this.content = { title: page.title, blocks: page.blocks };
+    this.content = noteContentOf(page);
     this.version = page.version;
     if (draft) {
-      this.content = { title: draft.title, blocks: draft.blocks };
+      this.content = noteContentOf(draft);
       this.revision = 1;
       this.status = draft.version === page.version ? "pending" : "conflict";
       if (this.status === "conflict") {
@@ -73,7 +74,7 @@ export class NoteSaveQueue {
         this.page = page;
         this.version = page.version;
         this.savedRevision = revision;
-        if (!this.dirty) this.content = { title: page.title, blocks: page.blocks };
+        if (!this.dirty) this.content = noteContentOf(page);
       } catch (error) {
         this.status = error instanceof NoteSaveError && error.status === 409 ? "conflict" : "error";
         this.latest = error instanceof NoteSaveError ? error.latest : undefined;
@@ -91,7 +92,7 @@ export class NoteSaveQueue {
     clearTimeout(this.timer);
     this.page = page;
     this.version = page.version;
-    this.content = { title: page.title, blocks: page.blocks };
+    this.content = noteContentOf(page);
     this.savedRevision = ++this.revision;
     this.status = "saved";
     this.error = "";

@@ -4,6 +4,7 @@ import { FileText, Plus, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
+import { NotePageHeader } from "@/components/note-page-header";
 import type { useNotePages } from "@/lib/use-note-pages";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
@@ -21,24 +22,21 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
     titleRef.current.style.height = `${titleRef.current.scrollHeight}px`;
   }, [active?.content.title, activeId, loading]);
   useLayoutEffect(() => {
-    if (!loading && emptyPage) {
-      titleRef.current?.focus();
-      titleRef.current?.select();
-    }
+    if (!loading && emptyPage) titleRef.current?.focus();
   }, [activeId, loading, emptyPage]);
+
   return <div className="notes-workspace flex-1 overflow-y-auto">
-    <div className="notion-page-column px-6 pb-24 pt-12 sm:px-12">
-      {error && <div className="notion-error mb-5" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div>}
-      {loading ? <p className="notes-loading">Loading page…</p> : active && activeId ? <>
-        <FileText size={64} strokeWidth={1} className="notes-page-icon" aria-hidden="true" />
-        <textarea ref={titleRef} rows={1} className="notes-title" aria-label="Page title" maxLength={200} placeholder="Untitled" value={active.content.title} disabled={busy}
-          onChange={(event) => active.edit({ ...active.content, title: event.target.value.replace(/\r?\n/g, " ") })}
-          onKeyDown={(event) => {
-            if (event.nativeEvent.isComposing) return;
-            if (event.key === "Enter" || (event.key === "ArrowDown" && event.currentTarget.selectionStart === event.currentTarget.value.length)) {
-              event.preventDefault(); editorRef.current?.focusStart();
-            }
-          }} />
+    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div></div>}
+    {loading ? <div className="notes-column pt-24"><p className="notes-loading">Loading page…</p></div> : active && activeId ? <>
+      <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
+        onPatch={(patch) => active.edit({ ...active.content, ...patch })}
+        onTitleKeyDown={(event) => {
+          if (event.nativeEvent.isComposing) return;
+          if (event.key === "Enter" || (event.key === "ArrowDown" && event.currentTarget.selectionStart === event.currentTarget.value.length)) {
+            event.preventDefault(); editorRef.current?.focusStart();
+          }
+        }} />
+      <div className="notes-column notes-body">
         {backupError && <div className="notion-warning mb-4" role="alert">{backupError}</div>}
         {!!active.error && <div className="notion-warning mb-5" role="alert">
           <p>{active.error}</p>
@@ -56,13 +54,13 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
             titleRef.current?.setSelectionRange(end, end);
           }}
           onChange={(blocks) => active.edit({ ...active.content, blocks })} />
-      </> : !error && <div className="notes-empty">
-        <FileText size={30} strokeWidth={1.3} />
-        <h1 className="mt-5 text-3xl font-bold tracking-tight">Your pages</h1>
-        <p className="mt-3 text-sm leading-6 text-[var(--notion-muted)]">A quiet place for notes, ideas, and things you want to keep.</p>
-        <button type="button" disabled={busy} className="notion-button notion-button-primary mt-6 inline-flex items-center gap-2" onClick={() => void notes.create()}><Plus size={15} />New page</button>
-        <p className="mt-8 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Pages are saved on the server and linked to this browser. Clearing site cookies or using another browser creates a separate workspace.</p>
-      </div>}
-    </div>
+      </div>
+    </> : !error && <div className="notes-column notes-empty">
+      <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
+      <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Pages</h1>
+      <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">Write notes with blocks — type <kbd className="notes-kbd">/</kbd> for headings, lists, to-dos and code.</p>
+      <button type="button" disabled={busy} className="notes-empty-new" onClick={() => void notes.create()}><Plus size={16} />New page</button>
+      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Pages are saved on the server and linked to this browser. Clearing site cookies or using another browser creates a separate workspace.</p>
+    </div>}
   </div>;
 }

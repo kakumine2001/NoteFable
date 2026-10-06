@@ -73,49 +73,261 @@ button:disabled {
   color: var(--notion-text);
 }
 
-.notes-page-icon { display: block; margin: 0 0 0.9rem 2px; color: var(--notion-text); opacity: 0.85; }
-.notes-save-status { font-size: 12px; color: var(--notion-muted); }
-.notes-save-status.has-error { color: #b45309; }
-.notes-title {
-  display: block;
-  width: 100%;
-  border: 0;
-  outline: 0;
-  padding: 0;
-  margin-bottom: 24px;
-  resize: none;
-  overflow: hidden;
-  background: transparent;
-  font-size: 2.5rem;
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
-  color: var(--notion-text);
+/* ===== Pages: Notion に寄せたページ・エディター表示 ===== */
+.notes-workspace {
+  --notes-text: #37352f;
+  --notes-muted: rgba(55, 53, 47, 0.65);
+  --notes-faint: rgba(55, 53, 47, 0.45);
+  --notes-hover: rgba(55, 53, 47, 0.08);
+  --notes-divider: rgba(55, 53, 47, 0.16);
+  --notes-code-bg: #f7f6f3;
+  --notes-menu-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+  color: var(--notes-text);
 }
-.notes-title::placeholder { color: var(--notion-faint); }
-.notes-empty { padding: 4rem 0; color: var(--notion-text); }
+/* 本文幅は Notion 既定の 708px。左右 96px はブロック操作ハンドル用の余白。 */
+.notes-column { width: min(100%, 900px); margin-inline: auto; padding-inline: 96px; }
+.notes-save-status { font-size: 14px; color: var(--notion-muted); }
+.notes-save-status.has-error { color: #b45309; }
 .notes-loading { font-size: 14px; color: var(--notion-muted); padding: 1rem 0; }
+
+/* ページ見出し: カバー → アイコン → 操作ボタン → タイトル */
+.notes-page-header { position: relative; }
+.notes-cover { position: relative; height: 30vh; min-height: 160px; max-height: 280px; }
+.notes-cover-actions {
+  position: absolute; right: max(24px, calc((100% - 708px) / 2)); bottom: 12px;
+  display: flex; overflow: hidden; border-radius: 4px; background: #fff;
+  box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.notes-cover:hover .notes-cover-actions, .notes-cover:focus-within .notes-cover-actions { opacity: 1; }
+.notes-cover-actions button { padding: 4px 8px; font-size: 12px; color: var(--notes-muted); white-space: nowrap; }
+.notes-cover-actions button + button { border-left: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-cover-actions button:hover { background: var(--notes-hover); }
+.notes-header-inner { position: relative; padding-top: 80px; }
+.notes-page-header.has-cover .notes-header-inner { padding-top: 0; }
+.notes-icon-wrap { position: relative; width: fit-content; }
+.notes-icon {
+  display: grid; width: 78px; height: 78px; place-items: center; margin-left: -4px;
+  border-radius: 4px; font-size: 70px; line-height: 1; transition: background-color 120ms ease;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.notes-icon:not(:disabled):hover { background: var(--notes-hover); }
+.notes-page-header.has-cover .notes-icon-wrap { margin-top: -42px; }
+.notes-header-controls {
+  display: flex; min-height: 28px; flex-wrap: wrap; gap: 2px; margin: 4px 0 4px -8px;
+  opacity: 0; transition: opacity 120ms ease;
+}
+.notes-page-header:hover .notes-header-controls, .notes-header-controls:focus-within { opacity: 1; }
+.notes-header-controls button {
+  display: inline-flex; height: 28px; align-items: center; gap: 6px; padding: 0 8px;
+  border-radius: 4px; font-size: 14px; color: var(--notes-faint); white-space: nowrap;
+}
+.notes-header-controls button:hover { background: var(--notes-hover); color: var(--notes-muted); }
+.notes-title {
+  display: block; width: 100%; padding: 3px 2px; margin: 0 0 4px; border: 0; outline: 0;
+  resize: none; overflow: hidden; background: transparent;
+  font-size: 40px; font-weight: 700; line-height: 1.2; color: var(--notes-text);
+}
+.notes-title::placeholder { color: rgba(55, 53, 47, 0.2); }
+
+/* アイコン・カバー選択ポップオーバー */
+.notes-popover {
+  position: absolute; z-index: 60; overflow: hidden; border-radius: 8px; background: #fff;
+  box-shadow: var(--notes-menu-shadow); animation: motion-menu-enter 120ms ease-out;
+}
+.notes-icon-picker { top: calc(100% + 4px); left: 0; width: min(408px, calc(100vw - 32px)); }
+.notes-cover-picker { right: max(24px, calc((100% - 708px) / 2)); top: calc(100% - 4px); width: min(420px, calc(100vw - 32px)); }
+.notes-picker-bar {
+  display: flex; min-height: 36px; align-items: center; justify-content: space-between; padding: 0 8px 0 12px;
+  border-bottom: 1px solid rgba(55, 53, 47, 0.09); font-size: 14px; font-weight: 500; color: var(--notes-text);
+}
+.notes-picker-bar button {
+  display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 8px;
+  border-radius: 4px; font-size: 13px; font-weight: 400; color: var(--notes-muted);
+}
+.notes-picker-bar button:hover { background: var(--notes-hover); }
+.notes-emoji-grid {
+  display: grid; max-height: 280px; overflow-y: auto; padding: 6px 8px 8px;
+  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+}
+.notes-emoji-grid button {
+  display: grid; height: 32px; place-items: center; border-radius: 4px; font-size: 22px; line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.notes-emoji-grid button:hover, .notes-emoji-grid button.is-active { background: var(--notes-hover); }
+.notes-cover-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px 12px 12px; }
+.notes-cover-grid button { height: 56px; border-radius: 4px; transition: opacity 120ms ease; }
+.notes-cover-grid button:hover { opacity: 0.85; }
+.notes-cover-grid button.is-active { box-shadow: 0 0 0 2px #fff, 0 0 0 4px #2383e2; }
+
+/* 空状態 */
+.notes-empty { padding-top: 120px; padding-bottom: 96px; }
+.notes-kbd {
+  padding: 1px 6px; border: 1px solid rgba(55, 53, 47, 0.16); border-radius: 4px;
+  background: var(--notes-code-bg); font-family: var(--font-geist-mono), monospace; font-size: 13px;
+}
+.notes-empty-new {
+  display: inline-flex; height: 32px; align-items: center; gap: 6px; margin-top: 24px; padding: 0 12px;
+  border-radius: 6px; background: #2383e2; font-size: 14px; font-weight: 500; color: #fff;
+}
+.notes-empty-new:hover { background: #0077d4; }
+.notes-row-icon { display: grid; width: 20px; height: 20px; flex-shrink: 0; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
+
+/* ===== エディター本文 ===== */
+.notes-body { padding-bottom: 30vh; }
 .notes-block-editor .bn-container {
-  --bn-colors-editor-text: var(--notion-text);
-  --bn-colors-editor-background: var(--notion-bg);
+  --bn-colors-editor-text: var(--notes-text);
+  --bn-colors-editor-background: #fff;
+  --bn-colors-selected-background: rgba(35, 131, 226, 0.14);
   --bn-font-family: var(--font-ui);
   font-family: var(--font-ui);
 }
-.notes-block-editor .bn-editor { padding-inline: 0; font-size: 15px; }
-.notes-block-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after { font-style: normal; color: var(--notion-faint); }
-.notes-block-editor [data-content-type="heading"] { --level: 1.875rem; }
-.notes-block-editor [data-content-type="heading"][data-level="2"] { --level: 1.5rem; }
-.notes-block-editor [data-content-type="heading"][data-level="3"] { --level: 1.25rem; }
+.notes-block-editor .bn-editor { padding-inline: 0; font-size: 16px; line-height: 1.5; color: var(--notes-text); }
+.notes-block-editor .bn-editor ::selection { background: rgba(35, 131, 226, 0.28); }
+.notes-block-editor .bn-block-content { padding: 3px 2px; }
+.notes-block-editor .bn-block-outer + .bn-block-outer { margin-top: 1px; }
+.notes-block-editor .bn-inline-content { line-height: 1.5; }
+.notes-block-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after,
+.notes-block-editor .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
+  font-style: normal; color: rgba(55, 53, 47, 0.35);
+}
+
+/* 見出し: Notion と同じ文字サイズと上側の余白 */
+.notes-block-editor [data-content-type="heading"] { --level: 1.875em; font-weight: 600; }
+.notes-block-editor [data-content-type="heading"][data-level="2"] { --level: 1.5em; }
+.notes-block-editor [data-content-type="heading"][data-level="3"] { --level: 1.25em; }
+.notes-block-editor [data-content-type="heading"] .bn-inline-content { line-height: 1.3; font-weight: 600; }
+.notes-block-editor .bn-block-outer:has(> .bn-block > [data-content-type="heading"][data-level="1"]) { margin-top: 2em; }
+.notes-block-editor .bn-block-outer:has(> .bn-block > [data-content-type="heading"][data-level="2"]) { margin-top: 1.4em; }
+.notes-block-editor .bn-block-outer:has(> .bn-block > [data-content-type="heading"][data-level="3"]) { margin-top: 1em; }
+.notes-block-editor .bn-block-group > .bn-block-outer:first-child { margin-top: 0; }
+
+/* リスト */
+.notes-block-editor [data-content-type="bulletListItem"],
+.notes-block-editor [data-content-type="numberedListItem"] { gap: 0; }
+.notes-block-editor [data-content-type="bulletListItem"]::before,
+.notes-block-editor [data-content-type="numberedListItem"]::before { min-width: 24px; text-align: center; }
+.notes-block-editor .bn-block-group .bn-block-group { margin-left: 24px; }
+.notes-block-editor .bn-block-group .bn-block-group > .bn-block-outer:not([data-prev-depth-changed])::before { border-left: 0; }
+
+/* To-do: 16px の角丸チェックボックス。完了したら青塗り + 取り消し線 */
+.notes-block-editor [data-content-type="checkListItem"] > div:first-child { display: flex; width: 24px; justify-content: center; margin-right: 2px; }
+.notes-block-editor [data-content-type="checkListItem"] input[type="checkbox"] {
+  appearance: none; width: 16px; height: 16px; margin: 0; margin-top: 0.22em; flex-shrink: 0;
+  border: 1.5px solid currentColor; border-radius: 3px; background: #fff; cursor: pointer;
+  transition: background-color 120ms ease;
+}
+.notes-block-editor [data-content-type="checkListItem"] input[type="checkbox"]:hover { background: var(--notes-hover); }
+.notes-block-editor [data-content-type="checkListItem"] input[type="checkbox"]:checked {
+  border-color: #2383e2; background: #2383e2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.3 5.8 10 11 4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
+}
+.notes-block-editor [data-content-type="checkListItem"]:has(input:checked) .bn-inline-content {
+  color: rgba(55, 53, 47, 0.65); text-decoration: line-through; text-decoration-color: rgba(55, 53, 47, 0.25);
+}
+
+/* 引用: 左に 3px の黒線、文字は通常色で少し大きく */
+.notes-block-editor [data-content-type="quote"] blockquote {
+  margin: 0; padding: 0 14px; border-left: 3px solid currentColor; color: var(--notes-text); font-size: 1.1em;
+}
+
+/* コードブロック: 薄いベージュ地 + 等幅 */
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] { margin: 4px 0; padding: 0; border-radius: 4px; background: var(--notes-code-bg); color: var(--notes-text); }
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > div > select { color: var(--notes-muted); font-size: 12px; }
+.notes-block-editor [data-content-type="codeBlock"] > pre {
+  width: 100%; margin: 0; padding: 32px 16px 32px 32px; border-radius: 4px;
+  background: var(--notes-code-bg); color: var(--notes-text);
+  font-family: SFMono-Regular, Menlo, Consolas, "Liberation Mono", var(--font-geist-mono), monospace;
+  font-size: 85%; line-height: 1.5; tab-size: 2; white-space: pre-wrap;
+}
+.notes-block-editor [data-content-type="codeBlock"] > pre code { color: inherit; background: none; font: inherit; }
+
+/* インラインのコード・リンク・区切り線 */
+.notes-block-editor .bn-inline-content code {
+  padding: 0.2em 0.4em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;
+  font-family: SFMono-Regular, Menlo, Consolas, "Liberation Mono", var(--font-geist-mono), monospace; font-size: 85%;
+}
+.notes-block-editor .bn-inline-content a {
+  color: inherit; text-decoration: underline; text-decoration-color: rgba(55, 53, 47, 0.4); text-underline-offset: 2px; opacity: 0.85;
+}
+.notes-block-editor .bn-inline-content a:hover { text-decoration-color: currentColor; }
+.notes-block-editor [data-content-type="divider"] hr { border: 0; border-top: 1px solid var(--notes-divider); margin: 6px 0; }
 .notes-editor-tail { display: block; width: 100%; min-height: 180px; background: transparent; border: 0; cursor: text; }
-.notes-block-editor .bn-block-content[data-content-type="codeBlock"] { font-family: var(--font-geist-mono), monospace; }
+
+/* ブロック左の「+」と「⋮⋮」ハンドル */
+.notes-block-editor .bn-side-menu { gap: 0; }
+.notes-block-editor .bn-side-menu .bn-ak-button {
+  display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border-radius: 4px;
+  background: transparent; box-shadow: none; color: rgba(55, 53, 47, 0.35);
+}
+.notes-block-editor .bn-side-menu .bn-ak-button:hover { background: var(--notes-hover); color: rgba(55, 53, 47, 0.65); }
+.notes-block-editor .bn-side-menu .bn-ak-button svg { width: 18px; height: 18px; }
+
+/* スラッシュメニュー */
+.notes-slash-menu {
+  width: 324px; max-height: min(40vh, 360px); overflow-y: auto; padding: 4px 0;
+  border-radius: 10px; background: #fff; box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+  font-family: var(--font-ui); color: #37352f;
+}
+.notes-slash-group { padding: 6px 14px 4px; font-size: 12px; font-weight: 500; color: rgba(55, 53, 47, 0.65); }
+.notes-slash-item {
+  display: flex; width: calc(100% - 8px); height: 28px; align-items: center; gap: 8px; margin: 0 4px; padding: 0 10px 0 8px;
+  border-radius: 6px; font-size: 14px; text-align: left; color: inherit;
+}
+.notes-slash-item:hover { background: rgba(55, 53, 47, 0.06); }
+.notes-slash-item[aria-selected="true"] { background: rgba(55, 53, 47, 0.08); }
+.notes-slash-icon { display: grid; width: 20px; flex-shrink: 0; place-items: center; color: rgba(55, 53, 47, 0.75); }
+.notes-slash-icon svg { width: 18px; height: 18px; }
+.notes-slash-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.notes-slash-hint { flex-shrink: 0; font-size: 12px; color: rgba(55, 53, 47, 0.45); font-family: var(--font-geist-mono), monospace; }
+.notes-slash-empty { padding: 6px 14px; font-size: 14px; color: rgba(55, 53, 47, 0.45); }
+
+/* ブロックメニュー・書式ツールバー（BlockNote 標準の青いハイライトを Notion の灰色に置き換える） */
+.bn-ariakit .bn-ak-menu, .bn-ariakit .bn-ak-popover {
+  min-width: 220px; padding: 4px; border: 0; border-radius: 10px; background: #fff; color: #37352f;
+  box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+  font-family: var(--font-ui); font-size: 14px;
+}
+.bn-ariakit .bn-ak-menu-item { min-height: 28px; gap: 8px; padding: 0 8px; border-radius: 6px; font-size: 14px; color: #37352f; }
+.bn-ariakit .bn-ak-menu-item svg { width: 16px; height: 16px; color: rgba(55, 53, 47, 0.75); }
+.bn-ariakit .bn-ak-menu-item:hover, .bn-ariakit .bn-ak-menu-item[data-active-item], .bn-ariakit .bn-ak-menu-item[aria-selected="true"],
+.bn-ariakit .bn-ak-menu .bn-ak-menu-item[aria-expanded="true"] { background: rgba(55, 53, 47, 0.08); color: #37352f; }
+.bn-ariakit .bn-ak-menu-item:active, .bn-ariakit .bn-ak-menu-item[data-active] { padding-block: 0; background: rgba(55, 53, 47, 0.12); }
+.bn-ariakit .bn-ak-menu .bn-ak-separator { margin: 4px 0; border-color: rgba(55, 53, 47, 0.09); }
+.bn-ariakit .bn-ak-group-label { padding: 6px 8px 4px; font-size: 12px; opacity: 1; color: rgba(55, 53, 47, 0.65); }
+.bn-ariakit .bn-ak-toolbar {
+  gap: 0; padding: 2px; border-radius: 8px; background: #fff;
+  box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+}
+.bn-ariakit .bn-toolbar .bn-ak-button {
+  height: 28px; min-width: 28px; padding: 0 6px; border-radius: 4px; background: transparent; box-shadow: none;
+  font-size: 14px; color: #37352f;
+}
+.bn-ariakit .bn-toolbar .bn-ak-button:hover { background: rgba(55, 53, 47, 0.08); }
+.bn-ariakit .bn-toolbar .bn-ak-button[data-selected] { padding-top: 0; box-shadow: none; color: #2383e2; }
+.bn-ariakit .bn-toolbar .bn-ak-button:active, .bn-ariakit .bn-toolbar .bn-ak-button[data-active] { padding-top: 0; box-shadow: none; background: rgba(55, 53, 47, 0.12); }
+.bn-ariakit .bn-toolbar .bn-ak-button svg { width: 16px; height: 16px; }
+.bn-ariakit .bn-ak-toolbar .bn-ak-separator { height: 20px; margin: 0 2px; border-color: rgba(55, 53, 47, 0.09); }
+.bn-ariakit .bn-ak-tooltip {
+  padding: 4px 8px; border: 0; border-radius: 4px; background: rgba(15, 15, 15, 0.9); color: #fff;
+  font-size: 12px; line-height: 1.4; box-shadow: none;
+}
+
+@media (max-width: 899px) {
+  .notes-column { padding-inline: 48px; }
+}
+@media (max-width: 639px) {
+  .notes-column { padding-inline: 24px; }
+  .notes-header-inner { padding-top: 48px; }
+  .notes-title { font-size: 32px; }
+  .notes-icon { width: 60px; height: 60px; font-size: 52px; }
+  .notes-page-header.has-cover .notes-icon-wrap { margin-top: -32px; }
+  .notes-header-controls { opacity: 1; }
+  .notes-block-editor .bn-side-menu { margin-left: 4px; }
+}
+
 .notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: white; color: var(--notion-text); box-shadow: var(--notion-shadow); }
 .notes-dialog::backdrop { background: rgba(15, 15, 15, 0.2); }
 .notes-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.2); }
-
-@media (max-width: 639px) {
-  .notes-title { font-size: 1.75rem; }
-  .notes-block-editor .bn-side-menu { margin-left: 4px; }
-}
 
 .notion-sidebar {
   display: flex;
@@ -1643,3 +1855,14 @@ button:disabled {
   color: #0f172a;
   font-weight: 700;
 }
+
+/* ブロックメニューの補助表示（ショートカット・区切り・Color のアイコン） */
+.notes-menu-shortcut { margin-left: auto; padding-left: 16px; font-size: 12px; color: rgba(55, 53, 47, 0.45); }
+.bn-ariakit .bn-ak-menu .bn-ak-separator { width: auto; height: 0; margin: 4px 0; border: 0; border-top: 1px solid rgba(55, 53, 47, 0.09); }
+.bn-ariakit .bn-drag-handle-menu > .bn-ak-menu-item:nth-child(2)::before {
+  content: ""; width: 16px; height: 16px; flex-shrink: 0; background: rgba(55, 53, 47, 0.75);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z'/%3E%3Ccircle cx='13.5' cy='6.5' r='.5' fill='black'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5' fill='black'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5' fill='black'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z'/%3E%3Ccircle cx='13.5' cy='6.5' r='.5' fill='black'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5' fill='black'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5' fill='black'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
+}
+.notes-toolbar-sep { width: 1px; height: 20px; margin: 0 2px; flex-shrink: 0; background: rgba(55, 53, 47, 0.09); }
+.bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-left: auto; color: rgba(55, 53, 47, 0.45); }
