@@ -1,3 +1,5 @@
+import type { ActivityStep } from "@/lib/chat-activity";
+
 export type Session = {
   // DB 上のセッション ID。メッセージ取得・削除・選択状態に使う。
   id: string;
@@ -31,6 +33,10 @@ export type Message = {
   }[];
   // 画像生成中だけローカル表示に使う占位状態。DB からは返らない。
   isGeneratingImage?: boolean;
+  // 回答前の推論要約と Web 検索の途中経過。ストリーム中だけ届き、DB には保存しない。
+  activity?: ActivityStep[];
+  // 送信から本文の最初の差分が届くまでの時間。「Thought for Ns」の表示に使う。
+  thinkingMs?: number;
   // ユーザー添付、または生成画像以外のアシスタント添付。
   attachments?: {
     // 添付 ID。送信前はローカル ID、保存後は DB ID。

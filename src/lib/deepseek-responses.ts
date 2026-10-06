@@ -72,6 +72,6 @@ export function parseDeepSeekResponsesDelta(line: string) {
     throw new Error("DeepSeek requested an unavailable tool. Use GPT for web search.");
   }
 
-  // 推論差分は画面に出さず、本文差分だけを転送する。
+  // 推論差分は本文に混ぜず（途中経過として chat-activity で別に扱う）、本文差分だけを返す。
   return data.type === "response.output_text.delta" ? (data.delta ?? "") : "";
 }

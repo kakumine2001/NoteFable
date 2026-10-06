@@ -21,6 +21,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
+import { parseActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -70,11 +71,13 @@ type ResponsesStreamRequest = {
   input: unknown[];
   reasoning: {
     effort: string;
+    summary?: "auto";
   };
   tools?: {
     type: "web_search";
   }[];
   tool_choice?: "auto" | "required";
+  include?: "web_search_call.action.sources"[];
   safety_identifier: string;
   store: false;
   stream: true;
@@ -173,6 +176,11 @@ function getErrorMessage(error: unknown) {
 function encodeTextStreamEvent(delta: string) {
   // 本番プロキシに通常テキストとして圧縮・結合されないよう、本文差分は SSE として送る。
   return `data: ${JSON.stringify(delta)}\n\n`;
+}
+
+function encodeActivityStreamEvent(activity: ActivityEvent) {
+  // 本文差分は JSON 文字列、途中経過は { activity } オブジェクトとして区別する。DB には保存しない。
+  return `data: ${JSON.stringify({ activity })}\n\n`;
 }
 
 // 最初のメッセージから AI タイトルを作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
@@ -507,12 +515,16 @@ export async function POST(request: Request) {
                 input,
                 reasoning: {
                   effort: reasoning,
+                  // 推論要約は途中経過の表示に使う。推論しない none では求めない。
+                  ...(reasoning !== "none" ? { summary: "auto" as const } : {}),
                 },
                 safety_identifier: user.id,
                 ...(webSearchMode !== "off"
                   ? {
                       tools: [{ type: "web_search" }],
                       tool_choice: webSearchMode === "force" ? "required" as const : "auto" as const,
+                      // 参照したサイト一覧を途中経過に出すため、sources を明示的に要求する。
+                      include: ["web_search_call.action.sources" as const],
                     }
                   : {}),
                 store: false,
@@ -542,6 +554,9 @@ export async function POST(request: Request) {
 
         const forwardData = (data: string[]) => {
           for (const payload of data) {
+            // 推論要約や検索の動きは、本文とは別の途中経過イベントとして流す。
+            const activity = parseActivityEvent(JSON.parse(payload));
+            if (activity) controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
             if (modelOption.provider === "openai") {
               const citation = getWebCitation(payload);
               if (citation) webCitations.set(citation.url, citation.title);

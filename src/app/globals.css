@@ -1048,43 +1048,174 @@ button:disabled {
   margin-bottom: 0;
 }
 
-.thinking-indicator {
-  /* AI 応答待機中に表示するテキスト。グラデーションを文字色として動かす。 */
-  position: relative;
-  z-index: 1;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  color: var(--notion-muted);
+.chat-activity {
+  /* 回答前の途中経過。本文より一段控えめにし、展開時は左罫線のタイムラインにする。 */
+  margin-bottom: 0.65rem;
+  font-family: var(--font-ui);
   font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--notion-muted);
+}
+
+.chat-activity-header {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.3rem;
+  margin-left: -0.35rem;
+  padding: 0.15rem 0.35rem;
+  border-radius: 4px;
   font-weight: 500;
-  line-height: 1.6;
+  color: inherit;
+  transition: background-color 120ms ease;
 }
 
-.thinking-indicator span {
-  animation: thinking-chevron 1.1s ease-in-out infinite;
+.chat-activity-header:not(:disabled):hover {
+  background: var(--notion-hover);
 }
 
-@keyframes thinking-gradient {
-  0% {
-    background-position: 0% 50%;
+.chat-activity-header:disabled {
+  cursor: default;
+}
+
+.chat-activity-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-activity.is-thinking .chat-activity-label {
+  /* 考え中は文字の上を淡い光が流れるようにして、動いていることを伝える。 */
+  background: linear-gradient(90deg, var(--notion-muted) 0%, var(--notion-muted) 40%, var(--notion-faint) 50%, var(--notion-muted) 60%, var(--notion-muted) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: chat-activity-shimmer 1.8s linear infinite;
+}
+
+.chat-activity-chevron {
+  flex-shrink: 0;
+  transition: transform 150ms ease;
+}
+
+.chat-activity-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+.chat-activity-steps {
+  max-height: 22rem;
+  overflow-y: auto;
+  margin: 0.35rem 0 0 0.2rem;
+  padding: 0.1rem 0 0.1rem 0.85rem;
+  border-left: 1px solid var(--notion-border-strong);
+  list-style: none;
+  animation: motion-fade-in 160ms ease-out;
+}
+
+.chat-activity-step {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.3rem 0;
+}
+
+.chat-activity-icon {
+  display: grid;
+  height: 1.3rem;
+  flex-shrink: 0;
+  place-items: center;
+  color: var(--notion-faint);
+}
+
+.chat-activity-title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-weight: 500;
+  color: var(--notion-text);
+}
+
+.chat-activity-body {
+  margin-top: 0.15rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-activity-queries {
+  margin-top: 0.2rem;
+  list-style: none;
+}
+
+.chat-activity-queries li {
+  overflow-wrap: anywhere;
+}
+
+.chat-activity-queries li::before {
+  content: "“";
+}
+
+.chat-activity-queries li::after {
+  content: "”";
+}
+
+.chat-activity-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.4rem;
+}
+
+.chat-activity-chip {
+  display: inline-flex;
+  max-width: 14rem;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.05rem 0.45rem;
+  border: 1px solid var(--notion-border);
+  border-radius: 999px;
+  background: var(--notion-sidebar);
+  font-size: 0.75rem;
+  color: var(--notion-muted);
+  text-decoration: none;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.chat-activity-chip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-activity-chip:hover,
+.chat-activity-link:hover {
+  color: var(--notion-text);
+}
+
+.chat-activity-chip:hover {
+  background: var(--notion-hover);
+}
+
+.chat-activity-link {
+  font-weight: 400;
+  color: var(--notion-muted);
+  text-decoration: underline;
+  text-decoration-color: var(--notion-border-strong);
+  text-underline-offset: 2px;
+}
+
+@keyframes chat-activity-shimmer {
+  from {
+    background-position: 100% 0;
   }
 
-  100% {
-    background-position: 100% 50%;
+  to {
+    background-position: -150% 0;
   }
 }
 
-@keyframes thinking-chevron {
-  0%,
-  100% {
-    opacity: 0.45;
-    transform: translateX(0);
-  }
-
-  50% {
-    opacity: 1;
-    transform: translateX(2px);
+@media (prefers-reduced-motion: reduce) {
+  .chat-activity.is-thinking .chat-activity-label,
+  .chat-activity-steps {
+    animation: none;
   }
 }
 

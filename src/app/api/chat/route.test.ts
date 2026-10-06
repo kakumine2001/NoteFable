@@ -41,7 +41,7 @@ async function send(events: unknown[]) {
   form.set("webSearch", "force");
   const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
   const text = (await response.text()).split("\n").filter((line) => line.startsWith("data: "))
-    .map((line) => JSON.parse(line.slice(6))).join("");
+    .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
   const saved = mocks.createMessage.mock.calls.map(([arg]) => arg.data)
     .filter((data) => data.role === "ASSISTANT");
   expect(saved).toHaveLength(1);
@@ -116,12 +116,44 @@ describe("OpenAI web search", () => {
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
     const text = (await response.text()).split("\n")
       .filter((line) => line.startsWith("data: "))
-      .map((line) => JSON.parse(line.slice(6))).join("");
+      .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(body.tools).toEqual([{ type: "web_search" }]);
     expect(body.tool_choice).toBe(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
+  });
+
+  it("requests reasoning summaries and search sources, and streams them as activity only", async () => {
+    mocks.fetch.mockResolvedValue(new Response([
+      { type: "response.reasoning_summary_text.delta", item_id: "rs_1", summary_index: 0, delta: "**Checking**" },
+      { type: "response.output_item.added", item: { id: "ws_1", type: "web_search_call", status: "in_progress" } },
+      { type: "response.output_item.done", item: { id: "ws_1", type: "web_search_call", status: "completed",
+        action: { type: "search", query: "next 16", queries: ["next 16"], sources: [{ type: "url", url: "https://nextjs.org/blog/next-16" }] } } },
+      { type: "response.output_text.delta", delta: "回答" },
+      { type: "response.completed" },
+    ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")));
+
+    const form = new FormData();
+    form.set("message", "Next.js 16 の変更点は？");
+    form.set("model", "gpt-6-luna");
+    form.set("reasoning", "high");
+    form.set("webSearch", "auto");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    const events = (await response.text()).split("\n")
+      .filter((line) => line.startsWith("data: "))
+      .map((line) => JSON.parse(line.slice(6)));
+    const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
+
+    expect(body.reasoning).toEqual({ effort: "high", summary: "auto" });
+    expect(body.include).toEqual(["web_search_call.action.sources"]);
+    expect(events.filter((event) => typeof event !== "string").map((event) => event.activity)).toEqual([
+      { type: "thought", id: "rs_1:0", delta: "**Checking**" },
+      { type: "web", id: "ws_1", status: "running" },
+      { type: "web", id: "ws_1", status: "done",
+        action: { kind: "search", queries: ["next 16"], sources: ["https://nextjs.org/blog/next-16"] } },
+    ]);
+    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("回答");
   });
 });
 

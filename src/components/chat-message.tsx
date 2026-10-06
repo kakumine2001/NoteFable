@@ -4,18 +4,9 @@ import Image from "next/image";
 import { Download, ImagePlus, Paperclip } from "lucide-react";
 import { memo } from "react";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
+import { ChatActivity } from "@/components/chat-activity";
 import { isImageMimeType } from "@/lib/client-files";
 import type { Message } from "@/types/chat";
-
-function ThinkingIndicator({ seconds }: { seconds: number }) {
-  // アシスタント枠はあるが本文がまだ届いていない時に、経過秒数を表示する。
-  return (
-    <div className="thinking-indicator" aria-live="polite">
-      Thinking time: {seconds}s
-      <span aria-hidden="true">›</span>
-    </div>
-  );
-}
 
 function GeneratingImagePreview() {
   // 生成中は Notion のブロックに近い控えめな状態表示を出し、完成画像より目立たせない。
@@ -50,7 +41,7 @@ type ChatMessageProps = {
   message: Message;
   // 現在ストリーミング中かどうか。空のアシスタント本文を待機表示にする判断で使う。
   isStreaming: boolean;
-  // ThinkingIndicator に出す経過秒数。
+  // 待機中の途中経過ヘッダーに出す経過秒数。
   thinkingSeconds: number;
 };
 
@@ -69,11 +60,22 @@ export const ChatMessage = memo(function ChatMessage({
     message.role === "ASSISTANT" &&
     !message.content &&
     !hasGeneratedImages;
+  const activity = message.activity ?? [];
+  const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
+  // 待機中は経過秒数、完了後は本文が届くまでにかかった秒数を出す。
+  const activitySeconds = shouldShowThinking
+    ? thinkingSeconds
+    : message.thinkingMs !== undefined
+      ? Math.max(1, Math.round(message.thinkingMs / 1000))
+      : null;
 
   return (
     <article className="notion-turn motion-page-enter">
       <div className="w-full min-w-0">
         <div className="notion-role-label">{message.role === "USER" ? "You" : "StudyMate"}</div>
+        {shouldShowActivity && (
+          <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
+        )}
         {message.role === "ASSISTANT" ? (
           <div className="markdown-body">
             {hasGeneratedImages && (
@@ -103,11 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
-            {message.content ? (
-              <AssistantMarkdown content={message.content} />
-            ) : (
-              shouldShowThinking ? <ThinkingIndicator seconds={thinkingSeconds} /> : ""
-            )}
+            {message.content && <AssistantMarkdown content={message.content} />}
           </div>
         ) : (
           <div className="notion-user-block">

@@ -24,6 +24,7 @@ import { NotesSidebar } from "@/components/notes-sidebar";
 import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
+import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { createTranscriptBlocks, revokeDraftPreviews } from "@/lib/notion-draft";
@@ -80,15 +81,29 @@ function stripAttachmentPreviewUrls(message: Message): Message {
   };
 }
 
-function parseTextStreamLine(line: string) {
-  // チャット API は SSE 形式。data には JSON 文字列化した本文差分だけを入れる。
+function parseChatStreamLine(line: string): string | ActivityEvent | null {
+  // チャット API は SSE 形式。data は本文差分なら JSON 文字列、途中経過なら { activity } になる。
   const trimmed = line.trim();
-  if (!trimmed.startsWith("data:")) return "";
+  if (!trimmed.startsWith("data:")) return null;
 
   const payload = trimmed.replace(/^data:\s*/, "");
-  if (!payload || payload === "[DONE]") return "";
+  if (!payload || payload === "[DONE]") return null;
 
-  return JSON.parse(payload) as string;
+  const data = JSON.parse(payload) as string | { activity?: ActivityEvent };
+  return typeof data === "string" ? data : (data.activity ?? null);
+}
+
+function carryStreamActivity(current: Message[], fetched: Message[], streamedId: string) {
+  // 途中経過は DB に保存しないため、履歴を再取得した後も直前の回答には残しておく。
+  const streamed = current.find((message) => message.id === streamedId);
+  if (!streamed?.activity?.length && streamed?.thinkingMs === undefined) return fetched;
+
+  const lastAssistantIndex = fetched.findLastIndex((message) => message.role === "ASSISTANT");
+  return fetched.map((message, index) =>
+    index === lastAssistantIndex
+      ? { ...message, activity: streamed.activity, thinkingMs: streamed.thinkingMs }
+      : message,
+  );
 }
 
 async function readJsonObject(response: Response) {
@@ -293,11 +308,16 @@ export default function Home() {
     }
   }
 
-  async function refreshSessionMessages(sessionId: string) {
+  async function refreshSessionMessages(sessionId: string, streamedAssistantId?: string) {
     const fetchedMessages = await fetchSessionMessages(sessionId);
     if (!fetchedMessages) return false;
 
-    replaceCachedMessages(sessionId, fetchedMessages);
+    replaceCachedMessages(
+      sessionId,
+      streamedAssistantId
+        ? carryStreamActivity(sessionMessagesRef.current[sessionId] ?? [], fetchedMessages, streamedAssistantId)
+        : fetchedMessages,
+    );
     return true;
   }
 
@@ -648,7 +668,8 @@ export default function Home() {
     }
     setFiles([]);
 
-    startStreamingSession(requestSessionKey, new Date().getTime());
+    const streamStartedAt = new Date().getTime();
+    startStreamingSession(requestSessionKey, streamStartedAt);
 
     // 通常チャット API は multipart/form-data を受けるため、本文・モデル設定・添付を FormData に詰める。
     const body = new FormData();
@@ -767,28 +788,40 @@ export default function Home() {
         const events = streamBuffer.split(/\r?\n\r?\n/);
         streamBuffer = events.pop() ?? "";
 
+        // 推論要約は細かい差分で大量に届くため、1 回の read 分をまとめて 1 回だけ再描画する。
+        let chunk = "";
+        const activityEvents: ActivityEvent[] = [];
         for (const eventText of events) {
-          const chunk = eventText
-            .split(/\r?\n/)
-            .map(parseTextStreamLine)
-            .join("");
-
-          if (!chunk) continue;
-
-          // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
-          updateCachedMessages(requestSessionKey, (current) =>
-            current.map((message) =>
-              message.id === assistantMessageId
-                ? { ...message, content: message.content + chunk }
-                : message,
-            ),
-          );
+          for (const item of eventText.split(/\r?\n/).map(parseChatStreamLine)) {
+            if (typeof item === "string") chunk += item;
+            else if (item) activityEvents.push(item);
+          }
         }
+
+        if (!chunk && !activityEvents.length) continue;
+
+        const receivedAt = Date.now();
+        updateCachedMessages(requestSessionKey, (current) =>
+          current.map((message) => {
+            if (message.id !== assistantMessageId) return message;
+            // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
+            return {
+              ...message,
+              content: message.content + chunk,
+              activity: activityEvents.length
+                ? activityEvents.reduce(applyActivityEvent, message.activity ?? [])
+                : message.activity,
+              // 本文が届き始めた時点までを「考えていた時間」として残す。
+              thinkingMs:
+                message.thinkingMs ?? (chunk ? receivedAt - streamStartedAt : undefined),
+            };
+          }),
+        );
       }
 
       await loadSessions();
       if (resolvedSessionId) {
-        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
+        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId, assistantMessageId);
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
