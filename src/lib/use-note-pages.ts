@@ -51,7 +51,8 @@ export function useNotePages(enabled: boolean) {
       const cached = localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (Number.isSafeInteger(parsed.version)) draft = { ...validateNoteContent(parsed), version: parsed.version };
+        // 新しい項目を持たない旧下書きは、保存済みページの値で補ってから検証する。
+        if (Number.isSafeInteger(parsed.version)) draft = { ...validateNoteContent({ icon: page.icon, cover: page.cover, coverPosition: page.coverPosition, ...parsed }), version: parsed.version };
       }
     } catch { /* 壊れた端末キャッシュは DB の本文に影響させない。 */ }
     const queue = new NoteSaveQueue(page, async (content, version) => {
@@ -167,7 +168,7 @@ export function useNotePages(enabled: boolean) {
     setError("");
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
-      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, blocks: [] };
+      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       const { page } = await pageRequest("/api/pages", "POST", content);
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);

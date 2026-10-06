@@ -4,7 +4,7 @@ Pages 是 StudyMate 内部的文字笔记模式。切换模式保留聊天输入
 
 ## 编辑器与数据
 
-`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 只包含段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；不开放表格、媒体、文件、折叠标题或子页面。
+`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 只包含段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；不开放表格、媒体、文件、折叠标题或子页面。
 
 数据库保存 `editor.document` 原生 JSON，标题、页面图标和封面单独保存；旧草稿或旧客户端缺少 `icon`/`cover` 时按 null 处理。`src/lib/note-document.ts` 校验区块类型、稳定 ID、文字样式、链接协议、区块数量与深度，拒绝不支持的区块和脚本链接。请求流读取上限为 1 MiB，不仅依赖 Content-Length。标题最长 200 字符，正文最多 2,000 个块、8 层嵌套。
 
@@ -17,8 +17,10 @@ Pages 是 StudyMate 内部的文字笔记模式。切换模式保留聊天输入
 | `GET /api/pages` | 按创建时间返回当前匿名用户的页面摘要 |
 | `POST /api/pages` | 新建 `{ title, icon, cover, blocks }` 页面，也用于保存冲突副本 |
 | `GET /api/pages/:id` | 读取拥有的页面 |
-| `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, blocks, version }`，版本递增 |
+| `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增 |
 | `DELETE /api/pages/:id` | 删除拥有的页面 |
+| `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
+| `GET /api/pages/covers?key=` | 只返回当前匿名用户目录下的封面图片 |
 
 所有操作沿用签名设备 Cookie 和 `getOrCreateAnonymousUser()`；页面不存在或属于其他设备时返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；写操作独立限流到每设备 180 次/分钟，避免影响聊天配额。
 
@@ -34,4 +36,4 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `STUDYMATE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。

@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => {
 import { DELETE, GET, PATCH } from "./route";
 
 const context = { params: Promise.resolve({ pageId: "p1" }) };
-const page = { id: "p1", title: "Saved", icon: null, cover: null, blocks: [], version: 2 };
+const page = { id: "p1", title: "Saved", icon: null, cover: null, coverPosition: null, blocks: [], version: 2 };
 function request(version = 1, title = "Mine") { return new Request("http://localhost/api/pages/p1", { method: "PATCH", body: JSON.stringify({ title, blocks: [], version }) }); }
 
 describe("page ownership and save concurrency", () => {
@@ -60,9 +60,29 @@ describe("page ownership and save concurrency", () => {
     mocks.update.mockResolvedValue({ count: 1 });
     mocks.find.mockResolvedValue(page);
     expect((await PATCH(request(), context)).status).toBe(200);
-    expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "Mine", icon: null, cover: null, blocks: [], version: { increment: 1 } });
+    expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "Mine", blocks: [], version: { increment: 1 } });
     mocks.limited = true;
     expect((await PATCH(request(), context)).status).toBe(429);
     expect(mocks.update).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("page metadata from older clients", () => {
+  beforeEach(() => { vi.clearAllMocks(); mocks.limited = false; });
+
+  it("keeps saved icon and cover when a request omits them, and updates them when present", async () => {
+    mocks.update.mockResolvedValue({ count: 1 });
+    mocks.find.mockResolvedValue(page);
+    const legacy = new Request("http://localhost/api/pages/p1", { method: "PATCH", body: JSON.stringify({ title: "T", icon: "📚", blocks: [], version: 1 }) });
+    expect((await PATCH(legacy, context)).status).toBe(200);
+    expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "T", icon: "📚", blocks: [], version: { increment: 1 } });
+  });
+
+  it("rejects another user's uploaded cover key", async () => {
+    const foreign = new Request("http://localhost/api/pages/p1", { method: "PATCH", body: JSON.stringify({
+      title: "T", cover: "upload:page-covers/someone/0e111e3a-9e25-4944-ade7-b460580fa925.png", blocks: [], version: 1,
+    }) });
+    expect((await PATCH(foreign, context)).status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });

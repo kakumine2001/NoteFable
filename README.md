@@ -222,7 +222,7 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 ## 站内 Pages
 
-侧栏顶部的 `Chat / Pages` 在聊天和笔记之间切换（聊天与 Pages 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Pages 侧栏在 `Private` 分组下支持创建、选择和删除页面。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面从预设渐变/纯色中选择。页面平铺排列，按创建时间排序，编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
+侧栏顶部的 `Chat / Pages` 在聊天和笔记之间切换（聊天与 Pages 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Pages 侧栏在 `Private` 分组下支持创建、选择和删除页面。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面可从预设渐变/纯色中选择，也可上传图片（最大 4 MB）并拖动调整位置。代码块支持语法高亮、语言选择和一键复制。页面平铺排列，按创建时间排序，编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
 
 编辑器使用 BlockNote 社区版，支持段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；通过 `/` 菜单、Markdown 快捷输入、行内格式工具栏和拖动整理内容。首版只开放文字区块。
 
@@ -281,7 +281,7 @@ Vercel 上需要配置的环境变量：
 - `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
 - `COOKIE_SECRET`
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储与 Notion 文件导出，必填）
-- `CRON_SECRET`（Notion 临时文件回収 Cron 的认证，启用该 Cron 时必填）
+- `CRON_SECRET`（每日回收 Cron 的认证：Notion 临时文件，以及 7 天以上未被引用的 Pages 封面图片；启用该 Cron 时必填）
 
 Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
 

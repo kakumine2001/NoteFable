@@ -53,6 +53,7 @@ model AnonymousUser {
   sessions    Session[]
   notionSaves NotionSave[]
   notePages   NotePage[]
+  coverAssets NoteCoverAsset[]
 }
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
@@ -63,6 +64,8 @@ model NotePage {
   // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
   icon      String?
   cover     String?
+  // アップロード画像カバーの縦位置（0〜100%）。プリセットでは使わない。
+  coverPosition Int?
   blocks    Json
   version   Int      @default(0)
   createdAt DateTime @default(now())
@@ -181,4 +184,22 @@ model NotionSaveFile {
   save NotionSave @relation(fields: [saveId], references: [id], onDelete: Cascade)
 
   @@index([saveId])
+}
+
+// Pages のアップロードカバー画像。参照の付与と日次削除をこの行で調停する。
+// releasedAt はどのページからも参照されなくなった（と確認した）時刻。null は使用中。
+model NoteCoverAsset {
+  path       String    @id
+  userId     String
+  releasedAt DateTime?
+  // 削除処理を始めた時刻。ここから先は参照を付けられず、画像削除が終わったら行を消す。
+  deletingAt DateTime?
+  // 日次処理が最後に参照を確認した時刻。古いものから順に確認して、件数が多くても全件を巡回する。
+  checkedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([releasedAt])
+  @@index([checkedAt])
 }

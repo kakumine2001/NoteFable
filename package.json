@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@blocknote/ariakit": "0.55.0",
+    "@blocknote/code-block": "^0.55.0",
     "@blocknote/core": "0.55.0",
     "@blocknote/react": "0.55.0",
     "@prisma/adapter-pg": "^7.8.0",

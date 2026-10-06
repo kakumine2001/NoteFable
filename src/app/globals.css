@@ -1866,3 +1866,49 @@ button:disabled {
 }
 .notes-toolbar-sep { width: 1px; height: 20px; margin: 0 2px; flex-shrink: 0; background: rgba(55, 53, 47, 0.09); }
 .bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-left: auto; color: rgba(55, 53, 47, 0.45); }
+
+/* コードブロック: 明るい配色のハイライト、言語ラベル、Copy ボタン */
+.notes-block-editor { position: relative; }
+.notes-block-editor .shiki, .notes-block-editor .shiki span { color: var(--shiki-light); }
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > div > select {
+  top: 6px; left: 10px; padding: 2px 6px; border-radius: 4px; opacity: 1; transition-delay: 0s;
+  font-family: var(--font-ui); font-size: 12px; color: rgba(55, 53, 47, 0.65);
+}
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > div > select:hover { background: rgba(55, 53, 47, 0.08); }
+.notes-code-copy {
+  position: absolute; z-index: 5; display: inline-flex; height: 24px; align-items: center; gap: 4px; padding: 0 8px;
+  border-radius: 4px; background: #fff; box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
+  font-size: 12px; color: rgba(55, 53, 47, 0.65);
+}
+.notes-code-copy:hover { background: #f1f1ef; }
+
+/* カバー画像・位置調整・アップロード */
+.notes-cover-image { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; user-select: none; pointer-events: none; }
+.notes-cover-actions { z-index: 2; }
+.notes-cover.is-repositioning { cursor: grab; touch-action: none; }
+.notes-cover.is-repositioning:active { cursor: grabbing; }
+.notes-cover.is-repositioning .notes-cover-actions { opacity: 1; }
+.notes-cover-hint {
+  position: absolute; top: 50%; left: 50%; z-index: 1; padding: 4px 10px; border-radius: 4px; transform: translate(-50%, -50%);
+  background: rgba(15, 15, 15, 0.55); font-size: 12px; color: #fff; pointer-events: none;
+}
+.notes-picker-tabs { display: flex; gap: 4px; padding: 0 8px; border-bottom: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-picker-tabs button {
+  position: relative; padding: 10px 6px 8px; font-size: 14px; color: rgba(55, 53, 47, 0.65);
+}
+.notes-picker-tabs button:hover { color: #37352f; }
+.notes-picker-tabs button.is-active { color: #37352f; font-weight: 500; }
+.notes-picker-tabs button.is-active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #37352f; }
+.notes-cover-upload { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px; text-align: center; }
+.notes-cover-upload button {
+  display: inline-flex; width: 100%; height: 32px; align-items: center; justify-content: center; gap: 6px;
+  border: 1px solid rgba(55, 53, 47, 0.16); border-radius: 6px; font-size: 14px; color: #37352f;
+}
+.notes-cover-upload button:hover:not(:disabled) { background: rgba(55, 53, 47, 0.06); }
+.notes-cover-upload p { font-size: 12px; line-height: 1.5; color: rgba(55, 53, 47, 0.55); }
+.notes-cover-upload .notes-cover-error { color: #b91c1c; }
+
+/* タッチ端末ではホバーがないため、ページ見出しの操作ボタンを常に表示する。 */
+@media (hover: none) {
+  .notes-cover-actions, .notes-header-controls { opacity: 1; }
+}

@@ -1,15 +1,31 @@
 "use client";
 
-import { BlockNoteSchema, createHeadingBlockSpec, defaultBlockSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, createCodeBlockSpec, createHeadingBlockSpec, defaultBlockSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type SuggestionMenuProps } from "@blocknote/react";
-import { CheckSquare, Code2, Copy, Heading1, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type } from "lucide-react";
-import { useEffect, useImperativeHandle, useRef, type KeyboardEvent, type ReactNode, type Ref } from "react";
+import { Check, CheckSquare, Code2, Copy, Heading1, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type } from "lucide-react";
+import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { NOTE_TEXT_BLOCKS, codeBlockText, copyNoteBlocks, selectedRootBlocks, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
+
+const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = codeBlockOptions.supportedLanguages;
+// BlockNote は未知の言語 ID で描画時に例外を投げる。保存済みの "" や「```foo」でも落ちないよう、
+// 存在確認だけ常に真にして、実際の値は normalizeCodeLanguages で Plain Text に直す。
+const SAFE_CODE_LANGUAGES = new Proxy(CODE_LANGUAGES, { has: () => true });
+const isKnownLanguage = (language: unknown) => typeof language === "string" && Object.hasOwn(CODE_LANGUAGES, language);
+
+// 子ブロックまでたどり、未対応の言語を持つコードブロックを Plain Text にそろえる。
+function normalizeCodeLanguages<T extends { type: string; props?: Record<string, unknown>; children?: T[] }>(blocks: T[]): T[] {
+  return blocks.map((block) => ({
+    ...block,
+    ...(block.type === "codeBlock" && !isKnownLanguage(block.props?.language) ? { props: { ...block.props, language: "text" } } : {}),
+    ...(block.children ? { children: normalizeCodeLanguages(block.children) } : {}),
+  }));
+}
 
 const schema = BlockNoteSchema.create({ blockSpecs: {
   paragraph: defaultBlockSpecs.paragraph,
@@ -18,7 +34,8 @@ const schema = BlockNoteSchema.create({ blockSpecs: {
   numberedListItem: defaultBlockSpecs.numberedListItem,
   checkListItem: defaultBlockSpecs.checkListItem,
   quote: defaultBlockSpecs.quote,
-  codeBlock: defaultBlockSpecs.codeBlock,
+  // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
+  codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
   divider: defaultBlockSpecs.divider,
 } });
 
@@ -87,6 +104,12 @@ function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<Sl
   </div>;
 }
 
+// ハンドルのブロックが選択範囲に含まれていれば選択全体を、そうでなければそのブロックだけを対象にする。
+function menuTargets(editor: Editor, block: Editor["document"][number]) {
+  const selected = editor.getSelection()?.blocks ?? [];
+  return selected.some((item) => item.id === block.id) ? selected : [block];
+}
+
 function BlockMenu() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
@@ -107,10 +130,10 @@ function BlockMenu() {
     </Components.Generic.Menu.Root>
     <BlockColorsItem>Color</BlockColorsItem>
     <Components.Generic.Menu.Divider />
-    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, [block])}>
+    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, menuTargets(editor, block))}>
       Duplicate<span className="notes-menu-shortcut">{MOD}+D</span>
     </Components.Generic.Menu.Item>
-    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Trash2 size={16} />} onClick={() => editor.removeBlocks([block])}>
+    <Components.Generic.Menu.Item className="bn-menu-item" icon={<Trash2 size={16} />} onClick={() => editor.removeBlocks(selectedRootBlocks(menuTargets(editor, block)))}>
       Delete<span className="notes-menu-shortcut">Del</span>
     </Components.Generic.Menu.Item>
   </DragHandleMenu>;
@@ -140,14 +163,20 @@ function NoteFormattingToolbar() {
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
   const selected = useEditorState({ editor, selector: () => editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block] });
+  const typeItems = NOTE_TEXT_BLOCKS.map((target) => ({
+    text: target.title, icon: <Text size={16} />,
+    // 種類の違うブロックをまとめて選択すると一致する項目がなくなり、BlockNote の Select が落ちる。
+    // Notion と同じく先頭ブロックの種類を表示する。
+    isSelected: !!selected[0] && selected[0].type === target.type && (target.type !== "heading" || (selected[0].type === "heading" && selected[0].props.level === target.level)),
+    onClick: () => convertBlocks(editor, target, selected),
+  }));
   return <FormattingToolbar>
-    <Components.FormattingToolbar.Select className="bn-select" portalElement={portalElement} items={NOTE_TEXT_BLOCKS.map((target) => ({
-      text: target.title, icon: <Text size={16} />,
-      isSelected: selected.every((block) => block.type === target.type && (target.type !== "heading" || (block.type === "heading" && block.props.level === target.level))),
-      onClick: () => convertBlocks(editor, target, selected),
-    }))} />
+    {/* 区切り線など対応する種類がない選択では、BlockNote 標準と同じく種類の選択を出さない（Select が落ちるため）。 */}
+    {typeItems.some((item) => item.isSelected) && <>
+      <Components.FormattingToolbar.Select className="bn-select" portalElement={portalElement} items={typeItems} />
+      <span className="notes-toolbar-sep" />
+    </>}
     {/* Notion と同じ並び: 種類 | リンク | B I U S コード | 色。配置・インデント操作は出さない。 */}
-    <span className="notes-toolbar-sep" />
     <CreateLinkButton />
     <span className="notes-toolbar-sep" />
     <BasicTextStyleButton basicTextStyle="bold" />
@@ -166,10 +195,11 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
 }) {
   const editor = useCreateBlockNote({
     schema,
+    extensions: [syntaxHighlighter],
     tabBehavior: "prefer-indent",
     domAttributes: { editor: { "aria-label": "Page content" } },
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Press '/' for commands…", default: "Press '/' for commands…", heading: "Heading" } },
-    initialContent: blocks.length ? blocks as PartialBlock<typeof schema.blockSchema>[] : undefined,
+    initialContent: blocks.length ? normalizeCodeLanguages(blocks) as PartialBlock<typeof schema.blockSchema>[] : undefined,
   });
   function focusStart() {
     const first = editor.document[0];
@@ -187,6 +217,30 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     editor.setTextCursorPosition(last, "end");
   }
   useImperativeHandle(editorRef, () => ({ focusStart, focusEnd }));
+
+  // コードブロックにホバーした時だけ、右上に Notion と同じ「Copy」ボタンを重ねる。
+  const [codeHover, setCodeHover] = useState<{ id: string; top: number; right: number } | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  function trackCodeHover(event: MouseEvent<HTMLDivElement>) {
+    const target = event.target as HTMLElement;
+    if (target.closest(".notes-code-copy")) return;
+    const code = target.closest<HTMLElement>('.bn-block-content[data-content-type="codeBlock"]');
+    const id = code?.closest(".bn-block-outer")?.getAttribute("data-id");
+    if (!code || !id) { if (codeHover) setCodeHover(null); return; }
+    const wrap = event.currentTarget.getBoundingClientRect();
+    const rect = code.getBoundingClientRect();
+    const next = { id, top: Math.round(rect.top - wrap.top + 6), right: Math.round(wrap.right - rect.right + 6) };
+    if (next.id !== codeHover?.id || next.top !== codeHover.top || next.right !== codeHover.right) setCodeHover(next);
+  }
+  async function copyCode(id: string) {
+    const block = editor.getBlock(id);
+    if (!block) return;
+    try {
+      await navigator.clipboard.writeText(codeBlockText(block));
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((current) => current === id ? null : current), 1500);
+    } catch { /* クリップボード権限がない環境では何もしない。 */ }
+  }
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!editable || event.nativeEvent.isComposing || !(event.target instanceof HTMLElement) || !event.target.closest(".bn-editor")) return;
@@ -217,8 +271,18 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     }
   }
 
-  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown}>
-    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} onChange={() => onChange(editor.document)}>
+  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} onChange={() => {
+      // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
+      const unknown: string[] = [];
+      const visit = (list: typeof editor.document) => list.forEach((block) => {
+        if (block.type === "codeBlock" && !isKnownLanguage(block.props.language)) unknown.push(block.id);
+        visit(block.children);
+      });
+      visit(editor.document);
+      if (unknown.length) { editor.transact(() => unknown.forEach((id) => editor.updateBlock(id, { props: { language: "text" } }))); return; }
+      onChange(editor.document);
+    }}>
       <FormattingToolbarController formattingToolbar={NoteFormattingToolbar} />
       <SideMenuController sideMenu={NoteSideMenu} />
       <SuggestionMenuController triggerCharacter="/" suggestionMenuComponent={SlashMenu} getItems={async (query): Promise<SlashItem[]> => {
@@ -233,6 +297,10 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
         return filterSuggestionItems(turning ? textItems : [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))], turning ? query.replace(/^turn\s*/i, "") : query);
       }} />
     </BlockNoteView>
+    {codeHover && <button type="button" className="notes-code-copy" style={{ top: codeHover.top, right: codeHover.right }}
+      onMouseDown={(event) => event.preventDefault()} onClick={() => void copyCode(codeHover.id)}>
+      {copiedId === codeHover.id ? <><Check size={13} />Copied</> : <><Copy size={13} />Copy</>}
+    </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label="Continue writing at end of page" disabled={!editable} onClick={focusEnd} />
   </div>;
 }

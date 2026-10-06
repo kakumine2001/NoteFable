@@ -3,6 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { limitNoteWrite, noteApiError } from "@/lib/note-api";
+import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
 
@@ -24,15 +25,17 @@ export async function PATCH(request: Request, context: Context) {
     const update = validateNoteUpdate(await readNoteRequest(request));
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
+    assertCoverOwner(update.cover, user.id);
     // 版番号を更新条件に含め、別タブの新しい内容を上書きしない。
     const result = await prisma.$transaction(async (tx) => {
+      if (update.present.includes("cover")) await claimCover(tx, update.cover, user.id);
       const changed = await tx.notePage.updateMany({
         where: { id: pageId, userId: user.id, version: update.version },
-        data: { title: update.title, icon: update.icon, cover: update.cover, blocks: update.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
+        data: { title: update.title, ...Object.fromEntries(update.present.map((key) => [key, update[key]])), blocks: update.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
       });
       const page = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id } });
       // 応答だけ失われた保存の再送は、本文が一致する時に限り成功扱いにする。
-      const alreadySaved = page && page.title === update.title && page.icon === update.icon && page.cover === update.cover && isDeepStrictEqual(page.blocks, update.blocks);
+      const alreadySaved = page && page.title === update.title && update.present.every((key) => page[key] === update[key]) && isDeepStrictEqual(page.blocks, update.blocks);
       return { page, conflict: !changed.count && !alreadySaved };
     });
     if (!result.page) return NextResponse.json({ error: "Page not found." }, { status: 404 });

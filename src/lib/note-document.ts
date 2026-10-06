@@ -22,6 +22,21 @@ export const NOTE_COVERS = {
 } as const;
 export type NoteCover = keyof typeof NOTE_COVERS;
 
+// アップロード画像のカバーは「upload:page-covers/<所有者 ID>/<UUID>.<拡張子>」の形で保存する。
+// 所有者 ID をパスに含め、他人の画像キーを自分のページに付け替えられないようにする。
+const UPLOAD_COVER = /^upload:(page-covers\/([a-z0-9]{1,64})\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/;
+// Vercel Functions の受信上限 4.5 MB に multipart の余白を残す。
+export const MAX_COVER_BYTES = 4 * 1024 * 1024;
+
+export function uploadedCoverPath(cover: unknown) {
+  const match = typeof cover === "string" ? cover.match(UPLOAD_COVER) : null;
+  return match ? { path: match[1], ownerId: match[2] } : null;
+}
+
+export function isPresetCover(cover: unknown): cover is NoteCover {
+  return typeof cover === "string" && Object.hasOwn(NOTE_COVERS, cover);
+}
+
 function validIcon(value: unknown) {
   // 絵文字 1 つ分（肌色や ZWJ 結合を含む）だけを許可する。
   return typeof value === "string" && value.length <= 16 && /^\p{Extended_Pictographic}/u.test(value) && !/\s/.test(value);
@@ -95,14 +110,20 @@ export function validateNoteContent(value: unknown): NoteContent {
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
   if (icon !== null && !validIcon(icon)) throw new NoteValidationError("Page icon must be a single emoji.");
-  if (cover !== null && !(typeof cover === "string" && Object.hasOwn(NOTE_COVERS, cover))) throw new NoteValidationError("Unsupported page cover.");
+  if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError("Unsupported page cover.");
+  const coverPosition = value.coverPosition ?? null;
+  if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {
+    throw new NoteValidationError("Cover position must be between 0 and 100.");
+  }
   if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_NOTE_BYTES) throw new NoteValidationError("Page content exceeds 1 MiB.", 413);
-  return { title: value.title.trim() || "Untitled", icon: icon as string | null, cover: cover as string | null, blocks: value.blocks as Block[] };
+  return { title: value.title.trim() || "Untitled", icon: icon as string | null, cover: cover as string | null, coverPosition: coverPosition as number | null, blocks: value.blocks as Block[] };
 }
+
+export const NOTE_META_FIELDS = ["icon", "cover", "coverPosition"] as const;
 
 // 保存済みページから編集対象の本文だけを取り出す。
 export function noteContentOf(page: NoteContent): NoteContent {
-  return { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, blocks: page.blocks };
+  return { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, coverPosition: page.coverPosition ?? null, blocks: page.blocks };
 }
 
 export async function readNoteRequest(request: Request) {
@@ -136,5 +157,8 @@ export async function readNoteRequest(request: Request) {
 export function validateNoteUpdate(value: unknown) {
   const content = validateNoteContent(value);
   if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError("A valid page version is required.");
-  return { ...content, version: value.version as number };
+  // 旧クライアントや旧下書きは icon/cover/coverPosition を送らない。送られた項目だけを更新し、
+  // 省略された項目は保存済みの値を残す（null で上書きしない）。
+  const present = NOTE_META_FIELDS.filter((key) => key in value);
+  return { ...content, version: value.version as number, present };
 }

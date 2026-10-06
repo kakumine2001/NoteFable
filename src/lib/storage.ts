@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { mkdir, readFile, writeFile } from "fs/promises";
+import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import path from "path";
 import { optionalEnv } from "@/lib/env";
 
@@ -71,7 +71,12 @@ export async function writeStoredImage(buffer: Buffer, mimeType: string) {
     String(date.getUTCDate()).padStart(2, "0"),
   );
   const filename = `${randomUUID()}${getImageExtension(mimeType)}`;
-  const relativePath = path.join(folder, filename);
+  return writeStoredImageAt(path.join(folder, filename), buffer, mimeType);
+}
+
+// 保存先を呼び出し側で決める版。書き込み前にパスを DB に登録したい場合に使う。
+export async function writeStoredImageAt(storagePath: string, buffer: Buffer, mimeType: string) {
+  const relativePath = normalizeStoragePath(storagePath);
 
   if (hasVercelBlobToken()) {
     const { put } = await import("@vercel/blob");
@@ -107,4 +112,18 @@ export async function readStoredImage(storagePath: string) {
 
   assertStorageConfigured();
   return readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
+}
+
+export async function deleteStoredImage(storagePath: string) {
+  // 参照されなくなった画像を消す。既に存在しない場合も成功として扱う。
+  const safePath = normalizeStoragePath(storagePath).replace(/\\/g, "/");
+
+  if (hasVercelBlobToken()) {
+    const { del } = await import("@vercel/blob");
+    await del(safePath);
+    return;
+  }
+
+  assertStorageConfigured();
+  await rm(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath), { force: true });
 }

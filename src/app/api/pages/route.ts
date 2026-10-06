@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { limitNoteWrite, noteApiError } from "@/lib/note-api";
+import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readNoteRequest, validateNoteContent } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
 
@@ -22,7 +23,11 @@ export async function POST(request: Request) {
     if (limited) return limited;
     const content = validateNoteContent(await readNoteRequest(request));
     const user = await getOrCreateAnonymousUser();
-    const page = await prisma.notePage.create({ data: { userId: user.id, title: content.title, icon: content.icon, cover: content.cover, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
+    assertCoverOwner(content.cover, user.id);
+    const page = await prisma.$transaction(async (tx) => {
+      await claimCover(tx, content.cover, user.id);
+      return tx.notePage.create({ data: { userId: user.id, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
+    });
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

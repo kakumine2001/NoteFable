@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { optionalEnv } from "@/lib/env";
+import { collectUnusedCovers } from "@/lib/note-covers";
 import { releaseNotionStaging } from "@/lib/notion-saves";
 import { prisma } from "@/lib/prisma";
 
@@ -46,5 +47,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ examined: saves.length, released });
+  // 同じ日次ジョブで、7 日以上どのページにも使われていない Pages のカバー画像も回収する。
+  let covers: Awaited<ReturnType<typeof collectUnusedCovers>> | { error: string };
+  try { covers = await collectUnusedCovers(); } catch (error) {
+    console.error("Failed to collect unused page covers", error);
+    covers = { error: "Cover cleanup failed." };
+  }
+
+  return NextResponse.json({ examined: saves.length, released, covers });
 }

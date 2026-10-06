@@ -6,7 +6,7 @@ const paragraph = { id: "p1", type: "paragraph", props: { textColor: "default", 
 describe("page document boundary", () => {
   it("preserves CJK text, block ordering, nested lists and formatting", () => {
     const blocks = [paragraph, { id: "p2", type: "checkListItem", props: { checked: true }, content: [], children: [{ ...paragraph, id: "p3" }] }, { id: "p4", type: "codeBlock", props: { language: "javascript" }, content: [{ type: "text", text: "const a = 1;", styles: {} }], children: [] }, { id: "p5", type: "divider", props: {}, children: [] }];
-    expect(validateNoteContent({ title: " 学习笔记 ", blocks })).toEqual({ title: "学习笔记", icon: null, cover: null, blocks });
+    expect(validateNoteContent({ title: " 学习笔记 ", blocks })).toEqual({ title: "学习笔记", icon: null, cover: null, coverPosition: null, blocks });
   });
 
   it.each(["image", "file", "table", "toggleListItem", "html"])("rejects unsupported %s blocks", (type) => {
@@ -33,7 +33,7 @@ describe("page document boundary", () => {
 
 describe("page icon and cover", () => {
   it("accepts one emoji icon and a preset cover, and defaults both to null", () => {
-    expect(validateNoteContent({ title: "A", blocks: [] })).toMatchObject({ icon: null, cover: null });
+    expect(validateNoteContent({ title: "A", blocks: [] })).toMatchObject({ icon: null, cover: null, coverPosition: null });
     expect(validateNoteContent({ title: "A", icon: "📚", cover: "gradient-ocean", blocks: [] })).toMatchObject({ icon: "📚", cover: "gradient-ocean" });
     expect(validateNoteContent({ title: "A", icon: "👍🏽", blocks: [] }).icon).toBe("👍🏽");
   });
@@ -43,5 +43,21 @@ describe("page icon and cover", () => {
     expect(() => validateNoteContent({ title: "A", icon: "📚 x", blocks: [] })).toThrow("emoji");
     expect(() => validateNoteContent({ title: "A", cover: "https://example.com/x.png", blocks: [] })).toThrow("cover");
     expect(() => validateNoteContent({ title: "A", cover: "toString", blocks: [] })).toThrow("cover");
+  });
+});
+
+describe("uploaded page covers", () => {
+  const key = "upload:page-covers/cmabc123/0e111e3a-9e25-4944-ade7-b460580fa925.jpg";
+
+  it("accepts an uploaded cover key with a 0-100 position", () => {
+    expect(validateNoteContent({ title: "A", cover: key, coverPosition: 30, blocks: [] })).toMatchObject({ cover: key, coverPosition: 30 });
+  });
+
+  it("rejects path tricks, other folders and out-of-range positions", () => {
+    for (const cover of ["upload:page-covers/../images/x.jpg", "upload:images/2026/01/01/0e111e3a-9e25-4944-ade7-b460580fa925.jpg", "upload:page-covers/a/b/0e111e3a-9e25-4944-ade7-b460580fa925.jpg", `${key}.exe`]) {
+      expect(() => validateNoteContent({ title: "A", cover, blocks: [] })).toThrow("cover");
+    }
+    expect(() => validateNoteContent({ title: "A", cover: key, coverPosition: 101, blocks: [] })).toThrow("position");
+    expect(() => validateNoteContent({ title: "A", cover: key, coverPosition: 1.5, blocks: [] })).toThrow("position");
   });
 });
