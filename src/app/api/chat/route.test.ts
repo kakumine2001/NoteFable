@@ -4,6 +4,7 @@ const mocks = vi.hoisted(() => ({
   createMessage: vi.fn(),
   updateManySession: vi.fn(),
   fetch: vi.fn(),
+  findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
@@ -28,7 +29,7 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
     updateMany: mocks.updateManySession,
     findFirst: async () => ({ id: "session", title: "Existing chat" }),
   },
-  message: { create: mocks.createMessage, findMany: async () => [] },
+  message: { create: mocks.createMessage, findMany: mocks.findMessages },
 } }));
 
 import { POST } from "./route";
@@ -66,6 +67,7 @@ describe("DeepSeek chat response boundary", () => {
     expect(body).not.toHaveProperty("tools");
     expect(body).not.toHaveProperty("tool_choice");
     expect(body.instructions).toContain("Web search is unavailable");
+    expect(mocks.findMessages.mock.calls[0][0]).toMatchObject({ take: 30 });
   });
 
   it("never forwards or persists leaked tool text split across deltas", async () => {
@@ -146,7 +148,7 @@ describe("OpenAI web search", () => {
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
 
     expect(body.reasoning).toEqual({ effort: "high", summary: "auto" });
-    expect(body.include).toEqual(["web_search_call.action.sources"]);
+    expect(body.include).toEqual(["reasoning.encrypted_content", "web_search_call.action.sources"]);
     expect(events.filter((event) => typeof event !== "string").map((event) => event.activity)).toEqual([
       { type: "thought", id: "rs_1:0", delta: "**Checking**" },
       { type: "web", id: "ws_1", status: "running" },
@@ -154,6 +156,59 @@ describe("OpenAI web search", () => {
         action: { kind: "search", queries: ["next 16"], sources: ["https://nextjs.org/blog/next-16"] } },
     ]);
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("回答");
+  });
+});
+
+describe("Claude chat response boundary", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+  });
+
+  it("routes to Messages and saves visible text plus real-shaped search citations", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response([
+      { type: "content_block_start", index: 0, content_block: { type: "thinking", thinking: "", signature: "" } },
+      { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Checking" } },
+      { type: "content_block_delta", index: 0, delta: { type: "signature_delta", signature: "hidden-signature" } },
+      { type: "content_block_start", index: 1, content_block: { type: "text", text: "" } },
+      { type: "content_block_delta", index: 1, delta: { type: "text_delta", text: "Claude回答" } },
+      { type: "content_block_delta", index: 1, delta: { type: "citations_delta", citation: { type: "web_search_result_location", url: "https://example.com/news", title: "News", encrypted_index: "hidden-index" } } },
+      { type: "message_delta", delta: { stop_reason: "end_turn" } }, { type: "message_stop" },
+    ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")));
+    const form = new FormData();
+    form.set("message", "最新ニュースは？");
+    form.set("model", "claude-haiku-5-5");
+    form.set("sessionId", "existing");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    const raw = await response.text();
+    expect(mocks.fetch.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ max_tokens: 128000, output_config: { effort: "medium" }, tool_choice: { type: "auto" } });
+    expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
+    expect(raw).not.toContain("hidden-signature");
+    expect(raw).not.toContain("hidden-index");
+    const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
+    expect(saved.content).toBe("Claude回答\n\nSources:\n- [News](<https://example.com/news>)");
+    expect(saved.model).toBe("claude-haiku-5-5");
+    expect(saved.reasoningEffort).toBe("MEDIUM");
+  });
+
+  it("uses Anthropic low effort for title generation without search", async () => {
+    mocks.fetch
+      .mockResolvedValueOnce(new Response([
+        { type: "content_block_start", index: 0, content_block: { type: "text", text: "回答" } },
+        { type: "message_delta", delta: { stop_reason: "end_turn" } }, { type: "message_stop" },
+      ].map((event) => `data: ${JSON.stringify(event)}\n\n`).join("")))
+      .mockResolvedValueOnce(Response.json({ content: [{ type: "thinking", thinking: "hidden" }, { type: "text", text: "「Claude確認」" }], stop_reason: "end_turn" }));
+    const form = new FormData();
+    form.set("message", "Claudeの確認");
+    form.set("model", "claude-haiku-5-5");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    await response.text();
+    const titleBody = JSON.parse(mocks.fetch.mock.calls[1][1].body);
+    expect(titleBody).toMatchObject({ output_config: { effort: "low" }, stream: false });
+    expect(titleBody).not.toHaveProperty("tools");
+    expect(mocks.updateManySession).toHaveBeenCalledWith({ where: { id: "session", userId: "user", title: "Claudeの確認" }, data: { title: "Claude確認" } });
   });
 });
 

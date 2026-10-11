@@ -68,6 +68,7 @@ flowchart LR
     Vercel --> Blob["Private Vercel Blob"]
     Vercel --> OpenAI["OpenAI"]
     Vercel --> DeepSeek["DeepSeek"]
+    Vercel --> Anthropic["Anthropic API"]
     Vercel --> Notion["Notion"]
 ```
 
@@ -150,6 +151,16 @@ DEEPSEEK_BASE_URL
 DEEPSEEK_FLASH_MODEL
 ```
 
+### Anthropic
+
+```text
+ANTHROPIC_API_KEY
+ANTHROPIC_BASE_URL
+ANTHROPIC_HAIKU_MODEL
+```
+
+启用 Claude 必须配置服务端密钥。默认接入点 `https://api.anthropic.com/v1`，模型 `claude-haiku-5-5`，调用 Messages API；后两项可省略。API 独立计费。修改 Vercel 环境变量后重新部署生效，密钥不得进入客户端或 Git。
+
 模型显示名、模型 ID、能力和推理档位都只定义在 `src/lib/models.ts`，不通过环境变量覆盖。
 
 ### Notion
@@ -213,4 +224,5 @@ READY / ERROR
 
 - OpenAI
 - DeepSeek
+- Anthropic
 - Notion

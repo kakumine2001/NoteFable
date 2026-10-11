@@ -356,6 +356,7 @@ export function ModelSelect({
                   className="codex-reasoning-slider"
                   style={reasoningStyle}
                   data-dragging={pointerDown}
+                  data-provider={currentModel.provider}
                   data-no-reasoning={visualEffort === "none"}
                   role="slider"
                   tabIndex={0}

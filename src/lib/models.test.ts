@@ -29,6 +29,7 @@ describe("model configuration", () => {
   it("keeps the full model names in the selector", () => {
     expect(MODEL_OPTIONS.map((model) => model.label)).toEqual([
       "GPT-6 Luna",
+      "Claude Haiku 5.5",
       "DeepSeek-V4.1-Flash",
     ]);
   });
@@ -41,6 +42,18 @@ describe("model configuration", () => {
     expect(normalizeModel(null)).toBe(DEFAULT_MODEL);
     expect(getModelOption("gpt-5.5").id).toBe(DEFAULT_MODEL);
     expect(getModelOption("unknown-model").id).toBe(DEFAULT_MODEL);
+  });
+
+  it("uses Claude's official five effort levels and capabilities", () => {
+    const haiku = getModelOption("claude-haiku-5-5");
+    expect(haiku.provider).toBe("anthropic");
+    expect(haiku.supportsImageInput).toBe(true);
+    expect(haiku.supportsImageGeneration).toBe(false);
+    expect(haiku.supportsWebSearch).toBe(true);
+    expect(haiku.reasoningEfforts).toEqual(["low", "medium", "high", "xhigh", "max"]);
+    expect(normalizeReasoning("none", haiku.id)).toBe("medium");
+    expect(normalizeReasoning(null, haiku.id)).toBe("medium");
+    for (const effort of haiku.reasoningEfforts) expect(normalizeReasoning(effort, haiku.id)).toBe(effort);
   });
 
   it("supports all six Luna reasoning efforts", () => {

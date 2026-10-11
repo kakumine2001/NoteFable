@@ -680,6 +680,7 @@ button:disabled {
 }
 
 .codex-reasoning-slider {
+  --reasoning-accent: #5b9fe6;
   --reasoning-motion-duration: 300ms;
   position: relative;
   height: 2rem;
@@ -687,6 +688,10 @@ button:disabled {
   cursor: grab;
   touch-action: none;
   user-select: none;
+}
+
+.codex-reasoning-slider[data-provider="anthropic"] {
+  --reasoning-accent: #d97757;
 }
 
 .codex-reasoning-slider[data-dragging="true"] {
@@ -709,7 +714,7 @@ button:disabled {
   inset: 0 auto 0 0;
   width: var(--reasoning-fill-size);
   border-radius: 0.75rem 0 0 0.75rem;
-  background: #5b9fe6;
+  background: var(--reasoning-accent);
   transition: width var(--reasoning-motion-duration) cubic-bezier(0.23, 1, 0.32, 1);
 }
 

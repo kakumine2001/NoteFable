@@ -71,6 +71,11 @@ describe("buildHistoryInput", () => {
     expect(olderContent[0].text).toContain("o".repeat(20_000));
     expect(olderContent[0].text).not.toContain("o".repeat(20_001));
     expect(newerContent[0].text).toContain("n".repeat(100_000));
+
+    // Claude can retain stored attachment text beyond the shared 120k-character budget.
+    const fullInput = await buildHistoryInput(messages, false, undefined, Infinity);
+    const fullOlderContent = fullInput[0].content as { type: string; text: string }[];
+    expect(fullOlderContent[0].text).toContain("o".repeat(100_000));
   });
 
   it("restores stored images only for image-capable models and skips missing files", async () => {
@@ -120,6 +125,12 @@ describe("buildHistoryInput", () => {
     );
 
     expect(input).toEqual([{ role: "assistant", content: "Previous answer" }]);
+    expect(mocks.readStoredImage).not.toHaveBeenCalled();
+  });
+
+  it("skips historical images beyond the selected provider's per-image limit", async () => {
+    const input = await buildHistoryInput([{ id: "user", role: "USER", content: "previous image", attachments: [imageAttachment("large.png", "images/large.png", 6 * 1024 * 1024)] }], true, 5 * 1024 * 1024);
+    expect(input).toEqual([{ role: "user", content: "previous image" }]);
     expect(mocks.readStoredImage).not.toHaveBeenCalled();
   });
 });

@@ -38,6 +38,7 @@ flowchart LR
     Blob["Private Vercel Blob"]
     OpenAI["OpenAI APIs"]
     DeepSeek["DeepSeek API"]
+    Anthropic["Anthropic API"]
     Notion["Notion API"]
 
     Browser --> App
@@ -45,6 +46,7 @@ flowchart LR
     App --> Blob
     App --> OpenAI
     App --> DeepSeek
+    App --> Anthropic
     App --> Notion
 ```
 
@@ -74,6 +76,7 @@ flowchart LR
 - Neon PostgreSQL
 - OpenAI Responses API / Images API
 - DeepSeek Responses API
+- Anthropic Messages API
 - Vercel 部署（GitHub 联动）
 - Notion API
 - Vercel Analytics / Speed Insights
@@ -132,6 +135,8 @@ OPENAI_API_KEY="sk-..."
 OPENAI_BASE_URL="https://api.openai.com/v1"
 DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_BASE_URL="https://api.deepseek.com"
+ANTHROPIC_API_KEY="sk-ant-..."
+ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
 NOTION_API_KEY="secret_..."
 NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
@@ -142,6 +147,7 @@ NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 OPENAI_IMAGE_MODEL="gpt-image-2.5-sunburst"
 OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
+ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
@@ -198,9 +204,16 @@ npm run prisma:migrate
 模型能力：
 
 - GPT-6 Luna：支持图片输入、图片生成、Web 搜索，以及 `none / low / medium / high / xhigh / max`
+- Claude Haiku 5.5：支持图片输入和原生 Web 搜索，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
 - DeepSeek-V4.1-Flash：支持图片输入，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
 
-Web 搜索只使用 OpenAI Responses API 的原生搜索能力。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)。
+Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
+
+两者发送上一次压缩状态和后续文字历史，首次压缩前发送全部文字历史，不再按最近 30 条或历史附件合计 120,000 字符截断；单文件提取与历史图片限制保留。`Message.providerContext` 保存成功回答的厂商原生压缩状态，按 provider 与实际上游 model 隔离，下一轮从该状态继续；原消息和附件保留供界面查看，状态不返回浏览器。DeepSeek 保留最近 30 条规则。超出上游硬性输入或请求大小限制仍可能报错，压缩不能保证任意大单次上传均可接受。Batch API 的 300,000 token 输出需异步批处理与 Beta 标头，当前实时聊天不调用该接口。
+
+Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索能力。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，最多 3 次续接（这是请求续接次数限制，与 `max_uses` 不同）。引用转换为可点击链接并随回答保存。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT 或 Claude。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
+
+Claude 通过服务端 `ANTHROPIC_API_KEY` 接入 `/v1/messages`，API 费用与 Claude 订阅分开。推理档位和图片输入已按 [Haiku 官方规格](https://platform.claude.com/docs/en/models/haiku-5-5/overview)及 [effort 说明](https://platform.claude.com/docs/en/build-with-claude/effort)配置。文档提及的代码执行、结构化输出等能力尚未作为本应用功能开放；PDF 继续沿用统一的文本提取。普通回答仅保存文字和引用；发生压缩后，额外保存继续请求所需的原生压缩块及其后续输出，Claude 思考块不保存。原生状态仅供同厂商同模型的服务端后续请求复用。参见 [OpenAI 压缩](https://developers.openai.com/api/docs/guides/compaction)及 [Claude 压缩](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold)。
 
 DeepSeek 的 `response.output_text.delta` 先经过工具记法检查；DSML 或工具结果标记会触发错误，不会继续作为正常回答显示或保存。未完成、空回答和缺少完成事件的流也按失败处理。历史中已保存的异常工具文本不会再次送入模型；原记录和已有 Notion 页面保留。
 
@@ -278,6 +291,8 @@ Vercel 上需要配置的环境变量：
 - `OPENAI_BASE_URL`
 - `DEEPSEEK_API_KEY`
 - `DEEPSEEK_BASE_URL`
+- `ANTHROPIC_API_KEY`（启用 Claude 时必填）
+- `ANTHROPIC_BASE_URL` / `ANTHROPIC_HAIKU_MODEL`（可选）
 - `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
 - `COOKIE_SECRET`
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储与 Notion 文件导出，必填）

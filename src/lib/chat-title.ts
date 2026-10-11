@@ -2,6 +2,7 @@ import { optionalEnv, requireEnv } from "@/lib/env";
 import type { ModelProvider } from "@/lib/models";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { buildDeepSeekResponsesRequest } from "@/lib/deepseek-responses";
+import { buildAnthropicRequest, extractAnthropicText, requestAnthropic } from "@/lib/anthropic-messages";
 
 // タイトル生成は本文の返答より先に終わる想定。長引いても返答の完了を待たせすぎない。
 const TITLE_TIMEOUT_MS = 6000;
@@ -59,6 +60,20 @@ export async function generateChatTitle({
 }) {
   const input = message.slice(0, MAX_INPUT_CHARS);
   const signal = AbortSignal.timeout(TITLE_TIMEOUT_MS);
+
+  if (provider === "anthropic") {
+    const response = await requestAnthropic(buildAnthropicRequest({
+      model,
+      instructions: TITLE_INSTRUCTIONS,
+      input: [{ role: "user", content: input }],
+      effort: "low",
+      stream: false,
+      maxTokens: 2048,
+    }), signal);
+    const data = await response.json();
+    if (data.stop_reason !== "end_turn") return null;
+    return cleanTitle(extractAnthropicText(data));
+  }
 
   const request =
     provider === "deepseek"

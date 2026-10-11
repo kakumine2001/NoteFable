@@ -1,5 +1,7 @@
 # Database Architecture
 
+`Message.providerContext` 为可空 TEXT，保存成功回答对应的原生压缩 checkpoint（版本、provider、实际上游 model、原生 items 和已覆盖消息 ID 的 JSON）。按已覆盖 ID 恢复，避免遗漏并发新增消息。仅服务端聊天请求读取，浏览器消息接口不返回；原始 `Message.content` 与附件不被压缩或删除。新增字段通过 `20261011120000_message_provider_context` migration 部署。
+
 ## 实际生产数据库
 
 截至 2026-09-05 已通过 Neon 实际资源确认：
@@ -105,6 +107,7 @@ erDiagram
         string sessionId FK
         string role
         string content
+        string providerContext
         string model
         string reasoningEffort
         datetime createdAt
@@ -217,6 +220,7 @@ AnonymousUser 1 -> N Session
 - `sessionId`
 - `role`
 - `content`
+- `providerContext`（可空，仅服务端原生压缩状态）
 - `model`
 - `reasoningEffort`
 

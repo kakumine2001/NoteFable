@@ -17,7 +17,10 @@ export const REASONING_EFFORTS = [
 
 export type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
 // モデルをどの上流 API へ送るかを表す分類。
-export type ModelProvider = "openai" | "deepseek";
+export type ModelProvider = "openai" | "deepseek" | "anthropic";
+
+// Claude Models API: max_input_tokens / max_tokens (decimal token counts).
+export const ANTHROPIC_HAIKU_LIMITS = { contextWindow: 1_000_000, maxOutputTokens: 128_000 } as const;
 
 type ModelOption = {
   // フロントエンドと API 間でやり取りする内部 ID。
@@ -32,10 +35,12 @@ type ModelOption = {
   supportsImageGeneration: boolean;
   // 実際に利用できるプロバイダーの検索機能だけを有効にする。
   supportsWebSearch: boolean;
+  supportsCompaction: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];
   // 推論強度が未指定または非対応値だった場合の初期値。
   defaultReasoning: ReasoningEffort;
+  tokenLimits?: { contextWindow: number; maxOutputTokens: number };
 };
 
 // StudyMate で選択可能なモデル定義。UI 表示と API 側の検証で同じ配列を使う。
@@ -48,8 +53,21 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageInput: true,
     supportsImageGeneration: true,
     supportsWebSearch: true,
+    supportsCompaction: true,
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "medium",
+  },
+  {
+    id: "claude-haiku-5-5",
+    label: "Claude Haiku 5.5",
+    provider: "anthropic",
+    supportsImageInput: true,
+    supportsImageGeneration: false,
+    supportsWebSearch: true,
+    supportsCompaction: true,
+    reasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
+    defaultReasoning: "medium",
+    tokenLimits: ANTHROPIC_HAIKU_LIMITS,
   },
   {
     // DeepSeek の現行モデル名。上流も同じ名前を受け付ける。
@@ -60,6 +78,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageGeneration: false,
     // 現行の DeepSeek Responses API は組み込み web_search を無視する。
     supportsWebSearch: false,
+    supportsCompaction: false,
     // 推論強度は low / high / max に対応し、既定値は high。
     reasoningEfforts: ["low", "high", "max"],
     defaultReasoning: "high",

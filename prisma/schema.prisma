@@ -97,6 +97,8 @@ model Message {
   content         String
   model           String?
   reasoningEffort ReasoningEffort?
+  // Native provider compaction checkpoint; excluded from browser message queries.
+  providerContext String?
   createdAt       DateTime         @default(now())
 
   session     Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)

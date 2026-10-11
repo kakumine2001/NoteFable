@@ -2,7 +2,7 @@
 
 ## Project
 
-Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, DeepSeek, and Notion.
+Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, Anthropic, DeepSeek, and Notion.
 
 ## Task and Context Routing
 
@@ -48,13 +48,15 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 - Treat `src/lib/models.ts` as the single source of truth for supported models, capabilities, and reasoning levels.
 - Update model definitions first, then align frontend and API validation.
-- Only the upstream model name (`OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`, `DEEPSEEK_FLASH_MODEL`) and provider base URL are environment-configurable. Display labels, provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
-- OpenAI and DeepSeek chat both use their Responses API paths. Only OpenAI uses provider-native web search; the current DeepSeek API ignores built-in `web_search`. Do not advertise or send unsupported search tools.
+- Only the upstream model name (`OPENAI_TEXT_MODEL`, `OPENAI_IMAGE_MODEL`, `DEEPSEEK_FLASH_MODEL`, `ANTHROPIC_HAIKU_MODEL`) and provider base URL are environment-configurable. Display labels, provider routing, capabilities, and reasoning levels stay in code so client and API keep one contract.
+- OpenAI and DeepSeek chat use their Responses API paths; Anthropic uses Messages API via `src/lib/anthropic-messages.ts`. OpenAI and Anthropic use provider-native web search; the current DeepSeek API ignores built-in `web_search`. Do not advertise or send unsupported search tools.
+- Haiku uses adaptive thinking with `output_config.effort`; do not send sampling parameters or the old thinking token budget. Preserve native content blocks for `pause_turn` continuation, and include search citations in the saved answer.
 - The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
 - Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
 - `/api/images` uses `/images/generations` for text-only generation and `/images/edits` when reference images are supplied.
 - Do not switch image generation to the Responses API unless the user explicitly asks for that redesign and the current upstream compatibility is revalidated.
 - Keep provider-specific differences behind shared helpers where possible.
+- Native chat compaction is enabled for Luna and Claude. Keep `Message.providerContext` server-side, replay native items without rewriting them, and reuse checkpoints only for the same provider and upstream model; preserve the visible transcript.
 
 ## Storage
 

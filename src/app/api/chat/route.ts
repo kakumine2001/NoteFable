@@ -11,6 +11,8 @@ import {
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { buildHistoryInput } from "@/lib/chat-history";
 import { generateChatTitle } from "@/lib/chat-title";
+import { buildAnthropicRequest, createAnthropicStream } from "@/lib/anthropic-messages";
+import { OpenAICompaction, restoreCompaction, serializeCompaction } from "@/lib/chat-compaction";
 import {
   getModelOption,
   normalizeModel,
@@ -43,7 +45,7 @@ function makeTitle(message: string) {
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
 
-// OpenAI と DeepSeek が共通で使うシステム指示を組み立てる。
+// 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
 function buildInstructions(webSearchMode: WebSearchMode) {
   return [
@@ -69,6 +71,7 @@ type ResponsesStreamRequest = {
   model: string;
   instructions: string;
   input: unknown[];
+  context_management?: { type: "compaction" }[];
   reasoning: {
     effort: string;
     summary?: "auto";
@@ -77,7 +80,7 @@ type ResponsesStreamRequest = {
     type: "web_search";
   }[];
   tool_choice?: "auto" | "required";
-  include?: "web_search_call.action.sources"[];
+  include?: ("web_search_call.action.sources" | "reasoning.encrypted_content")[];
   safety_identifier: string;
   store: false;
   stream: true;
@@ -226,6 +229,10 @@ function getUpstreamModel(model: string) {
     return optionalEnv("DEEPSEEK_FLASH_MODEL") || model;
   }
 
+  if (model === "claude-haiku-5-5") {
+    return optionalEnv("ANTHROPIC_HAIKU_MODEL") || model;
+  }
+
   return model;
 }
 
@@ -370,6 +377,10 @@ export async function POST(request: Request) {
     );
   }
 
+  if (modelOption.provider === "anthropic" && files.some((file) => isImageFile(file) && file.size > 5 * 1024 * 1024)) {
+    return NextResponse.json({ error: "Claude image uploads must be 5 MiB or smaller per image." }, { status: 400 });
+  }
+
   // 署名付き Cookie から匿名ユーザーを取得または作成し、以降の DB 操作の所有者にする。
   const user = await getOrCreateAnonymousUser();
 
@@ -426,18 +437,19 @@ export async function POST(request: Request) {
     });
   }
 
-  // 上流 API に渡す会話履歴。直近 30 件だけにしてトークン量と DB 読み込み量を抑える。
+  // Compaction-capable models retain text history until the provider summarizes it.
   const history = await prisma.message.findMany({
     where: {
       sessionId: session.id,
       id: { not: userMessage.id },
     },
     orderBy: { createdAt: "desc" },
-    take: 30,
+    ...(modelOption.supportsCompaction ? {} : { take: 30 }),
     select: {
       id: true,
       role: true,
       content: true,
+      providerContext: true,
       attachments: {
         select: {
           filename: true,
@@ -449,6 +461,11 @@ export async function POST(request: Request) {
       },
     },
   });
+
+  const restored = modelOption.supportsCompaction
+    ? restoreCompaction(history, modelOption.provider, upstreamModel)
+    : { history, items: [] };
+  const coveredMessageIds = [...history.map((item) => item.id), userMessage.id];
 
   // 画像入力に対応する添付は、Responses API の input_image パートとして追加する。
   const imageParts = attachments
@@ -476,7 +493,12 @@ export async function POST(request: Request) {
   ];
 
   // 過去の添付も上限内で復元し、PDF や画像について続けて質問できるようにする。
-  const historyInput = await buildHistoryInput(history, modelOption.supportsImageInput);
+  const historyInput = await buildHistoryInput(
+    restored.history,
+    modelOption.supportsImageInput,
+    modelOption.provider === "anthropic" ? 5 * 1024 * 1024 : undefined,
+    modelOption.supportsCompaction ? Infinity : undefined,
+  );
   const input: { role: string; content: unknown }[] = [
     ...historyInput,
     {
@@ -494,6 +516,7 @@ export async function POST(request: Request) {
   let buffer = "";
   // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
   let titleTask: Promise<void> = Promise.resolve();
+  let providerContext: string | undefined;
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -502,7 +525,17 @@ export async function POST(request: Request) {
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const upstream =
-          modelOption.provider === "deepseek"
+          modelOption.provider === "anthropic"
+            ? await createAnthropicStream(buildAnthropicRequest({
+                model: upstreamModel,
+                instructions: buildInstructions(webSearchMode),
+                input,
+                effort: reasoning,
+                webSearchMode,
+                compaction: modelOption.supportsCompaction,
+                nativeContext: restored.items,
+              }), (items) => { providerContext = serializeCompaction("anthropic", upstreamModel, items, coveredMessageIds); })
+            : modelOption.provider === "deepseek"
             ? await createDeepSeekResponsesStream({
                 model: upstreamModel,
                 input,
@@ -512,19 +545,19 @@ export async function POST(request: Request) {
             : await createResponsesStream({
                 model: upstreamModel,
                 instructions: buildInstructions(webSearchMode),
-                input,
+                input: [...restored.items, ...input],
+                ...(modelOption.supportsCompaction ? { context_management: [{ type: "compaction" as const }] } : {}),
                 reasoning: {
                   effort: reasoning,
                   // 推論要約は途中経過の表示に使う。推論しない none では求めない。
                   ...(reasoning !== "none" ? { summary: "auto" as const } : {}),
                 },
                 safety_identifier: user.id,
+                include: ["reasoning.encrypted_content", ...(webSearchMode !== "off" ? ["web_search_call.action.sources" as const] : [])],
                 ...(webSearchMode !== "off"
                   ? {
                       tools: [{ type: "web_search" }],
                       tool_choice: webSearchMode === "force" ? "required" as const : "auto" as const,
-                      // 参照したサイト一覧を途中経過に出すため、sources を明示的に要求する。
-                      include: ["web_search_call.action.sources" as const],
                     }
                   : {}),
                 store: false,
@@ -544,6 +577,7 @@ export async function POST(request: Request) {
         reader = upstream.getReader();
         const guard = modelOption.provider === "deepseek" ? new ToolMarkupGuard() : null;
         let completed = false;
+        const openAICompaction = new OpenAICompaction();
         const webCitations = new Map<string, string>();
 
         const forwardText = (delta: string) => {
@@ -554,10 +588,11 @@ export async function POST(request: Request) {
 
         const forwardData = (data: string[]) => {
           for (const payload of data) {
+            if (modelOption.provider === "openai") openAICompaction.push(JSON.parse(payload));
             // 推論要約や検索の動きは、本文とは別の途中経過イベントとして流す。
             const activity = parseActivityEvent(JSON.parse(payload));
             if (activity) controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
-            if (modelOption.provider === "openai") {
+            if (modelOption.provider !== "deepseek") {
               const citation = getWebCitation(payload);
               if (citation) webCitations.set(citation.url, citation.title);
             }
@@ -594,15 +629,18 @@ export async function POST(request: Request) {
           if (!assistantText.trim()) throw new Error("DeepSeek returned an empty response. Please retry.");
         }
 
-        if (modelOption.provider === "openai") {
+        if (modelOption.provider !== "deepseek") {
           forwardText(formatWebCitations(webCitations));
         }
+
+        if (openAICompaction.context) providerContext = serializeCompaction("openai", upstreamModel, openAICompaction.context, coveredMessageIds);
 
         await prisma.message.create({
           data: {
             sessionId: session.id,
             role: "ASSISTANT",
             content: assistantText,
+            ...(providerContext ? { providerContext } : {}),
             model,
             reasoningEffort: toDbReasoning(reasoning),
           },
