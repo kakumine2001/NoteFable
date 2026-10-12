@@ -62,6 +62,7 @@ flowchart LR
 - 面向项目所有者本人，优先保证随时可用、操作简单和维护成本低
 - 模型及第三方服务凭据由服务端环境变量统一配置，不暴露给浏览器
 - 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于登录或访问控制
+- 可选的 Google 登录（Auth.js）只用于跨设备找回同一份数据：首次登录时把当前设备的匿名数据绑定到该 Google 账号；登出（或停用登录）后浏览器回到全新的匿名状态，不会继续显示该账号的数据，再次登录即可找回；未配置相关环境变量时自动停用，仍是纯匿名模式
 - 若部署地址可能被其他人获知，应在 Vercel、反向代理或应用层增加真正的访问认证，避免他人消耗 API 配额
 - 使用时仍需遵守工作地点的网络、信息安全及数据处理规定，不应提交不允许传给外部 AI 服务的内容
 
@@ -123,6 +124,14 @@ http://localhost:3000
 ```bash
 DATABASE_URL="postgresql://user:password@host:5432/neondb?schema=studymate"
 COOKIE_SECRET="replace-with-a-long-random-secret"
+```
+
+Google 登录（可选；三项都配置才会启用，回调地址为 `<站点>/api/auth/callback/google`）：
+
+```bash
+AUTH_SECRET="replace-with-a-long-random-secret"
+AUTH_GOOGLE_ID="....apps.googleusercontent.com"
+AUTH_GOOGLE_SECRET="..."
 ```
 
 按启用的功能配置：
@@ -238,7 +247,7 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 停止输入约一秒后自动保存，顶部显示 `Saving… / Saved`。正文以原生区块 JSON 存入 PostgreSQL 的 `NotePage` 表，并沿用现有签名设备 Cookie 的匿名用户归属。浏览器只缓存尚未成功保存的草稿；失败后可以重试或刷新恢复。两个标签页修改同一页面时通过版本号阻止覆盖，冲突可以保存为新页面或载入最新版本。
 
-页面与同一浏览器、同一域名绑定。清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但当前身份机制无法重新认领；当前没有账号或跨设备恢复功能。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
+未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
 
 Pages 不调用 AI。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
@@ -268,6 +277,7 @@ Vercel 上需要配置的环境变量：
 - `ANTHROPIC_API_KEY`（启用 Claude 时必填）
 - `ANTHROPIC_BASE_URL` / `ANTHROPIC_HAIKU_MODEL`（可选）
 - `COOKIE_SECRET`
+- `AUTH_SECRET`、`AUTH_GOOGLE_ID`、`AUTH_GOOGLE_SECRET`（启用 Google 登录时；需在 Google Cloud 的 OAuth 客户端里登记 `https://<域名>/api/auth/callback/google`）
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储，必填）
 - `CRON_SECRET`（每日回收 Cron 的认证：7 天以上未被引用的 Pages 封面图片；启用该 Cron 时必填）
 

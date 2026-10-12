@@ -66,6 +66,7 @@ erDiagram
     AnonymousUser {
         string id PK
         string deviceId
+        string googleSub "nullable, unique"
         datetime createdAt
         datetime updatedAt
     }
@@ -133,12 +134,14 @@ erDiagram
 
 ### AnonymousUser
 
-匿名浏览器设备。
+匿名浏览器设备，同时也是 Google 登录后的用户记录（表名沿用，不重命名）。
 
 核心字段：
 
 - `id`：内部主键
 - `deviceId`：签名 Cookie 对应的唯一设备 ID
+- `googleSub`：可空且唯一，Google 账号 ID；首次 Google 登录时绑定到当前设备的用户，之后在任何设备登录同一账号都会得到这一行
+- `email` / `name` / `image`：可空，登录时从 Google 同步的资料
 
 关系：
 

@@ -14,7 +14,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 ## Scope Rules
 
 - Keep the current anonymous device-cookie session model unless the user explicitly asks for an authentication redesign.
-- The signed device cookie separates session ownership; it is not real access control.
+- The signed device cookie separates session ownership; it is not real access control. Optional Google login (Auth.js, JWT sessions, no DB adapter) links a Google account to an `AnonymousUser` row via `googleSub`; key it on the provider account id, never on `token.sub`. A device cookie that points at a Google-linked row must not be served anonymously (signed-out browsers get a fresh anonymous user).
 - Do not add public multi-user product features unless explicitly requested.
 - Keep secrets and provider credentials server-side.
 
@@ -32,7 +32,8 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Concern | Source |
 | --- | --- |
 | Model capabilities and reasoning levels | `src/lib/models.ts` |
-| Anonymous identity | `src/lib/auth.ts` |
+| Anonymous identity and Google-linked user | `src/lib/auth.ts` |
+| Google login (Auth.js) | `src/lib/google-auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` |
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
 | Image generation | `src/app/api/images/route.ts` |
 | File and attachment handling | `src/lib/files.ts` |

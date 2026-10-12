@@ -131,6 +131,15 @@ DATABASE_URL
 COOKIE_SECRET
 ```
 
+### Google 登录（可选）
+
+```text
+AUTH_SECRET
+AUTH_GOOGLE_ID
+AUTH_GOOGLE_SECRET
+```
+
+三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
 ### OpenAI
 

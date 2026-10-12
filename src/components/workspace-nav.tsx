@@ -1,6 +1,7 @@
 "use client";
 
 import { FileText, MessageSquareText } from "lucide-react";
+import { AccountButton } from "@/components/account-button";
 
 export type WorkspaceView = "chat" | "pages";
 
@@ -18,6 +19,7 @@ export function WorkspaceNav({ view, onChange }: { view: WorkspaceView; onChange
           <Icon size={16} /><span>{label}</span>
         </button>
       ))}
+      <AccountButton />
     </nav>
   );
 }
