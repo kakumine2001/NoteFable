@@ -161,14 +161,6 @@ Vercel Blob（生产环境图片存储）必需：
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 ```
 
-每日清理任务（Vercel Cron 的认证）：
-
-```bash
-CRON_SECRET="replace-with-a-long-random-secret"
-```
-
-未配置 `CRON_SECRET` 时，`/api/cron/cleanup` 一律返回 401，不会误删任何数据。
-
 模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
 
 模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
@@ -279,7 +271,6 @@ Vercel 上需要配置的环境变量：
 - `COOKIE_SECRET`
 - `AUTH_SECRET`、`AUTH_GOOGLE_ID`、`AUTH_GOOGLE_SECRET`（启用 Google 登录时；需在 Google Cloud 的 OAuth 客户端里登记 `https://<域名>/api/auth/callback/google`）
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储，必填）
-- `CRON_SECRET`（每日回收 Cron 的认证：7 天以上未被引用的 Pages 封面图片；启用该 Cron 时必填）
 
 Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
 
