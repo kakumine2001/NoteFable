@@ -9,7 +9,6 @@ import {
   Paperclip,
   PanelLeft,
   Plus,
-  UploadCloud,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -19,7 +18,6 @@ import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { ModelSelect } from "@/components/model-controls";
-import { NotionDrawer, type NotionDraftState } from "@/components/notion-drawer";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
@@ -27,8 +25,6 @@ import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
-import { createTranscriptBlocks, revokeDraftPreviews } from "@/lib/notion-draft";
-import { formatTranscriptForNotion } from "@/lib/notion-transcript";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 
@@ -139,7 +135,6 @@ export default function Home() {
     if (view === workspaceView) return;
     setWorkspaceView(view);
     setSidebarOpen(false);
-    setNotionDraftOpen(false);
     const url = new URL(window.location.href);
     if (view === "pages") {
       url.searchParams.set("view", "pages");
@@ -178,13 +173,6 @@ export default function Home() {
   const [sidebarVisible, setSidebarVisible] = useState(true);
   // 最下部にいる時は手動スクロールボタンを隠す。
   const [isAtChatBottom, setIsAtChatBottom] = useState(true);
-  // Notion へ保存する前にユーザーが編集できる下書きパネル。
-  const [notionDraftOpen, setNotionDraftOpen] = useState(false);
-  // Notion 下書き。本文は「文章・ファイル」の順序付きブロックとして持つ。
-  // パネルを閉じても保持し、失敗した保存の続きから再試行できるようにする。
-  const [notionDraft, setNotionDraft] = useState<NotionDraftState | null>(null);
-  // 保存に成功した下書きは、次に開いた時に会話から作り直す。
-  const notionSavedRef = useRef(false);
   // 会話本文のスクロール領域。手動で最下部へ移動するボタンだけで使う。
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
@@ -199,8 +187,6 @@ export default function Home() {
   const streamingSessionsRef = useRef<Record<string, number>>({});
   // アンマウント時のクリーンアップで最新の添付一覧を参照するための ref。
   const filesRef = useRef<UploadFile[]>([]);
-  // Notion 下書きのプレビュー URL も、ページ破棄時にまとめて解放する。
-  const notionDraftRef = useRef<NotionDraftState | null>(null);
   // 送信直後の古い入力イベントで本文が戻らないよう、DOM 側も直接空にする。
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
@@ -548,31 +534,6 @@ export default function Home() {
     setInput(nextInput);
   }
 
-  function openNotionDraft() {
-    // 初回だけ会話から下書きを作る。編集中の下書きがあればそれを優先し、
-    // 失敗した保存の続きをそのまま再試行できるようにする。
-    if (!notionDraft) {
-      setNotionDraft({
-        title: activeTitle,
-        blocks: createTranscriptBlocks(formatTranscriptForNotion(messages)),
-        resume: null,
-      });
-    }
-
-    setNotionDraftOpen(true);
-  }
-
-  function closeNotionDraft() {
-    // 保存まで終わった下書きは残さない。次に開く時は最新の会話から作り直す。
-    if (notionSavedRef.current && notionDraft) {
-      revokeDraftPreviews(notionDraft.blocks);
-      notionSavedRef.current = false;
-      setNotionDraft(null);
-    }
-
-    setNotionDraftOpen(false);
-  }
-
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
 
@@ -864,18 +825,11 @@ export default function Home() {
   }, [files]);
 
   useEffect(() => {
-    notionDraftRef.current = notionDraft;
-  }, [notionDraft]);
-
-  useEffect(() => {
     // files は state のためクリーンアップ関数内だと古い値になりやすい。
     // ref に最新値を持たせ、ページ破棄時に未送信ファイルの previewUrl をまとめて解放する。
     return () => {
       sessionLoadAbortRef.current?.abort();
       revokeUploadPreviews(filesRef.current);
-      if (notionDraftRef.current) {
-        revokeDraftPreviews(notionDraftRef.current.blocks);
-      }
     };
   }, []);
 
@@ -1007,32 +961,9 @@ export default function Home() {
               <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
                 {notes.active ? ({ saved: "Saved", pending: "Saving…", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
               </span>
-            ) : <>
-            <button
-              type="button"
-              onClick={openNotionDraft}
-              className="notion-composer-control"
-              aria-label="Export to Notion"
-              title="Export to Notion"
-            >
-              <UploadCloud size={15} />
-              <span className="hidden sm:inline">Export to Notion</span>
-            </button>
-            </>}
+            ) : null}
           </div>
         </header>
-
-        {workspaceView === "chat" && notionDraftOpen && notionDraft && (
-          <NotionDrawer
-            draft={notionDraft}
-            sessionId={activeSessionId}
-            onDraftChange={setNotionDraft}
-            onClose={closeNotionDraft}
-            onSaved={() => {
-              notionSavedRef.current = true;
-            }}
-          />
-        )}
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           <NotesWorkspace notes={notes} />

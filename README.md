@@ -2,7 +2,7 @@
 
 供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
 
-项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Pages 笔记和 Notion 导出（正文里可以自由插入本机文件）。
+项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Pages 笔记。
 
 ## 当前生产环境
 
@@ -39,7 +39,6 @@ flowchart LR
     OpenAI["OpenAI APIs"]
     DeepSeek["DeepSeek API"]
     Anthropic["Anthropic API"]
-    Notion["Notion API"]
 
     Browser --> App
     App --> Neon
@@ -47,7 +46,6 @@ flowchart LR
     App --> OpenAI
     App --> DeepSeek
     App --> Anthropic
-    App --> Notion
 ```
 
 几个月没维护、需要重新理解项目时，从这里开始：
@@ -78,7 +76,6 @@ flowchart LR
 - DeepSeek Responses API
 - Anthropic Messages API
 - Vercel 部署（GitHub 联动）
-- Notion API
 - Vercel Analytics / Speed Insights
 
 ## 本地启动
@@ -137,8 +134,6 @@ DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_BASE_URL="https://api.deepseek.com"
 ANTHROPIC_API_KEY="sk-ant-..."
 ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
-NOTION_API_KEY="secret_..."
-NOTION_DATABASE_ID="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
 ```
 
 可选覆盖项：
@@ -151,19 +146,19 @@ ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
-Vercel Blob（生产环境图片存储，以及 Notion 文件导出的临时存放）必需：
+Vercel Blob（生产环境图片存储）必需：
 
 ```bash
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 ```
 
-Notion 文件导出的超时临时文件回収（Vercel Cron 的认证）：
+每日清理任务（Vercel Cron 的认证）：
 
 ```bash
 CRON_SECRET="replace-with-a-long-random-secret"
 ```
 
-未配置 `CRON_SECRET` 时，`/api/cron/notion-staging-cleanup` 一律返回 401，不会误删任何数据。
+未配置 `CRON_SECRET` 时，`/api/cron/cleanup` 一律返回 401，不会误删任何数据。
 
 模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
 
@@ -215,7 +210,7 @@ Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索
 
 Claude 通过服务端 `ANTHROPIC_API_KEY` 接入 `/v1/messages`，API 费用与 Claude 订阅分开。推理档位和图片输入已按 [Haiku 官方规格](https://platform.claude.com/docs/en/models/haiku-5-5/overview)及 [effort 说明](https://platform.claude.com/docs/en/build-with-claude/effort)配置。文档提及的代码执行、结构化输出等能力尚未作为本应用功能开放；PDF 继续沿用统一的文本提取。普通回答仅保存文字和引用；发生压缩后，额外保存继续请求所需的原生压缩块及其后续输出，Claude 思考块不保存。原生状态仅供同厂商同模型的服务端后续请求复用。参见 [OpenAI 压缩](https://developers.openai.com/api/docs/guides/compaction)及 [Claude 压缩](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold)。
 
-DeepSeek 的 `response.output_text.delta` 先经过工具记法检查；DSML 或工具结果标记会触发错误，不会继续作为正常回答显示或保存。未完成、空回答和缺少完成事件的流也按失败处理。历史中已保存的异常工具文本不会再次送入模型；原记录和已有 Notion 页面保留。
+DeepSeek 的 `response.output_text.delta` 先经过工具记法检查；DSML 或工具结果标记会触发错误，不会继续作为正常回答显示或保存。未完成、空回答和缺少完成事件的流也按失败处理。历史中已保存的异常工具文本不会再次送入模型；原记录保留。
 
 ## 图片存储
 
@@ -245,28 +240,7 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 页面与同一浏览器、同一域名绑定。清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但当前身份机制无法重新认领；当前没有账号或跨设备恢复功能。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
 
-Pages 和外部 Notion 导出是独立功能；Pages 不调用 AI 或 Notion API。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
-
-## 导出到 Notion
-
-纯文字导出走 `/api/notion/pages`，把正文按段落写进 Notion 数据库。带文件的导出走 `/api/notion/saves/*`：正文可以自由插入本机文件，保存到 Notion 时按插入顺序还原，图片存成 image 块，其他资料存成 file 块。
-
-传输分三段：
-
-1. 浏览器把每个文件按 10 MiB 切片，直接上传到 Private Vercel Blob 的临时区域（`notion-staging/<saveId>/<fileId>/<index>`）。上传令牌由服务端逐片签发，只对该路径和该片容量有效，浏览器拿不到 `BLOB_READ_WRITE_TOKEN`。
-2. 服务端一次读一个切片，转发给 Notion。单文件 ≤ 20 MiB 用 `single_part` 一次发完；超过 20 MiB 用 `multi_part`，每个 part 一次请求，进度写回数据库。
-3. 所有文件传完后建页面，再按正文顺序补块。页面 ID 在补正文之前就落库，所以中途失败是继续写同一个页面，不会新建重复页面。
-
-限制：
-
-- 单文件上限取自连接到的 Notion 工作区（`GET /v1/users/me` 的 `workspace_limits`）：免费 5 MiB，付费最大 5 GiB，并统一按 5 GiB 截断。
-- 单次导出最多 20 个附件、合计 5 GiB。
-- 支持的文件类型按 Notion 官方扩展名列表，详见 [docs/architecture/notion-flow.md](docs/architecture/notion-flow.md)。
-- 传输期间需要保持标签页打开；浏览器关闭后不会自动继续，但重新打开面板可以对未完成的保存继续重试。
-
-临时文件在保存成功或用户取消时立即删除；放置超过 24 小时的数据由每日 Cron（`vercel.json` 的 `/api/cron/notion-staging-cleanup`）回収，需要 `CRON_SECRET`。
-
-本地开发同样使用 `.env.local` 里的 Private Vercel Blob；该功能没有文件系统回退。
+Pages 不调用 AI。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
 ## API 保护
 
@@ -293,10 +267,9 @@ Vercel 上需要配置的环境变量：
 - `DEEPSEEK_BASE_URL`
 - `ANTHROPIC_API_KEY`（启用 Claude 时必填）
 - `ANTHROPIC_BASE_URL` / `ANTHROPIC_HAIKU_MODEL`（可选）
-- `NOTION_API_KEY` 和 `NOTION_DATABASE_ID`（启用 Notion 导出时）
 - `COOKIE_SECRET`
-- `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储与 Notion 文件导出，必填）
-- `CRON_SECRET`（每日回收 Cron 的认证：Notion 临时文件，以及 7 天以上未被引用的 Pages 封面图片；启用该 Cron 时必填）
+- `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储，必填）
+- `CRON_SECRET`（每日回收 Cron 的认证：7 天以上未被引用的 Pages 封面图片；启用该 Cron 时必填）
 
 Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。
 

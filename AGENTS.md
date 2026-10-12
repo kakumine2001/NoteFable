@@ -2,7 +2,7 @@
 
 ## Project
 
-Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, Anthropic, DeepSeek, and Notion.
+Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon PostgreSQL, Vercel, Private Vercel Blob, OpenAI, Anthropic, and DeepSeek.
 
 ## Task and Context Routing
 
@@ -39,9 +39,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Image storage | `src/lib/storage.ts` |
 | Database connection/schema | `src/lib/prisma.ts` |
 | Database models | `prisma/schema.prisma` |
-| Notion integration | `src/lib/notion.ts` and `src/app/api/notion/pages/route.ts` |
 | Internal pages and autosave | `src/lib/note-document.ts`, `src/lib/note-save-queue.ts`, `src/app/api/pages/*` |
-| Notion file export | `src/lib/notion-files.ts`, `src/lib/notion-saves.ts`, `src/app/api/notion/saves/*` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules
@@ -67,14 +65,6 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Local development may fall back to `STUDYMATE_STORAGE_DIR` when the Blob token is absent.
 - PostgreSQL stores attachment metadata and `imageStoragePath`, not image binaries.
 - Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
-
-## Notion File Export
-
-- Keep the two Notion API versions separate: `NOTION_API_VERSION` for existing page/database calls, `NOTION_FILE_API_VERSION` for `file_uploads`, `users/me`, and appending content blocks. Do not bump the shared version.
-- File metadata rules (supported extensions, size limits, part splitting) live in `src/lib/notion-files.ts` so the drawer and the server validate identically.
-- Browser upload tokens are issued per chunk in `src/app/api/notion/uploads/route.ts`. Keep them scoped to the exact pathname and chunk size, and never expose `BLOB_READ_WRITE_TOKEN` to the client.
-- Staged files live under `notion-staging/<saveId>/<fileId>/<index>` and must be released on success and on cancel. The daily cron route requires `CRON_SECRET`.
-- Keep page creation and content appending as separate recorded steps so a failure continues on the same page instead of creating a second one.
 
 ## Database Safety
 

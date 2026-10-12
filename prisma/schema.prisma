@@ -12,23 +12,6 @@ datasource db {
   provider = "postgresql"
 }
 
-// Notion 保存処理の進行状況。下書き作成からページ作成完了まで段階的に進む。
-enum NotionSaveStatus {
-  STAGING
-  TRANSFERRING
-  COMPLETED
-  CANCELLED
-  EXPIRED
-}
-
-// 1 ファイルごとの転送状況。失敗しても下書きを残し、同じ行から再試行する。
-enum NotionFileStatus {
-  PENDING
-  STAGED
-  UPLOADING
-  COMPLETE
-}
-
 enum MessageRole {
   USER
   ASSISTANT
@@ -51,25 +34,24 @@ model AnonymousUser {
   updatedAt DateTime @updatedAt
 
   sessions    Session[]
-  notionSaves NotionSave[]
   notePages   NotePage[]
   coverAssets NoteCoverAsset[]
 }
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
 model NotePage {
-  id        String   @id @default(cuid())
-  userId    String
-  title     String   @default("Untitled")
+  id            String   @id @default(cuid())
+  userId        String
+  title         String   @default("Untitled")
   // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
-  icon      String?
-  cover     String?
+  icon          String?
+  cover         String?
   // アップロード画像カバーの縦位置（0〜100%）。プリセットでは使わない。
   coverPosition Int?
-  blocks    Json
-  version   Int      @default(0)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  blocks        Json
+  version       Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -83,9 +65,8 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user        AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages    Message[]
-  notionSaves NotionSave[]
+  user     AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages Message[]
 
   @@index([userId, updatedAt])
 }
@@ -127,65 +108,6 @@ model ApiRateLimit {
   count     Int
   resetAt   DateTime
   updatedAt DateTime @updatedAt
-}
-
-// Notion 保存 1 回分の処理。本文の並びは blocks に順序付きで保持する。
-// 会話の添付（Attachment）とは別に管理し、保存用の一時データだけを持つ。
-model NotionSave {
-  id        String           @id @default(cuid())
-  userId    String
-  sessionId String?
-  title     String
-  status    NotionSaveStatus @default(STAGING)
-  // 本文ブロックの配列。text は文字列、file は NotionSaveFile.id を参照する。
-  blocks    Json
-
-  notionPageId        String?
-  notionPageUrl       String?
-  notionBlocksWritten Int     @default(0)
-  // ページ作成の結果が不明なまま終わった場合に立てる。無条件の再作成を防ぐ。
-  pageCreationUnknown Boolean @default(false)
-  // 本文追加の結果が不明な場合、確認なしの再送で重複させない。
-  appendResultUnknown Boolean @default(false)
-  errorMessage        String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  user    AnonymousUser    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session Session?         @relation(fields: [sessionId], references: [id], onDelete: SetNull)
-  files   NotionSaveFile[]
-
-  @@index([userId, createdAt])
-  @@index([status, updatedAt])
-}
-
-model NotionSaveFile {
-  id        String @id @default(cuid())
-  saveId    String
-  filename  String
-  mimeType  String
-  // 5 GiB を扱うため Int ではなく BigInt にする。
-  size      BigInt
-  // Notion 側で画像ブロックかファイルブロックかを決める。
-  blockType String
-
-  status             NotionFileStatus @default(PENDING)
-  // 一時保管先（Private Blob のパス接頭辞）と、そこに置いたチャンク数。
-  stagingPrefix      String?
-  stagingChunkCount  Int              @default(0)
-  // Notion の分割転送の進捗。
-  partCount          Int              @default(0)
-  uploadedParts      Int              @default(0)
-  notionFileUploadId String?
-  errorMessage       String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  save NotionSave @relation(fields: [saveId], references: [id], onDelete: Cascade)
-
-  @@index([saveId])
 }
 
 // Pages のアップロードカバー画像。参照の付与と日次削除をこの行で調停する。

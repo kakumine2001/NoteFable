@@ -216,21 +216,3 @@ ASSISTANT Message
 在 stream 完成后保存。
 
 如果上游中途失败，已经向用户流出的文本会连同错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。
-
-## Notion 导出是另一条链路
-
-Notion 导出不经过 `/api/chat`：
-
-```mermaid
-sequenceDiagram
-    participant Browser
-    participant NotionRoute
-    participant Database
-    participant Notion
-
-    Browser->>NotionRoute: Send title and content
-    NotionRoute->>Database: Validate session ownership
-    NotionRoute->>Notion: Create page
-    Notion-->>NotionRoute: Return page URL
-    NotionRoute-->>Browser: Return page URL
-```
