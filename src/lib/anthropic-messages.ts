@@ -1,8 +1,9 @@
 import { optionalEnv, requireEnv } from "@/lib/env";
-import { consumeSseData } from "@/lib/sse";
+import { closeQuietly, consumeSseData } from "@/lib/sse";
 import { buildUpstreamErrorMessage } from "@/lib/upstream-errors";
 import { ANTHROPIC_HAIKU_LIMITS, type ReasoningEffort } from "@/lib/models";
 import type { WebSearchMode } from "@/lib/web-search";
+import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
 
 type Block = {
   type: string;
@@ -44,7 +45,7 @@ export function toAnthropicMessages(input: Input[]): Message[] {
   });
 }
 
-export function buildAnthropicRequest({ model, instructions, input, effort, webSearchMode = "off", stream = true, maxTokens = ANTHROPIC_HAIKU_LIMITS.maxOutputTokens, compaction = false, nativeContext = [] }: {
+export function buildAnthropicRequest({ model, instructions, input, effort, webSearchMode = "off", stream = true, maxTokens = ANTHROPIC_HAIKU_LIMITS.maxOutputTokens, compaction = false, nativeContext = [], customTools = [] }: {
   model: string;
   instructions: string;
   input: Input[];
@@ -54,10 +55,15 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
   maxTokens?: number;
   compaction?: boolean;
   nativeContext?: Record<string, unknown>[];
+  customTools?: ToolDefinition[];
 }) {
   if (!["low", "medium", "high", "xhigh", "max"].includes(effort)) {
     throw new Error("Unsupported Claude effort.");
   }
+  const tools = [
+    ...(webSearchMode !== "off" ? [{ type: "web_search_20250305", name: "web_search" }] : []),
+    ...customTools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.parameters })),
+  ];
   return {
     model,
     system: instructions,
@@ -66,8 +72,8 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
     thinking: { type: "adaptive", display: "summarized" },
     output_config: { effort },
     ...(compaction ? { context_management: { edits: [{ type: "compact_20260112" }] } } : {}),
-    ...(webSearchMode !== "off" ? {
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
+    ...(tools.length ? {
+      tools,
       tool_choice: webSearchMode === "force" ? { type: "tool", name: "web_search" } : { type: "auto" },
     } : {}),
     stream,
@@ -159,11 +165,11 @@ export class AnthropicStreamTurn {
       }
     }
     if (event.type === "content_block_stop" && block && this.inputs.has(index)) {
-      block.input = JSON.parse(this.inputs.get(index) || "{}");
+      block.input = parseToolArguments(this.inputs.get(index));
     }
     if (event.type === "message_delta") this.stopReason = event.delta?.stop_reason ?? this.stopReason;
     if (event.type === "message_stop") {
-      if (!["end_turn", "stop_sequence", "pause_turn"].includes(this.stopReason)) {
+      if (!["end_turn", "stop_sequence", "pause_turn", "tool_use"].includes(this.stopReason)) {
         throw new Error(`Claude response stopped: ${this.stopReason || "unknown reason"}. Please retry.`);
       }
       this.completed = true;
@@ -176,9 +182,18 @@ export class AnthropicStreamTurn {
   }
 }
 
-// Convert Messages SSE to the existing frontend contract. Continue long server-tool turns unchanged.
-export async function createAnthropicStream(body: ReturnType<typeof buildAnthropicRequest>, onContext?: (items: Record<string, unknown>[]) => void) {
+// Convert Messages SSE to the existing frontend contract. Continue long server-tool turns unchanged,
+// and run StudyMate's own tools (tool_use) through runTool before asking Claude to continue.
+export async function createAnthropicStream(
+  body: ReturnType<typeof buildAnthropicRequest>,
+  onContext?: (items: Record<string, unknown>[]) => void,
+  runTool?: ToolRunner,
+  signal?: AbortSignal,
+) {
   const abort = new AbortController();
+  // クライアントの切断でも、上流リクエストとツールループを止める。
+  if (signal?.aborted) abort.abort();
+  signal?.addEventListener("abort", () => abort.abort(), { once: true });
   let response = await requestAnthropic(body, abort.signal);
   const encoder = new TextEncoder();
   return new ReadableStream<Uint8Array>({
@@ -186,7 +201,9 @@ export async function createAnthropicStream(body: ReturnType<typeof buildAnthrop
       try {
         let answerText = "";
         let compactedContext: Message[] | undefined;
-        for (let attempt = 0; attempt < 4; attempt++) {
+        let separateNextText = false;
+        const send = (event: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+        for (let attempt = 0; attempt < MAX_TOOL_ROUNDS; attempt++) {
           if (!response.body) throw new Error("Anthropic response has no stream body.");
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
@@ -195,8 +212,16 @@ export async function createAnthropicStream(body: ReturnType<typeof buildAnthrop
           const forward = (payloads: string[]) => {
             for (const payload of payloads) {
               for (const event of turn.push(JSON.parse(payload))) {
-                if ((event as { type?: string }).type === "response.output_text.delta") answerText += (event as { delta: string }).delta;
-                controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
+                if ((event as { type?: string }).type === "response.output_text.delta") {
+                  // Text written before a tool call and the answer after it must not run together.
+                  if (separateNextText) {
+                    send({ type: "response.output_text.delta", delta: "\n\n" });
+                    answerText += "\n\n";
+                    separateNextText = false;
+                  }
+                  answerText += (event as { delta: string }).delta;
+                }
+                send(event);
               }
             }
           };
@@ -220,6 +245,24 @@ export async function createAnthropicStream(body: ReturnType<typeof buildAnthrop
             .filter((block) => block.type !== "thinking" && block.type !== "redacted_thinking" && (block.type !== "text" || block.text?.trim()));
           if (compactIndex >= 0) compactedContext = [{ role: "assistant", content: reusable }];
           else if (compactedContext && reusable.length) compactedContext.push({ role: "assistant", content: reusable });
+          const content = turn.blocks.filter((block) => block.type !== "text" || block.text?.trim());
+          if (turn.stopReason === "tool_use") {
+            const calls = turn.blocks.filter((block) => block?.type === "tool_use")
+              .map((block) => ({ id: String(block.id), name: String(block.name), input: block.input ?? {} }));
+            if (!runTool || !calls.length) throw new Error("Claude requested an unavailable tool. Please retry.");
+            const runs = await runToolCalls(calls, runTool, send);
+            if (abort.signal.aborted) return closeQuietly(controller);
+            const toolMessage: Message = { role: "user", content: runs.map((run, index) => ({
+              type: "tool_result", tool_use_id: calls[index].id, content: run.content, ...(run.isError ? { is_error: true } : {}),
+            })) };
+            // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint.
+            compactedContext?.push(toolMessage);
+            if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error("Claude tool round limit reached. Please retry.");
+            separateNextText = Boolean(answerText.trim());
+            body = { ...body, tool_choice: { type: "auto" }, messages: [...body.messages, { role: "assistant", content }, toolMessage] };
+            response = await requestAnthropic(body, abort.signal);
+            continue;
+          }
           if (turn.stopReason !== "pause_turn") {
             if (!answerText.trim()) throw new Error("Claude returned an empty response. Please retry.");
             if (compactedContext) onContext?.(compactedContext);
@@ -227,13 +270,12 @@ export async function createAnthropicStream(body: ReturnType<typeof buildAnthrop
             controller.close();
             return;
           }
-          if (attempt === 3) throw new Error("Claude search continuation limit reached. Please retry.");
-          const content = turn.blocks.filter((block) => block.type !== "text" || block.text?.trim());
+          if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error("Claude search continuation limit reached. Please retry.");
           body = { ...body, ...(body.tools ? { tool_choice: { type: "auto" } } : {}), messages: [...body.messages, { role: "assistant", content }] };
           response = await requestAnthropic(body, abort.signal);
         }
       } catch (error) {
-        if (abort.signal.aborted) return;
+        if (abort.signal.aborted) return closeQuietly(controller);
         abort.abort();
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: { message: error instanceof Error ? error.message : "Anthropic stream failed." } })}\n\n`));
         controller.close();

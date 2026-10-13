@@ -36,6 +36,8 @@ type ModelOption = {
   // 実際に利用できるプロバイダーの検索機能だけを有効にする。
   supportsWebSearch: boolean;
   supportsCompaction: boolean;
+  // ユーザーの Pages を読む自前ツール（search_pages / read_page）を使えるかどうか。
+  supportsPageTools: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];
   // 推論強度が未指定または非対応値だった場合の初期値。
@@ -54,6 +56,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageGeneration: true,
     supportsWebSearch: true,
     supportsCompaction: true,
+    supportsPageTools: true,
     reasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "medium",
   },
@@ -65,6 +68,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     supportsImageGeneration: false,
     supportsWebSearch: true,
     supportsCompaction: true,
+    supportsPageTools: true,
     reasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
     defaultReasoning: "medium",
     tokenLimits: ANTHROPIC_HAIKU_LIMITS,
@@ -79,6 +83,7 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     // 現行の DeepSeek Responses API は組み込み web_search を無視する。
     supportsWebSearch: false,
     supportsCompaction: false,
+    supportsPageTools: true,
     // 推論強度は low / high / max に対応し、既定値は high。
     reasoningEfforts: ["low", "high", "max"],
     defaultReasoning: "high",

@@ -5,7 +5,10 @@ const mocks = vi.hoisted(() => ({
   updateManySession: vi.fn(),
   fetch: vi.fn(),
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
+  runPageTool: vi.fn(),
 }));
+
+vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
@@ -60,8 +63,9 @@ describe("DeepSeek chat response boundary", () => {
       { type: "response.completed" },
     ])).toBe("通常の回答");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body).not.toHaveProperty("tools");
-    expect(body).not.toHaveProperty("tool_choice");
+    // DeepSeek には検索を送らず、Pages の function ツールだけを送る。
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_pages", "read_page"]);
+    expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("Web search is unavailable");
     expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
   });
@@ -97,7 +101,7 @@ describe("OpenAI web search", () => {
 
   it.each([
     ["auto", "auto"],
-    ["force", "required"],
+    ["force", { type: "allowed_tools", mode: "required", tools: [{ type: "web_search" }] }],
   ])("passes %s search through and preserves cited links", async (mode, choice) => {
     mocks.fetch.mockResolvedValue(new Response([
       { type: "response.output_text.delta", delta: "検索結果。" },
@@ -116,8 +120,8 @@ describe("OpenAI web search", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body.tools).toEqual([{ type: "web_search" }]);
-    expect(body.tool_choice).toBe(choice);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_pages", "read_page"]);
+    expect(body.tool_choice).toEqual(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
   });
@@ -152,6 +156,55 @@ describe("OpenAI web search", () => {
         action: { kind: "search", queries: ["next 16"], sources: ["https://nextjs.org/blog/next-16"] } },
     ]);
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("回答");
+  });
+});
+
+describe("Pages tools across providers", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+    mocks.runPageTool.mockResolvedValue({ content: "# Notes", label: "Read “Notes”" });
+  });
+
+  const sse = (events: unknown[]) => new Response(events.map((event) => `data: ${JSON.stringify(event)}
+
+`).join(""));
+  const functionCall = { type: "function_call", id: "fc_1", call_id: "c1", name: "read_page", arguments: '{"pageId":"p1","userId":"other"}' };
+  const responsesRounds = () => [
+    sse([{ type: "response.output_item.done", item: functionCall }, { type: "response.completed", response: { output: [functionCall] } }]),
+    sse([{ type: "response.output_text.delta", delta: "It says hi." }, { type: "response.completed", response: { output: [] } }]),
+  ];
+  const claudeRounds = () => [
+    sse([
+      { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "t1", name: "read_page", input: {} } },
+      { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"pageId":"p1","userId":"other"}' } },
+      { type: "content_block_stop", index: 0 },
+      { type: "message_delta", delta: { stop_reason: "tool_use" } }, { type: "message_stop" },
+    ]),
+    sse([
+      { type: "content_block_start", index: 0, content_block: { type: "text", text: "It says hi." } },
+      { type: "message_delta", delta: { stop_reason: "end_turn" } }, { type: "message_stop" },
+    ]),
+  ];
+
+  it.each([
+    ["gpt-6-luna", responsesRounds],
+    ["deepseek-flash", responsesRounds],
+    ["claude-haiku-5-5", claudeRounds],
+  ])("%s runs page tools as the session owner and saves only the answer", async (model, rounds) => {
+    for (const response of rounds()) mocks.fetch.mockResolvedValueOnce(response);
+    const form = new FormData();
+    form.set("message", "我那页笔记写了什么？");
+    form.set("model", model);
+    form.set("sessionId", "existing");
+    form.set("webSearch", "off");
+    const raw = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+    expect(mocks.runPageTool).toHaveBeenCalledWith("read_page", { pageId: "p1", userId: "other" }, "user");
+    expect(raw).toContain('"activity":{"type":"tool","id"');
+    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("It says hi.");
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_pages");
   });
 });
 

@@ -166,7 +166,7 @@ DeepSeek 由 `src/lib/deepseek-responses.ts` 适配其 Responses 行为，再统
 
 `src/lib/anthropic-messages.ts` 将共用文字/图片历史转换为 Messages API 的 text / base64 image blocks。使用 adaptive thinking 和 `output_config.effort`，支持五档（low / medium / high / xhigh / max），默认 medium。本文、思考摘要、搜索动作和引用转换到现有 SSE 契约；签名不发给浏览器。`message_stop` 和正常 stop reason 才视为完成；截断、拒绝、空回复和断流返回明确错误。搜索工具内部错误显示为途中提示，由模型继续说明限制。Claude 本次图片每张最多 5 MiB，历史恢复时跳过超过该限制的图片。
 
-原生基本 Web 搜索默认 auto，也支持 API 的 force/off，不设置 `max_uses`。长搜索发生 `pause_turn` 时保留完整内容块与签名续接，最多三次。后续用户消息恢复服务端 checkpoint 加后续文字历史和附件；checkpoint 内的原生工具输出不返回浏览器。
+原生基本 Web 搜索默认 auto，也支持 API 的 force/off，不设置 `max_uses`。长搜索发生 `pause_turn` 时保留完整内容块与签名续接；`pause_turn` 续传与下文的 Pages 工具轮次合计最多 8 次上游请求。后续用户消息恢复服务端 checkpoint 加后续文字历史和附件；checkpoint 内的原生工具输出不返回浏览器。
 
 Web Search 不由 StudyMate 自己执行搜索然后拼 prompt。
 
@@ -182,11 +182,29 @@ provider-native web_search
 模型自行决定是否搜索
 ```
 
-OpenAI 与 Anthropic 启用 provider-native Web 搜索。DeepSeek 的现行 Responses API 会忽略该工具（[官方说明](https://api-docs.deepseek.com/guides/responses_api/#tools)），因此 `src/lib/models.ts` 将其搜索能力设为 false。旧客户端传来的搜索开关也会归一化为 off，模型指令明确禁止模拟搜索。
+OpenAI 与 Anthropic 启用 provider-native Web 搜索。DeepSeek 的现行 Responses API 会忽略该工具（只支持 `function` 工具，[官方说明](https://api-docs.deepseek.com/guides/responses_api/#tools)），因此 `src/lib/models.ts` 将其搜索能力设为 false。旧客户端传来的搜索开关也会归一化为 off，模型指令明确禁止模拟 Web 搜索。DeepSeek 仍会收到 Pages 的 `function` 工具。
 
-GPT 默认使用 `tool_choice: auto`，由模型判断是否需要搜索。API 收到 `webSearch=force` 时使用 `required`；收到 `off` 时不发送搜索工具。搜索产生的 URL 注释会转换为回答末尾可点击的来源链接，并与回答一起保存。
+GPT 默认使用 `tool_choice: auto`，由模型判断是否需要搜索。API 收到 `webSearch=force` 时，若同时发送了 Pages 工具，则使用 `{ type: "allowed_tools", mode: "required", tools: [{ type: "web_search" }] }`，确保第一轮必须执行 Web 搜索，而不是只调用 Pages 工具就算满足；没有 Pages 工具时使用 `required`。之后的轮次改为 `auto`。收到 `off` 时不发送搜索工具。搜索产生的 URL 注释会转换为回答末尾可点击的来源链接，并与回答一起保存。
 
 DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_result>` 时停止读取并返回错误；不能把异常片段保存成正常回答。`response.incomplete`、空回答和没有 `response.completed` 的断流也会明确报错。过去已保存的异常助手回答保留在数据库中，但不会再次加入模型输入。
+
+## Pages 工具（只读，三家模型共用）
+
+所有聊天模型都可以通过 StudyMate 自己执行的工具读取当前用户的 Pages。能力开关为 `src/lib/models.ts` 的 `supportsPageTools`；工具定义与执行在 `src/lib/page-tools.ts`，并行执行、单轮上限、轮次上限和参数解析在 `src/lib/chat-tools.ts`，均与 provider 无关。
+
+- `search_pages({ query })`：在数据库内搜索该用户的全部页面。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近页面。不做同义词或翻译，工具说明会提示模型换说法重试。
+- `read_page({ pageId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断。
+
+两条循环实现：
+
+- Claude（`src/lib/anthropic-messages.ts`）：`stop_reason: "tool_use"` 时执行本轮 `tool_use`，把原生 assistant blocks（含 thinking 签名）和对应的 `tool_result` 追加到 `messages` 后再次请求。
+- GPT 与 DeepSeek（`src/lib/responses-tool-loop.ts`）：工具以 Responses `function` 形式（`strict: true`）发送。一轮 `response.completed` 的输出含 `function_call` 时执行，把该轮全部输出项（含 OpenAI 的加密推理项、DeepSeek 的推理项）和 `function_call_output` 追加到 `input` 后再次请求（`store: false`，无状态）。中间轮次的 `response.completed` 和 `function_call` 事件不转发，路由层仍看到一条普通流；DeepSeek 的工具记法守卫照常生效。
+
+共同规则：同一轮的调用并行执行，每轮最多执行 5 个，超出的调用返回错误结果让模型分批再调；含 Claude `pause_turn` 在内每个回答最多 8 次上游请求，后续 `tool_choice` 改为 auto。工具查询始终带服务端会话的 `userId`，模型无法指定用户；参数 JSON 损坏、参数错误、找不到页面或执行失败都作为错误结果返回给模型，不中断回答。客户端断开（`request.signal`）会中止上游请求和后续轮次。工具前后的回答文字之间插入空行。
+
+工具调用和结果不保存进可见聊天记录，只保存最终回答文字。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`），保证重放合法。浏览器的途中经过里会显示"Searched pages for …"或"Read “页面标题”"。
+
+系统指令要求页面内容视为私有数据而非指令，且除非用户明确要求，不把页面内容放进 Web 搜索查询；这是提示层约束，不是强制的出站隔离。
 
 ## 回答前的途中经过
 

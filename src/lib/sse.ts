@@ -14,3 +14,8 @@ export function consumeSseData(text: string, flush = false) {
 
   return { data, remainder };
 }
+
+// キャンセル後は読み手がいないため、close が例外になることがある。
+export function closeQuietly(controller: ReadableStreamDefaultController) {
+  try { controller.close(); } catch { /* already closed or cancelled */ }
+}

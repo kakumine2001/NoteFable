@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, FileText, Globe, Lightbulb, LoaderCircle, Search, TextSearch } from "lucide-react";
+import { ChevronRight, FileSearch, FileText, Globe, Lightbulb, LoaderCircle, NotebookText, Search, TextSearch } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 // 1 回の検索で 20 件近く返ることがあるため、最初は数件だけ見せる。
@@ -40,17 +40,24 @@ function describeCurrent(steps: ActivityStep[]) {
   const last = steps.at(-1);
   if (!last) return "Thinking";
   if (last.kind === "thought") return splitThought(last.text).title || "Thinking";
+  if (last.kind === "tool") return last.status === "done" && last.label ? last.label : toolRunningLabel(last.name);
   if (last.status === "running" || !last.action) return "Searching the web";
   if (last.action.kind === "search") return `Searching “${last.action.queries[0] ?? "the web"}”`;
   if (last.action.kind === "open_page") return `Reading ${hostOf(last.action.url)}`;
   return `Scanning ${hostOf(last.action.url)}`;
 }
 
+function toolRunningLabel(name: string) {
+  return name === "search_pages" ? "Searching your pages" : "Reading your page";
+}
+
 // 完了後のヘッダー用に、検索回数と参照ページ数をまとめる。
 function summarize(steps: ActivityStep[]) {
   let searches = 0;
+  let notes = 0;
   const pages = new Set<string>();
   for (const step of steps) {
+    if (step.kind === "tool") notes++;
     if (step.kind !== "web" || !step.action) continue;
     if (step.action.kind === "search") {
       searches += Math.max(1, step.action.queries.length);
@@ -62,6 +69,7 @@ function summarize(steps: ActivityStep[]) {
   return [
     searches ? `${searches} ${searches === 1 ? "search" : "searches"}` : "",
     pages.size ? `${pages.size} ${pages.size === 1 ? "source" : "sources"}` : "",
+    notes ? `${notes} ${notes === 1 ? "page lookup" : "page lookups"}` : "",
   ].filter(Boolean);
 }
 
@@ -96,6 +104,18 @@ function StepRow({ step }: { step: ActivityStep }) {
           {title && <div className="chat-activity-title">{title}</div>}
           {body && <p className="chat-activity-body">{body}</p>}
         </div>
+      </li>
+    );
+  }
+
+  if (step.kind === "tool") {
+    const Icon = step.status === "running" ? LoaderCircle : step.name === "search_pages" ? FileSearch : NotebookText;
+    return (
+      <li className="chat-activity-step">
+        <span className="chat-activity-icon">
+          <Icon size={13} strokeWidth={1.9} className={step.status === "running" ? "animate-spin" : undefined} />
+        </span>
+        <div className="chat-activity-title">{step.status === "done" && step.label ? step.label : `${toolRunningLabel(step.name)}…`}</div>
       </li>
     );
   }

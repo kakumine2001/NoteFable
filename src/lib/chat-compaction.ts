@@ -26,24 +26,3 @@ export function restoreCompaction<T extends { id: string; providerContext?: stri
 export function serializeCompaction(provider: ModelProvider, model: string, items: Item[], coveredMessageIds: string[]) {
   return JSON.stringify({ version: 1, provider, model, items, coveredMessageIds } satisfies Checkpoint);
 }
-
-// Only finalized items are reusable. A newer compaction replaces its entire prefix.
-export class OpenAICompaction {
-  private items: Item[] | undefined;
-  private completed = false;
-
-  push(event: { type?: string; item?: Item; response?: { output?: Item[] } }) {
-    if (event.type === "response.completed") this.completed = true;
-    if (event.type === "response.output_item.done" && event.item) {
-      if (event.item.type === "compaction") this.items = [event.item];
-      else this.items?.push(event.item);
-    }
-    if (event.type === "response.completed" && Array.isArray(event.response?.output)) {
-      const output = event.response.output;
-      const index = output.findLastIndex((item) => item.type === "compaction");
-      if (index >= 0) this.items = output.slice(index);
-    }
-  }
-
-  get context() { return this.completed ? this.items : undefined; }
-}

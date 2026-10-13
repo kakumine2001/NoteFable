@@ -1,4 +1,4 @@
-// 回答前の途中経過（推論要約と Web 検索の動き）を、プロバイダー非依存の形にそろえる。
+// 回答前の途中経過（推論要約、Web 検索、Pages ツールの動き）を、プロバイダー非依存の形にそろえる。
 // サーバーは上流イベントを ActivityEvent に変換して流し、クライアントは ActivityStep に積み上げて表示する。
 
 export type WebAction =
@@ -8,14 +8,20 @@ export type WebAction =
 
 export type ActivityStep =
   | { id: string; kind: "thought"; text: string }
-  | { id: string; kind: "web"; status: "running" | "done"; action?: WebAction };
+  | { id: string; kind: "web"; status: "running" | "done"; action?: WebAction }
+  | { id: string; kind: "tool"; status: "running" | "done"; name: string; label?: string };
 
 export type ActivityEvent =
   | { type: "thought"; id: string; delta: string }
-  | { type: "web"; id: string; status: "running" | "done"; action?: WebAction };
+  | { type: "web"; id: string; status: "running" | "done"; action?: WebAction }
+  | { type: "tool"; id: string; status: "running" | "done"; name: string; label?: string };
 
 type UpstreamEvent = {
   type?: unknown;
+  id?: unknown;
+  name?: unknown;
+  status?: unknown;
+  label?: unknown;
   item_id?: unknown;
   summary_index?: unknown;
   content_index?: unknown;
@@ -93,6 +99,14 @@ export function parseActivityEvent(event: UpstreamEvent): ActivityEvent | null {
     return { type: "thought", id: `${itemId}:${typeof index === "number" ? index : 0}`, delta: event.delta };
   }
 
+  // サーバー側で実行した Pages ツールの開始と完了（anthropic-messages.ts が出す内部イベント）。
+  if (event.type === "studymate.tool") {
+    if (typeof event.id !== "string" || typeof event.name !== "string") return null;
+    const status = event.status === "done" ? "done" : "running";
+    const label = text(event.label);
+    return { type: "tool", id: event.id, status, name: text(event.name), ...(label ? { label } : {}) };
+  }
+
   const item = event.item;
   if (item?.type !== "web_search_call" || typeof item.id !== "string") return null;
   if (event.type === "response.output_item.added") return { type: "web", id: item.id, status: "running" };
@@ -114,7 +128,9 @@ export function applyActivityEvent(steps: ActivityStep[], event: ActivityEvent):
     return steps.map((step, i) => (i === index ? updated : step));
   }
 
-  const next: ActivityStep = { id: event.id, kind: "web", status: event.status, action: event.action };
+  const next: ActivityStep = event.type === "tool"
+    ? { id: event.id, kind: "tool", status: event.status, name: event.name, label: event.label }
+    : { id: event.id, kind: "web", status: event.status, action: event.action };
   return index === -1 ? [...steps, next] : steps.map((step, i) => (i === index ? next : step));
 }
 
