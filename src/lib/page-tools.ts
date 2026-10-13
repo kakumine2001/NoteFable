@@ -1,6 +1,11 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ToolDefinition, ToolRun } from "@/lib/chat-tools";
+import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
+import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown, type PageCreateProposal, type PageEditProposal } from "@/lib/page-edit";
 import { databaseSchema, prisma } from "@/lib/prisma";
+
+export { blocksToMarkdown };
 
 // チャットのモデルに渡す Pages ツール。定義はプロバイダー非依存の JSON Schema で持ち、
 // 各プロバイダーの形式への変換は送信直前（anthropic-messages.ts / chat-tools.ts）で行う。
@@ -18,11 +23,52 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "read_page",
-    description: "Read one of the user's StudyMate Pages as Markdown. Use a page ID returned by search_pages.",
+    description: "Read one of the user's StudyMate Pages as Markdown. Use a page ID returned by search_pages. Every block starts with its number like [3]; propose_page_edit refers to blocks by these numbers and needs the version shown here.",
     parameters: {
       type: "object",
       properties: { pageId: { type: "string", description: "The page ID from search_pages." } },
       required: ["pageId"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "propose_page_edit",
+    description: `Propose changes to one of the user's StudyMate Pages. This does NOT change the page: the user sees the proposal and must approve it, so never say the page was changed. Call read_page first and pass its pageId and version; if the page changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_page (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the page); "delete" removes block n and its nested children (markdown must be null). Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the page (null keeps the title).`,
+    parameters: {
+      type: "object",
+      properties: {
+        pageId: { type: "string", description: "The page ID from search_pages or read_page." },
+        version: { type: "integer", description: "The version shown by read_page." },
+        title: { type: ["string", "null"], description: "New page title, or null to keep it." },
+        edits: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              op: { type: "string", enum: ["replace", "insert_after", "delete"] },
+              block: { type: "integer", description: "Block number from read_page; 0 only for insert_after at the start." },
+              markdown: { type: ["string", "null"], description: "New content; null for delete." },
+            },
+            required: ["op", "block", "markdown"],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ["pageId", "version", "title", "edits"],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: "propose_page_create",
+    description: "Propose a brand-new StudyMate Page for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the page was created. Use it only when the user asks for a new page or note (to change an existing page use propose_page_edit). markdown is the page body in the same format as propose_page_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. icon is one emoji or null.",
+    parameters: {
+      type: "object",
+      properties: {
+        title: { type: "string", description: "The page title (at most 200 characters)." },
+        markdown: { type: ["string", "null"], description: "The page body, or null for an empty page." },
+        icon: { type: ["string", "null"], description: "A single emoji for the page icon, or null." },
+      },
+      required: ["title", "markdown", "icon"],
       additionalProperties: false,
     },
   },
@@ -32,58 +78,6 @@ const SEARCH_RESULT_LIMIT = 10;
 const MAX_SEARCH_TERMS = 8;
 const SNIPPET_CHARS = 160;
 export const MAX_READ_CHARS = 20_000;
-
-type Inline = { type?: unknown; text?: unknown; styles?: unknown; content?: unknown; href?: unknown };
-type NoteBlock = { type?: unknown; props?: Record<string, unknown>; content?: unknown; children?: unknown };
-
-function inlineToMarkdown(content: unknown, plain = false): string {
-  if (!Array.isArray(content)) return "";
-  return (content as Inline[]).map((entry) => {
-    if (entry?.type === "link" && typeof entry.href === "string") {
-      const text = inlineToMarkdown(entry.content, plain);
-      return plain ? text : `[${text}](${entry.href})`;
-    }
-    if (entry?.type !== "text" || typeof entry.text !== "string") return "";
-    if (plain || !entry.text.trim()) return entry.text;
-    const styles = (entry.styles ?? {}) as Record<string, unknown>;
-    let text = entry.text;
-    if (styles.code) text = `\`${text}\``;
-    if (styles.bold) text = `**${text}**`;
-    if (styles.italic) text = `*${text}*`;
-    if (styles.strike) text = `~~${text}~~`;
-    return text;
-  }).join("");
-}
-
-// 保存済みの BlockNote JSON を、モデルが読みやすい Markdown にする。不明なブロックは本文だけ残す。
-export function blocksToMarkdown(blocks: unknown, depth = 0): string {
-  if (!Array.isArray(blocks) || depth > 8) return "";
-  const indent = "  ".repeat(depth);
-  const lines: string[] = [];
-  for (const block of blocks as NoteBlock[]) {
-    if (!block || typeof block !== "object") continue;
-    const props = block.props ?? {};
-    if (block.type === "codeBlock") {
-      const code = inlineToMarkdown(block.content, true);
-      const language = typeof props.language === "string" ? props.language : "";
-      lines.push(`${indent}\`\`\`${language}`, ...code.split("\n").map((line) => indent + line), `${indent}\`\`\``);
-    } else if (block.type === "divider") {
-      lines.push(`${indent}---`);
-    } else {
-      const text = inlineToMarkdown(block.content);
-      const prefix =
-        block.type === "heading" ? `${"#".repeat(Math.min(Math.max(Number(props.level) || 1, 1), 3))} ` :
-        block.type === "bulletListItem" ? "- " :
-        block.type === "numberedListItem" ? "1. " :
-        block.type === "checkListItem" ? (props.checked ? "- [x] " : "- [ ] ") :
-        block.type === "quote" ? "> " : "";
-      if (text.trim() || prefix) lines.push(`${indent}${prefix}${text}`);
-    }
-    const children = blocksToMarkdown(block.children, depth + 1);
-    if (children) lines.push(children);
-  }
-  return lines.join("\n");
-}
 
 // 本文中の文字列（inline の text）だけを集める JSONPath。ブロック種別やスタイルのキーには一致させない。
 const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
@@ -135,6 +129,68 @@ function input(value: unknown, key: string) {
   return typeof raw === "string" ? raw.trim().slice(0, 200) : null;
 }
 
+function toolError(content: string, label = "Edit proposal rejected"): ToolRun {
+  return { content, isError: true, label };
+}
+
+// ページは変更しない。編集案を検証して画面に出し、ユーザーが適用するまで DB は動かない。
+async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> {
+  const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
+  const pageId = typeof value.pageId === "string" ? value.pageId.trim().slice(0, 200) : "";
+  if (!pageId) return toolError("pageId must be a non-empty string.");
+  if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_page.");
+  if (value.title !== null && value.title !== undefined && typeof value.title !== "string") return toolError("title must be a string or null.");
+  const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true } });
+  if (!page) return toolError("Page not found.", "Page not found");
+  if (page.version !== value.version) {
+    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_page again and redo the edits.`, "Page changed since it was read");
+  }
+  try {
+    const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], value.edits);
+    const requested = typeof value.title === "string" ? value.title.trim() : "";
+    const content = validateNoteContent({ title: requested || page.title, blocks });
+    if (!changes.length && content.title === page.title) return toolError("The edits change nothing.");
+    const proposal: PageEditProposal = {
+      id: crypto.randomUUID(), pageId: page.id, pageTitle: page.title, baseVersion: page.version,
+      ...(content.title !== page.title ? { title: { before: page.title, after: content.title } } : {}),
+      changes, proposed: { title: content.title, blocks: content.blocks },
+    };
+    return {
+      content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the page was updated." }),
+      label: `Proposed edits to “${page.title}”`,
+      events: [{ type: "studymate.proposal", ...proposal }],
+    };
+  } catch (error) {
+    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message);
+    throw error;
+  }
+}
+
+// 新規ページも、ユーザーが適用するまで DB には何も作らない。DB を読まないので userId は要らない。
+function proposePageCreate(args: unknown): ToolRun {
+  const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
+  const title = typeof value.title === "string" ? value.title.trim() : "";
+  if (!title) return toolError("title must be a non-empty string.");
+  if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") return toolError("icon must be a single emoji or null.");
+  try {
+    const blocks = parseNewPageMarkdown(value.markdown);
+    const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
+    const content = validateNoteContent({ title, icon, blocks });
+    const proposal: PageCreateProposal = {
+      id: crypto.randomUUID(), title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks),
+      proposed: { title: content.title, icon: content.icon, blocks: content.blocks },
+    };
+    return {
+      content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No page has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the page was created." }),
+      label: `Proposed new page “${content.title}”`,
+      events: [{ type: "studymate.create_proposal", ...proposal }],
+    };
+  } catch (error) {
+    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, "Page proposal rejected");
+    throw error;
+  }
+}
+
 // モデルが求めたツールを実行する。userId はサーバーのセッションから渡し、モデルの入力からは決して取らない。
 // 失敗はエラー結果としてモデルへ返し、モデル自身に言い直しや説明をさせる。
 export async function runPageTool(name: string, args: unknown, userId: string): Promise<ToolRun> {
@@ -150,13 +206,15 @@ export async function runPageTool(name: string, args: unknown, userId: string): 
   if (name === "read_page") {
     const pageId = input(args, "pageId");
     if (!pageId) return { content: "pageId must be a non-empty string.", isError: true, label: "Invalid page read" };
-    const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, updatedAt: true } });
+    const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
     if (!page) return { content: "Page not found.", isError: true, label: "Page not found" };
-    const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks)}`;
+    const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
     const content = markdown.length > MAX_READ_CHARS
       ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the page is longer than ${MAX_READ_CHARS} characters.]`
       : markdown;
-    return { content: `pageId: ${page.id}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
+    return { content: `pageId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
   }
+  if (name === "propose_page_edit") return proposePageEdit(args, userId);
+  if (name === "propose_page_create") return proposePageCreate(args);
   return { content: `Unknown tool: ${name}`, isError: true, label: "Unknown tool" };
 }

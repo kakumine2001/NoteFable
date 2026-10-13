@@ -3,7 +3,8 @@
 
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };
 // label は進捗表示用の短い説明。content がモデルへ返すツール結果の本文になる。
-export type ToolRun = { content: string; isError?: boolean; label: string };
+// events はモデルには見せず、画面へ流すだけの追加イベント（編集案など）。
+export type ToolRun = { content: string; isError?: boolean; label: string; events?: object[] };
 export type ToolRunner = (name: string, input: unknown) => Promise<ToolRun>;
 export type ToolCall = { id: string; name: string; input: unknown };
 
@@ -35,6 +36,7 @@ export async function runToolCalls(calls: ToolCall[], runTool: ToolRunner, send:
       content: "The tool failed. Tell the user it could not be completed.", isError: true, label: "Tool failed",
     }));
     send({ type: "studymate.tool", id: call.id, name: call.name, status: "done", label: result.label });
+    for (const event of result.events ?? []) send(event);
     return result;
   }));
 }

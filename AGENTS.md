@@ -35,7 +35,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Anonymous identity and Google-linked user | `src/lib/auth.ts` |
 | Google login (Auth.js) | `src/lib/google-auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` |
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
-| Chat tools (Pages search/read) and tool loops | `src/lib/page-tools.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
+| Chat tools (Pages search/read/propose edit/propose create) and tool loops | `src/lib/page-tools.ts`, `src/lib/page-edit.ts`, `src/lib/note-markdown.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
 | Image generation | `src/app/api/images/route.ts` |
 | File and attachment handling | `src/lib/files.ts` |
 | Image storage | `src/lib/storage.ts` |

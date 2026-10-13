@@ -188,12 +188,13 @@ GPT 默认使用 `tool_choice: auto`，由模型判断是否需要搜索。API �
 
 DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_result>` 时停止读取并返回错误；不能把异常片段保存成正常回答。`response.incomplete`、空回答和没有 `response.completed` 的断流也会明确报错。过去已保存的异常助手回答保留在数据库中，但不会再次加入模型输入。
 
-## Pages 工具（只读，三家模型共用）
+## Pages 工具（三家模型共用）
 
-所有聊天模型都可以通过 StudyMate 自己执行的工具读取当前用户的 Pages。能力开关为 `src/lib/models.ts` 的 `supportsPageTools`；工具定义与执行在 `src/lib/page-tools.ts`，并行执行、单轮上限、轮次上限和参数解析在 `src/lib/chat-tools.ts`，均与 provider 无关。
+所有聊天模型都可以通过 StudyMate 自己执行的工具读取当前用户的 Pages，并提议修改或新建页面。能力开关为 `src/lib/models.ts` 的 `supportsPageTools`；工具定义与执行在 `src/lib/page-tools.ts`，并行执行、单轮上限、轮次上限和参数解析在 `src/lib/chat-tools.ts`，均与 provider 无关。
 
 - `search_pages({ query })`：在数据库内搜索该用户的全部页面。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近页面。不做同义词或翻译，工具说明会提示模型换说法重试。
-- `read_page({ pageId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断。
+- `read_page({ pageId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回页面 `version`。
+- `propose_page_edit({ pageId, version, title, edits })`：**只提议，不写库**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_page` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###`、`-` 列表、`1.`、`- [ ]`、`>`、代码围栏、`---`、粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套，每个非空行一个块），`src/lib/page-edit.ts` 把编辑应用到页面块上，再用保存页面时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前页面不一致、页面不属于当前用户、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
 
 两条循环实现：
 
@@ -201,6 +202,18 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 - GPT 与 DeepSeek（`src/lib/responses-tool-loop.ts`）：工具以 Responses `function` 形式（`strict: true`）发送。一轮 `response.completed` 的输出含 `function_call` 时执行，把该轮全部输出项（含 OpenAI 的加密推理项、DeepSeek 的推理项）和 `function_call_output` 追加到 `input` 后再次请求（`store: false`，无状态）。中间轮次的 `response.completed` 和 `function_call` 事件不转发，路由层仍看到一条普通流；DeepSeek 的工具记法守卫照常生效。
 
 共同规则：同一轮的调用并行执行，每轮最多执行 5 个，超出的调用返回错误结果让模型分批再调；含 Claude `pause_turn` 在内每个回答最多 8 次上游请求，后续 `tool_choice` 改为 auto。工具查询始终带服务端会话的 `userId`，模型无法指定用户；参数 JSON 损坏、参数错误、找不到页面或执行失败都作为错误结果返回给模型，不中断回答。客户端断开（`request.signal`）会中止上游请求和后续轮次。工具前后的回答文字之间插入空行。
+
+每轮工具循环都要重发此前全部内容。Claude 请求带顶层 `cache_control`（自动提示缓存），重复的前缀按缓存读取计费；OpenAI 和 DeepSeek 的前缀缓存由厂商自动处理，无需参数。
+
+- `propose_page_create({ title, markdown, icon })`：**只提议新建，不写库**。`markdown` 用与编辑相同的格式转成块（为 null 时是空页面，最长 60,000 字符），`icon` 是一个 emoji 或 null；整体用保存页面时同一个 `validateNoteContent` 校验。不读数据库，所以不需要 userId，失败（标题为空、标题过长、icon 不是 emoji、Markdown 过长）作为工具错误返回给模型。
+
+### 编辑案与确认
+
+`propose_page_edit` 成功时，服务端除了给模型一条"已提议，尚未应用"的结果外，还向浏览器发出 `studymate.proposal` 事件（页面 ID、基准版本、每处修改的前后 Markdown、以及应用后的完整标题和块）。聊天里显示为编辑案卡片（`src/components/page-edit-proposal.tsx`），红色是修改前、绿色是修改后。用户点 Apply 才会请求 `PATCH /api/pages/[pageId]`，带上案生成时的 `version`，所以走的是和手动保存相同的校验和版本检查；页面在这期间被改过会返回 409，卡片提示重新生成。Discard 不做任何请求。新建页面的提案对应另一种卡片（`studymate.create_proposal` 事件，标题、图标和正文预览），点 Create page 才请求 `POST /api/pages`，成功后派发 `studymate:page-created` 让已加载的页面列表出现新页面。
+
+适用成功后卡片会派发浏览器事件 `studymate:page-updated`（带 PATCH 返回的页面），`src/lib/use-note-pages.ts` 据此把已加载的页面编辑队列更新到新版本；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片的 Applied / Discarded 状态按提案 ID 保存在组件外的小型 store 里，因此回答结束后重新拉取历史导致卡片重新挂载时也不会回到"未应用"，也不会重复提交。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
+
+模型始终不能直接改动页面，批准动作只存在于浏览器。编辑案卡片不保存进数据库，只保留在当前会话的界面状态里，刷新页面后不再显示；回答文字仍然保存。目前支持修改已有页面和新建页面，不包含删除页面。
 
 工具调用和结果不保存进可见聊天记录，只保存最终回答文字。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`），保证重放合法。浏览器的途中经过里会显示"Searched pages for …"或"Read “页面标题”"。
 

@@ -5,10 +5,10 @@ import { useEffect, useRef, useState } from "react";
 
 // 1 回の検索で 20 件近く返ることがあるため、最初は数件だけ見せる。
 const VISIBLE_SOURCES = 6;
-import { hostOf, splitThought, type ActivityStep } from "@/lib/chat-activity";
+import { hostOf, splitThought, type ProgressStep } from "@/lib/chat-activity";
 
 type ChatActivityProps = {
-  steps: ActivityStep[];
+  steps: ProgressStep[];
   // 本文がまだ届いていない間は true。展開して現在の動きを見せる。
   isThinking: boolean;
   // 待機中は経過秒数、完了後は本文が届くまでの秒数。
@@ -36,7 +36,7 @@ function sourceLabel(url: string) {
 }
 
 // ヘッダーに出す「今やっていること」。最後のステップを短い一文にする。
-function describeCurrent(steps: ActivityStep[]) {
+function describeCurrent(steps: ProgressStep[]) {
   const last = steps.at(-1);
   if (!last) return "Thinking";
   if (last.kind === "thought") return splitThought(last.text).title || "Thinking";
@@ -52,7 +52,7 @@ function toolRunningLabel(name: string) {
 }
 
 // 完了後のヘッダー用に、検索回数と参照ページ数をまとめる。
-function summarize(steps: ActivityStep[]) {
+function summarize(steps: ProgressStep[]) {
   let searches = 0;
   let notes = 0;
   const pages = new Set<string>();
@@ -94,7 +94,7 @@ function SourceChips({ urls }: { urls: string[] }) {
   );
 }
 
-function StepRow({ step }: { step: ActivityStep }) {
+function StepRow({ step }: { step: ProgressStep }) {
   if (step.kind === "thought") {
     const { title, body } = splitThought(step.text);
     return (

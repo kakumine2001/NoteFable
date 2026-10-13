@@ -1,5 +1,6 @@
 // 回答前の途中経過（推論要約、Web 検索、Pages ツールの動き）を、プロバイダー非依存の形にそろえる。
 // サーバーは上流イベントを ActivityEvent に変換して流し、クライアントは ActivityStep に積み上げて表示する。
+import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 
 export type WebAction =
   | { kind: "search"; queries: string[]; sources: string[] }
@@ -9,12 +10,19 @@ export type WebAction =
 export type ActivityStep =
   | { id: string; kind: "thought"; text: string }
   | { id: string; kind: "web"; status: "running" | "done"; action?: WebAction }
-  | { id: string; kind: "tool"; status: "running" | "done"; name: string; label?: string };
+  | { id: string; kind: "tool"; status: "running" | "done"; name: string; label?: string }
+  | ({ kind: "proposal" } & PageEditProposal)
+  | ({ kind: "create_proposal" } & PageCreateProposal);
+
+// 進捗の一覧に出すステップ。編集案・新規ページ案は一覧ではなく、回答の下に承認カードとして出す。
+export type ProgressStep = Exclude<ActivityStep, { kind: "proposal" | "create_proposal" }>;
 
 export type ActivityEvent =
   | { type: "thought"; id: string; delta: string }
   | { type: "web"; id: string; status: "running" | "done"; action?: WebAction }
-  | { type: "tool"; id: string; status: "running" | "done"; name: string; label?: string };
+  | { type: "tool"; id: string; status: "running" | "done"; name: string; label?: string }
+  | ({ type: "proposal" } & PageEditProposal)
+  | ({ type: "create_proposal" } & PageCreateProposal);
 
 type UpstreamEvent = {
   type?: unknown;
@@ -87,7 +95,7 @@ function parseWebAction(action: NonNullable<UpstreamEvent["item"]>["action"]): W
 }
 
 // 上流の SSE イベント 1 件から、表示用の途中経過イベントを取り出す。対象外なら null。
-export function parseActivityEvent(event: UpstreamEvent): ActivityEvent | null {
+export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown>): ActivityEvent | null {
   // OpenAI は推論要約、DeepSeek は推論本文を差分で返す。どちらも同じ「思考」として扱う。
   if (
     event.type === "response.reasoning_summary_text.delta" ||
@@ -105,6 +113,23 @@ export function parseActivityEvent(event: UpstreamEvent): ActivityEvent | null {
     const status = event.status === "done" ? "done" : "running";
     const label = text(event.label);
     return { type: "tool", id: event.id, status, name: text(event.name), ...(label ? { label } : {}) };
+  }
+
+  // 編集案（propose_page_edit）。承認カードに必要な項目がそろっているものだけ通す。
+  if (event.type === "studymate.proposal") {
+    const proposal = event as unknown as PageEditProposal;
+    const valid = typeof proposal.id === "string" && typeof proposal.pageId === "string" && typeof proposal.pageTitle === "string"
+      && Number.isSafeInteger(proposal.baseVersion) && Array.isArray(proposal.changes)
+      && typeof proposal.proposed?.title === "string" && Array.isArray(proposal.proposed.blocks);
+    return valid ? { ...proposal, type: "proposal" } : null;
+  }
+
+  // 新規ページ案（propose_page_create）。
+  if (event.type === "studymate.create_proposal") {
+    const proposal = event as unknown as PageCreateProposal;
+    const valid = typeof proposal.id === "string" && typeof proposal.title === "string" && typeof proposal.content === "string"
+      && typeof proposal.proposed?.title === "string" && Array.isArray(proposal.proposed.blocks);
+    return valid ? { ...proposal, type: "create_proposal" } : null;
   }
 
   const item = event.item;
@@ -128,6 +153,18 @@ export function applyActivityEvent(steps: ActivityStep[], event: ActivityEvent):
     return steps.map((step, i) => (i === index ? updated : step));
   }
 
+  if (event.type === "proposal") {
+    const { type: _type, ...rest } = event;
+    void _type;
+    const step: ActivityStep = { ...rest, kind: "proposal" };
+    return index === -1 ? [...steps, step] : steps.map((existing, i) => (i === index ? step : existing));
+  }
+  if (event.type === "create_proposal") {
+    const { type: _type, ...rest } = event;
+    void _type;
+    const step: ActivityStep = { ...rest, kind: "create_proposal" };
+    return index === -1 ? [...steps, step] : steps.map((existing, i) => (i === index ? step : existing));
+  }
   const next: ActivityStep = event.type === "tool"
     ? { id: event.id, kind: "tool", status: event.status, name: event.name, label: event.label }
     : { id: event.id, kind: "web", status: event.status, action: event.action };

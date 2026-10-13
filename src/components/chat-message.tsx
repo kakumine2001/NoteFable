@@ -5,6 +5,7 @@ import { Download, ImagePlus, Paperclip } from "lucide-react";
 import { memo } from "react";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
+import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
 import type { Message } from "@/types/chat";
 
@@ -60,7 +61,10 @@ export const ChatMessage = memo(function ChatMessage({
     message.role === "ASSISTANT" &&
     !message.content &&
     !hasGeneratedImages;
-  const activity = message.activity ?? [];
+  const steps = message.activity ?? [];
+  // 編集案は進捗の一覧ではなく、回答の下に承認カードとして出す。
+  const activity = steps.filter((step) => step.kind !== "proposal" && step.kind !== "create_proposal");
+  const proposals = steps.filter((step) => step.kind === "proposal" || step.kind === "create_proposal");
   const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
   // 待機中は経過秒数、完了後は本文が届くまでにかかった秒数を出す。
   const activitySeconds = shouldShowThinking
@@ -106,6 +110,9 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
             {message.content && <AssistantMarkdown content={message.content} />}
+            {proposals.map((proposal) => proposal.kind === "proposal"
+              ? <PageEditProposal key={proposal.id} proposal={proposal} />
+              : <PageCreateProposal key={proposal.id} proposal={proposal} />)}
           </div>
         ) : (
           <div className="notion-user-block">

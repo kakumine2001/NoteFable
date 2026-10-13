@@ -69,6 +69,70 @@ describe("page tools", () => {
     expect(result.content).toContain("[Truncated");
   });
 
+  it("numbers blocks and shows the version in read_page", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "p1", title: "Notes", version: 4, blocks: [block("heading", [text("A")], { level: 1 }), block("paragraph", [text("b")])], updatedAt });
+    const result = await runPageTool("read_page", { pageId: "p1" }, "mine");
+    expect(result.content).toContain("version: 4");
+    expect(result.content).toContain("[1] # A\n[2] b");
+  });
+
+  describe("propose_page_edit", () => {
+    const stored = () => ({ id: "p1", title: "Notes", version: 4, blocks: [block("heading", [text("A")], { level: 1 }), block("paragraph", [text("b")])] });
+    const args = (extra = {}) => ({ pageId: "p1", version: 4, title: null, edits: [{ op: "replace", block: 2, markdown: "**new**" }], ...extra });
+
+    it("returns a proposal event for the owner's page and does not write", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      const result = await runPageTool("propose_page_edit", args({ title: "Renamed" }), "mine");
+      expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine" } }));
+      expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", applied: false });
+      const [event] = result.events as { type: string; baseVersion: number; title: object; changes: object[]; proposed: { title: string; blocks: unknown[] } }[];
+      expect(event).toMatchObject({ type: "studymate.proposal", pageId: "p1", baseVersion: 4, title: { before: "Notes", after: "Renamed" } });
+      expect(event.changes).toEqual([{ op: "replace", block: 2, before: "b", after: "**new**" }]);
+      expect(event.proposed.title).toBe("Renamed");
+      expect(event.proposed.blocks).toHaveLength(2);
+    });
+
+    it("rejects a stale version, a missing page and bad edits as tool errors", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      expect(await runPageTool("propose_page_edit", args({ version: 3 }), "mine")).toMatchObject({ isError: true, content: expect.stringContaining("now version 4") });
+      expect(await runPageTool("propose_page_edit", args({ edits: [{ op: "delete", block: 9, markdown: null }] }), "mine")).toMatchObject({ isError: true, content: expect.stringContaining("1-2") });
+      expect(await runPageTool("propose_page_edit", args({ edits: [] }), "mine")).toMatchObject({ isError: true, content: "The edits change nothing." });
+      expect(await runPageTool("propose_page_edit", { ...args(), version: "4" }, "mine")).toMatchObject({ isError: true });
+      expect(await runPageTool("propose_page_edit", args({ title: 5 }), "mine")).toMatchObject({ isError: true });
+      mocks.findFirst.mockResolvedValue(null);
+      expect(await runPageTool("propose_page_edit", args(), "mine")).toMatchObject({ isError: true, content: "Page not found." });
+    });
+
+    it("rejects edits whose result fails the page validation", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      const result = await runPageTool("propose_page_edit", args({ title: "x".repeat(201) }), "mine");
+      expect(result).toMatchObject({ isError: true, content: expect.stringContaining("title") });
+      expect(result.events).toBeUndefined();
+    });
+  });
+
+  describe("propose_page_create", () => {
+    it("returns a create proposal event without touching the database", async () => {
+      const result = await runPageTool("propose_page_create", { title: "  Study plan ", markdown: "# Week 1\n- read ch.1", icon: "📚" }, "mine");
+      expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", created: false });
+      const [event] = result.events as { type: string; title: string; icon: string; content: string; proposed: { blocks: unknown[] } }[];
+      expect(event).toMatchObject({ type: "studymate.create_proposal", title: "Study plan", icon: "📚", content: "# Week 1\n- read ch.1" });
+      expect(event.proposed.blocks).toHaveLength(2);
+      expect(mocks.findFirst).not.toHaveBeenCalled();
+      expect(mocks.queryRaw).not.toHaveBeenCalled();
+    });
+
+    it("allows an empty body and null icon, and rejects bad input as tool errors", async () => {
+      const empty = await runPageTool("propose_page_create", { title: "Blank", markdown: null, icon: null }, "mine");
+      expect((empty.events as { content: string; icon: null }[])[0]).toMatchObject({ content: "", icon: null });
+      expect(await runPageTool("propose_page_create", { title: " ", markdown: null, icon: null }, "mine")).toMatchObject({ isError: true });
+      expect(await runPageTool("propose_page_create", { title: "t", markdown: 5, icon: null }, "mine")).toMatchObject({ isError: true });
+      expect(await runPageTool("propose_page_create", { title: "t", markdown: null, icon: "not an emoji" }, "mine")).toMatchObject({ isError: true, content: expect.stringContaining("emoji") });
+      expect(await runPageTool("propose_page_create", { title: "x".repeat(201), markdown: null, icon: null }, "mine")).toMatchObject({ isError: true });
+      expect(await runPageTool("propose_page_create", { title: "t", markdown: "x".repeat(60_001), icon: null }, "mine")).toMatchObject({ isError: true, content: expect.stringContaining("longer than") });
+    });
+  });
+
   it("returns errors for bad input and unknown tools", async () => {
     expect(await runPageTool("read_page", {}, "mine")).toMatchObject({ isError: true });
     expect(await runPageTool("search_pages", { query: 3 }, "mine")).toMatchObject({ isError: true });

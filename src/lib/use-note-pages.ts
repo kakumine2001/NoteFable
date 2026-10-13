@@ -28,6 +28,7 @@ export function useNotePages(enabled: boolean) {
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [, refresh] = useState(0);
   const queues = useRef(new Map<string, NoteSaveQueue>());
+  const createdWhileLoading = useRef<NotePageSummary[]>([]);
   const loaded = useRef(false);
   const started = useRef(false);
   const navigation = useRef(0);
@@ -118,7 +119,10 @@ export function useNotePages(enabled: boolean) {
     try {
       const data = await pageRequest("/api/pages");
       loaded.current = true;
-      setPages(data.pages);
+      const known = new Set<string>(data.pages.map((page: NotePageSummary) => page.id));
+      const extra = createdWhileLoading.current.filter((page) => !known.has(page.id));
+      createdWhileLoading.current = [];
+      setPages(extra.length ? [...extra, ...data.pages].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)) : data.pages);
       const requested = new URL(window.location.href).searchParams.get("page");
       const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? data.pages[0]?.id;
       if (id) await select(id, "replace");
@@ -133,6 +137,42 @@ export function useNotePages(enabled: boolean) {
       queueMicrotask(() => { void load(); });
     }
   }, [enabled, load]);
+
+  useEffect(() => {
+    // チャットの編集案が適用された時に、読み込み済みのページを最新の版へそろえる（そうしないと次の保存が 409 になる）。
+    function onPageUpdated(event: Event) {
+      const page = (event as CustomEvent<NotePage | undefined>).detail;
+      if (!page) return;
+      // まだ開いていないページでも、一覧の題名と版は最新にする。
+      if (loaded.current) upsertSummary(page);
+      const queue = queues.current.get(page.id);
+      if (!queue || queue.version === page.version) return;
+      if (!queue.dirty && queue.status !== "saving") {
+        queue.loadLatest(page);
+        if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
+      } else {
+        // 未保存の編集は消さず、衝突として知らせる。
+        queue.status = "conflict";
+        queue.latest = page;
+        queue.error = "This page was changed from the chat. Save a copy or load the latest version.";
+        refresh((value) => value + 1);
+      }
+    }
+    // チャットで作った新しいページを、読み込み済みの一覧へ加える（未読み込みなら後の取得に含まれる）。
+    function onPageCreated(event: Event) {
+      const page = (event as CustomEvent<NotePage | undefined>).detail;
+      if (!page) return;
+      // 一覧の取得中に作られたページは、取得結果に含まれないことがあるので覚えておいて合流させる。
+      if (loaded.current) upsertSummary(page);
+      else createdWhileLoading.current.push(page);
+    }
+    window.addEventListener("studymate:page-updated", onPageUpdated);
+    window.addEventListener("studymate:page-created", onPageCreated);
+    return () => {
+      window.removeEventListener("studymate:page-updated", onPageUpdated);
+      window.removeEventListener("studymate:page-created", onPageCreated);
+    };
+  }, [upsertSummary]);
 
   useEffect(() => {
     function onPopState() {

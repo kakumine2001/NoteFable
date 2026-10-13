@@ -1917,3 +1917,133 @@ button:disabled {
 @media (hover: none) {
   .notes-cover-actions, .notes-header-controls { opacity: 1; }
 }
+
+/* チャット内のページ編集案。承認するまでページは変わらない。 */
+.page-edit {
+  margin-top: 0.85rem;
+  overflow: hidden;
+  border: 1px solid var(--notion-border-strong);
+  border-radius: 8px;
+  font-family: var(--font-ui);
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
+.page-edit.is-settled {
+  opacity: 0.72;
+}
+
+.page-edit-header {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.5rem 0.75rem;
+  background: var(--notion-sidebar);
+  color: var(--notion-text);
+  font-weight: 600;
+}
+
+.page-edit-badge {
+  flex-shrink: 0;
+  border-radius: 4px;
+  background: var(--notion-hover);
+  padding: 0 0.4rem;
+  color: var(--notion-muted);
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.page-edit-body {
+  display: grid;
+  max-height: 22rem;
+  gap: 0.6rem;
+  overflow-y: auto;
+  padding: 0.65rem 0.75rem;
+}
+
+.page-edit-op {
+  margin-bottom: 0.2rem;
+  color: var(--notion-muted);
+  font-size: 0.75rem;
+}
+
+.page-edit-before,
+.page-edit-after {
+  margin: 0 0 0.2rem;
+  border-radius: 4px;
+  padding: 0.3rem 0.5rem;
+  font: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.page-edit-before {
+  background: rgba(224, 62, 62, 0.1);
+  text-decoration: line-through;
+  text-decoration-color: rgba(224, 62, 62, 0.45);
+}
+
+.page-edit-after {
+  background: rgba(68, 131, 97, 0.14);
+}
+
+.page-edit-error {
+  margin: 0;
+  padding: 0 0.75rem 0.5rem;
+  color: #e03e3e;
+}
+
+.page-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--notion-border);
+  padding: 0.5rem 0.75rem;
+}
+
+.page-edit-apply,
+.page-edit-discard {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border-radius: 6px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.page-edit-apply {
+  background: var(--notion-blue);
+  color: #ffffff;
+}
+
+.page-edit-apply:not(:disabled):hover {
+  background: var(--notion-blue-hover);
+}
+
+.page-edit-discard {
+  border: 1px solid var(--notion-border-strong);
+  color: var(--notion-text);
+}
+
+.page-edit-discard:not(:disabled):hover {
+  background: var(--notion-hover);
+}
+
+.page-edit-apply:disabled,
+.page-edit-discard:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.page-edit-link {
+  color: var(--notion-blue);
+  text-decoration: underline;
+}
+
+.page-edit-note {
+  margin-top: 0.15rem;
+  color: #cb912f;
+  font-size: 0.75rem;
+}

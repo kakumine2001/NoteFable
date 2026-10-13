@@ -199,11 +199,11 @@ npm run prisma:migrate
 
 模型能力：
 
-- GPT-6 Luna：支持图片输入、图片生成、Web 搜索、只读 Pages 工具，以及 `none / low / medium / high / xhigh / max`
-- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和只读 Pages 工具，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
-- DeepSeek-V4.1-Flash：支持图片输入和只读 Pages 工具，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
+- GPT-6 Luna：支持图片输入、图片生成、Web 搜索、Pages 工具，以及 `none / low / medium / high / xhigh / max`
+- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和Pages 工具，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
+- DeepSeek-V4.1-Flash：支持图片输入和Pages 工具，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
 
-三个模型都可以用 `search_pages` / `read_page` 读取当前用户自己的 Pages（只读），详见 [chat-flow.md](docs/architecture/chat-flow.md#pages-工具只读三家模型共用)。
+三个模型都可以用 `search_pages` / `read_page` 读取当前用户自己的 Pages，并用 `propose_page_edit` / `propose_page_create` 提议修改或新建页面：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create page 后才会保存，详见 [chat-flow.md](docs/architecture/chat-flow.md#pages-工具三家模型共用)。
 
 Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
 

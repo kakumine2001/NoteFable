@@ -32,6 +32,28 @@ describe("chat activity", () => {
     ]);
   });
 
+  it("turns a page edit proposal into a step and ignores malformed ones", () => {
+    const proposal = { type: "studymate.proposal", id: "pr1", pageId: "p1", pageTitle: "Notes", baseVersion: 2, changes: [{ op: "delete", block: 1, before: "x" }], proposed: { title: "Notes", blocks: [] } };
+    const event = parseActivityEvent(proposal)!;
+    expect(event.type).toBe("proposal");
+    expect([event].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
+      { kind: "proposal", id: "pr1", pageId: "p1", pageTitle: "Notes", baseVersion: 2, changes: proposal.changes, proposed: proposal.proposed },
+    ]);
+    expect(parseActivityEvent({ ...proposal, baseVersion: "2" })).toBeNull();
+    expect(parseActivityEvent({ ...proposal, proposed: { title: "x" } })).toBeNull();
+  });
+
+  it("turns a new page proposal into a step and ignores malformed ones", () => {
+    const proposal = { type: "studymate.create_proposal", id: "np1", title: "Plan", icon: null, content: "- a", proposed: { title: "Plan", icon: null, blocks: [] } };
+    const event = parseActivityEvent(proposal)!;
+    expect(event.type).toBe("create_proposal");
+    expect([event].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
+      { kind: "create_proposal", id: "np1", title: "Plan", icon: null, content: "- a", proposed: proposal.proposed },
+    ]);
+    expect(parseActivityEvent({ ...proposal, content: 1 })).toBeNull();
+    expect(parseActivityEvent({ ...proposal, proposed: { title: "Plan" } })).toBeNull();
+  });
+
   it("tracks a page tool from running to its finished label", () => {
     const running = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_page", status: "running" })!;
     const done = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_page", status: "done", label: "Read “Notes”" })!;

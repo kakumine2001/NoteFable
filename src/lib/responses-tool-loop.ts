@@ -63,6 +63,8 @@ export async function createResponsesToolStream({
                 if (Array.isArray(event.response?.output)) output = event.response.output;
                 continue;
               }
+              // studymate.* は自前のツール実行からだけ出す。上流からの同名イベントは通さない。
+              if (event.type?.startsWith("studymate.")) continue;
               if (isFunctionCall(event.item) || event.type?.startsWith("response.function_call_arguments.")) continue;
               if (event.type === "response.output_text.delta" && event.delta) {
                 if (separateNextText) send({ type: "response.output_text.delta", delta: "\n\n" });

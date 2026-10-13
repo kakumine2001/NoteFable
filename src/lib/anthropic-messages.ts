@@ -45,7 +45,7 @@ export function toAnthropicMessages(input: Input[]): Message[] {
   });
 }
 
-export function buildAnthropicRequest({ model, instructions, input, effort, webSearchMode = "off", stream = true, maxTokens = ANTHROPIC_HAIKU_LIMITS.maxOutputTokens, compaction = false, nativeContext = [], customTools = [] }: {
+export function buildAnthropicRequest({ model, instructions, input, effort, webSearchMode = "off", stream = true, maxTokens = ANTHROPIC_HAIKU_LIMITS.maxOutputTokens, compaction = false, nativeContext = [], customTools = [], cache = false }: {
   model: string;
   instructions: string;
   input: Input[];
@@ -56,6 +56,8 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
   compaction?: boolean;
   nativeContext?: Record<string, unknown>[];
   customTools?: ToolDefinition[];
+  // 会話の続きで同じ prefix を再送するリクエストだけ有効にする。単発のタイトル生成では書き込み料金が無駄になる。
+  cache?: boolean;
 }) {
   if (!["low", "medium", "high", "xhigh", "max"].includes(effort)) {
     throw new Error("Unsupported Claude effort.");
@@ -69,6 +71,8 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
     system: instructions,
     messages: [...nativeContext as Message[], ...toAnthropicMessages(input)],
     max_tokens: maxTokens,
+    // 自動キャッシュ: 最後のブロックに breakpoint を置き、ツールループの次ラウンドや次の発言で前回までの prefix を読む。
+    ...(cache ? { cache_control: { type: "ephemeral" } } : {}),
     thinking: { type: "adaptive", display: "summarized" },
     output_config: { effort },
     ...(compaction ? { context_management: { edits: [{ type: "compact_20260112" }] } } : {}),

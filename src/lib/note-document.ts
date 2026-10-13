@@ -39,7 +39,10 @@ export function isPresetCover(cover: unknown): cover is NoteCover {
 
 function validIcon(value: unknown) {
   // 絵文字 1 つ分（肌色や ZWJ 結合を含む）だけを許可する。
-  return typeof value === "string" && value.length <= 16 && /^\p{Extended_Pictographic}/u.test(value) && !/\s/.test(value);
+  if (typeof value !== "string" || value.length > 16 || /\s/.test(value)) return false;
+  // 書記素クラスタ 1 つだけ（「📚abc」や「📚📚」は不可、国旗や ZWJ 結合は可）。
+  const clusters = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)];
+  return clusters.length === 1 && /^(\p{Extended_Pictographic}|\p{Regional_Indicator}{2})/u.test(value);
 }
 
 export class NoteValidationError extends Error {

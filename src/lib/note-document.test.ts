@@ -41,6 +41,12 @@ describe("page icon and cover", () => {
   it("rejects text icons and unknown or URL covers", () => {
     expect(() => validateNoteContent({ title: "A", icon: "hello", blocks: [] })).toThrow("emoji");
     expect(() => validateNoteContent({ title: "A", icon: "📚 x", blocks: [] })).toThrow("emoji");
+    expect(() => validateNoteContent({ title: "A", icon: "📚abc", blocks: [] })).toThrow("emoji");
+    expect(() => validateNoteContent({ title: "A", icon: "📚📚", blocks: [] })).toThrow("emoji");
+  });
+
+  it("accepts flags and joined emoji sequences as one icon", () => {
+    for (const icon of ["🇯🇵", "👨‍👩‍👧", "🏳️‍🌈", "❤️"]) expect(validateNoteContent({ title: "A", icon, blocks: [] }).icon).toBe(icon);
     expect(() => validateNoteContent({ title: "A", cover: "https://example.com/x.png", blocks: [] })).toThrow("cover");
     expect(() => validateNoteContent({ title: "A", cover: "toString", blocks: [] })).toThrow("cover");
   });

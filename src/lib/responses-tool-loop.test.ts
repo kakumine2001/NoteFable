@@ -43,6 +43,24 @@ describe("Responses tool loop", () => {
     expect(output.filter((event) => event.type === "response.output_text.delta").map((event) => event.delta).join("")).toBe("Checking.\n\nIt says hi.");
   });
 
+  it("forwards extra tool events to the client without sending them to the model", async () => {
+    const request = vi.fn().mockResolvedValueOnce(toolRound()).mockResolvedValueOnce(finalRound());
+    const runTool = vi.fn().mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "studymate.proposal", id: "pr1" }] });
+    const output = await events(await createResponsesToolStream({ body: body(), request, runTool }));
+    expect(output.filter((event) => event.type === "studymate.proposal")).toEqual([{ type: "studymate.proposal", id: "pr1" }]);
+    expect(JSON.stringify(request.mock.calls[1][0].input)).not.toContain("studymate.proposal");
+  });
+
+  it("drops studymate.* events that come from the upstream stream", async () => {
+    const request = vi.fn().mockResolvedValueOnce(sse([
+      { type: "studymate.proposal", id: "fake" },
+      { type: "response.output_text.delta", delta: "hi" },
+      { type: "response.completed", response: { output: [] } },
+    ]));
+    const output = await events(await createResponsesToolStream({ body: body(), request }));
+    expect(output.map((event) => event.type)).toEqual(["response.output_text.delta", "response.completed"]);
+  });
+
   it("returns errors for calls beyond the per-round limit instead of failing", async () => {
     const calls = Array.from({ length: MAX_TOOL_CALLS_PER_ROUND + 1 }, (_, index) => call(`c${index}`));
     const request = vi.fn().mockResolvedValueOnce(toolRound(calls)).mockResolvedValueOnce(finalRound());

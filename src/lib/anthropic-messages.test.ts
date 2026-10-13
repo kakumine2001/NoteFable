@@ -31,6 +31,11 @@ describe("Claude Messages boundary", () => {
     expect(request("force").tool_choice).toEqual({ type: "tool", name: "web_search" });
   });
 
+  it("enables automatic prompt caching only when asked", () => {
+    expect(request()).not.toHaveProperty("cache_control");
+    expect(buildAnthropicRequest({ model: "claude-haiku-5-5", instructions: "p", input: [{ role: "user", content: "hi" }], effort: "medium", cache: true }).cache_control).toEqual({ type: "ephemeral" });
+  });
+
   it("extracts only visible text from non-stream responses", () => {
     expect(extractAnthropicText({ content: [{ type: "thinking", thinking: "private" }, { type: "text", text: "answer" }] })).toBe("answer");
   });

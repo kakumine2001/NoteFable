@@ -64,7 +64,7 @@ describe("DeepSeek chat response boundary", () => {
     ])).toBe("通常の回答");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     // DeepSeek には検索を送らず、Pages の function ツールだけを送る。
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_pages", "read_page"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_pages", "read_page", "propose_page_edit", "propose_page_create"]);
     expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("Web search is unavailable");
     expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
@@ -120,7 +120,7 @@ describe("OpenAI web search", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_pages", "read_page"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_pages", "read_page", "propose_page_edit", "propose_page_create"]);
     expect(body.tool_choice).toEqual(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
@@ -232,7 +232,7 @@ describe("Claude chat response boundary", () => {
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
     const raw = await response.text();
     expect(mocks.fetch.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
-    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ max_tokens: 128000, output_config: { effort: "medium" }, tool_choice: { type: "auto" } });
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ max_tokens: 128000, output_config: { effort: "medium" }, tool_choice: { type: "auto" }, cache_control: { type: "ephemeral" } });
     expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
     expect(raw).not.toContain("hidden-signature");
     expect(raw).not.toContain("hidden-index");
@@ -257,6 +257,7 @@ describe("Claude chat response boundary", () => {
     const titleBody = JSON.parse(mocks.fetch.mock.calls[1][1].body);
     expect(titleBody).toMatchObject({ output_config: { effort: "low" }, stream: false });
     expect(titleBody).not.toHaveProperty("tools");
+    expect(titleBody).not.toHaveProperty("cache_control");
     expect(mocks.updateManySession).toHaveBeenCalledWith({ where: { id: "session", userId: "user", title: "Claudeの確認" }, data: { title: "Claude確認" } });
   });
 });
