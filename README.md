@@ -2,7 +2,7 @@
 
 供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
 
-项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Pages 笔记。
+项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Notes 笔记。
 
 ## 当前生产环境
 
@@ -199,17 +199,17 @@ npm run prisma:migrate
 
 模型能力：
 
-- GPT-6 Luna：支持图片输入、图片生成、Web 搜索、Pages 工具，以及 `none / low / medium / high / xhigh / max`
-- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和Pages 工具，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
-- DeepSeek-V4.1-Flash：支持图片输入和Pages 工具，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
+- GPT-6 Luna：支持图片输入、图片生成、Web 搜索、Notes 工具，以及 `none / low / medium / high / xhigh / max`
+- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和 Notes 工具，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
+- DeepSeek-V4.1-Flash：支持图片输入和 Notes 工具，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
 
-三个模型都可以用 `search_pages` / `read_page` 读取当前用户自己的 Pages，并用 `propose_page_edit` / `propose_page_create` 提议修改或新建页面：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create page 后才会保存，详见 [chat-flow.md](docs/architecture/chat-flow.md#pages-工具三家模型共用)。
+三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
 
 Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
 
 两者发送上一次压缩状态和后续文字历史，首次压缩前发送全部文字历史，不再按最近 30 条或历史附件合计 120,000 字符截断（DeepSeek 同样发送全部文字历史，不设条数上限，历史附件文本合计仍限 120,000 字符）；单文件提取与历史图片限制保留。`Message.providerContext` 保存成功回答的厂商原生压缩状态，按 provider 与实际上游 model 隔离，下一轮从该状态继续；原消息和附件保留供界面查看，状态不返回浏览器。超出上游硬性输入或请求大小限制仍可能报错，压缩不能保证任意大单次上传均可接受。Batch API 的 300,000 token 输出需异步批处理与 Beta 标头，当前实时聊天不调用该接口。
 
-Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索能力。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，与 Pages 工具轮次合计最多 8 次上游请求（这是请求续接次数限制，与 `max_uses` 不同）。引用转换为可点击链接并随回答保存。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT 或 Claude。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
+Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索能力。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，与 Notes 工具轮次合计最多 8 次上游请求（这是请求续接次数限制，与 `max_uses` 不同）。引用转换为可点击链接并随回答保存。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT 或 Claude。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
 
 Claude 通过服务端 `ANTHROPIC_API_KEY` 接入 `/v1/messages`，API 费用与 Claude 订阅分开。推理档位和图片输入已按 [Haiku 官方规格](https://platform.claude.com/docs/en/models/haiku-5-5/overview)及 [effort 说明](https://platform.claude.com/docs/en/build-with-claude/effort)配置。文档提及的代码执行、结构化输出等能力尚未作为本应用功能开放；PDF 继续沿用统一的文本提取。普通回答仅保存文字和引用；发生压缩后，额外保存继续请求所需的原生压缩块及其后续输出，Claude 思考块不保存。原生状态仅供同厂商同模型的服务端后续请求复用。参见 [OpenAI 压缩](https://developers.openai.com/api/docs/guides/compaction)及 [Claude 压缩](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold)。
 
@@ -231,9 +231,9 @@ images/YYYY/MM/DD/<uuid>.<ext>
 
 Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/tmp` 也会在实例回收或重新部署后清空。因此 Vercel 部署必须配置 Vercel Blob token；否则图片上传和生成会明确失败，不会静默写入临时磁盘。
 
-## 站内 Pages
+## 站内 Notes
 
-侧栏顶部的 `Chat / Pages` 在聊天和笔记之间切换（聊天与 Pages 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Pages 侧栏在 `Private` 分组下支持创建、选择和删除页面。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面可从预设渐变/纯色中选择，也可上传图片（最大 4 MB）并拖动调整位置。代码块支持语法高亮、语言选择和一键复制。页面平铺排列，按创建时间排序，编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
+侧栏顶部的 `Chat / Notes` 在聊天和笔记之间切换（聊天与 Notes 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Notes 侧栏在 `Private` 分组下支持创建、选择和删除页面。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面可从预设渐变/纯色中选择，也可上传图片（最大 4 MB）并拖动调整位置。代码块支持语法高亮、语言选择和一键复制。页面平铺排列，按创建时间排序，编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
 
 编辑器使用 BlockNote 社区版，支持段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；通过 `/` 菜单、Markdown 快捷输入、行内格式工具栏和拖动整理内容。首版只开放文字区块。
 
@@ -243,11 +243,11 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
 
-Pages 不调用 AI。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
+Notes 不调用 AI。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
 ## API 保护
 
-应用本身不做请求限流（聊天、图片生成、Pages 保存均不限次数）。API 费用只受上游模型厂商的额度控制；需要限流时，可以在 Vercel 防火墙或网关层配置。
+应用本身不做请求限流（聊天、图片生成、Notes 保存均不限次数）。API 费用只受上游模型厂商的额度控制；需要限流时，可以在 Vercel 防火墙或网关层配置。
 
 ## Vercel 部署
 

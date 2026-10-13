@@ -43,7 +43,7 @@ describe("applyPageEdits", () => {
   it("rejects bad numbers, ops and markdown with messages the model can act on", () => {
     const run = (edits: unknown) => () => applyPageEdits(page(), edits);
     expect(run("nope")).toThrow(PageEditError);
-    expect(run([{ op: "replace", block: 0, markdown: "x" }])).toThrow(/block number from read_page \(1-6\)/);
+    expect(run([{ op: "replace", block: 0, markdown: "x" }])).toThrow(/block number from read_note \(1-6\)/);
     expect(run([{ op: "replace", block: 7, markdown: "x" }])).toThrow(/1-6/);
     expect(run([{ op: "insert_after", block: 7, markdown: "x" }])).toThrow(/0 for the start/);
     expect(run([{ op: "rename", block: 1, markdown: "x" }])).toThrow(/op must be one of/);

@@ -64,7 +64,7 @@ describe("DeepSeek chat response boundary", () => {
     ])).toBe("通常の回答");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     // DeepSeek には検索を送らず、Pages の function ツールだけを送る。
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_pages", "read_page", "propose_page_edit", "propose_page_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_notes", "read_note", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("Web search is unavailable");
     expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
@@ -120,7 +120,7 @@ describe("OpenAI web search", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_pages", "read_page", "propose_page_edit", "propose_page_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_notes", "read_note", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toEqual(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
@@ -171,15 +171,15 @@ describe("Pages tools across providers", () => {
   const sse = (events: unknown[]) => new Response(events.map((event) => `data: ${JSON.stringify(event)}
 
 `).join(""));
-  const functionCall = { type: "function_call", id: "fc_1", call_id: "c1", name: "read_page", arguments: '{"pageId":"p1","userId":"other"}' };
+  const functionCall = { type: "function_call", id: "fc_1", call_id: "c1", name: "read_note", arguments: '{"noteId":"p1","userId":"other"}' };
   const responsesRounds = () => [
     sse([{ type: "response.output_item.done", item: functionCall }, { type: "response.completed", response: { output: [functionCall] } }]),
     sse([{ type: "response.output_text.delta", delta: "It says hi." }, { type: "response.completed", response: { output: [] } }]),
   ];
   const claudeRounds = () => [
     sse([
-      { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "t1", name: "read_page", input: {} } },
-      { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"pageId":"p1","userId":"other"}' } },
+      { type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "t1", name: "read_note", input: {} } },
+      { type: "content_block_delta", index: 0, delta: { type: "input_json_delta", partial_json: '{"noteId":"p1","userId":"other"}' } },
       { type: "content_block_stop", index: 0 },
       { type: "message_delta", delta: { stop_reason: "tool_use" } }, { type: "message_stop" },
     ]),
@@ -201,10 +201,10 @@ describe("Pages tools across providers", () => {
     form.set("sessionId", "existing");
     form.set("webSearch", "off");
     const raw = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
-    expect(mocks.runPageTool).toHaveBeenCalledWith("read_page", { pageId: "p1", userId: "other" }, "user");
+    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user");
     expect(raw).toContain('"activity":{"type":"tool","id"');
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("It says hi.");
-    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_pages");
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_notes");
   });
 });
 

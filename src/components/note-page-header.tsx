@@ -144,7 +144,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
             )}
           </div>
         )}
-        <textarea ref={titleRef} rows={1} className="notes-title" aria-label="Page title" maxLength={200} placeholder="Untitled"
+        <textarea ref={titleRef} rows={1} className="notes-title" aria-label="Note title" maxLength={200} placeholder="Untitled"
           value={content.title === "Untitled" ? "" : content.title} disabled={!editable}
           onChange={(event) => update({ title: event.target.value.replace(/\r?\n/g, " ") })}
           onKeyDown={onTitleKeyDown} />

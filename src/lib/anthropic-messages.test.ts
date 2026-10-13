@@ -84,9 +84,9 @@ describe("Claude Messages boundary", () => {
   it("adds StudyMate tools beside native search in the provider's schema", () => {
     const body = buildAnthropicRequest({
       model: "claude-haiku-5-5", instructions: "p", input: [{ role: "user", content: "hi" }], effort: "medium",
-      customTools: [{ name: "read_page", description: "Read", parameters: { type: "object" } }],
+      customTools: [{ name: "read_note", description: "Read", parameters: { type: "object" } }],
     });
-    expect(body.tools).toEqual([{ name: "read_page", description: "Read", input_schema: { type: "object" } }]);
+    expect(body.tools).toEqual([{ name: "read_note", description: "Read", input_schema: { type: "object" } }]);
     expect(body.tool_choice).toEqual({ type: "auto" });
   });
 
@@ -95,8 +95,8 @@ describe("Claude Messages boundary", () => {
     { type: "content_block_start", index: 1, content_block: { type: "thinking", thinking: "", signature: "" } },
     { type: "content_block_delta", index: 1, delta: { type: "signature_delta", signature: "sig" } },
     { type: "content_block_start", index: 2, content_block: { type: "text", text: "Let me check." } },
-    { type: "content_block_start", index: 3, content_block: { type: "tool_use", id: "call1", name: "read_page", input: {} } },
-    { type: "content_block_delta", index: 3, delta: { type: "input_json_delta", partial_json: '{"pageId":"p1"}' } },
+    { type: "content_block_start", index: 3, content_block: { type: "tool_use", id: "call1", name: "read_note", input: {} } },
+    { type: "content_block_delta", index: 3, delta: { type: "input_json_delta", partial_json: '{"noteId":"p1"}' } },
     { type: "content_block_stop", index: 3 }, ...ending("tool_use"),
   ]);
 
@@ -108,8 +108,8 @@ describe("Claude Messages boundary", () => {
     vi.stubGlobal("fetch", fetchMock);
     const runTool = vi.fn().mockResolvedValue({ content: "# Notes\n\nhi", label: "Read “Notes”" });
     const output = await new Response(await createAnthropicStream(request(), undefined, runTool)).text();
-    expect(runTool).toHaveBeenCalledWith("read_page", { pageId: "p1" });
-    expect(output).toContain('"type":"studymate.tool","id":"call1","name":"read_page","status":"running"');
+    expect(runTool).toHaveBeenCalledWith("read_note", { noteId: "p1" });
+    expect(output).toContain('"type":"studymate.tool","id":"call1","name":"read_note","status":"running"');
     expect(output).toContain('"status":"done","label":"Read “Notes”"');
     expect(output).toContain('"delta":"\\n\\n"');
     const second = JSON.parse(fetchMock.mock.calls[1][1].body);
@@ -117,7 +117,7 @@ describe("Claude Messages boundary", () => {
       { role: "assistant", content: [
         { type: "thinking", thinking: "", signature: "sig" },
         { type: "text", text: "Let me check." },
-        { type: "tool_use", id: "call1", name: "read_page", input: { pageId: "p1" } },
+        { type: "tool_use", id: "call1", name: "read_note", input: { noteId: "p1" } },
       ] },
       { role: "user", content: [{ type: "tool_result", tool_use_id: "call1", content: "# Notes\n\nhi" }] },
     ]);
@@ -158,7 +158,7 @@ describe("Claude Messages boundary", () => {
 
   it("replays a saved tool checkpoint as a valid follow-up request", () => {
     const items = [
-      { role: "assistant", content: [{ type: "compaction", content: "summary" }, { type: "tool_use", id: "call1", name: "read_page", input: { pageId: "p1" } }] },
+      { role: "assistant", content: [{ type: "compaction", content: "summary" }, { type: "tool_use", id: "call1", name: "read_note", input: { noteId: "p1" } }] },
       { role: "user", content: [{ type: "tool_result", tool_use_id: "call1", content: "page" }] },
       { role: "assistant", content: [{ type: "text", text: "Done." }] },
     ];
@@ -173,7 +173,7 @@ describe("Claude Messages boundary", () => {
   it("answers extra parallel calls with errors and stops on client disconnect", async () => {
     vi.stubEnv("ANTHROPIC_API_KEY", "test-only");
     const calls = Array.from({ length: 6 }, (_, index) => [
-      { type: "content_block_start", index, content_block: { type: "tool_use", id: `c${index}`, name: "read_page", input: {} } },
+      { type: "content_block_start", index, content_block: { type: "tool_use", id: `c${index}`, name: "read_note", input: {} } },
       { type: "content_block_delta", index, delta: { type: "input_json_delta", partial_json: "{broken" } },
       { type: "content_block_stop", index },
     ]).flat();
@@ -183,7 +183,7 @@ describe("Claude Messages boundary", () => {
     const runTool = vi.fn(async () => { abort.abort(); return { content: "x", label: "Read" }; });
     await new Response(await createAnthropicStream(request(), undefined, runTool, abort.signal)).text();
     // 壊れた引数 JSON は空オブジェクトとしてツールへ渡し、ツールの入力検証に任せる。
-    expect(runTool).toHaveBeenCalledWith("read_page", {});
+    expect(runTool).toHaveBeenCalledWith("read_note", {});
     expect(runTool).toHaveBeenCalledTimes(5);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });

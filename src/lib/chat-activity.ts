@@ -1,4 +1,4 @@
-// 回答前の途中経過（推論要約、Web 検索、Pages ツールの動き）を、プロバイダー非依存の形にそろえる。
+// 回答前の途中経過（推論要約、Web 検索、Notes ツールの動き）を、プロバイダー非依存の形にそろえる。
 // サーバーは上流イベントを ActivityEvent に変換して流し、クライアントは ActivityStep に積み上げて表示する。
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 
@@ -107,7 +107,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
     return { type: "thought", id: `${itemId}:${typeof index === "number" ? index : 0}`, delta: event.delta };
   }
 
-  // サーバー側で実行した Pages ツールの開始と完了（anthropic-messages.ts が出す内部イベント）。
+  // サーバー側で実行した Notes ツールの開始と完了（anthropic-messages.ts が出す内部イベント）。
   if (event.type === "studymate.tool") {
     if (typeof event.id !== "string" || typeof event.name !== "string") return null;
     const status = event.status === "done" ? "done" : "running";
@@ -115,7 +115,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
     return { type: "tool", id: event.id, status, name: text(event.name), ...(label ? { label } : {}) };
   }
 
-  // 編集案（propose_page_edit）。承認カードに必要な項目がそろっているものだけ通す。
+  // 編集案（propose_note_edit）。承認カードに必要な項目がそろっているものだけ通す。
   if (event.type === "studymate.proposal") {
     const proposal = event as unknown as PageEditProposal;
     const valid = typeof proposal.id === "string" && typeof proposal.pageId === "string" && typeof proposal.pageTitle === "string"
@@ -124,7 +124,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
     return valid ? { ...proposal, type: "proposal" } : null;
   }
 
-  // 新規ページ案（propose_page_create）。
+  // 新規ページ案（propose_note_create）。
   if (event.type === "studymate.create_proposal") {
     const proposal = event as unknown as PageCreateProposal;
     const valid = typeof proposal.id === "string" && typeof proposal.title === "string" && typeof proposal.content === "string"

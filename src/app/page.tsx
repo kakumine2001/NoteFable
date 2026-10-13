@@ -951,7 +951,7 @@ export default function Home() {
             <div className="min-w-0 hidden sm:block">
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
                 {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
-                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Pages" : activeTitle}</span>
+                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Notes" : activeTitle}</span>
               </div>
             </div>
           </div>

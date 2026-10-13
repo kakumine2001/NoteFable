@@ -16,7 +16,7 @@ export const COVER_CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", 
 // 他人のフォルダにある画像キーを、自分のページのカバーとして保存させない。
 export function assertCoverOwner(cover: string | null, userId: string) {
   const upload = uploadedCoverPath(cover);
-  if (upload && upload.ownerId !== userId) throw new NoteValidationError("Unsupported page cover.");
+  if (upload && upload.ownerId !== userId) throw new NoteValidationError("Unsupported note cover.");
 }
 
 type CoverClient = Pick<typeof prisma, "noteCoverAsset">;

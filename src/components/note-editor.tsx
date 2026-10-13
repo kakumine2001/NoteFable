@@ -197,7 +197,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     schema,
     extensions: [syntaxHighlighter],
     tabBehavior: "prefer-indent",
-    domAttributes: { editor: { "aria-label": "Page content" } },
+    domAttributes: { editor: { "aria-label": "Note content" } },
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Press '/' for commands…", default: "Press '/' for commands…", heading: "Heading" } },
     initialContent: blocks.length ? normalizeCodeLanguages(blocks) as PartialBlock<typeof schema.blockSchema>[] : undefined,
   });
@@ -221,7 +221,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
   // コードブロックにホバーした時だけ、右上に Notion と同じ「Copy」ボタンを重ねる。
   const [codeHover, setCodeHover] = useState<{ id: string; top: number; right: number } | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  function trackCodeHover(event: MouseEvent<HTMLDivElement>) {
+  // マウスの移動だけでなく、キーボードでコードブロックにキャレットが入った時にも出す。
+  function trackCodeHover(event: Pick<MouseEvent<HTMLDivElement>, "target" | "currentTarget">) {
     const target = event.target as HTMLElement;
     if (target.closest(".notes-code-copy")) return;
     const code = target.closest<HTMLElement>('.bn-block-content[data-content-type="codeBlock"]');
@@ -271,7 +272,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     }
   }
 
-  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
     <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
@@ -297,10 +298,11 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
         return filterSuggestionItems(turning ? textItems : [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))], turning ? query.replace(/^turn\s*/i, "") : query);
       }} />
     </BlockNoteView>
-    {codeHover && <button type="button" className="notes-code-copy" style={{ top: codeHover.top, right: codeHover.right }}
+    {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
+      aria-label={copiedId === codeHover.id ? "Copied" : "Copy code"} title={copiedId === codeHover.id ? "Copied" : "Copy code"}
       onMouseDown={(event) => event.preventDefault()} onClick={() => void copyCode(codeHover.id)}>
-      {copiedId === codeHover.id ? <><Check size={13} />Copied</> : <><Copy size={13} />Copy</>}
+      {copiedId === codeHover.id ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={1.8} />}
     </button>}
-    <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label="Continue writing at end of page" disabled={!editable} onClick={focusEnd} />
+    <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label="Continue writing at end of note" disabled={!editable} onClick={focusEnd} />
   </div>;
 }

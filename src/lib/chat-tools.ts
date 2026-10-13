@@ -1,4 +1,4 @@
-// チャットの自前ツール（Pages など）を、プロバイダーに依存しない形で扱う共通部品。
+// チャットの自前ツール（Notes など）を、プロバイダーに依存しない形で扱う共通部品。
 // 各プロバイダーのループ（anthropic-messages.ts / responses-tool-loop.ts）はここを経由して実行する。
 
 export type ToolDefinition = { name: string; description: string; parameters: Record<string, unknown> };

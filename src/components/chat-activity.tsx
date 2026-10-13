@@ -48,7 +48,7 @@ function describeCurrent(steps: ProgressStep[]) {
 }
 
 function toolRunningLabel(name: string) {
-  return name === "search_pages" ? "Searching your pages" : "Reading your page";
+  return name === "search_notes" ? "Searching your notes" : "Reading your note";
 }
 
 // 完了後のヘッダー用に、検索回数と参照ページ数をまとめる。
@@ -69,7 +69,7 @@ function summarize(steps: ProgressStep[]) {
   return [
     searches ? `${searches} ${searches === 1 ? "search" : "searches"}` : "",
     pages.size ? `${pages.size} ${pages.size === 1 ? "source" : "sources"}` : "",
-    notes ? `${notes} ${notes === 1 ? "page lookup" : "page lookups"}` : "",
+    notes ? `${notes} ${notes === 1 ? "note lookup" : "note lookups"}` : "",
   ].filter(Boolean);
 }
 
@@ -109,7 +109,7 @@ function StepRow({ step }: { step: ProgressStep }) {
   }
 
   if (step.kind === "tool") {
-    const Icon = step.status === "running" ? LoaderCircle : step.name === "search_pages" ? FileSearch : NotebookText;
+    const Icon = step.status === "running" ? LoaderCircle : step.name === "search_notes" ? FileSearch : NotebookText;
     return (
       <li className="chat-activity-step">
         <span className="chat-activity-icon">

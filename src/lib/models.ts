@@ -36,7 +36,7 @@ type ModelOption = {
   // 実際に利用できるプロバイダーの検索機能だけを有効にする。
   supportsWebSearch: boolean;
   supportsCompaction: boolean;
-  // ユーザーの Pages を読む自前ツール（search_pages / read_page）を使えるかどうか。
+  // ユーザーの Notes を読む自前ツール（search_notes / read_note）を使えるかどうか。
   supportsPageTools: boolean;
   // このモデルで選べる推論強度。
   reasoningEfforts: readonly ReasoningEffort[];

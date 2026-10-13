@@ -55,12 +55,12 @@ describe("chat activity", () => {
   });
 
   it("tracks a page tool from running to its finished label", () => {
-    const running = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_page", status: "running" })!;
-    const done = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_page", status: "done", label: "Read “Notes”" })!;
+    const running = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_note", status: "running" })!;
+    const done = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_note", status: "done", label: "Read “Notes”" })!;
     expect([running, done].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
-      { id: "call1", kind: "tool", status: "done", name: "read_page", label: "Read “Notes”" },
+      { id: "call1", kind: "tool", status: "done", name: "read_note", label: "Read “Notes”" },
     ]);
-    expect(parseActivityEvent({ type: "studymate.tool", name: "read_page" })).toBeNull();
+    expect(parseActivityEvent({ type: "studymate.tool", name: "read_note" })).toBeNull();
   });
 
   it("keeps only safe, de-duplicated search sources", () => {

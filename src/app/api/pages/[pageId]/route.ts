@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: Context) {
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id } });
-    return page ? NextResponse.json({ page }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: "Page not found." }, { status: 404 });
+    return page ? NextResponse.json({ page }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: "Note not found." }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }
 
@@ -36,8 +36,8 @@ export async function PATCH(request: Request, context: Context) {
       const alreadySaved = page && page.title === update.title && update.present.every((key) => page[key] === update[key]) && isDeepStrictEqual(page.blocks, update.blocks);
       return { page, conflict: !changed.count && !alreadySaved };
     });
-    if (!result.page) return NextResponse.json({ error: "Page not found." }, { status: 404 });
-    if (result.conflict) return NextResponse.json({ error: "This page was changed in another tab.", page: result.page }, { status: 409 });
+    if (!result.page) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+    if (result.conflict) return NextResponse.json({ error: "This note was changed in another tab.", page: result.page }, { status: 409 });
     return NextResponse.json({ page: result.page });
   } catch (error) { return noteApiError(error); }
 }
@@ -47,6 +47,6 @@ export async function DELETE(request: Request, context: Context) {
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.deleteMany({ where: { id: pageId, userId: user.id } });
-    return result.count ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "Page not found." }, { status: 404 });
+    return result.count ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "Note not found." }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }

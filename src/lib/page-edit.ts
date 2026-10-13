@@ -32,7 +32,7 @@ function losesFormatting(target: NoteBlock, carried: boolean): boolean {
 }
 export type PageEditChange = {
   op: (typeof OPS)[number];
-  // read_page で見えていた番号（0 は先頭への挿入）。
+  // read_note で見えていた番号（0 は先頭への挿入）。
   block: number;
   // 変更前と変更後の Markdown。挿入では before、削除では after がない。
   before?: string;
@@ -66,7 +66,7 @@ export type PageCreateProposal = {
 export function parseNewPageMarkdown(value: unknown): NoteBlock[] {
   if (value === null || value === undefined || value === "") return [];
   if (typeof value !== "string") throw new PageEditError("markdown must be a string or null.");
-  if (value.length > MAX_TOTAL_MARKDOWN_CHARS) throw new PageEditError(`markdown is longer than ${MAX_TOTAL_MARKDOWN_CHARS} characters; create the page with the first part and add the rest with propose_page_edit.`);
+  if (value.length > MAX_TOTAL_MARKDOWN_CHARS) throw new PageEditError(`markdown is longer than ${MAX_TOTAL_MARKDOWN_CHARS} characters; create the note with the first part and add the rest with propose_note_edit.`);
   return markdownToBlocks(value) as NoteBlock[];
 }
 
@@ -83,7 +83,7 @@ function parseEdits(value: unknown, count: number): Edit[] {
     if (!op) throw new PageEditError(`${where}.op must be one of ${OPS.join(", ")}.`);
     const block = edit.block;
     if (typeof block !== "number" || !Number.isInteger(block) || block < (op === "insert_after" ? 0 : 1) || block > count) {
-      throw new PageEditError(`${where}.block must be a block number from read_page (1-${count}${op === "insert_after" ? ", or 0 for the start" : ""}).`);
+      throw new PageEditError(`${where}.block must be a block number from read_note (1-${count}${op === "insert_after" ? ", or 0 for the start" : ""}).`);
     }
     const markdown = typeof edit.markdown === "string" ? edit.markdown : null;
     if (op !== "delete") {
@@ -96,7 +96,7 @@ function parseEdits(value: unknown, count: number): Edit[] {
   });
 }
 
-// 番号は read_page 時点のもの。すべての編集を元のブロック列に対して解決してから、一度に適用する。
+// 番号は read_note 時点のもの。すべての編集を元のブロック列に対して解決してから、一度に適用する。
 export function applyPageEdits(blocks: NoteBlock[], rawEdits: unknown): { blocks: NoteBlock[]; changes: PageEditChange[] } {
   const flat = flattenBlocks(blocks);
   const edits = parseEdits(rawEdits, flat.length);

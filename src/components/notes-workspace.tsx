@@ -27,7 +27,7 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
 
   return <div className="notes-workspace flex-1 overflow-y-auto">
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div></div>}
-    {loading ? <div className="notes-column pt-24"><p className="notes-loading">Loading page…</p></div> : active && activeId ? <>
+    {loading ? <div className="notes-column pt-24"><p className="notes-loading">Loading note…</p></div> : active && activeId ? <>
       <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {
@@ -42,7 +42,7 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
           <p>{active.error}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {active.status === "conflict" ? <>
-              <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>Save as new page</button>
+              <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>Save as new note</button>
               <button type="button" className="notion-button" onClick={() => { if (window.confirm("Discard this unsaved draft and load the latest version?")) notes.loadLatest(); }}>Load latest</button>
             </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />Retry save</button>}
           </div>
@@ -57,10 +57,10 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
       </div>
     </> : !error && <div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
-      <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Pages</h1>
+      <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Notes</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">Write notes with blocks — type <kbd className="notes-kbd">/</kbd> for headings, lists, to-dos and code.</p>
-      <button type="button" disabled={busy} className="notes-empty-new" onClick={() => void notes.create()}><Plus size={16} />New page</button>
-      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Pages are saved on the server and linked to this browser. Clearing site cookies or using another browser creates a separate workspace.</p>
+      <button type="button" disabled={busy} className="notes-empty-new" onClick={() => void notes.create()}><Plus size={16} />New note</button>
+      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Notes are saved on the server and linked to this browser. Clearing site cookies or using another browser creates a separate workspace.</p>
     </div>}
   </div>;
 }

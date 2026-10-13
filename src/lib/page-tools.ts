@@ -12,41 +12,41 @@ export { blocksToMarkdown };
 
 export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
-    name: "search_pages",
-    description: "Search all of the user's StudyMate Pages (their own notes) by title and text. Every word must appear (case-insensitive substring match, no synonyms or translation), so try other wordings or languages if nothing matches. Returns up to 10 matches with page IDs and short snippets, title matches first. An empty query lists the most recently edited pages.",
+    name: "search_notes",
+    description: "Search all of the user's StudyMate notes by title and text. Every word must appear (case-insensitive substring match, no synonyms or translation), so try other wordings or languages if nothing matches. Returns up to 10 matches with note IDs and short snippets, title matches first. An empty query lists the most recently edited notes.",
     parameters: {
       type: "object",
-      properties: { query: { type: "string", description: "Words to look for in page titles and text. Use an empty string to list recent pages." } },
+      properties: { query: { type: "string", description: "Words to look for in note titles and text. Use an empty string to list recent notes." } },
       required: ["query"],
       additionalProperties: false,
     },
   },
   {
-    name: "read_page",
-    description: "Read one of the user's StudyMate Pages as Markdown. Use a page ID returned by search_pages. Every block starts with its number like [3]; propose_page_edit refers to blocks by these numbers and needs the version shown here.",
+    name: "read_note",
+    description: "Read one of the user's StudyMate Notes as Markdown. Use a note ID returned by search_notes. Every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here.",
     parameters: {
       type: "object",
-      properties: { pageId: { type: "string", description: "The page ID from search_pages." } },
-      required: ["pageId"],
+      properties: { noteId: { type: "string", description: "The note ID from search_notes." } },
+      required: ["noteId"],
       additionalProperties: false,
     },
   },
   {
-    name: "propose_page_edit",
-    description: `Propose changes to one of the user's StudyMate Pages. This does NOT change the page: the user sees the proposal and must approve it, so never say the page was changed. Call read_page first and pass its pageId and version; if the page changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_page (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the page); "delete" removes block n and its nested children (markdown must be null). Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the page (null keeps the title).`,
+    name: "propose_note_edit",
+    description: `Propose changes to one of the user's StudyMate Notes. This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
     parameters: {
       type: "object",
       properties: {
-        pageId: { type: "string", description: "The page ID from search_pages or read_page." },
-        version: { type: "integer", description: "The version shown by read_page." },
-        title: { type: ["string", "null"], description: "New page title, or null to keep it." },
+        noteId: { type: "string", description: "The note ID from search_notes or read_note." },
+        version: { type: "integer", description: "The version shown by read_note." },
+        title: { type: ["string", "null"], description: "New note title, or null to keep it." },
         edits: {
           type: "array",
           items: {
             type: "object",
             properties: {
               op: { type: "string", enum: ["replace", "insert_after", "delete"] },
-              block: { type: "integer", description: "Block number from read_page; 0 only for insert_after at the start." },
+              block: { type: "integer", description: "Block number from read_note; 0 only for insert_after at the start." },
               markdown: { type: ["string", "null"], description: "New content; null for delete." },
             },
             required: ["op", "block", "markdown"],
@@ -54,19 +54,19 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
           },
         },
       },
-      required: ["pageId", "version", "title", "edits"],
+      required: ["noteId", "version", "title", "edits"],
       additionalProperties: false,
     },
   },
   {
-    name: "propose_page_create",
-    description: "Propose a brand-new StudyMate Page for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the page was created. Use it only when the user asks for a new page or note (to change an existing page use propose_page_edit). markdown is the page body in the same format as propose_page_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. icon is one emoji or null.",
+    name: "propose_note_create",
+    description: "Propose a brand-new StudyMate Note for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the note was created. Use it only when the user asks for a new note or note (to change an existing note use propose_note_edit). markdown is the note body in the same format as propose_note_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. icon is one emoji or null.",
     parameters: {
       type: "object",
       properties: {
-        title: { type: "string", description: "The page title (at most 200 characters)." },
-        markdown: { type: ["string", "null"], description: "The page body, or null for an empty page." },
-        icon: { type: ["string", "null"], description: "A single emoji for the page icon, or null." },
+        title: { type: "string", description: "The note title (at most 200 characters)." },
+        markdown: { type: ["string", "null"], description: "The note body, or null for an empty note." },
+        icon: { type: ["string", "null"], description: "A single emoji for the note icon, or null." },
       },
       required: ["title", "markdown", "icon"],
       additionalProperties: false,
@@ -136,14 +136,14 @@ function toolError(content: string, label = "Edit proposal rejected"): ToolRun {
 // ページは変更しない。編集案を検証して画面に出し、ユーザーが適用するまで DB は動かない。
 async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
-  const pageId = typeof value.pageId === "string" ? value.pageId.trim().slice(0, 200) : "";
-  if (!pageId) return toolError("pageId must be a non-empty string.");
-  if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_page.");
+  const pageId = typeof value.noteId === "string" ? value.noteId.trim().slice(0, 200) : "";
+  if (!pageId) return toolError("noteId must be a non-empty string.");
+  if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_note.");
   if (value.title !== null && value.title !== undefined && typeof value.title !== "string") return toolError("title must be a string or null.");
   const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true } });
-  if (!page) return toolError("Page not found.", "Page not found");
+  if (!page) return toolError("Note not found.", "Note not found");
   if (page.version !== value.version) {
-    return toolError(`The page changed after you read it (it is now version ${page.version}). Call read_page again and redo the edits.`, "Page changed since it was read");
+    return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, "Note changed since it was read");
   }
   try {
     const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], value.edits);
@@ -156,7 +156,7 @@ async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> 
       changes, proposed: { title: content.title, blocks: content.blocks },
     };
     return {
-      content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the page was updated." }),
+      content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was updated." }),
       label: `Proposed edits to “${page.title}”`,
       events: [{ type: "studymate.proposal", ...proposal }],
     };
@@ -181,12 +181,12 @@ function proposePageCreate(args: unknown): ToolRun {
       proposed: { title: content.title, icon: content.icon, blocks: content.blocks },
     };
     return {
-      content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No page has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the page was created." }),
-      label: `Proposed new page “${content.title}”`,
+      content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No note has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was created." }),
+      label: `Proposed new note “${content.title}”`,
       events: [{ type: "studymate.create_proposal", ...proposal }],
     };
   } catch (error) {
-    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, "Page proposal rejected");
+    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, "Note proposal rejected");
     throw error;
   }
 }
@@ -194,27 +194,27 @@ function proposePageCreate(args: unknown): ToolRun {
 // モデルが求めたツールを実行する。userId はサーバーのセッションから渡し、モデルの入力からは決して取らない。
 // 失敗はエラー結果としてモデルへ返し、モデル自身に言い直しや説明をさせる。
 export async function runPageTool(name: string, args: unknown, userId: string): Promise<ToolRun> {
-  if (name === "search_pages") {
+  if (name === "search_notes") {
     const query = input(args, "query");
-    if (query === null) return { content: "query must be a string.", isError: true, label: "Invalid page search" };
+    if (query === null) return { content: "query must be a string.", isError: true, label: "Invalid note search" };
     const results = await searchPages(userId, query);
     return {
-      content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching pages." }) }),
-      label: query ? `Searched pages for “${query}”` : "Listed recent pages",
+      content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching notes." }) }),
+      label: query ? `Searched notes for “${query}”` : "Listed recent notes",
     };
   }
-  if (name === "read_page") {
-    const pageId = input(args, "pageId");
-    if (!pageId) return { content: "pageId must be a non-empty string.", isError: true, label: "Invalid page read" };
+  if (name === "read_note") {
+    const pageId = input(args, "noteId");
+    if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: "Invalid note read" };
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
-    if (!page) return { content: "Page not found.", isError: true, label: "Page not found" };
+    if (!page) return { content: "Note not found.", isError: true, label: "Note not found" };
     const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
     const content = markdown.length > MAX_READ_CHARS
-      ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the page is longer than ${MAX_READ_CHARS} characters.]`
+      ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the note is longer than ${MAX_READ_CHARS} characters.]`
       : markdown;
-    return { content: `pageId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
+    return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
   }
-  if (name === "propose_page_edit") return proposePageEdit(args, userId);
-  if (name === "propose_page_create") return proposePageCreate(args);
+  if (name === "propose_note_edit") return proposePageEdit(args, userId);
+  if (name === "propose_note_create") return proposePageCreate(args);
   return { content: `Unknown tool: ${name}`, isError: true, label: "Unknown tool" };
 }

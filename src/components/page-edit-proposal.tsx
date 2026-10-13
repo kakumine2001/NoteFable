@@ -6,7 +6,7 @@ import type { ActivityStep } from "@/lib/chat-activity";
 
 type Proposal = Extract<ActivityStep, { kind: "proposal" }>;
 type CreateProposal = Extract<ActivityStep, { kind: "create_proposal" }>;
-// pageId は新規ページを作った後の ID（「Open the page」のリンク先）。
+// pageId は新規ページを作った後の ID（「Open the note」のリンク先）。
 type State = { status: "idle" | "applying" | "applied" | "discarded"; error: string; pageId?: string };
 
 const OP_LABEL = { replace: "Replace", insert_after: "Insert", delete: "Delete" } as const;
@@ -38,7 +38,7 @@ async function apply(proposal: Proposal) {
       body: JSON.stringify({ title: proposal.proposed.title, blocks: proposal.proposed.blocks, version: proposal.baseVersion }),
     });
     const data = await response.json().catch(() => ({}));
-    if (response.status === 409) throw new Error("This page changed after the proposal was made. Ask again to get a fresh proposal.");
+    if (response.status === 409) throw new Error("This note changed after the proposal was made. Ask again to get a fresh proposal.");
     if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not apply the edit.");
     setState(proposal.id, { status: "applied", error: "" });
     // 開いているページ編集の状態（版と本文）を最新にそろえる。
@@ -59,7 +59,7 @@ async function applyCreate(proposal: CreateProposal) {
       body: JSON.stringify({ title: proposal.proposed.title, icon: proposal.proposed.icon, cover: null, coverPosition: null, blocks: proposal.proposed.blocks }),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not create the page.");
+    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not create the note.");
     setState(proposal.id, { status: "applied", error: "", pageId: data.page.id });
     // 読み込み済みのページ一覧に新しいページを加える。
     window.dispatchEvent(new CustomEvent("studymate:page-created", { detail: data.page }));
@@ -68,7 +68,7 @@ async function applyCreate(proposal: CreateProposal) {
     const lost = caught instanceof TypeError;
     setState(proposal.id, {
       status: "idle",
-      error: lost ? "The connection was lost, so the page may already have been created. Check your Pages list before creating it again." : caught instanceof Error ? caught.message : "Could not create the page.",
+      error: lost ? "The connection was lost, so the note may already have been created. Check your Notes list before creating it again." : caught instanceof Error ? caught.message : "Could not create the note.",
     });
   }
 }
@@ -79,16 +79,16 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
   const settled = status === "applied" || status === "discarded";
 
   return (
-    <section className={`page-edit ${settled ? "is-settled" : ""}`} aria-label="Proposed new page">
+    <section className={`page-edit ${settled ? "is-settled" : ""}`} aria-label="Proposed new note">
       <header className="page-edit-header">
         <FilePlus2 size={14} strokeWidth={1.9} aria-hidden="true" />
-        <span className="min-w-0 flex-1 truncate">New page{proposal.icon ? ` ${proposal.icon}` : ""} “{proposal.title}”</span>
+        <span className="min-w-0 flex-1 truncate">New note{proposal.icon ? ` ${proposal.icon}` : ""} “{proposal.title}”</span>
         {status === "applied" && <span className="page-edit-badge">Created</span>}
         {status === "discarded" && <span className="page-edit-badge">Discarded</span>}
       </header>
       <div className="page-edit-body">
         <div className="page-edit-change">
-          {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">Empty page</div>}
+          {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">Empty note</div>}
         </div>
       </div>
       {error && <p className="page-edit-error" role="alert">{error}</p>}
@@ -96,7 +96,7 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
         <footer className="page-edit-actions">
           <button type="button" className="page-edit-apply" onClick={() => void applyCreate(proposal)} disabled={status === "applying"}>
             {status === "applying" ? <LoaderCircle size={13} className="animate-spin" /> : <Check size={13} />}
-            Create page
+            Create note
           </button>
           <button type="button" className="page-edit-discard" onClick={() => setState(proposal.id, { status: "discarded", error: "" })} disabled={status === "applying"}>
             <X size={13} />
@@ -106,7 +106,7 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
       )}
       {status === "applied" && pageId && (
         <footer className="page-edit-actions">
-          <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(pageId)}`}>Open the page</a>
+          <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(pageId)}`}>Open the note</a>
         </footer>
       )}
     </section>
@@ -119,7 +119,7 @@ export function PageEditProposal({ proposal }: { proposal: Proposal }) {
   const settled = status === "applied" || status === "discarded";
 
   return (
-    <section className={`page-edit ${settled ? "is-settled" : ""}`} aria-label="Proposed page edit">
+    <section className={`page-edit ${settled ? "is-settled" : ""}`} aria-label="Proposed note edit">
       <header className="page-edit-header">
         <FilePenLine size={14} strokeWidth={1.9} aria-hidden="true" />
         <span className="min-w-0 flex-1 truncate">Proposed edit to “{proposal.pageTitle}”</span>
@@ -136,7 +136,7 @@ export function PageEditProposal({ proposal }: { proposal: Proposal }) {
         )}
         {proposal.changes.map((change, index) => (
           <div key={index} className="page-edit-change">
-            <div className="page-edit-op">{OP_LABEL[change.op]}{change.block ? ` · block ${change.block}` : " · start of page"}</div>
+            <div className="page-edit-op">{OP_LABEL[change.op]}{change.block ? ` · block ${change.block}` : " · start of note"}</div>
             {change.before !== undefined && <div className="page-edit-before">{change.before}</div>}
             {change.after !== undefined && <div className="page-edit-after">{change.after}</div>}
             {change.dropsFormatting && <div className="page-edit-note">Text colors, underline or alignment in the replaced block will be lost.</div>}
@@ -158,7 +158,7 @@ export function PageEditProposal({ proposal }: { proposal: Proposal }) {
       )}
       {status === "applied" && (
         <footer className="page-edit-actions">
-          <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(proposal.pageId)}`}>Open the page</a>
+          <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(proposal.pageId)}`}>Open the note</a>
         </footer>
       )}
     </section>

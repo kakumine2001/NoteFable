@@ -32,7 +32,7 @@ export class NoteSaveQueue {
       this.status = draft.version === page.version ? "pending" : "conflict";
       if (this.status === "conflict") {
         this.latest = page;
-        this.error = "A recovered draft differs from the latest page. Save a copy or load the latest version.";
+        this.error = "A recovered draft differs from the latest note. Save a copy or load the latest version.";
       }
     }
   }
