@@ -3,6 +3,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  ChevronLeft,
   FileText,
   ImagePlus,
   Menu,
@@ -123,14 +124,40 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
 export default function Home() {
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
+  // スマホで Notes を開いたとき、ノートが選ばれていない間は一覧（NotesHome）を出す。URL に page= が無いことと対応させる。
+  const [notesList, setNotesList] = useState(false);
+
+  // 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。URL が変わる操作のあとにここで合わせ直す。
+  function syncNotesList() {
+    const params = new URL(window.location.href).searchParams;
+    setNotesList(window.matchMedia("(max-width: 639px)").matches && params.get("view") === "pages" && !params.get("page"));
+  }
+  const notesRef = useRef(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  });
 
   useEffect(() => {
     function syncWorkspace() {
-      setWorkspaceView(new URL(window.location.href).searchParams.get("view") === "pages" ? "pages" : "chat");
+      const params = new URL(window.location.href).searchParams;
+      setWorkspaceView(params.get("view") === "pages" ? "pages" : "chat");
+      syncNotesList();
     }
     queueMicrotask(syncWorkspace);
     window.addEventListener("popstate", syncWorkspace);
-    return () => window.removeEventListener("popstate", syncWorkspace);
+
+    // 画面を回して幅が変わったら一覧モードを合わせ直す。パソコン幅へ広がったときは、開いているノートが無ければ先頭を開く。
+    const phone = window.matchMedia("(max-width: 639px)");
+    function onWidthChange() {
+      syncNotesList();
+      const current = notesRef.current;
+      if (!phone.matches && !current.activeId && current.pages[0]) void current.select(current.pages[0].id, "replace");
+    }
+    phone.addEventListener("change", onWidthChange);
+    return () => {
+      window.removeEventListener("popstate", syncWorkspace);
+      phone.removeEventListener("change", onWidthChange);
+    };
   }, []);
 
   function changeWorkspace(view: WorkspaceView) {
@@ -140,13 +167,51 @@ export default function Home() {
     const url = new URL(window.location.href);
     if (view === "pages") {
       url.searchParams.set("view", "pages");
-      if (notes.activeId) url.searchParams.set("page", notes.activeId);
+      const phone = window.matchMedia("(max-width: 639px)").matches;
+      if (phone) url.searchParams.delete("page");
+      else if (notes.activeId) url.searchParams.set("page", notes.activeId);
+      setNotesList(phone);
     }
     else url.searchParams.delete("view");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
     if (window.history.state?.studymateDrawer || window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     if (view === "chat") void notes.active?.flush();
+  }
+
+  function openNote(id: string) {
+    if (!window.matchMedia("(max-width: 639px)").matches) {
+      void notes.select(id);
+      return;
+    }
+    // スマホ：一覧から開くとき、戻るで一覧へ戻れるよう page= 付きの履歴を 1 件積んでから読み込む。
+    // ドロワーや底部シートが積んだ履歴の上なら、新しく積まずその履歴を置き換える（空の戻り先を残さない）。
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("page") !== id) {
+      url.searchParams.set("page", id);
+      if (window.history.state?.studymateDrawer || window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+      else window.history.pushState(null, "", url);
+    }
+    setNotesList(false);
+    if (notes.activeId !== id) void notes.select(id, "none");
+  }
+
+  async function deleteNote(id: string) {
+    await notes.remove(id);
+    // スマホで開いていたノートを消したら、URL から page= が外れているので一覧に戻る。
+    syncNotesList();
+  }
+
+  function createNote() {
+    setNotesList(false);
+    void notes.create();
+  }
+
+  function openNotesList() {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("page");
+    window.history.pushState(null, "", url);
+    setNotesList(true);
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
@@ -964,8 +1029,8 @@ export default function Home() {
   };
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
-      onCreate={() => { setSidebarOpen(false); void notes.create(); }} onSelect={(id) => { void notes.select(id); setSidebarOpen(false); }}
-      onDelete={notes.remove} onClose={closeSidebar} onWorkspaceChange={changeWorkspace} />
+      onCreate={() => { setSidebarOpen(false); createNote(); }} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace} />
   ) : (
     <ChatSidebar
       sessions={sessions}
@@ -981,7 +1046,7 @@ export default function Home() {
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
   // スマホでは、ホーム画面（空の会話・ノート未選択）では見出しを本文側に出すので、上部バーの標題は会話中・ノート編集中だけ出す。
-  const showPhoneTitle = workspaceView === "chat" ? !emptyState : Boolean(notes.active);
+  const showPhoneTitle = workspaceView === "chat" ? !emptyState : Boolean(notes.active) && !notesList;
 
   return (
     <main className="notion-workspace flex h-dvh">
@@ -1008,6 +1073,12 @@ export default function Home() {
             >
               <Menu size={20} />
             </button>
+            {workspaceView === "pages" && notes.active && !notesList && (
+              <button type="button" className="notion-icon-button grid sm:hidden" onClick={openNotesList}
+                aria-label="All notes" title="All notes">
+                <ChevronLeft size={22} />
+              </button>
+            )}
             {!sidebarVisible && (
               <button
                 type="button"
@@ -1034,7 +1105,7 @@ export default function Home() {
                 <Plus size={20} />
               </button>
             )}
-            {workspaceView === "pages" ? (
+            {workspaceView === "pages" && !notesList ? (
               <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
                 {notes.active ? ({ saved: "Saved", pending: "Saving…", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
               </span>
@@ -1043,7 +1114,7 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} onWorkspaceChange={changeWorkspace} />
+          <NotesWorkspace notes={notes} listMode={notesList} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? "contents" : "hidden"}>

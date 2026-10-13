@@ -17,6 +17,11 @@ async function pageRequest(url: string, method = "GET", body?: unknown) {
   return data;
 }
 
+// スマホ（640px 未満）では Notes を開いたときにノート一覧を出すので、URL にノートの指定がなければ自動では開かない。
+function isPhone() {
+  return typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+}
+
 export function useNotePages(enabled: boolean) {
   const [pages, setPages] = useState<NotePageSummary[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -124,9 +129,18 @@ export function useNotePages(enabled: boolean) {
       createdWhileLoading.current = [];
       setPages(extra.length ? [...extra, ...data.pages].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)) : data.pages);
       const requested = new URL(window.location.href).searchParams.get("page");
-      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? data.pages[0]?.id;
+      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? (isPhone() ? undefined : data.pages[0]?.id);
       if (id) await select(id, "replace");
-      else { displayedId.current = null; setActiveId(null); setActive(undefined); }
+      else {
+        displayedId.current = null; setActiveId(null); setActive(undefined);
+        if (requested && isPhone()) {
+          // スマホで、存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して一覧に戻す。
+          const url = new URL(window.location.href);
+          url.searchParams.delete("page");
+          window.history.replaceState(null, "", url);
+          window.dispatchEvent(new Event("popstate"));
+        }
+      }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to load notes."); }
     finally { setLoading(false); }
   }, [select]);
@@ -249,7 +263,7 @@ export function useNotePages(enabled: boolean) {
         const url = new URL(window.location.href);
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
-        if (remaining[0]) await select(remaining[0].id, "replace");
+        if (remaining[0] && !isPhone()) await select(remaining[0].id, "replace");
       }
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to delete note."); }
     finally { actionBusy.current = false; setBusy(false); }

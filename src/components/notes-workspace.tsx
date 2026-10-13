@@ -5,6 +5,7 @@ import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { NotePageHeader } from "@/components/note-page-header";
+import { NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import type { useNotePages } from "@/lib/use-note-pages";
 
@@ -12,8 +13,11 @@ const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <p className="notes-loading">Loading editor…</p>,
 });
 
-export function NotesWorkspace({ notes, onWorkspaceChange }: {
+export function NotesWorkspace({ notes, listMode, onOpen, onCreate, onWorkspaceChange }: {
   notes: ReturnType<typeof useNotePages>;
+  listMode: boolean;
+  onOpen: (id: string) => void;
+  onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
 }) {
   const { active, activeId, loading, busy, error, backupError } = notes;
@@ -31,7 +35,9 @@ export function NotesWorkspace({ notes, onWorkspaceChange }: {
 
   return <div className="notes-workspace flex-1 overflow-y-auto">
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div></div>}
-    {loading ? <div className="notes-column pt-24"><p className="notes-loading">Loading note…</p></div> : active && activeId ? <>
+    {listMode && notes.pages.length > 0 ? (
+      <NotesHome pages={notes.pages} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onWorkspaceChange={onWorkspaceChange} />
+    ) : loading && (!listMode || !notes.pages.length) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? "Loading notes…" : "Loading note…"}</p></div> : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {
@@ -63,7 +69,7 @@ export function NotesWorkspace({ notes, onWorkspaceChange }: {
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
       <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Notes</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">Write notes with blocks — type <kbd className="notes-kbd">/</kbd> for headings, lists, to-dos and code.</p>
-      <button type="button" disabled={busy} className="notes-empty-new" onClick={() => void notes.create()}><Plus size={16} />New note</button>
+      <button type="button" disabled={busy} className="notes-empty-new" onClick={onCreate}><Plus size={16} />New note</button>
       <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Notes are saved on the server and linked to this device. Sign in with Google to open them on other devices. Clearing app or site data creates a separate workspace.</p>
     </div></>}
   </div>;

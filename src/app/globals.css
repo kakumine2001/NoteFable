@@ -423,6 +423,19 @@ button:disabled {
 }
 .notion-segment:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 
+/* スマホの Notes ホーム（作成済みノートの一覧）。 */
+.notes-home { padding-top: 0; padding-bottom: 6rem; }
+.notes-home-title { margin: 0.5rem 0 0.75rem; font-size: 2rem; font-weight: 700; letter-spacing: -0.025em; color: var(--notion-text); }
+.notes-home-list { margin: 0 0 1rem; padding: 0; list-style: none; }
+.notes-home-row {
+  display: flex; width: 100%; min-height: 3.5rem; align-items: center; gap: 0.85rem; text-align: left;
+  border-bottom: 1px solid var(--notion-border); padding: 0.4rem 0.25rem; color: var(--notion-text);
+}
+.notes-home-icon { display: grid; width: 1.75rem; flex: none; place-items: center; font-size: 1.25rem; color: var(--notion-faint); }
+.notes-home-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 500; }
+.notes-home-date { flex: none; font-size: 0.8125rem; color: var(--notion-muted); }
+.notes-home-new { margin-top: 0.25rem; }
+
 /* スマホのモデル・推論強度シート（画面下から出る）。 */
 .model-sheet-trigger { gap: 0.4rem; padding: 0 0.85rem; }
 .model-sheet-trigger-effort { color: var(--notion-muted); }
