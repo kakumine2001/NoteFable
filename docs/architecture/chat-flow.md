@@ -209,11 +209,15 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 ### 编辑案与确认
 
-`propose_note_edit` 成功时，服务端除了给模型一条"已提议，尚未应用"的结果外，还向浏览器发出 `studymate.proposal` 事件（笔记 ID、基准版本、每处修改的前后 Markdown、以及应用后的完整标题和块）。聊天里显示为编辑案卡片（`src/components/page-edit-proposal.tsx`），红色是修改前、绿色是修改后。用户点 Apply 才会请求 `PATCH /api/pages/[pageId]`，带上案生成时的 `version`，所以走的是和手动保存相同的校验和版本检查；笔记在这期间被改过会返回 409，卡片提示重新生成。Discard 不做任何请求。新建笔记的提案对应另一种卡片（`studymate.create_proposal` 事件，标题、图标和正文预览），点 Create note 才请求 `POST /api/pages`，成功后派发 `studymate:page-created` 让已加载的笔记列表出现新笔记。
+`propose_note_edit` / `propose_note_create` 成功时，服务端先把提案存进 `NoteProposal` 表（状态 `PENDING`，内容放在 `payload`：编辑是笔记 ID、基准版本、每处修改的前后 Markdown 和应用后的完整标题与块；新建是标题、图标、正文预览和要创建的块），再给模型一条"已提议，尚未应用"的结果，并向浏览器发出带提案 ID 的 `studymate.proposal` / `studymate.create_proposal` 事件。回答保存后，同一轮产生的提案通过 `messageId` 绑定到这条回答。
 
-适用成功后卡片会派发浏览器事件 `studymate:page-updated`（带 PATCH 返回的笔记），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片的 Applied / Discarded 状态按提案 ID 保存在组件外的小型 store 里，因此回答结束后重新拉取历史导致卡片重新挂载时也不会回到"未应用"，也不会重复提交。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
+聊天里显示为卡片（`src/components/page-edit-proposal.tsx`），红色是修改前、绿色是修改后。`GET /api/sessions/[id]/messages` 会把绑定在各条回答上的提案连同状态一起返回，所以刷新页面、切换对话、换设备（同一用户）后卡片仍在，状态是 Apply / Discard 前的待确认、Applied 或 Discarded。回答和提案绑定在同一个事务里保存。返回给浏览器的提案不带 `proposed.blocks`（适用时只用服务端保存的那份，历史里也不必每次返回整篇笔记）。没来得及绑定到回答上的提案（比如流中途失败）不在历史里显示。
 
-模型始终不能直接改动笔记，批准动作只存在于浏览器。编辑案卡片不保存进数据库，只保留在当前会话的界面状态里，刷新笔记后不再显示；回答文字仍然保存。目前支持修改已有笔记和新建笔记，不包含删除笔记。
+点 Apply 请求 `POST /api/proposals/[id]/apply`，点 Discard 请求 `POST /api/proposals/[id]/discard`（`src/lib/note-proposals.ts`）。适用在一个事务里先把状态从 `PENDING` 抢占为 `APPLIED`，只有抢到的那一次才写笔记：编辑只在笔记版本等于提案的基准版本时才写（和手动保存一样的版本检查，写入前对内容重新跑 `validateNoteContent`），版本不符返回 409 并整体回滚，提案保持待确认；新建在同一事务里创建笔记并记录 `appliedPageId`。因此重复点击、请求重发或网络断开后重试，都不会重复创建笔记或把同一处修改应用两次，已应用的提案再次请求会直接返回当时的结果。已放弃的提案不能再应用，已应用的提案不能再放弃。所有操作都按当前用户的 `userId` 限定。
+
+成功后卡片会派发浏览器事件 `studymate:page-updated`（编辑）或 `studymate:page-created`（新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
+
+模型始终不能直接改动笔记，批准动作只存在于浏览器里的点击。笔记只有两条写入路径：手动保存（`/api/pages`）和适用提案（`/api/proposals/[id]/apply`），两者都经过 `validateNoteContent` 和版本检查。目前支持修改已有笔记和新建笔记，不包含删除笔记。
 
 工具调用和结果不保存进可见聊天记录，只保存最终回答文字。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"或"Read “笔记标题”"。
 

@@ -18,6 +18,17 @@ enum MessageRole {
   SYSTEM
 }
 
+enum NoteProposalKind {
+  EDIT
+  CREATE
+}
+
+enum NoteProposalStatus {
+  PENDING
+  APPLIED
+  DISCARDED
+}
+
 enum ReasoningEffort {
   NONE
   LOW
@@ -38,9 +49,10 @@ model AnonymousUser {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  sessions    Session[]
-  notePages   NotePage[]
-  coverAssets NoteCoverAsset[]
+  sessions      Session[]
+  notePages     NotePage[]
+  coverAssets   NoteCoverAsset[]
+  noteProposals NoteProposal[]
 }
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
@@ -70,8 +82,9 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user     AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages Message[]
+  user          AnonymousUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages      Message[]
+  noteProposals NoteProposal[]
 
   @@index([userId, updatedAt])
 }
@@ -124,4 +137,28 @@ model NoteCoverAsset {
 
   @@index([releasedAt])
   @@index([checkedAt])
+}
+
+// AI が出したノートの編集・新規作成の提案。ユーザーが適用するまでノートは変わらない。
+// 提案はチャットの履歴に残り、再読み込みしても適用・破棄できる。
+model NoteProposal {
+  id            String             @id @default(cuid())
+  userId        String
+  sessionId     String
+  // 提案を出した回答。回答の保存後に紐付ける（保存前の提案は null）。
+  messageId     String?
+  kind          NoteProposalKind
+  status        NoteProposalStatus @default(PENDING)
+  // 画面に出す内容。編集は対象ノートと基準版・差分・適用後のタイトルとブロック、新規は適用するタイトル・アイコン・ブロック。
+  payload       Json
+  // 新規作成を適用した後のノート ID。再送されても同じノートを返すために使う。
+  appliedPageId String?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  user    AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([messageId])
 }

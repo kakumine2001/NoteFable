@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
   runPageTool: vi.fn(),
+  attachProposals: vi.fn().mockResolvedValue({ count: 0 }),
 }));
 
 vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
@@ -21,7 +22,7 @@ vi.mock("@/lib/files", () => ({
   validateMultipartRequestSize: () => {},
 }));
 vi.mock("@/lib/chat-history", () => ({ buildHistoryInput: async () => [] }));
-vi.mock("@/lib/prisma", () => ({ prisma: {
+vi.mock("@/lib/prisma", () => { const prisma: Record<string, unknown> = {
   session: {
     create: async () => ({ id: "session", title: "Test" }),
     update: async () => ({}),
@@ -29,7 +30,10 @@ vi.mock("@/lib/prisma", () => ({ prisma: {
     findFirst: async () => ({ id: "session", title: "Existing chat" }),
   },
   message: { create: mocks.createMessage, findMany: mocks.findMessages },
-} }));
+  noteProposal: { updateMany: mocks.attachProposals },
+};
+prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
+return { prisma }; });
 
 import { POST } from "./route";
 
@@ -201,10 +205,35 @@ describe("Pages tools across providers", () => {
     form.set("sessionId", "existing");
     form.set("webSearch", "off");
     const raw = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
-    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user");
+    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user", "session");
     expect(raw).toContain('"activity":{"type":"tool","id"');
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("It says hi.");
     expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_notes");
+  });
+});
+
+describe("Pages tool proposals are stored with the answer", () => {
+  it("attaches the proposals made during a turn to the saved assistant message", async () => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.createMessage.mockResolvedValue({ id: "message" });
+    const functionCall = { type: "function_call", id: "fc_1", call_id: "c1", name: "propose_note_edit", arguments: "{}" };
+    mocks.fetch
+      .mockResolvedValueOnce(new Response([{ type: "response.output_item.done", item: functionCall }, { type: "response.completed", response: { output: [functionCall] } }].map((e) => `data: ${JSON.stringify(e)}
+
+`).join("")))
+      .mockResolvedValueOnce(new Response([{ type: "response.output_text.delta", delta: "Proposed." }, { type: "response.completed", response: { output: [] } }].map((e) => `data: ${JSON.stringify(e)}
+
+`).join("")));
+    mocks.runPageTool.mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "studymate.proposal", id: "prop1" }, { type: "studymate.create_proposal", id: "prop2" }] });
+    const form = new FormData();
+    form.set("message", "edit my note");
+    form.set("model", "gpt-6-luna");
+    form.set("sessionId", "existing");
+    form.set("webSearch", "off");
+    await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+    expect(mocks.attachProposals).toHaveBeenCalledWith({ where: { id: { in: ["prop1", "prop2"] }, userId: "user" }, data: { messageId: "message" } });
   });
 });
 

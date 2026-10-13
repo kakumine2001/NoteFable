@@ -7,7 +7,7 @@ import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
-import type { Message } from "@/types/chat";
+import type { Message, StoredProposal } from "@/types/chat";
 
 function GeneratingImagePreview() {
   // 生成中は Notion のブロックに近い控えめな状態表示を出し、完成画像より目立たせない。
@@ -64,7 +64,9 @@ export const ChatMessage = memo(function ChatMessage({
   const steps = message.activity ?? [];
   // 編集案は進捗の一覧ではなく、回答の下に承認カードとして出す。
   const activity = steps.filter((step) => step.kind !== "proposal" && step.kind !== "create_proposal");
-  const proposals = steps.filter((step) => step.kind === "proposal" || step.kind === "create_proposal");
+  // 保存済みの提案を優先し、ストリーム中でまだ保存側に出ていないものだけを足す。
+  const stored = message.proposals ?? [];
+  const proposals: StoredProposal[] = [...stored, ...steps.filter((step): step is StoredProposal => (step.kind === "proposal" || step.kind === "create_proposal") && !stored.some((item) => item.id === step.id))];
   const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
   // 待機中は経過秒数、完了後は本文が届くまでにかかった秒数を出す。
   const activitySeconds = shouldShowThinking

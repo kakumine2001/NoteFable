@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { proposalsByMessage } from "@/lib/note-proposals";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
@@ -64,6 +65,9 @@ export async function GET(_request: Request, context: RouteContext) {
     },
   });
 
+  // 回答に紐付いた AI の提案（編集・新規ノート）。再読み込み後も適用・破棄できるよう、状態つきで返す。
+  const proposals = await proposalsByMessage(user.id, sessionId);
+
   return NextResponse.json({
     messages: messages.map((message) => {
       // アシスタントに紐づく保存画像は、通常の添付チップではなく生成画像として大きく表示する。
@@ -82,6 +86,7 @@ export async function GET(_request: Request, context: RouteContext) {
       return {
         ...message,
         generatedImages,
+        proposals: proposals.get(message.id) ?? [],
         attachments: message.attachments
           .filter(
             (attachment) =>

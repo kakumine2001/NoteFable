@@ -50,6 +50,9 @@ export type PageEditProposal = {
   title?: { before: string; after: string };
   changes: PageEditChange[];
   proposed: { title: string; blocks: unknown[] };
+  // 保存済みの提案の状態。画面に届く提案だけが持つ。
+  status?: "pending" | "applied" | "discarded";
+  appliedPageId?: string | null;
 };
 
 // 新しいページの提案。承認されたら proposed をそのまま POST /api/pages へ送る。
@@ -60,6 +63,9 @@ export type PageCreateProposal = {
   // 画面に出す本文の Markdown（保存されるブロックを書き戻したもの）。
   content: string;
   proposed: { title: string; icon: string | null; blocks: unknown[] };
+  status?: "pending" | "applied" | "discarded";
+  // 適用後に作られたノートの ID。
+  appliedPageId?: string | null;
 };
 
 // 新規ページの本文（Markdown）をブロックにする。空なら空のページ。

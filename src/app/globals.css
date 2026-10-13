@@ -1953,6 +1953,49 @@ button:disabled {
   font-weight: 600;
 }
 
+/* 標題の行全体が最小化・展開のボタン。 */
+.page-edit-toggle {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+.page-edit-chevron {
+  flex-shrink: 0;
+  color: var(--notion-faint);
+  transition: transform 0.12s;
+}
+
+.page-edit-chevron.is-open {
+  transform: rotate(90deg);
+}
+
+/* 最小化した時は細い 1 行だけにして、会話の流れを邪魔しない。 */
+.page-edit.is-minimized {
+  margin-top: 0.5rem;
+  border-color: var(--notion-border);
+}
+
+.page-edit.is-minimized .page-edit-header {
+  padding: 0.25rem 0.6rem;
+  background: transparent;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--notion-muted);
+}
+
+.page-edit-link-inline {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+}
+
 .page-edit-badge {
   flex-shrink: 0;
   border-radius: 4px;

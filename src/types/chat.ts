@@ -1,5 +1,8 @@
 import type { ActivityStep } from "@/lib/chat-activity";
 
+// 回答に紐付いて保存された AI の提案（ノートの編集・新規作成）。
+export type StoredProposal = Extract<ActivityStep, { kind: "proposal" | "create_proposal" }>;
+
 export type Session = {
   // DB 上のセッション ID。メッセージ取得・削除・選択状態に使う。
   id: string;
@@ -35,6 +38,8 @@ export type Message = {
   isGeneratingImage?: boolean;
   // 回答前の推論要約と Web 検索の途中経過。ストリーム中だけ届き、DB には保存しない。
   activity?: ActivityStep[];
+  // 保存済みの提案。再読み込み後も適用・破棄できる。ストリーム中の提案は activity に入る。
+  proposals?: StoredProposal[];
   // 送信から本文の最初の差分が届くまでの時間。「Thought for Ns」の表示に使う。
   thinkingMs?: number;
   // ユーザー添付、または生成画像以外のアシスタント添付。

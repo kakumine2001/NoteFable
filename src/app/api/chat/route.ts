@@ -9,6 +9,7 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
+import { attachProposals } from "@/lib/note-proposals";
 import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
 import { buildHistoryInput } from "@/lib/chat-history";
 import { generateChatTitle } from "@/lib/chat-title";
@@ -485,6 +486,8 @@ export async function POST(request: Request) {
   // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
   let titleTask: Promise<void> = Promise.resolve();
   let providerContext: string | undefined;
+  // この回答の中で出た編集案・新規ノート案。回答を保存したあとで、その回答に紐付ける。
+  const proposalIds: string[] = [];
 
   const stream = new ReadableStream({
     async start(controller) {
@@ -494,7 +497,16 @@ export async function POST(request: Request) {
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const pageTools = modelOption.supportsPageTools ? PAGE_TOOL_DEFINITIONS : [];
         // ツールは常にこのリクエストの所有者として実行する。モデルは userId を指定できない。
-        const runTool = modelOption.supportsPageTools ? (name: string, args: unknown) => runPageTool(name, args, user.id) : undefined;
+        const runTool = modelOption.supportsPageTools
+          ? async (name: string, args: unknown) => {
+              const run = await runPageTool(name, args, user.id, session.id);
+              for (const event of run.events ?? []) {
+                const id = (event as { id?: unknown }).id;
+                if (typeof id === "string") proposalIds.push(id);
+              }
+              return run;
+            }
+          : undefined;
         const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools);
         const upstream =
           modelOption.provider === "anthropic"
@@ -619,15 +631,19 @@ export async function POST(request: Request) {
           forwardText(formatWebCitations(webCitations));
         }
 
-        await prisma.message.create({
-          data: {
-            sessionId: session.id,
-            role: "ASSISTANT",
-            content: assistantText,
-            ...(providerContext ? { providerContext } : {}),
-            model,
-            reasoningEffort: toDbReasoning(reasoning),
-          },
+        // 回答の保存と提案の紐付けは 1 つのトランザクションで行う（片方だけ成功して提案が履歴から消えるのを防ぐ）。
+        await prisma.$transaction(async (tx) => {
+          const saved = await tx.message.create({
+            data: {
+              sessionId: session.id,
+              role: "ASSISTANT",
+              content: assistantText,
+              ...(providerContext ? { providerContext } : {}),
+              model,
+              reasoningEffort: toDbReasoning(reasoning),
+            },
+          });
+          await attachProposals(user.id, proposalIds, saved.id, tx);
         });
 
         // ユーザーに実際に流した本文だけをアシスタント発言として保存する。
@@ -653,7 +669,7 @@ export async function POST(request: Request) {
           encoder.encode(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText)),
         );
 
-        await prisma.message.create({
+        const saved = await prisma.message.create({
           data: {
             sessionId: session.id,
             role: "ASSISTANT",
@@ -662,6 +678,7 @@ export async function POST(request: Request) {
             reasoningEffort: toDbReasoning(reasoning),
           },
         });
+        await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
 
         await prisma.session.update({
           where: { id: session.id },

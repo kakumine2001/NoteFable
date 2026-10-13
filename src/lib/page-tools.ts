@@ -2,7 +2,8 @@ import { Prisma } from "@/generated/prisma/client";
 import type { ToolDefinition, ToolRun } from "@/lib/chat-tools";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
-import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown, type PageCreateProposal, type PageEditProposal } from "@/lib/page-edit";
+import { saveProposal } from "@/lib/note-proposals";
+import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
 import { databaseSchema, prisma } from "@/lib/prisma";
 
 export { blocksToMarkdown };
@@ -133,8 +134,8 @@ function toolError(content: string, label = "Edit proposal rejected"): ToolRun {
   return { content, isError: true, label };
 }
 
-// ページは変更しない。編集案を検証して画面に出し、ユーザーが適用するまで DB は動かない。
-async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> {
+// ノートは変更しない。編集案を検証して保存し画面に出す。ユーザーが適用するまでノートは動かない。
+async function proposePageEdit(args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const pageId = typeof value.noteId === "string" ? value.noteId.trim().slice(0, 200) : "";
   if (!pageId) return toolError("noteId must be a non-empty string.");
@@ -150,15 +151,15 @@ async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> 
     const requested = typeof value.title === "string" ? value.title.trim() : "";
     const content = validateNoteContent({ title: requested || page.title, blocks });
     if (!changes.length && content.title === page.title) return toolError("The edits change nothing.");
-    const proposal: PageEditProposal = {
-      id: crypto.randomUUID(), pageId: page.id, pageTitle: page.title, baseVersion: page.version,
+    const proposal = await saveProposal(userId, sessionId, { kind: "EDIT", payload: {
+      pageId: page.id, pageTitle: page.title, baseVersion: page.version,
       ...(content.title !== page.title ? { title: { before: page.title, after: content.title } } : {}),
       changes, proposed: { title: content.title, blocks: content.blocks },
-    };
+    } });
     return {
       content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was updated." }),
       label: `Proposed edits to “${page.title}”`,
-      events: [{ type: "studymate.proposal", ...proposal }],
+      events: [{ ...proposal, type: "studymate.proposal" }],
     };
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message);
@@ -166,8 +167,8 @@ async function proposePageEdit(args: unknown, userId: string): Promise<ToolRun> 
   }
 }
 
-// 新規ページも、ユーザーが適用するまで DB には何も作らない。DB を読まないので userId は要らない。
-function proposePageCreate(args: unknown): ToolRun {
+// 新規ノートも、ユーザーが適用するまでは作らない（提案だけを保存する）。
+async function proposePageCreate(args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const title = typeof value.title === "string" ? value.title.trim() : "";
   if (!title) return toolError("title must be a non-empty string.");
@@ -176,14 +177,14 @@ function proposePageCreate(args: unknown): ToolRun {
     const blocks = parseNewPageMarkdown(value.markdown);
     const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
     const content = validateNoteContent({ title, icon, blocks });
-    const proposal: PageCreateProposal = {
-      id: crypto.randomUUID(), title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks),
+    const proposal = await saveProposal(userId, sessionId, { kind: "CREATE", payload: {
+      title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks),
       proposed: { title: content.title, icon: content.icon, blocks: content.blocks },
-    };
+    } });
     return {
       content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No note has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was created." }),
       label: `Proposed new note “${content.title}”`,
-      events: [{ type: "studymate.create_proposal", ...proposal }],
+      events: [{ ...proposal, type: "studymate.create_proposal" }],
     };
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, "Note proposal rejected");
@@ -193,7 +194,7 @@ function proposePageCreate(args: unknown): ToolRun {
 
 // モデルが求めたツールを実行する。userId はサーバーのセッションから渡し、モデルの入力からは決して取らない。
 // 失敗はエラー結果としてモデルへ返し、モデル自身に言い直しや説明をさせる。
-export async function runPageTool(name: string, args: unknown, userId: string): Promise<ToolRun> {
+export async function runPageTool(name: string, args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
   if (name === "search_notes") {
     const query = input(args, "query");
     if (query === null) return { content: "query must be a string.", isError: true, label: "Invalid note search" };
@@ -214,7 +215,7 @@ export async function runPageTool(name: string, args: unknown, userId: string): 
       : markdown;
     return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
   }
-  if (name === "propose_note_edit") return proposePageEdit(args, userId);
-  if (name === "propose_note_create") return proposePageCreate(args);
+  if (name === "propose_note_edit") return proposePageEdit(args, userId, sessionId);
+  if (name === "propose_note_create") return proposePageCreate(args, userId, sessionId);
   return { content: `Unknown tool: ${name}`, isError: true, label: "Unknown tool" };
 }
