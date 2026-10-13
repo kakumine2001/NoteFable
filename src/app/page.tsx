@@ -17,6 +17,7 @@ import type { FormEvent } from "react";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
+import { AttachSheet } from "@/components/attach-sheet";
 import { ModelSelect } from "@/components/model-controls";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import type { WorkspaceView } from "@/components/workspace-nav";
@@ -143,7 +144,7 @@ export default function Home() {
     }
     else url.searchParams.delete("view");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
-    if (window.history.state?.studymateDrawer) window.history.replaceState(null, "", url);
+    if (window.history.state?.studymateDrawer || window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     if (view === "chat") void notes.active?.flush();
   }
@@ -164,6 +165,7 @@ export default function Home() {
   const [reasoning, setReasoning] = useState("medium");
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
+  const [attachSheetOpen, setAttachSheetOpen] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 会話ごとのストリーム開始時刻。複数会話を並行生成できるよう、会話キー別に持つ。
@@ -340,6 +342,16 @@ export default function Home() {
         : fetchedMessages,
     );
     return true;
+  }
+
+  function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
+    const selectedFiles = Array.from(event.target.files ?? []);
+    const allowedFiles = selectedModel.supportsImageInput
+      ? selectedFiles
+      : selectedFiles.filter((file) => !isImageMimeType(file.type || "application/octet-stream"));
+    const selected = allowedFiles.map(createUploadFile);
+    setFiles((current) => [...current, ...selected]);
+    event.target.value = "";
   }
 
   function changeModel(nextModel: string) {
@@ -968,6 +980,8 @@ export default function Home() {
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
+  // スマホでは、ホーム画面（空の会話・ノート未選択）では見出しを本文側に出すので、上部バーの標題は会話中・ノート編集中だけ出す。
+  const showPhoneTitle = workspaceView === "chat" ? !emptyState : Boolean(notes.active);
 
   return (
     <main className="notion-workspace flex h-dvh">
@@ -1005,7 +1019,7 @@ export default function Home() {
                 <PanelLeft size={22} strokeWidth={1.8} />
               </button>
             )}
-            <div className="min-w-0 hidden sm:block">
+            <div className={`min-w-0 sm:block ${showPhoneTitle ? "" : "hidden"}`}>
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
                 {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
                 <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Notes" : activeTitle}</span>
@@ -1014,6 +1028,12 @@ export default function Home() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {workspaceView === "chat" && !emptyState && (
+              <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
+                aria-label="New chat" title="New chat">
+                <Plus size={20} />
+              </button>
+            )}
             {workspaceView === "pages" ? (
               <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
                 {notes.active ? ({ saved: "Saved", pending: "Saving…", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
@@ -1023,7 +1043,7 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} />
+          <NotesWorkspace notes={notes} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? "contents" : "hidden"}>
@@ -1032,12 +1052,11 @@ export default function Home() {
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
           >
             {emptyState ? (
-              <EmptyConversation />
+              <EmptyConversation onWorkspaceChange={changeWorkspace} />
             ) : (
               <>
-                <header className="pb-10 pt-12 motion-page-enter">
+                <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
                   <h1 className="break-words text-[2rem] font-bold leading-tight tracking-[-0.025em] text-[var(--notion-text)]">{activeTitle}</h1>
-                  <p className="mt-2 text-sm text-[var(--notion-muted)]">StudyMate conversation</p>
                 </header>
                 <div className="space-y-9">
                   {messages.map((message, index) => {
@@ -1130,26 +1149,39 @@ export default function Home() {
             )}
 
             <div className="notion-composer grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-1.5 gap-y-1 p-2.5">
-              <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer">
-                <Plus size={18} strokeWidth={1.8} />
-                <input
-                  type="file"
-                  multiple
-                  className="sr-only"
-                  onChange={(event) => {
-                    const selectedFiles = Array.from(event.target.files ?? []);
-                    const allowedFiles = selectedModel.supportsImageInput
-                      ? selectedFiles
-                      : selectedFiles.filter(
-                          (file) => !isImageMimeType(file.type || "application/octet-stream"),
-                        );
-                    const selected = allowedFiles.map(createUploadFile);
-                    setFiles((current) => [...current, ...selected]);
-                    event.target.value = "";
+              {isNarrowScreen && selectedModel.supportsImageGeneration ? (
+                <button
+                  type="button"
+                  className="notion-icon-button col-start-1 row-start-2 grid"
+                  onClick={() => {
+                    (document.activeElement as HTMLElement | null)?.blur();
+                    setAttachSheetOpen(true);
                   }}
-                />
-              </label>
-              <div className="col-span-3 row-start-1 flex min-w-0 items-center">
+                  aria-haspopup="dialog"
+                  aria-label="Add"
+                >
+                  <Plus size={18} strokeWidth={1.8} />
+                </button>
+              ) : (
+                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer">
+                  <Plus size={18} strokeWidth={1.8} />
+                  <input type="file" multiple className="sr-only" onChange={handleFileSelect} />
+                </label>
+              )}
+              <div className="col-span-3 row-start-1 min-w-0">
+                {imageGenerationMode && (
+                  <button
+                    type="button"
+                    className="image-mode-chip sm:hidden"
+                    onClick={() => setImageGenerationMode(false)}
+                    aria-label="Turn off image creation"
+                  >
+                    <ImagePlus size={16} />
+                    <span>Create an image</span>
+                    <X size={14} />
+                  </button>
+                )}
+                <div className="flex items-center">
                 <textarea
                   ref={inputRef}
                   value={input}
@@ -1192,6 +1224,7 @@ export default function Home() {
                   className="max-h-40 min-h-10 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-1 text-[15px] leading-6 text-[var(--notion-text)] outline-none placeholder:text-[var(--notion-faint)]"
                 />
               </div>
+              </div>
               <div className="col-start-2 row-start-2 flex min-w-0 items-center gap-0.5 overflow-visible">
                 <ModelSelect
                   value={model}
@@ -1203,7 +1236,7 @@ export default function Home() {
                   <button
                     type="button"
                     onClick={() => setImageGenerationMode((current) => !current)}
-                    className={`notion-composer-control shrink-0 ${
+                    className={`notion-composer-control composer-image-toggle shrink-0 ${
                       imageGenerationMode ? "is-active" : ""
                     }`}
                     aria-pressed={imageGenerationMode}
@@ -1224,6 +1257,14 @@ export default function Home() {
               </button>
             </div>
           </form>
+          <AttachSheet
+            open={attachSheetOpen && isNarrowScreen}
+            onClose={() => setAttachSheetOpen(false)}
+            onFilesChange={handleFileSelect}
+            canCreateImage={selectedModel.supportsImageGeneration}
+            imageMode={imageGenerationMode}
+            onToggleImageMode={() => setImageGenerationMode((current) => !current)}
+          />
         </div>
         </div>
       </section>

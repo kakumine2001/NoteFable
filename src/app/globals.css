@@ -423,6 +423,64 @@ button:disabled {
 }
 .notion-segment:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 
+/* スマホのモデル・推論強度シート（画面下から出る）。 */
+.model-sheet-trigger { gap: 0.4rem; padding: 0 0.85rem; }
+.model-sheet-trigger-effort { color: var(--notion-muted); }
+.model-sheet-root { position: fixed; inset: 0; z-index: 60; display: flex; align-items: flex-end; }
+.model-sheet-backdrop { position: absolute; inset: 0; background: rgba(15, 15, 15, 0.35); animation: motion-fade-in 150ms ease-out both; }
+.model-sheet {
+  position: relative; width: 100%; max-height: 88dvh; overflow-y: auto; border-radius: 1.1rem 1.1rem 0 0;
+  background: #fff; padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  box-shadow: rgba(15, 15, 15, 0.2) 0 -8px 24px; animation: model-sheet-up 200ms ease-out both;
+}
+@keyframes model-sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: none; opacity: 1; } }
+.model-sheet-grab { width: 2.5rem; height: 0.25rem; margin: 0.25rem auto 0.5rem; border-radius: 999px; background: rgba(55, 53, 47, 0.2); }
+.model-sheet-title { margin: 0.75rem 0.25rem 0.35rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
+.model-sheet-list { display: grid; gap: 2px; }
+.model-sheet-row {
+  display: flex; width: 100%; min-height: 3.25rem; align-items: center; justify-content: space-between;
+  border-radius: 0.65rem; padding: 0 0.85rem; font-size: 1.0625rem; color: var(--notion-text); text-align: left;
+}
+.model-sheet-row.is-selected { background: var(--notion-hover); font-weight: 600; }
+.model-sheet-efforts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
+.model-sheet-effort {
+  min-height: 2.9rem; border: 1px solid var(--notion-border-strong); border-radius: 0.65rem;
+  font-size: 0.9375rem; color: var(--notion-text);
+}
+.model-sheet-effort[aria-checked="true"] { border-color: var(--notion-blue); background: var(--notion-blue); color: #fff; font-weight: 600; }
+.model-sheet-hint { margin: 0.65rem 0.25rem 0; font-size: 0.875rem; color: var(--notion-muted); }
+.model-sheet-done {
+  width: 100%; min-height: 3rem; margin-top: 1rem; border-radius: 0.75rem; background: var(--notion-text);
+  color: #fff; font-size: 1rem; font-weight: 600;
+}
+
+/* スマホの「＋」シートの行（ファイルを追加 / 画像を作る）。 */
+.attach-row {
+  display: flex; width: 100%; min-height: 3.75rem; align-items: center; gap: 0.9rem; cursor: pointer;
+  border-radius: 0.7rem; padding: 0.4rem 0.85rem; color: var(--notion-text); text-align: left;
+}
+.attach-row > span { display: grid; flex: 1; min-width: 0; }
+.attach-row strong { font-size: 1.0625rem; font-weight: 600; }
+.attach-row small { font-size: 0.875rem; color: var(--notion-muted); }
+.attach-row[aria-pressed="true"] { background: var(--notion-hover); }
+/* スマホでは画像作成の切替は「＋」シートに移したので、入力欄の下の段からは外す。 */
+@media (max-width: 639px) {
+  .notion-composer .composer-image-toggle { display: none; }
+}
+/* 画像作成モードの目印はスマホ専用（パソコンでは入力欄の下の段のボタンが同じ役目）。 */
+@media (min-width: 640px) {
+  .image-mode-chip { display: none; }
+}
+/* 画像作成モードが入っているときに、入力欄の上へ出す外せる目印。 */
+.image-mode-chip {
+  display: inline-flex; height: 2rem; align-items: center; gap: 0.4rem; margin: 0 0 0.25rem 0.25rem;
+  border-radius: 999px; background: rgba(35, 131, 226, 0.12); padding: 0 0.7rem; font-size: 0.875rem;
+  font-weight: 500; color: var(--notion-blue);
+}
+
+/* スマホのホーム画面（空の会話・ノート未選択）に置く Chat / Notes 切替。 */
+.notion-home-switch { padding-top: 0.25rem; }
+
 .notion-sidebar-action.is-active {
   font-weight: 600;
 }

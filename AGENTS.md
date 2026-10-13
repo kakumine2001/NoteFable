@@ -87,6 +87,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 - `mobile/` is a Capacitor wrapper that opens the hosted web app. Mobile layout and touch behavior are web changes under `src/`; only app-level things (icon, name, permissions, offline page, native plugins) belong in `mobile/`. Native UI, if ever built, gets its own directory under `mobile/`.
 - Do not commit `mobile/node_modules`, `mobile/dist`, `mobile/resources`, APKs or `local.properties`. In `local.properties` write `sdk.dir` with forward slashes on Windows.
+- Phone layout (under 640px) lives in the same codebase as desktop. `globals.css` rules are unlayered and beat Tailwind utilities, so hide or restyle a class-styled element at a breakpoint with a `@media` rule of equal or higher specificity placed after it, not with `hidden` / `sm:hidden`. Panels that need the Android Back key (drawer, bottom sheets) push a history entry; see `use-back-to-close.ts`.
 - Setup, build, limits and the in-app Google login flow (the token audience is the Web client ID; never pass `scopes` to the plugin) are in [docs/architecture/android.md](docs/architecture/android.md).
 
 ## Cross-Agent Calls

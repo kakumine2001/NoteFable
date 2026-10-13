@@ -5,22 +5,29 @@ import { AccountButton } from "@/components/account-button";
 
 export type WorkspaceView = "chat" | "pages";
 
-// サイドバー最上部の Chat / Notes 切替（左右に並んだ 2 つのボタン）。両サイドバーで同じ見た目を使う。
-export function WorkspaceNav({ view, onChange }: { view: WorkspaceView; onChange: (view: WorkspaceView) => void }) {
-  const items = [
-    { id: "chat", label: "Chat", Icon: MessageSquareText },
-    { id: "pages", label: "Notes", Icon: FileText },
-  ] as const;
+const WORKSPACE_ITEMS = [
+  { id: "chat", label: "Chat", Icon: MessageSquareText },
+  { id: "pages", label: "Notes", Icon: FileText },
+] as const;
+
+// Chat / Notes の切替（左右に並んだ 2 つのボタン）。サイドバー最上部とスマホのホーム画面で同じ見た目を使う。
+export function WorkspaceSwitch({ view, onChange }: { view: WorkspaceView; onChange: (view: WorkspaceView) => void }) {
   return (
-    <nav className="px-2 pt-1" aria-label="Workspace mode">
-      <div className="notion-segmented" role="group">
-        {items.map(({ id, label, Icon }) => (
-          <button key={id} type="button" className={`notion-segment ${view === id ? "is-active" : ""}`}
-            aria-pressed={view === id} onClick={() => onChange(id)}>
-            <Icon size={16} /><span>{label}</span>
-          </button>
-        ))}
-      </div>
+    <div className="notion-segmented" role="group" aria-label="Workspace mode">
+      {WORKSPACE_ITEMS.map(({ id, label, Icon }) => (
+        <button key={id} type="button" className={`notion-segment ${view === id ? "is-active" : ""}`}
+          aria-pressed={view === id} onClick={() => onChange(id)}>
+          <Icon size={16} /><span>{label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function WorkspaceNav({ view, onChange }: { view: WorkspaceView; onChange: (view: WorkspaceView) => void }) {
+  return (
+    <nav className="px-2 pt-1" aria-label="Workspace">
+      <WorkspaceSwitch view={view} onChange={onChange} />
       <div className="mt-1"><AccountButton /></div>
     </nav>
   );

@@ -13,32 +13,15 @@ import {
   MODEL_OPTIONS,
   type ReasoningEffort,
 } from "@/lib/models";
+import { ModelSheetSelect } from "@/components/model-sheet";
+import { reasoningDescriptions, reasoningLabels } from "@/lib/reasoning-labels";
+import { useMediaQuery } from "@/lib/use-media-query";
 import {
   getReasoningSliderPositions,
   pointerPositionFromClientX,
   snapReasoningEffort,
   stepReasoningEffort,
 } from "@/lib/reasoning-slider";
-
-// 推論強度の短い表示名。ボタン内とメニュー内で共通利用する。
-const reasoningLabels: Record<string, string> = {
-  none: "None",
-  low: "Low",
-  medium: "Medium",
-  high: "High",
-  xhigh: "XHigh",
-  max: "Max",
-};
-
-// 各推論強度の補足説明。スライダーのアクセシブル名とツールチップに使う。
-const reasoningDescriptions: Record<string, string> = {
-  none: "No reasoning",
-  low: "Light reasoning",
-  medium: "Balanced for most tasks",
-  high: "Better for complex work",
-  xhigh: "Very deep reasoning",
-  max: "Maximum reasoning depth",
-};
 
 const PARTICLE_COUNT = 14;
 const PARTICLE_TRAVEL_SECONDS = 1.9;
@@ -69,7 +52,7 @@ function formatReasoningLabel(value: string, provider: string) {
   return reasoningLabels[value] ?? value;
 }
 
-export function ModelSelect({
+function DesktopModelSelect({
   value,
   reasoning,
   onModelChange,
@@ -511,4 +494,15 @@ export function ModelSelect({
       )}
     </div>
   );
+}
+
+// スマホ（640px 未満）では画面下のシート、それ以外はこれまでの小窓とスライダーを使う。
+export function ModelSelect(props: {
+  value: string;
+  reasoning: string;
+  onModelChange: (value: string) => void;
+  onReasoningChange: (value: string) => void;
+}) {
+  const isPhone = useMediaQuery("(max-width: 639px)");
+  return isPhone ? <ModelSheetSelect {...props} /> : <DesktopModelSelect {...props} />;
 }
