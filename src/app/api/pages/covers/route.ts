@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
-import { limitNoteWrite, noteApiError } from "@/lib/note-api";
+import { noteApiError } from "@/lib/note-api";
 import { COVER_CONTENT_TYPES, sniffCoverImage } from "@/lib/note-covers";
 import { MAX_COVER_BYTES, uploadedCoverPath } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
@@ -35,8 +35,6 @@ async function readLimitedBody(request: Request, limit: number) {
 // カバー画像を保存し、ページに設定するためのキーを返す。ページへの反映は通常の自動保存で行う。
 export async function POST(request: Request) {
   try {
-    const limited = await limitNoteWrite(request);
-    if (limited) return limited;
     const tooLarge = () => NextResponse.json({ error: "Cover images must be 4 MB or smaller." }, { status: 413 });
     if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BODY_BYTES) return tooLarge();
     // Content-Length がない分割送信でも、実際に受け取ったバイト数で上限を守ってから multipart を解析する。

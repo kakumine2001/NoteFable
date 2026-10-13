@@ -22,7 +22,7 @@ Pages 是 StudyMate 内部的文字笔记模式。切换模式保留聊天输入
 | `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
 | `GET /api/pages/covers?key=` | 只返回当前匿名用户目录下的封面图片 |
 
-所有操作沿用签名设备 Cookie 和 `getOrCreateAnonymousUser()`；页面不存在或属于其他设备时返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；写操作独立限流到每设备 180 次/分钟，避免影响聊天配额。
+所有操作沿用签名设备 Cookie 和 `getOrCreateAnonymousUser()`；页面不存在或属于其他设备时返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
 
 ## 保存与恢复
 

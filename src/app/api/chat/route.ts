@@ -22,7 +22,6 @@ import {
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
-import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { parseActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
@@ -291,29 +290,7 @@ async function createDeepSeekResponsesStream({
 
 export async function POST(request: Request) {
   // チャット送信の中心 API。
-  // ここでレート制限、添付検証、セッション所有者確認、履歴保存、上流 AI ストリームの中継をまとめて行う。
-  let rateLimit: Awaited<ReturnType<typeof checkRateLimit>>;
-
-  try {
-    rateLimit = await checkRateLimit(request, {
-      // namespace は API 種別ごとのバケット名。画像生成とは別枠で制限する。
-      namespace: "chat",
-      // 匿名デバイス 1 つあたり、1 時間に 30 回までにする。
-      limit: 30,
-      windowMs: 60 * 60 * 1000,
-    });
-  } catch (error) {
-    console.error("Failed to check chat rate limit", error);
-    return NextResponse.json({ error: "Database is unavailable." }, { status: 503 });
-  }
-
-  if (rateLimit.limited) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded. Try again later." },
-      { status: 429, headers: rateLimitHeaders(rateLimit) },
-    );
-  }
-
+  // ここで添付検証、セッション所有者確認、履歴保存、上流 AI ストリームの中継をまとめて行う。
   try {
     validateMultipartRequestSize(request);
   } catch (error) {
@@ -437,14 +414,13 @@ export async function POST(request: Request) {
     });
   }
 
-  // Compaction-capable models retain text history until the provider summarizes it.
+  // 全モデルとも会話の全メッセージを読む。圧縮に対応するモデルはプロバイダーが要約するまで履歴を保持する。
   const history = await prisma.message.findMany({
     where: {
       sessionId: session.id,
       id: { not: userMessage.id },
     },
     orderBy: { createdAt: "desc" },
-    ...(modelOption.supportsCompaction ? {} : { take: 30 }),
     select: {
       id: true,
       role: true,

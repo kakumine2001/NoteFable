@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ find: vi.fn(), update: vi.fn(), remove: vi.fn(), limited: false }));
+const mocks = vi.hoisted(() => ({ find: vi.fn(), update: vi.fn(), remove: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/rate-limit", () => ({ checkRateLimit: async () => ({ limited: mocks.limited }), rateLimitHeaders: () => ({}) }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.remove };
   return { prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
@@ -14,7 +13,7 @@ const page = { id: "p1", title: "Saved", icon: null, cover: null, coverPosition:
 function request(version = 1, title = "Mine") { return new Request("http://localhost/api/pages/p1", { method: "PATCH", body: JSON.stringify({ title, blocks: [], version }) }); }
 
 describe("page ownership and save concurrency", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.limited = false; });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it("does not read or delete a page from another device", async () => {
     mocks.find.mockResolvedValue(null);
@@ -56,19 +55,16 @@ describe("page ownership and save concurrency", () => {
     expect(await result.json()).not.toHaveProperty("page");
   });
 
-  it("updates title and blocks together and enforces the write limit", async () => {
+  it("updates title and blocks together", async () => {
     mocks.update.mockResolvedValue({ count: 1 });
     mocks.find.mockResolvedValue(page);
     expect((await PATCH(request(), context)).status).toBe(200);
     expect(mocks.update.mock.calls[0][0].data).toEqual({ title: "Mine", blocks: [], version: { increment: 1 } });
-    mocks.limited = true;
-    expect((await PATCH(request(), context)).status).toBe(429);
-    expect(mocks.update).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("page metadata from older clients", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.limited = false; });
+  beforeEach(() => { vi.clearAllMocks(); });
 
   it("keeps saved icon and cover when a request omits them, and updates them when present", async () => {
     mocks.update.mockResolvedValue({ count: 1 });

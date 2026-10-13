@@ -121,13 +121,6 @@ erDiagram
         string imageStoragePath
         datetime createdAt
     }
-
-    ApiRateLimit {
-        string key PK
-        int count
-        datetime resetAt
-        datetime updatedAt
-    }
 ```
 
 ## Table Responsibilities
@@ -224,15 +217,6 @@ Session 1 -> N Message
 ```text
 Message 1 -> N Attachment
 ```
-
-### ApiRateLimit
-
-独立限流表，不属于 Session 层级。
-
-目前：
-
-- chat：30 / hour
-- images：10 / hour
 
 ## Enums
 

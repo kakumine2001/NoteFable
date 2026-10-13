@@ -8,10 +8,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
-vi.mock("@/lib/rate-limit", () => ({
-  checkRateLimit: async () => ({ limited: false }),
-  rateLimitHeaders: () => ({}),
-}));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/files", () => ({
   AttachmentValidationError: class extends Error {},
@@ -67,7 +63,7 @@ describe("DeepSeek chat response boundary", () => {
     expect(body).not.toHaveProperty("tools");
     expect(body).not.toHaveProperty("tool_choice");
     expect(body.instructions).toContain("Web search is unavailable");
-    expect(mocks.findMessages.mock.calls[0][0]).toMatchObject({ take: 30 });
+    expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
   });
 
   it("never forwards or persists leaked tool text split across deltas", async () => {

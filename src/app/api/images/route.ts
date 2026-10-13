@@ -17,7 +17,6 @@ import {
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
-import { checkRateLimit, rateLimitHeaders } from "@/lib/rate-limit";
 import { writeStoredImage } from "@/lib/storage";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
@@ -286,27 +285,6 @@ async function createImageApiEdit(
 export async function POST(request: Request) {
   // 画像生成専用 API。
   // 入力検証と権限確認をしたうえで、完了画像だけを保存・履歴化して返す。
-  let rateLimit: Awaited<ReturnType<typeof checkRateLimit>>;
-
-  try {
-    rateLimit = await checkRateLimit(request, {
-      // 画像生成はコストが高いので、チャットとは別 namespace かつ少なめの回数にする。
-      namespace: "images",
-      limit: 10,
-      windowMs: 60 * 60 * 1000,
-    });
-  } catch (error) {
-    console.error("Failed to check image rate limit", error);
-    return NextResponse.json({ error: "Database is unavailable." }, { status: 503 });
-  }
-
-  if (rateLimit.limited) {
-    return NextResponse.json(
-      { error: "Rate limit exceeded. Try again later." },
-      { status: 429, headers: rateLimitHeaders(rateLimit) },
-    );
-  }
-
   // リクエスト本文の解析結果。各フィールドは後で個別に型チェックする。
   let body: ImageRequestInput;
 

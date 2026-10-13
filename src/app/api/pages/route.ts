@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
-import { limitNoteWrite, noteApiError } from "@/lib/note-api";
+import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readNoteRequest, validateNoteContent } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
@@ -19,8 +19,6 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
-    const limited = await limitNoteWrite(request);
-    if (limited) return limited;
     const content = validateNoteContent(await readNoteRequest(request));
     const user = await getOrCreateAnonymousUser();
     assertCoverOwner(content.cover, user.id);

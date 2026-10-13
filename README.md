@@ -205,7 +205,7 @@ npm run prisma:migrate
 
 Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
 
-两者发送上一次压缩状态和后续文字历史，首次压缩前发送全部文字历史，不再按最近 30 条或历史附件合计 120,000 字符截断；单文件提取与历史图片限制保留。`Message.providerContext` 保存成功回答的厂商原生压缩状态，按 provider 与实际上游 model 隔离，下一轮从该状态继续；原消息和附件保留供界面查看，状态不返回浏览器。DeepSeek 保留最近 30 条规则。超出上游硬性输入或请求大小限制仍可能报错，压缩不能保证任意大单次上传均可接受。Batch API 的 300,000 token 输出需异步批处理与 Beta 标头，当前实时聊天不调用该接口。
+两者发送上一次压缩状态和后续文字历史，首次压缩前发送全部文字历史，不再按最近 30 条或历史附件合计 120,000 字符截断（DeepSeek 同样发送全部文字历史，不设条数上限，历史附件文本合计仍限 120,000 字符）；单文件提取与历史图片限制保留。`Message.providerContext` 保存成功回答的厂商原生压缩状态，按 provider 与实际上游 model 隔离，下一轮从该状态继续；原消息和附件保留供界面查看，状态不返回浏览器。超出上游硬性输入或请求大小限制仍可能报错，压缩不能保证任意大单次上传均可接受。Batch API 的 300,000 token 输出需异步批处理与 Beta 标头，当前实时聊天不调用该接口。
 
 Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索能力。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，最多 3 次续接（这是请求续接次数限制，与 `max_uses` 不同）。引用转换为可点击链接并随回答保存。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT 或 Claude。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
 
@@ -245,12 +245,7 @@ Pages 不调用 AI。无需新增环境变量。新增表通过正常的 `npm ru
 
 ## API 保护
 
-当前按签名 `studymate_device` Cookie 中的匿名设备 ID 分桶，计数存储在 PostgreSQL 的 `ApiRateLimit` 表中：
-
-- `/api/chat`：每小时 30 次
-- `/api/images`：每小时 10 次
-
-生产环境可以继续叠加 Vercel/网关层限流。
+应用本身不做请求限流（聊天、图片生成、Pages 保存均不限次数）。API 费用只受上游模型厂商的额度控制；需要限流时，可以在 Vercel 防火墙或网关层配置。
 
 ## Vercel 部署
 

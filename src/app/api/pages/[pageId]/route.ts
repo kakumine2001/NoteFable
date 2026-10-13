@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
-import { limitNoteWrite, noteApiError } from "@/lib/note-api";
+import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
@@ -20,8 +20,6 @@ export async function GET(_request: Request, context: Context) {
 
 export async function PATCH(request: Request, context: Context) {
   try {
-    const limited = await limitNoteWrite(request);
-    if (limited) return limited;
     const update = validateNoteUpdate(await readNoteRequest(request));
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
@@ -46,8 +44,6 @@ export async function PATCH(request: Request, context: Context) {
 
 export async function DELETE(request: Request, context: Context) {
   try {
-    const limited = await limitNoteWrite(request);
-    if (limited) return limited;
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.deleteMany({ where: { id: pageId, userId: user.id } });
