@@ -1210,7 +1210,7 @@ export default function Home() {
                     aria-label={`${imageGenerationMode ? "Disable" : "Enable"} image generation`}
                   >
                     <ImagePlus size={15} />
-                    <span>Create an image</span>
+                    <span className="hidden sm:inline">Create an image</span>
                   </button>
                 )}
               </div>

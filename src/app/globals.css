@@ -392,6 +392,37 @@ button:disabled {
   }
 }
 
+/* サイドバー最上部の Chat / Notes 切替。選んでいる側が白く浮く。 */
+.notion-segmented {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 0.5rem;
+  background: var(--notion-active);
+}
+.notion-segment {
+  display: flex;
+  height: 2rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  border-radius: 0.4rem;
+  color: var(--notion-muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: background 100ms ease, color 100ms ease;
+}
+.notion-segment.is-active {
+  background: #fff;
+  color: var(--notion-text);
+  box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.08) 0 1px 2px;
+}
+@media (hover: hover) {
+  .notion-segment:not(.is-active):hover { color: var(--notion-text); }
+}
+.notion-segment:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+
 .notion-sidebar-action.is-active {
   font-weight: 600;
 }
@@ -1181,12 +1212,29 @@ button:disabled {
 }
 
 @media (max-width: 639px) {
+  /* 文字・ボタンを指で押しやすい大きさにし、空の会話では見出しを余白の中央に置く。 */
+  .notion-page-title.notion-empty-title { margin-block: auto; padding-top: 0; }
+  .notion-page-title p { font-size: 1.0625rem; }
+  .notion-icon-button { width: 2.5rem; height: 2.5rem; }
+  .notion-composer-control { height: 2.5rem; padding: 0 0.65rem; font-size: 0.9375rem; }
+  .notion-composer-control svg { width: 1.25rem; height: 1.25rem; }
+  .notion-send { width: 2.5rem; height: 2.5rem; }
+  .codex-model-trigger { height: 2.5rem; font-size: 0.9375rem; }
+  .notion-sidebar-action { height: 2.75rem; font-size: 1rem; }
+  .notion-segment { height: 2.75rem; font-size: 1rem; }
+  .notion-session-row { min-height: 2.75rem; font-size: 1rem; }
   .notion-topbar { height: 3.5rem; padding-inline: 0.65rem; }
   .notion-page-title { padding-top: 2rem; }
   .notion-page-title h1 { font-size: 2rem; }
   .notion-page-icon { width: 3rem; height: 3rem; margin-bottom: 0.9rem; }
   .notion-composer-wrap { padding-inline: 0.65rem; }
   .notion-drawer { width: 100%; }
+}
+
+/* 360dp 以下の小さい画面では、入力欄の下の段（モデル名・画像・送信）が重ならないよう少し詰める。 */
+@media (max-width: 380px) {
+  .codex-model-trigger { font-size: 0.875rem; }
+  .notion-composer-control { padding: 0 0.45rem; }
 }
 
 .motion-menu {
