@@ -60,7 +60,7 @@ export function NotesWorkspace({ notes }: { notes: ReturnType<typeof useNotePage
       <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Notes</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">Write notes with blocks — type <kbd className="notes-kbd">/</kbd> for headings, lists, to-dos and code.</p>
       <button type="button" disabled={busy} className="notes-empty-new" onClick={() => void notes.create()}><Plus size={16} />New note</button>
-      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Notes are saved on the server and linked to this browser. Clearing site cookies or using another browser creates a separate workspace.</p>
+      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Notes are saved on the server and linked to this device. Sign in with Google to open them on other devices. Clearing app or site data creates a separate workspace.</p>
     </div>}
   </div>;
 }

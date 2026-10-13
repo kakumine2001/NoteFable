@@ -38,6 +38,27 @@ cd android && ./gradlew assembleDebug
 - 登录插件默认带 Facebook / Apple / X 三个用不到的提供商，`capacitor.config.json` 的 `plugins.SocialLogin.providers` 里已关掉，改完要 `npm run sync`。
 - 给手机发新安装包前把 `android/app/build.gradle` 的 `versionCode` 加 1，否则系统可能不允许覆盖安装。
 
+## 在模拟器里测试还没部署的改动
+
+App 加载的是线上网站，改了 `src/` 之后要先部署才看得到。要在 App 里提前看效果，打一个指向本机开发服务器的测试版：
+
+```bash
+npm run dev                  # 仓库根目录，启动开发服务器（端口 3000）
+cd mobile && npm run dev-apk # 临时改 capacitor.config.json、打包到 dist/StudyMate-dev.apk，结束后自动还原配置
+adb reverse tcp:3000 tcp:3000
+adb install -r dist/StudyMate-dev.apk
+```
+
+- 测试版读写的是本机数据库，和线上数据、线上 Google 账号无关；Google 登录在测试版里不可用（本机地址不在 Google 的登记里），登录流程用线上包验证。
+- 改的是网页就不用重新打包，保存后重新打开 App 即可；只有改了 `mobile/` 里的原生部分才需要重新打包。
+- 测完把 `dist/StudyMate-debug.apk`（指向线上）重新装回去。
+- 模拟器默认用电脑键盘模式，屏幕键盘不会弹出。要测软键盘，把虚拟手机配置里的 `hw.keyboard` 改成 `no` 再重启模拟器。
+- 开发服务器自带的 "N" 角标只在开发时出现，会挡住输入框左下角，正式版没有。
+
+## 返回键
+
+Capacitor 自带的安卓代码不处理"返回"，不处理的话系统会直接关掉 App。`MainActivity.java` 里补了处理：WebView 里有可后退的历史就后退，没有才退出。手机上的抽屉（侧边栏）打开时，网页（`src/app/page.tsx`）会往历史里推一条记录，所以返回键只关抽屉；从抽屉里切换聊天 / 笔记时用替换而不是新增，避免留下一个按返回没反应的空记录。
+
 ## 限制
 
 - App 申请的权限只有网络，以及登录插件自带的凭据 / 生物识别（`USE_CREDENTIALS`、`USE_BIOMETRIC`、`USE_FINGERPRINT`，用于账号选择框）。聊天、笔记、AI 工具都和网页完全一致；匿名用户靠 WebView 里的设备 Cookie 区分，清除 App 数据等于换一个新用户。

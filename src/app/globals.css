@@ -349,9 +349,17 @@ button:disabled {
   transition: background 100ms ease, color 100ms ease;
 }
 
-.notion-icon-button:hover {
-  background: var(--notion-hover);
-  color: var(--notion-text);
+/* 指で押す端末では、アイコンボタンの当たり判定を大きくする（見た目の位置は変えない範囲で 36px）。 */
+@media (pointer: coarse) {
+  .notion-icon-button { width: 2.25rem; height: 2.25rem; }
+}
+
+/* 触れて離したあともホバー扱いで灰色が残らないよう、マウスのある端末だけに適用する。 */
+@media (hover: hover) {
+  .notion-icon-button:hover {
+    background: var(--notion-hover);
+    color: var(--notion-text);
+  }
 }
 
 .notion-icon-button:focus-visible,
@@ -378,8 +386,10 @@ button:disabled {
   transition: background 100ms ease;
 }
 
-.notion-sidebar-action:hover {
-  background: var(--notion-hover);
+@media (hover: hover) {
+  .notion-sidebar-action:hover {
+    background: var(--notion-hover);
+  }
 }
 
 .notion-sidebar-action.is-active {
@@ -395,9 +405,14 @@ button:disabled {
   transition: background 100ms ease;
 }
 
-.notion-session-row:hover,
 .notion-session-row.is-active {
   background: var(--notion-hover);
+}
+
+@media (hover: hover) {
+  .notion-session-row:hover {
+    background: var(--notion-hover);
+  }
 }
 
 .notion-session-row.is-active {
@@ -548,9 +563,11 @@ button:disabled {
   transition: background 100ms ease, color 100ms ease;
 }
 
-.notion-composer-control:hover {
-  background: var(--notion-hover);
-  color: var(--notion-text);
+@media (hover: hover) {
+  .notion-composer-control:hover {
+    background: var(--notion-hover);
+    color: var(--notion-text);
+  }
 }
 
 .notion-composer-control.is-active {
@@ -1853,6 +1870,16 @@ button:disabled {
   padding: 0.45rem 0.6rem;
   text-align: left;
   vertical-align: top;
+}
+
+/* スマホでは列が詰まって単語の途中で折り返され読めなくなるので、最小幅を持たせ、足りなければ横スクロールにする。 */
+@media (max-width: 639px) {
+  .markdown-body th,
+  .markdown-body td {
+    min-width: 5.5rem;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
 }
 
 .markdown-body th {

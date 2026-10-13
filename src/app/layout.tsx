@@ -36,8 +36,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
+  // Android アプリ（Capacitor）は <html> に安全領域の CSS 変数を差し込むため、サーバー描画との属性差を許容する。
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
       <body>{children}<Analytics /><SpeedInsights /></body>
     </html>
   );

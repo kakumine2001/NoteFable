@@ -24,7 +24,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-5 flex h-6 items-center justify-between pl-4 pr-3 text-xs font-medium text-[var(--notion-muted)]">
         <span>Private</span>
-        <button type="button" className="notion-icon-button grid !h-5 !w-5" disabled={busy} onClick={onCreate} aria-label="New note" title="New note"><Plus size={14} /></button>
+        <button type="button" className="notion-icon-button grid !h-5 !w-5 [@media(pointer:coarse)]:!h-8 [@media(pointer:coarse)]:!w-8" disabled={busy} onClick={onCreate} aria-label="New note" title="New note"><Plus size={14} /></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your notes will appear here.</p>}

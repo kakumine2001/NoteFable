@@ -5,7 +5,8 @@
   "description": "Android wrapper (Capacitor) that opens the hosted StudyMate web app.",
   "scripts": {
     "icons": "node scripts/make-icons.mjs && capacitor-assets generate --android --assetPath resources --iconBackgroundColor \"#f7f6f2\" --iconBackgroundColorDark \"#f7f6f2\" --splashBackgroundColor \"#ffffff\" --splashBackgroundColorDark \"#ffffff\"",
-    "sync": "cap sync android"
+    "sync": "cap sync android",
+    "dev-apk": "node scripts/build-dev-apk.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.3",

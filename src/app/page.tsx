@@ -26,6 +26,7 @@ import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
+import { useMediaQuery } from "@/lib/use-media-query";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
@@ -141,7 +142,9 @@ export default function Home() {
       if (notes.activeId) url.searchParams.set("page", notes.activeId);
     }
     else url.searchParams.delete("view");
-    window.history.pushState(null, "", url);
+    // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
+    if (window.history.state?.studymateDrawer) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
     if (view === "chat") void notes.active?.flush();
   }
 
@@ -169,6 +172,32 @@ export default function Home() {
   const [now, setNow] = useState(() => Date.now());
   // モバイル表示でサイドバーのオーバーレイを開いているかどうか。
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // モバイルのドロワーを開いている間は履歴を 1 件積み、端末の「戻る」でアプリを閉じずにドロワーだけ閉じる。
+  useEffect(() => {
+    if (!sidebarOpen) return;
+
+    window.history.pushState({ studymateDrawer: true }, "");
+    let closedByBack = false;
+    function onBack() {
+      closedByBack = true;
+      setSidebarOpen(false);
+    }
+    window.addEventListener("popstate", onBack, { once: true });
+    // 画面を広げてデスクトップ表示になったら、見えなくなったドロワーの履歴が残らないよう閉じる。
+    const desktop = window.matchMedia("(min-width: 1024px)");
+    function onResize() {
+      if (desktop.matches) setSidebarOpen(false);
+    }
+    desktop.addEventListener("change", onResize);
+
+    return () => {
+      window.removeEventListener("popstate", onBack);
+      desktop.removeEventListener("change", onResize);
+      // 画面のボタンなどで閉じた場合は、積んでおいた履歴を取り除く。
+      if (!closedByBack && window.history.state?.studymateDrawer) window.history.back();
+    };
+  }, [sidebarOpen]);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
   const [sidebarVisible, setSidebarVisible] = useState(true);
   // 最下部にいる時は手動スクロールボタンを隠す。
@@ -206,9 +235,13 @@ export default function Home() {
   const canSend = input.trim().length > 0 && !isActiveSessionStreaming;
   // モデル ID から、対応機能や表示名をまとめた設定を引く。
   const selectedModel = getModelOption(model);
+  // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
+  const isNarrowScreen = useMediaQuery("(max-width: 639px)");
   const inputPlaceholder = imageGenerationMode
     ? "Describe an image to create..."
-    : "Ask anything — StudyMate searches when needed...";
+    : isNarrowScreen
+      ? "Ask anything..."
+      : "Ask anything — StudyMate searches when needed...";
 
   function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
     sessionMessagesRef.current = {
@@ -919,7 +952,7 @@ export default function Home() {
   };
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
-      onCreate={() => void notes.create()} onSelect={(id) => { void notes.select(id); setSidebarOpen(false); }}
+      onCreate={() => { setSidebarOpen(false); void notes.create(); }} onSelect={(id) => { void notes.select(id); setSidebarOpen(false); }}
       onDelete={notes.remove} onClose={closeSidebar} onWorkspaceChange={changeWorkspace} />
   ) : (
     <ChatSidebar
@@ -1074,7 +1107,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => removeUploadFile(id)}
-                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100"
+                        className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                         aria-label="Remove image"
                       >
                         <X size={15} />
