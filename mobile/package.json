@@ -1,0 +1,20 @@
+{
+  "name": "studymate-android",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Android wrapper (Capacitor) that opens the hosted StudyMate web app.",
+  "scripts": {
+    "icons": "node scripts/make-icons.mjs && capacitor-assets generate --android --assetPath resources --iconBackgroundColor \"#f7f6f2\" --iconBackgroundColorDark \"#f7f6f2\" --splashBackgroundColor \"#ffffff\" --splashBackgroundColorDark \"#ffffff\"",
+    "sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.3",
+    "@capacitor/core": "^8.5.3",
+    "@capgo/capacitor-social-login": "^8.5.17"
+  },
+  "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
+    "@capacitor/cli": "^8.5.3",
+    "sharp": "^0.34.0"
+  }
+}

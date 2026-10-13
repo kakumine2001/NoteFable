@@ -50,3 +50,8 @@ next-env.d.ts
 
 # claude code local preview config
 /.claude/
+
+# Android wrapper (Capacitor): dependencies, generated icon sources and built APKs
+/mobile/node_modules/
+/mobile/resources/
+/mobile/dist/

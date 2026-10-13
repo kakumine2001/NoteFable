@@ -34,6 +34,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Model capabilities and reasoning levels | `src/lib/models.ts` |
 | Anonymous identity and Google-linked user | `src/lib/auth.ts` |
 | Google login (Auth.js) | `src/lib/google-auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` |
+| Google login inside the Android app | `src/lib/native-google-login.ts`, `src/app/api/native-auth/*`, `src/lib/native-app.ts` |
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
 | Chat tools (Notes search/read/propose edit/propose create) and tool loops | `src/lib/page-tools.ts`, `src/lib/page-edit.ts`, `src/lib/note-markdown.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
 | Image generation | `src/app/api/images/route.ts` |
@@ -81,6 +82,12 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
   - `prisma migrate reset`
 - Vercel builds run migration before application build via `vercel.json`.
 - Do not point Preview deployments at a production database unless that behavior is explicitly intended.
+
+## Android
+
+- `mobile/` is a Capacitor wrapper that opens the hosted web app. Mobile layout and touch behavior are web changes under `src/`; only app-level things (icon, name, permissions, offline page, native plugins) belong in `mobile/`. Native UI, if ever built, gets its own directory under `mobile/`.
+- Do not commit `mobile/node_modules`, `mobile/dist`, `mobile/resources`, APKs or `local.properties`. In `local.properties` write `sdk.dir` with forward slashes on Windows.
+- Setup, build, limits and the in-app Google login flow (the token audience is the Web client ID; never pass `scopes` to the plugin) are in [docs/architecture/android.md](docs/architecture/android.md).
 
 ## Cross-Agent Calls
 

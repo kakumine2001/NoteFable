@@ -141,6 +141,8 @@ AUTH_GOOGLE_SECRET
 
 三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
+Android App 内的登录复用同一个 Web 客户端 ID（`AUTH_GOOGLE_ID`）校验令牌，不需要新增环境变量；另需在同一个 Google Cloud 项目里建一个 Android 类型客户端（包名 + 签名 SHA-1），详见 [android.md](android.md)。
+
 ### OpenAI
 
 ```text

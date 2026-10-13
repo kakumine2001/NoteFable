@@ -54,6 +54,7 @@ flowchart LR
 - [数据库设计](docs/architecture/database.md)
 - [聊天请求流程](docs/architecture/chat-flow.md)
 - [站内页面与自动保存](docs/architecture/notes-flow.md)
+- [Android 应用](docs/architecture/android.md)
 - [图片上传与生成流程](docs/architecture/image-flow.md)
 - [部署与运行环境](docs/architecture/deployment.md)
 
@@ -244,6 +245,10 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除后不能恢复。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
 
 Notes 不调用 AI。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
+
+## Android 应用
+
+`mobile/` 是一个 Capacitor 安卓外壳：App 就是一个全屏 WebView，直接打开线上的 StudyMate，所以网站更新后 App 不用重新打包。打包命令、开发环境、限制（例如 App 里不能用 Google 登录）见 [android.md](docs/architecture/android.md)。
 
 ## API 保护
 
