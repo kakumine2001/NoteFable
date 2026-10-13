@@ -81,6 +81,13 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Vercel builds run migration before application build via `vercel.json`.
 - Do not point Preview deployments at a production database unless that behavior is explicitly intended.
 
+## Cross-Agent Calls
+
+Pin these models when Codex and Claude Code call each other in this project, unless the user names another:
+
+- Claude Code calling Codex for review: `codex exec -m gpt-6.1-sol -c model_reasoning_effort=high ...`
+- Codex calling Claude Code: `claude -p --model claude-sonnet-5-5 --effort high ...`
+
 ## Validation
 
 Before finishing code changes, run the checks relevant to the change:
