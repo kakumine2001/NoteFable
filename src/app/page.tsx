@@ -12,7 +12,7 @@ import {
   X,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatMessage } from "@/components/chat-message";
@@ -175,6 +175,8 @@ export default function Home() {
   const [isAtChatBottom, setIsAtChatBottom] = useState(true);
   // 会話本文のスクロール領域。手動で最下部へ移動するボタンだけで使う。
   const chatScrollRef = useRef<HTMLDivElement | null>(null);
+  // 会話を開いた直後は、履歴の高さが落ち着くまで最下部に固定する（読み込み・画像・Markdown の描画で高さが変わるため）。
+  const pinToBottomRef = useRef<{ key: string; until: number } | null>(null);
   // ストリーム処理中の古いクロージャを避けるため、現在のセッション ID を ref にも保持する。
   const activeSessionIdRef = useRef<string | null>(null);
   // 会話切り替えの順序を追跡し、遅れて返った古いレスポンスを無視する。
@@ -380,6 +382,7 @@ export default function Home() {
     const controller = new AbortController();
     sessionLoadAbortRef.current = controller;
     activeSessionIdRef.current = sessionId;
+    pinToBottomRef.current = { key: getMessagesKey(sessionId), until: Date.now() + 2000 };
     setActiveSessionId(sessionId);
     setMessages(sessionMessagesRef.current[sessionId] ?? []);
     setSidebarOpen(false);
@@ -846,6 +849,27 @@ export default function Home() {
   useEffect(() => {
     window.requestAnimationFrame(updateChatBottomState);
   }, [messages]);
+
+  // 既存の会話を開いた時は、いちばん新しいやり取りが見える最下部から始める。
+  // 履歴は先にキャッシュ、続けて取得結果で置き換わり、画像などで高さも後から変わるので、短時間は何度か最下部へ寄せる。
+  useLayoutEffect(() => {
+    const pin = pinToBottomRef.current;
+    const scroller = chatScrollRef.current;
+    if (!pin || !scroller || pin.key !== activeSessionKey || Date.now() > pin.until || !messages.length) return;
+    const jump = () => {
+      const current = pinToBottomRef.current;
+      if (!current || current.key !== activeSessionKey || Date.now() > current.until) return;
+      scroller.scrollTop = scroller.scrollHeight;
+      updateChatBottomState();
+    };
+    jump();
+    const frame = window.requestAnimationFrame(jump);
+    const timers = [120, 400, 1000].map((delay) => window.setTimeout(jump, delay));
+    return () => {
+      window.cancelAnimationFrame(frame);
+      timers.forEach((timer) => window.clearTimeout(timer));
+    };
+  }, [messages, activeSessionKey]);
 
   useEffect(() => {
     // アシスタント本文がまだ空の間、待機表示の秒数を更新する。
