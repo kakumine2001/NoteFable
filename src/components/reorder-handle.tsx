@@ -3,7 +3,9 @@ import { GripVertical } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { ReorderRequest } from "@/lib/list-order";
 
-export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpen,onMoveProject}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children?:ReactNode;onOpen?:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>}) {
+export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpen,onMoveProject,onMoveGroup}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children?:ReactNode;onOpen?:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>}) {
+  const dropAttribute=onMoveProject ? "data-chat-project-drop" : onMoveGroup ? "data-note-group-drop" : null;
+  const onMoveContainer=onMoveProject ?? onMoveGroup;
   const drag=useRef<{x:number;y:number;active:boolean;row:HTMLElement;target?:HTMLElement;after:boolean}|null>(null);
   const suppressClick=useRef(false);
   const buttonRef=useRef<HTMLButtonElement>(null);
@@ -21,9 +23,9 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     const current=drag.current;if(!current)return;
     current.row.setAttribute("data-order-dragging","true");
     const container=current.row.closest("[data-reorder-list]");
-    const target=document.elementsFromPoint(x,y).map(element=>element.closest<HTMLElement>(onMoveProject ? "[data-order-id], [data-chat-project-drop]" : "[data-order-id]")).find(element=>element && element.closest("[data-reorder-list]")===container && (element.hasAttribute("data-chat-project-drop") || (element.dataset.orderScope===scope && element.dataset.orderId!==id)));
+    const target=document.elementsFromPoint(x,y).map(element=>element.closest<HTMLElement>(dropAttribute ? `[data-order-id], [${dropAttribute}]` : "[data-order-id]")).find(element=>element && element.closest("[data-reorder-list]")===container && ((dropAttribute && element.hasAttribute(dropAttribute)) || (element.dataset.orderScope===scope && element.dataset.orderId!==id)));
     current.target?.removeAttribute("data-order-drop");current.target=target ?? undefined;
-    if(target){const rect=target.getBoundingClientRect();current.after=y>rect.y+rect.height/2;target.setAttribute("data-order-drop",target.hasAttribute("data-chat-project-drop") ? "into" : current.after ? "after":"before");}
+    if(target){const rect=target.getBoundingClientRect();current.after=y>rect.y+rect.height/2;target.setAttribute("data-order-drop",dropAttribute && target.hasAttribute(dropAttribute) ? "into" : current.after ? "after":"before");}
     let scroll=current.row.parentElement;
     while(scroll && scroll.scrollHeight<=scroll.clientHeight)scroll=scroll.parentElement;
     if(scroll){const rect=scroll.getBoundingClientRect();if(y<rect.top+30)scroll.scrollBy({top:-12});else if(y>rect.bottom-30)scroll.scrollBy({top:12});}
@@ -36,9 +38,9 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     suppressClick.current=!!active;
     clear();
     if(!active || !target)return;
-    if(target.hasAttribute("data-chat-project-drop") && onMoveProject) {
+    if(dropAttribute && target.hasAttribute(dropAttribute) && onMoveContainer) {
       setBusy(true);setError("");
-      void Promise.resolve().then(()=>onMoveProject(target.dataset.chatProjectDrop || null)).then(ok=>{if(!ok)setError("Could not move the chat. Try again.");}).catch(error=>setError(error instanceof Error ? error.message : "Could not move the chat. Try again.")).finally(()=>setBusy(false));
+      void Promise.resolve().then(()=>onMoveContainer(target.getAttribute(dropAttribute) || null)).then(ok=>{if(!ok)setError("Could not move the item. Try again.");}).catch(error=>setError(error instanceof Error ? error.message : "Could not move the item. Try again.")).finally(()=>setBusy(false));
     } else if(target.dataset.orderId)void move({id,targetId:target.dataset.orderId,after});
   }
   useEffect(()=>()=>{drag.current?.row.removeAttribute("data-order-dragging");drag.current?.target?.removeAttribute("data-order-drop");},[]);

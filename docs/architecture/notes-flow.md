@@ -18,7 +18,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹）。`NoteGroup` 属于匿名用户（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除分组时其中的笔记保留并回到“无分组”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。电脑端在侧栏的 Groups 区域管理（可折叠，折叠状态存在本机 localStorage），手机端在 Notes 列表里按分组显示，每行有移动按钮，底部有 New group。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects。`NoteGroup` 属于匿名用户（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。通过六点手柄可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
