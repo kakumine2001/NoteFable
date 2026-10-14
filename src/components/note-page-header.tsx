@@ -2,7 +2,7 @@
 
 import { ImageIcon, Smile, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
-import { EMOJIS, EmojiPopover, Popover, randomOf } from "@/components/emoji-picker";
+import { EMOJIS, EmojiPopover, Popover, randomOf, usePickerBackToClose } from "@/components/emoji-picker";
 import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type NoteCover } from "@/lib/note-document";
 import type { NoteContent } from "@/types/notes";
 
@@ -36,6 +36,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
   const position = reposition ?? content.coverPosition ?? 50;
   const update = onPatch;
   const close = () => setPicker(null);
+  usePickerBackToClose(picker === "icon", close);
 
   function onCoverPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (reposition === null || (event.target as HTMLElement).closest("button")) return;

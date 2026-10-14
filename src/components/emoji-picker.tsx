@@ -2,6 +2,8 @@
 
 import { Shuffle } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
+import { useBackToClose } from "@/lib/use-back-to-close";
+import { useMediaQuery } from "@/lib/use-media-query";
 
 // よく使う絵文字だけを並べる。Notion の「Emoji」タブの簡易版。Notes とチャットのアイコンで共有する。
 export const EMOJIS = [
@@ -20,7 +22,7 @@ export function randomOf<T>(items: readonly T[]) {
 }
 
 // 外側クリックと Esc で閉じる小さなポップオーバー。開閉ボタン自身のクリックは外側扱いにしない。
-export function Popover({ className, onClose, children }: { className: string; onClose: () => void; children: ReactNode }) {
+export function Popover({ className, label, onClose, children }: { className: string; label?: string; onClose: () => void; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
@@ -34,7 +36,14 @@ export function Popover({ className, onClose, children }: { className: string; o
     document.addEventListener("keydown", onKey);
     return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
   }, []);
-  return <div ref={ref} className={`notes-popover ${className}`} role="dialog">{children}</div>;
+  return <div ref={ref} className={`notes-popover ${className}`} role="dialog" aria-label={label}>{children}</div>;
+}
+
+// スマホでは端末の「戻る」でアプリを閉じず、選択画面だけを閉じる（開いている間だけ履歴を 1 件積む）。
+// ポップオーバーの開閉ではなく、常に描画されている側（開閉ボタンを持つコンポーネント）で呼ぶ。
+export function usePickerBackToClose(open: boolean, onClose: () => void) {
+  const phone = useMediaQuery("(max-width: 639px)");
+  useBackToClose(open && phone, onClose);
 }
 
 // 絵文字の選択ポップオーバー。選ぶと閉じ、Random は開いたまま、Remove は null を返して閉じる。
@@ -45,7 +54,7 @@ export function EmojiPopover({ current, className, onChange, onClose }: {
   onClose: () => void;
 }) {
   return (
-    <Popover className={className} onClose={onClose}>
+    <Popover className={className} label="Choose an emoji" onClose={onClose}>
       <div className="notes-picker-bar">
         <span>Emoji</span>
         <div className="flex gap-1">

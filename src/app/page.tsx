@@ -16,6 +16,7 @@ import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { ChatSidebar } from "@/components/chat-sidebar";
+import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { AttachSheet } from "@/components/attach-sheet";
@@ -26,6 +27,7 @@ import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
+import { SessionIconSync } from "@/lib/session-icon-sync";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -91,6 +93,22 @@ function parseChatStreamLine(line: string): string | ActivityEvent | null {
   const data = JSON.parse(payload) as string | { activity?: ActivityEvent };
   return typeof data === "string" ? data : (data.activity ?? null);
 }
+
+async function saveSessionIcon(sessionId: string, icon: string | null) {
+  try {
+    const response = await fetch(`/api/sessions/${sessionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ icon }),
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// 会話アイコンの保存と一覧の再取得を突き合わせる。画面の状態を持たないので、ページ全体で 1 つを使う。
+const iconSync = new SessionIconSync(saveSessionIcon);
 
 async function readJsonObject(response: Response) {
   // API 側が落ちた時に空 body や HTML が返っても、画面全体を unhandled rejection で壊さない。
@@ -427,13 +445,15 @@ export default function Home() {
   async function loadSessions() {
     // cache: no-store にして、直前に作成・更新されたセッション一覧を常に取りに行く。
     try {
+      const startedAt = iconSync.mark();
       const response = await fetch("/api/sessions", { cache: "no-store" });
       if (!response.ok) return false;
 
       const data = await readJsonObject(response);
       if (!Array.isArray(data.sessions)) return false;
 
-      setSessions(data.sessions as Session[]);
+      // 取得中に変えたアイコンが古い一覧で巻き戻らないよう、動いたものを重ねる。
+      setSessions(iconSync.reconcile(data.sessions as Session[], startedAt));
       return true;
     } catch {
       // 一時的な同期失敗では、現在表示している一覧を消さない。
@@ -534,6 +554,14 @@ export default function Home() {
     setActiveSessionId(session.id);
     setMessages([]);
     setSidebarOpen(false);
+  }
+
+  function changeSessionIcon(sessionId: string, icon: string | null) {
+    const current = sessions.find((session) => session.id === sessionId)?.icon ?? null;
+    const show = (value: string | null) =>
+      setSessions((list) => list.map((session) => (session.id === sessionId ? { ...session, icon: value } : session)));
+    // 画面へ先に反映し、保存は会話ごとに順番に送る。失敗したら最後に保存できた値へ戻す。
+    void iconSync.change(sessionId, icon, current, show, () => setSendError("Failed to change the chat icon."));
   }
 
   async function deleteSession(sessionId: string) {
@@ -992,7 +1020,8 @@ export default function Home() {
   }, []);
 
   // ヘッダーに表示するタイトル。未選択または新規チャット中は固定文言にする。
-  const activeTitle = sessions.find((session) => session.id === activeSessionId)?.title ?? "New chat";
+  const activeSession = sessions.find((session) => session.id === activeSessionId);
+  const activeTitle = activeSession?.title ?? "New chat";
   // Thinking 表示に出す秒数。0 秒表示を避けるため、ストリーム中は最低 1 秒に丸める。
   const thinkingSeconds =
     activeStreamStartedAt === null
@@ -1072,6 +1101,9 @@ export default function Home() {
             <div className={`min-w-0 sm:block ${showPhoneTitle ? "" : "hidden"}`}>
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
                 {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
+                {workspaceView === "chat" && activeSession && (
+                  <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
+                )}
                 <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Notes" : activeTitle}</span>
               </div>
             </div>
@@ -1105,7 +1137,10 @@ export default function Home() {
               <EmptyConversation onWorkspaceChange={changeWorkspace} />
             ) : (
               <>
-                <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
+                <header className="chat-title-header pb-10 pt-12 motion-page-enter max-sm:hidden">
+                  {activeSession && (
+                    <ChatTitleIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
+                  )}
                   <h1 className="break-words text-[2rem] font-bold leading-tight tracking-[-0.025em] text-[var(--notion-text)]">{activeTitle}</h1>
                 </header>
                 <div className="space-y-9">

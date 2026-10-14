@@ -60,7 +60,7 @@ flowchart LR
 | `src/app/page.tsx` | 前端主页面、输入框、附件、发送、图片生成模式 |
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
-| `src/app/api/sessions/*` | 会话与历史消息读取 |
+| `src/app/api/sessions/*` | 会话列表、历史消息读取、会话图标 |
 | `src/app/api/pages/*` | 站内页面 CRUD、匿名归属和版本检查 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |

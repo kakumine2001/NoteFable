@@ -173,6 +173,39 @@ button:disabled {
 .notes-empty-new:hover { background: #0077d4; }
 .notes-row-icon { display: grid; width: 20px; height: 20px; flex-shrink: 0; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
 
+/* チャットのアイコン（上部バーと見出し）。選択ポップオーバーは Notes と共通。 */
+.chat-icon-wrap { position: relative; display: inline-flex; flex-shrink: 0; }
+.chat-icon-button {
+  display: grid; width: 24px; height: 24px; place-items: center; border-radius: 4px;
+  color: var(--notion-muted); transition: background-color 120ms ease;
+}
+.chat-icon-button:hover { background: var(--notes-hover); }
+.chat-icon-emoji {
+  font-size: 15px; line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+.chat-title-header { position: relative; }
+.chat-title-controls { position: absolute; top: 14px; left: 0; display: flex; opacity: 0; transition: opacity 120ms ease; }
+.chat-title-header:hover .chat-title-controls, .chat-title-controls:focus-within { opacity: 1; }
+.chat-title-controls button {
+  display: inline-flex; height: 28px; align-items: center; gap: 6px; padding: 0 8px;
+  border-radius: 4px; font-size: 14px; color: var(--notes-faint); white-space: nowrap;
+}
+.chat-title-controls button:hover { background: var(--notes-hover); color: var(--notes-muted); }
+.chat-title-icon { margin-bottom: 4px; }
+.chat-title-icon .notes-icon { width: 60px; height: 60px; font-size: 52px; }
+@media (hover: none) { .chat-title-controls { opacity: 1; } }
+@media (pointer: coarse) {
+  .chat-icon-button { width: 32px; height: 32px; }
+  .chat-icon-emoji { font-size: 18px; }
+}
+/* 上部バーは backdrop-filter で position: fixed の基準になるため、スマホでは絶対配置でバーの幅いっぱいに出す。 */
+@media (max-width: 639px) {
+  .chat-icon-wrap { position: static; }
+  .chat-icon-button { width: 2.5rem; height: 2.5rem; }
+  .chat-icon-picker { top: calc(100% + 4px); right: 12px; left: 12px; width: auto; }
+}
+
 /* ===== エディター本文 ===== */
 .notes-body { padding-bottom: 30vh; }
 .notes-block-editor .bn-container {

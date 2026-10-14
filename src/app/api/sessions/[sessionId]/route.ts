@@ -18,23 +18,31 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ error: "Chat icon must be a single emoji." }, { status: 400 });
   }
 
-  // 所有者確認を兼ねて取得する。アイコン変更では一覧の並び順を動かさないため、更新日時はそのまま書き戻す。
-  const current = await prisma.session.findFirst({
-    where: { id: sessionId, userId: user.id },
-    select: { updatedAt: true },
-  });
-  if (!current) {
-    return NextResponse.json({ error: "Session not found." }, { status: 404 });
+  // アイコン変更では一覧の並び順を動かさないため、更新日時を変えずに書く（@updatedAt は更新のたびに打刻されるので書き戻す）。
+  // 書き戻しは「更新日時が読んだ値のままのときだけ」にして、同時に回答が保存されて更新日時が進んでいたら上書きしない。
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const current = await prisma.session.findFirst({
+      where: { id: sessionId, userId: user.id },
+      select: { updatedAt: true },
+    });
+    if (!current) {
+      return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    }
+    const updated = await prisma.session.updateMany({
+      where: { id: sessionId, userId: user.id, updatedAt: current.updatedAt },
+      data: { icon, updatedAt: current.updatedAt },
+    });
+    if (updated.count) return NextResponse.json({ ok: true, icon });
   }
 
-  const updated = await prisma.session.updateMany({
+  // 競合が続く場合は、並び順よりアイコンの保存を優先する。
+  const forced = await prisma.session.updateMany({
     where: { id: sessionId, userId: user.id },
-    data: { icon, updatedAt: current.updatedAt },
+    data: { icon },
   });
-  if (!updated.count) {
+  if (!forced.count) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
   }
-
   return NextResponse.json({ ok: true, icon });
 }
 

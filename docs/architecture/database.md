@@ -123,6 +123,7 @@ erDiagram
     Session {
         string id PK
         string title
+        string icon
         string userId FK
         datetime createdAt
         datetime updatedAt
@@ -195,6 +196,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 核心字段：
 
 - `title`
+- `icon`（可空，单个 emoji，`null` 为默认聊天图标）
 - `userId`
 - `createdAt`
 - `updatedAt`
@@ -206,6 +208,8 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 ```
 
 用于按用户读取并排序最近会话。
+
+`icon` 由 `PATCH /api/sessions/[sessionId]` 修改：校验与 Notes 图标相同（`src/lib/emoji-icon.ts`，单个 emoji 或 `null`），按会话 ID 和匿名用户 ID 限定所有者；修改图标时把 `updatedAt` 原样写回，不改变侧栏的最近使用排序：写入条件包含读到的 `updatedAt`，若同时有回答保存使其前进则重新读取并重试（最多 3 次），仍有竞争时以保存图标为优先、不再保持排序。新增字段通过 `20261014200000_session_icon` migration 部署。
 
 ### Message
 
