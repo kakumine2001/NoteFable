@@ -15,6 +15,8 @@ export type PreparedAttachment = {
   imageInputDataUrl?: string;
   // 保存済み画像の相対パス。履歴再表示時に添付画像 API から読む。
   imageStoragePath?: string;
+  // Size of the provider input copy; the saved size above always describes the original.
+  imageInputBytes?: number;
 };
 
 // テキスト抽出結果の最大文字数。大きなファイルでプロンプトが膨らみすぎるのを防ぐ。
@@ -103,7 +105,7 @@ export function validateMultipartRequestSize(request: Request) {
   }
 }
 
-export async function prepareAttachments(files: File[]) {
+export async function prepareAttachments(files: File[], claudeImageMaxBytes?: number) {
   // 添付をモデル入力用と履歴保存用の両方に加工する。
   // テキスト/PDF は本文抽出、画像はモデル入力用 data URL と再表示用の保存パスを作る。
   const attachments: PreparedAttachment[] = [];
@@ -139,7 +141,11 @@ export async function prepareAttachments(files: File[]) {
       // 画像は履歴表示用に保存しつつ、今回のモデル入力には base64 data URL として渡す。
       const { writeStoredImage } = await import("@/lib/storage");
       base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);
-      base.imageInputDataUrl = `data:${base.mimeType};base64,${buffer.toString("base64")}`;
+      const input = claudeImageMaxBytes
+        ? await (await import("@/lib/claude-image")).prepareClaudeImage(buffer, base.mimeType, claudeImageMaxBytes)
+        : { buffer, mimeType: base.mimeType };
+      base.imageInputBytes = input.buffer.byteLength;
+      base.imageInputDataUrl = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
     }
 
     // 加工済み添付として、呼び出し元の API へ返す。

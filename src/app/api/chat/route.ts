@@ -349,7 +349,7 @@ export async function POST(request: Request) {
     try {
       const tickets = parseUploadReferences(uploadRefs);
       uploadUser = await getOrCreateAnonymousUser();
-      files = await loadChatUploads(tickets, uploadUser.id, files, modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined);
+      files = await loadChatUploads(tickets, uploadUser.id, files);
     } catch (error) {
       return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : "Unable to read attachments. Please upload them again." }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
     }
@@ -371,9 +371,6 @@ export async function POST(request: Request) {
     );
   }
 
-  if (modelOption.provider === "anthropic" && files.some((file) => isImageFile(file) && file.size > MAX_CLAUDE_IMAGE_BYTES)) {
-    return NextResponse.json({ error: "Claude image uploads must be 5 MiB or smaller per image." }, { status: 400 });
-  }
 
   // 署名付き Cookie から匿名ユーザーを取得または作成し、以降の DB 操作の所有者にする。
   const user = uploadUser ?? await getOrCreateAnonymousUser();
@@ -405,7 +402,17 @@ export async function POST(request: Request) {
   }
 
   // 添付ファイルを、DB 保存用のメタ情報とモデル入力用の抽出テキスト/画像 data URL に変換する。
-  const attachments = await prepareAttachments(files);
+  const isClaude = modelOption.provider === "anthropic";
+  const imageCount = files.filter(isImageFile).length;
+  // Reserve half the image budget for older turns; divide current-turn budget
+  // across every image so a batch of ten can still be sent together.
+  const claudeImageBudget = isClaude ? Math.min(MAX_CLAUDE_IMAGE_BYTES, Math.floor((MAX_CLAUDE_IMAGE_TOTAL_BYTES / 2) / Math.max(1, imageCount))) : undefined;
+  let attachments: Awaited<ReturnType<typeof prepareAttachments>>;
+  try {
+    attachments = await prepareAttachments(files, claudeImageBudget);
+  } catch {
+    return NextResponse.json({ error: "Unable to process an attachment. Please check that the file can be opened and try again." }, { status: 400 });
+  }
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。
   const attachmentPrompt = buildAttachmentPrompt(attachments);
 
@@ -501,7 +508,8 @@ export async function POST(request: Request) {
     modelOption.supportsImageInput,
     modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined,
     modelOption.supportsCompaction ? Infinity : undefined,
-    modelOption.provider === "anthropic" ? Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - files.filter(isImageFile).reduce((sum, file) => sum + file.size, 0)) : undefined,
+    isClaude ? Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - attachments.reduce((sum, item) => sum + (item.imageInputBytes ?? 0), 0)) : undefined,
+    isClaude,
   );
   const input: { role: string; content: unknown }[] = [
     ...historyInput,

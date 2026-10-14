@@ -2,6 +2,8 @@ import { buildAttachmentPrompt, type PreparedAttachment } from "@/lib/files";
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { readStoredImage } from "@/lib/storage";
 import { hasToolMarkup } from "@/lib/tool-markup-guard";
+import { prepareClaudeImage } from "@/lib/claude-image";
+import { MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 
 const MAX_HISTORY_ATTACHMENT_TEXT_CHARS = 120_000;
 const MAX_HISTORY_IMAGE_FILES = 3;
@@ -33,6 +35,7 @@ export async function buildHistoryInput(
   maxImageBytes = MAX_HISTORY_IMAGE_BYTES,
   maxAttachmentTextChars = MAX_HISTORY_ATTACHMENT_TEXT_CHARS,
   maxTotalImageBytes = MAX_HISTORY_IMAGE_BYTES,
+  optimizeClaudeImages = false,
 ): Promise<HistoryInput[]> {
   // 新しい添付から優先して、会話履歴全体の上限内に収める。
   let remainingTextChars = maxAttachmentTextChars;
@@ -70,19 +73,22 @@ export async function buildHistoryInput(
         remainingImageFiles <= 0 ||
         !attachment.imageStoragePath ||
         !isSupportedImageMimeType(attachment.mimeType) ||
-        attachment.size > remainingImageBytes ||
-        attachment.size > maxImageBytes
+        (optimizeClaudeImages ? remainingImageBytes < 1024 || attachment.size > MAX_UPLOAD_FILE_BYTES : attachment.size > remainingImageBytes || attachment.size > maxImageBytes)
       ) {
         continue;
       }
 
       try {
-        const image = await readStoredImage(attachment.imageStoragePath);
+        const original = await readStoredImage(attachment.imageStoragePath, optimizeClaudeImages ? MAX_UPLOAD_FILE_BYTES : undefined);
+        const prepared = optimizeClaudeImages
+          ? await prepareClaudeImage(original, attachment.mimeType, Math.min(maxImageBytes, Math.floor(remainingImageBytes / remainingImageFiles)))
+          : { buffer: original, mimeType: attachment.mimeType };
+        const image = prepared.buffer;
         if (image.byteLength > remainingImageBytes || image.byteLength > maxImageBytes) continue;
 
         imageParts.push({
           type: "input_image",
-          image_url: `data:${attachment.mimeType};base64,${image.toString("base64")}`,
+          image_url: `data:${prepared.mimeType};base64,${image.toString("base64")}`,
         });
         remainingImageFiles -= 1;
         remainingImageBytes -= image.byteLength;

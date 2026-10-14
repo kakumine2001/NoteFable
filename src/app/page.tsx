@@ -28,7 +28,7 @@ import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { ATTACHMENT_ACCEPT, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
-import { MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import type { ReorderRequest } from "@/lib/list-order";
 import { ChatProjectSync, SessionOrganizationSync } from "@/lib/session-organization-sync";
@@ -348,7 +348,6 @@ export default function Home() {
     claudeImages: !imageGenerationMode && selectedModel.provider === "anthropic",
   };
   const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions);
-  const attachmentHint = `${MAX_UPLOAD_FILES} attachments max · 20 MiB/file · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total${uploadOptions.claudeImages ? " · Claude images: 5 MiB each, 20 MiB total" : ""}`;
   const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError && !uploadProgress;
   // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
   const isNarrowScreen = useMediaQuery("(max-width: 639px)");
@@ -1384,9 +1383,9 @@ export default function Home() {
                   <Plus size={18} strokeWidth={1.8} />
                 </button>
               ) : (
-                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title={`Add files or photos — ${attachmentHint}`}>
+                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title="Add files or photos">
                   <Plus size={18} strokeWidth={1.8} />
-                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" aria-describedby="attachment-limits" className="sr-only" onChange={handleFileSelect} />
+                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" className="sr-only" onChange={handleFileSelect} />
                 </label>
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -1465,17 +1464,15 @@ export default function Home() {
                 <ArrowUp size={24} strokeWidth={2.1} />
               </button>
             </div>
-            <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
-              <span>{attachmentHint}</span>
+            {!!files.length && <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
               {!!files.length && <span role="status">{files.length}/{MAX_UPLOAD_FILES} attached · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
-            </div>
+            </div>}
             {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{uploadProgress}</div>}
           </form>
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
-            attachmentHint={attachmentHint}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
           />

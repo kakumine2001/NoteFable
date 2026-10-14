@@ -70,6 +70,7 @@ flowchart LR
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |
 | `src/lib/native-google-login.ts`、`src/app/api/native-auth/*`、`src/lib/native-app.ts` | Android App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)） |
 | `src/lib/models.ts` | 模型能力、推理档位 |
+| `src/lib/claude-image.ts` | Claude 模型图片副本压缩与尺寸控制，原图保留 |
 | `src/lib/files.ts` | 文件校验、PDF/文本抽取、图片预处理 |
 | `src/lib/chat-upload-ticket.ts`, `src/lib/chat-uploads.ts`, `src/app/api/uploads/*` | 聊天附件私有 Blob 直传凭证、归属验证、大小检查、临时文件读取与清理 |
 | `src/lib/storage.ts` | Vercel Blob 图片存储（本地开发可回退到文件系统） |

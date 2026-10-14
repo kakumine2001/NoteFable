@@ -2,7 +2,9 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   readStoredImage: vi.fn(),
+  prepareClaudeImage: vi.fn(),
 }));
+vi.mock("@/lib/claude-image", () => ({ prepareClaudeImage: mocks.prepareClaudeImage }));
 
 vi.mock("@/lib/storage", () => ({
   readStoredImage: mocks.readStoredImage,
@@ -139,5 +141,12 @@ describe("buildHistoryInput", () => {
     const input = await buildHistoryInput([{ id: "user", role: "USER", content: "previous image", attachments: [imageAttachment("large.png", "images/large.png", 6 * 1024 * 1024)] }], true, 5 * 1024 * 1024);
     expect(input).toEqual([{ role: "user", content: "previous image" }]);
     expect(mocks.readStoredImage).not.toHaveBeenCalled();
+  });
+  it("optimizes historical Claude originals instead of dropping images over five MiB", async () => {
+    mocks.readStoredImage.mockResolvedValue(Buffer.from("large original"));
+    mocks.prepareClaudeImage.mockResolvedValue({ buffer: Buffer.from("small copy"), mimeType: "image/jpeg" });
+    const input = await buildHistoryInput([{ id: "user", role: "USER", content: "previous image", attachments: [imageAttachment("large.png", "images/large.png", 7 * 1024 * 1024)] }], true, 5 * 1024 * 1024, 120_000, 15 * 1024 * 1024, true);
+    expect(mocks.prepareClaudeImage).toHaveBeenCalled();
+    expect(JSON.stringify(input)).toContain("data:image/jpeg;base64,");
   });
 });

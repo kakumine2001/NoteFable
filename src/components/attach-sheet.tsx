@@ -13,14 +13,12 @@ export function AttachSheet({
   open,
   onClose,
   onFilesChange,
-  attachmentHint,
   imageMode,
   onToggleImageMode,
 }: {
   open: boolean;
   onClose: () => void;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  attachmentHint: string;
   imageMode: boolean;
   onToggleImageMode: () => void;
 }) {
@@ -40,7 +38,6 @@ export function AttachSheet({
           <Paperclip size={22} />
           <span>
             <strong>Add files or photos</strong>
-            <small>{attachmentHint}</small>
           </span>
           <input
             type="file"

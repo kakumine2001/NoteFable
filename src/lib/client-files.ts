@@ -1,5 +1,5 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
-import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
 
 export const ATTACHMENT_ACCEPT = "image/png,image/jpeg,image/webp,application/pdf,text/*,.md,.markdown,.json,.csv,.tsv,.txt";
 
@@ -20,11 +20,10 @@ export function getUploadValidationError(files: UploadCandidate[], options: Uplo
     const supported = image || file.type.startsWith("text/") || file.type === "application/pdf" || /\.(md|markdown|json|csv|tsv|txt|pdf)$/i.test(file.name);
     if (!supported) return `“${file.name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.`;
     if (image && !options.supportsImages) return "This model cannot read images. Choose an image-capable model or turn on Create an image.";
-    const limit = image && options.claudeImages ? Math.min(MAX_CLAUDE_IMAGE_BYTES, MAX_UPLOAD_FILE_BYTES) : MAX_UPLOAD_FILE_BYTES;
+    const limit = MAX_UPLOAD_FILE_BYTES;
     if (file.size > limit) return `“${file.name}” exceeds ${formatUploadSize(limit)} per file. Choose a smaller file.`;
   }
   if (files.reduce((sum, file) => sum + file.size, 0) > MAX_UPLOAD_TOTAL_BYTES) return `Attachments exceed ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} in total. Remove a file or choose smaller files.`;
-  if (options.claudeImages && files.filter((file) => isImageMimeType(file.type)).reduce((sum, file) => sum + file.size, 0) > MAX_CLAUDE_IMAGE_TOTAL_BYTES) return "Claude images exceed 20 MiB in total. Remove an image or choose smaller images.";
   return "";
 }
 

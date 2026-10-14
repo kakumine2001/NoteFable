@@ -31,8 +31,8 @@ describe("composer attachment validation", () => {
     expect(getUploadSelectionError([], [{ name: "notes.md", type: "", size: 100 }], options)).toBe("");
     expect(getUploadValidationError([image()], { ...options, supportsImages: false })).toContain("cannot read images");
     expect(getUploadValidationError([image(5 * 1024 * 1024)], { ...options, claudeImages: true })).toBe("");
-    expect(getUploadValidationError([image(5 * 1024 * 1024 + 1)], { ...options, claudeImages: true })).toContain("5 MiB");
-    expect(getUploadValidationError(Array.from({ length: 5 }, () => image(5 * 1024 * 1024)), { ...options, claudeImages: true })).toContain("20 MiB in total");
+    expect(getUploadValidationError([image(5 * 1024 * 1024 + 1)], { ...options, claudeImages: true })).toBe("");
+    expect(getUploadValidationError(Array.from({ length: 5 }, () => image(5 * 1024 * 1024)), { ...options, claudeImages: true })).toBe("");
     expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
     expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "hello")).toBe("");
     expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "字".repeat(1500000))).toContain("too large");

@@ -173,7 +173,7 @@ DeepSeek 由 `src/lib/deepseek-responses.ts` 适配其 Responses 行为，再统
 
 ### Claude
 
-`src/lib/anthropic-messages.ts` 将共用文字/图片历史转换为 Messages API 的 text / base64 image blocks。使用 adaptive thinking 和 `output_config.effort`，支持五档（low / medium / high / xhigh / max），默认 medium。本文、思考摘要、搜索动作和引用转换到现有 SSE 契约；签名不发给浏览器。`message_stop` 和正常 stop reason 才视为完成；截断、拒绝、空回复和断流返回明确错误。搜索工具内部错误显示为途中提示，由模型继续说明限制。Claude 本次图片每张最多 5 MiB，历史恢复时跳过超过该限制的图片。
+`src/lib/anthropic-messages.ts` 将共用文字/图片历史转换为 Messages API 的 text / base64 image blocks。使用 adaptive thinking 和 `output_config.effort`，支持五档（low / medium / high / xhigh / max），默认 medium。本文、思考摘要、搜索动作和引用转换到现有 SSE 契约；签名不发给浏览器。`message_stop` 和正常 stop reason 才视为完成；截断、拒绝、空回复和断流返回明确错误。搜索工具内部错误显示为途中提示，由模型继续说明限制。Claude 当前与历史图片都通过 `src/lib/claude-image.ts` 生成模型输入副本：原图完整保存在存储中，超出内部预算或 8000 像素边长的图片自动转 JPEG，按需降低质量和等比缩小。当前消息最多分配 10 MiB（均分给当前图片，单张最多 5 MiB），当前与历史合计最多 20 MiB 未编码图片数据，历史最多最近 3 张。历史原图超过 5 MiB 时同样压缩，不因原图大小跳过；原图上传仍遵守共享的 20 MiB/文件与 100 MiB/次限制。序列化请求仍检查 32 MB 上限。
 
 原生基本 Web 搜索默认 auto，也支持 API 的 force/off，不设置 `max_uses`。长搜索发生 `pause_turn` 时保留完整内容块与签名续接；`pause_turn` 续传与下文的 Notes 工具轮次合计最多 8 次上游请求。后续用户消息恢复服务端 checkpoint 加后续文字历史和附件；checkpoint 内的原生工具输出不返回浏览器。
 

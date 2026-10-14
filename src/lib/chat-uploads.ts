@@ -3,7 +3,7 @@ import { optionalEnv } from "@/lib/env";
 import { verifyUploadTicket } from "@/lib/chat-upload-ticket";
 import { AttachmentValidationError, validateAttachmentFiles } from "@/lib/files";
 import { readStoredImage, deleteStoredImage } from "@/lib/storage";
-import { MAX_UPLOAD_FILES, MAX_CLAUDE_IMAGE_TOTAL_BYTES } from "@/lib/upload-limits";
+import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
 
 export function parseUploadReferences(value: unknown): string[] {
   if (value == null || value === "") return [];
@@ -20,13 +20,11 @@ export async function removeChatUploads(tickets: string[], userId: string) {
   }));
 }
 
-export async function loadChatUploads(tickets: string[], userId: string, legacy: File[] = [], maxImageBytes?: number) {
+export async function loadChatUploads(tickets: string[], userId: string, legacy: File[] = []) {
   const claims = await Promise.all(tickets.map((ticket) => verifyUploadTicket(ticket, userId)));
   // Check the complete set before reading any file content.
   const metadata = claims.map((item) => ({ name: item.name, type: item.type, size: item.size } as File));
   validateAttachmentFiles([...legacy, ...metadata]);
-  if (maxImageBytes && metadata.some((item) => item.type.startsWith("image/") && item.size > maxImageBytes)) throw new AttachmentValidationError("Claude images must be 5 MiB or smaller. Choose a smaller image.", 413);
-  if (maxImageBytes && [...legacy, ...metadata].filter((item) => item.type.startsWith("image/")).reduce((sum, item) => sum + item.size, 0) > MAX_CLAUDE_IMAGE_TOTAL_BYTES) throw new AttachmentValidationError("Claude images exceed 20 MiB in total.", 413);
   const files = [...legacy];
   try {
     for (const item of claims) {

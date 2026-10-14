@@ -61,6 +61,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - `/api/images` uses `/images/generations` for text-only generation and `/images/edits` when reference images are supplied.
 - Do not switch image generation to the Responses API unless the user explicitly asks for that redesign and the current upstream compatibility is revalidated.
 - Keep provider-specific differences behind shared helpers where possible.
+- Claude image inputs use `src/lib/claude-image.ts` to fit provider transport budgets. Preserve original bytes and attachment metadata for storage/preview; optimize only the model copy for both current and historical images. Do not treat internal compressed-image budgets as raw upload limits.
 - Native chat compaction is enabled for Luna and Claude. Keep `Message.providerContext` server-side, replay native items without rewriting them, and reuse checkpoints only for the same provider and upstream model; preserve the visible transcript.
 
 ## Storage

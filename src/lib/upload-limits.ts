@@ -4,5 +4,6 @@ export const MAX_UPLOAD_FILES = 10;
 export const MAX_UPLOAD_FILE_BYTES = 20 * 1024 * 1024;
 export const MAX_UPLOAD_TOTAL_BYTES = 100 * 1024 * 1024;
 export const MAX_MULTIPART_REQUEST_BYTES = 4_500_000;
+// Internal unencoded image budgets. Large originals are optimized, never rejected at these sizes.
 export const MAX_CLAUDE_IMAGE_BYTES = 5 * 1024 * 1024;
 export const MAX_CLAUDE_IMAGE_TOTAL_BYTES = 20 * 1024 * 1024;
