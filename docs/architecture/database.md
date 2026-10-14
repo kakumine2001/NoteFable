@@ -2,6 +2,8 @@
 
 `Message.providerContext` 为可空 TEXT，保存成功回答对应的原生压缩 checkpoint（版本、provider、实际上游 model、原生 items 和已覆盖消息 ID 的 JSON）。按已覆盖 ID 恢复，避免遗漏并发新增消息。仅服务端聊天请求读取，浏览器消息接口不返回；原始 `Message.content` 与附件不被压缩或删除。新增字段通过 `20261011120000_message_provider_context` migration 部署。
 
+`Message.activity` 为可空 TEXT，保存回答前的途中经过（推理摘要、Web 搜索、Pages 工具步骤的 `ActivityStep[]` JSON，不含已另存于 `NoteProposal` 的提案）；`Message.thinkingMs` 为可空 INTEGER，保存从请求开始到首个正文增量的毫秒数。两者仅用于显示，浏览器消息接口返回（经 `parseStoredActivity` 校验），聊天历史查询不 select、不回传给模型。新增字段通过 `20261014180000_message_activity` migration 部署。
+
 ## 实际生产数据库
 
 截至 2026-09-05 已通过 Neon 实际资源确认：
@@ -132,6 +134,8 @@ erDiagram
         string role
         string content
         string providerContext
+        string activity
+        int thinkingMs
         string model
         string reasoningEffort
         datetime createdAt
@@ -213,6 +217,8 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `role`
 - `content`
 - `providerContext`（可空，仅服务端原生压缩状态）
+- `activity`（可空，回答前的途中经过 JSON，仅用于显示）
+- `thinkingMs`（可空，本文开始前的毫秒数）
 - `model`
 - `reasoningEffort`
 

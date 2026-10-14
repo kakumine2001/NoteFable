@@ -36,7 +36,7 @@ export type Message = {
   }[];
   // 画像生成中だけローカル表示に使う占位状態。DB からは返らない。
   isGeneratingImage?: boolean;
-  // 回答前の推論要約と Web 検索の途中経過。ストリーム中だけ届き、DB には保存しない。
+  // 回答前の推論要約・Web 検索・ツールの途中経過。ストリーム中に届き、回答と一緒に DB へ保存される。
   activity?: ActivityStep[];
   // 保存済みの提案。再読み込み後も適用・破棄できる。ストリーム中の提案は activity に入る。
   proposals?: StoredProposal[];

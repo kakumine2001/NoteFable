@@ -220,7 +220,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 模型始终不能直接改动笔记，批准动作只存在于浏览器里的点击。笔记只有两条写入路径：手动保存（`/api/pages`）和适用提案（`/api/proposals/[id]/apply`），两者都经过 `validateNoteContent` 和版本检查。目前支持修改已有笔记和新建笔记，不包含删除笔记。
 
-工具调用和结果不保存进可见聊天记录，只保存最终回答文字。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"或"Read “笔记标题”"。
+工具调用和结果不进入聊天记录正文（`Message.content` 只保存最终回答文字）；工具步骤的显示标签作为途中经过存入 `Message.activity`。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"或"Read “笔记标题”"。
 
 系统指令要求笔记内容视为私有数据而非指令，且除非用户明确要求，不把笔记内容放进 Web 搜索查询；这是提示层约束，不是强制的出站隔离。
 
@@ -231,7 +231,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 - OpenAI 推理强度不是 `none` 时请求 `reasoning.summary: "auto"`，转发推理摘要；DeepSeek 转发 `reasoning_text` 推理正文；Claude 请求 `thinking.display: summarized` 并转发 thinking 摘要。
 - GPT 启用搜索时请求 `include: ["web_search_call.action.sources"]`，转发每次 `web_search_call` 的搜索词、来源 URL、打开的页面（`open_page`）和页内查找（`find_in_page`）。只保留 http(s) URL。
 
-前端把它们显示为可折叠的时间线：思考中自动展开并显示当前动作，正文开始后折叠为 `Thought for Ns · N searches · N sources`。途中经过不写入数据库；流结束后重新获取历史时只在本页内保留，刷新页面后不再显示。
+前端把它们显示为可折叠的时间线：思考中自动展开并显示当前动作，正文开始后折叠为 `Thought for Ns · N searches · N sources`。服务端用同一个 `applyActivityEvent` 累积途中经过，回答保存时（含失败分支）一并写入 `Message.activity` 和 `Message.thinkingMs`，刷新页面或换设备后仍可展开查看。保存前由 `serializeActivity` 去掉提案（已存于 `NoteProposal`）并把推理文本总量限制在 2 万字符；读取时由 `parseStoredActivity` 校验，坏数据直接丢弃。保存的是各家公开的推理内容：OpenAI 与 Claude 只有摘要，DeepSeek 为推理正文；`reasoning.encrypted_content` 仍只存于 `providerContext`，不可读也不显示。推理内容仅用于显示，不会回传给模型。
 
 ## Persist Timing
 

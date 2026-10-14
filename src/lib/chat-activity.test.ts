@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyActivityEvent, parseActivityEvent, splitThought, type ActivityStep } from "./chat-activity";
+import { applyActivityEvent, parseActivityEvent, parseStoredActivity, serializeActivity, splitThought, type ActivityStep } from "./chat-activity";
 
 describe("chat activity", () => {
   it("merges reasoning deltas from OpenAI summaries and DeepSeek reasoning text", () => {
@@ -89,6 +89,48 @@ describe("chat activity", () => {
       status: "done",
       action: { kind: "search", queries: ["a", "b"], sources: ["https://example.com/x"] },
     });
+  });
+
+  it("stores progress steps without proposals and restores them", () => {
+    const steps: ActivityStep[] = [
+      { id: "rs:0", kind: "thought", text: "**Plan**\n\nCheck docs." },
+      { id: "ws", kind: "web", status: "done", action: { kind: "search", queries: ["a"], sources: ["https://example.com/x"] } },
+      { id: "call1", kind: "tool", status: "done", name: "read_note", label: "Read “Notes”" },
+      { kind: "create_proposal", id: "np1", title: "Plan", icon: null, content: "- a", proposed: { title: "Plan", icon: null, blocks: [] } },
+    ];
+
+    const raw = serializeActivity(steps)!;
+    expect(raw).not.toContain("np1");
+    expect(parseStoredActivity(raw)).toEqual(steps.slice(0, 3));
+    expect(serializeActivity([steps[3]])).toBeUndefined();
+  });
+
+  it("caps stored reasoning text", () => {
+    const stored = parseStoredActivity(serializeActivity([
+      { id: "a", kind: "thought", text: "x".repeat(15000) },
+      { id: "b", kind: "thought", text: "y".repeat(15000) },
+      { id: "c", kind: "thought", text: "z" },
+    ]))!;
+    expect(stored.map((step) => (step.kind === "thought" ? step.text.length : 0))).toEqual([15000, 5000]);
+  });
+
+  it("drops broken or unsafe stored activity", () => {
+    expect(parseStoredActivity(null)).toBeUndefined();
+    expect(parseStoredActivity("not json")).toBeUndefined();
+    expect(parseStoredActivity('{"a":1}')).toBeUndefined();
+    expect(parseStoredActivity(JSON.stringify([
+      { id: "x", kind: "thought" },
+      { kind: "thought", text: "no id" },
+      { id: "ws", kind: "web", status: "running", action: { kind: "open_page", url: "javascript:alert(1)" } },
+      { id: "t", kind: "tool", status: "running", name: "search_notes" },
+    ]))).toEqual([
+      { id: "t", kind: "tool", status: "done", name: "search_notes" },
+    ]);
+  });
+
+  it("does not store a search that never finished", () => {
+    expect(serializeActivity([{ id: "ws", kind: "web", status: "running" }])).toBeUndefined();
+    expect(parseStoredActivity(JSON.stringify([{ id: "ws", kind: "web", status: "done" }]))).toBeUndefined();
   });
 
   it("ignores events that are not activity", () => {

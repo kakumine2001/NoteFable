@@ -92,19 +92,6 @@ function parseChatStreamLine(line: string): string | ActivityEvent | null {
   return typeof data === "string" ? data : (data.activity ?? null);
 }
 
-function carryStreamActivity(current: Message[], fetched: Message[], streamedId: string) {
-  // 途中経過は DB に保存しないため、履歴を再取得した後も直前の回答には残しておく。
-  const streamed = current.find((message) => message.id === streamedId);
-  if (!streamed?.activity?.length && streamed?.thinkingMs === undefined) return fetched;
-
-  const lastAssistantIndex = fetched.findLastIndex((message) => message.role === "ASSISTANT");
-  return fetched.map((message, index) =>
-    index === lastAssistantIndex
-      ? { ...message, activity: streamed.activity, thinkingMs: streamed.thinkingMs }
-      : message,
-  );
-}
-
 async function readJsonObject(response: Response) {
   // API 側が落ちた時に空 body や HTML が返っても、画面全体を unhandled rejection で壊さない。
   const text = await response.text();
@@ -396,16 +383,11 @@ export default function Home() {
     }
   }
 
-  async function refreshSessionMessages(sessionId: string, streamedAssistantId?: string) {
+  async function refreshSessionMessages(sessionId: string) {
     const fetchedMessages = await fetchSessionMessages(sessionId);
     if (!fetchedMessages) return false;
 
-    replaceCachedMessages(
-      sessionId,
-      streamedAssistantId
-        ? carryStreamActivity(sessionMessagesRef.current[sessionId] ?? [], fetchedMessages, streamedAssistantId)
-        : fetchedMessages,
-    );
+    replaceCachedMessages(sessionId, fetchedMessages);
     return true;
   }
 
@@ -895,7 +877,7 @@ export default function Home() {
 
       await loadSessions();
       if (resolvedSessionId) {
-        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId, assistantMessageId);
+        shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。

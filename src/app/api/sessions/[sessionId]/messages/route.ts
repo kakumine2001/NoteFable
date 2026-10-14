@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { parseStoredActivity } from "@/lib/chat-activity";
 import { proposalsByMessage } from "@/lib/note-proposals";
 import { prisma } from "@/lib/prisma";
 
@@ -52,6 +53,8 @@ export async function GET(_request: Request, context: RouteContext) {
       content: true,
       model: true,
       reasoningEffort: true,
+      activity: true,
+      thinkingMs: true,
       createdAt: true,
       attachments: {
         select: {
@@ -85,6 +88,9 @@ export async function GET(_request: Request, context: RouteContext) {
 
       return {
         ...message,
+        // 保存済みの推論要約・検索・ツールの途中経過。壊れていたら捨てて、時間だけ返す。
+        activity: parseStoredActivity(message.activity),
+        thinkingMs: message.thinkingMs ?? undefined,
         generatedImages,
         proposals: proposals.get(message.id) ?? [],
         attachments: message.attachments

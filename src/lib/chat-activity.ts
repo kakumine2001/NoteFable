@@ -171,6 +171,75 @@ export function applyActivityEvent(steps: ActivityStep[], event: ActivityEvent):
   return index === -1 ? [...steps, next] : steps.map((step, i) => (i === index ? next : step));
 }
 
+// DB に残す推論テキストの合計上限。DeepSeek は推論本文が長くなるため、行が肥大しないよう打ち切る。
+const MAX_STORED_THOUGHT = 20000;
+
+// 途中経過を DB 保存用の JSON にする。提案は NoteProposal に別途保存済みなので含めない。
+export function serializeActivity(steps: ActivityStep[]): string | undefined {
+  let budget = MAX_STORED_THOUGHT;
+  const stored: ProgressStep[] = [];
+  for (const step of steps) {
+    if (step.kind === "proposal" || step.kind === "create_proposal") continue;
+    // 完了しなかった検索（action なし）は、再読み込み後に「検索中」のまま残るので保存しない。
+    if (step.kind === "web" && !step.action) continue;
+    if (step.kind !== "thought") {
+      stored.push(step);
+      continue;
+    }
+    if (budget <= 0 || !step.text.trim()) continue;
+    stored.push({ ...step, text: step.text.slice(0, budget) });
+    budget -= step.text.length;
+  }
+  return stored.length ? JSON.stringify(stored) : undefined;
+}
+
+function parseStoredWebAction(value: unknown): WebAction | undefined {
+  const action = value as Partial<WebAction> | null;
+  if (!action || typeof action !== "object") return undefined;
+  if (action.kind === "search") {
+    const queries = Array.isArray(action.queries) ? action.queries.filter((item) => typeof item === "string") : [];
+    const sources = Array.isArray(action.sources) ? action.sources.map(safeUrl).filter(Boolean) : [];
+    return { kind: "search", queries, sources };
+  }
+  if (action.kind === "open_page" || action.kind === "find_in_page") {
+    const url = safeUrl(action.url);
+    if (!url) return undefined;
+    return action.kind === "open_page"
+      ? { kind: "open_page", url }
+      : { kind: "find_in_page", url, pattern: text((action as { pattern?: unknown }).pattern) };
+  }
+  return undefined;
+}
+
+// DB から読んだ途中経過を検証して戻す。壊れた JSON や想定外の形は捨て、表示を壊さない。
+export function parseStoredActivity(raw: string | null | undefined): ProgressStep[] | undefined {
+  if (!raw) return undefined;
+  let data: unknown;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(data)) return undefined;
+
+  const steps: ProgressStep[] = [];
+  for (const item of data) {
+    const step = item as Record<string, unknown> | null;
+    if (!step || typeof step.id !== "string") continue;
+    if (step.kind === "thought" && typeof step.text === "string") {
+      steps.push({ id: step.id, kind: "thought", text: step.text });
+    } else if (step.kind === "web") {
+      // 保存済みの回答に「検索中」は残さない。action を復元できない検索は捨てる。
+      const action = parseStoredWebAction(step.action);
+      if (action) steps.push({ id: step.id, kind: "web", status: "done", action });
+    } else if (step.kind === "tool" && typeof step.name === "string") {
+      const label = text(step.label);
+      steps.push({ id: step.id, kind: "tool", status: "done", name: step.name, ...(label ? { label } : {}) });
+    }
+  }
+  return steps.length ? steps : undefined;
+}
+
 // OpenAI の推論要約は「**見出し**\n\n本文」の形なので、見出しと本文に分ける。
 export function splitThought(text: string) {
   const match = text.match(/^\s*\*\*(.+?)\*\*\s*/);

@@ -85,6 +85,19 @@ describe("DeepSeek chat response boundary", () => {
     expect(text).not.toContain("<｜");
   });
 
+  it("keeps the reasoning and thinking time when the stream fails before any answer text", async () => {
+    expect(await send([
+      { type: "response.reasoning_text.delta", item_id: "r1", content_index: 0, delta: "考え中" },
+    ])).toContain("Request failed:");
+    const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
+    expect(JSON.parse(saved.activity)).toEqual([{ id: "r1:0", kind: "thought", text: "考え中" }]);
+    expect(saved.thinkingMs).toEqual(expect.any(Number));
+    // 推論はモデルへ戻さない: 履歴取得は activity / thinkingMs を select しない。
+    const select = (mocks.findMessages.mock.calls[0][0] as { select: object }).select;
+    expect(select).not.toHaveProperty("activity");
+    expect(select).not.toHaveProperty("thinkingMs");
+  });
+
   it.each([
     [{ type: "response.completed" }],
     [{ type: "response.output_text.delta", delta: "途中" }],
@@ -159,7 +172,15 @@ describe("OpenAI web search", () => {
       { type: "web", id: "ws_1", status: "done",
         action: { kind: "search", queries: ["next 16"], sources: ["https://nextjs.org/blog/next-16"] } },
     ]);
-    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("回答");
+    const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
+    expect(saved.content).toBe("回答");
+    // 途中経過は回答と一緒に保存し、再読み込み後も見られるようにする。
+    expect(JSON.parse(saved.activity)).toEqual([
+      { id: "rs_1:0", kind: "thought", text: "**Checking**" },
+      { id: "ws_1", kind: "web", status: "done",
+        action: { kind: "search", queries: ["next 16"], sources: ["https://nextjs.org/blog/next-16"] } },
+    ]);
+    expect(saved.thinkingMs).toEqual(expect.any(Number));
   });
 });
 

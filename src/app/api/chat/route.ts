@@ -25,7 +25,7 @@ import {
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
-import { parseActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
+import { applyActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -192,7 +192,7 @@ function encodeTextStreamEvent(delta: string) {
 }
 
 function encodeActivityStreamEvent(activity: ActivityEvent) {
-  // 本文差分は JSON 文字列、途中経過は { activity } オブジェクトとして区別する。DB には保存しない。
+  // 本文差分は JSON 文字列、途中経過は { activity } オブジェクトとして区別する。途中経過は回答と一緒に Message.activity へ保存する。
   return `data: ${JSON.stringify({ activity })}\n\n`;
 }
 
@@ -487,6 +487,11 @@ export async function POST(request: Request) {
   // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
   let titleTask: Promise<void> = Promise.resolve();
   let providerContext: string | undefined;
+  // 回答前の推論要約・検索・ツールの途中経過。画面と同じ形で積み上げ、回答と一緒に保存して再読み込み後も見られるようにする。
+  let activitySteps: ActivityStep[] = [];
+  // リクエスト開始から本文の最初の差分が届くまでの時間（「Thought for Ns」用）。
+  const streamStartedAt = Date.now();
+  let thinkingMs: number | undefined;
   // この回答の中で出た編集案・新規ノート案。回答を保存したあとで、その回答に紐付ける。
   const proposalIds: string[] = [];
 
@@ -582,6 +587,7 @@ export async function POST(request: Request) {
 
         const forwardText = (delta: string) => {
           if (!delta) return;
+          thinkingMs ??= Date.now() - streamStartedAt;
           assistantText += delta;
           controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
         };
@@ -590,7 +596,10 @@ export async function POST(request: Request) {
           for (const payload of data) {
             // 推論要約や検索の動きは、本文とは別の途中経過イベントとして流す。
             const activity = parseActivityEvent(JSON.parse(payload));
-            if (activity) controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
+            if (activity) {
+              activitySteps = applyActivityEvent(activitySteps, activity);
+              controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
+            }
             if (modelOption.provider !== "deepseek") {
               const citation = getWebCitation(payload);
               if (citation) webCitations.set(citation.url, citation.title);
@@ -640,6 +649,8 @@ export async function POST(request: Request) {
               role: "ASSISTANT",
               content: assistantText,
               ...(providerContext ? { providerContext } : {}),
+              activity: serializeActivity(activitySteps),
+              thinkingMs,
               model,
               reasoningEffort: toDbReasoning(reasoning),
             },
@@ -662,6 +673,8 @@ export async function POST(request: Request) {
         // 上流 API が途中で失敗しても、すでにユーザーへ返した本文は失わない。
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
         const errorText = `Request failed: ${getErrorMessage(error)}`;
+        // 本文が出る前に失敗しても、そこまでの考えた時間を残す。
+        thinkingMs ??= Date.now() - streamStartedAt;
         const persistedText = assistantText
           ? `${assistantText}\n\n${errorText}`
           : errorText;
@@ -675,6 +688,8 @@ export async function POST(request: Request) {
             sessionId: session.id,
             role: "ASSISTANT",
             content: persistedText,
+            activity: serializeActivity(activitySteps),
+            thinkingMs,
             model,
             reasoningEffort: toDbReasoning(reasoning),
           },
