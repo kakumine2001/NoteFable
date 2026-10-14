@@ -1,13 +1,16 @@
 import { FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
+import { ReorderHandle } from "@/components/reorder-handle";
+import type { ReorderRequest } from "@/lib/list-order";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
 // スマホの Notes ホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder }: {
   pages: NotePageSummary[];
+  onReorder:(move:ReorderRequest)=>Promise<unknown>;
   groups: NoteGroupSummary[];
   groupError: string;
   busy: boolean;
@@ -22,7 +25,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const known = new Set(groups.map((group) => group.id));
   const loose = pages.filter((page) => !page.groupId || !known.has(page.groupId));
   const item = (page: NotePageSummary) => (
-    <li key={page.id} className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)}>
+    <li key={page.id} className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
+      <ReorderHandle id={page.id} title={page.title} scope="note" ids={pages.filter(item=>item.groupId===page.groupId).map(item=>item.id)} disabled={busy} onMove={onReorder}/>
       <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
         <span className="notes-home-name">{page.title}</span>
@@ -34,7 +38,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
     </li>
   );
   return (
-    <div className="notes-column notes-home">
+    <div className="notes-column notes-home" data-reorder-list>
       <div className="notion-home-switch"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div>
       <h1 className="notes-home-title">Notes</h1>
       {groups.map((group) => {

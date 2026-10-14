@@ -2,6 +2,8 @@
 
 import { ChevronDown, ChevronRight, FileText, FolderInput, FolderPlus, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ReorderHandle } from "@/components/reorder-handle";
+import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { StudyMateLogo } from "@/components/studymate-logo";
@@ -13,13 +15,14 @@ const COLLAPSED_KEY = "studymate:note-groups-collapsed:v1";
 
 type GroupActions = {
   groups: NoteGroupSummary[]; groupError: string;
+  onReorder: (move:ReorderRequest)=>Promise<unknown>;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
   onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>;
   onRenameGroup: (id: string, name: string) => Promise<unknown>;
   onDeleteGroup: (id: string) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onCreateGroup, onRenameGroup, onDeleteGroup }: {
+export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
 } & GroupActions) {
@@ -45,7 +48,8 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
 
   const loose = pages.filter((page) => !page.groupId || !groups.some((group) => group.id === page.groupId));
   const row = (page: NotePageSummary) => (
-    <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)}>
+    <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
+      <ReorderHandle id={page.id} title={page.title} scope="note" ids={pages.filter(item=>item.groupId===page.groupId).map(item=>item.id)} disabled={busy} onMove={onReorder}/>
       <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={page.title}>
         <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span><span className="truncate text-sm">{page.title}</span>
       </button>
@@ -55,7 +59,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
   );
 
   return (
-    <aside className="notion-sidebar">
+    <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
         <StudyMateLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label="Close sidebar"><PanelLeftClose size={17} /></button>

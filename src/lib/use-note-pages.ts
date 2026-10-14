@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
+import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
 
@@ -24,6 +25,8 @@ function isPhone() {
 }
 
 export function useNotePages(enabled: boolean) {
+  const orderSync=useRef(new OrderRefreshSync());
+  const reorderBusy=useRef(false);
   const [pages, setPages] = useState<NotePageSummary[]>([]);
   const [groups, setGroups] = useState<NoteGroupSummary[]>([]);
   const [groupError, setGroupError] = useState("");
@@ -48,10 +51,10 @@ export function useNotePages(enabled: boolean) {
     // 保存のたびに行が動かないよう、作成順を保つ。
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
-      if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+      if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
       if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
       // 所属グループは移動の操作だけが決める。保存の応答や古い編集中データの値で上書きしない。
-      return current.map((entry) => entry.id === page.id ? { ...page, groupId: entry.groupId } : entry);
+      return current.map((entry) => entry.id === page.id ? { ...page, groupId: entry.groupId, position: entry.position } : entry);
     });
   }, []);
 
@@ -126,12 +129,14 @@ export function useNotePages(enabled: boolean) {
     setLoading(true);
     setError("");
     try {
+      const orderMark=orderSync.current.mark();
       const data = await pageRequest("/api/pages");
+      data.pages=orderSync.current.reconcile(data.pages as NotePageSummary[],orderMark).sort(byPosition);
       loaded.current = true;
       const known = new Set<string>(data.pages.map((page: NotePageSummary) => page.id));
       const extra = createdWhileLoading.current.filter((page) => !known.has(page.id));
       createdWhileLoading.current = [];
-      setPages(extra.length ? [...extra, ...data.pages].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)) : data.pages);
+      setPages(extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages);
       setGroups(data.groups ?? []);
       const requested = new URL(window.location.href).searchParams.get("page");
       const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? (isPhone() ? undefined : data.pages[0]?.id);
@@ -309,9 +314,20 @@ export function useNotePages(enabled: boolean) {
     return true;
   });
 
+  async function reorder(move:ReorderRequest) {
+    if(reorderBusy.current) throw new Error("Wait for the previous move to finish.");
+    reorderBusy.current=true;
+    try {
+      const {items}=await pageRequest("/api/pages/reorder","POST",move);
+      orderSync.current.saved(items);
+      setPages(current=>current.map(page=>({...page,...items.find((item:{id:string})=>item.id===page.id)})).sort(byPosition));
+      return true;
+    } finally {reorderBusy.current=false;}
+  }
+
   function loadLatest() {
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, createGroup, renameGroup, deleteGroup, moveNote, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

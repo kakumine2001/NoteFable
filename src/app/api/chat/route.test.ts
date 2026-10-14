@@ -308,7 +308,7 @@ describe("Claude chat response boundary", () => {
     expect(titleBody).toMatchObject({ output_config: { effort: "low" }, stream: false });
     expect(titleBody).not.toHaveProperty("tools");
     expect(titleBody).not.toHaveProperty("cache_control");
-    expect(mocks.updateManySession).toHaveBeenCalledWith({ where: { id: "session", userId: "user", title: "Claudeの確認" }, data: { title: "Claude確認" } });
+    expect(mocks.updateManySession).toHaveBeenCalledWith({ where: { id: "session", userId: "user", title: "Claudeの確認", titleManual: false }, data: { title: "Claude確認" } });
   });
 });
 
@@ -345,7 +345,7 @@ describe("AI chat title", () => {
     expect(titleBody.stream).toBe(false);
     expect(titleBody).not.toHaveProperty("tools");
     expect(mocks.updateManySession).toHaveBeenCalledWith({
-      where: { id: "session", userId: "user", title: "Prismのmigrateで失敗した原因を教えて" },
+      where: { id: "session", userId: "user", title: "Prismのmigrateで失敗した原因を教えて", titleManual: false },
       data: { title: "Prisma migrate の失敗原因" },
     });
   });

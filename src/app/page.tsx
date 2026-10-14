@@ -15,6 +15,7 @@ import {
 import Image from "next/image";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
@@ -29,6 +30,8 @@ import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { ATTACHMENT_ACCEPT, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
 import { MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
+import type { ReorderRequest } from "@/lib/list-order";
+import { ChatProjectSync, SessionOrganizationSync } from "@/lib/session-organization-sync";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -242,7 +245,20 @@ export default function Home() {
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
+  const organizationSync = useRef(new SessionOrganizationSync());
+  const projectSync = useRef(new ChatProjectSync());
   const [sessions, setSessions] = useState<Session[]>([]);
+  const [chatProjects, setChatProjects] = useState<ChatProject[]>([]);
+  const [chatProjectError, setChatProjectError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    const started=projectSync.current.mark();
+    void fetch("/api/chat-projects", {signal:controller.signal,cache:"no-store"}).then(async response=>{
+      if (!response.ok) throw new Error();
+      const data=await response.json(); setChatProjects(projectSync.current.reconcile(data.projects,started));
+    }).catch(()=>{if(!controller.signal.aborted) setChatProjectError("Could not load projects. Refresh to retry.");});
+    return ()=>controller.abort();
+  }, []);
   // まだ会話が保存されていない新規チャットで先に選んだアイコン。最初の送信で会話を作るときに一緒に保存する。
   const [draftIcon, setDraftIcon] = useState<string | null>(null);
   const draftIconRef = useRef<string | null>(null);
@@ -469,6 +485,7 @@ export default function Home() {
     // cache: no-store にして、直前に作成・更新されたセッション一覧を常に取りに行く。
     try {
       const startedAt = iconSync.mark();
+      const organizationMark = organizationSync.current.mark();
       const response = await fetch("/api/sessions", { cache: "no-store" });
       if (!response.ok) return false;
 
@@ -476,7 +493,7 @@ export default function Home() {
       if (!Array.isArray(data.sessions)) return false;
 
       // 取得中に変えたアイコンが古い一覧で巻き戻らないよう、動いたものを重ねる。
-      setSessions(iconSync.reconcile(data.sessions as Session[], startedAt));
+      setSessions(organizationSync.current.reconcile(iconSync.reconcile(data.sessions as Session[], startedAt), organizationMark));
       return true;
     } catch {
       // 一時的な同期失敗では、現在表示している一覧を消さない。
@@ -592,16 +609,60 @@ export default function Home() {
     void iconSync.change(sessionId, icon, current, show, () => setSendError("Failed to change the chat icon."));
   }
 
+  const reorderChatBusy=useRef(false);
+  async function reorderChat(move: ReorderRequest) {
+    if(reorderChatBusy.current) throw new Error("Wait for the previous move to finish.");
+    reorderChatBusy.current=true;
+    try {
+      const response=await fetch("/api/sessions/reorder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(move)});
+      const data=await readJsonObject(response);
+      if(!response.ok) throw new Error(typeof data.error==="string" ? data.error : "Could not move the chat.");
+      const updates=data.items as Array<{id:string;position:number;pinned?:boolean;projectId?:string|null}>;
+      for(const {id,...changes} of updates) organizationSync.current.saved(id,changes);
+      setSessions(list=>list.map(session=>({...session,...updates.find(update=>update.id===session.id)})));
+      return true;
+    } finally {reorderChatBusy.current=false;}
+  }
+
+  async function changeChatProject(method: "POST" | "PATCH" | "DELETE", name?: string, id?: string) {
+    try {
+      const response=await fetch(id ? `/api/chat-projects/${id}` : "/api/chat-projects", {method,headers:{"Content-Type":"application/json"},...(method==="DELETE" ? {} : {body:JSON.stringify({name})})});
+      if(!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : "Could not save the project. Please try again.");}
+      const data=await response.json();
+      if(method==="DELETE") {
+        projectSync.current.removed(id!);
+        setChatProjects(list=>list.filter(project=>project.id!==id));
+        for (const session of sessions) if(session.projectId===id) organizationSync.current.saved(session.id,{projectId:null});
+        setSessions(list=>list.map(session=>session.projectId===id ? {...session,projectId:null} : session));
+        return true;
+      }
+      projectSync.current.saved(data.project);
+      setChatProjects(list=>method==="POST" ? [...list,data.project] : list.map(project=>project.id===id ? data.project : project));
+      return data.project as ChatProject;
+    } catch (error) { throw error instanceof Error ? error : new Error("Could not save the project. Please try again."); }
+  }
+
+  async function updateSession(sessionId: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) {
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
+      if (!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : "Could not save the chat. Please try again.");}
+      organizationSync.current.saved(sessionId,changes);
+      setSessions(list => list.map(session => session.id === sessionId ? { ...session, ...changes } : session));
+      return true;
+    } catch (error) { throw error instanceof Error ? error : new Error("Could not save the chat. Please try again."); }
+  }
+
   async function deleteSession(sessionId: string) {
+    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error("Wait for the reply to finish before deleting this chat."); }
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
     let response: Response;
     try {
       response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
     } catch {
-      setSendError("Failed to delete conversation.");
-      return;
+      throw new Error("Failed to delete conversation. Please try again.");
     }
-    if (!response.ok) return;
+    if (!response.ok) { const data=await readJsonObject(response); throw new Error(typeof data.error==="string" ? data.error : "Failed to delete conversation. Please try again."); }
+    organizationSync.current.removed(sessionId);
     // サイドバーから対象セッションを消す。行がすっと消えて、下の行が詰まる。
     runTransition(() => setSessions((current) => current.filter((session) => session.id !== sessionId)), "list");
     const nextMessagesBySession = { ...sessionMessagesRef.current };
@@ -615,6 +676,7 @@ export default function Home() {
       setActiveSessionId(null);
       setMessages([]);
     }
+    return true;
   }
 
   function removeUploadFile(fileId: string) {
@@ -1097,7 +1159,7 @@ export default function Home() {
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
       onCreate={() => { setSidebarOpen(false); createNote(); }} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
-      groups={notes.groups} groupError={notes.groupError} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup}
+      groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} />
   ) : (
     <ChatSidebar
@@ -1106,6 +1168,11 @@ export default function Home() {
       onCreate={createSession}
       onLoad={loadMessages}
       onDelete={deleteSession}
+      onUpdate={updateSession}
+      onReorder={reorderChat}
+      projects={chatProjects}
+      projectError={chatProjectError}
+      onProject={changeChatProject}
       onChangeIcon={changeSessionIcon}
       onClose={closeSidebar}
       onWorkspaceChange={changeWorkspace}
@@ -1196,6 +1263,7 @@ export default function Home() {
           >
             {emptyState ? (
               <EmptyConversation
+                title={activeTitle}
                 icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
                 onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
                 onWorkspaceChange={changeWorkspace}

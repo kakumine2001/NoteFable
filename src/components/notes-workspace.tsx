@@ -41,7 +41,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
-        onWorkspaceChange={onWorkspaceChange} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} />
+        onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? "Loading notes…" : "Loading note…"}</p></div> : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}

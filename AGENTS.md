@@ -37,6 +37,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Google login (Auth.js) | `src/lib/google-auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` |
 | Google login inside the Android app | `src/lib/native-google-login.ts`, `src/app/api/native-auth/*`, `src/lib/native-app.ts` |
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
+| Chat organization (manual titles, pins, independent projects) | `src/components/chat-sidebar.tsx`, `src/components/chat-actions.tsx`, `src/lib/session-organization-sync.ts`, `src/app/api/sessions/*`, `src/app/api/chat-projects/*` |
 | Chat tools (Notes search/read/propose edit/propose create) and tool loops | `src/lib/page-tools.ts`, `src/lib/page-edit.ts`, `src/lib/note-markdown.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
 | Image generation | `src/app/api/images/route.ts` |
 | File and attachment handling | `src/lib/files.ts`, `src/lib/client-chat-upload.ts`, `src/lib/chat-upload-ticket.ts`, `src/lib/chat-uploads.ts`, `src/app/api/uploads/*` |

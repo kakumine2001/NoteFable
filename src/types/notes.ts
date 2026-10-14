@@ -4,6 +4,7 @@ import type { Block } from "@blocknote/core";
 export type NoteContent = { title: string; icon: string | null; cover: string | null; coverPosition: number | null; blocks: Block[] };
 export type NotePageSummary = {
   id: string;
+  position?: number;
   title: string;
   icon: string | null;
   version: number;

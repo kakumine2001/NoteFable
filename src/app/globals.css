@@ -681,6 +681,34 @@ button:disabled {
   color: #d44c47;
 }
 
+.chat-more-button, .chat-pin-button { opacity: 1; }
+.list-reorder-handle { display: grid; place-items: center; width: 18px; min-height: 30px; flex: none; border-radius: 4px; color: var(--notion-muted); cursor: grab; touch-action: none; }
+.list-reorder-handle:active { cursor: grabbing; }
+.list-reorder-handle:hover, .list-reorder-handle:focus-visible { background: var(--notion-hover); }
+[data-order-id] { position: relative; }
+[data-order-dragging] { opacity: .5; }
+[data-order-drop="before"]::before, [data-order-drop="after"]::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: #2383e2; pointer-events: none; z-index: 3; }
+[data-order-drop="before"]::before { top: 0; }
+[data-order-drop="after"]::after { bottom: 0; }
+.list-reorder-error { position: absolute; z-index: 5; top: 100%; left: 0; width: min(220px, 90vw); padding: 6px; background: #fff; color: #b91c1c; border: 1px solid var(--notion-border); font-size: 12px; }
+.notes-home-item .list-reorder-handle { width: 28px; }
+@media (pointer: coarse) { .list-reorder-handle { width: 28px; min-height: 44px; } }
+.chat-pin-button:hover { color: var(--notion-text); }
+.chat-pin-button.is-pinned { color: var(--notion-text); background: var(--notion-hover); }
+.chat-more-button:hover { color: var(--notion-text); }
+.chat-section-label, .chat-project-heading { padding: .65rem .5rem .25rem; color: var(--notion-muted); font-size: .75rem; }
+.chat-project-heading { display: flex; align-items: center; justify-content: space-between; }
+.chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: .4rem; padding: .4rem .2rem; text-align: left; font-size: .875rem; }
+.chat-actions-menu { position: fixed; margin: 0; width: 228px; max-height: calc(100dvh - 16px); overflow-y: auto; padding: .35rem; border: 1px solid var(--notion-border); border-radius: .75rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; }
+.chat-actions-menu::backdrop { background: transparent; }
+.chat-menu-item { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 40px; padding: .6rem .75rem; border-radius: .4rem; text-align: left; font-size: .875rem; }
+.chat-menu-item:hover, .chat-menu-item:focus-visible { background: var(--notion-hover); outline: none; }
+.chat-menu-item.is-danger { color: #b91c1c; }
+.chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
+.notion-empty-title #chat-heading-text { min-width: 0; overflow-wrap: anywhere; }
+.chat-project-options { margin-top: .75rem; max-height: 40dvh; overflow-y: auto; }
+@media (max-width: 639px) { .chat-more-button, .chat-pin-button { width: 2.5rem; height: 2.5rem; } .chat-menu-item { min-height: 44px; } }
+
 .notion-page {
   position: relative;
   display: flex;

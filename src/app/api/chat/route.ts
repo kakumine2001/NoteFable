@@ -228,7 +228,7 @@ async function saveGeneratedTitle({
       return;
     }
     await prisma.session.updateMany({
-      where: { id: sessionId, userId, title: placeholder },
+      where: { id: sessionId, userId, title: placeholder, titleManual: false },
       data: { title },
     });
   } catch (error) {
@@ -431,12 +431,12 @@ export async function POST(request: Request) {
   });
 
   // 新規作成、または空の "New chat" に最初の発言が来たときだけ AI タイトルを作る。
-  const isFirstMessage = !sessionId || session.title === "New chat";
+  const isFirstMessage = !sessionId || (session.title === "New chat" && !session.titleManual);
   const placeholderTitle = makeTitle(message);
 
-  if (session.title === "New chat") {
-    await prisma.session.update({
-      where: { id: session.id },
+  if ((session.title === "New chat" && !session.titleManual)) {
+    await prisma.session.updateMany({
+      where: { id: session.id, userId: user.id, title: "New chat", titleManual: false },
       data: { title: placeholderTitle },
     });
   }

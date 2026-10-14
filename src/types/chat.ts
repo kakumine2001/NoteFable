@@ -10,6 +10,9 @@ export type Session = {
   title: string;
   // 会話のアイコン（単一の絵文字）。null は既定のチャットアイコン。
   icon?: string | null;
+  pinned?: boolean;
+  position?: number;
+  projectId?: string | null;
   // セッション作成日時。API から文字列化されて届く。
   createdAt: string;
   // 一覧の並び順に使う最終更新日時。

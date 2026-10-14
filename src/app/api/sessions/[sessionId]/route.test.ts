@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ find: vi.fn(), update: vi.fn(), remove: vi.fn() }));
+const mocks = vi.hoisted(() => ({ find: vi.fn(), update: vi.fn(), remove: vi.fn(), project: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ prisma: { session: { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.remove } } }));
-import { PATCH } from "./route";
+vi.mock("@/lib/prisma", () => ({ prisma: { chatProject: { findFirst: mocks.project }, session: { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.remove } } }));
+import { DELETE, PATCH } from "./route";
 
 const context = { params: Promise.resolve({ sessionId: "s1" }) };
 const updatedAt = new Date("2026-10-14T00:00:00Z");
@@ -69,5 +69,49 @@ describe("chat icon", () => {
     mocks.find.mockResolvedValue(null);
     expect((await PATCH(patch({ icon: "📚" }) as never, context)).status).toBe(404);
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("chat organization", () => {
+  beforeEach(()=>{vi.clearAllMocks();mocks.find.mockResolvedValue({updatedAt});mocks.update.mockResolvedValue({count:1});});
+  it("keeps a manual title and does not reorder history",async()=>{
+    const response=await PATCH(patch({title:"  Study plan  "}) as never,context);
+    expect(response.status).toBe(200);
+    expect(mocks.update.mock.calls[0][0].data).toEqual({title:"Study plan",titleManual:true,updatedAt});
+  });
+  it.each([{title:" "},{title:"x".repeat(121)},{pinned:"yes"},{projectId:3}])("rejects invalid metadata %j",async body=>{
+    expect((await PATCH(patch(body) as never,context)).status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("refuses a project belonging to another user",async()=>{
+    mocks.project.mockResolvedValue(null);
+    expect((await PATCH(patch({projectId:"foreign"}) as never,context)).status).toBe(404);
+    expect(mocks.project).toHaveBeenCalledWith({where:{id:"foreign",userId:"mine"},select:{id:true}});
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+  it("moves and pins an owned conversation",async()=>{
+    mocks.project.mockResolvedValue({id:"project"});
+    expect((await PATCH(patch({projectId:"project",pinned:true}) as never,context)).status).toBe(200);
+    expect(mocks.update.mock.calls[0][0]).toEqual({where:{id:"s1",userId:"mine",updatedAt},data:{projectId:"project",pinned:true,updatedAt}});
+  });
+  it("removes project membership without deleting the chat",async()=>{
+    expect((await PATCH(patch({projectId:null}) as never,context)).status).toBe(200);
+    expect(mocks.project).not.toHaveBeenCalled();
+    expect(mocks.remove).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("delete chat",()=>{
+  beforeEach(()=>vi.clearAllMocks());
+  it("deletes only the owned chat",async()=>{
+    mocks.remove.mockResolvedValue({count:1});
+    expect((await DELETE(patch({}) as never,context)).status).toBe(200);
+    expect(mocks.remove).toHaveBeenCalledWith({where:{id:"s1",userId:"mine"}});
+  });
+  it("refuses another user's chat",async()=>{
+    mocks.remove.mockResolvedValue({count:0});
+    expect((await DELETE(patch({}) as never,context)).status).toBe(404);
   });
 });

@@ -55,6 +55,7 @@ model AnonymousUser {
   updatedAt   DateTime @updatedAt
 
   sessions      Session[]
+  chatProjects  ChatProject[]
   notePages     NotePage[]
   coverAssets   NoteCoverAsset[]
   noteProposals NoteProposal[]
@@ -66,6 +67,7 @@ model NotePage {
   id            String   @id @default(cuid())
   userId        String
   title         String   @default("Untitled")
+  position      Int      @default(0)
   // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
   icon          String?
   cover         String?
@@ -104,8 +106,12 @@ model NoteGroup {
 model Session {
   id        String   @id @default(cuid())
   title     String   @default("New chat")
+  position  Int      @default(0)
   // 単一の絵文字。null は既定のチャットアイコン。
   icon      String?
+  pinned    Boolean @default(false)
+  titleManual Boolean @default(false)
+  projectId String?
   userId    String
   // ノートを開いたまま使う AI アシスタントの会話は、そのノートに結びつけて Chats の一覧から外す。ノートを消すと一緒に消える。
   noteId    String?
@@ -113,12 +119,24 @@ model Session {
   updatedAt DateTime @updatedAt
 
   user          AnonymousUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       ChatProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
   messages      Message[]
   noteProposals NoteProposal[]
 
   @@index([userId, updatedAt])
   @@index([noteId])
+  @@index([userId, projectId])
+}
+
+model ChatProject {
+  id String @id @default(cuid())
+  userId String
+  name String
+  createdAt DateTime @default(now())
+  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions Session[]
+  @@index([userId, createdAt])
 }
 
 model Message {

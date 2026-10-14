@@ -13,11 +13,14 @@ export async function GET() {
     const sessions = await prisma.session.findMany({
       // ノートを開いたまま使う AI アシスタントの会話（noteId あり）は Chats の一覧に出さない。
       where: { userId: user.id, noteId: null },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ pinned: "desc" }, { position: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
         title: true,
         icon: true,
+        pinned: true,
+        position: true,
+        projectId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -57,6 +60,9 @@ export async function POST(request: Request) {
         id: true,
         title: true,
         icon: true,
+        pinned: true,
+        position: true,
+        projectId: true,
         createdAt: true,
         updatedAt: true,
       },

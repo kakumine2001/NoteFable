@@ -470,14 +470,12 @@ export async function POST(request: Request) {
       },
     });
 
-    // 既存の New chat ならタイトルを付け直し、一覧の並び替え用に updatedAt も進める。
-    await prisma.session.update({
-      where: { id: session.id },
-      data: {
-        title: session.title === "New chat" ? makeTitle(prompt) : session.title,
-        updatedAt: new Date(),
-      },
+    // Only replace the placeholder; never overwrite a title renamed while generation ran.
+    await prisma.session.updateMany({
+      where: { id: session.id, userId: user.id, title: "New chat", titleManual: false },
+      data: { title: makeTitle(prompt) },
     });
+    await prisma.session.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
 
     return NextResponse.json(
       {

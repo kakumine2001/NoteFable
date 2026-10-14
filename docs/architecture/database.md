@@ -60,6 +60,8 @@ Node 运行时在创建 adapter 前，通过 `src/lib/database-url.ts` 把 `sslm
 ```mermaid
 erDiagram
     AnonymousUser ||--o{ Session : owns
+    AnonymousUser ||--o{ ChatProject : owns
+    ChatProject ||--o{ Session : groups
     Session ||--o{ Message : contains
     Message ||--o{ Attachment : has
     AnonymousUser ||--o{ NotePage : owns
@@ -197,6 +199,10 @@ Notes 的单层分组（文件夹）。`userId` 关联 `AnonymousUser`，删除�
 
 AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记）或 `CREATE`（新建），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`。`payload` 保存画面要显示的内容和适用时要写入的标题与块（编辑还包含目标笔记 ID 和提案时的基准版本）；`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）；`appliedPageId` 是新建提案适用后创建的笔记 ID，重复适用时据此返回同一笔记。`userId` 和 `sessionId` 删除时级联删除。适用在一个事务里先把 `PENDING` 改为 `APPLIED` 再写笔记，所以并发或重发都只会生效一次；版本不一致时事务回滚，提案保持待确认。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。流程见 [chat-flow.md](chat-flow.md)。
 
+### ChatProject
+
+聊天的独立项目，与 Notes 分组互不影响。字段为 `id`、`userId`、`name`、`createdAt`，所有 API 按当前用户限定所有者。项目最多 50 个，名字最多 60 字符；删除项目时会话外键设为 null，聊天和消息保留。
+
 ### Session
 
 一段对话。
@@ -205,6 +211,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 
 - `title`
 - `icon`（可空，单个 emoji，`null` 为默认聊天图标）
+- `pinned`（置顶）、`projectId`（可空，独立聊天项目）、`titleManual`（手动标题不再被自动标题覆盖）
 - `userId`
 - `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`，删除笔记时一起删除）
 - `createdAt`
@@ -214,6 +221,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 
 ```text
 (userId, updatedAt)
+(userId, projectId)
 (noteId)
 ```
 
@@ -321,3 +329,7 @@ Schema 变更应同时更新：
 1. `prisma/schema.prisma`
 2. `prisma/migrations/`
 3. 本文档 ERD
+
+聊天行右侧固定显示三点按钮（左）和图钉按钮（右）。图钉负责置顶/取消置顶；三点菜单只提供重命名、移动项目和删除确认。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
+
+`Session.position` 和 `NotePage.position` 由 `20261015001000_manual_list_order` 追加并按此前显示顺序回填。新项目/分组不影响正文结构。`POST /api/sessions/reorder`、`POST /api/pages/reorder` 在用户级事务锁中读取最新完整列表，以目标行确定插入位置，保存全部 `position` 并将移动项放进目标行所属项目/分组（拖入置顶区只改变置顶状态，保留原项目；置顶区内部排序也保留项目归属）。排序 SQL 明确限定 schema 和 userId，参数化行 ID；不触发 Prisma 的 `@updatedAt` 或笔记版本更新。
