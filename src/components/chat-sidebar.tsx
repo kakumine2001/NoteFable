@@ -57,6 +57,7 @@ export function ChatSidebar({
     const active = activeSessionId === session.id;
     return (
                 <div key={session.id} className={`notion-session-row vt-row group ${active ? "is-active" : ""}`} style={rowName(`crow-${session.id}`)} data-order-id={session.id} data-order-scope="chat">
+                  <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}/>
                   <button type="button" className="chat-row-icon-button" aria-label={`Change icon of ${session.title}`} title="Change icon"
                     aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
                     onClick={(event) => {
@@ -68,9 +69,9 @@ export function ChatSidebar({
                       ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                   </button>
-                  <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
+                  <button type="button" onClick={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" title={session.title}>
                     <span className="truncate text-sm">{session.title}</span>
-                  </ReorderHandle>
+                  </button>
                   <button type="button" className="notion-row-action chat-more-button" aria-label={`Actions for ${session.title}`} aria-haspopup="dialog"
                     onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
                     <MoreHorizontal size={16}/>
