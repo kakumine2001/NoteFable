@@ -1,12 +1,49 @@
 import { randomBytes } from "node:crypto";
 import sharp from "sharp";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { prepareClaudeImage } from "@/lib/claude-image";
 import { prepareAttachments } from "@/lib/files";
-const storage = vi.hoisted(() => ({ write: vi.fn().mockResolvedValue("images/original.png") }));
-vi.mock("@/lib/storage", () => ({ writeStoredImage: storage.write }));
+const storage = vi.hoisted(() => ({ write: vi.fn(), remove: vi.fn() }));
+vi.mock("@/lib/storage", () => ({ writeStoredImage: storage.write, deleteStoredImage: storage.remove }));
 
 describe("Claude image input copies", () => {
+  beforeEach(() => {
+    storage.write.mockReset().mockResolvedValue("images/original.png");
+    storage.remove.mockReset().mockResolvedValue(undefined);
+  });
+  it("does not store an image when decoding fails", async () => {
+    await expect(prepareAttachments([new File(["invalid"], "bad.png", { type: "image/png" })], 1024 * 1024)).rejects.toThrow();
+    expect(storage.write).not.toHaveBeenCalled();
+    expect(storage.remove).not.toHaveBeenCalled();
+  });
+  it("removes earlier originals when a later attachment cannot be decoded", async () => {
+    const valid = await sharp({ create: { width: 64, height: 64, channels: 3, background: "white" } }).png().toBuffer();
+    await expect(prepareAttachments([
+      new File([new Uint8Array(valid)], "good.png", { type: "image/png" }),
+      new File(["invalid"], "bad.png", { type: "image/png" }),
+    ], 1024 * 1024)).rejects.toThrow();
+    expect(storage.write).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledExactlyOnceWith("images/original.png");
+  });
+  it("cleans every earlier original if a later storage write fails", async () => {
+    storage.write.mockResolvedValueOnce("images/first.png").mockResolvedValueOnce("images/second.png").mockRejectedValueOnce(new Error("storage unavailable"));
+    const valid = await sharp({ create: { width: 64, height: 64, channels: 3, background: "white" } }).png().toBuffer();
+    const files = Array.from({ length: 3 }, (_, i) => new File([new Uint8Array(valid)], `${i}.png`, { type: "image/png" }));
+    await expect(prepareAttachments(files, 1024 * 1024)).rejects.toThrow("storage unavailable");
+    expect(storage.remove.mock.calls).toEqual([["images/first.png"], ["images/second.png"]]);
+  });
+  it("attempts all cleanup operations and preserves the original error if deletion fails", async () => {
+    storage.write.mockResolvedValueOnce("images/first.png").mockResolvedValueOnce("images/second.png").mockRejectedValueOnce(new Error("write failed"));
+    storage.remove.mockRejectedValueOnce(new Error("delete failed"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const valid = await sharp({ create: { width: 64, height: 64, channels: 3, background: "white" } }).png().toBuffer();
+      const files = Array.from({ length: 3 }, (_, i) => new File([new Uint8Array(valid)], `${i}.png`, { type: "image/png" }));
+      await expect(prepareAttachments(files, 1024 * 1024)).rejects.toThrow("write failed");
+      expect(storage.remove.mock.calls).toEqual([["images/first.png"], ["images/second.png"]]);
+      expect(log).toHaveBeenCalledOnce();
+    } finally { log.mockRestore(); }
+  });
   it("keeps small compatible image bytes intact", async () => {
     const original = await sharp({ create: { width: 64, height: 64, channels: 3, background: "white" } }).png().toBuffer();
     const result = await prepareClaudeImage(original, "image/png");

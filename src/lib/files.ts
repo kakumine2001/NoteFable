@@ -109,47 +109,61 @@ export async function prepareAttachments(files: File[], claudeImageMaxBytes?: nu
   // 添付をモデル入力用と履歴保存用の両方に加工する。
   // テキスト/PDF は本文抽出、画像はモデル入力用 data URL と再表示用の保存パスを作る。
   const attachments: PreparedAttachment[] = [];
+  const savedImagePaths: string[] = [];
 
-  for (const file of files) {
-    // 空ファイルはモデルにも履歴にも有用な情報がないため無視する。
-    if (file.size === 0) continue;
+  try {
+    for (const file of files) {
+      // 空ファイルはモデルにも履歴にも有用な情報がないため無視する。
+      if (file.size === 0) continue;
 
-    // File から Node.js の Buffer に変換し、テキスト抽出や画像保存で使う。
-    const buffer = Buffer.from(await file.arrayBuffer());
-    // どの種類の添付でも共通して DB に残す基本情報。
-    const base: PreparedAttachment = {
-      filename: file.name,
-      mimeType: file.type || "application/octet-stream",
-      size: file.size,
-    };
+      // File から Node.js の Buffer に変換し、テキスト抽出や画像保存で使う。
+      const buffer = Buffer.from(await file.arrayBuffer());
+      // どの種類の添付でも共通して DB に残す基本情報。
+      const base: PreparedAttachment = {
+        filename: file.name,
+        mimeType: file.type || "application/octet-stream",
+        size: file.size,
+      };
 
-    if (isTextLike(file)) {
-      // テキスト系は UTF-8 として読み、プロンプト上限に合わせて切り詰める。
-      base.extractedText = buffer.toString("utf8").slice(0, MAX_TEXT_CHARS);
-    } else if (isPdf(file)) {
-      // PDF は pdf-parse を遅延 import し、PDF 添付がない通常送信では読み込まない。
-      const { PDFParse } = await import("pdf-parse");
-      // parser は明示的な destroy が必要なので finally で解放する。
-      const parser = new PDFParse({ data: buffer });
-      try {
-        const parsed = await parser.getText();
-        base.extractedText = parsed.text.slice(0, MAX_TEXT_CHARS);
-      } finally {
-        await parser.destroy();
+      if (isTextLike(file)) {
+        // テキスト系は UTF-8 として読み、プロンプト上限に合わせて切り詰める。
+        base.extractedText = buffer.toString("utf8").slice(0, MAX_TEXT_CHARS);
+      } else if (isPdf(file)) {
+        // PDF は pdf-parse を遅延 import し、PDF 添付がない通常送信では読み込まない。
+        const { PDFParse } = await import("pdf-parse");
+        // parser は明示的な destroy が必要なので finally で解放する。
+        const parser = new PDFParse({ data: buffer });
+        try {
+          const parsed = await parser.getText();
+          base.extractedText = parsed.text.slice(0, MAX_TEXT_CHARS);
+        } finally {
+          await parser.destroy();
+        }
+      } else if (isImageFile(file)) {
+        // 画像は履歴表示用に保存しつつ、今回のモデル入力には base64 data URL として渡す。
+        const input = claudeImageMaxBytes
+          ? await (await import("@/lib/claude-image")).prepareClaudeImage(buffer, base.mimeType, claudeImageMaxBytes)
+          : { buffer, mimeType: base.mimeType };
+        base.imageInputBytes = input.buffer.byteLength;
+        base.imageInputDataUrl = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
+        // Decode/optimize before storing so invalid images never create orphan originals.
+        const { writeStoredImage } = await import("@/lib/storage");
+        base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);
+        savedImagePaths.push(base.imageStoragePath);
       }
-    } else if (isImageFile(file)) {
-      // 画像は履歴表示用に保存しつつ、今回のモデル入力には base64 data URL として渡す。
-      const { writeStoredImage } = await import("@/lib/storage");
-      base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);
-      const input = claudeImageMaxBytes
-        ? await (await import("@/lib/claude-image")).prepareClaudeImage(buffer, base.mimeType, claudeImageMaxBytes)
-        : { buffer, mimeType: base.mimeType };
-      base.imageInputBytes = input.buffer.byteLength;
-      base.imageInputDataUrl = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
-    }
 
-    // 加工済み添付として、呼び出し元の API へ返す。
-    attachments.push(base);
+      // 加工済み添付として、呼び出し元の API へ返す。
+      attachments.push(base);
+    }
+  } catch (error) {
+    if (savedImagePaths.length) {
+      const { deleteStoredImage } = await import("@/lib/storage");
+      const cleanup = await Promise.allSettled(savedImagePaths.map((storagePath) => deleteStoredImage(storagePath)));
+      for (const result of cleanup) {
+        if (result.status === "rejected") console.error("Failed to clean up an uncommitted attachment image.", result.reason);
+      }
+    }
+    throw error;
   }
 
   return attachments;
