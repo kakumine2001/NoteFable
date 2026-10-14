@@ -26,7 +26,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const loose = pages.filter((page) => !page.groupId || !known.has(page.groupId));
   const item = (page: NotePageSummary) => (
     <li key={page.id} className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
-      <ReorderHandle id={page.id} title={page.title} scope="note" ids={pages.filter(item=>item.groupId===page.groupId).map(item=>item.id)} disabled={busy} onMove={onReorder}/>
+      <ReorderHandle id={page.id} title={page.title} scope="note" ids={pages.filter(item=>item.groupId===page.groupId).map(item=>item.id)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)}/>
       <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
         <span className="notes-home-name">{page.title}</span>
@@ -34,31 +34,31 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
           {new Date(page.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
         </time>
       </button>
-      <button type="button" className="notes-home-move" disabled={busy} onClick={() => setMoving(page)} aria-label={`Move ${page.title} to a group`}><FolderInput size={18} /></button>
+      <button type="button" className="notes-home-move" disabled={busy} onClick={() => setMoving(page)} aria-label={`Move ${page.title} to a project`}><FolderInput size={18} /></button>
     </li>
   );
   return (
     <div className="notes-column notes-home" data-reorder-list>
       <div className="notion-home-switch"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div>
-      <h1 className="notes-home-title">Notes</h1>
+      <h1 className="notes-home-title" data-note-group-drop="">Notes</h1>
       {groups.map((group) => {
         const members = pages.filter((page) => page.groupId === group.id);
         return (
           <section key={group.id}>
-            <h2 className="notes-home-group">{group.name}<span>{members.length}</span></h2>
-            {members.length ? <ul className="notes-home-list">{members.map(item)}</ul> : <p className="notes-home-empty">No notes in this group.</p>}
+            <h2 className="notes-home-group" data-note-group-drop={group.id}>{group.name}<span>{members.length}</span></h2>
+            {members.length ? <ul className="notes-home-list">{members.map(item)}</ul> : <p className="notes-home-empty">No notes in this project.</p>}
           </section>
         );
       })}
-      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group">No group<span>{loose.length}</span></h2>}
+      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">No project<span>{loose.length}</span></h2>}
       {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
       <div className="notes-home-actions">
         <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />New note</button>
-        <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />New group</button>
+        <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />New project</button>
       </div>
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} />}
-      {creatingGroup && <GroupNameDialog title="New group" submitLabel="Create" error={groupError} onClose={() => setCreatingGroup(false)}
+      {creatingGroup && <GroupNameDialog title="New project" submitLabel="Create" error={groupError} onClose={() => setCreatingGroup(false)}
         onSubmit={async (name) => Boolean(await onCreateGroup(name))} />}
     </div>
   );

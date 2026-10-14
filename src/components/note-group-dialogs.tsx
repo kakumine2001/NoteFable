@@ -28,8 +28,8 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
   return <Modal label={title} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{title}</h2>
-      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="Group name"
-        className="notes-dialog-input" aria-label="Group name" />
+      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="Project name"
+        className="notes-dialog-input" aria-label="Project name" />
       {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{error}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" className="notion-button" onClick={onClose}>Cancel</button>
@@ -85,21 +85,21 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
     setBusy(false);
     if (group) await move(group.id);
   }
-  const options: { id: string | null; label: string }[] = [{ id: null, label: "No group" }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
+  const options: { id: string | null; label: string }[] = [{ id: null, label: "No project" }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
   return <Modal label="Move note" onClose={onClose}>
     <h2 className="text-base font-semibold">Move “{page.title}” to</h2>
-    <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label="Group">
+    <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label="Project">
       {options.map((option) => <button key={option.id ?? "none"} type="button" role="radio" aria-checked={page.groupId === option.id}
         disabled={busy} className="notes-dialog-option" onClick={() => void move(option.id)}>
         <span className="truncate">{option.label}</span>{page.groupId === option.id && <Check size={16} />}
       </button>)}
     </div>
     {creating ? <form className="mt-3" onSubmit={(event) => { event.preventDefault(); void createAndMove(); }}>
-      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="New group name"
-        className="notes-dialog-input" aria-label="New group name" />
+      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="New project name"
+        className="notes-dialog-input" aria-label="New project name" />
       <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary mt-2">Create and move</button>
     </form> : <button type="button" className="notes-dialog-option mt-1" disabled={busy} onClick={() => setCreating(true)}>
-      <span className="flex items-center gap-2"><FolderPlus size={16} />New group…</span>
+      <span className="flex items-center gap-2"><FolderPlus size={16} />New project…</span>
     </button>}
     {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{error}</p>}
     <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>Close</button></div>

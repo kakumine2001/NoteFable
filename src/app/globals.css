@@ -689,7 +689,7 @@ button:disabled {
 .list-reorder-handle:active { cursor: grabbing; }
 .chat-drag-title { cursor: grab; touch-action: auto; user-select: none; }
 .chat-drag-title:active { cursor: grabbing; }
-[data-chat-project-drop] { position: relative; }
+[data-chat-project-drop], [data-note-group-drop] { position: relative; }
 [data-order-drop="into"] { background: rgba(35, 131, 226, .12); outline: 1px solid #2383e2; border-radius: 4px; }
 .list-reorder-handle:hover, .list-reorder-handle:focus-visible { background: var(--notion-hover); }
 [data-order-id] { position: relative; }
