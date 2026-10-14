@@ -23,6 +23,9 @@ export default function PrivacyPage() {
             <strong>A device identifier.</strong> When you open StudyMate, we create a random identifier and store it in a signed,
             HTTP-only cookie named <code>studymate_device</code> (valid for one year). Your chats and Notes are saved under this identifier.
             If you clear your cookies, you lose access to that data in that browser unless you signed in with Google.
+            When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
+            name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only
+            cookie, valid for 5 minutes, while it signs you in.
           </li>
           <li>
             <strong>Google sign-in (optional).</strong> If you choose “Sign in with Google”, Google gives us your Google account ID,
@@ -33,6 +36,11 @@ export default function PrivacyPage() {
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
             alongside them), files and images you attach or generate, and your Notes (pages, covers, images, files and groups).
+            Attached documents such as PDFs and text files are kept as extracted text; images are kept as files.
+          </li>
+          <li>
+            <strong>AI continuation data.</strong> For chats with OpenAI and Anthropic models we also store the provider’s compressed copy of the conversation
+            (it can include encrypted reasoning) and send it back to the same provider on later turns so long chats keep working. It is not shown in the app.
           </li>
           <li>
             <strong>Usage and performance data.</strong> We use Vercel Web Analytics and Speed Insights to count page views and measure loading speed.
@@ -56,16 +64,18 @@ export default function PrivacyPage() {
         <p>We share data only with the service providers needed to run StudyMate:</p>
         <ul>
           <li>
-            <strong>AI model providers.</strong> To answer you, the text of your message and conversation, any files or images you attach, and (when you ask the
-            assistant to look at your notes) the relevant note content are sent to the provider of the model you select —
+            <strong>AI model providers.</strong> To answer you, the text of your message, earlier messages in that chat, and any attached images or extracted file
+            text are sent to the provider of the model you select —
             {" "}<a href="https://openai.com/policies/privacy-policy">OpenAI</a>,{" "}
             <a href="https://www.anthropic.com/legal/privacy">Anthropic</a> or{" "}
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
-            Web search and image generation are also performed through these providers. Each provider handles the data under its own policy.
+            When the assistant looks at your notes, the note text it reads goes to that same provider. If you use web search, the search runs at OpenAI or Anthropic
+            (DeepSeek does not search the web). Image generation and image editing always go to OpenAI, whichever chat model is selected.
+            For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>
             <strong>Hosting and storage.</strong> <a href="https://vercel.com/legal/privacy-policy">Vercel</a> hosts the app, stores uploaded files (Vercel Blob)
-            and provides analytics; <a href="https://neon.tech/privacy-policy">Neon</a> hosts the PostgreSQL database. Data is stored in the United States.
+            and provides analytics; <a href="https://neon.tech/privacy-policy">Neon</a> hosts the PostgreSQL database. The app and the database run in the United States (US East).
           </li>
           <li>
             <strong>Google</strong>, only for signing in, if you choose to.
@@ -80,15 +90,17 @@ export default function PrivacyPage() {
         <p>
           StudyMate’s use and transfer to any other app of information received from Google APIs will adhere to the
           {" "}<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.
-          The Google profile information we receive is used only to sign you in and to link your account, never for advertising, and it is not
-          transferred to anyone except the providers listed above as needed to run the service.
+          We use the Google profile information only to sign you in and to link your account. It is stored in our database and in the sign-in cookie.
+          We do not send it to the AI providers, use it for advertising, or transfer it to anyone else except the hosting and storage providers listed above as needed to run the service.
         </p>
       </LegalSection>
 
       <LegalSection title="6. Retention and deletion">
         <p>
-          We keep your data until you delete it. You can delete any chat or note inside StudyMate. To delete your account and everything associated with it
-          (including the Google profile details we stored), email <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> and we will do so within 30 days.
+          We keep your data until you delete it. You can delete a chat or a note in StudyMate. That removes it from your account in our database, including the
+          messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, note files and cover images can remain in file storage
+          until we remove them. There is no delete-account button, and signing out does not delete anything. To delete your account, email
+          {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> and within 30 days we will delete your account record, its database rows and the stored files we can still link to you.
         </p>
       </LegalSection>
 
@@ -104,7 +116,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="9. Changes">
-        <p>We may update this policy. The date at the top shows the latest version; significant changes will be noted in the app.</p>
+        <p>We may update this policy. The date at the top shows the latest version.</p>
       </LegalSection>
 
       <LegalSection title="10. Contact">

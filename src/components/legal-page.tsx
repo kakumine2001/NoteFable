@@ -34,7 +34,7 @@ export function LegalSection({ title, children }: { title: string; children: Rea
 // アプリのサイドバー下に置く小さなリンク。
 export function LegalLinks() {
   return (
-    <div className="flex shrink-0 gap-4 px-4 py-2.5 text-xs text-[var(--notion-faint)]">
+    <div className="flex shrink-0 gap-4 px-4 py-2.5 text-xs text-[var(--notion-muted)]">
       <Link href="/privacy" className="hover:text-[var(--notion-muted)] hover:underline">Privacy</Link>
       <Link href="/terms" className="hover:text-[var(--notion-muted)] hover:underline">Terms</Link>
     </div>
