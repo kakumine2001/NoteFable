@@ -190,12 +190,12 @@ npm run prisma:migrate
 
 ## 上传限制
 
-当前服务端限制：
+聊天输入框在选取文件和粘贴图片时立即检查数量、类型、单文件大小和合计大小，服务端保留相同校验。超过限制时整批新选择不添加，明确提示原因并保留原有附件和文字；发送前再次校验。输入框显示限制，有附件时显示数量和总大小。限制如下：
 
 - 单次最多 5 个文件
-- 单文件最大 10 MB
-- 单次上传总量最大 20 MB
-- multipart 请求最大 25 MB
+- 单文件和单次附件合计最大 4 MiB
+- multipart 请求最大 4.5 MB；发送前也检查文字与附件的估计请求大小
+- 附件目前经 Vercel Function 上传；[平台请求体上限为 4.5 MB](https://vercel.com/docs/functions/limitations)，4 MiB 附件上限为文字和表单边界留出空间
 - 支持文本、Markdown、JSON、CSV、TSV、TXT、PDF，以及 PNG/JPEG/WEBP 图片
 
 模型能力：

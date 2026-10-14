@@ -1,5 +1,40 @@
 import { describe, expect, it } from "vitest";
-import { getClipboardImageFiles } from "@/lib/client-files";
+import { getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError } from "@/lib/client-files";
+import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+
+describe("composer attachment validation", () => {
+  const options = { supportsImages: true, claudeImages: false };
+  const image = (size = 100) => ({ name: "photo.png", type: "image/png", size });
+
+  it("accepts exactly five and rejects repeated additions without changing existing attachments", () => {
+    const current = Array.from({ length: 4 }, () => image());
+    expect(getUploadSelectionError(current, [image()], options)).toBe("");
+    expect(getUploadSelectionError(current, [image(), image()], options)).toContain("1 more file");
+    expect(current).toHaveLength(4);
+    expect(getUploadSelectionError([...current, image()], [image()], options)).toContain("Remove a file");
+    expect(getUploadSelectionError([], Array.from({ length: 50 }, () => image()), options)).toContain("None of these 50 files were added");
+  });
+
+  it("checks byte boundaries and combined existing/new size", () => {
+    expect(getUploadSelectionError([], [image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
+    expect(getUploadSelectionError([], [image(MAX_UPLOAD_FILE_BYTES + 1)], options)).toContain("4 MiB");
+    const current = [image(MAX_UPLOAD_FILE_BYTES / 2), image(MAX_UPLOAD_FILE_BYTES / 2)];
+    expect(getUploadValidationError(current, options)).toBe("");
+    expect(getUploadSelectionError(current, [image(1)], options)).toContain("4 MiB in total");
+    expect(current.reduce((sum, file) => sum + file.size, 0)).toBe(MAX_UPLOAD_TOTAL_BYTES);
+  });
+
+  it("validates types and changed model constraints before sending", () => {
+    expect(getUploadSelectionError([], [{ name: "photo.heic", type: "image/heic", size: 100 }], options)).toContain("not supported");
+    expect(getUploadSelectionError([], [{ name: "notes.md", type: "", size: 100 }], options)).toBe("");
+    expect(getUploadValidationError([image()], { ...options, supportsImages: false })).toContain("cannot read images");
+    expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], { ...options, claudeImages: true })).toBe("");
+    expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES + 1)], { ...options, claudeImages: true })).toContain("4 MiB");
+    expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
+    expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "hello")).toBe("");
+    expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "字".repeat(110000))).toContain("too large");
+  });
+});
 
 function clipboardItem({
   kind = "file",

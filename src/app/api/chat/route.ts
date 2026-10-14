@@ -9,6 +9,7 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
+import { MAX_CLAUDE_IMAGE_BYTES } from "@/lib/upload-limits";
 import { attachProposals } from "@/lib/note-proposals";
 import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
 import { buildHistoryInput } from "@/lib/chat-history";
@@ -357,7 +358,7 @@ export async function POST(request: Request) {
     );
   }
 
-  if (modelOption.provider === "anthropic" && files.some((file) => isImageFile(file) && file.size > 5 * 1024 * 1024)) {
+  if (modelOption.provider === "anthropic" && files.some((file) => isImageFile(file) && file.size > MAX_CLAUDE_IMAGE_BYTES)) {
     return NextResponse.json({ error: "Claude image uploads must be 5 MiB or smaller per image." }, { status: 400 });
   }
 
@@ -485,7 +486,7 @@ export async function POST(request: Request) {
   const historyInput = await buildHistoryInput(
     restored.history,
     modelOption.supportsImageInput,
-    modelOption.provider === "anthropic" ? 5 * 1024 * 1024 : undefined,
+    modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined,
     modelOption.supportsCompaction ? Infinity : undefined,
   );
   const input: { role: string; content: unknown }[] = [

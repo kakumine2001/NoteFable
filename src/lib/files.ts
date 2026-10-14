@@ -1,4 +1,6 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
+import { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
+export { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
 
 export type PreparedAttachment = {
   // 元ファイル名。DB 保存とモデルへ渡すファイル境界の説明に使う。
@@ -17,14 +19,6 @@ export type PreparedAttachment = {
 
 // テキスト抽出結果の最大文字数。大きなファイルでプロンプトが膨らみすぎるのを防ぐ。
 const MAX_TEXT_CHARS = 120_000;
-// 1 回の送信で受け付けるファイル数の上限。
-export const MAX_UPLOAD_FILES = 5;
-// 1 ファイルあたりの最大サイズ。
-export const MAX_UPLOAD_FILE_BYTES = 10 * 1024 * 1024;
-// 複数ファイル合計の最大サイズ。
-export const MAX_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024;
-// multipart リクエスト全体の最大サイズ。フォーム境界やメタ情報も含むため合計上限より少し大きい。
-export const MAX_MULTIPART_REQUEST_BYTES = 25 * 1024 * 1024;
 
 // MIME type が曖昧でもテキストとして読める拡張子。
 const TEXT_EXTENSIONS = [".md", ".markdown", ".json", ".csv", ".tsv", ".txt"];

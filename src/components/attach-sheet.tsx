@@ -5,6 +5,7 @@ import { type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
+import { ATTACHMENT_ACCEPT } from "@/lib/client-files";
 
 // スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
 // 画像作成の行は、選んでいるチャットモデルに関係なく常に出す（画像生成は OpenAI の画像 API を直接呼ぶ）。
@@ -12,12 +13,14 @@ export function AttachSheet({
   open,
   onClose,
   onFilesChange,
+  attachmentHint,
   imageMode,
   onToggleImageMode,
 }: {
   open: boolean;
   onClose: () => void;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  attachmentHint: string;
   imageMode: boolean;
   onToggleImageMode: () => void;
 }) {
@@ -37,11 +40,13 @@ export function AttachSheet({
           <Paperclip size={22} />
           <span>
             <strong>Add files or photos</strong>
-            <small>Photos, PDFs and text files</small>
+            <small>{attachmentHint}</small>
           </span>
           <input
             type="file"
             multiple
+            accept={ATTACHMENT_ACCEPT}
+            aria-label="Add files or photos"
             className="sr-only"
             onChange={(event) => {
               onFilesChange(event);

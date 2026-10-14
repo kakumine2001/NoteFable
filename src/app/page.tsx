@@ -26,7 +26,8 @@ import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
-import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
+import { ATTACHMENT_ACCEPT, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
+import { MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -322,10 +323,15 @@ export default function Home() {
   const activeSessionKey = getMessagesKey(activeSessionId);
   const activeStreamStartedAt = streamingSessions[activeSessionKey] ?? null;
   const isActiveSessionStreaming = activeStreamStartedAt !== null;
-  // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
-  const canSend = input.trim().length > 0 && !isActiveSessionStreaming;
-  // モデル ID から、対応機能や表示名をまとめた設定を引く。
   const selectedModel = getModelOption(model);
+  // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
+  const uploadOptions = {
+    supportsImages: imageGenerationMode || selectedModel.supportsImageInput,
+    claudeImages: !imageGenerationMode && selectedModel.provider === "anthropic",
+  };
+  const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions);
+  const attachmentHint = `${MAX_UPLOAD_FILES} files max · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total`;
+  const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError;
   // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
   const isNarrowScreen = useMediaQuery("(max-width: 639px)");
   const inputPlaceholder = imageGenerationMode
@@ -428,32 +434,27 @@ export default function Home() {
     return true;
   }
 
+  function addUploadFiles(incoming: File[]) {
+    if (!incoming.length) return;
+    const current = files;
+    const error = getUploadSelectionError(current.map(({ file }) => file), incoming, uploadOptions);
+    setSendError(error);
+    if (error) return;
+    // Validate before allocating preview URLs.
+    const next = [...current, ...incoming.map(createUploadFile)];
+    setFiles(next);
+  }
+
   function handleFileSelect(event: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFiles = Array.from(event.target.files ?? []);
-    const allowedFiles = selectedModel.supportsImageInput
-      ? selectedFiles
-      : selectedFiles.filter((file) => !isImageMimeType(file.type || "application/octet-stream"));
-    const selected = allowedFiles.map(createUploadFile);
-    setFiles((current) => [...current, ...selected]);
+    addUploadFiles(Array.from(event.target.files ?? []));
     event.target.value = "";
   }
 
   function changeModel(nextModel: string) {
-    // モデルごとに使える機能が違うため、選択変更時に UI の状態も合わせて正規化する。
-    // 画像入力に非対応のモデルへ切り替えた場合は、画像添付を先に落として送信時の不整合を避ける。画像生成モードはモデルに依存しないので残す。
+    // Keep attachments when switching models; show a recoverable error instead of silently deleting them.
     const option = getModelOption(nextModel);
     setModel(option.id);
-    if (!option.supportsImageInput) {
-      setFiles((current) => {
-        const blocked = current.filter(({ file }) =>
-          isImageMimeType(file.type || "application/octet-stream"),
-        );
-        revokeUploadPreviews(blocked);
-        return current.filter(({ file }) =>
-          !isImageMimeType(file.type || "application/octet-stream"),
-        );
-      });
-    }
+    setSendError("");
     setReasoning((current) =>
       option.reasoningEfforts.includes(current as never)
         ? current
@@ -614,15 +615,11 @@ export default function Home() {
   }
 
   function removeUploadFile(fileId: string) {
-    setFiles((current) => {
-      // 削除対象を探し、画像プレビュー URL があれば先に解放する。
-      const target = current.find((item) => item.id === fileId);
-      if (target?.previewUrl) {
-        URL.revokeObjectURL(target.previewUrl);
-      }
-
-      return current.filter((item) => item.id !== fileId);
-    });
+    setSendError("");
+    const current = files;
+    revokeUploadPreviews(current.filter((item) => item.id === fileId));
+    const next = current.filter((item) => item.id !== fileId);
+    setFiles(next);
   }
 
   function scrollChatToBottom() {
@@ -695,7 +692,7 @@ export default function Home() {
       return;
     }
 
-    const validationError = getSubmissionValidationError({
+    const validationError = getUploadValidationError(submittedFiles.map(({ file }) => file), uploadOptions) || getUploadRequestError(submittedFiles.map(({ file }) => file), userContent) || getSubmissionValidationError({
       imageGenerationMode,
       fileMimeTypes: submittedFiles.map((item) => item.file.type),
     });
@@ -1227,12 +1224,12 @@ export default function Home() {
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
           </div>
-          {sendError && (
+          {(uploadError || sendError) && (
             <div
               className="notion-error notion-page-column mb-3"
               role="alert"
             >
-              {sendError}
+              {uploadError || sendError}
             </div>
           )}
           <form onSubmit={sendMessage} className="notion-page-column">
@@ -1289,9 +1286,9 @@ export default function Home() {
                   <Plus size={18} strokeWidth={1.8} />
                 </button>
               ) : (
-                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer">
+                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title={`Add files or photos — ${attachmentHint}`}>
                   <Plus size={18} strokeWidth={1.8} />
-                  <input type="file" multiple className="sr-only" onChange={handleFileSelect} />
+                  <input type="file" multiple accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" aria-describedby="attachment-limits" className="sr-only" onChange={handleFileSelect} />
                 </label>
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -1318,18 +1315,7 @@ export default function Home() {
 
                     // 画像がある時だけ既定の貼り付けを止め、既存の添付フローへ渡す。
                     event.preventDefault();
-                    if (!selectedModel.supportsImageInput) {
-                      setSendError(
-                        `${selectedModel.label} does not support image uploads. Use GPT-6 Luna for images.`,
-                      );
-                      return;
-                    }
-
-                    setSendError("");
-                    setFiles((current) => [
-                      ...current,
-                      ...pastedImages.map(createUploadFile),
-                    ]);
+                    addUploadFiles(pastedImages);
                   }}
                   onKeyDown={(event) => {
                     // IMEの確定Enter（keyCode 229）は送信せず、通常のEnterだけ送信する。
@@ -1380,11 +1366,16 @@ export default function Home() {
                 <ArrowUp size={24} strokeWidth={2.1} />
               </button>
             </div>
+            <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
+              <span>{attachmentHint}</span>
+              {!!files.length && <span role="status">{files.length}/{MAX_UPLOAD_FILES} attached · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
+            </div>
           </form>
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
+            attachmentHint={attachmentHint}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
           />
