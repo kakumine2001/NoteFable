@@ -78,7 +78,7 @@ export type ImageGenerationResult = {
 export type UploadFile = {
   // 送信前 UI で添付を識別するローカル ID。
   id: string;
-  // FormData に追加する元の File オブジェクト。
+  // 私有ストレージへ直接アップロードする元の File オブジェクト。
   file: File;
   // 画像添付の送信前プレビュー URL。
   previewUrl?: string;

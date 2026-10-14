@@ -9,7 +9,8 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
-import { MAX_CLAUDE_IMAGE_BYTES } from "@/lib/upload-limits";
+import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES } from "@/lib/upload-limits";
+import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { attachProposals } from "@/lib/note-proposals";
 import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
 import { buildHistoryInput } from "@/lib/chat-history";
@@ -338,9 +339,21 @@ export async function POST(request: Request) {
   }
 
   // FormData 内の files フィールドから、実際の File オブジェクトだけを取り出す。
-  const files = formData
+  let files = formData
     .getAll("files")
     .filter((value): value is File => value instanceof File);
+
+  const uploadRefs = formData.get("uploads");
+  let uploadUser: Awaited<ReturnType<typeof getOrCreateAnonymousUser>> | undefined;
+  if (uploadRefs) {
+    try {
+      const tickets = parseUploadReferences(uploadRefs);
+      uploadUser = await getOrCreateAnonymousUser();
+      files = await loadChatUploads(tickets, uploadUser.id, files, modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined);
+    } catch (error) {
+      return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : "Unable to read attachments. Please upload them again." }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
+    }
+  }
 
   try {
     validateAttachmentFiles(files);
@@ -363,7 +376,7 @@ export async function POST(request: Request) {
   }
 
   // 署名付き Cookie から匿名ユーザーを取得または作成し、以降の DB 操作の所有者にする。
-  const user = await getOrCreateAnonymousUser();
+  const user = uploadUser ?? await getOrCreateAnonymousUser();
 
   // ノート用の送信なら、自分のノートかを確かめる（他人のノートや存在しないノートは使わせない）。
   const note = noteId
@@ -488,6 +501,7 @@ export async function POST(request: Request) {
     modelOption.supportsImageInput,
     modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined,
     modelOption.supportsCompaction ? Infinity : undefined,
+    modelOption.provider === "anthropic" ? Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - files.filter(isImageFile).reduce((sum, file) => sum + file.size, 0)) : undefined,
   );
   const input: { role: string; content: unknown }[] = [
     ...historyInput,

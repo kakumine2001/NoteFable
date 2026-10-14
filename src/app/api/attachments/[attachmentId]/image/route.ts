@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { readStoredImage } from "@/lib/storage";
+import { getStoredImageReadUrl, readStoredImage } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -39,6 +39,8 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 
   try {
+    const readUrl = await getStoredImageReadUrl(attachment.imageStoragePath);
+    if (readUrl) return new Response(null, { status: 302, headers: { Location: readUrl, "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer" } });
     // DB に保存された相対パスを使って、実ファイルを保存領域から読む。
     const image = await readStoredImage(attachment.imageStoragePath);
 

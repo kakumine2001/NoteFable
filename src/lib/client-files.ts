@@ -1,5 +1,5 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
-import { MAX_CLAUDE_IMAGE_BYTES, MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
 
 export const ATTACHMENT_ACCEPT = "image/png,image/jpeg,image/webp,application/pdf,text/*,.md,.markdown,.json,.csv,.tsv,.txt";
 
@@ -14,6 +14,8 @@ export function formatUploadSize(bytes: number) {
 export function getUploadValidationError(files: UploadCandidate[], options: UploadOptions) {
   if (files.length > MAX_UPLOAD_FILES) return `You can attach up to ${MAX_UPLOAD_FILES} files per message. Remove ${files.length - MAX_UPLOAD_FILES} to continue.`;
   for (const file of files) {
+    if (!file.size) return `“${file.name}” is empty. Choose a file with content.`;
+    if (!file.name || file.name.length > 255) return "The attachment filename is too long. Rename the file and try again.";
     const image = isImageMimeType(file.type);
     const supported = image || file.type.startsWith("text/") || file.type === "application/pdf" || /\.(md|markdown|json|csv|tsv|txt|pdf)$/i.test(file.name);
     if (!supported) return `“${file.name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.`;
@@ -22,12 +24,14 @@ export function getUploadValidationError(files: UploadCandidate[], options: Uplo
     if (file.size > limit) return `“${file.name}” exceeds ${formatUploadSize(limit)} per file. Choose a smaller file.`;
   }
   if (files.reduce((sum, file) => sum + file.size, 0) > MAX_UPLOAD_TOTAL_BYTES) return `Attachments exceed ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} in total. Remove a file or choose smaller files.`;
+  if (options.claudeImages && files.filter((file) => isImageMimeType(file.type)).reduce((sum, file) => sum + file.size, 0) > MAX_CLAUDE_IMAGE_TOTAL_BYTES) return "Claude images exceed 20 MiB in total. Remove an image or choose smaller images.";
   return "";
 }
 
 export function getUploadRequestError(files: UploadCandidate[], message: string) {
   const encoder = new TextEncoder();
-  const total = files.reduce((sum, file) => sum + file.size + encoder.encode(file.name).length, 0);
+  // Only references and text enter the chat request; binaries upload separately.
+  const total = files.reduce((sum, file) => sum + 4096 + encoder.encode(file.name).length, 0);
   // Allow ample room for multipart boundaries and other small form fields.
   return total + encoder.encode(message).length + 64 * 1024 > MAX_MULTIPART_REQUEST_BYTES
     ? "This message is too large to send. Shorten the text or remove an attachment."

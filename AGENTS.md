@@ -39,7 +39,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
 | Chat tools (Notes search/read/propose edit/propose create) and tool loops | `src/lib/page-tools.ts`, `src/lib/page-edit.ts`, `src/lib/note-markdown.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
 | Image generation | `src/app/api/images/route.ts` |
-| File and attachment handling | `src/lib/files.ts` |
+| File and attachment handling | `src/lib/files.ts`, `src/lib/client-chat-upload.ts`, `src/lib/chat-upload-ticket.ts`, `src/lib/chat-uploads.ts`, `src/app/api/uploads/*` |
 | Image storage | `src/lib/storage.ts` |
 | Database connection/schema | `src/lib/prisma.ts` |
 | Database models | `prisma/schema.prisma` |
@@ -71,7 +71,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - `BLOB_READ_WRITE_TOKEN` is required on Vercel.
 - Local development may fall back to `STUDYMATE_STORAGE_DIR` when the Blob token is absent.
 - PostgreSQL stores attachment metadata and `imageStoragePath`, not image binaries.
-- Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before reading storage.
+- Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before returning a short-lived, single-image private Blob read redirect (or local image bytes). Never grant a wildcard read token to the browser.
 
 ## Database Safety
 

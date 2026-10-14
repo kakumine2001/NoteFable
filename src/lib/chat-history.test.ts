@@ -31,6 +31,13 @@ function imageAttachment(filename: string, storagePath: string, size = 3) {
 }
 
 describe("buildHistoryInput", () => {
+  it("respects the image budget left after current-turn images", async () => {
+    mocks.readStoredImage.mockResolvedValue(Buffer.from("image"));
+    const messages: HistoryMessage[] = [{ id: "old", role: "USER", content: "Earlier image", attachments: [imageAttachment("old.png", "old.png", 5)] }];
+    const input = await buildHistoryInput(messages, true, 5, 120_000, 0);
+    expect(mocks.readStoredImage).not.toHaveBeenCalled();
+    expect(JSON.stringify(input)).not.toContain("input_image");
+  });
   it("excludes broken assistant tool markup without changing user text", async () => {
     const markup = '<｜｜DSML｜｜ calls><｜｜DSML｜｜ invoke name="search">';
     const input = await buildHistoryInput([

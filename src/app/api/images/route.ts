@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { writeStoredImage } from "@/lib/storage";
+import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
 export const runtime = "nodejs";
@@ -25,6 +26,7 @@ type ImageSize = "1024x1024" | "1024x1536" | "1536x1024" | "auto";
 type ImageQuality = "low" | "medium" | "high" | "auto";
 
 type ImageRequestBody = {
+  uploads?: unknown;
   prompt?: unknown;
   message?: unknown;
   size?: unknown;
@@ -124,6 +126,7 @@ async function readImageRequest(request: Request): Promise<ImageRequestInput> {
     sessionId: firstFormString(formData, "sessionId"),
     model: firstFormString(formData, "model"),
     reasoning: firstFormString(formData, "reasoning"),
+    uploads: firstFormString(formData, "uploads"),
     files,
   };
 }
@@ -289,6 +292,11 @@ export async function POST(request: Request) {
 
   try {
     body = await readImageRequest(request);
+    if (body.uploads) {
+      const tickets = parseUploadReferences(body.uploads);
+      const user = await getOrCreateAnonymousUser();
+      body.files = await loadChatUploads(tickets, user.id, body.files);
+    }
   } catch (error) {
     const status = error instanceof AttachmentValidationError ? error.status : 400;
     const message = error instanceof Error ? error.message : "Invalid request body.";

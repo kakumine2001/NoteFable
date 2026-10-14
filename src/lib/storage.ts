@@ -97,7 +97,7 @@ export async function writeStoredImageAt(storagePath: string, buffer: Buffer, mi
   return relativePath.replace(/\\/g, "/");
 }
 
-export async function readStoredImage(storagePath: string) {
+export async function readStoredImage(storagePath: string, maxBytes?: number) {
   const safePath = normalizeStoragePath(storagePath);
 
   if (hasVercelBlobToken()) {
@@ -107,11 +107,25 @@ export async function readStoredImage(storagePath: string) {
       throw new Error("Stored image not found.");
     }
 
-    return Buffer.from(await new Response(result.stream).arrayBuffer());
+    const reader = result.stream.getReader();
+    const chunks: Uint8Array[] = [];
+    let size = 0;
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        size += value.byteLength;
+        if (maxBytes !== undefined && size > maxBytes) { await reader.cancel(); throw new Error("Stored file exceeds its declared size."); }
+        chunks.push(value);
+      }
+      return Buffer.concat(chunks);
+    } finally { reader.releaseLock(); }
   }
 
   assertStorageConfigured();
-  return readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
+  const buffer = await readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
+  if (maxBytes !== undefined && buffer.length > maxBytes) throw new Error("Stored file exceeds its declared size.");
+  return buffer;
 }
 
 export async function deleteStoredImage(storagePath: string) {
@@ -126,4 +140,15 @@ export async function deleteStoredImage(storagePath: string) {
 
   assertStorageConfigured();
   await rm(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath), { force: true });
+}
+
+// Call only after ownership has been checked. Scope the read grant to one image.
+export async function getStoredImageReadUrl(storagePath: string) {
+  if (!hasVercelBlobToken()) return null;
+  const pathname = normalizeStoragePath(storagePath).replace(/\\/g, "/");
+  if (pathname.includes("*")) throw new Error("Wildcard image reads are not allowed.");
+  const { issueSignedToken, presignUrl } = await import("@vercel/blob");
+  const validUntil = Date.now() + 5 * 60 * 1000;
+  const token = await issueSignedToken({ pathname, operations: ["get"], validUntil });
+  return (await presignUrl(token, { operation: "get", pathname, access: "private", validUntil })).presignedUrl;
 }

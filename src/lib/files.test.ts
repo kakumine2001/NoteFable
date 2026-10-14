@@ -70,8 +70,8 @@ describe("attachment validation", () => {
       "text/plain",
       MAX_UPLOAD_FILE_BYTES + 1,
     );
-    const combinedFileSize = Math.floor(MAX_UPLOAD_TOTAL_BYTES / 3) + 1;
-    const combinedTooLarge = ["first.txt", "second.txt", "third.txt"].map((name) =>
+    const combinedFileSize = Math.floor(MAX_UPLOAD_TOTAL_BYTES / 6) + 1;
+    const combinedTooLarge = Array.from({ length: 6 }, (_, index) => `${index}.txt`).map((name) =>
       fakeFile(name, "text/plain", combinedFileSize),
     );
 

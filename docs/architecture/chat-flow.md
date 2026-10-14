@@ -14,15 +14,24 @@ sequenceDiagram
     participant Auth
     participant Database
     participant Files
+    participant UploadAPI
+    participant PrivateBlob
     participant Provider
 
     User->>Browser: Send message and optional files
-    Browser->>ChatAPI: Submit form data
+    opt Files attached
+        Browser->>UploadAPI: Request owner-bound upload tickets
+        UploadAPI-->>Browser: Short-lived restricted tickets
+        Browser->>PrivateBlob: Direct binary upload with progress
+    end
+    Browser->>ChatAPI: Submit text and signed upload references
     ChatAPI->>Auth: Resolve anonymous user
     Auth->>Database: Find or create user
     ChatAPI->>Database: Find or create session
 
     alt Files attached
+        ChatAPI->>PrivateBlob: Verify owner, actual size/type and read temporary files
+        ChatAPI->>PrivateBlob: Delete temporary originals
         ChatAPI->>Files: Prepare attachments
         Files-->>ChatAPI: Text image input and storage path
     end
@@ -46,7 +55,7 @@ FormData
 ├── reasoning
 ├── sessionId       optional
 ├── webSearch       mode
-└── files[]         optional
+└── uploads[]       optional signed references (JSON string)
 ```
 
 然后：

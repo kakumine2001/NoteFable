@@ -20,7 +20,9 @@ sequenceDiagram
     participant Provider
 
     User->>Browser: Select image
-    Browser->>ChatAPI: Upload form data
+    Browser->>Storage: Direct upload to private Blob with restricted ticket
+    Browser->>ChatAPI: Text and signed upload references
+    ChatAPI->>Storage: Verify owner and actual size/type, read and remove temporary original
     ChatAPI->>Files: Prepare attachment
     Files->>Storage: Store image
     Storage-->>Files: Return storage path
@@ -42,6 +44,8 @@ Buffer
 ```
 
 Base64 data URL 不长期保存到 PostgreSQL。
+
+历史预览从附件图片 API 开始：确认当前用户拥有该附件后，Blob 存储使用限单文件、5 分钟有效的签名 GET URL 重定向；大图不经 Vercel Function 代理回传。签名令牌只授予该图片的读取操作，私有存储访问凭据保留在服务器。
 
 ## 2. 图片生成
 

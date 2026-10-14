@@ -19,10 +19,10 @@ describe("composer attachment validation", () => {
 
   it("checks byte boundaries and combined existing/new size", () => {
     expect(getUploadSelectionError([], [image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
-    expect(getUploadSelectionError([], [image(MAX_UPLOAD_FILE_BYTES + 1)], options)).toContain("4 MiB");
-    const current = [image(MAX_UPLOAD_FILE_BYTES / 2), image(MAX_UPLOAD_FILE_BYTES / 2)];
+    expect(getUploadSelectionError([], [image(MAX_UPLOAD_FILE_BYTES + 1)], options)).toContain("20 MiB");
+    const current = Array.from({ length: 5 }, () => image(MAX_UPLOAD_FILE_BYTES));
     expect(getUploadValidationError(current, options)).toBe("");
-    expect(getUploadSelectionError(current, [image(1)], options)).toContain("4 MiB in total");
+    expect(getUploadSelectionError(current, [image(1)], options)).toContain("100 MiB in total");
     expect(current.reduce((sum, file) => sum + file.size, 0)).toBe(MAX_UPLOAD_TOTAL_BYTES);
   });
 
@@ -30,11 +30,12 @@ describe("composer attachment validation", () => {
     expect(getUploadSelectionError([], [{ name: "photo.heic", type: "image/heic", size: 100 }], options)).toContain("not supported");
     expect(getUploadSelectionError([], [{ name: "notes.md", type: "", size: 100 }], options)).toBe("");
     expect(getUploadValidationError([image()], { ...options, supportsImages: false })).toContain("cannot read images");
-    expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], { ...options, claudeImages: true })).toBe("");
-    expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES + 1)], { ...options, claudeImages: true })).toContain("4 MiB");
+    expect(getUploadValidationError([image(5 * 1024 * 1024)], { ...options, claudeImages: true })).toBe("");
+    expect(getUploadValidationError([image(5 * 1024 * 1024 + 1)], { ...options, claudeImages: true })).toContain("5 MiB");
+    expect(getUploadValidationError(Array.from({ length: 5 }, () => image(5 * 1024 * 1024)), { ...options, claudeImages: true })).toContain("20 MiB in total");
     expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
     expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "hello")).toBe("");
-    expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "字".repeat(110000))).toContain("too large");
+    expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "字".repeat(1500000))).toContain("too large");
   });
 });
 

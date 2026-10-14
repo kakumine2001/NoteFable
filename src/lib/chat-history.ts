@@ -32,11 +32,12 @@ export async function buildHistoryInput(
   supportsImageInput: boolean,
   maxImageBytes = MAX_HISTORY_IMAGE_BYTES,
   maxAttachmentTextChars = MAX_HISTORY_ATTACHMENT_TEXT_CHARS,
+  maxTotalImageBytes = MAX_HISTORY_IMAGE_BYTES,
 ): Promise<HistoryInput[]> {
   // 新しい添付から優先して、会話履歴全体の上限内に収める。
   let remainingTextChars = maxAttachmentTextChars;
   let remainingImageFiles = supportsImageInput ? MAX_HISTORY_IMAGE_FILES : 0;
-  let remainingImageBytes = supportsImageInput ? MAX_HISTORY_IMAGE_BYTES : 0;
+  let remainingImageBytes = supportsImageInput ? Math.min(MAX_HISTORY_IMAGE_BYTES, maxTotalImageBytes) : 0;
   const inputByMessageId = new Map<string, HistoryInput>();
 
   for (const message of newestFirstMessages) {

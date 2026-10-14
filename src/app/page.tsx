@@ -28,6 +28,7 @@ import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { ATTACHMENT_ACCEPT, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
 import { MAX_UPLOAD_FILES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -259,6 +260,7 @@ export default function Home() {
   const [input, setInput] = useState("");
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
   const [sendError, setSendError] = useState("");
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
   // 推論強度の UI 選択値。モデルごとに選べる値が違うため、changeModel で補正する。
@@ -330,8 +332,8 @@ export default function Home() {
     claudeImages: !imageGenerationMode && selectedModel.provider === "anthropic",
   };
   const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions);
-  const attachmentHint = `${MAX_UPLOAD_FILES} attachments max · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total`;
-  const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError;
+  const attachmentHint = `${MAX_UPLOAD_FILES} attachments max · 20 MiB/file · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total${uploadOptions.claudeImages ? " · Claude images: 5 MiB each, 20 MiB total" : ""}`;
+  const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError && !uploadProgress;
   // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
   const isNarrowScreen = useMediaQuery("(max-width: 639px)");
   const inputPlaceholder = imageGenerationMode
@@ -435,6 +437,7 @@ export default function Home() {
   }
 
   function addUploadFiles(incoming: File[]) {
+    if (uploadProgress) return;
     if (!incoming.length) return;
     const current = files;
     const error = getUploadSelectionError(current.map(({ file }) => file), incoming, uploadOptions);
@@ -615,6 +618,7 @@ export default function Home() {
   }
 
   function removeUploadFile(fileId: string) {
+    if (uploadProgress) return;
     setSendError("");
     const current = files;
     revokeUploadPreviews(current.filter((item) => item.id === fileId));
@@ -686,6 +690,7 @@ export default function Home() {
     const initialRequestSessionKey = requestSessionKey;
     if (
       !userContent ||
+      uploadProgress ||
       streamingSessionsRef.current[requestSessionKey] ||
       submittingSessionKeysRef.current.has(requestSessionKey)
     ) {
@@ -704,6 +709,26 @@ export default function Home() {
     setSendError("");
     submittingSessionKeysRef.current.add(requestSessionKey);
 
+    let uploadedTickets: string[] = [];
+    const navigationIntent = sessionNavigationIntentRef.current;
+    try {
+      if (submittedFiles.length) setUploadProgress("Preparing attachments…");
+      uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
+        setUploadProgress(`Uploading ${index}/${total} · ${name} · ${percentage}%`);
+      });
+      if (navigationIntent !== sessionNavigationIntentRef.current) {
+        await cleanupClientUploads(uploadedTickets);
+        submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+        return;
+      }
+    } catch (error) {
+      if (navigationIntent === sessionNavigationIntentRef.current) setSendError(error instanceof Error ? error.message : "Attachment upload failed. Please try again.");
+      submittingSessionKeysRef.current.delete(initialRequestSessionKey);
+      return;
+    } finally {
+      setUploadProgress(null);
+    }
+
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
@@ -711,6 +736,7 @@ export default function Home() {
       const draftEpoch = draftEpochRef.current;
       const { error, session } = await createEmptySession(sentIcon);
       if (!session) {
+        await cleanupClientUploads(uploadedTickets);
         setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
@@ -783,13 +809,13 @@ export default function Home() {
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
 
-    // 通常チャット API は multipart/form-data を受けるため、本文・モデル設定・添付を FormData に詰める。
+    // 本文・モデル設定・署名付き添付参照だけを送る。画像/ファイルのバイナリは Blob 直送済み。
     const body = new FormData();
     body.append("message", userContent);
     body.append("model", model);
     body.append("reasoning", reasoning);
     if (requestSessionId) body.append("sessionId", requestSessionId);
-    submittedFiles.forEach(({ file }) => body.append("files", file));
+    body.append("uploads", JSON.stringify(uploadedTickets));
 
     // 送信完了後にサーバー履歴へ差し替えられた時だけ、楽観表示用 previewUrl を解放する。
     let shouldCleanupSubmittedPreviews = false;
@@ -805,7 +831,7 @@ export default function Home() {
         imageBody.append("model", model);
         imageBody.append("reasoning", reasoning);
         if (requestSessionId) imageBody.append("sessionId", requestSessionId);
-        submittedFiles.forEach(({ file }) => imageBody.append("files", file));
+        imageBody.append("uploads", JSON.stringify(uploadedTickets));
         // 画像生成 API は完成画像だけを JSON で返す。
         const response = await fetch("/api/images", {
           method: "POST",
@@ -953,6 +979,7 @@ export default function Home() {
           current.map(stripAttachmentPreviewUrls),
         );
       }
+      await cleanupClientUploads(uploadedTickets);
       finishStreamingSession(requestSessionKey);
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       submittingSessionKeysRef.current.delete(requestSessionKey);
@@ -1249,6 +1276,7 @@ export default function Home() {
                       <button
                         type="button"
                         onClick={() => removeUploadFile(id)}
+                        disabled={Boolean(uploadProgress)}
                         className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
                         aria-label="Remove image"
                       >
@@ -1260,6 +1288,7 @@ export default function Home() {
                       key={id}
                       type="button"
                       onClick={() => removeUploadFile(id)}
+                      disabled={Boolean(uploadProgress)}
                       className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                     >
                       <Paperclip size={13} />
@@ -1282,13 +1311,14 @@ export default function Home() {
                   }}
                   aria-haspopup="dialog"
                   aria-label="Add"
+                  disabled={Boolean(uploadProgress)}
                 >
                   <Plus size={18} strokeWidth={1.8} />
                 </button>
               ) : (
                 <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title={`Add files or photos — ${attachmentHint}`}>
                   <Plus size={18} strokeWidth={1.8} />
-                  <input type="file" multiple accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" aria-describedby="attachment-limits" className="sr-only" onChange={handleFileSelect} />
+                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" aria-describedby="attachment-limits" className="sr-only" onChange={handleFileSelect} />
                 </label>
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -1306,6 +1336,7 @@ export default function Home() {
                 )}
                 <div className="flex items-center">
                 <textarea
+                  readOnly={Boolean(uploadProgress)}
                   ref={inputRef}
                   value={input}
                   onChange={(event) => changeInput(event.target.value, event.currentTarget)}
@@ -1370,6 +1401,7 @@ export default function Home() {
               <span>{attachmentHint}</span>
               {!!files.length && <span role="status">{files.length}/{MAX_UPLOAD_FILES} attached · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
             </div>
+            {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{uploadProgress}</div>}
           </form>
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}

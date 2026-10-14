@@ -85,6 +85,8 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
 }
 
 export async function requestAnthropic(body: object, signal?: AbortSignal) {
+  const serialized = JSON.stringify(body);
+  if (Buffer.byteLength(serialized, "utf8") > 32_000_000) throw new Error("Claude's request is too large. Remove images or start a new chat.");
   const base = optionalEnv("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
   const response = await fetch(`${base.replace(/\/$/, "")}/messages`, {
     method: "POST",
@@ -94,7 +96,7 @@ export async function requestAnthropic(body: object, signal?: AbortSignal) {
       ...("context_management" in body ? { "anthropic-beta": "compact-2026-01-12" } : {}),
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: serialized,
     signal,
   });
   if (!response.ok) {
