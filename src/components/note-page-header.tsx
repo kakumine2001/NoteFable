@@ -2,7 +2,7 @@
 
 import { ImageIcon, Smile, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
-import { EMOJIS, EmojiPopover, Popover, randomOf, usePickerBackToClose } from "@/components/emoji-picker";
+import { EmojiPopover, Popover, randomOf, usePickerBackToClose } from "@/components/emoji-picker";
 import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type NoteCover } from "@/lib/note-document";
 import type { NoteContent } from "@/types/notes";
 
@@ -91,7 +91,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
         {editable && (
           <div className="notes-header-controls">
             {!content.icon && (
-              <button type="button" onClick={() => update({ icon: randomOf(EMOJIS) })}><Smile size={15} />Add icon</button>
+              <button type="button" onClick={() => { update({ icon: "📄" }); setPicker("icon"); }}><Smile size={15} />Add icon</button>
             )}
             {!hasCover && (
               <button type="button" onClick={() => update({ cover: randomOf(COVER_KEYS), coverPosition: null })}><ImageIcon size={15} />Add cover</button>

@@ -132,6 +132,7 @@ button:disabled {
 
 /* アイコン・カバー選択ポップオーバー */
 .notes-popover {
+  --notes-text: var(--notion-text); --notes-muted: var(--notion-muted); --notes-hover: var(--notion-hover); --notes-menu-shadow: var(--notion-shadow);
   position: absolute; z-index: 60; overflow: hidden; border-radius: 8px; background: #fff;
   box-shadow: var(--notes-menu-shadow); animation: motion-menu-enter 120ms ease-out;
 }
@@ -146,15 +147,17 @@ button:disabled {
   border-radius: 4px; font-size: 13px; font-weight: 400; color: var(--notes-muted);
 }
 .notes-picker-bar button:hover { background: var(--notes-hover); }
-.notes-emoji-grid {
-  display: grid; max-height: 280px; overflow-y: auto; padding: 6px 8px 8px;
-  grid-template-columns: repeat(auto-fill, minmax(32px, 1fr));
+.full-emoji-picker { --emoji-picker-height: min(380px, var(--emoji-picker-available-height, calc(100dvh - 100px))); width: 100%; }
+.full-emoji-picker .EmojiPickerReact {
+  --epr-bg-color: #fff;
+  --epr-hover-bg-color: var(--notes-hover);
+  --epr-text-color: var(--notes-text);
+  --epr-category-label-text-color: var(--notes-muted);
+  --epr-emoji-size: 24px;
+  border: 0; border-radius: 0; font-family: inherit;
 }
-.notes-emoji-grid button {
-  display: grid; height: 32px; place-items: center; border-radius: 4px; font-size: 22px; line-height: 1;
-  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
-}
-.notes-emoji-grid button:hover, .notes-emoji-grid button.is-active { background: var(--notes-hover); }
+.emoji-picker-current { font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif; }
+.emoji-picker-loading { display: grid; height: min(416px, calc(100dvh - 64px)); place-items: center; color: var(--notes-muted); font-size: 14px; }
 .notes-cover-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 10px 12px 12px; }
 .notes-cover-grid button { height: 56px; border-radius: 4px; transition: opacity 120ms ease; }
 .notes-cover-grid button:hover { opacity: 0.85; }
@@ -239,7 +242,7 @@ button:disabled {
 .profile-name-input:focus { border-color: var(--notion-blue); outline: 2px solid rgba(35, 131, 226, 0.2); }
 .profile-email { margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--notion-muted); }
 .profile-emoji { margin: 10px -14px 0; border-top: 1px solid var(--notion-border); }
-.profile-emoji .notes-emoji-grid { max-height: 168px; }
+.profile-emoji .full-emoji-picker { --emoji-picker-height: min(320px, calc(100dvh - 220px)); }
 .profile-error { margin-top: 10px; font-size: 12px; color: #b91c1c; }
 .profile-editor { margin: 10px -14px 0; border-top: 1px solid var(--notion-border); }
 .profile-editor .profile-emoji { margin: 0; border-top: 0; }
