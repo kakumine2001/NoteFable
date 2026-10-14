@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -31,9 +32,16 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   // ユーザーが「New chat」を押した時点では、まだ本文がない。
   // 仮タイトルの空セッションを作り、最初の送信時にメッセージ内容からタイトルを付け直す。
+  // 最初の送信前に選んだアイコンを、会話の作成と同時に保存できる。本文なし（従来の呼び出し）は icon なし。
+  const body = await request.json().catch(() => null);
+  const icon = body && typeof body === "object" && "icon" in body ? (body as { icon: unknown }).icon : null;
+  if (icon !== null && !isEmojiIcon(icon)) {
+    return NextResponse.json({ error: "Chat icon must be a single emoji." }, { status: 400 });
+  }
+
   try {
     // 新規セッションの所有者になる匿名ユーザー。
     const user = await getOrCreateAnonymousUser();
@@ -42,6 +50,7 @@ export async function POST() {
       data: {
         userId: user.id,
         title: "New chat",
+        icon,
       },
       select: {
         id: true,

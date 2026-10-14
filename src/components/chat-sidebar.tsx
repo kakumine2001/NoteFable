@@ -1,6 +1,8 @@
 "use client";
 
 import { MessageSquareText, PanelLeftClose, Plus, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import type { Session } from "@/types/chat";
@@ -13,6 +15,7 @@ type ChatSidebarProps = {
   onCreate: () => void;
   onLoad: (sessionId: string) => void;
   onDelete: (sessionId: string) => void;
+  onChangeIcon: (sessionId: string, icon: string | null) => void;
 };
 
 export function ChatSidebar({
@@ -22,8 +25,17 @@ export function ChatSidebar({
   onCreate,
   onLoad,
   onDelete,
+  onChangeIcon,
   onWorkspaceChange,
 }: ChatSidebarProps) {
+  // アイコン選択を開いている会話と、その位置（スクロールしても固定位置で出すため開いた時点で決める）。
+  const [picker, setPicker] = useState<{ id: string; position: FloatingPosition } | null>(null);
+  const closePicker = () => setPicker(null);
+  // 押した行のアイコンボタン。別の行のボタンを押したときは外側のクリックとして閉じる。
+  const triggerRef = useRef<HTMLElement | null>(null);
+  usePickerBackToClose(picker !== null, closePicker);
+  const pickerSession = picker ? sessions.find((session) => session.id === picker.id) : undefined;
+
   return (
     <aside className="notion-sidebar">
       <div className="flex h-12 items-center justify-between px-3">
@@ -56,10 +68,18 @@ export function ChatSidebar({
               const active = activeSessionId === session.id;
               return (
                 <div key={session.id} className={`notion-session-row group ${active ? "is-active" : ""}`}>
-                  <button type="button" onClick={() => onLoad(session.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={session.title}>
+                  <button type="button" className="chat-row-icon-button" aria-label={`Change icon of ${session.title}`} title="Change icon"
+                    aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
+                    onClick={(event) => {
+                      triggerRef.current = event.currentTarget;
+                      const position = floatingPositionFor(event.currentTarget.getBoundingClientRect());
+                      setPicker(picker?.id === session.id ? null : { id: session.id, position });
+                    }}>
                     {session.icon
                       ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
+                  </button>
+                  <button type="button" onClick={() => onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" title={session.title}>
                     <span className="truncate text-sm">{session.title}</span>
                   </button>
                   <button type="button" onClick={() => onDelete(session.id)} className="notion-row-action" aria-label={`Delete ${session.title}`}>
@@ -71,6 +91,10 @@ export function ChatSidebar({
           </div>
         )}
       </div>
+      {picker && pickerSession && (
+        <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerSession.icon ?? null}
+          onChange={(icon) => onChangeIcon(pickerSession.id, icon)} onClose={closePicker} />
+      )}
     </aside>
   );
 }

@@ -30,6 +30,7 @@ import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
+import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 
@@ -179,8 +180,9 @@ export default function Home() {
     }
     else url.searchParams.delete("view");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
-    if (window.history.state?.studymateDrawer || window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
+    restoreSheetMarker();
     if (view === "chat") void notes.active?.flush();
   }
 
@@ -194,8 +196,9 @@ export default function Home() {
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
       url.searchParams.set("page", id);
-      if (window.history.state?.studymateDrawer || window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+      if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
       else window.history.pushState(null, "", url);
+      restoreSheetMarker();
     }
     setNotesList(false);
     if (notes.activeId !== id) void notes.select(id, "none");
@@ -215,12 +218,24 @@ export default function Home() {
   function openNotesList() {
     const url = new URL(window.location.href);
     url.searchParams.delete("page");
-    window.history.pushState(null, "", url);
+    // シートが積んだ目印が一番上にあるときは置き換えて、戻る操作で空振りする履歴を残さない。
+    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    else window.history.pushState(null, "", url);
+    restoreSheetMarker();
     setNotesList(true);
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
   const [sessions, setSessions] = useState<Session[]>([]);
+  // まだ会話が保存されていない新規チャットで先に選んだアイコン。最初の送信で会話を作るときに一緒に保存する。
+  const [draftIcon, setDraftIcon] = useState<string | null>(null);
+  const draftIconRef = useRef<string | null>(null);
+  // 別の会話を開くたびに進める。最初の送信の途中で移動したかを見分ける。
+  const draftEpochRef = useRef(0);
+  const changeDraftIcon = (icon: string | null) => {
+    draftIconRef.current = icon;
+    setDraftIcon(icon);
+  };
   // 現在表示しているセッション ID。未保存の新規チャットでは null になる。
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   // 画面中央に表示する会話メッセージ。送信直後の楽観表示もここに入る。
@@ -246,29 +261,17 @@ export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // モバイルのドロワーを開いている間は履歴を 1 件積み、端末の「戻る」でアプリを閉じずにドロワーだけ閉じる。
+  // ドロワーの上にアイコン選択などが重なっているときは、先にそちらが閉じる（共通のフックが一番上だけを閉じる）。
+  useBackToClose(sidebarOpen, () => setSidebarOpen(false));
   useEffect(() => {
     if (!sidebarOpen) return;
-
-    window.history.pushState({ studymateDrawer: true }, "");
-    let closedByBack = false;
-    function onBack() {
-      closedByBack = true;
-      setSidebarOpen(false);
-    }
-    window.addEventListener("popstate", onBack, { once: true });
     // 画面を広げてデスクトップ表示になったら、見えなくなったドロワーの履歴が残らないよう閉じる。
     const desktop = window.matchMedia("(min-width: 1024px)");
     function onResize() {
       if (desktop.matches) setSidebarOpen(false);
     }
     desktop.addEventListener("change", onResize);
-
-    return () => {
-      window.removeEventListener("popstate", onBack);
-      desktop.removeEventListener("change", onResize);
-      // 画面のボタンなどで閉じた場合は、積んでおいた履歴を取り除く。
-      if (!closedByBack && window.history.state?.studymateDrawer) window.history.back();
-    };
+    return () => desktop.removeEventListener("change", onResize);
   }, [sidebarOpen]);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -461,9 +464,12 @@ export default function Home() {
     }
   }
 
-  async function createEmptySession() {
+  async function createEmptySession(icon: string | null = null) {
     try {
-      const response = await fetch("/api/sessions", { method: "POST" });
+      const response = await fetch("/api/sessions", {
+        method: "POST",
+        ...(icon ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon }) } : {}),
+      });
       const data = await readJsonObject(response);
       if (!response.ok) {
         return {
@@ -485,6 +491,8 @@ export default function Home() {
   }
 
   async function loadMessages(sessionId: string) {
+    draftEpochRef.current += 1;
+    changeDraftIcon(null);
     const intent = sessionNavigationIntentRef.current + 1;
     sessionNavigationIntentRef.current = intent;
     sessionLoadAbortRef.current?.abort();
@@ -686,7 +694,9 @@ export default function Home() {
     if (!requestSessionId) {
       // 未保存の新規チャットは送信開始前に実セッション化する。
       // 画像生成も完了待ちにならず、他セッションと同じ単位で並行管理できる。
-      const { error, session } = await createEmptySession();
+      const sentIcon = draftIconRef.current;
+      const draftEpoch = draftEpochRef.current;
+      const { error, session } = await createEmptySession(sentIcon);
       if (!session) {
         setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
@@ -699,6 +709,16 @@ export default function Home() {
       setSessions((current) =>
         current.some((item) => item.id === session.id) ? current : [session, ...current],
       );
+      // 作成を待っている間に選び直したアイコンは、会話ができたあとで保存する（そのまま消えないように）。
+      // 作成の途中で別の会話へ移っていたら、移動側が下書きを片付け済み。ここでは何も触らない。
+      const latestIcon = draftEpochRef.current === draftEpoch ? draftIconRef.current : sentIcon;
+      if (draftEpochRef.current === draftEpoch) changeDraftIcon(null);
+      if (latestIcon !== sentIcon) {
+        const created = session.id;
+        void iconSync.change(created, latestIcon, sentIcon,
+          (value) => setSessions((list) => list.map((item) => (item.id === created ? { ...item, icon: value } : item))),
+          () => setSendError("Failed to change the chat icon."));
+      }
       activeSessionIdRef.current = session.id;
       setActiveSessionId(session.id);
     }
@@ -1046,6 +1066,7 @@ export default function Home() {
       onCreate={createSession}
       onLoad={loadMessages}
       onDelete={deleteSession}
+      onChangeIcon={changeSessionIcon}
       onClose={closeSidebar}
       onWorkspaceChange={changeWorkspace}
     />
@@ -1134,14 +1155,18 @@ export default function Home() {
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
           >
             {emptyState ? (
-              <EmptyConversation onWorkspaceChange={changeWorkspace} />
+              <EmptyConversation
+                icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
+                onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
+                onWorkspaceChange={changeWorkspace}
+              />
             ) : (
               <>
-                <header className="chat-title-header pb-10 pt-12 motion-page-enter max-sm:hidden">
-                  {activeSession && (
-                    <ChatTitleIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
-                  )}
-                  <h1 className="break-words text-[2rem] font-bold leading-tight tracking-[-0.025em] text-[var(--notion-text)]">{activeTitle}</h1>
+                <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
+                  <h1 aria-labelledby="chat-heading-text" className="break-words text-[2rem] font-bold leading-tight tracking-[-0.025em] text-[var(--notion-text)]">
+                    {activeSession && <ChatTitleIcon key={activeSession.id} icon={activeSession.icon ?? null} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />}
+                    <span id="chat-heading-text">{activeTitle}</span>
+                  </h1>
                 </header>
                 <div className="space-y-9">
                   {messages.map((message, index) => {

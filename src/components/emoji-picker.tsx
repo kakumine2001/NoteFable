@@ -1,7 +1,8 @@
 "use client";
 
 import { Shuffle } from "lucide-react";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 
@@ -22,39 +23,59 @@ export function randomOf<T>(items: readonly T[]) {
 }
 
 // 外側クリックと Esc で閉じる小さなポップオーバー。開閉ボタン自身のクリックは外側扱いにしない。
-export function Popover({ className, label, onClose, children }: { className: string; label?: string; onClose: () => void; children: ReactNode }) {
+// trigger を渡すとその 1 つだけを開閉ボタンとして扱う（同じ画面に開閉ボタンが複数あるとき、別のボタンは外側のクリックにする）。
+// 開いたらダイアログへフォーカスを移し、閉じたときにフォーカスが行き場を失っていれば開閉ボタンへ戻す。
+export function Popover({ className, label, style, trigger, onClose, children }: {
+  className: string;
+  label?: string;
+  style?: CSSProperties;
+  trigger?: { current: HTMLElement | null };
+  onClose: () => void;
+  children: ReactNode;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
     function onDown(event: MouseEvent) {
       const target = event.target as HTMLElement;
-      if (!ref.current?.contains(target) && !target.closest("[data-popover-trigger]")) closeRef.current();
+      const onTrigger = trigger ? !!trigger.current?.contains(target) : !!target.closest("[data-popover-trigger]");
+      if (!ref.current?.contains(target) && !onTrigger) closeRef.current();
     }
     function onKey(event: globalThis.KeyboardEvent) { if (event.key === "Escape") closeRef.current(); }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, []);
-  return <div ref={ref} className={`notes-popover ${className}`} role="dialog" aria-label={label}>{children}</div>;
+    const opener = trigger?.current ?? (document.activeElement as HTMLElement | null);
+    ref.current?.focus({ preventScroll: true });
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      // ほかの入力欄をクリックして閉じた場合はそのフォーカスを奪わない。
+      setTimeout(() => { if (opener?.isConnected && (!document.activeElement || document.activeElement === document.body)) opener.focus({ preventScroll: true }); });
+    };
+  }, [trigger]);
+  return <div ref={ref} className={`notes-popover ${className}`} style={style} role="dialog" aria-label={label} tabIndex={-1}>{children}</div>;
 }
 
-// スマホでは端末の「戻る」でアプリを閉じず、選択画面だけを閉じる（開いている間だけ履歴を 1 件積む）。
+// 端末の「戻る」でアプリを閉じず、選択画面だけを閉じる（サイドバーが抽屉になる 1024px 未満で有効）。
+// 抽屉の上に重なっても、Esc と「戻る」は先にこちらだけを閉じる。
 // ポップオーバーの開閉ではなく、常に描画されている側（開閉ボタンを持つコンポーネント）で呼ぶ。
 export function usePickerBackToClose(open: boolean, onClose: () => void) {
-  const phone = useMediaQuery("(max-width: 639px)");
-  useBackToClose(open && phone, onClose);
+  const drawerLayout = useMediaQuery("(max-width: 1023px)");
+  useBackToClose(open && drawerLayout, onClose);
 }
 
 // 絵文字の選択ポップオーバー。選ぶと閉じ、Random は開いたまま、Remove は null を返して閉じる。
-export function EmojiPopover({ current, className, onChange, onClose }: {
+export function EmojiPopover({ current, className, style, trigger, onChange, onClose }: {
   current: string | null;
   className: string;
+  style?: CSSProperties;
+  trigger?: { current: HTMLElement | null };
   onChange: (icon: string | null) => void;
   onClose: () => void;
 }) {
   return (
-    <Popover className={className} label="Choose an emoji" onClose={onClose}>
+    <Popover className={className} label="Choose an emoji" style={style} trigger={trigger} onClose={onClose}>
       <div className="notes-picker-bar">
         <span>Emoji</span>
         <div className="flex gap-1">
@@ -69,5 +90,48 @@ export function EmojiPopover({ current, className, onChange, onClose }: {
         ))}
       </div>
     </Popover>
+  );
+}
+
+export type FloatingPosition = { top: number; left: number; width: number };
+
+// 押したボタンの位置から、画面内に収まる選択画面の位置を求める。下に入らなければボタンの上に出す。
+export function floatingPositionFor(anchor: DOMRect): FloatingPosition {
+  const margin = 12;
+  const height = 332;
+  const width = Math.min(408, window.innerWidth - margin * 2);
+  const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
+  const below = anchor.bottom + 6;
+  const top = below + height <= window.innerHeight - margin ? below : Math.max(margin, anchor.top - height - 6);
+  return { top, left, width };
+}
+
+// スクロールする一覧（サイドバーなど）の中のボタンから開く選択画面。裁ち切られないよう body に固定位置で出す。
+// 位置は開いた時点で決めるので、一覧がスクロールされたり画面サイズが変わったら閉じる。
+export function FloatingEmojiPopover({ position, trigger, current, onChange, onClose }: {
+  position: FloatingPosition;
+  trigger: { current: HTMLElement | null };
+  current: string | null;
+  onChange: (icon: string | null) => void;
+  onClose: () => void;
+}) {
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; });
+  useEffect(() => {
+    const close = () => closeRef.current();
+    window.addEventListener("resize", close);
+    // スクロールは子要素のものも拾う（capture）。選択画面自身の中のスクロールでは閉じない。
+    const onScroll = (event: Event) => {
+      if (!(event.target as Element | null)?.closest?.(".chat-floating-picker")) close();
+    };
+    window.addEventListener("scroll", onScroll, true);
+    return () => {
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", onScroll, true);
+    };
+  }, []);
+  return createPortal(
+    <EmojiPopover className="chat-floating-picker" style={position} trigger={trigger} current={current} onChange={onChange} onClose={onClose} />,
+    document.body,
   );
 }
