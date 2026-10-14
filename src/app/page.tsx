@@ -28,6 +28,7 @@ import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { SessionIconSync } from "@/lib/session-icon-sync";
+import { parseChatStreamLine } from "@/lib/chat-stream";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
@@ -81,18 +82,6 @@ function stripAttachmentPreviewUrls(message: Message): Message {
       return attachment;
     }),
   };
-}
-
-function parseChatStreamLine(line: string): string | ActivityEvent | null {
-  // チャット API は SSE 形式。data は本文差分なら JSON 文字列、途中経過なら { activity } になる。
-  const trimmed = line.trim();
-  if (!trimmed.startsWith("data:")) return null;
-
-  const payload = trimmed.replace(/^data:\s*/, "");
-  if (!payload || payload === "[DONE]") return null;
-
-  const data = JSON.parse(payload) as string | { activity?: ActivityEvent };
-  return typeof data === "string" ? data : (data.activity ?? null);
 }
 
 async function saveSessionIcon(sessionId: string, icon: string | null) {
@@ -1146,7 +1135,7 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
+          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? "contents" : "hidden"}>

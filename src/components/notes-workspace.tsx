@@ -4,6 +4,7 @@ import { FileText, Plus, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
+import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
@@ -13,9 +14,12 @@ const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <p className="notes-loading">Loading editor…</p>,
 });
 
-export function NotesWorkspace({ notes, listMode, onOpen, onCreate, onWorkspaceChange }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCreate, onWorkspaceChange }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
+  // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
+  model: string;
+  reasoning: string;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -66,6 +70,7 @@ export function NotesWorkspace({ notes, listMode, onOpen, onCreate, onWorkspaceC
           }}
           onChange={(blocks) => active.edit({ ...active.content, blocks })} />
       </div>
+      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} flush={() => active.flush()} />
     </> : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
       <h1 className="mt-4 text-[2.5rem] font-bold leading-tight tracking-[-0.01em]">Notes</h1>

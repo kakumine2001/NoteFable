@@ -62,7 +62,7 @@ POST /api/chat
 ```text
 当前 AnonymousUser
     ↓
-find Session where id + userId match
+find Session where id + userId + noteId match（noteId は通常のチャットでは null、笔记助手の会话では笔记 ID）
 ```
 
 如果没有：

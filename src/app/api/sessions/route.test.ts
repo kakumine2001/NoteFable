@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), findMany: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ prisma: { session: { create: mocks.create, findMany: vi.fn() } } }));
-import { POST } from "./route";
+vi.mock("@/lib/prisma", () => ({ prisma: { session: { create: mocks.create, findMany: mocks.findMany } } }));
+import { GET, POST } from "./route";
 
 function post(body?: unknown) {
   return new Request("http://localhost/api/sessions", { method: "POST", ...(body === undefined ? {} : { body: typeof body === "string" ? body : JSON.stringify(body) }) });
@@ -40,5 +40,13 @@ describe("creating a chat", () => {
   it.each([["abc"], ["📚📚"], [""], [5]])("rejects %j as an icon without creating a chat", async (icon) => {
     expect((await POST(post({ icon }))).status).toBe(400);
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("listing chats", () => {
+  it("leaves out the conversations that belong to a note's AI assistant", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    expect((await GET()).status).toBe(200);
+    expect(mocks.findMany.mock.calls[0][0].where).toEqual({ userId: "mine", noteId: null });
   });
 });

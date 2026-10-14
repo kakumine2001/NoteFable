@@ -125,6 +125,7 @@ erDiagram
         string title
         string icon
         string userId FK
+        string noteId FK "nullable"
         datetime createdAt
         datetime updatedAt
     }
@@ -198,6 +199,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `title`
 - `icon`（可空，单个 emoji，`null` 为默认聊天图标）
 - `userId`
+- `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`，删除笔记时一起删除）
 - `createdAt`
 - `updatedAt`
 
@@ -205,9 +207,10 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 
 ```text
 (userId, updatedAt)
+(noteId)
 ```
 
-用于按用户读取并排序最近会话。
+用于按用户读取并排序最近会话。`GET /api/sessions` 只返回 `noteId` 为空的会话，所以笔记助手的对话不会出现在侧栏的 Chats 里。新增字段通过 `20261014210000_session_note` migration 部署（只追加可空列、索引和外键）。
 
 `icon` 可在 `POST /api/sessions` 创建会话时一并给出（新聊天在第一条消息前选的图标；不带请求体的旧调用仍然可用），之后由 `PATCH /api/sessions/[sessionId]` 修改：校验与 Notes 图标相同（`src/lib/emoji-icon.ts`，单个 emoji 或 `null`），按会话 ID 和匿名用户 ID 限定所有者；修改图标时把 `updatedAt` 原样写回，不改变侧栏的最近使用排序：写入条件包含读到的 `updatedAt`，若同时有回答保存使其前进则重新读取并重试（最多 3 次），仍有竞争时以保存图标为优先、不再保持排序。新增字段通过 `20261014200000_session_icon` migration 部署。
 

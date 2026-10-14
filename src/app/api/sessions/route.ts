@@ -11,7 +11,8 @@ export async function GET() {
     const user = await getOrCreateAnonymousUser();
     // サイドバーに必要な最小限の情報だけ取得する。
     const sessions = await prisma.session.findMany({
-      where: { userId: user.id },
+      // ノートを開いたまま使う AI アシスタントの会話（noteId あり）は Chats の一覧に出さない。
+      where: { userId: user.id, noteId: null },
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,

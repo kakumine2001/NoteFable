@@ -76,6 +76,8 @@ model NotePage {
   user  AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
   group NoteGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
+  assistantSessions Session[]
+
   @@index([userId, updatedAt])
   @@index([userId, groupId])
 }
@@ -100,14 +102,18 @@ model Session {
   // 単一の絵文字。null は既定のチャットアイコン。
   icon      String?
   userId    String
+  // ノートを開いたまま使う AI アシスタントの会話は、そのノートに結びつけて Chats の一覧から外す。ノートを消すと一緒に消える。
+  noteId    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user          AnonymousUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
   messages      Message[]
   noteProposals NoteProposal[]
 
   @@index([userId, updatedAt])
+  @@index([noteId])
 }
 
 model Message {
