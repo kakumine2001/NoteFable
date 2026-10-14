@@ -7,8 +7,11 @@ export type NotePageSummary = {
   title: string;
   icon: string | null;
   version: number;
+  // 所属グループの ID。グループなしは null。
+  groupId: string | null;
   createdAt: string;
   updatedAt: string;
 };
 export type NotePage = NotePageSummary & NoteContent;
+export type NoteGroupSummary = { id: string; name: string; position: number };
 export type NoteSaveStatus = "saved" | "pending" | "saving" | "error" | "conflict";

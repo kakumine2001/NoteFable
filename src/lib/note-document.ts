@@ -1,7 +1,8 @@
 import type { Block } from "@blocknote/core";
+import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "divider"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "divider", "image", "file"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 export const MAX_NOTE_TITLE = 200;
 
@@ -97,11 +98,19 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (key === "checked") return block.type === "checkListItem" && typeof entry === "boolean";
         if (key === "start") return block.type === "numberedListItem" && Number.isInteger(entry) && Number(entry) > 0;
         if (key === "language") return block.type === "codeBlock" && typeof entry === "string" && entry.length <= 80;
+        // 画像・ファイルブロック。url は自分のサービスのファイルだけ（空はアップロード前の空ブロック）。
+        const media = block.type === "image" || block.type === "file";
+        if (key === "url") return media && parseNoteFileUrl(entry) !== null;
+        if (key === "name" || key === "caption") return media && typeof entry === "string" && entry.length <= (key === "name" ? 200 : 500) && !/[\u0000-\u001f\u007f]/.test(entry);
+        if (key === "showPreview") return block.type === "image" && typeof entry === "boolean";
+        if (key === "previewWidth") return block.type === "image" && typeof entry === "number" && Number.isFinite(entry) && entry >= 16 && entry <= 4000;
         return false;
       });
       if (!validProps) return false;
       if (block.type === "divider") {
         if (block.content !== undefined || Object.keys(props).length) return false;
+      } else if (block.type === "image" || block.type === "file") {
+        if (block.content !== undefined) return false;
       } else if (block.type === "codeBlock") {
         if (!validInline(block.content, false) || !Array.isArray(block.content) || block.content.some((entry) => Object.keys(entry.styles).length)) return false;
       } else if (!validInline(block.content)) return false;

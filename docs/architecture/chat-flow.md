@@ -194,6 +194,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 - `search_notes({ query })`：在数据库内搜索该用户的全部笔记。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。不做同义词或翻译，工具说明会提示模型换说法重试。
 - `read_note({ noteId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回笔记 `version`。
+- `list_chat_attachments()`：列出当前聊天里用户附加的文件（最新在前，最多 30 个），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
 - `propose_note_edit({ noteId, version, title, edits })`：**只提议，不写库**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###`、`-` 列表、`1.`、`- [ ]`、`>`、代码围栏、`---`、粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套，每个非空行一个块），`src/lib/page-edit.ts` 把编辑应用到笔记块上，再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
 
 两条循环实现：

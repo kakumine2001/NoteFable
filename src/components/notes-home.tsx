@@ -1,35 +1,60 @@
-import { FileText, Plus } from "lucide-react";
+import { FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
+import { useState } from "react";
+import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
-import type { NotePageSummary } from "@/types/notes";
+import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
-// スマホの Notes ホーム: 作成済みのノートを一覧にして、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
-export function NotesHome({ pages, busy, onOpen, onCreate, onWorkspaceChange }: {
+// スマホの Notes ホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup }: {
   pages: NotePageSummary[];
+  groups: NoteGroupSummary[];
+  groupError: string;
   busy: boolean;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
+  onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
+  onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>;
 }) {
+  const [moving, setMoving] = useState<NotePageSummary | null>(null);
+  const [creatingGroup, setCreatingGroup] = useState(false);
+  const known = new Set(groups.map((group) => group.id));
+  const loose = pages.filter((page) => !page.groupId || !known.has(page.groupId));
+  const item = (page: NotePageSummary) => (
+    <li key={page.id} className="notes-home-item">
+      <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
+        <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
+        <span className="notes-home-name">{page.title}</span>
+        <time className="notes-home-date" dateTime={page.updatedAt}>
+          {new Date(page.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+        </time>
+      </button>
+      <button type="button" className="notes-home-move" disabled={busy} onClick={() => setMoving(page)} aria-label={`Move ${page.title} to a group`}><FolderInput size={18} /></button>
+    </li>
+  );
   return (
     <div className="notes-column notes-home">
       <div className="notion-home-switch"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div>
       <h1 className="notes-home-title">Notes</h1>
-      <ul className="notes-home-list">
-        {pages.map((page) => (
-          <li key={page.id}>
-            <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
-              <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
-              <span className="notes-home-name">{page.title}</span>
-              <time className="notes-home-date" dateTime={page.updatedAt}>
-                {new Date(page.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-              </time>
-            </button>
-          </li>
-        ))}
-      </ul>
-      <button type="button" className="notes-empty-new notes-home-new" disabled={busy} onClick={onCreate}>
-        <Plus size={16} />New note
-      </button>
+      {groups.map((group) => {
+        const members = pages.filter((page) => page.groupId === group.id);
+        return (
+          <section key={group.id}>
+            <h2 className="notes-home-group">{group.name}<span>{members.length}</span></h2>
+            {members.length ? <ul className="notes-home-list">{members.map(item)}</ul> : <p className="notes-home-empty">No notes in this group.</p>}
+          </section>
+        );
+      })}
+      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group">No group<span>{loose.length}</span></h2>}
+      {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
+      <div className="notes-home-actions">
+        <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />New note</button>
+        <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />New group</button>
+      </div>
+      {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
+        onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} />}
+      {creatingGroup && <GroupNameDialog title="New group" submitLabel="Create" error={groupError} onClose={() => setCreatingGroup(false)}
+        onSubmit={async (name) => Boolean(await onCreateGroup(name))} />}
     </div>
   );
 }

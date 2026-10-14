@@ -1030,7 +1030,9 @@ export default function Home() {
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
       onCreate={() => { setSidebarOpen(false); createNote(); }} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
-      onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace} />
+      onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
+      groups={notes.groups} groupError={notes.groupError} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup}
+      onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} />
   ) : (
     <ChatSidebar
       sessions={sessions}

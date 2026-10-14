@@ -30,6 +30,11 @@ function losesFormatting(target: NoteBlock, carried: boolean): boolean {
     || (Array.isArray(block.children) && (block.children as NoteBlock[]).some((child) => walk(child, false)));
   return walk(target, true);
 }
+
+// 置き換え・削除される範囲（ブロック本人と子孫）に、アップロード済みの画像・ファイルがあるか。
+function containsMedia(block: NoteBlock): boolean {
+  return block.type === "image" || block.type === "file" || (Array.isArray(block.children) && (block.children as NoteBlock[]).some(containsMedia));
+}
 export type PageEditChange = {
   op: (typeof OPS)[number];
   // read_note で見えていた番号（0 は先頭への挿入）。
@@ -39,6 +44,8 @@ export type PageEditChange = {
   after?: string;
   // 置き換えると Markdown で表せない書式（文字色・背景色・下線・配置）が失われる。画面で警告する。
   dropsFormatting?: true;
+  // 置き換え・削除すると、アップロード済みの画像やファイルがノートから外れる。画面で警告する。
+  dropsMedia?: true;
 };
 
 // 画面に出す編集案。承認されたら proposed をそのまま PATCH /api/pages/[id] へ送る（baseVersion で競合を検出）。
@@ -159,6 +166,7 @@ export function applyPageEdits(blocks: NoteBlock[], rawEdits: unknown): { blocks
     changes.push({
       op: edit.op, block: edit.block, before: blocksToMarkdown([target]), ...(after === undefined ? {} : { after }),
       ...(edit.op === "replace" && losesFormatting(target, carried) ? { dropsFormatting: true as const } : {}),
+      ...(containsMedia(target) ? { dropsMedia: true as const } : {}),
     });
   }
 

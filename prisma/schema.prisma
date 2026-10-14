@@ -53,6 +53,7 @@ model AnonymousUser {
   notePages     NotePage[]
   coverAssets   NoteCoverAsset[]
   noteProposals NoteProposal[]
+  noteGroups    NoteGroup[]
 }
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
@@ -67,12 +68,30 @@ model NotePage {
   coverPosition Int?
   blocks        Json
   version       Int      @default(0)
+  // 所属グループ。未設定は「グループなし」。グループを消してもノートは残る。
+  groupId       String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group NoteGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   @@index([userId, updatedAt])
+  @@index([userId, groupId])
+}
+
+// ノートをまとめるグループ（フォルダ）。1 階層だけで、並びは position の昇順。
+model NoteGroup {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user  AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pages NotePage[]
+
+  @@index([userId, position])
 }
 
 model Session {

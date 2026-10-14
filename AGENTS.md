@@ -43,6 +43,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Database connection/schema | `src/lib/prisma.ts` |
 | Database models | `prisma/schema.prisma` |
 | Internal pages and autosave | `src/lib/note-document.ts`, `src/lib/note-save-queue.ts`, `src/app/api/pages/*` |
+| Note images/files and groups | `src/lib/note-file-keys.ts`, `src/lib/note-attachments.ts`, `src/lib/note-files.ts`, `src/app/api/pages/files`, `src/lib/note-groups.ts`, `src/app/api/pages/groups` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules

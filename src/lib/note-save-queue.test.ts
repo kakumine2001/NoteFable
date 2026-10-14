@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { NoteSaveError, NoteSaveQueue } from "./note-save-queue";
 import type { NotePage } from "@/types/notes";
 
-const page: NotePage = { id: "page", title: "First", icon: null, cover: null, coverPosition: null, blocks: [], version: 0, createdAt: "2026-09-30", updatedAt: "2026-09-30" };
+const page: NotePage = { id: "page", title: "First", icon: null, cover: null, coverPosition: null, blocks: [], version: 0, groupId: null, createdAt: "2026-09-30", updatedAt: "2026-09-30" };
 afterEach(() => { vi.useRealTimers(); });
 
 describe("page autosave queue", () => {

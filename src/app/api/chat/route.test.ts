@@ -68,7 +68,7 @@ describe("DeepSeek chat response boundary", () => {
     ])).toBe("通常の回答");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     // DeepSeek には検索を送らず、Pages の function ツールだけを送る。
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_notes", "read_note", "propose_note_edit", "propose_note_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("Web search is unavailable");
     expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
@@ -124,7 +124,7 @@ describe("OpenAI web search", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_notes", "read_note", "propose_note_edit", "propose_note_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toEqual(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);

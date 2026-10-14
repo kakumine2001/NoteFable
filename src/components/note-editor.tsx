@@ -5,7 +5,7 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
-import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type SuggestionMenuProps } from "@blocknote/react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, UploadTab, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { Check, CheckSquare, Code2, Copy, Heading1, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
@@ -37,6 +37,9 @@ const schema = BlockNoteSchema.create({ blockSpecs: {
   // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
   codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
   divider: defaultBlockSpecs.divider,
+  // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
+  image: defaultBlockSpecs.image,
+  file: defaultBlockSpecs.file,
 } });
 
 type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
@@ -62,6 +65,16 @@ function duplicateBlocks(editor: Editor, blocks = editor.getSelection()?.blocks 
     const copies = editor.insertBlocks(copyNoteBlocks(roots) as PartialBlock<typeof schema.blockSchema>[], roots.at(-1)!, "after");
     editor.setTextCursorPosition(copies[0], "end");
   });
+}
+
+// 画像・ファイルを自分のサービスへアップロードし、ブロックに入れる URL と表示名を返す。
+async function uploadNoteFile(file: File) {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await fetch("/api/pages/files", { method: "POST", body: form });
+  const data = await response.json().catch(() => null) as { url?: string; name?: string; error?: string } | null;
+  if (!response.ok || !data?.url) throw new Error(data?.error ?? "Upload failed. Try again.");
+  return { props: { url: data.url, name: data.name ?? file.name } };
 }
 
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl";
@@ -158,11 +171,18 @@ function NoteSideMenu() {
   </SideMenu>;
 }
 
+// 画像・ファイルの追加パネル。Notion の「Embed link」は出さず、アップロードだけにする。
+function NoteFilePanel(props: FilePanelProps) {
+  return <FilePanel {...props} tabs={[{ name: "Upload", tabPanel: <UploadTab {...props} setLoading={() => {}} /> }]} />;
+}
+
 function NoteFormattingToolbar() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
   const selected = useEditorState({ editor, selector: () => editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block] });
+  // 画像・ファイルのブロックを選んでいるときは、文字の装飾ではなくファイル用の操作を出す。
+  const media = selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file");
   const typeItems = NOTE_TEXT_BLOCKS.map((target) => ({
     text: target.title, icon: <Text size={16} />,
     // 種類の違うブロックをまとめて選択すると一致する項目がなくなり、BlockNote の Select が落ちる。
@@ -170,6 +190,14 @@ function NoteFormattingToolbar() {
     isSelected: !!selected[0] && selected[0].type === target.type && (target.type !== "heading" || (selected[0].type === "heading" && selected[0].props.level === target.level)),
     onClick: () => convertBlocks(editor, target, selected),
   }));
+  if (media) return <FormattingToolbar>
+    <FileCaptionButton />
+    <FileReplaceButton />
+    <FileRenameButton />
+    <FileDownloadButton />
+    <FilePreviewButton />
+    <FileDeleteButton />
+  </FormattingToolbar>;
   return <FormattingToolbar>
     {/* 区切り線など対応する種類がない選択では、BlockNote 標準と同じく種類の選択を出さない（Select が落ちるため）。 */}
     {typeItems.some((item) => item.isSelected) && <>
@@ -197,6 +225,18 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     schema,
     extensions: [syntaxHighlighter],
     tabBehavior: "prefer-indent",
+    uploadFile: uploadNoteFile,
+    // ウェブページからコピーした画像は外部 URL の画像ブロックになり、保存が拒否される。画像だけ含む HTML は文字だけ貼り付ける（スクリーンショットなどのファイルは uploadFile に回る）。
+    pasteHandler: ({ event, editor: target, defaultPasteHandler }) => {
+      const data = event.clipboardData;
+      if (data && !data.files.length && /<img[\s>]/i.test(data.getData("text/html"))) {
+        const text = data.getData("text/plain");
+        event.preventDefault();
+        if (text) target.pasteText(text);
+        return true;
+      }
+      return defaultPasteHandler();
+    },
     domAttributes: { editor: { "aria-label": "Note content" } },
     dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Press '/' for commands…", default: "Press '/' for commands…", heading: "Heading" } },
     initialContent: blocks.length ? normalizeCodeLanguages(blocks) as PartialBlock<typeof schema.blockSchema>[] : undefined,
@@ -273,7 +313,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
   }
 
   return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
-    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} onChange={() => {
+    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
       const visit = (list: typeof editor.document) => list.forEach((block) => {
@@ -285,6 +325,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
       onChange(editor.document);
     }}>
       <FormattingToolbarController formattingToolbar={NoteFormattingToolbar} />
+      <FilePanelController filePanel={NoteFilePanel} />
       <SideMenuController sideMenu={NoteSideMenu} />
       <SuggestionMenuController triggerCharacter="/" suggestionMenuComponent={SlashMenu} getItems={async (query): Promise<SlashItem[]> => {
         const defaults = getDefaultReactSlashMenuItems(editor) as (DefaultReactSuggestionItem & { key: string })[];

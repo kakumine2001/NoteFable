@@ -423,7 +423,25 @@ button:disabled {
 }
 .notion-segment:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 
+/* ノートのグループ操作ダイアログとサイドバーのグループ表示。 */
+.notes-dialog-input { display: block; width: 100%; margin-top: 0.75rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 1rem; color: var(--notion-text); background: #fff; }
+.notes-dialog-input:focus { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
+.notes-dialog-option { display: flex; width: 100%; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 0.5rem; border-radius: 6px; padding: 0 0.6rem; text-align: left; font-size: 0.9375rem; color: var(--notion-text); }
+.notes-dialog-option[aria-checked="true"] { background: var(--notion-hover); font-weight: 600; }
+@media (hover: hover) { .notes-dialog-option:hover:not(:disabled) { background: var(--notion-hover); } }
+.notes-group-members { margin-left: 0.75rem; border-left: 1px solid var(--notion-border); padding-left: 0.25rem; }
+.notes-move-action { margin-right: 0; }
+
 /* スマホの Notes ホーム（作成済みノートの一覧）。 */
+.notes-home-item { display: flex; align-items: center; border-bottom: 1px solid var(--notion-border); }
+.notes-home-item .notes-home-row { flex: 1; min-width: 0; border-bottom: 0; }
+.notes-home-move { display: grid; width: 2.75rem; height: 3rem; flex: none; place-items: center; color: var(--notion-faint); }
+.notes-home-group { display: flex; align-items: center; gap: 0.5rem; margin: 1.25rem 0.25rem 0.25rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
+.notes-home-group span { font-weight: 400; color: var(--notion-faint); }
+.notes-home-empty { margin: 0.25rem; font-size: 0.875rem; color: var(--notion-faint); }
+.notes-home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-top: 0.5rem; }
+.notes-home-actions .notes-empty-new { margin-top: 0; height: 2.5rem; }
+.notes-home-new-group { display: inline-flex; height: 2.5rem; align-items: center; gap: 0.4rem; }
 .notes-home { padding-top: 0; padding-bottom: 6rem; }
 .notes-home-title { margin: 0.5rem 0 0.75rem; font-size: 2rem; font-weight: 700; letter-spacing: -0.025em; color: var(--notion-text); }
 .notes-home-list { margin: 0 0 1rem; padding: 0; list-style: none; }

@@ -1,6 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ToolDefinition, ToolRun } from "@/lib/chat-tools";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { createAttachmentResolver, listChatAttachments } from "@/lib/note-attachments";
+import { assertNoteFilesOwner } from "@/lib/note-files";
 import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
 import { saveProposal } from "@/lib/note-proposals";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
@@ -33,8 +35,13 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: "list_chat_attachments",
+    description: "List the files the user has attached in this chat (newest first) with their attachment IDs. Use it when the user wants an image they sent put into a note: then write a line `![caption](attachment:ID)` in the markdown of propose_note_edit or propose_note_create. Only images can be placed in a note; for other files you already have their text in the conversation.",
+    parameters: { type: "object", properties: {}, required: [], additionalProperties: false },
+  },
+  {
     name: "propose_note_edit",
-    description: `Propose changes to one of the user's StudyMate Notes. This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
+    description: `Propose changes to one of the user's StudyMate Notes. This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). read_note shows an uploaded image or file as [Image: name — caption] or [File: name]; you can replace or delete those blocks like any other (the user is warned that the upload leaves the note), and a replacement may contain an image line (below). To put an image the user sent in this chat into the note, use the line \`![caption](attachment:ID)\` with an ID from list_chat_attachments, on its own line. Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
     parameters: {
       type: "object",
       properties: {
@@ -61,7 +68,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "propose_note_create",
-    description: "Propose a brand-new StudyMate Note for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the note was created. Use it only when the user asks for a new note or note (to change an existing note use propose_note_edit). markdown is the note body in the same format as propose_note_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. icon is one emoji or null.",
+    description: "Propose a brand-new StudyMate Note for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the note was created. Use it only when the user asks for a new note or note (to change an existing note use propose_note_edit). markdown is the note body in the same format as propose_note_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. To include an image the user sent in this chat, put `![caption](attachment:ID)` on its own line, with an ID from list_chat_attachments. icon is one emoji or null.",
     parameters: {
       type: "object",
       properties: {
@@ -147,9 +154,18 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
     return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, "Note changed since it was read");
   }
   try {
-    const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], value.edits);
+    // 添付画像の参照は、すべての edit をまとめて検証・コピーしてから URL に置き換える（順番に処理し、並列にはしない）。
+    let edits = value.edits;
+    if (Array.isArray(value.edits)) {
+      const entries = value.edits.map((edit: unknown) => edit && typeof edit === "object" ? edit as Record<string, unknown> : null);
+      const markdowns = entries.map((entry) => entry && typeof entry.markdown === "string" ? entry.markdown : "");
+      const resolved = await createAttachmentResolver(userId, sessionId)(markdowns);
+      edits = value.edits.map((edit: unknown, index: number) => entries[index] && typeof entries[index]!.markdown === "string" ? { ...entries[index], markdown: resolved[index] } : edit);
+    }
+    const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], edits);
     const requested = typeof value.title === "string" ? value.title.trim() : "";
     const content = validateNoteContent({ title: requested || page.title, blocks });
+    assertNoteFilesOwner(content.blocks, userId);
     if (!changes.length && content.title === page.title) return toolError("The edits change nothing.");
     const proposal = await saveProposal(userId, sessionId, { kind: "EDIT", payload: {
       pageId: page.id, pageTitle: page.title, baseVersion: page.version,
@@ -174,9 +190,10 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
   if (!title) return toolError("title must be a non-empty string.");
   if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") return toolError("icon must be a single emoji or null.");
   try {
-    const blocks = parseNewPageMarkdown(value.markdown);
+    const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await createAttachmentResolver(userId, sessionId)([value.markdown]))[0] : value.markdown);
     const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
     const content = validateNoteContent({ title, icon, blocks });
+    assertNoteFilesOwner(content.blocks, userId);
     const proposal = await saveProposal(userId, sessionId, { kind: "CREATE", payload: {
       title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks),
       proposed: { title: content.title, icon: content.icon, blocks: content.blocks },
@@ -214,6 +231,10 @@ export async function runPageTool(name: string, args: unknown, userId: string, s
       ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the note is longer than ${MAX_READ_CHARS} characters.]`
       : markdown;
     return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
+  }
+  if (name === "list_chat_attachments") {
+    const attachments = await listChatAttachments(userId, sessionId);
+    return { content: JSON.stringify({ attachments, ...(attachments.length ? {} : { note: "The user has not attached anything in this chat." }) }), label: "Listed attached files" };
   }
   if (name === "propose_note_edit") return proposePageEdit(args, userId, sessionId);
   if (name === "propose_note_create") return proposePageCreate(args, userId, sessionId);

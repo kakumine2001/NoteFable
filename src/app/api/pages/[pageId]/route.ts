@@ -4,6 +4,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
+import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
 
@@ -24,6 +25,7 @@ export async function PATCH(request: Request, context: Context) {
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     assertCoverOwner(update.cover, user.id);
+    assertNoteFilesOwner(update.blocks, user.id);
     // 版番号を更新条件に含め、別タブの新しい内容を上書きしない。
     const result = await prisma.$transaction(async (tx) => {
       if (update.present.includes("cover")) await claimCover(tx, update.cover, user.id);

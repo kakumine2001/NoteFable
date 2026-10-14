@@ -1,5 +1,6 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { assertNoteFilesOwner } from "@/lib/note-files";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
 
@@ -97,6 +98,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
       const payload = row.payload as EditPayload;
       // 保存時と同じ検証を、DB から読んだ内容にもかける。
       const content = validateNoteContent({ title: payload.proposed.title, blocks: payload.proposed.blocks });
+      assertNoteFilesOwner(content.blocks, userId);
       const page = await prisma.$transaction(async (tx) => {
         const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "APPLIED" } });
         if (!claimed.count) return null;
@@ -114,6 +116,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
 
     const payload = row.payload as CreatePayload;
     const content = validateNoteContent({ title: payload.proposed.title, icon: payload.proposed.icon, blocks: payload.proposed.blocks });
+    assertNoteFilesOwner(content.blocks, userId);
     const page = await prisma.$transaction(async (tx) => {
       const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "APPLIED" } });
       if (!claimed.count) return null;

@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
+import { readLimitedBody } from "@/lib/note-upload";
 import { COVER_CONTENT_TYPES, sniffCoverImage } from "@/lib/note-covers";
 import { MAX_COVER_BYTES, uploadedCoverPath } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
@@ -11,26 +12,6 @@ export const runtime = "nodejs";
 
 // 画像本体に multipart の境界・ヘッダー分の余白を足した受信上限。
 const MAX_UPLOAD_BODY_BYTES = MAX_COVER_BYTES + 64 * 1024;
-
-async function readLimitedBody(request: Request, limit: number) {
-  const reader = request.body?.getReader();
-  if (!reader) return new Uint8Array();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > limit) { await reader.cancel(); return null; }
-      chunks.push(value);
-    }
-  } finally { reader.releaseLock(); }
-  const bytes = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
-  return bytes;
-}
 
 // カバー画像を保存し、ページに設定するためのキーを返す。ページへの反映は通常の自動保存で行う。
 export async function POST(request: Request) {

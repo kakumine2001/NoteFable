@@ -1,3 +1,4 @@
+import { isNoteImageUrl, noteFileUrlName } from "@/lib/note-file-keys";
 // BlockNote のブロック JSON と Markdown の相互変換。チャットのツールがページを読む（JSON → Markdown）、
 // 編集案を作る（Markdown → JSON）ために使う。対応するのは note-document.ts が検証する範囲のブロックだけ。
 
@@ -77,6 +78,11 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       lines.push(`${indent}${label}${fence}${language}`, ...code.split("\n").map((line) => indent + line), `${indent}${fence}`);
     } else if (block.type === "divider") {
       lines.push(`${indent}${label}---`);
+    } else if (block.type === "image" || block.type === "file") {
+      // アップロードされた画像・ファイルは中身を読めないので、名前と説明だけを書いた目印にする（編集では置換・削除できる。その場合は提案の画面で警告する）。
+      const name = typeof props.name === "string" && props.name ? props.name : "untitled";
+      const caption = typeof props.caption === "string" && props.caption ? ` — ${props.caption}` : "";
+      lines.push(`${indent}${label}[${block.type === "image" ? "Image" : "File"}: ${name}${caption}]`);
     } else {
       const text = inlineToMarkdown(block.content);
       const start = Number(props.start);
@@ -317,6 +323,10 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       add("numberedListItem", startsList && number > 1 && Number.isSafeInteger(number) ? { start: number } : {}, parseInline(match[2] ?? ""));
     } else if ((match = /^>\s?(.*)$/.exec(text))) {
       add("quote", {}, parseInline(match[1]));
+    } else if ((match = /^!\[([^\]\n]*)\]\((\/api\/pages\/files\?[^\s)]*)\)$/.exec(text)) && isNoteImageUrl(match[2])) {
+      // 自分のアップロード画像だけを画像ブロックにする（外部 URL は通常の段落のまま）。保存時に所有者を確かめる。
+      const caption = match[1].replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
+      add("image", { url: match[2], name: noteFileUrlName(match[2]), caption, showPreview: true });
     } else {
       add("paragraph", {}, parseInline(text));
     }

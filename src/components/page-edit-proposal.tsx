@@ -154,7 +154,8 @@ export function PageEditProposal({ proposal }: { proposal: EditProposal }) {
           <div className="page-edit-op">{OP_LABEL[change.op]}{change.block ? ` · block ${change.block}` : " · start of note"}</div>
           {change.before !== undefined && <div className="page-edit-before">{change.before}</div>}
           {change.after !== undefined && <div className="page-edit-after">{change.after}</div>}
-          {change.dropsFormatting && <div className="page-edit-note">Text colors, underline or alignment in the replaced block will be lost.</div>}
+          {change.dropsMedia && <div className="page-edit-note">An uploaded image or file in this block will be removed from the note.</div>}
+          {change.dropsFormatting &&<div className="page-edit-note">Text colors, underline or alignment in the replaced block will be lost.</div>}
         </div>
       ))}
     </Card>

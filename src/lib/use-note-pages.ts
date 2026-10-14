@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
-import type { NotePage, NotePageSummary } from "@/types/notes";
+import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
 
 const DRAFT_PREFIX = "studymate:page-draft:v1:";
 
@@ -24,6 +24,8 @@ function isPhone() {
 
 export function useNotePages(enabled: boolean) {
   const [pages, setPages] = useState<NotePageSummary[]>([]);
+  const [groups, setGroups] = useState<NoteGroupSummary[]>([]);
+  const [groupError, setGroupError] = useState("");
   const [activeId, setActiveId] = useState<string | null>(null);
   const [active, setActive] = useState<NoteSaveQueue>();
   const [loading, setLoading] = useState(false);
@@ -45,9 +47,10 @@ export function useNotePages(enabled: boolean) {
     // 保存のたびに行が動かないよう、作成順を保つ。
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
-      if (!existing) return [page, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+      if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
       if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
-      return current.map((entry) => entry.id === page.id ? page : entry);
+      // 所属グループは移動の操作だけが決める。保存の応答や古い編集中データの値で上書きしない。
+      return current.map((entry) => entry.id === page.id ? { ...page, groupId: entry.groupId } : entry);
     });
   }, []);
 
@@ -128,6 +131,7 @@ export function useNotePages(enabled: boolean) {
       const extra = createdWhileLoading.current.filter((page) => !known.has(page.id));
       createdWhileLoading.current = [];
       setPages(extra.length ? [...extra, ...data.pages].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id)) : data.pages);
+      setGroups(data.groups ?? []);
       const requested = new URL(window.location.href).searchParams.get("page");
       const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? (isPhone() ? undefined : data.pages[0]?.id);
       if (id) await select(id, "replace");
@@ -269,9 +273,42 @@ export function useNotePages(enabled: boolean) {
     finally { actionBusy.current = false; setBusy(false); }
   }
 
+  // グループ操作は、失敗したら画面の状態を変えず、理由だけ groupError に出す。
+  async function groupAction<T>(run: () => Promise<T>): Promise<T | null> {
+    setGroupError("");
+    try { return await run(); }
+    catch (caught) { setGroupError(caught instanceof Error ? caught.message : "Could not change the group."); return null; }
+  }
+
+  const createGroup = (name: string) => groupAction(async () => {
+    const { group } = await pageRequest("/api/pages/groups", "POST", { name });
+    setGroups((current) => [...current, group]);
+    return group as NoteGroupSummary;
+  });
+
+  const renameGroup = (id: string, name: string) => groupAction(async () => {
+    const { group } = await pageRequest(`/api/pages/groups/${id}`, "PATCH", { name });
+    setGroups((current) => current.map((entry) => entry.id === id ? { ...entry, name: group.name } : entry));
+    return true;
+  });
+
+  const deleteGroup = (id: string) => groupAction(async () => {
+    await pageRequest(`/api/pages/groups/${id}`, "DELETE");
+    setGroups((current) => current.filter((entry) => entry.id !== id));
+    // 中のノートは消えず、グループなしに戻る。
+    setPages((current) => current.map((page) => page.groupId === id ? { ...page, groupId: null } : page));
+    return true;
+  });
+
+  const moveNote = (id: string, groupId: string | null) => groupAction(async () => {
+    await pageRequest(`/api/pages/${id}/group`, "PUT", { groupId });
+    setPages((current) => current.map((page) => page.id === id ? { ...page, groupId } : page));
+    return true;
+  });
+
   function loadLatest() {
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, createGroup, renameGroup, deleteGroup, moveNote, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }
