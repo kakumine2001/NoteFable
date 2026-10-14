@@ -1,22 +1,16 @@
 "use client";
 
-import { Shuffle } from "lucide-react";
-import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import dynamic from "next/dynamic";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 
-// よく使う絵文字だけを並べる。Notion の「Emoji」タブの簡易版。Notes とチャットのアイコンで共有する。
-export const EMOJIS = [
-  "📄", "📝", "📒", "📓", "📔", "📕", "📗", "📘", "📙", "📚", "🗂️", "📁", "📌", "📎", "🔖", "🏷️",
-  "✏️", "🖊️", "🖋️", "✒️", "📐", "📏", "🧮", "🧪", "🔬", "🔭", "💡", "🧠", "🎯", "🚀", "⭐", "🌟",
-  "✅", "☑️", "❗", "❓", "⚠️", "🔥", "💯", "🎉", "🏆", "🥇", "📈", "📊", "🗓️", "⏰", "⌛", "🕒",
-  "💻", "🖥️", "⌨️", "🖱️", "📱", "🔧", "🛠️", "⚙️", "🧩", "🔑", "🔒", "🌐", "📡", "🤖", "👾", "🐛",
-  "🗾", "🏯", "🗼", "⛩️", "🍣", "🍜", "🍵", "☕", "🍙", "🍱", "🍎", "🍊",
-  "🌸", "🌱", "🌿", "🍀", "🌳", "🌊", "⛰️", "🌙", "☀️", "🌈", "❄️", "⚡", "🎵", "🎨", "🎬", "📷",
-  "😀", "😄", "😊", "🙂", "😎", "🤔", "😴", "🥳", "😭", "😤", "🙏", "👍", "👀", "💪", "❤️", "💬",
-  "🐱", "🐶", "🐼", "🦊", "🐧", "🐢", "🦄", "🐝",
-];
+// Load the full dataset only when a picker opens, never during server rendering.
+const FullEmojiPicker = dynamic(() => import("./full-emoji-picker"), {
+  ssr: false,
+  loading: () => <div className="emoji-picker-loading" role="status">Loading emoji…</div>,
+});
 
 export function randomOf<T>(items: readonly T[]) {
   return items[Math.floor(Math.random() * items.length)];
@@ -73,23 +67,7 @@ export function EmojiPickerBody({ current, removeLabel = "Remove", onChange, onC
   onChange: (icon: string | null) => void;
   onClose: () => void;
 }) {
-  return (
-    <>
-      <div className="notes-picker-bar">
-        <span>Emoji</span>
-        <div className="flex gap-1">
-          <button type="button" onClick={() => onChange(randomOf(EMOJIS))}><Shuffle size={13} />Random</button>
-          <button type="button" onClick={() => { onChange(null); onClose(); }}>{removeLabel}</button>
-        </div>
-      </div>
-      <div className="notes-emoji-grid">
-        {EMOJIS.map((emoji) => (
-          <button key={emoji} type="button" className={emoji === current ? "is-active" : ""}
-            onClick={() => { onChange(emoji); onClose(); }}>{emoji}</button>
-        ))}
-      </div>
-    </>
-  );
+  return <FullEmojiPicker current={current} removeLabel={removeLabel} onChange={onChange} onClose={onClose} />;
 }
 
 // 絵文字の選択ポップオーバー。
@@ -113,11 +91,17 @@ export type FloatingPosition = { top: number; left: number; width: number };
 // 押したボタンの位置から、画面内に収まる選択画面の位置を求める。下に入らなければボタンの上に出す。
 export function floatingPositionFor(anchor: DOMRect): FloatingPosition {
   const margin = 12;
-  const height = 332;
-  const width = Math.min(408, window.innerWidth - margin * 2);
-  const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
+  const viewport = window.visualViewport;
+  const viewportTop = viewport?.offsetTop ?? 0;
+  const viewportLeft = viewport?.offsetLeft ?? 0;
+  const viewportHeight = viewport?.height ?? window.innerHeight;
+  const viewportWidth = viewport?.width ?? window.innerWidth;
+  const height = Math.min(416, viewportHeight - margin * 2);
+  const width = Math.min(408, viewportWidth - margin * 2);
+  const left = Math.max(viewportLeft + margin, Math.min(anchor.left, viewportLeft + viewportWidth - width - margin));
   const below = anchor.bottom + 6;
-  const top = below + height <= window.innerHeight - margin ? below : Math.max(margin, anchor.top - height - 6);
+  const preferredTop = below + height <= viewportTop + viewportHeight - margin ? below : anchor.top - height - 6;
+  const top = Math.max(viewportTop + margin, Math.min(preferredTop, viewportTop + viewportHeight - height - margin));
   return { top, left, width };
 }
 
@@ -130,25 +114,34 @@ export function FloatingEmojiPopover({ position, trigger, current, onChange, onC
   onChange: (icon: string | null) => void;
   onClose: () => void;
 }) {
+  const [livePosition, setLivePosition] = useState(position);
+  const [availableHeight, setAvailableHeight] = useState(() => Math.max(80, (window.visualViewport?.height ?? window.innerHeight) - 60));
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
     const width = window.innerWidth;
     // 幅が変わったときだけ閉じる（アドレスバーの出し入れによる高さだけの変化では閉じない）。
-    const close = () => { if (window.innerWidth !== width) closeRef.current(); };
-    window.addEventListener("resize", close);
+    const reposition = () => {
+      if (trigger.current) setLivePosition(floatingPositionFor(trigger.current.getBoundingClientRect()));
+      setAvailableHeight(Math.max(80, (window.visualViewport?.height ?? window.innerHeight) - 60));
+    };
+    const onResize = () => { if (window.innerWidth !== width) closeRef.current(); else reposition(); };
+    window.addEventListener("resize", onResize);
+    const viewport = window.visualViewport;
+    viewport?.addEventListener("resize", reposition);
     // スクロールは子要素のものも拾う（capture）。選択画面自身の中のスクロールでは閉じない。
     const onScroll = (event: Event) => {
-      if (!(event.target as Element | null)?.closest?.(".chat-floating-picker")) close();
+      if (!(event.target as Element | null)?.closest?.(".chat-floating-picker")) closeRef.current();
     };
     window.addEventListener("scroll", onScroll, true);
     return () => {
-      window.removeEventListener("resize", close);
+      window.removeEventListener("resize", onResize);
+      viewport?.removeEventListener("resize", reposition);
       window.removeEventListener("scroll", onScroll, true);
     };
-  }, []);
+  }, [trigger]);
   return createPortal(
-    <EmojiPopover className="chat-floating-picker" style={position} trigger={trigger} current={current} onChange={onChange} onClose={onClose} />,
+    <EmojiPopover className="chat-floating-picker" style={{ ...livePosition, "--emoji-picker-available-height": `${availableHeight}px` } as CSSProperties} trigger={trigger} current={current} onChange={onChange} onClose={onClose} />,
     document.body,
   );
 }

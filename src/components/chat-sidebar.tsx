@@ -57,7 +57,6 @@ export function ChatSidebar({
     const active = activeSessionId === session.id;
     return (
                 <div key={session.id} className={`notion-session-row vt-row group ${active ? "is-active" : ""}`} style={rowName(`crow-${session.id}`)} data-order-id={session.id} data-order-scope="chat">
-                  <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder}/>
                   <button type="button" className="chat-row-icon-button" aria-label={`Change icon of ${session.title}`} title="Change icon"
                     aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
                     onClick={(event) => {
@@ -69,9 +68,9 @@ export function ChatSidebar({
                       ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                   </button>
-                  <button type="button" onClick={() => onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" title={session.title}>
+                  <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
                     <span className="truncate text-sm">{session.title}</span>
-                  </button>
+                  </ReorderHandle>
                   <button type="button" className="notion-row-action chat-more-button" aria-label={`Actions for ${session.title}`} aria-haspopup="dialog"
                     onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
                     <MoreHorizontal size={16}/>
@@ -108,7 +107,7 @@ export function ChatSidebar({
         <div className="chat-project-heading"><span>Projects</span><button type="button" aria-label="New project" className="notion-icon-button" onClick={()=>setAction({kind:"createProject"})}><Plus size={15}/></button></div>
         {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
         {projects.map(project=><div key={project.id}>
-          <div className="notion-session-row chat-project-row">
+          <div className="notion-session-row chat-project-row" data-chat-project-drop={project.id}>
             <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
               {collapsed[project.id] ? <ChevronRight size={13}/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
             </button>
@@ -118,7 +117,7 @@ export function ChatSidebar({
             {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-muted)]">{ordered.some(session=>session.projectId===project.id) ? "All chats pinned" : "No chats"}</p>}
           </div>}
         </div>)}
-        <div className="chat-section-label">Chats</div>
+        <div className="chat-section-label" data-chat-project-drop="">Chats</div>
         {ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId))).map(renderRow)}
         {sessions.length===0 && <div className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your recent conversations will appear here.</div>}
       </div>
