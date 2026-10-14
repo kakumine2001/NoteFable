@@ -773,6 +773,43 @@ button:disabled {
   background: linear-gradient(to top, #fff 70%, rgba(255, 255, 255, 0));
 }
 
+.notion-chat-workspace { display: contents; }
+
+/* Web の新しい会話は、見出しと入力欄をひとまとまりにして中央より少し上へ。
+   高さが足りないときは余白が縮み、全体がスクロールする。会話中とスマホは従来の配置。 */
+@media (min-width: 640px) {
+  .notion-chat-workspace.is-empty {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-height: 0;
+    flex-direction: column;
+    overflow-y: auto;
+  }
+  .notion-chat-workspace.is-empty::before,
+  .notion-chat-workspace.is-empty::after { content: ""; flex: 1 0 2rem; }
+  .notion-chat-workspace.is-empty::before { flex-grow: 0.8; }
+  .notion-chat-workspace.is-empty::after { flex-grow: 1.2; }
+  .notion-chat-workspace.is-empty .notion-chat-scroll { position: static; flex: none; overflow: visible; }
+  .notion-chat-workspace.is-empty .notion-chat-scroll > .notion-page-column { min-height: 0; padding-bottom: 0; }
+  .notion-chat-workspace.is-empty .notion-page-title { padding-top: 0; text-align: center; }
+  .notion-chat-workspace.is-empty .notion-page-title h1 { display: flex; align-items: center; justify-content: center; }
+  .notion-chat-workspace.is-empty .notion-composer-wrap { padding-top: 1.5rem; padding-bottom: 0; background: none; }
+  .notion-chat-workspace.is-empty .notion-scroll-bottom { display: none; }
+}
+
+@media (min-width: 640px) and (max-width: 1023px) {
+  .notion-chat-workspace.is-empty { padding-top: 4.5rem; }
+  .notion-chat-workspace.is-empty .notion-home-switch {
+    position: absolute;
+    top: 0.5rem;
+    left: 50%;
+    width: min(calc(100% - 6rem), 41.5rem);
+    transform: translateX(-50%);
+    z-index: 2;
+  }
+}
+
 .notion-composer {
   overflow: visible;
   border: 1px solid var(--notion-border-strong);

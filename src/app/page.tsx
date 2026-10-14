@@ -1165,8 +1165,8 @@ export default function Home() {
           <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
         </div>
 
-        <div className={workspaceView === "chat" ? "contents" : "hidden"}>
-        <div ref={chatScrollRef} className="relative z-0 flex-1 overflow-y-auto">
+        <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}>
+        <div ref={chatScrollRef} className="notion-chat-scroll relative z-0 flex-1 overflow-y-auto">
           <div
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
           >
@@ -1211,7 +1211,7 @@ export default function Home() {
 
         <div className="notion-composer-wrap">
           <div
-            className={`mx-auto mb-2 flex max-w-4xl justify-center transition-[opacity,transform] duration-150 ease-out ${
+            className={`notion-scroll-bottom mx-auto mb-2 flex max-w-4xl justify-center transition-[opacity,transform] duration-150 ease-out ${
               !emptyState && !isAtChatBottom
                 ? "scale-100 opacity-100"
                 : "pointer-events-none scale-95 opacity-0"
