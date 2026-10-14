@@ -8,6 +8,7 @@ import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { Message } from "@/types/chat";
 
@@ -90,6 +91,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
 
   // スマホではシートとして開き、端末の「戻る」で閉じられるようにする。
   useBackToClose(open && phone, close);
+  // スマホでは、持ち手を下へ引いて閉じられる。
+  const { attach, bind } = useSwipeDismiss<HTMLDivElement>({ axis: "y", direction: 1, onDismiss: close });
 
   useEffect(() => {
     if (open && !phone) inputRef.current?.focus();
@@ -187,8 +190,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
 
   const panel = (
-    <div className={`note-ai-panel ${phone ? "is-sheet" : ""}`} role="dialog" aria-label="Ask AI about this note">
-      {phone && <div className="model-sheet-grab" aria-hidden="true" />}
+    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} role="dialog" aria-label="Ask AI about this note">
+      {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
         <Sparkles size={16} aria-hidden="true" />
         <span className="note-ai-title" title={noteTitle}>Ask AI about this note</span>

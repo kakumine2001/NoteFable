@@ -203,6 +203,81 @@ button:disabled {
 .chat-row-icon-button:hover { background: var(--notes-hover); }
 @media (max-width: 639px) { .chat-row-icon-button { width: 2.5rem; height: 2.5rem; margin-left: 0.125rem; } }
 .chat-floating-picker { position: fixed; z-index: 70; }
+
+/* 「Sign in with Google」ボタン。Google の公式ボタン（ライト・角四角）の見た目: 白地、細い枠、4 色の G、濃い文字。 */
+.google-signin-button {
+  display: flex; width: 100%; height: 40px; align-items: center; justify-content: center; gap: 10px; padding: 0 12px;
+  border: 1px solid #747775; border-radius: 4px; background: #fff; color: #1f1f1f;
+  font-family: Roboto, var(--font-ui), sans-serif; font-size: 14px; font-weight: 500; letter-spacing: 0.25px;
+  transition: background-color 150ms ease, box-shadow 150ms ease;
+}
+.google-signin-button:hover { background: #eeeeee; box-shadow: 0 1px 2px rgba(60, 64, 67, 0.3), 0 1px 3px 1px rgba(60, 64, 67, 0.15); }
+.google-signin-button:active { background: #e6e6e6; box-shadow: none; }
+.google-signin-button:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 2px; }
+@media (max-width: 639px) { .google-signin-button { height: 44px; font-size: 15px; } }
+
+/* プロフィール（サイドバー下部のアカウント行と、そこから開くメニュー） */
+.user-avatar {
+  display: inline-grid; flex-shrink: 0; place-items: center; overflow: hidden; border-radius: 9999px;
+  background: var(--notion-active); color: var(--notion-muted); font-weight: 600; line-height: 1;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui), sans-serif;
+}
+.user-avatar.is-emoji { background: rgba(55, 53, 47, 0.06); font-weight: 400; }
+.user-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-menu { position: fixed; z-index: 70; padding: 14px; overflow-y: auto; overscroll-behavior: contain; }
+.profile-menu-head { display: flex; align-items: center; gap: 12px; }
+.profile-avatar-button { position: relative; flex-shrink: 0; border-radius: 9999px; }
+.profile-avatar-badge {
+  position: absolute; right: -2px; bottom: -2px; display: grid; width: 20px; height: 20px; place-items: center;
+  border: 2px solid #fff; border-radius: 9999px; background: var(--notion-text); color: #fff;
+}
+.profile-label { display: block; margin-bottom: 2px; font-size: 12px; color: var(--notion-muted); }
+.profile-name-input {
+  width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--notion-border-strong); border-radius: 6px;
+  background: #fff; font-size: 15px; color: var(--notion-text);
+}
+.profile-name-input:focus { border-color: var(--notion-blue); outline: 2px solid rgba(35, 131, 226, 0.2); }
+.profile-email { margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--notion-muted); }
+.profile-emoji { margin: 10px -14px 0; border-top: 1px solid var(--notion-border); }
+.profile-emoji .notes-emoji-grid { max-height: 168px; }
+.profile-error { margin-top: 10px; font-size: 12px; color: #b91c1c; }
+.profile-editor { margin: 10px -14px 0; border-top: 1px solid var(--notion-border); }
+.profile-editor .profile-emoji { margin: 0; border-top: 0; }
+.profile-photo-pane { display: grid; gap: 8px; padding: 12px 14px 14px; }
+.profile-photo-pane p { font-size: 12px; line-height: 1.5; color: var(--notion-muted); }
+.profile-upload-button {
+  display: inline-flex; width: 100%; height: 36px; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid var(--notion-border-strong); border-radius: 6px; font-size: 14px; color: var(--notion-text);
+}
+.profile-upload-button:hover { background: var(--notion-hover); }
+.profile-remove-photo { display: inline-flex; align-items: center; gap: 6px; justify-self: start; padding: 4px 6px; border-radius: 4px; font-size: 13px; color: #b91c1c; }
+.profile-remove-photo:hover { background: rgba(185, 28, 28, 0.08); }
+.avatar-cropper { display: grid; justify-items: center; gap: 10px; padding: 14px; }
+.avatar-crop-view { overflow: hidden; border-radius: 9999px; background: var(--notion-active); box-shadow: 0 0 0 1px var(--notion-border-strong); touch-action: none; }
+.avatar-crop-view canvas { display: block; cursor: grab; touch-action: none; }
+.avatar-crop-view canvas:active { cursor: grabbing; }
+.avatar-crop-view canvas:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+.avatar-zoom { display: grid; width: 100%; grid-template-columns: auto 1fr; align-items: center; gap: 10px; font-size: 12px; color: var(--notion-muted); }
+.avatar-zoom input { width: 100%; accent-color: var(--notion-blue); }
+.avatar-crop-hint { font-size: 12px; color: var(--notion-muted); }
+.avatar-crop-actions { display: flex; width: 100%; justify-content: flex-end; gap: 8px; }
+.avatar-crop-actions button { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 14px; color: var(--notion-text); }
+.avatar-crop-actions button:hover:not(:disabled) { background: var(--notion-hover); }
+.avatar-crop-actions .is-primary { background: var(--notion-blue); color: #fff; }
+.avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--notion-blue-hover); }
+.avatar-crop-actions button:disabled { opacity: 0.55; }
+.profile-actions { display: grid; gap: 2px; margin: 12px -6px -6px; padding-top: 6px; border-top: 1px solid var(--notion-border); }
+.profile-actions button {
+  display: flex; min-height: 34px; align-items: center; gap: 8px; padding: 0 8px; border-radius: 6px;
+  font-size: 14px; color: var(--notion-text); text-align: left;
+}
+.profile-actions button:hover { background: var(--notion-hover); }
+@media (max-width: 639px) {
+  .profile-upload-button { height: 44px; font-size: 15px; }
+  .avatar-crop-actions button { height: 42px; font-size: 15px; }
+  .profile-name-input { height: 40px; font-size: 16px; }
+  .profile-actions button { min-height: 44px; font-size: 15px; }
+}
 .notes-popover:focus { outline: none; }
 .chat-title-picker { top: calc(100% + 6px); left: 0; width: min(408px, calc(100vw - 48px)); font-size: 1rem; font-weight: 400; letter-spacing: normal; }
 @media (pointer: coarse) {

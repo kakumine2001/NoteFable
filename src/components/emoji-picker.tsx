@@ -65,7 +65,34 @@ export function usePickerBackToClose(open: boolean, onClose: () => void) {
   useBackToClose(open && drawerLayout, onClose);
 }
 
-// 絵文字の選択ポップオーバー。選ぶと閉じ、Random は開いたまま、Remove は null を返して閉じる。
+// 絵文字の一覧（上のバーに Random / Remove、下に絵文字の格子）。ポップオーバーの中にも、プロフィールのように画面の中にもそのまま置ける。
+// 選ぶと閉じ、Random は開いたまま、Remove は null を返して閉じる。
+export function EmojiPickerBody({ current, removeLabel = "Remove", onChange, onClose }: {
+  current: string | null;
+  removeLabel?: string;
+  onChange: (icon: string | null) => void;
+  onClose: () => void;
+}) {
+  return (
+    <>
+      <div className="notes-picker-bar">
+        <span>Emoji</span>
+        <div className="flex gap-1">
+          <button type="button" onClick={() => onChange(randomOf(EMOJIS))}><Shuffle size={13} />Random</button>
+          <button type="button" onClick={() => { onChange(null); onClose(); }}>{removeLabel}</button>
+        </div>
+      </div>
+      <div className="notes-emoji-grid">
+        {EMOJIS.map((emoji) => (
+          <button key={emoji} type="button" className={emoji === current ? "is-active" : ""}
+            onClick={() => { onChange(emoji); onClose(); }}>{emoji}</button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+// 絵文字の選択ポップオーバー。
 export function EmojiPopover({ current, className, style, trigger, onChange, onClose }: {
   current: string | null;
   className: string;
@@ -76,19 +103,7 @@ export function EmojiPopover({ current, className, style, trigger, onChange, onC
 }) {
   return (
     <Popover className={className} label="Choose an emoji" style={style} trigger={trigger} onClose={onClose}>
-      <div className="notes-picker-bar">
-        <span>Emoji</span>
-        <div className="flex gap-1">
-          <button type="button" onClick={() => onChange(randomOf(EMOJIS))}><Shuffle size={13} />Random</button>
-          <button type="button" onClick={() => { onChange(null); onClose(); }}>Remove</button>
-        </div>
-      </div>
-      <div className="notes-emoji-grid">
-        {EMOJIS.map((emoji) => (
-          <button key={emoji} type="button" className={emoji === current ? "is-active" : ""}
-            onClick={() => { onChange(emoji); onClose(); }}>{emoji}</button>
-        ))}
-      </div>
+      <EmojiPickerBody current={current} onChange={onChange} onClose={onClose} />
     </Popover>
   );
 }
@@ -118,7 +133,9 @@ export function FloatingEmojiPopover({ position, trigger, current, onChange, onC
   const closeRef = useRef(onClose);
   useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
-    const close = () => closeRef.current();
+    const width = window.innerWidth;
+    // 幅が変わったときだけ閉じる（アドレスバーの出し入れによる高さだけの変化では閉じない）。
+    const close = () => { if (window.innerWidth !== width) closeRef.current(); };
     window.addEventListener("resize", close);
     // スクロールは子要素のものも拾う（capture）。選択画面自身の中のスクロールでは閉じない。
     const onScroll = (event: Event) => {

@@ -3,9 +3,10 @@
 import { MessageSquareText, PanelLeftClose, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
-import { LegalLinks } from "@/components/legal-page";
+import { SidebarFooter } from "@/components/sidebar-footer";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
+import { rowName } from "@/lib/view-transition";
 import type { Session } from "@/types/chat";
 
 type ChatSidebarProps = {
@@ -68,7 +69,7 @@ export function ChatSidebar({
             {sessions.map((session) => {
               const active = activeSessionId === session.id;
               return (
-                <div key={session.id} className={`notion-session-row group ${active ? "is-active" : ""}`}>
+                <div key={session.id} className={`notion-session-row vt-row group ${active ? "is-active" : ""}`} style={rowName(`crow-${session.id}`)}>
                   <button type="button" className="chat-row-icon-button" aria-label={`Change icon of ${session.title}`} title="Change icon"
                     aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
                     onClick={(event) => {
@@ -92,7 +93,7 @@ export function ChatSidebar({
           </div>
         )}
       </div>
-      <LegalLinks />
+      <SidebarFooter />
       {picker && pickerSession && (
         <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerSession.icon ?? null}
           onChange={(icon) => onChangeIcon(pickerSession.id, icon)} onClose={closePicker} />

@@ -1,33 +1,24 @@
 "use client";
 
-import { LogIn, LogOut } from "lucide-react";
+import { ChevronsUpDown } from "lucide-react";
 import { signIn, signOut } from "next-auth/react";
-import { useEffect, useState } from "react";
+import { useRef, useState } from "react";
+import { usePickerBackToClose } from "@/components/emoji-picker";
+import { GoogleLogo } from "@/components/google-logo";
+import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/profile-menu";
+import { UserAvatar } from "@/components/user-avatar";
+import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { canSignInNatively, signInWithNativeGoogle, signOutOfNativeGoogle } from "@/lib/native-app";
 
-type Account = {
-  configured: boolean;
-  user: { name: string | null; email: string | null } | null;
-  googleClientId?: string | null;
-};
-
-// サイドバー下部の Google ログイン / ログアウト。未設定の環境では何も表示しない。
+// サイドバー下部のアカウント。ログイン前は「Sign in with Google」、ログイン後は顔と名前の行で、押すとプロフィールが開く。
+// Google ログインが未設定の環境では何も表示しない。状態はページ全体で 1 つ（account-store）。
 export function AccountButton() {
-  const [account, setAccount] = useState<Account | null>(null);
+  const { account, saveError } = useAccount();
   const [failed, setFailed] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    fetch("/api/account")
-      .then((response) => (response.ok ? response.json() : null))
-      .then((data: Account | null) => {
-        if (active) setAccount(data);
-      })
-      .catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, []);
+  const [menu, setMenu] = useState<MenuPosition | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const closeMenu = () => setMenu(null);
+  usePickerBackToClose(menu !== null, closeMenu);
 
   if (!account?.configured) return null;
 
@@ -45,20 +36,37 @@ export function AccountButton() {
     const clientId = account.googleClientId;
     const native = Boolean(clientId) && canSignInNatively();
     return (
-      <button type="button" className="notion-sidebar-action"
+      <button type="button" className="google-signin-button"
         onClick={() => (native && clientId ? signInNatively(clientId) : signIn("google"))}>
-        <LogIn size={16} /><span>{failed ? "Sign-in failed. Try again" : "Sign in with Google"}</span>
+        <GoogleLogo size={18} /><span>{failed ? "Sign-in failed. Try again" : "Sign in with Google"}</span>
       </button>
     );
   }
 
+  const user = account.user;
+
   return (
-    <button type="button" className="notion-sidebar-action" title={account.user.email ?? undefined}
-      onClick={async () => {
-        await signOutOfNativeGoogle();
-        await signOut();
-      }}>
-      <LogOut size={16} /><span>Sign out{account.user.name ? ` (${account.user.name})` : ""}</span>
-    </button>
+    <>
+      <button ref={triggerRef} type="button" className="notion-sidebar-action profile-row" title={user.email ?? undefined}
+        aria-haspopup="dialog" aria-expanded={menu !== null}
+        onClick={() => {
+          if (menu) return closeMenu();
+          clearSaveError();
+          setMenu(menuPositionFor(triggerRef.current!.getBoundingClientRect()));
+        }}>
+        <UserAvatar user={user} size={22} />
+        <span className="truncate">{user.name ?? user.email ?? "Account"}</span>
+        <ChevronsUpDown size={14} className="ml-auto shrink-0 text-[var(--notion-faint)]" />
+      </button>
+      {menu && (
+        <ProfileMenu user={user} position={menu} trigger={triggerRef} error={saveError} onSave={saveProfile} onUpload={uploadPhoto} onClose={closeMenu}
+          onSignOut={async () => {
+            // 直前に編集した名前や写真の保存が終わってからログアウトする（ログアウト後だと 401 で取りこぼす）。
+            await settled();
+            await signOutOfNativeGoogle();
+            await signOut();
+          }} />
+      )}
+    </>
   );
 }

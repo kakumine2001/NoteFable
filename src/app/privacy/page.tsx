@@ -30,13 +30,15 @@ export default function PrivacyPage() {
           <li>
             <strong>Google sign-in (optional).</strong> If you choose “Sign in with Google”, Google gives us your Google account ID,
             email address, name and profile picture (the basic <code>openid</code>, <code>email</code> and <code>profile</code> scopes). We store them with your
-            account so your chats and Notes follow you to other devices, and to show your name in the sidebar.
+            account so your chats and Notes follow you to other devices, and to show your name in the sidebar. If you choose your own display name, emoji icon or
+            profile photo, we store those too and show them instead.
             We do not request access to your Gmail, Drive, Calendar, contacts or any other Google data.
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
             alongside them), files and images you attach or generate, and your Notes (pages, covers, images, files and groups).
-            Attached documents such as PDFs and text files are kept as extracted text; images are kept as files.
+            Attached documents such as PDFs and text files are kept as extracted text; images are kept as files. If you upload a profile photo, we keep
+            the cropped photo (about 512×512) in file storage and delete the old file when you replace or remove it.
           </li>
           <li>
             <strong>AI continuation data.</strong> For chats with OpenAI and Anthropic models we also store the provider’s compressed copy of the conversation

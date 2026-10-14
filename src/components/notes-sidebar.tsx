@@ -2,10 +2,11 @@
 
 import { ChevronDown, ChevronRight, FileText, FolderInput, FolderPlus, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { LegalLinks } from "@/components/legal-page";
+import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
+import { rowName } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
 const COLLAPSED_KEY = "studymate:note-groups-collapsed:v1";
@@ -44,7 +45,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
 
   const loose = pages.filter((page) => !page.groupId || !groups.some((group) => group.id === page.groupId));
   const row = (page: NotePageSummary) => (
-    <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
+    <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)}>
       <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={page.title}>
         <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span><span className="truncate text-sm">{page.title}</span>
       </button>
@@ -111,7 +112,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
       {deletingGroup && <ConfirmDialog title="Delete group?" confirmLabel="Delete group" error={groupError} onClose={() => setDeletingGroup(null)}
         body={`“${deletingGroup.name}” will be deleted. Its notes are kept and move out of the group.`}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
-      <LegalLinks />
+      <SidebarFooter />
     </aside>
   );
 }

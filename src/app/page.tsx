@@ -29,6 +29,8 @@ import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { getClipboardImageFiles, isImageMimeType } from "@/lib/client-files";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
+import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
+import { runTransition } from "@/lib/view-transition";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
@@ -116,6 +118,12 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
 }
 
+// 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。
+function computeNotesList() {
+  const params = new URL(window.location.href).searchParams;
+  return window.matchMedia("(max-width: 639px)").matches && params.get("view") === "pages" && !params.get("page");
+}
+
 export default function Home() {
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
@@ -124,22 +132,32 @@ export default function Home() {
 
   // 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。URL が変わる操作のあとにここで合わせ直す。
   function syncNotesList() {
-    const params = new URL(window.location.href).searchParams;
-    setNotesList(window.matchMedia("(max-width: 639px)").matches && params.get("view") === "pages" && !params.get("page"));
+    setNotesList(computeNotesList());
   }
   const notesRef = useRef(notes);
+  // 戻る操作で画面が変わるかを見分けて、変わるときだけ動きをつけるために、いまの表示を覚えておく。
+  const shownRef = useRef({ view: workspaceView, list: notesList });
   useEffect(() => {
     notesRef.current = notes;
+    shownRef.current = { view: workspaceView, list: notesList };
   });
 
   useEffect(() => {
-    function syncWorkspace() {
+    function syncWorkspace(animate: boolean) {
       const params = new URL(window.location.href).searchParams;
-      setWorkspaceView(params.get("view") === "pages" ? "pages" : "chat");
-      syncNotesList();
+      const view: WorkspaceView = params.get("view") === "pages" ? "pages" : "chat";
+      const list = computeNotesList();
+      const apply = () => {
+        setWorkspaceView(view);
+        setNotesList(list);
+      };
+      // 端末の「戻る」でノートから一覧へ戻るときなど、画面が変わるときだけ動かす（シートを閉じるだけの戻るでは何もしない）。
+      if (animate && (view !== shownRef.current.view || list !== shownRef.current.list)) runTransition(apply, "back");
+      else runTransition(apply, "back", false);
     }
-    queueMicrotask(syncWorkspace);
-    window.addEventListener("popstate", syncWorkspace);
+    const onPopState = () => syncWorkspace(true);
+    queueMicrotask(() => syncWorkspace(false));
+    window.addEventListener("popstate", onPopState);
 
     // 画面を回して幅が変わったら一覧モードを合わせ直す。パソコン幅へ広がったときは、開いているノートが無ければ先頭を開く。
     const phone = window.matchMedia("(max-width: 639px)");
@@ -150,24 +168,29 @@ export default function Home() {
     }
     phone.addEventListener("change", onWidthChange);
     return () => {
-      window.removeEventListener("popstate", syncWorkspace);
+      window.removeEventListener("popstate", onPopState);
       phone.removeEventListener("change", onWidthChange);
     };
   }, []);
 
   function changeWorkspace(view: WorkspaceView) {
-    if (view === workspaceView) return;
-    setWorkspaceView(view);
-    setSidebarOpen(false);
     const url = new URL(window.location.href);
+    if (view === (url.searchParams.get("view") === "pages" ? "pages" : "chat")) return;
+    let list = false;
     if (view === "pages") {
       url.searchParams.set("view", "pages");
       const phone = window.matchMedia("(max-width: 639px)").matches;
       if (phone) url.searchParams.delete("page");
       else if (notes.activeId) url.searchParams.set("page", notes.activeId);
-      setNotesList(phone);
+      list = phone;
     }
     else url.searchParams.delete("view");
+    // Chat ⇄ Note は、同じ場所でふわっと入れ替える。
+    runTransition(() => {
+      setWorkspaceView(view);
+      setSidebarOpen(false);
+      if (view === "pages") setNotesList(list);
+    }, "fade");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
     if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
@@ -189,18 +212,19 @@ export default function Home() {
       else window.history.pushState(null, "", url);
       restoreSheetMarker();
     }
-    setNotesList(false);
+    // 一覧からノートへは、右から入ってくる動き。
+    runTransition(() => setNotesList(false), "forward");
     if (notes.activeId !== id) void notes.select(id, "none");
   }
 
   async function deleteNote(id: string) {
     await notes.remove(id);
     // スマホで開いていたノートを消したら、URL から page= が外れているので一覧に戻る。
-    syncNotesList();
+    runTransition(syncNotesList, "back");
   }
 
   function createNote() {
-    setNotesList(false);
+    runTransition(() => setNotesList(false), "forward");
     void notes.create();
   }
 
@@ -211,7 +235,8 @@ export default function Home() {
     if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     restoreSheetMarker();
-    setNotesList(true);
+    // ノートから一覧へは、左へ戻る動き。
+    runTransition(() => setNotesList(true), "back");
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
@@ -252,6 +277,8 @@ export default function Home() {
   // モバイルのドロワーを開いている間は履歴を 1 件積み、端末の「戻る」でアプリを閉じずにドロワーだけ閉じる。
   // ドロワーの上にアイコン選択などが重なっているときは、先にそちらが閉じる（共通のフックが一番上だけを閉じる）。
   useBackToClose(sidebarOpen, () => setSidebarOpen(false));
+  // ドロワーは、左へ指で引いて閉じられる。
+  const { attach: attachDrawer, bind: drawerBind } = useSwipeDismiss<HTMLDivElement>({ axis: "x", direction: -1, onDismiss: () => setSidebarOpen(false) });
   useEffect(() => {
     if (!sidebarOpen) return;
     // 画面を広げてデスクトップ表示になったら、見えなくなったドロワーの履歴が残らないよう閉じる。
@@ -571,8 +598,8 @@ export default function Home() {
       return;
     }
     if (!response.ok) return;
-    // サイドバーから対象セッションを即座に消す。
-    setSessions((current) => current.filter((session) => session.id !== sessionId));
+    // サイドバーから対象セッションを消す。行がすっと消えて、下の行が詰まる。
+    runTransition(() => setSessions((current) => current.filter((session) => session.id !== sessionId)), "list");
     const nextMessagesBySession = { ...sessionMessagesRef.current };
     delete nextMessagesBySession[sessionId];
     sessionMessagesRef.current = nextMessagesBySession;
@@ -1077,7 +1104,7 @@ export default function Home() {
             onClick={() => setSidebarOpen(false)}
             aria-label="Close sidebar overlay"
           />
-          <div className="motion-sidebar-panel relative h-full w-60 max-w-[88vw]">{sidebar}</div>
+          <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-60 max-w-[88vw]">{sidebar}</div>
         </div>
       )}
 

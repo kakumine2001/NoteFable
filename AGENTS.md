@@ -33,6 +33,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | --- | --- |
 | Model capabilities and reasoning levels | `src/lib/models.ts` |
 | Anonymous identity and Google-linked user | `src/lib/auth.ts` |
+| Profile (display name, emoji icon, uploaded photo) and the shared account state | `src/lib/user-profile.ts`, `src/lib/account-store.ts`, `src/app/api/account/*`, `src/components/account-button.tsx`, `src/components/profile-menu.tsx` |
 | Google login (Auth.js) | `src/lib/google-auth.ts`, `src/app/api/auth/[...nextauth]/route.ts` |
 | Google login inside the Android app | `src/lib/native-google-login.ts`, `src/app/api/native-auth/*`, `src/lib/native-app.ts` |
 | Chat flow and system instructions | `src/app/api/chat/route.ts` |
@@ -93,6 +94,8 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Setup, build, limits and the in-app Google login flow (the token audience is the Web client ID; never pass `scopes` to the plugin) are in [docs/architecture/android.md](docs/architecture/android.md).
 
 ## Cross-Agent Calls
+
+- For the current review workflow, use Grok 4.7 through Cursor CLI: `agent -p --model grok-4.7-medium --mode ask --trust --workspace <repo> <prompt>`. Review the full affected diff read-only, verify and fix its findings, then commit and deploy only after relevant checks pass. Keep this reviewer until the user requests a change.
 
 Pin these models when Codex and Claude Code call each other in this project, unless the user names another:
 

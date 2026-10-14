@@ -1,0 +1,122 @@
+/* アプリ全体の動き。切り替えの滑らかさ・つかんで動かす操作・押したときの手応えを、ここでそろえる。
+   「視覚効果を減らす」設定のときは、最後のブロックで動きをすべて止める。 */
+
+:root {
+  /* 速く出て、ゆっくり落ち着く。ほとんどの動きはこれ。 */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  /* 少し行き過ぎて止まる、ばねのような動き。指を離して元に戻るときに使う。 */
+  --ease-spring: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --dur-quick: 140ms;
+  --dur-base: 260ms;
+}
+
+/* ===== 画面の切り替え（View Transition。src/lib/view-transition.ts が html に data-vt-kind を付ける） ===== */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+  animation-fill-mode: both;
+  mix-blend-mode: normal;
+}
+::view-transition-group(*) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}
+
+/* 上のバーは動かさず、中身だけが入れ替わるようにする。 */
+html[data-vt-kind] .notion-topbar { view-transition-name: topbar; }
+
+/* Chat ⇄ Note: その場でふわっと入れ替わる。 */
+html[data-vt-kind="fade"]::view-transition-old(root) { animation-name: vt-fade-out; }
+html[data-vt-kind="fade"]::view-transition-new(root) { animation-name: vt-fade-in; }
+/* 一覧からノートへ: 古い画面は左へ、新しい画面は右から入る。戻るときはその逆。 */
+html[data-vt-kind="forward"]::view-transition-old(root) { animation-name: vt-out-left; }
+html[data-vt-kind="forward"]::view-transition-new(root) { animation-name: vt-in-right; }
+html[data-vt-kind="back"]::view-transition-old(root) { animation-name: vt-out-right; }
+html[data-vt-kind="back"]::view-transition-new(root) { animation-name: vt-in-left; }
+/* 一覧の追加・削除・移動: 画面全体は動かさず、名前を付けた行（.vt-row）だけが滑らかに動く。 */
+html[data-vt-kind="list"]::view-transition-old(root),
+html[data-vt-kind="list"]::view-transition-new(root) { animation: none; }
+html[data-vt-kind="list"] .vt-row { view-transition-name: var(--vt-name); }
+
+@keyframes vt-fade-out { to { opacity: 0; } }
+@keyframes vt-fade-in { from { opacity: 0; } }
+@keyframes vt-out-left { to { opacity: 0; transform: translateX(-28px); } }
+@keyframes vt-in-right { from { opacity: 0; transform: translateX(36px); } }
+@keyframes vt-out-right { to { opacity: 0; transform: translateX(28px); } }
+@keyframes vt-in-left { from { opacity: 0; transform: translateX(-36px); } }
+
+/* ===== つかんで動かす（シートは下へ、ドロワーは左へ。src/lib/use-swipe-dismiss.ts） ===== */
+/* 底のシートの持ち手: 見た目の細い線のまわりに、指で触りやすい余白を足す。 */
+.sheet-grip { margin: 0 -1rem; padding: 0.45rem 0 0.4rem; cursor: grab; touch-action: none; }
+.note-ai-panel .sheet-grip { margin: 0; }
+.sheet-grip .model-sheet-grab { margin: 0 auto; }
+/* ドロワー: 縦のスクロールはそのまま、横へ引いたときだけ動かす。 */
+/* 中のスクロール領域にも付ける（付けないと、横へ引き始めたところでブラウザが指の動きを奪って途中で止まる）。 */
+.swipe-x, .swipe-x * { touch-action: pan-y; }
+/* 引いている間は、背景の暗がりも一緒に薄くなる（出入りのアニメーションより優先）。 */
+.is-swiping > button:first-child { animation: none; opacity: calc(1 - var(--swipe-progress, 0)); transition: none; }
+.is-swiping.is-settling > button:first-child { transition: opacity 220ms var(--ease-out); }
+
+.model-sheet-root .model-sheet,
+.model-sheet-root .note-ai-panel.is-sheet,
+.motion-sidebar-panel,
+.motion-menu {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}
+
+/* ===== 押したときの手応え ===== */
+.notion-button,
+.notion-icon-button,
+.notion-sidebar-action,
+.notion-segment,
+.attach-row,
+.model-sheet-row,
+.note-ai-chip,
+.note-ai-fab,
+.notes-empty-new,
+.notes-home-row {
+  transition: transform var(--dur-quick) var(--ease-out), background-color var(--dur-quick) ease, color var(--dur-quick) ease, border-color var(--dur-quick) ease, opacity var(--dur-quick) ease;
+}
+.notion-button:active:not(:disabled),
+.notion-icon-button:active:not(:disabled),
+.notion-sidebar-action:active:not(:disabled),
+.notion-segment:active:not(:disabled),
+.attach-row:active,
+.model-sheet-row:active:not(:disabled),
+.note-ai-chip:active:not(:disabled),
+.notes-empty-new:active:not(:disabled) { transform: scale(0.97); }
+.notes-home-row:active:not(:disabled) { transform: scale(0.99); }
+.note-ai-fab:active { transform: scale(0.92); }
+
+/* ===== 視覚効果を減らす設定 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .model-sheet-root .model-sheet,
+  .model-sheet-root .note-ai-panel.is-sheet,
+  .note-ai-panel,
+  .model-sheet-backdrop { animation: none !important; }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+  .notion-button,
+  .notion-icon-button,
+  .notion-sidebar-action,
+  .notion-segment,
+  .attach-row,
+  .model-sheet-row,
+  .note-ai-chip,
+  .note-ai-fab,
+  .notes-empty-new,
+  .notes-home-row { transition: none !important; }
+  .notion-button:active,
+  .notion-icon-button:active,
+  .notion-sidebar-action:active,
+  .notion-segment:active,
+  .attach-row:active,
+  .model-sheet-row:active,
+  .note-ai-chip:active,
+  .note-ai-fab:active,
+  .notes-empty-new:active,
+  .notes-home-row:active { transform: none !important; }
+}

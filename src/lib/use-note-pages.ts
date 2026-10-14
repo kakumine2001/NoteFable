@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
+import { runTransition } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
 
 const DRAFT_PREFIX = "studymate:page-draft:v1:";
@@ -233,7 +234,7 @@ export function useNotePages(enabled: boolean) {
         upsertSummary(current.page);
       }
       const queue = install(page);
-      upsertSummary(page);
+      runTransition(() => upsertSummary(page), "list");
       ++navigation.current;
       pendingId.current = null;
       setActiveId(page.id);
@@ -259,7 +260,7 @@ export function useNotePages(enabled: boolean) {
       queues.current.delete(id);
       try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* 削除後の古いキャッシュは復元しない。 */ }
       const remaining = pages.filter((page) => page.id !== id);
-      setPages(remaining);
+      runTransition(() => setPages(remaining), "list");
       if (activeId === id) {
         displayedId.current = null;
         setActiveId(null);
@@ -282,7 +283,7 @@ export function useNotePages(enabled: boolean) {
 
   const createGroup = (name: string) => groupAction(async () => {
     const { group } = await pageRequest("/api/pages/groups", "POST", { name });
-    setGroups((current) => [...current, group]);
+    runTransition(() => setGroups((current) => [...current, group]), "list");
     return group as NoteGroupSummary;
   });
 
@@ -294,15 +295,17 @@ export function useNotePages(enabled: boolean) {
 
   const deleteGroup = (id: string) => groupAction(async () => {
     await pageRequest(`/api/pages/groups/${id}`, "DELETE");
-    setGroups((current) => current.filter((entry) => entry.id !== id));
     // 中のノートは消えず、グループなしに戻る。
-    setPages((current) => current.map((page) => page.groupId === id ? { ...page, groupId: null } : page));
+    runTransition(() => {
+      setGroups((current) => current.filter((entry) => entry.id !== id));
+      setPages((current) => current.map((page) => page.groupId === id ? { ...page, groupId: null } : page));
+    }, "list");
     return true;
   });
 
   const moveNote = (id: string, groupId: string | null) => groupAction(async () => {
     await pageRequest(`/api/pages/${id}/group`, "PUT", { groupId });
-    setPages((current) => current.map((page) => page.id === id ? { ...page, groupId } : page));
+    runTransition(() => setPages((current) => current.map((page) => page.id === id ? { ...page, groupId } : page)), "list");
     return true;
   });
 

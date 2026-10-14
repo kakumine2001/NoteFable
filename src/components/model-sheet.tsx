@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { getModelOption, MODEL_OPTIONS, type ReasoningEffort } from "@/lib/models";
 import { reasoningDescriptions, reasoningLabels } from "@/lib/reasoning-labels";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 
 // スマホ用のモデル・推論強度の選択。小さなピルから開く 2 段の小窓ではなく、画面下から出るシートにして、
 // 行を大きくし、推論強度はドラッグ式のスライダーではなく 1 回押すだけのボタンにする。
@@ -29,6 +30,8 @@ export function ModelSheetSelect({
     setOpen(false);
   }
   useBackToClose(open, close);
+  const { attach, bind } = useSwipeDismiss<HTMLDivElement>({ axis: "y", direction: 1, onDismiss: close, focusOnAttach: true });
+
 
   function openSheet() {
     // 画面キーボードが出ていると、シートがキーボードの上に浮いてしまう。先に閉じる。
@@ -56,8 +59,8 @@ export function ModelSheetSelect({
           <div className="model-sheet-root">
             <button type="button" className="model-sheet-backdrop" aria-label="Close" onClick={close} />
             <div className="model-sheet" role="dialog" aria-modal="true" aria-label="Model and reasoning" tabIndex={-1}
-              ref={(element) => element?.focus()}>
-              <div className="model-sheet-grab" aria-hidden="true" />
+              ref={attach}>
+              <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>
 
               <h2 className="model-sheet-title">Model</h2>
               <div className="model-sheet-list" role="radiogroup" aria-label="Model">

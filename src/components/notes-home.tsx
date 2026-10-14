@@ -2,6 +2,7 @@ import { FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
+import { rowName } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 
 // スマホの Notes ホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
@@ -21,7 +22,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const known = new Set(groups.map((group) => group.id));
   const loose = pages.filter((page) => !page.groupId || !known.has(page.groupId));
   const item = (page: NotePageSummary) => (
-    <li key={page.id} className="notes-home-item">
+    <li key={page.id} className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)}>
       <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
         <span className="notes-home-name">{page.title}</span>
