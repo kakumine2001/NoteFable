@@ -1,17 +1,45 @@
 "use client";
 import { GripVertical } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { ReorderRequest } from "@/lib/list-order";
 
-export function ReorderHandle({id,title,scope,ids,disabled,onMove}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>}) {
+export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpen,onMoveProject}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children?:ReactNode;onOpen?:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>}) {
   const drag=useRef<{x:number;y:number;active:boolean;row:HTMLElement;target?:HTMLElement;after:boolean}|null>(null);
+  const suppressClick=useRef(false);
+  const buttonRef=useRef<HTMLButtonElement>(null);
+  const touchTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState("");
   function clear() {
+    if(touchTimer.current!==null){clearTimeout(touchTimer.current);touchTimer.current=null;}
     const current=drag.current;
     current?.row.removeAttribute("data-order-dragging");
     current?.target?.removeAttribute("data-order-drop");
     drag.current=null;
+  }
+  function updateTarget(x:number,y:number) {
+    const current=drag.current;if(!current)return;
+    current.row.setAttribute("data-order-dragging","true");
+    const container=current.row.closest("[data-reorder-list]");
+    const target=document.elementsFromPoint(x,y).map(element=>element.closest<HTMLElement>(onMoveProject ? "[data-order-id], [data-chat-project-drop]" : "[data-order-id]")).find(element=>element && element.closest("[data-reorder-list]")===container && (element.hasAttribute("data-chat-project-drop") || (element.dataset.orderScope===scope && element.dataset.orderId!==id)));
+    current.target?.removeAttribute("data-order-drop");current.target=target ?? undefined;
+    if(target){const rect=target.getBoundingClientRect();current.after=y>rect.y+rect.height/2;target.setAttribute("data-order-drop",target.hasAttribute("data-chat-project-drop") ? "into" : current.after ? "after":"before");}
+    let scroll=current.row.parentElement;
+    while(scroll && scroll.scrollHeight<=scroll.clientHeight)scroll=scroll.parentElement;
+    if(scroll){const rect=scroll.getBoundingClientRect();if(y<rect.top+30)scroll.scrollBy({top:-12});else if(y>rect.bottom-30)scroll.scrollBy({top:12});}
+  }
+  function finish() {
+    const current=drag.current;
+    const target=current?.target;
+    const active=current?.active;
+    const after=current?.after ?? false;
+    suppressClick.current=!!active;
+    clear();
+    if(!active || !target)return;
+    if(target.hasAttribute("data-chat-project-drop") && onMoveProject) {
+      setBusy(true);setError("");
+      void Promise.resolve().then(()=>onMoveProject(target.dataset.chatProjectDrop || null)).then(ok=>{if(!ok)setError("Could not move the chat. Try again.");}).catch(error=>setError(error instanceof Error ? error.message : "Could not move the chat. Try again.")).finally(()=>setBusy(false));
+    } else if(target.dataset.orderId)void move({id,targetId:target.dataset.orderId,after});
   }
   useEffect(()=>()=>{drag.current?.row.removeAttribute("data-order-dragging");drag.current?.target?.removeAttribute("data-order-drop");},[]);
   async function move(request:ReorderRequest) {
@@ -20,40 +48,59 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove}:{id:string;ti
     catch(error) {setError(error instanceof Error ? error.message : "Could not move the item. Try again.");}
     finally {setBusy(false);}
   }
+  // A long press starts touch dragging; ordinary swipes still scroll the list.
+  const touchGesture=useEffectEvent((kind:"start"|"move"|"end"|"cancel",event?:TouchEvent)=>{
+    const button=buttonRef.current;if(!button)return;
+    if(kind==="start" && event){
+      if(busy || disabled || event.touches.length!==1)return;
+      const row=button.closest<HTMLElement>("[data-order-id]");if(!row)return;
+      const touch=event.touches[0];suppressClick.current=false;
+      drag.current={x:touch.clientX,y:touch.clientY,active:false,row,after:false};
+      touchTimer.current=setTimeout(()=>{if(drag.current){drag.current.active=true;updateTarget(drag.current.x,drag.current.y);}},350);
+    } else if(kind==="move" && event){
+      const current=drag.current;if(!current)return;
+      if(event.touches.length!==1){clear();return;}
+      const touch=event.touches[0];
+      if(!current.active){if(Math.hypot(touch.clientX-current.x,touch.clientY-current.y)>8)clear();return;}
+      event.preventDefault();updateTarget(touch.clientX,touch.clientY);
+    } else if(kind==="end"){if(drag.current?.active)event?.preventDefault();finish();}
+    else clear();
+  });
+  useEffect(()=>{
+    const button=buttonRef.current;if(!button?.classList.contains("chat-drag-title"))return;
+    const start=(event:TouchEvent)=>touchGesture("start",event);
+    const moving=(event:TouchEvent)=>touchGesture("move",event);
+    const end=(event:TouchEvent)=>touchGesture("end",event);
+    const cancel=()=>touchGesture("cancel");
+    button.addEventListener("touchstart",start,{passive:true});button.addEventListener("touchmove",moving,{passive:false});button.addEventListener("touchend",end);button.addEventListener("touchcancel",cancel);
+    return ()=>{cancel();button.removeEventListener("touchstart",start);button.removeEventListener("touchmove",moving);button.removeEventListener("touchend",end);button.removeEventListener("touchcancel",cancel);};
+  },[]);
   return <>
-    <button type="button" aria-label={`Reorder ${title}`} title="Drag to reorder · Arrow keys move up/down" className="list-reorder-handle" disabled={busy || disabled}
+    <button ref={buttonRef} type="button" aria-label={children ? undefined : `Reorder ${title}`} title={children ? `${title} · Drag to move · Hold to drag on touch · Arrow keys reorder` : "Drag to reorder · Arrow keys move up/down"} className={children ? "chat-drag-title flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" : "list-reorder-handle"} disabled={busy || disabled}
+      onClick={()=>{if(suppressClick.current){suppressClick.current=false;return;}onOpen?.();}}
       onPointerDown={event=>{
+        if(children && event.pointerType==="touch")return;
         if(event.button!==0) return;
         const row=event.currentTarget.closest<HTMLElement>("[data-order-id]");
         if(!row) return;
-        event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);
+        suppressClick.current=false;event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);
         drag.current={x:event.clientX,y:event.clientY,active:false,row,after:false};
       }}
       onPointerMove={event=>{
         const current=drag.current;if(!current) return;
+        if(children && event.pointerType==="touch")return;
         if(!current.active && Math.hypot(event.clientX-current.x,event.clientY-current.y)<6) return;
-        current.active=true;current.row.setAttribute("data-order-dragging","true");
-        const container=current.row.closest("[data-reorder-list]");
-        const target=document.elementsFromPoint(event.clientX,event.clientY).map(element=>element.closest<HTMLElement>("[data-order-id]")).find(element=>element && element.dataset.orderScope===scope && element.dataset.orderId!==id && element.closest("[data-reorder-list]")===container);
-        current.target?.removeAttribute("data-order-drop");current.target=target ?? undefined;
-        if(target){const rect=target.getBoundingClientRect();current.after=event.clientY>rect.y+rect.height/2;target.setAttribute("data-order-drop",current.after ? "after":"before");}
-        // Scroll only the containing list while approaching its edges.
-        let scroll=current.row.parentElement;
-        while(scroll && scroll.scrollHeight<=scroll.clientHeight) scroll=scroll.parentElement;
-        if(scroll){const rect=scroll.getBoundingClientRect();if(event.clientY<rect.top+30)scroll.scrollBy({top:-12});else if(event.clientY>rect.bottom-30)scroll.scrollBy({top:12});}
+        current.active=true;updateTarget(event.clientX,event.clientY);
       }}
       onPointerUp={event=>{
-        const current=drag.current;
-        const targetId=current?.target?.dataset.orderId;
-        const request=current?.active && targetId ? {id,targetId,after:current.after}:null;
-        clear();if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
-        if(request)void move(request);
-      }} onPointerCancel={clear} onLostPointerCapture={clear}
+        if(children && event.pointerType==="touch")return;
+        finish();if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
+      }} onPointerCancel={event=>{if(event.pointerType!=="touch" || !children)clear();}} onLostPointerCapture={event=>{if(event.pointerType!=="touch" || !children)clear();}}
       onKeyDown={event=>{
         if(event.key!=="ArrowUp" && event.key!=="ArrowDown")return;
         event.preventDefault();const index=ids.indexOf(id), targetId=ids[index+(event.key==="ArrowUp"?-1:1)];
         if(targetId)void move({id,targetId,after:event.key==="ArrowDown"});
-      }}><GripVertical size={13}/></button>
+      }}>{children ?? <GripVertical size={13}/>}</button>
     {error && <span role="alert" className="list-reorder-error">{error}</span>}
   </>;
 }

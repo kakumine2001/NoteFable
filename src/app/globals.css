@@ -687,6 +687,10 @@ button:disabled {
 .chat-more-button, .chat-pin-button { opacity: 1; }
 .list-reorder-handle { display: grid; place-items: center; width: 18px; min-height: 30px; flex: none; border-radius: 4px; color: var(--notion-muted); cursor: grab; touch-action: none; }
 .list-reorder-handle:active { cursor: grabbing; }
+.chat-drag-title { cursor: grab; touch-action: auto; user-select: none; }
+.chat-drag-title:active { cursor: grabbing; }
+[data-chat-project-drop] { position: relative; }
+[data-order-drop="into"] { background: rgba(35, 131, 226, .12); outline: 1px solid #2383e2; border-radius: 4px; }
 .list-reorder-handle:hover, .list-reorder-handle:focus-visible { background: var(--notion-hover); }
 [data-order-id] { position: relative; }
 [data-order-dragging] { opacity: .5; }
