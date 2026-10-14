@@ -330,7 +330,7 @@ export default function Home() {
     claudeImages: !imageGenerationMode && selectedModel.provider === "anthropic",
   };
   const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions);
-  const attachmentHint = `${MAX_UPLOAD_FILES} files max · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total`;
+  const attachmentHint = `${MAX_UPLOAD_FILES} attachments max · ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} total`;
   const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError;
   // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
   const isNarrowScreen = useMediaQuery("(max-width: 639px)");

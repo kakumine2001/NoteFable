@@ -6,11 +6,13 @@ describe("composer attachment validation", () => {
   const options = { supportsImages: true, claudeImages: false };
   const image = (size = 100) => ({ name: "photo.png", type: "image/png", size });
 
-  it("accepts exactly five and rejects repeated additions without changing existing attachments", () => {
-    const current = Array.from({ length: 4 }, () => image());
+  it("accepts exactly ten and rejects repeated additions without changing existing attachments", () => {
+    const current = Array.from({ length: 9 }, (_, index) => index < 6
+      ? image()
+      : { name: `notes-${index}.txt`, type: "text/plain", size: 100 });
     expect(getUploadSelectionError(current, [image()], options)).toBe("");
     expect(getUploadSelectionError(current, [image(), image()], options)).toContain("1 more file");
-    expect(current).toHaveLength(4);
+    expect(current).toHaveLength(9);
     expect(getUploadSelectionError([...current, image()], [image()], options)).toContain("Remove a file");
     expect(getUploadSelectionError([], Array.from({ length: 50 }, () => image()), options)).toContain("None of these 50 files were added");
   });
