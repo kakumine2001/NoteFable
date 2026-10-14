@@ -2264,3 +2264,18 @@ button:disabled {
   color: #cb912f;
   font-size: 0.75rem;
 }
+
+/* 画像・ファイルの追加パネル: タブは 1 つだけなので隠し、選択ボタンをアプリの見た目にそろえる。 */
+.bn-panel .bn-ak-tab-list { display: none; }
+.note-upload { max-width: 100%; }
+.note-upload { display: grid; gap: 0.5rem; padding: 0.25rem; min-width: 14rem; }
+.note-upload-button {
+  display: inline-flex; min-height: 2.5rem; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1rem;
+  border-radius: 8px; background: #2383e2; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.note-upload-button:hover { background: #0077d4; }
+.note-upload-button.is-busy { opacity: 0.7; cursor: progress; }
+.note-upload-hint { margin: 0; font-size: 12px; color: var(--notion-muted); }
+.note-upload-hint.is-error { color: #b91c1c; }
+.note-upload-spin { animation: note-upload-spin 0.9s linear infinite; }
+@keyframes note-upload-spin { to { transform: rotate(360deg); } }

@@ -5,10 +5,11 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
 import { en } from "@blocknote/core/locales";
-import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, UploadTab, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { Check, CheckSquare, Code2, Copy, Heading1, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type } from "lucide-react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
+import { Check, CheckSquare, Code2, Copy, Heading1, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type, Upload } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
+import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { NOTE_TEXT_BLOCKS, codeBlockText, copyNoteBlocks, selectedRootBlocks, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
 
@@ -173,7 +174,47 @@ function NoteSideMenu() {
 
 // 画像・ファイルの追加パネル。Notion の「Embed link」は出さず、アップロードだけにする。
 function NoteFilePanel(props: FilePanelProps) {
-  return <FilePanel {...props} tabs={[{ name: "Upload", tabPanel: <UploadTab {...props} setLoading={() => {}} /> }]} />;
+  return <FilePanel {...props} tabs={[{ name: "Upload", tabPanel: <NoteUploadTab {...props} /> }]} />;
+}
+
+// ブラウザ標準の「Choose File」ではなく、アプリの見た目のボタンで選ばせる。進行中と失敗も画面に出す。
+function NoteUploadTab({ blockId }: FilePanelProps) {
+  const editor = useBlockNoteEditor(schema);
+  const [state, setState] = useState<{ phase: "idle" | "uploading" | "failed"; message?: string }>({ phase: "idle" });
+  const block = editor.getBlock(blockId);
+  if (!block) return null;
+  const isImage = block.type === "image";
+
+  async function upload(file: File | null) {
+    if (!file) return;
+    // 大きすぎるファイルは送る前に断る（サーバーの上限と同じ）。
+    if (file.size > MAX_NOTE_FILE_BYTES) {
+      setState({ phase: "failed", message: `That file is larger than ${MAX_NOTE_FILE_BYTES / 1024 / 1024} MB.` });
+      return;
+    }
+    setState({ phase: "uploading" });
+    try {
+      // editor.uploadFile を通すので、ブロック側の「読み込み中」表示も BlockNote に任せられる。
+      const result = await editor.uploadFile?.(file, blockId);
+      // 待っている間にブロックが消されたら何もしない。
+      if (result && editor.getBlock(blockId)) editor.updateBlock(blockId, typeof result === "string" ? { props: { url: result, name: file.name } } : result);
+    } catch (error) {
+      setState({ phase: "failed", message: error instanceof Error ? error.message : "Upload failed. Try again." });
+    }
+  }
+
+  return (
+    <div className="note-upload">
+      <label className={`note-upload-button ${state.phase === "uploading" ? "is-busy" : ""}`}>
+        {state.phase === "uploading" ? <><Loader2 size={16} className="note-upload-spin" />Uploading…</> : <><Upload size={16} />{isImage ? "Choose an image" : "Choose a file"}</>}
+        <input type="file" className="sr-only" accept={isImage ? "image/png,image/jpeg,image/webp,image/gif" : undefined}
+          disabled={state.phase === "uploading"} onChange={(event) => { const file = event.target.files?.[0] ?? null; event.target.value = ""; void upload(file); }} />
+      </label>
+      <p className={`note-upload-hint ${state.phase === "failed" ? "is-error" : ""}`} role={state.phase === "failed" ? "alert" : undefined}>
+        {state.phase === "failed" ? state.message : "Up to 4 MB."}
+      </p>
+    </div>
+  );
 }
 
 function NoteFormattingToolbar() {

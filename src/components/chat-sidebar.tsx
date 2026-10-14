@@ -57,7 +57,9 @@ export function ChatSidebar({
               return (
                 <div key={session.id} className={`notion-session-row group ${active ? "is-active" : ""}`}>
                   <button type="button" onClick={() => onLoad(session.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={session.title}>
-                    <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />
+                    {session.icon
+                      ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
+                      : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                     <span className="truncate text-sm">{session.title}</span>
                   </button>
                   <button type="button" onClick={() => onDelete(session.id)} className="notion-row-action" aria-label={`Delete ${session.title}`}>

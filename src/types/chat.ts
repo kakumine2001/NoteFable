@@ -8,6 +8,8 @@ export type Session = {
   id: string;
   // サイドバーとヘッダーに表示する会話タイトル。
   title: string;
+  // 会話のアイコン（単一の絵文字）。null は既定のチャットアイコン。
+  icon?: string | null;
   // セッション作成日時。API から文字列化されて届く。
   createdAt: string;
   // 一覧の並び順に使う最終更新日時。

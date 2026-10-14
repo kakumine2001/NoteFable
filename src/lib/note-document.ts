@@ -1,4 +1,5 @@
 import type { Block } from "@blocknote/core";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
 
@@ -36,14 +37,6 @@ export function uploadedCoverPath(cover: unknown) {
 
 export function isPresetCover(cover: unknown): cover is NoteCover {
   return typeof cover === "string" && Object.hasOwn(NOTE_COVERS, cover);
-}
-
-function validIcon(value: unknown) {
-  // 絵文字 1 つ分（肌色や ZWJ 結合を含む）だけを許可する。
-  if (typeof value !== "string" || value.length > 16 || /\s/.test(value)) return false;
-  // 書記素クラスタ 1 つだけ（「📚abc」や「📚📚」は不可、国旗や ZWJ 結合は可）。
-  const clusters = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(value)];
-  return clusters.length === 1 && /^(\p{Extended_Pictographic}|\p{Regional_Indicator}{2})/u.test(value);
 }
 
 export class NoteValidationError extends Error {
@@ -121,7 +114,7 @@ export function validateNoteContent(value: unknown): NoteContent {
   // 旧クライアントや旧下書きには icon/cover がないため、未指定は null として扱う。
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
-  if (icon !== null && !validIcon(icon)) throw new NoteValidationError("Note icon must be a single emoji.");
+  if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError("Note icon must be a single emoji.");
   if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError("Unsupported note cover.");
   const coverPosition = value.coverPosition ?? null;
   if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {

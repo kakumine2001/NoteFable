@@ -97,6 +97,8 @@ model NoteGroup {
 model Session {
   id        String   @id @default(cuid())
   title     String   @default("New chat")
+  // 単一の絵文字。null は既定のチャットアイコン。
+  icon      String?
   userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

@@ -1,21 +1,10 @@
 "use client";
 
-import { ImageIcon, Shuffle, Smile, Upload } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode, type Ref } from "react";
+import { ImageIcon, Smile, Upload } from "lucide-react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type Ref } from "react";
+import { EMOJIS, EmojiPopover, Popover, randomOf } from "@/components/emoji-picker";
 import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type NoteCover } from "@/lib/note-document";
 import type { NoteContent } from "@/types/notes";
-
-// よく使う絵文字だけを並べる。Notion の「Emoji」タブの簡易版。
-const EMOJIS = [
-  "📄", "📝", "📒", "📓", "📔", "📕", "📗", "📘", "📙", "📚", "🗂️", "📁", "📌", "📎", "🔖", "🏷️",
-  "✏️", "🖊️", "🖋️", "✒️", "📐", "📏", "🧮", "🧪", "🔬", "🔭", "💡", "🧠", "🎯", "🚀", "⭐", "🌟",
-  "✅", "☑️", "❗", "❓", "⚠️", "🔥", "💯", "🎉", "🏆", "🥇", "📈", "📊", "🗓️", "⏰", "⌛", "🕒",
-  "💻", "🖥️", "⌨️", "🖱️", "📱", "🔧", "🛠️", "⚙️", "🧩", "🔑", "🔒", "🌐", "📡", "🤖", "👾", "🐛",
-  "🗾", "🏯", "🗼", "⛩️", "🍣", "🍜", "🍵", "☕", "🍙", "🍱", "🍎", "🍊",
-  "🌸", "🌱", "🌿", "🍀", "🌳", "🌊", "⛰️", "🌙", "☀️", "🌈", "❄️", "⚡", "🎵", "🎨", "🎬", "📷",
-  "😀", "😄", "😊", "🙂", "😎", "🤔", "😴", "🥳", "😭", "😤", "🙏", "👍", "👀", "💪", "❤️", "💬",
-  "🐱", "🐶", "🐼", "🦊", "🐧", "🐢", "🦄", "🐝",
-];
 
 const COVER_LABELS: Record<NoteCover, string> = {
   "gradient-sunset": "Sunset", "gradient-peach": "Peach", "gradient-mint": "Mint", "gradient-ocean": "Ocean",
@@ -24,31 +13,9 @@ const COVER_LABELS: Record<NoteCover, string> = {
 };
 const COVER_KEYS = Object.keys(NOTE_COVERS) as NoteCover[];
 
-function randomOf<T>(items: readonly T[]) {
-  return items[Math.floor(Math.random() * items.length)];
-}
-
 export function coverImageUrl(cover: string | null) {
   const upload = uploadedCoverPath(cover);
   return upload ? `/api/pages/covers?key=${encodeURIComponent(upload.path)}` : null;
-}
-
-// 外側クリックと Esc で閉じる小さなポップオーバー。開閉ボタン自身のクリックは外側扱いにしない。
-function Popover({ className, onClose, children }: { className: string; onClose: () => void; children: ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; });
-  useEffect(() => {
-    function onDown(event: MouseEvent) {
-      const target = event.target as HTMLElement;
-      if (!ref.current?.contains(target) && !target.closest("[data-popover-trigger]")) closeRef.current();
-    }
-    function onKey(event: globalThis.KeyboardEvent) { if (event.key === "Escape") closeRef.current(); }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
-  }, []);
-  return <div ref={ref} className={`notes-popover ${className}`} role="dialog">{children}</div>;
 }
 
 export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKeyDown }: {
@@ -116,21 +83,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
             <button type="button" className="notes-icon" disabled={!editable} aria-label="Change icon" data-popover-trigger
               onClick={() => setPicker(picker === "icon" ? null : "icon")}>{content.icon}</button>
             {picker === "icon" && (
-              <Popover className="notes-icon-picker" onClose={close}>
-                <div className="notes-picker-bar">
-                  <span>Emoji</span>
-                  <div className="flex gap-1">
-                    <button type="button" onClick={() => update({ icon: randomOf(EMOJIS) })}><Shuffle size={13} />Random</button>
-                    <button type="button" onClick={() => { update({ icon: null }); close(); }}>Remove</button>
-                  </div>
-                </div>
-                <div className="notes-emoji-grid">
-                  {EMOJIS.map((emoji) => (
-                    <button key={emoji} type="button" className={emoji === content.icon ? "is-active" : ""}
-                      onClick={() => { update({ icon: emoji }); close(); }}>{emoji}</button>
-                  ))}
-                </div>
-              </Popover>
+              <EmojiPopover className="notes-icon-picker" current={content.icon} onChange={(icon) => update({ icon })} onClose={close} />
             )}
           </div>
         )}

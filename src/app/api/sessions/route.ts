@@ -15,6 +15,7 @@ export async function GET() {
       select: {
         id: true,
         title: true,
+        icon: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -45,6 +46,7 @@ export async function POST() {
       select: {
         id: true,
         title: true,
+        icon: true,
         createdAt: true,
         updatedAt: true,
       },
