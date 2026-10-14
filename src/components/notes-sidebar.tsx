@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronRight, FileText, FolderInput, FolderPlus, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { LegalLinks } from "@/components/legal-page";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
@@ -110,6 +111,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
       {deletingGroup && <ConfirmDialog title="Delete group?" confirmLabel="Delete group" error={groupError} onClose={() => setDeletingGroup(null)}
         body={`“${deletingGroup.name}” will be deleted. Its notes are kept and move out of the group.`}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
+      <LegalLinks />
     </aside>
   );
 }

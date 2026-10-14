@@ -3,6 +3,7 @@
 import { MessageSquareText, PanelLeftClose, Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
+import { LegalLinks } from "@/components/legal-page";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import type { Session } from "@/types/chat";
@@ -91,6 +92,7 @@ export function ChatSidebar({
           </div>
         )}
       </div>
+      <LegalLinks />
       {picker && pickerSession && (
         <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerSession.icon ?? null}
           onChange={(icon) => onChangeIcon(pickerSession.id, icon)} onClose={closePicker} />

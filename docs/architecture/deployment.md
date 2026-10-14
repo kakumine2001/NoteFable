@@ -141,6 +141,8 @@ AUTH_GOOGLE_SECRET
 
 三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
+**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期在 `src/components/legal-page.tsx`；两个链接也放在聊天 / 笔记侧栏底部。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://studymate-lab-ai.vercel.app`，隐私权政策 `https://studymate-lab-ai.vercel.app/privacy`，服务条款 `https://studymate-lab-ai.vercel.app/terms`；已授权网域只登记 `studymate-lab-ai.vercel.app`，所以登录要从这个域名进入（别的域名的回调地址没有登记，会报 `redirect_uri_mismatch`）。当前只用 `openid` / `email` / `profile` 基础权限，发布状态改为“正式版”不需要 Google 审核；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面。
+
 Android App 内的登录复用同一个 Web 客户端 ID（`AUTH_GOOGLE_ID`）校验令牌，不需要新增环境变量；另需在同一个 Google Cloud 项目里建一个 Android 类型客户端（包名 + 签名 SHA-1），详见 [android.md](android.md)。
 
 ### OpenAI
