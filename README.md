@@ -164,7 +164,7 @@ BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 
 模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
 
-模型 ID、能力（图片输入 / 图片生成 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
+模型 ID、能力（图片输入 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
 
 ## 数据库
 
@@ -200,9 +200,10 @@ npm run prisma:migrate
 
 模型能力：
 
-- GPT-6 Luna：支持图片输入、图片生成、Web 搜索、Notes 工具，以及 `none / low / medium / high / xhigh / max`
-- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和 Notes 工具，不生成图片；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
-- DeepSeek-V4.1-Flash：支持图片输入和 Notes 工具，不支持图片生成或内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
+- GPT-6 Luna：支持图片输入、Web 搜索、Notes 工具，以及 `none / low / medium / high / xhigh / max`
+- Claude Haiku 5.5：支持图片输入、原生 Web 搜索和 Notes 工具；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
+- DeepSeek-V4.1-Flash：支持图片输入和 Notes 工具，不支持内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
+- 图片生成不依赖所选聊天模型：任何模型下都可以打开 Create an image，`/api/images` 固定调用 OpenAI 的图片接口，所选模型只记录在保存的消息上
 
 三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
 

@@ -403,12 +403,9 @@ export default function Home() {
 
   function changeModel(nextModel: string) {
     // モデルごとに使える機能が違うため、選択変更時に UI の状態も合わせて正規化する。
-    // 画像非対応モデルへ切り替えた場合は、画像生成モードと画像添付を先に落として送信時の不整合を避ける。
+    // 画像入力に非対応のモデルへ切り替えた場合は、画像添付を先に落として送信時の不整合を避ける。画像生成モードはモデルに依存しないので残す。
     const option = getModelOption(nextModel);
     setModel(option.id);
-    if (!option.supportsImageGeneration) {
-      setImageGenerationMode(false);
-    }
     if (!option.supportsImageInput) {
       setFiles((current) => {
         const blocked = current.filter(({ file }) =>
@@ -648,8 +645,6 @@ export default function Home() {
 
     const validationError = getSubmissionValidationError({
       imageGenerationMode,
-      modelLabel: selectedModel.label,
-      supportsImageGeneration: selectedModel.supportsImageGeneration,
       fileMimeTypes: submittedFiles.map((item) => item.file.type),
     });
     if (validationError) {
@@ -1204,7 +1199,7 @@ export default function Home() {
             )}
 
             <div className="notion-composer grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-1.5 gap-y-1 p-2.5">
-              {isNarrowScreen && selectedModel.supportsImageGeneration ? (
+              {isNarrowScreen ? (
                 <button
                   type="button"
                   className="notion-icon-button col-start-1 row-start-2 grid"
@@ -1287,20 +1282,18 @@ export default function Home() {
                   onModelChange={changeModel}
                   onReasoningChange={setReasoning}
                 />
-                {selectedModel.supportsImageGeneration && (
-                  <button
-                    type="button"
-                    onClick={() => setImageGenerationMode((current) => !current)}
-                    className={`notion-composer-control composer-image-toggle shrink-0 ${
-                      imageGenerationMode ? "is-active" : ""
-                    }`}
-                    aria-pressed={imageGenerationMode}
-                    aria-label={`${imageGenerationMode ? "Disable" : "Enable"} image generation`}
-                  >
-                    <ImagePlus size={15} />
-                    <span className="hidden sm:inline">Create an image</span>
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={() => setImageGenerationMode((current) => !current)}
+                  className={`notion-composer-control composer-image-toggle shrink-0 ${
+                    imageGenerationMode ? "is-active" : ""
+                  }`}
+                  aria-pressed={imageGenerationMode}
+                  aria-label={`${imageGenerationMode ? "Disable" : "Enable"} image generation`}
+                >
+                  <ImagePlus size={15} />
+                  <span className="hidden sm:inline">Create an image</span>
+                </button>
               </div>
               <button
                 type="submit"
@@ -1316,7 +1309,6 @@ export default function Home() {
             open={attachSheetOpen && isNarrowScreen}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
-            canCreateImage={selectedModel.supportsImageGeneration}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
           />

@@ -6,19 +6,17 @@ import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 // スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
-// 画像作成の行は、画像生成に対応するモデル（GPT）を選んでいるときだけ出す。
+// 画像作成の行は、選んでいるチャットモデルに関係なく常に出す（画像生成は OpenAI の画像 API を直接呼ぶ）。
 export function AttachSheet({
   open,
   onClose,
   onFilesChange,
-  canCreateImage,
   imageMode,
   onToggleImageMode,
 }: {
   open: boolean;
   onClose: () => void;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  canCreateImage: boolean;
   imageMode: boolean;
   onToggleImageMode: () => void;
 }) {
@@ -49,24 +47,22 @@ export function AttachSheet({
           />
         </label>
 
-        {canCreateImage && (
-          <button
-            type="button"
-            className="attach-row"
-            aria-pressed={imageMode}
-            onClick={() => {
-              onToggleImageMode();
-              onClose();
-            }}
-          >
-            <ImagePlus size={22} />
-            <span>
-              <strong>Create an image</strong>
-              <small>{imageMode ? "On — your next message creates an image" : "Describe it and GPT draws it"}</small>
-            </span>
-            {imageMode && <Check size={20} />}
-          </button>
-        )}
+        <button
+          type="button"
+          className="attach-row"
+          aria-pressed={imageMode}
+          onClick={() => {
+            onToggleImageMode();
+            onClose();
+          }}
+        >
+          <ImagePlus size={22} />
+          <span>
+            <strong>Create an image</strong>
+            <small>{imageMode ? "On — your next message creates an image" : "Describe it and it is drawn for you"}</small>
+          </span>
+          {imageMode && <Check size={20} />}
+        </button>
       </div>
     </div>,
     document.body,

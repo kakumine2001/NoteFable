@@ -31,8 +31,6 @@ type ModelOption = {
   provider: ModelProvider;
   // 画像添付をモデル入力として扱えるかどうか。
   supportsImageInput: boolean;
-  // 画像生成モードを利用できるかどうか。
-  supportsImageGeneration: boolean;
   // 実際に利用できるプロバイダーの検索機能だけを有効にする。
   supportsWebSearch: boolean;
   supportsCompaction: boolean;
@@ -53,7 +51,6 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     label: "GPT-6 Luna",
     provider: "openai",
     supportsImageInput: true,
-    supportsImageGeneration: true,
     supportsWebSearch: true,
     supportsCompaction: true,
     supportsPageTools: true,
@@ -65,7 +62,6 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     label: "Claude Haiku 5.5",
     provider: "anthropic",
     supportsImageInput: true,
-    supportsImageGeneration: false,
     supportsWebSearch: true,
     supportsCompaction: true,
     supportsPageTools: true,
@@ -79,7 +75,6 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     label: "DeepSeek-V4.1-Flash",
     provider: "deepseek",
     supportsImageInput: true,
-    supportsImageGeneration: false,
     // 現行の DeepSeek Responses API は組み込み web_search を無視する。
     supportsWebSearch: false,
     supportsCompaction: false,

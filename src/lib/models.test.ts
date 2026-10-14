@@ -13,17 +13,15 @@ describe("model configuration", () => {
     expect(getModelOption("deepseek-flash").supportsWebSearch).toBe(false);
     expect(getModelOption("gpt-6-luna").supportsWebSearch).toBe(true);
   });
-  it("keeps DeepSeek text-only and GPT image-capable", () => {
+  it("keeps one DeepSeek model that accepts image input", () => {
     const openAI = getModelOption("gpt-6-luna");
     const deepSeek = MODEL_OPTIONS.filter((model) => model.provider === "deepseek");
 
     expect(openAI.supportsImageInput).toBe(true);
-    expect(openAI.supportsImageGeneration).toBe(true);
     expect(deepSeek).toHaveLength(1);
     expect(deepSeek.filter((model) => model.supportsImageInput).map((model) => model.id)).toEqual([
       "deepseek-flash",
     ]);
-    expect(deepSeek.every((model) => !model.supportsImageGeneration)).toBe(true);
   });
 
   it("keeps the full model names in the selector", () => {
@@ -48,7 +46,6 @@ describe("model configuration", () => {
     const haiku = getModelOption("claude-haiku-5-5");
     expect(haiku.provider).toBe("anthropic");
     expect(haiku.supportsImageInput).toBe(true);
-    expect(haiku.supportsImageGeneration).toBe(false);
     expect(haiku.supportsWebSearch).toBe(true);
     expect(haiku.reasoningEfforts).toEqual(["low", "medium", "high", "xhigh", "max"]);
     expect(normalizeReasoning("none", haiku.id)).toBe("medium");

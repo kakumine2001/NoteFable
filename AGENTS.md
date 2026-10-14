@@ -54,7 +54,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - OpenAI and DeepSeek chat use their Responses API paths; Anthropic uses Messages API via `src/lib/anthropic-messages.ts`. OpenAI and Anthropic use provider-native web search; the current DeepSeek API ignores built-in `web_search`. Do not advertise or send unsupported search tools.
 - Haiku uses adaptive thinking with `output_config.effort`; do not send sampling parameters or the old thinking token budget. Preserve native content blocks for `pause_turn` continuation, and include search citations in the saved answer.
 - The shared chat system instructions live in `buildInstructions()` inside `src/app/api/chat/route.ts`. Do not duplicate the prompt in provider-specific branches or in this file.
-- Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text.
+- Image generation is an explicit UI mode. Do not infer image generation from normal chat prompt text. It is independent of the selected chat model: every model can use it, and `/api/images` always calls the OpenAI image endpoints; the selected model is only recorded with the saved message.
 - `/api/images` uses `/images/generations` for text-only generation and `/images/edits` when reference images are supplied.
 - Do not switch image generation to the Responses API unless the user explicitly asks for that redesign and the current upstream compatibility is revalidated.
 - Keep provider-specific differences behind shared helpers where possible.

@@ -35,17 +35,14 @@ export function ChatSidebar({
 
       <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
-      <div className="px-2 pt-1">
+      <div className="mt-3 px-2">
+        <div className="flex h-7 items-center px-2 text-xs font-medium text-[var(--notion-muted)]">
+          Chats
+        </div>
         <button type="button" onClick={onCreate} className="notion-sidebar-action">
           <Plus size={16} />
           <span>New chat</span>
         </button>
-      </div>
-
-      <div className="mt-5 px-2">
-        <div className="flex h-7 items-center px-2 text-xs font-medium text-[var(--notion-muted)]">
-          Chats
-        </div>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">

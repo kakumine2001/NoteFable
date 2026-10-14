@@ -10,7 +10,6 @@ import {
 import {
   DEFAULT_IMAGE_MODEL,
   DEFAULT_MODEL,
-  getModelOption,
   normalizeModel,
   normalizeReasoning,
   toDbReasoning,
@@ -304,20 +303,11 @@ export async function POST(request: Request) {
   const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
   // UI から送られたモデル ID。許可済みでなければ DEFAULT_MODEL へ戻す。
   const model = normalizeModel(typeof body.model === "string" ? body.model : DEFAULT_MODEL);
-  // 画像生成対応可否など、選択モデルの機能設定。
-  const modelOption = getModelOption(model);
   // 履歴保存用の推論強度。画像生成 API 自体には直接渡していないが、会話履歴の設定として残す。
   const reasoning = normalizeReasoningValue(body.reasoning, model);
 
   if (!prompt) {
     return NextResponse.json({ error: "Prompt is required." }, { status: 400 });
-  }
-
-  if (!modelOption.supportsImageGeneration) {
-    return NextResponse.json(
-      { error: `${modelOption.label} does not support image generation. Use GPT-6 Luna for images.` },
-      { status: 400 },
-    );
   }
 
   if (prompt.length > MAX_PROMPT_CHARS) {
