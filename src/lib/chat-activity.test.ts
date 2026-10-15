@@ -1,5 +1,8 @@
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { applyActivityEvent, parseActivityEvent, parseStoredActivity, serializeActivity, splitThought, type ActivityStep } from "./chat-activity";
+import { ChatActivity } from "@/components/chat-activity";
+import { applyActivityEvent, contextActivityEvent, parseActivityEvent, parseStoredActivity, serializeActivity, splitThought, type ActivityStep, type ProgressStep } from "./chat-activity";
 
 describe("chat activity", () => {
   it("merges reasoning deltas from OpenAI summaries and DeepSeek reasoning text", () => {
@@ -140,5 +143,75 @@ describe("chat activity", () => {
       type: "response.output_item.done",
       item: { id: "ws", type: "web_search_call", action: { type: "open_page", url: "file:///etc/passwd" } },
     })).toEqual({ type: "web", id: "ws", status: "done", action: undefined });
+  });
+});
+
+describe("project context activity", () => {
+  const info = { projectName: "Mail", hasInstructions: true, notes: [{ id: "n1", title: "Style guide" }, { id: "n2", title: "Long note", truncated: true }] };
+  const step: ActivityStep = { id: "project-context", kind: "context", ...info };
+
+  it("turns the project context into a step that is saved and restored with the answer", () => {
+    const event = contextActivityEvent(info)!;
+    expect(event).toEqual({ type: "context", id: "project-context", ...info });
+    const steps = [event, ...[{ type: "thought" as const, id: "rs:0", delta: "Plan" }]].reduce(applyActivityEvent, [] as ActivityStep[]);
+    expect(steps).toEqual([step, { id: "rs:0", kind: "thought", text: "Plan" }]);
+    expect(parseStoredActivity(serializeActivity(steps))).toEqual(steps);
+  });
+
+  it("replaces the step when the same context arrives again", () => {
+    const steps = [contextActivityEvent(info)!, contextActivityEvent({ ...info, notes: [{ id: "n3", title: "New" }] })!].reduce(applyActivityEvent, [] as ActivityStep[]);
+    expect(steps).toHaveLength(1);
+    expect(steps[0]).toMatchObject({ kind: "context", notes: [{ id: "n3", title: "New" }] });
+  });
+
+  it("caps strings and the number of notes, and drops malformed notes", () => {
+    const event = contextActivityEvent({
+      projectName: "P".repeat(500),
+      hasInstructions: false,
+      notes: [
+        { id: "a", title: "T".repeat(500) },
+        { id: "a", title: "duplicate" },
+        { id: "", title: "no id" },
+        { id: "b", title: 5 as unknown as string },
+        { id: "c".repeat(101), title: "long id" },
+        { id: "d", title: "", truncated: "yes" as unknown as boolean },
+        ...Array.from({ length: 20 }, (_, i) => ({ id: `n${i}`, title: `Note ${i}` })),
+      ],
+    });
+    if (event?.type !== "context") throw new Error("expected a context event");
+    expect(event.projectName).toHaveLength(300);
+    expect(event.notes).toHaveLength(10);
+    expect(event.notes.slice(0, 2)).toEqual([{ id: "a", title: "T".repeat(300) }, { id: "d", title: "Untitled" }]);
+  });
+
+  it("ignores a context with nothing to show", () => {
+    expect(contextActivityEvent({ projectName: "Mail", hasInstructions: false, notes: [] })).toBeNull();
+    expect(contextActivityEvent({ projectName: " ", hasInstructions: true, notes: [] })).toBeNull();
+    expect(contextActivityEvent(null as never)).toBeNull();
+  });
+
+  it("drops malformed stored context but keeps what is valid", () => {
+    expect(parseStoredActivity(JSON.stringify([
+      { id: "project-context", kind: "context", projectName: 5, hasInstructions: true, notes: [] },
+      { id: "x", kind: "context", projectName: "A", hasInstructions: false, notes: "none" },
+      { id: "y", kind: "context", projectName: "B", hasInstructions: true, notes: "none" },
+      { id: "z", kind: "context", projectName: "C", hasInstructions: false, notes: [{ id: "n1", title: "Ok", truncated: true }, null, { id: 3 }] },
+    ]))).toEqual([
+      { id: "y", kind: "context", projectName: "B", hasInstructions: true, notes: [] },
+      { id: "z", kind: "context", projectName: "C", hasInstructions: false, notes: [{ id: "n1", title: "Ok", truncated: true }] },
+    ]);
+  });
+
+  it("shows the used instructions and note chips, and summarizes them once the answer is done", () => {
+    const steps = [step] as ProgressStep[];
+    const open = renderToStaticMarkup(createElement(ChatActivity, { steps, isThinking: true, seconds: 2 }));
+    expect(open).toContain("Used project “Mail”: instructions + 2 reference notes");
+    expect(open).toContain("Style guide");
+    expect(open).toContain("chat-context-partial");
+    // ノートのチップはボタンで、押すとそのノートを開く。
+    expect(open.match(/<button[^>]*chat-context-chip/g)).toHaveLength(2);
+    const done = renderToStaticMarkup(createElement(ChatActivity, { steps, isThinking: false, seconds: 2 }));
+    expect(done).toContain("Thought for 2s · 2 project notes");
+    expect(renderToStaticMarkup(createElement(ChatActivity, { steps: [{ ...step, notes: [] } as ProgressStep], isThinking: false, seconds: 2 }))).toContain("project instructions");
   });
 });

@@ -45,16 +45,26 @@ export async function POST(request: Request) {
   if (icon !== null && !isEmojiIcon(icon)) {
     return NextResponse.json({ error: "Chat icon must be a single emoji." }, { status: 400 });
   }
+  // プロジェクトの中で「New chat」を押したとき、最初からそのプロジェクトに入れて作る。
+  const projectId = body && typeof body === "object" && "projectId" in body ? (body as { projectId: unknown }).projectId : null;
+  if (projectId !== null && (typeof projectId !== "string" || !projectId)) {
+    return NextResponse.json({ error: "Project must be a project ID." }, { status: 400 });
+  }
 
   try {
     // 新規セッションの所有者になる匿名ユーザー。
     const user = await getOrCreateAnonymousUser();
+    // 他人のプロジェクトや存在しないプロジェクトには作らせない。
+    if (projectId && !await prisma.chatProject.findFirst({ where: { id: projectId, userId: user.id }, select: { id: true } })) {
+      return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
     // まだ本文がないため title は仮の "New chat" にしておく。
     const session = await prisma.session.create({
       data: {
         userId: user.id,
         title: "New chat",
         icon,
+        ...(projectId ? { projectId } : {}),
       },
       select: {
         id: true,

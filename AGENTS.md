@@ -47,6 +47,9 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Internal pages and autosave | `src/lib/note-document.ts`, `src/lib/note-save-queue.ts`, `src/app/api/pages/*` |
 | Note AI assistant (inside a note) | `src/components/note-assistant.tsx`, `noteId` handling in `src/app/api/chat/route.ts`, `Session.noteId` |
 | Note images/files and groups | `src/lib/note-file-keys.ts`, `src/lib/note-attachments.ts`, `src/lib/note-files.ts`, `src/app/api/pages/files`, `src/lib/note-groups.ts`, `src/app/api/pages/groups` |
+| Note trash (soft delete) and edit history | `src/lib/note-trash.ts`, `src/lib/note-revisions.ts`, `src/app/api/pages/trash/*`, `src/app/api/pages/[pageId]/revisions/*`, `src/components/note-trash-dialog.tsx`, `src/components/note-history-dialog.tsx`, `NotePage.deletedAt`, `NoteRevision` |
+| Chat project instructions and reference notes | `src/lib/chat-project-context.ts`, `src/lib/chat-project-api.ts`, `src/app/api/chat-projects/*`, `src/components/chat-project-settings.tsx`, `ChatProject.instructions`, `ChatProjectNote` |
+| Cross Chats/Notes search and jump-to-match | `src/app/api/search/route.ts`, `src/lib/search.ts`, `src/types/search.ts`, `src/components/search-dialog.tsx`, `src/lib/search-reveal.ts` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules
@@ -67,6 +70,9 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 ## Storage
 
 - Internal Notes store native block JSON in `NotePage`, scoped to `AnonymousUser`. Keep the editor schema and server block validation aligned; use version checks for updates. Local draft caches do not replace server persistence or provide identity recovery.
+- Deleting a note is a soft delete (`NotePage.deletedAt`, 30-day Trash). Every query that reads or writes a live note, including raw SQL, search and AI tools, must filter `deletedAt: null`; only the trash code touches trashed rows. Permanent deletion cascades to history, project references and the note's assistant chats. Expired trash is purged lazily (there is no cron).
+- A code path that replaces a note's content wholesale (AI proposal apply, history restore) must record a `NoteRevision` with `createRevision` in the same transaction, so a rollback also removes the snapshot. Manual autosaves are snapshotted at most once per 10 minutes by `snapshotBeforeSave`, which is savepoint-guarded and must never fail the save.
+- Project instructions are the user's own instructions; project reference-note text is private data, never instructions. Keep it delimited in the shared system prompt, read live per message, capped, and out of web-search queries. Do not copy note text into other tables.
 
 - BlockNote's own CSS loads after `globals.css` with equal specificity. When overriding `.bn-*` elements in the editor, include `.bn-block-content` (or an equally specific parent) in the selector or the override is silently ignored.
 - Production image binaries are stored in Private Vercel Blob through `@vercel/blob`.
@@ -96,6 +102,12 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Setup, build, limits and the in-app Google login flow (the token audience is the Web client ID; never pass `scopes` to the plugin) are in [docs/architecture/android.md](docs/architecture/android.md).
 
 ## Cross-Agent Calls
+
+- When Codex finishes code changes and the necessary checks pass, obtain an independent Codex review before committing. This Codex workflow takes precedence over the Grok reviewer default below.
+- Give the reviewer only the task requirements, the complete affected diff (including relevant staged, unstaged, and untracked files), and applicable repository rules. Use a fresh reviewer context without the development conversation or the author's explanations; when using a subagent, set `fork_turns: "none"`.
+- The reviewer works read-only and reports actionable findings with file locations; it must not modify files.
+- Use `gpt-6.1-sol` with Extra High (`xhigh`) reasoning for this independent Codex review. Set model and reasoning effort explicitly when launching the reviewer; CLI example: `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"xhigh"' --uncommitted`. The `review_model` config key selects only the model and does not independently pin review reasoning effort.
+- The main Codex agent verifies the findings, fixes valid issues, and runs the relevant checks before committing.
 
 - For the current review workflow, use Grok 4.7 through Cursor CLI: `agent -p --model grok-4.7-medium --mode ask --trust --workspace <repo> <prompt>`. Review the full affected diff read-only, verify and fix its findings, then commit and deploy only after relevant checks pass. Keep this reviewer until the user requests a change.
 

@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { createRevision } from "@/lib/note-revisions";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
 
@@ -74,7 +75,7 @@ const fail = (httpStatus: number, error: string): ApplyResult => ({ ok: false, h
 async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
   const payload = row.payload as EditPayload;
   const pageId = row.kind === "EDIT" ? payload.pageId : row.appliedPageId;
-  const page = pageId ? await prisma.notePage.findFirst({ where: { id: pageId, userId } }) : null;
+  const page = pageId ? await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null } }) : null;
   if (!page) return fail(404, "This note no longer exists.");
   return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
 }
@@ -102,13 +103,20 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
       const page = await prisma.$transaction(async (tx) => {
         const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "APPLIED" } });
         if (!claimed.count) return null;
-        // 提案を作った時点の版と一致する時だけ書く。外れたら「適用済み」への切り替えごと取り消す。
+        // 提案を作った時点の版と一致する時だけ書く（ゴミ箱のノートには書かない）。外れたら「適用済み」への切り替えごと取り消す。
+        const current = await tx.notePage.findFirst({
+          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null },
+          select: { id: true, title: true, icon: true, blocks: true, version: true },
+        });
+        if (!current) throw new Conflict();
+        // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
+        await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });
         const changed = await tx.notePage.updateMany({
-          where: { id: payload.pageId, userId, version: payload.baseVersion },
+          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null },
           data: { title: content.title, blocks: content.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
         });
         if (!changed.count) throw new Conflict();
-        return tx.notePage.findFirst({ where: { id: payload.pageId, userId } });
+        return tx.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null } });
       });
       if (!page) return afterLostClaim();
       return { ok: true, status: "applied", kind: "edit", page };
@@ -131,7 +139,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
   } catch (error) {
     if (error instanceof Conflict) {
       const payload = row.payload as EditPayload;
-      const exists = await prisma.notePage.findFirst({ where: { id: payload.pageId, userId }, select: { id: true } });
+      const exists = await prisma.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null }, select: { id: true } });
       return exists ? fail(409, "This note changed after the proposal was made. Ask again to get a fresh proposal.") : fail(404, "Note not found.");
     }
     if (error instanceof NoteValidationError) return fail(error.status, error.message);

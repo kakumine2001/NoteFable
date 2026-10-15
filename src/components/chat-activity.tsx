@@ -1,7 +1,8 @@
 "use client";
 
-import { ChevronRight, FileSearch, FileText, Globe, Lightbulb, LoaderCircle, NotebookText, Search, TextSearch } from "lucide-react";
+import { ChevronRight, FileSearch, FileText, FolderOpen, Globe, Lightbulb, LoaderCircle, NotebookText, Search, TextSearch } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import "@/components/chat-project-settings.css";
 
 // 1 回の検索で 20 件近く返ることがあるため、最初は数件だけ見せる。
 const VISIBLE_SOURCES = 6;
@@ -41,6 +42,7 @@ function describeCurrent(steps: ProgressStep[]) {
   if (!last) return "Thinking";
   if (last.kind === "thought") return splitThought(last.text).title || "Thinking";
   if (last.kind === "tool") return last.status === "done" && last.label ? last.label : toolRunningLabel(last.name);
+  if (last.kind === "context") return `Using project “${last.projectName}”`;
   if (last.status === "running" || !last.action) return "Searching the web";
   if (last.action.kind === "search") return `Searching “${last.action.queries[0] ?? "the web"}”`;
   if (last.action.kind === "open_page") return `Reading ${hostOf(last.action.url)}`;
@@ -55,9 +57,15 @@ function toolRunningLabel(name: string) {
 function summarize(steps: ProgressStep[]) {
   let searches = 0;
   let notes = 0;
+  let projectNotes = 0;
+  let projectInstructions = false;
   const pages = new Set<string>();
   for (const step of steps) {
     if (step.kind === "tool") notes++;
+    if (step.kind === "context") {
+      projectNotes = step.notes.length;
+      projectInstructions = step.hasInstructions;
+    }
     if (step.kind !== "web" || !step.action) continue;
     if (step.action.kind === "search") {
       searches += Math.max(1, step.action.queries.length);
@@ -70,6 +78,7 @@ function summarize(steps: ProgressStep[]) {
     searches ? `${searches} ${searches === 1 ? "search" : "searches"}` : "",
     pages.size ? `${pages.size} ${pages.size === 1 ? "source" : "sources"}` : "",
     notes ? `${notes} ${notes === 1 ? "note lookup" : "note lookups"}` : "",
+    projectNotes ? `${projectNotes} project ${projectNotes === 1 ? "note" : "notes"}` : projectInstructions ? "project instructions" : "",
   ].filter(Boolean);
 }
 
@@ -103,6 +112,35 @@ function StepRow({ step }: { step: ProgressStep }) {
         <div className="min-w-0 flex-1">
           {title && <div className="chat-activity-title">{title}</div>}
           {body && <p className="chat-activity-body">{body}</p>}
+        </div>
+      </li>
+    );
+  }
+
+  if (step.kind === "context") {
+    const used = [step.hasInstructions ? "instructions" : "", step.notes.length ? `${step.notes.length} reference ${step.notes.length === 1 ? "note" : "notes"}` : ""].filter(Boolean);
+    return (
+      <li className="chat-activity-step">
+        <span className="chat-activity-icon"><FolderOpen size={13} strokeWidth={1.9} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="chat-activity-title">Used project “{step.projectName}”: {used.join(" + ")}</div>
+          {step.notes.length > 0 && (
+            <div className="chat-activity-sources">
+              {step.notes.map((note) => (
+                <button
+                  key={note.id}
+                  type="button"
+                  className="chat-activity-chip chat-context-chip"
+                  title={note.truncated ? `${note.title} (only the beginning was shared)` : note.title}
+                  onClick={() => window.dispatchEvent(new CustomEvent("studymate:open-note", { detail: { id: note.id } }))}
+                >
+                  <NotebookText size={11} strokeWidth={2} aria-hidden="true" />
+                  <span>{note.title}</span>
+                  {note.truncated && <span className="chat-context-partial">partial</span>}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </li>
     );

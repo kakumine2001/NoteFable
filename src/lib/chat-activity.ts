@@ -7,8 +7,13 @@ export type WebAction =
   | { kind: "open_page"; url: string }
   | { kind: "find_in_page"; url: string; pattern: string };
 
+// 回答に使ったプロジェクトの共通指示・参照ノート。ノートの本文は含めず、画面に出す出典だけを持つ。
+export type ContextNote = { id: string; title: string; truncated?: boolean };
+export type ContextInfo = { projectName: string; hasInstructions: boolean; notes: ContextNote[] };
+
 export type ActivityStep =
   | { id: string; kind: "thought"; text: string }
+  | ({ id: string; kind: "context" } & ContextInfo)
   | { id: string; kind: "web"; status: "running" | "done"; action?: WebAction }
   | { id: string; kind: "tool"; status: "running" | "done"; name: string; label?: string }
   | ({ kind: "proposal" } & PageEditProposal)
@@ -19,6 +24,7 @@ export type ProgressStep = Exclude<ActivityStep, { kind: "proposal" | "create_pr
 
 export type ActivityEvent =
   | { type: "thought"; id: string; delta: string }
+  | ({ type: "context"; id: string } & ContextInfo)
   | { type: "web"; id: string; status: "running" | "done"; action?: WebAction }
   | { type: "tool"; id: string; status: "running" | "done"; name: string; label?: string }
   | ({ type: "proposal" } & PageEditProposal)
@@ -52,6 +58,10 @@ type UpstreamEvent = {
 const MAX_QUERIES = 8;
 const MAX_SOURCES = 20;
 const MAX_TEXT = 300;
+const MAX_CONTEXT_NOTES = 10;
+const MAX_CONTEXT_ID = 100;
+// プロジェクトの文脈は 1 回の回答に 1 つだけ。再送されても同じステップを置き換える。
+export const CONTEXT_STEP_ID = "project-context";
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim().slice(0, MAX_TEXT) : "";
@@ -66,6 +76,30 @@ function safeUrl(value: unknown) {
   } catch {
     return "";
   }
+}
+
+// 画面に出す前に、文字列の長さと件数を抑え、形が崩れたノートは捨てる。指示もノートも無ければ null。
+function parseContextInfo(value: unknown): ContextInfo | null {
+  const data = value as Record<string, unknown> | null;
+  if (!data || typeof data !== "object") return null;
+  const projectName = text(data.projectName);
+  if (!projectName) return null;
+  const notes: ContextNote[] = [];
+  for (const item of Array.isArray(data.notes) ? data.notes : []) {
+    const note = item as Record<string, unknown> | null;
+    const id = typeof note?.id === "string" ? note.id.trim() : "";
+    if (!note || !id || id.length > MAX_CONTEXT_ID || typeof note.title !== "string" || notes.some((existing) => existing.id === id)) continue;
+    notes.push({ id, title: text(note.title) || "Untitled", ...(note.truncated === true ? { truncated: true } : {}) });
+    if (notes.length >= MAX_CONTEXT_NOTES) break;
+  }
+  const hasInstructions = data.hasInstructions === true;
+  return hasInstructions || notes.length ? { projectName, hasInstructions, notes } : null;
+}
+
+// サーバーが回答の最初に流す「このプロジェクトの文脈を使った」イベントを作る。
+export function contextActivityEvent(info: ContextInfo): ActivityEvent | null {
+  const parsed = parseContextInfo(info);
+  return parsed ? { type: "context", id: CONTEXT_STEP_ID, ...parsed } : null;
 }
 
 function parseWebAction(action: NonNullable<UpstreamEvent["item"]>["action"]): WebAction | undefined {
@@ -153,6 +187,13 @@ export function applyActivityEvent(steps: ActivityStep[], event: ActivityEvent):
     return steps.map((step, i) => (i === index ? updated : step));
   }
 
+  if (event.type === "context") {
+    const { type: _type, ...rest } = event;
+    void _type;
+    const step: ActivityStep = { ...rest, kind: "context" };
+    return index === -1 ? [...steps, step] : steps.map((existing, i) => (i === index ? step : existing));
+  }
+
   if (event.type === "proposal") {
     const { type: _type, ...rest } = event;
     void _type;
@@ -232,6 +273,9 @@ export function parseStoredActivity(raw: string | null | undefined): ProgressSte
       // 保存済みの回答に「検索中」は残さない。action を復元できない検索は捨てる。
       const action = parseStoredWebAction(step.action);
       if (action) steps.push({ id: step.id, kind: "web", status: "done", action });
+    } else if (step.kind === "context") {
+      const info = parseContextInfo(step);
+      if (info) steps.push({ id: step.id, kind: "context", ...info });
     } else if (step.kind === "tool" && typeof step.name === "string") {
       const label = text(step.label);
       steps.push({ id: step.id, kind: "tool", status: "done", name: step.name, ...(label ? { label } : {}) });

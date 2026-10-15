@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const db = vi.hoisted(() => ({ proposals: [] as Record<string, unknown>[], pages: [] as Record<string, unknown>[], next: 1, beforeClaim: undefined as (() => void) | undefined }));
+const db = vi.hoisted(() => ({
+  proposals: [] as Record<string, unknown>[], pages: [] as Record<string, unknown>[], revisions: [] as Record<string, unknown>[], next: 1,
+  beforeClaim: undefined as (() => void) | undefined,
+  // 別のリクエストが、ノートの書き込みの直前に割り込む。
+  beforePageWrite: undefined as (() => void) | undefined,
+}));
 
 // 条件に合う行だけを更新する、最小限のインメモリ DB。$transaction は例外が出たら変更を巻き戻す。
 function matches(row: Record<string, unknown>, where: Record<string, unknown> = {}) {
@@ -19,6 +24,7 @@ function table(rows: () => Record<string, unknown>[], prefix: string, defaults: 
     updateMany: async ({ where, data }: { where: Record<string, unknown>; data: Record<string, unknown> }) => {
       // 競合の再現用: 適用の権利を取る直前に、別のリクエストが割り込む。
       if (prefix === "prop" && where.status === "PENDING" && db.beforeClaim) { const hook = db.beforeClaim; db.beforeClaim = undefined; hook(); }
+      if (prefix === "page" && db.beforePageWrite) { const hook = db.beforePageWrite; db.beforePageWrite = undefined; hook(); }
       const found = rows().filter((row) => matches(row, where));
       for (const row of found) for (const [key, value] of Object.entries(data)) {
         row[key] = value && typeof value === "object" && "increment" in (value as object) ? (row[key] as number) + (value as { increment: number }).increment : value;
@@ -30,13 +36,20 @@ function table(rows: () => Record<string, unknown>[], prefix: string, defaults: 
 vi.mock("@/lib/prisma", () => {
   const prisma = {
     noteProposal: table(() => db.proposals, "prop", { status: "PENDING", messageId: null, appliedPageId: null }),
-    notePage: table(() => db.pages, "page", { version: 0 }),
+    notePage: table(() => db.pages, "page", { version: 0, deletedAt: null }),
+    // 履歴: createdAt の新しい順は、作った順（seq）の新しい順で代用する。
+    noteRevision: {
+      create: async ({ data }: { data: Record<string, unknown> }) => { const row = { id: `rev${db.next++}`, seq: db.next, ...data }; db.revisions.push(row); return row; },
+      findMany: async ({ where, skip = 0 }: { where: Record<string, unknown>; skip?: number }) => db.revisions.filter((row) => matches(row, where)).sort((a, b) => (b.seq as number) - (a.seq as number)).slice(skip),
+      deleteMany: async ({ where }: { where: Record<string, unknown> }) => { const found = db.revisions.filter((row) => matches(row, where)); db.revisions.splice(0, db.revisions.length, ...db.revisions.filter((row) => !found.includes(row))); return { count: found.length }; },
+    },
     $transaction: async (fn: (tx: unknown) => unknown) => {
-      const snapshot = JSON.stringify({ p: db.proposals, g: db.pages });
+      const snapshot = JSON.stringify({ p: db.proposals, g: db.pages, r: db.revisions });
       try { return await fn(prisma); } catch (error) {
         const restored = JSON.parse(snapshot);
         db.proposals.splice(0, db.proposals.length, ...restored.p);
         db.pages.splice(0, db.pages.length, ...restored.g);
+        db.revisions.splice(0, db.revisions.length, ...restored.r);
         throw error;
       }
     },
@@ -56,8 +69,8 @@ const create = () => ({
 });
 
 describe("note proposals", () => {
-  beforeEach(() => { db.proposals.length = 0; db.pages.length = 0; db.next = 1; db.beforeClaim = undefined; });
-  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ id: "pg", userId, title: "Notes", blocks: [para("a")], version }); return "pg"; };
+  beforeEach(() => { db.proposals.length = 0; db.pages.length = 0; db.revisions.length = 0; db.next = 1; db.beforeClaim = undefined; db.beforePageWrite = undefined; });
+  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ id: "pg", userId, title: "Notes", icon: "📚", blocks: [para("a")], version, deletedAt: null }); return "pg"; };
 
   it("saves a pending proposal and returns it in the card shape", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -89,7 +102,7 @@ describe("note proposals", () => {
 
   it("returns the same created note to a request that lost the claim", async () => {
     const view = await saveProposal("u1", "s1", create());
-    db.beforeClaim = () => { db.pages.push({ id: "winner", userId: "u1", title: "New", blocks: [], version: 0 }); db.proposals[0].status = "APPLIED"; db.proposals[0].appliedPageId = "winner"; };
+    db.beforeClaim = () => { db.pages.push({ id: "winner", userId: "u1", title: "New", blocks: [], version: 0, deletedAt: null }); db.proposals[0].status = "APPLIED"; db.proposals[0].appliedPageId = "winner"; };
     expect(await applyProposal("u1", view.id)).toMatchObject({ ok: true, kind: "create", page: { id: "winner" } });
     expect(db.pages).toHaveLength(1);
   });
@@ -185,3 +198,71 @@ describe("note proposals", () => {
   });
 });
 
+describe("note proposals and the trash / edit history", () => {
+  beforeEach(() => { db.proposals.length = 0; db.pages.length = 0; db.revisions.length = 0; db.next = 1; db.beforeClaim = undefined; db.beforePageWrite = undefined; });
+  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, ...extra }); return "pg"; };
+
+  it("keeps the state it overwrites as an AI_EDIT revision when an edit is applied", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
+    const result = await applyProposal("u1", view.id);
+    expect(result).toMatchObject({ ok: true, kind: "edit", page: { title: "Renamed", version: 4 } });
+    expect(db.revisions).toHaveLength(1);
+    expect(db.revisions[0]).toMatchObject({ noteId: "pg", userId: "u1", reason: "AI_EDIT", title: "Notes", icon: "📚", version: 3, blocks: [para("a")] });
+  });
+
+  it("adds no second revision when the same apply is sent again or sent concurrently", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
+    await Promise.all([applyProposal("u1", view.id), applyProposal("u1", view.id), applyProposal("u1", view.id)]);
+    await applyProposal("u1", view.id);
+    expect(db.revisions).toHaveLength(1);
+    expect(db.pages[0].version).toBe(4);
+  });
+
+  it("rolls the revision back together with the apply when the write loses a race", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
+    // 履歴を残した直後、書き込みの前に別のタブが保存して版が進む。
+    db.beforePageWrite = () => { db.pages[0].version = 4; };
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409, error: expect.stringContaining("changed after the proposal") });
+    expect(db.revisions).toHaveLength(0);
+    expect(db.proposals[0].status).toBe("PENDING");
+    // 他のタブの保存は、このインメモリ DB では同じトランザクション内の変更として巻き戻る。編集が書かれていないことだけを確かめる。
+    expect(db.pages[0].title).toBe("Notes");
+  });
+
+  it("does not create a revision when the note changed since the proposal", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage({ version: 5 }), 3));
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.revisions).toHaveLength(0);
+  });
+
+  it("never edits a trashed note: 404, the proposal stays pending, no revision", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage({ deletedAt: new Date() }), 3));
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 404 });
+    expect(db.proposals[0].status).toBe("PENDING");
+    expect(db.pages[0]).toMatchObject({ title: "Notes", version: 3 });
+    expect(db.revisions).toHaveLength(0);
+  });
+
+  it("treats a note trashed after the edit was applied as gone when the apply is retried", async () => {
+    const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
+    await applyProposal("u1", view.id);
+    db.pages[0].deletedAt = new Date();
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 404 });
+  });
+
+  it("keeps only the newest 20 AI-edit revisions of a note, without touching auto-saves", async () => {
+    seedPage();
+    db.revisions.push({ id: "auto1", seq: 0, noteId: "pg", userId: "u1", reason: "AUTO", title: "Earlier", icon: null, blocks: [], version: 1, createdAt: new Date() });
+    for (let version = 3; version < 3 + 52; version += 1) {
+      db.pages[0].version = version;
+      const view = await saveProposal("u1", "s1", edit("pg", version));
+      await applyProposal("u1", view.id);
+    }
+    const marked = db.revisions.filter((row) => row.reason === "AI_EDIT");
+    expect(marked).toHaveLength(20);
+    const versions = marked.map((row) => row.version as number);
+    expect(Math.min(...versions)).toBe(35);
+    expect(Math.max(...versions)).toBe(54);
+    expect(db.revisions.some((row) => row.id === "auto1")).toBe(true);
+  });
+});

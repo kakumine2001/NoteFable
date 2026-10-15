@@ -15,11 +15,11 @@
 按这个顺序看：
 
 1. 本文件 — 系统有哪些组件
-2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么
+2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考笔记、跨 Chats / Notes 搜索
 3. [image-flow.md](image-flow.md) — 图片上传、AI 生成图片、图片保存
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
-7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复
+7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
 8. [android.md](android.md) — 安卓外壳：怎么改、开发环境、打包、限制
 
 ## 一张图先记住整个项目
@@ -32,6 +32,7 @@ flowchart LR
     Images["Image API"]
     Sessions["Session APIs"]
     Pages["Page APIs"]
+    Search["Search API"]
     Neon["Neon PostgreSQL"]
     Blob["Private Vercel Blob"]
     OpenAI["OpenAI APIs"]
@@ -42,6 +43,7 @@ flowchart LR
     App --> Images
     App --> Sessions
     App --> Pages
+    App --> Search
     Chat --> Neon
     Chat --> OpenAI
     Chat --> DeepSeek
@@ -51,6 +53,7 @@ flowchart LR
     Images --> Blob
     Sessions --> Neon
     Pages --> Neon
+    Search --> Neon
 ```
 
 ## 最重要的源文件
@@ -62,9 +65,13 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx` | 公开的隐私权政策与服务条款（Google 同意屏幕要填这两个链接） |
 | `src/app/api/sessions/*` | 会话列表、历史消息读取、会话图标 |
-| `src/app/api/pages/*` | 站内页面 CRUD、匿名归属和版本检查 |
+| `src/app/api/pages/*` | 站内页面 CRUD、匿名归属和版本检查；`trash/*` 是回收站，`[pageId]/revisions/*` 是编辑历史与恢复 |
+| `src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | Trash 保留期与惰性清理；编辑历史的快照 SQL、保留上限与裁剪 |
+| `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx` | Trash 对话框与编辑历史/恢复对话框 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
+| `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
+| `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索、搜索面板、跳到命中的消息或块 |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；已 Google 登录时返回对应账号的用户 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findNote: vi.fn(),
   createMessage: vi.fn(),
   fetch: vi.fn(),
+  loadProjectContext: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
@@ -19,6 +20,7 @@ vi.mock("@/lib/files", () => ({
   validateMultipartRequestSize: () => {},
 }));
 vi.mock("@/lib/chat-history", () => ({ buildHistoryInput: async () => [] }));
+vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
     session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession },
@@ -57,14 +59,28 @@ describe("chat requests made from inside a note", () => {
   it("ties a new conversation to the note and tells the model which note it is", async () => {
     const response = await send({ noteId: "note1" });
     expect(response.status).toBe(200);
-    // 自分のノートかを、自分のユーザー ID で確かめる。
-    expect(mocks.findNote.mock.calls[0][0].where).toEqual({ id: "note1", userId: "user" });
+    // 自分のノートかを、自分のユーザー ID で確かめる。ゴミ箱のノートは開けない。
+    expect(mocks.findNote.mock.calls[0][0].where).toEqual({ id: "note1", userId: "user", deletedAt: null });
     expect(mocks.createSession.mock.calls[0][0].data).toMatchObject({ userId: "user", noteId: "note1" });
     const { instructions } = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(instructions).toContain("noteId: note1");
     expect(instructions).toContain("call read_note with this noteId first");
     // タイトルは JSON 文字列として入るので、引用符や改行で指示文を壊せない。
     expect(instructions).toContain(JSON.stringify("Study \"plan\"\nline two"));
+  });
+
+  it("rejects a note in the trash like a missing one", async () => {
+    // 条件に deletedAt: null があるので、ゴミ箱のノートは見つからない。
+    mocks.findNote.mockImplementation(async ({ where }: { where: { deletedAt?: null } }) => (where.deletedAt === null ? null : { id: "note1", title: "Trashed" }));
+    expect((await send({ noteId: "note1" })).status).toBe(404);
+    expect(mocks.createSession).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
+  it("never adds a project's context to a note's assistant", async () => {
+    mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat", projectId: "p1" });
+    await send({ noteId: "note1", sessionId: "session" });
+    expect(mocks.loadProjectContext).not.toHaveBeenCalled();
   });
 
   it("rejects a note that is not the user's and creates nothing", async () => {

@@ -18,7 +18,7 @@ export async function PUT(request: Request, context: Context) {
     if (groupId !== null && !(await prisma.noteGroup.count({ where: { id: groupId, userId: user.id } }))) {
       return NextResponse.json({ error: "Group not found." }, { status: 404 });
     }
-    const result = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id }, data: { groupId } });
+    const result = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id, deletedAt: null }, data: { groupId } });
     return result.count ? NextResponse.json({ id: pageId, groupId }) : NextResponse.json({ error: "Note not found." }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }

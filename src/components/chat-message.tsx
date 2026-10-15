@@ -76,7 +76,7 @@ export const ChatMessage = memo(function ChatMessage({
       : null;
 
   return (
-    <article className="notion-turn motion-page-enter">
+    <article className="notion-turn motion-page-enter" data-message-id={message.id}>
       <div className="w-full min-w-0">
         <div className="notion-role-label">{message.role === "USER" ? "You" : "StudyMate"}</div>
         {shouldShowActivity && (

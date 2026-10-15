@@ -60,10 +60,10 @@ describe("note groups", () => {
     mocks.count.mockResolvedValue(1);
     expect((await PUT(json({ groupId: "g1" }, "PUT"), pageContext)).status).toBe(200);
     expect(mocks.count).toHaveBeenLastCalledWith({ where: { id: "g1", userId: "mine" } });
-    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine" }, data: { groupId: "g1" } });
+    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, data: { groupId: "g1" } });
 
     expect((await PUT(json({ groupId: null }, "PUT"), pageContext)).status).toBe(200);
-    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine" }, data: { groupId: null } });
+    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, data: { groupId: null } });
 
     mocks.pageUpdateMany.mockResolvedValue({ count: 0 });
     expect((await PUT(json({ groupId: null }, "PUT"), pageContext)).status).toBe(404);

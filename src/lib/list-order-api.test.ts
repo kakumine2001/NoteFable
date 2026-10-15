@@ -10,7 +10,7 @@ describe("owned list reordering",()=>{
     mocks.find.mockResolvedValue([{id:"a",position:1,groupId:null}]);
     expect((await reorderList(req({id:"foreign",targetId:"a",after:false}),"note")).status).toBe(404);
     expect(mocks.sql).toHaveBeenCalledTimes(1); // Only the advisory lock, no update.
-    expect(mocks.find.mock.calls[0][0].where).toEqual({userId:"mine"});
+    expect(mocks.find.mock.calls[0][0].where).toEqual({userId:"mine",deletedAt:null}); // ゴミ箱のノートは並べ替えの対象にしない。
   });
   it("pinning by drag retains project membership and keeps every owned row",async()=>{
     mocks.find.mockResolvedValue([{id:"a",position:1,pinned:false,projectId:null},{id:"b",position:2,pinned:true,projectId:"p"}]);

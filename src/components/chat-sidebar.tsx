@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Pin, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Pin, Plus, ScrollText, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderHandle } from "@/components/reorder-handle";
@@ -18,11 +18,17 @@ type ChatSidebarProps = {
   activeSessionId: string | null;
   onClose: () => void;
   onCreate: () => void;
+  // 検索の小窓を開く。
+  onSearch: () => void;
+  // プロジェクトの「＋」: そのプロジェクトの中に新しいチャットを作る。
+  onCreateInProject: (projectId: string) => void;
   onLoad: (sessionId: string) => void;
   onDelete: (sessionId: string) => Promise<boolean>;
   projects: ChatProject[];
   projectError: string;
   onProject: (method: "POST" | "PATCH" | "DELETE", name?: string, id?: string) => Promise<ChatProject | boolean | null>;
+  // 設定画面で保存したプロジェクト（件数と指示の有無を含む）を一覧へ反映する。
+  onProjectSaved: (project: ChatProject) => void;
   onReorder: (move: ReorderRequest) => Promise<unknown>;
   onUpdate: (id: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) => Promise<boolean>;
   onChangeIcon: (sessionId: string, icon: string | null) => void;
@@ -33,6 +39,8 @@ export function ChatSidebar({
   activeSessionId,
   onClose,
   onCreate,
+  onSearch,
+  onCreateInProject,
   onLoad,
   onDelete,
   onUpdate,
@@ -40,6 +48,7 @@ export function ChatSidebar({
   projects,
   projectError,
   onProject,
+  onProjectSaved,
   onChangeIcon,
   onWorkspaceChange,
 }: ChatSidebarProps) {
@@ -94,6 +103,11 @@ export function ChatSidebar({
       <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
       <div className="mt-3 px-2">
+        <button type="button" onClick={onSearch} className="notion-sidebar-action" aria-keyshortcuts="Control+K Meta+K">
+          <Search size={16} />
+          <span>Search</span>
+          <kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
+        </button>
         <button type="button" onClick={onCreate} className="notion-sidebar-action">
           <Plus size={16} />
           <span>New chat</span>
@@ -109,9 +123,12 @@ export function ChatSidebar({
         {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
         {projects.map(project=><div key={project.id}>
           <div className="notion-session-row chat-project-row" data-chat-project-drop={project.id}>
-            <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
+            <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project) ? `${project.name} · ${projectHint(project)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
               {collapsed[project.id] ? <ChevronRight size={13}/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
+              {projectHint(project) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project)})</span></>}
             </button>
+            <button type="button" className="notion-row-action chat-more-button" aria-label={`New chat in ${project.name}`} title="New chat in this project"
+              onClick={()=>{setCollapsed(state=>({...state,[project.id]:false}));onCreateInProject(project.id);}}><Plus size={16}/></button>
             <button type="button" className="notion-row-action chat-more-button" aria-label={`Actions for project ${project.name}`} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={16}/></button>
           </div>
           {!collapsed[project.id] && <div className="pl-3">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
@@ -123,7 +140,7 @@ export function ChatSidebar({
         {sessions.length===0 && <div className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your recent conversations will appear here.</div>}
       </div>
       <SidebarFooter />
-      {action && <ChatActions key={action.kind+("session" in action ? action.session.id : "project" in action ? action.project.id : "")} action={action} projects={projects} onClose={()=>setAction(null)} onAction={setAction} onUpdate={onUpdate} onDelete={onDelete} onProject={onProject}/>}
+      {action && <ChatActions key={action.kind+("session" in action ? action.session.id : "project" in action ? action.project.id : "")} action={action} projects={projects} onClose={()=>setAction(null)} onAction={setAction} onUpdate={onUpdate} onDelete={onDelete} onProject={onProject} onProjectSaved={onProjectSaved}/>}
       {picker && pickerSession && (
         <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerSession.icon ?? null}
           onChange={(icon) => onChangeIcon(pickerSession.id, icon)} onClose={closePicker} />
@@ -132,6 +149,13 @@ export function ChatSidebar({
   );
 }
 
+// プロジェクトの行に添える短い説明（共通指示と参照ノートがあるときだけ）。
+function projectHint(project: ChatProject) {
+  const parts = [];
+  if (project.hasInstructions) parts.push("instructions");
+  if (project.noteCount) parts.push(`${project.noteCount} reference ${project.noteCount === 1 ? "note" : "notes"}`);
+  return parts.join(" + ");
+}
 
 function ChatPinButton({session,onUpdate}:{session:Session;onUpdate:ChatSidebarProps["onUpdate"]}) {
   const [busy,setBusy]=useState(false);

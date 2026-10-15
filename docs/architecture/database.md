@@ -68,6 +68,11 @@ erDiagram
     AnonymousUser ||--o{ NoteCoverAsset : uploads
     AnonymousUser ||--o{ NoteGroup : owns
     NoteGroup ||--o{ NotePage : groups
+    AnonymousUser ||--o{ NoteRevision : owns
+    NotePage ||--o{ NoteRevision : "history (cascade)"
+    NotePage ||--o{ Session : "note assistant (cascade)"
+    ChatProject ||--o{ ChatProjectNote : "references (cascade)"
+    NotePage ||--o{ ChatProjectNote : "referenced by (cascade)"
     AnonymousUser ||--o{ NoteProposal : owns
     Session ||--o{ NoteProposal : proposes
 
@@ -103,8 +108,36 @@ erDiagram
         string groupId FK "nullable"
         json blocks
         int version
+        datetime deletedAt "nullable, in Trash when set"
         datetime createdAt
         datetime updatedAt
+    }
+
+    NoteRevision {
+        string id PK
+        string noteId FK
+        string userId FK
+        enum reason "AUTO, AI_EDIT, RESTORE"
+        string title
+        string icon "nullable"
+        json blocks
+        int version "NotePage.version at snapshot time"
+        datetime createdAt
+    }
+
+    ChatProject {
+        string id PK
+        string userId FK
+        string name
+        string instructions "nullable"
+        datetime createdAt
+    }
+
+    ChatProjectNote {
+        string projectId PK, FK
+        string noteId PK, FK
+        int position
+        datetime createdAt
     }
 
     NoteGroup {
@@ -191,17 +224,43 @@ AnonymousUser 1 -> N Session
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、匿名用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引用于侧栏列表。所有页面读写限制在当前匿名用户。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 
+`deletedAt` 可空（`20261015100000_note_trash_and_revisions` 追加，索引 `(userId, deletedAt)`）。`null` 是正常笔记；有值表示笔记在 Trash（回收站）里，是软删除：`DELETE /api/pages/:id` 只写 `deletedAt`，不删行，`version`、`position`、`groupId`、正文和封面都原样保留，所以此前“`DELETE` 删除页面行”的说法已不成立。保留期 30 天（常量 `TRASH_RETENTION_DAYS`，定义在 `src/types/notes.ts`，客户端文案与服务端共用）：期限内可由 `POST /api/pages/trash/:id` 把 `deletedAt` 置回 `null` 复原，期限之后复原被拒绝，行由惰性清理永久删除（没有定时任务，规则见下文“保留与级联”和 [notes-flow.md](notes-flow.md)）。复原和放入 Trash 都经 `updateMany`，会刷新 `@updatedAt`，但不增加 `version`。
+
+**读写规则：** 所有“活着的笔记”的读取和写入都必须带 `deletedAt: null`（列表、单页读写、移动分组、重排、搜索、AI 工具、提案适用、笔记助手的 `noteId` 校验、项目参考笔记的读取，原生 SQL 里是 `p."deletedAt" IS NULL`）；只有 Trash 相关的接口读取 `deletedAt` 非空的行。新增查询笔记的代码时不要漏掉这个条件，否则回收站里的笔记会重新出现在列表、搜索或 AI 回答里。上传封面的引用统计（`referencedPaths()`）则有意不看 `deletedAt`：Trash 里的笔记仍引用它的封面，保留期内封面图片不会被回收；笔记被永久删除、行消失之后，才按原有的 7 天宽限期释放封面。
+
 ### NoteGroup
 
 Notes 的单层分组（文件夹）。`userId` 关联 `AnonymousUser`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面只改 `groupId`，不增加 `version`。
 
+### NoteRevision
+
+笔记的编辑历史（`20261015100000_note_trash_and_revisions` 新增），是“恢复到过去某个版本”的来源。每一行是**被覆盖之前**的一份快照：`title`、`icon`、`blocks` 和当时的 `NotePage.version`；不保存封面、封面位置、分组和位置，恢复时这些保持现状。`noteId` 指向 `NotePage`，`userId` 指向 `AnonymousUser`，两者都 `ON DELETE CASCADE`；索引 `(noteId, createdAt)` 用于按笔记读取历史，`(userId)` 用于级联删除。
+
+`reason`（枚举 `NoteRevisionReason`）说明为什么留下这一份：
+
+| reason | 何时写入 |
+| --- | --- |
+| `AUTO` | 手动编辑的自动保存（`PATCH /api/pages/:id`）。**每个笔记最多每 10 分钟一份**（`AUTO_REVISION_INTERVAL_MS`），而不是每次保存一份；保存前由一条 `INSERT ... SELECT ... FOR UPDATE` 从已保存的行直接复制，正文不进应用内存。已保存的版本与请求的 `version` 不一致（冲突、响应丢失后的重发）、笔记在 Trash、正文为空数组时不写 |
+| `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
+| `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）、覆盖笔记之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
+
+**保留：** 每个笔记最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（本地 `public`，Neon `studymate`）。
+
 ### NoteProposal
 
-AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记）或 `CREATE`（新建），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`。`payload` 保存画面要显示的内容和适用时要写入的标题与块（编辑还包含目标笔记 ID 和提案时的基准版本）；`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）；`appliedPageId` 是新建提案适用后创建的笔记 ID，重复适用时据此返回同一笔记。`userId` 和 `sessionId` 删除时级联删除。适用在一个事务里先把 `PENDING` 改为 `APPLIED` 再写笔记，所以并发或重发都只会生效一次；版本不一致时事务回滚，提案保持待确认。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。流程见 [chat-flow.md](chat-flow.md)。
+AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记）或 `CREATE`（新建），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`。`payload` 保存画面要显示的内容和适用时要写入的标题与块（编辑还包含目标笔记 ID 和提案时的基准版本）；`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）；`appliedPageId` 是新建提案适用后创建的笔记 ID，重复适用时据此返回同一笔记。`userId` 和 `sessionId` 删除时级联删除。适用在一个事务里先把 `PENDING` 改为 `APPLIED`，再确认目标笔记仍是活着的（`deletedAt` 为空）且版本等于提案的基准版本，把覆盖前的状态写成一份 `AI_EDIT` 的 `NoteRevision`，最后才写笔记，所以并发或重发都只会生效一次；版本不一致或笔记已进 Trash 时事务回滚（含刚写的历史），提案保持待确认，响应是 409（笔记已变）或 404（笔记不存在或在 Trash）。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。流程见 [chat-flow.md](chat-flow.md)。
 
 ### ChatProject
 
-聊天的独立项目，与 Notes 分组互不影响。字段为 `id`、`userId`、`name`、`createdAt`，所有 API 按当前用户限定所有者。项目最多 50 个，名字最多 60 字符；删除项目时会话外键设为 null，聊天和消息保留。
+聊天的独立项目，与 Notes 分组互不影响。字段为 `id`、`userId`、`name`、`instructions`、`createdAt`，所有 API 按当前用户限定所有者。项目最多 50 个，名字最多 60 字符；删除项目时会话外键设为 null，聊天和消息保留，参考笔记的关联行（`ChatProjectNote`）级联删除但笔记本身保留。
+
+`instructions`（可空 TEXT，`20261015110000_chat_project_context` 追加）是项目的共通指示，作用于项目内所有会话。服务端保存前去掉首尾空白、统一为 `\n` 换行，最多 4,000 字符（`MAX_PROJECT_INSTRUCTIONS`，定义在 `src/types/chat.ts`），除换行、回车、制表符外的控制字符被拒绝；空字符串和 `null` 都存成 `NULL`，所以“有没有指示”只看是不是 `NULL`（`hasInstructions`）。内容是用户自己的指示，原样进入聊天的系统指令（见 [chat-flow.md](chat-flow.md)），列表接口不返回正文，只有设置对话框用的详情接口返回。
+
+### ChatProjectNote
+
+项目选定的参考笔记（`20261015110000_chat_project_context` 新增）。主键 `(projectId, noteId)`，`position` 是选择顺序（保存时等于数组下标，也是传给模型的顺序），索引 `(noteId)`。两个外键都是 `ON DELETE CASCADE`：项目被删除，关联行消失；笔记被**永久**删除，关联行消失；笔记放进 Trash 时关联行保留，但所有读取（设置对话框、侧栏的 `noteCount`、聊天时的上下文加载、保存时的校验）都带 `note.deletedAt: null`，所以 Trash 里的笔记不计数、不发给模型，复原后自动回到项目里。
+
+每个项目最多 5 篇（`MAX_PROJECT_NOTES`），`PATCH /api/chat-projects/:id` 的 `noteIds` 是**整体替换**：同一事务里先持有 `pg_advisory_xact_lock(hashtext(projectId))`，校验每个 ID 都是自己的活笔记，再删除全部旧行并按数组顺序重建；任何一个 ID 无效则什么都不写。笔记正文**不复制**到这张表，聊天时每次都从 `NotePage` 重新读取。
 
 ### Session
 
@@ -213,7 +272,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `icon`（可空，单个 emoji，`null` 为默认聊天图标）
 - `pinned`（置顶）、`projectId`（可空，独立聊天项目）、`titleManual`（手动标题不再被自动标题覆盖）
 - `userId`
-- `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`，删除笔记时一起删除）
+- `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`。笔记放进 Trash 时对话原样保留，复原后仍在；笔记被永久删除（手动、清空 Trash 或过期清理）时一起级联删除）
 - `createdAt`
 - `updatedAt`
 
@@ -295,7 +354,22 @@ ReasoningEffort
 - HIGH
 - XHIGH
 - MAX
+
+NoteRevisionReason
+- AUTO
+- AI_EDIT
+- RESTORE
 ```
+
+## 保留与级联
+
+| 数据 | 保留规则 | 删除时的级联 |
+| --- | --- | --- |
+| Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`ChatProjectNote` 和笔记助手的 `Session`（及其消息、附件行、提案） |
+| 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
+| 项目参考笔记（`ChatProjectNote`） | 每个项目最多 5 篇；Trash 里的笔记保留关联但不使用 | 随项目、随笔记的永久删除级联删除 |
+
+**没有定时任务清理 Trash。** 超期笔记在三个时机被永久删除：用户打开 Trash 列表（`GET /api/pages/trash`，先清理再列出，清理失败也不会把超期笔记列出来）、把某篇笔记放进 Trash（`DELETE /api/pages/:id`，尽力清理，失败只记日志）、清空 Trash（`DELETE /api/pages/trash`，删除 Trash 笔记，不论是否超期；界面带 `before` 只删到用户确认时看到的最新一条）。长期不操作的用户，其超期笔记会一直留在库里直到下一次这样的操作，但任何接口都看不到它们。若将来要定时清理，复用 `purgeExpiredNotes()`（`src/lib/note-trash.ts`）即可；注意笔记图片和文件目前没有垃圾回收，如果将来新增，必须同时扫描 Trash 里的笔记和 `NoteRevision.blocks` 的引用，否则历史恢复后会出现指向已删除文件的块。
 
 ## 为什么 Attachment 不直接存图片
 
@@ -329,6 +403,8 @@ Schema 变更应同时更新：
 1. `prisma/schema.prisma`
 2. `prisma/migrations/`
 3. 本文档 ERD
+
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。
 
 聊天行右侧固定显示三点按钮（左）和图钉按钮（右）。图钉负责置顶/取消置顶；三点菜单只提供重命名、移动项目和删除确认。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

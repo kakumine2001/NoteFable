@@ -106,7 +106,7 @@ export function buildSnippet(body: string | null, terms: string[]) {
   return (start > 0 ? "…" : "") + text.slice(start, start + SNIPPET_CHARS) + (start + SNIPPET_CHARS < text.length ? "…" : "");
 }
 
-// 所有者のすべてのページを DB 側で検索する。全語を含むページだけを、タイトル一致の多い順、更新日の新しい順に返す。
+// 所有者のページ（ゴミ箱のものを除く）を DB 側で検索する。全語を含むページだけを、タイトル一致の多い順、更新日の新しい順に返す。
 // 本文は JSON 文字列をデコードしてから連結するため、\ や " を含む語もそのまま一致する。
 // 本文 JSON 全体は転送せず、一致した最大 10 件の本文文字列だけを受け取る。
 export async function searchPages(userId: string, query: string) {
@@ -126,7 +126,7 @@ export async function searchPages(userId: string, query: string) {
       SELECT string_agg(value, ' ') AS "body"
       FROM jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath))
     ) t
-    WHERE p."userId" = ${userId}${filter}
+    WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL${filter}
     ORDER BY ${order}p."updatedAt" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
   return rows.map((row) => ({ id: row.id, title: row.title, snippet: buildSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
@@ -148,7 +148,7 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
   if (!pageId) return toolError("noteId must be a non-empty string.");
   if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_note.");
   if (value.title !== null && value.title !== undefined && typeof value.title !== "string") return toolError("title must be a string or null.");
-  const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true } });
+  const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true } });
   if (!page) return toolError("Note not found.", "Note not found");
   if (page.version !== value.version) {
     return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, "Note changed since it was read");
@@ -224,7 +224,7 @@ export async function runPageTool(name: string, args: unknown, userId: string, s
   if (name === "read_note") {
     const pageId = input(args, "noteId");
     if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: "Invalid note read" };
-    const page = await prisma.notePage.findFirst({ where: { id: pageId, userId }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
+    const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
     if (!page) return { content: "Note not found.", isError: true, label: "Note not found" };
     const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
     const content = markdown.length > MAX_READ_CHARS

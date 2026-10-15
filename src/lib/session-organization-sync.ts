@@ -22,7 +22,8 @@ export class SessionOrganizationSync {
   }
 }
 
-type Project = { id: string; name: string };
+// チャットプロジェクトの一覧に載せる情報。件数と指示の有無は、サーバーが返したものを丸ごと保持する。
+type Project = { id: string; name: string; noteCount?: number; hasInstructions?: boolean };
 export class ChatProjectSync {
   private sequence=0;
   private edits=new Map<string,{project: Project | null; sequence: number}>();

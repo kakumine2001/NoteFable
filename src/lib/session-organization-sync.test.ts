@@ -19,6 +19,10 @@ describe("refreshing chat organization",()=>{
   });
 });
 describe("refreshing projects",()=>{
+  it("keeps the reference note count and instructions flag that the server returned",()=>{
+    const sync=new ChatProjectSync();const mark=sync.mark();sync.saved({id:"a",name:"Mail",noteCount:2,hasInstructions:true});
+    expect(sync.reconcile([{id:"a",name:"Mail",noteCount:0,hasInstructions:false}],mark)).toEqual([{id:"a",name:"Mail",noteCount:2,hasInstructions:true}]);
+  });
   it("merges newly created projects while retaining existing ones",()=>{
     const sync=new ChatProjectSync();const mark=sync.mark();sync.saved({id:"new",name:"New"});
     expect(sync.reconcile([{id:"old",name:"Old"}],mark)).toEqual([{id:"old",name:"Old"},{id:"new",name:"New"}]);

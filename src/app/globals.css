@@ -2469,3 +2469,14 @@ button:disabled {
 .note-upload-hint.is-error { color: #b91c1c; }
 .note-upload-spin { animation: note-upload-spin 0.9s linear infinite; }
 @keyframes note-upload-spin { to { transform: rotate(360deg); } }
+
+/* サイドバーの Search 行: 右端に Ctrl K の目印を出す。指で使う端末や狭い画面にはキーボードが無いので隠す。 */
+.sidebar-search-hint {
+  margin-left: auto; padding: 0 0.35rem; border: 1px solid var(--notion-border); border-radius: 0.25rem;
+  color: var(--notion-faint); font-family: inherit; font-size: 0.6875rem; font-weight: 400; line-height: 1.1rem;
+}
+@media (hover: none), (max-width: 639px) {
+  .sidebar-search-hint { display: none; }
+}
+/* 共通指示・参照ノートを持つプロジェクトの行に付ける小さな目印。 */
+.chat-project-hint { flex: none; color: var(--notion-faint); }

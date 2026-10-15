@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ create: vi.fn(), findMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ create: vi.fn(), findMany: vi.fn(), findProject: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ prisma: { session: { create: mocks.create, findMany: mocks.findMany } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { session: { create: mocks.create, findMany: mocks.findMany }, chatProject: { findFirst: mocks.findProject } } }));
 import { GET, POST } from "./route";
 
 function post(body?: unknown) {
@@ -40,6 +40,43 @@ describe("creating a chat", () => {
   it.each([["abc"], ["📚📚"], [""], [5]])("rejects %j as an icon without creating a chat", async (icon) => {
     expect((await POST(post({ icon }))).status).toBe(400);
     expect(mocks.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("creating a chat inside a project", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.create.mockResolvedValue({ id: "s1", title: "New chat", icon: null, projectId: "p1" });
+    mocks.findProject.mockResolvedValue({ id: "p1" });
+  });
+
+  it("creates the chat in the project after checking that the project is the user's", async () => {
+    const response = await POST(post({ icon: "📚", projectId: "p1" }));
+    expect(response.status).toBe(201);
+    expect((await response.json()).session.projectId).toBe("p1");
+    expect(mocks.findProject).toHaveBeenCalledWith({ where: { id: "p1", userId: "mine" }, select: { id: true } });
+    expect(mocks.create.mock.calls[0][0].data).toEqual({ userId: "mine", title: "New chat", icon: "📚", projectId: "p1" });
+  });
+
+  it("rejects a project that is foreign or missing with a clear message and creates nothing", async () => {
+    mocks.findProject.mockResolvedValue(null);
+    const response = await POST(post({ projectId: "someone-elses" }));
+    expect(response.status).toBe(404);
+    expect((await response.json()).error).toBe("Project not found.");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it.each([[5], [""], [{}]])("rejects %j as a project ID without any lookup", async (projectId) => {
+    expect((await POST(post({ projectId }))).status).toBe(400);
+    expect(mocks.findProject).not.toHaveBeenCalled();
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("does not look up a project when none is given", async () => {
+    await POST(post({ projectId: null }));
+    await POST(post({ icon: "📚" }));
+    expect(mocks.findProject).not.toHaveBeenCalled();
+    expect(mocks.create.mock.calls.map(([arg]) => "projectId" in arg.data)).toEqual([false, false]);
   });
 });
 

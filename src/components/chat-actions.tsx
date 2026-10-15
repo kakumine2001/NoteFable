@@ -1,15 +1,17 @@
 "use client";
 
-import { Check, FolderInput, Pencil, Trash2 } from "lucide-react";
+import { Check, FolderInput, Pencil, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { ChatProjectSettings } from "@/components/chat-project-settings";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { Session } from "@/types/chat";
 
-export type ChatProject = { id: string; name: string };
+// noteCount と hasInstructions はサーバーの一覧・保存応答が返す。{ id, name } だけの呼び出しも受け付ける。
+export type ChatProject = { id: string; name: string; noteCount?: number; hasInstructions?: boolean };
 export type ChatAction =
   | { kind: "menu" | "rename" | "delete" | "move"; session: Session; anchor?: DOMRect }
   | { kind: "createProject" }
-  | { kind: "projectMenu" | "renameProject" | "deleteProject"; project: ChatProject; anchor?: DOMRect };
+  | { kind: "projectMenu" | "projectSettings" | "renameProject" | "deleteProject"; project: ChatProject; anchor?: DOMRect };
 
 function Dialog({ title, onClose, anchor, children }: { title: string; onClose: () => void; anchor?: DOMRect; children: ReactNode }) {
   const ref = useRef<HTMLDialogElement>(null);
@@ -26,8 +28,10 @@ function Dialog({ title, onClose, anchor, children }: { title: string; onClose: 
   </dialog>;
 }
 
-export function ChatActions({ action, projects, onClose, onAction, onUpdate, onDelete, onProject }: {
+export function ChatActions({ action, projects, onClose, onAction, onUpdate, onDelete, onProject, onProjectSaved }: {
   action: ChatAction; projects: ChatProject[]; onClose: () => void; onAction: (action: ChatAction) => void;
+  // 設定画面で共通指示・参照ノートを保存したあと、サーバーが返した最新のプロジェクトを渡す。
+  onProjectSaved?: (project: ChatProject) => void;
   onUpdate: (id: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) => Promise<boolean>;
   onDelete: (id: string) => Promise<boolean>;
   onProject: (method: "POST" | "PATCH" | "DELETE", name?: string, id?: string) => Promise<ChatProject | boolean | null>;
@@ -69,10 +73,12 @@ export function ChatActions({ action, projects, onClose, onAction, onUpdate, onD
   }
   if (action.kind === "projectMenu" && "project" in action) return <Dialog title={`Actions for ${action.project.name}`} onClose={onClose} anchor={action.anchor}>
     <div role="menu" onKeyDown={keyboard}>
+      {menuItem("Project settings", <Settings2 size={16}/>,()=>onAction({kind:"projectSettings",project:action.project}))}
       {menuItem("Rename project", <Pencil size={16}/>,()=>onAction({kind:"renameProject",project:action.project}))}
       {menuItem("Delete project", <Trash2 size={16}/>,()=>onAction({kind:"deleteProject",project:action.project}),true)}
     </div>
   </Dialog>;
+  if (action.kind === "projectSettings" && "project" in action) return <ChatProjectSettings project={action.project} onClose={onClose} onSaved={project=>onProjectSaved?.(project)}/>;
   if (action.kind === "move" && "session" in action) return <Dialog title="Move to project" onClose={onClose}>
     <h2 className="text-base font-semibold">Move “{action.session.title}” to</h2>
     <div className="chat-project-options">

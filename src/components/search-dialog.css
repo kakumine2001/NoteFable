@@ -1,0 +1,84 @@
+/* Chats と Notes の横断検索（Ctrl/Cmd+K）。globals.css のルールは layer 外なので、クラスを重ねて詳細度を確保する。 */
+.search-root { position: fixed; inset: 0; z-index: 80; display: flex; align-items: flex-start; justify-content: center; padding: 12dvh 1rem 1rem; }
+.search-backdrop { position: absolute; inset: 0; background: rgba(15, 15, 15, 0.32); animation: motion-fade-in 120ms ease-out both; }
+.search-root .search-panel {
+  position: relative; display: flex; flex-direction: column; width: min(40rem, 100%); max-height: min(34rem, 76dvh); overflow: hidden;
+  border-radius: 0.75rem; border: 1px solid var(--notion-border-strong); background: var(--notion-bg); color: var(--notion-text);
+  box-shadow: rgba(15, 15, 15, 0.2) 0 12px 36px, rgba(15, 15, 15, 0.06) 0 0 0 1px; animation: search-panel-in 140ms ease-out both;
+}
+@keyframes search-panel-in { from { transform: translateY(-6px) scale(0.99); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.search-root .search-field { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.5rem 0.35rem 1rem; border-bottom: 1px solid var(--notion-border); }
+.search-root .search-field-icon { flex: none; color: var(--notion-muted); }
+.search-root .search-input {
+  flex: 1; min-width: 0; height: 2.75rem; border: 0; outline: 0; background: transparent; color: var(--notion-text); font-size: 1rem;
+}
+.search-root .search-input::placeholder { color: var(--notion-faint); }
+.search-root .search-spinner { flex: none; color: var(--notion-muted); animation: search-spin 800ms linear infinite; }
+@keyframes search-spin { to { transform: rotate(360deg); } }
+.search-root .search-close {
+  display: grid; flex: none; width: 2rem; height: 2rem; place-items: center; border-radius: 6px; color: var(--notion-muted);
+}
+@media (hover: hover) { .search-root .search-close:hover { background: var(--notion-hover); color: var(--notion-text); } }
+
+.search-root .search-tabs { display: flex; gap: 0.25rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--notion-border); }
+.search-root .search-tab { min-height: 1.9rem; border-radius: 6px; padding: 0 0.7rem; font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted); }
+.search-root .search-tab[aria-selected="true"] { background: var(--notion-active); color: var(--notion-text); font-weight: 600; }
+@media (hover: hover) { .search-root .search-tab[aria-selected="false"]:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.search-root .search-close:focus-visible, .search-root .search-tab:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+
+.search-root .search-body { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 0.35rem 0.4rem 0.5rem; }
+.search-root .search-list.is-stale { opacity: 0.5; transition: opacity 120ms ease; }
+.search-root .search-group-title { padding: 0.5rem 0.6rem 0.25rem; font-size: 0.75rem; font-weight: 600; color: var(--notion-muted); }
+.search-root .search-row {
+  display: flex; align-items: flex-start; gap: 0.65rem; border-radius: 6px; padding: 0.5rem 0.6rem; cursor: pointer; scroll-margin: 0.4rem;
+}
+.search-root .search-row.is-active { background: var(--notion-hover); }
+.search-root .search-row-icon { display: grid; flex: none; width: 1.4rem; height: 1.4rem; place-items: center; margin-top: 0.05rem; font-size: 1rem; line-height: 1; color: var(--notion-muted); }
+.search-root .search-row-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 0.15rem; }
+.search-root .search-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9375rem; font-weight: 500; }
+.search-root .search-row-snippet {
+  display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.8125rem; line-height: 1.4;
+  color: var(--notion-muted); overflow-wrap: anywhere;
+}
+.search-root .search-row-date { flex: none; margin-top: 0.15rem; font-size: 0.75rem; color: var(--notion-faint); white-space: nowrap; }
+/* 一致した語。背景が白でも暗くても読める半透明の黄色にする。 */
+.search-root mark { border-radius: 2px; background: rgba(255, 207, 0, 0.4); color: inherit; padding: 0 1px; }
+
+.search-root .search-empty { display: grid; gap: 0.4rem; justify-items: start; padding: 1.25rem 0.8rem; font-size: 0.875rem; line-height: 1.5; color: var(--notion-muted); }
+.search-root .search-empty p { margin: 0; }
+.search-root .search-empty-title { font-size: 0.9375rem; font-weight: 600; color: var(--notion-text); }
+.search-root .search-loading { display: flex; align-items: center; gap: 0.5rem; }
+/* 画面のキーボードが無い端末では、キーの案内は出さない。 */
+@media (hover: none) { .search-root .search-keys { display: none; } }
+.search-root .search-sr { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* スマホ（640px 未満）は全画面のシート。端末の「戻る」で閉じる（useBackToClose）。 */
+@media (max-width: 639px) {
+  .search-root { padding: 0; align-items: stretch; }
+  .search-backdrop { display: none; }
+  .search-root .search-panel { width: 100%; max-height: none; height: 100dvh; border: 0; border-radius: 0; box-shadow: none; padding-top: env(safe-area-inset-top); animation: model-sheet-up 200ms ease-out both; }
+  .search-root .search-field { padding-left: 0.9rem; }
+  .search-root .search-input { height: 3rem; font-size: 1rem; }
+  .search-root .search-close { width: 2.5rem; height: 2.5rem; }
+  .search-root .search-tab { min-height: 2.5rem; padding: 0 0.9rem; font-size: 0.9375rem; }
+  .search-root .search-row { min-height: 3.25rem; padding: 0.6rem; }
+  .search-root .search-body { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+}
+
+/* 検索結果から開いたノートのブロック・会話のメッセージを少しの間だけ目立たせる（search-reveal.ts が付け外しする）。
+   背景が白でも暗くても見える半透明の黄色。BlockNote の CSS は後から同じ詳細度で読み込まれ、コードブロックの背景指定も強いので、
+   アニメーション（通常の指定より優先される）で背景を動かし、枠線は静的にも残す。 */
+.search-reveal-flash, .bn-block-content.search-reveal-flash {
+  border-radius: 6px; box-shadow: 0 0 0 3px rgba(255, 207, 0, 0.5); animation: search-reveal-flash 2s ease-out backwards;
+}
+@keyframes search-reveal-flash {
+  0%, 60% { background-color: rgba(255, 207, 0, 0.42); box-shadow: 0 0 0 3px rgba(255, 207, 0, 0.5); }
+  100% { background-color: rgba(255, 207, 0, 0); box-shadow: 0 0 0 3px rgba(255, 207, 0, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .search-root .search-panel, .search-root .search-backdrop { animation: none; }
+  .search-root .search-spinner { animation-duration: 1.6s; }
+  /* 動かさず、時間が来るまで一定の強調だけを出す。 */
+  .search-reveal-flash, .bn-block-content.search-reveal-flash { animation: none; background-color: rgba(255, 207, 0, 0.42); outline: 2px solid rgba(255, 207, 0, 0.9); }
+}

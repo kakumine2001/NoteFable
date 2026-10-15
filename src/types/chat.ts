@@ -3,6 +3,20 @@ import type { ActivityStep } from "@/lib/chat-activity";
 // 回答に紐付いて保存された AI の提案（ノートの編集・新規作成）。
 export type StoredProposal = Extract<ActivityStep, { kind: "proposal" | "create_proposal" }>;
 
+// チャットプロジェクトの共通指示の最大文字数と、参照できるノートの最大件数。クライアントとサーバーで同じ値を使う。
+export const MAX_PROJECT_INSTRUCTIONS = 4000;
+export const MAX_PROJECT_NOTES = 5;
+
+// サイドバー用の一覧と PATCH / POST の応答。noteCount はゴミ箱に入っていないノートだけを数える。
+export type ChatProjectSummary = { id: string; name: string; noteCount: number; hasInstructions: boolean };
+// 設定画面用の詳細。notes は選んだ順（position の昇順）で、ゴミ箱のノートは含まない。
+export type ChatProjectDetail = {
+  id: string;
+  name: string;
+  instructions: string | null;
+  notes: { id: string; title: string; icon: string | null }[];
+};
+
 export type Session = {
   // DB 上のセッション ID。メッセージ取得・削除・選択状態に使う。
   id: string;

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Block } from "@blocknote/core";
 import { FileText, Plus, RefreshCw } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useRef } from "react";
@@ -13,6 +14,23 @@ import type { useNotePages } from "@/lib/use-note-pages";
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <p className="notes-loading">Loading editor…</p>,
 });
+
+// ブロックの JSON が内容として同じか（キーの順序と undefined の項目は無視する。DB の JSONB はキーの順序が変わる）。
+function sameJson(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (typeof a !== "object" || typeof b !== "object" || !a || !b || Array.isArray(a) !== Array.isArray(b)) return false;
+  const left = a as Record<string, unknown>;
+  const right = b as Record<string, unknown>;
+  const keys = Object.keys(left).filter((key) => left[key] !== undefined);
+  return keys.length === Object.keys(right).filter((key) => right[key] !== undefined).length && keys.every((key) => sameJson(left[key], right[key]));
+}
+
+// エディターから届いたブロックが、いま保存キューが持つ内容と変わらないか。空のノート（[]）は、エディターが空の段落を 1 つ足して返すので、それも同じとみなす。
+function isUnchanged(next: Block[], current: Block[]) {
+  if (sameJson(next, current)) return true;
+  const [only] = next;
+  return current.length === 0 && next.length === 1 && only.type === "paragraph" && Array.isArray(only.content) && only.content.length === 0 && only.children.length === 0;
+}
 
 export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCreate, onWorkspaceChange }: {
   notes: ReturnType<typeof useNotePages>;
@@ -68,7 +86,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
             const end = titleRef.current?.value.length ?? 0;
             titleRef.current?.setSelectionRange(end, end);
           }}
-          onChange={(blocks) => active.edit({ ...active.content, blocks })} />
+          // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
+          onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
       <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} flush={() => active.flush()} />
     </> : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">

@@ -1,15 +1,16 @@
 "use client";
 
-import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, PanelLeftClose, Pencil, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, PanelLeftClose, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ReorderHandle } from "@/components/reorder-handle";
 import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
+import { NoteTrashDialog } from "@/components/note-trash-dialog";
 import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
-import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
+import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } from "@/types/notes";
 
 const COLLAPSED_KEY = "studymate:note-groups-collapsed:v1";
 
@@ -22,11 +23,13 @@ type GroupActions = {
   onDeleteGroup: (id: string) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder }: {
+export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
 } & GroupActions) {
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
+  // ゴミ箱の小窓。復元したノートは "studymate:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
+  const [trashOpen, setTrashOpen] = useState(false);
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [naming, setNaming] = useState<{ mode: "create" } | { mode: "rename"; group: NoteGroupSummary } | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<NoteGroupSummary | null>(null);
@@ -62,7 +65,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
         <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span><span className="truncate text-sm">{page.title}</span>
       </button>
       <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={`Move ${page.title} to a project`} title="Move to project"><FolderInput size={14} /></button>
-      <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Delete ${page.title}`}><Trash2 size={14} /></button>
+      <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Move ${page.title} to Trash`} title="Move to Trash"><Trash2 size={14} /></button>
     </div>
   );
 
@@ -74,6 +77,9 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
+        <button type="button" className="notion-sidebar-action" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
+          <Search size={16} /><span>Search</span><kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
+        </button>
         <button type="button" className="notion-sidebar-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New note</span></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
@@ -106,14 +112,18 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSelect, onDele
         {loose.map(row)}
         {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your notes will appear here.</p>}
       </div>
+      <div className="shrink-0 px-2 pb-1">
+        <button type="button" className="notion-sidebar-action" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={16} /><span>Trash</span></button>
+      </div>
       {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
-          <h2 id="delete-page-title" className="text-base font-semibold">Delete note?</h2>
-          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">“{deleting.title}” will be permanently deleted.</p>
+          <h2 id="delete-page-title" className="text-base font-semibold">Move note to Trash?</h2>
+          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">“{deleting.title}” will be moved to Trash. You can restore it for {TRASH_RETENTION_DAYS} days.</p>
           <div className="mt-5 flex justify-end gap-2">
             <button autoFocus type="button" disabled={busy} className="notion-button" onClick={() => setDeleting(null)}>Cancel</button>
-            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>Delete note</button>
+            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>Move to Trash</button>
           </div>
       </dialog>}
+      {trashOpen && <NoteTrashDialog onClose={() => setTrashOpen(false)} />}
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} />}
       {naming && <GroupNameDialog title={naming.mode === "create" ? "New project" : "Rename project"} initial={naming.mode === "rename" ? naming.group.name : ""}

@@ -86,11 +86,12 @@ export function useNotePages(enabled: boolean) {
     return queue;
   }, [upsertSummary]);
 
-  const select = useCallback(async (id: string, historyMode: "push" | "replace" | "none" = "push") => {
+  // 開けたら true。ノートが無い（ゴミ箱に入った・削除された）ときだけ false で、呼び出し側が古いリンクを片付けられる。
+  const select = useCallback(async (id: string, historyMode: "push" | "replace" | "none" = "push"): Promise<boolean> => {
     if (historyMode === "push" && displayedId.current === id) {
       // 読み込み中に元のページへ戻った操作も、後から来る応答で上書きしない。
       if (pendingId.current) { ++navigation.current; pendingId.current = null; setLoading(false); setError(""); }
-      return;
+      return true;
     }
     const intent = ++navigation.current;
     pendingId.current = id;
@@ -99,7 +100,7 @@ export function useNotePages(enabled: boolean) {
     try {
       // キャッシュを表示しても、再取得した版を照合して別タブの更新を拾う。
       const data = await pageRequest(`/api/pages/${id}`);
-      if (intent !== navigation.current) return;
+      if (intent !== navigation.current) return true;
       const existing = queues.current.get(id);
       const queue = existing ?? install(data.page);
       if (existing && !existing.dirty && existing.version !== data.page.version) {
@@ -121,7 +122,15 @@ export function useNotePages(enabled: boolean) {
         if (historyMode === "push") window.history.pushState(null, "", url);
         else window.history.replaceState(null, "", url);
       }
-    } catch (caught) { if (intent === navigation.current) setError(caught instanceof Error ? caught.message : "Failed to open note."); }
+      return true;
+    } catch (caught) {
+      if (intent !== navigation.current) return true;
+      setError(caught instanceof Error ? caught.message : "Failed to open note.");
+      const gone = caught instanceof NoteSaveError && caught.status === 404;
+      // 別のタブで捨てた（または削除した）ノートが一覧に残っていたら外す。
+      if (gone) setPages((current) => current.filter((page) => page.id !== id));
+      return !gone;
+    }
     finally { if (intent === navigation.current) { pendingId.current = null; setLoading(false); } }
   }, [install, upsertSummary]);
 
@@ -253,6 +262,7 @@ export function useNotePages(enabled: boolean) {
     finally { actionBusy.current = false; setBusy(false); }
   }
 
+  // ノートをゴミ箱へ移す（サーバーの DELETE は deletedAt を付けるだけで、30 日間は復元できる）。名前は従来どおり remove。
   async function remove(id: string) {
     if (actionBusy.current) return;
     actionBusy.current = true;
@@ -260,10 +270,10 @@ export function useNotePages(enabled: boolean) {
     setError("");
     try {
       const queue = queues.current.get(id);
-      if (queue && !(await queue.flush())) throw new Error("Resolve the unsaved draft before deleting this note.");
+      if (queue && !(await queue.flush())) throw new Error("Resolve the unsaved draft before moving this note to Trash.");
       await pageRequest(`/api/pages/${id}`, "DELETE");
       queues.current.delete(id);
-      try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* 削除後の古いキャッシュは復元しない。 */ }
+      try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
       const remaining = pages.filter((page) => page.id !== id);
       runTransition(() => setPages(remaining), "list");
       if (activeId === id) {
@@ -275,7 +285,7 @@ export function useNotePages(enabled: boolean) {
         window.history.replaceState(null, "", url);
         if (remaining[0] && !isPhone()) await select(remaining[0].id, "replace");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to delete note."); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to move the note to Trash."); }
     finally { actionBusy.current = false; setBusy(false); }
   }
 

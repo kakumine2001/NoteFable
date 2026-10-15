@@ -27,7 +27,8 @@ import {
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
-import { applyActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
+import { applyActivityEvent, contextActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
+import { formatProjectContext, loadProjectContext, type ProjectContext } from "@/lib/chat-project-context";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -51,7 +52,7 @@ function makeTitle(message: string) {
 
 // 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
-function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }) {
+function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }, project?: ProjectContext | null) {
   return [
     "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
     "Answer in the user's language unless they ask otherwise.",
@@ -83,6 +84,9 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
       : webSearchMode === "off"
         ? ["Web search is unavailable in this request. Do not simulate web searches or invent search results. Be explicit when current information cannot be verified."]
         : []),
+    // 変わりやすい部分（共通指示・参照ノート）は最後に置く。ここだけが変わっても、前の固定の文面はプロンプトキャッシュに残る。
+    // プロジェクトの共通指示（ユーザー自身の指示）と参照ノート（私的なデータ）。既定の言語・書式より優先する。
+    ...(project ? [formatProjectContext(project, pageTools)] : []),
   ].join(" ");
 }
 
@@ -377,7 +381,7 @@ export async function POST(request: Request) {
 
   // ノート用の送信なら、自分のノートかを確かめる（他人のノートや存在しないノートは使わせない）。
   const note = noteId
-    ? await prisma.notePage.findFirst({ where: { id: noteId, userId: user.id }, select: { id: true, title: true } })
+    ? await prisma.notePage.findFirst({ where: { id: noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true } })
     : null;
   if (noteId && !note) {
     return NextResponse.json({ error: "Note not found." }, { status: 404 });
@@ -399,6 +403,17 @@ export async function POST(request: Request) {
 
   if (!session) {
     return NextResponse.json({ error: "Session not found." }, { status: 404 });
+  }
+
+  // プロジェクトの会話なら、共通指示と参照ノートを毎回読み直して渡す（ノートの編集は次の送信から反映される）。
+  // 読み込みに失敗してもチャット自体は止めず、文脈なしで続ける。ノート用の会話はプロジェクトに入らない。
+  let projectContext: ProjectContext | null = null;
+  if (session.projectId && !note) {
+    try {
+      projectContext = await loadProjectContext(user.id, session.projectId);
+    } catch (error) {
+      console.error("Failed to load project context", getErrorMessage(error));
+    }
   }
 
   // 添付ファイルを、DB 保存用のメタ情報とモデル入力用の抽出テキスト/画像 data URL に変換する。
@@ -541,6 +556,18 @@ export async function POST(request: Request) {
     async start(controller) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
       try {
+        // 使ったプロジェクトの指示とノートを、最初の途中経過として流す。回答と一緒に保存され、再読み込み後も出典を見られる。
+        const contextEvent = projectContext
+          ? contextActivityEvent({
+              projectName: projectContext.projectName,
+              hasInstructions: !!projectContext.instructions,
+              notes: projectContext.notes.map((item) => ({ id: item.id, title: item.title, ...(item.truncated ? { truncated: true } : {}) })),
+            })
+          : null;
+        if (contextEvent) {
+          activitySteps = applyActivityEvent(activitySteps, contextEvent);
+          controller.enqueue(encoder.encode(encodeActivityStreamEvent(contextEvent)));
+        }
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
         const pageTools = modelOption.supportsPageTools ? PAGE_TOOL_DEFINITIONS : [];
@@ -555,7 +582,7 @@ export async function POST(request: Request) {
               return run;
             }
           : undefined;
-        const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined);
+        const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined, projectContext);
         const upstream =
           modelOption.provider === "anthropic"
             ? await createAnthropicStream(buildAnthropicRequest({

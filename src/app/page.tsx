@@ -5,11 +5,13 @@ import {
   ArrowUp,
   ChevronLeft,
   FileText,
+  History,
   ImagePlus,
   Menu,
   Paperclip,
   PanelLeft,
   Plus,
+  Search,
   X,
 } from "lucide-react";
 import Image from "next/image";
@@ -22,7 +24,9 @@ import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { AttachSheet } from "@/components/attach-sheet";
 import { ModelSelect } from "@/components/model-controls";
+import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesSidebar } from "@/components/notes-sidebar";
+import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
@@ -37,6 +41,7 @@ import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
+import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -46,6 +51,12 @@ const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
 const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
 const SESSION_LOAD_FALLBACK_ERROR = "Failed to load conversation.";
+// 検索結果などから開いたあと、その場所まで動かすための予約。開き終わる前に別の操作をされたら捨てる。
+const REVEAL_TTL_MS = 10000;
+type RevealTarget =
+  | { kind: "chat"; sessionId: string; messageId: string }
+  | { kind: "note"; noteId: string; blockId: string };
+type RevealRequest = RevealTarget & { expires: number };
 
 function getMessagesKey(sessionId: string | null) {
   return sessionId ?? NEW_SESSION_MESSAGES_KEY;
@@ -139,6 +150,14 @@ export default function Home() {
   function syncNotesList() {
     setNotesList(computeNotesList());
   }
+  // 検索の小窓（Ctrl/Cmd+K）。履歴の小窓は、開いた時点のノート ID を持ち、別のノートに移ったら出さない。
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+  useSearchShortcut(() => setSearchOpen(true));
+  // 検索結果から開いたブロック・メッセージまで動かす予約と、待っている動かす処理の中止用。
+  const revealRef = useRef<RevealRequest | null>(null);
+  const revealAbortRef = useRef<AbortController | null>(null);
+  const [revealTick, setRevealTick] = useState(0);
   const notesRef = useRef(notes);
   // 戻る操作で画面が変わるかを見分けて、変わるときだけ動きをつけるために、いまの表示を覚えておく。
   const shownRef = useRef({ view: workspaceView, list: notesList });
@@ -181,6 +200,7 @@ export default function Home() {
   function changeWorkspace(view: WorkspaceView) {
     const url = new URL(window.location.href);
     if (view === (url.searchParams.get("view") === "pages" ? "pages" : "chat")) return;
+    cancelReveal();
     let list = false;
     if (view === "pages") {
       url.searchParams.set("view", "pages");
@@ -204,6 +224,7 @@ export default function Home() {
   }
 
   function openNote(id: string) {
+    cancelReveal();
     if (!window.matchMedia("(max-width: 639px)").matches) {
       void notes.select(id);
       return;
@@ -224,13 +245,75 @@ export default function Home() {
 
   async function deleteNote(id: string) {
     await notes.remove(id);
+    // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
+    refreshChatProjects();
     // スマホで開いていたノートを消したら、URL から page= が外れているので一覧に戻る。
     runTransition(syncNotesList, "back");
   }
 
   function createNote() {
+    cancelReveal();
     runTransition(() => setNotesList(false), "forward");
     void notes.create();
+  }
+
+  // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
+  function cancelReveal() {
+    revealRef.current = null;
+    revealAbortRef.current?.abort();
+    revealAbortRef.current = null;
+  }
+
+  function queueReveal(target: RevealTarget) {
+    revealRef.current = { ...target, expires: Date.now() + REVEAL_TTL_MS };
+    setRevealTick((value) => value + 1);
+  }
+
+  // 検索結果・プロジェクトの参照元から、Chat と Notes のどちらにいても指定のノートを開く。blockId があればそのブロックまで動かす。
+  function openNoteFromLink(id: string, blockId?: string) {
+    cancelReveal();
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", "pages");
+    url.searchParams.set("page", id);
+    // 小窓（検索・ドロワー）が積んだ目印があれば置き換え、無ければ URL が変わるときだけ積む。戻る操作で空振りする履歴を残さない。
+    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    else if (url.href !== window.location.href) window.history.pushState(null, "", url);
+    restoreSheetMarker();
+    const show = () => {
+      setWorkspaceView("pages");
+      setNotesList(false);
+      setSidebarOpen(false);
+    };
+    if (workspaceView !== "pages") runTransition(show, "fade");
+    else if (notesList) runTransition(show, "forward");
+    else show();
+    // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
+    if (notes.activeId !== id) {
+      void notes.select(id, "none").then((opened) => {
+        if (opened) return;
+        // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は、URL に残さない。
+        cancelReveal();
+        const next = new URL(window.location.href);
+        if (next.searchParams.get("page") === id) {
+          next.searchParams.delete("page");
+          window.history.replaceState(null, "", next);
+        }
+        syncNotesList();
+      });
+    }
+    if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
+  }
+
+  // 検索結果・プロジェクトの参照元から会話を開く。messageId があれば、読み込み後にそのメッセージまで動かす。
+  async function openChatFromLink(id: string, messageId?: string) {
+    if (workspaceView !== "chat") changeWorkspace("chat");
+    const loading = loadMessages(id);
+    // 末尾へ寄せる処理（会話を開いた直後の固定）が、一致したメッセージへの移動を打ち消さないようにする。
+    if (messageId) pinToBottomRef.current = null;
+    await loading;
+    if (!messageId || activeSessionIdRef.current !== id) return;
+    pinToBottomRef.current = null;
+    queueReveal({ kind: "chat", sessionId: id, messageId });
   }
 
   function openNotesList() {
@@ -259,6 +342,15 @@ export default function Home() {
     }).catch(()=>{if(!controller.signal.aborted) setChatProjectError("Could not load projects. Refresh to retry.");});
     return ()=>controller.abort();
   }, []);
+  // 一覧の件数だけを取り直す（ノートをゴミ箱へ入れた・戻したあと用）。失敗しても今の表示は変えない。
+  function refreshChatProjects() {
+    const started = projectSync.current.mark();
+    void fetch("/api/chat-projects", { cache: "no-store" }).then(async (response) => {
+      if (!response.ok) return;
+      const data = await response.json();
+      if (Array.isArray(data.projects)) setChatProjects(projectSync.current.reconcile(data.projects, started));
+    }).catch(() => {});
+  }
   // まだ会話が保存されていない新規チャットで先に選んだアイコン。最初の送信で会話を作るときに一緒に保存する。
   const [draftIcon, setDraftIcon] = useState<string | null>(null);
   const draftIconRef = useRef<string | null>(null);
@@ -500,11 +592,13 @@ export default function Home() {
     }
   }
 
-  async function createEmptySession(icon: string | null = null) {
+  async function createEmptySession(icon: string | null = null, projectId: string | null = null) {
     try {
+      // アイコンとプロジェクトは、あるものだけ本文に入れる（どちらも無ければ本文なしの従来の呼び出し）。
+      const payload = { ...(icon ? { icon } : {}), ...(projectId ? { projectId } : {}) };
       const response = await fetch("/api/sessions", {
         method: "POST",
-        ...(icon ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon }) } : {}),
+        ...(Object.keys(payload).length ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) } : {}),
       });
       const data = await readJsonObject(response);
       if (!response.ok) {
@@ -527,6 +621,7 @@ export default function Home() {
   }
 
   async function loadMessages(sessionId: string) {
+    cancelReveal();
     draftEpochRef.current += 1;
     changeDraftIcon(null);
     const intent = sessionNavigationIntentRef.current + 1;
@@ -572,19 +667,37 @@ export default function Home() {
     }
   }
 
-  async function createSession() {
+  // projectId を渡すと、そのプロジェクトの中に新しいチャットを作る（プロジェクト行の「＋」）。
+  async function createSession(projectId: string | null = null) {
+    cancelReveal();
     // 空の新規チャットがすでに表示されている場合は、DB 上に同じ空セッションを増やさない。
     // 実際にユーザーが送信した時点で、その会話にタイトルが付き履歴として意味を持つ。
     const activeSession = sessions.find((session) => session.id === activeSessionId);
     if ((!activeSessionId || activeSession?.title === "New chat") && messages.length === 0) {
-      setSidebarOpen(false);
-      return;
+      // 同じプロジェクト（または両方なし）の空チャットなら、そのまま使う。
+      if ((activeSession?.projectId ?? null) === projectId) {
+        setSidebarOpen(false);
+        return;
+      }
+      // 別のプロジェクトにある空チャットは、増やさずに目的の場所へ移す（ピン留め中のものは動かさず、新しく作る）。
+      if (activeSession && !activeSession.pinned) {
+        try {
+          await updateSession(activeSession.id, { projectId });
+          setSendError("");
+        } catch (error) {
+          setSendError(error instanceof Error ? error.message : "Could not save the chat. Please try again.");
+        }
+        setSidebarOpen(false);
+        return;
+      }
     }
 
     const intent = sessionNavigationIntentRef.current + 1;
     sessionNavigationIntentRef.current = intent;
     sessionLoadAbortRef.current?.abort();
-    const { error, session } = await createEmptySession();
+    // まだ保存されていない新規チャットで先に選んだアイコンは、作る会話へ引き継ぐ。
+    const carriedIcon = activeSessionId ? null : draftIconRef.current;
+    const { error, session } = await createEmptySession(carriedIcon, projectId);
     if (!session) {
       setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
       return;
@@ -593,6 +706,10 @@ export default function Home() {
     setSessions((current) => [session, ...current]);
     replaceCachedMessages(session.id, []);
     if (sessionNavigationIntentRef.current !== intent) return;
+    if (!activeSessionId) {
+      draftEpochRef.current += 1;
+      changeDraftIcon(null);
+    }
 
     activeSessionIdRef.current = session.id;
     setActiveSessionId(session.id);
@@ -639,6 +756,12 @@ export default function Home() {
       setChatProjects(list=>method==="POST" ? [...list,data.project] : list.map(project=>project.id===id ? data.project : project));
       return data.project as ChatProject;
     } catch (error) { throw error instanceof Error ? error : new Error("Could not save the project. Please try again."); }
+  }
+
+  // プロジェクトの設定画面で保存した内容（共通指示の有無・参照ノート数）を一覧へ反映する。
+  function saveProject(project: ChatProject) {
+    projectSync.current.saved(project);
+    setChatProjects((list) => list.map((item) => (item.id === project.id ? project : item)));
   }
 
   async function updateSession(sessionId: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) {
@@ -1140,6 +1263,65 @@ export default function Home() {
     return () => window.removeEventListener("keydown", toggleSidebarShortcut);
   }, []);
 
+  // 検索結果から開いた会話・ノートが画面に出そろったら、一致した場所まで動かして目立たせる（予約は 1 回だけ使う）。
+  useEffect(() => {
+    const request = revealRef.current;
+    if (!request) return;
+    if (Date.now() > request.expires) {
+      revealRef.current = null;
+      return;
+    }
+    if (request.kind === "chat") {
+      if (workspaceView !== "chat" || activeSessionId !== request.sessionId) return;
+    } else if (workspaceView !== "pages" || notesList || notes.loading || !notes.active || notes.activeId !== request.noteId) return;
+    revealRef.current = null;
+    revealAbortRef.current?.abort();
+    const controller = new AbortController();
+    revealAbortRef.current = controller;
+    if (request.kind === "note") {
+      void revealNoteBlock(request.blockId, { signal: controller.signal });
+      return;
+    }
+    void revealChatMessage(request.messageId, { signal: controller.signal }).then((found) => {
+      // 一致したメッセージが見つからなければ（削除済みなど）、会話をいつもどおり最下部から見せる。
+      const scroller = chatScrollRef.current;
+      if (!found && !controller.signal.aborted && scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+  }, [revealTick, workspaceView, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
+
+  // プロジェクトの参照ノートのチップなどが投げる "studymate:open-note" / "studymate:open-chat" を、検索結果と同じ開き方に流す。
+  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects });
+  useEffect(() => {
+    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects };
+  });
+  useEffect(() => {
+    function detailOf(event: Event) {
+      const detail = (event as CustomEvent<Record<string, unknown> | null>).detail;
+      return typeof detail?.id === "string" && detail.id ? detail : null;
+    }
+    function onOpenNote(event: Event) {
+      const detail = detailOf(event);
+      if (detail) linkOpenersRef.current.note(detail.id as string, typeof detail.blockId === "string" ? detail.blockId : undefined);
+    }
+    function onOpenChat(event: Event) {
+      const detail = detailOf(event);
+      if (detail) void linkOpenersRef.current.chat(detail.id as string, typeof detail.messageId === "string" ? detail.messageId : undefined);
+    }
+    // ゴミ箱から戻したノートが参照ノートに入っていたプロジェクトの件数を合わせる。
+    function onPageCreated() {
+      linkOpenersRef.current.projects();
+    }
+    window.addEventListener("studymate:open-note", onOpenNote);
+    window.addEventListener("studymate:open-chat", onOpenChat);
+    window.addEventListener("studymate:page-created", onPageCreated);
+    return () => {
+      window.removeEventListener("studymate:open-note", onOpenNote);
+      window.removeEventListener("studymate:open-chat", onOpenChat);
+      window.removeEventListener("studymate:page-created", onPageCreated);
+      revealAbortRef.current?.abort();
+    };
+  }, []);
+
   // ヘッダーに表示するタイトル。未選択または新規チャット中は固定文言にする。
   const activeSession = sessions.find((session) => session.id === activeSessionId);
   const activeTitle = activeSession?.title ?? "New chat";
@@ -1156,7 +1338,7 @@ export default function Home() {
   };
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
-      onCreate={() => { setSidebarOpen(false); createNote(); }} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onCreate={() => { setSidebarOpen(false); createNote(); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} />
@@ -1164,7 +1346,9 @@ export default function Home() {
     <ChatSidebar
       sessions={sessions}
       activeSessionId={activeSessionId}
-      onCreate={createSession}
+      onCreate={() => void createSession()}
+      onSearch={() => setSearchOpen(true)}
+      onCreateInProject={(projectId) => void createSession(projectId)}
       onLoad={loadMessages}
       onDelete={deleteSession}
       onUpdate={updateSession}
@@ -1172,11 +1356,15 @@ export default function Home() {
       projects={chatProjects}
       projectError={chatProjectError}
       onProject={changeChatProject}
+      onProjectSaved={saveProject}
       onChangeIcon={changeSessionIcon}
       onClose={closeSidebar}
       onWorkspaceChange={changeWorkspace}
     />
   );
+
+  // 履歴の小窓は、開いたノートが今も表示中のときだけ出す。復元は、このノートの保存キュー（版を持つ）を通して行う。
+  const historyQueue = workspaceView === "pages" && historyNoteId === notes.activeId ? notes.active : undefined;
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
@@ -1237,10 +1425,21 @@ export default function Home() {
           </div>
 
           <div className="flex shrink-0 items-center gap-2">
+            {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
+            <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
+              aria-label="Search chats and notes" title="Search (Ctrl+K)" aria-haspopup="dialog">
+              <Search size={20} />
+            </button>
             {workspaceView === "chat" && !emptyState && (
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
                 aria-label="New chat" title="New chat">
                 <Plus size={20} />
+              </button>
+            )}
+            {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
+              <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
+                aria-label="Version history" title="Version history" aria-haspopup="dialog">
+                <History size={20} />
               </button>
             )}
             {workspaceView === "pages" && !notesList ? (
@@ -1479,6 +1678,13 @@ export default function Home() {
         </div>
         </div>
       </section>
+
+      <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} view={workspaceView}
+        onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink} />
+      {historyQueue && historyNoteId && (
+        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
+          onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
+      )}
     </main>
   );
 }

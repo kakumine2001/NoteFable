@@ -12,7 +12,7 @@ export async function GET() {
     const user = await getOrCreateAnonymousUser();
     const [pages, groups] = await Promise.all([
       prisma.notePage.findMany({
-        where: { userId: user.id }, orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
+        where: { userId: user.id, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
         select: { id: true, position: true, title: true, icon: true, version: true, groupId: true, createdAt: true, updatedAt: true },
       }),
       prisma.noteGroup.findMany({ where: { userId: user.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, name: true, position: true } }),

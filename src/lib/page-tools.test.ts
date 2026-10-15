@@ -48,6 +48,8 @@ describe("page tools", () => {
     expect(sql.sql).toContain('FROM "studymate"."NotePage"');
     expect(sql.sql).toContain("jsonb_array_elements_text");
     expect(sql.values).toContain("mine");
+    // ゴミ箱のノートは検索に出さない。
+    expect(sql.sql).toContain(`WHERE p."userId" = ? AND p."deletedAt" IS NULL`);
     expect(sql.values).toEqual(expect.arrayContaining(["%mitosis%", "%cell%"]));
     expect(JSON.parse(result.content).results).toEqual([{ id: "p1", title: "Biology", snippet: "cell division and mitosis", updatedAt: updatedAt.toISOString() }]);
     expect(result.label).toBe("Searched notes for “Mitosis  cell”");
@@ -56,7 +58,7 @@ describe("page tools", () => {
   it("only reads pages owned by the requesting user", async () => {
     mocks.findFirst.mockResolvedValue(null);
     const result = await runPageTool("read_note", { noteId: "p1", userId: "someone-else" }, "mine", "s1");
-    expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine" } }));
+    expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine", deletedAt: null } }));
     expect(result).toMatchObject({ isError: true, content: "Note not found." });
 
     mocks.queryRaw.mockResolvedValue([]);
@@ -87,7 +89,7 @@ describe("page tools", () => {
     it("returns a proposal event for the owner's page and does not write", async () => {
       mocks.findFirst.mockResolvedValue(stored());
       const result = await runPageTool("propose_note_edit", args({ title: "Renamed" }), "mine", "s1");
-      expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine" } }));
+      expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine", deletedAt: null } }));
       expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", applied: false });
       const [event] = result.events as { type: string; baseVersion: number; title: object; changes: object[]; proposed: { title: string; blocks: unknown[] } }[];
       expect(event).toMatchObject({ type: "studymate.proposal", pageId: "p1", baseVersion: 4, title: { before: "Notes", after: "Renamed" } });
