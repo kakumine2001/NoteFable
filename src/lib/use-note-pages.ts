@@ -324,6 +324,15 @@ export function useNotePages(enabled: boolean) {
     return true;
   });
 
+  // サイドバーのアイコンから変える。開いているノートは編集と同じ経路（自動保存）に乗せ、開いていないノートは専用の API で書く。
+  const changeIcon = (id: string, icon: string | null) => groupAction(async () => {
+    if (active && id === activeId) { active.edit({ ...active.content, icon }); return true; }
+    const { page } = await pageRequest(`/api/pages/${id}/icon`, "PUT", { icon });
+    // 一覧と、読み込み済みの編集内容を新しい版へそろえる（未保存の編集が残っていれば、上書きせず衝突として知らせる）。
+    window.dispatchEvent(new CustomEvent<NotePage>("studymate:page-updated", { detail: page }));
+    return true;
+  });
+
   async function reorder(move:ReorderRequest) {
     if(reorderBusy.current) throw new Error("Wait for the previous move to finish.");
     reorderBusy.current=true;
@@ -339,5 +348,5 @@ export function useNotePages(enabled: boolean) {
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, PanelLeftClose, Pencil, Plus, Search, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderHandle } from "@/components/reorder-handle";
 import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
@@ -18,12 +19,14 @@ type GroupActions = {
   groups: NoteGroupSummary[]; groupError: string;
   onReorder: (move:ReorderRequest)=>Promise<unknown>;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
+  // 行のアイコンから変える。失敗したら null。
+  onChangeIcon: (pageId: string, icon: string | null) => Promise<unknown>;
   onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>;
   onRenameGroup: (id: string, name: string) => Promise<unknown>;
   onDeleteGroup: (id: string) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder }: {
+export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
 } & GroupActions) {
@@ -37,6 +40,13 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}"); } catch { return {}; }
   });
+  // アイコン選択を開いているノートと、その位置（スクロールしても固定位置で出すため開いた時点で決める）。チャットの行と同じ作り。
+  const [picker, setPicker] = useState<{ id: string; position: FloatingPosition } | null>(null);
+  const [iconError, setIconError] = useState("");
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const closePicker = () => setPicker(null);
+  usePickerBackToClose(picker !== null, closePicker);
+  const pickerPage = picker ? pages.find((page) => page.id === picker.id) : undefined;
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (deleting) dialog.current?.showModal();
@@ -61,8 +71,17 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
         });
         return ok;
       }}/>
-      <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1.5 text-left" title={page.title}>
-        <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span><span className="truncate text-sm">{page.title}</span>
+      <button type="button" disabled={busy} className="chat-row-icon-button" aria-label={`Change icon of ${page.title}`} title="Change icon"
+        aria-haspopup="dialog" aria-expanded={picker?.id === page.id}
+        onClick={(event) => {
+          triggerRef.current = event.currentTarget;
+          const position = floatingPositionFor(event.currentTarget.getBoundingClientRect());
+          setPicker(picker?.id === page.id ? null : { id: page.id, position });
+        }}>
+        <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span>
+      </button>
+      <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" title={page.title}>
+        <span className="truncate text-sm">{page.title}</span>
       </button>
       <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={`Move ${page.title} to a project`} title="Move to project"><FolderInput size={14} /></button>
       <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Move ${page.title} to Trash`} title="Move to Trash"><Trash2 size={14} /></button>
@@ -108,6 +127,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
             </div>
           );
         })}
+        {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{iconError}</p>}
         <div className="chat-section-label" data-note-group-drop="">Notes</div>
         {loose.map(row)}
         {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your notes will appear here.</p>}
@@ -133,6 +153,10 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
         body={`“${deletingGroup.name}” will be deleted. Its notes are kept and move out of the project.`}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
       <SidebarFooter />
+      {picker && pickerPage && (
+        <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerPage.icon}
+          onChange={async (icon) => { setIconError(""); if (!(await onChangeIcon(pickerPage.id, icon))) setIconError("Could not change the icon. Try again."); }} onClose={closePicker} />
+      )}
     </aside>
   );
 }

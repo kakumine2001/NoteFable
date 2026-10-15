@@ -369,7 +369,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
       <FilePanelController filePanel={NoteFilePanel} />
       <SideMenuController sideMenu={NoteSideMenu} />
       <SuggestionMenuController triggerCharacter="/" suggestionMenuComponent={SlashMenu} getItems={async (query): Promise<SlashItem[]> => {
-        const defaults = getDefaultReactSlashMenuItems(editor) as (DefaultReactSuggestionItem & { key: string })[];
+        // BlockNote 既定の「Others > Emoji」（絵文字ピッカーの呼び出し）は使わないので外す。
+        const defaults = (getDefaultReactSlashMenuItems(editor) as (DefaultReactSuggestionItem & { key: string })[]).filter((item) => item.key !== "emoji");
         const turning = /^turn(?:\s|$)/i.test(query);
         const textItems = NOTE_TEXT_BLOCKS.map((target) => {
           const item = defaults.find((item) => item.key === target.key)!;

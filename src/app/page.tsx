@@ -1340,7 +1340,7 @@ export default function Home() {
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
       onCreate={() => { setSidebarOpen(false); createNote(); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
-      groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup}
+      groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} />
   ) : (
     <ChatSidebar
