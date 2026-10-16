@@ -35,6 +35,8 @@ export async function GET(_request: Request, context: RouteContext) {
     where: {
       id: sessionId,
       userId: user.id,
+      // ノートのアシスタントの会話は Chats の会話ではない（一覧にも出さない）。検索やリンクから開かせない。
+      noteId: null,
     },
     select: { id: true },
   });

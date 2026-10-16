@@ -21,7 +21,15 @@
 }
 @media (hover: hover) { .search-root .search-close:hover { background: var(--notion-hover); color: var(--notion-text); } }
 
-.search-root .search-tabs { display: flex; gap: 0.25rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--notion-border); }
+.search-root .search-toolbar { display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem 0.75rem; border-bottom: 1px solid var(--notion-border); }
+.search-root .search-tabs { display: flex; flex: none; gap: 0.25rem; }
+/* Chats タブだけに出るプロジェクトの絞り込み。右端に寄せ、長い名前は省略する。 */
+.search-root .search-project {
+  flex: 0 1 auto; min-width: 0; max-width: 55%; height: 1.9rem; margin-left: auto; padding: 0 0.4rem; border: 1px solid var(--notion-border); border-radius: 6px;
+  background: transparent; color: var(--notion-muted); font-size: 0.8125rem; text-overflow: ellipsis; cursor: pointer;
+}
+@media (hover: hover) { .search-root .search-project:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.search-root .search-project:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
 .search-root .search-tab { min-height: 1.9rem; border-radius: 6px; padding: 0 0.7rem; font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted); }
 .search-root .search-tab[aria-selected="true"] { background: var(--notion-active); color: var(--notion-text); font-weight: 600; }
 @media (hover: hover) { .search-root .search-tab[aria-selected="false"]:hover { background: var(--notion-hover); color: var(--notion-text); } }
@@ -36,7 +44,12 @@
 .search-root .search-row.is-active { background: var(--notion-hover); }
 .search-root .search-row-icon { display: grid; flex: none; width: 1.4rem; height: 1.4rem; place-items: center; margin-top: 0.05rem; font-size: 1rem; line-height: 1; color: var(--notion-muted); }
 .search-root .search-row-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 0.15rem; }
-.search-root .search-row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9375rem; font-weight: 500; }
+.search-root .search-row-head { display: flex; align-items: baseline; gap: 0.5rem; min-width: 0; }
+.search-root .search-row-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9375rem; font-weight: 500; }
+/* 会話が入っているプロジェクト名。タイトルより目立たない小さな文字。 */
+.search-root .search-row-project { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--notion-faint); }
+/* 添付ファイルの本文に当たったときの「in ファイル名」。 */
+.search-root .search-row-file { display: inline-flex; align-items: center; gap: 0.2rem; margin-right: 0.35rem; vertical-align: -1px; font-size: 0.75rem; font-weight: 500; color: var(--notion-text); }
 .search-root .search-row-snippet {
   display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.8125rem; line-height: 1.4;
   color: var(--notion-muted); overflow-wrap: anywhere;
@@ -62,6 +75,7 @@
   .search-root .search-input { height: 3rem; font-size: 1rem; }
   .search-root .search-close { width: 2.5rem; height: 2.5rem; }
   .search-root .search-tab { min-height: 2.5rem; padding: 0 0.9rem; font-size: 0.9375rem; }
+  .search-root .search-project { height: 2.5rem; max-width: 48%; font-size: 1rem; }
   .search-root .search-row { min-height: 3.25rem; padding: 0.6rem; }
   .search-root .search-body { padding-bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
 }

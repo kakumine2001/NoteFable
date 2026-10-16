@@ -49,7 +49,8 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Note images/files and groups | `src/lib/note-file-keys.ts`, `src/lib/note-attachments.ts`, `src/lib/note-files.ts`, `src/app/api/pages/files`, `src/lib/note-groups.ts`, `src/app/api/pages/groups` |
 | Note trash (soft delete) and edit history | `src/lib/note-trash.ts`, `src/lib/note-revisions.ts`, `src/app/api/pages/trash/*`, `src/app/api/pages/[pageId]/revisions/*`, `src/components/note-trash-dialog.tsx`, `src/components/note-history-dialog.tsx`, `NotePage.deletedAt`, `NoteRevision` |
 | Chat project instructions and reference notes | `src/lib/chat-project-context.ts`, `src/lib/chat-project-api.ts`, `src/app/api/chat-projects/*`, `src/components/chat-project-settings.tsx`, `ChatProject.instructions`, `ChatProjectNote` |
-| Cross Chats/Notes search and jump-to-match | `src/app/api/search/route.ts`, `src/lib/search.ts`, `src/types/search.ts`, `src/components/search-dialog.tsx`, `src/lib/search-reveal.ts` |
+| Cross Chats/Notes search (spelling folding, attachment text, project filter) and jump-to-match | `src/app/api/search/route.ts`, `src/lib/search.ts`, `src/lib/search-fold.ts`, `src/types/search.ts`, `src/components/search-dialog.tsx`, `src/lib/search-reveal.ts` |
+| Answer actions (copy, Save to Notes, Markdown download) and the `/?chat=&message=` conversation link | `src/components/answer-actions.tsx`, `src/lib/answer-export.ts`, `src/lib/clipboard.ts`, `src/components/chat-message.tsx`, link handling in `src/app/page.tsx` |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules
@@ -80,6 +81,12 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Local development may fall back to `STUDYMATE_STORAGE_DIR` when the Blob token is absent.
 - PostgreSQL stores attachment metadata and `imageStoragePath`, not image binaries.
 - Images are served through `/api/attachments/[id]/image`, which checks anonymous ownership before returning a short-lived, single-image private Blob read redirect (or local image bytes). Never grant a wildcard read token to the browser.
+
+## Search and Answer Actions
+
+- Search folds spelling differences (NFKC, case, hiragana to katakana, curly quotes and dashes) with `foldSearchText` in `src/lib/search-fold.ts`. The JS side folds terms, highlights and snippets; the SQL side never folds stored columns (`lower()`, `normalize()` or `translate()` on every row measured 6-35x slower) and instead matches each term expanded by `termMatcher` into a regex built from the same fold. Change the fold only in `search-fold.ts` and keep the regex equivalent to it (the tests compare them). The regex needs a UTF8 database. Fold terms before LIKE-escaping.
+- Chat search stays scoped to the user, skips note-assistant sessions (`noteId`), and reads stored text unmodified; do not add folded copies of message text without a schema change the user asked for. Note search keeps the `deletedAt` filter (see Storage).
+- Answer actions work on the stored `Message.content`. Save to Notes goes through `POST /api/pages`, so the generated blocks must pass `validateNoteContent`. Conversation links use `/?chat=<sessionId>&message=<messageId>`, with `message` only for database IDs.
 
 ## Database Safety
 

@@ -75,6 +75,7 @@ Capacitor 自带的安卓代码不处理"返回"，不处理的话系统会直�
 
 - App 申请的权限只有网络，以及登录插件自带的凭据 / 生物识别（`USE_CREDENTIALS`、`USE_BIOMETRIC`、`USE_FINGERPRINT`，用于账号选择框）。聊天、笔记、AI 工具都和网页完全一致；匿名用户靠 WebView 里的设备 Cookie 区分，清除 App 数据等于换一个新用户。
 - **Google 登录**：Google 不允许在内嵌 WebView 里走网页登录，所以 App 里改用安卓系统自带的账号选择框（Credential Manager，插件 `@capgo/capacitor-social-login`，只启用 Google）。流程和服务端校验见下一节。
+- **文件下载没有验证**：聊天回答下方的 “Markdown” 按钮用 Blob 加 `<a download>` 下载 .md；`mobile/` 里没有设置 WebView 的下载监听（`DownloadListener`），所以在 App 里点它是否能保存文件没有在真机上确认，可能没有反应，聊天图片的下载按钮同样没有验证。需要时在原生壳里补下载处理。复制和 Save to Notes 是普通网页功能，不受影响。
 - debug 签名的 APK 只适合自己安装试用。上架 Google Play 需要正式签名密钥、AAB 和开发者账号，不在当前范围内。
 
 ## Google 登录（App 内）

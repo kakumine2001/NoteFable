@@ -16,6 +16,11 @@ export function canSignInNatively() {
   return bridge() !== null;
 }
 
+// Android アプリの中か。外壳は Blob URL のダウンロード（<a download>）を受け取れないので、その操作は出さない。
+export function isNativeApp() {
+  return bridge() !== null;
+}
+
 // 端末の Google アカウント選択画面を出し、ID トークンをサーバーで検証してもらってログイン Cookie を受け取る。
 // ユーザーが画面を閉じた場合は false を返し、それ以外の失敗は例外にする。
 export async function signInWithNativeGoogle(webClientId: string) {

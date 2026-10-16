@@ -315,6 +315,8 @@ Session 1 -> N Message
 (sessionId, createdAt)
 ```
 
+`Message.content`、`Session.title` 和下面的 `Attachment.extractedText` 是跨 Chats 搜索的对象：搜索对它们做顺序扫描，没有专用索引，已存文本也不做折叠（见 [chat-flow.md](chat-flow.md#跨-chats--notes-搜索)）。
+
 ### Attachment
 
 属于某一条 Message 的附件。
@@ -329,7 +331,7 @@ Session 1 -> N Message
 
 其中：
 
-- 文本/PDF：主要使用 `extractedText`
+- 文本/PDF：主要使用 `extractedText`（入库时最多 120,000 字符，也参与跨 Chats 搜索）
 - 图片：主要使用 `imageStoragePath`
 - 图片二进制不存 PostgreSQL
 

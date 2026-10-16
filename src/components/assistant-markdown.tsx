@@ -23,6 +23,7 @@ import { isValidElement, useState } from "react";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { writeClipboardText } from "@/lib/clipboard";
 
 const highlightLanguages = [
   ["bash", bash],
@@ -178,32 +179,6 @@ function highlightCode(code: string, language: string | null) {
     language: detectedLanguage,
     label: languageLabels[detectedLanguage] ?? detectedLanguage,
   };
-}
-
-async function writeClipboardText(text: string) {
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return true;
-    }
-  } catch {
-    // in-app browser では async clipboard が拒否されることがある。
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    document.body.removeChild(textarea);
-  }
 }
 
 function MarkdownCodeBlock({ children }: { children: ReactNode }) {

@@ -274,22 +274,89 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ## 跨 Chats / Notes 搜索
 
-`GET /api/search?q=<文字>&scope=all|chats|notes`（`src/app/api/search/route.ts`，查询在 `src/lib/search.ts`，共享类型在 `src/types/search.ts`）。`scope` 缺省是 `all`，存在但为空或未知的值返回 400。`q` 去掉首尾空白后必须是 1–100 字符，按空白切成最多 8 个不重复的小写词，**所有词**都要命中（不区分大小写的子串匹配，`%`、`_` 按字面处理）。响应 `{ query, notes, chats }`，每类最多 15 条，没请求的那一类是空数组；全部限定在当前用户，`Cache-Control: no-store`，数据库不可用返回 503（正文里仍带空的 `notes`、`chats`）。初版只做关键词搜索，不做同义词、翻译或语义检索。
+`GET /api/search?q=<文字>&scope=all|chats|notes[&projectId=<项目 ID>]`（`src/app/api/search/route.ts`，查询在 `src/lib/search.ts`，表记折叠在 `src/lib/search-fold.ts`，共享类型在 `src/types/search.ts`）。
 
-- **Notes**：只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出第一个**自身文字**含任一词的块，得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
-- **Chats**：每个会话最多一条结果。只看普通聊天（`noteId` 为空，笔记助手的对话不搜），只看 `USER` / `ASSISTANT` 消息。会话标题含全部词，或**某一条**消息同时含全部词，才算命中（分散在不同消息里的词不算）。用 `DISTINCT ON` 为每个会话选最新的一条命中消息，只取该词前 100 字符起的 600 字符摘录，不取全文。结果带 `messageId`、`role`、`projectId`、`titleMatch`；标题命中优先，其后按最近命中消息的时间排序。只有标题命中时 `snippet` 为空、`messageId` 为 `null`。
-- 消息正文用 `lower(content) LIKE '%词%'`，是对该用户消息的顺序扫描，没有 trigram 索引；个人使用的规模下可以接受，真的变慢再加 `pg_trgm` 的 GIN 索引。
+- `scope` 缺省是 `all`，存在但为空或未知的值返回 400。
+- `q` 去掉首尾空白后必须是 1–100 字符。先按下文“表记折叠”折叠，再按空白（含全角空格）切成词，去重后最多 8 个，**所有词**都要命中。`%`、`_` 按字面处理：折叠发生在 LIKE 转义之前，所以全角 `％` 先变成 `%`。NUL 会被去掉，否则 PostgreSQL 会报错。
+- `projectId` 可省略，只对 Chats 生效，Notes 不受影响（`scope=notes` 根本不查会话）。空串等于不过滤；其他值必须匹配 `/^[A-Za-z0-9_-]{1,64}$/`（`SEARCH_PROJECT_ID_PATTERN`），否则 400 `Project id is not valid.`。不属于当前用户的项目 ID 不报错，只是没有会话命中。
+- 响应 `{ query, notes, chats }`，每类最多 15 条，没请求的那一类是空数组；全部限定在当前用户，`Cache-Control: no-store`，数据库不可用返回 503（正文里仍带空的 `notes`、`chats`）。
+- 仍是关键词搜索，不做同义词、翻译或语义检索；能容忍的只有下面的表记差异。
+
+### 表记折叠
+
+`foldSearchText`（`search-fold.ts`，不依赖 prisma，客户端也会 import）把查询词和用于高亮、摘录的文本折叠成同一种写法：NFKC（全角英数→半角、半角假名→全角、兼容字符统一）→ 小写 → 平假名→片假名 → 弯引号、撇号（`‘ ’ “ ”` 等）→ ASCII `'` `"`，各种连字符、破折号（U+2010–2015、U+2212）→ `-`。所以 `ＡＰＩ` 能找到 `API`，`でーた` 能找到 `データ` 和 `ﾃﾞｰﾀ`，`don't` 能找到 `Don’t`，`2024-2025` 能找到 `2024–2025`。NFKC 以“基础字 + 组合符（含半角濁点、韩文字母）”为单位做，折叠后的位置仍能对回原文，高亮和摘录因此取原文。
+
+**DB 一侧不折叠已存文本。** 对每一行的 `Message.content` 等列做 `lower()` + `normalize(NFKC)` + `translate()` 太慢：本地 20,000 条消息（3.1 MB）上实测，`normalize()` 单独约 6 倍，带 86 个平假名的 `translate()` 约 35 倍。所以改为折叠“查询词”：`termMatcher(term)` 把每个词展开成一条 PostgreSQL 正则，匹配所有会折叠成这个词的原始写法。每个字符的候选集合是用同一个 JS 折叠函数扫描 BMP 得到的，JS 与 SQL 共用一份定义，不会各改各的；另外包含“基础字 + 组合符”的拆写（`か`+`゛`、`ｶ`+`ﾞ`、`e`+`´`）。没有其他写法的词（多数汉字）直接用 `LIKE '%词%' ESCAPE '!'`。1–2 字符的 ASCII 字母数字词（如 `ai`）只在单词开头匹配，避免 `ai` 命中 `detail`、`sustainable`；日语、中文等非 ASCII 的词仍是子串匹配。
+
+数据库要求：编码必须是 UTF8（Neon 默认；本地 PG 18.4 也是），因为正则的字符类里含有非 ASCII 字符。只用到 POSIX 正则的非捕获组、先行断言和字符类，不依赖 `normalize()`、`bit_count()`（PG 14+）、`regexp_instr()`（PG 15+）。
+
+### Notes
+
+只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
+
+### Chats
+
+每个会话最多一条结果。只看普通聊天（`noteId` 为空，笔记助手的对话不搜），只看 `USER` / `ASSISTANT` 消息。**词可以分散在同一个会话的不同地方**：每个词出现在会话标题、任一条消息、或任一条消息的附件抽取文本（`Attachment.extractedText`，入库时已截到 120,000 字符）里即可。实现是一次扫描：对标题、每条消息和每个附件各算一个“每个词占一位”的位掩码，按消息合并（`bit_or`，消息和它的附件算同一条），再按会话合并，所有位都立起来才算命中。
+
+排序先按档：① 全部词都在标题里；② 有一条消息（含它的附件）同时含全部词；③ 词散落在多条消息里。同档内标题含的词多的在前，然后最近命中的消息（没有则会话更新时间）新的在前。
+
+摘录和跳转目标是会话里**含不同词最多的那条消息**（同数取最新的），`messageId` 指向它；摘录取该消息的正文，附件含的词更多时取该附件。DB 只带回从第一个命中前 100 字符起的 600 字符，再由 JS 切成约 160 字符的 `snippet`。结果字段：`id`、`title`、`icon`、`snippet`、`messageId`、`role`、`attachmentName`（只有摘录取自附件时才有文件名，此时 `messageId` 是附件所属的消息，跳转照常）、`projectId`、`titleMatch`（全部词都在标题里）、`updatedAt`。没有任何消息或附件含搜索词（只有标题命中）时 `snippet` 为空、`messageId` 为 `null`。
+
+AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，仍是不区分大小写的子串匹配，没有这里的表记折叠。
+
+### 没有做到的
+
+- 繁体与简体：`會議紀要` 找不到 `会议纪要`，需要转换词典。
+- 不加空格连写的中文词：`特征值特征向量` 找不到 `特征值与特征向量`，需要分词。
+- 同义词、翻译、跨语言（`email` 与 `メール`）。
+- NFKC 会展开成多个字符的兼容字符（`㌔`→`キロ`、`㈱`→`(株)`）和 BMP 以外的兼容字符，DB 匹配不到；高亮和摘录用 JS 折叠，所以显示不受影响。叠了多个组合符、或词以组合符开头时，SQL 与 JS 的判断可能不一致。
+- 索引：现在是线性扫描，没有 trigram 索引。要近乎瞬时，需要已折叠的列加 `pg_trgm` GIN 索引，那是 schema 改动，没有做。
+
+### 实测
+
+2026-10-16，本地 PG 18.4（UTF8），20,000 条消息（3.1 MB）、300 个附件（1.1 MB）、300 篇笔记，7 次取中位数：Chats 单个词约 47–52 ms（旧的 `lower(content) LIKE` 为 36–46 ms，约 1.1–1.3 倍），两个词约 89 ms（旧 61 ms）。另一次独立复测（ANALYZE 之后，2.2 MB 消息）里单个 ASCII 词是旧代码的约 1.7 倍（35 ms 对 21 ms），2 个词约 4.4 倍（87 ms 对 20 ms），8 个词约 4.6 倍（157 ms 对 34 ms），所以词越多越慢，且随数据量线性增长；只在附件里出现的词约 53 ms，Notes 9–14 ms。再加 60 个各 100,000 字符的附件（+6 MB），单个词最坏 56–87 ms，两个词 104 ms。粗略是消息每 MB 约 15 ms、附件文本每 MB 约 6 ms。生产的 Neon 没有实测。
+
+另外用日、中、英的 30 条“实际想找的东西”在本地测试数据上试过：改动前 8 条找到、19 条找不到、3 条带无关结果；改动后 28 条找到、2 条找不到、0 条带无关结果，剩下的两条就是上面的繁简和连写中文。
 
 ### 跳到命中的位置
 
-搜索面板是命令面板式对话框（`src/components/search-dialog.tsx`），Ctrl/Cmd+K 打开（`useSearchShortcut`；在 BlockNote 编辑器、contenteditable 里不响应，因为那里 Ctrl+K 是插入链接），输入 250ms 去抖、旧请求取消、可按 All / Chats / Notes 过滤，命中的词用 `<mark>` 标出，上下键与 Enter 选择，手机上是全屏面板，Android 返回键可关闭。选择一条结果时先 `onClose()`，再调用 `onOpenChat(id, messageId)` 或 `onOpenNote(id, blockId)`。
+搜索面板是命令面板式对话框（`src/components/search-dialog.tsx`），Ctrl/Cmd+K 打开（`useSearchShortcut`；在 BlockNote 编辑器、contenteditable 里不响应，因为那里 Ctrl+K 是插入链接），输入 250ms 去抖、旧请求取消、可按 All / Chats / Notes 过滤，上下键与 Enter 选择，手机上是全屏面板，Android 返回键可关闭。Chats 标签下，只要有聊天项目，就多一个 “Project” 下拉（`All projects` 加各项目，当前会话所在项目排在最前，但不预选）；选了项目就把 `projectId` 带给 API，所选项目被删掉时回到 All。`page.tsx` 通过可选属性 `projects`、`currentProjectId` 传入。命中的词用 `<mark>` 标出，同样跨过表记差异（`splitHighlight` 基于 `findTermRanges`，范围取原文：`api` 标出 `ＡＰＩ`，`データ` 标出 `でーた`）；Chats 结果行右侧显示所属项目名，来自附件的命中显示回形针和 “in 文件名” 代替发言者。选择一条结果时先 `onClose()`，再调用 `onOpenChat(id, messageId)` 或 `onOpenNote(id, blockId)`。
 
 跳转靠两种锚点，由 `src/lib/search-reveal.ts` 在目标页面渲染后使用：
 
 - **消息锚点**：每条聊天消息的根元素 `<article>` 带 `data-message-id`（值是数据库里的 `Message.id`，与搜索结果的 `messageId` 一致，见 `src/components/chat-message.tsx`）。`revealChatMessage(messageId)` 按这个属性找到消息并强调。
 - **块锚点**：BlockNote 给每个块渲染 `.bn-block-outer[data-id="<blockId>"]`，`blockId` 就是笔记 JSON 里块的稳定 ID。`revealNoteBlock(blockId)` 在 `.notes-block-editor` 里找到它，只强调这个块自身的文字，不连带子块。
 
-两者都用 `MutationObserver` 最多等 4 秒让元素出现（刚打开笔记或会话时还没渲染），出现后再等两个动画帧让“滚到会话末尾”之类的自动滚动先结束，然后 `scrollIntoView` 到屏幕中央，并给元素加 `search-reveal-flash` 样式 2 秒（系统开启“减少动态效果”时不播动画，只有静态高亮）；超时或被中止返回 `false`。因为会话历史一次读取全部消息，命中的消息一定在页面里。标题命中的结果没有锚点，直接打开会话或笔记开头。
+两者都用 `MutationObserver` 最多等 4 秒让元素出现（刚打开笔记或会话时还没渲染），出现后再等两个动画帧让“滚到会话末尾”之类的自动滚动先结束，然后 `scrollIntoView` 到屏幕中央，并给元素加 `search-reveal-flash` 样式 2 秒（系统开启“减少动态效果”时不播动画，只有静态高亮）；超时或被中止返回 `false`。因为会话历史一次读取全部消息，命中的消息一定在页面里。标题命中的结果没有锚点，直接打开会话或笔记开头。附件命中的结果，`messageId` 是附件所属的那条消息，所以同样滚到那条消息（不会定位到附件内部）。
+
+## 回答的复制、保存到 Notes 与 Markdown 导出
+
+每条已完成、有正文的 AI 回答下面有一行不起眼的操作（`src/components/answer-actions.tsx`）：**Copy**、**Save to Notes**、**Markdown**。目的是不必再请 AI 重述，就能把好的回答直接用到工作里：复制、存成笔记、导出文件都是一次点击。操作的对象始终是保存的 `Message.content` 原文（Markdown），不是渲染后的 HTML。
+
+显示条件在 `src/components/chat-message.tsx`：角色是 ASSISTANT、有 `sessionId`、不在生成中（`isGenerating`：当前会话正在流式输出，且这是最后一条）、不是失败消息、不是正在生成图片、`content.trim()` 非空。请求失败时 `page.tsx` 把那条 “Request failed: …” 标成 `Message.failed`；这个字段只存在于浏览器当前页面的内存里，不入库，刷新后不再区分。笔记里的 AI 助手面板（`note-assistant.tsx`）不传 `sessionId`，所以没有这一行。行内的状态通过 `role=status` 通知读屏器，错误显示在行内的 `role=alert` 文字里；手机宽度（640px 以下）只显示图标，名称保留给读屏器，保存后的 “Open” 仍显示文字。
+
+- **Copy**：`writeClipboardText`（`src/lib/clipboard.ts`）先用 `navigator.clipboard`，不可用或被拒绝（非安全上下文、应用内浏览器）时退回隐藏 textarea 加 `execCommand("copy")`，并把焦点还给原来的元素。成功后图标变 ✓、标签变 “Copied” 2 秒。代码块的复制按钮（`assistant-markdown.tsx`）用同一个函数。
+- **Markdown**：`answerToMarkdownFile` 把回答原文去掉末尾空白，后面加 `---` 和一行 `Saved from the conversation "[会话标题](会话链接)" on YYYY-MM-DD.`（不用 front matter）。文件名由 `answerFileName(answerTitle(…))` 得到 `<标题>.md`：路径分隔符、保留字符、控制字符和双向控制字符换成空格，不以点开头、不以点或空格结尾，Windows 保留名（CON、PRN、AUX、NUL、COM1–9、LPT1–9）前加 `_`，最长 80 个字素且不超过 160 字节 UTF-8（安卓文件名上限 255 字节，日文一个字 3 字节），为空则 `answer.md`。下载用 `Blob`（`text/markdown;charset=utf-8`）加隐藏的 `<a download>`，10 秒后释放对象 URL。安卓 App 里是否能下载没有验证，见 [android.md](android.md)。
+- **Save to Notes**：一次点击新建一篇笔记，不弹窗。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `studymate:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；按钮变成 “Saved to Notes”，旁边出现 “Open” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `studymate:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时按钮标签变 “Retry”，行内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to Notes. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。保存后又被移进 Trash 的笔记，“Open” 仍在，点开会走既有的笔记打开失败处理。
+
+### 保存出来的笔记
+
+- **标题**：回答里（代码围栏之外）第一个标题；没有就取第一个非空行（去掉 Markdown 符号）；再没有就用会话标题；最后是 `Untitled`。最长 80 个字素、且不超过 200 个 UTF-16 单位（笔记标题上限），截断时加 `…`。标题来自开头的标题时，正文里去掉那一行以免重复；标题来自第一行普通文字时，正文保留它（所以一行的回答会同时出现在标题和正文里）。
+- **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格没有对应的块，每行变成一个段落，单元格用 ` | ` 连接；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
+- **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/?chat=<会话 ID>&message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
+- **上限**：最多 2,000 个块，整篇 JSON 不超过 1 MiB 减 2 KiB 余量。超出时在块的边界处二分截断正文，来源段落追加 “The answer was too long to save in full, so the end was left out.”
+
+### 会话链接 `/?chat=&message=`
+
+保存的笔记和下载的 .md 里都带一个回到原会话的链接 `<origin>/?chat=<sessionId>[&message=<messageId>]`（`answerConversationUrl`）。`message` 只在消息 ID 是数据库 ID 时才加（`isStoredMessageId`：`/^[a-z0-9]{20,40}$/i`）；刚发送完、还没刷新的消息用本地 UUID（含 `-`），不满足，链接就只指向会话。
+
+`page.tsx` 在首次加载时处理一次（放在 `queueMicrotask` 里并可取消，避免开发模式 StrictMode 的“卸载再挂载”打断读取）：
+
+1. 从 URL 去掉 `chat`、`message`（`history.replaceState`，其他参数保留；同时有 `view=pages` 时，`view` 和 `page` 也一并去掉，以会话为准），刷新或后退不会再次打开。
+2. 切到 Chat。ID 必须匹配 `/^[\w-]{1,64}$/`；格式不对不发请求，直接显示 “Failed to load conversation.”。
+3. 否则走与搜索结果相同的 `openChatFromLink(chatId, messageId)`：读取全部消息，再 `revealChatMessage` 滚到那条消息并短暂高亮。会话不存在或不属于当前用户时，经正常的读取路径得到同一个错误提示和一个空的 New chat；找不到消息 ID 则滚到底部。
+
+这个链接不是分享链接：会话仍按设备 Cookie / Google 账号归属，在别的浏览器里打开只会得到 “Failed to load conversation.”。在笔记里点这个链接是整页导航（BlockNote 链接），整页重新加载后再跳转。
 
 ## 回答前的途中经过
 

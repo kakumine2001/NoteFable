@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { parseSearchTerms, searchChats, searchNotes } from "@/lib/search";
-import { MAX_SEARCH_QUERY_CHARS, SEARCH_SCOPES, type SearchScope } from "@/types/search";
+import { MAX_SEARCH_QUERY_CHARS, SEARCH_PROJECT_ID_PATTERN, SEARCH_SCOPES, type SearchScope } from "@/types/search";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -16,13 +16,18 @@ export async function GET(request: Request) {
   if (!SEARCH_SCOPES.includes(scope as SearchScope)) {
     return NextResponse.json({ error: `Scope must be one of: ${SEARCH_SCOPES.join(", ")}.` }, { status: 400, headers });
   }
+  // projectId は Chats だけの絞り込み（Notes には効かない）。空は「絞り込まない」。利用者本人のものでない ID は、会話が 1 件も当たらないだけ。
+  const projectId = (params.get("projectId") ?? "").trim() || null;
+  if (projectId && !SEARCH_PROJECT_ID_PATTERN.test(projectId)) {
+    return NextResponse.json({ error: "Project id is not valid." }, { status: 400, headers });
+  }
 
   try {
     const user = await getOrCreateAnonymousUser();
     const terms = parseSearchTerms(query);
     const [notes, chats] = await Promise.all([
       scope === "chats" ? [] : searchNotes(user.id, terms),
-      scope === "notes" ? [] : searchChats(user.id, terms),
+      scope === "notes" ? [] : searchChats(user.id, terms, { projectId }),
     ]);
     return NextResponse.json({ query, notes, chats }, { headers });
   } catch (error) {

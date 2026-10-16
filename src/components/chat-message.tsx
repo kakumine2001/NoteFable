@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { Download, ImagePlus, Paperclip } from "lucide-react";
 import { memo } from "react";
+import { AnswerActions } from "@/components/answer-actions";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
@@ -44,12 +45,20 @@ type ChatMessageProps = {
   isStreaming: boolean;
   // 待機中の途中経過ヘッダーに出す経過秒数。
   thinkingSeconds: number;
+  // この回答がまだ生成中か（最後のメッセージで、会話が応答を待っている間）。生成中は回答の操作を出さない。
+  isGenerating?: boolean;
+  // 回答の操作（コピー・ノートに保存・Markdown）が元の会話を指すための情報。sessionId が無ければ操作は出さない。
+  sessionId?: string | null;
+  conversationTitle?: string;
 };
 
 export const ChatMessage = memo(function ChatMessage({
   message,
   isStreaming,
   thinkingSeconds,
+  isGenerating = false,
+  sessionId = null,
+  conversationTitle = "",
 }: ChatMessageProps) {
   // メッセージの役割ごとに表示密度を変える。
   // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
@@ -68,6 +77,14 @@ export const ChatMessage = memo(function ChatMessage({
   const stored = message.proposals ?? [];
   const proposals: StoredProposal[] = [...stored, ...steps.filter((step): step is StoredProposal => (step.kind === "proposal" || step.kind === "create_proposal") && !stored.some((item) => item.id === step.id))];
   const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
+  // 本文のある完了した回答にだけ操作の行を出す（生成中・画像だけ・送信の失敗表示には出さない）。
+  const shouldShowAnswerActions =
+    message.role === "ASSISTANT" &&
+    !!sessionId &&
+    !isGenerating &&
+    !message.failed &&
+    !message.isGeneratingImage &&
+    message.content.trim().length > 0;
   // 待機中は経過秒数、完了後は本文が届くまでにかかった秒数を出す。
   const activitySeconds = shouldShowThinking
     ? thinkingSeconds
@@ -150,6 +167,9 @@ export const ChatMessage = memo(function ChatMessage({
             )}
           </div>
         )}
+        {shouldShowAnswerActions && sessionId && (
+          <AnswerActions messageId={message.id} content={message.content} sessionId={sessionId} conversationTitle={conversationTitle} />
+        )}
         {!!message.attachments?.some(
           (attachment) =>
             message.role === "ASSISTANT" || !isImageMimeType(attachment.mimeType),
@@ -180,7 +200,13 @@ export const ChatMessage = memo(function ChatMessage({
 function areChatMessagePropsEqual(previous: ChatMessageProps, next: ChatMessageProps) {
   // 大きな Markdown や画像を含むメッセージは再描画コストが高い。
   // 通常は message オブジェクトが変わった時だけ描画し、待機中アシスタントだけ秒数更新で再描画する。
-  if (previous.message !== next.message || previous.isStreaming !== next.isStreaming) {
+  if (
+    previous.message !== next.message ||
+    previous.isStreaming !== next.isStreaming ||
+    previous.isGenerating !== next.isGenerating ||
+    previous.sessionId !== next.sessionId ||
+    previous.conversationTitle !== next.conversationTitle
+  ) {
     return false;
   }
 

@@ -53,6 +53,8 @@ const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local Post
 const SESSION_LOAD_FALLBACK_ERROR = "Failed to load conversation.";
 // 検索結果などから開いたあと、その場所まで動かすための予約。開き終わる前に別の操作をされたら捨てる。
 const REVEAL_TTL_MS = 10000;
+// 会話・メッセージへのリンク（?chat= / &message=）の ID の形。DB の ID は英数字だけ。
+const LINK_ID = /^[\w-]{1,64}$/;
 type RevealTarget =
   | { kind: "chat"; sessionId: string; messageId: string }
   | { kind: "note"; noteId: string; blockId: string };
@@ -526,6 +528,8 @@ export default function Home() {
         signal,
       });
 
+      // 存在しない・他人の会話（404）は、一時的な失敗と区別する。呼び出し側が、消えた会話に入力欄を結びつけたままにしないため。
+      if (response.status === 404) return "missing" as const;
       if (!response.ok) return null;
 
       const data = await readJsonObject(response);
@@ -537,7 +541,7 @@ export default function Home() {
 
   async function refreshSessionMessages(sessionId: string) {
     const fetchedMessages = await fetchSessionMessages(sessionId);
-    if (!fetchedMessages) return false;
+    if (!fetchedMessages || fetchedMessages === "missing") return false;
 
     replaceCachedMessages(sessionId, fetchedMessages);
     return true;
@@ -643,7 +647,21 @@ export default function Home() {
 
     const fetchedMessages = await fetchSessionMessages(sessionId, controller.signal);
     if (
+      fetchedMessages === "missing" &&
+      !controller.signal.aborted &&
+      sessionNavigationIntentRef.current === intent &&
+      activeSessionIdRef.current === sessionId
+    ) {
+      // 開こうとした会話が無い（消えた・他人のもの）：そのまま新しいチャットとして使えるよう、結びつけを外してエラーだけ出す。
+      activeSessionIdRef.current = null;
+      setActiveSessionId(null);
+      setMessages([]);
+      setSendError(SESSION_LOAD_FALLBACK_ERROR);
+      return;
+    }
+    if (
       !fetchedMessages ||
+      fetchedMessages === "missing" ||
       controller.signal.aborted ||
       sessionNavigationIntentRef.current !== intent ||
       activeSessionIdRef.current !== sessionId ||
@@ -1151,7 +1169,7 @@ export default function Home() {
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
-            ? { ...message, content: `Request failed: ${detail}` }
+            ? { ...message, content: `Request failed: ${detail}`, failed: true }
             : message,
         ),
       );
@@ -1319,6 +1337,38 @@ export default function Home() {
       window.removeEventListener("studymate:open-chat", onOpenChat);
       window.removeEventListener("studymate:page-created", onPageCreated);
       revealAbortRef.current?.abort();
+    };
+  }, []);
+
+  // 保存したノートやダウンロードしたファイルに書いた会話へのリンク（/?chat=<会話>&message=<メッセージ>）で開いたとき、その会話を開く。
+  // 先にこの指定を URL から外す（再読み込みや戻る操作でもう一度開かない）。他の指定は残すが、Notes を開く指定が一緒にあれば会話を優先して外す。
+  // 開発時の StrictMode が付ける「一度外して付け直す」動作で、開きかけの読み込みが中断されないよう、microtask に回して取り消せるようにする。
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const url = new URL(window.location.href);
+      const chatId = url.searchParams.get("chat");
+      if (!chatId) return;
+      const rawMessageId = url.searchParams.get("message") ?? "";
+      url.searchParams.delete("chat");
+      url.searchParams.delete("message");
+      if (url.searchParams.get("view") === "pages") {
+        url.searchParams.delete("view");
+        url.searchParams.delete("page");
+      }
+      window.history.replaceState(window.history.state, "", url);
+      setWorkspaceView("chat");
+      setNotesList(false);
+      // ID は URL から来る値なので、API のパスに入れる前に形を確かめる。形が違えば、存在しない会話と同じ扱いにする。
+      if (!LINK_ID.test(chatId)) {
+        setSendError(SESSION_LOAD_FALLBACK_ERROR);
+        return;
+      }
+      void linkOpenersRef.current.chat(chatId, LINK_ID.test(rawMessageId) ? rawMessageId : undefined);
+    });
+    return () => {
+      cancelled = true;
     };
   }, []);
 
@@ -1490,6 +1540,9 @@ export default function Home() {
                         thinkingSeconds={
                           isActiveSessionStreaming && isWaitingAssistant ? thinkingSeconds : 0
                         }
+                        isGenerating={isActiveSessionStreaming && index === messages.length - 1}
+                        sessionId={activeSessionId}
+                        conversationTitle={activeTitle}
                       />
                     );
                   })}
@@ -1680,7 +1733,8 @@ export default function Home() {
       </section>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} view={workspaceView}
-        onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink} />
+        onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink}
+        projects={chatProjects} currentProjectId={activeSession?.projectId ?? null} />
       {historyQueue && historyNoteId && (
         <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />

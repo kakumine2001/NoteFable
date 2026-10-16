@@ -1,0 +1,92 @@
+/* 完了した回答の下の操作（コピー・ノートに保存・Markdown）。globals.css のルールは layer 外なので、クラスを重ねて詳細度を確保する。 */
+.answer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.125rem;
+  /* ボタンの内側の余白ぶん左へ寄せ、アイコンを本文の左端にそろえる。 */
+  margin: 0.4rem 0 0 -0.5rem;
+}
+
+.answer-actions .answer-action {
+  display: inline-flex;
+  height: 1.75rem;
+  align-items: center;
+  gap: 0.35rem;
+  border-radius: 0.3rem;
+  padding: 0 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1;
+  color: var(--notion-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 100ms ease, color 100ms ease;
+}
+
+.answer-actions .answer-action svg {
+  flex: none;
+}
+
+/* 触れて離したあともホバー扱いで灰色が残らないよう、マウスのある端末だけに適用する。 */
+@media (hover: hover) {
+  .answer-actions .answer-action:hover:not([aria-disabled="true"]) {
+    background: var(--notion-hover);
+    color: var(--notion-text);
+  }
+}
+
+.answer-actions .answer-action:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.45);
+  outline-offset: 1px;
+}
+
+/* 保存中・保存済み。フォーカスは残すが、押せる見た目にはしない。 */
+.answer-actions .answer-action[aria-disabled="true"] {
+  cursor: default;
+}
+
+.answer-actions .answer-action[aria-busy="true"] {
+  cursor: progress;
+}
+
+.answer-actions .answer-action.is-done {
+  color: var(--notion-text);
+}
+
+.answer-actions .answer-actions-error {
+  flex-basis: 100%;
+  margin: 0.15rem 0 0 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: #933b34;
+}
+
+/* スマホ幅ではアイコンだけにする。文字は読み上げ用に残す（display:none にすると名前が消える）。 */
+@media (max-width: 639px) {
+  .answer-actions {
+    /* 押しやすい幅（36px）の中央にアイコンが来るので、そのぶん左へ寄せる。 */
+    margin-left: -0.65rem;
+  }
+
+  .answer-actions .answer-action {
+    min-width: 2.25rem;
+    height: 2.25rem;
+    justify-content: center;
+  }
+
+  .answer-actions .answer-action-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+@media (pointer: coarse) {
+  .answer-actions .answer-action {
+    min-width: 2.25rem;
+    height: 2.25rem;
+  }
+}

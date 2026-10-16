@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSearchShortcut, splitHighlight } from "./search-dialog";
+import { isSearchShortcut, orderProjects, splitHighlight } from "./search-dialog";
 
 describe("splitHighlight", () => {
   it("marks every occurrence of every term, case-insensitively, keeping the original text", () => {
@@ -18,11 +18,44 @@ describe("splitHighlight", () => {
     expect(splitHighlight("aab", ["a.b"]).some((part) => part.match)).toBe(false);
   });
 
+  it("marks text written in another width, case or kana, keeping the original characters", () => {
+    const marked = (text: string, terms: string[]) => splitHighlight(text, terms).filter((part) => part.match).map((part) => part.text);
+    expect(marked("ＲＥＳＴ ＡＰＩ の設計と Api", ["api"])).toEqual(["ＡＰＩ", "Api"]);
+    expect(marked("でーたべーす入門", ["データ"])).toEqual(["でーた"]);
+    expect(marked("ﾃﾞｰﾀﾍﾞｰｽ設計", ["データベース"])).toEqual(["ﾃﾞｰﾀﾍﾞｰｽ"]);
+    expect(marked("２０２６年度の履修計画", ["2026年"])).toEqual(["２０２６年"]);
+    expect(marked("売上は１２％増", ["12%"])).toEqual(["１２％"]);
+    // 戻した部分をつなげると元の文字列に戻る。
+    expect(splitHighlight("ＡＰＩ設計", ["api"]).map((part) => part.text).join("")).toBe("ＡＰＩ設計");
+    expect(splitHighlight("ＡＰＩ設計", ["api"])).toEqual([{ text: "ＡＰＩ", match: true }, { text: "設計", match: false }]);
+  });
+
+  it("marks a 1-2 character ASCII term only at the start of a word", () => {
+    const marked = (text: string, terms: string[]) => splitHighlight(text, terms).filter((part) => part.match).map((part) => part.text);
+    expect(marked("detail: AI活用 and sustainable ai", ["ai"])).toEqual(["AI", "ai"]);
+  });
+
   it("returns the text unchanged without terms and nothing for empty text", () => {
     expect(splitHighlight("hello", [])).toEqual([{ text: "hello", match: false }]);
     expect(splitHighlight("hello", [""])).toEqual([{ text: "hello", match: false }]);
     expect(splitHighlight("", ["a"])).toEqual([]);
     expect(splitHighlight("hello", ["absent"])).toEqual([{ text: "hello", match: false }]);
+  });
+});
+
+describe("orderProjects", () => {
+  const projects = [{ id: "a", name: "Alpha" }, { id: "b", name: "Beta" }, { id: "c", name: "Gamma" }];
+
+  it("puts the current project first and keeps the rest in order", () => {
+    expect(orderProjects(projects, "b").map((project) => project.id)).toEqual(["b", "a", "c"]);
+    expect(orderProjects(projects, "a").map((project) => project.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("keeps the order when there is no current project or it is unknown", () => {
+    expect(orderProjects(projects).map((project) => project.id)).toEqual(["a", "b", "c"]);
+    expect(orderProjects(projects, null)).toBe(projects);
+    expect(orderProjects(projects, "missing")).toBe(projects);
+    expect(orderProjects([], "a")).toEqual([]);
   });
 });
 
