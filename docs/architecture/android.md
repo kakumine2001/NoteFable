@@ -38,6 +38,13 @@ cd android && ./gradlew assembleDebug
 - 登录插件默认带 Facebook / Apple / X 三个用不到的提供商，`capacitor.config.json` 的 `plugins.SocialLogin.providers` 里已关掉，改完要 `npm run sync`。
 - 给手机发新安装包前把 `android/app/build.gradle` 的 `versionCode` 加 1，否则系统可能不允许覆盖安装。
 
+## 安装包交付
+
+- 每次向用户交付 APK，都要上传到现有的 Google Drive [studymate 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。
+- 新版本以 `StudyMate-v<版本>.apk` 命名；同版本重新构建时加日期或构建标识，避免混淆或覆盖旧包。保留已有安装包和文件夹的共享设置。
+- 上传实际通过构建、签名及运行验证的 APK，随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
+- 只更新线上网页时，外壳会自动加载新网页，不需要为了网页更新重新打包 APK。仅供本地测试、未交付给用户的 dev APK 无需上传；如果向用户交付 dev APK，也必须上传，并在文件名中注明 `dev`。
+
 ## 手机界面约定
 
 同一套前端代码，靠屏幕宽度切换排版：小于 640px 是"手机"，小于 1024px 左侧栏收成抽屉，电脑宽度保持原样。
