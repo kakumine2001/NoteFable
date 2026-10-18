@@ -1,4 +1,4 @@
-/* 完了した回答の下の操作（コピー・ノートに保存・Markdown）。globals.css のルールは layer 外なので、クラスを重ねて詳細度を確保する。 */
+/* 完了した回答の下はコピーと「…」だけを並べる。 */
 .answer-actions {
   display: flex;
   flex-wrap: wrap;
@@ -10,8 +10,10 @@
 
 .answer-actions .answer-action {
   display: inline-flex;
-  height: 1.75rem;
+  min-width: 2rem;
+  height: 2rem;
   align-items: center;
+  justify-content: center;
   gap: 0.35rem;
   border-radius: 0.3rem;
   padding: 0 0.5rem;
@@ -49,8 +51,30 @@
   cursor: progress;
 }
 
-.answer-actions .answer-action.is-done {
-  color: var(--notion-text);
+.answer-actions-menu .chat-menu-item svg {
+  flex: none;
+}
+
+.answer-actions-menu .chat-menu-item[aria-disabled="true"] {
+  background: transparent;
+  color: var(--notion-muted);
+  cursor: default;
+}
+
+.answer-actions-menu .chat-menu-item[aria-busy="true"] {
+  cursor: progress;
+}
+
+.answer-actions-menu .chat-menu-item[aria-disabled="true"]:focus-visible {
+  outline: 2px solid rgba(35, 131, 226, 0.45);
+  outline-offset: -2px;
+}
+
+.answer-actions-menu .answer-menu-error {
+  margin: 0.35rem 0.75rem;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: #933b34;
 }
 
 .answer-actions .answer-actions-error {
@@ -61,7 +85,7 @@
   color: #933b34;
 }
 
-/* スマホ幅ではアイコンだけにする。文字は読み上げ用に残す（display:none にすると名前が消える）。 */
+/* スマホでもコピーと「…」を押しやすい大きさにする。メニューの文字は省略しない。 */
 @media (max-width: 639px) {
   .answer-actions {
     /* 押しやすい幅（36px）の中央にアイコンが来るので、そのぶん左へ寄せる。 */
@@ -74,14 +98,6 @@
     justify-content: center;
   }
 
-  .answer-actions .answer-action-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
-  }
 }
 
 @media (pointer: coarse) {

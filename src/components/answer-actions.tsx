@@ -1,11 +1,12 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, Download, FilePlus2, LoaderCircle } from "lucide-react";
-import { useEffect, useRef, useState, useSyncExternalStore, type MouseEvent } from "react";
+import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, LoaderCircle } from "lucide-react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerTitle, answerToMarkdownFile, answerToNoteContent, type AnswerSource } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { isNativeApp } from "@/lib/native-app";
+import { useBackToClose } from "@/lib/use-back-to-close";
 
 type Props = {
   messageId: string;
@@ -85,7 +86,62 @@ function downloadText(fileName: string, text: string) {
 
 const STATUS_MS = 2000;
 
-// 完了した回答の下に出す操作の行: コピー、ノートに保存、Markdown でダウンロード。
+// サイドバーと同じメニューの見た目と、Android の「戻る」で閉じる挙動を使う。
+function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
+  id: string; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean; onClose: () => void; children: ReactNode;
+}) {
+  const ref = useRef<HTMLDialogElement>(null);
+  useBackToClose(true, onClose);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.showModal();
+    const position = () => {
+      const bounds = dialog.getBoundingClientRect();
+      const below = anchor.bottom + 4;
+      dialog.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
+      dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : anchor.top - bounds.height - 4)}px`;
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(dialog);
+    const items = dialog.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])');
+    items[focusLast ? items.length - 1 : 0]?.focus({ preventScroll: true });
+    const dismissOnScroll = (event: Event) => { if (!(event.target instanceof Node) || !dialog.contains(event.target)) onClose(); };
+    window.addEventListener("resize", onClose);
+    window.addEventListener("scroll", dismissOnScroll, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", onClose);
+      window.removeEventListener("scroll", dismissOnScroll, true);
+      dialog.close();
+      if (trigger.isConnected) trigger.focus({ preventScroll: true });
+    };
+  }, [anchor, trigger, focusLast, onClose]);
+
+  function keyboard(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
+    if (!items.length) return;
+    const current = items.indexOf(document.activeElement as HTMLElement);
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : (current + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
+  }
+
+  return <dialog ref={ref} id={id} aria-label="Answer options" className="chat-actions-menu answer-actions-menu"
+    onCancel={event => { event.preventDefault(); onClose(); }}
+    onClick={event => {
+      if (event.target !== event.currentTarget) return;
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
+    }}>
+    <div role="menu" aria-label="Answer options" onKeyDown={keyboard}>{children}</div>
+  </dialog>;
+}
+
+// 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
 export function AnswerActions({ messageId, content, sessionId, conversationTitle }: Props) {
   const key = `${sessionId}\n${messageId}`;
   const save = useSyncExternalStore(subscribe, () => saves.get(key), () => undefined);
@@ -93,6 +149,9 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   const [done, setDone] = useState<"copy" | "download" | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<{ action: "copy" | "download" | "save"; message: string } | null>(null);
+  const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const menuId = useId();
+  const closeMenu = useCallback(() => setMenu(null), []);
   const alive = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Android アプリでは Markdown のダウンロードが動かないので出さない（サーバー描画と合わせるため、マウント後に判定する）。
@@ -146,11 +205,12 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
     const result = await saveAnswer(key, content, source());
     if (!alive.current) return;
     if (result.ok === "pending") return;
-    if (result.ok) announce("Saved to Notes");
+    if (result.ok) announce("Saved to page");
     else setError({ action: "save", message: result.message });
   }
 
   function openNote(event: MouseEvent<HTMLAnchorElement>, pageId: string) {
+    closeMenu();
     // 修飾キー付きや中ボタンは、リンクとして新しいタブで開かせる。
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
@@ -160,32 +220,38 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   return (
     <div className="answer-actions" role="group" aria-label="Answer actions">
       <button type="button" className="answer-action" onClick={() => void copy()} aria-label="Copy answer" title="Copy answer">
-        {done === "copy" ? <Check size={15} strokeWidth={2} /> : <Copy size={15} strokeWidth={1.9} />}
-        <span className="answer-action-label">{done === "copy" ? "Copied" : "Copy"}</span>
+        {done === "copy" ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.9} />}
       </button>
-      {/* 保存中・保存済みも同じボタンのまま（フォーカスを失わない）。押しても何もしないので aria-disabled にする。 */}
-      <button type="button" className={`answer-action${save?.status === "saved" ? " is-done" : ""}`} onClick={() => void saveToNotes()}
-        aria-disabled={!!save} aria-busy={save?.status === "saving"} title={save?.status === "saved" ? "Saved to Notes" : "Save to Notes"}>
-        {save?.status === "saving" ? <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
-          : save?.status === "saved" ? <Check size={15} strokeWidth={2} aria-hidden="true" />
-            : <FilePlus2 size={15} strokeWidth={1.9} aria-hidden="true" />}
-        <span className="answer-action-label">{save?.status === "saving" ? "Saving…" : save?.status === "saved" ? "Saved to Notes" : error?.action === "save" ? "Retry" : "Save to Notes"}</span>
+      <button type="button" className="answer-action" aria-label="More answer options" title="More options"
+        aria-haspopup="menu" aria-expanded={!!menu} aria-controls={menuId}
+        onClick={event => setMenu({ anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: false })}
+        onKeyDown={event => {
+          if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+          event.preventDefault();
+          setMenu({ anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: event.key === "ArrowUp" });
+        }}>
+        <Ellipsis size={18} strokeWidth={1.9} />
       </button>
-      {save?.status === "saved" && (
-        <a className="answer-action" href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={(event) => openNote(event, save.pageId)}
-          aria-label="Open the saved note" title="Open the saved note">
-          <ArrowUpRight size={15} strokeWidth={1.9} aria-hidden="true" />
-          <span>Open</span>
-        </a>
-      )}
-      {!native && (
-        <button type="button" className="answer-action" onClick={download} aria-label="Download as Markdown" title="Download as Markdown">
-          {done === "download" ? <Check size={15} strokeWidth={2} /> : <Download size={15} strokeWidth={1.9} />}
-          <span className="answer-action-label">{done === "download" ? "Downloaded" : "Markdown"}</span>
+      {menu && <AnswerMenu id={menuId} anchor={menu.anchor} trigger={menu.trigger} focusLast={menu.focusLast} onClose={closeMenu}>
+        {/* 保存中もメニューを保ち、同じ項目で進捗と成功を表示する。 */}
+        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => void saveToNotes()}
+          aria-disabled={!!save} aria-busy={save?.status === "saving"}>
+          {save?.status === "saving" ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
+            : save?.status === "saved" ? <Check size={16} aria-hidden="true" /> : <FilePlus2 size={16} aria-hidden="true" />}
+          {save?.status === "saving" ? "Saving…" : save?.status === "saved" ? "Saved to page" : error?.action === "save" ? "Retry saving to page" : "Save to page"}
         </button>
-      )}
-      <span role="status" aria-live="polite" className="sr-only">{status}</span>
-      {error && <span role="alert" className="answer-actions-error">{error.message}</span>}
+        {save?.status === "saved" && <a role="menuitem" className="chat-menu-item"
+          href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={event => openNote(event, save.pageId)}>
+          <ArrowUpRight size={16} aria-hidden="true" />Open saved page
+        </a>}
+        {!native && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); download(); }}>
+          <Download size={16} aria-hidden="true" />Download Markdown
+        </button>}
+        <span role="status" aria-live="polite" className="sr-only">{status}</span>
+        {error && <p role="alert" className="answer-menu-error">{error.message}</p>}
+      </AnswerMenu>}
+      {!menu && <span role="status" aria-live="polite" className="sr-only">{status}</span>}
+      {!menu && error && <span role="alert" className="answer-actions-error">{error.message}</span>}
     </div>
   );
 }
