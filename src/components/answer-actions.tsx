@@ -3,14 +3,14 @@
 import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
-import { answerConversationUrl, answerFileName, answerTitle, answerToMarkdownFile, answerToNoteContent, type AnswerSource } from "@/lib/answer-export";
+import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { isNativeApp } from "@/lib/native-app";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 type Props = {
   messageId: string;
-  // 回答の Markdown。保存されている文字列のまま、コピー・ダウンロード・ノートへ渡す。
+  // この回答の Markdown。コピーとノート保存に使い、ダウンロードは会話全体を別途読み込む。
   content: string;
   sessionId: string;
   conversationTitle: string;
@@ -149,6 +149,8 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   const [done, setDone] = useState<"copy" | "download" | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState<{ action: "copy" | "download" | "save"; message: string } | null>(null);
+  const [downloading, setDownloading] = useState(false);
+  const downloadLock = useRef(false);
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
   const menuId = useId();
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -188,13 +190,28 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
     else setError({ action: "copy", message: "Could not copy. Select the text and copy it instead." });
   }
 
-  function download() {
+  async function download() {
+    if (downloadLock.current) return;
+    downloadLock.current = true;
+    setDownloading(true);
     setError(null);
     try {
-      downloadText(answerFileName(answerTitle(content, conversationTitle)), answerToMarkdownFile(content, source()));
-      announce("Downloaded", "download");
+      // 押した回答の位置や画面内のキャッシュによらず、この会話の保存済み履歴を全部取得する。
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+        cache: "no-store", signal: AbortSignal.timeout(30000),
+      });
+      const data = await response.json() as { messages?: ConversationMessage[] };
+      if (!response.ok || !Array.isArray(data.messages) || !data.messages.length) throw new Error("Conversation unavailable");
+      if (!alive.current) return;
+      const exportSource = { conversationTitle, conversationUrl: answerConversationUrl(window.location.origin, sessionId), savedAt: new Date() };
+      downloadText(answerFileName(conversationTitle.trim() || "conversation"), conversationToMarkdownFile(data.messages, exportSource));
+      closeMenu();
+      announce("Conversation downloaded", "download");
     } catch {
-      setError({ action: "download", message: "Could not download the file. Try again." });
+      if (alive.current) setError({ action: "download", message: "Could not download the conversation. Try again." });
+    } finally {
+      downloadLock.current = false;
+      if (alive.current) setDownloading(false);
     }
   }
 
@@ -244,8 +261,9 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={event => openNote(event, save.pageId)}>
           <ArrowUpRight size={16} aria-hidden="true" />Open saved page
         </a>}
-        {!native && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); download(); }}>
-          <Download size={16} aria-hidden="true" />Download Markdown
+        {!native && <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={downloading} aria-busy={downloading} onClick={() => void download()}>
+          {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
+          {downloading ? "Downloading…" : "Download conversation"}
         </button>}
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
         {error && <p role="alert" className="answer-menu-error">{error.message}</p>}

@@ -86,7 +86,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 - Search folds spelling differences (NFKC, case, hiragana to katakana, curly quotes and dashes) with `foldSearchText` in `src/lib/search-fold.ts`. The JS side folds terms, highlights and snippets; the SQL side never folds stored columns (`lower()`, `normalize()` or `translate()` on every row measured 6-35x slower) and instead matches each term expanded by `termMatcher` into a regex built from the same fold. Change the fold only in `search-fold.ts` and keep the regex equivalent to it (the tests compare them). The regex needs a UTF8 database. Fold terms before LIKE-escaping.
 - Chat search stays scoped to the user, skips note-assistant sessions (`noteId`), and reads stored text unmodified; do not add folded copies of message text without a schema change the user asked for. Note search keeps the `deletedAt` filter (see Storage).
-- Answer actions work on the stored `Message.content`. Save to Notes goes through `POST /api/pages`, so the generated blocks must pass `validateNoteContent`. Conversation links use `/?chat=<sessionId>&message=<messageId>`, with `message` only for database IDs.
+- Copy and Save to Notes work on the selected answer's stored `Message.content`. Download conversation reads the whole owned chat through the messages API and exports every USER/ASSISTANT turn in order; never export internal SYSTEM messages or provider context. Save to Notes goes through `POST /api/pages`, so the generated blocks must pass `validateNoteContent`. Conversation links use `/?chat=<sessionId>&message=<messageId>`, with `message` only for database IDs.
 
 ## Database Safety
 

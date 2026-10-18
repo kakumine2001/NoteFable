@@ -5,6 +5,7 @@ import {
   answerTitle,
   answerToMarkdownFile,
   answerToNoteContent,
+  conversationToMarkdownFile,
   isStoredMessageId,
   type AnswerSource,
 } from "./answer-export";
@@ -153,6 +154,48 @@ describe("answerToMarkdownFile", () => {
   it("escapes the conversation title and tolerates a missing link", () => {
     const file = answerToMarkdownFile("x", { ...source, conversationTitle: "A [b] *c*", conversationUrl: "" });
     expect(file).toBe('x\n\n---\n\nSaved from the conversation "A \\[b\\] \\*c\\*" on 2026-10-16.\n');
+  });
+});
+
+describe("conversationToMarkdownFile", () => {
+  it("exports every question and answer in order, including messages after the clicked answer", () => {
+    const file = conversationToMarkdownFile([
+      { role: "USER", content: "First question" },
+      { role: "ASSISTANT", content: "First answer" },
+      { role: "USER", content: "第二个问题" },
+      { role: "ASSISTANT", content: "二つ目の回答" },
+    ], source);
+    expect(file).toContain("# Weekly sync\n\n## You\n\nFirst question\n\n## StudyMate\n\nFirst answer\n\n## You\n\n第二个问题\n\n## StudyMate\n\n二つ目の回答");
+    expect(file).toContain(source.conversationUrl);
+  });
+
+  it("preserves long messages, code and source links without including internal instructions", () => {
+    const answer = `${"内容".repeat(30000)}\n\n\`\`\`ts\nconst x = 1;\n\`\`\`\n\n[Source](https://example.com)`;
+    const file = conversationToMarkdownFile([
+      { role: "SYSTEM", content: "Internal instructions" },
+      { role: "USER", content: "Question\r\nwith two lines" },
+      { role: "ASSISTANT", content: answer },
+    ], source);
+    expect(file).toContain(answer);
+    expect(file).toContain("Question\nwith two lines");
+    expect(file).not.toContain("Internal instructions");
+  });
+
+  it("keeps attachment-only and generated-image messages with protected image links", () => {
+    const file = conversationToMarkdownFile([
+      { role: "USER", content: "", attachments: [{ filename: "report [1].pdf" }, { filename: "photo.jpg", dataUrl: "/api/attachments/photo/image" }] },
+      { role: "ASSISTANT", content: "", generatedImages: [{ id: "g1", dataUrl: "/api/attachments/g1/image" }] },
+    ], source);
+    expect(file).toContain("report \\[1\\].pdf");
+    expect(file).toContain("[photo.jpg](<https://studymate.example/api/attachments/photo/image>)");
+    expect(file).toContain("## StudyMate\n\n- [Generated image 1](<https://studymate.example/api/attachments/g1/image>)");
+  });
+
+  it("escapes the heading and does not turn non-HTTP attachment URLs into links", () => {
+    const file = conversationToMarkdownFile([{ role: "USER", content: "Hi", attachments: [{ filename: "file", dataUrl: "javascript:alert(1)" }] }], { ...source, conversationTitle: "A [b] *c*" });
+    expect(file).toContain("# A \\[b\\] \\*c\\*");
+    expect(file).toContain("- file");
+    expect(file).not.toContain("javascript:");
   });
 });
 

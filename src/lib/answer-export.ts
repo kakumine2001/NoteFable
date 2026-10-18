@@ -1,7 +1,7 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
 import { markdownToBlocks } from "@/lib/note-markdown";
 
-// AI の回答（Markdown）を、コピー・ダウンロード・ノートへの保存で使える形にする。ブラウザにもサーバーにも依存しない純粋な変換だけを置く。
+// 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
 type NoteBlockNode = ReturnType<typeof markdownToBlocks>[number];
 export type AnswerSource = {
@@ -210,6 +210,37 @@ export function answerToMarkdownFile(markdown: string, { conversationTitle, conv
   const label = escapeLabel(conversationLabel(conversationTitle));
   const where = isHttpUrl(conversationUrl) ? `[${label}](${conversationUrl})` : label;
   return `${normalizeNewlines(markdown).trimEnd()}\n\n---\n\nSaved from the conversation "${where}" on ${formatDate(savedAt)}.\n`;
+}
+
+export type ConversationMessage = {
+  role: string;
+  content: string;
+  attachments?: readonly { filename: string; dataUrl?: string }[];
+  generatedImages?: readonly { id: string; dataUrl: string }[];
+};
+
+// 履歴 API の順序のまま全ユーザー発言・回答を書き出す。本文は切り詰めず、内部メッセージは含めない。
+export function conversationToMarkdownFile(messages: readonly ConversationMessage[], source: AnswerSource) {
+  function attachment(label: string, url?: string) {
+    const name = escapeLabel(label.replace(/\s+/g, " ").trim());
+    if (url) {
+      try {
+        const href = new URL(url, source.conversationUrl).href;
+        if (isHttpUrl(href)) return `- [${name}](<${href}>)`;
+      } catch { /* URL を作れない添付もファイル名は残す。 */ }
+    }
+    return `- ${name}`;
+  }
+  const sections = messages.filter(message => message.role === "USER" || message.role === "ASSISTANT").map(message => {
+    const files = [
+      ...(message.attachments ?? []).map(file => attachment(file.filename, file.dataUrl)),
+      ...(message.generatedImages ?? []).map((image, index) => attachment(`Generated image ${index + 1}`, image.dataUrl)),
+    ];
+    const body = [normalizeNewlines(message.content).trimEnd(), files.join("\n")].filter(Boolean).join("\n\n");
+    return `## ${message.role === "USER" ? "You" : "StudyMate"}\n\n${body}`;
+  });
+  const title = escapeLabel(shorten(source.conversationTitle, MAX_NOTE_TITLE) || "New chat");
+  return answerToMarkdownFile([`# ${title}`, ...sections].join("\n\n"), source);
 }
 
 // ---- ノートへの保存 ----
