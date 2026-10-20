@@ -17,6 +17,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { writeStoredImage } from "@/lib/storage";
+import { buildImageContext } from "@/lib/image-context";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 
@@ -364,6 +365,18 @@ export async function POST(request: Request) {
       }
     }
 
+    const history = existingSession ? await prisma.message.findMany({
+      where: { sessionId: existingSession.id, session: { userId: user.id }, role: { in: ["USER", "ASSISTANT"] } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: 24,
+      select: {
+        role: true,
+        content: true,
+        attachments: { select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true } },
+      },
+    }) : [];
+    const context = await buildImageContext(prompt, history, imageInputs);
+
     // OpenAI 側から完成済みレスポンスを受け、image_generation_call の result を保存する。
     let imageBase64: string | undefined;
     const size = normalizeSize(body.size);
@@ -372,8 +385,8 @@ export async function POST(request: Request) {
 
     for (let attempt = 1; attempt <= IMAGE_GENERATION_ATTEMPTS; attempt += 1) {
       try {
-        if (imageInputs.length) {
-          const upstream = await createImageApiEdit(prompt, size, quality, imageInputs);
+        if (context.images.length) {
+          const upstream = await createImageApiEdit(context.prompt, size, quality, context.images);
 
           imageBase64 = findGeneratedImage(upstream);
           if (imageBase64) break;
@@ -383,7 +396,7 @@ export async function POST(request: Request) {
             upstream: summarizeImageApiResponse(upstream),
           });
         } else {
-          const upstream = await createImageApiGeneration(prompt, size, quality);
+          const upstream = await createImageApiGeneration(context.prompt, size, quality);
 
           imageBase64 = findGeneratedImage(upstream);
           if (imageBase64) break;
@@ -397,7 +410,7 @@ export async function POST(request: Request) {
         lastGenerationError = error;
         console.warn("OpenAI image API attempt failed", {
           attempt,
-          hasReferenceImages: imageInputs.length > 0,
+          hasReferenceImages: context.images.length > 0,
           error: getErrorMessage(error),
         });
       }
