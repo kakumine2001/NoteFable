@@ -372,7 +372,10 @@ export async function POST(request: Request) {
       select: {
         role: true,
         content: true,
-        attachments: { select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true } },
+        attachments: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true },
+        },
       },
     }) : [];
     const context = await buildImageContext(prompt, history, imageInputs);
