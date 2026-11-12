@@ -21,7 +21,7 @@ export const metadata: Metadata = {
   // ブラウザタブや検索結果で使われるアプリ名。
   title: "StudyMate",
   // Next.js の Metadata API へ渡すページ説明。
-  description: "AI study assistant powered by OpenAI.",
+  description: "A personal space for AI conversations, notes, and ideas.",
   // 古い favicon キャッシュを拾いにくくするため、使うアイコンを明示する。
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],

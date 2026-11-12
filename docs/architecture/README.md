@@ -60,7 +60,8 @@ flowchart LR
 
 | 文件 | 作用 |
 | --- | --- |
-| `src/app/page.tsx` | 前端主页面、输入框、附件、发送、图片生成模式 |
+| `src/app/page.tsx`、`src/components/thread-landing.tsx`、`src/app/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与笔记链接保留查询参数转到 `/app` |
+| `src/app/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx` | 公开的隐私权政策与服务条款（Google 同意屏幕要填这两个链接） |
@@ -72,7 +73,7 @@ flowchart LR
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
-| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/?chat=&message=` 会话链接（打开该链接的处理在 `src/app/page.tsx`） |
+| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/?chat=&message=` 会话链接（根页面重定向后，由 `src/app/app/page.tsx` 打开会话） |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；已 Google 登录时返回对应账号的用户 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |

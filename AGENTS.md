@@ -7,6 +7,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 ## Task and Context Routing
 
 - Start from the current request: research/design discussion produces a reviewable plan; an implementation request proceeds through relevant validation within its authorized scope.
+- Website implementation requests default to local changes, checks, and a local preview. Do not deploy to production or push to a branch that triggers production deployment unless the user explicitly requests a production release in the current chat. Passing checks does not grant release authorization.
 - UI changes preserve the established product language, spacing and motion. Inspect the existing implementation and actual screen before adapting controls; do not apply a global visual profile automatically.
 - Production URLs, environment setup and operational details are maintained in [README.md](README.md) and `docs/architecture/`. Verify the actual deployment when diagnosing production; do not maintain a second URL or deployment SHA here.
 - Model/API changes: read the source-of-truth table and Model and API Rules below. Storage/auth/database changes: read the corresponding rules and maintained architecture documents.
@@ -50,7 +51,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Note trash (soft delete) and edit history | `src/lib/note-trash.ts`, `src/lib/note-revisions.ts`, `src/app/api/pages/trash/*`, `src/app/api/pages/[pageId]/revisions/*`, `src/components/note-trash-dialog.tsx`, `src/components/note-history-dialog.tsx`, `NotePage.deletedAt`, `NoteRevision` |
 | Chat project instructions and reference notes | `src/lib/chat-project-context.ts`, `src/lib/chat-project-api.ts`, `src/app/api/chat-projects/*`, `src/components/chat-project-settings.tsx`, `ChatProject.instructions`, `ChatProjectNote` |
 | Cross Chats/Notes search (spelling folding, attachment text, project filter) and jump-to-match | `src/app/api/search/route.ts`, `src/lib/search.ts`, `src/lib/search-fold.ts`, `src/types/search.ts`, `src/components/search-dialog.tsx`, `src/lib/search-reveal.ts` |
-| Answer actions (copy, Save to Notes, Markdown download) and the `/?chat=&message=` conversation link | `src/components/answer-actions.tsx`, `src/lib/answer-export.ts`, `src/lib/clipboard.ts`, `src/components/chat-message.tsx`, link handling in `src/app/page.tsx` |
+| Answer actions (copy, Save to Notes, Markdown download) and the `/?chat=&message=` conversation link | `src/components/answer-actions.tsx`, `src/lib/answer-export.ts`, `src/lib/clipboard.ts`, `src/components/chat-message.tsx`, link handling in `src/app/app/page.tsx` (legacy root links redirect from `src/app/page.tsx`) |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
 
 ## Model and API Rules
@@ -117,7 +118,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 - Use `gpt-6.1-sol` with Extra High (`xhigh`) reasoning for this independent Codex review. Set model and reasoning effort explicitly when launching the reviewer; CLI example: `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"xhigh"' --uncommitted`. The `review_model` config key selects only the model and does not independently pin review reasoning effort.
 - The main Codex agent verifies the findings, fixes valid issues, and runs the relevant checks before committing.
 
-- For the current review workflow, use Grok 4.7 through Cursor CLI: `agent -p --model grok-4.7-medium --mode ask --trust --workspace <repo> <prompt>`. Review the full affected diff read-only, verify and fix its findings, then commit and deploy only after relevant checks pass. Keep this reviewer until the user requests a change.
+- For the current review workflow, use Grok 4.7 through Cursor CLI: `agent -p --model grok-4.7-medium --mode ask --trust --workspace <repo> <prompt>`. Review the full affected diff read-only, verify and fix its findings, and pass relevant checks before any authorized commit or deployment. This review requirement does not authorize a production release. Keep this reviewer until the user requests a change.
 
 Pin these models when Codex and Claude Code call each other in this project, unless the user names another:
 
