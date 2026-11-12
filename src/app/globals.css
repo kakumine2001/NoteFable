@@ -16,7 +16,8 @@
   --notion-blue: #2383e2;
   --notion-blue-hover: #1a73c7;
   --notion-shadow: 0 4px 14px rgba(15, 15, 15, 0.12), 0 0 0 1px rgba(15, 15, 15, 0.05);
-  /* 紹介ページと共通のブランド色。見出し・主ボタンは墨、選択中の目印は青、黄は強調だけに使う。 */
+  /* ブランド色の唯一の定義。紹介ページ（landing.css の --tl-*）もここを参照する。
+     見出し・主ボタンは墨、選択中の目印は青、黄は強調だけに使う。 */
   --sm-ink: #0c1730;
   --sm-ink-hover: #1d2a47;
   --sm-accent: #2383e2;
@@ -25,8 +26,9 @@
   --sm-marker: #ffe27a;
   --sm-user-bubble: #f3f5f9;
   --sm-composer-shadow: 0 1px 2px rgba(12, 23, 48, 0.04), 0 8px 28px rgba(12, 23, 48, 0.07);
-  /* UI テキスト用フォント。欧文は紹介ページと同じ Geist、CJK は崩れにくい OS フォントへ落とす。 */
-  --font-ui: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
+  /* UI テキスト用フォント。日本語/中国語環境でも崩れにくい CJK フォントを優先する。
+     Geist は欧文だけなので、和欧混在のタイトルで字形と基線が揃わないよう UI には使わない。 */
+  --font-ui: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei UI",
     "Microsoft YaHei", "PingFang SC", "Hiragino Sans GB", "Noto Sans CJK SC",
     "Noto Sans SC", Arial, sans-serif;
   /* Markdown 回答本文用フォント。長文の CJK 表示を UI と同じ系統に揃える。 */
@@ -275,8 +277,8 @@ button:disabled {
 .avatar-crop-actions { display: flex; width: 100%; justify-content: flex-end; gap: 8px; }
 .avatar-crop-actions button { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 14px; color: var(--notion-text); }
 .avatar-crop-actions button:hover:not(:disabled) { background: var(--notion-hover); }
-.avatar-crop-actions .is-primary { background: var(--notion-blue); color: #fff; }
-.avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--notion-blue-hover); }
+.avatar-crop-actions .is-primary { background: var(--sm-ink); color: #fff; }
+.avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--sm-ink-hover); }
 .avatar-crop-actions button:disabled { opacity: 0.55; }
 .profile-actions { display: grid; gap: 2px; margin: 12px -6px -6px; padding-top: 6px; border-top: 1px solid var(--notion-border); }
 .profile-actions button {
@@ -684,19 +686,19 @@ button:disabled {
 }
 
 @media (hover: hover) {
-  .notion-session-row:hover {
+  .notion-session-row:not(.is-active):hover {
     background: var(--notion-hover);
   }
 }
 
 /* 開いている会話・ノート。青の薄い面と左端の細い線で、灰色のホバーと見分ける。 */
-.notion-session-row.is-active,
-.notion-session-row.is-active:hover {
+.notion-session-row.is-active {
   background: var(--sm-accent-soft);
   color: var(--sm-ink);
   font-weight: 550;
 }
-.notion-session-row.is-active::before {
+/* 並べ替え中はその行の ::before が挿入位置の線になるので、左端の線は出さない。 */
+.notion-session-row.is-active:not([data-order-drop])::before {
   content: "";
   position: absolute;
   top: 0.45rem;
@@ -750,7 +752,7 @@ button:disabled {
 .chat-pin-button:hover { color: var(--notion-text); }
 .chat-pin-button.is-pinned { color: var(--notion-text); background: var(--notion-hover); }
 .chat-more-button:hover { color: var(--notion-text); }
-.chat-section-label, .chat-project-heading { padding: .9rem .5rem .3rem; color: var(--notion-faint); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: .6875rem; font-weight: 500; letter-spacing: .07em; text-transform: uppercase; }
+.chat-section-label, .chat-project-heading { padding: .9rem .5rem .3rem; color: var(--notion-muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .chat-project-heading .notion-icon-button { margin-block: -.3rem; }
 .chat-project-heading { display: flex; align-items: center; justify-content: space-between; }
 .chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: .4rem; padding: .4rem .2rem; text-align: left; font-size: .875rem; }
@@ -836,17 +838,17 @@ button:disabled {
 
 .notion-role-label {
   margin-bottom: 0.45rem;
-  color: var(--notion-faint);
+  color: var(--notion-muted);
   font-family: var(--font-geist-mono), ui-monospace, monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 500;
-  letter-spacing: 0.07em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
-.notion-role-label.is-assistant { display: flex; align-items: center; gap: 0.35rem; color: var(--notion-muted); }
+.notion-role-label.is-assistant { display: flex; align-items: center; gap: 0.35rem; }
 .notion-role-label.is-assistant svg { color: var(--sm-ink); }
-.notion-role-model { color: var(--notion-faint); text-transform: none; letter-spacing: 0.02em; }
+.notion-role-model { text-transform: none; letter-spacing: 0.02em; }
 
 /* 自分の発言。枠線なしの淡い面にして、回答本文（白地）と区別する。 */
 .notion-user-block {
@@ -2479,12 +2481,12 @@ button:disabled {
 }
 
 .page-edit-apply {
-  background: var(--notion-blue);
+  background: var(--sm-ink);
   color: #ffffff;
 }
 
 .page-edit-apply:not(:disabled):hover {
-  background: var(--notion-blue-hover);
+  background: var(--sm-ink-hover);
 }
 
 .page-edit-discard {
@@ -2519,9 +2521,9 @@ button:disabled {
 .note-upload { display: grid; gap: 0.5rem; padding: 0.25rem; min-width: 14rem; }
 .note-upload-button {
   display: inline-flex; min-height: 2.5rem; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1rem;
-  border-radius: 8px; background: #2383e2; color: #fff; font-size: 14px; font-weight: 500; cursor: pointer;
+  border-radius: 8px; background: var(--sm-ink); color: #fff; font-size: 14px; font-weight: 500; cursor: pointer;
 }
-.note-upload-button:hover { background: #0077d4; }
+.note-upload-button:hover { background: var(--sm-ink-hover); }
 .note-upload-button.is-busy { opacity: 0.7; cursor: progress; }
 .note-upload-hint { margin: 0; font-size: 12px; color: var(--notion-muted); }
 .note-upload-hint.is-error { color: #b91c1c; }
