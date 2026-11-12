@@ -103,14 +103,14 @@ export function ChatSidebar({
       <WorkspaceNav view="chat" onChange={onWorkspaceChange} />
 
       <div className="mt-3 px-2">
+        <button type="button" onClick={onCreate} className="sidebar-primary-action">
+          <Plus size={16} />
+          <span>New chat</span>
+        </button>
         <button type="button" onClick={onSearch} className="notion-sidebar-action" aria-keyshortcuts="Control+K Meta+K">
           <Search size={16} />
           <span>Search</span>
           <kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
-        </button>
-        <button type="button" onClick={onCreate} className="notion-sidebar-action">
-          <Plus size={16} />
-          <span>New chat</span>
         </button>
       </div>
 
