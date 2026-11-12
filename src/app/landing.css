@@ -1,13 +1,14 @@
-/* 紹介ページ「一本の糸」。ワークスペースと同じ白・墨・青を使い、独自のスクロール面を持つ。 */
+/* 紹介ページ「一本の糸」。ワークスペースと同じ白・墨・青を使い、独自のスクロール面を持つ。
+   墨・青・黄は globals.css の --sm-* が唯一の定義（ここで値を持たない）。 */
 .tl-page {
-  --tl-ink: #0c1730;
+  --tl-ink: var(--sm-ink);
   --tl-text: #37352f;
   --tl-muted: #6b6a65;
   --tl-line: rgba(55, 53, 47, 0.14);
   --tl-soft: #f7f7f5;
-  --tl-blue: #2383e2;
+  --tl-blue: var(--sm-accent);
   --tl-blue-deep: #1a6fc4;
-  --tl-marker: #ffe27a;
+  --tl-marker: var(--sm-marker);
   height: 100dvh;
   overflow: hidden auto;
   background: #fff;

@@ -96,10 +96,10 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
+        <button type="button" className="sidebar-primary-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New note</span></button>
         <button type="button" className="notion-sidebar-action" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
           <Search size={16} /><span>Search</span><kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
         </button>
-        <button type="button" className="notion-sidebar-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New note</span></button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         <div className="chat-project-heading">

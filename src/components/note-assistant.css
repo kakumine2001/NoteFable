@@ -43,9 +43,9 @@
 }
 .note-ai-input:focus { border-color: var(--notion-blue); box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18); }
 .note-ai-send {
-  display: grid; flex-shrink: 0; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: 999px; background: var(--notion-blue); color: #fff;
+  display: grid; flex-shrink: 0; width: 2.4rem; height: 2.4rem; place-items: center; border-radius: 999px; background: var(--sm-ink); color: #fff;
 }
-.note-ai-send:hover:not(:disabled) { background: var(--notion-blue-hover); }
+.note-ai-send:hover:not(:disabled) { background: var(--sm-ink-hover); }
 .note-ai-send:disabled { background: var(--notion-active); color: var(--notion-faint); }
 @media (max-width: 639px) {
   .note-ai-input { font-size: 1rem; min-height: 2.6rem; }

@@ -8,6 +8,8 @@ import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
+import { MODEL_OPTIONS } from "@/lib/models";
+import { BrandMark } from "@/components/studymate-logo";
 import type { Message, StoredProposal } from "@/types/chat";
 
 function GeneratingImagePreview() {
@@ -92,10 +94,22 @@ export const ChatMessage = memo(function ChatMessage({
       ? Math.max(1, Math.round(message.thinkingMs / 1000))
       : null;
 
+  // 回答したモデルの表示名。未知の ID（廃止したモデルなど）は誤った名前を出さないよう省く。
+  // 画像は選んだチャットモデルに関係なく OpenAI の画像 API で作るので、画像の回答には出さない。
+  const isImageAnswer = hasGeneratedImages || !!message.isGeneratingImage;
+  const modelLabel = message.role === "ASSISTANT" && message.model && !isImageAnswer
+    ? MODEL_OPTIONS.find((option) => option.id === message.model)?.label
+    : undefined;
+
   return (
     <article className="notion-turn motion-page-enter" data-message-id={message.id}>
       <div className="w-full min-w-0">
-        <div className="notion-role-label">{message.role === "USER" ? "You" : "StudyMate"}</div>
+        {message.role === "USER"
+          ? <div className="notion-role-label">You</div>
+          : <div className="notion-role-label is-assistant">
+              <BrandMark size={12} /><span>StudyMate</span>
+              {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
+            </div>}
         {shouldShowActivity && (
           <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
         )}
