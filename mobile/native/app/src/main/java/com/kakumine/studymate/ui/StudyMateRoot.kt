@@ -110,6 +110,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel) 
             onSelectModel = viewModel::selectModel,
             onSelectReasoning = viewModel::selectReasoning,
             onRetryMessages = viewModel::reloadActive,
+            onAddFiles = viewModel::addFiles,
+            onRemoveFile = viewModel::removeFile,
+            onImageMode = viewModel::setImageMode,
         )
     }
 }

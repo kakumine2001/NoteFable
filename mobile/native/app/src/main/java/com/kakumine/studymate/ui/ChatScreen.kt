@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -83,6 +84,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kakumine.studymate.R
+import com.kakumine.studymate.data.LocalFile
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
 import com.mikepenz.markdown.model.markdownPadding
@@ -104,9 +106,21 @@ fun ChatScreen(
     onSelectModel: (String) -> Unit,
     onSelectReasoning: (String) -> Unit,
     onRetryMessages: () -> Unit,
+    onAddFiles: (List<LocalFile>) -> Unit,
+    onRemoveFile: (String) -> Unit,
+    onImageMode: (Boolean) -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf("") }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
+    var attachOpen by rememberSaveable { mutableStateOf(false) }
+    val pickFiles = rememberFilePicker(onAddFiles)
+    // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
+    // 不随进程保存：进程重建后计数从 0 开始，保存旧值会把恢复出来的草稿误清掉。
+    var clearedAt by remember { mutableStateOf(state.sentCount) }
+    if (clearedAt != state.sentCount) {
+        clearedAt = state.sentCount
+        input = ""
+    }
     val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
 
     Scaffold(
@@ -132,21 +146,37 @@ fun ChatScreen(
                 input = input,
                 onInputChange = { input = it },
                 sending = state.sending,
-                canSend = !state.messagesLoading && !state.messagesFailed,
+                canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null,
                 modelLabel = state.selectedModel?.label,
                 effortLabel = state.selectedReasoning?.let { reasoningLabel(it) },
-                onSend = {
-                    onSend(input)
-                    input = ""
+                files = state.files,
+                upload = state.upload,
+                imageMode = state.imageMode,
+                error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
+                    is ComposerNotice.Rejected -> attachErrorText(notice.error)
+                    ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
+                    null -> null
                 },
+                onSend = { onSend(input) },
                 onStop = onStop,
                 onModelClick = { sheetOpen = true },
+                onAddClick = { attachOpen = true },
+                onRemoveFile = onRemoveFile,
+                onImageModeOff = { onImageMode(false) },
             )
         }
     }
 
     if (sheetOpen) {
         ModelSheet(state, onSelectModel, onSelectReasoning, onDismiss = { sheetOpen = false })
+    }
+    if (attachOpen) {
+        AttachSheet(
+            imageMode = state.imageMode,
+            onPickFiles = pickFiles,
+            onToggleImageMode = { onImageMode(!state.imageMode) },
+            onDismiss = { attachOpen = false },
+        )
     }
 }
 
@@ -232,7 +262,9 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit) {
         ) {
             items(state.messages.asReversed(), key = { it.id }) { message ->
                 val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
-                if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel)
+                // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
+                val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
+                if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
             }
         }
     }
@@ -368,16 +400,19 @@ private fun AssistantTurn(message: UiMessage, modelLabel: String?) {
             }
         }
         when {
+            message.generatingImage -> GeneratingImagePreview()
             message.content.isEmpty() && message.streaming ->
                 CircularProgressIndicator(Modifier.size(18.dp), color = Sm.Muted, strokeWidth = 2.dp)
             message.content.isNotEmpty() -> SelectionContainer { AnswerMarkdown(message.content) }
         }
         message.images.forEach { image ->
             AsyncImage(
-                model = image.dataUrl,
+                model = remember(image.dataUrl) { imageModel(image.dataUrl) },
                 contentDescription = null,
                 contentScale = ContentScale.Fit,
-                modifier = Modifier.padding(top = 8.dp).fillMaxWidth().clip(RoundedCornerShape(14.dp)),
+                // .generated-image：最宽 576、圆角 4.8、1px #e2e8f0 描边、#f8fafc 底。
+                modifier = Modifier.padding(top = 8.dp).widthIn(max = 576.dp).fillMaxWidth().clip(RoundedCornerShape(4.8.dp))
+                    .background(Color(0xFFF8FAFC)).border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(4.8.dp)),
             )
         }
         message.errorDetail?.let { detail ->
@@ -418,9 +453,16 @@ private fun Composer(
     canSend: Boolean,
     modelLabel: String?,
     effortLabel: String?,
+    files: List<LocalFile>,
+    upload: UploadProgress?,
+    imageMode: Boolean,
+    error: String?,
     onSend: () -> Unit,
     onStop: () -> Unit,
     onModelClick: () -> Unit,
+    onAddClick: () -> Unit,
+    onRemoveFile: (String) -> Unit,
+    onImageModeOff: () -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(16.dp)
@@ -434,6 +476,8 @@ private fun Composer(
         Modifier.fillMaxWidth().windowInsetsPadding(insets)
             .padding(start = 10.4.dp, end = 10.4.dp, top = 12.dp, bottom = bottomPad),
     ) {
+        if (error != null) ComposerError(error)
+        if (files.isNotEmpty()) PendingFiles(files, enabled = upload == null, onRemove = onRemoveFile)
         Column(
             Modifier.fillMaxWidth()
                 .shadow(8.dp, shape, ambientColor = Sm.ComposerShadow, spotColor = Sm.ComposerShadow)
@@ -455,9 +499,12 @@ private fun Composer(
                 .padding(10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
+            if (imageMode) ImageModeChip(onImageModeOff)
             BasicTextField(
                 value = input,
                 onValueChange = onInputChange,
+                // 上传附件期间不能改文字（网页此时输入框是只读的）。
+                readOnly = upload != null,
                 modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged { focused = it.isFocused },
                 textStyle = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, color = Sm.Text),
                 cursorBrush = SolidColor(Sm.Ink),
@@ -465,16 +512,28 @@ private fun Composer(
                 decorationBox = { inner ->
                     Box(Modifier.padding(start = 6.dp, top = 4.dp)) {
                         if (input.isEmpty()) {
-                            Text(stringResource(R.string.message_hint), color = Sm.Faint, fontSize = 16.sp, lineHeight = 24.sp)
+                            Text(
+                                stringResource(if (imageMode) R.string.image_hint else R.string.message_hint),
+                                color = Sm.Faint, fontSize = 16.sp, lineHeight = 24.sp,
+                            )
                         }
                         inner()
                     }
                 },
             )
-            // 模型按钮按内容宽度（最多到发送键左边 6 处）；发送键固定在右端。
+            // 左端是「＋」（40 的图标按钮，图标 18、描边 1.8），右边 6 处是模型按钮（按内容宽度，最多到发送键左边 6 处）；发送键固定在右端。
             Box(Modifier.fillMaxWidth()) {
+                val addLabel = stringResource(R.string.attach_add)
+                Box(
+                    Modifier.align(Alignment.CenterStart).size(40.dp).clip(RoundedCornerShape(4.8.dp))
+                        .clickable(enabled = upload == null, onClick = onAddClick)
+                        .semantics { contentDescription = addLabel; role = Role.Button },
+                    Alignment.Center,
+                ) {
+                    LucideIcon(Lucide.Plus, 18.dp, Sm.Muted, strokeWidth = 1.8f)
+                }
                 if (modelLabel != null) {
-                    ModelPill(modelLabel, effortLabel, onModelClick, Modifier.align(Alignment.CenterStart).padding(end = 46.dp))
+                    ModelPill(modelLabel, effortLabel, onModelClick, Modifier.align(Alignment.CenterStart).padding(start = 46.dp, end = 46.dp))
                 }
                 SendButton(
                     sending,
@@ -484,6 +543,7 @@ private fun Composer(
                 )
             }
         }
+        ComposerStatus(files, upload)
     }
 }
 

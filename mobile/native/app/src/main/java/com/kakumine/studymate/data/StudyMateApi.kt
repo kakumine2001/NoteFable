@@ -12,7 +12,11 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.FormBody
+import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody
+import okio.BufferedSink
 import okhttp3.RequestBody.Companion.toRequestBody
 import okhttp3.CookieJar
 import okhttp3.MultipartBody
@@ -20,11 +24,18 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
 import java.io.IOException
+import java.io.InputStream
+import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.putJsonObject
 
 /** 服务端返回了错误（含「今日次数已用完」这类业务错误），message 可以直接给用户看。 */
 class ApiException(val status: Int, message: String) : IOException(message)
@@ -36,11 +47,15 @@ data class ChatRequest(
     val model: String?,
     val reasoning: String?,
     val webSearch: String = "auto",
+    /** 已上传附件的凭证（`uploads` 字段，JSON 数组）。 */
+    val uploads: List<String> = emptyList(),
 )
 
 class StudyMateApi(
     private val baseUrl: String,
     private val cookieJar: CookieJar,
+    /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
+    private val openFile: (String) -> InputStream = { throw IOException("no file access") },
 ) : ChatBackend, AccountBackend {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
@@ -59,6 +74,12 @@ class StudyMateApi(
     // 思考型模型可能很久没有任何输出，流式请求不设读超时和总超时，靠取消结束。
     private val streamClient: OkHttpClient = client.newBuilder()
         .readTimeout(0, TimeUnit.MILLISECONDS)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
+        .build()
+
+    // 大文件在手机网络上可能传一分多钟：不设总超时，只要求一直有进展。
+    private val uploadClient: OkHttpClient = client.newBuilder()
+        .writeTimeout(60, TimeUnit.SECONDS)
         .callTimeout(0, TimeUnit.MILLISECONDS)
         .build()
 
@@ -86,6 +107,7 @@ class StudyMateApi(
             .apply { request.reasoning?.let { addFormDataPart("reasoning", it) } }
             .addFormDataPart("webSearch", request.webSearch)
             .apply { request.sessionId?.let { addFormDataPart("sessionId", it) } }
+            .addFormDataPart("uploads", uploadsJson(request.uploads))
             .build()
         val call = streamClient.newCall(
             Request.Builder().url(absoluteUrl("/api/chat")).post(body)
@@ -113,6 +135,77 @@ class StudyMateApi(
             reader.cancel()
         }
     }.buffer(Channel.UNLIMITED)
+
+    // ---- 图片生成与附件 ----
+
+    override suspend fun generateImage(request: ChatRequest): ImageResult {
+        val body = MultipartBody.Builder().setType(MultipartBody.FORM)
+            .addFormDataPart("prompt", request.message)
+            .apply { request.model?.let { addFormDataPart("model", it) } }
+            .apply { request.reasoning?.let { addFormDataPart("reasoning", it) } }
+            .apply { request.sessionId?.let { addFormDataPart("sessionId", it) } }
+            .addFormDataPart("uploads", uploadsJson(request.uploads))
+            .build()
+        // 生成一张图常常超过一分钟，和流式回答一样不设总超时，靠取消结束。
+        return send(Request.Builder().url(absoluteUrl("/api/images")).post(body), streamClient)
+    }
+
+    override suspend fun prepareUploads(files: List<LocalFile>): UploadPlan {
+        val body = buildJsonObject {
+            putJsonArray("files") {
+                files.forEach { file ->
+                    addJsonObject {
+                        put("name", file.name)
+                        put("type", file.mimeType)
+                        put("size", file.size)
+                    }
+                }
+            }
+        }.toString()
+        val plan = send<UploadPlan>(Request.Builder().url(absoluteUrl("/api/uploads")).post(body.toRequestBody(JSON)))
+        if (plan.uploads.size != files.size) throw IOException("Invalid upload response.")
+        return plan
+    }
+
+    override suspend fun uploadFile(slot: UploadSlot, mode: String, file: LocalFile, onProgress: (Int) -> Unit) {
+        val content = FileBody(file, openFile, onProgress)
+        val request = if (mode == "local") {
+            // 本机开发服务器没有配置 Blob 时，直接把字节交给它。
+            Request.Builder().url(absoluteUrl("/api/uploads/local?ticket=" + URLEncoder.encode(slot.ticket, "UTF-8"))).put(content)
+        } else {
+            // 线上：和网页的 @vercel/blob 客户端走同一套流程。先用凭证向自己的服务器换一个只能写这一个文件的令牌，
+            // 再把字节直接传给 Vercel Blob（不经过服务器函数，避开 4.5 MB 的请求上限）。
+            val event = buildJsonObject {
+                put("type", "blob.generate-client-token")
+                putJsonObject("payload") {
+                    put("pathname", slot.path)
+                    put("clientPayload", slot.ticket)
+                    put("multipart", false)
+                }
+            }.toString()
+            val token = send<ClientTokenResponse>(Request.Builder().url(absoluteUrl("/api/uploads")).post(event.toRequestBody(JSON))).clientToken
+            Request.Builder().url(BLOB_API + "/?pathname=" + URLEncoder.encode(slot.path, "UTF-8")).put(content)
+                .header("authorization", "Bearer " + token)
+                .header("x-api-version", BLOB_API_VERSION)
+                // 令牌形如 vercel_blob_client_<storeId>_…，存储 ID 要单独放进请求头。
+                .header("x-vercel-blob-store-id", token.split("_").getOrElse(3) { "" })
+                .header("x-vercel-blob-access", "private")
+                .header("x-content-type", file.mimeType)
+                .header("x-content-length", file.size.toString())
+        }
+        val response = uploadClient.newCall(request.build()).await()
+        response.use { if (!it.isSuccessful) throw it.toApiException() }
+    }
+
+    override suspend fun discardUploads(tickets: List<String>) {
+        if (tickets.isEmpty()) return
+        runCatching {
+            val body = buildJsonObject { putJsonArray("uploads") { tickets.forEach { add(it) } } }.toString()
+            client.newCall(Request.Builder().url(absoluteUrl("/api/uploads")).delete(body.toRequestBody(JSON)).build()).await().close()
+        }
+    }
+
+    private fun uploadsJson(tickets: List<String>) = buildJsonArray { tickets.forEach { add(it) } }.toString()
 
     // ---- 账号 ----
 
@@ -145,8 +238,8 @@ class StudyMateApi(
         }
     }
 
-    private suspend inline fun <reified T> send(builder: Request.Builder): T {
-        val response = client.newCall(builder.header("Accept", "application/json").build()).await()
+    private suspend inline fun <reified T> send(builder: Request.Builder, with: OkHttpClient = client): T {
+        val response = with.newCall(builder.header("Accept", "application/json").build()).await()
         return response.use {
             if (!it.isSuccessful) throw it.toApiException()
             val text = withContext(Dispatchers.IO) { it.body.string() }
@@ -174,6 +267,39 @@ class StudyMateApi(
     companion object {
         const val USER_AGENT = "StudyMateNative/0.1 (Android)"
         private val JSON = "application/json".toMediaType()
+
+        // Vercel Blob 的上传接口和协议版本，取自网页使用的 @vercel/blob 客户端；升级那个包时一起核对。
+        private const val BLOB_API = "https://vercel.com/api/blob"
+        private const val BLOB_API_VERSION = "12"
+    }
+}
+
+/** 边读边传一个本地文件，并报告进度。长度固定为选文件时读到的大小，服务端按它校验。 */
+private class FileBody(
+    private val file: LocalFile,
+    private val open: (String) -> InputStream,
+    private val onProgress: (Int) -> Unit,
+) : RequestBody() {
+    override fun contentType(): MediaType? = file.mimeType.toMediaTypeOrNull()
+    override fun contentLength(): Long = file.size
+
+    override fun writeTo(sink: BufferedSink) {
+        open(file.uri).use { input ->
+            val buffer = ByteArray(64 * 1024)
+            var sent = 0L
+            var last = -1
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                sink.write(buffer, 0, read)
+                sent += read
+                val percent = if (file.size > 0) (sent * 100 / file.size).toInt().coerceIn(0, 100) else 0
+                if (percent != last) {
+                    last = percent
+                    onProgress(percent)
+                }
+            }
+        }
     }
 }
 

@@ -6,7 +6,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.studymate.StudyMateApp
+import com.kakumine.studymate.data.AttachError
 import com.kakumine.studymate.data.AttachmentDto
+import com.kakumine.studymate.data.LocalFile
+import com.kakumine.studymate.data.attachmentError
+import com.kakumine.studymate.data.selectionError
 import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.ChatStreamEvent
@@ -41,7 +45,22 @@ data class UiMessage(
     /** 请求失败时的原因（服务端或网络给出的文字），界面再套本地化外壳。 */
     val errorDetail: String? = null,
     val thinkingMs: Long? = null,
+    /** 正在生成图片：显示占位卡片而不是转圈。 */
+    val generatingImage: Boolean = false,
 )
+
+/** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
+sealed interface UploadProgress {
+    data object Preparing : UploadProgress
+    data class Uploading(val index: Int, val total: Int, val name: String, val percent: Int) : UploadProgress
+}
+
+/** 输入栏上方的提示。 */
+sealed interface ComposerNotice {
+    /** 新选的文件整批没有加进去。 */
+    data class Rejected(val error: AttachError) : ComposerNotice
+    data object UploadFailed : ComposerNotice
+}
 
 data class ChatUiState(
     val sessions: List<SessionSummary> = emptyList(),
@@ -57,7 +76,23 @@ data class ChatUiState(
     val messagesLoading: Boolean = false,
     val messagesFailed: Boolean = false,
     val sending: Boolean = false,
+    /** 选好、还没发送的附件。 */
+    val files: List<LocalFile> = emptyList(),
+    /** 「生成图片」模式：下一条消息交给图片接口。 */
+    val imageMode: Boolean = false,
+    val upload: UploadProgress? = null,
+    val notice: ComposerNotice? = null,
+    /** 每成功发出一条消息加一；输入栏据此清空草稿（上传失败时不清，文字还在）。 */
+    val sentCount: Int = 0,
 ) {
+    /** 图片交给图片接口时不受聊天模型限制。 */
+    val supportsImages: Boolean
+        get() = imageMode || selectedModel?.supportsImageInput != false
+
+    /** 当前这组附件不能发送的原因（例如换成了不能读图的模型）。 */
+    val filesError: AttachError?
+        get() = attachmentError(files, supportsImages)
+
     val selectedModel: ModelInfo?
         get() = models.firstOrNull { it.id == chosenModelId }
             ?: models.firstOrNull { it.id == defaultModelId }
@@ -214,6 +249,29 @@ class ChatViewModel(
         _state.update { it.copy(chosenReasoning = effort) }
     }
 
+    // ---- 附件与图片模式 ----
+
+    fun addFiles(incoming: List<LocalFile>) {
+        if (incoming.isEmpty()) return
+        _state.update { state ->
+            if (state.upload != null) return@update state
+            val error = selectionError(state.files, incoming, state.supportsImages)
+            if (error != null) state.copy(notice = ComposerNotice.Rejected(error))
+            else state.copy(files = state.files + incoming, notice = null)
+        }
+    }
+
+    fun removeFile(uri: String) {
+        _state.update { state ->
+            if (state.upload != null) state
+            else state.copy(files = state.files.filterNot { it.uri == uri }, notice = null)
+        }
+    }
+
+    fun setImageMode(on: Boolean) {
+        _state.update { it.copy(imageMode = on) }
+    }
+
     // ---- 发送 ----
 
     fun stop() {
@@ -225,14 +283,12 @@ class ChatViewModel(
         val current = _state.value
         // 历史还在加载、或加载失败时发送，新消息会插进空列表（失败页还会盖住它们）；而回答结束后的对账又会换掉整个列表。读到历史再发。
         if (prompt.isEmpty() || current.sending || current.messagesLoading || current.messagesFailed) return
+        if (current.upload != null || current.filesError != null) return
         // 正在进行的静默对账返回的是发送前的快照，会抹掉刚加进去的消息，所以先取消。
         loadJob?.cancel()
 
-        val assistantId = "local-${++localIds}"
-        val userMessage = UiMessage("local-${++localIds}", MessageRole.User, prompt)
-        val assistantMessage = UiMessage(assistantId, MessageRole.Assistant, "", streaming = true, modelId = current.selectedModel?.id)
-        _state.update { it.copy(messages = it.messages + userMessage + assistantMessage, sending = true) }
-
+        val files = current.files
+        val imageMode = current.imageMode
         val request = ChatRequest(
             message = prompt,
             sessionId = current.activeSessionId,
@@ -240,7 +296,126 @@ class ChatViewModel(
             reasoning = current.selectedReasoning,
             webSearch = if (current.selectedModel?.supportsWebSearch == false) "off" else "auto",
         )
-        streamJob = viewModelScope.launch { runStream(assistantId, request) }
+
+        if (files.isEmpty()) {
+            val assistantId = beginTurn(prompt, files, imageMode, current.selectedModel?.id)
+            streamJob = viewModelScope.launch { runTurn(assistantId, request, imageMode) }
+            return
+        }
+
+        // 和网页一样先上传、成功后才把这条消息放进对话；上传失败时文字和附件都留在输入栏。
+        _state.update { it.copy(sending = true, upload = UploadProgress.Preparing, notice = null) }
+        streamJob = viewModelScope.launch {
+            val tickets = uploadFiles(files) ?: return@launch
+            val assistantId = beginTurn(prompt, files, imageMode, current.selectedModel?.id)
+            runTurn(assistantId, request.copy(uploads = tickets), imageMode)
+        }
+    }
+
+    /** 把提问和等待中的回答放进对话，并清空输入栏里的附件。返回回答气泡的本地 ID。 */
+    private fun beginTurn(prompt: String, files: List<LocalFile>, imageMode: Boolean, modelId: String?): String {
+        val assistantId = "local-${++localIds}"
+        val userMessage = UiMessage(
+            "local-${++localIds}", MessageRole.User, prompt,
+            // 发送后先用本机文件显示缩略图，回答结束后换成服务器保存的版本。
+            attachments = files.map { AttachmentDto(it.uri, it.name, it.mimeType, it.size, it.uri.takeIf { _ -> it.isImage }) },
+        )
+        val assistantMessage = UiMessage(
+            assistantId, MessageRole.Assistant, "", streaming = true,
+            // 图片不是聊天模型画的，回答上方不显示模型名（和网页一致）。
+            modelId = modelId.takeIf { !imageMode }, generatingImage = imageMode,
+        )
+        _state.update {
+            it.copy(
+                messages = it.messages + userMessage + assistantMessage, sending = true,
+                files = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1,
+            )
+        }
+        return assistantId
+    }
+
+    /** 逐个上传附件，返回凭证；失败或被取消时清掉已上传的文件并返回 null（被取消时向上抛出）。 */
+    private suspend fun uploadFiles(files: List<LocalFile>): List<String>? {
+        var tickets = emptyList<String>()
+        try {
+            awaitSessionsRequest()
+            val plan = backend.prepareUploads(files)
+            tickets = plan.uploads.map { it.ticket }
+            files.forEachIndexed { index, file ->
+                fun report(percent: Int) = _state.update {
+                    it.copy(upload = UploadProgress.Uploading(index + 1, files.size, file.name, percent))
+                }
+                report(0)
+                backend.uploadFile(plan.uploads[index], plan.mode, file, ::report)
+                report(100)
+            }
+            return tickets
+        } catch (error: Throwable) {
+            withContext(NonCancellable) { backend.discardUploads(tickets) }
+            _state.update {
+                it.copy(sending = false, upload = null, notice = if (error is CancellationException) it.notice else ComposerNotice.UploadFailed)
+            }
+            if (error is CancellationException) throw error
+            return null
+        }
+    }
+
+    private suspend fun runTurn(assistantId: String, request: ChatRequest, imageMode: Boolean) {
+        if (imageMode) runImage(assistantId, request) else runStream(assistantId, request)
+    }
+
+    private suspend fun runImage(assistantId: String, request: ChatRequest) {
+        var sessionId = request.sessionId
+        var failure: Throwable? = null
+        var completed = false
+        try {
+            awaitSessionsRequest()
+            val result = backend.generateImage(request)
+            result.error?.let { throw java.io.IOException(it) }
+            val image = result.image?.takeIf { it.dataUrl.isNotEmpty() } ?: throw java.io.IOException("Failed to generate image.")
+            if (sessionId == null && result.sessionId != null) {
+                sessionId = result.sessionId
+                _state.update { it.copy(activeSessionId = result.sessionId) }
+            }
+            updateAssistant(assistantId) {
+                it.copy(generatingImage = false, images = listOf(GeneratedImageDto("local-${++localIds}", image.dataUrl, image.mimeType)))
+            }
+            completed = true
+        } catch (cancelled: CancellationException) {
+            // 用户点了停止，或切换了会话。
+        } catch (error: Throwable) {
+            failure = error
+        } finally {
+            withContext(NonCancellable) { finishAssistant(assistantId, failure) }
+        }
+        reconcile(sessionId, completed)
+    }
+
+    /** 回答结束（完成、失败或被停止）时收尾：去掉"进行中"状态，失败则记下原因。 */
+    private fun finishAssistant(assistantId: String, failed: Throwable?) {
+        _state.update { state ->
+            val messages = state.messages.mapNotNull { message ->
+                if (message.id != assistantId) return@mapNotNull message
+                val done = message.copy(streaming = false, generatingImage = false)
+                when {
+                    failed != null -> done.copy(errorDetail = failed.message ?: failed.javaClass.simpleName)
+                    // 没收到任何内容就被停止：不留空气泡。
+                    message.content.isEmpty() && message.images.isEmpty() -> null
+                    else -> done
+                }
+            }
+            state.copy(messages = messages, sending = false)
+        }
+    }
+
+    private fun reconcile(sessionId: String?, completed: Boolean) {
+        val finishedSession = sessionId ?: return
+        refreshSessions()
+        // 正常结束时用服务器上保存的版本对账（拿到真实 ID、生成的图片、思考时长）。
+        // 被停止时不对账：服务器不一定保存了已生成的半截回答，替换后屏幕上的文字可能凭空消失。
+        if (completed && _state.value.activeSessionId == finishedSession) {
+            loadMessages(finishedSession, quiet = true)
+        }
     }
 
     private suspend fun runStream(assistantId: String, request: ChatRequest) {
@@ -289,29 +464,10 @@ class ChatViewModel(
         } finally {
             withContext(NonCancellable) {
                 flush()
-                val failed = failure
-                _state.update { state ->
-                    val messages = state.messages.mapNotNull { message ->
-                        if (message.id != assistantId) return@mapNotNull message
-                        when {
-                            failed != null -> message.copy(streaming = false, errorDetail = failed.message ?: failed.javaClass.simpleName)
-                            // 没收到任何文字就被停止：不留空气泡。
-                            message.content.isEmpty() -> null
-                            else -> message.copy(streaming = false)
-                        }
-                    }
-                    state.copy(messages = messages, sending = false)
-                }
+                finishAssistant(assistantId, failure)
             }
         }
-
-        val finishedSession = sessionId ?: return
-        refreshSessions()
-        // 正常结束时用服务器上保存的版本对账（拿到真实 ID、生成的图片、思考时长）。
-        // 被停止时不对账：服务器不一定保存了已生成的半截回答，替换后屏幕上的文字可能凭空消失。
-        if (completed && _state.value.activeSessionId == finishedSession) {
-            loadMessages(finishedSession, quiet = true)
-        }
+        reconcile(sessionId, completed)
     }
 
     private fun updateAssistant(id: String, transform: (UiMessage) -> UiMessage) {

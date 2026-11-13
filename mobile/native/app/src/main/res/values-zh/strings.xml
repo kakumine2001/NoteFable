@@ -47,4 +47,31 @@
     <string name="use_google_profile">使用我的 Google 名称和头像</string>
     <string name="privacy">隐私政策</string>
     <string name="terms">服务条款</string>
+
+    <!-- 附件与「生成图片」模式（网页 attach-sheet.tsx、client-files.ts 的原句）。 -->
+    <string name="attach_add">添加</string>
+    <string name="attach_files">添加文件或照片</string>
+    <string name="create_image">生成图片</string>
+    <string name="create_image_on">已开启，下一条消息将生成图片</string>
+    <string name="create_image_desc">描述画面，让 AI 为你绘制</string>
+    <string name="image_mode_off">关闭图片生成</string>
+    <string name="image_hint">描述你想生成的图片…</string>
+    <string name="remove_image">移除图片</string>
+    <string name="generating_image">正在生成图片</string>
+    <string name="generating_image_wait">可能需要一点时间</string>
+    <string name="attached_count">已附上 %1$d/%2$d 篇</string>
+    <string name="upload_preparing">正在准备附件…</string>
+    <string name="upload_progress">正在上传 %1$d/%2$d · %3$s · %4$d%%</string>
+    <string name="upload_failed">无法上传附件，请检查网络连接后重新发送。</string>
+    <string name="err_too_many">每条消息最多附加 %1$d 个文件。请移除 %2$d 个后再继续。</string>
+    <string name="err_empty">“%1$s”是空文件。请选择有内容的文件。</string>
+    <string name="err_name_long">附件文件名太长。请重命名后再试。</string>
+    <string name="err_unsupported">不支持“%1$s”。请选择 PNG、JPEG、WEBP、PDF 或文本文件。</string>
+    <string name="err_model_images">这个模型无法读取图片。请选择支持图片的模型，或打开“生成图片”。</string>
+    <string name="err_file_large">“%1$s”超过了单个文件 %2$s 的上限。请选择更小的文件。</string>
+    <string name="err_total_large">附件总大小超过 %1$s。请移除文件或选择更小的文件。</string>
+    <string name="err_slots_full">%1$d 个附件位置都已用完。请先移除一个文件再添加。</string>
+    <string name="err_one_more">还能再添加 1 个文件（每条消息最多 %1$d 个）。这 %2$d 个文件都没有添加，请少选一些。</string>
+    <string name="err_some_more">还能再添加 %1$d 个文件（每条消息最多 %2$d 个）。这 %3$d 个文件都没有添加，请少选一些。</string>
+    <string name="err_not_added">%1$s没有添加新文件。</string>
 </resources>

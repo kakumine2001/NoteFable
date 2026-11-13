@@ -47,4 +47,31 @@
     <string name="use_google_profile">Googleの名前と写真に戻す</string>
     <string name="privacy">プライバシー</string>
     <string name="terms">利用規約</string>
+
+    <!-- 附件与「生成图片」模式（网页 attach-sheet.tsx、client-files.ts 的原句）。 -->
+    <string name="attach_add">追加</string>
+    <string name="attach_files">ファイルや写真を追加</string>
+    <string name="create_image">画像を作成</string>
+    <string name="create_image_on">オン：次のメッセージで画像を作成します</string>
+    <string name="create_image_desc">言葉で伝えると、画像になります</string>
+    <string name="image_mode_off">画像作成をオフにする</string>
+    <string name="image_hint">作りたい画像を説明してください…</string>
+    <string name="remove_image">画像を削除</string>
+    <string name="generating_image">画像を生成中</string>
+    <string name="generating_image_wait">少し時間がかかることがあります</string>
+    <string name="attached_count">%1$d/%2$d件を添付済み</string>
+    <string name="upload_preparing">添付ファイルを準備中…</string>
+    <string name="upload_progress">アップロード中 %1$d/%2$d・%3$s・%4$d%%</string>
+    <string name="upload_failed">添付ファイルをアップロードできませんでした。接続を確認して、もう一度送信してください。</string>
+    <string name="err_too_many">1 つのメッセージに添付できるのは %1$d 個までです。%2$d 個外してから続けてください。</string>
+    <string name="err_empty">「%1$s」は空です。中身のあるファイルを選んでください。</string>
+    <string name="err_name_long">添付ファイルの名前が長すぎます。名前を変えてからもう一度お試しください。</string>
+    <string name="err_unsupported">「%1$s」には対応していません。PNG、JPEG、WEBP、PDF、テキストファイルを選んでください。</string>
+    <string name="err_model_images">このモデルは画像を読めません。画像に対応したモデルを選ぶか、「画像を作成」をオンにしてください。</string>
+    <string name="err_file_large">「%1$s」は 1 ファイルあたりの上限 %2$s を超えています。小さいファイルを選んでください。</string>
+    <string name="err_total_large">添付ファイルの合計が %1$s を超えています。ファイルを外すか、小さいファイルを選んでください。</string>
+    <string name="err_slots_full">添付できる %1$d 個をすべて使っています。追加する前にファイルを外してください。</string>
+    <string name="err_one_more">あと 1 個追加できます（1 メッセージ %1$d 個まで）。選んだ %2$d 個はどれも追加していません。数を減らしてください。</string>
+    <string name="err_some_more">あと %1$d 個追加できます（1 メッセージ %2$d 個まで）。選んだ %3$d 個はどれも追加していません。数を減らしてください。</string>
+    <string name="err_not_added">%1$s新しいファイルは追加していません。</string>
 </resources>

@@ -2,7 +2,13 @@ package com.kakumine.studymate.ui
 
 import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatRequest
+import com.kakumine.studymate.data.AttachError
 import com.kakumine.studymate.data.ChatStreamEvent
+import com.kakumine.studymate.data.GeneratedImagePayload
+import com.kakumine.studymate.data.ImageResult
+import com.kakumine.studymate.data.LocalFile
+import com.kakumine.studymate.data.UploadPlan
+import com.kakumine.studymate.data.UploadSlot
 import com.kakumine.studymate.data.MessageDto
 import com.kakumine.studymate.data.ModelInfo
 import com.kakumine.studymate.data.ModelsResponse
@@ -72,7 +78,34 @@ class ChatViewModelTest {
             val error = streamError
             return if (error != null) flow { throw error } else events.receiveAsFlow()
         }
+
+        val imageRequests = mutableListOf<ChatRequest>()
+        var imageResult = ImageResult(sessionId = "img-1", image = GeneratedImagePayload("data:image/png;base64,AAAA"))
+        val uploaded = mutableListOf<String>()
+        val discarded = mutableListOf<String>()
+        var uploadError: Throwable? = null
+
+        override suspend fun generateImage(request: ChatRequest): ImageResult {
+            imageRequests += request
+            return imageResult
+        }
+
+        override suspend fun prepareUploads(files: List<LocalFile>) =
+            UploadPlan(files.indices.map { UploadSlot("path-$it", "ticket-$it") }, "local")
+
+        override suspend fun uploadFile(slot: UploadSlot, mode: String, file: LocalFile, onProgress: (Int) -> Unit) {
+            uploadError?.let { throw it }
+            onProgress(50)
+            uploaded += slot.ticket
+        }
+
+        override suspend fun discardUploads(tickets: List<String>) {
+            discarded += tickets
+        }
     }
+
+    private val notes = LocalFile("content://notes", "notes.txt", "text/plain", 1200)
+    private val photo = LocalFile("content://photo", "photo.png", "image/png", 3400)
 
     // 回答进行中刷新定时器一直在排队，advanceUntilIdle 永远等不到空闲；这里只推进一小段虚拟时间。
     private fun TestScope.settle() {
@@ -380,5 +413,98 @@ class ChatViewModelTest {
         assertEquals(1, backend.requests.size)
         vm.stop()
         advanceUntilIdle()
+    }
+
+    @Test
+    fun `uploads attachments first, then sends their tickets and clears the composer`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        vm.addFiles(listOf(notes))
+
+        vm.send("summarise")
+        settle()
+
+        assertEquals(listOf("ticket-0"), backend.uploaded)
+        assertEquals(listOf("ticket-0"), backend.requests.single().uploads)
+        assertTrue(vm.state.value.files.isEmpty())
+        assertNull(vm.state.value.upload)
+        assertEquals(1, vm.state.value.sentCount)
+        assertEquals("notes.txt", vm.state.value.messages.first().attachments.single().filename)
+
+        // 结束这次回答，否则刷新定时器会一直排队。
+        backend.events.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `a failed upload keeps the files and the draft, removes what was uploaded and sends nothing`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { uploadError = IOException("offline") }
+        val vm = newViewModel(backend)
+        vm.addFiles(listOf(notes))
+
+        vm.send("summarise")
+        advanceUntilIdle()
+
+        assertTrue(backend.requests.isEmpty())
+        assertEquals(listOf("ticket-0"), backend.discarded)
+        assertEquals(listOf(notes), vm.state.value.files)
+        assertEquals(ComposerNotice.UploadFailed, vm.state.value.notice)
+        assertFalse(vm.state.value.sending)
+        assertEquals(0, vm.state.value.sentCount)
+        assertTrue(vm.state.value.messages.isEmpty())
+    }
+
+    @Test
+    fun `an image is refused while the model cannot read images, and accepted in image mode`() = runTest(dispatcher) {
+        val vm = newViewModel(FakeBackend())
+
+        vm.addFiles(listOf(photo))
+        assertTrue(vm.state.value.files.isEmpty())
+        assertEquals(ComposerNotice.Rejected(AttachError.NotAdded(AttachError.ModelCannotReadImages)), vm.state.value.notice)
+
+        vm.setImageMode(true)
+        vm.addFiles(listOf(photo))
+        assertEquals(listOf(photo), vm.state.value.files)
+        assertNull(vm.state.value.notice)
+
+        // 关掉图片模式后，这张图对当前模型又不能用了：留在输入栏里，但不能发送。
+        vm.setImageMode(false)
+        assertEquals(AttachError.ModelCannotReadImages, vm.state.value.filesError)
+        vm.send("describe")
+        advanceUntilIdle()
+        assertTrue(vm.state.value.messages.isEmpty())
+    }
+
+    @Test
+    fun `image mode sends the prompt to the image API and shows the result`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        vm.setImageMode(true)
+        backend.stored = listOf(MessageDto("db-1", "USER", "a red kite"), MessageDto("db-2", "ASSISTANT", ""))
+
+        vm.send("a red kite")
+        assertTrue(vm.state.value.messages.last().generatingImage)
+        advanceUntilIdle()
+
+        assertTrue(backend.requests.isEmpty())
+        assertEquals("a red kite", backend.imageRequests.single().message)
+        assertEquals("img-1", vm.state.value.activeSessionId)
+        assertFalse(vm.state.value.sending)
+        assertEquals(listOf("db-1", "db-2"), vm.state.value.messages.map { it.id })
+    }
+
+    @Test
+    fun `a failed image request ends the placeholder with the reason`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { imageResult = ImageResult(error = "No image today.") }
+        val vm = newViewModel(backend)
+        vm.setImageMode(true)
+
+        vm.send("a red kite")
+        advanceUntilIdle()
+
+        val answer = vm.state.value.messages.last()
+        assertFalse(answer.generatingImage)
+        assertEquals("No image today.", answer.errorDetail)
+        assertFalse(vm.state.value.sending)
     }
 }
