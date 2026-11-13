@@ -9,7 +9,7 @@ import { ChatActivity } from "@/components/chat-activity";
 import type { ProgressStep } from "@/lib/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
-import { MODEL_OPTIONS } from "@/lib/models";
+import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/studymate-logo";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
@@ -67,6 +67,7 @@ export const ChatMessage = memo(function ChatMessage({
   conversationTitle = "",
 }: ChatMessageProps) {
   const t = useT();
+  const { options: modelOptions } = useModels();
   // メッセージの役割ごとに表示密度を変える。
   // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
   const generatedImages = message.generatedImages ?? [];
@@ -104,7 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
   // 画像は選んだチャットモデルに関係なく OpenAI の画像 API で作るので、画像の回答には出さない。
   const isImageAnswer = hasGeneratedImages || !!message.isGeneratingImage;
   const modelLabel = message.role === "ASSISTANT" && message.model && !isImageAnswer
-    ? MODEL_OPTIONS.find((option) => option.id === message.model)?.label
+    ? modelOptions.find((option) => option.id === message.model)?.label
     : undefined;
 
   return (

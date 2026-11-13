@@ -174,7 +174,22 @@ ANTHROPIC_HAIKU_MODEL
 
 启用 Claude 必须配置服务端密钥。默认接入点 `https://api.anthropic.com/v1`，模型 `claude-haiku-5-5`，调用 Messages API；后两项可省略。API 独立计费。修改 Vercel 环境变量后重新部署生效，密钥不得进入客户端或 Git。
 
-模型显示名、模型 ID、能力和推理档位都只定义在 `src/lib/models.ts`，不通过环境变量覆盖。
+### 可用模型（`STUDYMATE_MODELS`，可选）
+
+`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `STUDYMATE_MODELS` 决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
+
+值是一个 JSON 数组。只有写在里面的模型可用，顺序就是选择器里的顺序，第一个是默认模型：
+
+```text
+STUDYMATE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude","upstreamModel":"claude-haiku-5-5"}]
+```
+
+- 内置 id：以内置设置为底，只覆盖写出的字段（`label`、`upstreamModel`、能力开关、推理档位、`tokenLimits`）。
+- 推理档位只能用同一 provider 的内置模型已有的档位；`tokenLimits` 是 `{"contextWindow":正整数,"maxOutputTokens":正整数}`，Anthropic 请求的 `max_tokens` 取其中的 `maxOutputTokens`（不写则用 Haiku 的上限）。`"enabled": false` 可以临时下架。
+- 新 id：必须写全 `label`、`provider`（`openai` / `anthropic` / `deepseek`）、`supportsImageInput`、`supportsWebSearch`、`supportsCompaction`、`supportsPageTools`、`reasoningEfforts`、`defaultReasoning`。每个 provider 的接入代码是固定的，新 id 只能复用已有的三种。
+- 上游模型名的优先级：`upstreamModel` > 旧的单模型变量（`OPENAI_TEXT_MODEL` 等）> id 本身。
+- 内容无法解析或不合法时，服务器记一条日志并退回内置列表，不会让模型选择器失效。
+- `/` 和 `/app` 是静态页面，模型列表在构建时确定；修改这个变量后必须重新部署。
 
 ### Image Storage
 

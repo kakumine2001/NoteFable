@@ -21,6 +21,7 @@ import { restoreCompaction, serializeCompaction } from "@/lib/chat-compaction";
 import { createResponsesToolStream, toResponsesTools } from "@/lib/responses-tool-loop";
 import {
   getModelOption,
+  type ModelOption,
   normalizeModel,
   normalizeReasoning,
   toDbReasoning,
@@ -42,6 +43,7 @@ import {
   type WebSearchMode,
 } from "@/lib/web-search";
 import { msg, fmt } from "@/lib/i18n/translate";
+import { getModelRegistry } from "@/lib/model-registry";
 
 export const runtime = "nodejs";
 
@@ -244,9 +246,11 @@ async function saveGeneratedTitle({
   }
 }
 
-function getUpstreamModel(model: string) {
-  // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。
-  // 環境変数で差し替えできるようにして、画面側の選択肢は固定のまま運用できる。
+function getUpstreamModel(model: string, options: readonly ModelOption[]) {
+  // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。STUDYMATE_MODELS の upstreamModel が最優先、
+  // 次に組み込みモデルの従来の環境変数、なければ ID のまま。
+  const configured = options.find((option) => option.id === model)?.upstreamModel;
+  if (configured) return configured;
   if (model === "gpt-6-luna") {
     return optionalEnv("OPENAI_TEXT_MODEL") || model;
   }
@@ -338,13 +342,14 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   // ノートを開いたまま使う AI アシスタントからの送信なら、そのノートの ID。通常のチャットでは空。
   const noteId = String(formData.get("noteId") ?? "").trim();
   // クライアントから送られたモデル ID を、許可済み ID のどれかへ正規化する。
-  const model = normalizeModel(formData.get("model"));
+  const registry = getModelRegistry();
+  const model = normalizeModel(formData.get("model"), registry);
   // 実際に上流 API へ渡すモデル名。環境変数で別名に差し替え可能。
-  const upstreamModel = getUpstreamModel(model);
+  const upstreamModel = getUpstreamModel(model, registry.options);
   // 対応プロバイダーや画像入力可否など、モデルの機能情報。
-  const modelOption = getModelOption(model);
+  const modelOption = getModelOption(model, registry.options);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
-  const reasoning = normalizeReasoning(formData.get("reasoning"), model);
+  const reasoning = normalizeReasoning(formData.get("reasoning"), model, registry.options);
   // 検索非対応モデルでは、古いクライアントの指定も off に正規化する。
   // フィールド未指定でも検索対応モデルなら auto になる。
   // ノート用の送信は検索なし固定（ブラウザ側の指定に任せない）。
@@ -618,6 +623,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 input,
                 effort: reasoning,
                 webSearchMode,
+                // 出力上限はモデルごと。指定のないモデルは Haiku の値を使う。
+                maxTokens: modelOption.tokenLimits?.maxOutputTokens,
                 compaction: modelOption.supportsCompaction,
                 nativeContext: restored.items,
                 customTools: pageTools,

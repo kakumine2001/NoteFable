@@ -3,7 +3,8 @@
 import { Check, ChevronDown } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { getModelOption, MODEL_OPTIONS, type ReasoningEffort } from "@/lib/models";
+import { type ReasoningEffort } from "@/lib/models";
+import { useModels } from "@/components/models-provider";
 import { reasoningDescriptions, reasoningLabels } from "@/lib/reasoning-labels";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -24,6 +25,7 @@ export function ModelSheetSelect({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const { options: modelOptions, getModelOption } = useModels();
   const model = getModelOption(value);
   const efforts = model.reasoningEfforts;
   const current = efforts.includes(reasoning as ReasoningEffort) ? reasoning : model.defaultReasoning;
@@ -66,7 +68,7 @@ export function ModelSheetSelect({
 
               <h2 className="model-sheet-title">{t("Model")}</h2>
               <div className="model-sheet-list" role="radiogroup" aria-label={t("Model")}>
-                {MODEL_OPTIONS.map((item) => {
+                {modelOptions.map((item) => {
                   const selected = item.id === value;
                   return (
                     <button

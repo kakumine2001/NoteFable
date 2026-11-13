@@ -1,17 +1,7 @@
-import { DEFAULT_MODEL, MODEL_OPTIONS } from "@/lib/models";
+import { publicModels } from "@/lib/model-registry";
 
-// 网页、接口与安装包共用 models.ts；只投影客户端所需字段，内部限制留在服务端。
+// 原生 App 与网页共用的模型一览。服务器决定现在能用哪些（STUDYMATE_MODELS，没设置就用内置列表）；
+// 只投影客户端所需字段，内部限制留在服务端。
 export function nativeModelsPayload() {
-  return {
-    defaultModel: DEFAULT_MODEL,
-    models: MODEL_OPTIONS.map((model) => ({
-      id: model.id,
-      label: model.label,
-      provider: model.provider,
-      supportsImageInput: model.supportsImageInput,
-      supportsWebSearch: model.supportsWebSearch,
-      reasoningEfforts: model.reasoningEfforts,
-      defaultReasoning: model.defaultReasoning,
-    })),
-  };
+  return publicModels();
 }

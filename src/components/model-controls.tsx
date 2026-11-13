@@ -9,11 +9,10 @@ import {
   useState,
 } from "react";
 import {
-  getModelOption,
-  MODEL_OPTIONS,
   type ReasoningEffort,
 } from "@/lib/models";
 import { ModelSheetSelect } from "@/components/model-sheet";
+import { useModels } from "@/components/models-provider";
 import { reasoningDescriptions, reasoningLabels } from "@/lib/reasoning-labels";
 import { useMediaQuery } from "@/lib/use-media-query";
 import {
@@ -69,6 +68,7 @@ function DesktopModelSelect({
   const trackRef = useRef<HTMLSpanElement | null>(null);
   const pointerActiveRef = useRef(false);
   const wheelStateRef = useRef({ accumulatedDelta: 0, lastEventTime: 0 });
+  const { options: modelOptions, getModelOption } = useModels();
   const currentModel = getModelOption(value);
   const currentReasoningLabel = t(reasoningLabels[reasoning] ?? reasoning);
   const supportedEfforts = currentModel.reasoningEfforts;
@@ -461,7 +461,7 @@ function DesktopModelSelect({
             </div>
           ) : (
             <div className="codex-model-options">
-              {MODEL_OPTIONS.map((item) => {
+              {modelOptions.map((item) => {
                 const selected = item.id === value;
 
                 return (
