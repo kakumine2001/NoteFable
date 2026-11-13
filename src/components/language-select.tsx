@@ -2,7 +2,7 @@
 
 import { Check, ChevronDown, Globe, Loader2 } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { Popover } from "@/components/emoji-picker";
+import { Popover, usePickerBackToClose } from "@/components/emoji-picker";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALES, LOCALE_NAMES, type LocalePreference } from "@/lib/i18n/locale";
 
@@ -15,6 +15,8 @@ export function LanguageSelect({ compact = false }: { compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // スマホのサイドバー（ドロワー）の中で開いたとき、Android の戻る・Esc はまずこのメニューだけを閉じる。
+  usePickerBackToClose(open, () => setOpen(false));
   // 開いたら選択中の項目へフォーカスする（Popover が自分にフォーカスした後に動かすため次のフレームで）。
   useEffect(() => {
     if (!open) return;

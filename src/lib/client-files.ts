@@ -21,7 +21,7 @@ export function getUploadValidationError(files: UploadCandidate[], options: Uplo
     if (!file.size) return t("“{name}” is empty. Choose a file with content.", { name: file.name });
     if (!file.name || file.name.length > 255) return t("The attachment filename is too long. Rename the file and try again.");
     const image = isImageMimeType(file.type);
-    const supported = image || file.type.startsWith("text/") || file.type === "application/pdf" || /.(md|markdown|json|csv|tsv|txt|pdf)$/i.test(file.name);
+    const supported = image || file.type.startsWith("text/") || file.type === "application/pdf" || /\.(md|markdown|json|csv|tsv|txt|pdf)$/i.test(file.name);
     if (!supported) return t("“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.", { name: file.name });
     if (image && !options.supportsImages) return t("This model cannot read images. Choose an image-capable model or turn on Create an image.");
     const limit = MAX_UPLOAD_FILE_BYTES;

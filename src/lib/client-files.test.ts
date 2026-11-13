@@ -29,6 +29,8 @@ describe("composer attachment validation", () => {
   it("validates types and changed model constraints before sending", () => {
     expect(getUploadSelectionError([], [{ name: "photo.heic", type: "image/heic", size: 100 }], options)).toContain("not supported");
     expect(getUploadSelectionError([], [{ name: "notes.md", type: "", size: 100 }], options)).toBe("");
+    // 拡張子の前の「.」は文字どおりに照合する（"reportpdf" のような名前は通さない）。
+    expect(getUploadSelectionError([], [{ name: "reportpdf", type: "", size: 100 }], options)).toContain("not supported");
     expect(getUploadValidationError([image()], { ...options, supportsImages: false })).toContain("cannot read images");
     expect(getUploadValidationError([image(5 * 1024 * 1024)], { ...options, claudeImages: true })).toBe("");
     expect(getUploadValidationError([image(5 * 1024 * 1024 + 1)], { ...options, claudeImages: true })).toBe("");
