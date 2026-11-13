@@ -48,4 +48,31 @@
     <string name="use_google_profile">Use my Google name and photo</string>
     <string name="privacy">Privacy</string>
     <string name="terms">Terms</string>
+
+    <!-- 附件与「生成图片」模式（网页 attach-sheet.tsx、client-files.ts 的原句）。 -->
+    <string name="attach_add">Add</string>
+    <string name="attach_files">Add files or photos</string>
+    <string name="create_image">Create an image</string>
+    <string name="create_image_on">On — your next message creates an image</string>
+    <string name="create_image_desc">Describe it and it is drawn for you</string>
+    <string name="image_mode_off">Turn off image creation</string>
+    <string name="image_hint">Describe an image to create...</string>
+    <string name="remove_image">Remove image</string>
+    <string name="generating_image">Generating image</string>
+    <string name="generating_image_wait">This may take a moment</string>
+    <string name="attached_count">%1$d/%2$d attached</string>
+    <string name="upload_preparing">Preparing attachments…</string>
+    <string name="upload_progress">Uploading %1$d/%2$d · %3$s · %4$d%%</string>
+    <string name="upload_failed">Unable to upload attachments. Check your connection and try sending again.</string>
+    <string name="err_too_many">You can attach up to %1$d files per message. Remove %2$d to continue.</string>
+    <string name="err_empty">“%1$s” is empty. Choose a file with content.</string>
+    <string name="err_name_long">The attachment filename is too long. Rename the file and try again.</string>
+    <string name="err_unsupported">“%1$s” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.</string>
+    <string name="err_model_images">This model cannot read images. Choose an image-capable model or turn on Create an image.</string>
+    <string name="err_file_large">“%1$s” exceeds %2$s per file. Choose a smaller file.</string>
+    <string name="err_total_large">Attachments exceed %1$s in total. Remove a file or choose smaller files.</string>
+    <string name="err_slots_full">All %1$d attachment slots are used. Remove a file before adding another.</string>
+    <string name="err_one_more">You can add 1 more file (%1$d per message). None of these %2$d files were added. Choose fewer files.</string>
+    <string name="err_some_more">You can add %1$d more files (%2$d per message). None of these %3$d files were added. Choose fewer files.</string>
+    <string name="err_not_added">%1$s No new files were added.</string>
 </resources>

@@ -80,6 +80,23 @@ data class ModelsResponse(
 @Serializable
 data class ApiError(val error: String? = null)
 
+// POST /api/uploads：每个文件一张上传凭证（ticket）和存放路径；mode 是 "blob"（线上）或 "local"（本机开发）。
+@Serializable
+data class UploadSlot(val path: String, val ticket: String)
+
+@Serializable
+data class UploadPlan(val uploads: List<UploadSlot> = emptyList(), val mode: String = "blob")
+
+@Serializable
+data class ClientTokenResponse(val clientToken: String)
+
+// POST /api/images 的结果：只在图片完成后返回一次。
+@Serializable
+data class GeneratedImagePayload(val dataUrl: String = "", val mimeType: String = "image/png")
+
+@Serializable
+data class ImageResult(val sessionId: String? = null, val image: GeneratedImagePayload? = null, val error: String? = null)
+
 // GET /api/account（src/app/api/account/route.ts）。configured=false 表示服务端没开 Google 登录，不显示登录入口。
 @Serializable
 data class AccountUser(
