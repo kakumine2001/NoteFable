@@ -126,7 +126,10 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   useEffect(() => {
     // 上限の案内からログインして戻ってきたら、このノートで送れなかった本文を入力欄へ戻す。
     const pending = takePendingDraft(`note:${noteId}`);
-    if (pending) queueMicrotask(() => setInput((current) => current || pending));
+    if (!pending) return;
+    // 戻した本文は、送るか消すまで次に離れるときも預け続ける。
+    guestLimitHitRef.current = true;
+    queueMicrotask(() => setInput((current) => current || pending));
   }, [noteId]);
 
   useEffect(() => {

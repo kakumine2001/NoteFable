@@ -23,7 +23,7 @@ export function takePendingDraft(scope: string) {
   }
 }
 
-// 上限に達したあとにページを離れるとき（どのログインボタンからでも、再読み込みでも）入力欄の本文を預ける。
+// 上限に達したあとにページを離れるとき（どのログインボタンからでも、再読み込みでも）や入力欄が消えるとき、本文を預ける。
 // getDraft が null を返す間（まだ上限に達していない）は何もしない。
 export function useKeepDraftOnLeave(scope: string, getDraft: () => string | null) {
   const latest = useRef(getDraft);
@@ -36,6 +36,10 @@ export function useKeepDraftOnLeave(scope: string, getDraft: () => string | null
       if (draft !== null) savePendingDraft(scope, draft);
     };
     window.addEventListener("pagehide", onLeave);
-    return () => window.removeEventListener("pagehide", onLeave);
+    // 画面の切り替え（別のノートへ移るなど）で入力欄ごと消えるときも預ける。
+    return () => {
+      window.removeEventListener("pagehide", onLeave);
+      onLeave();
+    };
   }, [scope]);
 }
