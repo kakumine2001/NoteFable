@@ -215,10 +215,12 @@ export default function Home() {
       list = phone;
     }
     else url.searchParams.delete("view");
+    // ドロワーは切り替えの動きの外で閉じる。動きの中（runTransition の更新）に入れると、直後の別の画面更新で
+    // その更新ごと取り消されたとき、透明になったドロワーが開いたまま画面を覆い、次のタップで履歴を戻してしまう。
+    setSidebarOpen(false);
     // Chat ⇄ Note は、同じ場所でふわっと入れ替える。
     runTransition(() => {
       setWorkspaceView(view);
-      setSidebarOpen(false);
       if (view === "pages") setNotesList(list);
     }, "fade");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
@@ -284,10 +286,11 @@ export default function Home() {
     if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
     else if (url.href !== window.location.href) window.history.pushState(null, "", url);
     restoreSheetMarker();
+    // ドロワーは動きの外で閉じる（changeWorkspace と同じ理由）。
+    setSidebarOpen(false);
     const show = () => {
       setWorkspaceView("pages");
       setNotesList(false);
-      setSidebarOpen(false);
     };
     if (workspaceView !== "pages") runTransition(show, "fade");
     else if (notesList) runTransition(show, "forward");
