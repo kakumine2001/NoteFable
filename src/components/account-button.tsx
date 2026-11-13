@@ -7,16 +7,38 @@ import { usePickerBackToClose } from "@/components/emoji-picker";
 import { GoogleLogo } from "@/components/google-logo";
 import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/profile-menu";
 import { UserAvatar } from "@/components/user-avatar";
-import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
+import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount, type Account } from "@/lib/account-store";
 import { canSignInNatively, signInWithNativeGoogle, signOutOfNativeGoogle } from "@/lib/native-app";
 import { useT } from "@/components/i18n-provider";
+
+// Google ログインを始める。Android アプリの WebView では Google が Web のログイン画面を拒否するので、端末側のログインを使う。
+// サイドバーのボタンと、未ログインで上限に達したときの案内で同じ動きにする。
+export function useGoogleSignIn(account: Account | null) {
+  const [failed, setFailed] = useState(false);
+  const clientId = account?.googleClientId;
+
+  async function start() {
+    setFailed(false);
+    try {
+      if (clientId && canSignInNatively()) {
+        if (await signInWithNativeGoogle(clientId)) window.location.reload();
+      } else {
+        await signIn("google");
+      }
+    } catch {
+      setFailed(true);
+    }
+  }
+
+  return { start, failed };
+}
 
 // サイドバー下部のアカウント。ログイン前は「Sign in with Google」、ログイン後は顔と名前の行で、押すとプロフィールが開く。
 // Google ログインが未設定の環境では何も表示しない。状態はページ全体で 1 つ（account-store）。
 export function AccountButton() {
   const t = useT();
   const { account, saveError } = useAccount();
-  const [failed, setFailed] = useState(false);
+  const { start: startSignIn, failed } = useGoogleSignIn(account);
   const [menu, setMenu] = useState<MenuPosition | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenu(null);
@@ -24,22 +46,9 @@ export function AccountButton() {
 
   if (!account?.configured) return null;
 
-  // Android アプリの WebView では Google が Web のログイン画面を拒否するので、端末側のログインを使う。
-  async function signInNatively(webClientId: string) {
-    setFailed(false);
-    try {
-      if (await signInWithNativeGoogle(webClientId)) window.location.reload();
-    } catch {
-      setFailed(true);
-    }
-  }
-
   if (!account.user) {
-    const clientId = account.googleClientId;
-    const native = Boolean(clientId) && canSignInNatively();
     return (
-      <button type="button" className="google-signin-button"
-        onClick={() => (native && clientId ? signInNatively(clientId) : signIn("google"))}>
+      <button type="button" className="google-signin-button" onClick={() => void startSignIn()}>
         <GoogleLogo size={18} /><span>{failed ? t("Sign-in failed. Try again") : t("Sign in with Google")}</span>
       </button>
     );

@@ -41,6 +41,7 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Chat organization (manual titles, pins, independent projects) | `src/components/chat-sidebar.tsx`, `src/components/chat-actions.tsx`, `src/lib/session-organization-sync.ts`, `src/app/api/sessions/*`, `src/app/api/chat-projects/*` |
 | Chat tools (Notes search/read/propose edit/propose create) and tool loops | `src/lib/page-tools.ts`, `src/lib/page-edit.ts`, `src/lib/note-markdown.ts`, `src/lib/chat-tools.ts`, `src/lib/responses-tool-loop.ts` |
 | Image generation | `src/app/api/images/route.ts` |
+| Daily usage limits (guest / Google member / paid `PRO`) | `src/lib/usage-plans.ts`, `src/lib/usage-limits.ts`, `AnonymousUser.plan`, `UsageCounter` |
 | File and attachment handling | `src/lib/files.ts`, `src/lib/client-chat-upload.ts`, `src/lib/chat-upload-ticket.ts`, `src/lib/chat-uploads.ts`, `src/app/api/uploads/*` |
 | Image storage | `src/lib/storage.ts` |
 | Database connection/schema | `src/lib/prisma.ts` |
@@ -119,13 +120,11 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 
 ## Cross-Agent Calls
 
-- When Codex finishes code changes and the necessary checks pass, obtain an independent Codex review before committing. This Codex workflow takes precedence over the Grok reviewer default below.
+- When Codex finishes code changes and the necessary checks pass, obtain an independent Codex review before committing.
 - Give the reviewer only the task requirements, the complete affected diff (including relevant staged, unstaged, and untracked files), and applicable repository rules. Use a fresh reviewer context without the development conversation or the author's explanations; when using a subagent, set `fork_turns: "none"`.
 - The reviewer works read-only and reports actionable findings with file locations; it must not modify files.
 - Use `gpt-6.1-sol` with Extra High (`xhigh`) reasoning for this independent Codex review. Set model and reasoning effort explicitly when launching the reviewer; CLI example: `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"xhigh"' --uncommitted`. The `review_model` config key selects only the model and does not independently pin review reasoning effort.
 - The main Codex agent verifies the findings, fixes valid issues, and runs the relevant checks before committing.
-
-- For the current review workflow, use Grok 4.7 through Cursor CLI: `agent -p --model grok-4.7-medium --mode ask --trust --workspace <repo> <prompt>`. Review the full affected diff read-only, verify and fix its findings, and pass relevant checks before any authorized commit or deployment. This review requirement does not authorize a production release. Keep this reviewer until the user requests a change.
 
 Pin these models when Codex and Claude Code call each other in this project, unless the user names another:
 

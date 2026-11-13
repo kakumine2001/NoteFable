@@ -22,6 +22,7 @@ import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { EmptyConversation } from "@/components/empty-conversation";
+import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { AttachSheet } from "@/components/attach-sheet";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
@@ -45,6 +46,7 @@ import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -378,6 +380,8 @@ export default function Home() {
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
   // エラーは英語か API の原文で保持する。複数の値のある添付校正は、値を分け直さず今の t で描く関数を保持する。
   const [sendError, setSendError] = useState<ErrorText>("");
+  // 未ログインで上限に達したとき、入力欄の上に閉じられるログイン案内を出す。
+  const [guestLimit, setGuestLimit] = useState<UsageKind | null>(null);
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
@@ -1052,7 +1056,7 @@ export default function Home() {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error ?? msg("Failed to generate image."));
+          throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to generate image."));
         }
 
         const event = (await response.json()) as ImageGenerationResult;
@@ -1111,7 +1115,7 @@ export default function Home() {
 
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? msg("Failed to send message."));
+        throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to send message."));
       }
 
       // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
@@ -1175,13 +1179,16 @@ export default function Home() {
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
-      // 英語のまま持ち、表示するときに訳す（ChatMessage が localizeFailureText で訳す）。
+      // 原文を保持し、明示した失敗・上限の文だけを表示時に訳す。
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
+      const limited = error instanceof UsageLimitError;
+      if (limited && error.tier === "guest") setGuestLimit(error.kind);
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
-            ? { ...message, content: failureText(detail), failed: true,
-              activity: applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: 0, detail }) }
+            ? { ...message, content: limited ? detail : failureText(detail), failed: true, isGeneratingImage: false,
+              usageLimit: limited ? error.kind : undefined,
+              activity: limited ? message.activity : applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: 0, detail }) }
             : message,
         ),
       );
@@ -1582,6 +1589,7 @@ export default function Home() {
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
           </div>
+          {guestLimit && <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} />}
           {(uploadError || sendError) && (
             <div
               className="notion-error notion-page-column mb-3"

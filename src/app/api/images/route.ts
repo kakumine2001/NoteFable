@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import {
   AttachmentValidationError,
@@ -348,6 +349,8 @@ export async function POST(request: Request) {
   }
 
   const imageInputs = await prepareImageInputs(body.files);
+  // 1 日の生成回数。画像を受け取れずに失敗したときは数えない。
+  let usageTicket: UsageTicket | null = null;
 
   try {
     // 匿名ユーザーを確定し、既存セッションが指定されている場合は所有者確認に使う。
@@ -365,6 +368,12 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
       }
     }
+
+    const usage = await consumeUsage(user, "image", clientNetworkKey(request));
+    if (!usage.ok) {
+      return usageLimitResponse(usage, "image");
+    }
+    usageTicket = usage.ticket;
 
     const history = existingSession ? await prisma.message.findMany({
       where: { sessionId: existingSession.id, session: { userId: user.id }, role: { in: ["USER", "ASSISTANT"] } },
@@ -510,6 +519,8 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     const message = getErrorMessage(error);
+    // 保存に失敗して利用者が画像を受け取れなかった場合も戻す。
+    await refundUsage(usageTicket);
 
     console.error("Image generation failed", {
       hasReferenceImages: imageInputs.length > 0,

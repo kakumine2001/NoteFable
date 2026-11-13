@@ -148,7 +148,7 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
-            {message.content && <AssistantMarkdown content={localizeFailureText(message.content, t, failure)} />}
+            {message.content && <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />}
             {proposals.map((proposal) => proposal.kind === "proposal"
               ? <PageEditProposal key={proposal.id} proposal={proposal} />
               : <PageCreateProposal key={proposal.id} proposal={proposal} />)}

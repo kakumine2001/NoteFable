@@ -27,6 +27,7 @@ sequenceDiagram
     Browser->>ChatAPI: Submit text and signed upload references
     ChatAPI->>Auth: Resolve anonymous user
     Auth->>Database: Find or create user
+    ChatAPI->>Database: Reserve daily chat quota atomically
     ChatAPI->>Database: Find or create session
 
     alt Files attached
@@ -45,6 +46,8 @@ sequenceDiagram
 ```
 
 ## 前端发送的数据
+
+`/api/chat` 在调用模型前预占当天的聊天次数，笔记内 AI 助手也使用同一份额度。满额时返回 `429` 与 `code: "usage_limit"`；游客看到可关闭的 Google 登录引导。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)。
 
 `src/app/[locale]/app/page.tsx`（`/app` 工作区）会构建：
 
