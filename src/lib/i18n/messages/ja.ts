@@ -524,4 +524,5 @@ export const ja: Record<string, string> = {
   "You've used today's free messages": "今日の無料のメッセージ回数を使い切りました",
   "Sign in with Google to get {chat} messages and {image} images a day, and find your chats on any device.": "Google でログインすると、1 日 {chat} 件のメッセージと {image} 枚の画像生成が使え、どの端末からでもチャットを開けます。",
   "Not now": "今はしない",
+  "Attachments aren't kept when you sign in. Add them again afterward.": "ログインすると添付ファイルは残りません。ログイン後にもう一度追加してください。",
 };

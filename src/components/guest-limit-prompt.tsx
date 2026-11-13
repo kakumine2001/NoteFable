@@ -9,7 +9,13 @@ import { USAGE_LIMITS, type UsageKind } from "@/lib/usage-plans";
 
 // 未ログインの利用者が 1 日の上限に達したとき、入力欄の上に出すログインの案内。
 // Google ログインが使えない環境（未設定）や、すでにログイン済みなら何も出さない。
-export function GuestLimitPrompt({ kind, onClose }: { kind: UsageKind; onClose: () => void }) {
+// onBeforeSignIn: ログイン画面へ移る直前に、送れなかった本文を預ける。attachmentsLost: 預けられない添付があるとき注意を出す。
+export function GuestLimitPrompt({ kind, onClose, onBeforeSignIn, attachmentsLost = false }: {
+  kind: UsageKind;
+  onClose: () => void;
+  onBeforeSignIn?: () => void;
+  attachmentsLost?: boolean;
+}) {
   const t = useT();
   const { account } = useAccount();
   const { start, failed } = useGoogleSignIn(account);
@@ -27,8 +33,9 @@ export function GuestLimitPrompt({ kind, onClose }: { kind: UsageKind; onClose: 
         <p className="guest-limit-body">
           {t("Sign in with Google to get {chat} messages and {image} images a day, and find your chats on any device.", { chat: limits.chat, image: limits.image })}
         </p>
+        {attachmentsLost && <p className="guest-limit-body">{t("Attachments aren't kept when you sign in. Add them again afterward.")}</p>}
         <div className="guest-limit-actions">
-          <button type="button" className="google-signin-button guest-limit-signin" onClick={() => void start()}>
+          <button type="button" className="google-signin-button guest-limit-signin" onClick={() => { onBeforeSignIn?.(); void start(); }}>
             <GoogleLogo size={18} /><span>{failed ? t("Sign-in failed. Try again") : t("Sign in with Google")}</span>
           </button>
           <button type="button" className="guest-limit-later" onClick={onClose}>{t("Not now")}</button>

@@ -47,6 +47,7 @@ import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
+import { savePendingDraft, takePendingDraft } from "@/lib/pending-draft";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -1182,10 +1183,23 @@ export default function Home() {
       // 原文を保持し、明示した失敗・上限の文だけを表示時に訳す。
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
       const limited = error instanceof UsageLimitError;
-      if (limited && error.tier === "guest") setGuestLimit(error.kind);
+      if (limited) {
+        if (error.tier === "guest") setGuestLimit(error.kind);
+        // 上限で断られた送信はどこにも保存されていない。入力欄が空のままなら、本文と添付を入力欄に戻す。
+        // 添付のプレビューは入力欄側が持ち続けるので、画面上の送信済み発言からは外す。
+        submittedInputRestoreGuardRef.current = null;
+        if (!(inputRef.current?.value ?? "").trim()) {
+          setInput(submittedInputValue);
+          if (inputRef.current) inputRef.current.value = submittedInputValue;
+        }
+        if (submittedFiles.length && !filesRef.current.length) setFiles(submittedFiles);
+        else revokeUploadPreviews(submittedFiles);
+      }
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
-          message.id === assistantMessageId
+          message.id === localUserMessage.id && limited
+            ? stripAttachmentPreviewUrls(message)
+            : message.id === assistantMessageId
             ? { ...message, content: limited ? detail : failureText(detail), failed: true, isGeneratingImage: false,
               usageLimit: limited ? error.kind : undefined,
               activity: limited ? message.activity : applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: 0, detail }) }
@@ -1206,6 +1220,12 @@ export default function Home() {
       submittingSessionKeysRef.current.delete(requestSessionKey);
     }
   }
+
+  useEffect(() => {
+    // 上限の案内からログインして戻ってきたら、送れなかった本文を入力欄へ戻す。
+    const pending = takePendingDraft("chat");
+    if (pending) queueMicrotask(() => setInput((current) => current || pending));
+  }, []);
 
   useEffect(() => {
     // 初回表示時は会話本文を読み込まず、サイドバーのセッション一覧だけ取得する。
@@ -1589,7 +1609,10 @@ export default function Home() {
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
           </div>
-          {guestLimit && <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} />}
+          {guestLimit && (
+            <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0}
+              onBeforeSignIn={() => savePendingDraft("chat", inputRef.current?.value ?? input)} />
+          )}
           {(uploadError || sendError) && (
             <div
               className="notion-error notion-page-column mb-3"

@@ -701,4 +701,5 @@ export const zhHant: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "將刪除“{name}”。其中的筆記會保留，並移出此專案。",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "將把“{title}”移到回收站，可在 {count} 天內恢復。",
   "＋ New project": "＋ 新建專案",
+  "Attachments aren't kept when you sign in. Add them again afterward.": "登入時不會保留附件，登入後請重新新增。",
 };

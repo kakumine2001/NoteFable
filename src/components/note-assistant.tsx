@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type U
 import { createPortal } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
+import { savePendingDraft, takePendingDraft } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { parseChatStreamLine } from "@/lib/chat-stream";
@@ -118,6 +119,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
 
   // 待っている間の秒数表示。
   useEffect(() => {
+    // 上限の案内からログインして戻ってきたら、このノートで送れなかった本文を入力欄へ戻す。
+    const pending = takePendingDraft(`note:${noteId}`);
+    if (pending) queueMicrotask(() => setInput((current) => current || pending));
+  }, [noteId]);
+
+  useEffect(() => {
     if (!streaming) return;
     const started = Date.now();
     const timer = window.setInterval(() => setSeconds(Math.floor((Date.now() - started) / 1000)), 500);
@@ -171,6 +178,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const limited = caught instanceof UsageLimitError;
       if (limited && caught.tier === "guest") setGuestLimit(true);
+      // 上限で断られた本文は保存されていない。入力欄から送ったもので、入力欄が空なら戻す。
+      if (limited && display === undefined) setInput((current) => current || text);
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       setMessages((current) => current.map((message) => message.id === assistantId
         ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail),
@@ -224,7 +233,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
         ))}
       </div>
 
-      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} />}
+      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
       {error && <p className="note-ai-error" role="alert">{t(error)}</p>}
       <form className="note-ai-form" onSubmit={submit}>
         <textarea ref={inputRef} value={input} rows={1} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
