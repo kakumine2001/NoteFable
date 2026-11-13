@@ -7,7 +7,7 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readSmallJson } from "@/lib/note-groups";
 import { createRevision } from "@/lib/note-revisions";
 import { prisma } from "@/lib/prisma";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string; revisionId: string }> };
 
@@ -38,7 +38,7 @@ export async function POST(request: Request, context: Context) {
           content = validateNoteContent({ title: revision.title, icon: revision.icon, blocks: revision.blocks });
           assertNoteFilesOwner(content.blocks, user.id);
         } catch (error) {
-          if (error instanceof NoteValidationError) throw new NoteValidationError(`This version cannot be restored. ${error.message}`, error.status);
+          if (error instanceof NoteValidationError) throw new NoteValidationError(fmt("This version cannot be restored. {detail}", { detail: error.message }), error.status);
           throw error;
         }
         await createRevision(tx, { noteId: current.id, userId: user.id, reason: "RESTORE", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });

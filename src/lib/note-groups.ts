@@ -1,5 +1,5 @@
 import { NoteValidationError } from "@/lib/note-document";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 export const MAX_NOTE_GROUPS = 50;
 export const MAX_GROUP_NAME = 60;
@@ -8,7 +8,7 @@ export const MAX_GROUP_NAME = 60;
 export function validGroupName(value: unknown) {
   const name = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
   if (!name) throw new NoteValidationError(msg("Enter a group name."));
-  if (name.length > MAX_GROUP_NAME) throw new NoteValidationError(`Group names can have at most ${MAX_GROUP_NAME} characters.`);
+  if (name.length > MAX_GROUP_NAME) throw new NoteValidationError(fmt("Group names can have at most {max} characters.", { max: MAX_GROUP_NAME }));
   if (/[\u0000-\u001f\u007f]/.test(name)) throw new NoteValidationError(msg("Group names cannot contain control characters."));
   return name;
 }

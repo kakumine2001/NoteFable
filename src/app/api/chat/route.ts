@@ -40,7 +40,7 @@ import {
   normalizeWebSearchMode,
   type WebSearchMode,
 } from "@/lib/web-search";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -371,7 +371,7 @@ export async function POST(request: Request) {
 
   if (!modelOption.supportsImageInput && files.some(isImageFile)) {
     return NextResponse.json(
-      { error: `${modelOption.label} does not support image uploads. Use GPT-6 Luna for images.` },
+      { error: fmt("Model {model} does not support image uploads. Use GPT-6 Luna for images.", { model: modelOption.label }) },
       { status: 400 },
     );
   }
@@ -742,16 +742,19 @@ export async function POST(request: Request) {
         await reader?.cancel().catch(() => {});
         // 上流 API が途中で失敗しても、すでにユーザーへ返した本文は失わない。
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
-        const errorText = `Request failed: ${getErrorMessage(error)}`;
+        const errorText = fmt("Request failed: {detail}", { detail: getErrorMessage(error) });
         // 本文が出る前に失敗しても、そこまでの考えた時間を残す。
         thinkingMs ??= Date.now() - streamStartedAt;
         const persistedText = assistantText
           ? `${assistantText}\n\n${errorText}`
           : errorText;
+        const failure: ActivityEvent = { type: "failure", id: "request-failure", offset: persistedText.length - errorText.length, detail: getErrorMessage(error) };
+        activitySteps = applyActivityEvent(activitySteps, failure);
 
         controller.enqueue(
           encoder.encode(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText)),
         );
+        controller.enqueue(encoder.encode(encodeActivityStreamEvent(failure)));
 
         const saved = await prisma.message.create({
           data: {

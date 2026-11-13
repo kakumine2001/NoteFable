@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { parseSearchTerms, searchChats, searchNotes } from "@/lib/search";
 import { MAX_SEARCH_QUERY_CHARS, SEARCH_PROJECT_ID_PATTERN, SEARCH_SCOPES, type SearchScope } from "@/types/search";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -11,11 +11,11 @@ export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
   const query = (params.get("q") ?? "").trim();
   if (!query || query.length > MAX_SEARCH_QUERY_CHARS) {
-    return NextResponse.json({ error: `Enter 1 to ${MAX_SEARCH_QUERY_CHARS} characters to search for.` }, { status: 400, headers });
+    return NextResponse.json({ error: fmt("Enter 1 to {max} characters to search for.", { max: MAX_SEARCH_QUERY_CHARS }) }, { status: 400, headers });
   }
   const scope = params.get("scope") ?? "all";
   if (!SEARCH_SCOPES.includes(scope as SearchScope)) {
-    return NextResponse.json({ error: `Scope must be one of: ${SEARCH_SCOPES.join(", ")}.` }, { status: 400, headers });
+    return NextResponse.json({ error: fmt("Scope must be one of: {scopes}.", { scopes: SEARCH_SCOPES.join(", ") }) }, { status: 400, headers });
   }
   // projectId は Chats だけの絞り込み（Notes には効かない）。空は「絞り込まない」。利用者本人のものでない ID は、会話が 1 件も当たらないだけ。
   const projectId = (params.get("projectId") ?? "").trim() || null;

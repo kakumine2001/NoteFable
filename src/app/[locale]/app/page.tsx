@@ -47,7 +47,8 @@ import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
-import { msg, type Translate } from "@/lib/i18n/translate";
+import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
+import { failureText } from "@/lib/failure-text";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
@@ -55,6 +56,8 @@ const NEW_SESSION_MESSAGES_KEY = "__new_session__";
 const REVEAL_TTL_MS = 10000;
 // 会話・メッセージへのリンク（?chat= / &message=）の ID の形。DB の ID は英数字だけ。
 const LINK_ID = /^[\w-]{1,64}$/;
+type ErrorText = string | ((t: Translate) => string);
+type UploadProgress = string | { key: string; vars: TranslateVars };
 type RevealTarget =
   | { kind: "chat"; sessionId: string; messageId: string }
   | { kind: "note"; noteId: string; blockId: string };
@@ -131,8 +134,6 @@ async function readJsonObject(response: Response) {
     return {};
   }
 }
-
-type ErrorText = string | ((t: Translate) => string);
 
 function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
@@ -375,9 +376,9 @@ export default function Home() {
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
-  // 英語の文（または API の文）を入れ、表示するときに t で訳す。件数や名前が入る添付の検査だけは関数で持ち、表示のたびに今の言語で作る。
+  // エラーは英語か API の原文で保持する。複数の値のある添付校正は、値を分け直さず今の t で描く関数を保持する。
   const [sendError, setSendError] = useState<ErrorText>("");
-  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
   // 推論強度の UI 選択値。モデルごとに選べる値が違うため、changeModel で補正する。
@@ -615,7 +616,7 @@ export default function Home() {
       const data = await readJsonObject(response);
       if (!response.ok) {
         return {
-          error: readErrorMessage(data, t("Database is unavailable. Start local PostgreSQL and try again.")),
+          error: readErrorMessage(data, msg("Database is unavailable. Start local PostgreSQL and try again.")),
           session: null,
         };
       }
@@ -681,7 +682,7 @@ export default function Home() {
         activeSessionIdRef.current === sessionId &&
         !streamingSessionsRef.current[sessionId]
       ) {
-        setSendError("Failed to load conversation.");
+        setSendError(msg("Failed to load conversation."));
       }
       return;
     }
@@ -753,12 +754,12 @@ export default function Home() {
 
   const reorderChatBusy=useRef(false);
   async function reorderChat(move: ReorderRequest) {
-    if(reorderChatBusy.current) throw new Error(t("Wait for the previous move to finish."));
+    if(reorderChatBusy.current) throw new Error(msg("Wait for the previous move to finish."));
     reorderChatBusy.current=true;
     try {
       const response=await fetch("/api/sessions/reorder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(move)});
       const data=await readJsonObject(response);
-      if(!response.ok) throw new Error(typeof data.error==="string" ? data.error : t("Could not move the chat."));
+      if(!response.ok) throw new Error(typeof data.error==="string" ? data.error : msg("Could not move the chat."));
       const updates=data.items as Array<{id:string;position:number;pinned?:boolean;projectId?:string|null}>;
       for(const {id,...changes} of updates) organizationSync.current.saved(id,changes);
       setSessions(list=>list.map(session=>({...session,...updates.find(update=>update.id===session.id)})));
@@ -769,7 +770,7 @@ export default function Home() {
   async function changeChatProject(method: "POST" | "PATCH" | "DELETE", name?: string, id?: string) {
     try {
       const response=await fetch(id ? `/api/chat-projects/${id}` : "/api/chat-projects", {method,headers:{"Content-Type":"application/json"},...(method==="DELETE" ? {} : {body:JSON.stringify({name})})});
-      if(!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : t("Could not save the project. Please try again."));}
+      if(!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : msg("Could not save the project. Please try again."));}
       const data=await response.json();
       if(method==="DELETE") {
         projectSync.current.removed(id!);
@@ -781,7 +782,7 @@ export default function Home() {
       projectSync.current.saved(data.project);
       setChatProjects(list=>method==="POST" ? [...list,data.project] : list.map(project=>project.id===id ? data.project : project));
       return data.project as ChatProject;
-    } catch (error) { throw error instanceof Error ? error : new Error(t("Could not save the project. Please try again.")); }
+    } catch (error) { throw error instanceof Error ? error : new Error(msg("Could not save the project. Please try again.")); }
   }
 
   // プロジェクトの設定画面で保存した内容（共通指示の有無・参照ノート数）を一覧へ反映する。
@@ -793,23 +794,23 @@ export default function Home() {
   async function updateSession(sessionId: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) {
     try {
       const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
-      if (!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : t("Could not save the chat. Please try again."));}
+      if (!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : msg("Could not save the chat. Please try again."));}
       organizationSync.current.saved(sessionId,changes);
       setSessions(list => list.map(session => session.id === sessionId ? { ...session, ...changes } : session));
       return true;
-    } catch (error) { throw error instanceof Error ? error : new Error(t("Could not save the chat. Please try again.")); }
+    } catch (error) { throw error instanceof Error ? error : new Error(msg("Could not save the chat. Please try again.")); }
   }
 
   async function deleteSession(sessionId: string) {
-    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error(t("Wait for the reply to finish before deleting this chat.")); }
+    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error(msg("Wait for the reply to finish before deleting this chat.")); }
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
     let response: Response;
     try {
       response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
     } catch {
-      throw new Error(t("Failed to delete conversation. Please try again."));
+      throw new Error(msg("Failed to delete conversation. Please try again."));
     }
-    if (!response.ok) { const data=await readJsonObject(response); throw new Error(typeof data.error==="string" ? data.error : t("Failed to delete conversation. Please try again.")); }
+    if (!response.ok) { const data=await readJsonObject(response); throw new Error(typeof data.error==="string" ? data.error : msg("Failed to delete conversation. Please try again.")); }
     organizationSync.current.removed(sessionId);
     // サイドバーから対象セッションを消す。行がすっと消えて、下の行が詰まる。
     runTransition(() => setSessions((current) => current.filter((session) => session.id !== sessionId)), "list");
@@ -923,9 +924,9 @@ export default function Home() {
     let uploadedTickets: string[] = [];
     const navigationIntent = sessionNavigationIntentRef.current;
     try {
-      if (submittedFiles.length) setUploadProgress(t("Preparing attachments…"));
+      if (submittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
       uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
-        setUploadProgress(t("Uploading {index}/{total} · {name} · {percentage}%", { index, total, name, percentage }));
+        setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
       });
       if (navigationIntent !== sessionNavigationIntentRef.current) {
         await cleanupClientUploads(uploadedTickets);
@@ -1051,7 +1052,7 @@ export default function Home() {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error ?? t("Failed to generate image."));
+          throw new Error(data.error ?? msg("Failed to generate image."));
         }
 
         const event = (await response.json()) as ImageGenerationResult;
@@ -1062,7 +1063,7 @@ export default function Home() {
         }
 
         if (!event.image?.dataUrl) {
-          throw new Error(t("Failed to generate image."));
+          throw new Error(msg("Failed to generate image."));
         }
 
         if (event.sessionId) {
@@ -1110,7 +1111,7 @@ export default function Home() {
 
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? t("Failed to send message."));
+        throw new Error(data.error ?? msg("Failed to send message."));
       }
 
       // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
@@ -1174,11 +1175,13 @@ export default function Home() {
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
-      const detail = error instanceof Error ? t(error.message) : t("Unknown error.");
+      // 英語のまま持ち、表示するときに訳す（ChatMessage が localizeFailureText で訳す）。
+      const detail = error instanceof Error ? error.message : msg("Unknown error.");
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
-            ? { ...message, content: t("Request failed: {detail}", { detail }), failed: true }
+            ? { ...message, content: failureText(detail), failed: true,
+              activity: applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: 0, detail }) }
             : message,
         ),
       );
@@ -1371,7 +1374,7 @@ export default function Home() {
       setNotesList(false);
       // ID は URL から来る値なので、API のパスに入れる前に形を確かめる。形が違えば、存在しない会話と同じ扱いにする。
       if (!LINK_ID.test(chatId)) {
-        setSendError("Failed to load conversation.");
+        setSendError(msg("Failed to load conversation."));
         return;
       }
       void linkOpenersRef.current.chat(chatId, LINK_ID.test(rawMessageId) ? rawMessageId : undefined);
@@ -1584,7 +1587,7 @@ export default function Home() {
               className="notion-error notion-page-column mb-3"
               role="alert"
             >
-              {uploadError || (typeof sendError === "function" ? sendError(t) : t(sendError))}
+              {uploadError || (typeof sendError === "function" ? sendError(t) : localizeSystemText(sendError, t))}
             </div>
           )}
           <form onSubmit={sendMessage} className="notion-page-column">
@@ -1728,7 +1731,7 @@ export default function Home() {
             {!!files.length && <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
               {!!files.length && <span role="status">{t("{count}/{max} attached", { count: files.length, max: MAX_UPLOAD_FILES })} · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
             </div>}
-            {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{uploadProgress}</div>}
+            {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{typeof uploadProgress === "string" ? t(uploadProgress) : t(uploadProgress.key, uploadProgress.vars)}</div>}
           </form>
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}

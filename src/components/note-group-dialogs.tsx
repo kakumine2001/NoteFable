@@ -4,6 +4,7 @@ import { Check, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
+import { localizeSystemText } from "@/lib/i18n/translate";
 
 // 開いた瞬間にモーダルとして表示する <dialog>。Esc で閉じる。
 function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
@@ -32,7 +33,7 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
       <h2 className="text-base font-semibold">{title}</h2>
       <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder={t("Project name")}
         className="notes-dialog-input" aria-label={t("Project name")} />
-      {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
+      {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
       <div className="mt-5 flex justify-end gap-2">
         <button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary">{submitLabel}</button>
@@ -50,7 +51,7 @@ export function ConfirmDialog({ title, body, confirmLabel, error, onConfirm, onC
   return <Modal label={title} onClose={onClose}>
     <h2 className="text-base font-semibold">{title}</h2>
     <p className="mt-2 text-sm text-[var(--notion-muted)]">{body}</p>
-    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
+    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
     <div className="mt-5 flex justify-end gap-2">
       <button autoFocus type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
       <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => {
@@ -105,7 +106,7 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
     </form> : <button type="button" className="notes-dialog-option mt-1" disabled={busy} onClick={() => setCreating(true)}>
       <span className="flex items-center gap-2"><FolderPlus size={16} />{t("New project…")}</span>
     </button>}
-    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
+    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
     <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>{t("Close")}</button></div>
   </Modal>;
 }

@@ -4,7 +4,7 @@ import { Check, ChevronRight, FilePenLine, FilePlus2, LoaderCircle, X } from "lu
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ActivityStep } from "@/lib/chat-activity";
 import { useT } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
+import { localizeSystemText, msg } from "@/lib/i18n/translate";
 
 type EditProposal = Extract<ActivityStep, { kind: "proposal" }>;
 type CreateProposal = Extract<ActivityStep, { kind: "create_proposal" }>;
@@ -101,7 +101,7 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, chil
       </header>
       {open && <>
         <div className="page-edit-body">{children}</div>
-        {state.error && <p className="page-edit-error" role="alert">{t(state.error)}</p>}
+        {state.error && <p className="page-edit-error" role="alert">{localizeSystemText(state.error, t)}</p>}
         {!settled && (
           <footer className="page-edit-actions">
             <button type="button" className="page-edit-apply" onClick={() => void apply(proposal)} disabled={busy}>

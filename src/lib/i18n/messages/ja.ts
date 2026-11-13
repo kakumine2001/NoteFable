@@ -1,4 +1,5 @@
 export const ja: Record<string, string> = {
+  "Could not change language. Please try again.": "言語を切り替えられませんでした。もう一度お試しください。",
   "+{count} more": "ほか{count}件",
   "1 day left": "残り1日",
   "1 hour ago": "1時間前",

@@ -11,6 +11,7 @@ import { NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
+import { localizeSystemText } from "@/lib/i18n/translate";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <EditorLoading />,
@@ -63,7 +64,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   }, [activeId, loading, emptyPage]);
 
   return <div className="notes-workspace flex-1 overflow-y-auto">
-    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{t(error)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
+    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} />
@@ -79,7 +80,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
       <div className="notes-column notes-body">
         {backupError && <div className="notion-warning mb-4" role="alert">{t(backupError)}</div>}
         {!!active.error && <div className="notion-warning mb-5" role="alert">
-          <p>{t(active.error)}</p>
+          <p>{localizeSystemText(active.error, t)}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {active.status === "conflict" ? <>
               <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>

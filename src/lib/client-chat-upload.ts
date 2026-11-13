@@ -1,5 +1,5 @@
 import { upload } from "@vercel/blob/client";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 export async function cleanupClientUploads(tickets: string[]) {
   if (!tickets.length) return;
@@ -20,7 +20,7 @@ export async function uploadChatFiles(files: File[], onProgress: (name: string, 
       onProgress(file.name, index + 1, files.length, 0);
       if (body.mode === "local") {
         const result = await fetch(`/api/uploads/local?ticket=${encodeURIComponent(uploads[index].ticket)}`, { method: "PUT", body: file });
-        if (!result.ok) throw new Error(`Upload failed: ${file.name}. Please try again.`);
+        if (!result.ok) throw new Error(fmt("Upload failed: {name}. Please try again.", { name: file.name }));
       } else {
         await upload(uploads[index].path, file, { access: "private", handleUploadUrl: "/api/uploads", clientPayload: uploads[index].ticket, contentType: file.type || "application/octet-stream", multipart: true,
           onUploadProgress: ({ percentage }) => onProgress(file.name, index + 1, files.length, Math.round(percentage)),

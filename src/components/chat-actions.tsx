@@ -6,7 +6,7 @@ import { ChatProjectSettings } from "@/components/chat-project-settings";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { Session } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
+import { localizeSystemText, msg } from "@/lib/i18n/translate";
 
 // noteCount と hasInstructions はサーバーの一覧・保存応答が返す。{ id, name } だけの呼び出しも受け付ける。
 export type ChatProject = { id: string; name: string; noteCount?: number; hasInstructions?: boolean };
@@ -52,7 +52,7 @@ export function ChatActions({ action, projects, onClose, onAction, onUpdate, onD
     finally { locked.current=false; setBusy(false); }
   }
   const cancel = <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>;
-  const feedback = error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>;
+  const feedback = error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>;
   const menuItem = (label: string, icon: ReactNode, click: () => void, danger=false) => <button type="button" role="menuitem" disabled={busy}
     className={`chat-menu-item${danger ? " is-danger" : ""}`} onClick={click}>{icon}{label}</button>;
   function keyboard(event: React.KeyboardEvent) {

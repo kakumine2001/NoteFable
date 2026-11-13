@@ -1,30 +1,30 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { NoteValidationError } from "@/lib/note-document";
-import { validGroupName } from "@/lib/note-groups";
+import { MAX_GROUP_NAME } from "@/lib/note-groups";
 import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectSummary } from "@/types/chat";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 export { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES };
 export function validProjectName(value: unknown) {
-  try { return validGroupName(value); }
-  catch (error) {
-    if (error instanceof NoteValidationError) throw new NoteValidationError(error.message.replace(/group/gi, "project"),error.status);
-    throw error;
-  }
+  const name = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+  if (!name) throw new NoteValidationError(msg("Enter a project name."));
+  if (name.length > MAX_GROUP_NAME) throw new NoteValidationError(fmt("Project names can have at most {max} characters.", { max: MAX_GROUP_NAME }));
+  if (/[\u0000-\u001f\u007f]/.test(name)) throw new NoteValidationError(msg("Project names cannot contain control characters."));
+  return name;
 }
 // 共通指示。前後の空白を落とし、空文字と null は「指示なし」(null) として扱う。改行とタブ以外の制御文字は受け付けない。
 export function validProjectInstructions(value: unknown): string | null {
   if (value === null) return null;
   if (typeof value !== "string") throw new NoteValidationError(msg("Instructions must be text."));
   const text = value.replace(/\r\n?/g, "\n").trim();
-  if (text.length > MAX_PROJECT_INSTRUCTIONS) throw new NoteValidationError(`Instructions can have at most ${MAX_PROJECT_INSTRUCTIONS} characters.`);
+  if (text.length > MAX_PROJECT_INSTRUCTIONS) throw new NoteValidationError(fmt("Instructions can have at most {max} characters.", { max: MAX_PROJECT_INSTRUCTIONS }));
   if (/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(text)) throw new NoteValidationError(msg("Instructions cannot contain control characters."));
   return text || null;
 }
 // 参照ノートの ID 一覧（全置き換え）。重複と上限超えは受け付けない。存在と所有は呼び出し側が DB で確かめる。
 export function validProjectNoteIds(value: unknown): string[] {
   if (!Array.isArray(value)) throw new NoteValidationError("noteIds must be a list of note IDs.");
-  if (value.length > MAX_PROJECT_NOTES) throw new NoteValidationError(`A project can have at most ${MAX_PROJECT_NOTES} reference notes.`);
+  if (value.length > MAX_PROJECT_NOTES) throw new NoteValidationError(fmt("A project can have at most {max} reference notes.", { max: MAX_PROJECT_NOTES }));
   const ids = value.map(id => typeof id === "string" ? id.trim() : "");
   if (ids.some(id => !id || id.length > 100)) throw new NoteValidationError("noteIds must be a list of note IDs.");
   if (new Set(ids).size !== ids.length) throw new NoteValidationError(msg("Each note can be chosen only once."));

@@ -9,7 +9,7 @@ import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSumm
 import "@/components/note-trash-history.css";
 import { useNow } from "@/lib/use-now";
 import { useI18n } from "@/components/i18n-provider";
-import { createTranslator, msg, type Translate } from "@/lib/i18n/translate";
+import { createTranslator, localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
 
 const english = createTranslator({});
 
@@ -204,7 +204,7 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
             {t("{reason} · {time}. Restoring keeps your current version in the history.", { reason: t(REVISION_REASON_LABELS[revision.reason]), time: new Date(revision.createdAt).toLocaleString(tag) })}
           </span>
           <button type="button" className="notion-button notion-button-primary" disabled={busy || outdated} onClick={() => void restore()}><RotateCcw size={14} aria-hidden="true" />{busy ? t("Restoring…") : t("Restore this version")}</button>
-          {restoreError && <p role="alert" className="note-history-footer-error">{t(restoreError)}</p>}
+          {restoreError && <p role="alert" className="note-history-footer-error">{localizeSystemText(restoreError, t)}</p>}
         </div>}
       </section>
     </div>

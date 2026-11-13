@@ -13,6 +13,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import type { Message } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
+import { failureText } from "@/lib/failure-text";
 
 // よく使う頼み事。押すとそのまま送る。
 const QUICK_ACTIONS = [
@@ -164,10 +165,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
         })),
       );
     } catch (caught) {
-      const detail = caught instanceof Error ? t(caught.message) : t("Unknown error.");
+      const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       // すでに届いた編集案や途中経過は残し、失敗したことを本文の後ろに足す。
       setMessages((current) => current.map((message) => message.id === assistantId
-        ? { ...message, content: message.content ? t("{content}\n\nRequest failed: {detail}", { content: message.content, detail }) : t("Request failed: {detail}", { detail }) }
+        ? { ...message, content: message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail),
+          activity: applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: message.content ? message.content.length + 2 : 0, detail }) }
         : message));
     } finally {
       setStreaming(false);

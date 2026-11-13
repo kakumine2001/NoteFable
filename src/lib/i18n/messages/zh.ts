@@ -1,5 +1,6 @@
 // 英文界面文案为键；{name} 等占位符由 createTranslator 插入。
 export const zh: Record<string, string> = {
+  "Could not change language. Please try again.": "无法切换语言，请重试。",
   "Trash request failed. Please try again.": "回收站请求失败，请重试。",
   "Recently used": "最近使用",
   "Smileys & people": "表情与人物",
