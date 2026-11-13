@@ -4,6 +4,7 @@ import { buildUpstreamErrorMessage } from "@/lib/upstream-errors";
 import { ANTHROPIC_HAIKU_LIMITS, type ReasoningEffort } from "@/lib/models";
 import type { WebSearchMode } from "@/lib/web-search";
 import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
+import { msg } from "@/lib/i18n/translate";
 
 type Block = {
   type: string;
@@ -86,7 +87,7 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
 
 export async function requestAnthropic(body: object, signal?: AbortSignal) {
   const serialized = JSON.stringify(body);
-  if (Buffer.byteLength(serialized, "utf8") > 32_000_000) throw new Error("Claude's request is too large. Remove images or start a new chat.");
+  if (Buffer.byteLength(serialized, "utf8") > 32_000_000) throw new Error(msg("Claude's request is too large. Remove images or start a new chat."));
   const base = optionalEnv("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
   const response = await fetch(`${base.replace(/\/$/, "")}/messages`, {
     method: "POST",
@@ -129,7 +130,7 @@ export class AnthropicStreamTurn {
   private inputs = new Map<number, string>();
 
   push(event: Event): object[] {
-    if (event.type === "error") throw new Error(event.error?.message || "Anthropic stream failed.");
+    if (event.type === "error") throw new Error(event.error?.message || msg("Anthropic stream failed."));
     const index = event.index ?? 0;
     const output: object[] = [];
     if (event.type === "content_block_start" && event.content_block) {
@@ -184,7 +185,7 @@ export class AnthropicStreamTurn {
   }
 
   finish() {
-    if (!this.completed) throw new Error("Claude stream ended before completion. Please retry.");
+    if (!this.completed) throw new Error(msg("Claude stream ended before completion. Please retry."));
   }
 }
 
@@ -210,7 +211,7 @@ export async function createAnthropicStream(
         let separateNextText = false;
         const send = (event: object) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));
         for (let attempt = 0; attempt < MAX_TOOL_ROUNDS; attempt++) {
-          if (!response.body) throw new Error("Anthropic response has no stream body.");
+          if (!response.body) throw new Error(msg("Anthropic response has no stream body."));
           const reader = response.body.getReader();
           const decoder = new TextDecoder();
           const turn = new AnthropicStreamTurn(String(attempt));
@@ -255,7 +256,7 @@ export async function createAnthropicStream(
           if (turn.stopReason === "tool_use") {
             const calls = turn.blocks.filter((block) => block?.type === "tool_use")
               .map((block) => ({ id: String(block.id), name: String(block.name), input: block.input ?? {} }));
-            if (!runTool || !calls.length) throw new Error("Claude requested an unavailable tool. Please retry.");
+            if (!runTool || !calls.length) throw new Error(msg("Claude requested an unavailable tool. Please retry."));
             const runs = await runToolCalls(calls, runTool, send);
             if (abort.signal.aborted) return closeQuietly(controller);
             const toolMessage: Message = { role: "user", content: runs.map((run, index) => ({
@@ -263,27 +264,27 @@ export async function createAnthropicStream(
             })) };
             // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint.
             compactedContext?.push(toolMessage);
-            if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error("Claude tool round limit reached. Please retry.");
+            if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Claude tool round limit reached. Please retry."));
             separateNextText = Boolean(answerText.trim());
             body = { ...body, tool_choice: { type: "auto" }, messages: [...body.messages, { role: "assistant", content }, toolMessage] };
             response = await requestAnthropic(body, abort.signal);
             continue;
           }
           if (turn.stopReason !== "pause_turn") {
-            if (!answerText.trim()) throw new Error("Claude returned an empty response. Please retry.");
+            if (!answerText.trim()) throw new Error(msg("Claude returned an empty response. Please retry."));
             if (compactedContext) onContext?.(compactedContext);
             controller.enqueue(encoder.encode('data: {"type":"response.completed"}\n\n'));
             controller.close();
             return;
           }
-          if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error("Claude search continuation limit reached. Please retry.");
+          if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Claude search continuation limit reached. Please retry."));
           body = { ...body, ...(body.tools ? { tool_choice: { type: "auto" } } : {}), messages: [...body.messages, { role: "assistant", content }] };
           response = await requestAnthropic(body, abort.signal);
         }
       } catch (error) {
         if (abort.signal.aborted) return closeQuietly(controller);
         abort.abort();
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: { message: error instanceof Error ? error.message : "Anthropic stream failed." } })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: { message: error instanceof Error ? error.message : msg("Anthropic stream failed.") } })}\n\n`));
         controller.close();
       }
     },

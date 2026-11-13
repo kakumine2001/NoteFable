@@ -1,5 +1,6 @@
 import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
 import { closeQuietly, consumeSseData } from "@/lib/sse";
+import { msg } from "@/lib/i18n/translate";
 
 type Item = Record<string, unknown>;
 type ResponsesBody = { input: unknown[]; tools?: unknown[]; tool_choice?: unknown; [key: string]: unknown };
@@ -103,13 +104,13 @@ export async function createResponsesToolStream({
             if (context) onContext?.(context);
             return closeQuietly(controller);
           }
-          if (!runTool) throw new Error("The model requested an unavailable tool. Please retry.");
+          if (!runTool) throw new Error(msg("The model requested an unavailable tool. Please retry."));
           const runs = await runToolCalls(calls, runTool, send);
           if (abort.signal.aborted) return closeQuietly(controller);
           const results = runs.map((run, index) => ({ type: "function_call_output", call_id: calls[index].id, output: run.content }));
           // 再送時に function_call だけが残らないよう、コンテキストにも結果を組で入れる。
           context?.push(...results);
-          if (round === MAX_TOOL_ROUNDS - 1) throw new Error("Tool round limit reached. Please retry.");
+          if (round === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Tool round limit reached. Please retry."));
           separateNextText = answered;
           body = { ...body, ...(body.tools ? { tool_choice: "auto" } : {}), input: [...body.input, ...roundItems, ...results] };
           upstream = await request(body, abort.signal);
@@ -117,7 +118,7 @@ export async function createResponsesToolStream({
       } catch (error) {
         if (abort.signal.aborted) return closeQuietly(controller);
         abort.abort();
-        send({ type: "error", error: { message: error instanceof Error ? error.message : "Responses stream failed." } });
+        send({ type: "error", error: { message: error instanceof Error ? error.message : msg("Responses stream failed.") } });
         closeQuietly(controller);
       }
     },

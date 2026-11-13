@@ -11,14 +11,16 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { Message } from "@/types/chat";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 // よく使う頼み事。押すとそのまま送る。
 const QUICK_ACTIONS = [
-  { label: "Improve writing", prompt: "Improve the writing of this note: make it clearer and smoother, keep the meaning, the structure and the language." },
-  { label: "Fix spelling & grammar", prompt: "Fix spelling and grammar mistakes in this note. Do not change the wording otherwise." },
-  { label: "Summarize", prompt: "Add a short summary of this note at the very top, in the note's own language." },
-  { label: "Make it shorter", prompt: "Make this note shorter without losing the key points." },
-  { label: "Continue writing", prompt: "Continue writing this note from where it ends, in the same style and language." },
+  { label: msg("Improve writing"), prompt: "Improve the writing of this note: make it clearer and smoother, keep the meaning, the structure and the language." },
+  { label: msg("Fix spelling & grammar"), prompt: "Fix spelling and grammar mistakes in this note. Do not change the wording otherwise." },
+  { label: msg("Summarize"), prompt: "Add a short summary of this note at the very top, in the note's own language." },
+  { label: msg("Make it shorter"), prompt: "Make this note shorter without losing the key points." },
+  { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
 
 // /api/chat に送り、届いた本文の差分と途中経過を順に渡す。セッション ID はレスポンスヘッダーから受け取る。
@@ -31,7 +33,7 @@ async function streamChat(
   const response = await fetch("/api/chat", { method: "POST", body });
   if (!response.ok || !response.body) {
     const data = await response.json().catch(() => ({}));
-    throw new Error(typeof data.error === "string" ? data.error : "Failed to send the request.");
+    throw new Error(typeof data.error === "string" ? data.error : msg("Failed to send the request."));
   }
   const id = response.headers.get("X-Session-Id");
   if (id) onSession(id);
@@ -71,6 +73,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   // 頼む前に、入力中の内容を保存する（AI が最新の版を読めるように）。保存できなければ false。
   flush: () => Promise<boolean>;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -125,7 +128,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
     setBusy(true);
     setError("");
     if (!(await flush())) {
-      setError("Resolve the note's unsaved changes first, then ask again.");
+      setError(msg("Resolve the note's unsaved changes first, then ask again."));
       sending.current = false;
       setBusy(false);
       return;
@@ -161,10 +164,10 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
         })),
       );
     } catch (caught) {
-      const detail = caught instanceof Error ? caught.message : "Unknown error.";
+      const detail = caught instanceof Error ? t(caught.message) : t("Unknown error.");
       // すでに届いた編集案や途中経過は残し、失敗したことを本文の後ろに足す。
       setMessages((current) => current.map((message) => message.id === assistantId
-        ? { ...message, content: message.content ? `${message.content}\n\nRequest failed: ${detail}` : `Request failed: ${detail}` }
+        ? { ...message, content: message.content ? t("{content}\n\nRequest failed: {detail}", { content: message.content, detail }) : t("Request failed: {detail}", { detail }) }
         : message));
     } finally {
       setStreaming(false);
@@ -190,21 +193,21 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
 
   const panel = (
-    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} role="dialog" aria-label="Ask AI about this note">
+    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} role="dialog" aria-label={t("Ask AI about this note")}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
         <Sparkles size={16} aria-hidden="true" />
-        <span className="note-ai-title" title={noteTitle}>Ask AI about this note</span>
-        <button type="button" className="notion-icon-button grid" onClick={close} aria-label="Close"><X size={16} /></button>
+        <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
+        <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
 
       <div ref={listRef} className="note-ai-list" onScroll={onListScroll}>
         {messages.length === 0 ? (
           <div className="note-ai-empty">
-            <p>Tell the AI how to change this note. You review its proposal before anything changes.</p>
+            <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
             <div className="note-ai-chips">
               {QUICK_ACTIONS.map((action) => (
-                <button key={action.label} type="button" className="note-ai-chip" disabled={busy} onClick={() => void send(action.prompt, action.label)}>{action.label}</button>
+                <button key={action.label} type="button" className="note-ai-chip" disabled={busy} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
             </div>
           </div>
@@ -213,11 +216,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
         ))}
       </div>
 
-      {error && <p className="note-ai-error" role="alert">{error}</p>}
+      {error && <p className="note-ai-error" role="alert">{t(error)}</p>}
       <form className="note-ai-form" onSubmit={submit}>
         <textarea ref={inputRef} value={input} rows={1} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
-          placeholder="Ask AI to edit this note…" aria-label="Instruction for the AI" className="note-ai-input" />
-        <button type="submit" className="note-ai-send" disabled={busy || !input.trim()} aria-label="Send"><ArrowUp size={16} /></button>
+          placeholder={t("Ask AI to edit this note…")} aria-label={t("Instruction for the AI")} className="note-ai-input" />
+        <button type="submit" className="note-ai-send" disabled={busy || !input.trim()} aria-label={t("Send")}><ArrowUp size={16} /></button>
       </form>
     </div>
   );
@@ -225,13 +228,13 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   return (
     <>
       <button type="button" className={`note-ai-fab ${open ? "is-open" : ""}`} onClick={() => setOpen((current) => !current)}
-        aria-label="Ask AI about this note" aria-expanded={open} title="Ask AI">
+        aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
         <Sparkles size={20} />
       </button>
       {open && (phone
         ? createPortal(
           <div className="model-sheet-root note-ai-root">
-            <button type="button" className="model-sheet-backdrop" aria-label="Close" onClick={close} />
+            <button type="button" className="model-sheet-backdrop" aria-label={t("Close")} onClick={close} />
             {panel}
           </div>,
           document.body)

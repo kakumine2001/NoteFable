@@ -7,6 +7,7 @@ import { readLimitedBody } from "@/lib/note-upload";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredImage, getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
 import { AVATAR_ROOT, avatarVersion, toAccountUser } from "@/lib/user-profile";
+import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -31,9 +32,9 @@ async function currentGoogleUser() {
 // 写真を差し替える。Google にログインしている本人だけ。古い写真は消し、絵文字アイコンは外す（写真かアイコンのどちらか一方）。
 export async function POST(request: Request) {
   const google = await currentGoogleUser();
-  if (!google) return NextResponse.json({ error: "Sign in with Google to change your photo." }, { status: 401 });
+  if (!google) return NextResponse.json({ error: msg("Sign in with Google to change your photo.") }, { status: 401 });
 
-  const tooLarge = () => NextResponse.json({ error: "That photo is too large." }, { status: 413 });
+  const tooLarge = () => NextResponse.json({ error: msg("That photo is too large.") }, { status: 413 });
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
   // Content-Length がない送信でも、実際に受け取ったバイト数で上限を守ってから解析する。
   const body = await readLimitedBody(request, MAX_BODY_BYTES);
@@ -44,19 +45,19 @@ export async function POST(request: Request) {
     const form = await new Response(body, { headers: { "Content-Type": request.headers.get("content-type") ?? "" } }).formData();
     entries = [...form.entries()];
   } catch {
-    return NextResponse.json({ error: "Invalid upload." }, { status: 400 });
+    return NextResponse.json({ error: msg("Invalid upload.") }, { status: 400 });
   }
   const file = entries.length === 1 && entries[0][0] === "file" ? entries[0][1] : null;
-  if (!(file instanceof File)) return NextResponse.json({ error: "Choose one photo to upload." }, { status: 400 });
+  if (!(file instanceof File)) return NextResponse.json({ error: msg("Choose one photo to upload.") }, { status: 400 });
   if (file.size > MAX_AVATAR_BYTES) return tooLarge();
 
   const buffer = Buffer.from(await file.arrayBuffer());
   // 申告された種類ではなく、中身の先頭バイトで画像かどうかを判断する。
   const mimeType = sniffImage(buffer);
-  if (!mimeType) return NextResponse.json({ error: "Upload a JPEG, PNG, WebP or GIF photo." }, { status: 400 });
+  if (!mimeType) return NextResponse.json({ error: msg("Upload a JPEG, PNG, WebP or GIF photo.") }, { status: 400 });
 
   const row = await getOrCreateAnonymousUser();
-  if (!row.googleSub) return NextResponse.json({ error: "Sign in with Google to change your photo." }, { status: 401 });
+  if (!row.googleSub) return NextResponse.json({ error: msg("Sign in with Google to change your photo.") }, { status: 401 });
 
   const storagePath = `${AVATAR_ROOT}/${row.id}/${randomUUID()}${getImageExtension(mimeType)}`;
   await writeStoredImageAt(storagePath, buffer, mimeType);
@@ -69,7 +70,7 @@ export async function POST(request: Request) {
     });
     if (!result.count) {
       await deleteStoredImage(storagePath).catch(() => {});
-      return NextResponse.json({ error: "Your photo changed somewhere else. Try again." }, { status: 409 });
+      return NextResponse.json({ error: msg("Your photo changed somewhere else. Try again.") }, { status: 409 });
     }
   } catch (error) {
     // 行を更新できなかったら、書いたばかりの写真は誰からも参照されないので消す。
@@ -87,16 +88,16 @@ export async function POST(request: Request) {
 // 自分の写真だけを返す。URL の v はアップロードごとに変わる版で、現在の版のときだけ長くキャッシュさせる。
 export async function GET(request: Request) {
   const google = await currentGoogleUser();
-  if (!google) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!google) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   const row = await getOrCreateAnonymousUser();
-  if (!row.googleSub || !row.avatarImage) return NextResponse.json({ error: "Not found." }, { status: 404 });
+  if (!row.googleSub || !row.avatarImage) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   let image: Buffer;
   try {
     image = await readStoredImage(row.avatarImage);
   } catch {
-    return NextResponse.json({ error: "Not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
   }
 
   const requested = new URL(request.url).searchParams.get("v");

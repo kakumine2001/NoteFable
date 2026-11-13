@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { encode } from "next-auth/jwt";
 import { optionalEnv } from "@/lib/env";
+import { msg } from "@/lib/i18n/translate";
 
 // Android アプリ（WebView）は Google の Web ログイン画面を開けないので、端末側で取得した ID トークンを
 // このサーバーで検証し、Auth.js と同じ形式のセッション Cookie を発行する。
@@ -85,7 +86,7 @@ export async function verifyGoogleIdToken(
     }));
   } catch (error) {
     if (INVALID_TOKEN_ERRORS.some((type) => error instanceof type)) return null;
-    throw new GoogleVerificationUnavailableError("Could not reach Google to verify the sign-in.", { cause: error });
+    throw new GoogleVerificationUnavailableError(msg("Could not reach Google to verify the sign-in."), { cause: error });
   }
 
   const sub = text(claims.sub);

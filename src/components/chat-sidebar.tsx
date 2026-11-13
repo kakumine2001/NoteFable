@@ -11,6 +11,8 @@ import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
 import type { Session } from "@/types/chat";
+import { useT } from "@/components/i18n-provider";
+import type { Translate } from "@/lib/i18n/translate";
 
 type ChatSidebarProps = {
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -52,6 +54,7 @@ export function ChatSidebar({
   onChangeIcon,
   onWorkspaceChange,
 }: ChatSidebarProps) {
+  const t = useT();
   // アイコン選択を開いている会話と、その位置（スクロールしても固定位置で出すため開いた時点で決める）。
   const [picker, setPicker] = useState<{ id: string; position: FloatingPosition } | null>(null);
   const closePicker = () => setPicker(null);
@@ -67,7 +70,7 @@ export function ChatSidebar({
     return (
                 <div key={session.id} className={`notion-session-row vt-row group ${active ? "is-active" : ""}`} style={rowName(`crow-${session.id}`)} data-order-id={session.id} data-order-scope="chat">
                   <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}/>
-                  <button type="button" className="chat-row-icon-button" aria-label={`Change icon of ${session.title}`} title="Change icon"
+                  <button type="button" className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: session.title })} title={t("Change icon")}
                     aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
                     onClick={(event) => {
                       triggerRef.current = event.currentTarget;
@@ -81,7 +84,7 @@ export function ChatSidebar({
                   <button type="button" onClick={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" title={session.title}>
                     <span className="truncate text-sm">{session.title}</span>
                   </button>
-                  <button type="button" className="notion-row-action chat-more-button" aria-label={`Actions for ${session.title}`} aria-haspopup="dialog"
+                  <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for {title}", { title: session.title })} aria-haspopup="dialog"
                     onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
                     <MoreHorizontal size={16}/>
                   </button>
@@ -95,7 +98,7 @@ export function ChatSidebar({
     <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
         <StudyMateLogo />
-        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label="Close sidebar" title="Toggle sidebar (Ctrl+B)">
+        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}>
           <PanelLeftClose size={17} />
         </button>
       </div>
@@ -105,39 +108,39 @@ export function ChatSidebar({
       <div className="mt-3 px-2">
         <button type="button" onClick={onCreate} className="sidebar-primary-action">
           <Plus size={16} />
-          <span>New chat</span>
+          <span>{t("New chat")}</span>
         </button>
         <button type="button" onClick={onSearch} className="notion-sidebar-action" aria-keyshortcuts="Control+K Meta+K">
           <Search size={16} />
-          <span>Search</span>
-          <kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
+          <span>{t("Search")}</span>
+          <kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
         </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         {ordered.filter(session=>session.pinned).length>0 && <>
-          <div className="chat-section-label">Pinned</div>
+          <div className="chat-section-label">{t("Pinned")}</div>
           {ordered.filter(session=>session.pinned).map(renderRow)}
         </>}
-        <div className="chat-project-heading"><span>Projects</span><button type="button" aria-label="New project" className="notion-icon-button" onClick={()=>setAction({kind:"createProject"})}><Plus size={15}/></button></div>
+        <div className="chat-project-heading"><span>{t("Projects")}</span><button type="button" aria-label={t("New project")} className="notion-icon-button" onClick={()=>setAction({kind:"createProject"})}><Plus size={15}/></button></div>
         {projectError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{projectError}</p>}
         {projects.map(project=><div key={project.id}>
           <div className="notion-session-row chat-project-row" data-chat-project-drop={project.id}>
-            <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project) ? `${project.name} · ${projectHint(project)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
+            <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project, t) ? `${project.name} · ${projectHint(project, t)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
               {collapsed[project.id] ? <ChevronRight size={13}/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
-              {projectHint(project) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project)})</span></>}
+              {projectHint(project, t) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project, t)})</span></>}
             </button>
-            <button type="button" className="notion-row-action chat-more-button" aria-label={`New chat in ${project.name}`} title="New chat in this project"
+            <button type="button" className="notion-row-action chat-more-button" aria-label={t("New chat in {name}", { name: project.name })} title={t("New chat in this project")}
               onClick={()=>{setCollapsed(state=>({...state,[project.id]:false}));onCreateInProject(project.id);}}><Plus size={16}/></button>
-            <button type="button" className="notion-row-action chat-more-button" aria-label={`Actions for project ${project.name}`} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={16}/></button>
+            <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for project {name}", { name: project.name })} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={16}/></button>
           </div>
           {!collapsed[project.id] && <div className="pl-3">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
-            {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-muted)]">{ordered.some(session=>session.projectId===project.id) ? "All chats pinned" : "No chats"}</p>}
+            {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-muted)]">{ordered.some(session=>session.projectId===project.id) ? t("All chats pinned") : t("No chats")}</p>}
           </div>}
         </div>)}
-        <div className="chat-section-label" data-chat-project-drop="">Chats</div>
+        <div className="chat-section-label" data-chat-project-drop="">{t("Chats")}</div>
         {ordered.filter(session=>!session.pinned && (!session.projectId || !known.has(session.projectId))).map(renderRow)}
-        {sessions.length===0 && <div className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your recent conversations will appear here.</div>}
+        {sessions.length===0 && <div className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">{t("Your recent conversations will appear here.")}</div>}
       </div>
       <SidebarFooter />
       {action && <ChatActions key={action.kind+("session" in action ? action.session.id : "project" in action ? action.project.id : "")} action={action} projects={projects} onClose={()=>setAction(null)} onAction={setAction} onUpdate={onUpdate} onDelete={onDelete} onProject={onProject} onProjectSaved={onProjectSaved}/>}
@@ -150,19 +153,20 @@ export function ChatSidebar({
 }
 
 // プロジェクトの行に添える短い説明（共通指示と参照ノートがあるときだけ）。
-function projectHint(project: ChatProject) {
+function projectHint(project: ChatProject, t: Translate) {
   const parts = [];
-  if (project.hasInstructions) parts.push("instructions");
-  if (project.noteCount) parts.push(`${project.noteCount} reference ${project.noteCount === 1 ? "note" : "notes"}`);
+  if (project.hasInstructions) parts.push(t("instructions"));
+  if (project.noteCount) parts.push(project.noteCount === 1 ? t("1 reference note") : t("{count} reference notes", { count: project.noteCount }));
   return parts.join(" + ");
 }
 
 function ChatPinButton({session,onUpdate}:{session:Session;onUpdate:ChatSidebarProps["onUpdate"]}) {
+  const t = useT();
   const [busy,setBusy]=useState(false);
   const [failed,setFailed]=useState(false);
-  return <button type="button" disabled={busy} className={`notion-row-action chat-pin-button${session.pinned ? " is-pinned" : ""}`} aria-label={`${session.pinned ? "Unpin" : "Pin"} ${session.title}`} aria-pressed={Boolean(session.pinned)}
-    title={failed ? "Could not save. Try again." : session.pinned ? "Unpin chat" : "Pin chat"}
+  return <button type="button" disabled={busy} className={`notion-row-action chat-pin-button${session.pinned ? " is-pinned" : ""}`} aria-label={session.pinned ? t("Unpin {title}", { title: session.title }) : t("Pin {title}", { title: session.title })} aria-pressed={Boolean(session.pinned)}
+    title={failed ? t("Could not save. Try again.") : session.pinned ? t("Unpin chat") : t("Pin chat")}
     onClick={async()=>{setBusy(true);try {setFailed(!await onUpdate(session.id,{pinned:!session.pinned}));}catch{setFailed(true);}finally{setBusy(false);}}}>
-    <Pin size={14}/>{failed && <span className="sr-only" role="alert">Could not save pin. Try again.</span>}
+    <Pin size={14}/>{failed && <span className="sr-only" role="alert">{t("Could not save pin. Try again.")}</span>}
   </button>;
 }

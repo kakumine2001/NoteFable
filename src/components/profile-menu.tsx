@@ -7,6 +7,8 @@ import { AvatarCropper } from "@/components/avatar-cropper";
 import { EmojiPickerBody, Popover } from "@/components/emoji-picker";
 import { UserAvatar } from "@/components/user-avatar";
 import { MAX_DISPLAY_NAME, type AccountUser, type ProfilePatch } from "@/lib/user-profile";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 export type MenuPosition = { left: number; bottom: number; width: number; maxHeight: number };
 
@@ -39,6 +41,7 @@ type Editor = "closed" | "photo" | "emoji";
 // プロフィール。顔（写真をアップロード・絵文字を選ぶ）・名前（書き換えられる）・メール・Google の表示に戻すボタン・ログアウト。
 // スクロールする一覧の外（body）に固定位置で出すので、サイドバーに裁ち切られない。
 export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, onSignOut, onClose }: ProfileMenuProps) {
+  const t = useT();
   // 入力中だけ持つ下書き（null は入力していない）。入力欄には、下書きがなければ今の名前を出す。
   const [draft, setDraft] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor>("closed");
@@ -87,8 +90,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) return setUploadError("Choose an image file.");
-    if (file.size > MAX_PICKED_BYTES) return setUploadError("Choose a photo under 10 MB.");
+    if (!file.type.startsWith("image/")) return setUploadError(msg("Choose an image file."));
+    if (file.size > MAX_PICKED_BYTES) return setUploadError(msg("Choose a photo under 10 MB."));
     setUploadError("");
     setPicked(file);
   }
@@ -123,17 +126,17 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
   const customized = Boolean(user.displayName || user.icon || user.avatarUrl);
 
   return createPortal(
-    <Popover className="profile-menu" label="Profile" trigger={trigger} onClose={closeIfAllowed} style={position}>
+    <Popover className="profile-menu" label={t("Profile")} trigger={trigger} onClose={closeIfAllowed} style={position}>
       <div className="profile-menu-head">
-        <button type="button" className="profile-avatar-button" aria-label="Change photo or icon" aria-expanded={editor !== "closed"}
+        <button type="button" className="profile-avatar-button" aria-label={t("Change photo or icon")} aria-expanded={editor !== "closed"}
           onClick={() => (editor === "closed" ? switchEditor("photo") : switchEditor("closed"))}>
           <UserAvatar user={user} size={52} />
           <span className="profile-avatar-badge" aria-hidden="true"><Pencil size={11} /></span>
         </button>
         <div className="min-w-0 flex-1">
-          <label className="profile-label" htmlFor="profile-name">Name</label>
+          <label className="profile-label" htmlFor="profile-name">{t("Name")}</label>
           <input id="profile-name" className="profile-name-input" value={draft ?? shownName} maxLength={MAX_DISPLAY_NAME}
-            placeholder={user.googleName ?? "Your name"} autoComplete="off"
+            placeholder={user.googleName ?? t("Your name")} autoComplete="off"
             onChange={(event) => setDraft(event.target.value)} onBlur={commitName}
             onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitName(); event.currentTarget.blur(); } }} />
         </div>
@@ -145,24 +148,24 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
           <div className="notes-picker-tabs" role="tablist">
             {(["photo", "emoji"] as const).map((tab) => (
               <button key={tab} type="button" role="tab" aria-selected={editor === tab} className={editor === tab ? "is-active" : ""}
-                onClick={() => switchEditor(tab)}>{tab === "photo" ? "Photo" : "Emoji"}</button>
+                onClick={() => switchEditor(tab)}>{tab === "photo" ? t("Photo") : t("Emoji")}</button>
             ))}
           </div>
 
           {editor === "photo" && (picked ? (
-            <AvatarCropper file={picked} saving={uploading} error={uploadError} onCancel={() => { setPicked(null); setUploadError(""); }} onSave={savePhoto} />
+            <AvatarCropper file={picked} saving={uploading} error={t(uploadError)} onCancel={() => { setPicked(null); setUploadError(""); }} onSave={savePhoto} />
           ) : (
             <div className="profile-photo-pane">
               <button type="button" className="profile-upload-button" onClick={openFilePicker}>
-                <ImagePlus size={16} />Upload a photo
+                <ImagePlus size={16} />{t("Upload a photo")}
               </button>
-              <p>JPEG, PNG, WebP or GIF. You can crop it next.</p>
+              <p>{t("JPEG, PNG, WebP or GIF. You can crop it next.")}</p>
               {user.avatarUrl && (
                 <button type="button" className="profile-remove-photo" onClick={() => onSave({ icon: null })}>
-                  <Trash2 size={14} />Remove my photo
+                  <Trash2 size={14} />{t("Remove my photo")}
                 </button>
               )}
-              {uploadError && <p className="profile-error" role="alert">{uploadError}</p>}
+              {uploadError && <p className="profile-error" role="alert">{t(uploadError)}</p>}
               <input ref={fileInput} type="file" className="sr-only" tabIndex={-1} accept="image/png,image/jpeg,image/webp,image/gif"
                 onChange={choosePhoto} />
             </div>
@@ -170,22 +173,22 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
 
           {editor === "emoji" && (
             <div className="profile-emoji">
-              <EmojiPickerBody current={user.icon} removeLabel="Use Google photo"
+              <EmojiPickerBody current={user.icon} removeLabel={t("Use Google photo")}
                 onChange={(icon) => onSave({ icon })} onClose={() => switchEditor("closed")} />
             </div>
           )}
         </div>
       )}
 
-      {error && <div className="profile-error" role="alert">{error}</div>}
+      {error && <div className="profile-error" role="alert">{t(error)}</div>}
 
       <div className="profile-actions">
         {customized && (
           <button type="button" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
-            <RotateCcw size={14} />Use my Google name and photo
+            <RotateCcw size={14} />{t("Use my Google name and photo")}
           </button>
         )}
-        <button type="button" onClick={onSignOut}><LogOut size={14} />Sign out</button>
+        <button type="button" onClick={onSignOut}><LogOut size={14} />{t("Sign out")}</button>
       </div>
     </Popover>,
     document.body,

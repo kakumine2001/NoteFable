@@ -7,6 +7,7 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readSmallJson } from "@/lib/note-groups";
 import { createRevision } from "@/lib/note-revisions";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string; revisionId: string }> };
 
@@ -19,7 +20,7 @@ class Stale extends Error {}
 export async function POST(request: Request, context: Context) {
   try {
     const body = await readSmallJson(request);
-    if (!Number.isSafeInteger(body.version) || (body.version as number) < 0) throw new NoteValidationError("A valid note version is required.");
+    if (!Number.isSafeInteger(body.version) || (body.version as number) < 0) throw new NoteValidationError(msg("A valid note version is required."));
     const version = body.version as number;
     const user = await getOrCreateAnonymousUser();
     const { pageId, revisionId } = await context.params;
@@ -55,11 +56,11 @@ export async function POST(request: Request, context: Context) {
       if (!(error instanceof Stale)) throw error;
       outcome = "stale";
     }
-    if (outcome === "note-missing") return NextResponse.json({ error: "Note not found." }, { status: 404 });
-    if (outcome === "revision-missing") return NextResponse.json({ error: "Revision not found." }, { status: 404 });
+    if (outcome === "note-missing") return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (outcome === "revision-missing") return NextResponse.json({ error: msg("Revision not found.") }, { status: 404 });
     if (outcome === "stale") {
       const latest = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-      return latest ? NextResponse.json({ error: "This note was changed in another tab.", page: latest }, { status: 409 }) : NextResponse.json({ error: "Note not found." }, { status: 404 });
+      return latest ? NextResponse.json({ error: msg("This note was changed in another tab."), page: latest }, { status: 409 }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     }
     return NextResponse.json({ page: outcome.page });
   } catch (error) { return noteApiError(error); }

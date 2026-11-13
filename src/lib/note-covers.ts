@@ -1,6 +1,7 @@
 import { NoteValidationError, uploadedCoverPath } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredImage } from "@/lib/storage";
+import { msg } from "@/lib/i18n/translate";
 
 export { sniffImage as sniffCoverImage } from "@/lib/note-file-keys";
 
@@ -9,7 +10,7 @@ export const COVER_CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", 
 // 他人のフォルダにある画像キーを、自分のページのカバーとして保存させない。
 export function assertCoverOwner(cover: string | null, userId: string) {
   const upload = uploadedCoverPath(cover);
-  if (upload && upload.ownerId !== userId) throw new NoteValidationError("Unsupported note cover.");
+  if (upload && upload.ownerId !== userId) throw new NoteValidationError(msg("Unsupported note cover."));
 }
 
 type CoverClient = Pick<typeof prisma, "noteCoverAsset">;
@@ -20,7 +21,7 @@ export async function claimCover(tx: CoverClient, cover: string | null, userId: 
   const upload = uploadedCoverPath(cover);
   if (!upload) return;
   const claimed = await tx.noteCoverAsset.updateMany({ where: { path: upload.path, userId, deletingAt: null }, data: { releasedAt: null } });
-  if (!claimed.count) throw new NoteValidationError("This cover image is no longer available. Choose another cover.");
+  if (!claimed.count) throw new NoteValidationError(msg("This cover image is no longer available. Choose another cover."));
 }
 
 // どのページからも参照されない状態が続いてから削除するまでの猶予。

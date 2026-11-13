@@ -1,4 +1,5 @@
 import { upload } from "@vercel/blob/client";
+import { msg } from "@/lib/i18n/translate";
 
 export async function cleanupClientUploads(tickets: string[]) {
   if (!tickets.length) return;
@@ -7,11 +8,11 @@ export async function cleanupClientUploads(tickets: string[]) {
 
 export async function uploadChatFiles(files: File[], onProgress: (name: string, index: number, total: number, percentage: number) => void): Promise<string[]> {
   if (!files.length) return [];
-  const response = await fetch("/api/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: files.map((file) => ({ name: file.name, type: file.type, size: file.size })) }) }).catch(() => { throw new Error("Unable to upload attachments. Check your connection and try sending again."); });
-  const body = await response.json().catch(() => ({ error: "Unable to prepare attachments. Try sending again." }));
-  if (!response.ok) throw new Error(body.error ?? "Unable to start attachment upload.");
+  const response = await fetch("/api/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: files.map((file) => ({ name: file.name, type: file.type, size: file.size })) }) }).catch(() => { throw new Error(msg("Unable to upload attachments. Check your connection and try sending again.")); });
+  const body = await response.json().catch(() => ({ error: msg("Unable to prepare attachments. Try sending again.") }));
+  if (!response.ok) throw new Error(body.error ?? msg("Unable to start attachment upload."));
   const uploads = body.uploads as { path: string; ticket: string }[];
-  if (!Array.isArray(uploads) || uploads.length !== files.length) throw new Error("Invalid upload response.");
+  if (!Array.isArray(uploads) || uploads.length !== files.length) throw new Error(msg("Invalid upload response."));
   const tickets = uploads.map((item) => item.ticket);
   try {
     for (let index = 0; index < files.length; index++) {
@@ -30,6 +31,6 @@ export async function uploadChatFiles(files: File[], onProgress: (name: string, 
     return tickets;
   } catch {
     await cleanupClientUploads(tickets);
-    throw new Error("Unable to upload attachments. Check your connection and try sending again.");
+    throw new Error(msg("Unable to upload attachments. Check your connection and try sending again."));
   }
 }

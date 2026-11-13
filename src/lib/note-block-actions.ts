@@ -1,15 +1,16 @@
 import type { Block } from "@blocknote/core";
+import { msg } from "@/lib/i18n/translate";
 
 export const NOTE_TEXT_BLOCKS = [
-  { key: "paragraph", type: "paragraph", title: "Text", aliases: ["text", "文本", "段落", "テキスト"], digit: "0" },
-  { key: "heading", type: "heading", level: 1, title: "Heading 1", aliases: ["标题1", "見出し1"], digit: "1" },
-  { key: "heading_2", type: "heading", level: 2, title: "Heading 2", aliases: ["标题2", "見出し2"], digit: "2" },
-  { key: "heading_3", type: "heading", level: 3, title: "Heading 3", aliases: ["标题3", "見出し3"], digit: "3" },
-  { key: "check_list", type: "checkListItem", title: "To-do list", aliases: ["todo", "to do", "待办", "チェック"], digit: "4" },
-  { key: "bullet_list", type: "bulletListItem", title: "Bulleted list", aliases: ["bullet", "无序列表", "箇条書き"], digit: "5" },
-  { key: "numbered_list", type: "numberedListItem", title: "Numbered list", aliases: ["number", "有序列表", "番号"], digit: "6" },
-  { key: "code_block", type: "codeBlock", title: "Code", aliases: ["代码", "コード"], digit: "8" },
-  { key: "quote", type: "quote", title: "Quote", aliases: ["引用"], digit: undefined },
+  { key: "paragraph", type: "paragraph", title: msg("Text"), aliases: ["text", "文本", "段落", "テキスト"], digit: "0" },
+  { key: "heading", type: "heading", level: 1, title: msg("Heading 1"), aliases: ["标题1", "見出し1"], digit: "1" },
+  { key: "heading_2", type: "heading", level: 2, title: msg("Heading 2"), aliases: ["标题2", "見出し2"], digit: "2" },
+  { key: "heading_3", type: "heading", level: 3, title: msg("Heading 3"), aliases: ["标题3", "見出し3"], digit: "3" },
+  { key: "check_list", type: "checkListItem", title: msg("To-do list"), aliases: ["todo", "to do", "待办", "チェック"], digit: "4" },
+  { key: "bullet_list", type: "bulletListItem", title: msg("Bulleted list"), aliases: ["bullet", "无序列表", "箇条書き"], digit: "5" },
+  { key: "numbered_list", type: "numberedListItem", title: msg("Numbered list"), aliases: ["number", "有序列表", "番号"], digit: "6" },
+  { key: "code_block", type: "codeBlock", title: msg("Code"), aliases: ["代码", "コード"], digit: "8" },
+  { key: "quote", type: "quote", title: msg("Quote"), aliases: ["引用"], digit: undefined },
 ] as const;
 
 export type NoteBlockTarget = typeof NOTE_TEXT_BLOCKS[number];

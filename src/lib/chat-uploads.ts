@@ -4,12 +4,13 @@ import { verifyUploadTicket } from "@/lib/chat-upload-ticket";
 import { AttachmentValidationError, validateAttachmentFiles } from "@/lib/files";
 import { readStoredImage, deleteStoredImage } from "@/lib/storage";
 import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
+import { msg } from "@/lib/i18n/translate";
 
 export function parseUploadReferences(value: unknown): string[] {
   if (value == null || value === "") return [];
   let parsed: unknown;
-  try { parsed = typeof value === "string" ? JSON.parse(value) : value; } catch { throw new AttachmentValidationError("Invalid attachment references."); }
-  if (!Array.isArray(parsed) || parsed.length > MAX_UPLOAD_FILES || parsed.some((item) => typeof item !== "string") || new Set(parsed).size !== parsed.length) throw new AttachmentValidationError("Invalid attachment references.");
+  try { parsed = typeof value === "string" ? JSON.parse(value) : value; } catch { throw new AttachmentValidationError(msg("Invalid attachment references.")); }
+  if (!Array.isArray(parsed) || parsed.length > MAX_UPLOAD_FILES || parsed.some((item) => typeof item !== "string") || new Set(parsed).size !== parsed.length) throw new AttachmentValidationError(msg("Invalid attachment references."));
   return parsed;
 }
 
@@ -30,10 +31,10 @@ export async function loadChatUploads(tickets: string[], userId: string, legacy:
     for (const item of claims) {
       if (optionalEnv("BLOB_READ_WRITE_TOKEN")) {
         const info = await head(item.path);
-        if (info.size !== item.size || info.contentType !== item.type) throw new AttachmentValidationError("Uploaded file does not match its attachment metadata.");
+        if (info.size !== item.size || info.contentType !== item.type) throw new AttachmentValidationError(msg("Uploaded file does not match its attachment metadata."));
       }
       const buffer = await readStoredImage(item.path, item.size);
-      if (buffer.length !== item.size) throw new AttachmentValidationError("Incomplete attachment upload. Please try again.");
+      if (buffer.length !== item.size) throw new AttachmentValidationError(msg("Incomplete attachment upload. Please try again."));
       files.push(new File([new Uint8Array(buffer)], item.name, { type: item.type }));
     }
     return files;

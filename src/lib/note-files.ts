@@ -1,5 +1,6 @@
 import { NoteValidationError } from "@/lib/note-document";
 import { NOTE_FILE_TYPES, NOTE_IMAGE_EXTENSIONS, parseNoteFileUrl, safeFileName, sniffImage } from "@/lib/note-file-keys";
+import { msg } from "@/lib/i18n/translate";
 
 // アップロードを受け付けるか判断し、保存する拡張子と種別を返す。画像は拡張子ではなく先頭バイトで見る。
 export function classifyUpload(buffer: Buffer, originalName: string):
@@ -17,7 +18,7 @@ export function assertNoteFilesOwner(blocks: unknown, userId: string, depth = 0)
   for (const block of blocks as { type?: unknown; props?: { url?: unknown }; children?: unknown }[]) {
     if ((block?.type === "image" || block?.type === "file") && block.props) {
       const parsed = parseNoteFileUrl(block.props.url);
-      if (parsed && parsed !== "empty" && parsed.ownerId !== userId) throw new NoteValidationError("This note refers to a file that is not yours.");
+      if (parsed && parsed !== "empty" && parsed.ownerId !== userId) throw new NoteValidationError(msg("This note refers to a file that is not yours."));
     }
     assertNoteFilesOwner(block?.children, userId, depth + 1);
   }

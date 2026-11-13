@@ -22,6 +22,7 @@ import {
   snapReasoningEffort,
   stepReasoningEffort,
 } from "@/lib/reasoning-slider";
+import { useT } from "@/components/i18n-provider";
 
 const PARTICLE_COUNT = 14;
 const PARTICLE_TRAVEL_SECONDS = 1.9;
@@ -47,11 +48,6 @@ const reasoningParticles = Array.from({ length: PARTICLE_COUNT }, (_, index) => 
   };
 });
 
-function formatReasoningLabel(value: string, provider: string) {
-  void provider;
-  return reasoningLabels[value] ?? value;
-}
-
 function DesktopModelSelect({
   value,
   reasoning,
@@ -63,6 +59,7 @@ function DesktopModelSelect({
   onModelChange: (value: string) => void;
   onReasoningChange: (value: string) => void;
 }) {
+  const t = useT();
   // モデル選択と推論強度を同じピルから別々に開く。
   const [openPanel, setOpenPanel] = useState<"models" | "reasoning" | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -73,7 +70,7 @@ function DesktopModelSelect({
   const pointerActiveRef = useRef(false);
   const wheelStateRef = useRef({ accumulatedDelta: 0, lastEventTime: 0 });
   const currentModel = getModelOption(value);
-  const currentReasoningLabel = formatReasoningLabel(reasoning, currentModel.provider);
+  const currentReasoningLabel = t(reasoningLabels[reasoning] ?? reasoning);
   const supportedEfforts = currentModel.reasoningEfforts;
   const fallbackEffort = supportedEfforts.includes(reasoning as ReasoningEffort)
     ? (reasoning as ReasoningEffort)
@@ -293,7 +290,7 @@ function DesktopModelSelect({
           onClick={() => togglePanel("reasoning")}
           aria-haspopup="dialog"
           aria-expanded={openPanel === "reasoning"}
-          aria-label={`Reasoning effort: ${currentReasoningLabel}`}
+          aria-label={t("Reasoning effort: {currentReasoningLabel}", { currentReasoningLabel })}
         >
           <span>{currentReasoningLabel}</span>
           <ChevronDown
@@ -313,7 +310,7 @@ function DesktopModelSelect({
               : "right-2 sm:w-64"
           }`}
           role={openPanel === "reasoning" ? "dialog" : "menu"}
-          aria-label={openPanel === "reasoning" ? "Reasoning settings" : "Model"}
+          aria-label={openPanel === "reasoning" ? t("Reasoning settings") : t("Model")}
           onKeyDown={
             openPanel === "models" ? handleModelMenuKeyDown : undefined
           }
@@ -323,14 +320,11 @@ function DesktopModelSelect({
               <>
                 <div className="codex-slider-header" aria-hidden="true">
                   <div className="codex-slider-endpoints">
-                    <span>Faster</span>
-                    <span>Smarter</span>
+                    <span>{t("Faster")}</span>
+                    <span>{t("Smarter")}</span>
                   </div>
                   <div className="codex-slider-current">
-                    {formatReasoningLabel(
-                      visualEffort,
-                      currentModel.provider,
-                    )}
+                    {t(reasoningLabels[visualEffort] ?? visualEffort)}
                   </div>
                 </div>
 
@@ -343,15 +337,15 @@ function DesktopModelSelect({
                   data-no-reasoning={visualEffort === "none"}
                   role="slider"
                   tabIndex={0}
-                  aria-label="Reasoning effort"
+                  aria-label={t("Reasoning effort")}
                   aria-valuemin={0}
                   aria-valuemax={supportedEfforts.length - 1}
                   aria-valuenow={Math.max(
                     0,
                     supportedEfforts.indexOf(visualEffort),
                   )}
-                  aria-valuetext={`${formatReasoningLabel(visualEffort, currentModel.provider)}: ${reasoningDescriptions[visualEffort]}`}
-                  title={`${formatReasoningLabel(visualEffort, currentModel.provider)} — ${reasoningDescriptions[visualEffort]}`}
+                  aria-valuetext={`${t(reasoningLabels[visualEffort] ?? visualEffort)}: ${t(reasoningDescriptions[visualEffort])}`}
+                  title={`${t(reasoningLabels[visualEffort] ?? visualEffort)} — ${t(reasoningDescriptions[visualEffort])}`}
                   onPointerDown={(event) => {
                     event.preventDefault();
                     event.currentTarget.focus();

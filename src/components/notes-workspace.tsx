@@ -10,10 +10,16 @@ import { NotePageHeader } from "@/components/note-page-header";
 import { NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import type { useNotePages } from "@/lib/use-note-pages";
+import { useI18n, useT } from "@/components/i18n-provider";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
-  ssr: false, loading: () => <p className="notes-loading">Loading editor…</p>,
+  ssr: false, loading: () => <EditorLoading />,
 });
+
+function EditorLoading() {
+  const t = useT();
+  return <p className="notes-loading">{t("Loading editor…")}</p>;
+}
 
 // ブロックの JSON が内容として同じか（キーの順序と undefined の項目は無視する。DB の JSONB はキーの順序が変わる）。
 function sameJson(a: unknown, b: unknown): boolean {
@@ -42,6 +48,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
 }) {
+  const { t, locale } = useI18n();
   const { active, activeId, loading, busy, error, backupError } = notes;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -56,11 +63,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   }, [activeId, loading, emptyPage]);
 
   return <div className="notes-workspace flex-1 overflow-y-auto">
-    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{error}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>Retry</button></div></div>}
+    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{t(error)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} />
-    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? "Loading notes…" : "Loading note…"}</p></div> : active && activeId && !listMode ? <>
+    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div> : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {
@@ -70,17 +77,17 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
           }
         }} />
       <div className="notes-column notes-body">
-        {backupError && <div className="notion-warning mb-4" role="alert">{backupError}</div>}
+        {backupError && <div className="notion-warning mb-4" role="alert">{t(backupError)}</div>}
         {!!active.error && <div className="notion-warning mb-5" role="alert">
-          <p>{active.error}</p>
+          <p>{t(active.error)}</p>
           <div className="mt-3 flex flex-wrap gap-2">
             {active.status === "conflict" ? <>
-              <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>Save as new note</button>
-              <button type="button" className="notion-button" onClick={() => { if (window.confirm("Discard this unsaved draft and load the latest version?")) notes.loadLatest(); }}>Load latest</button>
-            </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />Retry save</button>}
+              <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>
+              <button type="button" className="notion-button" onClick={() => { if (window.confirm(t("Discard this unsaved draft and load the latest version?"))) notes.loadLatest(); }}>{t("Load latest")}</button>
+            </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
           </div>
         </div>}
-        <NoteEditor key={`${activeId}:${notes.editorEpoch}`} blocks={active.content.blocks} editable={!busy}
+        <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={!busy}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();
             const end = titleRef.current?.value.length ?? 0;
@@ -92,10 +99,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
       <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} flush={() => active.flush()} />
     </> : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
-      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">Notes</h1>
-      <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">Write notes with blocks — type <kbd className="notes-kbd">/</kbd> for headings, lists, to-dos and code.</p>
-      <button type="button" disabled={busy} className="notes-empty-new" onClick={onCreate}><Plus size={16} />New note</button>
-      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">Notes are saved on the server and linked to this device. Sign in with Google to open them on other devices. Clearing app or site data creates a separate workspace.</p>
+      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">{t("Notes")}</h1>
+      <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
+      <button type="button" disabled={busy} className="notes-empty-new" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">{t("Notes are saved on the server and linked to this device. Sign in with Google to open them on other devices. Clearing app or site data creates a separate workspace.")}</p>
     </div></>}
   </div>;
 }

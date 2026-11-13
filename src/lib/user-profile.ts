@@ -1,4 +1,5 @@
 import { isEmojiIcon } from "@/lib/emoji-icon";
+import { msg } from "@/lib/i18n/translate";
 
 export const MAX_DISPLAY_NAME = 40;
 
@@ -34,7 +35,7 @@ export function parseDisplayName(value: unknown): NameResult {
 
 // PATCH /api/account の本文を検証する。送られた項目だけを更新対象にする。
 export function parseProfilePatch(body: unknown): { ok: true; data: ProfilePatch } | { ok: false; error: string } {
-  if (!body || typeof body !== "object") return { ok: false, error: "A JSON object is required." };
+  if (!body || typeof body !== "object") return { ok: false, error: msg("A JSON object is required.") };
   const input = body as Record<string, unknown>;
   const data: ProfilePatch = {};
 
@@ -44,10 +45,10 @@ export function parseProfilePatch(body: unknown): { ok: true; data: ProfilePatch
     data.displayName = name.value;
   }
   if ("icon" in input) {
-    if (input.icon !== null && !isEmojiIcon(input.icon)) return { ok: false, error: "Icon must be a single emoji." };
+    if (input.icon !== null && !isEmojiIcon(input.icon)) return { ok: false, error: msg("Icon must be a single emoji.") };
     data.avatarIcon = input.icon as string | null;
   }
-  if (!Object.keys(data).length) return { ok: false, error: "Nothing to update." };
+  if (!Object.keys(data).length) return { ok: false, error: msg("Nothing to update.") };
   return { ok: true, data };
 }
 

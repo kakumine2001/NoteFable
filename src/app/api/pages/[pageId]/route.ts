@@ -9,6 +9,7 @@ import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
 import { tryPurgeExpiredNotes } from "@/lib/note-trash";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
@@ -18,7 +19,7 @@ export async function GET(_request: Request, context: Context) {
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-    return page ? NextResponse.json({ page }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: "Note not found." }, { status: 404 });
+    return page ? NextResponse.json({ page }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }
 }
 
@@ -43,8 +44,8 @@ export async function PATCH(request: Request, context: Context) {
       const alreadySaved = page && page.title === update.title && update.present.every((key) => page[key] === update[key]) && isDeepStrictEqual(page.blocks, update.blocks);
       return { page, conflict: !changed.count && !alreadySaved };
     });
-    if (!result.page) return NextResponse.json({ error: "Note not found." }, { status: 404 });
-    if (result.conflict) return NextResponse.json({ error: "This note was changed in another tab.", page: result.page }, { status: 409 });
+    if (!result.page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (result.conflict) return NextResponse.json({ error: msg("This note was changed in another tab."), page: result.page }, { status: 409 });
     return NextResponse.json({ page: result.page });
   } catch (error) { return noteApiError(error); }
 }
@@ -55,7 +56,7 @@ export async function DELETE(_request: Request, context: Context) {
     const user = await getOrCreateAnonymousUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id, deletedAt: null }, data: { deletedAt: new Date() } });
-    if (!result.count) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+    if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     // 期限切れのゴミ箱の掃除は、この操作の成否に影響させない。
     await tryPurgeExpiredNotes(user.id);
     return NextResponse.json({ ok: true });

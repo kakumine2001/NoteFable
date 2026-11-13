@@ -1,3 +1,4 @@
+import { msg } from "@/lib/i18n/translate";
 export type DeepSeekResponsesInput = {
   role: string;
   content: unknown;
@@ -60,16 +61,16 @@ export function parseDeepSeekResponsesDelta(line: string) {
     throw new Error(
       data.error?.message ??
         data.response?.error?.message ??
-        "DeepSeek Responses API returned an error.",
+        msg("DeepSeek Responses API returned an error."),
     );
   }
 
   if (data.type === "response.incomplete") {
-    throw new Error("DeepSeek response was incomplete. Please retry.");
+    throw new Error(msg("DeepSeek response was incomplete. Please retry."));
   }
 
   if (data.item?.type === "function_call" || data.item?.type === "custom_tool_call") {
-    throw new Error("DeepSeek requested an unavailable tool. Use GPT for web search.");
+    throw new Error(msg("DeepSeek requested an unavailable tool. Use GPT for web search."));
   }
 
   // 推論差分は本文に混ぜず（途中経過として chat-activity で別に扱う）、本文差分だけを返す。

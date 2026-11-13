@@ -1,5 +1,6 @@
 import { noteContentOf } from "@/lib/note-document";
 import type { NoteContent, NotePage, NoteSaveStatus } from "@/types/notes";
+import { msg } from "@/lib/i18n/translate";
 
 export class NoteSaveError extends Error {
   constructor(message: string, public status: number, public latest?: NotePage) { super(message); }
@@ -32,7 +33,7 @@ export class NoteSaveQueue {
       this.status = draft.version === page.version ? "pending" : "conflict";
       if (this.status === "conflict") {
         this.latest = page;
-        this.error = "A recovered draft differs from the latest note. Save a copy or load the latest version.";
+        this.error = msg("A recovered draft differs from the latest note. Save a copy or load the latest version.");
       }
     }
   }
@@ -78,7 +79,7 @@ export class NoteSaveQueue {
       } catch (error) {
         this.status = error instanceof NoteSaveError && error.status === 409 ? "conflict" : "error";
         this.latest = error instanceof NoteSaveError ? error.latest : undefined;
-        this.error = error instanceof Error ? error.message : "Failed to save. Your draft has been kept.";
+        this.error = error instanceof Error ? error.message : msg("Failed to save. Your draft has been kept.");
         this.changed();
         return false;
       }

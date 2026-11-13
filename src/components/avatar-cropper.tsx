@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 // 写真を丸く切り抜く画面（多くのサービスと同じ: ドラッグで位置、スライダーで拡大、保存で正方形に書き出す）。
 const VIEW = 200; // 画面に出す円の直径（CSS px）
@@ -33,6 +35,7 @@ type AvatarCropperProps = {
 };
 
 export function AvatarCropper({ file, saving, error, onCancel, onSave }: AvatarCropperProps) {
+  const t = useT();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const drag = useRef<{ start: Point; origin: Point } | null>(null);
   const [bitmap, setBitmap] = useState<ImageBitmap | null>(null);
@@ -49,13 +52,13 @@ export function AvatarCropper({ file, saving, error, onCancel, onSave }: AvatarC
           image.close();
         } else if (Math.min(image.width, image.height) < AVATAR_MIN_SIDE) {
           image.close();
-          setLoadError(`That photo is too small. Choose one that is at least ${AVATAR_MIN_SIDE} × ${AVATAR_MIN_SIDE} pixels.`);
+          setLoadError(msg("That photo is too small. Choose one that is at least {size} × {size} pixels."));
         } else {
           setBitmap(image);
         }
       })
       .catch(() => {
-        if (!cancelled) setLoadError("Could not read that image. Try another photo.");
+        if (!cancelled) setLoadError(msg("Could not read that image. Try another photo."));
       });
     return () => {
       cancelled = true;
@@ -121,20 +124,20 @@ export function AvatarCropper({ file, saving, error, onCancel, onSave }: AvatarC
     <div className="avatar-cropper">
       <div className="avatar-crop-view" style={{ width: VIEW, height: VIEW }}>
         <canvas ref={canvasRef} width={VIEW * 2} height={VIEW * 2} style={{ width: VIEW, height: VIEW }}
-          tabIndex={0} role="img" aria-label="Photo preview. Drag or use the arrow keys to move it."
+          tabIndex={0} role="img" aria-label={t("Photo preview. Drag or use the arrow keys to move it.")}
           onPointerDown={onPointerDown} onPointerMove={onPointerMove}
           onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onKeyDown={onKeyDown} />
       </div>
       <label className="avatar-zoom">
-        <span>Zoom</span>
+        <span>{t("Zoom")}</span>
         <input type="range" min={1} max={MAX_ZOOM} step={0.01} value={zoom} disabled={!bitmap}
           onChange={(event) => changeZoom(Number(event.target.value))} />
       </label>
-      <p className="avatar-crop-hint">Drag the photo to reposition it.</p>
-      {(loadError || error) && <p className="profile-error" role="alert">{loadError || error}</p>}
+      <p className="avatar-crop-hint">{t("Drag the photo to reposition it.")}</p>
+      {(loadError || error) && <p className="profile-error" role="alert">{loadError ? t(loadError, { size: AVATAR_MIN_SIDE }) : error}</p>}
       <div className="avatar-crop-actions">
-        <button type="button" onClick={onCancel} disabled={saving}>Cancel</button>
-        <button type="button" className="is-primary" onClick={save} disabled={!bitmap || saving}>{saving ? "Saving…" : "Save"}</button>
+        <button type="button" onClick={onCancel} disabled={saving}>{t("Cancel")}</button>
+        <button type="button" className="is-primary" onClick={save} disabled={!bitmap || saving}>{saving ? t("Saving…") : t("Save")}</button>
       </div>
     </div>
   );

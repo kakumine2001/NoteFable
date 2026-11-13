@@ -3,6 +3,7 @@
 import { Check, FolderPlus } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
+import { useT } from "@/components/i18n-provider";
 
 // 開いた瞬間にモーダルとして表示する <dialog>。Esc で閉じる。
 function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
@@ -15,6 +16,7 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
   title: string; initial?: string; submitLabel: string; error: string;
   onSubmit: (name: string) => Promise<boolean>; onClose: () => void;
 }) {
+  const t = useT();
   const [name, setName] = useState(initial);
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
@@ -28,11 +30,11 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
   return <Modal label={title} onClose={onClose}>
     <form onSubmit={(event) => { event.preventDefault(); void submit(); }}>
       <h2 className="text-base font-semibold">{title}</h2>
-      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="Project name"
-        className="notes-dialog-input" aria-label="Project name" />
-      {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{error}</p>}
+      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder={t("Project name")}
+        className="notes-dialog-input" aria-label={t("Project name")} />
+      {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
       <div className="mt-5 flex justify-end gap-2">
-        <button type="button" className="notion-button" onClick={onClose}>Cancel</button>
+        <button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary">{submitLabel}</button>
       </div>
     </form>
@@ -42,14 +44,15 @@ export function GroupNameDialog({ title, initial = "", submitLabel, error, onSub
 export function ConfirmDialog({ title, body, confirmLabel, error, onConfirm, onClose }: {
   title: string; body: string; confirmLabel: string; error: string; onConfirm: () => Promise<boolean>; onClose: () => void;
 }) {
+  const t = useT();
   const [busy, setBusy] = useState(false);
   const [tried, setTried] = useState(false);
   return <Modal label={title} onClose={onClose}>
     <h2 className="text-base font-semibold">{title}</h2>
     <p className="mt-2 text-sm text-[var(--notion-muted)]">{body}</p>
-    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{error}</p>}
+    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
     <div className="mt-5 flex justify-end gap-2">
-      <button autoFocus type="button" className="notion-button" onClick={onClose}>Cancel</button>
+      <button autoFocus type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
       <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => {
         setBusy(true);
         setTried(true);
@@ -67,6 +70,7 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
   onMove: (pageId: string, groupId: string | null) => Promise<unknown>;
   onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>; onClose: () => void;
 }) {
+  const t = useT();
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -85,23 +89,23 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
     setBusy(false);
     if (group) await move(group.id);
   }
-  const options: { id: string | null; label: string }[] = [{ id: null, label: "No project" }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
-  return <Modal label="Move note" onClose={onClose}>
-    <h2 className="text-base font-semibold">Move “{page.title}” to</h2>
-    <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label="Project">
+  const options: { id: string | null; label: string }[] = [{ id: null, label: t("No project") }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
+  return <Modal label={t("Move note")} onClose={onClose}>
+    <h2 className="text-base font-semibold">{t("Move “{title}” to", { title: page.title })}</h2>
+    <div className="mt-3 grid gap-0.5" role="radiogroup" aria-label={t("Project")}>
       {options.map((option) => <button key={option.id ?? "none"} type="button" role="radio" aria-checked={page.groupId === option.id}
         disabled={busy} className="notes-dialog-option" onClick={() => void move(option.id)}>
         <span className="truncate">{option.label}</span>{page.groupId === option.id && <Check size={16} />}
       </button>)}
     </div>
     {creating ? <form className="mt-3" onSubmit={(event) => { event.preventDefault(); void createAndMove(); }}>
-      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder="New project name"
-        className="notes-dialog-input" aria-label="New project name" />
-      <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary mt-2">Create and move</button>
+      <input autoFocus value={name} maxLength={60} onChange={(event) => setName(event.target.value)} placeholder={t("New project name")}
+        className="notes-dialog-input" aria-label={t("New project name")} />
+      <button type="submit" disabled={busy || !name.trim()} className="notion-button notion-button-primary mt-2">{t("Create and move")}</button>
     </form> : <button type="button" className="notes-dialog-option mt-1" disabled={busy} onClick={() => setCreating(true)}>
-      <span className="flex items-center gap-2"><FolderPlus size={16} />New project…</span>
+      <span className="flex items-center gap-2"><FolderPlus size={16} />{t("New project…")}</span>
     </button>}
-    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{error}</p>}
-    <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>Close</button></div>
+    {tried && error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{t(error)}</p>}
+    <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>{t("Close")}</button></div>
   </Modal>;
 }

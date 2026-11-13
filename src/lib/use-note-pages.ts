@@ -6,6 +6,7 @@ import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-qu
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
+import { msg } from "@/lib/i18n/translate";
 
 const DRAFT_PREFIX = "studymate:page-draft:v1:";
 
@@ -15,7 +16,7 @@ async function pageRequest(url: string, method = "GET", body?: unknown) {
     ...(body === undefined ? {} : { headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }),
   });
   const data = await response.json();
-  if (!response.ok) throw new NoteSaveError(data.error || "Note request failed. Your draft has been kept.", response.status, data.page);
+  if (!response.ok) throw new NoteSaveError(data.error || msg("Note request failed. Your draft has been kept."), response.status, data.page);
   return data;
 }
 
@@ -78,7 +79,7 @@ export function useNotePages(enabled: boolean) {
         if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
         else localStorage.removeItem(DRAFT_PREFIX + page.id);
         setBackupError("");
-      } catch { setBackupError("Browser draft backup is unavailable. Keep this tab open until Saved appears."); }
+      } catch { setBackupError(msg("Browser draft backup is unavailable. Keep this tab open until Saved appears.")); }
       refresh((value) => value + 1);
     }, draft);
     queues.current.set(page.id, queue);
@@ -110,7 +111,7 @@ export function useNotePages(enabled: boolean) {
       else if (existing && existing.version !== data.page.version && existing.status !== "saving") {
         existing.status = "conflict";
         existing.latest = data.page;
-        existing.error = "This note was changed in another tab. Save a copy or load the latest version.";
+        existing.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
       }
       setActiveId(id);
       displayedId.current = id;
@@ -125,7 +126,7 @@ export function useNotePages(enabled: boolean) {
       return true;
     } catch (caught) {
       if (intent !== navigation.current) return true;
-      setError(caught instanceof Error ? caught.message : "Failed to open note.");
+      setError(caught instanceof Error ? caught.message : msg("Failed to open note."));
       const gone = caught instanceof NoteSaveError && caught.status === 404;
       // 別のタブで捨てた（または削除した）ノートが一覧に残っていたら外す。
       if (gone) setPages((current) => current.filter((page) => page.id !== id));
@@ -160,7 +161,7 @@ export function useNotePages(enabled: boolean) {
           window.dispatchEvent(new Event("popstate"));
         }
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to load notes."); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to load notes.")); }
     finally { setLoading(false); }
   }, [select]);
 
@@ -187,7 +188,7 @@ export function useNotePages(enabled: boolean) {
         // 未保存の編集は消さず、衝突として知らせる。
         queue.status = "conflict";
         queue.latest = page;
-        queue.error = "This note was changed from the chat. Save a copy or load the latest version.";
+        queue.error = msg("This note was changed from the chat. Save a copy or load the latest version.");
         refresh((value) => value + 1);
       }
     }
@@ -258,7 +259,7 @@ export function useNotePages(enabled: boolean) {
       const url = new URL(window.location.href);
       url.searchParams.set("page", page.id);
       window.history.pushState(null, "", url);
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to create note."); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create note.")); }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -270,7 +271,7 @@ export function useNotePages(enabled: boolean) {
     setError("");
     try {
       const queue = queues.current.get(id);
-      if (queue && !(await queue.flush())) throw new Error("Resolve the unsaved draft before moving this note to Trash.");
+      if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       await pageRequest(`/api/pages/${id}`, "DELETE");
       queues.current.delete(id);
       try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
@@ -285,7 +286,7 @@ export function useNotePages(enabled: boolean) {
         window.history.replaceState(null, "", url);
         if (remaining[0] && !isPhone()) await select(remaining[0].id, "replace");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : "Failed to move the note to Trash."); }
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -293,7 +294,7 @@ export function useNotePages(enabled: boolean) {
   async function groupAction<T>(run: () => Promise<T>): Promise<T | null> {
     setGroupError("");
     try { return await run(); }
-    catch (caught) { setGroupError(caught instanceof Error ? caught.message : "Could not change the group."); return null; }
+    catch (caught) { setGroupError(caught instanceof Error ? caught.message : msg("Could not change the group.")); return null; }
   }
 
   const createGroup = (name: string) => groupAction(async () => {
@@ -334,7 +335,7 @@ export function useNotePages(enabled: boolean) {
   });
 
   async function reorder(move:ReorderRequest) {
-    if(reorderBusy.current) throw new Error("Wait for the previous move to finish.");
+    if(reorderBusy.current) throw new Error(msg("Wait for the previous move to finish."));
     reorderBusy.current=true;
     try {
       const {items}=await pageRequest("/api/pages/reorder","POST",move);

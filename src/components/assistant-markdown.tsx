@@ -20,10 +20,12 @@ import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
 import { isValidElement, useState } from "react";
+import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { writeClipboardText } from "@/lib/clipboard";
+import { useT } from "@/components/i18n-provider";
 
 const highlightLanguages = [
   ["bash", bash],
@@ -79,7 +81,7 @@ const languageLabels: Record<string, string> = {
   json: "JSON",
   markdown: "Markdown",
   php: "PHP",
-  plaintext: "Code",
+  plaintext: msg("Code"),
   python: "Python",
   ruby: "Ruby",
   rust: "Rust",
@@ -182,6 +184,7 @@ function highlightCode(code: string, language: string | null) {
 }
 
 function MarkdownCodeBlock({ children }: { children: ReactNode }) {
+  const t = useT();
   // アシスタント回答のコードはそのまま使う場面が多い。
   // pre 全体をラップし、言語表示・高亮・コピー操作をまとめて扱う。
   const [copied, setCopied] = useState(false);
@@ -206,14 +209,14 @@ function MarkdownCodeBlock({ children }: { children: ReactNode }) {
       <div className="markdown-code-header">
         <span className="markdown-code-language">
           <Code2 size={15} strokeWidth={2.2} />
-          {highlighted.label}
+          {t(highlighted.label)}
         </span>
         <button
           type="button"
           className="markdown-code-copy"
           onClick={copyCode}
-          aria-label={copied ? "Copied code" : "Copy code"}
-          title={copied ? "Copied" : "Copy"}
+          aria-label={copied ? t("Copied code") : t("Copy code")}
+          title={copied ? t("Copied") : t("Copy")}
         >
           {copied ? <Check size={18} /> : <Copy size={20} />}
         </button>

@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { applyProfileEdit, profileEditChanges, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
+import { msg } from "@/lib/i18n/translate";
 
 export type Account = {
   configured: boolean;
@@ -79,13 +80,13 @@ async function sendPatch(patch: ProfileEdit) {
       body: JSON.stringify(patch),
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.user) throw new Error(typeof data.error === "string" ? data.error : "Could not save.");
+    if (!response.ok || !data.user) throw new Error(typeof data.error === "string" ? data.error : msg("Could not save."));
     if (confirmed) confirmed = { ...confirmed, user: data.user as AccountUser };
     // 保存できたら、先の編集で出たエラー表示は消す。
     saveError = "";
   } catch (error) {
     // 失敗した編集だけを取り除く（あとに続く編集は残る）。
-    saveError = error instanceof Error ? error.message : "Could not save.";
+    saveError = error instanceof Error ? error.message : msg("Could not save.");
   } finally {
     pending.shift();
     publish();
@@ -109,13 +110,13 @@ async function sendPhoto(photo: Blob) {
     body.append("file", photo, "avatar");
     const response = await fetch("/api/account/avatar", { method: "POST", body });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok || !data.user) return typeof data.error === "string" ? data.error : "Could not upload that photo. Try again.";
+    if (!response.ok || !data.user) return typeof data.error === "string" ? data.error : msg("Could not upload that photo. Try again.");
     if (confirmed) confirmed = { ...confirmed, user: data.user as AccountUser };
     saveError = "";
     publish();
     return "";
   } catch {
-    return "Could not upload that photo. Check your connection and try again.";
+    return msg("Could not upload that photo. Check your connection and try again.");
   }
 }
 

@@ -1,3 +1,4 @@
+import { msg } from "@/lib/i18n/translate";
 // Android アプリ（mobile/ の Capacitor 外壳）の中で開かれているときだけ使える、端末側の Google ログイン。
 // 外壳はサイトを URL で開くだけで、Capacitor の JS ランタイムは読み込まれない。native-bridge が差し込む
 // window.Capacitor.nativePromise でプラグイン（SocialLogin）を直接呼ぶ。
@@ -25,11 +26,11 @@ export function isNativeApp() {
 // ユーザーが画面を閉じた場合は false を返し、それ以外の失敗は例外にする。
 export async function signInWithNativeGoogle(webClientId: string) {
   const native = bridge();
-  if (!native?.nativePromise) throw new Error("Native Google sign-in is not available.");
+  if (!native?.nativePromise) throw new Error(msg("Native Google sign-in is not available."));
 
   // サーバーが発行する使い捨ての値。Google の ID トークンに埋め込まれ、使い回しを防ぐ。
   const nonceResponse = await fetch("/api/native-auth/nonce", { method: "POST" });
-  if (!nonceResponse.ok) throw new Error("Could not start the Google sign-in.");
+  if (!nonceResponse.ok) throw new Error(msg("Could not start the Google sign-in."));
   const { nonce } = (await nonceResponse.json()) as { nonce: string };
 
   await native.nativePromise("SocialLogin", "initialize", { google: { webClientId } });
@@ -46,14 +47,14 @@ export async function signInWithNativeGoogle(webClientId: string) {
     if ((error as { code?: string } | null)?.code === "USER_CANCELLED") return false;
     throw error;
   }
-  if (!idToken) throw new Error("Google did not return an ID token.");
+  if (!idToken) throw new Error(msg("Google did not return an ID token."));
 
   const response = await fetch("/api/native-auth/google", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ idToken }),
   });
-  if (!response.ok) throw new Error("The server rejected the Google sign-in.");
+  if (!response.ok) throw new Error(msg("The server rejected the Google sign-in."));
   return true;
 }
 

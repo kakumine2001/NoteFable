@@ -1,12 +1,13 @@
 import sharp from "sharp";
 import { MAX_CLAUDE_IMAGE_BYTES } from "@/lib/upload-limits";
+import { msg } from "@/lib/i18n/translate";
 
 // These are internal transport budgets, not upload limits. Originals stay intact.
 export async function prepareClaudeImage(original: Buffer, mimeType: string, maxBytes = MAX_CLAUDE_IMAGE_BYTES) {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1024) throw new Error("Invalid Claude image budget.");
   const options = { limitInputPixels: 80_000_000, sequentialRead: true };
   const metadata = await sharp(original, options).metadata();
-  if (!metadata.width || !metadata.height) throw new Error("Unable to decode this image.");
+  if (!metadata.width || !metadata.height) throw new Error(msg("Unable to decode this image."));
   if (original.byteLength <= maxBytes && metadata.width <= 8000 && metadata.height <= 8000) {
     return { buffer: original, mimeType, compressed: false };
   }
@@ -21,5 +22,5 @@ export async function prepareClaudeImage(original: Buffer, mimeType: string, max
     if (buffer.byteLength <= maxBytes) return { buffer, mimeType: "image/jpeg", compressed: true };
     if (attempt >= 1) edge = Math.max(64, Math.floor(edge * 0.75));
   }
-  throw new Error("Unable to prepare this image for Claude.");
+  throw new Error(msg("Unable to prepare this image for Claude."));
 }

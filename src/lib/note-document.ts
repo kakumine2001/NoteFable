@@ -2,6 +2,7 @@ import type { Block } from "@blocknote/core";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
+import { msg } from "@/lib/i18n/translate";
 
 export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "divider", "image", "file"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
@@ -110,17 +111,17 @@ export function validateNoteContent(value: unknown): NoteContent {
       return validBlocks(block.children ?? [], depth + 1);
     });
   }
-  if (!validBlocks(value.blocks, 0)) throw new NoteValidationError("This note contains an unsupported or invalid block.");
+  if (!validBlocks(value.blocks, 0)) throw new NoteValidationError(msg("This note contains an unsupported or invalid block."));
   // 旧クライアントや旧下書きには icon/cover がないため、未指定は null として扱う。
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
-  if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError("Note icon must be a single emoji.");
-  if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError("Unsupported note cover.");
+  if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji."));
+  if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError(msg("Unsupported note cover."));
   const coverPosition = value.coverPosition ?? null;
   if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {
-    throw new NoteValidationError("Cover position must be between 0 and 100.");
+    throw new NoteValidationError(msg("Cover position must be between 0 and 100."));
   }
-  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_NOTE_BYTES) throw new NoteValidationError("Note content exceeds 1 MiB.", 413);
+  if (new TextEncoder().encode(JSON.stringify(value)).byteLength > MAX_NOTE_BYTES) throw new NoteValidationError(msg("Note content exceeds 1 MiB."), 413);
   return { title: value.title.trim() || "Untitled", icon: icon as string | null, cover: cover as string | null, coverPosition: coverPosition as number | null, blocks: value.blocks as Block[] };
 }
 
@@ -134,7 +135,7 @@ export function noteContentOf(page: NoteContent): NoteContent {
 export async function readNoteRequest(request: Request) {
   // 実際の受信量も制限し、Content-Length がない場合も巨大な本文を読まない。
   const reader = request.body?.getReader();
-  if (!reader) throw new NoteValidationError("Request body is required.");
+  if (!reader) throw new NoteValidationError(msg("Request body is required."));
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -144,7 +145,7 @@ export async function readNoteRequest(request: Request) {
       size += value.byteLength;
       if (size > MAX_NOTE_BYTES) {
         await reader.cancel();
-        throw new NoteValidationError("Note content exceeds 1 MiB.", 413);
+        throw new NoteValidationError(msg("Note content exceeds 1 MiB."), 413);
       }
       chunks.push(value);
     }
@@ -155,13 +156,13 @@ export async function readNoteRequest(request: Request) {
     return body;
   } catch (error) {
     if (error instanceof NoteValidationError) throw error;
-    throw new NoteValidationError("Invalid JSON request.");
+    throw new NoteValidationError(msg("Invalid JSON request."));
   } finally { reader.releaseLock(); }
 }
 
 export function validateNoteUpdate(value: unknown) {
   const content = validateNoteContent(value);
-  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError("A valid note version is required.");
+  if (!object(value) || !Number.isSafeInteger(value.version) || Number(value.version) < 0) throw new NoteValidationError(msg("A valid note version is required."));
   // 旧クライアントや旧下書きは icon/cover/coverPosition を送らない。送られた項目だけを更新し、
   // 省略された項目は保存済みの値を残す（null で上書きしない）。
   const present = NOTE_META_FIELDS.filter((key) => key in value);

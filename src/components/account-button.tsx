@@ -9,10 +9,12 @@ import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/pr
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { canSignInNatively, signInWithNativeGoogle, signOutOfNativeGoogle } from "@/lib/native-app";
+import { useT } from "@/components/i18n-provider";
 
 // サイドバー下部のアカウント。ログイン前は「Sign in with Google」、ログイン後は顔と名前の行で、押すとプロフィールが開く。
 // Google ログインが未設定の環境では何も表示しない。状態はページ全体で 1 つ（account-store）。
 export function AccountButton() {
+  const t = useT();
   const { account, saveError } = useAccount();
   const [failed, setFailed] = useState(false);
   const [menu, setMenu] = useState<MenuPosition | null>(null);
@@ -38,7 +40,7 @@ export function AccountButton() {
     return (
       <button type="button" className="google-signin-button"
         onClick={() => (native && clientId ? signInNatively(clientId) : signIn("google"))}>
-        <GoogleLogo size={18} /><span>{failed ? "Sign-in failed. Try again" : "Sign in with Google"}</span>
+        <GoogleLogo size={18} /><span>{failed ? t("Sign-in failed. Try again") : t("Sign in with Google")}</span>
       </button>
     );
   }
@@ -55,7 +57,7 @@ export function AccountButton() {
           setMenu(menuPositionFor(triggerRef.current!.getBoundingClientRect()));
         }}>
         <UserAvatar user={user} size={22} />
-        <span className="truncate">{user.name ?? user.email ?? "Account"}</span>
+        <span className="truncate">{user.name ?? user.email ?? t("Account")}</span>
         <ChevronsUpDown size={14} className="ml-auto shrink-0 text-[var(--notion-faint)]" />
       </button>
       {menu && (

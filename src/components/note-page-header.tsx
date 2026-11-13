@@ -5,11 +5,13 @@ import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, typ
 import { EmojiPopover, Popover, randomOf, usePickerBackToClose } from "@/components/emoji-picker";
 import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type NoteCover } from "@/lib/note-document";
 import type { NoteContent } from "@/types/notes";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 const COVER_LABELS: Record<NoteCover, string> = {
-  "gradient-sunset": "Sunset", "gradient-peach": "Peach", "gradient-mint": "Mint", "gradient-ocean": "Ocean",
-  "gradient-lavender": "Lavender", "gradient-night": "Night", "solid-red": "Red", "solid-yellow": "Yellow",
-  "solid-green": "Green", "solid-blue": "Blue", "solid-purple": "Purple", "solid-beige": "Beige",
+  "gradient-sunset": msg("Sunset"), "gradient-peach": msg("Peach"), "gradient-mint": msg("Mint"), "gradient-ocean": msg("Ocean"),
+  "gradient-lavender": msg("Lavender"), "gradient-night": msg("Night"), "solid-red": msg("Red"), "solid-yellow": msg("Yellow"),
+  "solid-green": msg("Green"), "solid-blue": msg("Blue"), "solid-purple": msg("Purple"), "solid-beige": msg("Beige"),
 };
 const COVER_KEYS = Object.keys(NOTE_COVERS) as NoteCover[];
 
@@ -26,6 +28,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
   onPatch: (patch: Partial<NoteContent>) => void;
   onTitleKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
 }) {
+  const t = useT();
   const [picker, setPicker] = useState<"icon" | "cover" | null>(null);
   // 位置調整中だけ値を持つ。保存するまでページ本文には反映しない。
   const [reposition, setReposition] = useState<number | null>(null);
@@ -57,16 +60,16 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
           onPointerDown={onCoverPointerDown} onPointerMove={onCoverPointerMove} onPointerUp={() => { drag.current = null; }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- 所有者確認付き API から返す private 画像のため next/image の最適化は使わない */}
           {imageUrl && <img src={imageUrl} alt="" draggable={false} className="notes-cover-image" style={{ objectPosition: `center ${position}%` }} />}
-          {reposition !== null && <div className="notes-cover-hint">Drag image to reposition</div>}
+          {reposition !== null && <div className="notes-cover-hint">{t("Drag image to reposition")}</div>}
           {editable && (
             <div className="notes-cover-actions">
               {reposition !== null ? <>
-                <button type="button" onClick={() => { update({ coverPosition: reposition }); setReposition(null); }}>Save position</button>
-                <button type="button" onClick={() => setReposition(null)}>Cancel</button>
+                <button type="button" onClick={() => { update({ coverPosition: reposition }); setReposition(null); }}>{t("Save position")}</button>
+                <button type="button" onClick={() => setReposition(null)}>{t("Cancel")}</button>
               </> : <>
-                <button type="button" data-popover-trigger onClick={() => setPicker(picker === "cover" ? null : "cover")}>Change cover</button>
-                {imageUrl && <button type="button" onClick={() => { close(); setReposition(content.coverPosition ?? 50); }}>Reposition</button>}
-                <button type="button" onClick={() => { close(); update({ cover: null, coverPosition: null }); }}>Remove</button>
+                <button type="button" data-popover-trigger onClick={() => setPicker(picker === "cover" ? null : "cover")}>{t("Change cover")}</button>
+                {imageUrl && <button type="button" onClick={() => { close(); setReposition(content.coverPosition ?? 50); }}>{t("Reposition")}</button>}
+                <button type="button" onClick={() => { close(); update({ cover: null, coverPosition: null }); }}>{t("Remove")}</button>
               </>}
             </div>
           )}
@@ -81,7 +84,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
       <div className="notes-column notes-header-inner">
         {content.icon && (
           <div className="notes-icon-wrap">
-            <button type="button" className="notes-icon" disabled={!editable} aria-label="Change icon" data-popover-trigger
+            <button type="button" className="notes-icon" disabled={!editable} aria-label={t("Change icon")} data-popover-trigger
               onClick={() => setPicker(picker === "icon" ? null : "icon")}>{content.icon}</button>
             {picker === "icon" && (
               <EmojiPopover className="notes-icon-picker" current={content.icon} onChange={(icon) => update({ icon })} onClose={close} />
@@ -91,14 +94,14 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
         {editable && (
           <div className="notes-header-controls">
             {!content.icon && (
-              <button type="button" onClick={() => { update({ icon: "📄" }); setPicker("icon"); }}><Smile size={15} />Add icon</button>
+              <button type="button" onClick={() => { update({ icon: "📄" }); setPicker("icon"); }}><Smile size={15} />{t("Add icon")}</button>
             )}
             {!hasCover && (
-              <button type="button" onClick={() => update({ cover: randomOf(COVER_KEYS), coverPosition: null })}><ImageIcon size={15} />Add cover</button>
+              <button type="button" onClick={() => update({ cover: randomOf(COVER_KEYS), coverPosition: null })}><ImageIcon size={15} />{t("Add cover")}</button>
             )}
           </div>
         )}
-        <textarea ref={titleRef} rows={1} className="notes-title" aria-label="Note title" maxLength={200} placeholder="Untitled"
+        <textarea ref={titleRef} rows={1} className="notes-title" aria-label={t("Note title")} maxLength={200} placeholder={t("Untitled")}
           value={content.title === "Untitled" ? "" : content.title} disabled={!editable}
           onChange={(event) => update({ title: event.target.value.replace(/\r?\n/g, " ") })}
           onKeyDown={onTitleKeyDown} />
@@ -109,6 +112,7 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
 
 // Notion と同じく「Gallery / Upload」の 2 タブ。アップロードは保存後のキーだけを返す。
 function CoverPicker({ current, onPick }: { current: string | null; onPick: (cover: string) => void }) {
+  const t = useT();
   const [tab, setTab] = useState<"gallery" | "upload">("gallery");
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -119,7 +123,7 @@ function CoverPicker({ current, onPick }: { current: string | null; onPick: (cov
 
   async function upload(file: File) {
     setError("");
-    if (file.size > MAX_COVER_BYTES) { setError("Cover images must be 4 MB or smaller."); return; }
+    if (file.size > MAX_COVER_BYTES) { setError(msg("Cover images must be 4 MB or smaller.")); return; }
     uploadRef.current?.abort();
     const controller = new AbortController();
     uploadRef.current = controller;
@@ -129,10 +133,10 @@ function CoverPicker({ current, onPick }: { current: string | null; onPick: (cov
       body.append("file", file);
       const response = await fetch("/api/pages/covers", { method: "POST", body, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok || typeof data.cover !== "string") throw new Error(data.error || "Upload failed. Try again.");
+      if (!response.ok || typeof data.cover !== "string") throw new Error(data.error || t("Upload failed. Try again."));
       if (!controller.signal.aborted) onPick(data.cover);
     } catch (caught) {
-      if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : "Upload failed. Try again.");
+      if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : msg("Upload failed. Try again."));
     } finally { if (uploadRef.current === controller) { uploadRef.current = null; setUploading(false); } }
   }
 
@@ -141,14 +145,14 @@ function CoverPicker({ current, onPick }: { current: string | null; onPick: (cov
       <div className="notes-picker-tabs" role="tablist">
         {(["gallery", "upload"] as const).map((key) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} className={tab === key ? "is-active" : ""} onClick={() => setTab(key)}>
-            {key === "gallery" ? "Gallery" : "Upload"}
+            {key === "gallery" ? t("Gallery") : t("Upload")}
           </button>
         ))}
       </div>
       {tab === "gallery" ? (
         <div className="notes-cover-grid">
           {COVER_KEYS.map((key) => (
-            <button key={key} type="button" title={COVER_LABELS[key]} aria-label={COVER_LABELS[key]}
+            <button key={key} type="button" title={t(COVER_LABELS[key])} aria-label={t(COVER_LABELS[key])}
               className={key === current ? "is-active" : ""} style={{ background: NOTE_COVERS[key] }}
               onClick={() => { uploadRef.current?.abort(); onPick(key); }} />
           ))}
@@ -156,10 +160,10 @@ function CoverPicker({ current, onPick }: { current: string | null; onPick: (cov
       ) : (
         <div className="notes-cover-upload">
           <button type="button" disabled={uploading} onClick={() => fileRef.current?.click()}>
-            <Upload size={14} />{uploading ? "Uploading…" : "Upload file"}
+            <Upload size={14} />{uploading ? t("Uploading…") : t("Upload file")}
           </button>
-          <p>Images wider than 1500 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.</p>
-          {error && <p className="notes-cover-error" role="alert">{error}</p>}
+          <p>{t("Images wider than 1500 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.")}</p>
+          {error && <p className="notes-cover-error" role="alert">{t(error)}</p>}
           <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp,image/gif" hidden
             onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) void upload(file); }} />
         </div>

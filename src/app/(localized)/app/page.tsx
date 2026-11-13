@@ -46,11 +46,11 @@ import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
+import { useT } from "@/components/i18n-provider";
+import { msg, type Translate } from "@/lib/i18n/translate";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
-const SESSION_CREATE_FALLBACK_ERROR = "Database is unavailable. Start local PostgreSQL and try again.";
-const SESSION_LOAD_FALLBACK_ERROR = "Failed to load conversation.";
 // 検索結果などから開いたあと、その場所まで動かすための予約。開き終わる前に別の操作をされたら捨てる。
 const REVEAL_TTL_MS = 10000;
 // 会話・メッセージへのリンク（?chat= / &message=）の ID の形。DB の ID は英数字だけ。
@@ -132,6 +132,8 @@ async function readJsonObject(response: Response) {
   }
 }
 
+type ErrorText = string | ((t: Translate) => string);
+
 function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
 }
@@ -143,6 +145,7 @@ function computeNotesList() {
 }
 
 export default function Home() {
+  const t = useT();
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
   // スマホで Notes を開いたとき、ノートが選ばれていない間は一覧（NotesHome）を出す。URL に page= が無いことと対応させる。
@@ -341,7 +344,7 @@ export default function Home() {
     void fetch("/api/chat-projects", {signal:controller.signal,cache:"no-store"}).then(async response=>{
       if (!response.ok) throw new Error();
       const data=await response.json(); setChatProjects(projectSync.current.reconcile(data.projects,started));
-    }).catch(()=>{if(!controller.signal.aborted) setChatProjectError("Could not load projects. Refresh to retry.");});
+    }).catch(()=>{if(!controller.signal.aborted) setChatProjectError(msg("Could not load projects. Refresh to retry."));});
     return ()=>controller.abort();
   }, []);
   // 一覧の件数だけを取り直す（ノートをゴミ箱へ入れた・戻したあと用）。失敗しても今の表示は変えない。
@@ -369,7 +372,8 @@ export default function Home() {
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
-  const [sendError, setSendError] = useState("");
+  // 英語の文（または API の文）を入れ、表示するときに t で訳す。件数や名前が入る添付の検査だけは関数で持ち、表示のたびに今の言語で作る。
+  const [sendError, setSendError] = useState<ErrorText>("");
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
@@ -441,15 +445,15 @@ export default function Home() {
     supportsImages: imageGenerationMode || selectedModel.supportsImageInput,
     claudeImages: !imageGenerationMode && selectedModel.provider === "anthropic",
   };
-  const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions);
+  const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions, t);
   const canSend = input.trim().length > 0 && !isActiveSessionStreaming && !uploadError && !uploadProgress;
   // 狭い画面（スマホ）では、提示文が折り返して切れないよう短くする。
   const isNarrowScreen = useMediaQuery("(max-width: 639px)");
   const inputPlaceholder = imageGenerationMode
-    ? "Describe an image to create..."
+    ? t("Describe an image to create...")
     : isNarrowScreen
-      ? "Ask anything..."
-      : "Ask anything — StudyMate searches when needed...";
+      ? t("Ask anything...")
+      : t("Ask anything — StudyMate searches when needed...");
 
   function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
     sessionMessagesRef.current = {
@@ -551,8 +555,9 @@ export default function Home() {
     if (uploadProgress) return;
     if (!incoming.length) return;
     const current = files;
-    const error = getUploadSelectionError(current.map(({ file }) => file), incoming, uploadOptions);
-    setSendError(error);
+    const fileList = current.map(({ file }) => file);
+    const error = getUploadSelectionError(fileList, incoming, uploadOptions);
+    setSendError(error ? () => (translate: Translate) => getUploadSelectionError(fileList, incoming, uploadOptions, translate) : "");
     if (error) return;
     // Validate before allocating preview URLs.
     const next = [...current, ...incoming.map(createUploadFile)];
@@ -607,7 +612,7 @@ export default function Home() {
       const data = await readJsonObject(response);
       if (!response.ok) {
         return {
-          error: readErrorMessage(data, SESSION_CREATE_FALLBACK_ERROR),
+          error: readErrorMessage(data, t("Database is unavailable. Start local PostgreSQL and try again.")),
           session: null,
         };
       }
@@ -618,7 +623,7 @@ export default function Home() {
       };
     } catch {
       return {
-        error: SESSION_CREATE_FALLBACK_ERROR,
+        error: msg("Database is unavailable. Start local PostgreSQL and try again."),
         session: null,
       };
     }
@@ -656,7 +661,7 @@ export default function Home() {
       activeSessionIdRef.current = null;
       setActiveSessionId(null);
       setMessages([]);
-      setSendError(SESSION_LOAD_FALLBACK_ERROR);
+      setSendError(msg("Failed to load conversation."));
       return;
     }
     if (
@@ -673,7 +678,7 @@ export default function Home() {
         activeSessionIdRef.current === sessionId &&
         !streamingSessionsRef.current[sessionId]
       ) {
-        setSendError(SESSION_LOAD_FALLBACK_ERROR);
+        setSendError("Failed to load conversation.");
       }
       return;
     }
@@ -703,7 +708,7 @@ export default function Home() {
           await updateSession(activeSession.id, { projectId });
           setSendError("");
         } catch (error) {
-          setSendError(error instanceof Error ? error.message : "Could not save the chat. Please try again.");
+          setSendError(error instanceof Error ? error.message : msg("Could not save the chat. Please try again."));
         }
         setSidebarOpen(false);
         return;
@@ -717,7 +722,7 @@ export default function Home() {
     const carriedIcon = activeSessionId ? null : draftIconRef.current;
     const { error, session } = await createEmptySession(carriedIcon, projectId);
     if (!session) {
-      setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
+      setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
       return;
     }
     setSendError("");
@@ -740,17 +745,17 @@ export default function Home() {
     const show = (value: string | null) =>
       setSessions((list) => list.map((session) => (session.id === sessionId ? { ...session, icon: value } : session)));
     // 画面へ先に反映し、保存は会話ごとに順番に送る。失敗したら最後に保存できた値へ戻す。
-    void iconSync.change(sessionId, icon, current, show, () => setSendError("Failed to change the chat icon."));
+    void iconSync.change(sessionId, icon, current, show, () => setSendError(msg("Failed to change the chat icon.")));
   }
 
   const reorderChatBusy=useRef(false);
   async function reorderChat(move: ReorderRequest) {
-    if(reorderChatBusy.current) throw new Error("Wait for the previous move to finish.");
+    if(reorderChatBusy.current) throw new Error(t("Wait for the previous move to finish."));
     reorderChatBusy.current=true;
     try {
       const response=await fetch("/api/sessions/reorder",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(move)});
       const data=await readJsonObject(response);
-      if(!response.ok) throw new Error(typeof data.error==="string" ? data.error : "Could not move the chat.");
+      if(!response.ok) throw new Error(typeof data.error==="string" ? data.error : t("Could not move the chat."));
       const updates=data.items as Array<{id:string;position:number;pinned?:boolean;projectId?:string|null}>;
       for(const {id,...changes} of updates) organizationSync.current.saved(id,changes);
       setSessions(list=>list.map(session=>({...session,...updates.find(update=>update.id===session.id)})));
@@ -761,7 +766,7 @@ export default function Home() {
   async function changeChatProject(method: "POST" | "PATCH" | "DELETE", name?: string, id?: string) {
     try {
       const response=await fetch(id ? `/api/chat-projects/${id}` : "/api/chat-projects", {method,headers:{"Content-Type":"application/json"},...(method==="DELETE" ? {} : {body:JSON.stringify({name})})});
-      if(!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : "Could not save the project. Please try again.");}
+      if(!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : t("Could not save the project. Please try again."));}
       const data=await response.json();
       if(method==="DELETE") {
         projectSync.current.removed(id!);
@@ -773,7 +778,7 @@ export default function Home() {
       projectSync.current.saved(data.project);
       setChatProjects(list=>method==="POST" ? [...list,data.project] : list.map(project=>project.id===id ? data.project : project));
       return data.project as ChatProject;
-    } catch (error) { throw error instanceof Error ? error : new Error("Could not save the project. Please try again."); }
+    } catch (error) { throw error instanceof Error ? error : new Error(t("Could not save the project. Please try again.")); }
   }
 
   // プロジェクトの設定画面で保存した内容（共通指示の有無・参照ノート数）を一覧へ反映する。
@@ -785,23 +790,23 @@ export default function Home() {
   async function updateSession(sessionId: string, changes: Partial<Pick<Session, "title" | "pinned" | "projectId">>) {
     try {
       const response = await fetch(`/api/sessions/${sessionId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(changes) });
-      if (!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : "Could not save the chat. Please try again.");}
+      if (!response.ok) {const data=await readJsonObject(response);throw new Error(typeof data.error==="string" ? data.error : t("Could not save the chat. Please try again."));}
       organizationSync.current.saved(sessionId,changes);
       setSessions(list => list.map(session => session.id === sessionId ? { ...session, ...changes } : session));
       return true;
-    } catch (error) { throw error instanceof Error ? error : new Error("Could not save the chat. Please try again."); }
+    } catch (error) { throw error instanceof Error ? error : new Error(t("Could not save the chat. Please try again.")); }
   }
 
   async function deleteSession(sessionId: string) {
-    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error("Wait for the reply to finish before deleting this chat."); }
+    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error(t("Wait for the reply to finish before deleting this chat.")); }
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
     let response: Response;
     try {
       response = await fetch(`/api/sessions/${sessionId}`, { method: "DELETE" });
     } catch {
-      throw new Error("Failed to delete conversation. Please try again.");
+      throw new Error(t("Failed to delete conversation. Please try again."));
     }
-    if (!response.ok) { const data=await readJsonObject(response); throw new Error(typeof data.error==="string" ? data.error : "Failed to delete conversation. Please try again."); }
+    if (!response.ok) { const data=await readJsonObject(response); throw new Error(typeof data.error==="string" ? data.error : t("Failed to delete conversation. Please try again.")); }
     organizationSync.current.removed(sessionId);
     // サイドバーから対象セッションを消す。行がすっと消えて、下の行が詰まる。
     runTransition(() => setSessions((current) => current.filter((session) => session.id !== sessionId)), "list");
@@ -904,7 +909,8 @@ export default function Home() {
       fileMimeTypes: submittedFiles.map((item) => item.file.type),
     });
     if (validationError) {
-      setSendError(validationError);
+      const submitted = submittedFiles.map(({ file }) => file);
+      setSendError(() => (translate: Translate) => getUploadValidationError(submitted, uploadOptions, translate) || getUploadRequestError(submitted, userContent, translate) || translate(validationError));
       return;
     }
 
@@ -914,9 +920,9 @@ export default function Home() {
     let uploadedTickets: string[] = [];
     const navigationIntent = sessionNavigationIntentRef.current;
     try {
-      if (submittedFiles.length) setUploadProgress("Preparing attachments…");
+      if (submittedFiles.length) setUploadProgress(t("Preparing attachments…"));
       uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
-        setUploadProgress(`Uploading ${index}/${total} · ${name} · ${percentage}%`);
+        setUploadProgress(t("Uploading {index}/{total} · {name} · {percentage}%", { index, total, name, percentage }));
       });
       if (navigationIntent !== sessionNavigationIntentRef.current) {
         await cleanupClientUploads(uploadedTickets);
@@ -924,7 +930,7 @@ export default function Home() {
         return;
       }
     } catch (error) {
-      if (navigationIntent === sessionNavigationIntentRef.current) setSendError(error instanceof Error ? error.message : "Attachment upload failed. Please try again.");
+      if (navigationIntent === sessionNavigationIntentRef.current) setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       return;
     } finally {
@@ -939,7 +945,7 @@ export default function Home() {
       const { error, session } = await createEmptySession(sentIcon);
       if (!session) {
         await cleanupClientUploads(uploadedTickets);
-        setSendError(error || SESSION_CREATE_FALLBACK_ERROR);
+        setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -958,7 +964,7 @@ export default function Home() {
         const created = session.id;
         void iconSync.change(created, latestIcon, sentIcon,
           (value) => setSessions((list) => list.map((item) => (item.id === created ? { ...item, icon: value } : item))),
-          () => setSendError("Failed to change the chat icon."));
+          () => setSendError(msg("Failed to change the chat icon.")));
       }
       activeSessionIdRef.current = session.id;
       setActiveSessionId(session.id);
@@ -1042,7 +1048,7 @@ export default function Home() {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw new Error(data.error ?? "Failed to generate image.");
+          throw new Error(data.error ?? t("Failed to generate image."));
         }
 
         const event = (await response.json()) as ImageGenerationResult;
@@ -1053,7 +1059,7 @@ export default function Home() {
         }
 
         if (!event.image?.dataUrl) {
-          throw new Error("Failed to generate image.");
+          throw new Error(t("Failed to generate image."));
         }
 
         if (event.sessionId) {
@@ -1101,7 +1107,7 @@ export default function Home() {
 
       if (!response.ok || !response.body) {
         const data = await response.json().catch(() => ({}));
-        throw new Error(data.error ?? "Failed to send message.");
+        throw new Error(data.error ?? t("Failed to send message."));
       }
 
       // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
@@ -1165,11 +1171,11 @@ export default function Home() {
       }
     } catch (error) {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
-      const detail = error instanceof Error ? error.message : "Unknown error.";
+      const detail = error instanceof Error ? t(error.message) : t("Unknown error.");
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
           message.id === assistantMessageId
-            ? { ...message, content: `Request failed: ${detail}`, failed: true }
+            ? { ...message, content: t("Request failed: {detail}", { detail }), failed: true }
             : message,
         ),
       );
@@ -1362,7 +1368,7 @@ export default function Home() {
       setNotesList(false);
       // ID は URL から来る値なので、API のパスに入れる前に形を確かめる。形が違えば、存在しない会話と同じ扱いにする。
       if (!LINK_ID.test(chatId)) {
-        setSendError(SESSION_LOAD_FALLBACK_ERROR);
+        setSendError("Failed to load conversation.");
         return;
       }
       void linkOpenersRef.current.chat(chatId, LINK_ID.test(rawMessageId) ? rawMessageId : undefined);
@@ -1374,7 +1380,7 @@ export default function Home() {
 
   // ヘッダーに表示するタイトル。未選択または新規チャット中は固定文言にする。
   const activeSession = sessions.find((session) => session.id === activeSessionId);
-  const activeTitle = activeSession?.title ?? "New chat";
+  const activeTitle = activeSession?.title ?? t("New chat");
   // Thinking 表示に出す秒数。0 秒表示を避けるため、ストリーム中は最低 1 秒に丸める。
   const thinkingSeconds =
     activeStreamStartedAt === null
@@ -1404,7 +1410,7 @@ export default function Home() {
       onUpdate={updateSession}
       onReorder={reorderChat}
       projects={chatProjects}
-      projectError={chatProjectError}
+      projectError={t(chatProjectError)}
       onProject={changeChatProject}
       onProjectSaved={saveProject}
       onChangeIcon={changeSessionIcon}
@@ -1430,7 +1436,7 @@ export default function Home() {
           <button
             className="motion-fade-in absolute inset-0 bg-black/15"
             onClick={() => setSidebarOpen(false)}
-            aria-label="Close sidebar overlay"
+            aria-label={t("Close sidebar overlay")}
           />
           <div ref={attachDrawer} {...drawerBind} className="motion-sidebar-panel swipe-x relative h-full w-60 max-w-[88vw]">{sidebar}</div>
         </div>
@@ -1442,13 +1448,13 @@ export default function Home() {
             <button
               className="notion-icon-button mobile-sidebar-toggle"
               onClick={() => setSidebarOpen(true)}
-              aria-label="Open sidebar"
+              aria-label={t("Open sidebar")}
             >
               <Menu size={20} />
             </button>
             {workspaceView === "pages" && notes.active && !notesList && (
               <button type="button" className="notion-icon-button grid sm:hidden" onClick={openNotesList}
-                aria-label="All notes" title="All notes">
+                aria-label={t("All notes")} title={t("All notes")}>
                 <ChevronLeft size={22} />
               </button>
             )}
@@ -1457,8 +1463,8 @@ export default function Home() {
                 type="button"
                 className="notion-icon-button desktop-sidebar-toggle"
                 onClick={() => setSidebarVisible(true)}
-                aria-label="Open sidebar"
-                title="Toggle sidebar (Ctrl+B)"
+                aria-label={t("Open sidebar")}
+                title={t("Toggle sidebar (Ctrl+B)")}
               >
                 <PanelLeft size={22} strokeWidth={1.8} />
               </button>
@@ -1469,7 +1475,7 @@ export default function Home() {
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
-                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || "Notes" : activeTitle}</span>
+                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || t("Notes") : activeTitle}</span>
               </div>
             </div>
           </div>
@@ -1477,24 +1483,24 @@ export default function Home() {
           <div className="flex shrink-0 items-center gap-2">
             {/* サイドバーの Search 行が見えているパソコン幅では出さない（サイドバーを畳んだとき・タブレット・スマホ用）。 */}
             <button type="button" className={`notion-icon-button grid${sidebarVisible ? " lg:hidden" : ""}`} onClick={() => setSearchOpen(true)}
-              aria-label="Search chats and notes" title="Search (Ctrl+K)" aria-haspopup="dialog">
+              aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
               <Search size={20} />
             </button>
             {workspaceView === "chat" && !emptyState && (
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
-                aria-label="New chat" title="New chat">
+                aria-label={t("New chat")} title={t("New chat")}>
                 <Plus size={20} />
               </button>
             )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
-                aria-label="Version history" title="Version history" aria-haspopup="dialog">
+                aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
                 <History size={20} />
               </button>
             )}
             {workspaceView === "pages" && !notesList ? (
               <span role="status" className={`notes-save-status ${notes.active?.status === "error" || notes.active?.status === "conflict" ? "has-error" : ""}`}>
-                {notes.active ? ({ saved: "Saved", pending: "Saving…", saving: "Saving…", error: "Not saved", conflict: "Conflict" })[notes.active.status] : ""}
+                {notes.active ? ({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status] : ""}
               </span>
             ) : null}
           </div>
@@ -1564,8 +1570,8 @@ export default function Home() {
               type="button"
               onClick={scrollChatToBottom}
               className="notion-icon-button grid bg-white shadow-[var(--notion-shadow)]"
-              aria-label="Scroll to bottom"
-              title="Scroll to bottom"
+              aria-label={t("Scroll to bottom")}
+              title={t("Scroll to bottom")}
             >
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
@@ -1575,7 +1581,7 @@ export default function Home() {
               className="notion-error notion-page-column mb-3"
               role="alert"
             >
-              {uploadError || sendError}
+              {uploadError || (typeof sendError === "function" ? sendError(t) : t(sendError))}
             </div>
           )}
           <form onSubmit={sendMessage} className="notion-page-column">
@@ -1597,7 +1603,7 @@ export default function Home() {
                         onClick={() => removeUploadFile(id)}
                         disabled={Boolean(uploadProgress)}
                         className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded bg-black/55 text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 group-hover:opacity-100 [@media(hover:none)]:opacity-100"
-                        aria-label="Remove image"
+                        aria-label={t("Remove image")}
                       >
                         <X size={15} />
                       </button>
@@ -1629,15 +1635,15 @@ export default function Home() {
                     setAttachSheetOpen(true);
                   }}
                   aria-haspopup="dialog"
-                  aria-label="Add"
+                  aria-label={t("Add")}
                   disabled={Boolean(uploadProgress)}
                 >
                   <Plus size={18} strokeWidth={1.8} />
                 </button>
               ) : (
-                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title="Add files or photos">
+                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title={t("Add files or photos")}>
                   <Plus size={18} strokeWidth={1.8} />
-                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label="Add files or photos" className="sr-only" onChange={handleFileSelect} />
+                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label={t("Add files or photos")} className="sr-only" onChange={handleFileSelect} />
                 </label>
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -1646,10 +1652,10 @@ export default function Home() {
                     type="button"
                     className="image-mode-chip sm:hidden"
                     onClick={() => setImageGenerationMode(false)}
-                    aria-label="Turn off image creation"
+                    aria-label={t("Turn off image creation")}
                   >
                     <ImagePlus size={16} />
-                    <span>Create an image</span>
+                    <span>{t("Create an image")}</span>
                     <X size={14} />
                   </button>
                 )}
@@ -1701,23 +1707,23 @@ export default function Home() {
                     imageGenerationMode ? "is-active" : ""
                   }`}
                   aria-pressed={imageGenerationMode}
-                  aria-label={`${imageGenerationMode ? "Disable" : "Enable"} image generation`}
+                  aria-label={imageGenerationMode ? t("Disable image generation") : t("Enable image generation")}
                 >
                   <ImagePlus size={15} />
-                  <span className="hidden sm:inline">Create an image</span>
+                  <span className="hidden sm:inline">{t("Create an image")}</span>
                 </button>
               </div>
               <button
                 type="submit"
                 disabled={!canSend}
                 className="notion-send col-start-3 row-start-2"
-                aria-label="Send message"
+                aria-label={t("Send message")}
               >
                 <ArrowUp size={24} strokeWidth={2.1} />
               </button>
             </div>
             {!!files.length && <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
-              {!!files.length && <span role="status">{files.length}/{MAX_UPLOAD_FILES} attached · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
+              {!!files.length && <span role="status">{t("{count}/{max} attached", { count: files.length, max: MAX_UPLOAD_FILES })} · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
             </div>}
             {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{uploadProgress}</div>}
           </form>

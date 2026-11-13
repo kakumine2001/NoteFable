@@ -51,8 +51,13 @@ Tech stack: Next.js 16 App Router, React 19, Tailwind CSS v4, Prisma 7, Neon Pos
 | Note trash (soft delete) and edit history | `src/lib/note-trash.ts`, `src/lib/note-revisions.ts`, `src/app/api/pages/trash/*`, `src/app/api/pages/[pageId]/revisions/*`, `src/components/note-trash-dialog.tsx`, `src/components/note-history-dialog.tsx`, `NotePage.deletedAt`, `NoteRevision` |
 | Chat project instructions and reference notes | `src/lib/chat-project-context.ts`, `src/lib/chat-project-api.ts`, `src/app/api/chat-projects/*`, `src/components/chat-project-settings.tsx`, `ChatProject.instructions`, `ChatProjectNote` |
 | Cross Chats/Notes search (spelling folding, attachment text, project filter) and jump-to-match | `src/app/api/search/route.ts`, `src/lib/search.ts`, `src/lib/search-fold.ts`, `src/types/search.ts`, `src/components/search-dialog.tsx`, `src/lib/search-reveal.ts` |
-| Answer actions (copy, Save to Notes, Markdown download) and the `/?chat=&message=` conversation link | `src/components/answer-actions.tsx`, `src/lib/answer-export.ts`, `src/lib/clipboard.ts`, `src/components/chat-message.tsx`, link handling in `src/app/app/page.tsx` (legacy root links redirect from `src/app/page.tsx`) |
+| Answer actions (copy, Save to Notes, Markdown download) and the `/?chat=&message=` conversation link | `src/components/answer-actions.tsx`, `src/lib/answer-export.ts`, `src/lib/clipboard.ts`, `src/components/chat-message.tsx`, link handling in `src/app/(localized)/app/page.tsx` (legacy root links redirect from `src/app/(localized)/page.tsx`) |
 | Human-readable architecture | `README.md` and `docs/architecture/` |
+| UI language selection and translations | `src/lib/i18n/`, `src/components/i18n-provider.tsx`, `src/components/language-select.tsx`, `docs/architecture/i18n.md` |
+
+## UI Languages
+
+- Translate UI with `useT()` / `useI18n()`; mark constant-table text with `msg()` and translate it at render time. Keep complete sentences and interpolation slots together, update both Chinese and Japanese dictionaries, and preserve user content. Language selection stays device-local: Cookie choice, browser language, Vercel country, then English.
 
 ## Model and API Rules
 

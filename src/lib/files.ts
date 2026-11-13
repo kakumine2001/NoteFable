@@ -1,5 +1,6 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
+import { msg } from "@/lib/i18n/translate";
 export { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
 
 export type PreparedAttachment = {
@@ -81,7 +82,7 @@ export function validateAttachmentFiles(files: File[]) {
   }
 
   if (totalBytes > MAX_UPLOAD_TOTAL_BYTES) {
-    throw new AttachmentValidationError("Total upload size is too large.", 413);
+    throw new AttachmentValidationError(msg("Total upload size is too large."), 413);
   }
 }
 
@@ -97,11 +98,11 @@ export function validateMultipartRequestSize(request: Request) {
   const contentLength = Number(rawContentLength);
 
   if (!/^\d+$/.test(rawContentLength) || !Number.isSafeInteger(contentLength)) {
-    throw new AttachmentValidationError("Request body size is invalid.");
+    throw new AttachmentValidationError(msg("Request body size is invalid."));
   }
 
   if (contentLength > MAX_MULTIPART_REQUEST_BYTES) {
-    throw new AttachmentValidationError("Request body is too large.", 413);
+    throw new AttachmentValidationError(msg("Request body is too large."), 413);
   }
 }
 

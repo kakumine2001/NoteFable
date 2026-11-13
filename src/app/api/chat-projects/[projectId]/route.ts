@@ -4,8 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { NoteValidationError } from "@/lib/note-document";
 import { projectError, readProjectSummary, validProjectInstructions, validProjectName, validProjectNoteIds } from "@/lib/chat-project-api";
+import { msg } from "@/lib/i18n/translate";
 type Context = { params: Promise<{ projectId: string }> };
-const NOT_FOUND = { error: "Project not found." };
+const NOT_FOUND = { error: msg("Project not found.") };
 // 設定画面用。ゴミ箱のノートは含めず、選んだ順に返す。
 export async function GET(_request: Request, context: Context) {
   try {
@@ -31,7 +32,7 @@ export async function PATCH(request: Request, context: Context) {
     if ("name" in body) data.name = validProjectName(body.name);
     if ("instructions" in body) data.instructions = validProjectInstructions(body.instructions);
     const noteIds = "noteIds" in body ? validProjectNoteIds(body.noteIds) : undefined;
-    if (!Object.keys(data).length && !noteIds) throw new NoteValidationError("Nothing to update.");
+    if (!Object.keys(data).length && !noteIds) throw new NoteValidationError(msg("Nothing to update."));
     const user = await getOrCreateAnonymousUser();
     const { projectId } = await context.params;
     const project = await prisma.$transaction(async tx => {
@@ -41,7 +42,7 @@ export async function PATCH(request: Request, context: Context) {
       // 検証を書き込みより先に済ませて、失敗時に一部だけ保存されないようにする。
       if (noteIds?.length) {
         const live = await tx.notePage.findMany({ where: { id: { in: noteIds }, userId: user.id, deletedAt: null }, select: { id: true } });
-        if (live.length !== noteIds.length) throw new NoteValidationError("One or more of the selected notes could not be found.", 404);
+        if (live.length !== noteIds.length) throw new NoteValidationError(msg("One or more of the selected notes could not be found."), 404);
       }
       if (Object.keys(data).length) await tx.chatProject.updateMany({ where: { id: projectId, userId: user.id }, data });
       if (noteIds) {

@@ -12,6 +12,8 @@ import { StudyMateLogo } from "@/components/studymate-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
 import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } from "@/types/notes";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 const COLLAPSED_KEY = "studymate:note-groups-collapsed:v1";
 
@@ -30,6 +32,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: () => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<void>; onClose: () => void;
 } & GroupActions) {
+  const t = useT();
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
   // ゴミ箱の小窓。復元したノートは "studymate:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
   const [trashOpen, setTrashOpen] = useState(false);
@@ -71,7 +74,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
         });
         return ok;
       }}/>
-      <button type="button" disabled={busy} className="chat-row-icon-button" aria-label={`Change icon of ${page.title}`} title="Change icon"
+      <button type="button" disabled={busy} className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: page.title })} title={t("Change icon")}
         aria-haspopup="dialog" aria-expanded={picker?.id === page.id}
         onClick={(event) => {
           triggerRef.current = event.currentTarget;
@@ -83,8 +86,8 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
       <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" title={page.title}>
         <span className="truncate text-sm">{page.title}</span>
       </button>
-      <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={`Move ${page.title} to a project`} title="Move to project"><FolderInput size={14} /></button>
-      <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={`Move ${page.title} to Trash`} title="Move to Trash"><Trash2 size={14} /></button>
+      <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={14} /></button>
+      <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={14} /></button>
     </div>
   );
 
@@ -92,19 +95,19 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
     <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
         <StudyMateLogo />
-        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label="Close sidebar"><PanelLeftClose size={17} /></button>
+        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")}><PanelLeftClose size={17} /></button>
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
-        <button type="button" className="sidebar-primary-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>New note</span></button>
+        <button type="button" className="sidebar-primary-action" disabled={busy} onClick={onCreate}><Plus size={16} /><span>{t("New note")}</span></button>
         <button type="button" className="notion-sidebar-action" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
-          <Search size={16} /><span>Search</span><kbd className="sidebar-search-hint" aria-hidden="true">Ctrl K</kbd>
+          <Search size={16} /><span>{t("Search")}</span><kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
         </button>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
         <div className="chat-project-heading">
-          <span>Projects</span>
-          <button type="button" className="notion-icon-button" onClick={() => setNaming({ mode: "create" })} aria-label="New project" title="New project"><Plus size={15} /></button>
+          <span>{t("Projects")}</span>
+          <button type="button" className="notion-icon-button" onClick={() => setNaming({ mode: "create" })} aria-label={t("New project")} title={t("New project")}><Plus size={15} /></button>
         </div>
         {groups.map((group) => {
           const members = pages.filter((page) => page.groupId === group.id);
@@ -118,44 +121,44 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
                   <span className="truncate text-sm font-medium">{group.name}</span>
                   <span className="text-xs text-[var(--notion-faint)]">{members.length}</span>
                 </button>
-                <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={`Rename ${group.name}`}><Pencil size={13} /></button>
-                <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action" aria-label={`Delete project ${group.name}`}><Trash2 size={14} /></button>
+                <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
+                <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={14} /></button>
               </div>
               {open && <div className="notes-group-members">
-                {members.length ? members.map(row) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">No notes in this project.</p>}
+                {members.length ? members.map(row) : <p className="px-2 py-1.5 text-xs text-[var(--notion-faint)]">{t("No notes in this project.")}</p>}
               </div>}
             </div>
           );
         })}
-        {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{iconError}</p>}
-        <div className="chat-section-label" data-note-group-drop="">Notes</div>
+        {iconError && <p role="alert" className="px-2 text-xs text-[#b91c1c]">{t(iconError)}</p>}
+        <div className="chat-section-label" data-note-group-drop="">{t("Notes")}</div>
         {loose.map(row)}
-        {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">Your notes will appear here.</p>}
+        {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">{t("Your notes will appear here.")}</p>}
       </div>
       <div className="shrink-0 px-2 pb-1">
-        <button type="button" className="notion-sidebar-action" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={16} /><span>Trash</span></button>
+        <button type="button" className="notion-sidebar-action" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={16} /><span>{t("Trash")}</span></button>
       </div>
       {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">
-          <h2 id="delete-page-title" className="text-base font-semibold">Move note to Trash?</h2>
-          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">“{deleting.title}” will be moved to Trash. You can restore it for {TRASH_RETENTION_DAYS} days.</p>
+          <h2 id="delete-page-title" className="text-base font-semibold">{t("Move note to Trash?")}</h2>
+          <p id="delete-page-description" className="mt-2 text-sm text-[var(--notion-muted)]">{t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: deleting.title, count: TRASH_RETENTION_DAYS })}</p>
           <div className="mt-5 flex justify-end gap-2">
-            <button autoFocus type="button" disabled={busy} className="notion-button" onClick={() => setDeleting(null)}>Cancel</button>
-            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>Move to Trash</button>
+            <button autoFocus type="button" disabled={busy} className="notion-button" onClick={() => setDeleting(null)}>{t("Cancel")}</button>
+            <button type="button" disabled={busy} className="notion-button notes-delete" onClick={async () => { await onDelete(deleting.id); setDeleting(null); }}>{t("Move to Trash")}</button>
           </div>
       </dialog>}
       {trashOpen && <NoteTrashDialog onClose={() => setTrashOpen(false)} />}
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} />}
-      {naming && <GroupNameDialog title={naming.mode === "create" ? "New project" : "Rename project"} initial={naming.mode === "rename" ? naming.group.name : ""}
-        submitLabel={naming.mode === "create" ? "Create" : "Save"} error={groupError} onClose={() => setNaming(null)}
+      {naming && <GroupNameDialog title={naming.mode === "create" ? t("New project") : t("Rename project")} initial={naming.mode === "rename" ? naming.group.name : ""}
+        submitLabel={naming.mode === "create" ? t("Create") : t("Save")} error={groupError} onClose={() => setNaming(null)}
         onSubmit={async (name) => naming.mode === "create" ? Boolean(await onCreateGroup(name)) : Boolean(await onRenameGroup(naming.group.id, name))} />}
-      {deletingGroup && <ConfirmDialog title="Delete project?" confirmLabel="Delete project" error={groupError} onClose={() => setDeletingGroup(null)}
-        body={`“${deletingGroup.name}” will be deleted. Its notes are kept and move out of the project.`}
+      {deletingGroup && <ConfirmDialog title={t("Delete project?")} confirmLabel={t("Delete project")} error={groupError} onClose={() => setDeletingGroup(null)}
+        body={t("“{name}” will be deleted. Its notes are kept and move out of the project.", { name: deletingGroup.name })}
         onConfirm={async () => Boolean(await onDeleteGroup(deletingGroup.id))} />}
       <SidebarFooter />
       {picker && pickerPage && (
         <FloatingEmojiPopover position={picker.position} trigger={triggerRef} current={pickerPage.icon}
-          onChange={async (icon) => { setIconError(""); if (!(await onChangeIcon(pickerPage.id, icon))) setIconError("Could not change the icon. Try again."); }} onClose={closePicker} />
+          onChange={async (icon) => { setIconError(""); if (!(await onChangeIcon(pickerPage.id, icon))) setIconError(msg("Could not change the icon. Try again.")); }} onClose={closePicker} />
       )}
     </aside>
   );

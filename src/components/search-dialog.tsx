@@ -7,6 +7,8 @@ import "@/components/search-dialog.css";
 import { findTermRanges } from "@/lib/search-fold";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { MAX_SEARCH_QUERY_CHARS, parseSearchTerms, type ChatSearchResult, type NoteSearchResult, type SearchResponse, type SearchScope } from "@/types/search";
+import { useI18n, useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 type Result = NoteSearchResult | ChatSearchResult;
 // key は「どの検索条件の結果か」。data が null なら、その条件の検索に失敗した。
@@ -14,7 +16,7 @@ type Loaded = { key: string; data: SearchResponse | null };
 export type SearchProject = { id: string; name: string };
 
 const DEBOUNCE_MS = 250;
-const TABS: { scope: SearchScope; label: string }[] = [{ scope: "all", label: "All" }, { scope: "chats", label: "Chats" }, { scope: "notes", label: "Notes" }];
+const TABS: { scope: SearchScope; label: string }[] = [{ scope: "all", label: msg("All") }, { scope: "chats", label: msg("Chats") }, { scope: "notes", label: msg("Notes") }];
 
 // 一致した語を <mark> で囲むための分割。語は畳み込み済み（parseSearchTerms の結果）。大文字小文字・全角半角・ひらがなカタカナの違いを越えて
 // 一致し、囲む範囲は元の文字のまま（"api" は "ＡＰＩ" を、"データ" は "でーた" を囲む）。重なったときは左を、同じ位置では長い語を優先する。
@@ -41,11 +43,11 @@ function Highlight({ text, terms }: { text: string; terms: string[] }) {
   return <>{splitHighlight(text, terms).map((part, index) => part.match ? <mark key={index}>{part.text}</mark> : part.text)}</>;
 }
 
-function formatDate(value: string) {
+function formatDate(value: string, tag: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   const sameYear = date.getFullYear() === new Date().getFullYear();
-  return date.toLocaleDateString("en-US", sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
+  return date.toLocaleDateString(tag, sameYear ? { month: "short", day: "numeric" } : { year: "numeric", month: "short", day: "numeric" });
 }
 
 // BlockNote のエディター（と、その上に出る小窓）の中かどうか。ProseMirror は contenteditable なので isContentEditable でも拾える。
@@ -88,10 +90,11 @@ export function useSearchShortcut(onOpen: () => void) {
 function ResultRow({ id, index, result, terms, projectName, active, onHover, onSelect }: {
   id: string; index: number; result: Result; terms: string[]; projectName?: string; active: boolean; onHover: (index: number) => void; onSelect: (result: Result) => void;
 }) {
+  const { t, tag } = useI18n();
   const icon = result.icon ?? (result.kind === "note" ? <FileText size={16} /> : <MessageSquareText size={16} />);
   const fileName = result.kind === "chat" ? result.attachmentName : null;
   // 添付ファイルの本文に当たったときは、話し手ではなくファイル名を示す。
-  const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? "You: " : "StudyMate: ") : "";
+  const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? t("You: ") : t("StudyMate: ")) : "";
   return (
     // フォーカスは入力欄に残し、行は aria-activedescendant で示す。クリック時に入力欄のフォーカスが外れないよう mousedown を止める。
     <div role="option" id={id} aria-selected={active} data-index={index} className={`search-row${active ? " is-active" : ""}`}
@@ -104,17 +107,18 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
         </span>
         {result.snippet && (
           <span className="search-row-snippet">
-            {fileName && <span className="search-row-file"><Paperclip size={12} aria-hidden="true" />in {fileName}</span>}
+            {fileName && <span className="search-row-file"><Paperclip size={12} aria-hidden="true" />{t("in {fileName}", { fileName })}</span>}
             {speaker}<Highlight text={result.snippet} terms={terms} />
           </span>
         )}
       </span>
-      <span className="search-row-date">{formatDate(result.updatedAt)}</span>
+      <span className="search-row-date">{formatDate(result.updatedAt, tag)}</span>
     </div>
   );
 }
 
 function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, onOpenNote }: Omit<SearchDialogProps, "open">) {
+  const t = useT();
   const [input, setInput] = useState("");
   const [scope, setScope] = useState<SearchScope>("all");
   // Chats タブの絞り込み。"" はすべてのプロジェクト。
@@ -177,8 +181,8 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   const chats = scope === "notes" ? [] : data?.chats ?? [];
   const notes = scope === "chats" ? [] : data?.notes ?? [];
   const groups: { label: string; results: Result[] }[] = (view === "chat"
-    ? [{ label: "Chats", results: chats }, { label: "Notes", results: notes }]
-    : [{ label: "Notes", results: notes }, { label: "Chats", results: chats }]
+    ? [{ label: t("Chats"), results: chats }, { label: t("Notes"), results: notes }]
+    : [{ label: t("Notes"), results: notes }, { label: t("Chats"), results: chats }]
   ).filter((group) => group.results.length > 0);
   const rows = groups.flatMap((group) => group.results);
   const activeIndex = Math.min(active, rows.length - 1);
@@ -246,32 +250,32 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   if (idle) {
     body = (
       <div className="search-empty">
-        <p className="search-empty-title">Search your chats and notes</p>
-        <p>Every word you type has to appear somewhere in the same chat or note: its title, a message or an attached file.</p>
-        <p className="search-keys">Use ↑ ↓ to move, Enter to open, Esc to close.</p>
+        <p className="search-empty-title">{t("Search your chats and notes")}</p>
+        <p>{t("Every word you type has to appear somewhere in the same chat or note: its title, a message or an attached file.")}</p>
+        <p className="search-keys">{t("Use ↑ ↓ to move, Enter to open, Esc to close.")}</p>
       </div>
     );
   } else if (failed) {
     body = (
       <div className="search-empty" role="alert">
-        <p className="search-empty-title">Search is unavailable</p>
-        <p>Check your connection and try again.</p>
-        <button type="button" className="notion-button" onClick={() => setRetry((count) => count + 1)}>Try again</button>
+        <p className="search-empty-title">{t("Search is unavailable")}</p>
+        <p>{t("Check your connection and try again.")}</p>
+        <button type="button" className="notion-button" onClick={() => setRetry((count) => count + 1)}>{t("Try again")}</button>
       </div>
     );
   } else if (loading && !rows.length) {
-    body = <div className="search-empty search-loading" role="status"><Loader2 size={16} className="search-spinner" aria-hidden="true" />Searching…</div>;
+    body = <div className="search-empty search-loading" role="status"><Loader2 size={16} className="search-spinner" aria-hidden="true" />{t("Searching…")}</div>;
   } else if (!rows.length) {
     body = (
       <div className="search-empty">
-        <p className="search-empty-title">No results for “{data?.query ?? query}”</p>
-        <p>Try fewer words. Upper/lower case, full-width/half-width and hiragana/katakana are treated as the same, but synonyms and other spellings are not found.</p>
+        <p className="search-empty-title">{t("No results for “{query}”", { query: data?.query ?? query })}</p>
+        <p>{t("Try fewer words. Upper/lower case, full-width/half-width and hiragana/katakana are treated as the same, but synonyms and other spellings are not found.")}</p>
       </div>
     );
   } else {
     let index = 0;
     body = (
-      <div role="listbox" id={listId} aria-label="Search results" className={loading ? "search-list is-stale" : "search-list"}>
+      <div role="listbox" id={listId} aria-label={t("Search results")} className={loading ? "search-list is-stale" : "search-list"}>
         {groups.map((group) => (
           <div key={group.label} role="group" aria-labelledby={`${baseId}-${group.label}`}>
             <div id={`${baseId}-${group.label}`} className="search-group-title">{group.label}</div>
@@ -287,35 +291,35 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
     );
   }
 
-  const status = idle ? "" : failed ? "Search is unavailable." : loading ? "Searching." : `${rows.length} ${rows.length === 1 ? "result" : "results"}.`;
+  const status = idle ? "" : failed ? t("Search is unavailable.") : loading ? t("Searching.") : (rows.length === 1 ? t("1 result.") : t("{count} results.", { count: rows.length }));
   const listboxShown = rows.length > 0 && !failed;
 
   return (
     <div className="search-root">
       <div className="search-backdrop" aria-hidden="true" onMouseDown={onClose} />
-      <div className="search-panel" role="dialog" aria-modal="true" aria-label="Search chats and notes" onKeyDown={onPanelKeyDown}>
+      <div className="search-panel" role="dialog" aria-modal="true" aria-label={t("Search chats and notes")} onKeyDown={onPanelKeyDown}>
         <div className="search-field">
           <Search size={18} aria-hidden="true" className="search-field-icon" />
           <input ref={inputRef} value={input} maxLength={MAX_SEARCH_QUERY_CHARS} type="text" inputMode="search" enterKeyHint="search"
-            autoComplete="off" autoCorrect="off" spellCheck={false} placeholder="Search chats and notes" aria-label="Search chats and notes" className="search-input"
+            autoComplete="off" autoCorrect="off" spellCheck={false} placeholder={t("Search chats and notes")} aria-label={t("Search chats and notes")} className="search-input"
             role="combobox" aria-expanded={listboxShown} aria-controls={listboxShown ? listId : undefined} aria-autocomplete="list" aria-busy={loading}
             aria-activedescendant={listboxShown && !loading ? optionId(activeIndex) : undefined}
             onChange={(event) => { setInput(event.target.value); setActive(0); }} onKeyDown={onInputKeyDown} />
           {loading && <Loader2 size={16} className="search-spinner" aria-hidden="true" />}
-          <button type="button" className="search-close" aria-label="Close search" onClick={onClose}><X size={18} /></button>
+          <button type="button" className="search-close" aria-label={t("Close search")} onClick={onClose}><X size={18} /></button>
         </div>
         <div className="search-toolbar">
-          <div className="search-tabs" role="tablist" aria-label="Search in">
+          <div className="search-tabs" role="tablist" aria-label={t("Search in")}>
             {TABS.map((tab, index) => (
               <button key={tab.scope} type="button" role="tab" id={`${baseId}-tab-${tab.scope}`} aria-selected={scope === tab.scope} aria-controls={`${baseId}-panel`}
                 tabIndex={scope === tab.scope ? 0 : -1} className="search-tab" onClick={() => changeScope(tab.scope)} onKeyDown={(event) => onTabKeyDown(event, index)}>
-                {tab.label}
+                {t(tab.label)}
               </button>
             ))}
           </div>
           {scope === "chats" && projectOptions.length > 0 && (
-            <select className="search-project" aria-label="Project" value={projectId} onChange={(event) => changeProject(event.target.value)}>
-              <option value="">All projects</option>
+            <select className="search-project" aria-label={t("Project")} value={projectId} onChange={(event) => changeProject(event.target.value)}>
+              <option value="">{t("All projects")}</option>
               {projectOptions.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}
             </select>
           )}

@@ -3,6 +3,8 @@
 import { Check, ChevronRight, FilePenLine, FilePlus2, LoaderCircle, X } from "lucide-react";
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ActivityStep } from "@/lib/chat-activity";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 type EditProposal = Extract<ActivityStep, { kind: "proposal" }>;
 type CreateProposal = Extract<ActivityStep, { kind: "create_proposal" }>;
@@ -10,7 +12,7 @@ type Proposal = EditProposal | CreateProposal;
 // pageId は適用後のノート ID（「Open the note」のリンク先）。
 type State = { status: "idle" | "applying" | "discarding" | "applied" | "discarded"; error: string; pageId?: string };
 
-const OP_LABEL = { replace: "Replace", insert_after: "Insert", delete: "Delete" } as const;
+const OP_LABEL = { replace: msg("Replace"), insert_after: msg("Insert"), delete: msg("Delete") } as const;
 
 // 画面の中での操作中の状態（適用中・エラー）と、操作した結果をコンポーネントの外で持つ。
 // 回答の保存後に履歴を取り直すとカードは作り直されるが、状態は提案 ID ごとに残るので「未適用」に戻らない。
@@ -36,13 +38,13 @@ async function apply(proposal: Proposal) {
   try {
     const response = await fetch(`/api/proposals/${proposal.id}/apply`, { method: "POST" });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not apply the proposal.");
+    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : msg("Could not apply the proposal."));
     const pageId = proposal.kind === "proposal" ? proposal.pageId : (data.page?.id as string | undefined);
     setState(proposal.id, { status: "applied", error: "", pageId });
     // 開いているノート編集の状態（版と本文）や一覧を最新にそろえる。
     window.dispatchEvent(new CustomEvent(proposal.kind === "proposal" ? "studymate:page-updated" : "studymate:page-created", { detail: data.page }));
   } catch (caught) {
-    setState(proposal.id, { status: "idle", error: caught instanceof Error ? caught.message : "Could not apply the proposal." });
+    setState(proposal.id, { status: "idle", error: caught instanceof Error ? caught.message : msg("Could not apply the proposal.") });
   }
 }
 
@@ -52,10 +54,10 @@ async function discard(proposal: Proposal) {
   try {
     const response = await fetch(`/api/proposals/${proposal.id}/discard`, { method: "POST" });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : "Could not discard the proposal.");
+    if (!response.ok) throw new Error(typeof data.error === "string" ? data.error : msg("Could not discard the proposal."));
     setState(proposal.id, { status: "discarded", error: "" });
   } catch (caught) {
-    setState(proposal.id, { status: "idle", error: caught instanceof Error ? caught.message : "Could not discard the proposal." });
+    setState(proposal.id, { status: "idle", error: caught instanceof Error ? caught.message : msg("Could not discard the proposal.") });
   }
 }
 
@@ -76,29 +78,30 @@ function useProposalState(proposal: Proposal): State {
 function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, children }: {
   proposal: Proposal; state: State; icon: ReactNode; title: ReactNode; label: string; applyLabel: string; doneBadge: string; children: ReactNode;
 }) {
+  const t = useT();
   const settled = state.status === "applied" || state.status === "discarded";
   const busy = state.status === "applying" || state.status === "discarding";
   const [manual, setManual] = useState<boolean | null>(null);
   // 適用中・エラー表示中は、結果が見えるよう必ず開く。
   const open = busy || !!state.error || (manual ?? !settled);
-  const badge = state.status === "applied" ? doneBadge : state.status === "discarded" ? "Discarded" : "";
+  const badge = state.status === "applied" ? doneBadge : state.status === "discarded" ? t("Discarded") : "";
   return (
     <section className={`page-edit ${settled ? "is-settled" : ""} ${open ? "" : "is-minimized"}`} aria-label={label}>
       <header className="page-edit-header">
         <button type="button" className="page-edit-toggle" aria-expanded={open} onClick={() => setManual(!open)}
-          title={open ? "Minimize" : "Expand"}>
+          title={open ? t("Minimize") : t("Expand")}>
           <ChevronRight size={14} strokeWidth={2} className={`page-edit-chevron ${open ? "is-open" : ""}`} aria-hidden="true" />
           {icon}
           <span className="min-w-0 flex-1 truncate">{title}</span>
           {badge && <span className="page-edit-badge">{badge}</span>}
         </button>
         {!open && state.status === "applied" && state.pageId && (
-          <a className="page-edit-link page-edit-link-inline" href={`/?view=pages&page=${encodeURIComponent(state.pageId)}`}>Open</a>
+          <a className="page-edit-link page-edit-link-inline" href={`/?view=pages&page=${encodeURIComponent(state.pageId)}`}>{t("Open")}</a>
         )}
       </header>
       {open && <>
         <div className="page-edit-body">{children}</div>
-        {state.error && <p className="page-edit-error" role="alert">{state.error}</p>}
+        {state.error && <p className="page-edit-error" role="alert">{t(state.error)}</p>}
         {!settled && (
           <footer className="page-edit-actions">
             <button type="button" className="page-edit-apply" onClick={() => void apply(proposal)} disabled={busy}>
@@ -107,13 +110,13 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, chil
             </button>
             <button type="button" className="page-edit-discard" onClick={() => void discard(proposal)} disabled={busy}>
               <X size={13} />
-              Discard
+              {t("Discard")}
             </button>
           </footer>
         )}
         {state.status === "applied" && state.pageId && (
           <footer className="page-edit-actions">
-            <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(state.pageId)}`}>Open the note</a>
+            <a className="page-edit-link" href={`/?view=pages&page=${encodeURIComponent(state.pageId)}`}>{t("Open the note")}</a>
           </footer>
         )}
       </>}
@@ -123,13 +126,14 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, chil
 
 // 新しいノートの提案。Create note を押すまでノートは作られない。
 export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
+  const t = useT();
   const state = useProposalState(proposal);
   return (
-    <Card proposal={proposal} state={state} label="Proposed new note" applyLabel="Create note" doneBadge="Created"
+    <Card proposal={proposal} state={state} label={t("Proposed new note")} applyLabel={t("Create note")} doneBadge={t("Created")}
       icon={<FilePlus2 size={14} strokeWidth={1.9} aria-hidden="true" />}
-      title={<>New note{proposal.icon ? ` ${proposal.icon}` : ""} “{proposal.title}”</>}>
+      title={t("New note{icon} “{title}”", { icon: proposal.icon ? ` ${proposal.icon}` : "", title: proposal.title })}>
       <div className="page-edit-change">
-        {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">Empty note</div>}
+        {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">{t("Empty note")}</div>}
       </div>
     </Card>
   );
@@ -137,25 +141,26 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
 
 // モデルが出したノートの編集案。承認されるまでノートは変わらない。
 export function PageEditProposal({ proposal }: { proposal: EditProposal }) {
+  const t = useT();
   const state = useProposalState(proposal);
   return (
-    <Card proposal={proposal} state={state} label="Proposed note edit" applyLabel="Apply" doneBadge="Applied"
+    <Card proposal={proposal} state={state} label={t("Proposed note edit")} applyLabel={t("Apply")} doneBadge={t("Applied")}
       icon={<FilePenLine size={14} strokeWidth={1.9} aria-hidden="true" />}
-      title={<>Proposed edit to “{proposal.pageTitle}”</>}>
+      title={t("Proposed edit to “{title}”", { title: proposal.pageTitle })}>
       {proposal.title && (
         <div className="page-edit-change">
-          <div className="page-edit-op">Rename</div>
+          <div className="page-edit-op">{t("Rename")}</div>
           <div className="page-edit-before">{proposal.title.before}</div>
           <div className="page-edit-after">{proposal.title.after}</div>
         </div>
       )}
       {proposal.changes.map((change, index) => (
         <div key={index} className="page-edit-change">
-          <div className="page-edit-op">{OP_LABEL[change.op]}{change.block ? ` · block ${change.block}` : " · start of note"}</div>
+          <div className="page-edit-op">{change.block ? t("{op} · block {block}", { op: t(OP_LABEL[change.op]), block: change.block }) : t("{op} · start of note", { op: t(OP_LABEL[change.op]) })}</div>
           {change.before !== undefined && <div className="page-edit-before">{change.before}</div>}
           {change.after !== undefined && <div className="page-edit-after">{change.after}</div>}
-          {change.dropsMedia && <div className="page-edit-note">An uploaded image or file in this block will be removed from the note.</div>}
-          {change.dropsFormatting &&<div className="page-edit-note">Text colors, underline or alignment in the replaced block will be lost.</div>}
+          {change.dropsMedia && <div className="page-edit-note">{t("An uploaded image or file in this block will be removed from the note.")}</div>}
+          {change.dropsFormatting &&<div className="page-edit-note">{t("Text colors, underline or alignment in the replaced block will be lost.")}</div>}
         </div>
       ))}
     </Card>
