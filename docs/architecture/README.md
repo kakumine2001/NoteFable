@@ -20,7 +20,7 @@
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
-8. [android.md](android.md) — 安卓外壳：怎么改、开发环境、打包、限制
+8. [android.md](android.md) — 安卓外壳：怎么改、开发环境、打包、限制；[android-native.md](android-native.md) — 原生 Kotlin / Compose 界面（`mobile/native/`）：为什么混合原生、现状、与服务端的约定、路线图
 9. [i18n.md](i18n.md) — 英/中/日界面、语言选择 Cookie、浏览器和地区回退
 
 ## 一张图先记住整个项目

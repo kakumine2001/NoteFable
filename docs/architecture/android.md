@@ -10,7 +10,7 @@
 
 - 手机上的界面、布局、软键盘、触屏交互：改网站代码（`src/`），App 和手机浏览器同时生效。
 - 只和 App 有关的内容才改 `mobile/`：图标和启动画面、App 名称和包名（`com.kakumine.studymate`）、权限、断网页面、Capacitor 原生插件。
-- 以后如果做原生（Kotlin）界面，在 `mobile/` 下新建独立目录，不要和这个外壳混在一起。
+- 原生（Kotlin / Compose）界面在独立目录 `mobile/native/`，不要和这个外壳混在一起，说明见 [android-native.md](android-native.md)。
 
 ## 开发环境
 
