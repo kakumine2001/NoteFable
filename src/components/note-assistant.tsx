@@ -160,7 +160,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       { id: crypto.randomUUID(), role: "USER", content: display ?? content },
       { id: assistantId, role: "ASSISTANT", content: "" },
     ]);
-    setInput("");
+    // 定型ボタン（display あり）で送ったときは、入力欄に書きかけの本文を残す。
+    if (display === undefined) setInput("");
     setSeconds(0);
     setStreaming(true);
     const body = new FormData();
