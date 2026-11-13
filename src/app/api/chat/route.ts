@@ -564,8 +564,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   const encoder = new TextEncoder();
   // ストリーム中にクライアントへ返したアシスタント本文の累積値。完了後に DB へ保存する。
   let assistantText = "";
-  // 本文を実際に利用者へ送れたか。取り消しで送る前に失敗したら、assistantText があっても回数は戻す。
-  let deliveredText = false;
+  // 本文または編集案を実際に利用者へ送れたか。取り消しで送る前に失敗したら、作りかけがあっても回数は戻す。
+  let delivered = false;
   // SSE の 1 行が chunk の境界で分断されることがあるため、未処理の末尾を保持する。
   let buffer = "";
   // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
@@ -686,7 +686,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           thinkingMs ??= Date.now() - streamStartedAt;
           assistantText += delta;
           controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
-          if (delta.trim()) deliveredText = true;
+          if (delta.trim()) delivered = true;
         };
 
         const forwardData = (data: string[]) => {
@@ -696,6 +696,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
             if (activity) {
               activitySteps = applyActivityEvent(activitySteps, activity);
               controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
+              if (activity.type === "proposal" || activity.type === "create_proposal") delivered = true;
             }
             if (modelOption.provider !== "deepseek") {
               const citation = getWebCitation(payload);
@@ -775,7 +776,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
         const errorText = fmt("Request failed: {detail}", { detail: getErrorMessage(error) });
         // 本文も提案も返せなかった失敗は回数に数えない。
-        if (!deliveredText && !proposalIds.length) await refundUsage(usageTicket);
+        if (!delivered) await refundUsage(usageTicket);
         // 本文が出る前に失敗しても、そこまでの考えた時間を残す。
         thinkingMs ??= Date.now() - streamStartedAt;
         const persistedText = assistantText

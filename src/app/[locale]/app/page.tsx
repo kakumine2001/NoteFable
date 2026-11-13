@@ -47,7 +47,7 @@ import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
-import { savePendingDraft, takePendingDraft } from "@/lib/pending-draft";
+import { savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -383,6 +383,9 @@ export default function Home() {
   const [sendError, setSendError] = useState<ErrorText>("");
   // 未ログインで上限に達したとき、入力欄の上に閉じられるログイン案内を出す。
   const [guestLimit, setGuestLimit] = useState<UsageKind | null>(null);
+  // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
+  const guestLimitHitRef = useRef(false);
+  useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current ? inputRef.current?.value ?? "" : null));
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
@@ -1184,7 +1187,10 @@ export default function Home() {
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
       const limited = error instanceof UsageLimitError;
       if (limited) {
-        if (error.tier === "guest") setGuestLimit(error.kind);
+        if (error.tier === "guest") {
+          guestLimitHitRef.current = true;
+          setGuestLimit(error.kind);
+        }
         // 上限で断られた送信はどこにも保存されていない。本文と添付を入力欄に戻す。
         // 待っている間に書き足した本文や添付があれば消さず、断られた分を前に足す。
         // 添付のプレビューは入力欄側が持ち続けるので、画面上の送信済み発言からは外す。
