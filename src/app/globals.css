@@ -230,6 +230,62 @@ button:disabled {
 .google-signin-button:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 2px; }
 @media (max-width: 639px) { .google-signin-button { height: 44px; font-size: 15px; } }
 
+/* 未ログインで 1 日の上限に達したときのログイン案内。下からふわっと出て、アイコンが弾み、ログインボタンに一度だけ光が走る。 */
+.guest-limit-prompt {
+  position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 40px 14px 14px;
+  border: 1px solid var(--sm-accent-line); border-radius: 12px;
+  background: linear-gradient(135deg, var(--sm-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
+  box-shadow: var(--sm-composer-shadow);
+  animation: guest-limit-enter 420ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
+}
+.guest-limit-icon {
+  display: grid; flex-shrink: 0; width: 34px; height: 34px; place-items: center; border-radius: 10px;
+  background: var(--sm-accent); color: #fff;
+  animation: guest-limit-pop 620ms 180ms cubic-bezier(0.3, 1.6, 0.5, 1) both;
+}
+.guest-limit-title { color: var(--sm-ink); font-size: 15px; font-weight: 600; line-height: 1.4; }
+.guest-limit-body { margin-top: 2px; color: var(--notion-muted); font-size: 13.5px; line-height: 1.55; }
+.guest-limit-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; }
+.guest-limit-signin {
+  position: relative; width: auto; overflow: hidden; padding: 0 16px; border-radius: 9999px;
+  animation: guest-limit-halo 1.6s 700ms ease-out 2;
+}
+.guest-limit-signin::after {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(35, 131, 226, 0.22) 50%, transparent 65%);
+  transform: translateX(-120%);
+  animation: guest-limit-sheen 900ms 520ms ease-in-out both;
+}
+.guest-limit-later { color: var(--notion-muted); font-size: 13.5px; }
+.guest-limit-later:hover { color: var(--notion-text); text-decoration: underline; }
+.guest-limit-close {
+  position: absolute; top: 8px; right: 8px; display: grid; width: 28px; height: 28px; place-items: center;
+  border-radius: 6px; color: var(--notion-faint);
+}
+.guest-limit-close:hover { background: var(--notion-hover); color: var(--notion-text); }
+@keyframes guest-limit-enter {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes guest-limit-pop {
+  0% { opacity: 0; transform: scale(0.4) rotate(-20deg); }
+  60% { opacity: 1; transform: scale(1.12) rotate(6deg); }
+  100% { opacity: 1; transform: none; }
+}
+@keyframes guest-limit-sheen { to { transform: translateX(120%); } }
+@keyframes guest-limit-halo {
+  0% { box-shadow: 0 0 0 0 rgba(35, 131, 226, 0.35); }
+  100% { box-shadow: 0 0 0 10px rgba(35, 131, 226, 0); }
+}
+@media (max-width: 639px) {
+  .guest-limit-actions { flex-direction: column; align-items: stretch; }
+  .guest-limit-signin { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .guest-limit-prompt, .guest-limit-icon, .guest-limit-signin { animation: none; }
+  .guest-limit-signin::after { display: none; }
+}
+
 /* プロフィール（サイドバー下部のアカウント行と、そこから開くメニュー） */
 .user-avatar {
   display: inline-grid; flex-shrink: 0; place-items: center; overflow: hidden; border-radius: 9999px;

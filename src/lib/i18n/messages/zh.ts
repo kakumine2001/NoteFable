@@ -528,4 +528,9 @@ export const zh: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "将删除“{name}”。其中的笔记会保留，并移出此项目。",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "将把“{title}”移到回收站，可在 {count} 天内恢复。",
   "＋ New project": "＋ 新建项目",
+  "You've used today's free image generations": "今天的免费图片生成次数用完了",
+  "You've used today's free messages": "今天的免费消息次数用完了",
+  "Sign in with Google to get {chat} messages and {image} images a day, and find your chats on any device.": "登录 Google 后每天可发 {chat} 条消息、生成 {image} 张图片，换设备也能找回聊天记录。",
+  "Not now": "以后再说",
+  "Attachments aren't kept when you sign in. Add them again afterward.": "登录时不会保留附件，登录后请重新添加。",
 };

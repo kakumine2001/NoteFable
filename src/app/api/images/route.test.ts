@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findSession: vi.fn(), history: vi.fn(), createMessage: vi.fn(), read: vi.fn(), write: vi.fn(), fetch: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findSession: vi.fn(), history: vi.fn(), createMessage: vi.fn(), read: vi.fn(), write: vi.fn(), fetch: vi.fn(), consumeUsage: vi.fn(), refundUsage: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "owner" }) }));
+vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImage: mocks.write }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
@@ -18,6 +19,8 @@ describe("image generation conversation wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mocks.fetch);
+    mocks.consumeUsage.mockResolvedValue({ ok: true, ticket: { kind: "image", day: "2026-01-01", keys: ["user:owner"] } });
+    mocks.refundUsage.mockResolvedValue(undefined);
     mocks.findSession.mockResolvedValue({ id: "owned", title: "Chat" });
     mocks.history.mockResolvedValue([{ role: "USER", content: "富士山と桜", attachments: [] }]);
     mocks.read.mockResolvedValue(Buffer.from("reference"));
@@ -26,6 +29,25 @@ describe("image generation conversation wiring", () => {
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: Buffer.from("generated").toString("base64") }] })));
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it("returns the image limit before calling the provider", async () => {
+    mocks.consumeUsage.mockResolvedValueOnce({ ok: false, tier: "guest", message: "limit" });
+    const response = await POST(request());
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "limit", code: "usage_limit", tier: "guest", kind: "image" });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+    expect(mocks.refundUsage).not.toHaveBeenCalled();
+  });
+
+  it.each(["provider", "storage", "database"])("refunds when %s failure prevents image delivery", async (failure) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    if (failure === "provider") mocks.fetch.mockRejectedValue(new Error("upstream failed"));
+    if (failure === "storage") mocks.write.mockRejectedValueOnce(new Error("storage failed"));
+    if (failure === "database") mocks.createMessage.mockRejectedValueOnce(new Error("database failed"));
+    expect((await POST(request())).status).toBe(500);
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "image", day: "2026-01-01", keys: ["user:owner"] });
+  });
 
   it("loads only the owned conversation and sends context upstream while saving only the user's input", async () => {
     expect((await POST(request("owned"))).status).toBe(200);

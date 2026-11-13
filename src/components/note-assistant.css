@@ -36,6 +36,9 @@
 .note-ai-chip:hover:not(:disabled) { background: var(--notion-hover); }
 .note-ai-chip:disabled { opacity: 0.5; }
 .note-ai-error { margin: 0; padding: 0.35rem 0.9rem; font-size: 0.8125rem; color: #b91c1c; }
+.note-ai-panel .guest-limit-prompt { flex-shrink: 0; width: calc(100% - 1.5rem); margin: 0.5rem 0.75rem; max-height: 50%; overflow-y: auto; }
+.note-ai-panel .guest-limit-actions { flex-direction: column; align-items: stretch; }
+.note-ai-panel .guest-limit-signin { width: 100%; }
 .note-ai-form { display: flex; align-items: flex-end; gap: 0.5rem; padding: 0.6rem 0.75rem 0.75rem; border-top: 1px solid var(--notion-border); }
 .note-ai-input {
   flex: 1; min-width: 0; max-height: 7.5rem; resize: none; border-radius: 0.65rem; border: 1px solid var(--notion-border-strong);

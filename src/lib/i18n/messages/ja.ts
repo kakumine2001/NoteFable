@@ -520,4 +520,9 @@ export const ja: Record<string, string> = {
   "Medium-dark skin tone": "やや濃い肌の色",
   "Dark skin tone": "濃い肌の色",
   "Trash request failed. Please try again.": "ゴミ箱の操作に失敗しました。もう一度お試しください。",
+  "You've used today's free image generations": "今日の無料の画像生成回数を使い切りました",
+  "You've used today's free messages": "今日の無料のメッセージ回数を使い切りました",
+  "Sign in with Google to get {chat} messages and {image} images a day, and find your chats on any device.": "Google でログインすると、1 日 {chat} 件のメッセージと {image} 枚の画像生成が使え、どの端末からでもチャットを開けます。",
+  "Not now": "今はしない",
+  "Attachments aren't kept when you sign in. Add them again afterward.": "ログインすると添付ファイルは残りません。ログイン後にもう一度追加してください。",
 };

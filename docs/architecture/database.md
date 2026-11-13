@@ -86,6 +86,7 @@ erDiagram
         string displayName "nullable"
         string avatarIcon "nullable"
         string avatarImage "nullable"
+        UserPlan plan
         datetime createdAt
         datetime updatedAt
     }
@@ -194,6 +195,14 @@ erDiagram
         string imageStoragePath
         datetime createdAt
     }
+
+    UsageCounter {
+        string key PK
+        string kind PK
+        date day PK
+        int count
+        datetime updatedAt
+    }
 ```
 
 ## Table Responsibilities
@@ -210,6 +219,8 @@ erDiagram
 - `email` / `name` / `image`：可空，登录时从 Google 同步的资料
 - `displayName` / `avatarIcon` / `avatarImage`：可空，用户在侧栏“个人资料”里自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已用 Google 登录的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
 
+- `plan`：`FREE`（默认）或 `PRO`。决定每日用量上限的档位（见下方 `UsageCounter`）；`PRO` 为将来的付费方案预留，目前只能手动改库设置。字段通过 `20261113000000_usage_limits` migration 部署
+
 关系：
 
 ```text
@@ -217,6 +228,18 @@ AnonymousUser 1 -> N Session
 ```
 
 删除用户会级联删除 Session。
+
+### UsageCounter
+
+每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<AnonymousUser.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
+
+| 档位 | 条件 | 聊天 / 天 | 图片 / 天 |
+| --- | --- | --- | --- |
+| guest | 未登录 | 20 | 3 |
+| member | 已用 Google 登录 | 100 | 20 |
+| pro | `plan = PRO` | 1000 | 200 |
+
+未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat` 和 `/api/images` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。
 
 ### NotePage
 
@@ -361,6 +384,10 @@ NoteRevisionReason
 - AUTO
 - AI_EDIT
 - RESTORE
+
+UserPlan
+- FREE
+- PRO
 ```
 
 ## 保留与级联

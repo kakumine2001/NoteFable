@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
   runPageTool: vi.fn(),
   attachProposals: vi.fn().mockResolvedValue({ count: 0 }),
+  consumeUsage: vi.fn().mockResolvedValue({ ok: true, ticket: { kind: "chat", day: "2026-01-01", keys: ["user:user"] } }),
+  refundUsage: vi.fn().mockResolvedValue(undefined),
 }));
 
 const defaultSession = { id: "session", title: "Existing chat" };
@@ -18,6 +20,7 @@ vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
+vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/files", () => ({
   AttachmentValidationError: class extends Error {},
@@ -107,6 +110,47 @@ describe("DeepSeek chat response boundary", () => {
     expect(select).not.toHaveProperty("thinkingMs");
   });
 
+  it("does not count a send that failed before any answer text, but counts a partial answer", async () => {
+    await send([{ type: "response.reasoning_text.delta", item_id: "r1", content_index: 0, delta: "考え中" }]);
+    expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    mocks.refundUsage.mockClear();
+    mocks.createMessage.mockClear();
+    await send([{ type: "response.output_text.delta", delta: "途中" }]);
+    expect(mocks.refundUsage).not.toHaveBeenCalled();
+  });
+
+  it("gives the send back when the reader cancels before any text reaches them", async () => {
+    mocks.fetch.mockResolvedValue(new Response([
+      { type: "response.output_text.delta", delta: "届かない" },
+      { type: "response.completed" },
+    ].map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")));
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "deepseek-flash");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    await response.body!.cancel();
+    await vi.waitFor(() => expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] }));
+  });
+
+  it("gives the send back when saving fails before the answer starts", async () => {
+    mocks.createMessage.mockRejectedValueOnce(new Error("db down"));
+    const form = new FormData();
+    form.set("message", "hi");
+    await expect(POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).rejects.toThrow("db down");
+    expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+  });
+
+  it("refuses with 429 before creating a chat once the daily limit is reached", async () => {
+    mocks.consumeUsage.mockResolvedValueOnce({ ok: false, tier: "guest", message: "limit" });
+    const form = new FormData();
+    form.set("message", "hi");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    expect(response.status).toBe(429);
+    expect(await response.json()).toEqual({ error: "limit", code: "usage_limit", tier: "guest", kind: "chat" });
+    expect(mocks.fetch).not.toHaveBeenCalled();
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ type: "response.completed" }],
     [{ type: "response.output_text.delta", delta: "途中" }],
@@ -123,6 +167,38 @@ describe("OpenAI web search", () => {
     vi.stubGlobal("fetch", mocks.fetch);
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.createMessage.mockResolvedValue({ id: "message" });
+  });
+
+  it.each([
+    [{ type: "response.failed", response: { error: { message: "upstream failed" } } }],
+    [{ type: "response.incomplete" }],
+    [{ type: "response.reasoning_summary_text.delta", delta: "Thinking" }],
+    [{ type: "response.output_text.delta", delta: "   " }],
+    [{ type: "response.completed" }],
+  ])("refunds an OpenAI stream that delivers no answer: %j", async (event) => {
+    mocks.fetch.mockResolvedValueOnce(new Response(`data: ${JSON.stringify(event)}\n\n`));
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "gpt-6-luna");
+    form.set("sessionId", "existing");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    expect(await response.text()).toContain("Request failed:");
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+  });
+
+  it("keeps the charge when OpenAI fails after delivering partial text", async () => {
+    mocks.fetch.mockResolvedValueOnce(new Response([
+      { type: "response.output_text.delta", delta: "Partial answer" },
+      { type: "response.failed" },
+    ].map(event => `data: ${JSON.stringify(event)}\n\n`).join("")));
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "gpt-6-luna");
+    form.set("sessionId", "existing");
+    const text = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+    expect(text).toContain("Partial answer");
+    expect(text).toContain("Request failed:");
+    expect(mocks.refundUsage).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -272,6 +348,29 @@ describe("Claude chat response boundary", () => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mocks.fetch);
     mocks.createMessage.mockResolvedValue({ id: "message" });
+  });
+
+  it("refunds when a Claude request is cancelled before its first answer", async () => {
+    const abort = new AbortController();
+    let started!: () => void;
+    const upstreamStarted = new Promise<void>((resolve) => { started = resolve; });
+    mocks.fetch.mockImplementationOnce(async (_url, options) => {
+      const body = new ReadableStream<Uint8Array>({ start(controller) {
+        options.signal.addEventListener("abort", () => controller.close(), { once: true });
+        started();
+      } });
+      return new Response(body);
+    });
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "claude-haiku-5-5");
+    form.set("sessionId", "existing");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form, signal: abort.signal }));
+    await upstreamStarted;
+    abort.abort();
+    await response.text();
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toContain("Request failed:");
   });
 
   it("routes to Messages and saves visible text plus real-shaped search citations", async () => {

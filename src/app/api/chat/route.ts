@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import {
   AttachmentValidationError,
   buildAttachmentPrompt,
@@ -119,6 +120,7 @@ type ResponsesStreamEvent = {
   error?: {
     message?: string;
   };
+  response?: { error?: { message?: string } };
 };
 
 function getWebCitation(line: string) {
@@ -150,9 +152,10 @@ function parseResponsesDelta(line: string) {
   // クライアントへ流す必要があるのは本文差分だけなので、output_text.delta 以外は無視する。
   const data = JSON.parse(line) as ResponsesStreamEvent;
 
-  if (data.type === "error") {
-    throw new Error(data.error?.message ?? msg("OpenAI stream returned an error."));
+  if (data.type === "error" || data.type === "response.failed") {
+    throw new Error(data.error?.message ?? data.response?.error?.message ?? msg("OpenAI stream returned an error."));
   }
+  if (data.type === "response.incomplete") throw new Error(msg("OpenAI stream ended before completion. Please retry."));
 
   return data.type === "response.output_text.delta" ? (data.delta ?? "") : "";
 }
@@ -296,6 +299,17 @@ async function requestDeepSeekResponses(body: object, signal: AbortSignal) {
 }
 
 export async function POST(request: Request) {
+  // 回数を数えたあと、ストリームを返す前に例外で失敗したときも回数を戻す（ストリーム中の失敗は中で戻す）。
+  const usage: { ticket?: UsageTicket } = {};
+  try {
+    return await handleChat(request, usage);
+  } catch (error) {
+    await refundUsage(usage.ticket);
+    throw error;
+  }
+}
+
+async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) {
   // チャット送信の中心 API。
   // ここで添付検証、セッション所有者確認、履歴保存、上流 AI ストリームの中継をまとめて行う。
   try {
@@ -388,6 +402,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   }
 
+  // 1 日の送信回数を数える。上限なら会話を作る前に断る。このあとの検証で断るとき、何も返せずに失敗したときは戻す。
+  const usage = await consumeUsage(user, "chat", clientNetworkKey(request));
+  if (!usage.ok) {
+    return usageLimitResponse(usage, "chat");
+  }
+  const usageTicket = usage.ticket;
+  usageRef.ticket = usageTicket;
+
   // sessionId があれば所有者一致の既存セッションを探し、なければ今回の送信で新規作成する。
   // ノート用の会話と通常のチャットは別物として扱い、noteId が一致する会話だけを続けられる。
   const session = sessionId
@@ -403,6 +425,7 @@ export async function POST(request: Request) {
       });
 
   if (!session) {
+    await refundUsage(usageTicket);
     return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
   }
 
@@ -427,6 +450,7 @@ export async function POST(request: Request) {
   try {
     attachments = await prepareAttachments(files, claudeImageBudget);
   } catch {
+    await refundUsage(usageTicket);
     return NextResponse.json({ error: msg("Unable to process an attachment. Please check that the file can be opened and try again.") }, { status: 400 });
   }
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。
@@ -540,6 +564,8 @@ export async function POST(request: Request) {
   const encoder = new TextEncoder();
   // ストリーム中にクライアントへ返したアシスタント本文の累積値。完了後に DB へ保存する。
   let assistantText = "";
+  // 本文または編集案を実際に利用者へ送れたか。取り消しで送る前に失敗したら、作りかけがあっても回数は戻す。
+  let delivered = false;
   // SSE の 1 行が chunk の境界で分断されることがあるため、未処理の末尾を保持する。
   let buffer = "";
   // AI タイトル生成の完了待ち。ストリームを閉じる前に待ち、クライアントの一覧再取得に間に合わせる。
@@ -660,6 +686,7 @@ export async function POST(request: Request) {
           thinkingMs ??= Date.now() - streamStartedAt;
           assistantText += delta;
           controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
+          if (delta.trim()) delivered = true;
         };
 
         const forwardData = (data: string[]) => {
@@ -669,6 +696,7 @@ export async function POST(request: Request) {
             if (activity) {
               activitySteps = applyActivityEvent(activitySteps, activity);
               controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
+              if (activity.type === "proposal" || activity.type === "create_proposal") delivered = true;
             }
             if (modelOption.provider !== "deepseek") {
               const citation = getWebCitation(payload);
@@ -679,7 +707,7 @@ export async function POST(request: Request) {
               modelOption.provider === "deepseek"
                 ? parseDeepSeekResponsesDelta(payload)
                 : parseResponsesDelta(payload);
-            if (guard && JSON.parse(payload).type === "response.completed") completed = true;
+            if (JSON.parse(payload).type === "response.completed") completed = true;
             forwardText(guard ? guard.push(delta) : delta);
           }
         };
@@ -705,6 +733,10 @@ export async function POST(request: Request) {
           if (!completed) throw new Error(msg("DeepSeek stream ended before completion. Please retry."));
           forwardText(guard.finish());
           if (!assistantText.trim()) throw new Error(msg("DeepSeek returned an empty response. Please retry."));
+        }
+        if (modelOption.provider !== "deepseek") {
+          if (!completed) throw new Error(msg("Response stream ended before completion. Please retry."));
+          if (!assistantText.trim() && !proposalIds.length) throw new Error(msg("The model returned an empty response. Please retry."));
         }
 
         if (modelOption.provider !== "deepseek") {
@@ -743,6 +775,8 @@ export async function POST(request: Request) {
         // 上流 API が途中で失敗しても、すでにユーザーへ返した本文は失わない。
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
         const errorText = fmt("Request failed: {detail}", { detail: getErrorMessage(error) });
+        // 本文も提案も返せなかった失敗は回数に数えない。
+        if (!delivered) await refundUsage(usageTicket);
         // 本文が出る前に失敗しても、そこまでの考えた時間を残す。
         thinkingMs ??= Date.now() - streamStartedAt;
         const persistedText = assistantText

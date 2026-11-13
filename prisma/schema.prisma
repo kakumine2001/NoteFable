@@ -36,6 +36,12 @@ enum NoteRevisionReason {
   RESTORE
 }
 
+// 利用プラン。PRO は将来の有料プラン用（いまは手動で設定する）。日ごとの上限は src/lib/usage-plans.ts にある。
+enum UserPlan {
+  FREE
+  PRO
+}
+
 enum ReasoningEffort {
   NONE
   LOW
@@ -58,6 +64,7 @@ model AnonymousUser {
   avatarIcon  String?
   // 自分でアップロードした写真の保存先（ストレージ内のパス）。null は写真なし。アイコン（絵文字）とはどちらか一方だけ設定する。
   avatarImage String?
+  plan        UserPlan @default(FREE)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -264,4 +271,18 @@ model NoteProposal {
 
   @@index([sessionId, createdAt])
   @@index([messageId])
+}
+
+// 日ごとの利用回数。key は "user:<利用者 ID>"、または未ログイン利用者のネットワーク単位の "ip:<HMAC>"。
+// 利用者行への外部キーは持たない（IP 単位の行もあるため）。古い行は usage-limits.ts が時々消す。
+model UsageCounter {
+  key       String
+  // "chat" または "image"
+  kind      String
+  day       DateTime @db.Date
+  count     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  @@id([key, kind, day])
+  @@index([day])
 }

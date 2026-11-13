@@ -80,6 +80,9 @@ export const jaServer: Record<string, string> = {
   "OpenAI did not return image data.": "OpenAI から画像データが返されませんでした。",
   "OpenAI response did not include a stream body.": "OpenAI の応答にストリームがありません。",
   "OpenAI stream returned an error.": "OpenAI のストリームがエラーを返しました。",
+  "OpenAI stream ended before completion. Please retry.": "OpenAI の回答が途中で止まりました。もう一度お試しください。",
+  "Response stream ended before completion. Please retry.": "回答が途中で止まりました。もう一度お試しください。",
+  "The model returned an empty response. Please retry.": "モデルが空の回答を返しました。もう一度お試しください。",
   "Project id is not valid.": "プロジェクト ID が無効です。",
   "Project must be a project ID.": "プロジェクトにはプロジェクト ID を指定してください。",
   "Project not found.": "プロジェクトが見つかりません。",
@@ -162,4 +165,8 @@ export const jaServer: Record<string, string> = {
   "Upload failed: {name}. Please try again.": "アップロードに失敗しました：{name}。もう一度お試しください。",
   "You can have at most {max} groups.": "プロジェクトは {max} 個までです。",
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.": "モデル {model} は画像のアップロードに対応していません。画像には GPT-6 Luna を使ってください。",
+  "You've used today's free image generations. Sign in with Google for more, or try again tomorrow.": "今日の無料の画像生成回数を使い切りました。Google でログインすると回数が増えます。または明日もう一度お試しください。",
+  "You've used today's free messages. Sign in with Google for more, or try again tomorrow.": "今日の無料のメッセージ回数を使い切りました。Google でログインすると回数が増えます。または明日もう一度お試しください。",
+  "You've reached today's image generation limit. Try again tomorrow.": "今日の画像生成回数の上限に達しました。明日もう一度お試しください。",
+  "You've reached today's message limit. Try again tomorrow.": "今日のメッセージ回数の上限に達しました。明日もう一度お試しください。",
 };

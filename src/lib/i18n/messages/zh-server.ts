@@ -80,6 +80,9 @@ export const zhServer: Record<string, string> = {
   "OpenAI did not return image data.": "OpenAI 没有返回图片数据。",
   "OpenAI response did not include a stream body.": "OpenAI 的响应没有返回数据流。",
   "OpenAI stream returned an error.": "OpenAI 数据流返回了错误。",
+  "OpenAI stream ended before completion. Please retry.": "OpenAI 的回答在完成前中断了，请重试。",
+  "Response stream ended before completion. Please retry.": "回答在完成前中断了，请重试。",
+  "The model returned an empty response. Please retry.": "模型返回了空回答，请重试。",
   "Project id is not valid.": "项目 ID 无效。",
   "Project must be a project ID.": "项目必须是项目 ID。",
   "Project not found.": "找不到项目。",
@@ -162,4 +165,8 @@ export const zhServer: Record<string, string> = {
   "Upload failed: {name}. Please try again.": "上传失败：{name}。请重试。",
   "You can have at most {max} groups.": "最多只能有 {max} 个项目。",
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.": "模型 {model} 不支持上传图片。需要图片时请使用 GPT-6 Luna。",
+  "You've used today's free image generations. Sign in with Google for more, or try again tomorrow.": "今天的免费图片生成次数已用完。登录 Google 可获得更多次数，或明天再试。",
+  "You've used today's free messages. Sign in with Google for more, or try again tomorrow.": "今天的免费消息次数已用完。登录 Google 可获得更多次数，或明天再试。",
+  "You've reached today's image generation limit. Try again tomorrow.": "今天的图片生成次数已达上限，请明天再试。",
+  "You've reached today's message limit. Try again tomorrow.": "今天的消息次数已达上限，请明天再试。",
 };
