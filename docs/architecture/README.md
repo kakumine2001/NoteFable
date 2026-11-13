@@ -21,7 +21,8 @@
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
 8. [android.md](android.md) — 安卓外壳：怎么改、开发环境、打包、限制
-9. [i18n.md](i18n.md) — 英/中/日界面、语言选择 Cookie、浏览器和地区回退
+9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
+10. [i18n.md](i18n.md) — 英/简中/繁中/日界面、语言选择 Cookie、浏览器和地区回退
 
 ## 一张图先记住整个项目
 

@@ -2,7 +2,7 @@
 export const DEFAULT_MODEL = "gpt-6-luna";
 
 // 参照画像の編集にも使う標準の画像生成モデル。
-export const DEFAULT_IMAGE_MODEL = "gpt-image-2.5-sunburst";
+export const DEFAULT_IMAGE_MODEL = "gpt-image-2.6-sunburst";
 
 // UI と API が受け付ける推論強度の一覧。as const にして型にも利用する。
 export const REASONING_EFFORTS = [

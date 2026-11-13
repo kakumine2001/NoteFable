@@ -155,7 +155,7 @@ ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
 可选覆盖项：
 
 ```bash
-OPENAI_IMAGE_MODEL="gpt-image-2.5-sunburst"
+OPENAI_IMAGE_MODEL="gpt-image-2.6-sunburst"
 OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
 ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
@@ -278,7 +278,7 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## Android 应用
 
-`mobile/` 是一个 Capacitor 安卓外壳：App 就是一个全屏 WebView，直接打开线上的 StudyMate，所以网站更新后 App 不用重新打包。打包命令、开发环境、限制和 App 里的 Google 登录方式（走手机自带的账号选择，不是网页登录）见 [android.md](docs/architecture/android.md)。
+`mobile/android/` 是 Capacitor 安卓外壳，直接打开线上网页，网站更新后无需重新打包，见 [android.md](docs/architecture/android.md)。`mobile/native/` 是接替外壳的 Kotlin / Compose 客户端，已有聊天、模型切换和 Google 登录代码；笔记编辑器尚未接入，见 [android-native.md](docs/architecture/android-native.md)。两者使用同一个包名，不能同时安装。
 
 ## API 保护
 

@@ -2,6 +2,8 @@
 
 > 目录：`mobile/`。网页端的手机适配仍在 `src/` 里做。
 
+原生 Kotlin / Compose 客户端在 `mobile/native/`，用于接替外壳，见 [android-native.md](android-native.md)。以下仍描述 `mobile/android/` 的 Capacitor 外壳。
+
 `mobile/` 是一个 Capacitor 安卓外壳：App 本身只是全屏 WebView，直接打开线上的 StudyMate（地址写在 `mobile/capacitor.config.json` 的 `server.url`），所以网站更新后 App 不用重新打包。原生代码只有 Capacitor 模板生成的文件，不需要自己写 Kotlin / Java。
 
 网站 `/` 现在是介绍主页，聊天和 Notes 工作区位于 `/app`。已安装的外壳仍从根地址启动；主页通过 `src/lib/native-app.ts` 的 `isNativeApp()` 识别 Capacitor 桥接后，以 `location.replace` 自动进入 `/app`，保留查询参数和片段，避免返回键回到介绍页。原来的 `/?chat=…&message=…`、`/?view=pages&page=…` 等链接由根页面保留全部查询参数重定向到 `/app`。这次路径调整不需要修改原生配置或重新打包。
@@ -42,8 +44,8 @@ cd android && ./gradlew assembleDebug
 
 ## 安装包交付
 
-- 每次向用户交付 APK，都要上传到现有的 Google Drive [studymate 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。
-- 新版本以 `StudyMate-v<版本>.apk` 命名；同版本重新构建时加日期或构建标识，避免混淆或覆盖旧包。保留已有安装包和文件夹的共享设置。
+- 每次向用户交付 APK，都要上传到现有的 Google Drive [studymate 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。文件夹只保留一个最新 APK：先上传新包并核对，再把旧包移入回收站。
+- 新版本以 `StudyMate-v<版本>.apk` 命名，版本取自 `versionName`。保留文件夹的共享设置。
 - 上传实际通过构建、签名及运行验证的 APK，随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
 - 只更新线上网页时，外壳会自动加载新网页，不需要为了网页更新重新打包 APK。仅供本地测试、未交付给用户的 dev APK 无需上传；如果向用户交付 dev APK，也必须上传，并在文件名中注明 `dev`。
 

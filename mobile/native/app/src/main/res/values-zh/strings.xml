@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StudyMate</string>
+    <string name="app_title">StudyMate</string>
+
+    <string name="open_menu">打开侧边栏</string>
+    <string name="new_chat">新聊天</string>
+    <string name="chats">聊天</string>
+    <string name="chats_empty">最近的聊天会显示在这里。</string>
+    <string name="retry">重试</string>
+    <string name="messages_load_failed">加载聊天失败。</string>
+
+    <string name="empty_hint">提出问题、整理笔记，或带入一份文件。</string>
+    <string name="message_hint">尽管提问…</string>
+    <string name="you">你</string>
+    <string name="send">发送消息</string>
+    <string name="stop">停止</string>
+    <string name="copy">复制回答</string>
+    <string name="request_failed">请求失败：%1$s</string>
+
+    <string name="model">模型</string>
+    <string name="model_and_reasoning">模型与思考</string>
+    <string name="reasoning">思考</string>
+    <string name="done">完成</string>
+    <string name="reasoning_none">关闭</string>
+    <string name="reasoning_minimal">极低</string>
+    <string name="reasoning_low">低</string>
+    <string name="reasoning_medium">中</string>
+    <string name="reasoning_high">高</string>
+    <string name="reasoning_xhigh">很高</string>
+    <string name="reasoning_max">最高</string>
+    <string name="reasoning_none_desc">不进行思考</string>
+    <string name="reasoning_minimal_desc">轻量思考</string>
+    <string name="reasoning_low_desc">轻量思考</string>
+    <string name="reasoning_medium_desc">兼顾速度与深度，适合多数任务</string>
+    <string name="reasoning_high_desc">适合复杂任务</string>
+    <string name="reasoning_xhigh_desc">更深入地思考</string>
+    <string name="reasoning_max_desc">最深入地思考</string>
+    <string name="language">语言</string>
+    <string name="language_automatic">自动</string>
+    <string name="account">账号</string>
+    <string name="sign_in_google">使用 Google 登录</string>
+    <string name="sign_in_failed">登录失败，请重试</string>
+    <string name="sign_out">退出登录</string>
+    <string name="profile_name">名称</string>
+    <string name="your_name">你的名字</string>
+    <string name="use_google_profile">使用我的 Google 名称和头像</string>
+    <string name="privacy">隐私政策</string>
+    <string name="terms">服务条款</string>
+</resources>

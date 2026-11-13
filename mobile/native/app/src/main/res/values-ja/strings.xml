@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StudyMate</string>
+    <string name="app_title">StudyMate</string>
+
+    <string name="open_menu">サイドバーを開く</string>
+    <string name="new_chat">新しいチャット</string>
+    <string name="chats">チャット</string>
+    <string name="chats_empty">最近の会話がここに表示されます。</string>
+    <string name="retry">再試行</string>
+    <string name="messages_load_failed">会話を読み込めませんでした。</string>
+
+    <string name="empty_hint">質問したり、ノートを整理したり、ファイルを読み込んだりできます。</string>
+    <string name="message_hint">なんでも聞いてください…</string>
+    <string name="you">あなた</string>
+    <string name="send">メッセージを送信</string>
+    <string name="stop">停止</string>
+    <string name="copy">回答をコピー</string>
+    <string name="request_failed">リクエストに失敗しました：%1$s</string>
+
+    <string name="model">モデル</string>
+    <string name="model_and_reasoning">モデルと思考の深さ</string>
+    <string name="reasoning">思考の深さ</string>
+    <string name="done">完了</string>
+    <string name="reasoning_none">なし</string>
+    <string name="reasoning_minimal">最小</string>
+    <string name="reasoning_low">低</string>
+    <string name="reasoning_medium">中</string>
+    <string name="reasoning_high">高</string>
+    <string name="reasoning_xhigh">非常に高い</string>
+    <string name="reasoning_max">最大</string>
+    <string name="reasoning_none_desc">思考なし</string>
+    <string name="reasoning_minimal_desc">軽く考える</string>
+    <string name="reasoning_low_desc">軽く考える</string>
+    <string name="reasoning_medium_desc">幅広い用途に適したバランス</string>
+    <string name="reasoning_high_desc">複雑な作業に適しています</string>
+    <string name="reasoning_xhigh_desc">非常に深く考える</string>
+    <string name="reasoning_max_desc">最大限に深く考える</string>
+    <string name="language">表示言語</string>
+    <string name="language_automatic">自動</string>
+    <string name="account">アカウント</string>
+    <string name="sign_in_google">Googleでログイン</string>
+    <string name="sign_in_failed">ログインできませんでした。もう一度お試しください</string>
+    <string name="sign_out">ログアウト</string>
+    <string name="profile_name">名前</string>
+    <string name="your_name">あなたの名前</string>
+    <string name="use_google_profile">Googleの名前と写真に戻す</string>
+    <string name="privacy">プライバシー</string>
+    <string name="terms">利用規約</string>
+</resources>
