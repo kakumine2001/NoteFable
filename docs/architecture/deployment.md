@@ -154,7 +154,7 @@ OPENAI_TEXT_MODEL
 OPENAI_IMAGE_MODEL
 ```
 
-当前默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.5-sunburst`。Production 使用官方接入点 `https://api.openai.com/v1`，两条流程共用服务端 `OPENAI_API_KEY`。更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
+当前默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`。Production 使用官方接入点 `https://api.openai.com/v1`，两条流程共用服务端 `OPENAI_API_KEY`。更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
 
 ### DeepSeek
 

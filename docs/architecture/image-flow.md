@@ -53,7 +53,7 @@ Claude 使用独立的模型输入副本（`src/lib/claude-image.ts`、Sharp）�
 
 ## 2. 图片生成
 
-默认使用 `gpt-image-2.5-sunburst`，可通过 `OPENAI_IMAGE_MODEL` 覆盖。图片生成和编辑与 GPT-6 Luna 聊天共用服务端 `OPENAI_API_KEY`，接入点为 `https://api.openai.com/v1`。模型访问权限取决于 OpenAI 项目设置。
+默认使用 `gpt-image-2.6-sunburst`，可通过 `OPENAI_IMAGE_MODEL` 覆盖。图片生成和编辑与 GPT-6 Luna 聊天共用服务端 `OPENAI_API_KEY`，接入点为 `https://api.openai.com/v1`。模型访问权限取决于 OpenAI 项目设置。
 
 前端开启：
 

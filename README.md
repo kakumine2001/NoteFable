@@ -155,7 +155,7 @@ ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
 可选覆盖项：
 
 ```bash
-OPENAI_IMAGE_MODEL="gpt-image-2.5-sunburst"
+OPENAI_IMAGE_MODEL="gpt-image-2.6-sunburst"
 OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
 ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
