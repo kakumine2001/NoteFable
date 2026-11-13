@@ -3,10 +3,11 @@ import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { readSmallJson, validGroupName } from "@/lib/note-groups";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ groupId: string }> };
 
-const notFound = () => NextResponse.json({ error: "Group not found." }, { status: 404 });
+const notFound = () => NextResponse.json({ error: msg("Group not found.") }, { status: 404 });
 
 // グループ名を変える。
 export async function PATCH(request: Request, context: Context) {

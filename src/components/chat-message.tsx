@@ -11,19 +11,21 @@ import { isImageMimeType } from "@/lib/client-files";
 import { MODEL_OPTIONS } from "@/lib/models";
 import { BrandMark } from "@/components/studymate-logo";
 import type { Message, StoredProposal } from "@/types/chat";
+import { useT } from "@/components/i18n-provider";
 
 function GeneratingImagePreview() {
+  const t = useT();
   // 生成中は Notion のブロックに近い控えめな状態表示を出し、完成画像より目立たせない。
   return (
-    <div className="generated-image-grid" aria-label="Generating image">
+    <div className="generated-image-grid" aria-label={t("Generating image")}>
       <div className="generated-image-placeholder">
         <div className="generated-image-placeholder-header">
           <span className="generated-image-placeholder-icon" aria-hidden="true">
             <ImagePlus size={18} strokeWidth={1.7} />
           </span>
           <span className="min-w-0 flex-1">
-            <span className="block text-sm font-medium text-[var(--notion-text)]">Generating image</span>
-            <span className="mt-0.5 block text-xs text-[var(--notion-muted)]">This may take a moment</span>
+            <span className="block text-sm font-medium text-[var(--notion-text)]">{t("Generating image")}</span>
+            <span className="mt-0.5 block text-xs text-[var(--notion-muted)]">{t("This may take a moment")}</span>
           </span>
           <span className="generated-image-placeholder-dots" aria-hidden="true">
             <i />
@@ -62,6 +64,7 @@ export const ChatMessage = memo(function ChatMessage({
   sessionId = null,
   conversationTitle = "",
 }: ChatMessageProps) {
+  const t = useT();
   // メッセージの役割ごとに表示密度を変える。
   // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
   const generatedImages = message.generatedImages ?? [];
@@ -105,7 +108,7 @@ export const ChatMessage = memo(function ChatMessage({
     <article className="notion-turn motion-page-enter" data-message-id={message.id}>
       <div className="w-full min-w-0">
         {message.role === "USER"
-          ? <div className="notion-role-label">You</div>
+          ? <div className="notion-role-label">{t("You")}</div>
           : <div className="notion-role-label is-assistant">
               <BrandMark size={12} /><span>StudyMate</span>
               {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
@@ -122,7 +125,7 @@ export const ChatMessage = memo(function ChatMessage({
                   <div key={image.id} className="generated-image-shell">
                     <Image
                       src={image.dataUrl}
-                      alt="Generated image"
+                      alt={t("Generated image")}
                       width={1024}
                       height={1024}
                       unoptimized
@@ -132,8 +135,8 @@ export const ChatMessage = memo(function ChatMessage({
                       href={image.dataUrl}
                       download={`studymate-${image.id}.png`}
                       className="generated-image-download"
-                      aria-label="Download image"
-                      title="Download"
+                      aria-label={t("Download image")}
+                      title={t("Download")}
                     >
                       <Download size={20} />
                     </a>

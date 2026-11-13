@@ -5,11 +5,12 @@ import { databaseSchema, prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { NoteValidationError } from "@/lib/note-document";
 import { reorderedIds } from "@/lib/list-order";
+import { msg } from "@/lib/i18n/translate";
 
 export async function reorderList(request: Request, kind: "chat" | "note") {
   try {
     const body=await readSmallJson(request);
-    if(typeof body.id!=="string" || typeof body.targetId!=="string" || body.id.length>100 || body.targetId.length>100 || typeof body.after!=="boolean") throw new NoteValidationError("Invalid move.");
+    if(typeof body.id!=="string" || typeof body.targetId!=="string" || body.id.length>100 || body.targetId.length>100 || typeof body.after!=="boolean") throw new NoteValidationError(msg("Invalid move."));
     const user=await getOrCreateAnonymousUser();
     const move={id:body.id,targetId:body.targetId,after:body.after};
     const items=await prisma.$transaction(async tx=>{
@@ -18,7 +19,7 @@ export async function reorderList(request: Request, kind: "chat" | "note") {
         ? await tx.session.findMany({where:{userId:user.id,noteId:null},orderBy:[{position:"asc"},{updatedAt:"desc"},{id:"desc"}],select:{id:true,position:true,projectId:true,pinned:true}})
         : await tx.notePage.findMany({where:{userId:user.id,deletedAt:null},orderBy:[{position:"asc"},{createdAt:"desc"},{id:"desc"}],select:{id:true,position:true,groupId:true}});
       const source=rows.find(row=>row.id===move.id), target=rows.find(row=>row.id===move.targetId);
-      if(!source || !target) throw new NoteValidationError("Item not found.",404);
+      if(!source || !target) throw new NoteValidationError(msg("Item not found."),404);
       const ids=reorderedIds(rows.map(row=>row.id),move);
       const table=Prisma.raw(`"${databaseSchema}"."${kind==="chat" ? "Session" : "NotePage"}"`);
       // Raw metadata-only writes avoid changing @updatedAt or note versions during autosave.
@@ -35,6 +36,6 @@ export async function reorderList(request: Request, kind: "chat" | "note") {
   } catch(error) {
     if(error instanceof NoteValidationError) return NextResponse.json({error:error.message},{status:error.status});
     console.error("Could not reorder list",error);
-    return NextResponse.json({error:"Could not move the item. Please try again."},{status:503});
+    return NextResponse.json({error:msg("Could not move the item. Please try again.")},{status:503});
   }
 }

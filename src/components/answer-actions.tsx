@@ -7,6 +7,8 @@ import { answerConversationUrl, answerFileName, answerToNoteContent, conversatio
 import { writeClipboardText } from "@/lib/clipboard";
 import { isNativeApp } from "@/lib/native-app";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 type Props = {
   messageId: string;
@@ -34,10 +36,10 @@ function subscribe(listener: () => void) {
 
 const noSubscription = () => () => {};
 
-const SAVE_FAILED = "Could not save to Notes. Try again.";
+const SAVE_FAILED = msg("Could not save to Notes. Try again.");
 
 function saveErrorMessage(status: number, data: Record<string, unknown>) {
-  if (status === 413) return "This answer is too large to save as a note.";
+  if (status === 413) return msg("This answer is too large to save as a note.");
   if (status === 400 && typeof data.error === "string" && data.error) return data.error;
   return SAVE_FAILED;
 }
@@ -90,6 +92,7 @@ const STATUS_MS = 2000;
 function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
   id: string; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean; onClose: () => void; children: ReactNode;
 }) {
+  const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   useBackToClose(true, onClose);
   useLayoutEffect(() => {
@@ -130,19 +133,20 @@ function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
     items[next]?.focus();
   }
 
-  return <dialog ref={ref} id={id} aria-label="Answer options" className="chat-actions-menu answer-actions-menu"
+  return <dialog ref={ref} id={id} aria-label={t("Answer options")} className="chat-actions-menu answer-actions-menu"
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget) return;
       const bounds = event.currentTarget.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
     }}>
-    <div role="menu" aria-label="Answer options" onKeyDown={keyboard}>{children}</div>
+    <div role="menu" aria-label={t("Answer options")} onKeyDown={keyboard}>{children}</div>
   </dialog>;
 }
 
 // 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
 export function AnswerActions({ messageId, content, sessionId, conversationTitle }: Props) {
+  const t = useT();
   const key = `${sessionId}\n${messageId}`;
   const save = useSyncExternalStore(subscribe, () => saves.get(key), () => undefined);
   // 押した直後だけアイコンを ✓ にする操作と、スクリーンリーダー向けの通知。
@@ -186,8 +190,8 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
     setError(null);
     const copied = await writeClipboardText(content);
     if (!alive.current) return;
-    if (copied) announce("Copied", "copy");
-    else setError({ action: "copy", message: "Could not copy. Select the text and copy it instead." });
+    if (copied) announce(t("Copied"), "copy");
+    else setError({ action: "copy", message: t("Could not copy. Select the text and copy it instead.") });
   }
 
   async function download() {
@@ -201,14 +205,14 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
         cache: "no-store", signal: AbortSignal.timeout(30000),
       });
       const data = await response.json() as { messages?: ConversationMessage[] };
-      if (!response.ok || !Array.isArray(data.messages) || !data.messages.length) throw new Error("Conversation unavailable");
+      if (!response.ok || !Array.isArray(data.messages) || !data.messages.length) throw new Error(t("Conversation unavailable"));
       if (!alive.current) return;
       const exportSource = { conversationTitle, conversationUrl: answerConversationUrl(window.location.origin, sessionId), savedAt: new Date() };
       downloadText(answerFileName(conversationTitle.trim() || "conversation"), conversationToMarkdownFile(data.messages, exportSource));
       closeMenu();
-      announce("Conversation downloaded", "download");
+      announce(t("Conversation downloaded"), "download");
     } catch {
-      if (alive.current) setError({ action: "download", message: "Could not download the conversation. Try again." });
+      if (alive.current) setError({ action: "download", message: t("Could not download the conversation. Try again.") });
     } finally {
       downloadLock.current = false;
       if (alive.current) setDownloading(false);
@@ -222,7 +226,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
     const result = await saveAnswer(key, content, source());
     if (!alive.current) return;
     if (result.ok === "pending") return;
-    if (result.ok) announce("Saved to page");
+    if (result.ok) announce(t("Saved to page"));
     else setError({ action: "save", message: result.message });
   }
 
@@ -235,11 +239,11 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   }
 
   return (
-    <div className="answer-actions" role="group" aria-label="Answer actions">
-      <button type="button" className="answer-action" onClick={() => void copy()} aria-label="Copy answer" title="Copy answer">
+    <div className="answer-actions" role="group" aria-label={t("Answer actions")}>
+      <button type="button" className="answer-action" onClick={() => void copy()} aria-label={t("Copy answer")} title={t("Copy answer")}>
         {done === "copy" ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.9} />}
       </button>
-      <button type="button" className="answer-action" aria-label="More answer options" title="More options"
+      <button type="button" className="answer-action" aria-label={t("More answer options")} title={t("More options")}
         aria-haspopup="menu" aria-expanded={!!menu} aria-controls={menuId}
         onClick={event => setMenu({ anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, focusLast: false })}
         onKeyDown={event => {
@@ -255,21 +259,21 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           aria-disabled={!!save} aria-busy={save?.status === "saving"}>
           {save?.status === "saving" ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" />
             : save?.status === "saved" ? <Check size={16} aria-hidden="true" /> : <FilePlus2 size={16} aria-hidden="true" />}
-          {save?.status === "saving" ? "Saving…" : save?.status === "saved" ? "Saved to page" : error?.action === "save" ? "Retry saving to page" : "Save to page"}
+          {save?.status === "saving" ? t("Saving…") : save?.status === "saved" ? t("Saved to page") : error?.action === "save" ? t("Retry saving to page") : t("Save to page")}
         </button>
         {save?.status === "saved" && <a role="menuitem" className="chat-menu-item"
           href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={event => openNote(event, save.pageId)}>
-          <ArrowUpRight size={16} aria-hidden="true" />Open saved page
+          <ArrowUpRight size={16} aria-hidden="true" />{t("Open saved page")}
         </a>}
         {!native && <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={downloading} aria-busy={downloading} onClick={() => void download()}>
           {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
-          {downloading ? "Downloading…" : "Download conversation"}
+          {downloading ? t("Downloading…") : t("Download conversation")}
         </button>}
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
-        {error && <p role="alert" className="answer-menu-error">{error.message}</p>}
+        {error && <p role="alert" className="answer-menu-error">{t(error.message)}</p>}
       </AnswerMenu>}
       {!menu && <span role="status" aria-live="polite" className="sr-only">{status}</span>}
-      {!menu && error && <span role="alert" className="answer-actions-error">{error.message}</span>}
+      {!menu && error && <span role="alert" className="answer-actions-error">{t(error.message)}</span>}
     </div>
   );
 }

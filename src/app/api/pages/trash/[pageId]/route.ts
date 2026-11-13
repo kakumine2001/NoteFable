@@ -3,10 +3,11 @@ import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { trashCutoff } from "@/lib/note-trash";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
-const notFound = () => NextResponse.json({ error: "Note not found in the trash." }, { status: 404 });
+const notFound = () => NextResponse.json({ error: msg("Note not found in the trash.") }, { status: 404 });
 
 // ゴミ箱から戻す。保持期間内のものだけ。位置・グループ・本文は捨てる前のまま（グループが消えていれば「グループなし」）。
 // 応答は GET /api/pages の 1 件と同じ形で、そのまま一覧へ加えられる。

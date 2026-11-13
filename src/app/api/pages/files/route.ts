@@ -6,6 +6,7 @@ import { MAX_NOTE_FILE_BYTES, noteFileContentType, noteFileKeyParts, noteFileUrl
 import { classifyUpload } from "@/lib/note-files";
 import { readLimitedBody } from "@/lib/note-upload";
 import { readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -15,7 +16,7 @@ const MAX_UPLOAD_BODY_BYTES = MAX_NOTE_FILE_BYTES + 64 * 1024;
 // ノートに置く画像・ファイルを保存し、ブロックに入れる URL を返す。ノートへの反映は通常の自動保存で行う。
 export async function POST(request: Request) {
   try {
-    const tooLarge = () => NextResponse.json({ error: "Files must be 4 MB or smaller." }, { status: 413 });
+    const tooLarge = () => NextResponse.json({ error: msg("Files must be 4 MB or smaller.") }, { status: 413 });
     if (Number(request.headers.get("content-length") ?? 0) > MAX_UPLOAD_BODY_BYTES) return tooLarge();
     // Content-Length がない分割送信でも、実際に受け取ったバイト数で上限を守ってから multipart を解析する。
     const body = await readLimitedBody(request, MAX_UPLOAD_BODY_BYTES);
@@ -24,14 +25,14 @@ export async function POST(request: Request) {
     try {
       const form = await new Response(body, { headers: { "Content-Type": request.headers.get("content-type") ?? "" } }).formData();
       entries = [...form.entries()];
-    } catch { return NextResponse.json({ error: "Invalid upload." }, { status: 400 }); }
+    } catch { return NextResponse.json({ error: msg("Invalid upload.") }, { status: 400 }); }
     const file = entries.length === 1 && entries[0][0] === "file" ? entries[0][1] : null;
-    if (!(file instanceof File)) return NextResponse.json({ error: "Choose one file to upload." }, { status: 400 });
+    if (!(file instanceof File)) return NextResponse.json({ error: msg("Choose one file to upload.") }, { status: 400 });
     if (file.size > MAX_NOTE_FILE_BYTES) return tooLarge();
     const buffer = Buffer.from(await file.arrayBuffer());
     const name = safeFileName(file.name) || "file";
     const kind = classifyUpload(buffer, name);
-    if (!kind) return NextResponse.json({ error: "This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4." }, { status: 400 });
+    if (!kind) return NextResponse.json({ error: msg("This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.") }, { status: 400 });
     const user = await getOrCreateAnonymousUser();
     const path = `note-files/${user.id}/${randomUUID()}.${kind.extension}`;
     await writeStoredImageAt(path, buffer, noteFileContentType(kind.extension));
@@ -45,9 +46,9 @@ export async function GET(request: Request) {
     const params = new URL(request.url).searchParams;
     const key = noteFileKeyParts(params.get("key"));
     const user = await getOrCreateAnonymousUser();
-    if (!key || key.ownerId !== user.id) return NextResponse.json({ error: "File not found." }, { status: 404 });
+    if (!key || key.ownerId !== user.id) return NextResponse.json({ error: msg("File not found.") }, { status: 404 });
     let data: Buffer;
-    try { data = await readStoredImage(key.path); } catch { return NextResponse.json({ error: "File not found." }, { status: 404 }); }
+    try { data = await readStoredImage(key.path); } catch { return NextResponse.json({ error: msg("File not found.") }, { status: 404 }); }
     const contentType = noteFileContentType(key.extension);
     const image = contentType.startsWith("image/");
     const name = safeFileName(params.get("name")) || `file.${key.extension}`;

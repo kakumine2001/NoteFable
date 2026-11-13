@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { listProjectSummaries, projectError, validProjectName } from "@/lib/chat-project-api";
 import { NoteValidationError } from "@/lib/note-document";
+import { msg } from "@/lib/i18n/translate";
 
 export async function GET() {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     const project = await prisma.$transaction(async tx => {
       // Serialize creations for this owner so the limit also holds for concurrent requests.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`;
-      if (await tx.chatProject.count({ where: { userId: user.id } }) >= 50) throw new NoteValidationError("You can have at most 50 projects.");
+      if (await tx.chatProject.count({ where: { userId: user.id } }) >= 50) throw new NoteValidationError(msg("You can have at most 50 projects."));
       return tx.chatProject.create({ data: { userId: user.id, name }, select: { id: true, name: true } });
     });
     // A new project has no instructions or reference notes yet; return the same shape as the list.

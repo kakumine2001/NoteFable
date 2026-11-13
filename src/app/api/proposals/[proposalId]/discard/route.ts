@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { discardProposal } from "@/lib/note-proposals";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ proposalId: string }> };
 
@@ -14,6 +15,6 @@ export async function POST(_request: Request, context: Context) {
     return NextResponse.json({ status: result.status });
   } catch (error) {
     console.error("Failed to discard a note proposal", error);
-    return NextResponse.json({ error: "Database is unavailable. Try again in a moment." }, { status: 503 });
+    return NextResponse.json({ error: msg("Database is unavailable. Try again in a moment.") }, { status: 503 });
   }
 }

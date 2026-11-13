@@ -3,6 +3,7 @@ import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { parseStoredActivity } from "@/lib/chat-activity";
 import { proposalsByMessage } from "@/lib/note-proposals";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type RouteContext = {
   params: Promise<{ sessionId: string }>;
@@ -42,7 +43,7 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (!session) {
-    return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
   }
 
   // 画面表示に必要なメッセージと添付メタ情報を時系列順で取得する。

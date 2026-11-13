@@ -1,6 +1,7 @@
+import { msg } from "@/lib/i18n/translate";
 export type ReorderRequest = { id: string; targetId: string; after: boolean };
 export function reorderedIds(ids: string[], move: ReorderRequest) {
-  if (!ids.includes(move.id) || !ids.includes(move.targetId)) throw new Error("Item not found.");
+  if (!ids.includes(move.id) || !ids.includes(move.targetId)) throw new Error(msg("Item not found."));
   if (move.id===move.targetId) return ids;
   const result=ids.filter(id=>id!==move.id);
   result.splice(result.indexOf(move.targetId)+(move.after ? 1 : 0),0,move.id);

@@ -2,8 +2,11 @@
 import { GripVertical } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { ReorderRequest } from "@/lib/list-order";
+import { useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpen,onMoveProject,onMoveGroup}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children?:ReactNode;onOpen?:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>}) {
+  const t = useT();
   const dropAttribute=onMoveProject ? "data-chat-project-drop" : onMoveGroup ? "data-note-group-drop" : null;
   const onMoveContainer=onMoveProject ?? onMoveGroup;
   const drag=useRef<{x:number;y:number;active:boolean;row:HTMLElement;target?:HTMLElement;after:boolean}|null>(null);
@@ -40,14 +43,14 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     if(!active || !target)return;
     if(dropAttribute && target.hasAttribute(dropAttribute) && onMoveContainer) {
       setBusy(true);setError("");
-      void Promise.resolve().then(()=>onMoveContainer(target.getAttribute(dropAttribute) || null)).then(ok=>{if(!ok)setError("Could not move the item. Try again.");}).catch(error=>setError(error instanceof Error ? error.message : "Could not move the item. Try again.")).finally(()=>setBusy(false));
+      void Promise.resolve().then(()=>onMoveContainer(target.getAttribute(dropAttribute) || null)).then(ok=>{if(!ok)setError(msg("Could not move the item. Try again."));}).catch(error=>setError(error instanceof Error ? error.message : msg("Could not move the item. Try again."))).finally(()=>setBusy(false));
     } else if(target.dataset.orderId)void move({id,targetId:target.dataset.orderId,after});
   }
   useEffect(()=>()=>{drag.current?.row.removeAttribute("data-order-dragging");drag.current?.target?.removeAttribute("data-order-drop");},[]);
   async function move(request:ReorderRequest) {
     setBusy(true);setError("");
-    try { if(!await onMove(request)) setError("Could not move the item. Try again."); }
-    catch(error) {setError(error instanceof Error ? error.message : "Could not move the item. Try again.");}
+    try { if(!await onMove(request)) setError(msg("Could not move the item. Try again.")); }
+    catch(error) {setError(error instanceof Error ? error.message : msg("Could not move the item. Try again."));}
     finally {setBusy(false);}
   }
   // A long press starts touch dragging; ordinary swipes still scroll the list.
@@ -78,7 +81,7 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     return ()=>{cancel();button.removeEventListener("touchstart",start);button.removeEventListener("touchmove",moving);button.removeEventListener("touchend",end);button.removeEventListener("touchcancel",cancel);};
   },[]);
   return <>
-    <button ref={buttonRef} type="button" aria-label={children ? undefined : `Reorder ${title}`} title={children ? `${title} · Drag to move · Hold to drag on touch · Arrow keys reorder` : "Drag to reorder · Arrow keys move up/down"} className={children ? "chat-drag-title flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" : "list-reorder-handle"} disabled={busy || disabled}
+    <button ref={buttonRef} type="button" aria-label={children ? undefined : t("Reorder {title}", { title })} title={children ? t("{title} · Drag to move · Hold to drag on touch · Arrow keys reorder", { title }) : t("Drag to reorder · Arrow keys move up/down")} className={children ? "chat-drag-title flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" : "list-reorder-handle"} disabled={busy || disabled}
       onClick={()=>{if(suppressClick.current){suppressClick.current=false;return;}onOpen?.();}}
       onPointerDown={event=>{
         if(children && event.pointerType==="touch")return;
@@ -103,6 +106,6 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
         event.preventDefault();const index=ids.indexOf(id), targetId=ids[index+(event.key==="ArrowUp"?-1:1)];
         if(targetId)void move({id,targetId,after:event.key==="ArrowDown"});
       }}>{children ?? <GripVertical size={13}/>}</button>
-    {error && <span role="alert" className="list-reorder-error">{error}</span>}
+    {error && <span role="alert" className="list-reorder-error">{t(error)}</span>}
   </>;
 }

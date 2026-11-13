@@ -20,6 +20,7 @@ import { writeStoredImage } from "@/lib/storage";
 import { buildImageContext } from "@/lib/image-context";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
+import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -316,11 +317,11 @@ export async function POST(request: Request) {
   const reasoning = normalizeReasoningValue(body.reasoning, model);
 
   if (!prompt) {
-    return NextResponse.json({ error: "Prompt is required." }, { status: 400 });
+    return NextResponse.json({ error: msg("Prompt is required.") }, { status: 400 });
   }
 
   if (prompt.length > MAX_PROMPT_CHARS) {
-    return NextResponse.json({ error: "Prompt is too long." }, { status: 413 });
+    return NextResponse.json({ error: msg("Prompt is too long.") }, { status: 413 });
   }
 
   try {
@@ -334,14 +335,14 @@ export async function POST(request: Request) {
 
   if (body.files.some((file) => !isImageFile(file))) {
     return NextResponse.json(
-      { error: "Image generation only accepts image uploads." },
+      { error: msg("Image generation only accepts image uploads.") },
       { status: 400 },
     );
   }
 
   if (body.files.some((file) => !isSupportedImageGenerationInput(file))) {
     return NextResponse.json(
-      { error: "Image generation accepts PNG, JPEG, or WebP reference images only." },
+      { error: msg("Image generation accepts PNG, JPEG, or WebP reference images only.") },
       { status: 400 },
     );
   }
@@ -361,7 +362,7 @@ export async function POST(request: Request) {
       });
 
       if (!existingSession) {
-        return NextResponse.json({ error: "Session not found." }, { status: 404 });
+        return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
       }
     }
 
@@ -427,7 +428,7 @@ export async function POST(request: Request) {
         throw lastGenerationError;
       }
 
-      throw new Error("OpenAI did not return image data.");
+      throw new Error(msg("OpenAI did not return image data."));
     }
     // 保存処理には base64 ではなく Buffer が必要なので変換する。
     const imageBuffer = Buffer.from(imageBase64, "base64");

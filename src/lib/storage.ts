@@ -2,6 +2,7 @@ import { randomUUID } from "crypto";
 import { mkdir, readFile, rm, writeFile } from "fs/promises";
 import path from "path";
 import { optionalEnv } from "@/lib/env";
+import { msg } from "@/lib/i18n/translate";
 
 // 保存時に MIME type から拡張子を決めるための対応表。
 const IMAGE_EXTENSIONS: Record<string, string> = {
@@ -104,7 +105,7 @@ export async function readStoredImage(storagePath: string, maxBytes?: number) {
     const { get } = await import("@vercel/blob");
     const result = await get(safePath, { access: "private" });
     if (!result || result.statusCode !== 200) {
-      throw new Error("Stored image not found.");
+      throw new Error(msg("Stored image not found."));
     }
 
     const reader = result.stream.getReader();
@@ -115,7 +116,7 @@ export async function readStoredImage(storagePath: string, maxBytes?: number) {
         const { done, value } = await reader.read();
         if (done) break;
         size += value.byteLength;
-        if (maxBytes !== undefined && size > maxBytes) { await reader.cancel(); throw new Error("Stored file exceeds its declared size."); }
+        if (maxBytes !== undefined && size > maxBytes) { await reader.cancel(); throw new Error(msg("Stored file exceeds its declared size.")); }
         chunks.push(value);
       }
       return Buffer.concat(chunks);
@@ -124,7 +125,7 @@ export async function readStoredImage(storagePath: string, maxBytes?: number) {
 
   assertStorageConfigured();
   const buffer = await readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
-  if (maxBytes !== undefined && buffer.length > maxBytes) throw new Error("Stored file exceeds its declared size.");
+  if (maxBytes !== undefined && buffer.length > maxBytes) throw new Error(msg("Stored file exceeds its declared size."));
   return buffer;
 }
 

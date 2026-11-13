@@ -4,7 +4,7 @@ import { BlockNoteSchema, createCodeBlockSpec, createHeadingBlockSpec, defaultBl
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
-import { en } from "@blocknote/core/locales";
+import { en, ja as blockNoteJa, zh as blockNoteZh } from "@blocknote/core/locales";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { Check, CheckSquare, Code2, Copy, Heading1, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type, Upload } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
@@ -12,6 +12,8 @@ import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { NOTE_TEXT_BLOCKS, codeBlockText, copyNoteBlocks, selectedRootBlocks, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
+import { useI18n, useT } from "@/components/i18n-provider";
+import { msg } from "@/lib/i18n/translate";
 
 const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = codeBlockOptions.supportedLanguages;
 // BlockNote は未知の言語 ID で描画時に例外を投げる。保存済みの "" や「```foo」でも落ちないよう、
@@ -74,7 +76,8 @@ async function uploadNoteFile(file: File) {
   form.append("file", file);
   const response = await fetch("/api/pages/files", { method: "POST", body: form });
   const data = await response.json().catch(() => null) as { url?: string; name?: string; error?: string } | null;
-  if (!response.ok || !data?.url) throw new Error(data?.error ?? "Upload failed. Try again.");
+  // BlockNote の貼り付け・ドロップからも呼ばれるので、サーバーの文がないときも読める文を必ず入れる。
+  if (!response.ok || !data?.url) throw new Error(data?.error || msg("Upload failed. Try again."));
   return { props: { url: data.url, name: data.name ?? file.name } };
 }
 
@@ -97,11 +100,12 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
 };
 
 function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<SlashItem>) {
+  const t = useT();
   const listRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
   }, [selectedIndex]);
-  if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">No results</div></div>;
+  if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">{t("No results")}</div></div>;
   return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">
     {items.map((item, index) => {
       const look = item.key ? SLASH_LOOK[item.key] : undefined;
@@ -125,6 +129,7 @@ function menuTargets(editor: Editor, block: Editor["document"][number]) {
 }
 
 function BlockMenu() {
+  const t = useT();
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
@@ -134,31 +139,32 @@ function BlockMenu() {
   return <DragHandleMenu>
     <Components.Generic.Menu.Root sub position="right" portalElement={portalElement}>
       <Components.Generic.Menu.Trigger sub>
-        <Components.Generic.Menu.Item className="bn-menu-item" subTrigger icon={<Text size={16} />}>Turn into</Components.Generic.Menu.Item>
+        <Components.Generic.Menu.Item className="bn-menu-item" subTrigger icon={<Text size={16} />}>{t("Turn into")}</Components.Generic.Menu.Item>
       </Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">
         {NOTE_TEXT_BLOCKS.map((target) => <Components.Generic.Menu.Item key={target.key} className="bn-menu-item"
           checked={block.type === target.type && (target.type !== "heading" || (block.type === "heading" && block.props.level === target.level))}
-          onClick={() => convertBlocks(editor, target, [block])}>{target.title}</Components.Generic.Menu.Item>)}
+          onClick={() => convertBlocks(editor, target, [block])}>{t(target.title)}</Components.Generic.Menu.Item>)}
       </Components.Generic.Menu.Dropdown>
     </Components.Generic.Menu.Root>
-    <BlockColorsItem>Color</BlockColorsItem>
+    <BlockColorsItem>{t("Color")}</BlockColorsItem>
     <Components.Generic.Menu.Divider />
     <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, menuTargets(editor, block))}>
-      Duplicate<span className="notes-menu-shortcut">{MOD}+D</span>
+      {t("Duplicate")}<span className="notes-menu-shortcut">{MOD}+D</span>
     </Components.Generic.Menu.Item>
     <Components.Generic.Menu.Item className="bn-menu-item" icon={<Trash2 size={16} />} onClick={() => editor.removeBlocks(selectedRootBlocks(menuTargets(editor, block)))}>
-      Delete<span className="notes-menu-shortcut">Del</span>
+      {t("Delete")}<span className="notes-menu-shortcut">Del</span>
     </Components.Generic.Menu.Item>
   </DragHandleMenu>;
 }
 
 function NoteSideMenu() {
+  const t = useT();
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
   const hovered = useExtensionState(SideMenuExtension, { editor, selector: (state) => state?.block });
   return <SideMenu>
-    <Components.SideMenu.Button className="bn-button" label="Click to add below. Alt-click to add above." icon={<Plus size={18} strokeWidth={1.8} />}
+    <Components.SideMenu.Button className="bn-button" label={t("Click to add below. Alt-click to add above.")} icon={<Plus size={18} strokeWidth={1.8} />}
       onClick={(event) => {
         const block = hovered && editor.getBlock(hovered.id);
         if (!block) return;
@@ -174,11 +180,13 @@ function NoteSideMenu() {
 
 // 画像・ファイルの追加パネル。Notion の「Embed link」は出さず、アップロードだけにする。
 function NoteFilePanel(props: FilePanelProps) {
-  return <FilePanel {...props} tabs={[{ name: "Upload", tabPanel: <NoteUploadTab {...props} /> }]} />;
+  const t = useT();
+  return <FilePanel {...props} tabs={[{ name: t("Upload"), tabPanel: <NoteUploadTab {...props} /> }]} />;
 }
 
 // ブラウザ標準の「Choose File」ではなく、アプリの見た目のボタンで選ばせる。進行中と失敗も画面に出す。
 function NoteUploadTab({ blockId }: FilePanelProps) {
+  const t = useT();
   const editor = useBlockNoteEditor(schema);
   const [state, setState] = useState<{ phase: "idle" | "uploading" | "failed"; message?: string }>({ phase: "idle" });
   const block = editor.getBlock(blockId);
@@ -189,7 +197,7 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
     if (!file) return;
     // 大きすぎるファイルは送る前に断る（サーバーの上限と同じ）。
     if (file.size > MAX_NOTE_FILE_BYTES) {
-      setState({ phase: "failed", message: `That file is larger than ${MAX_NOTE_FILE_BYTES / 1024 / 1024} MB.` });
+      setState({ phase: "failed", message: msg("That file is larger than {size} MB.") });
       return;
     }
     setState({ phase: "uploading" });
@@ -199,19 +207,19 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
       // 待っている間にブロックが消されたら何もしない。
       if (result && editor.getBlock(blockId)) editor.updateBlock(blockId, typeof result === "string" ? { props: { url: result, name: file.name } } : result);
     } catch (error) {
-      setState({ phase: "failed", message: error instanceof Error ? error.message : "Upload failed. Try again." });
+      setState({ phase: "failed", message: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
     }
   }
 
   return (
     <div className="note-upload">
       <label className={`note-upload-button ${state.phase === "uploading" ? "is-busy" : ""}`}>
-        {state.phase === "uploading" ? <><Loader2 size={16} className="note-upload-spin" />Uploading…</> : <><Upload size={16} />{isImage ? "Choose an image" : "Choose a file"}</>}
+        {state.phase === "uploading" ? <><Loader2 size={16} className="note-upload-spin" />{t("Uploading…")}</> : <><Upload size={16} />{isImage ? t("Choose an image") : t("Choose a file")}</>}
         <input type="file" className="sr-only" accept={isImage ? "image/png,image/jpeg,image/webp,image/gif" : undefined}
           disabled={state.phase === "uploading"} onChange={(event) => { const file = event.target.files?.[0] ?? null; event.target.value = ""; void upload(file); }} />
       </label>
       <p className={`note-upload-hint ${state.phase === "failed" ? "is-error" : ""}`} role={state.phase === "failed" ? "alert" : undefined}>
-        {state.phase === "failed" ? state.message : "Up to 4 MB."}
+        {state.phase === "failed" ? t(state.message ?? "", { size: MAX_NOTE_FILE_BYTES / 1024 / 1024 }) : t("Up to 4 MB.")}
       </p>
     </div>
   );
@@ -224,8 +232,9 @@ function NoteFormattingToolbar() {
   const selected = useEditorState({ editor, selector: () => editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block] });
   // 画像・ファイルのブロックを選んでいるときは、文字の装飾ではなくファイル用の操作を出す。
   const media = selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file");
+  const t = useT();
   const typeItems = NOTE_TEXT_BLOCKS.map((target) => ({
-    text: target.title, icon: <Text size={16} />,
+    text: t(target.title), icon: <Text size={16} />,
     // 種類の違うブロックをまとめて選択すると一致する項目がなくなり、BlockNote の Select が落ちる。
     // Notion と同じく先頭ブロックの種類を表示する。
     isSelected: !!selected[0] && selected[0].type === target.type && (target.type !== "heading" || (selected[0].type === "heading" && selected[0].props.level === target.level)),
@@ -262,6 +271,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
 }) {
+  const { t, locale } = useI18n();
+  const base = locale === "zh" ? blockNoteZh : locale === "ja" ? blockNoteJa : en;
   const editor = useCreateBlockNote({
     schema,
     extensions: [syntaxHighlighter],
@@ -278,8 +289,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
       }
       return defaultPasteHandler();
     },
-    domAttributes: { editor: { "aria-label": "Note content" } },
-    dictionary: { ...en, placeholders: { ...en.placeholders, emptyDocument: "Press '/' for commands…", default: "Press '/' for commands…", heading: "Heading" } },
+    domAttributes: { editor: { "aria-label": t("Note content") } },
+    dictionary: { ...base, placeholders: { ...base.placeholders, emptyDocument: t("Press '/' for commands…"), default: t("Press '/' for commands…"), heading: t("Heading") } },
     initialContent: blocks.length ? normalizeCodeLanguages(blocks) as PartialBlock<typeof schema.blockSchema>[] : undefined,
   });
   function focusStart() {
@@ -374,7 +385,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
         const turning = /^turn(?:\s|$)/i.test(query);
         const textItems = NOTE_TEXT_BLOCKS.map((target) => {
           const item = defaults.find((item) => item.key === target.key)!;
-          return { ...item, title: target.title, group: "Basic blocks", aliases: [...(item.aliases ?? []), ...target.aliases],
+          return { ...item, title: t(target.title), group: t("Basic blocks"), aliases: [...(item.aliases ?? []), ...target.aliases, target.title.toLowerCase()],
             badge: undefined,
             onItemClick: turning ? () => convertBlocks(editor, target) : item.onItemClick };
         });
@@ -382,10 +393,10 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
       }} />
     </BlockNoteView>
     {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
-      aria-label={copiedId === codeHover.id ? "Copied" : "Copy code"} title={copiedId === codeHover.id ? "Copied" : "Copy code"}
+      aria-label={copiedId === codeHover.id ? t("Copied") : t("Copy code")} title={copiedId === codeHover.id ? t("Copied") : t("Copy code")}
       onMouseDown={(event) => event.preventDefault()} onClick={() => void copyCode(codeHover.id)}>
       {copiedId === codeHover.id ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={1.8} />}
     </button>}
-    <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label="Continue writing at end of note" disabled={!editable} onClick={focusEnd} />
+    <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={focusEnd} />
   </div>;
 }

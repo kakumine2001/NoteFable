@@ -40,6 +40,7 @@ import {
   normalizeWebSearchMode,
   type WebSearchMode,
 } from "@/lib/web-search";
+import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -150,7 +151,7 @@ function parseResponsesDelta(line: string) {
   const data = JSON.parse(line) as ResponsesStreamEvent;
 
   if (data.type === "error") {
-    throw new Error(data.error?.message ?? "OpenAI stream returned an error.");
+    throw new Error(data.error?.message ?? msg("OpenAI stream returned an error."));
   }
 
   return data.type === "response.output_text.delta" ? (data.delta ?? "") : "";
@@ -187,7 +188,7 @@ async function requestOpenAIResponses(body: ResponsesStreamRequest, signal: Abor
   }
 
   if (!response.body) {
-    throw new Error("OpenAI response did not include a stream body.");
+    throw new Error(msg("OpenAI response did not include a stream body."));
   }
 
   return response.body;
@@ -288,7 +289,7 @@ async function requestDeepSeekResponses(body: object, signal: AbortSignal) {
   }
 
   if (!response.body) {
-    throw new Error("DeepSeek response did not include a stream body.");
+    throw new Error(msg("DeepSeek response did not include a stream body."));
   }
 
   return response.body;
@@ -313,7 +314,7 @@ export async function POST(request: Request) {
   try {
     formData = await request.formData();
   } catch {
-    return NextResponse.json({ error: "Invalid multipart form data." }, { status: 400 });
+    return NextResponse.json({ error: msg("Invalid multipart form data.") }, { status: 400 });
   }
 
   // ユーザーが入力した本文。空白だけの送信は後続のチェックで拒否する。
@@ -339,7 +340,7 @@ export async function POST(request: Request) {
   );
 
   if (!message) {
-    return NextResponse.json({ error: "Message is required." }, { status: 400 });
+    return NextResponse.json({ error: msg("Message is required.") }, { status: 400 });
   }
 
   // FormData 内の files フィールドから、実際の File オブジェクトだけを取り出す。
@@ -355,7 +356,7 @@ export async function POST(request: Request) {
       uploadUser = await getOrCreateAnonymousUser();
       files = await loadChatUploads(tickets, uploadUser.id, files);
     } catch (error) {
-      return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : "Unable to read attachments. Please upload them again." }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
+      return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : msg("Unable to read attachments. Please upload them again.") }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
     }
   }
 
@@ -384,7 +385,7 @@ export async function POST(request: Request) {
     ? await prisma.notePage.findFirst({ where: { id: noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true } })
     : null;
   if (noteId && !note) {
-    return NextResponse.json({ error: "Note not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   }
 
   // sessionId があれば所有者一致の既存セッションを探し、なければ今回の送信で新規作成する。
@@ -402,7 +403,7 @@ export async function POST(request: Request) {
       });
 
   if (!session) {
-    return NextResponse.json({ error: "Session not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
   }
 
   // プロジェクトの会話なら、共通指示と参照ノートを毎回読み直して渡す（ノートの編集は次の送信から反映される）。
@@ -426,7 +427,7 @@ export async function POST(request: Request) {
   try {
     attachments = await prepareAttachments(files, claudeImageBudget);
   } catch {
-    return NextResponse.json({ error: "Unable to process an attachment. Please check that the file can be opened and try again." }, { status: 400 });
+    return NextResponse.json({ error: msg("Unable to process an attachment. Please check that the file can be opened and try again.") }, { status: 400 });
   }
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。
   const attachmentPrompt = buildAttachmentPrompt(attachments);
@@ -701,9 +702,9 @@ export async function POST(request: Request) {
         forwardData(finalBatch.data);
 
         if (guard) {
-          if (!completed) throw new Error("DeepSeek stream ended before completion. Please retry.");
+          if (!completed) throw new Error(msg("DeepSeek stream ended before completion. Please retry."));
           forwardText(guard.finish());
-          if (!assistantText.trim()) throw new Error("DeepSeek returned an empty response. Please retry.");
+          if (!assistantText.trim()) throw new Error(msg("DeepSeek returned an empty response. Please retry."));
         }
 
         if (modelOption.provider !== "deepseek") {

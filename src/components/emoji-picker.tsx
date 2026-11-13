@@ -5,12 +5,18 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
+import { useT } from "@/components/i18n-provider";
 
 // Load the full dataset only when a picker opens, never during server rendering.
 const FullEmojiPicker = dynamic(() => import("./full-emoji-picker"), {
   ssr: false,
-  loading: () => <div className="emoji-picker-loading" role="status">Loading emoji…</div>,
+  loading: () => <EmojiLoading />,
 });
+
+function EmojiLoading() {
+  const t = useT();
+  return <div className="emoji-picker-loading" role="status">{t("Loading emoji…")}</div>;
+}
 
 export function randomOf<T>(items: readonly T[]) {
   return items[Math.floor(Math.random() * items.length)];
@@ -61,13 +67,14 @@ export function usePickerBackToClose(open: boolean, onClose: () => void) {
 
 // 絵文字の一覧（上のバーに Random / Remove、下に絵文字の格子）。ポップオーバーの中にも、プロフィールのように画面の中にもそのまま置ける。
 // 選ぶと閉じ、Random は開いたまま、Remove は null を返して閉じる。
-export function EmojiPickerBody({ current, removeLabel = "Remove", onChange, onClose }: {
+export function EmojiPickerBody({ current, removeLabel, onChange, onClose }: {
   current: string | null;
   removeLabel?: string;
   onChange: (icon: string | null) => void;
   onClose: () => void;
 }) {
-  return <FullEmojiPicker current={current} removeLabel={removeLabel} onChange={onChange} onClose={onClose} />;
+  const t = useT();
+  return <FullEmojiPicker current={current} removeLabel={removeLabel ?? t("Remove")} onChange={onChange} onClose={onClose} />;
 }
 
 // 絵文字の選択ポップオーバー。
@@ -79,8 +86,9 @@ export function EmojiPopover({ current, className, style, trigger, onChange, onC
   onChange: (icon: string | null) => void;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
-    <Popover className={className} label="Choose an emoji" style={style} trigger={trigger} onClose={onClose}>
+    <Popover className={className} label={t("Choose an emoji")} style={style} trigger={trigger} onClose={onClose}>
       <EmojiPickerBody current={current} onChange={onChange} onClose={onClose} />
     </Popover>
   );

@@ -4,6 +4,7 @@ import { optionalEnv } from "@/lib/env";
 import { verifyUploadTicket } from "@/lib/chat-upload-ticket";
 import { readLimitedBody } from "@/lib/note-upload";
 import { writeStoredImageAt } from "@/lib/storage";
+import { msg } from "@/lib/i18n/translate";
 
 // Binary requests are only used in local development without Blob credentials.
 export async function PUT(request: Request) {
@@ -12,12 +13,12 @@ export async function PUT(request: Request) {
     const user = await getOrCreateAnonymousUser();
     const claims = await verifyUploadTicket(new URL(request.url).searchParams.get("ticket"), user.id);
     const raw = await readLimitedBody(request, claims.size);
-    if (!raw) throw new Error("Upload too large.");
+    if (!raw) throw new Error(msg("Upload too large."));
     const buffer = Buffer.from(raw);
-    if (buffer.length !== claims.size) throw new Error("Incomplete upload.");
+    if (buffer.length !== claims.size) throw new Error(msg("Incomplete upload."));
     await writeStoredImageAt(claims.path, buffer, claims.type);
     return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Attachment upload failed. Please try again." }, { status: 400 });
+    return NextResponse.json({ error: msg("Attachment upload failed. Please try again.") }, { status: 400 });
   }
 }

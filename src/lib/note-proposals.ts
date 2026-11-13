@@ -4,6 +4,7 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { createRevision } from "@/lib/note-revisions";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 // AI の提案（ノートの編集・新規作成）の保存と適用。
 // 適用はここで 1 回のトランザクションにまとめ、「適用済み」への切り替えを先に取った 1 回だけがノートを書く。
@@ -151,8 +152,8 @@ export async function discardProposal(userId: string, id: string): Promise<{ ok:
   const changed = await prisma.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "DISCARDED" } });
   if (changed.count) return { ok: true, status: "discarded" };
   const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { status: true } });
-  if (!row) return { ok: false, httpStatus: 404, error: "Proposal not found." };
-  return row.status === "DISCARDED" ? { ok: true, status: "discarded" } : { ok: false, httpStatus: 409, error: "This proposal was already applied." };
+  if (!row) return { ok: false, httpStatus: 404, error: msg("Proposal not found.") };
+  return row.status === "DISCARDED" ? { ok: true, status: "discarded" } : { ok: false, httpStatus: 409, error: msg("This proposal was already applied.") };
 }
 
 // 履歴の表示用に、セッションの提案を回答ごとにまとめる。回答に紐付いていない提案は出さない。

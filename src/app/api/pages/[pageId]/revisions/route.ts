@@ -3,6 +3,7 @@ import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { MAX_REVISIONS_PER_NOTE, REVISION_SUMMARY_SELECT, toRevisionSummary } from "@/lib/note-revisions";
 import { prisma } from "@/lib/prisma";
+import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
@@ -17,7 +18,7 @@ export async function GET(_request: Request, context: Context) {
         where: { noteId: pageId, userId: user.id }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: MAX_REVISIONS_PER_NOTE, select: REVISION_SUMMARY_SELECT,
       }),
     ]);
-    if (!note) return NextResponse.json({ error: "Note not found." }, { status: 404 });
+    if (!note) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     return NextResponse.json({ revisions: rows.map(toRevisionSummary) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return noteApiError(error); }
 }

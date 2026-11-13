@@ -1,5 +1,8 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { createTranslator, type Translate } from "@/lib/i18n/translate";
+
+const english = createTranslator({});
 
 export const ATTACHMENT_ACCEPT = "image/png,image/jpeg,image/webp,application/pdf,text/*,.md,.markdown,.json,.csv,.tsv,.txt";
 
@@ -11,42 +14,44 @@ export function formatUploadSize(bytes: number) {
   return `${Number((bytes / (1024 * 1024)).toFixed(1))} MiB`;
 }
 
-export function getUploadValidationError(files: UploadCandidate[], options: UploadOptions) {
-  if (files.length > MAX_UPLOAD_FILES) return `You can attach up to ${MAX_UPLOAD_FILES} files per message. Remove ${files.length - MAX_UPLOAD_FILES} to continue.`;
+// 文言は英語の文をキーに t で訳す（既定は英語のまま。サーバーの検査も同じ関数を英語で使う）。
+export function getUploadValidationError(files: UploadCandidate[], options: UploadOptions, t: Translate = english) {
+  if (files.length > MAX_UPLOAD_FILES) return t("You can attach up to {max} files per message. Remove {extra} to continue.", { max: MAX_UPLOAD_FILES, extra: files.length - MAX_UPLOAD_FILES });
   for (const file of files) {
-    if (!file.size) return `“${file.name}” is empty. Choose a file with content.`;
-    if (!file.name || file.name.length > 255) return "The attachment filename is too long. Rename the file and try again.";
+    if (!file.size) return t("“{name}” is empty. Choose a file with content.", { name: file.name });
+    if (!file.name || file.name.length > 255) return t("The attachment filename is too long. Rename the file and try again.");
     const image = isImageMimeType(file.type);
     const supported = image || file.type.startsWith("text/") || file.type === "application/pdf" || /\.(md|markdown|json|csv|tsv|txt|pdf)$/i.test(file.name);
-    if (!supported) return `“${file.name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.`;
-    if (image && !options.supportsImages) return "This model cannot read images. Choose an image-capable model or turn on Create an image.";
+    if (!supported) return t("“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.", { name: file.name });
+    if (image && !options.supportsImages) return t("This model cannot read images. Choose an image-capable model or turn on Create an image.");
     const limit = MAX_UPLOAD_FILE_BYTES;
-    if (file.size > limit) return `“${file.name}” exceeds ${formatUploadSize(limit)} per file. Choose a smaller file.`;
+    if (file.size > limit) return t("“{name}” exceeds {size} per file. Choose a smaller file.", { name: file.name, size: formatUploadSize(limit) });
   }
-  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_UPLOAD_TOTAL_BYTES) return `Attachments exceed ${formatUploadSize(MAX_UPLOAD_TOTAL_BYTES)} in total. Remove a file or choose smaller files.`;
+  if (files.reduce((sum, file) => sum + file.size, 0) > MAX_UPLOAD_TOTAL_BYTES) return t("Attachments exceed {size} in total. Remove a file or choose smaller files.", { size: formatUploadSize(MAX_UPLOAD_TOTAL_BYTES) });
   return "";
 }
 
-export function getUploadRequestError(files: UploadCandidate[], message: string) {
+export function getUploadRequestError(files: UploadCandidate[], message: string, t: Translate = english) {
   const encoder = new TextEncoder();
   // Only references and text enter the chat request; binaries upload separately.
   const total = files.reduce((sum, file) => sum + 4096 + encoder.encode(file.name).length, 0);
   // Allow ample room for multipart boundaries and other small form fields.
   return total + encoder.encode(message).length + 64 * 1024 > MAX_MULTIPART_REQUEST_BYTES
-    ? "This message is too large to send. Shorten the text or remove an attachment."
+    ? t("This message is too large to send. Shorten the text or remove an attachment.")
     : "";
 }
 
 // Reject the whole new selection explicitly; never silently choose a subset.
-export function getUploadSelectionError(current: UploadCandidate[], incoming: UploadCandidate[], options: UploadOptions) {
+export function getUploadSelectionError(current: UploadCandidate[], incoming: UploadCandidate[], options: UploadOptions, t: Translate = english) {
   if (current.length + incoming.length > MAX_UPLOAD_FILES) {
     const remaining = Math.max(0, MAX_UPLOAD_FILES - current.length);
-    return remaining
-      ? `You can add ${remaining} more ${remaining === 1 ? "file" : "files"} (${MAX_UPLOAD_FILES} per message). None of these ${incoming.length} files were added. Choose fewer files.`
-      : `All ${MAX_UPLOAD_FILES} attachment slots are used. Remove a file before adding another.`;
+    if (!remaining) return t("All {max} attachment slots are used. Remove a file before adding another.", { max: MAX_UPLOAD_FILES });
+    return remaining === 1
+      ? t("You can add 1 more file ({max} per message). None of these {count} files were added. Choose fewer files.", { max: MAX_UPLOAD_FILES, count: incoming.length })
+      : t("You can add {remaining} more files ({max} per message). None of these {count} files were added. Choose fewer files.", { remaining, max: MAX_UPLOAD_FILES, count: incoming.length });
   }
-  const error = getUploadValidationError([...current, ...incoming], options);
-  return error ? `${error} No new files were added.` : "";
+  const error = getUploadValidationError([...current, ...incoming], options, t);
+  return error ? t("{error} No new files were added.", { error }) : "";
 }
 
 export function isImageMimeType(mimeType: string) {

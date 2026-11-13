@@ -5,6 +5,7 @@ import { isGoogleLoginConfigured } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredImage } from "@/lib/storage";
 import { parseProfilePatch, toAccountUser } from "@/lib/user-profile";
+import { msg } from "@/lib/i18n/translate";
 
 async function currentGoogleSession() {
   const { auth } = await import("@/lib/google-auth");
@@ -36,7 +37,7 @@ export async function GET() {
 // 表示名と絵文字アイコンを変える。Google にログインしている本人だけ。null で Google の名前・写真に戻す。
 export async function PATCH(request: Request) {
   if (!isGoogleLoginConfigured()) {
-    return NextResponse.json({ error: "Google sign-in is not enabled." }, { status: 404 });
+    return NextResponse.json({ error: msg("Google sign-in is not enabled.") }, { status: 404 });
   }
 
   let google;
@@ -46,7 +47,7 @@ export async function PATCH(request: Request) {
     google = null;
   }
   if (!google) {
-    return NextResponse.json({ error: "Sign in with Google to edit your profile." }, { status: 401 });
+    return NextResponse.json({ error: msg("Sign in with Google to edit your profile.") }, { status: 401 });
   }
 
   const parsed = parseProfilePatch(await request.json().catch(() => null));
@@ -57,7 +58,7 @@ export async function PATCH(request: Request) {
   const row = await getOrCreateAnonymousUser();
   // 念のため Google に紐付いた行だけを更新する（匿名の行は変えない）。
   if (!row.googleSub) {
-    return NextResponse.json({ error: "Sign in with Google to edit your profile." }, { status: 401 });
+    return NextResponse.json({ error: msg("Sign in with Google to edit your profile.") }, { status: 401 });
   }
 
   // アイコン（絵文字）を選ぶ・Google の表示に戻すときは、アップロードした写真を外す（写真かアイコンのどちらか一方）。
@@ -70,7 +71,7 @@ export async function PATCH(request: Request) {
       data: { ...parsed.data, avatarImage: null },
     });
     if (!result.count) {
-      return NextResponse.json({ error: "Your profile changed somewhere else. Try again." }, { status: 409 });
+      return NextResponse.json({ error: msg("Your profile changed somewhere else. Try again.") }, { status: 409 });
     }
     updated = await prisma.anonymousUser.findUniqueOrThrow({ where: { id: row.id } });
     if (row.avatarImage) await deleteStoredImage(row.avatarImage).catch(() => {});

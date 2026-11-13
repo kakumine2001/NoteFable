@@ -1,4 +1,5 @@
 import { isImageMimeType } from "@/lib/client-files";
+import { msg } from "@/lib/i18n/translate";
 
 type SubmissionValidationInput = {
   imageGenerationMode: boolean;
@@ -12,7 +13,7 @@ export function getSubmissionValidationError({
   if (!imageGenerationMode) return null;
 
   if (fileMimeTypes.some((mimeType) => !isImageMimeType(mimeType || "application/octet-stream"))) {
-    return "Image generation only accepts image uploads. Remove non-image files or turn off Image generation.";
+    return msg("Image generation only accepts image uploads. Remove non-image files or turn off Image generation.");
   }
 
   return null;

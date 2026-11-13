@@ -7,6 +7,8 @@ import "@/components/chat-project-settings.css";
 // 1 回の検索で 20 件近く返ることがあるため、最初は数件だけ見せる。
 const VISIBLE_SOURCES = 6;
 import { hostOf, splitThought, type ProgressStep } from "@/lib/chat-activity";
+import { useT } from "@/components/i18n-provider";
+import type { Translate } from "@/lib/i18n/translate";
 
 type ChatActivityProps = {
   steps: ProgressStep[];
@@ -37,24 +39,24 @@ function sourceLabel(url: string) {
 }
 
 // ヘッダーに出す「今やっていること」。最後のステップを短い一文にする。
-function describeCurrent(steps: ProgressStep[]) {
+function describeCurrent(steps: ProgressStep[], t: Translate) {
   const last = steps.at(-1);
-  if (!last) return "Thinking";
-  if (last.kind === "thought") return splitThought(last.text).title || "Thinking";
-  if (last.kind === "tool") return last.status === "done" && last.label ? last.label : toolRunningLabel(last.name);
-  if (last.kind === "context") return `Using project “${last.projectName}”`;
-  if (last.status === "running" || !last.action) return "Searching the web";
-  if (last.action.kind === "search") return `Searching “${last.action.queries[0] ?? "the web"}”`;
-  if (last.action.kind === "open_page") return `Reading ${hostOf(last.action.url)}`;
-  return `Scanning ${hostOf(last.action.url)}`;
+  if (!last) return t("Thinking");
+  if (last.kind === "thought") return splitThought(last.text).title || t("Thinking");
+  if (last.kind === "tool") return last.status === "done" && last.label ? last.label : toolRunningLabel(last.name, t);
+  if (last.kind === "context") return t("Using project “{name}”", { name: last.projectName });
+  if (last.status === "running" || !last.action) return t("Searching the web");
+  if (last.action.kind === "search") return last.action.queries[0] ? t("Searching “{query}”", { query: last.action.queries[0] }) : t("Searching the web");
+  if (last.action.kind === "open_page") return t("Reading {host}", { host: hostOf(last.action.url) });
+  return t("Scanning {host}", { host: hostOf(last.action.url) });
 }
 
-function toolRunningLabel(name: string) {
-  return name === "search_notes" ? "Searching your notes" : "Reading your note";
+function toolRunningLabel(name: string, t: Translate) {
+  return name === "search_notes" ? t("Searching your notes") : t("Reading your note");
 }
 
 // 完了後のヘッダー用に、検索回数と参照ページ数をまとめる。
-function summarize(steps: ProgressStep[]) {
+function summarize(steps: ProgressStep[], t: Translate) {
   let searches = 0;
   let notes = 0;
   let projectNotes = 0;
@@ -75,14 +77,15 @@ function summarize(steps: ProgressStep[]) {
     }
   }
   return [
-    searches ? `${searches} ${searches === 1 ? "search" : "searches"}` : "",
-    pages.size ? `${pages.size} ${pages.size === 1 ? "source" : "sources"}` : "",
-    notes ? `${notes} ${notes === 1 ? "note lookup" : "note lookups"}` : "",
-    projectNotes ? `${projectNotes} project ${projectNotes === 1 ? "note" : "notes"}` : projectInstructions ? "project instructions" : "",
+    searches ? (searches === 1 ? t("1 search") : t("{count} searches", { count: searches })) : "",
+    pages.size ? (pages.size === 1 ? t("1 source") : t("{count} sources", { count: pages.size })) : "",
+    notes ? (notes === 1 ? t("1 note lookup") : t("{count} note lookups", { count: notes })) : "",
+    projectNotes ? (projectNotes === 1 ? t("1 project note") : t("{count} project notes", { count: projectNotes })) : projectInstructions ? t("project instructions") : "",
   ].filter(Boolean);
 }
 
 function SourceChips({ urls }: { urls: string[] }) {
+  const t = useT();
   const [showAll, setShowAll] = useState(false);
   if (!urls.length) return null;
   const hidden = showAll ? 0 : Math.max(0, urls.length - VISIBLE_SOURCES);
@@ -96,7 +99,7 @@ function SourceChips({ urls }: { urls: string[] }) {
       ))}
       {hidden > 0 && (
         <button type="button" className="chat-activity-chip" onClick={() => setShowAll(true)}>
-          +{hidden} more
+          {t("+{count} more", { count: hidden })}
         </button>
       )}
     </div>
@@ -104,6 +107,7 @@ function SourceChips({ urls }: { urls: string[] }) {
 }
 
 function StepRow({ step }: { step: ProgressStep }) {
+  const t = useT();
   if (step.kind === "thought") {
     const { title, body } = splitThought(step.text);
     return (
@@ -118,12 +122,12 @@ function StepRow({ step }: { step: ProgressStep }) {
   }
 
   if (step.kind === "context") {
-    const used = [step.hasInstructions ? "instructions" : "", step.notes.length ? `${step.notes.length} reference ${step.notes.length === 1 ? "note" : "notes"}` : ""].filter(Boolean);
+    const used = [step.hasInstructions ? t("instructions") : "", step.notes.length ? (step.notes.length === 1 ? t("1 reference note") : t("{count} reference notes", { count: step.notes.length })) : ""].filter(Boolean);
     return (
       <li className="chat-activity-step">
         <span className="chat-activity-icon"><FolderOpen size={13} strokeWidth={1.9} /></span>
         <div className="min-w-0 flex-1">
-          <div className="chat-activity-title">Used project “{step.projectName}”: {used.join(" + ")}</div>
+          <div className="chat-activity-title">{t("Used project “{name}”: {items}", { name: step.projectName, items: used.join(" + ") })}</div>
           {step.notes.length > 0 && (
             <div className="chat-activity-sources">
               {step.notes.map((note) => (
@@ -131,12 +135,12 @@ function StepRow({ step }: { step: ProgressStep }) {
                   key={note.id}
                   type="button"
                   className="chat-activity-chip chat-context-chip"
-                  title={note.truncated ? `${note.title} (only the beginning was shared)` : note.title}
+                  title={note.truncated ? t("{title} (only the beginning was shared)", { title: note.title }) : note.title}
                   onClick={() => window.dispatchEvent(new CustomEvent("studymate:open-note", { detail: { id: note.id } }))}
                 >
                   <NotebookText size={11} strokeWidth={2} aria-hidden="true" />
                   <span>{note.title}</span>
-                  {note.truncated && <span className="chat-context-partial">partial</span>}
+                  {note.truncated && <span className="chat-context-partial">{t("partial")}</span>}
                 </button>
               ))}
             </div>
@@ -153,7 +157,7 @@ function StepRow({ step }: { step: ProgressStep }) {
         <span className="chat-activity-icon">
           <Icon size={13} strokeWidth={1.9} className={step.status === "running" ? "animate-spin" : undefined} />
         </span>
-        <div className="chat-activity-title">{step.status === "done" && step.label ? step.label : `${toolRunningLabel(step.name)}…`}</div>
+        <div className="chat-activity-title">{step.status === "done" && step.label ? step.label : `${toolRunningLabel(step.name, t)}…`}</div>
       </li>
     );
   }
@@ -163,7 +167,7 @@ function StepRow({ step }: { step: ProgressStep }) {
     return (
       <li className="chat-activity-step">
         <span className="chat-activity-icon"><LoaderCircle size={13} strokeWidth={1.9} className="animate-spin" /></span>
-        <div className="chat-activity-title">Searching the web…</div>
+        <div className="chat-activity-title">{t("Searching the web…")}</div>
       </li>
     );
   }
@@ -173,9 +177,9 @@ function StepRow({ step }: { step: ProgressStep }) {
       <li className="chat-activity-step">
         <span className="chat-activity-icon"><Search size={13} strokeWidth={1.9} /></span>
         <div className="min-w-0 flex-1">
-          <div className="chat-activity-title">Searched</div>
+          <div className="chat-activity-title">{t("Searched")}</div>
           <ul className="chat-activity-queries">
-            {action.queries.length ? action.queries.map((query) => <li key={query}>{query}</li>) : <li>the web</li>}
+            {action.queries.length ? action.queries.map((query) => <li key={query}>{query}</li>) : <li>{t("the web")}</li>}
           </ul>
           <SourceChips urls={action.sources} />
         </div>
@@ -191,7 +195,7 @@ function StepRow({ step }: { step: ProgressStep }) {
       </span>
       <div className="min-w-0 flex-1">
         <div className="chat-activity-title">
-          {isFind ? <>Looked for “{action.pattern}” in</> : "Read"}{" "}
+          {isFind ? t("Looked for “{pattern}” in", { pattern: action.pattern }) : t("Read")}{" "}
           <a href={action.url} target="_blank" rel="noopener noreferrer" title={action.url} className="chat-activity-link">
             {shortUrl(action.url)}
           </a>
@@ -202,6 +206,7 @@ function StepRow({ step }: { step: ProgressStep }) {
 }
 
 export function ChatActivity({ steps, isThinking, seconds }: ChatActivityProps) {
+  const t = useT();
   // null は「ユーザーがまだ触っていない」。その間は考え中だけ開き、本文が来たら自動で畳む。
   const [manualOpen, setManualOpen] = useState<boolean | null>(null);
   const open = steps.length > 0 && (manualOpen ?? isThinking);
@@ -213,8 +218,8 @@ export function ChatActivity({ steps, isThinking, seconds }: ChatActivityProps) 
   }, [isThinking, steps]);
   const time = seconds === null ? "" : `${seconds}s`;
   const label = isThinking
-    ? [describeCurrent(steps), time].filter(Boolean).join(" · ")
-    : [time ? `Thought for ${time}` : "Thought process", ...summarize(steps)].join(" · ");
+    ? [describeCurrent(steps, t), time].filter(Boolean).join(" · ")
+    : [time ? t("Thought for {time}", { time }) : t("Thought process"), ...summarize(steps, t)].join(" · ");
 
   return (
     <div className={`chat-activity ${isThinking ? "is-thinking" : ""}`}>

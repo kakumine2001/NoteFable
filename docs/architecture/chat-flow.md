@@ -46,7 +46,7 @@ sequenceDiagram
 
 ## 前端发送的数据
 
-`src/app/app/page.tsx`（`/app` 工作区）会构建：
+`src/app/(localized)/app/page.tsx`（`/app` 工作区）会构建：
 
 ```text
 FormData

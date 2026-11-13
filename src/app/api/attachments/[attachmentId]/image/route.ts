@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateAnonymousUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStoredImageReadUrl, readStoredImage } from "@/lib/storage";
+import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function GET(_request: Request, context: RouteContext) {
   });
 
   if (!attachment?.imageStoragePath) {
-    return NextResponse.json({ error: "Attachment not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Attachment not found.") }, { status: 404 });
   }
 
   try {
@@ -53,6 +54,6 @@ export async function GET(_request: Request, context: RouteContext) {
       },
     });
   } catch {
-    return NextResponse.json({ error: "Attachment file not found." }, { status: 404 });
+    return NextResponse.json({ error: msg("Attachment file not found.") }, { status: 404 });
   }
 }

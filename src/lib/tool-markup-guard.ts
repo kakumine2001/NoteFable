@@ -1,3 +1,4 @@
+import { msg } from "@/lib/i18n/translate";
 // 上流がツール呼び出しを本文として返した場合、表示・保存前に止める。
 const TOOL_MARKERS = [
   ...["｜", "｜｜", "|", "||"].flatMap((bar) => [
@@ -19,7 +20,7 @@ export class ToolMarkupGuard {
     this.pending += delta;
     if (hasToolMarkup(this.pending)) {
       throw new Error(
-        "AI returned an invalid tool response. Please retry, or use GPT for web search.",
+        msg("AI returned an invalid tool response. Please retry, or use GPT for web search."),
       );
     }
 
@@ -40,7 +41,7 @@ export class ToolMarkupGuard {
     this.pending = "";
     // 単独の < や </ は通常の文章でも使う。
     if (tail.length > 2) {
-      throw new Error("AI returned an incomplete tool response. Please retry.");
+      throw new Error(msg("AI returned an incomplete tool response. Please retry."));
     }
     return tail;
   }

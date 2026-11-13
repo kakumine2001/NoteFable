@@ -5,21 +5,24 @@ import { useEffect, useRef, useState } from "react";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { TRASH_RETENTION_DAYS, type NotePageSummary, type NoteTrashItem } from "@/types/notes";
 import "@/components/note-trash-history.css";
+import { useNow } from "@/lib/use-now";
+import { useT } from "@/components/i18n-provider";
+import { createTranslator, msg, type Translate } from "@/lib/i18n/translate";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 // 「Deleted 3 days ago · 27 days left」。経過日は切り捨て、残り日数は切り上げる（残り 0 日とは言わない）。
-export function trashTimeLabel(item: Pick<NoteTrashItem, "deletedAt" | "purgeAt">, now = Date.now()) {
+export function trashTimeLabel(item: Pick<NoteTrashItem, "deletedAt" | "purgeAt">, now = Date.now(), t: Translate = createTranslator({})) {
   const ago = Math.max(0, Math.floor((now - new Date(item.deletedAt).getTime()) / DAY_MS));
   const left = Math.ceil((new Date(item.purgeAt).getTime() - now) / DAY_MS);
-  const deleted = ago === 0 ? "Deleted today" : `Deleted ${ago} day${ago === 1 ? "" : "s"} ago`;
-  return `${deleted} · ${left <= 0 ? "removing soon" : `${left} day${left === 1 ? "" : "s"} left`}`;
+  const deleted = ago === 0 ? t("Deleted today") : ago === 1 ? t("Deleted 1 day ago") : t("Deleted {count} days ago", { count: ago });
+  return `${deleted} · ${left <= 0 ? t("removing soon") : left === 1 ? t("1 day left") : t("{count} days left", { count: left })}`;
 }
 
 async function trashRequest(url: string, method = "GET") {
   const response = await fetch(url, { method, cache: "no-store" });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(typeof data.error === "string" && data.error ? data.error : "Trash request failed. Please try again.");
+  if (!response.ok) throw new Error(typeof data.error === "string" && data.error ? data.error : msg("Trash request failed. Please try again."));
   return data;
 }
 
@@ -27,6 +30,8 @@ type Confirm = { kind: "one"; id: string } | { kind: "all" };
 
 // ゴミ箱の一覧。戻す・完全に削除・ゴミ箱を空にする。復元したノートは "studymate:page-created" で Notes の一覧へ加わる。
 export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
+  const t = useT();
+  const now = useNow();
   const ref = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
   const [items, setItems] = useState<NoteTrashItem[] | null>(null);
@@ -42,7 +47,7 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
     let cancelled = false;
     trashRequest("/api/pages/trash")
       .then((data) => { if (!cancelled) { setItems(data.pages as NoteTrashItem[]); setLoadError(""); } })
-      .catch((caught) => { if (!cancelled) setLoadError(caught instanceof Error ? caught.message : "Could not load the trash."); });
+      .catch((caught) => { if (!cancelled) setLoadError(caught instanceof Error ? caught.message : msg("Could not load the trash.")); });
     return () => { cancelled = true; };
   }, [attempt]);
 
@@ -52,7 +57,7 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
     setBusy(true);
     setError("");
     try { await work(); }
-    catch (caught) { setError(caught instanceof Error ? caught.message : "Something went wrong. Please try again."); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : msg("Something went wrong. Please try again.")); }
     finally { locked.current = false; setBusy(false); }
   }
 
@@ -88,39 +93,39 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
       if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) onClose();
     }}>
     <div className="note-th-header">
-      <h2 id="note-trash-title" className="note-th-title"><Trash2 size={16} aria-hidden="true" />Trash</h2>
-      <button type="button" className="notion-button notes-delete" disabled={busy || !items?.length} onClick={() => setConfirm({ kind: "all" })}>Empty trash</button>
-      <button type="button" className="notion-icon-button" aria-label="Close trash" title="Close" onClick={onClose}><X size={16} /></button>
+      <h2 id="note-trash-title" className="note-th-title"><Trash2 size={16} aria-hidden="true" />{t("Trash")}</h2>
+      <button type="button" className="notion-button notes-delete" disabled={busy || !items?.length} onClick={() => setConfirm({ kind: "all" })}>{t("Empty trash")}</button>
+      <button type="button" className="notion-icon-button" aria-label={t("Close trash")} title={t("Close")} onClick={onClose}><X size={16} /></button>
     </div>
-    <p className="note-th-hint">Notes in the trash can be restored for {TRASH_RETENTION_DAYS} days. After that they are deleted for good.</p>
-    {confirm?.kind === "all" && <div className="note-th-confirm" role="group" aria-label="Empty trash confirmation">
-      <span className="note-th-confirm-text">Permanently delete {items?.length === 1 ? "this note" : `all ${items?.length ?? 0} notes`} in the trash? This cannot be undone.</span>
+    <p className="note-th-hint">{t("Notes in the trash can be restored for {count} days. After that they are deleted for good.", { count: TRASH_RETENTION_DAYS })}</p>
+    {confirm?.kind === "all" && <div className="note-th-confirm" role="group" aria-label={t("Empty trash confirmation")}>
+      <span className="note-th-confirm-text">{items?.length === 1 ? t("Permanently delete this note in the trash? This cannot be undone.") : t("Permanently delete all {count} notes in the trash? This cannot be undone.", { count: items?.length ?? 0 })}</span>
       <span className="note-th-confirm-actions">
-        <button autoFocus type="button" className="notion-button" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
-        <button type="button" className="notion-button notes-delete" disabled={busy} onClick={() => void emptyTrash()}>Empty trash</button>
+        <button autoFocus type="button" className="notion-button" disabled={busy} onClick={() => setConfirm(null)}>{t("Cancel")}</button>
+        <button type="button" className="notion-button notes-delete" disabled={busy} onClick={() => void emptyTrash()}>{t("Empty trash")}</button>
       </span>
     </div>}
-    {error && <p role="alert" className="note-th-error">{error}</p>}
+    {error && <p role="alert" className="note-th-error">{t(error)}</p>}
     <div className="note-th-body">
-      {loading && <p role="status" className="note-th-status">Loading trash…</p>}
-      {loadError && <p role="alert" className="note-th-status">{loadError}<br /><button type="button" className="notion-button" onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>Try again</button></p>}
-      {items && !items.length && <p role="status" className="note-th-status">The trash is empty.</p>}
-      {!!items?.length && <ul className="note-trash-list" aria-label="Notes in the trash">
+      {loading && <p role="status" className="note-th-status">{t("Loading trash…")}</p>}
+      {loadError && <p role="alert" className="note-th-status">{t(loadError)}<br /><button type="button" className="notion-button" onClick={() => { setLoadError(""); setAttempt((value) => value + 1); }}>{t("Try again")}</button></p>}
+      {items && !items.length && <p role="status" className="note-th-status">{t("The trash is empty.")}</p>}
+      {!!items?.length && <ul className="note-trash-list" aria-label={t("Notes in the trash")}>
         {items.map((item) => <li key={item.id} className="note-trash-row">
           <span className="note-th-icon" aria-hidden="true">{item.icon ?? <FileText size={16} />}</span>
           <span className="note-trash-text">
             <span className="note-th-row-title" title={item.title}>{item.title}</span>
-            <span className="note-th-row-meta">{trashTimeLabel(item)}</span>
+            <span className="note-th-row-meta">{trashTimeLabel(item, now, t)}</span>
           </span>
           {confirm?.kind === "one" && confirm.id === item.id
-            ? <span className="note-trash-confirm" role="group" aria-label={`Delete “${item.title}” forever?`}>
-              <span className="note-trash-confirm-text">Delete forever?</span>
-              <button autoFocus type="button" className="notion-button" disabled={busy} onClick={() => setConfirm(null)}>Cancel</button>
-              <button type="button" className="notion-button notes-delete" disabled={busy} onClick={() => void deleteForever(item)}>Delete forever</button>
+            ? <span className="note-trash-confirm" role="group" aria-label={t("Delete “{title}” forever?", { title: item.title })}>
+              <span className="note-trash-confirm-text">{t("Delete forever?")}</span>
+              <button autoFocus type="button" className="notion-button" disabled={busy} onClick={() => setConfirm(null)}>{t("Cancel")}</button>
+              <button type="button" className="notion-button notes-delete" disabled={busy} onClick={() => void deleteForever(item)}>{t("Delete forever")}</button>
             </span>
             : <span className="note-trash-actions">
-              <button type="button" className="notion-button" disabled={busy} aria-label={`Restore “${item.title}”`} onClick={() => void restore(item)}>Restore</button>
-              <button type="button" className="notion-button notes-delete" disabled={busy} aria-label={`Delete “${item.title}” forever`} onClick={() => setConfirm({ kind: "one", id: item.id })}>Delete forever</button>
+              <button type="button" className="notion-button" disabled={busy} aria-label={t("Restore “{title}”", { title: item.title })} onClick={() => void restore(item)}>{t("Restore")}</button>
+              <button type="button" className="notion-button notes-delete" disabled={busy} aria-label={t("Delete “{title}” forever", { title: item.title })} onClick={() => setConfirm({ kind: "one", id: item.id })}>{t("Delete forever")}</button>
             </span>}
         </li>)}
       </ul>}
