@@ -1,5 +1,7 @@
 import { notFound } from "next/navigation";
 import { I18nProvider } from "@/components/i18n-provider";
+import { ModelsProvider } from "@/components/models-provider";
+import { publicModels } from "@/lib/model-registry";
 import { isLocale, LOCALES } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 
@@ -16,6 +18,9 @@ export default async function LocalizedLayout({ children, params }: Readonly<{ c
   const { locale } = await params;
   if (!isLocale(locale)) notFound();
   return (
-    <I18nProvider locale={locale} messages={messagesFor(locale)}>{children}</I18nProvider>
+    <I18nProvider locale={locale} messages={messagesFor(locale)}>
+      {/* 使えるモデルはサーバーが決める。このページは静的なので、一覧はビルド時の STUDYMATE_MODELS で決まる。 */}
+      <ModelsProvider models={publicModels()}>{children}</ModelsProvider>
+    </I18nProvider>
   );
 }

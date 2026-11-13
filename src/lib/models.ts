@@ -22,13 +22,15 @@ export type ModelProvider = "openai" | "deepseek" | "anthropic";
 // Claude Models API: max_input_tokens / max_tokens (decimal token counts).
 export const ANTHROPIC_HAIKU_LIMITS = { contextWindow: 1_000_000, maxOutputTokens: 128_000 } as const;
 
-type ModelOption = {
+export type ModelOption = {
   // フロントエンドと API 間でやり取りする内部 ID。
   id: string;
   // UI に表示するモデル名。
   label: string;
   // 実際に呼び出すプロバイダー。ストリーム解析の分岐にも使う。
   provider: ModelProvider;
+  // 上流 API へ実際に渡すモデル名。未指定なら id と同じ（組み込みモデルは従来の環境変数でも差し替えできる）。
+  upstreamModel?: string;
   // 画像添付をモデル入力として扱えるかどうか。
   supportsImageInput: boolean;
   // 実際に利用できるプロバイダーの検索機能だけを有効にする。
@@ -90,22 +92,30 @@ export const AVAILABLE_MODELS = MODEL_OPTIONS.map((model) => model.id);
 
 export type ModelId = (typeof AVAILABLE_MODELS)[number];
 
-export function getModelOption(model: string) {
+// サーバーが決めた「今使えるモデル」の一覧とその既定。環境変数 STUDYMATE_MODELS で組み込みの一覧を上書きでき
+// （src/lib/model-registry.ts）、画面側は自分で持たずサーバーから受け取る（src/components/models-provider.tsx）。
+export type ModelRegistry = { options: readonly ModelOption[]; defaultModel: string };
+
+export const BUILTIN_REGISTRY: ModelRegistry = { options: MODEL_OPTIONS, defaultModel: DEFAULT_MODEL };
+
+export function getModelOption(model: string, options: readonly ModelOption[] = MODEL_OPTIONS) {
   // 未知のモデル ID が来た場合は先頭の標準モデルへ倒し、呼び出し側の undefined 分岐を減らす。
-  return MODEL_OPTIONS.find((option) => option.id === model) ?? MODEL_OPTIONS[0];
+  return options.find((option) => option.id === model) ?? options[0];
 }
 
-export function normalizeModel(value: FormDataEntryValue | null) {
+export function normalizeModel(value: FormDataEntryValue | null, registry: ModelRegistry = BUILTIN_REGISTRY) {
   // FormData から来る値は File の可能性もあるため、文字列だけをモデル ID として扱う。
-  const model = typeof value === "string" ? value : DEFAULT_MODEL;
-  return AVAILABLE_MODELS.includes(model as ModelId)
-    ? model
-    : DEFAULT_MODEL;
+  const model = typeof value === "string" ? value : registry.defaultModel;
+  return registry.options.some((option) => option.id === model) ? model : registry.defaultModel;
 }
 
-export function normalizeReasoning(value: FormDataEntryValue | null, model = DEFAULT_MODEL) {
+export function normalizeReasoning(
+  value: FormDataEntryValue | null,
+  model = DEFAULT_MODEL,
+  options: readonly ModelOption[] = MODEL_OPTIONS,
+) {
   // 推論強度はモデルごとに対応範囲が違うため、先にモデル設定を取得する。
-  const option = getModelOption(model);
+  const option = getModelOption(model, options);
   // 未指定ならそのモデルのデフォルト推論強度を使う。
   const effort = typeof value === "string" ? value : option.defaultReasoning;
   return option.reasoningEfforts.includes(effort as ReasoningEffort)

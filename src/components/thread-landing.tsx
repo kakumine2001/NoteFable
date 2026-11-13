@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LandingNativeRedirect } from "@/components/landing-native-redirect";
 import { LanguageSelect } from "@/components/language-select";
-import { DEFAULT_MODEL, MODEL_OPTIONS } from "@/lib/models";
+import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/studymate-logo";
 import { useT } from "@/components/i18n-provider";
 
@@ -20,7 +20,6 @@ const QUESTIONS = [
   "Explain Rayleigh scattering like I'm twelve.",
 ];
 
-const DEFAULT_MODEL_LABEL = MODEL_OPTIONS.find((model) => model.id === DEFAULT_MODEL)?.label ?? MODEL_OPTIONS[0].label;
 
 // 打鍵ごとの再レンダーをこの小さな部品に閉じ込める。
 function TypedQuestion() {
@@ -92,6 +91,7 @@ type Station = { id: string; label: string; title: string; body: string; card: R
 
 function useStations(): Station[] {
   const t = useT();
+  const { options: modelOptions, defaultModel } = useModels();
   return [
   {
     id: "ask",
@@ -103,7 +103,7 @@ function useStations(): Station[] {
         <p className="tl-bubble">{t("Why is the sunset red if the sky is blue?")}</p>
         <span className="tl-file"><Paperclip size={13} />{" "}optics-ch3.pdf</span>
         <ul className="tl-models" aria-label={t("Available models")}>
-          {MODEL_OPTIONS.map((model) => <li key={model.id} data-current={model.id === DEFAULT_MODEL || undefined}>{model.label}</li>)}
+          {modelOptions.map((model) => <li key={model.id} data-current={model.id === defaultModel || undefined}>{model.label}</li>)}
         </ul>
       </div>
     ),
@@ -194,6 +194,8 @@ function useFacts() {
 
 export function ThreadLanding() {
   const t = useT();
+  const { options: modelOptions, defaultModel } = useModels();
+  const defaultModelLabel = modelOptions.find((model) => model.id === defaultModel)?.label ?? modelOptions[0].label;
   const STATIONS = useStations();
   const FACTS = useFacts();
   const journeyRef = useRef<HTMLOListElement>(null);
@@ -275,7 +277,7 @@ export function ThreadLanding() {
               <span className="tl-composer-text" aria-hidden="true"><TypedQuestion /></span>
               <span className="tl-composer-bar" aria-hidden="true">
                 <span className="tl-composer-plus"><Plus size={17} /></span>
-                <span className="tl-composer-model">{DEFAULT_MODEL_LABEL}</span>
+                <span className="tl-composer-model">{defaultModelLabel}</span>
                 <span className="tl-composer-send"><ArrowUp size={17} /></span>
               </span>
             </Link>

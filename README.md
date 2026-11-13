@@ -159,6 +159,8 @@ OPENAI_IMAGE_MODEL="gpt-image-2.6-sunburst"
 OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
 ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
+# 开放哪些模型（JSON 数组，格式见 docs/architecture/deployment.md）；不设置则使用全部内置模型
+STUDYMATE_MODELS='[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5"}]'
 STUDYMATE_STORAGE_DIR="data/storage"
 ```
 
@@ -168,9 +170,7 @@ Vercel Blob（生产环境图片存储）必需：
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 ```
 
-模型显示名固定写在 `src/lib/models.ts`，不通过环境变量覆盖。
-
-模型 ID、能力（图片输入 / Web 搜索）和推理档位是客户端与 API 之间的共同契约，仍然只定义在 `src/lib/models.ts`。环境变量只用于覆盖上游模型名和接入点。
+内置模型及其能力（图片输入 / Web 搜索 / 推理档位）定义在 `src/lib/models.ts`。开放哪些模型、显示名和上游模型名由服务器通过 `STUDYMATE_MODELS` 决定，网页和 Android 都从服务器读取这份列表；不设置时使用全部内置模型。格式见 [docs/architecture/deployment.md](docs/architecture/deployment.md)。
 
 ## 数据库
 

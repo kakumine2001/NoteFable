@@ -10,7 +10,7 @@ import {
 } from "@/lib/files";
 import {
   DEFAULT_IMAGE_MODEL,
-  DEFAULT_MODEL,
+  type ModelOption,
   normalizeModel,
   normalizeReasoning,
   toDbReasoning,
@@ -22,6 +22,7 @@ import { buildImageContext } from "@/lib/image-context";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import { msg } from "@/lib/i18n/translate";
+import { getModelRegistry } from "@/lib/model-registry";
 
 export const runtime = "nodejs";
 
@@ -91,9 +92,9 @@ function normalizeQuality(value: unknown): ImageQuality {
     : "auto";
 }
 
-function normalizeReasoningValue(value: unknown, model: string) {
+function normalizeReasoningValue(value: unknown, model: string, options: readonly ModelOption[]) {
   // リクエスト由来の reasoning は unknown なので、文字列の場合だけ共通の正規化関数へ渡す。
-  return normalizeReasoning(typeof value === "string" ? value : null, model);
+  return normalizeReasoning(typeof value === "string" ? value : null, model, options);
 }
 
 function firstFormString(formData: FormData, ...names: string[]) {
@@ -312,10 +313,11 @@ export async function POST(request: Request) {
   const prompt = typeof rawPrompt === "string" ? rawPrompt.trim() : "";
   // 既存会話へ画像生成結果を追加する場合のセッション ID。新規なら空文字。
   const sessionId = typeof body.sessionId === "string" ? body.sessionId.trim() : "";
-  // UI から送られたモデル ID。許可済みでなければ DEFAULT_MODEL へ戻す。
-  const model = normalizeModel(typeof body.model === "string" ? body.model : DEFAULT_MODEL);
+  // UI から送られたモデル ID。サーバーが許可していないものは既定のモデルへ戻す。
+  const registry = getModelRegistry();
+  const model = normalizeModel(typeof body.model === "string" ? body.model : registry.defaultModel, registry);
   // 履歴保存用の推論強度。画像生成 API 自体には直接渡していないが、会話履歴の設定として残す。
-  const reasoning = normalizeReasoningValue(body.reasoning, model);
+  const reasoning = normalizeReasoningValue(body.reasoning, model, registry.options);
 
   if (!prompt) {
     return NextResponse.json({ error: msg("Prompt is required.") }, { status: 400 });

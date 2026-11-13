@@ -29,8 +29,8 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 ## Models and API
 
-- `src/lib/models.ts` is the single source for models, capabilities and reasoning levels. Change it first, then align UI and API validation.
-- Only upstream model names and base URLs are env-configurable; labels, routing and capabilities stay in code.
+- `src/lib/models.ts` defines the built-in models, capabilities and reasoning levels. The server decides which are offered through `STUDYMATE_MODELS` (`src/lib/model-registry.ts`, format in `docs/architecture/deployment.md`); web and Android take the list from the server (`ModelsProvider`, `GET /api/models`) and never hard-code it. Server code reads models through `getModelRegistry()`.
+- Provider routing and request code stay in code: an env-defined model can only reuse an existing provider. After changing `models.ts`, regenerate the Android fallback with `scripts/gen-native-models.ts`.
 - Chat system prompt lives only in `buildInstructions()` (`src/app/api/chat/route.ts`); don't duplicate it per provider.
 - OpenAI/DeepSeek use Responses API; Anthropic uses Messages API (`src/lib/anthropic-messages.ts`). DeepSeek ignores `web_search`: don't send it.
 - Haiku: adaptive thinking with `output_config.effort`, no sampling params or thinking budget; keep native blocks for `pause_turn`.

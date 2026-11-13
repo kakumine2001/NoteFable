@@ -41,7 +41,7 @@ import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
-import { DEFAULT_MODEL, getModelOption } from "@/lib/models";
+import { useModels } from "@/components/models-provider";
 import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
@@ -150,6 +150,7 @@ function computeNotesList() {
 
 export default function Home() {
   const t = useT();
+  const { defaultModel, getModelOption } = useModels();
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
   // スマホで Notes を開いたとき、ノートが選ばれていない間は一覧（NotesHome）を出す。URL に page= が無いことと対応させる。
@@ -390,9 +391,9 @@ export default function Home() {
   const composerMountedRef = useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current ? inputRef.current?.value ?? composerTextRef.current : null));
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
-  const [model, setModel] = useState(DEFAULT_MODEL);
+  const [model, setModel] = useState(defaultModel);
   // 推論強度の UI 選択値。モデルごとに選べる値が違うため、changeModel で補正する。
-  const [reasoning, setReasoning] = useState("medium");
+  const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
