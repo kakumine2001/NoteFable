@@ -1185,15 +1185,15 @@ export default function Home() {
       const limited = error instanceof UsageLimitError;
       if (limited) {
         if (error.tier === "guest") setGuestLimit(error.kind);
-        // 上限で断られた送信はどこにも保存されていない。入力欄が空のままなら、本文と添付を入力欄に戻す。
+        // 上限で断られた送信はどこにも保存されていない。本文と添付を入力欄に戻す。
+        // 待っている間に書き足した本文や添付があれば消さず、断られた分を前に足す。
         // 添付のプレビューは入力欄側が持ち続けるので、画面上の送信済み発言からは外す。
         submittedInputRestoreGuardRef.current = null;
-        if (!(inputRef.current?.value ?? "").trim()) {
-          setInput(submittedInputValue);
-          if (inputRef.current) inputRef.current.value = submittedInputValue;
-        }
-        if (submittedFiles.length && !filesRef.current.length) setFiles(submittedFiles);
-        else revokeUploadPreviews(submittedFiles);
+        const typedMeanwhile = inputRef.current?.value ?? "";
+        const restored = typedMeanwhile.trim() ? [submittedInputValue.trimEnd(), typedMeanwhile].join("\n\n") : submittedInputValue;
+        setInput(restored);
+        if (inputRef.current) inputRef.current.value = restored;
+        if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
       }
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>

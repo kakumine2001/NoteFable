@@ -119,6 +119,19 @@ describe("DeepSeek chat response boundary", () => {
     expect(mocks.refundUsage).not.toHaveBeenCalled();
   });
 
+  it("gives the send back when the reader cancels before any text reaches them", async () => {
+    mocks.fetch.mockResolvedValue(new Response([
+      { type: "response.output_text.delta", delta: "届かない" },
+      { type: "response.completed" },
+    ].map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")));
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "deepseek-flash");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    await response.body!.cancel();
+    await vi.waitFor(() => expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] }));
+  });
+
   it("gives the send back when saving fails before the answer starts", async () => {
     mocks.createMessage.mockRejectedValueOnce(new Error("db down"));
     const form = new FormData();

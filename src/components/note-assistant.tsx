@@ -178,8 +178,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const limited = caught instanceof UsageLimitError;
       if (limited && caught.tier === "guest") setGuestLimit(true);
-      // 上限で断られた本文は保存されていない。入力欄から送ったもので、入力欄が空なら戻す。
-      if (limited && display === undefined) setInput((current) => current || text);
+      // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
+      if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       setMessages((current) => current.map((message) => message.id === assistantId
         ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail),
