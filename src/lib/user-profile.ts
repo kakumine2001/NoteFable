@@ -1,5 +1,5 @@
 import { isEmojiIcon } from "@/lib/emoji-icon";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 export const MAX_DISPLAY_NAME = 40;
 
@@ -41,7 +41,7 @@ export function parseProfilePatch(body: unknown): { ok: true; data: ProfilePatch
 
   if ("displayName" in input) {
     const name = parseDisplayName(input.displayName);
-    if (!name.ok) return { ok: false, error: `Name must be 1–${MAX_DISPLAY_NAME} characters with no control characters.` };
+    if (!name.ok) return { ok: false, error: fmt("Name must be 1–{max} characters with no control characters.", { max: MAX_DISPLAY_NAME }) };
     data.displayName = name.value;
   }
   if ("icon" in input) {

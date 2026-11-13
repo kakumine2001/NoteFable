@@ -8,7 +8,7 @@ describe("display language selection", () => {
   });
 
   it("uses the browser's highest-ranked supported language before country", () => {
-    expect(resolveLocale({ preference: "auto", acceptLanguage: "zh-Hant-TW,ja;q=0.8", country: "JP" })).toBe("zh");
+    expect(resolveLocale({ preference: "auto", acceptLanguage: "zh-Hant-TW,ja;q=0.8", country: "JP" })).toBe("zh-Hant");
     expect(localeFromAcceptLanguage("fr, en;q=0.4,ja-JP;q=0.9,zh;q=0.8")).toBe("ja");
     expect(localeFromAcceptLanguage("en;q=0.5,ja;q=0.5")).toBe("en");
     expect(localeFromAcceptLanguage("EN_gb")).toBe("en");
@@ -20,8 +20,16 @@ describe("display language selection", () => {
     expect(localeFromAcceptLanguage(null)).toBeNull();
   });
 
-  it.each(["CN", "TW", "HK", "MO", "SG"])("falls back to Chinese in %s", (country) => {
+  it.each(["CN", "SG"])("falls back to Simplified Chinese in %s", (country) => {
     expect(resolveLocale({ preference: "auto", acceptLanguage: "fr-FR", country })).toBe("zh");
+  });
+
+  it.each(["TW", "HK", "MO"])("falls back to Traditional Chinese in %s", (country) => {
+    expect(resolveLocale({ preference: "auto", acceptLanguage: "fr-FR", country })).toBe("zh-Hant");
+  });
+
+  it.each([["zh-TW", "zh-Hant"], ["zh-HK", "zh-Hant"], ["zh-Hant", "zh-Hant"], ["zh-Hans-HK", "zh"], ["zh-CN", "zh"], ["zh-SG", "zh"], ["zh", "zh"]])("reads %s as %s", (tag, locale) => {
+    expect(localeFromAcceptLanguage(tag)).toBe(locale);
   });
 
   it("uses Japan, then English as remaining fallbacks", () => {
@@ -32,7 +40,7 @@ describe("display language selection", () => {
     expect(localeFromCountry(null)).toBeNull();
   });
 
-  it.each([undefined, null, "auto", "de", "constructor", "zh-CN", ""])("treats invalid cookie %s as automatic", (value) => {
+  it.each([undefined, null, "auto", "de", "constructor", "zh-CN", "zh-hant", ""])("treats invalid cookie %s as automatic", (value) => {
     expect(parsePreference(value)).toBe("auto");
   });
 });

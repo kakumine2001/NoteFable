@@ -4,7 +4,7 @@ import { buildUpstreamErrorMessage } from "@/lib/upstream-errors";
 import { ANTHROPIC_HAIKU_LIMITS, type ReasoningEffort } from "@/lib/models";
 import type { WebSearchMode } from "@/lib/web-search";
 import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 type Block = {
   type: string;
@@ -177,7 +177,7 @@ export class AnthropicStreamTurn {
     if (event.type === "message_delta") this.stopReason = event.delta?.stop_reason ?? this.stopReason;
     if (event.type === "message_stop") {
       if (!["end_turn", "stop_sequence", "pause_turn", "tool_use"].includes(this.stopReason)) {
-        throw new Error(`Claude response stopped: ${this.stopReason || "unknown reason"}. Please retry.`);
+        throw new Error(fmt("Claude response stopped: {reason}. Please retry.", { reason: this.stopReason || "unknown reason" }));
       }
       this.completed = true;
     }

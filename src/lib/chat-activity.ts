@@ -1,6 +1,7 @@
 // 回答前の途中経過（推論要約、Web 検索、Notes ツールの動き）を、プロバイダー非依存の形にそろえる。
 // サーバーは上流イベントを ActivityEvent に変換して流し、クライアントは ActivityStep に積み上げて表示する。
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
+import { isFailureInfo, type FailureInfo } from "@/lib/failure-text";
 
 export type WebAction =
   | { kind: "search"; queries: string[]; sources: string[] }
@@ -16,17 +17,20 @@ export type ActivityStep =
   | ({ id: string; kind: "context" } & ContextInfo)
   | { id: string; kind: "web"; status: "running" | "done"; action?: WebAction }
   | { id: string; kind: "tool"; status: "running" | "done"; name: string; label?: string }
+  | ({ id: string; kind: "failure" } & FailureInfo)
   | ({ kind: "proposal" } & PageEditProposal)
   | ({ kind: "create_proposal" } & PageCreateProposal);
 
 // 進捗の一覧に出すステップ。編集案・新規ページ案は一覧ではなく、回答の下に承認カードとして出す。
-export type ProgressStep = Exclude<ActivityStep, { kind: "proposal" | "create_proposal" }>;
+export type ProgressStep = Exclude<ActivityStep, { kind: "proposal" | "create_proposal" | "failure" }>;
+type StoredStep = Exclude<ActivityStep, { kind: "proposal" | "create_proposal" }>;
 
 export type ActivityEvent =
   | { type: "thought"; id: string; delta: string }
   | ({ type: "context"; id: string } & ContextInfo)
   | { type: "web"; id: string; status: "running" | "done"; action?: WebAction }
   | { type: "tool"; id: string; status: "running" | "done"; name: string; label?: string }
+  | ({ type: "failure"; id: string } & FailureInfo)
   | ({ type: "proposal" } & PageEditProposal)
   | ({ type: "create_proposal" } & PageCreateProposal);
 
@@ -206,6 +210,11 @@ export function applyActivityEvent(steps: ActivityStep[], event: ActivityEvent):
     const step: ActivityStep = { ...rest, kind: "create_proposal" };
     return index === -1 ? [...steps, step] : steps.map((existing, i) => (i === index ? step : existing));
   }
+  if (event.type === "failure") {
+    if (!isFailureInfo(event)) return steps;
+    const step: ActivityStep = { id: event.id, kind: "failure", offset: event.offset, detail: event.detail };
+    return index === -1 ? [...steps, step] : steps.map((existing, i) => (i === index ? step : existing));
+  }
   const next: ActivityStep = event.type === "tool"
     ? { id: event.id, kind: "tool", status: event.status, name: event.name, label: event.label }
     : { id: event.id, kind: "web", status: event.status, action: event.action };
@@ -218,7 +227,7 @@ const MAX_STORED_THOUGHT = 20000;
 // 途中経過を DB 保存用の JSON にする。提案は NoteProposal に別途保存済みなので含めない。
 export function serializeActivity(steps: ActivityStep[]): string | undefined {
   let budget = MAX_STORED_THOUGHT;
-  const stored: ProgressStep[] = [];
+  const stored: StoredStep[] = [];
   for (const step of steps) {
     if (step.kind === "proposal" || step.kind === "create_proposal") continue;
     // 完了しなかった検索（action なし）は、再読み込み後に「検索中」のまま残るので保存しない。
@@ -253,7 +262,7 @@ function parseStoredWebAction(value: unknown): WebAction | undefined {
 }
 
 // DB から読んだ途中経過を検証して戻す。壊れた JSON や想定外の形は捨て、表示を壊さない。
-export function parseStoredActivity(raw: string | null | undefined): ProgressStep[] | undefined {
+export function parseStoredActivity(raw: string | null | undefined): StoredStep[] | undefined {
   if (!raw) return undefined;
   let data: unknown;
   try {
@@ -263,10 +272,11 @@ export function parseStoredActivity(raw: string | null | undefined): ProgressSte
   }
   if (!Array.isArray(data)) return undefined;
 
-  const steps: ProgressStep[] = [];
+  const steps: StoredStep[] = [];
   for (const item of data) {
     const step = item as Record<string, unknown> | null;
     if (!step || typeof step.id !== "string") continue;
+    const id = step.id;
     if (step.kind === "thought" && typeof step.text === "string") {
       steps.push({ id: step.id, kind: "thought", text: step.text });
     } else if (step.kind === "web") {
@@ -279,6 +289,8 @@ export function parseStoredActivity(raw: string | null | undefined): ProgressSte
     } else if (step.kind === "tool" && typeof step.name === "string") {
       const label = text(step.label);
       steps.push({ id: step.id, kind: "tool", status: "done", name: step.name, ...(label ? { label } : {}) });
+    } else if (step.kind === "failure" && isFailureInfo(step)) {
+      steps.push({ id, kind: "failure", offset: step.offset, detail: step.detail });
     }
   }
   return steps.length ? steps : undefined;

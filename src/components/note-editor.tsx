@@ -4,7 +4,7 @@ import { BlockNoteSchema, createCodeBlockSpec, createHeadingBlockSpec, defaultBl
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
-import { en, ja as blockNoteJa, zh as blockNoteZh } from "@blocknote/core/locales";
+import { en, ja as blockNoteJa, zh as blockNoteZh, zhTW as blockNoteZhTW } from "@blocknote/core/locales";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { Check, CheckSquare, Code2, Copy, Heading1, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type, Upload } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
@@ -272,7 +272,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
 }) {
   const { t, locale } = useI18n();
-  const base = locale === "zh" ? blockNoteZh : locale === "ja" ? blockNoteJa : en;
+  const base = locale === "zh" ? blockNoteZh : locale === "zh-Hant" ? blockNoteZhTW : locale === "ja" ? blockNoteJa : en;
   const editor = useCreateBlockNote({
     schema,
     extensions: [syntaxHighlighter],

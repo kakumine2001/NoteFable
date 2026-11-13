@@ -96,7 +96,10 @@ describe("DeepSeek chat response boundary", () => {
       { type: "response.reasoning_text.delta", item_id: "r1", content_index: 0, delta: "考え中" },
     ])).toContain("Request failed:");
     const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
-    expect(JSON.parse(saved.activity)).toEqual([{ id: "r1:0", kind: "thought", text: "考え中" }]);
+    expect(JSON.parse(saved.activity)).toEqual([
+      { id: "r1:0", kind: "thought", text: "考え中" },
+      { id: "request-failure", kind: "failure", offset: 0, detail: "DeepSeek stream ended before completion. Please retry." },
+    ]);
     expect(saved.thinkingMs).toEqual(expect.any(Number));
     // 推論はモデルへ戻さない: 履歴取得は activity / thinkingMs を select しない。
     const select = (mocks.findMessages.mock.calls[0][0] as { select: object }).select;

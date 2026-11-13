@@ -12,6 +12,7 @@ import { msg } from "@/lib/i18n/translate";
 const EMOJI_DATA = {
   en: emojiData,
   zh: () => import("emoji-picker-react/data/emojis-zh"),
+  "zh-Hant": () => import("emoji-picker-react/data/emojis-zh-hant"),
   ja: () => import("emoji-picker-react/data/emojis-ja"),
 };
 

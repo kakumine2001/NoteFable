@@ -14,7 +14,8 @@ export function formatUploadSize(bytes: number) {
   return `${Number((bytes / (1024 * 1024)).toFixed(1))} MiB`;
 }
 
-// 文言は英語の文をキーに t で訳す（既定は英語のまま。サーバーの検査も同じ関数を英語で使う）。
+// 値（特にファイル名）から文の区切りを推測せず、キーと値を現在の翻訳関数に直接渡す。
+// 既定は英語なので、送信前の判定やサーバーでの利用には翻訳関数を渡す必要がない。
 export function getUploadValidationError(files: UploadCandidate[], options: UploadOptions, t: Translate = english) {
   if (files.length > MAX_UPLOAD_FILES) return t("You can attach up to {max} files per message. Remove {extra} to continue.", { max: MAX_UPLOAD_FILES, extra: files.length - MAX_UPLOAD_FILES });
   for (const file of files) {

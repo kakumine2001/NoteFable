@@ -8,7 +8,7 @@ import "@/components/chat-project-settings.css";
 const VISIBLE_SOURCES = 6;
 import { hostOf, splitThought, type ProgressStep } from "@/lib/chat-activity";
 import { useT } from "@/components/i18n-provider";
-import type { Translate } from "@/lib/i18n/translate";
+import { localizeSystemText, type Translate } from "@/lib/i18n/translate";
 
 type ChatActivityProps = {
   steps: ProgressStep[];
@@ -43,7 +43,7 @@ function describeCurrent(steps: ProgressStep[], t: Translate) {
   const last = steps.at(-1);
   if (!last) return t("Thinking");
   if (last.kind === "thought") return splitThought(last.text).title || t("Thinking");
-  if (last.kind === "tool") return last.status === "done" && last.label ? last.label : toolRunningLabel(last.name, t);
+  if (last.kind === "tool") return last.status === "done" && last.label ? localizeSystemText(last.label, t) : toolRunningLabel(last.name, t);
   if (last.kind === "context") return t("Using project “{name}”", { name: last.projectName });
   if (last.status === "running" || !last.action) return t("Searching the web");
   if (last.action.kind === "search") return last.action.queries[0] ? t("Searching “{query}”", { query: last.action.queries[0] }) : t("Searching the web");
@@ -157,7 +157,7 @@ function StepRow({ step }: { step: ProgressStep }) {
         <span className="chat-activity-icon">
           <Icon size={13} strokeWidth={1.9} className={step.status === "running" ? "animate-spin" : undefined} />
         </span>
-        <div className="chat-activity-title">{step.status === "done" && step.label ? step.label : `${toolRunningLabel(step.name, t)}…`}</div>
+        <div className="chat-activity-title">{step.status === "done" && step.label ? localizeSystemText(step.label, t) : `${toolRunningLabel(step.name, t)}…`}</div>
       </li>
     );
   }

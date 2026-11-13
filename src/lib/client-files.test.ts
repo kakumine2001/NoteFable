@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError } from "@/lib/client-files";
 import { MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
+import { createTranslator } from "@/lib/i18n/translate";
+import { messagesFor } from "@/lib/i18n/messages";
 
 describe("composer attachment validation", () => {
   const options = { supportsImages: true, claudeImages: false };
@@ -38,6 +40,16 @@ describe("composer attachment validation", () => {
     expect(getUploadValidationError([image(MAX_UPLOAD_FILE_BYTES)], options)).toBe("");
     expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "hello")).toBe("");
     expect(getUploadRequestError([image(MAX_UPLOAD_FILE_BYTES)], "字".repeat(1500000))).toContain("too large");
+  });
+
+  it("preserves delimiter-like filenames across translated validation and rejected selections", () => {
+    const name = "a” exceeds b.txt";
+    const file = { name, type: "text/plain", size: MAX_UPLOAD_FILE_BYTES + 1 };
+    const zh = createTranslator(messagesFor("zh"));
+    const ja = createTranslator(messagesFor("ja"));
+    expect(getUploadValidationError([file], options, zh)).toBe(`“${name}”超过了单个文件 20 MiB 的上限。请选择更小的文件。`);
+    expect(getUploadSelectionError([], [file], options, zh)).toContain(name);
+    expect(getUploadSelectionError([], [file], options, ja)).toContain(name);
   });
 });
 

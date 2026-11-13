@@ -6,12 +6,14 @@ import { memo } from "react";
 import { AnswerActions } from "@/components/answer-actions";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
+import type { ProgressStep } from "@/lib/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
 import { MODEL_OPTIONS } from "@/lib/models";
 import { BrandMark } from "@/components/studymate-logo";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
+import { localizeFailureText } from "@/lib/failure-text";
 
 function GeneratingImagePreview() {
   const t = useT();
@@ -77,7 +79,8 @@ export const ChatMessage = memo(function ChatMessage({
     !hasGeneratedImages;
   const steps = message.activity ?? [];
   // 編集案は進捗の一覧ではなく、回答の下に承認カードとして出す。
-  const activity = steps.filter((step) => step.kind !== "proposal" && step.kind !== "create_proposal");
+  const activity = steps.filter((step): step is ProgressStep => step.kind !== "proposal" && step.kind !== "create_proposal" && step.kind !== "failure");
+  const failure = steps.find((step) => step.kind === "failure");
   // 保存済みの提案を優先し、ストリーム中でまだ保存側に出ていないものだけを足す。
   const stored = message.proposals ?? [];
   const proposals: StoredProposal[] = [...stored, ...steps.filter((step): step is StoredProposal => (step.kind === "proposal" || step.kind === "create_proposal") && !stored.some((item) => item.id === step.id))];
@@ -145,7 +148,7 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
-            {message.content && <AssistantMarkdown content={message.content} />}
+            {message.content && <AssistantMarkdown content={localizeFailureText(message.content, t, failure)} />}
             {proposals.map((proposal) => proposal.kind === "proposal"
               ? <PageEditProposal key={proposal.id} proposal={proposal} />
               : <PageCreateProposal key={proposal.id} proposal={proposal} />)}

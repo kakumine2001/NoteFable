@@ -2,7 +2,7 @@ import type { Block } from "@blocknote/core";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 
 export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "divider", "image", "file"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
@@ -73,7 +73,7 @@ function validInline(value: unknown, links = true): boolean {
 
 export function validateNoteContent(value: unknown): NoteContent {
   if (!object(value) || typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
-    throw new NoteValidationError(`Note title must be at most ${MAX_NOTE_TITLE} characters.`);
+    throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
   }
   const ids = new Set<string>();
   let count = 0;

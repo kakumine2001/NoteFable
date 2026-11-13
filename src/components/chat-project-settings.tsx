@@ -7,7 +7,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectDetail, type ChatProjectSummary } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
+import { localizeSystemText, msg } from "@/lib/i18n/translate";
 
 type NoteRef = ChatProjectDetail["notes"][number];
 // 一覧に出すノートの上限。多いときは絞り込みで探す。
@@ -102,7 +102,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
       <div className="project-settings-body">
         {!loaded && !loadError && <p className="project-settings-empty" role="status"><LoaderCircle size={14} className="mr-1 inline animate-spin" aria-hidden="true" />{t("Loading…")}</p>}
         {loadError && <>
-          <p role="alert" className="project-settings-error">{t(loadError)}</p>
+          <p role="alert" className="project-settings-error">{localizeSystemText(loadError, t)}</p>
           <button type="button" className="notion-button mt-2" onClick={() => { setLoadError(""); setAttempt((count) => count + 1); }}>{t("Try again")}</button>
         </>}
         {loaded && <>
@@ -158,7 +158,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
             {full && <p className="project-settings-empty">{t("You can choose up to {count} notes. Remove one to pick another.", { count: MAX_PROJECT_NOTES })}</p>}
           </section>
         </>}
-        {error && <p role="alert" className="project-settings-error">{t(error)}</p>}
+        {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
       </div>
       <div className="project-settings-footer">
         <button type="button" disabled={busy} className="notion-button" onClick={onClose}>{t("Cancel")}</button>

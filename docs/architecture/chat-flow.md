@@ -46,7 +46,7 @@ sequenceDiagram
 
 ## 前端发送的数据
 
-`src/app/(localized)/app/page.tsx`（`/app` 工作区）会构建：
+`src/app/[locale]/app/page.tsx`（`/app` 工作区）会构建：
 
 ```text
 FormData
@@ -360,7 +360,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 ## 回答前的途中经过
 
-`/api/chat` 的 SSE 里有两种 `data`：JSON 字符串是正文增量；`{ "activity": ... }` 是途中经过，由 `src/lib/chat-activity.ts` 处理。除属于项目的会话在最前面由服务端自己加的 `context` 事件（见上文）外，都从上游事件转换而来：
+`/api/chat` 的 SSE 里有两种 `data`：JSON 字符串是正文增量；`{ "activity": ... }` 是途中经过，由 `src/lib/chat-activity.ts` 处理。除了服务端添加的项目 `context` 事件（见上文）和失败 `failure` 元数据，其余从上游事件转换而来：
 
 - OpenAI 推理强度不是 `none` 时请求 `reasoning.summary: "auto"`，转发推理摘要；DeepSeek 转发 `reasoning_text` 推理正文；Claude 请求 `thinking.display: summarized` 并转发 thinking 摘要。
 - GPT 启用搜索时请求 `include: ["web_search_call.action.sources"]`，转发每次 `web_search_call` 的搜索词、来源 URL、打开的页面（`open_page`）和页内查找（`find_in_page`）。只保留 http(s) URL。
@@ -385,4 +385,4 @@ ASSISTANT Message
 
 在 stream 完成后保存。
 
-如果上游中途失败，已经向用户流出的文本会连同错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。
+如果上游中途失败，已经向用户流出的文本会连同英文错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。服务端在现有 `Message.activity` JSON 和 SSE 里另加 `failure` 元数据（错误文的 `offset` 与 `detail`）；客户端只据此翻译系统追加的错误后缀，不改写正常 AI 正文。该元数据不进入可视时间线，不回传给模型；没有元数据的旧记录显示原文，复制与导出也保留原文。

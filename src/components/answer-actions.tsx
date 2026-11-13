@@ -8,7 +8,7 @@ import { writeClipboardText } from "@/lib/clipboard";
 import { isNativeApp } from "@/lib/native-app";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useT } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
+import { localizeSystemText, msg } from "@/lib/i18n/translate";
 
 type Props = {
   messageId: string;
@@ -270,10 +270,10 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           {downloading ? t("Downloading…") : t("Download conversation")}
         </button>}
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
-        {error && <p role="alert" className="answer-menu-error">{t(error.message)}</p>}
+        {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error.message, t)}</p>}
       </AnswerMenu>}
       {!menu && <span role="status" aria-live="polite" className="sr-only">{status}</span>}
-      {!menu && error && <span role="alert" className="answer-actions-error">{t(error.message)}</span>}
+      {!menu && error && <span role="alert" className="answer-actions-error">{localizeSystemText(error.message, t)}</span>}
     </div>
   );
 }

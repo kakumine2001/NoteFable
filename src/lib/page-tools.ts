@@ -7,6 +7,7 @@ import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
 import { saveProposal } from "@/lib/note-proposals";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
 import { databaseSchema, prisma } from "@/lib/prisma";
+import { fmt, msg } from "@/lib/i18n/translate";
 
 export { blocksToMarkdown };
 
@@ -137,7 +138,7 @@ function input(value: unknown, key: string) {
   return typeof raw === "string" ? raw.trim().slice(0, 200) : null;
 }
 
-function toolError(content: string, label = "Edit proposal rejected"): ToolRun {
+function toolError(content: string, label: string = msg("Edit proposal rejected")): ToolRun {
   return { content, isError: true, label };
 }
 
@@ -149,9 +150,9 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
   if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_note.");
   if (value.title !== null && value.title !== undefined && typeof value.title !== "string") return toolError("title must be a string or null.");
   const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true } });
-  if (!page) return toolError("Note not found.", "Note not found");
+  if (!page) return toolError("Note not found.", msg("Note not found"));
   if (page.version !== value.version) {
-    return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, "Note changed since it was read");
+    return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, msg("Note changed since it was read"));
   }
   try {
     // 添付画像の参照は、すべての edit をまとめて検証・コピーしてから URL に置き換える（順番に処理し、並列にはしない）。
@@ -174,7 +175,7 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
     } });
     return {
       content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was updated." }),
-      label: `Proposed edits to “${page.title}”`,
+      label: fmt("Proposed edits to “{title}”", { title: page.title }),
       events: [{ ...proposal, type: "studymate.proposal" }],
     };
   } catch (error) {
@@ -200,11 +201,11 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
     } });
     return {
       content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No note has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was created." }),
-      label: `Proposed new note “${content.title}”`,
+      label: fmt("Proposed new note “{title}”", { title: content.title }),
       events: [{ ...proposal, type: "studymate.create_proposal" }],
     };
   } catch (error) {
-    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, "Note proposal rejected");
+    if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, msg("Note proposal rejected"));
     throw error;
   }
 }
@@ -214,29 +215,29 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
 export async function runPageTool(name: string, args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
   if (name === "search_notes") {
     const query = input(args, "query");
-    if (query === null) return { content: "query must be a string.", isError: true, label: "Invalid note search" };
+    if (query === null) return { content: "query must be a string.", isError: true, label: msg("Invalid note search") };
     const results = await searchPages(userId, query);
     return {
       content: JSON.stringify({ results, ...(results.length ? {} : { note: "No matching notes." }) }),
-      label: query ? `Searched notes for “${query}”` : "Listed recent notes",
+      label: query ? fmt("Searched notes for “{query}”", { query }) : msg("Listed recent notes"),
     };
   }
   if (name === "read_note") {
     const pageId = input(args, "noteId");
-    if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: "Invalid note read" };
+    if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Invalid note read") };
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
-    if (!page) return { content: "Note not found.", isError: true, label: "Note not found" };
+    if (!page) return { content: "Note not found.", isError: true, label: msg("Note not found") };
     const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
     const content = markdown.length > MAX_READ_CHARS
       ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the note is longer than ${MAX_READ_CHARS} characters.]`
       : markdown;
-    return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: `Read “${page.title}”` };
+    return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: fmt("Read “{title}”", { title: page.title }) };
   }
   if (name === "list_chat_attachments") {
     const attachments = await listChatAttachments(userId, sessionId);
-    return { content: JSON.stringify({ attachments, ...(attachments.length ? {} : { note: "The user has not attached anything in this chat." }) }), label: "Listed attached files" };
+    return { content: JSON.stringify({ attachments, ...(attachments.length ? {} : { note: "The user has not attached anything in this chat." }) }), label: msg("Listed attached files") };
   }
   if (name === "propose_note_edit") return proposePageEdit(args, userId, sessionId);
   if (name === "propose_note_create") return proposePageCreate(args, userId, sessionId);
-  return { content: `Unknown tool: ${name}`, isError: true, label: "Unknown tool" };
+  return { content: `Unknown tool: ${name}`, isError: true, label: msg("Unknown tool") };
 }

@@ -11,7 +11,7 @@ const OPTIONS: LocalePreference[] = ["auto", ...LOCALES];
 // 表示言語の切替。OS 標準の選択欄ではなく、アプリの他のメニューと同じ見た目のポップオーバーで選ぶ。
 // サイドバー下部では上へ、ホームのナビでは下へ開く。ログイン前でも使える。
 export function LanguageSelect({ compact = false }: { compact?: boolean }) {
-  const { t, preference, setPreference, switching } = useI18n();
+  const { t, preference, setPreference, switching, changeError } = useI18n();
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -65,6 +65,7 @@ export function LanguageSelect({ compact = false }: { compact?: boolean }) {
         </Popover>
       )}
       <span className="sr-only" role="status">{switching ? t("Changing language…") : ""}</span>
+      {changeError && <span role="alert" className="mt-1 block text-xs text-red-600">{t(changeError)}</span>}
     </div>
   );
 }

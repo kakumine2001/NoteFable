@@ -1,6 +1,6 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
-import { msg } from "@/lib/i18n/translate";
+import { msg, fmt } from "@/lib/i18n/translate";
 export { MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES, MAX_MULTIPART_REQUEST_BYTES } from "@/lib/upload-limits";
 
 export type PreparedAttachment = {
@@ -73,11 +73,11 @@ export function validateAttachmentFiles(files: File[]) {
     totalBytes += file.size;
 
     if (!isSupportedFile(file)) {
-      throw new AttachmentValidationError(`Unsupported file type: ${file.name}`, 415);
+      throw new AttachmentValidationError(fmt("Unsupported file type: {name}", { name: file.name }), 415);
     }
 
     if (file.size > MAX_UPLOAD_FILE_BYTES) {
-      throw new AttachmentValidationError(`File is too large: ${file.name}`, 413);
+      throw new AttachmentValidationError(fmt("File is too large: {name}", { name: file.name }), 413);
     }
   }
 

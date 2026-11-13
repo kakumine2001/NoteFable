@@ -8,7 +8,7 @@ import { EmojiPickerBody, Popover } from "@/components/emoji-picker";
 import { UserAvatar } from "@/components/user-avatar";
 import { MAX_DISPLAY_NAME, type AccountUser, type ProfilePatch } from "@/lib/user-profile";
 import { useT } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
+import { localizeSystemText, msg } from "@/lib/i18n/translate";
 
 export type MenuPosition = { left: number; bottom: number; width: number; maxHeight: number };
 
@@ -180,7 +180,7 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
         </div>
       )}
 
-      {error && <div className="profile-error" role="alert">{t(error)}</div>}
+      {error && <div className="profile-error" role="alert">{localizeSystemText(error, t)}</div>}
 
       <div className="profile-actions">
         {customized && (
