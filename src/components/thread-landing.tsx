@@ -73,7 +73,7 @@ function stream(text: string, emphasis: string) {
   return parts.flatMap((part, partIndex) => {
     const strong = typeof part !== "string";
     // 空白で区切る言語は単語ごと、中国語・日本語は読点・句点ごとに流す（区切りの文字は各片に残す）。
-    return ((strong ? part.strong : part).match(/[^\s，。、！？]+[，。、！？]?\s*/g) ?? []).map((word, wordIndex) => {
+    return ((strong ? part.strong : part).match(/[^\s，。、！？]*[，。、！？]*\s*/g) ?? []).filter(Boolean).map((word, wordIndex) => {
       const style = { "--i": count++ } as React.CSSProperties;
       const key = `${partIndex}-${wordIndex}`;
       return strong
