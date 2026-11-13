@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type U
 import { createPortal } from "react-dom";
 import { ChatMessage } from "@/components/chat-message";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
-import { savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { parseChatStreamLine } from "@/lib/chat-stream";
@@ -90,7 +90,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const guestLimitHitRef = useRef(false);
   const inputValueRef = useRef("");
   inputValueRef.current = input;
-  useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? inputValueRef.current : null));
+  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? inputValueRef.current : null));
   const [seconds, setSeconds] = useState(0);
   const sessionId = useRef("");
   // 保存の完了待ちも含めて、送信中は次の送信を受け付けない（連打で会話が 2 つできないように）。
@@ -187,6 +187,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       const limited = caught instanceof UsageLimitError;
       if (limited && caught.tier === "guest") { guestLimitHitRef.current = true; setGuestLimit(true); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
+      // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
+      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, text);
       if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       setMessages((current) => current.map((message) => message.id === assistantId

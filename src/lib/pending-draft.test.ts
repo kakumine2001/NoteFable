@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { savePendingDraft, takePendingDraft } from "./pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft } from "./pending-draft";
 
 function stubStorage() {
   const store = new Map<string, string>();
@@ -31,5 +31,18 @@ describe("pending draft", () => {
     vi.stubGlobal("window", { get sessionStorage(): Storage { throw new Error("blocked"); } });
     expect(() => savePendingDraft("chat", "x")).not.toThrow();
     expect(takePendingDraft("chat")).toBe("");
+  });
+});
+
+describe("keepRejectedDraft", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("puts the rejected text ahead of a draft saved earlier", () => {
+    stubStorage();
+    savePendingDraft("note:1", "typed later");
+    keepRejectedDraft("note:1", "rejected ");
+    expect(takePendingDraft("note:1")).toBe("rejected\n\ntyped later");
+    keepRejectedDraft("chat", "only");
+    expect(takePendingDraft("chat")).toBe("only");
   });
 });

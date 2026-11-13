@@ -47,7 +47,7 @@ import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
-import { savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
+import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -385,7 +385,9 @@ export default function Home() {
   const [guestLimit, setGuestLimit] = useState<UsageKind | null>(null);
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
-  useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current ? inputRef.current?.value ?? "" : null));
+  // 入力欄の要素は画面から外れると先に null になるので、最後の入力値も state 側から持っておく。
+  const composerTextRef = useRef("");
+  const composerMountedRef = useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current ? inputRef.current?.value ?? composerTextRef.current : null));
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(DEFAULT_MODEL);
@@ -1197,6 +1199,8 @@ export default function Home() {
         submittedInputRestoreGuardRef.current = null;
         const typedMeanwhile = inputRef.current?.value ?? "";
         const restored = typedMeanwhile.trim() ? [submittedInputValue.trimEnd(), typedMeanwhile].join("\n\n") : submittedInputValue;
+        // 待つ間に別の画面へ移っていたら、入力欄の代わりに預けておく。
+        if (!composerMountedRef.current) keepRejectedDraft("chat", submittedInputValue);
         setInput(restored);
         if (inputRef.current) inputRef.current.value = restored;
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
@@ -1251,6 +1255,10 @@ export default function Home() {
   useEffect(() => {
     filesRef.current = files;
   }, [files]);
+
+  useEffect(() => {
+    composerTextRef.current = input;
+  }, [input]);
 
   useEffect(() => {
     // files は state のためクリーンアップ関数内だと古い値になりやすい。
