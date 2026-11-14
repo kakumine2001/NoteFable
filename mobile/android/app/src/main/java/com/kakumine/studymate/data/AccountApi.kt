@@ -46,6 +46,12 @@ interface AccountProfileBackend {
 
     /** `POST /api/account/avatar`（multipart，唯一的字段 `file`），返回换好照片后的资料。 */
     suspend fun uploadAvatar(bytes: ByteArray, mimeType: String): AccountUser
+
+    /** `GET /api/custom-instructions`：登录用户的自定义指令，没有设置时为 null。 */
+    suspend fun customInstructions(): String?
+
+    /** `PUT /api/custom-instructions`：整体替换（空字符串是清空），返回服务端保存后的文字。 */
+    suspend fun saveCustomInstructions(instructions: String): String?
 }
 
 class AccountApi internal constructor(private val http: StudyMateHttp) : AccountProfileBackend {
@@ -71,5 +77,15 @@ class AccountApi internal constructor(private val http: StudyMateHttp) : Account
             with = http.uploadClient,
         )
         return response.user ?: throw ApiException(201, "HTTP 201")
+    }
+
+    override suspend fun customInstructions(): String? =
+        http.getJson<CustomInstructionsResponse>("/api/custom-instructions").instructions
+
+    override suspend fun saveCustomInstructions(instructions: String): String? {
+        val body = buildJsonObject { put("instructions", JsonPrimitive(instructions)) }.toString()
+        return http.send<CustomInstructionsResponse>(
+            Request.Builder().url(http.absoluteUrl("/api/custom-instructions")).put(body.toRequestBody(StudyMateHttp.JSON)),
+        ).instructions
     }
 }

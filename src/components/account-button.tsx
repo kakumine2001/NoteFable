@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { usePickerBackToClose } from "@/components/emoji-picker";
 import { GoogleLogo } from "@/components/google-logo";
 import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/profile-menu";
+import { SettingsDialog } from "@/components/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { useT } from "@/components/i18n-provider";
@@ -33,6 +34,7 @@ export function AccountButton() {
   const { account, saveError } = useAccount();
   const { start: startSignIn, failed } = useGoogleSignIn();
   const [menu, setMenu] = useState<MenuPosition | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenu(null);
   usePickerBackToClose(menu !== null, closeMenu);
@@ -64,12 +66,14 @@ export function AccountButton() {
       </button>
       {menu && (
         <ProfileMenu user={user} position={menu} trigger={triggerRef} error={saveError} onSave={saveProfile} onUpload={uploadPhoto} onClose={closeMenu}
+          onOpenSettings={() => { closeMenu(); setSettingsOpen(true); }}
           onSignOut={async () => {
             // 直前に編集した名前や写真の保存が終わってからログアウトする（ログアウト後だと 401 で取りこぼす）。
             await settled();
             await signOut();
           }} />
       )}
+      {settingsOpen && <SettingsDialog onClose={() => setSettingsOpen(false)} />}
     </>
   );
 }

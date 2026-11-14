@@ -83,6 +83,38 @@ class AccountViewModelTest {
             account.user = next
             return next
         }
+
+        var instructions: String? = null
+        var failInstructions: Throwable? = null
+
+        override suspend fun customInstructions(): String? {
+            failInstructions?.let { throw it }
+            return instructions
+        }
+
+        override suspend fun saveCustomInstructions(instructions: String): String? {
+            failInstructions?.let { throw it }
+            this.instructions = instructions.ifEmpty { null }
+            return this.instructions
+        }
+    }
+
+    @Test
+    fun `custom instructions load as text, save trimmed, and hand failures back`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val profile = FakeProfile(backend)
+        val model = model(backend, profile)
+        assertEquals("", model.loadCustomInstructions().getOrThrow())
+        assertNull(model.saveCustomInstructions("  Be brief.\n"))
+        assertEquals("Be brief.", profile.instructions)
+        assertEquals("Be brief.", model.loadCustomInstructions().getOrThrow())
+        assertNull(model.saveCustomInstructions("   "))
+        assertNull(profile.instructions)
+
+        val failure = ApiException(401, "Sign in to use custom instructions.")
+        profile.failInstructions = failure
+        assertEquals(failure, model.loadCustomInstructions().exceptionOrNull())
+        assertEquals(failure, model.saveCustomInstructions("x"))
     }
 
     private fun model(backend: FakeAccount, profile: FakeProfile = FakeProfile(backend)) = AccountViewModel(backend, profile)

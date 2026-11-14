@@ -86,6 +86,7 @@ erDiagram
         string displayName "nullable"
         string avatarIcon "nullable"
         string avatarImage "nullable"
+        string customInstructions "nullable"
         UserPlan plan
         datetime createdAt
         datetime updatedAt
@@ -218,6 +219,7 @@ erDiagram
 - `googleSub`：可空且唯一，Google 账号 ID；首次 Google 登录时绑定到当前设备的用户，之后在任何设备登录同一账号都会得到这一行
 - `email` / `name` / `image`：可空，登录时从 Google 同步的资料
 - `displayName` / `avatarIcon` / `avatarImage`：可空，用户在侧栏“个人资料”里自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已用 Google 登录的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
+- `customInstructions`：可空，用户在“设置”里写的自定义指令（最多 4,000 字符，校验与项目的共通指示相同，空白存为 null）。只有已登录（`googleSub` 不为空）的用户能通过 `GET/PUT /api/custom-instructions` 读写，聊天时也只对已登录用户带入，见 [chat-flow.md](chat-flow.md) 的“自定义指令”。字段通过 `20261114000000_custom_instructions` migration 部署
 
 - `plan`：`FREE`（默认）或 `PRO`。决定每日用量上限的档位（见下方 `UsageCounter`）；`PRO` 为将来的付费方案预留，目前只能手动改库设置。字段通过 `20261113000000_usage_limits` migration 部署
 

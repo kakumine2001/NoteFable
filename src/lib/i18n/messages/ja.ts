@@ -1,4 +1,8 @@
 export const ja: Record<string, string> = {
+  "Settings": "設定",
+  "Custom instructions": "カスタム指示",
+  "Applied to all your chats from the next message. Tell StudyMate about yourself and how you want it to answer. A project’s instructions take priority inside that project.": "次のメッセージから、すべてのチャットに適用されます。自分のことや、StudyMate にどう答えてほしいかを書いてください。プロジェクト内では、プロジェクトの指示が優先されます。",
+  "Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.": "例: JLPT N1 の勉強中です。文法は短い例文で説明して、回答は簡潔にしてください。",
   "Could not change language. Please try again.": "言語を切り替えられませんでした。もう一度お試しください。",
   "+{count} more": "ほか{count}件",
   "1 day left": "残り1日",

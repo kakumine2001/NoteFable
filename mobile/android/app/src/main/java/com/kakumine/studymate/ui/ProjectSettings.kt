@@ -176,16 +176,16 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                     }
                     else -> {
                         // 共通指示
-                        SectionLabel(stringResource(R.string.sb_instructions), "${instructions.length}/$MAX_PROJECT_INSTRUCTIONS", full = false)
-                        HelpText(stringResource(R.string.sb_instructions_help))
+                        SettingsSectionLabel(stringResource(R.string.sb_instructions), "${instructions.length}/$MAX_PROJECT_INSTRUCTIONS", full = false)
+                        SettingsHelpText(stringResource(R.string.sb_instructions_help))
                         InstructionsField(instructions, { instructions = it.take(MAX_PROJECT_INSTRUCTIONS) }, enabled = !busy,
                             label = stringResource(R.string.sb_instructions), placeholder = stringResource(R.string.sb_instructions_placeholder))
 
                         // 参考笔记
                         val full = selected.size >= MAX_PROJECT_NOTES
                         Spacer(Modifier.size(20.dp))
-                        SectionLabel(stringResource(R.string.sb_reference_notes), "${selected.size}/$MAX_PROJECT_NOTES", full)
-                        HelpText(stringResource(R.string.sb_reference_notes_help))
+                        SettingsSectionLabel(stringResource(R.string.sb_reference_notes), "${selected.size}/$MAX_PROJECT_NOTES", full)
+                        SettingsHelpText(stringResource(R.string.sb_reference_notes_help))
                         if (selected.isNotEmpty()) {
                             val selectedLabel = stringResource(R.string.sb_selected_notes)
                             FlowRow(
@@ -236,7 +236,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
 
 // .project-settings-label：14/600，右侧计数 12 灰（满了 #b45309）。
 @Composable
-private fun SectionLabel(text: String, count: String, full: Boolean) {
+internal fun SettingsSectionLabel(text: String, count: String, full: Boolean) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
         Text(text, Modifier.weight(1f), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
         Spacer(Modifier.width(8.dp))
@@ -246,7 +246,7 @@ private fun SectionLabel(text: String, count: String, full: Boolean) {
 
 // .project-settings-help：13 / 行高 1.5 灰，上距 4。
 @Composable
-private fun HelpText(text: String) =
+internal fun SettingsHelpText(text: String) =
     Text(text, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 4.dp))
 
 // .project-settings-empty：13 灰，上距 9.6。
@@ -256,7 +256,7 @@ private fun EmptyText(text: String) =
 
 // .project-settings-textarea（手机）：最小高 144、上距 8、1px 深描边、圆角 6、内边距 8.8×11.2、16 / 行高 1.55；聚焦 2px 蓝框。
 @Composable
-private fun InstructionsField(value: String, onChange: (String) -> Unit, enabled: Boolean, label: String, placeholder: String) {
+internal fun InstructionsField(value: String, onChange: (String) -> Unit, enabled: Boolean, label: String, placeholder: String) {
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
         value = value,

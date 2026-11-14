@@ -169,6 +169,7 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
     // 系统选择器开着时点外面 / 返回键不关弹层（网页 filePickerOpen）。
     var pickerOpen by rememberSaveable { mutableStateOf(false) }
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
     var anchorTop by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -242,9 +243,11 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
                 },
                 canClose = { !pickerOpen && !account.uploading },
                 onDismiss = close,
+                onOpenSettings = { close(); settingsOpen = true },
                 onSignOut = { close(); onSignOut() },
             )
         }
+        if (settingsOpen) SettingsDialog(profile, onClose = { settingsOpen = false })
     }
 }
 
@@ -269,6 +272,7 @@ private class AboveAnchor(private val gap: Int, private val margin: Int) : Popup
  *   说明 12/18 灰；有照片时"移除我的照片"（Trash2 14 + 6、13 红字、内边距 4×6、圆角 4）；错误 12 红、上 10。
  *   选好照片后换成裁剪（AvatarCropper.kt）。表情页：EmojiPickerBody，高 min(320, 屏高 − 220)，去掉键写"使用 Google 头像"。
  * - 邮箱 12 灰（上 10）、保存错误 12 红（上 10）；操作区上 12、左右 −6、上边 1px 线、上内边距 6、间距 2：行高 ≥44、15 字、图标 14 + 8。
+ *   操作依次是"使用我的 Google 名称和头像"（改过才有）、"设置"（打开 SettingsDialog）、"退出登录"。
  */
 @Composable
 private fun ProfileMenu(
@@ -284,6 +288,7 @@ private fun ProfileMenu(
     onPhotoSaved: () -> Unit,
     canClose: () -> Boolean,
     onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
     onSignOut: () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -430,6 +435,11 @@ private fun ProfileMenu(
                         draft = user.googleName ?: ""
                         profile.resetToGoogle()
                     }
+                }
+                // 设置（网页 onOpenSettings）：关掉弹层再开设置窗口；输入中的名字和关弹层时一样先存掉。
+                ProfileAction(Lucide.Settings, stringResource(R.string.acct_settings)) {
+                    profile.saveName(draft)
+                    onOpenSettings()
                 }
                 // 网页靠 blur 先把输入中的名字存掉；这里点按钮不会抢焦点，所以先排进保存队列，signOut 会等它发完。
                 ProfileAction(Lucide.LogOut, stringResource(R.string.sign_out)) {

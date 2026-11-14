@@ -1,5 +1,8 @@
 // サーバー（API・共通処理）が返すエラー文の訳。画面で t() に通したときに引かれる。
 export const zhServer: Record<string, string> = {
+  "Sign in to use custom instructions.": "请先登录再使用自定义指令。",
+  "Could not load your custom instructions.": "无法加载你的自定义指令。",
+  "Could not save your custom instructions. Please try again.": "无法保存你的自定义指令，请重试。",
   "Enter a project name.": "请输入项目名称。",
   "Project names can have at most {max} characters.": "项目名称最多 {max} 个字符。",
   "Project names cannot contain control characters.": "项目名称不能包含控制字符。",

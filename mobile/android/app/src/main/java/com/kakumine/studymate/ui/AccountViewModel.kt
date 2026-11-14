@@ -220,6 +220,25 @@ class AccountViewModel(
         }
     }
 
+    /** 设置窗口打开时读自定义指令（没有设置时是空字符串）。失败时把原因交给界面显示。 */
+    suspend fun loadCustomInstructions(): Result<String> = try {
+        Result.success(profile.customInstructions() ?: "")
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        Result.failure(error)
+    }
+
+    /** 保存自定义指令（网页 SettingsDialog.save：发去掉首尾空白后的文字）。成功返回 null，失败返回原因。 */
+    suspend fun saveCustomInstructions(text: String): Throwable? = try {
+        profile.saveCustomInstructions(text.trim())
+        null
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        error
+    }
+
     fun showPhotoError(error: PhotoError?) = _state.update { it.copy(photoError = error) }
 
     /** 打开个人资料时清掉上一次的错误（网页 clearSaveError；照片栏的提示随菜单一起消失）。 */
