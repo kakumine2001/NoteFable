@@ -64,8 +64,11 @@ interface NotesBackend {
     /** 清空回收站；[before] 是确认时看到的最新一条的 deletedAt，确认后别处新扔的不会被删。 */
     suspend fun emptyTrash(before: String)
 
-    /** 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…`）。 */
-    fun noteEmbedUrl(pageId: String, lang: String?): String
+    /**
+     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…`）。
+     * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
+     */
+    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null): String
 }
 
 /** 回收站里保留的天数，与 src/types/notes.ts 的 TRASH_RETENTION_DAYS 相同。 */

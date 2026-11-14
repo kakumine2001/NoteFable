@@ -6,6 +6,7 @@ import kotlinx.coroutines.withContext
 import okhttp3.Call
 import okhttp3.Callback
 import okhttp3.CookieJar
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -54,8 +55,11 @@ class ApiException(
  * 拆出来是为了让各个接口文件（聊天、笔记、搜索……）都能用同一套，而不是都往 StudyMateApi 里加。
  */
 internal class StudyMateHttp(private val baseUrl: String, cookieJar: CookieJar) {
+    val identityGate = IdentityGate(baseUrl.toHttpUrl().host)
+
     val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
+        .addInterceptor(identityGate)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)

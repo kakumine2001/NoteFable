@@ -531,12 +531,15 @@ fun NotesDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(window) { window?.setDimAmount(DialogScrim) }
         Box(
+            // 高度上限同浏览器 <dialog> 的默认 max-height（视口减 2em + 6px）。
             Modifier.padding(horizontal = 24.dp).widthIn(max = 400.dp).fillMaxWidth()
+                .heightIn(max = (LocalConfiguration.current.screenHeightDp - 38).coerceAtLeast(200).dp)
                 .shadow(14.dp, RoundedCornerShape(8.dp), ambientColor = PanelShadow, spotColor = PanelShadow)
                 .border(1.dp, PanelRing, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp)).background(Color.White).padding(24.dp),
         ) {
-            Column { content() }
+            // 网页的 <dialog> 高度不超过视口，内容多（项目多）时整个对话框滚动。这里同样：对话框窗口限住高度，内容可滚动。
+            Column(Modifier.verticalScroll(rememberScrollState())) { content() }
         }
     }
 }

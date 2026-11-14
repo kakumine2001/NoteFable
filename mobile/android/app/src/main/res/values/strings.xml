@@ -17,6 +17,7 @@
     <string name="send">Send message</string>
     <string name="stop">Stop</string>
     <string name="copy">Copy answer</string>
+    <string name="downloading">Downloading…</string>
     <string name="request_failed">Request failed: %1$s</string>
 
     <string name="model">Model</string>

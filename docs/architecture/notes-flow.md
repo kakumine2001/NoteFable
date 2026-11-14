@@ -108,11 +108,12 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## Android 应用内嵌编辑器（`/note-embed`）
 
-原生 Android 应用（`mobile/android`）自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=en|zh|zh-Hant|ja`，见 [i18n.md](i18n.md)）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，由 `src/proxy.ts` 像 `/app` 一样 rewrite；要打开的页面 ID 在浏览器端从 URL 读取。
+原生 Android 应用（`mobile/android`）自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=en|zh|zh-Hant|ja`，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，由 `src/proxy.ts` 像 `/app` 一样 rewrite；要打开的页面 ID 在浏览器端从 URL 读取。
 
 - **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、版本历史和保存状态由应用的原生顶栏负责（与网页手机顶栏一样没有“更多”菜单）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
 - **保存与恢复照旧。** 一秒防抖自动保存、`studymate:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
-- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `studymate_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。
+- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `studymate_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
+- **AI 模型。** 右下角 AI 助手用 URL 里的 `model` / `reasoning`（`readEmbedModelPreference`，再用 `resolveModelPreference` 按服务端模型列表核对：没有的模型不用，选不了的强度换成默认）；没带或无效时用这个 WebView 里最后一次的选择（localStorage），再没有就用服务端默认。
 
 **网页 → 应用**：存在 `window.StudyMateNative`（`@JavascriptInterface`）时，调用 `window.StudyMateNative.postMessage(JSON.stringify(msg))`，`msg` 为：
 

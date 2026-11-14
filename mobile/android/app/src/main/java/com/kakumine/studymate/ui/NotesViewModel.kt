@@ -11,6 +11,7 @@ import com.kakumine.studymate.data.NoteGroupSummary
 import com.kakumine.studymate.data.NotePageSummary
 import com.kakumine.studymate.data.NoteTrashItem
 import com.kakumine.studymate.data.NotesBackend
+import com.kakumine.studymate.data.NotesList
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
@@ -106,16 +107,39 @@ class NotesViewModel(
     private var loadJob: Job? = null
     private var navigationJob: Job? = null
     private var trashJob: Job? = null
+    private val trashActionJobs = mutableSetOf<Job>()
+
+    /** 每次换身份加一。旧身份下发出、换身份后才回来的改动结果直接丢掉，不写进新身份的列表。 */
+    private var identity = 0
+
+    /** 每完成一次改动（新建、移动、删除…）加一。刷新期间有改动完成的话，刷新读到的可能是改动前的列表，要重读。 */
+    private var mutations = 0
+
+    /** 改动完成后调用：还是同一个身份才把结果写进界面，并记一次改动。 */
+    private inline fun commit(identityAtStart: Int, apply: () -> Unit): Boolean {
+        if (identityAtStart != identity) return false
+        mutations++
+        apply()
+        return true
+    }
 
     // ---- 列表 ----
 
-    /** 同时只保留最新一次刷新，旧请求的结果丢弃。 */
+    /**
+     * 同时只保留最新一次刷新，旧请求的结果丢弃。
+     * 请求期间有改动完成的话，读到的列表可能比本地的旧（少了刚建的、多了刚删的），重读一次再用。
+     */
     fun refresh() {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             _state.update { it.copy(loading = !it.loaded, error = null) }
-            val result = runCatching { backend.notes() }
-            ensureActive()
+            var result: Result<NotesList>
+            while (true) {
+                val seen = mutations
+                result = runCatching { backend.notes() }
+                ensureActive()
+                if (result.isFailure || seen == mutations) break
+            }
             result
                 .onSuccess { list -> _state.update { it.copy(pages = list.pages, groups = list.groups, loading = false, loaded = true, error = null) } }
                 .onFailure { e -> _state.update { it.copy(loading = false, error = errorOf(NotesError.Kind.Load, e)) } }
@@ -124,10 +148,13 @@ class NotesViewModel(
 
     /** 登录或退出后身份变了：清掉列表和打开的笔记，按新身份重新读。 */
     fun onIdentityChanged() {
+        identity++
         loadJob?.cancel()
-        // 换身份前排着的打开 / 新建不再执行。
+        // 换身份前排着的打开 / 新建不再执行，回收站里进行中的操作也不再写回。
         navigationJob?.cancel()
         navigationJob = null
+        trashJob?.cancel()
+        trashActionJobs.toList().forEach { it.cancel() }
         _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed) }
         if (_state.value.workspace == Workspace.Notes) refresh()
     }
@@ -201,6 +228,8 @@ class NotesViewModel(
             _state.update { it.copy(busy = true, error = null) }
             try {
                 val page = backend.createNote()
+                // 换身份会取消这个任务，走到这里一定还是同一个身份。
+                mutations++
                 _state.update {
                     it.copy(
                         workspace = Workspace.Notes,
@@ -263,6 +292,7 @@ class NotesViewModel(
     /** 编辑器里把笔记移到了回收站。 */
     fun onEditorTrashed(editor: String) {
         val id = pageOf(editor)
+        mutations++
         _state.update { state ->
             state.copy(
                 pages = state.pages.filterNot { it.id == id },
@@ -277,43 +307,48 @@ class NotesViewModel(
     /** 网页的确认框"移到回收站"。打开着的那篇先保存，保存不了就不移（网页同样的提示）。成功返回 true。 */
     suspend fun trashNote(id: String): Boolean {
         if (_state.value.busy) return false
+        val owner = identity
         _state.update { it.copy(busy = true, error = null) }
         try {
             if (_state.value.open?.id == id) {
                 if (!flushOpen().ok) {
-                    _state.update { it.copy(busy = false, error = NotesError(NotesError.Kind.TrashUnsaved)) }
+                    if (owner == identity) _state.update { it.copy(busy = false, error = NotesError(NotesError.Kind.TrashUnsaved)) }
                     return false
                 }
             }
             backend.trashNote(id)
-            _state.update { state ->
-                state.copy(
-                    busy = false,
-                    pages = state.pages.filterNot { it.id == id },
-                    open = state.open?.takeIf { it.id != id },
-                    saveState = if (state.open?.id == id) null else state.saveState,
-                )
+            return commit(owner) {
+                _state.update { state ->
+                    state.copy(
+                        busy = false,
+                        pages = state.pages.filterNot { it.id == id },
+                        open = state.open?.takeIf { it.id != id },
+                        saveState = if (state.open?.id == id) null else state.saveState,
+                    )
+                }
             }
-            return true
         } catch (e: CancellationException) {
-            _state.update { it.copy(busy = false) }
+            if (owner == identity) _state.update { it.copy(busy = false) }
             throw e
         } catch (e: Throwable) {
-            _state.update { it.copy(busy = false, error = errorOf(NotesError.Kind.Trash, e)) }
+            if (owner == identity) _state.update { it.copy(busy = false, error = errorOf(NotesError.Kind.Trash, e)) }
             return false
         }
     }
 
     // ---- 项目（分组）：失败时不改列表，只在对话框里显示原因 ----
 
-    private suspend fun <T> groupAction(run: suspend () -> T): T? {
+    /** [run] 发请求，返回要写进界面的改动和结果；身份在请求期间换了（登录、退出）的话什么都不写，返回 null。 */
+    private suspend fun <T> groupAction(run: suspend () -> Pair<() -> Unit, T>): T? {
+        val owner = identity
         _state.update { it.copy(groupError = null) }
         return try {
-            run()
+            val (apply, value) = run()
+            if (commit(owner, apply)) value else null
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
-            _state.update { it.copy(groupError = errorOf(NotesError.Kind.Group, e)) }
+            if (owner == identity) _state.update { it.copy(groupError = errorOf(NotesError.Kind.Group, e)) }
             null
         }
     }
@@ -322,32 +357,30 @@ class NotesViewModel(
 
     suspend fun createGroup(name: String): NoteGroupSummary? = groupAction {
         val group = backend.createGroup(name)
-        _state.update { it.copy(groups = it.groups + group) }
-        group
+        Pair({ _state.update { it.copy(groups = it.groups.filter { g -> g.id != group.id } + group) } }, group)
     }
 
     suspend fun renameGroup(id: String, name: String): Boolean = groupAction {
         val group = backend.renameGroup(id, name)
-        _state.update { s -> s.copy(groups = s.groups.map { if (it.id == id) it.copy(name = group.name) else it }) }
-        true
+        Pair({ _state.update { s -> s.copy(groups = s.groups.map { if (it.id == id) it.copy(name = group.name) else it }) } }, true)
     } ?: false
 
     /** 项目删掉后，里面的笔记保留，变成未分组。 */
     suspend fun deleteGroup(id: String): Boolean = groupAction {
         backend.deleteGroup(id)
-        _state.update { s ->
-            s.copy(
-                groups = s.groups.filterNot { it.id == id },
-                pages = s.pages.map { if (it.groupId == id) it.copy(groupId = null) else it },
-            )
-        }
-        true
+        Pair({
+            _state.update { s ->
+                s.copy(
+                    groups = s.groups.filterNot { it.id == id },
+                    pages = s.pages.map { if (it.groupId == id) it.copy(groupId = null) else it },
+                )
+            }
+        }, true)
     } ?: false
 
     suspend fun moveNote(pageId: String, groupId: String?): Boolean = groupAction {
         backend.moveNote(pageId, groupId)
-        _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) }
-        true
+        Pair({ _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) } }, true)
     } ?: false
 
     fun toggleGroup(id: String) {
@@ -385,41 +418,55 @@ class NotesViewModel(
 
     fun restore(id: String) = trashAction {
         val page = backend.restoreNote(id)
-        _state.update { s ->
-            s.copy(
-                pages = upsert(s.pages, page),
-                trash = s.trash?.copy(items = s.trash.items?.filterNot { it.id == id }),
-            )
+        val apply: () -> Unit = {
+            _state.update { s ->
+                s.copy(
+                    pages = upsert(s.pages, page),
+                    trash = s.trash?.copy(items = s.trash.items?.filterNot { it.id == id }),
+                )
+            }
         }
+        apply
     }
 
     fun deleteForever(id: String) = trashAction {
         backend.deleteForever(id)
-        updateTrash { t -> t.copy(confirmId = null, items = t.items?.filterNot { it.id == id }) }
+        val apply: () -> Unit = { updateTrash { t -> t.copy(confirmId = null, items = t.items?.filterNot { it.id == id }) } }
+        apply
     }
 
     fun emptyTrash() = trashAction {
         // 只删确认时看到的（最新一条之前扔的），确认期间别处新扔的不删。
-        val newest = _state.value.trash?.items?.firstOrNull()?.deletedAt ?: return@trashAction
-        backend.emptyTrash(newest)
-        updateTrash { it.copy(confirmAll = false, items = emptyList()) }
+        val newest = _state.value.trash?.items?.firstOrNull()?.deletedAt
+        if (newest == null) null else {
+            backend.emptyTrash(newest)
+            val apply: () -> Unit = { updateTrash { it.copy(confirmAll = false, items = emptyList()) } }
+            apply
+        }
     }
 
-    private fun trashAction(work: suspend () -> Unit) {
+    /**
+     * 回收站的一次操作。[work] 发请求，返回要写进界面的改动（null 表示什么都没做）；
+     * 身份在请求期间换了（登录、退出）就丢掉结果，换身份时这些任务也会被取消。
+     */
+    private fun trashAction(work: suspend () -> (() -> Unit)?) {
         val trash = _state.value.trash ?: return
         if (trash.busy) return
-        viewModelScope.launch {
+        val owner = identity
+        val job = viewModelScope.launch {
             updateTrash { it.copy(busy = true, error = null) }
             try {
-                work()
+                work()?.let { commit(owner, it) }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
-                updateTrash { it.copy(error = errorOf(NotesError.Kind.TrashAction, e)) }
+                if (owner == identity) updateTrash { it.copy(error = errorOf(NotesError.Kind.TrashAction, e)) }
             } finally {
-                updateTrash { it.copy(busy = false) }
+                if (owner == identity) updateTrash { it.copy(busy = false) }
             }
         }
+        trashActionJobs += job
+        job.invokeOnCompletion { trashActionJobs -= job }
     }
 
     private fun updateTrash(transform: (TrashUiState) -> TrashUiState) {

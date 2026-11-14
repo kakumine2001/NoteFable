@@ -6,7 +6,9 @@ import com.kakumine.studymate.data.NotePageSummary
 import com.kakumine.studymate.data.NoteTrashItem
 import com.kakumine.studymate.data.NotesBackend
 import com.kakumine.studymate.data.NotesList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
@@ -48,28 +50,38 @@ class NotesViewModelTest {
         val calls = mutableListOf<String>()
         var failNext: Throwable? = null
 
+        /** 按调用名挂起：测试里先放一个 deferred，请求就停在服务端"处理中"，直到 complete。 */
+        val holds = mutableMapOf<String, CompletableDeferred<Unit>>()
+        private suspend fun hold(name: String) { holds.remove(name)?.await() }
+
         private fun maybeFail() {
             failNext?.let { failNext = null; throw it }
         }
 
-        override suspend fun notes(): NotesList { calls += "notes"; maybeFail(); return NotesList(pages.toList(), groups.toList()) }
+        override suspend fun notes(): NotesList {
+            calls += "notes"; maybeFail()
+            // 先取快照再等：模拟服务端在改动之前就读好了列表。
+            val snapshot = NotesList(pages.toList(), groups.toList())
+            hold("notes")
+            return snapshot
+        }
         override suspend fun createNote(): NotePageSummary {
             calls += "create"; maybeFail()
             return NotePageSummary("new", "Untitled", null, createdAt = "2026-11-15T00:00:00Z").also { pages.add(0, it) }
         }
         override suspend fun trashNote(id: String) { calls += "trash:$id"; maybeFail(); pages.removeAll { it.id == id } }
         override suspend fun moveNote(id: String, groupId: String?) { calls += "move:$id:$groupId"; maybeFail() }
-        override suspend fun createGroup(name: String): NoteGroupSummary { calls += "group:$name"; maybeFail(); return NoteGroupSummary("g2", name, 1) }
+        override suspend fun createGroup(name: String): NoteGroupSummary { calls += "group:$name"; maybeFail(); hold("group"); return NoteGroupSummary("g2", name, 1) }
         override suspend fun renameGroup(id: String, name: String): NoteGroupSummary { calls += "rename:$id:$name"; maybeFail(); return NoteGroupSummary(id, name) }
         override suspend fun deleteGroup(id: String) { calls += "deleteGroup:$id"; maybeFail() }
         override suspend fun trash(): List<NoteTrashItem> { calls += "trashList"; maybeFail(); return trashed.toList() }
         override suspend fun restoreNote(id: String): NotePageSummary {
-            calls += "restore:$id"; maybeFail()
+            calls += "restore:$id"; maybeFail(); hold("restore")
             return NotePageSummary(id, "Old draft", null, position = 5, createdAt = "2026-11-13T00:00:00Z")
         }
         override suspend fun deleteForever(id: String) { calls += "forever:$id"; maybeFail() }
         override suspend fun emptyTrash(before: String) { calls += "empty:$before"; maybeFail() }
-        override fun noteEmbedUrl(pageId: String, lang: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
+        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
     }
 
     private fun TestScope.notesVm(backend: FakeNotes = FakeNotes(), prefs: NotesPrefs = MemoryPrefs()): NotesViewModel {
@@ -388,5 +400,69 @@ class NotesViewModelTest {
         assertNull(vm.state.value.open)
         assertTrue(vm.state.value.pages.isEmpty())
         assertEquals(Workspace.Notes, vm.state.value.workspace)
+    }
+
+    @Test
+    fun `a trash restore that finishes after an identity change is dropped`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.openTrash()
+        advanceUntilIdle()
+        backend.holds["restore"] = CompletableDeferred()
+        vm.restore("t")
+        runCurrent()
+        assertTrue(vm.state.value.trash!!.busy)
+
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertNull(vm.state.value.trash)
+        assertFalse(vm.state.value.pages.any { it.id == "t" })
+    }
+
+    @Test
+    fun `a project created under the old identity is not added to the new one`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val gate = CompletableDeferred<Unit>()
+        backend.holds["group"] = gate
+        val created = async { vm.createGroup("Physics") }
+        runCurrent()
+
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        gate.complete(Unit)
+        advanceUntilIdle()
+
+        assertNull(created.await())
+        assertEquals(listOf("g1"), vm.state.value.groups.map { it.id })
+        assertNull(vm.state.value.groupError)
+    }
+
+    @Test
+    fun `a refresh that started before a new note was created reads the list again`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val gate = CompletableDeferred<Unit>()
+        backend.holds["notes"] = gate
+        vm.refresh()
+        runCurrent()
+
+        vm.createNote()
+        advanceUntilIdle()
+        assertEquals("new", vm.state.value.open?.id)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(vm.state.value.pages.any { it.id == "new" })
+        assertEquals(3, backend.calls.count { it == "notes" })
+    }
+
+    @Test
+    fun `a refresh without mutations in between is used as is`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.refresh()
+        advanceUntilIdle()
+        assertEquals(2, backend.calls.count { it == "notes" })
     }
 }
