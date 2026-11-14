@@ -124,11 +124,13 @@ fun SignInDialog(
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
     val close = { if (!busy) onClose() }
+    // Google 登录进行中（等 nonce、换令牌）也不让发邮箱验证码或核对：两种登录同时进行会互相覆盖会话。
+    val locked = busy || account.signingIn
     LaunchedEffect(Unit) { profile.clearSignInFailed() }
 
     val sendCode: (Boolean) -> Unit = send@{ again ->
         val address = if (again) sentTo else email
-        if (busy || address.isBlank()) return@send
+        if (locked || address.isBlank()) return@send
         busy = true
         error = null
         resent = false
@@ -146,7 +148,7 @@ fun SignInDialog(
         }
     }
     val verify: () -> Unit = verify@{
-        if (busy || code.length != 6) return@verify
+        if (locked || code.length != 6) return@verify
         busy = true
         error = null
         resent = false
@@ -205,7 +207,7 @@ fun SignInDialog(
                             onGo = { sendCode(false) }, autoFocus = !account.googleEnabled,
                         )
                         feedback()
-                        SignInSubmit(stringResource(if (busy) R.string.signin_sending else R.string.continue_email), enabled = !busy && email.isNotBlank()) { sendCode(false) }
+                        SignInSubmit(stringResource(if (busy) R.string.signin_sending else R.string.continue_email), enabled = !locked && email.isNotBlank()) { sendCode(false) }
                         SignInHint { Text(stringResource(R.string.signin_email_hint), color = Sm.Faint, fontSize = 13.sp, lineHeight = 19.5.sp, textAlign = TextAlign.Center) }
                     }
                 } else {
@@ -227,12 +229,12 @@ fun SignInDialog(
                         onGo = verify, autoFocus = true, code = true,
                     )
                     feedback()
-                    SignInSubmit(stringResource(if (busy) R.string.signin_signing_in else R.string.sign_in), enabled = !busy && code.length == 6, onClick = verify)
+                    SignInSubmit(stringResource(if (busy) R.string.signin_signing_in else R.string.sign_in), enabled = !locked && code.length == 6, onClick = verify)
                     SignInHint {
                         Text(stringResource(R.string.signin_no_code) + " ", color = Sm.Faint, fontSize = 13.sp, lineHeight = 19.5.sp)
                         Text(
-                            stringResource(R.string.signin_resend), color = if (busy) Sm.Faint else Sm.Blue, fontSize = 13.sp, lineHeight = 19.5.sp,
-                            modifier = Modifier.clickable(enabled = !busy) { sendCode(true) }.semantics { role = Role.Button },
+                            stringResource(R.string.signin_resend), color = if (locked) Sm.Faint else Sm.Blue, fontSize = 13.sp, lineHeight = 19.5.sp,
+                            modifier = Modifier.clickable(enabled = !locked) { sendCode(true) }.semantics { role = Role.Button },
                         )
                     }
                 }

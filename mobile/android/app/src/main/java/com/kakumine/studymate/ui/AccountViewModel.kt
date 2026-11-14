@@ -17,6 +17,7 @@ import com.kakumine.studymate.data.profileEditChanges
 import com.kakumine.studymate.data.serverMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -181,16 +182,35 @@ class AccountViewModel(
         return viewModelScope.async {
             emailStep {
                 backend.emailSignInVerify(email, code)
-                // 读不到账号也算登录成功（下次刷新会补上），不把它报成验证码错误。
+                // 读不到账号也算登录成功，不把它报成验证码错误；过一会儿再读，免得侧栏一直停在"登录"。
                 try {
                     applyAccount(backend.account())
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Throwable) {
+                    retryAccountLater()
                 }
                 onSignedIn()
             }
         }.await()
+    }
+
+    // 登录成功但账号没读到：隔 2、4、8 秒再读，读到就停。
+    private fun retryAccountLater() {
+        viewModelScope.launch {
+            for (seconds in listOf(2L, 4L, 8L)) {
+                delay(seconds * 1000)
+                val response = try {
+                    backend.account()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    continue
+                }
+                applyAccount(response)
+                return@launch
+            }
+        }
     }
 
     /** 打开登录窗口时清掉上一次 Google 登录失败的提示（网页的 failed 是窗口自己的状态，每次打开都是新的）。 */

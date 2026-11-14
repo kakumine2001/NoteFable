@@ -39,7 +39,16 @@ class AccountViewModelTest {
         val calls = mutableListOf<String>()
         var failSignIn = false
 
-        override suspend fun account() = AccountResponse(configured = true, user = user, googleClientId = "web-client")
+        /** 接下来这么多次读账号会失败（模拟登录后那一下网络不通）。 */
+        var failAccountTimes = 0
+
+        override suspend fun account(): AccountResponse {
+            if (failAccountTimes > 0) {
+                failAccountTimes--
+                throw IOException("offline")
+            }
+            return AccountResponse(configured = true, user = user, googleClientId = "web-client")
+        }
 
         override suspend fun nativeSignInNonce(): String {
             calls += "nonce"
@@ -118,6 +127,21 @@ class AccountViewModelTest {
         advanceUntilIdle()
         assertEquals(SignInError.Generic, vm.verifyEmailCode("a@example.test", "123456", { throw IllegalStateException("save failed") }, {}))
         assertTrue(backend.calls.none { it.startsWith("emailVerify") })
+    }
+
+    @Test
+    fun `when the account cannot be read right after an accepted code, sign-in still succeeds and the account is read again`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        backend.failAccountTimes = 2
+        var signedIn = false
+        assertNull(vm.verifyEmailCode("a@example.test", "123456", {}, { signedIn = true }))
+        assertTrue(signedIn)
+        assertNull(vm.state.value.user)
+        // 2 秒后的第一次重读还失败，再过 4 秒读到。
+        advanceUntilIdle()
+        assertEquals("a@example.test", vm.state.value.user?.email)
     }
 
     @Test
