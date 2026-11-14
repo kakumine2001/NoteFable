@@ -325,7 +325,7 @@ private val GoogleLogoPaths = listOf(
 )
 
 @Composable
-private fun GoogleLogo(size: androidx.compose.ui.unit.Dp) {
+internal fun GoogleLogo(size: androidx.compose.ui.unit.Dp) {
     val parsed = remember { GoogleLogoPaths.map { (color, d) -> Color(color) to PathParser().parsePathString(d).toPath() } }
     Canvas(Modifier.size(size)) {
         scale(this.size.width / 48f, pivot = Offset.Zero) {

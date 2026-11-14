@@ -98,6 +98,17 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         }
     }
 
+    // 侧栏底部和上限登录提示（GuestLimitPrompt）共用的登录。草稿在 ChatViewModel 里，换身份后仍在。
+    val signIn: () -> Unit = {
+        scope.launch {
+            notesViewModel.flushBeforeIdentityChange()
+            accountViewModel.signIn(
+                fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
+                onSignedIn = onIdentityChanged,
+            )
+        }
+    }
+
     val switchWorkspace: (Workspace) -> Unit = { target ->
         // 网页从抽屉里切换时先关抽屉。
         closeDrawer()
@@ -114,15 +125,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     SidebarFooter(
                         account = account,
                         // 换身份前先把打开的笔记存掉（WebView 还带着旧身份的 Cookie），身份换了编辑器会被关掉。
-                        onSignIn = {
-                            scope.launch {
-                                notesViewModel.flushBeforeIdentityChange()
-                                accountViewModel.signIn(
-                                    fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
-                                    onSignedIn = onIdentityChanged,
-                                )
-                            }
-                        },
+                        onSignIn = signIn,
                         onSignOut = {
                             scope.launch {
                                 notesViewModel.flushBeforeIdentityChange()
@@ -181,6 +184,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onRemoveFile = viewModel::removeFile,
                 onImageMode = viewModel::setImageMode,
                 onSwitchWorkspace = notesViewModel::setWorkspace,
+                account = account,
+                onSignIn = signIn,
+                onDismissGuestLimit = viewModel::dismissGuestLimit,
             )
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
