@@ -41,6 +41,17 @@ describe("page autosave queue", () => {
     expect(queue.status).toBe("saved");
   });
 
+  it("marks the queue gone when the note no longer exists and keeps the draft", async () => {
+    const save = vi.fn().mockRejectedValue(new NoteSaveError("Not found", 404));
+    const queue = new NoteSaveQueue(page, save, () => {});
+    queue.edit({ title: "Mine", icon: null, cover: null, coverPosition: null, blocks: [] });
+    expect(await queue.flush()).toBe(false);
+    expect(queue.status).toBe("error");
+    expect(queue.gone).toBe(true);
+    expect(queue.draft.title).toBe("Mine");
+    expect(queue.dirty).toBe(true);
+  });
+
   it("stops automatic writes after a conflict and can load the latest version", async () => {
     vi.useFakeTimers();
     const latest = { ...page, title: "Other tab", version: 2 };

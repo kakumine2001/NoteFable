@@ -34,7 +34,32 @@ describe("localized routing", () => {
     expect(target(route("/?chat="))).toBe("redirect /app?chat=");
   });
 
+  it("serves the Android note embed from the static page for the chosen language", () => {
+    expect(target(route("/note-embed?page=p1", { language: "ja-JP" }))).toBe("rewrite /ja/note-embed?page=p1");
+    expect(target(route("/note-embed?page=p1", { cookie: "zh-Hant", language: "ja" }))).toBe("rewrite /zh-Hant/note-embed?page=p1");
+    expect(target(route("/note-embed?page=p1"))).toBe("rewrite /en/note-embed?page=p1");
+  });
+
+  it("lets the app pick the embed language with ?lang=", () => {
+    expect(target(route("/note-embed?page=p1&lang=ja", { cookie: "zh", language: "en" }))).toBe("rewrite /ja/note-embed?page=p1&lang=ja");
+    expect(target(route("/note-embed?page=p1&lang=zh", { language: "ja" }))).toBe("rewrite /zh/note-embed?page=p1&lang=zh");
+    expect(target(route("/note-embed?page=p1&lang=en", { cookie: "ja" }))).toBe("rewrite /en/note-embed?page=p1&lang=en");
+    // 対応していない値は無視して、いつもの決め方に戻る。
+    expect(target(route("/note-embed?page=p1&lang=fr", { language: "ja" }))).toBe("rewrite /ja/note-embed?page=p1&lang=fr");
+  });
+
+  it("only honors ?lang= on the embed", () => {
+    expect(target(route("/app?lang=ja", { language: "en" }))).toBe("rewrite /en/app?lang=ja");
+  });
+
+  it("runs the proxy on every localized path", async () => {
+    const [{ config }, { LOCALIZED_PATHS }] = await Promise.all([import("@/proxy"), import("./routing")]);
+    expect(config.matcher).toEqual([...LOCALIZED_PATHS]);
+  });
+
   it("leaves other paths alone", () => {
+    expect(route("/note-embed/x").kind).toBe("none");
+    expect(route("/ja/note-embed").kind).toBe("none");
     expect(route("/privacy").kind).toBe("none");
     expect(route("/ja").kind).toBe("none");
   });

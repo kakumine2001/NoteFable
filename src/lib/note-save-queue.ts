@@ -14,6 +14,8 @@ export class NoteSaveQueue {
   status: NoteSaveStatus = "saved";
   error = "";
   latest?: NotePage;
+  // 最後の保存が 404（別の端末でゴミ箱に入れた・完全に削除した）で失敗した。再送しても通らない。
+  gone = false;
   private revision = 0;
   private savedRevision = 0;
   private timer?: ReturnType<typeof setTimeout>;
@@ -75,10 +77,12 @@ export class NoteSaveQueue {
         this.page = page;
         this.version = page.version;
         this.savedRevision = revision;
+        this.gone = false;
         if (!this.dirty) this.content = noteContentOf(page);
       } catch (error) {
         this.status = error instanceof NoteSaveError && error.status === 409 ? "conflict" : "error";
         this.latest = error instanceof NoteSaveError ? error.latest : undefined;
+        this.gone = error instanceof NoteSaveError && error.status === 404;
         this.error = error instanceof Error ? error.message : msg("Failed to save. Your draft has been kept.");
         this.changed();
         return false;

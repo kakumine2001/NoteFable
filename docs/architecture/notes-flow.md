@@ -105,3 +105,29 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 ## 页面排序
 
 桌面侧栏和手机 Notes 首页每行有拖动柄，拖动时显示插入线；聚焦拖动柄后上下方向键也可移动。`POST /api/pages/reorder` 接受 `{ id, targetId, after }`，服务端在用户级事务锁内验证两个页面归属并保存完整顺序；拖到其他分组的页面旁会随之移动分组。排序只更新列表元数据，不改变正文、版本或保存时间；编辑器保存响应沿用当前列表的顺序与分组。刷新请求若早于排序完成，不会把顺序恢复成旧值。排序只涉及不在 Trash 里的笔记；放进 Trash 的笔记保留自己的 `position` 值，复原后按这个值和创建时间重新参与排序（期间其他笔记被重排过的话，不保证回到完全相同的位置）。
+
+## Android 应用内嵌编辑器（`/note-embed`）
+
+原生 Android 应用（`mobile/android`）自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=en|zh|zh-Hant|ja`，见 [i18n.md](i18n.md)）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，由 `src/proxy.ts` 像 `/app` 一样 rewrite；要打开的页面 ID 在浏览器端从 URL 读取。
+
+- **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、版本历史和保存状态由应用的原生顶栏负责（与网页手机顶栏一样没有“更多”菜单）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
+- **保存与恢复照旧。** 一秒防抖自动保存、`studymate:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
+- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `studymate_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。
+
+**网页 → 应用**：存在 `window.StudyMateNative`（`@JavascriptInterface`）时，调用 `window.StudyMateNative.postMessage(JSON.stringify(msg))`，`msg` 为：
+
+| 消息 | 时机 |
+| --- | --- |
+| `{type:"ready", page:{id,title,icon}}` | 页面数据读取完毕、保存队列已建立（BlockNote 是动态加载的，此时可能仍显示 Loading editor…，不代表编辑器已可输入）；打开的页面换成另一篇（冲突副本）时用新 `id` 再发一次，应用据此把打开的笔记换成副本 |
+| `{type:"meta", title, icon}` | 本地编辑改变了标题或图标（空标题发 `Untitled`，无图标为 `null`） |
+| `{type:"saveState", state}` | 保存状态变化：`saved` / `unsaved`（等待输入停止，网页显示 Saving…）/ `saving` / `error`（Not saved）/ `conflict` |
+| `{type:"missing"}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留 |
+| `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
+| `{type:"trashed"}` | 预留：内嵌页目前不提供移入 Trash 的入口，Trash 由应用在 flush 成功后调用 `DELETE /api/pages/:id` |
+
+**应用 → 网页**：`window.studymateEmbed`。
+
+- `flush(requestId)`：立即保存未保存的编辑，返回 `Promise<boolean>`，并回复 `{type:"flushed", requestId, ok}`。`ok` 为 true 表示没有未保存内容；冲突或保存失败时为 false（草稿仍在本地）。`kept` 为 true 表示失败不是冲突、草稿已存进 localStorage（下次打开会恢复并重试），应用可以在提示后允许离开，和 `/app` 切走时只 `void flush()` 一样。离开编辑页、移入 Trash、切换页面、登录或退出前先调用。
+- `openHistory()`：打开该笔记的 `NoteHistoryDialog`（与网页相同，恢复前先 flush）。
+
+消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。

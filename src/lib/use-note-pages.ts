@@ -25,7 +25,8 @@ function isPhone() {
   return typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
 }
 
-export function useNotePages(enabled: boolean) {
+// embedded: Android アプリの WebView に載せる /note-embed（1 ページだけを開き、一覧は読まない）。
+export function useNotePages(enabled: boolean, { embedded = false }: { embedded?: boolean } = {}) {
   const orderSync=useRef(new OrderRefreshSync());
   const reorderBusy=useRef(false);
   const [pages, setPages] = useState<NotePageSummary[]>([]);
@@ -258,7 +259,9 @@ export function useNotePages(enabled: boolean) {
       setLoading(false);
       const url = new URL(window.location.href);
       url.searchParams.set("page", page.id);
-      window.history.pushState(null, "", url);
+      // アプリに埋め込んだ 1 ページだけの画面（/note-embed）は戻る履歴を持たないので、積まずに置き換える。
+      if (embedded) window.history.replaceState(null, "", url);
+      else window.history.pushState(null, "", url);
     } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create note.")); }
     finally { actionBusy.current = false; setBusy(false); }
   }

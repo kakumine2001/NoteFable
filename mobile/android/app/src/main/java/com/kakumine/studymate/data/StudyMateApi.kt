@@ -56,7 +56,7 @@ class StudyMateApi(
     private val cookieJar: CookieJar,
     /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
     private val openFile: (String) -> InputStream = { throw IOException("no file access") },
-) : ChatBackend, AccountBackend {
+) : ChatBackend, AccountBackend, NotesBackend {
     private val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -206,6 +206,57 @@ class StudyMateApi(
     }
 
     private fun uploadsJson(tickets: List<String>) = buildJsonArray { tickets.forEach { add(it) } }.toString()
+
+    // ---- 笔记（列表、项目、回收站；正文由网页的 /note-embed 编辑） ----
+
+    override suspend fun notes(): NotesList = getJson("/api/pages")
+
+    // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
+    override suspend fun createNote(): NotePageSummary {
+        val body = """{"title":"Untitled","icon":null,"cover":null,"coverPosition":null,"blocks":[]}"""
+        return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages")).post(body.toRequestBody(JSON))).page
+    }
+
+    override suspend fun trashNote(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}")).delete())
+    }
+
+    override suspend fun moveNote(id: String, groupId: String?) {
+        val body = buildJsonObject { put("groupId", groupId) }.toString()
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/group")).put(body.toRequestBody(JSON)))
+    }
+
+    override suspend fun createGroup(name: String): NoteGroupSummary {
+        val body = buildJsonObject { put("name", name) }.toString()
+        return send<GroupResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups")).post(body.toRequestBody(JSON))).group
+    }
+
+    override suspend fun renameGroup(id: String, name: String): NoteGroupSummary {
+        val body = buildJsonObject { put("name", name) }.toString()
+        return send<GroupResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).patch(body.toRequestBody(JSON))).group
+    }
+
+    override suspend fun deleteGroup(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).delete())
+    }
+
+    override suspend fun trash(): List<NoteTrashItem> = getJson<TrashResponse>("/api/pages/trash").pages
+
+    override suspend fun restoreNote(id: String): NotePageSummary =
+        send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).post(ByteArray(0).toRequestBody(null))).page
+
+    override suspend fun deleteForever(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).delete())
+    }
+
+    override suspend fun emptyTrash(before: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash?before=" + URLEncoder.encode(before, "UTF-8"))).delete())
+    }
+
+    override fun noteEmbedUrl(pageId: String, lang: String?): String =
+        absoluteUrl("/note-embed?page=" + URLEncoder.encode(pageId, "UTF-8") + (lang?.let { "&lang=$it" } ?: ""))
+
+    private fun segment(id: String) = URLEncoder.encode(id, "UTF-8")
 
     // ---- 账号 ----
 
