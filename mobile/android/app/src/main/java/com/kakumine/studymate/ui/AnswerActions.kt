@@ -1,5 +1,6 @@
 package com.kakumine.studymate.ui
 
+import android.content.ActivityNotFoundException
 import android.net.Uri
 import android.provider.DocumentsContract
 import android.widget.Toast
@@ -28,6 +29,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
@@ -105,43 +107,57 @@ internal class AnswerMoreState(val sessionId: String, messageId: String, content
 }
 
 /**
- * 按列表项的 [key] 记住（对账把 `local-N` 换成服务端 ID 时 key 不变）。ID 变了就把 App 级的保存状态一起搬到新 ID 下，
- * 保存中 / 已保存不会变回"存到笔记"。
+ * 按列表项的 [key] 记住（对账把 `local-N` 换成服务端 ID 时 key 不变）。App 级的保存状态由 ChatViewModel 在对账时
+ * 搬到新 ID 下（不管这条回答在不在屏幕上），这里只跟着换成新 ID。
  */
 @Composable
 internal fun rememberAnswerMoreState(key: String, messageId: String, content: String): AnswerMoreState? {
     val sessionId = LocalAnswerSessionId.current ?: return null
-    val app = LocalContext.current.applicationContext as? StudyMateApp
     val state = remember(sessionId, key) { AnswerMoreState(sessionId, messageId, content) }
-    if (state.messageId != messageId) {
-        app?.answerExports()?.rename(sessionId, state.messageId, messageId)
-        state.messageId = messageId
-    }
+    if (state.messageId != messageId) state.messageId = messageId
     if (state.content != content) state.content = content
     return state
 }
 
-@Composable
-internal fun AnswerMoreButton(state: AnswerMoreState) {
-    val context = LocalContext.current
-    val app = context.applicationContext as? StudyMateApp ?: return
-    val store = remember(app) { app.answerExports() }
-    // 协程和保存位置的回调放在按钮上（随这条回答存在），不放在菜单里：下载时菜单先关，回调要还在。
-    val scope = rememberCoroutineScope()
-    val saves by store.saves.collectAsState()
-    val save = saves[AnswerExportStore.key(state.sessionId, state.messageId)]
-    val downloaded = stringResource(R.string.answer_conversation_downloaded)
+/** 让用户选保存位置并写入整段对话的 Markdown（[rememberConversationDownloader]，注册在 StudyMateRoot）。 */
+internal fun interface ConversationDownloader {
+    /** 打开选择器；[onFailed] 只在发起的这条回答还在时有用（进程被杀后改用 Toast 提示）。 */
+    fun launch(sessionId: String, fileName: String, onFailed: () -> Unit)
+}
 
-    // 选好保存位置后写入（SAF CreateDocument）；取消就什么也不做。等写入的 Markdown 放在 App 级（按会话），
-    // 选择器开着时 Activity 重建也还在；进程被杀后没了就重新读一次。写不成就删掉选择器已经建好的空文件并报错。
+internal val LocalConversationDownloader = staticCompositionLocalOf<ConversationDownloader?> { null }
+
+/**
+ * 保存位置选择器（SAF CreateDocument）注册在 App 根上，不放在回答行里：选择器开着时进程可能被杀，
+ * 回来后那条回答不一定再组合，结果就没人接、新建的文件一直是空的。要写哪个会话、文件名存在 rememberSaveable 里，
+ * 进程重建后也在；等写入的 Markdown 放在 App 级（[AnswerExportStore.holdExport]），没了就重新读一次。
+ * 写不成就删掉选择器已经建好的空文件并提示。写入在 App 级的作用域里跑，Activity 重建也不中断。
+ */
+@Composable
+internal fun rememberConversationDownloader(): ConversationDownloader {
+    val context = LocalContext.current
+    val app = context.applicationContext as StudyMateApp
+    val store = remember(app) { app.answerExports() }
+    var pendingSession by rememberSaveable { mutableStateOf<String?>(null) }
+    var pendingFileName by rememberSaveable { mutableStateOf<String?>(null) }
+    // 发起下载的回答行的错误回调（按会话）：进程被杀后就没了，改用 Toast。
+    val failureCallbacks = remember { mutableMapOf<String, () -> Unit>() }
+    val downloaded = stringResource(R.string.answer_conversation_downloaded)
+    val failed = stringResource(R.string.answer_download_failed)
+
     val createDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/markdown")) { uri: Uri? ->
-        val held = store.takeExport(state.sessionId)
+        val sessionId = pendingSession
+        pendingSession = null
+        pendingFileName = null
+        if (sessionId == null) return@rememberLauncherForActivityResult
+        val held = store.takeExport(sessionId)
+        val onFailed = failureCallbacks.remove(sessionId)
         if (uri == null) return@rememberLauncherForActivityResult
-        scope.launch {
+        app.scope.launch {
             val ok = try {
-                val markdown = held ?: store.exportConversation(state.sessionId, LocalDate.now().toString()).markdown
+                val markdown = held ?: store.exportConversation(sessionId, LocalDate.now().toString()).markdown
                 withContext(Dispatchers.IO) {
-                    (context.contentResolver.openOutputStream(uri, "wt") ?: error("no stream")).use { it.write(markdown.toByteArray(Charsets.UTF_8)) }
+                    (app.contentResolver.openOutputStream(uri, "wt") ?: error("no stream")).use { it.write(markdown.toByteArray(Charsets.UTF_8)) }
                 }
                 true
             } catch (e: CancellationException) {
@@ -150,13 +166,42 @@ internal fun AnswerMoreButton(state: AnswerMoreState) {
                 false
             }
             if (ok) {
-                Toast.makeText(context, downloaded, Toast.LENGTH_SHORT).show()
+                Toast.makeText(app, downloaded, Toast.LENGTH_SHORT).show()
             } else {
-                state.error = MenuError.Download
-                withContext(Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(context.contentResolver, uri) } }
+                withContext(Dispatchers.IO) { runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) } }
+                if (onFailed != null) onFailed() else Toast.makeText(app, failed, Toast.LENGTH_SHORT).show()
             }
         }
     }
+
+    return remember(store) {
+        ConversationDownloader { sessionId, fileName, onFailed ->
+            pendingSession = sessionId
+            pendingFileName = fileName
+            failureCallbacks[sessionId] = onFailed
+            try {
+                createDocument.launch(fileName)
+            } catch (_: ActivityNotFoundException) {
+                pendingSession = null
+                pendingFileName = null
+                failureCallbacks.remove(sessionId)
+                store.takeExport(sessionId)
+                onFailed()
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AnswerMoreButton(state: AnswerMoreState) {
+    val context = LocalContext.current
+    val app = context.applicationContext as? StudyMateApp ?: return
+    val store = remember(app) { app.answerExports() }
+    // 协程放在按钮上（随这条回答存在），不放在菜单里：下载时菜单先关。保存位置选择器在 App 根上（LocalConversationDownloader）。
+    val scope = rememberCoroutineScope()
+    val saves by store.saves.collectAsState()
+    val save = saves[AnswerExportStore.key(state.sessionId, state.messageId)]
+    val downloader = LocalConversationDownloader.current
 
     fun saveToNotes() {
         // 保存中、已保存再点什么也不做（不重复建笔记）。
@@ -179,7 +224,7 @@ internal fun AnswerMoreButton(state: AnswerMoreState) {
                 val export = store.exportConversation(state.sessionId, LocalDate.now().toString())
                 store.holdExport(state.sessionId, export.markdown)
                 state.menuOpen = false
-                createDocument.launch(export.fileName)
+                downloader?.launch(state.sessionId, export.fileName) { state.error = MenuError.Download }
             } catch (e: CancellationException) {
                 throw e
             } catch (_: Throwable) {

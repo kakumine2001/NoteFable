@@ -5,6 +5,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import com.kakumine.studymate.ui.answerMenuPosition
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -159,6 +160,23 @@ class ExportApiTest {
         advanceUntilIdle()
         assertEquals(AnswerSave.Saved("page-2"), store.saves.value[AnswerExportStore.key("s1", "cm2")])
         assertEquals(null, store.saves.value[AnswerExportStore.key("s1", "local-4")])
+    }
+
+    @Test
+    fun `a finished save announces the new page so the notes list refreshes`() = runTest {
+        val backend = FakeBackend()
+        val store = AnswerExportStore(backend, this)
+        val created = mutableListOf<String>()
+        val collector = launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { store.created.collect { created += it } }
+        store.save("s1", "m1", "Hi", "2026-11-14")
+        advanceUntilIdle()
+        assertEquals(listOf("page-1"), created)
+        // 失败不发。
+        backend.fail = ApiException.from(500, "{}")
+        store.save("s1", "m2", "Hi", "2026-11-14")
+        advanceUntilIdle()
+        assertEquals(listOf("page-1"), created)
+        collector.cancel()
     }
 
     @Test

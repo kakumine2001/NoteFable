@@ -172,6 +172,11 @@ class ChatViewModel(
     private val bundledModels: () -> com.kakumine.studymate.data.ModelsResponse? = { null },
     /** 草稿也存进这里，App 在后台被系统杀掉后回来仍在（和原来的 rememberSaveable 一样）。 */
     private val savedState: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
+    /**
+     * 对账把一条消息的本地 ID（`local-N`）换成服务端 ID 时调用（会话 ID、旧 ID、新 ID）。
+     * "存到笔记"的状态据此搬到新 ID 下，不依赖那条回答此刻是否在屏幕上（AnswerExportStore.rename）。主线程调用。
+     */
+    private val onMessageIdChanged: (sessionId: String, from: String, to: String) -> Unit = { _, _, _ -> },
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         ChatUiState(chosenModelId = settings.modelId, chosenReasoning = settings.reasoning),
@@ -307,14 +312,12 @@ class ChatViewModel(
             ensureActive()
             result
                 .onSuccess { list ->
-                    _state.update {
-                        if (it.activeSessionId != sessionId) it
-                        else {
-                            val loaded = list.map(::toUiMessage)
-                            val messages = if (keepLocalKeys) carryLocalKeys(it.messages, loaded) else loaded
-                            it.copy(messages = messages, messagesLoading = false, messagesFailed = false)
-                        }
-                    }
+                    val current = _state.value
+                    if (current.activeSessionId != sessionId) return@onSuccess
+                    val loaded = list.map(::toUiMessage)
+                    val messages = if (keepLocalKeys) carryLocalKeys(current.messages, loaded) else loaded
+                    if (keepLocalKeys) replacedLocalIds(current.messages, messages).forEach { (from, to) -> onMessageIdChanged(sessionId, from, to) }
+                    _state.update { it.copy(messages = messages, messagesLoading = false, messagesFailed = false) }
                 }
                 .onFailure {
                     _state.update { s ->
@@ -691,6 +694,7 @@ class ChatViewModel(
                         }
                     },
                     savedState = extras.createSavedStateHandle(),
+                    onMessageIdChanged = app.answerExports()::rename,
                 ) as T
             }
         }
@@ -698,11 +702,13 @@ class ChatViewModel(
 }
 
 /**
- * 对账：服务端列表末尾就是刚发送的这一回合。从两边末尾往前，旧列表里还是本地 ID（`local-N`）且角色相同的消息，
- * 把它的 key 交给服务端的那条（见 [UiMessage.key]）。
+ * 对账：先按服务端 ID 沿用旧列表里已有的 key（之前的回合对账过、key 还是 `local-N` 的消息，不能退回服务端 ID 而重建，
+ * 否则它进行中的下载等界面状态会被丢掉）。再处理刚发送的这一回合：服务端列表末尾就是它，从两边末尾往前，
+ * 旧列表里还是本地 ID 且角色相同的消息，把它的 key 交给服务端的那条（见 [UiMessage.key]）。
  */
 internal fun carryLocalKeys(old: List<UiMessage>, loaded: List<UiMessage>): List<UiMessage> {
-    val result = loaded.toMutableList()
+    val keysById = old.asSequence().filter { !it.id.startsWith("local-") && it.key != it.id }.associate { it.id to it.key }
+    val result = loaded.mapTo(mutableListOf()) { m -> keysById[m.id]?.let { m.copy(key = it) } ?: m }
     var i = old.lastIndex
     var j = result.lastIndex
     while (i >= 0 && j >= 0 && old[i].id.startsWith("local-") && old[i].role == result[j].role) {
@@ -711,4 +717,10 @@ internal fun carryLocalKeys(old: List<UiMessage>, loaded: List<UiMessage>): List
         j--
     }
     return result
+}
+
+/** 这次对账里从本地 ID 换成服务端 ID 的消息：(旧 ID, 新 ID)。 */
+internal fun replacedLocalIds(old: List<UiMessage>, merged: List<UiMessage>): List<Pair<String, String>> {
+    val oldByKey = old.filter { it.id.startsWith("local-") }.associateBy { it.key }
+    return merged.mapNotNull { m -> oldByKey[m.key]?.takeIf { it.id != m.id }?.let { it.id to m.id } }
 }

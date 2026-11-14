@@ -715,4 +715,46 @@ class ChatViewModelTest {
         assertEquals(listOf("cm0", "cm1", "cm2"), merged.map { it.id })
         assertEquals(listOf("cm0", "local-1", "local-2"), merged.map { it.key })
     }
+
+    @Test
+    fun `reconcile keeps local keys of earlier turns that already have stored ids`() {
+        // 第一回合对账后：id 是服务端的，key 还是 local-*；第二回合刚发送。
+        val old = listOf(
+            UiMessage("cm1", MessageRole.User, "Q1", key = "local-1"),
+            UiMessage("cm2", MessageRole.Assistant, "A1", key = "local-2"),
+            UiMessage("local-3", MessageRole.User, "Q2"),
+            UiMessage("local-4", MessageRole.Assistant, "A2"),
+        )
+        val loaded = listOf(
+            UiMessage("cm1", MessageRole.User, "Q1"),
+            UiMessage("cm2", MessageRole.Assistant, "A1"),
+            UiMessage("cm3", MessageRole.User, "Q2"),
+            UiMessage("cm4", MessageRole.Assistant, "A2"),
+        )
+        val merged = carryLocalKeys(old, loaded)
+        assertEquals(listOf("cm1", "cm2", "cm3", "cm4"), merged.map { it.id })
+        assertEquals(listOf("local-1", "local-2", "local-3", "local-4"), merged.map { it.key })
+        // 只有这次换了 ID 的消息才需要搬保存状态。
+        assertEquals(listOf("local-3" to "cm3", "local-4" to "cm4"), replacedLocalIds(old, merged))
+    }
+
+    @Test
+    fun `reconcile reports replaced ids even when the answer is not on screen`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val renames = mutableListOf<Triple<String, String, String>>()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10, onMessageIdChanged = { s, from, to -> renames += Triple(s, from, to) })
+        advanceUntilIdle()
+
+        vm.send("hi")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Hello"))
+        settle()
+        val localIds = vm.state.value.messages.map { it.id }
+        backend.stored = listOf(MessageDto("db-1", "USER", "hi"), MessageDto("db-2", "ASSISTANT", "Hello"))
+        backend.events.close()
+        advanceUntilIdle()
+
+        assertEquals(listOf(Triple("s1", localIds[0], "db-1"), Triple("s1", localIds[1], "db-2")), renames)
+        assertEquals(localIds, vm.state.value.messages.map { it.key })
+    }
 }

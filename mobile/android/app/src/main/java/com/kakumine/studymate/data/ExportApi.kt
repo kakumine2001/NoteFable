@@ -5,7 +5,10 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -103,11 +106,15 @@ fun answerSaveError(error: Throwable): AnswerSaveError {
 /**
  * "存到笔记"的状态按 `会话ID\n消息ID` 存在界面外（网页模块级的 saves Map）：回答重新绘制、切换对话再回来，
  * 都还是"正在保存 / 已保存"，不会重复建笔记。和网页一样只在本次运行内记住（重开 App 就忘了，服务端不去重）。
- * 保存在 App 级的作用域里跑，离开对话也不会被取消。笔记列表不用另外通知：切到笔记、打开笔记时都会重新读列表。
+ * 保存在 App 级的作用域里跑，离开对话也不会被取消。建好后在 [created] 里发出新笔记的 ID（网页 studymate:page-created），
+ * StudyMateRoot 据此刷新笔记列表。回答的 ID 由 ChatViewModel 对账时通过 [rename] 换成服务端 ID。
  */
 class AnswerExportStore(private val backend: ExportBackend, private val scope: CoroutineScope) {
     private val _saves = MutableStateFlow<Map<String, AnswerSave>>(emptyMap())
     val saves: StateFlow<Map<String, AnswerSave>> = _saves.asStateFlow()
+    private val _created = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    /** 存到笔记成功后新笔记的 ID（在后台完成也会发出）。 */
+    val created: SharedFlow<String> = _created.asSharedFlow()
 
     // 旧 key → 新 key（对账把 local-N 换成服务端 ID）：在途的保存完成时写到最新的 key 下。只在主线程读写。
     private val renamed = mutableMapOf<String, String>()
@@ -149,6 +156,7 @@ class AnswerExportStore(private val backend: ExportBackend, private val scope: C
             try {
                 val pageId = backend.saveAnswer(markdown, sessionId, messageId, savedOn)
                 _saves.update { it - key + (current(key) to AnswerSave.Saved(pageId)) }
+                _created.tryEmit(pageId)
                 result.complete(AnswerSaveResult.Ok)
             } catch (e: CancellationException) {
                 _saves.update { it - key - current(key) }
