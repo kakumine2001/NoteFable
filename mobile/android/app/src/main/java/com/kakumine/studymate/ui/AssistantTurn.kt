@@ -139,7 +139,7 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
         // 只给本文完整、没有失败的回答显示操作行（网页 shouldShowAnswerActions：生成中、只有图片、失败时都不显示）。
         val failed = message.errorDetail != null || message.usageLimit
         if (!message.streaming && !failed && !message.generatingImage && message.content.isNotBlank()) {
-            AnswerActions(message.content)
+            AnswerActions(message.key, message.id, message.content)
         }
     }
 }
@@ -161,9 +161,12 @@ private fun ProposalCards(proposals: List<com.kakumine.studymate.data.Proposal>,
 }
 
 // 操作行（网页 answer-actions.tsx，手机）：36x36 的按钮，整体左移 10.4 让图标和正文左边缘对齐，距正文 6.4。
-// 复制后图标换成 ✓ 停 2 秒；复制失败在下面一行显示红字。"…"菜单（存到笔记、下载对话）不在这一批。
+// 复制后图标换成 ✓ 停 2 秒；复制失败在下面一行显示红字。"…"菜单（存到笔记、下载对话）见 AnswerActions.kt。
+// 错误和网页一样只有一处（error）：有"…"时复制失败也放进它的 error，任何一个操作开始时都清掉上一条。
+// key 是列表项的 key（对账换 ID 时不变），菜单状态跟着它，不跟着 ID。
 @Composable
-private fun AnswerActions(content: String) {
+private fun AnswerActions(key: String, messageId: String, content: String) {
+    val more = rememberAnswerMoreState(key, messageId, content)
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copiedTick by remember { mutableIntStateOf(0) }
@@ -182,6 +185,7 @@ private fun AnswerActions(content: String) {
             Box(
                 Modifier.size(36.dp).clip(RoundedCornerShape(4.8.dp)).clickable {
                     failed = false
+                    more?.error = null
                     scope.launch {
                         val ok = try {
                             clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("StudyMate", content)))
@@ -191,7 +195,11 @@ private fun AnswerActions(content: String) {
                         } catch (_: Throwable) {
                             false
                         }
-                        if (ok) copiedTick++ else failed = true
+                        when {
+                            ok -> copiedTick++
+                            more != null -> more.error = MenuError.Copy
+                            else -> failed = true
+                        }
                     }
                 }.semantics { contentDescription = if (copiedTick > 0) copiedLabel else copyLabel; role = Role.Button },
                 Alignment.Center,
@@ -199,8 +207,10 @@ private fun AnswerActions(content: String) {
                 if (copiedTick > 0) LucideIcon(Lucide.Check, 16.dp, Sm.Muted, strokeWidth = 2f)
                 else LucideIcon(Lucide.Copy, 16.dp, Sm.Muted, strokeWidth = 1.9f)
             }
+            if (more != null) AnswerMoreButton(more)
         }
-        if (failed) {
+        if (more != null) AnswerMoreRowError(more)
+        else if (failed) {
             Text(
                 stringResource(R.string.answer_copy_failed),
                 style = ActionErrorText,

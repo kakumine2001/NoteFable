@@ -376,7 +376,7 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 contentPadding = PaddingValues(start = PageGutter, end = PageGutter, top = 4.dp, bottom = ListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(TurnGap),
             ) {
-                items(state.messages, key = { it.id }) { message ->
+                items(state.messages, key = { it.key }) { message ->
                     val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
                     // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
                     val isImageAnswer = message.generatingImage || message.images.isNotEmpty()

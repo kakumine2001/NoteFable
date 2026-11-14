@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 批次 8（回答导出）的文案：网页 answer-actions.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<resources>
+    <string name="answer_options">Answer options</string>
+    <string name="answer_more_options">More answer options</string>
+    <string name="answer_save_to_page">Save to page</string>
+    <string name="answer_saved_to_page">Saved to page</string>
+    <string name="answer_retry_save">Retry saving to page</string>
+    <string name="answer_open_saved_page">Open saved page</string>
+    <string name="answer_download_conversation">Download conversation</string>
+    <string name="answer_conversation_downloaded">Conversation downloaded</string>
+    <string name="answer_download_failed">Could not download the conversation. Try again.</string>
+    <string name="answer_save_failed">Could not save to Notes. Try again.</string>
+    <string name="answer_save_too_large">This answer is too large to save as a note.</string>
+</resources>
