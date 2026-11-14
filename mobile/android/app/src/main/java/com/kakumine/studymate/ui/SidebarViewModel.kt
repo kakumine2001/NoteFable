@@ -225,9 +225,14 @@ class SidebarViewModel(
             }
         }
         val gen = generation
+        val nav = chat.navigationCount
         return try {
             val session = sessions.createSession(projectId)
             if (gen != generation) return false
+            if (chat.navigationCount != nav) {
+                chat.addCreatedSession(session)
+                return false
+            }
             chat.openCreatedSession(session)
             true
         } catch (cancelled: CancellationException) {

@@ -209,6 +209,7 @@ class ChatViewModel(
 
     /** 刚在项目里建好的空聊天：放到列表最前并打开（网页 createSession(projectId)）。 */
     fun openCreatedSession(session: SessionSummary) {
+        navigationCount++
         stop()
         loadJob?.cancel()
         _state.update {
@@ -217,6 +218,13 @@ class ChatViewModel(
                 activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
             )
         }
+        // 进行中的刷新可能读到建好之前的列表，回来会把新聊天盖掉：让它重读。
+        if (sessionsJob?.isActive == true) refreshSessions()
+    }
+
+    /** 建好了，但用户在等待期间已经去了别的聊天：只加进列表，不打开。 */
+    fun addCreatedSession(session: SessionSummary) {
+        patchSessions { list -> listOf(session) + list.filterNot { it.id == session.id } }
     }
 
     // 首次启动时，设备 Cookie 由第一个到达服务端的请求签发。发送前先等会话列表请求结束，
@@ -241,13 +249,19 @@ class ChatViewModel(
         refreshSessions()
     }
 
+    /** 每次换到别的聊天（新聊天、打开历史聊天、打开刚建的聊天）加一，用来判断慢请求回来时用户是否已经去了别处。 */
+    var navigationCount = 0L
+        private set
+
     fun newChat() {
+        navigationCount++
         stop()
         loadJob?.cancel()
         _state.update { it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false) }
     }
 
     fun openSession(id: String) {
+        navigationCount++
         if (_state.value.activeSessionId == id) return
         // 切换会话时停掉进行中的回答，避免它的文字写进别的会话。
         stop()

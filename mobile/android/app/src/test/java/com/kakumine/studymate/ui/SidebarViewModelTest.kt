@@ -20,6 +20,7 @@ import com.kakumine.studymate.data.SessionsBackend
 import com.kakumine.studymate.data.UploadPlan
 import com.kakumine.studymate.data.UploadSlot
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -67,6 +68,8 @@ class SidebarViewModelTest {
         val created = mutableListOf<String?>()
         var fail = false
         var reorderResult = listOf<SessionOrderUpdate>()
+        /** 设了以后新建聊天要等它：模拟慢请求。 */
+        var createGate: CompletableDeferred<Unit>? = null
 
         override suspend fun updateSession(id: String, title: String?, pinned: Boolean?, project: ProjectChange?) {
             if (fail) throw IOException("offline")
@@ -77,6 +80,7 @@ class SidebarViewModelTest {
         }
         override suspend fun createSession(projectId: String?): SessionSummary {
             created += projectId
+            createGate?.await()
             return SessionSummary("created", "New chat", projectId = projectId)
         }
         override suspend fun reorderSession(id: String, targetId: String, after: Boolean) = reorderResult
@@ -213,6 +217,23 @@ class SidebarViewModelTest {
         assertTrue(sidebar.newChatInProject("p2"))
         assertEquals(listOf<String?>("p2"), api.created)
         assertEquals("created", chat.state.value.activeSessionId)
+        assertEquals("created", chat.state.value.sessions.first().id)
+    }
+
+    @Test
+    fun `a slow project chat does not pull the user away from a chat opened meanwhile`() = runTest(dispatcher) {
+        val (chat, sidebar, api) = setup(listOf(SessionSummary("a", "Real title"), SessionSummary("b", "Other")))
+        chat.openSession("a")
+        advanceUntilIdle()
+        val gate = CompletableDeferred<Unit>()
+        api.createGate = gate
+        val result = async { sidebar.newChatInProject("p2") }
+        advanceUntilIdle()
+        chat.openSession("b")
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(result.await())
+        assertEquals("b", chat.state.value.activeSessionId)
         assertEquals("created", chat.state.value.sessions.first().id)
     }
 
