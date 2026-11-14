@@ -1,5 +1,7 @@
 package com.kakumine.studymate.ui
 
+import kotlinx.coroutines.isActive
+
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
@@ -487,16 +489,23 @@ internal fun revealMessage(
             val info = listState.layoutInfo
             layoutIsCurrent(info.totalItemsCount, info.visibleItemsInfo.map { it.key }, messages.size, ids)
         }.first { it }
-        // 不在屏幕上时先跳过去，再平滑地移到中间。
-        if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
-            listState.scrollToItem(index)
-            androidx.compose.runtime.withFrameNanos { }
-        }
-        val info = listState.layoutInfo
-        info.visibleItemsInfo.firstOrNull { it.index == index }?.let { item ->
-            val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
-            val itemCenter = item.offset + item.size / 2f
-            listState.animateScrollBy(itemCenter - viewportCenter)
+        // 不在屏幕上时先跳过去，再平滑地移到中间。用户在这期间拖动列表会打断滚动（只取消滚动本身，
+        // 这个 effect 还活着）：这时就算定位结束，清掉请求，免得它一直挂着、挡住贴底。
+        try {
+            if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
+                listState.scrollToItem(index)
+                androidx.compose.runtime.withFrameNanos { }
+            }
+            val info = listState.layoutInfo
+            info.visibleItemsInfo.firstOrNull { it.index == index }?.let { item ->
+                val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2f
+                val itemCenter = item.offset + item.size / 2f
+                listState.animateScrollBy(itemCenter - viewportCenter)
+            }
+        } catch (interrupted: kotlinx.coroutines.CancellationException) {
+            if (!kotlinx.coroutines.currentCoroutineContext().isActive) throw interrupted
+            onRevealDone(request.token)
+            return@LaunchedEffect
         }
         val start = androidx.compose.runtime.withFrameMillis { it }
         flash = RevealFlash(request.messageId, request.token, start)

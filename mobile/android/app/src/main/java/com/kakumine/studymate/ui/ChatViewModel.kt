@@ -307,8 +307,17 @@ class ChatViewModel(
 
     /** 从检索结果或链接打开聊天，有 [messageId] 时读完后滚到那条消息并闪一下（网页 openChatFromLink）。 */
     fun openSessionAt(id: String, messageId: String?) {
+        val wasActive = _state.value.activeSessionId == id
         openSession(id)
-        if (messageId != null) _state.update { it.copy(reveal = MessageReveal(id, messageId, ++revealTokens)) }
+        if (messageId == null) return
+        // 已经开着这段聊天、但本地历史里没有这条（别的设备后来加的）：先重读历史再定位，免得把存在的消息当成已删除。
+        // 正在生成时不重读，免得覆盖进行中的回答；这时找不到就按不存在处理。
+        val current = _state.value
+        val reload = wasActive && !current.sending && !current.messagesLoading && current.messages.none { it.id == messageId }
+        _state.update {
+            it.copy(reveal = MessageReveal(id, messageId, ++revealTokens), messagesLoading = it.messagesLoading || reload)
+        }
+        if (reload) loadMessages(id)
     }
 
     /** 链接里的 ID 形式不对：和网页一样回到新聊天，在输入栏上方提示读不到。 */

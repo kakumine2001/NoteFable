@@ -37,8 +37,13 @@ class ChatRevealTest {
     fun tearDown() = Dispatchers.resetMain()
 
     private class Backend : ChatBackend {
+        var extra = emptyList<MessageDto>()
+        var loads = 0
         override suspend fun sessions() = listOf(SessionSummary("s1", "One"), SessionSummary("s2", "Two"))
-        override suspend fun messages(sessionId: String) = listOf(MessageDto("m1", "USER", "q"), MessageDto("m2", "ASSISTANT", "a"))
+        override suspend fun messages(sessionId: String): List<MessageDto> {
+            loads++
+            return listOf(MessageDto("m1", "USER", "q"), MessageDto("m2", "ASSISTANT", "a")) + extra
+        }
         override suspend fun models() = ModelsResponse(defaultModel = "a")
         override fun streamChat(request: ChatRequest): Flow<ChatStreamEvent> = emptyFlow()
         override suspend fun generateImage(request: ChatRequest) = ImageResult()
@@ -89,5 +94,26 @@ class ChatRevealTest {
         assertEquals(ComposerNotice.LinkFailed, vm.state.value.notice)
         vm.openSession("s2")
         assertNull(vm.state.value.notice)
+    }
+
+    @Test
+    fun `a hit missing from the open chat's cached history reloads it before revealing`() = runTest(dispatcher) {
+        val backend = Backend()
+        val vm = ChatViewModel(backend, Settings())
+        vm.openSession("s1")
+        advanceUntilIdle()
+        val before = backend.loads
+        backend.extra = listOf(MessageDto("m3", "USER", "from another device"))
+        vm.openSessionAt("s1", "m3")
+        // 重读完成前保持"读取中"，界面不会把它当成不存在的消息。
+        assertEquals(true, vm.state.value.messagesLoading)
+        advanceUntilIdle()
+        assertEquals(before + 1, backend.loads)
+        assertEquals("m3", vm.state.value.reveal!!.messageId)
+        assertEquals(3, vm.state.value.messages.size)
+        // 已经在本地的消息不重读。
+        vm.openSessionAt("s1", "m1")
+        advanceUntilIdle()
+        assertEquals(before + 1, backend.loads)
     }
 }
