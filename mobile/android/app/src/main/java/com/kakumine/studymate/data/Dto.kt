@@ -52,7 +52,7 @@ data class MessageDto(
     val createdAt: String = "",
     val attachments: List<AttachmentDto> = emptyList(),
     val generatedImages: List<GeneratedImageDto> = emptyList(),
-    // activity / proposals 的结构较复杂，第一版只保留原始 JSON，后续再做原生进度条和提案卡片。
+    // activity / proposals 保留原始 JSON，由 Activity.parseStored / parseStoredProposals 逐项校验后再用（坏的丢掉）。
     val activity: JsonElement? = null,
     val proposals: JsonElement? = null,
 )

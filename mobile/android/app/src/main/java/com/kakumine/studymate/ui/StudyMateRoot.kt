@@ -81,6 +81,8 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
+    // 当前打开着的网页编辑器的 JS 桥（没有打开笔记时为 null）。
+    var editorBridge by remember { mutableStateOf<NoteEmbedBridge?>(null) }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     val onIdentityChanged = {
@@ -110,6 +112,17 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         }
     }
 
+    // 侧栏底部和上限登录提示（GuestLimitPrompt）共用的登录。草稿在 ChatViewModel 里，换身份后仍在。
+    val signIn: () -> Unit = {
+        scope.launch {
+            notesViewModel.flushBeforeIdentityChange()
+            accountViewModel.signIn(
+                fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
+                onSignedIn = onIdentityChanged,
+            )
+        }
+    }
+
     val switchWorkspace: (Workspace) -> Unit = { target ->
         // 网页从抽屉里切换时先关抽屉。
         closeDrawer()
@@ -127,15 +140,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     SidebarFooter(
                         account = account,
                         // 换身份前先把打开的笔记存掉（WebView 还带着旧身份的 Cookie），身份换了编辑器会被关掉。
-                        onSignIn = {
-                            scope.launch {
-                                notesViewModel.flushBeforeIdentityChange()
-                                accountViewModel.signIn(
-                                    fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
-                                    onSignedIn = onIdentityChanged,
-                                )
-                            }
-                        },
+                        onSignIn = signIn,
                         onSignOut = {
                             scope.launch {
                                 notesViewModel.flushBeforeIdentityChange()
@@ -181,8 +186,19 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         },
     ) {
         val open = notes.open
+        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 studymate:page-updated / page-created），
+        // 改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然它还拿着旧版本，下次保存会 409）。
+        LaunchedEffect(app) {
+            app.proposals.changes.collect { change ->
+                notesViewModel.refresh()
+                val page = change.page
+                if (!change.created && page != null && change.pageId != null && notesViewModel.state.value.open?.id == change.pageId) {
+                    editorBridge?.pageUpdated(page)
+                }
+            }
+        }
         when {
-            notes.workspace == Workspace.Chat -> ChatScreen(
+            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink) { ChatScreen(
                 state = state,
                 // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
                 input = viewModel.draft,
@@ -194,12 +210,15 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onSelectModel = viewModel::selectModel,
                 onSelectReasoning = viewModel::selectReasoning,
                 onRetryMessages = viewModel::reloadActive,
-                onAddFiles = viewModel::addFiles,
+                onImportFiles = viewModel::importFiles,
                 onRemoveFile = viewModel::removeFile,
                 onImageMode = viewModel::setImageMode,
                 onSwitchWorkspace = notesViewModel::setWorkspace,
                 onChangeIcon = viewModel::changeIcon,
-            )
+                account = account,
+                onSignIn = signIn,
+                onDismissGuestLimit = viewModel::dismissGuestLimit,
+            ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
                 NoteEditorScreen(
@@ -225,7 +244,10 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Flushed -> Unit
                         }
                     },
-                    registerFlush = { bridge -> notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } } },
+                    registerFlush = { bridge ->
+                        editorBridge = bridge
+                        notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } }
+                    },
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {

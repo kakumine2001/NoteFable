@@ -35,7 +35,29 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.content.MediaType
+import androidx.compose.foundation.content.TransferableContent
+import androidx.compose.foundation.content.consume
+import androidx.compose.foundation.content.contentReceiver
+import androidx.compose.foundation.content.hasMediaType
+import androidx.compose.foundation.gestures.animateScrollBy
+import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.input.TextFieldLineLimits
+import androidx.compose.foundation.text.input.rememberTextFieldState
+import androidx.compose.foundation.text.input.setTextAndPlaceCursorAtEnd
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -95,7 +117,7 @@ import kotlinx.coroutines.launch
 private val PageGutter = 24.dp
 private val TurnGap = 36.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
@@ -108,16 +130,32 @@ fun ChatScreen(
     onSelectModel: (String) -> Unit,
     onSelectReasoning: (String) -> Unit,
     onRetryMessages: () -> Unit,
-    onAddFiles: (List<LocalFile>) -> Unit,
+    /** 在后台读出附件再加进输入栏；读的期间不能发送（见 ChatViewModel.importFiles）。 */
+    onImportFiles: (suspend () -> List<LocalFile>) -> Unit,
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
     /** 改当前聊天的图标（还没保存的新聊天是草稿图标）。 */
     onChangeIcon: (String?) -> Unit,
+    account: AccountUiState = AccountUiState(),
+    onSignIn: () -> Unit = {},
+    onDismissGuestLimit: () -> Unit = {},
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
-    val pickFiles = rememberFilePicker(onAddFiles)
+    val pickFiles = rememberFilePicker(onImportFiles)
+    val context = LocalContext.current
+    val pasteImages: (List<android.net.Uri>, TransferableContent) -> Unit = { uris, content ->
+        onImportFiles {
+            // 键盘插入的图片，临时读取权限挂在 content 里的 InputContentInfo 上：拷贝期间一直引用着 content，
+            // 免得它被回收、权限跟着失效；拷完再主动释放。
+            try {
+                withContext(Dispatchers.IO) { uris.mapNotNull { copyPastedImage(context, it) } }
+            } finally {
+                releaseKeyboardContentPermission(content)
+            }
+        }
+    }
     // 空白页（网页 emptyState：没有消息）：标题在页面中间，顶栏不放标题和"新建聊天"。读历史中 / 失败时不算。
     val isEmptyChat = state.messages.isEmpty() && !state.messagesLoading && !state.messagesFailed
 
@@ -141,11 +179,26 @@ fun ChatScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon)
             }
+            val guestLimit = state.guestLimit
             Composer(
+                // 未登录撞到上限：网页只在服务端开了 Google 登录、且还没登录时显示（GuestLimitPrompt 里的判断）。
+                prompt = if (guestLimit != null && account.configured && account.user == null) {
+                    {
+                        GuestLimitPrompt(
+                            kind = guestLimit,
+                            attachmentsLost = state.files.isNotEmpty(),
+                            signInFailed = account.signInFailed,
+                            signingIn = account.signingIn,
+                            onSignIn = onSignIn,
+                            onClose = onDismissGuestLimit,
+                        )
+                    }
+                } else null,
                 input = input,
                 onInputChange = onInputChange,
                 sending = state.sending,
-                canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null,
+                canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null &&
+                    state.importing == 0,
                 modelLabel = state.selectedModel?.label,
                 effortLabel = state.selectedReasoning?.let { reasoningLabel(it) },
                 files = state.files,
@@ -163,6 +216,7 @@ fun ChatScreen(
                 onAddClick = { attachOpen = true },
                 onRemoveFile = onRemoveFile,
                 onImageModeOff = { onImageMode(false) },
+                onPasteImages = pasteImages,
             )
         }
     }
@@ -236,9 +290,52 @@ internal fun TopIconButton(paths: List<String>, description: String, onClick: ()
 @Composable
 private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit) {
     val listState = rememberLazyListState()
-    // 新消息出现（含刚发出的提问）时回到底部。流式增长不需要处理：反向布局下底部锚点不动。
-    LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(0)
+    val scope = rememberCoroutineScope()
+    val density = LocalDensity.current
+    // 和网页一样按"是否跟着最新内容"决定回答变长时要不要贴住底部（page.tsx 的 followBottomRef）：
+    // 打开会话、发出新消息、点"滚动到底部"时跟随；用户一滚（拖动、滚轮、无障碍滚动）离开底部就停止，
+    // 滚动停在底部 2 以内又跟随。判断规则在 followAction（ChatFollow.kt）。
+    val follow = remember { mutableStateOf(true) }
+    // "滚动到底部"按钮自己发起的滚动：不能当成用户往回滚而停止跟随。
+    val programmaticScroll = remember { mutableStateOf(false) }
+    val lastIndex = state.messages.lastIndex
+    LaunchedEffect(state.activeSessionId, state.messages.size) { follow.value = true }
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            when (interaction) {
+                is DragInteraction.Start -> follow.value = false
+                is DragInteraction.Stop, is DragInteraction.Cancel ->
+                    if (distanceToBottom(listState) <= with(density) { 2.dp.toPx() }) follow.value = true
+            }
+        }
+    }
+    LaunchedEffect(listState) {
+        val threshold = with(density) { 2.dp.toPx() }
+        snapshotFlow {
+            followAction(
+                following = follow.value,
+                distanceToBottomPx = distanceToBottom(listState),
+                thresholdPx = threshold,
+                scrolling = listState.isScrollInProgress,
+                programmaticScroll = programmaticScroll.value,
+                hasItems = listState.layoutInfo.totalItemsCount > 0,
+            )
+        }.collect { action ->
+            when (action) {
+                FollowAction.Follow -> follow.value = true
+                FollowAction.Unfollow -> follow.value = false
+                // 回答在列表没重组时也会变高（Markdown 异步排版），或刚开始跟随：补一次贴底。
+                FollowAction.Pin -> listState.requestScrollToItem(listState.layoutInfo.totalItemsCount - 1, PIN_TO_END)
+                FollowAction.None -> Unit
+            }
+        }
+    }
+    // 跟随时，在这一帧的测量之前就把位置定到最底部：新增的文字直接出现在底部，不会先跳一下。
+    SideEffect {
+        if (follow.value && lastIndex >= 0 && !listState.isScrollInProgress) listState.requestScrollToItem(lastIndex, PIN_TO_END)
+    }
+    val atBottom by remember {
+        derivedStateOf { distanceToBottom(listState) <= with(density) { 8.dp.toPx() } }
     }
 
     when {
@@ -261,30 +358,95 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, onChangeIcon)
             }
         }
-        else -> LazyColumn(
-            state = listState,
-            reverseLayout = true,
-            modifier = Modifier.fillMaxSize(),
-            // 左右 24；顶部 4（顶栏下方）；底部 48（输入栏上方）。
-            contentPadding = PaddingValues(start = PageGutter, end = PageGutter, top = 4.dp, bottom = 48.dp),
-            verticalArrangement = Arrangement.spacedBy(TurnGap),
-        ) {
-            items(state.messages.asReversed(), key = { it.id }) { message ->
-                val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
-                // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
-                val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
-                if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+        else -> Box(Modifier.fillMaxSize()) {
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.fillMaxSize(),
+                // 左右 24；顶部 4（顶栏下方）；底部 96 = 网页消息列自己的 pb-12（48）+ 输入栏区顶部"滚动到底部"那一行
+                // （按钮 40 + 下距 8；手机宽度下按钮隐藏时也只是透明，照样占位）。
+                contentPadding = PaddingValues(start = PageGutter, end = PageGutter, top = 4.dp, bottom = ListBottomPadding),
+                verticalArrangement = Arrangement.spacedBy(TurnGap),
+            ) {
+                items(state.messages, key = { it.id }) { message ->
+                    val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
+                    // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
+                    val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
+                    if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                }
             }
+            ScrollToBottomButton(
+                visible = !atBottom,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                onClick = {
+                    follow.value = true
+                    scope.launch {
+                        // 生成中直接跳到底（动画追不上变长的末尾），否则平滑滚动，和网页 scrollChatToBottom 一样。
+                        val index = state.messages.lastIndex.coerceAtLeast(0)
+                        val lastVisible = listState.layoutInfo.visibleItemsInfo.any { it.index == index }
+                        programmaticScroll.value = true
+                        try {
+                            if (state.sending || !lastVisible) listState.scrollToItem(index, PIN_TO_END)
+                            else listState.animateScrollBy(distanceToBottom(listState).toFloat())
+                        } finally {
+                            programmaticScroll.value = false
+                        }
+                    }
+                },
+            )
         }
     }
 }
 
+/** 网页消息列的 pb-12（48）+ 输入栏区顶部"滚动到底部"那一行（40 + 8）。 */
+private val ListBottomPadding = 96.dp
+
+/** 足够大的偏移：定位到最后一项后由列表自己收回到"刚好看到末尾"。 */
+private const val PIN_TO_END = 1_000_000
+
+/** 列表末尾（含底部内边距）离可视区底边还有多少像素。最后一项不在可视区时返回一个很大的数。 */
+private fun distanceToBottom(state: LazyListState): Int {
+    val info = state.layoutInfo
+    val last = info.visibleItemsInfo.lastOrNull() ?: return 0
+    if (last.index < info.totalItemsCount - 1) return Int.MAX_VALUE / 2
+    return (last.offset + last.size + info.afterContentPadding - info.viewportEndOffset).coerceAtLeast(0)
+}
+
+// "滚动到底部"（.notion-scroll-bottom 里的 .notion-icon-button）：40 的白底按钮、圆角 4.8、--notion-shadow
+// （0 4 14 .12 + 1px .05 的细环），ArrowDown 20 / 描边 2.1 灰。位于输入栏区顶部、和下面隔 8；离开底部时 150ms 淡入 + 从 .95 放大。
+@Composable
+private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val progress by animateFloatAsState(if (visible) 1f else 0f, tween(150, easing = FastOutSlowInEasing), label = "scroll-bottom")
+    if (progress == 0f) return
+    val label = stringResource(R.string.scroll_to_bottom)
+    val shape = RoundedCornerShape(4.8.dp)
+    // 网页里按钮在输入栏区的上内边距 12 之下；原生输入栏区上内边距也是 12，按钮放在列表底部再往下 4，下沿离输入栏内容正好 8。
+    Box(
+        modifier.offset(y = 4.dp).graphicsLayer {
+            alpha = progress
+            val scale = 0.95f + 0.05f * progress
+            scaleX = scale
+            scaleY = scale
+        }
+            .size(40.dp)
+            .shadow(6.dp, shape, ambientColor = Color(0x1F0F0F0F), spotColor = Color(0x1F0F0F0F))
+            .background(Color.White, shape)
+            .border(1.dp, Color(0x0D0F0F0F), shape)
+            .clip(shape)
+            .clickable(enabled = visible, onClick = onClick)
+            .semantics { contentDescription = label; role = Role.Button },
+        Alignment.Center,
+    ) {
+        LucideIcon(Lucide.ArrowDown, 20.dp, Sm.Muted, strokeWidth = 2.1f)
+    }
+}
+
 // 空白首页：左对齐的"图标 + 32sp 粗体标题"，下面一行 17sp 灰色说明，整体在可用区域里垂直居中。
-// 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"，所以这里同样留 48，标题的位置才和网页一致。
+// 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"；手机宽度（< 640）下输入栏区顶部那一行"滚动到底部"
+// （40 + 8）在空白首页也只是透明、照样占位（只有 ≥ 640 才 display: none）。所以这里底部留 48 + 48，标题的位置才和网页一致。
 @Composable
 private fun EmptyState(title: String?, icon: String?, onChangeIcon: (String?) -> Unit) {
     Column(
-        Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = 48.dp),
+        Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
         verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -395,9 +557,10 @@ private fun FileChip(name: String) {
 // ---------------------------------------------------------------------------------------------
 // 输入栏（.notion-composer）：外边距 10.4 / 上 12 / 下 16，白底、1px 描边、圆角 16、内边距 10。
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class, ExperimentalFoundationApi::class)
 @Composable
 private fun Composer(
+    prompt: (@Composable () -> Unit)?,
     input: String,
     onInputChange: (String) -> Unit,
     sending: Boolean,
@@ -414,8 +577,28 @@ private fun Composer(
     onAddClick: () -> Unit,
     onRemoveFile: (String) -> Unit,
     onImageModeOff: () -> Unit,
+    onPasteImages: (List<android.net.Uri>, TransferableContent) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
+    // 输入框用 TextFieldState（粘贴图片要用 contentReceiver，只有这种输入框支持）；草稿仍在 ViewModel 里，两边同步：
+    // 打字时把文字交给 ViewModel；ViewModel 自己改了草稿（发出后清空、上限时放回被拒的原文）时再写回输入框。
+    val field = rememberTextFieldState(input)
+    var pushed by remember { mutableStateOf(input) }
+    LaunchedEffect(field) {
+        snapshotFlow { field.text.toString() }.collect { text ->
+            if (text != pushed) {
+                pushed = text
+                onInputChange(text)
+            }
+        }
+    }
+    LaunchedEffect(input) {
+        if (input != pushed) {
+            pushed = input
+            field.setTextAndPlaceCursorAtEnd(input)
+        }
+    }
+    val context = LocalContext.current
     val shape = RoundedCornerShape(16.dp)
     val insets = WindowInsets.navigationBars.union(WindowInsets.ime)
     // 对应网页的 padding-bottom: max(1rem, safe-area)；键盘弹出时贴着键盘留 16。
@@ -427,6 +610,7 @@ private fun Composer(
         Modifier.fillMaxWidth().windowInsetsPadding(insets)
             .padding(start = 10.4.dp, end = 10.4.dp, top = 12.dp, bottom = bottomPad),
     ) {
+        prompt?.invoke()
         if (error != null) ComposerError(error)
         if (files.isNotEmpty()) PendingFiles(files, enabled = upload == null, onRemove = onRemoveFile)
         Column(
@@ -452,15 +636,26 @@ private fun Composer(
         ) {
             if (imageMode) ImageModeChip(onImageModeOff)
             BasicTextField(
-                value = input,
-                onValueChange = onInputChange,
+                state = field,
                 // 上传附件期间不能改文字（网页此时输入框是只读的）。
                 readOnly = upload != null,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged { focused = it.isFocused },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged { focused = it.isFocused }
+                    // 粘贴图片：只把 PNG / JPEG / WEBP 交给附件流程（网页 onPaste），其它内容照常粘贴成文字。
+                    .contentReceiver { content ->
+                        if (!content.hasMediaType(MediaType.Image)) return@contentReceiver content
+                        val images = mutableListOf<android.net.Uri>()
+                        val rest = content.consume { item ->
+                            val uri = item.uri
+                            val type = uri?.let { runCatching { context.contentResolver.getType(it) }.getOrNull()?.lowercase() }
+                            (uri != null && type in PASTE_IMAGE_TYPES).also { if (it) images += uri!! }
+                        }
+                        if (images.isNotEmpty() && upload == null) onPasteImages(images, content)
+                        rest
+                    },
                 textStyle = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, color = Sm.Text),
                 cursorBrush = SolidColor(Sm.Ink),
-                maxLines = 6,
-                decorationBox = { inner ->
+                lineLimits = TextFieldLineLimits.MultiLine(maxHeightInLines = 6),
+                decorator = { inner ->
                     Box(Modifier.padding(start = 6.dp, top = 4.dp)) {
                         if (input.isEmpty()) {
                             Text(
