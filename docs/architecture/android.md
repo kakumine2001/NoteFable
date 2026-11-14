@@ -2,7 +2,7 @@
 
 > 目录：`mobile/android/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、App 内 Google 登录，以及手机浏览器里的网页排版约定。
 
-原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/`，将来的 iOS 放 `ios/`；不再使用 Capacitor 等跨平台方案。原生客户端用同一个包名 `com.kakumine.studymate` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端；要保留就先在旧 App 里登录 Google。
+原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/`，将来的 iOS 放 `ios/`；不再使用 Capacitor 等跨平台方案。原生客户端用同一个包名 `com.kakumine.studymate` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端（开发阶段不做迁移）。
 
 ## 开发环境
 
