@@ -4,7 +4,8 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { crawlServerModules, NATIVE_SYSTEM_TEXT_ASSET, nativeSystemText, nativeSystemTextJson } from "../../scripts/native-system-text";
 
-describe("native system text asset", () => {
+// 生成时要用 TypeScript 编译器沿 import 爬一遍服务端代码，机器忙时会超过默认的 5 秒。
+describe("native system text asset", { timeout: 60_000 }, () => {
   it("is up to date (regenerate with npx tsx scripts/gen-native-system-text.ts)", () => {
     expect(readFileSync(NATIVE_SYSTEM_TEXT_ASSET, "utf8").replace(/\r\n/g, "\n")).toBe(nativeSystemTextJson());
   });
