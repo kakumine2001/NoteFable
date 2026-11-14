@@ -15,7 +15,7 @@
     </queries>
 
     <application
-        android:name=".StudyMateApp"
+        android:name=".NoteFableApp"
         android:allowBackup="false"
         android:localeConfig="@xml/locales_config"
         android:icon="@mipmap/ic_launcher"
@@ -39,8 +39,11 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="${studymateScheme}" />
-                <data android:host="${studymateHost}" />
+                <data android:scheme="${notefableScheme}" />
+                <data android:host="${notefableHost}" />
+                <data android:host="notefable.com" />
+                <data android:host="www.notefable.com" />
+                <data android:host="studymate-lab-ai.vercel.app" />
                 <data android:path="/" />
                 <data android:path="/app" />
                 <data android:pathPattern="/.*/app" />

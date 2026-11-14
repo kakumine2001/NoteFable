@@ -15,7 +15,7 @@
 GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资源信息于 2026-09-05 核对：
 
 - 源码：GitHub `kakumine2001/NoteFable`，主分支 `main`
-- 应用托管：Vercel 项目 `studymate`
+- 应用托管：Vercel 项目 `notefable`
 - Framework：Next.js
 - Vercel Node.js：24.x
 - Vercel Production region：`iad1`
@@ -160,8 +160,8 @@ OPENAI_TEXT_MODEL="gpt-6-luna"
 DEEPSEEK_FLASH_MODEL="deepseek-flash"
 ANTHROPIC_HAIKU_MODEL="claude-haiku-5-5"
 # 开放哪些模型（JSON 数组，格式见 docs/architecture/deployment.md）；不设置则使用全部内置模型
-STUDYMATE_MODELS='[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5"}]'
-STUDYMATE_STORAGE_DIR="data/storage"
+NOTEFABLE_MODELS='[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5"}]'
+NOTEFABLE_STORAGE_DIR="data/storage"
 ```
 
 Vercel Blob（生产环境图片存储）必需：
@@ -170,7 +170,7 @@ Vercel Blob（生产环境图片存储）必需：
 BLOB_READ_WRITE_TOKEN="vercel_blob_rw_..."
 ```
 
-内置模型及其能力（图片输入 / Web 搜索 / 推理档位）定义在 `src/lib/models.ts`。开放哪些模型、显示名和上游模型名由服务器通过 `STUDYMATE_MODELS` 决定，网页和 Android 都从服务器读取这份列表；不设置时使用全部内置模型。格式见 [docs/architecture/deployment.md](docs/architecture/deployment.md)。
+内置模型及其能力（图片输入 / Web 搜索 / 推理档位）定义在 `src/lib/models.ts`。开放哪些模型、显示名和上游模型名由服务器通过 `NOTEFABLE_MODELS` 决定，网页和 Android 都从服务器读取这份列表；不设置时使用全部内置模型。格式见 [docs/architecture/deployment.md](docs/architecture/deployment.md)。
 
 ## 数据库
 
@@ -236,7 +236,7 @@ Blob pathname 结构：
 images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `STUDYMATE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
+图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `NOTEFABLE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
 
 本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。
 
@@ -286,7 +286,7 @@ Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App（原来�
 
 ## Vercel 部署
 
-- 项目：`studymate`
+- 项目：`notefable`
 - 线上 URL：`https://notefable.com`
 - 方式：GitHub 联动（main 分支 push 后自动部署）
 - `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用

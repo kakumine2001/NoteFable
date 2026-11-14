@@ -25,17 +25,17 @@ export function parseToolArguments(raw: unknown): unknown {
 }
 
 // 同じラウンドの呼び出しは並列に実行し、結果は呼び出し順で返す。
-// 途中経過は studymate.tool イベントとして送り、chat-activity.ts が表示用に変換する。
+// 途中経過は notefable.tool イベントとして送り、chat-activity.ts が表示用に変換する。
 export async function runToolCalls(calls: ToolCall[], runTool: ToolRunner, send: (event: object) => void): Promise<ToolRun[]> {
   return Promise.all(calls.map(async (call, index) => {
     if (index >= MAX_TOOL_CALLS_PER_ROUND) {
       return { content: `Too many tool calls in one turn. Call at most ${MAX_TOOL_CALLS_PER_ROUND} tools at once.`, isError: true, label: "Skipped tool call" };
     }
-    send({ type: "studymate.tool", id: call.id, name: call.name, status: "running" });
+    send({ type: "notefable.tool", id: call.id, name: call.name, status: "running" });
     const result = await runTool(call.name, call.input).catch((): ToolRun => ({
       content: "The tool failed. Tell the user it could not be completed.", isError: true, label: "Tool failed",
     }));
-    send({ type: "studymate.tool", id: call.id, name: call.name, status: "done", label: result.label });
+    send({ type: "notefable.tool", id: call.id, name: call.name, status: "done", label: result.label });
     for (const event of result.events ?? []) send(event);
     return result;
   }));

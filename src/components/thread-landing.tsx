@@ -8,7 +8,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LanguageSelect } from "@/components/language-select";
 import { useModels } from "@/components/models-provider";
-import { BrandMark } from "@/components/studymate-logo";
+import { BrandMark } from "@/components/notefable-logo";
 import { useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。

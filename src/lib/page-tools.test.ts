@@ -92,7 +92,7 @@ describe("page tools", () => {
       expect(mocks.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "p1", userId: "mine", deletedAt: null } }));
       expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", applied: false });
       const [event] = result.events as { type: string; baseVersion: number; title: object; changes: object[]; proposed: { title: string; blocks: unknown[] } }[];
-      expect(event).toMatchObject({ type: "studymate.proposal", pageId: "p1", baseVersion: 4, title: { before: "Notes", after: "Renamed" } });
+      expect(event).toMatchObject({ type: "notefable.proposal", pageId: "p1", baseVersion: 4, title: { before: "Notes", after: "Renamed" } });
       expect(event.changes).toEqual([{ op: "replace", block: 2, before: "b", after: "**new**" }]);
       expect(event.proposed.title).toBe("Renamed");
       // 画面へは本文を返さず、保存する提案にだけ完全なブロックを持たせる。
@@ -125,7 +125,7 @@ describe("page tools", () => {
       const result = await runPageTool("propose_note_create", { title: "  Study plan ", markdown: "# Week 1\n- read ch.1", icon: "📚" }, "mine", "s1");
       expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", created: false });
       const [event] = result.events as { type: string; title: string; icon: string; content: string; proposed: { blocks: unknown[] } }[];
-      expect(event).toMatchObject({ type: "studymate.create_proposal", title: "Study plan", icon: "📚", content: "# Week 1\n- read ch.1" });
+      expect(event).toMatchObject({ type: "notefable.create_proposal", title: "Study plan", icon: "📚", content: "# Week 1\n- read ch.1" });
       // 画面へは本文を返さず、保存する提案にだけ完全なブロックを持たせる。
       expect(event.proposed.blocks).toEqual([]);
       expect((mocks.createProposal.mock.calls[0][0] as { data: { userId: string; sessionId: string; payload: { proposed: { blocks: unknown[] } } } }).data).toMatchObject({ userId: "mine", sessionId: "s1" });

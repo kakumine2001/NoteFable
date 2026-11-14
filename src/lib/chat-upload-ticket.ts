@@ -7,7 +7,7 @@ import { msg } from "@/lib/i18n/translate";
 
 export type ChatUploadTicket = { userId: string; path: string; name: string; type: string; size: number };
 const key = () => new TextEncoder().encode(getCookieSecret());
-const purpose = "studymate-chat-upload";
+const purpose = "notefable-chat-upload";
 
 export function validateUploadMetadata(value: unknown): { name: string; type: string; size: number }[] {
   if (!Array.isArray(value)) throw new AttachmentValidationError(msg("Invalid attachment list."));

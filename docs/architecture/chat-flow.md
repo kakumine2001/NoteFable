@@ -69,7 +69,7 @@ POST /api/chat
 
 ### 输入框与滚动（`page.tsx`）
 
-- 模型与推理强度：最后一次选择保存在浏览器 `localStorage`（`src/lib/model-preference.ts`，键 `studymate:model-preference`），页面显示后读取。`/app` 是静态页面，所以不能在服务端决定。保存的模型不在服务端当前给出的列表里时用默认模型；该模型不支持保存的强度时用它的默认强度（`resolveModelPreference`）。只按浏览器保存，登录后也不跨设备同步。
+- 模型与推理强度：最后一次选择保存在浏览器 `localStorage`（`src/lib/model-preference.ts`，键 `notefable:model-preference`），页面显示后读取。`/app` 是静态页面，所以不能在服务端决定。保存的模型不在服务端当前给出的列表里时用默认模型；该模型不支持保存的强度时用它的默认强度（`resolveModelPreference`）。只按浏览器保存，登录后也不跨设备同步。
 - 输入框高度随行数增长，上限是 CSS 的 `max-h-40`，超过后在框内滚动；宽度变化时重新计算。
 - Enter 发送、Shift+Enter 换行。触摸为主的设备（`(hover: none) and (pointer: coarse)`）没有 Shift+Enter，所以 Enter 换行，用发送按钮发送；外接键盘可用 Ctrl/Cmd+Enter 发送。IME 确定用的 Enter 不发送。
 - 发送后滚到最下面，回答流式到达期间跟随最下面（`followBottomRef`）。用户向上滚（滚轮向上、手指拖动，或离底部超过 48px）就停止跟随，回到底部后恢复。从搜索结果跳到某条消息时不跟随。
@@ -232,13 +232,13 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 ### 编辑案与确认
 
-`propose_note_edit` / `propose_note_create` 成功时，服务端先把提案存进 `NoteProposal` 表（状态 `PENDING`，内容放在 `payload`：编辑是笔记 ID、基准版本、每处修改的前后 Markdown 和应用后的完整标题与块；新建是标题、图标、正文预览和要创建的块），再给模型一条"已提议，尚未应用"的结果，并向浏览器发出带提案 ID 的 `studymate.proposal` / `studymate.create_proposal` 事件。回答保存后，同一轮产生的提案通过 `messageId` 绑定到这条回答。
+`propose_note_edit` / `propose_note_create` 成功时，服务端先把提案存进 `NoteProposal` 表（状态 `PENDING`，内容放在 `payload`：编辑是笔记 ID、基准版本、每处修改的前后 Markdown 和应用后的完整标题与块；新建是标题、图标、正文预览和要创建的块），再给模型一条"已提议，尚未应用"的结果，并向浏览器发出带提案 ID 的 `notefable.proposal` / `notefable.create_proposal` 事件。回答保存后，同一轮产生的提案通过 `messageId` 绑定到这条回答。
 
 聊天里显示为卡片（`src/components/page-edit-proposal.tsx`），红色是修改前、绿色是修改后。`GET /api/sessions/[id]/messages` 会把绑定在各条回答上的提案连同状态一起返回，所以刷新页面、切换对话、换设备（同一用户）后卡片仍在，状态是 Apply / Discard 前的待确认、Applied 或 Discarded。回答和提案绑定在同一个事务里保存。返回给浏览器的提案不带 `proposed.blocks`（适用时只用服务端保存的那份，历史里也不必每次返回整篇笔记）。没来得及绑定到回答上的提案（比如流中途失败）不在历史里显示。
 
 点 Apply 请求 `POST /api/proposals/[id]/apply`，点 Discard 请求 `POST /api/proposals/[id]/discard`（`src/lib/note-proposals.ts`）。适用在一个事务里先把状态从 `PENDING` 抢占为 `APPLIED`，只有抢到的那一次才写笔记：编辑只在笔记仍然存在（不在 Trash）且版本等于提案的基准版本时才写（和手动保存一样的版本检查，写入前对内容重新跑 `validateNoteContent`）：满足条件时，先把覆盖前的标题、图标和正文存成一份 `AI_EDIT` 的编辑历史（`NoteRevision`，同一事务，之后失败则一起回滚），再写笔记，之后可以在笔记的历史里恢复到适用之前；版本不符返回 409、笔记已不存在或在 Trash 则返回 404，两者都整体回滚，提案保持待确认；新建在同一事务里创建笔记并记录 `appliedPageId`。因此重复点击、请求重发或网络断开后重试，都不会重复创建笔记或把同一处修改应用两次，已应用的提案再次请求会直接返回当时的结果。已放弃的提案不能再应用，已应用的提案不能再放弃。所有操作都按当前用户的 `userId` 限定。
 
-成功后卡片会派发浏览器事件 `studymate:page-updated`（编辑）或 `studymate:page-created`（新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
+成功后卡片会派发浏览器事件 `notefable:page-updated`（编辑）或 `notefable:page-created`（新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
 
 模型始终不能直接改动笔记，批准动作只存在于浏览器里的点击。笔记正文只有三条写入路径：手动保存（`/api/pages`）、适用提案（`/api/proposals/[id]/apply`）和用户在历史对话框里点击的恢复（`/api/pages/[id]/revisions/[revisionId]/restore`），三者都经过 `validateNoteContent` 和版本检查，并在覆盖前留下编辑历史（手动保存按间隔留 `AUTO`）。目前支持修改已有笔记和新建笔记，不包含删除笔记（AI 工具不能把笔记移入 Trash 或永久删除）。
 
@@ -291,7 +291,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 事件里只有出处（项目名、是否带了指示、笔记的 id 和标题、是否被截断），**不含笔记正文**。`contextActivityEvent()` 把项目名和标题限制到 300 字符、笔记限制到 10 篇并丢弃格式不对或重复的项；项目没有可用文脉时不发这个事件。它与回答一起存进 `Message.activity`（回答中途失败时也存），刷新或换设备后仍能看到出处；`parseStoredActivity` 读取时重新校验，损坏的会被丢弃。
 
-界面上它显示为一行 “Used project “X”: instructions + N reference notes”，每篇笔记是一个可点的标签（被截断的带 “partial”）。点击派发浏览器事件 `studymate:open-note`（`detail: { id }`），由页面层打开该笔记。折叠后的摘要里会出现 “N project notes” 或 “project instructions”，进行中显示 “Using project “X””。
+界面上它显示为一行 “Used project “X”: instructions + N reference notes”，每篇笔记是一个可点的标签（被截断的带 “partial”）。点击派发浏览器事件 `notefable:open-note`（`detail: { id }`），由页面层打开该笔记。折叠后的摘要里会出现 “N project notes” 或 “project instructions”，进行中显示 “Using project “X””。
 
 ## 跨 Chats / Notes 搜索
 
@@ -358,7 +358,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 - **Copy**：`writeClipboardText`（`src/lib/clipboard.ts`）先用 `navigator.clipboard`，不可用或被拒绝（非安全上下文、应用内浏览器）时退回隐藏 textarea 加 `execCommand("copy")`，并把焦点还给原来的元素。成功后图标变 ✓、标签变 “Copied” 2 秒。代码块的复制按钮（`assistant-markdown.tsx`）用同一个函数。
 - **Download conversation**：点击时从现有的 `GET /api/sessions/:sessionId/messages` 获取完整已保存历史（同一套所有权校验，`cache: no-store`，30 秒超时），不受点选的回答位置影响。`conversationToMarkdownFile` 按 API 返回的时间顺序写出所有 USER / ASSISTANT 消息，以 `## You` / `## NoteFable` 区分，不导出内部 SYSTEM 消息或压缩状态。正文不截断，保留代码和出处链接；附件保留名称，图片链接转成本站绝对 URL，仍需原账号或设备权限查看，不打包二进制文件。文件以会话标题命名（沿用 `answerFileName` 的安全文件名规则），末尾附原会话链接，不带单条消息锚点。下载期间菜单显示 Downloading… 并阻止重复点击；读取失败保留菜单并显示可重试错误，离开会话后不触发迟到的下载。文件通过 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。Android App 不在本机拼 Markdown，而是读 `GET /api/sessions/:sessionId/export?date=YYYY-MM-DD`（同一套所有权校验，只读 USER / ASSISTANT，服务端用同一个 `conversationToMarkdownFile` / `answerFileName`，返回 `{ fileName, markdown }`），见 [android-native.md](android-native.md)。
-- **Save to page**：在三个点菜单里直接新建一篇笔记，不再弹出确认。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `studymate:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；菜单项变成 “Saved to page”，下面出现 “Open saved page” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `studymate:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时菜单项变成 “Retry saving to page”，菜单内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to Notes. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。Android App 没有浏览器端的转换，改用 `POST /api/pages/from-answer`（`{ markdown, sessionId, messageId, savedOn }`）：服务端核对会话归属（取标题和链接），用同一个 `answerToNoteContent` 生成块，再经 `validateNoteContent` 和与 `POST /api/pages` 共用的 `createNotePage` 新建。保存后又被移进 Trash 的笔记，“Open saved page” 仍在，点开会走既有的笔记打开失败处理。
+- **Save to page**：在三个点菜单里直接新建一篇笔记，不再弹出确认。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `notefable:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；菜单项变成 “Saved to page”，下面出现 “Open saved page” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `notefable:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时菜单项变成 “Retry saving to page”，菜单内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to Notes. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。Android App 没有浏览器端的转换，改用 `POST /api/pages/from-answer`（`{ markdown, sessionId, messageId, savedOn }`）：服务端核对会话归属（取标题和链接），用同一个 `answerToNoteContent` 生成块，再经 `validateNoteContent` 和与 `POST /api/pages` 共用的 `createNotePage` 新建。保存后又被移进 Trash 的笔记，“Open saved page” 仍在，点开会走既有的笔记打开失败处理。
 
 ### 保存出来的笔记
 

@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         <ul>
           <li>
             <strong>A device identifier.</strong> When you use the workspace, we create a random identifier and store it in a signed,
-            HTTP-only cookie named <code>studymate_device</code> (valid for one year). Your chats and Notes are saved under this identifier.
+            HTTP-only cookie named <code>notefable_device</code> (valid for one year). Your chats and Notes are saved under this identifier.
             If you clear your cookies, you lose access to that data in that browser unless you signed in with Google.
             When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
             name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only

@@ -13,7 +13,7 @@ import { MAX_NOTE_BYTES, validateNoteContent } from "./note-document";
 
 const source: AnswerSource = {
   conversationTitle: "Weekly sync",
-  conversationUrl: "https://studymate.example/?chat=chat12345678901234567890&message=msg12345678901234567890",
+  conversationUrl: "https://notefable.example/?chat=chat12345678901234567890&message=msg12345678901234567890",
   savedAt: new Date(2026, 9, 16, 12, 0, 0),
 };
 
@@ -187,8 +187,8 @@ describe("conversationToMarkdownFile", () => {
       { role: "ASSISTANT", content: "", generatedImages: [{ id: "g1", dataUrl: "/api/attachments/g1/image" }] },
     ], source);
     expect(file).toContain("report \\[1\\].pdf");
-    expect(file).toContain("[photo.jpg](<https://studymate.example/api/attachments/photo/image>)");
-    expect(file).toContain("## NoteFable\n\n- [Generated image 1](<https://studymate.example/api/attachments/g1/image>)");
+    expect(file).toContain("[photo.jpg](<https://notefable.example/api/attachments/photo/image>)");
+    expect(file).toContain("## NoteFable\n\n- [Generated image 1](<https://notefable.example/api/attachments/g1/image>)");
   });
 
   it("escapes the heading and does not turn non-HTTP attachment URLs into links", () => {

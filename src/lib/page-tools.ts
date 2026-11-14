@@ -176,7 +176,7 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
     return {
       content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was updated." }),
       label: fmt("Proposed edits to “{title}”", { title: page.title }),
-      events: [{ ...proposal, type: "studymate.proposal" }],
+      events: [{ ...proposal, type: "notefable.proposal" }],
     };
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message);
@@ -202,7 +202,7 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
     return {
       content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No note has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was created." }),
       label: fmt("Proposed new note “{title}”", { title: content.title }),
-      events: [{ ...proposal, type: "studymate.create_proposal" }],
+      events: [{ ...proposal, type: "notefable.create_proposal" }],
     };
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, msg("Note proposal rejected"));

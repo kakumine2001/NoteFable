@@ -6,7 +6,9 @@ import { normalizeEmail } from "@/lib/email-address";
 import { prisma } from "@/lib/prisma";
 
 // 匿名利用者を識別するための Cookie 名。
-const COOKIE_NAME = "studymate_device";
+const COOKIE_NAME = "notefable_device";
+// 改名前の Cookie 名。署名は同じなので、残っていればその ID をそのまま新しい名前へ移す（匿名のデータを失わない）。
+const LEGACY_COOKIE_NAME = "studymate_device";
 // Cookie の有効期限。秒単位で 1 年。
 const MAX_AGE = 60 * 60 * 24 * 365;
 
@@ -51,13 +53,12 @@ function unpack(value?: string) {
 export async function getAnonymousDeviceId() {
   // Cookie が存在し署名も正しい場合だけ、匿名デバイス ID を返す読み取り専用関数。
   const cookieStore = await cookies();
-  return unpack(cookieStore.get(COOKIE_NAME)?.value);
+  return unpack(cookieStore.get(COOKIE_NAME)?.value) ?? unpack(cookieStore.get(LEGACY_COOKIE_NAME)?.value);
 }
 
-async function issueDeviceId() {
-  // 新しい匿名 ID を発行して httpOnly Cookie に保存する。クライアント JS から直接読まれないようにしている。
+async function issueDeviceId(deviceId: string = randomUUID()) {
+  // 匿名 ID（渡されなければ新しく作る）を httpOnly Cookie に保存する。クライアント JS から直接読まれないようにしている。
   const cookieStore = await cookies();
-  const deviceId = randomUUID();
 
   cookieStore.set(COOKIE_NAME, pack(deviceId), {
     httpOnly: true,
@@ -74,8 +75,15 @@ export async function ensureAnonymousDeviceId() {
   // 既存 Cookie が有効ならその ID を使い、なければ新しい匿名 ID を発行する。
   const cookieStore = await cookies();
   const existingDeviceId = unpack(cookieStore.get(COOKIE_NAME)?.value);
+  if (existingDeviceId) return existingDeviceId;
 
-  return existingDeviceId ?? issueDeviceId();
+  const legacyDeviceId = unpack(cookieStore.get(LEGACY_COOKIE_NAME)?.value);
+  if (legacyDeviceId) {
+    await issueDeviceId(legacyDeviceId);
+    cookieStore.delete(LEGACY_COOKIE_NAME);
+    return legacyDeviceId;
+  }
+  return issueDeviceId();
 }
 
 type GoogleIdentity = {

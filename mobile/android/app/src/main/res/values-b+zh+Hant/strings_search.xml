@@ -19,6 +19,6 @@
     <string name="search_no_results_body">試試減少關鍵詞。搜尋不區分大小寫、全形半形和平假名片假名，但不會匹配同義詞或其他拼寫。</string>
     <string name="search_results">搜尋結果</string>
     <string name="search_speaker_you">你：</string>
-    <string name="search_speaker_studymate">NoteFable：</string>
+    <string name="search_speaker_notefable">NoteFable：</string>
     <string name="search_in_file">在 %1$s 中</string>
 </resources>

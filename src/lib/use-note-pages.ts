@@ -7,8 +7,9 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
 import { msg } from "@/lib/i18n/translate";
+import { adoptLegacyKey } from "@/lib/legacy-storage";
 
-const DRAFT_PREFIX = "studymate:page-draft:v1:";
+const DRAFT_PREFIX = "notefable:page-draft:v1:";
 
 async function pageRequest(url: string, method = "GET", body?: unknown) {
   const response = await fetch(url, {
@@ -63,6 +64,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const install = useCallback((page: NotePage) => {
     let draft: NoteDraft | undefined;
     try {
+      adoptLegacyKey(localStorage, DRAFT_PREFIX + page.id);
       const cached = localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -201,11 +203,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (loaded.current) upsertSummary(page);
       else createdWhileLoading.current.push(page);
     }
-    window.addEventListener("studymate:page-updated", onPageUpdated);
-    window.addEventListener("studymate:page-created", onPageCreated);
+    window.addEventListener("notefable:page-updated", onPageUpdated);
+    window.addEventListener("notefable:page-created", onPageCreated);
     return () => {
-      window.removeEventListener("studymate:page-updated", onPageUpdated);
-      window.removeEventListener("studymate:page-created", onPageCreated);
+      window.removeEventListener("notefable:page-updated", onPageUpdated);
+      window.removeEventListener("notefable:page-created", onPageCreated);
     };
   }, [upsertSummary]);
 
@@ -333,7 +335,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active && id === activeId) { active.edit({ ...active.content, icon }); return true; }
     const { page } = await pageRequest(`/api/pages/${id}/icon`, "PUT", { icon });
     // 一覧と、読み込み済みの編集内容を新しい版へそろえる（未保存の編集が残っていれば、上書きせず衝突として知らせる）。
-    window.dispatchEvent(new CustomEvent<NotePage>("studymate:page-updated", { detail: page }));
+    window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
     return true;
   });
 

@@ -337,7 +337,7 @@ describe("Pages tool proposals are stored with the answer", () => {
       .mockResolvedValueOnce(new Response([{ type: "response.output_text.delta", delta: "Proposed." }, { type: "response.completed", response: { output: [] } }].map((e) => `data: ${JSON.stringify(e)}
 
 `).join("")));
-    mocks.runPageTool.mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "studymate.proposal", id: "prop1" }, { type: "studymate.create_proposal", id: "prop2" }] });
+    mocks.runPageTool.mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "notefable.proposal", id: "prop1" }, { type: "notefable.create_proposal", id: "prop2" }] });
     const form = new FormData();
     form.set("message", "edit my note");
     form.set("model", "gpt-6-luna");

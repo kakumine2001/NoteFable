@@ -8,7 +8,7 @@ import { GET } from "./route";
 
 const sessionId = "chat12345678901234567890";
 const context = { params: Promise.resolve({ sessionId }) };
-const get = (query = "") => new Request(`https://studymate.example/api/sessions/${sessionId}/export${query}`);
+const get = (query = "") => new Request(`https://notefable.example/api/sessions/${sessionId}/export${query}`);
 
 describe("GET /api/sessions/:id/export", () => {
   beforeEach(() => {
@@ -28,10 +28,10 @@ describe("GET /api/sessions/:id/export", () => {
     const expected = conversationToMarkdownFile([
       { role: "USER", content: "Look at this", attachments: [{ filename: "photo.png", dataUrl: "/api/attachments/a1/image" }, { filename: "notes.pdf" }] },
       { role: "ASSISTANT", content: "Here is a picture", attachments: [], generatedImages: [{ id: "g1", dataUrl: "/api/attachments/g1/image" }] },
-    ], { conversationTitle: "Weekly: sync?", conversationUrl: `https://studymate.example/?chat=${sessionId}`, savedAt: new Date(2026, 9, 16, 12) });
+    ], { conversationTitle: "Weekly: sync?", conversationUrl: `https://notefable.example/?chat=${sessionId}`, savedAt: new Date(2026, 9, 16, 12) });
     expect(body.markdown).toBe(expected);
-    expect(body.markdown).toContain("## You\n\nLook at this\n\n- [photo.png](<https://studymate.example/api/attachments/a1/image>)\n- notes.pdf");
-    expect(body.markdown).toContain("- [Generated image 1](<https://studymate.example/api/attachments/g1/image>)");
+    expect(body.markdown).toContain("## You\n\nLook at this\n\n- [photo.png](<https://notefable.example/api/attachments/a1/image>)\n- notes.pdf");
+    expect(body.markdown).toContain("- [Generated image 1](<https://notefable.example/api/attachments/g1/image>)");
     expect(body.markdown).toContain("on 2026-10-16.");
     expect(body.markdown).not.toContain("x/photo.png");
   });

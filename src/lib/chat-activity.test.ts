@@ -36,7 +36,7 @@ describe("chat activity", () => {
   });
 
   it("turns a page edit proposal into a step and ignores malformed ones", () => {
-    const proposal = { type: "studymate.proposal", id: "pr1", pageId: "p1", pageTitle: "Notes", baseVersion: 2, changes: [{ op: "delete", block: 1, before: "x" }], proposed: { title: "Notes", blocks: [] } };
+    const proposal = { type: "notefable.proposal", id: "pr1", pageId: "p1", pageTitle: "Notes", baseVersion: 2, changes: [{ op: "delete", block: 1, before: "x" }], proposed: { title: "Notes", blocks: [] } };
     const event = parseActivityEvent(proposal)!;
     expect(event.type).toBe("proposal");
     expect([event].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
@@ -47,7 +47,7 @@ describe("chat activity", () => {
   });
 
   it("turns a new page proposal into a step and ignores malformed ones", () => {
-    const proposal = { type: "studymate.create_proposal", id: "np1", title: "Plan", icon: null, content: "- a", proposed: { title: "Plan", icon: null, blocks: [] } };
+    const proposal = { type: "notefable.create_proposal", id: "np1", title: "Plan", icon: null, content: "- a", proposed: { title: "Plan", icon: null, blocks: [] } };
     const event = parseActivityEvent(proposal)!;
     expect(event.type).toBe("create_proposal");
     expect([event].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
@@ -58,12 +58,12 @@ describe("chat activity", () => {
   });
 
   it("tracks a page tool from running to its finished label", () => {
-    const running = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_note", status: "running" })!;
-    const done = parseActivityEvent({ type: "studymate.tool", id: "call1", name: "read_note", status: "done", label: "Read “Notes”" })!;
+    const running = parseActivityEvent({ type: "notefable.tool", id: "call1", name: "read_note", status: "running" })!;
+    const done = parseActivityEvent({ type: "notefable.tool", id: "call1", name: "read_note", status: "done", label: "Read “Notes”" })!;
     expect([running, done].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
       { id: "call1", kind: "tool", status: "done", name: "read_note", label: "Read “Notes”" },
     ]);
-    expect(parseActivityEvent({ type: "studymate.tool", name: "read_note" })).toBeNull();
+    expect(parseActivityEvent({ type: "notefable.tool", name: "read_note" })).toBeNull();
   });
 
   it("keeps only safe, de-duplicated search sources", () => {
