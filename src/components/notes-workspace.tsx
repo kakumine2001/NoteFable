@@ -39,7 +39,7 @@ function isUnchanged(next: Block[], current: Block[]) {
   return current.length === 0 && next.length === 1 && only.type === "paragraph" && Array.isArray(only.content) && only.content.length === 0 && only.children.length === 0;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCreate, onWorkspaceChange }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCreate, onWorkspaceChange, embedded = false }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -48,6 +48,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   onOpen: (id: string) => void;
   onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
+  // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
+  embedded?: boolean;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, busy, error, backupError } = notes;
@@ -98,7 +100,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
       <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} flush={() => active.flush()} />
-    </> : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
+    </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
+    : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
       <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">{t("Notes")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>

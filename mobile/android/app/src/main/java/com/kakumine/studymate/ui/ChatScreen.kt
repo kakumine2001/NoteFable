@@ -99,6 +99,8 @@ private val TurnGap = 36.dp
 @Composable
 fun ChatScreen(
     state: ChatUiState,
+    input: String,
+    onInputChange: (String) -> Unit,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onSend: (String) -> Unit,
@@ -109,18 +111,11 @@ fun ChatScreen(
     onAddFiles: (List<LocalFile>) -> Unit,
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
+    onSwitchWorkspace: (Workspace) -> Unit,
 ) {
-    var input by rememberSaveable { mutableStateOf("") }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
     val pickFiles = rememberFilePicker(onAddFiles)
-    // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
-    // 不随进程保存：进程重建后计数从 0 开始，保存旧值会把恢复出来的草稿误清掉。
-    var clearedAt by remember { mutableStateOf(state.sentCount) }
-    if (clearedAt != state.sentCount) {
-        clearedAt = state.sentCount
-        input = ""
-    }
     val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
 
     Scaffold(
@@ -140,11 +135,11 @@ fun ChatScreen(
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages)
+                MessageList(state, onRetryMessages, onSwitchWorkspace)
             }
             Composer(
                 input = input,
-                onInputChange = { input = it },
+                onInputChange = onInputChange,
                 sending = state.sending,
                 canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null,
                 modelLabel = state.selectedModel?.label,
@@ -218,13 +213,13 @@ private fun TopBar(
 }
 
 @Composable
-private fun TopIconButton(paths: List<String>, description: String, onClick: () -> Unit) {
+internal fun TopIconButton(paths: List<String>, description: String, onClick: () -> Unit, iconSize: androidx.compose.ui.unit.Dp = 20.dp) {
     Box(
         Modifier.size(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         Alignment.Center,
     ) {
-        LucideIcon(paths, 20.dp, Sm.Muted)
+        LucideIcon(paths, iconSize, Sm.Muted)
     }
 }
 
@@ -232,7 +227,7 @@ private fun TopIconButton(paths: List<String>, description: String, onClick: () 
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit) {
+private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit) {
     val listState = rememberLazyListState()
     // 新消息出现（含刚发出的提问）时回到底部。流式增长不需要处理：反向布局下底部锚点不动。
     LaunchedEffect(state.messages.size) {
@@ -251,7 +246,11 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit) {
             Text(stringResource(R.string.messages_load_failed), color = Sm.Muted, fontSize = 15.sp)
             TextButton(onClick = onRetry) { Text(stringResource(R.string.retry), color = Sm.Blue) }
         }
-        state.messages.isEmpty() -> EmptyState()
+        // 空白首页：网页手机版在顶栏下方放 Chat / Note 切换（左右 24、上距 4），标题在剩下的空间里居中。
+        state.messages.isEmpty() -> Column(Modifier.fillMaxSize()) {
+            WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
+            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState() }
+        }
         else -> LazyColumn(
             state = listState,
             reverseLayout = true,

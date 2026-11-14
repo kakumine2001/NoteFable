@@ -47,7 +47,37 @@ object Lucide {
     val LogOut = listOf("m16 17 5-5-5-5", "M21 12H9", "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4")
     val ChevronsUpDown = listOf("m7 15 5 5 5-5", "m7 9 5-5 5 5")
     val Globe = listOf("M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20")
-    val Paperclip = listOf("m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551")
+    val FileText = listOf(
+        "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
+        "M14 2v5a1 1 0 0 0 1 1h5",
+        "M10 9H8",
+        "M16 13H8",
+        "M16 17H8",
+    )
+    private const val FolderOutline =
+        "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"
+    val Folder = listOf(FolderOutline)
+    val FolderPlus = listOf("M12 10v6", "M9 13h6", FolderOutline)
+    val FolderInput = listOf(
+        "M2 9V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H20a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-1",
+        "M2 13h10",
+        "m9 16 3-3-3-3",
+    )
+    val Pencil = listOf(
+        "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+        "m15 5 4 4",
+    )
+    val Trash2 = listOf(
+        "M10 11v6",
+        "M14 11v6",
+        "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6",
+        "M3 6h18",
+        "M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2",
+    )
+    val ChevronRight = listOf("m9 18 6-6-6-6")
+    val ChevronLeft = listOf("m15 18-6-6 6-6")
+    val History = listOf("M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5", "M12 7v5l4 2")
+    val Paperclip =listOf("m16 6-8.414 8.586a2 2 0 0 0 2.829 2.829l8.414-8.586a4 4 0 1 0-5.657-5.657l-8.379 8.551a6 6 0 1 0 8.485 8.485l8.379-8.551")
 }
 
 @Composable

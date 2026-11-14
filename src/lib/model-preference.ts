@@ -23,6 +23,13 @@ export function saveModelPreference(preference: ModelPreference) {
   }
 }
 
+// Android アプリは /note-embed?model=<id>&reasoning=<effort> で、アプリで選んでいるモデルと推論強度を渡す。
+// 値はここでは読むだけで、使う前に resolveModelPreference で今の一覧に照らす（無いモデルは捨て、選べない強度は標準に戻す）。
+export function readEmbedModelPreference(params: URLSearchParams): ModelPreference | null {
+  const model = params.get("model");
+  return model ? { model, reasoning: params.get("reasoning") ?? "" } : null;
+}
+
 // 保存値を、いまサーバーが出している一覧に照らす。無いモデルは使わず（null）、そのモデルで選べない強度は標準に置き換える。
 export function resolveModelPreference(
   saved: ModelPreference | null,

@@ -15,6 +15,8 @@ import okhttp3.FormBody
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.io.OutputStream
 import okhttp3.RequestBody
 import okio.BufferedSink
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -56,9 +58,13 @@ class StudyMateApi(
     private val cookieJar: CookieJar,
     /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
     private val openFile: (String) -> InputStream = { throw IOException("no file access") },
-) : ChatBackend, AccountBackend {
+) : ChatBackend, AccountBackend, NotesBackend {
+    /** 身份没确定前只放一个请求（见 [IdentityGate]）；所有客户端都由 [client] 派生，都经过它。 */
+    val identityGate = IdentityGate(baseUrl.toHttpUrl().host)
+
     private val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
+        .addInterceptor(identityGate)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)
@@ -207,6 +213,79 @@ class StudyMateApi(
 
     private fun uploadsJson(tickets: List<String>) = buildJsonArray { tickets.forEach { add(it) } }.toString()
 
+    // ---- 笔记（列表、项目、回收站；正文由网页的 /note-embed 编辑） ----
+
+    override suspend fun notes(): NotesList = getJson("/api/pages")
+
+    // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
+    override suspend fun createNote(): NotePageSummary {
+        val body = """{"title":"Untitled","icon":null,"cover":null,"coverPosition":null,"blocks":[]}"""
+        return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages")).post(body.toRequestBody(JSON))).page
+    }
+
+    override suspend fun trashNote(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}")).delete())
+    }
+
+    override suspend fun moveNote(id: String, groupId: String?) {
+        val body = buildJsonObject { put("groupId", groupId) }.toString()
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/group")).put(body.toRequestBody(JSON)))
+    }
+
+    override suspend fun createGroup(name: String): NoteGroupSummary {
+        val body = buildJsonObject { put("name", name) }.toString()
+        return send<GroupResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups")).post(body.toRequestBody(JSON))).group
+    }
+
+    override suspend fun renameGroup(id: String, name: String): NoteGroupSummary {
+        val body = buildJsonObject { put("name", name) }.toString()
+        return send<GroupResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).patch(body.toRequestBody(JSON))).group
+    }
+
+    override suspend fun deleteGroup(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups/${segment(id)}")).delete())
+    }
+
+    override suspend fun trash(): List<NoteTrashItem> = getJson<TrashResponse>("/api/pages/trash").pages
+
+    override suspend fun restoreNote(id: String): NotePageSummary =
+        send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).post(ByteArray(0).toRequestBody(null))).page
+
+    override suspend fun deleteForever(id: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).delete())
+    }
+
+    override suspend fun emptyTrash(before: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash?before=" + URLEncoder.encode(before, "UTF-8"))).delete())
+    }
+
+    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?): String =
+        absoluteUrl(
+            "/note-embed?page=" + segment(pageId) +
+                (lang?.let { "&lang=$it" } ?: "") +
+                (model?.let { "&model=" + segment(it) } ?: "") +
+                (reasoning?.let { "&reasoning=" + segment(it) } ?: ""),
+        )
+
+    /**
+     * 下载笔记里的文件（`/api/pages/files?key=…`）。文件是私有的，要带 App 的 Cookie，所以不能交给系统浏览器。
+     * 拿到响应头后用文件名和类型调用 [target] 要一个输出流，再把内容写进去。服务端出错时抛 [ApiException]。
+     */
+    suspend fun downloadNoteFile(url: String, target: (name: String, mimeType: String) -> OutputStream): NoteFileDownload {
+        val response = client.newCall(Request.Builder().url(absoluteUrl(url)).get().build()).await()
+        return response.use {
+            if (!it.isSuccessful) throw it.toApiException()
+            val name = NoteFileLinks.fileName(it.header("Content-Disposition"), it.request.url)
+            val mimeType = it.body.contentType()?.let { type -> "${type.type}/${type.subtype}" } ?: "application/octet-stream"
+            withContext(Dispatchers.IO) {
+                target(name, mimeType).use { out -> it.body.byteStream().copyTo(out) }
+            }
+            NoteFileDownload(name, mimeType)
+        }
+    }
+
+    private fun segment(id: String) = URLEncoder.encode(id, "UTF-8")
+
     // ---- 账号 ----
 
     override suspend fun account(): AccountResponse = getJson("/api/account")
@@ -223,6 +302,7 @@ class StudyMateApi(
     override suspend fun nativeSignIn(idToken: String) {
         val body = buildJsonObject { put("idToken", idToken) }.toString()
         send<ApiError>(Request.Builder().url(absoluteUrl("/api/native-auth/google")).post(body.toRequestBody(JSON)))
+        identityGate.reset()
     }
 
     // 和网页的 next-auth signOut() 一样走 Auth.js 的 CSRF 流程；无论服务端是否成功，都删掉本地的会话 Cookie，
@@ -235,6 +315,8 @@ class StudyMateApi(
             response.close()
         } finally {
             (cookieJar as? PersistentCookieJar)?.removeWhere { it.name.contains("authjs.session-token") }
+            // 设备 Cookie 指向的是已绑定 Google 的用户，服务端会给下一个请求签发新的匿名身份：让它单独走。
+            identityGate.reset()
         }
     }
 

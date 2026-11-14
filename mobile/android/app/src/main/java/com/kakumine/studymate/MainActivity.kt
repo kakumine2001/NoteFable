@@ -9,12 +9,14 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import com.kakumine.studymate.ui.AccountViewModel
 import com.kakumine.studymate.ui.ChatViewModel
+import com.kakumine.studymate.ui.NotesViewModel
 import com.kakumine.studymate.ui.StudyMateRoot
 import com.kakumine.studymate.ui.StudyMateTheme
 
 class MainActivity : ComponentActivity() {
     private val viewModel: ChatViewModel by viewModels { ChatViewModel.Factory }
     private val accountViewModel: AccountViewModel by viewModels { AccountViewModel.Factory }
+    private val notesViewModel: NotesViewModel by viewModels { NotesViewModel.Factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         // 网页只有浅色主题：状态栏和导航栏固定用深色图标，不随系统深色模式切换。
@@ -23,7 +25,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             StudyMateTheme {
-                StudyMateRoot(viewModel, accountViewModel)
+                StudyMateRoot(viewModel, accountViewModel, notesViewModel)
             }
         }
     }

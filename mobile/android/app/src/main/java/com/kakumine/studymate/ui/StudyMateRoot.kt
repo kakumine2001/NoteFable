@@ -1,12 +1,12 @@
 package com.kakumine.studymate.ui
 
-import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -28,105 +29,268 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.RectangleShape
-
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.kakumine.studymate.BuildConfig
 import com.kakumine.studymate.R
+import com.kakumine.studymate.StudyMateApp
 import com.kakumine.studymate.auth.clearGoogleCredentialState
 import com.kakumine.studymate.auth.requestGoogleIdToken
+import com.kakumine.studymate.data.EmbedMessage
+import com.kakumine.studymate.data.NoteGroupSummary
+import com.kakumine.studymate.data.NotePageSummary
+import com.kakumine.studymate.data.TRASH_RETENTION_DAYS
 import kotlinx.coroutines.launch
 
+/** 侧栏里打开的笔记对话框（网页 NotesSidebar / NotesHome 里的同名对话框）。 */
+private sealed interface NotesDialogState {
+    data class Move(val pageId: String) : NotesDialogState
+    data object NewGroup : NotesDialogState
+    data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
+    data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
+    data class TrashNote(val page: NotePageSummary) : NotesDialogState
+}
+
 @Composable
-fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel) {
+fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, notesViewModel: NotesViewModel) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val account by accountViewModel.state.collectAsStateWithLifecycle()
+    val notes by notesViewModel.state.collectAsStateWithLifecycle()
     val activity = LocalActivity.current ?: return
+    val app = LocalContext.current.applicationContext as StudyMateApp
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
+    val downloadNoteFile = rememberNoteFileDownloader(app.api)
+    val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
+    val onIdentityChanged = {
+        viewModel.onIdentityChanged()
+        notesViewModel.onIdentityChanged()
+    }
 
-    // 返回键先关抽屉，再退出 App。
-    BackHandler(enabled = drawerState.isOpen) { scope.launch { drawerState.close() } }
-    // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新聊天。
+    // 返回键：先关抽屉；笔记编辑页自己处理（先交给网页关面板，再保存后回列表）；笔记列表回到聊天；最后退出 App。
+    BackHandler(enabled = drawerState.isOpen) { closeDrawer() }
+    BackHandler(enabled = !drawerState.isOpen && notes.workspace == Workspace.Notes && notes.open == null) {
+        notesViewModel.setWorkspace(Workspace.Chat)
+    }
+    // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
     LaunchedEffect(drawerState.currentValue) {
-        if (drawerState.currentValue == DrawerValue.Open) viewModel.refreshSessions()
+        if (drawerState.currentValue == DrawerValue.Open) {
+            if (notes.workspace == Workspace.Notes) notesViewModel.refresh() else viewModel.refreshSessions()
+        }
+    }
+
+    val switchWorkspace: (Workspace) -> Unit = { target ->
+        // 网页从抽屉里切换时先关抽屉。
+        closeDrawer()
+        notesViewModel.setWorkspace(target)
     }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            SessionDrawer(
-                state = state,
-                onNewChat = {
-                    viewModel.newChat()
-                    scope.launch { drawerState.close() }
-                },
-                onOpen = { id ->
-                    viewModel.openSession(id)
-                    scope.launch { drawerState.close() }
-                },
-                onRetry = viewModel::refreshSessions,
+            AppDrawer(
+                workspace = notes.workspace,
+                onSwitch = switchWorkspace,
                 footer = {
                     SidebarFooter(
                         account = account,
+                        // 换身份前先把打开的笔记存掉（WebView 还带着旧身份的 Cookie），身份换了编辑器会被关掉。
                         onSignIn = {
-                            accountViewModel.signIn(
-                                fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
-                                onSignedIn = viewModel::onIdentityChanged,
-                            )
+                            scope.launch {
+                                notesViewModel.flushBeforeIdentityChange()
+                                accountViewModel.signIn(
+                                    fetchIdToken = { clientId, nonce -> requestGoogleIdToken(activity, clientId, nonce) },
+                                    onSignedIn = onIdentityChanged,
+                                )
+                            }
                         },
                         onSignOut = {
-                            accountViewModel.signOut(
-                                clearDeviceChoice = { clearGoogleCredentialState(activity) },
-                                onSignedOut = viewModel::onIdentityChanged,
-                            )
+                            scope.launch {
+                                notesViewModel.flushBeforeIdentityChange()
+                                accountViewModel.signOut(
+                                    clearDeviceChoice = { clearGoogleCredentialState(activity) },
+                                    onSignedOut = onIdentityChanged,
+                                )
+                            }
                         },
                         onSaveName = accountViewModel::saveName,
                         onResetToGoogle = accountViewModel::resetToGoogle,
                     )
                 },
-            )
+            ) {
+                if (notes.workspace == Workspace.Notes) {
+                    NotesDrawerBody(
+                        state = notes,
+                        onCreate = { closeDrawer(); notesViewModel.createNote() },
+                        onOpen = { id -> closeDrawer(); notesViewModel.openNote(id) },
+                        onToggleGroup = notesViewModel::toggleGroup,
+                        onMove = { dialog = NotesDialogState.Move(it.id) },
+                        onTrash = { dialog = NotesDialogState.TrashNote(it) },
+                        onNewGroup = { dialog = NotesDialogState.NewGroup },
+                        onRenameGroup = { dialog = NotesDialogState.RenameGroup(it) },
+                        onDeleteGroup = { dialog = NotesDialogState.DeleteGroup(it) },
+                        onOpenTrash = notesViewModel::openTrash,
+                        modifier = Modifier.weight(1f),
+                    )
+                } else {
+                    ChatDrawerBody(
+                        state = state,
+                        onNewChat = { viewModel.newChat(); closeDrawer() },
+                        onOpen = { id -> viewModel.openSession(id); closeDrawer() },
+                        onRetry = viewModel::refreshSessions,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
         },
     ) {
-        ChatScreen(
-            state = state,
-            onMenu = { scope.launch { drawerState.open() } },
-            onNewChat = viewModel::newChat,
-            onSend = viewModel::send,
-            onStop = viewModel::stop,
-            onSelectModel = viewModel::selectModel,
-            onSelectReasoning = viewModel::selectReasoning,
-            onRetryMessages = viewModel::reloadActive,
-            onAddFiles = viewModel::addFiles,
-            onRemoveFile = viewModel::removeFile,
-            onImageMode = viewModel::setImageMode,
+        val open = notes.open
+        when {
+            notes.workspace == Workspace.Chat -> ChatScreen(
+                state = state,
+                // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
+                input = viewModel.draft,
+                onInputChange = viewModel::updateDraft,
+                onMenu = { scope.launch { drawerState.open() } },
+                onNewChat = viewModel::newChat,
+                onSend = viewModel::send,
+                onStop = viewModel::stop,
+                onSelectModel = viewModel::selectModel,
+                onSelectReasoning = viewModel::selectReasoning,
+                onRetryMessages = viewModel::reloadActive,
+                onAddFiles = viewModel::addFiles,
+                onRemoveFile = viewModel::removeFile,
+                onImageMode = viewModel::setImageMode,
+                onSwitchWorkspace = notesViewModel::setWorkspace,
+            )
+            // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
+            open != null -> androidx.compose.runtime.key(open.editor) {
+                NoteEditorScreen(
+                    open = open,
+                    saveState = notes.saveState,
+                    notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
+                    // 编辑器里的 AI 助手用 App 里选的模型和推理强度（网页按服务端的模型列表核对）。
+                    embedUrl = { lang -> app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning) },
+                    onDownload = downloadNoteFile,
+                    baseUrl = BuildConfig.BASE_URL,
+                    cookieJar = app.cookieJar,
+                    drawerOpen = drawerState.isOpen,
+                    onMenu = { scope.launch { drawerState.open() } },
+                    onBack = notesViewModel::closeNote,
+                    onDismissNotice = notesViewModel::dismissNotice,
+                    onMessage = { editor, message ->
+                        when (message) {
+                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon)
+                            is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
+                            is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
+                            EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
+                            EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
+                            is EmbedMessage.Flushed -> Unit
+                        }
+                    },
+                    registerFlush = { bridge -> notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } } },
+                )
+            }
+            else -> Column(Modifier.fillMaxSize().background(Color.White)) {
+                // 笔记列表的顶栏：网页手机版只有菜单（和搜索；原生版还没有搜索）。
+                Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    TopIconButton(Lucide.Menu, stringResource(R.string.open_menu), { scope.launch { drawerState.open() } })
+                }
+                NotesHome(
+                    state = notes,
+                    onSwitch = notesViewModel::setWorkspace,
+                    onOpen = notesViewModel::openNote,
+                    onCreate = notesViewModel::createNote,
+                    onMove = { dialog = NotesDialogState.Move(it.id) },
+                    onNewGroup = { dialog = NotesDialogState.NewGroup },
+                    onRetry = notesViewModel::refresh,
+                )
+            }
+        }
+    }
+
+    NotesDialogs(dialog, notes, notesViewModel) { dialog = null }
+
+    notes.trash?.let { trash ->
+        TrashSheet(
+            trash = trash,
+            onClose = notesViewModel::closeTrash,
+            onRetry = notesViewModel::loadTrash,
+            onConfirmAll = notesViewModel::confirmEmptyTrash,
+            onEmpty = notesViewModel::emptyTrash,
+            onRestore = notesViewModel::restore,
+            onConfirmOne = notesViewModel::confirmDeleteForever,
+            onDeleteForever = notesViewModel::deleteForever,
         )
     }
 }
 
-// 侧边栏（网页 .notion-sidebar）：宽 240、底色 #F7F7F5；头部高 48；"新聊天"按钮高 44、圆角 8、深色底；
-// 聊天行高 44、圆角 6.4，当前行浅蓝底加左侧蓝条。网页侧栏里的 Chat/Notes 切换、搜索、项目、语言、隐私政策
-// 在原生版里还没有对应功能，所以这里不放（不放不能用的入口）。
 @Composable
-private fun SessionDrawer(
-    state: ChatUiState,
-    onNewChat: () -> Unit,
-    onOpen: (String) -> Unit,
-    onRetry: () -> Unit,
+private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: NotesViewModel, onClose: () -> Unit) {
+    val close = {
+        vm.clearGroupError()
+        onClose()
+    }
+    when (dialog) {
+        null -> Unit
+        is NotesDialogState.Move -> {
+            val page = notes.pages.firstOrNull { it.id == dialog.pageId }
+            if (page == null) close() else MoveNoteDialog(page, notes.groups, notes.groupError, vm::moveNote, vm::createGroup, close)
+        }
+        NotesDialogState.NewGroup -> GroupNameDialog(
+            stringResource(R.string.new_project), "", stringResource(R.string.create), notes.groupError,
+            onSubmit = { name -> vm.createGroup(name) != null }, onClose = close,
+        )
+        is NotesDialogState.RenameGroup -> GroupNameDialog(
+            stringResource(R.string.rename_project), dialog.group.name, stringResource(R.string.save), notes.groupError,
+            onSubmit = { name -> vm.renameGroup(dialog.group.id, name) }, onClose = close,
+        )
+        is NotesDialogState.DeleteGroup -> ConfirmDialog(
+            stringResource(R.string.delete_project_title),
+            stringResource(R.string.delete_project_body, dialog.group.name),
+            stringResource(R.string.delete_project),
+            notes.groupError,
+            onConfirm = { vm.deleteGroup(dialog.group.id) },
+            onClose = close,
+        )
+        is NotesDialogState.TrashNote -> ConfirmDialog(
+            stringResource(R.string.trash_note_title),
+            stringResource(R.string.trash_note_body, dialog.page.title, TRASH_RETENTION_DAYS),
+            stringResource(R.string.move_to_trash),
+            notes.error,
+            onConfirm = { vm.trashNote(dialog.page.id) },
+            onClose = close,
+        )
+    }
+}
+
+// 侧边栏（网页 .notion-sidebar，手机抽屉）：宽 240、底色 #F7F7F5；头部高 48（品牌）；
+// 下面是 Chat / Note 切换（左右 8、上距 4），再下面是当前模式的内容，最底部是账号区。
+@Composable
+private fun AppDrawer(
+    workspace: Workspace,
+    onSwitch: (Workspace) -> Unit,
     footer: @Composable () -> Unit,
+    body: @Composable ColumnScope.() -> Unit,
 ) {
     ModalDrawerSheet(
         modifier = Modifier.width(240.dp),
@@ -140,48 +304,65 @@ private fun SessionDrawer(
                 Spacer(Modifier.width(7.2.dp))
                 Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
             }
-            Row(
-                Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp).fillMaxWidth().height(44.dp)
-                    .clip(RoundedCornerShape(8.dp)).background(Sm.Ink).clickable(onClick = onNewChat),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center,
-            ) {
-                LucideIcon(Lucide.Plus, 16.dp, Color.White)
-                Spacer(Modifier.width(8.dp))
-                Text(stringResource(R.string.new_chat), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            }
-
-            // 分区小标题：12sp 等宽大写灰字（和回答上方的角色标签同一套样式）。
-            val chatsLabel = stringResource(R.string.chats).uppercase()
-            Text(
-                chatsLabel,
-                modifier = Modifier.padding(start = 16.dp, top = 14.4.dp, bottom = 4.8.dp),
-                style = roleLabelStyle(chatsLabel),
-            )
-
-            Box(Modifier.weight(1f).fillMaxWidth()) { when {
-                state.sessionsLoading -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(24.dp), color = Sm.Muted, strokeWidth = 2.dp)
-                }
-                // 网页没有单独的"列表加载失败"文案，这里只给一个重试按钮（文案用网页已有的 Retry）。
-                state.sessionsFailed -> TextButton(onClick = onRetry, modifier = Modifier.padding(horizontal = 8.dp)) {
-                    Text(stringResource(R.string.retry), color = Sm.Blue)
-                }
-                state.sessions.isEmpty() -> Text(
-                    stringResource(R.string.chats_empty),
-                    color = Sm.Muted,
-                    fontSize = 12.sp,
-                    lineHeight = 20.sp,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                )
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(state.sessions, key = { it.id }) { session ->
-                        SessionRow(session.title, session.icon, active = session.id == state.activeSessionId) { onOpen(session.id) }
-                    }
-                }
-            } }
+            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp))
+            body()
             footer()
         }
+    }
+}
+
+// 侧栏的聊天部分："新聊天"（.sidebar-primary-action，与"新笔记"同款：上距 12、高 44、圆角 8、深色、左对齐 16/550），
+// 聊天行高 44、圆角 6.4，当前行浅蓝底加左侧蓝条。网页侧栏里的搜索、聊天项目、拖动 / 置顶 / 更多在原生版里还没有对应功能，所以不放。
+@Composable
+private fun ChatDrawerBody(
+    state: ChatUiState,
+    onNewChat: () -> Unit,
+    onOpen: (String) -> Unit,
+    onRetry: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier) {
+        Row(
+            Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp).fillMaxWidth().height(44.dp)
+                .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0C1730), spotColor = Color(0x1F0C1730))
+                .clip(RoundedCornerShape(8.dp)).background(Sm.Ink).clickable(onClick = onNewChat)
+                .padding(horizontal = 11.2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            LucideIcon(Lucide.Plus, 16.dp, Color.White)
+            Spacer(Modifier.width(8.dp))
+            Text(stringResource(R.string.new_chat), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight(550))
+        }
+
+        // 分区小标题：12sp 等宽大写灰字（和回答上方的角色标签同一套样式）。
+        val chatsLabel = stringResource(R.string.chats).uppercase()
+        Text(
+            chatsLabel,
+            modifier = Modifier.padding(start = 16.dp, top = 14.4.dp, bottom = 4.8.dp),
+            style = roleLabelStyle(chatsLabel),
+        )
+
+        Box(Modifier.weight(1f).fillMaxWidth()) { when {
+            state.sessionsLoading -> Box(Modifier.fillMaxWidth().padding(24.dp), Alignment.Center) {
+                CircularProgressIndicator(Modifier.size(24.dp), color = Sm.Muted, strokeWidth = 2.dp)
+            }
+            // 网页没有单独的"列表加载失败"文案，这里只给一个重试按钮（文案用网页已有的 Retry）。
+            state.sessionsFailed -> TextButton(onClick = onRetry, modifier = Modifier.padding(horizontal = 8.dp)) {
+                Text(stringResource(R.string.retry), color = Sm.Blue)
+            }
+            state.sessions.isEmpty() -> Text(
+                stringResource(R.string.chats_empty),
+                color = Sm.Muted,
+                fontSize = 12.sp,
+                lineHeight = 20.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            )
+            else -> LazyColumn(Modifier.fillMaxSize()) {
+                items(state.sessions, key = { it.id }) { session ->
+                    SessionRow(session.title, session.icon, active = session.id == state.activeSessionId) { onOpen(session.id) }
+                }
+            }
+        } }
     }
 }
 
