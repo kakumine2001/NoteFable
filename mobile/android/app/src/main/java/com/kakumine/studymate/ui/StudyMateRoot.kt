@@ -189,7 +189,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             }
         }
         when {
-            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink) { ChatScreen(
+            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink, LocalAnswerSessionId provides state.activeSessionId) { ChatScreen(
                 state = state,
                 // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
                 input = viewModel.draft,

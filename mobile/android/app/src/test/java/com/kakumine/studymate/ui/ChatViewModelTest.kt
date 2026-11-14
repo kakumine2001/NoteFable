@@ -656,4 +656,21 @@ class ChatViewModelTest {
         val second = ChatViewModel(FakeBackend(), MemorySettings(), flushIntervalMs = 10, savedState = saved)
         assertEquals("keep me", second.draft)
     }
+
+    @Test
+    fun `reconcile keeps the list keys of the turn that was just sent`() {
+        val old = listOf(
+            UiMessage("cm0", MessageRole.Assistant, "Earlier"),
+            UiMessage("local-1", MessageRole.User, "Q"),
+            UiMessage("local-2", MessageRole.Assistant, "A"),
+        )
+        val loaded = listOf(
+            UiMessage("cm0", MessageRole.Assistant, "Earlier"),
+            UiMessage("cm1", MessageRole.User, "Q"),
+            UiMessage("cm2", MessageRole.Assistant, "A"),
+        )
+        val merged = carryLocalKeys(old, loaded)
+        assertEquals(listOf("cm0", "cm1", "cm2"), merged.map { it.id })
+        assertEquals(listOf("cm0", "local-1", "local-2"), merged.map { it.key })
+    }
 }

@@ -71,6 +71,11 @@ data class UiMessage(
     val proposals: List<Proposal> = emptyList(),
     /** 开始等待回答的时刻（System.currentTimeMillis），进度条的"已等 N 秒"用。 */
     val startedAt: Long? = null,
+    /**
+     * 列表项的 key（LazyColumn）。默认等于 [id]；发送后对账把 `local-N` 换成服务端 ID 时沿用原来的 key，
+     * 这一回合的界面状态（回答"…"菜单的保存、下载、保存位置选择）就不会因为换 ID 被丢掉（网页的临时 ID 留到切换对话为止）。
+     */
+    val key: String = id,
 )
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
@@ -283,7 +288,7 @@ class ChatViewModel(
         _state.value.activeSessionId?.let { loadMessages(it) }
     }
 
-    private fun loadMessages(sessionId: String, quiet: Boolean = false) {
+    private fun loadMessages(sessionId: String, quiet: Boolean = false, keepLocalKeys: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
             if (!quiet) _state.update { it.copy(messagesLoading = true, messagesFailed = false) }
@@ -294,7 +299,11 @@ class ChatViewModel(
                 .onSuccess { list ->
                     _state.update {
                         if (it.activeSessionId != sessionId) it
-                        else it.copy(messages = list.map(::toUiMessage), messagesLoading = false, messagesFailed = false)
+                        else {
+                            val loaded = list.map(::toUiMessage)
+                            val messages = if (keepLocalKeys) carryLocalKeys(it.messages, loaded) else loaded
+                            it.copy(messages = messages, messagesLoading = false, messagesFailed = false)
+                        }
                     }
                 }
                 .onFailure {
@@ -499,7 +508,7 @@ class ChatViewModel(
         // 正常结束时用服务器上保存的版本对账（拿到真实 ID、生成的图片、思考时长）。
         // 被停止时不对账：服务器不一定保存了已生成的半截回答，替换后屏幕上的文字可能凭空消失。
         if (completed && _state.value.activeSessionId == finishedSession) {
-            loadMessages(finishedSession, quiet = true)
+            loadMessages(finishedSession, quiet = true, keepLocalKeys = true)
         }
     }
 
@@ -618,4 +627,20 @@ class ChatViewModel(
             }
         }
     }
+}
+
+/**
+ * 对账：服务端列表末尾就是刚发送的这一回合。从两边末尾往前，旧列表里还是本地 ID（`local-N`）且角色相同的消息，
+ * 把它的 key 交给服务端的那条（见 [UiMessage.key]）。
+ */
+internal fun carryLocalKeys(old: List<UiMessage>, loaded: List<UiMessage>): List<UiMessage> {
+    val result = loaded.toMutableList()
+    var i = old.lastIndex
+    var j = result.lastIndex
+    while (i >= 0 && j >= 0 && old[i].id.startsWith("local-") && old[i].role == result[j].role) {
+        result[j] = result[j].copy(key = old[i].key)
+        i--
+        j--
+    }
+    return result
 }

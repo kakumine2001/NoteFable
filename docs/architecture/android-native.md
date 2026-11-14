@@ -58,7 +58,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、侧栏聊天行的改图标（表情选择器）、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、侧栏聊天行的改图标（表情选择器）；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `STUDYMATE_MODELS` 决定。
 
@@ -68,10 +68,10 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 mobile/android/
   app/src/main/java/com/kakumine/studymate/
     data/   StudyMateApi（各接口）、StudyMateHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
-            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
+            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
             IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、AssistantTurn（一条回答）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、
             NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
   app/src/main/assets/   models.json、system-text.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
@@ -133,9 +133,19 @@ mobile/android/
 - **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
 - **代码块**（`ui/CodeBlock.kt`，网页 `MarkdownCodeBlock` + `.markdown-code-*`）：头部 Code2 + 语言名（围栏语言含别名 → `guessLanguage` 的 Python 规则 → 自动识别，识别不出显示"代码"）+ 复制键（✓ 停 1.2 秒）；代码不折行、横向滚动。网页用 highlight.js，原生是自带的小词法高亮器，覆盖同样 17 种语言、用同一套颜色类别；逐个记号和自动识别结果是近似，不保证与 highlight.js 完全一致。行内代码按 `.markdown-inline-code`（#e2e8f0 底、13.6）。
 - **表格**（`AnswerMarkdown` 的 `AnswerTable`）：渲染库自带的表格是固定列宽、只有分隔线，和网页不同，所以自己排：1px 边框、内边距 7.2×11.2、表头浅蓝灰底 + 600，左上对齐；列宽按浏览器自动表格布局分配（每列最窄 88 或最长的词，放得下用自然宽度，否则按比例分，最窄都放不下时横向滚动）。
-- **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。网页的"…"菜单（存到笔记、下载对话）不在这一批。
+- **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。复制键后面是"…"菜单，见下文“回答导出”。
 - **生成图片的下载**：每张图片右下角 44 的圆形下载键（`.generated-image-download`）。存进相册的 Pictures（`data/ImageSaver.kt`，文件名 `studymate-<id>.<扩展名>`，扩展名按图片的 MIME 类型（jpg / webp / gif，默认 png；网页总是 `.png`），id 里不安全的字符换成 `_`；下载在 App 级作用域（`StudyMateApp.scope`）里跑，回合滚出屏幕也不中断；Android 8–9 媒体库没扫到时只存不打开；Android 10+ 用 MediaStore 不需要权限，8–9 先申请 `WRITE_EXTERNAL_STORAGE`，清单里 `maxSdkVersion=28`），提示和成功后打开的方式与笔记文件下载相同。
 - 和网页的差别：删除线颜色（网页是半透明红）用文字色；代码高亮是近似（见上）。
+
+### 回答导出（"…"菜单）
+
+`ui/AnswerActions.kt`、`data/ExportApi.kt`，对应网页 `answer-actions.tsx` + `answer-actions.css`（412 宽实测）。复制键后面是 36×36 的"…"（Ellipsis 18、线宽 1.9、Muted），点开的菜单与侧栏菜单同一外观（宽 228、内边距 5.6、圆角 12、细线、阴影 0 8 32 #0002；项最小高 44、内边距 9.6×12、图标 16 + 间距 12、14/21），左边与按钮对齐、在按钮下 4，下方放不下就放到按钮上方，离窗口边至少 8（`answerMenuPosition`）。点外面或返回键关闭。
+
+- **存到笔记**：网页在浏览器里用 `answerToNoteContent` 生成块；原生不移植这段转换，改由服务端 `POST /api/pages/from-answer`（body `{ markdown, sessionId, messageId, savedOn }`）用同一个函数生成，再走与 `POST /api/pages` 相同的 `validateNoteContent` + `createNotePage`（`src/lib/note-create.ts`）。会话只用来取标题和回到会话的链接：必须属于当前用户且不是笔记助手的会话（`noteId: null`），否则 404；正文是 App 显示的回答原文（和 `POST /api/pages` 一样，只是把自己的文字存进自己的笔记），请求体上限 1 MiB（413）。链接的 origin 取请求地址；`savedOn` 是本机日期，出处里的日期与网页一样按用户所在时区。菜单项：保存中转圈 + "正在保存…"，成功变 ✓"已保存到笔记"并多出"打开已保存的笔记"（关菜单，经 `LocalOpenNote` 打开）；保存中 / 已保存的项变 Muted、不能再点。状态按 `会话ID\n消息ID` 存在 App 级的 `AnswerExportStore`（网页模块级 Map），重新绘制、切换对话都不会重复新建；回答刚结束时还是本地 ID（`local-N`），对账换成服务端 ID 时列表项沿用原来的 key（`UiMessage.key`，`carryLocalKeys`），菜单状态不丢，保存状态也搬到新 ID 下（`AnswerExportStore.rename`，在途的保存完成后记在新 ID 下）；重开 App 就忘了（服务端不去重，与网页刷新后相同）。失败时项变"重新保存到笔记"，菜单里显示原因：413 太长、400 服务端原句（经系统文词典翻译）、其余"无法保存到笔记，请重试。"。
+- **下载对话**：`GET /api/sessions/:id/export?date=` 返回 `{ fileName, markdown }`，服务端用网页同一组 `conversationToMarkdownFile` / `answerFileName` 生成（同样的所有权检查；只读 USER / ASSISTANT 的正文和附件，不读 SYSTEM 消息和 providerContext；附件图片是本站绝对地址）。读取中菜单项转圈 + "正在下载…" 并阻止重复点击；读取失败菜单保持打开并显示"无法下载聊天，请重试。"；成功后关菜单，用系统的保存位置选择（SAF `CreateDocument`，`text/markdown`，建议文件名即 `fileName`）写入，写完 Toast "聊天已下载"（网页这里只有读屏通知），取消选择就什么也不做，写入失败在操作行下方显示同一句错误，并删掉选择器已建好的空文件。等写入的 Markdown 按会话放在 `AnswerExportStore`（选择器开着时 Activity 重建也还在）；进程被杀后没了就重新读一次再写。离开这条回答（滚出屏幕）后不再弹出保存位置选择。
+- **错误**：与网页一样只有一处：复制、保存、下载开始时都清掉上一条，菜单开着时显示在菜单里，关着时显示在操作行下方（复制失败也在这里，`MenuError.Copy`）。
+- 和网页的差别：菜单不随页面滚动关闭；没有键盘方向键导航。
+- 服务端测试：`src/app/api/pages/from-answer/route.test.ts`、`src/app/api/sessions/[sessionId]/export/route.test.ts`（与浏览器端转换结果逐项比对）；原生：`ExportApiTest`（MockWebServer、假后端、定位）。
 
 ## 笔记
 
