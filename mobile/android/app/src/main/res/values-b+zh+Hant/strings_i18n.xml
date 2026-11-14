@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="ui_locale">zh-Hant</string>
+    <string name="language_change_failed">無法切換語言，請重試。</string>
+    <string name="language_changing">正在切換語言…</string>
+</resources>

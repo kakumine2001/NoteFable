@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -146,13 +145,9 @@ private suspend fun syncCookies(baseUrl: String, jar: CookieJar) {
     manager.flush()
 }
 
-/** 网页的语言代码：App 的界面语言是中文 / 日文时带上，其他用英文。 */
+/** 网页的语言代码（en / zh / zh-Hant / ja）：和 App 界面实际用的语言（资源里的 ui_locale）一致。 */
 @Composable
-private fun embedLanguage(): String = when (LocalConfiguration.current.locales[0]?.language) {
-    "zh" -> "zh"
-    "ja" -> "ja"
-    else -> "en"
-}
+private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、

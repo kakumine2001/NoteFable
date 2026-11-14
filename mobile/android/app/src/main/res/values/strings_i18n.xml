@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 界面实际用的语言（en / zh / zh-Hant / ja，与网页的 Locale 一致）：按资源解析的结果决定，系统文、笔记 WebView 和 Accept-Language 都跟它走。 -->
+    <string name="ui_locale">en</string>
+    <string name="language_change_failed">Could not change language. Please try again.</string>
+    <string name="language_changing">Changing language…</string>
+</resources>

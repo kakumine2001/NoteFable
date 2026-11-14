@@ -13,11 +13,11 @@
 
 ## 现状（阶段 3）
 
-已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `STUDYMATE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、中 / 日 / 英界面（`res/values-zh`、`values-ja`）、持久化 Cookie（匿名设备身份）。
+已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `STUDYMATE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。还没有：推理 / 搜索进度条、搜索、聊天项目、设置页、繁体中文及网页的上限登录提示与草稿恢复交互。
+另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。还没有：推理 / 搜索进度条、搜索、聊天项目、设置页及网页的上限登录提示与草稿恢复交互。
 
 ## 与网页界面保持一致
 
@@ -55,6 +55,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 笔记空状态 | 上距 120；文件图标 28（线宽 1.4、浅灰）；"Notes"40/750、行高 50、上 16；说明 15/24 灰（"/"等宽键帽）；"新笔记"高 32、上 24；存储说明 12/20 浅灰、上 40、最宽 384 | `NotesEmpty` |
 | 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`） | `NoteEditorScreen` |
 | 笔记对话框 | 宽 min(100% − 48, 400)、内边距 24、圆角 8、遮罩 `rgba(15,15,15,.2)`；标题 16/600、说明 14 灰；输入框 1px 深描边、圆角 6、内边距 8.8×11.2、聚焦 2px 蓝；选项行 ≥40、圆角 6、15 字，当前项灰底 600 + ✓；按钮 ≥32、圆角 4.8、12.8/500，危险操作红字 `#b91c1c` | `NotesDialog` 等 |
+| 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
 **有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、聊天项目、侧栏里的拖动 / 置顶 / 更多、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
@@ -90,6 +91,14 @@ mobile/android/
 - 首次启动、登录、退出后：设备 Cookie 由第一个到达服务端的请求签发（退出后设备 Cookie 指向已绑定 Google 的用户，服务端会重新签发匿名身份）。几个请求同时发出的话会各签发一个身份，后到的 Cookie 覆盖先到的，前面那个身份下建的聊天 / 笔记就读不回来。所以 `StudyMateHttp` 的 OkHttp 客户端装了 `IdentityGate`（`data/IdentityGate.kt`，聊天、笔记、账号、附件图片、笔记文件下载共用）：身份未确定时第一个本站请求单独走，其它请求等它拿到响应（Set-Cookie 已存进 Cookie jar）再走；之后并行。登录成功和退出时 `reset()`，下一个请求又单独走；网络错误不算确定；`/api/models` 不读也不签发身份，不排队也不算确定（否则启动时它先回来就把闸门打开了）。聊天发送前另外还会等会话列表请求结束（`awaitSessionsRequest`）。
 - 同一时刻只认最新一次会话列表刷新和历史读取，被取消的在途请求结果会被丢弃；历史加载中不能发送。
 - 流式请求不设读超时，思考型模型可能很久没有输出。停止生成会取消底层网络请求；切换聊天也会先停掉进行中的回答。停止后不用服务器版本覆盖屏幕，只有正常结束才对账。
+
+## 界面语言
+
+和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`），外加"自动"。
+
+- **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
+- **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
+- **语言菜单**（`ui/LanguageUi.kt` 的 `LanguageSelect`，复刻网页 `LanguageSelect`）：选择用 `AppCompatDelegate.setApplicationLocales` 保存成"应用语言"（Android 13+ 由系统保存、也能在系统设置里改，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。"自动"＝清空，跟系统语言。语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；菜单打开时有网页 `motion-menu-enter` 的 120ms 淡入上移，各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化；切换中显示转圈，失败时显示网页的"无法切换语言"。
 
 ## 附件与图片
 

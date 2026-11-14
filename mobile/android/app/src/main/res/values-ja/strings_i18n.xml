@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="ui_locale">ja</string>
+    <string name="language_change_failed">言語を切り替えられませんでした。もう一度お試しください。</string>
+    <string name="language_changing">表示言語を変更中…</string>
+</resources>

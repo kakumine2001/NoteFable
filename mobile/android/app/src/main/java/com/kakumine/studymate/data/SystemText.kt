@@ -20,7 +20,7 @@ class SystemText(
 ) {
     private val patterns = templates.mapNotNull(::patternOf)
 
-    /** 按界面语言（`zh`、`ja`；其他语言返回英文原句）取翻译器。 */
+    /** 按界面语言（`zh`、`zh-Hant`、`ja`；其他语言返回英文原句）取翻译器。 */
     fun translator(language: String?): SystemTextTranslator =
         SystemTextTranslator(messages[normalizeLanguage(language)].orEmpty(), patterns)
 
@@ -36,10 +36,14 @@ class SystemText(
             return SystemText(asset.templates, asset.messages)
         }
 
-        internal fun normalizeLanguage(language: String?): String? = when (language?.lowercase()?.substringBefore('-')?.substringBefore('_')) {
-            "zh" -> "zh"
-            "ja" -> "ja"
-            else -> null
+        /** `ui_locale` 或语言标签 → 词典的键。zh 和网页 localeFromTag 一样：有 Hant 或台港澳地区是繁体，其余简体。 */
+        internal fun normalizeLanguage(language: String?): String? {
+            val parts = language?.lowercase()?.split('-', '_') ?: return null
+            return when (parts.first()) {
+                "zh" -> if ("hant" in parts || parts.any { it in setOf("tw", "hk", "mo") }) "zh-Hant" else "zh"
+                "ja" -> "ja"
+                else -> null
+            }
         }
 
         private fun patternOf(template: String): Pattern? {
