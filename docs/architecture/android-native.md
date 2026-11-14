@@ -226,6 +226,7 @@ mobile/android/
 - 表情：`EmojiPickerBody`（高 min(320, 屏高 − 220)），选中走 `PATCH /api/account {icon}`，去掉键写"使用 Google 头像"。
 - 保存（`AccountViewModel`，网页 `account-store.ts` 的移植）：编辑马上显示（服务端确认的资料 + 待确认的编辑），名字、图标、照片按顺序一个一个发（`Mutex`）；失败只撤掉那一次，显示服务端原句（经系统文词典翻译）或"无法保存。"（字符串资源 `acct_could_not_save`：这句来自客户端的 `account-store.ts`，不在系统文词典里）；照片失败显示服务端原句、"无法上传这张照片，请重试。"或网络错误的那句。退出登录时先把输入中的名字排进队列（网页靠输入框 blur），再等这些发完。头像照片读不出来时和网页一样退到表情 / Google 照片 / 首字母。
 - 接口：`data/AccountApi.kt`（`ProfileEdit`、`applyProfileEdit`、`profileEditChanges`、`AccountProfileBackend`）；`AccountBackend` 只剩登录、读取和退出。单元测试：`AccountViewModelTest`、`AccountApiTest`、`AvatarCropTest`。
+- 设置（自定义指令）：个人资料弹层的操作区多一行"设置"（齿轮图标，在"退出登录"上面），关掉弹层后打开 `ui/SettingsDialog.kt`（网页 `settings-dialog.tsx`）。外观复用项目设置的手机尺寸（`SettingsSectionLabel`、`SettingsHelpText`、`InstructionsField`），只有一栏"自定义指令"（计数 n/4000）；打开时 `GET /api/custom-instructions`，保存时文字没变就直接关，变了就 `PUT`（`AccountProfileBackend.customInstructions` / `saveCustomInstructions`）。失败显示服务端原句或 `acct_err_load_custom_instructions` / `acct_err_save_custom_instructions`；保存中不能关，照片上传中"设置"不响应。输入超过上限时用 `clipInstructions` 截断（不把表情的代理对切开），项目设置的指示栏也用它。
 - 已知差异：缩放滑块是 Material3 `Slider`（蓝色），没有对照网页 Chrome 的 range 外观逐像素量；裁剪预览的读屏说明沿用网页原句（提到方向键，原生只能拖）。
 ## 构建与测试
 

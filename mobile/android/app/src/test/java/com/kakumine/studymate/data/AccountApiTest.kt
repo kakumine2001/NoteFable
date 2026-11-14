@@ -81,6 +81,35 @@ class AccountApiTest {
     }
 
     @Test
+    fun `custom instructions are read with GET and replaced with PUT, and a refusal keeps its sentence`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"instructions":null}"""))
+            server.enqueue(MockResponse().setBody("""{"instructions":"Be brief."}"""))
+            server.enqueue(MockResponse().setResponseCode(401).setBody("""{"error":"Sign in to use custom instructions."}"""))
+            val api = server.api()
+            assertNull(api.customInstructions())
+            assertEquals("Be brief.", api.saveCustomInstructions("Be brief."))
+
+            val read = server.next()
+            assertEquals("GET", read.method)
+            assertEquals("/api/custom-instructions", read.path)
+            val write = server.next()
+            assertEquals("PUT", write.method)
+            assertEquals("/api/custom-instructions", write.path)
+            val body = Json.parseToJsonElement(write.body.readUtf8()).jsonObject
+            assertEquals(setOf("instructions"), body.keys)
+            assertEquals(JsonPrimitive("Be brief."), body["instructions"])
+
+            try {
+                api.customInstructions()
+                fail("expected 401")
+            } catch (error: ApiException) {
+                assertEquals("Sign in to use custom instructions.", error.serverMessage())
+            }
+        }
+    }
+
+    @Test
     fun `edits apply locally like the web, and choosing an icon drops the uploaded photo`() {
         val user = AccountUser(name = "Ann", googleName = "Ann", avatarUrl = "/api/account/avatar?v=1")
         val withIcon = applyProfileEdit(user, ProfileEdit.icon("🦊"))

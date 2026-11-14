@@ -1,5 +1,8 @@
 // サーバー（API・共通処理）が返すエラー文の訳。画面で t() に通したときに引かれる。
 export const jaServer: Record<string, string> = {
+  "Sign in to use custom instructions.": "カスタム指示を使うにはログインしてください。",
+  "Could not load your custom instructions.": "カスタム指示を読み込めませんでした。",
+  "Could not save your custom instructions. Please try again.": "カスタム指示を保存できませんでした。もう一度お試しください。",
   "Enter a project name.": "プロジェクト名を入力してください。",
   "Project names can have at most {max} characters.": "プロジェクト名は {max} 文字までです。",
   "Project names cannot contain control characters.": "プロジェクト名に制御文字は使えません。",

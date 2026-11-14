@@ -6,6 +6,8 @@ export type StoredProposal = Extract<ActivityStep, { kind: "proposal" | "create_
 // チャットプロジェクトの共通指示の最大文字数と、参照できるノートの最大件数。クライアントとサーバーで同じ値を使う。
 export const MAX_PROJECT_INSTRUCTIONS = 4000;
 export const MAX_PROJECT_NOTES = 5;
+// 利用者のカスタム指示（すべてのチャット共通）の最大文字数。検証はプロジェクトの共通指示と同じものを使うので、同じ値にする。
+export const MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS;
 
 // サイドバー用の一覧と PATCH / POST の応答。noteCount はゴミ箱に入っていないノートだけを数える。
 export type ChatProjectSummary = { id: string; name: string; noteCount: number; hasInstructions: boolean };

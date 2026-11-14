@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 
-type Sheet = { close: () => void; closedByBack: boolean };
+// close が false を返したら「いまは閉じない」（シートは開いたまま）。
+type Sheet = { close: () => boolean | void; closedByBack: boolean };
 
 // 開いているシートを開いた順に持つ。重なっているときは一番上のシートだけを閉じる。
 const openSheets: Sheet[] = [];
@@ -27,7 +28,13 @@ function onPopState(event: PopStateEvent) {
   const top = openSheets.pop();
   if (!top) return;
   top.closedByBack = true;
-  top.close();
+  if (top.close() === false) {
+    // 閉じるのを断られた（保存中など）。シートは開いたままなので、登録と目印を元に戻す。
+    top.closedByBack = false;
+    openSheets.push(top);
+    window.history.pushState(MARKER, "");
+    return;
+  }
   // 下にまだシートがあれば、次の「戻る」でそれを閉じられるよう目印を積み直す。
   if (openSheets.length > 0) window.history.pushState(MARKER, "");
 }
@@ -59,7 +66,8 @@ function listen() {
 // シート（下から出るパネル）を開いている間は履歴を 1 件積み、端末の「戻る」でアプリを閉じずにシートだけ閉じる。
 // 画面のボタンや Esc で閉じた場合は、自分が積んだ履歴だけを取り除く（別の画面遷移が積んだ履歴は触らない）。
 // シートが重なっていても履歴は 1 件だけで、「戻る」と Esc は一番上の 1 枚だけを閉じる。
-export function useBackToClose(open: boolean, onClose: () => void) {
+// onClose が false を返すと閉じなかった扱いになり、「戻る」のあとも登録と履歴の目印を保つ（保存中のダイアログなど）。
+export function useBackToClose(open: boolean, onClose: () => boolean | void) {
   const onCloseRef = useRef(onClose);
   useEffect(() => {
     onCloseRef.current = onClose;

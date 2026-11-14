@@ -166,3 +166,10 @@ data class ChatProjectDetailResponse(val project: ChatProjectDetail)
 /** 与 src/types/chat.ts 相同的上限。 */
 const val MAX_PROJECT_INSTRUCTIONS = 4000
 const val MAX_PROJECT_NOTES = 5
+
+/** 用户的自定义指令（适用于所有聊天）的上限，与网页 MAX_CUSTOM_INSTRUCTIONS 相同。 */
+const val MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS
+
+/** `GET / PUT /api/custom-instructions` 的回复；null 表示没有设置。 */
+@Serializable
+data class CustomInstructionsResponse(val instructions: String? = null)

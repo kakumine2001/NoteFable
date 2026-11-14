@@ -83,6 +83,51 @@ class AccountViewModelTest {
             account.user = next
             return next
         }
+
+        var instructions: String? = null
+        var failInstructions: Throwable? = null
+
+        override suspend fun customInstructions(): String? {
+            failInstructions?.let { throw it }
+            return instructions
+        }
+
+        override suspend fun saveCustomInstructions(instructions: String): String? {
+            failInstructions?.let { throw it }
+            this.instructions = instructions.ifEmpty { null }
+            return this.instructions
+        }
+    }
+
+    @Test
+    fun `custom instructions load as text, save trimmed, and hand failures back`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val profile = FakeProfile(backend)
+        val model = model(backend, profile)
+        assertEquals("", model.loadCustomInstructions().getOrThrow())
+        assertNull(model.saveCustomInstructions("  Be brief.\n"))
+        assertEquals("Be brief.", profile.instructions)
+        assertEquals("Be brief.", model.loadCustomInstructions().getOrThrow())
+        assertNull(model.saveCustomInstructions("   "))
+        assertNull(profile.instructions)
+
+        val failure = ApiException(401, "Sign in to use custom instructions.")
+        profile.failInstructions = failure
+        assertEquals(failure, model.loadCustomInstructions().exceptionOrNull())
+        assertEquals(failure, model.saveCustomInstructions("x"))
+    }
+
+    @Test
+    fun `settings save only when the trimmed text changed, and clipping never splits an emoji`() {
+        assertFalse(customInstructionsChanged("Be brief.", "  Be brief.\n"))
+        assertFalse(customInstructionsChanged("", "   "))
+        assertTrue(customInstructionsChanged("Be brief.", "Be brief!"))
+        assertTrue(customInstructionsChanged("Be brief.", ""))
+
+        assertEquals("abc", clipInstructions("abc", 4))
+        assertEquals("abcd", clipInstructions("abcde", 4))
+        assertEquals("abc", clipInstructions("abc😀", 4))
+        assertEquals("ab😀", clipInstructions("ab😀x", 4))
     }
 
     private fun model(backend: FakeAccount, profile: FakeProfile = FakeProfile(backend)) = AccountViewModel(backend, profile)

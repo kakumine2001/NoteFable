@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import {
   AttachmentValidationError,
@@ -31,6 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { applyActivityEvent, contextActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
 import { formatProjectContext, loadProjectContext, type ProjectContext } from "@/lib/chat-project-context";
+import { formatCustomInstructions } from "@/lib/custom-instructions";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -56,7 +57,8 @@ function makeTitle(message: string) {
 
 // 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
-function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }, project?: ProjectContext | null) {
+function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }, project?: ProjectContext | null, customInstructions?: string | null) {
+  const custom = formatCustomInstructions(customInstructions);
   return [
     "You are StudyMate, a concise, friendly AI study assistant. Help users learn clearly.",
     "Answer in the user's language unless they ask otherwise.",
@@ -88,7 +90,9 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
       : webSearchMode === "off"
         ? ["Web search is unavailable in this request. Do not simulate web searches or invent search results. Be explicit when current information cannot be verified."]
         : []),
-    // 変わりやすい部分（共通指示・参照ノート）は最後に置く。ここだけが変わっても、前の固定の文面はプロンプトキャッシュに残る。
+    // 変わりやすい部分（カスタム指示・共通指示・参照ノート）は最後に置く。ここだけが変わっても、前の固定の文面はプロンプトキャッシュに残る。
+    // 利用者のカスタム指示（すべてのチャット共通）。既定の言語・書式より優先し、プロジェクトの共通指示には譲る。
+    ...(custom ? [custom] : []),
     // プロジェクトの共通指示（ユーザー自身の指示）と参照ノート（私的なデータ）。既定の言語・書式より優先する。
     ...(project ? [formatProjectContext(project, pageTools)] : []),
   ].join(" ");
@@ -614,7 +618,9 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
               return run;
             }
           : undefined;
-        const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined, projectContext);
+        const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined, projectContext,
+          // カスタム指示はログインした利用者の設定。匿名の行に値が残っていても使わない。
+          isAccountUser(user) ? user.customInstructions : null);
         const upstream =
           modelOption.provider === "anthropic"
             ? await createAnthropicStream(buildAnthropicRequest({

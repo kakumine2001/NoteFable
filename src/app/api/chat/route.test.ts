@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   attachProposals: vi.fn().mockResolvedValue({ count: 0 }),
   consumeUsage: vi.fn().mockResolvedValue({ ok: true, ticket: { kind: "chat", day: "2026-01-01", keys: ["user:user"] } }),
   refundUsage: vi.fn().mockResolvedValue(undefined),
+  // 利用者の行に足す項目（googleSub・customInstructions）。既定は匿名の利用者。
+  userRow: { extra: {} as { googleSub?: string | null; verifiedEmail?: string | null; customInstructions?: string | null } },
 }));
 
 const defaultSession = { id: "session", title: "Existing chat" };
@@ -19,7 +21,10 @@ mocks.findSession.mockResolvedValue(defaultSession);
 vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user" }) }));
+vi.mock("@/lib/auth", () => ({
+  getOrCreateAnonymousUser: async () => ({ id: "user", ...mocks.userRow.extra }),
+  isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
+}));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/files", () => ({
@@ -618,5 +623,51 @@ describe("chats inside a project", () => {
     const { prompt } = await chat("gpt-6-luna", answer());
     expect(mocks.loadProjectContext).not.toHaveBeenCalled();
     expect(prompt).not.toContain("Project instructions");
+  });
+
+  describe("custom instructions", () => {
+    afterEach(() => { mocks.userRow.extra = {}; });
+
+    it.each([
+      ["gpt-6-luna", answer],
+      ["deepseek-flash", answer],
+      ["claude-haiku-5-5", claudeAnswer],
+    ])("%s gets the signed-in user's custom instructions before the project's", async (model, reply) => {
+      mocks.userRow.extra = { googleSub: "g1", customInstructions: "Call me Mine." };
+      const { prompt } = await chat(model, reply());
+      const custom = prompt.indexOf("=== User's custom instructions ===\nCall me Mine.\n=== End of user's custom instructions ===");
+      expect(custom).toBeGreaterThan(prompt.indexOf("You are StudyMate"));
+      // プロジェクトの共通指示は後ろに置き、食い違うときはそちらが優先する。
+      expect(prompt.indexOf("=== Project instructions ===")).toBeGreaterThan(custom);
+      expect(prompt).toContain("the project instructions win");
+      // 終わりの区切りは 1 行で終わり、プロジェクトの文が同じ行に続かない。
+      expect(prompt).toContain("=== End of user's custom instructions ===\n This chat belongs");
+    });
+
+    it("applies them in a chat outside any project", async () => {
+      mocks.findSession.mockResolvedValue(defaultSession);
+      mocks.userRow.extra = { googleSub: "g1", customInstructions: "Call me Mine." };
+      const { prompt, events } = await chat("gpt-6-luna", answer());
+      expect(prompt).toContain("Call me Mine.");
+      expect(events.some((event) => typeof event !== "string")).toBe(false);
+    });
+
+    it("applies them for an account that signed in by email", async () => {
+      mocks.findSession.mockResolvedValue(defaultSession);
+      mocks.userRow.extra = { googleSub: null, verifiedEmail: "a@example.test", customInstructions: "Call me Mine." };
+      expect((await chat("gpt-6-luna", answer())).prompt).toContain("Call me Mine.");
+    });
+
+    it.each([
+      ["a signed-in user without any", { googleSub: "g1", customInstructions: null }],
+      ["a signed-in user with only whitespace", { googleSub: "g1", customInstructions: "  \n" }],
+      ["a guest, even if the row holds some", { googleSub: null, customInstructions: "Call me Mine." }],
+    ])("adds nothing for %s", async (_name, extra) => {
+      mocks.findSession.mockResolvedValue(defaultSession);
+      mocks.userRow.extra = extra;
+      const { prompt } = await chat("gpt-6-luna", answer());
+      expect(prompt).not.toContain("custom instructions");
+      expect(prompt).not.toContain("Call me Mine.");
+    });
   });
 });

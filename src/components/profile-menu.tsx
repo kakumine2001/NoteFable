@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, LogOut, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { ImagePlus, LogOut, Pencil, RotateCcw, Settings, Trash2 } from "lucide-react";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import { AvatarCropper } from "@/components/avatar-cropper";
@@ -32,15 +32,17 @@ type ProfileMenuProps = {
   onSave: (patch: { displayName?: string | null; icon?: string | null }) => void;
   // 切り抜いた写真を保存する。失敗したときはその理由の文を返し、成功したら空文字を返す。
   onUpload: (photo: Blob) => Promise<string>;
+  // 設定ダイアログ（カスタム指示）を開く。メニューは呼び出し側が閉じる。
+  onOpenSettings: () => void;
   onSignOut: () => void;
   onClose: () => void;
 };
 
 type Editor = "closed" | "photo" | "emoji";
 
-// プロフィール。顔（写真をアップロード・絵文字を選ぶ）・名前（書き換えられる）・メール・Google の表示に戻すボタン・ログアウト。
+// プロフィール。顔（写真をアップロード・絵文字を選ぶ）・名前（書き換えられる）・メール・Google の表示に戻すボタン・設定・ログアウト。
 // スクロールする一覧の外（body）に固定位置で出すので、サイドバーに裁ち切られない。
-export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, onSignOut, onClose }: ProfileMenuProps) {
+export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, onOpenSettings, onSignOut, onClose }: ProfileMenuProps) {
   const t = useT();
   // 入力中だけ持つ下書き（null は入力していない）。入力欄には、下書きがなければ今の名前を出す。
   const [draft, setDraft] = useState<string | null>(null);
@@ -190,6 +192,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
             <RotateCcw size={14} />{t("Use my Google name and photo")}
           </button>
         )}
+        {/* 写真を送っている最中は開かない（メニューが閉じると、失敗の知らせが消える）。 */}
+        <button type="button" aria-haspopup="dialog" disabled={uploading} onClick={onOpenSettings}><Settings size={14} />{t("Settings")}</button>
         <button type="button" onClick={onSignOut}><LogOut size={14} />{t("Sign out")}</button>
       </div>
     </Popover>,

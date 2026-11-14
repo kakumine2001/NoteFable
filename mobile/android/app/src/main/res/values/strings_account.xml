@@ -17,4 +17,11 @@
     <string name="acct_photo_too_small">That photo is too small. Choose one that is at least %1$d × %1$d pixels.</string>
     <string name="acct_photo_unreadable">Could not read that image. Try another photo.</string>
     <string name="acct_could_not_save">Could not save.</string>
+    <!-- 设置窗口（网页 settings-dialog.tsx）：自定义指令。 -->
+    <string name="acct_settings">Settings</string>
+    <string name="acct_custom_instructions">Custom instructions</string>
+    <string name="acct_custom_instructions_help">Applied to all your chats from the next message. Tell StudyMate about yourself and how you want it to answer. A project’s instructions take priority inside that project.</string>
+    <string name="acct_custom_instructions_placeholder">Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.</string>
+    <string name="acct_err_load_custom_instructions">Could not load your custom instructions.</string>
+    <string name="acct_err_save_custom_instructions">Could not save your custom instructions. Please try again.</string>
 </resources>

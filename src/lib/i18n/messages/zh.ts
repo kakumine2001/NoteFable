@@ -1,5 +1,9 @@
 // 英文界面文案为键；{name} 等占位符由 createTranslator 插入。
 export const zh: Record<string, string> = {
+  "Settings": "设置",
+  "Custom instructions": "自定义指令",
+  "Applied to all your chats from the next message. Tell StudyMate about yourself and how you want it to answer. A project’s instructions take priority inside that project.": "从下一条消息起适用于你的所有聊天。可以介绍你自己，以及希望 StudyMate 怎样回答。在项目内，项目的指示优先。",
+  "Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.": "例如：我正在备考 JLPT N1。请用简短的例句讲解语法，回答尽量简洁。",
   "Could not change language. Please try again.": "无法切换语言，请重试。",
   "Trash request failed. Please try again.": "回收站请求失败，请重试。",
   "Recently used": "最近使用",
