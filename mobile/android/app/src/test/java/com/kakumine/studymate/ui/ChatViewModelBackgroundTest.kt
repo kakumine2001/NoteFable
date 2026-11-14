@@ -352,6 +352,37 @@ class ChatViewModelBackgroundTest {
     }
 
     @Test
+    fun `a turn finished and reconciled in the new chat's session survives the late migration`() = test {
+        val backend = Backend()
+        val vm = newViewModel(backend)
+
+        vm.send("first")
+        runCurrent()
+        vm.newChat()
+        backend.stored["s1"] = listOf(MessageDto("db-1", "USER", "first"))
+        vm.openSession("s1")
+        settle()
+        vm.send("second")
+        runCurrent()
+        // 第二回合先结束并对账：读到的历史里它已经是服务端 ID。
+        backend.stored["s1"] = listOf(
+            MessageDto("db-1", "USER", "first"),
+            MessageDto("db-2", "USER", "second"),
+            MessageDto("db-3", "ASSISTANT", "two"),
+        )
+        backend.streams[1].send(ChatStreamEvent.Delta("two"))
+        backend.streams[1].close()
+        settle()
+
+        backend.streams[0].send(ChatStreamEvent.Started("s1"))
+        backend.streams[0].send(ChatStreamEvent.Delta("one"))
+        settle()
+        assertEquals(listOf("first", "one", "second", "two"), vm.contents())
+        vm.stop()
+        advanceUntilIdle()
+    }
+
+    @Test
     fun `a new chat that fails after the user left puts the prompt back`() = test {
         val backend = Backend()
         backend.stored["s9"] = listOf(MessageDto("o-1", "USER", "other chat"))

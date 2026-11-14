@@ -382,7 +382,8 @@ class ChatViewModel(
         pendingRestores.replaceAll { Restore(it.text, emptyList()) }
         streams.values.flatten().forEach { it.cancel() }
         streams.clear()
-        reconcileJobs.values.forEach { it.cancel() }
+        // 取消可能同步触发完成回调、从 map 里删掉自己：先拷一份再取消。
+        reconcileJobs.values.toList().forEach { it.cancel() }
         reconcileJobs.clear()
         cache.clear()
         draftIcons.clear()
@@ -734,7 +735,15 @@ class ChatViewModel(
         val from = run.key
         if (from == sessionId || run.epoch != epoch) return
         val moved = cache.remove(from) ?: emptyList()
-        val later = cache[sessionId].orEmpty().filter { it.id.startsWith(LOCAL_ID_PREFIX) }
+        // 读来的历史开头是这次发送自己的提问（服务端先存提问、回答结束才存回答）：去掉它，其余都留着——
+        // 包括用户在那边又发、已经对过账（ID 已换成服务端 ID）的后续回合。
+        // 这是新建的会话，读来的历史第一条一定是这次的提问（服务端 ID）。
+        val dest = cache[sessionId].orEmpty()
+        // 去掉开头这次回合的服务端副本（提问，以及图片模式下已存好的回答），从下一条提问起都留着。
+        val later = if (dest.firstOrNull()?.let { it.role == MessageRole.User && !it.id.startsWith(LOCAL_ID_PREFIX) } == true) {
+            val next = dest.drop(1).indexOfFirst { it.role == MessageRole.User }
+            if (next < 0) emptyList() else dest.drop(1 + next)
+        } else dest
         if (removeStream(from, run.job)) addStream(sessionId, run.job)
         run.key = sessionId
         if (_state.value.activeSessionId == null && newChatKey == from) _state.update { it.copy(activeSessionId = sessionId) }
