@@ -56,6 +56,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.kakumine.studymate.BuildConfig
 import com.kakumine.studymate.R
+import com.kakumine.studymate.data.ChatLink
 import com.kakumine.studymate.data.EmbedMessage
 import com.kakumine.studymate.data.NoteFileLinks
 import kotlinx.coroutines.CompletableDeferred
@@ -163,8 +164,8 @@ private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
-// 笔记图标（表情 15 / 文件图标 15）+ 间距 6 + 标题 14 灰；右侧版本历史 40（图标 20）、间距 8、保存状态 14 灰
-// （出错 / 冲突时 #b45309）。网页顶栏的搜索按钮原生版还没有对应功能，不放。
+// 笔记图标（表情 15 / 文件图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
+// 保存状态 14 灰（出错 / 冲突时 #b45309）。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(
@@ -182,11 +183,15 @@ fun NoteEditorScreen(
     onDownload: (String) -> Unit,
     onMessage: (String, EmbedMessage) -> Unit,
     registerFlush: (NoteEmbedBridge?) -> Unit,
+    onSearch: () -> Unit = {},
+    /** 笔记里指向本站聊天的链接（?chat=&message=）：在 App 里打开聊天。 */
+    onChatLink: (ChatLink) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
     val currentEmbedUrl by rememberUpdatedState(embedUrl)
     val currentOnDownload by rememberUpdatedState(onDownload)
+    val currentOnChatLink by rememberUpdatedState(onChatLink)
     // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
     val bridge = remember(open.editor) { NoteEmbedBridge { message -> currentOnMessage(open.editor, message) } }
     // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
@@ -234,6 +239,8 @@ fun NoteEditorScreen(
                 modifier = Modifier.weight(1f),
                 color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )
+            Spacer(Modifier.width(8.dp))
+            TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), onSearch)
             Spacer(Modifier.width(8.dp))
             TopIconButton(Lucide.History, stringResource(R.string.version_history), bridge::openHistory)
             Spacer(Modifier.width(8.dp))
@@ -284,6 +291,11 @@ fun NoteEditorScreen(
                             val base = Uri.parse(baseUrl)
                             val sameSite = target.scheme == base.scheme && target.host == base.host && target.port == base.port
                             if (sameSite && target.path.orEmpty().contains("/note-embed")) return false
+                            // 本站的聊天链接（保存的回答里写的 /?chat=…&message=…）：在 App 里打开，不交给浏览器。
+                            ChatLink.parse(target.toString(), baseUrl)?.let { link ->
+                                currentOnChatLink(link)
+                                return true
+                            }
                             try {
                                 context.startActivity(Intent(Intent.ACTION_VIEW, target))
                             } catch (_: ActivityNotFoundException) { }

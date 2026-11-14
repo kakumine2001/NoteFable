@@ -10,7 +10,20 @@ class ChatFollowTest {
         scrolling: Boolean = false,
         programmatic: Boolean = false,
         hasItems: Boolean = true,
-    ) = followAction(following, distance, thresholdPx = 5f, scrolling = scrolling, programmaticScroll = programmatic, hasItems = hasItems)
+        revealPending: Boolean = false,
+    ) = followAction(
+        following, distance, thresholdPx = 5f, scrolling = scrolling, programmaticScroll = programmatic, hasItems = hasItems,
+        revealPending = revealPending,
+    )
+
+    @Test
+    fun pendingRevealNeitherPinsNorChangesFollowing() {
+        // 定位到检索结果时：跟随中、离开底部也不贴底；定位自己的滚动不算用户滚动。
+        assertEquals(FollowAction.None, action(following = true, distance = 500, revealPending = true))
+        assertEquals(FollowAction.None, action(following = true, distance = 500, scrolling = true, revealPending = true))
+        assertEquals(FollowAction.None, action(following = false, distance = 0, revealPending = true))
+        assertEquals(FollowAction.Pin, action(following = true, distance = 500))
+    }
 
     @Test
     fun dragStartedAtBottomDoesNotResumeFollowingWhileScrolling() {

@@ -196,21 +196,41 @@ class NotesViewModel(
         }
     }
 
-    fun setWorkspace(workspace: Workspace) {
-        if (_state.value.workspace == workspace) return
+    /**
+     * 切换工作区。[then] 只在真的切过去之后执行（已在目标工作区时立即执行）；
+     * 笔记存不上、留在笔记里，或另一个导航正在进行时不执行。
+     */
+    fun setWorkspace(workspace: Workspace, then: (() -> Unit)? = null) {
+        if (_state.value.workspace == workspace) {
+            then?.invoke()
+            return
+        }
         leaveThen {
             // 网页手机版切到 Note 时总是先显示列表（去掉 page=）。
             _state.update { it.copy(workspace = workspace, open = null, saveState = null, notice = null) }
+            then?.invoke()
             if (workspace == Workspace.Notes) refresh()
         }
     }
 
-    fun openNote(id: String) {
+    /**
+     * 打开笔记。[title] / [icon] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
+     * 笔记已不存在时编辑器会报 missing，和网页一样回到列表。
+     */
+    fun openNote(id: String, title: String? = null, icon: String? = null) {
         val current = _state.value
-        if (current.open?.id == id) return
-        val page = current.pages.firstOrNull { it.id == id } ?: return
+        if (current.open?.id == id) {
+            if (current.workspace != Workspace.Notes) _state.update { it.copy(workspace = Workspace.Notes) }
+            return
+        }
+        val page = current.pages.firstOrNull { it.id == id }
+        val open = when {
+            page != null -> OpenNote(page.id, page.title, page.icon)
+            title != null -> OpenNote(id, title, icon)
+            else -> return
+        }
         leaveThen {
-            _state.update { it.copy(workspace = Workspace.Notes, open = OpenNote(page.id, page.title, page.icon), saveState = null, notice = null) }
+            _state.update { it.copy(workspace = Workspace.Notes, open = open, saveState = null, notice = null) }
         }
     }
 

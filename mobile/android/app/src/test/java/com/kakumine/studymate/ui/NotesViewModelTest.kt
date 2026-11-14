@@ -180,6 +180,29 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `setWorkspace runs its continuation only after actually switching`() = runTest(dispatcher) {
+        val vm = notesVm()
+        var ran = 0
+        // 已在目标工作区：立即执行。
+        vm.setWorkspace(vm.state.value.workspace) { ran++ }
+        assertEquals(1, ran)
+
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.flushEditor = { FlushResult(false) }
+        vm.setWorkspace(Workspace.Chat) { ran++ }
+        advanceUntilIdle()
+        assertEquals(Workspace.Notes, vm.state.value.workspace)
+        assertEquals(1, ran)
+
+        vm.flushEditor = { FlushResult(true) }
+        vm.setWorkspace(Workspace.Chat) { ran++ }
+        advanceUntilIdle()
+        assertEquals(Workspace.Chat, vm.state.value.workspace)
+        assertEquals(2, ran)
+    }
+
+    @Test
     fun `editor meta updates the open note and the list live`() = runTest(dispatcher) {
         val vm = notesVm()
         vm.openNote("b")

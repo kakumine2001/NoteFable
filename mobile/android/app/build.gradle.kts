@@ -19,6 +19,9 @@ android {
 
         val baseUrl = (project.findProperty("studymate.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+        // 聊天链接的 intent-filter（AndroidManifest）只认本站。
+        manifestPlaceholders["studymateScheme"] = baseUrl.substringBefore("://")
+        manifestPlaceholders["studymateHost"] = baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')
     }
 
     buildTypes {
