@@ -145,6 +145,7 @@ fun NotesDrawerBody(
     onDeleteGroup: (NoteGroupSummary) -> Unit,
     onOpenTrash: () -> Unit,
     modifier: Modifier = Modifier,
+    onSearch: () -> Unit = {},
 ) {
     val busy = state.busy || state.loading
     Column(modifier) {
@@ -161,6 +162,8 @@ fun NotesDrawerBody(
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.new_note), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight(550))
         }
+        // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
+        SidebarSearchRow(onSearch)
 
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 16.dp)) {
             // "PROJECTS" 小标题 + 右侧 40 的"新项目"按钮（上下 -4.8，整行高 49.6）。

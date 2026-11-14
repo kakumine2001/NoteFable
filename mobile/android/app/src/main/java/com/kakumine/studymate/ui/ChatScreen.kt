@@ -112,6 +112,8 @@ fun ChatScreen(
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
+    onSearch: () -> Unit = {},
+    onRevealDone: (Long) -> Unit = {},
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
@@ -130,12 +132,13 @@ fun ChatScreen(
                 showNewChat = !isEmptyChat,
                 onMenu = onMenu,
                 onNewChat = onNewChat,
+                onSearch = onSearch,
             )
         },
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages, onSwitchWorkspace)
+                MessageList(state, onRetryMessages, onSwitchWorkspace, onRevealDone)
             }
             Composer(
                 input = input,
@@ -150,6 +153,7 @@ fun ChatScreen(
                 error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
                     is ComposerNotice.Rejected -> attachErrorText(notice.error)
                     ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
+                    ComposerNotice.LinkFailed -> stringResource(R.string.messages_load_failed)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -185,6 +189,7 @@ private fun TopBar(
     showNewChat: Boolean,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onSearch: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -208,7 +213,12 @@ private fun TopBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
-        if (showNewChat) TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        // 右侧按钮组（gap 8）：搜索在"新建聊天"前面，空白首页只有搜索（Batch 4）。
+        TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), onSearch)
+        if (showNewChat) {
+            Spacer(Modifier.width(8.dp))
+            TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        }
     }
 }
 
@@ -227,12 +237,15 @@ internal fun TopIconButton(paths: List<String>, description: String, onClick: ()
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit) {
+private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onRevealDone: (Long) -> Unit) {
     val listState = rememberLazyListState()
     // 新消息出现（含刚发出的提问）时回到底部。流式增长不需要处理：反向布局下底部锚点不动。
+    // 要定位到某条消息时不回底部（网页 openChatFromLink 关掉 pinToBottom）。
     LaunchedEffect(state.messages.size) {
-        if (state.messages.isNotEmpty()) listState.animateScrollToItem(0)
+        if (state.messages.isNotEmpty() && state.reveal == null) listState.animateScrollToItem(0)
     }
+    // 检索结果 / 链接：读完后滚到那条消息并闪一下（见 SearchScreen.kt 的 revealMessage）。
+    val flashId = revealMessage(state, listState, onRevealDone)
 
     when {
         state.messagesLoading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -263,7 +276,9 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
                 // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
                 val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
-                if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                Box(Modifier.revealFlash(flashId?.takeIf { it.first == message.id }?.second)) {
+                    if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                }
             }
         }
     }

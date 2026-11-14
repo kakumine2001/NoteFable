@@ -81,6 +81,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
+    // 全屏检索（Batch 4）：抽屉的 Search 行和顶栏的搜索按钮打开。
+    var searchOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val openSearch = { searchOpen = true }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     val onIdentityChanged = {
@@ -103,6 +106,15 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 // 上次"在项目里新建聊天"的失败原因只在当时那次打开里显示（网页的 sendError 下一次操作就清掉）。
                 sidebarViewModel.dismissCreateError()
             }
+        }
+    }
+
+    // 外部链接（MainActivity 的 VIEW intent）：和网页打开新页面一样，先关掉检索面板和抽屉，再切到那段聊天。
+    LaunchedEffect(viewModel) {
+        viewModel.linkRequests.collect { link ->
+            searchOpen = false
+            closeDrawer()
+            openChatLink(link, viewModel, notesViewModel)
         }
     }
 
@@ -159,6 +171,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onDeleteGroup = { dialog = NotesDialogState.DeleteGroup(it) },
                         onOpenTrash = notesViewModel::openTrash,
                         modifier = Modifier.weight(1f),
+                        onSearch = openSearch,
                     )
                 } else {
                     ChatDrawerBody(
@@ -169,6 +182,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onRetry = viewModel::refreshSessions,
                         closeDrawer = closeDrawer,
                         modifier = Modifier.weight(1f),
+                        onSearch = openSearch,
                     )
                 }
             }
@@ -192,6 +206,8 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onRemoveFile = viewModel::removeFile,
                 onImageMode = viewModel::setImageMode,
                 onSwitchWorkspace = notesViewModel::setWorkspace,
+                onSearch = openSearch,
+                onRevealDone = viewModel::consumeReveal,
             )
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
@@ -219,12 +235,16 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         }
                     },
                     registerFlush = { bridge -> notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } } },
+                    onSearch = openSearch,
+                    onChatLink = { link -> openChatLink(link, viewModel, notesViewModel) },
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {
-                // 笔记列表的顶栏：网页手机版只有菜单（和搜索；原生版还没有搜索）。
+                // 笔记列表的顶栏：网页手机版是左边菜单、右边搜索。
                 Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TopIconButton(Lucide.Menu, stringResource(R.string.open_menu), { scope.launch { drawerState.open() } })
+                    Spacer(Modifier.weight(1f))
+                    TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), openSearch)
                 }
                 NotesHome(
                     state = notes,
@@ -240,6 +260,26 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     }
 
     NotesDialogs(dialog, notes, notesViewModel) { dialog = null }
+
+    if (searchOpen) {
+        val side by sidebarViewModel.state.collectAsStateWithLifecycle()
+        val searchBackend = remember { com.kakumine.studymate.data.SearchApi(app.api.http) }
+        SearchScreen(
+            backend = searchBackend,
+            projects = side.projects,
+            currentProjectId = state.sessions.firstOrNull { it.id == state.activeSessionId }?.projectId,
+            chatFirst = notes.workspace == Workspace.Chat,
+            onClose = { searchOpen = false },
+            onOpenChat = { id, messageId ->
+                closeDrawer()
+                openChatLink(com.kakumine.studymate.data.ChatLink.Open(id, messageId), viewModel, notesViewModel)
+            },
+            onOpenNote = { id, title, icon ->
+                closeDrawer()
+                notesViewModel.openNote(id, title, icon)
+            },
+        )
+    }
 
     notes.trash?.let { trash ->
         TrashSheet(
