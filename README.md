@@ -21,7 +21,7 @@ GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资�
 - Vercel Production region：`iad1`
 - Production aliases：
   - `notefable.com`
-  - `studymate-kaku10.vercel.app`
+  - `notefable-kaku10.vercel.app`（Vercel 项目 2026-11-15 由 studymate 改名为 notefable）
 - 数据库：Neon PostgreSQL
   - Neon project：`neon_db`
   - Region：`aws-us-east-1`
