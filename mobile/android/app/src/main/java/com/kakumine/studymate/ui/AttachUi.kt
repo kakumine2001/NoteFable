@@ -4,9 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.view.inputmethod.InputContentInfo
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -17,9 +19,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.content.TransferableContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -98,9 +102,8 @@ import java.util.UUID
  * 选好后读出文件名、类型和大小交给 [onPicked]。
  */
 @Composable
-fun rememberFilePicker(onPicked: (List<LocalFile>) -> Unit): () -> Unit {
+fun rememberFilePicker(onImport: (suspend () -> List<LocalFile>) -> Unit): () -> Unit {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     // 相机照片的去处。要跨过 Activity 重建（拍照时系统可能回收 App），所以存在 rememberSaveable 里。
     var cameraTarget by rememberSaveable { mutableStateOf<String?>(null) }
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -114,12 +117,12 @@ fun rememberFilePicker(onPicked: (List<LocalFile>) -> Unit): () -> Unit {
             if (isEmpty()) data?.data?.let(::add)
         }
         // 读文件名和大小要访问文件提供方，放到后台线程，不卡界面。
-        scope.launch {
-            val files = withContext(Dispatchers.IO) {
+        // 读完前不能发送（见 ChatViewModel.importFiles）。
+        onImport {
+            withContext(Dispatchers.IO) {
                 pickedAttachmentSources(picked, target) { cameraFileHasContent(context, it) }
                     .mapNotNull { readLocalFile(context, it) }
             }
-            onPicked(files)
         }
     }
     return {
@@ -202,6 +205,25 @@ fun copyPastedImage(context: Context, uri: Uri): LocalFile? = runCatching {
 
 private fun cachedSize(context: Context, uri: Uri): Long =
     context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+
+/**
+ * 键盘（IME commitContent）插入的内容：Compose 把 InputContentInfo 放在 extras 里，读取权限跟着它走。
+ * 拷完后释放；剪贴板粘贴没有这一项，什么都不做。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+fun releaseKeyboardContentPermission(content: TransferableContent) {
+    val extras = content.platformTransferableContent?.extras ?: return
+    val info = if (Build.VERSION.SDK_INT >= 33) {
+        extras.getParcelable(KEYBOARD_CONTENT_INFO_KEY, InputContentInfo::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        extras.getParcelable(KEYBOARD_CONTENT_INFO_KEY) as? InputContentInfo
+    }
+    runCatching { info?.releasePermission() }
+}
+
+/** Compose foundation 放 InputContentInfo 用的键（StatelessInputConnection 里的 EXTRA_INPUT_CONTENT_INFO）。 */
+private const val KEYBOARD_CONTENT_INFO_KEY = "EXTRA_INPUT_CONTENT_INFO"
 
 /** 粘贴时当作附件的图片类型（和网页 isImageMimeType 一样，只有模型能读的 PNG / JPEG / WEBP）。 */
 val PASTE_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp")

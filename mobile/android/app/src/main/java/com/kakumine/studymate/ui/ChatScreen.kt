@@ -40,6 +40,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.content.MediaType
+import androidx.compose.foundation.content.TransferableContent
 import androidx.compose.foundation.content.consume
 import androidx.compose.foundation.content.contentReceiver
 import androidx.compose.foundation.content.hasMediaType
@@ -116,7 +117,7 @@ import kotlinx.coroutines.launch
 private val PageGutter = 24.dp
 private val TurnGap = 36.dp
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ChatScreen(
     state: ChatUiState,
@@ -129,7 +130,8 @@ fun ChatScreen(
     onSelectModel: (String) -> Unit,
     onSelectReasoning: (String) -> Unit,
     onRetryMessages: () -> Unit,
-    onAddFiles: (List<LocalFile>) -> Unit,
+    /** 在后台读出附件再加进输入栏；读的期间不能发送（见 ChatViewModel.importFiles）。 */
+    onImportFiles: (suspend () -> List<LocalFile>) -> Unit,
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
@@ -139,13 +141,17 @@ fun ChatScreen(
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
-    val pickFiles = rememberFilePicker(onAddFiles)
+    val pickFiles = rememberFilePicker(onImportFiles)
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val pasteImages: (List<android.net.Uri>) -> Unit = { uris ->
-        scope.launch {
-            val files = withContext(Dispatchers.IO) { uris.mapNotNull { copyPastedImage(context, it) } }
-            onAddFiles(files)
+    val pasteImages: (List<android.net.Uri>, TransferableContent) -> Unit = { uris, content ->
+        onImportFiles {
+            // 键盘插入的图片，临时读取权限挂在 content 里的 InputContentInfo 上：拷贝期间一直引用着 content，
+            // 免得它被回收、权限跟着失效；拷完再主动释放。
+            try {
+                withContext(Dispatchers.IO) { uris.mapNotNull { copyPastedImage(context, it) } }
+            } finally {
+                releaseKeyboardContentPermission(content)
+            }
         }
     }
     val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
@@ -187,7 +193,8 @@ fun ChatScreen(
                 input = input,
                 onInputChange = onInputChange,
                 sending = state.sending,
-                canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null,
+                canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null &&
+                    state.importing == 0,
                 modelLabel = state.selectedModel?.label,
                 effortLabel = state.selectedReasoning?.let { reasoningLabel(it) },
                 files = state.files,
@@ -558,7 +565,7 @@ private fun Composer(
     onAddClick: () -> Unit,
     onRemoveFile: (String) -> Unit,
     onImageModeOff: () -> Unit,
-    onPasteImages: (List<android.net.Uri>) -> Unit,
+    onPasteImages: (List<android.net.Uri>, TransferableContent) -> Unit,
 ) {
     var focused by remember { mutableStateOf(false) }
     // 输入框用 TextFieldState（粘贴图片要用 contentReceiver，只有这种输入框支持）；草稿仍在 ViewModel 里，两边同步：
@@ -630,7 +637,7 @@ private fun Composer(
                             val type = uri?.let { runCatching { context.contentResolver.getType(it) }.getOrNull()?.lowercase() }
                             (uri != null && type in PASTE_IMAGE_TYPES).also { if (it) images += uri!! }
                         }
-                        if (images.isNotEmpty() && upload == null) onPasteImages(images)
+                        if (images.isNotEmpty() && upload == null) onPasteImages(images, content)
                         rest
                     },
                 textStyle = TextStyle(fontSize = 16.sp, lineHeight = 24.sp, color = Sm.Text),

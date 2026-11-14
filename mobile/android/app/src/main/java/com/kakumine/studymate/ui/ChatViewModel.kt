@@ -103,6 +103,8 @@ data class ChatUiState(
      * 输入栏上方显示登录提示（网页 GuestLimitPrompt）。关掉、登录或退出后清空。
      */
     val guestLimit: String? = null,
+    /** 还在拷贝、校验的附件（粘贴的图片、刚选的文件）有几批；没处理完前不能发送，否则它们会漏掉、跑到下一条里。 */
+    val importing: Int = 0,
 ) {
     /** 图片交给图片接口时不受聊天模型限制。 */
     val supportsImages: Boolean
@@ -328,13 +330,34 @@ class ChatViewModel(
     // ---- 附件与图片模式 ----
 
     fun addFiles(incoming: List<LocalFile>) {
-        if (incoming.isEmpty()) return
-        _state.update { state ->
-            if (state.upload != null) return@update state
-            val error = selectionError(state.files, incoming, state.supportsImages)
-            if (error != null) state.copy(notice = ComposerNotice.Rejected(error))
-            else state.copy(files = state.files + incoming, notice = null)
+        _state.update { withFiles(it, incoming) }
+    }
+
+    /**
+     * 附件要先在后台读出来（拷贝粘贴的图片、读文件名和大小）：读的期间 [ChatUiState.importing] 加一，发送键不可用；
+     * 读完后在同一次状态更新里减一并加进附件，中间不会有可以发送的空档。
+     */
+    fun importFiles(load: suspend () -> List<LocalFile>) {
+        _state.update { it.copy(importing = it.importing + 1) }
+        viewModelScope.launch {
+            var files = emptyList<LocalFile>()
+            try {
+                files = load()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 读不出来的附件当作没选（和读取函数里返回 null 的情况一样）。
+            } finally {
+                _state.update { withFiles(it.copy(importing = (it.importing - 1).coerceAtLeast(0)), files) }
+            }
         }
+    }
+
+    private fun withFiles(state: ChatUiState, incoming: List<LocalFile>): ChatUiState {
+        if (incoming.isEmpty() || state.upload != null) return state
+        val error = selectionError(state.files, incoming, state.supportsImages)
+        return if (error != null) state.copy(notice = ComposerNotice.Rejected(error))
+        else state.copy(files = state.files + incoming, notice = null)
     }
 
     fun removeFile(uri: String) {
@@ -363,7 +386,7 @@ class ChatViewModel(
         val current = _state.value
         // 历史还在加载、或加载失败时发送，新消息会插进空列表（失败页还会盖住它们）；而回答结束后的对账又会换掉整个列表。读到历史再发。
         if (prompt.isEmpty() || current.sending || current.messagesLoading || current.messagesFailed) return
-        if (current.upload != null || current.filesError != null) return
+        if (current.upload != null || current.filesError != null || current.importing > 0) return
         // 正在进行的静默对账返回的是发送前的快照，会抹掉刚加进去的消息，所以先取消。
         loadJob?.cancel()
 

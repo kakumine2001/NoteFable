@@ -14,8 +14,8 @@ import { SYSTEM_TEXT_TEMPLATES } from "../src/lib/i18n/translate";
 
 export const NATIVE_SYSTEM_TEXT_ASSET = "mobile/android/app/src/main/assets/system-text.json";
 
-// 原生端现有的界面语言（res/values-zh、values-ja）。英文不需要词典。
-const LOCALES = ["zh", "ja"] as const;
+// 原生端现有的界面语言（res/values-zh、values-b+zh+Hant、values-ja）。英文不需要词典。
+const LOCALES = ["zh", "zh-Hant", "ja"] as const;
 
 export type NativeSystemText = {
   templates: string[];

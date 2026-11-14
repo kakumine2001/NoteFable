@@ -474,7 +474,49 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `a failed upload keeps the files and the draft, removes what was uploaded and sends nothing`() = runTest(dispatcher) {
+    fun `sending waits until imported attachments are copied, then includes them`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        val copied = CompletableDeferred<List<LocalFile>>()
+
+        vm.importFiles { copied.await() }
+        runCurrent()
+        assertEquals(1, vm.state.value.importing)
+
+        // 还在拷贝：发送被拦下，没有请求，草稿里的附件也不会丢到下一条。
+        vm.send("summarise")
+        advanceUntilIdle()
+        assertTrue(backend.requests.isEmpty())
+        assertFalse(vm.state.value.sending)
+
+        copied.complete(listOf(notes))
+        advanceUntilIdle()
+        assertEquals(0, vm.state.value.importing)
+        assertEquals(listOf(notes), vm.state.value.files)
+
+        vm.send("summarise")
+        settle()
+        assertEquals(listOf("ticket-0"), backend.requests.single().uploads)
+
+        backend.events.close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `a failed import releases the send lock and adds nothing`() = runTest(dispatcher) {
+        val vm = newViewModel(FakeBackend())
+
+        vm.importFiles { throw IOException("revoked") }
+        vm.importFiles { emptyList() }
+        advanceUntilIdle()
+
+        assertEquals(0, vm.state.value.importing)
+        assertTrue(vm.state.value.files.isEmpty())
+        assertNull(vm.state.value.notice)
+    }
+
+    @Test
+    fun `a failed upload keeps the files and the draft, removes what was uploaded and sends nothing`()= runTest(dispatcher) {
         val backend = FakeBackend().apply { uploadError = IOException("offline") }
         val vm = newViewModel(backend)
         vm.addFiles(listOf(notes))
