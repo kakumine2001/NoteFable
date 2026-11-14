@@ -71,6 +71,8 @@ data class NotesUiState(
     val notice: NotesError? = null,
     /** 回收站窗口；null 表示没打开。 */
     val trash: TrashUiState? = null,
+    /** 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。 */
+    val iconError: Boolean = false,
 ) {
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。 */
     val loosePages: List<NotePageSummary>
@@ -94,6 +96,8 @@ class PrefsNotesPrefs(context: Context) : NotesPrefs {
 class NotesViewModel(
     private val backend: NotesBackend,
     private val prefs: NotesPrefs,
+    /** 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。 */
+    private val noteIcons: com.kakumine.studymate.data.NoteIconBackend = com.kakumine.studymate.data.NoteIconBackend { _, _ -> error("no icon backend") },
 ) : ViewModel() {
     private val _state = MutableStateFlow(NotesUiState(collapsed = prefs.collapsedGroups))
     val state: StateFlow<NotesUiState> = _state.asStateFlow()
@@ -383,6 +387,29 @@ class NotesViewModel(
         Pair({ _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) } }, true)
     } ?: false
 
+    /**
+     * 侧栏里改笔记图标（网页 use-note-pages.ts 的 changeIcon，只用于没打开的笔记）。成功后列表换成服务端的图标和版本号；
+     * 失败返回 false 并在侧栏显示"Could not change the icon. Try again."。
+     */
+    suspend fun changeIcon(pageId: String, icon: String?): Boolean {
+        val owner = identity
+        _state.update { it.copy(iconError = false) }
+        return try {
+            val page = noteIcons.setNoteIcon(pageId, icon)
+            commit(owner) {
+                _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (owner == identity) _state.update { it.copy(iconError = true) }
+            false
+        }
+    }
+
+    /** 抽屉重新打开时清掉上次改图标失败的提示（网页侧栏关掉后组件卸载，iconError 跟着没了）。 */
+    fun dismissIconError() = _state.update { it.copy(iconError = false) }
+
     fun toggleGroup(id: String) {
         val next = _state.value.collapsed.let { if (id in it) it - id else it + id }
         prefs.collapsedGroups = next
@@ -486,7 +513,7 @@ class NotesViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as StudyMateApp
-                return NotesViewModel(app.api, PrefsNotesPrefs(app)) as T
+                return NotesViewModel(app.api, PrefsNotesPrefs(app), com.kakumine.studymate.data.NoteIconApi(app.api.http)) as T
             }
         }
     }

@@ -112,11 +112,14 @@ fun ChatScreen(
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
+    /** 改当前聊天的图标（还没保存的新聊天是草稿图标）。 */
+    onChangeIcon: (String?) -> Unit,
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
     val pickFiles = rememberFilePicker(onAddFiles)
-    val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
+    // 空白页（网页 emptyState：没有消息）：标题在页面中间，顶栏不放标题和"新建聊天"。读历史中 / 失败时不算。
+    val isEmptyChat = state.messages.isEmpty() && !state.messagesLoading && !state.messagesFailed
 
     Scaffold(
         containerColor = Color.White,
@@ -130,12 +133,13 @@ fun ChatScreen(
                 showNewChat = !isEmptyChat,
                 onMenu = onMenu,
                 onNewChat = onNewChat,
+                onChangeIcon = onChangeIcon,
             )
         },
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages, onSwitchWorkspace)
+                MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon)
             }
             Composer(
                 input = input,
@@ -150,6 +154,7 @@ fun ChatScreen(
                 error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
                     is ComposerNotice.Rejected -> attachErrorText(notice.error)
                     ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
+                    ComposerNotice.IconFailed -> stringResource(R.string.em_chat_icon_failed)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -185,6 +190,7 @@ private fun TopBar(
     showNewChat: Boolean,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onChangeIcon: (String?) -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -193,9 +199,10 @@ private fun TopBar(
         TopIconButton(Lucide.Menu, stringResource(R.string.open_menu), onMenu)
         if (title != null) {
             Spacer(Modifier.width(12.dp))
-            Box(Modifier.size(40.dp), Alignment.Center) {
-                if (icon != null) Text(icon, fontSize = 18.sp)
-                else LucideIcon(Lucide.MessageSquareText, 20.dp, Sm.Muted)
+            // 网页 ChatTopbarIcon（手机）：40×40、圆角 4，表情 18 / MessageSquareText 15 灰；点开表情选择器。
+            ChatIconButton(icon, onChangeIcon, Modifier.size(40.dp), RoundedCornerShape(4.dp)) {
+                if (icon != null) Text(icon, fontSize = 18.sp, lineHeight = 18.sp)
+                else LucideIcon(Lucide.MessageSquareText, 15.dp, Sm.Muted)
             }
             Text(
                 title,
@@ -227,7 +234,7 @@ internal fun TopIconButton(paths: List<String>, description: String, onClick: ()
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit) {
+private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit) {
     val listState = rememberLazyListState()
     // 新消息出现（含刚发出的提问）时回到底部。流式增长不需要处理：反向布局下底部锚点不动。
     LaunchedEffect(state.messages.size) {
@@ -249,7 +256,10 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
         // 空白首页：网页手机版在顶栏下方放 Chat / Note 切换（左右 24、上距 4），标题在剩下的空间里居中。
         state.messages.isEmpty() -> Column(Modifier.fillMaxSize()) {
             WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
-            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState() }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                // 已保存但还没有消息的聊天显示它自己的标题和图标（网页 EmptyConversation 的 title = activeTitle）。
+                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, onChangeIcon)
+            }
         }
         else -> LazyColumn(
             state = listState,
@@ -272,18 +282,20 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
 // 空白首页：左对齐的"图标 + 32sp 粗体标题"，下面一行 17sp 灰色说明，整体在可用区域里垂直居中。
 // 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"，所以这里同样留 48，标题的位置才和网页一致。
 @Composable
-private fun EmptyState() {
+private fun EmptyState(title: String?, icon: String?, onChangeIcon: (String?) -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = 48.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(41.6.dp), Alignment.Center) {
-                LucideIcon(Lucide.MessageSquareText, 20.dp, Sm.Muted, strokeWidth = 1.7f)
+            // 网页 ChatTitleIcon：1.3em（41.6）、圆角 6；表情 0.85em（27.2），没有时 MessageSquareText 0.7em（22.4）描边 1.8。
+            ChatIconButton(icon, onChangeIcon, Modifier.size(41.6.dp), RoundedCornerShape(6.dp)) {
+                if (icon != null) Text(icon, fontSize = 27.2.sp, lineHeight = 27.2.sp)
+                else LucideIcon(Lucide.MessageSquareText, 22.4.dp, Sm.Muted, strokeWidth = 1.8f)
             }
             Spacer(Modifier.width(9.6.dp))
             Text(
-                stringResource(R.string.new_chat),
+                title ?: stringResource(R.string.new_chat),
                 color = Sm.Ink,
                 fontSize = 32.sp,
                 lineHeight = 36.8.sp,

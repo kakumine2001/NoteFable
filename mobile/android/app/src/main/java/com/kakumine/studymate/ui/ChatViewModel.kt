@@ -74,6 +74,8 @@ sealed interface ComposerNotice {
     /** 新选的文件整批没有加进去。 */
     data class Rejected(val error: AttachError) : ComposerNotice
     data object UploadFailed : ComposerNotice
+    /** 聊天图标没保存成功（网页 "Failed to change the chat icon."，显示在输入栏上方）。 */
+    data object IconFailed : ComposerNotice
 }
 
 data class ChatUiState(
@@ -98,6 +100,8 @@ data class ChatUiState(
     val notice: ComposerNotice? = null,
     /** 每成功发出一条消息加一；输入栏据此清空草稿（上传失败时不清，文字还在）。 */
     val sentCount: Int = 0,
+    /** 还没保存的新聊天里先选的图标（网页 draftIcon）：会话建好后再保存到它上面。 */
+    val draftIcon: String? = null,
 ) {
     /** 图片交给图片接口时不受聊天模型限制。 */
     val supportsImages: Boolean
@@ -121,8 +125,9 @@ data class ChatUiState(
     val activeTitle: String?
         get() = sessions.firstOrNull { it.id == activeSessionId }?.title
 
+    /** 当前聊天的图标；还没保存的新聊天是草稿图标。 */
     val activeIcon: String?
-        get() = sessions.firstOrNull { it.id == activeSessionId }?.icon
+        get() = if (activeSessionId == null) draftIcon else sessions.firstOrNull { it.id == activeSessionId }?.icon
 }
 
 /** 模型和推理强度的选择要在重开 App 后保留。 */
@@ -150,6 +155,8 @@ class ChatViewModel(
     private val bundledModels: () -> com.kakumine.studymate.data.ModelsResponse? = { null },
     /** 草稿也存进这里，App 在后台被系统杀掉后回来仍在（和原来的 rememberSaveable 一样）。 */
     private val savedState: androidx.lifecycle.SavedStateHandle = androidx.lifecycle.SavedStateHandle(),
+    /** 保存聊天图标（PATCH /api/sessions/:id {icon}），返回是否成功。 */
+    saveIcon: suspend (sessionId: String, icon: String?) -> Boolean = { _, _ -> false },
 ) : ViewModel() {
     private val _state = MutableStateFlow(
         ChatUiState(chosenModelId = settings.modelId, chosenReasoning = settings.reasoning),
@@ -168,6 +175,8 @@ class ChatViewModel(
         savedState[DRAFT_KEY] = text
     }
 
+    private val iconSync = SessionIconSync(saveIcon)
+
     private var streamJob: Job? = null
     private var loadJob: Job? = null
     private var sessionsJob: Job? = null
@@ -185,10 +194,15 @@ class ChatViewModel(
         sessionsJob?.cancel()
         sessionsJob = viewModelScope.launch {
             _state.update { it.copy(sessionsLoading = it.sessions.isEmpty(), sessionsFailed = false) }
+            val iconMark = iconSync.mark()
             val result = runCatching { backend.sessions() }
             ensureActive()
             result
-                .onSuccess { list -> _state.update { it.copy(sessions = list, sessionsLoading = false, sessionsFailed = false) } }
+                .onSuccess { fetched ->
+                    // 读列表期间改过（或还在保存）的图标盖回去，旧列表不能把刚选的图标冲掉。
+                    val list = iconSync.reconcile(fetched, iconMark)
+                    _state.update { it.copy(sessions = list, sessionsLoading = false, sessionsFailed = false) }
+                }
                 .onFailure { _state.update { s -> s.copy(sessionsLoading = false, sessionsFailed = s.sessions.isEmpty()) } }
         }
     }
@@ -212,12 +226,18 @@ class ChatViewModel(
         navigationCount++
         stop()
         loadJob?.cancel()
+        // 从还没保存的新聊天过来：先选的图标带到建好的聊天上（网页 createEmptySession(carriedIcon, projectId)）。
+        val carried = _state.value.draftIcon?.takeIf { _state.value.activeSessionId == null }
+        val icon = session.icon ?: carried
+        // 先把带图标的聊天放进列表并打开，再保存：保存时先显示的那一步要能找到这一行。
         _state.update {
             it.copy(
-                sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id },
+                sessions = listOf(session.copy(icon = icon)) + it.sessions.filterNot { s -> s.id == session.id },
                 activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                draftIcon = null, notice = it.notice.withoutIconFailure(),
             )
         }
+        if (carried != null && session.icon == null) saveCreatedIcon(session.id, carried)
         // 进行中的刷新可能读到建好之前的列表，回来会把新聊天盖掉：让它重读。
         if (sessionsJob?.isActive == true) refreshSessions()
     }
@@ -244,9 +264,47 @@ class ChatViewModel(
             it.copy(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                draftIcon = null,
             )
         }
         refreshSessions()
+    }
+
+    // ---- 聊天图标（网页 changeSessionIcon / changeDraftIcon） ----
+
+    /** 顶栏或空白页标题旁的图标：已保存的聊天直接保存；还没保存的新聊天先记成草稿。 */
+    fun changeIcon(icon: String?) {
+        val id = _state.value.activeSessionId
+        if (id == null) _state.update { it.copy(draftIcon = icon) } else changeSessionIcon(id, icon)
+    }
+
+    /** 先显示，保存按聊天排队；失败时退回最后保存成功的图标并在输入栏上方提示。 */
+    fun changeSessionIcon(sessionId: String, icon: String?) {
+        val current = _state.value.sessions.firstOrNull { it.id == sessionId }?.icon
+        viewModelScope.launch {
+            iconSync.change(sessionId, icon, current, show = { value -> showIcon(sessionId, value) },
+                fail = { _state.update { it.copy(notice = ComposerNotice.IconFailed) } })
+        }
+    }
+
+    private fun ComposerNotice?.withoutIconFailure() = takeUnless { it == ComposerNotice.IconFailed }
+
+    private fun showIcon(sessionId: String, icon: String?) =
+        _state.update { it.copy(sessions = it.sessions.map { s -> if (s.id == sessionId) s.copy(icon = icon) else s }) }
+
+    /** 新聊天在服务端建好了：把草稿图标存上去（原生的会话由 /api/chat 建，建的时候不带图标）。 */
+    private fun saveCreatedIcon(sessionId: String, icon: String) {
+        viewModelScope.launch {
+            iconSync.change(sessionId, icon, null, show = { value -> showIcon(sessionId, value) },
+                fail = { _state.update { it.copy(notice = ComposerNotice.IconFailed) } })
+        }
+    }
+
+    /** 回答开始时拿到了新建会话的 ID：草稿图标归它，草稿清空（网页 send 里的 sentIcon / latestIcon）。 */
+    private fun adoptDraftIcon(sessionId: String) {
+        val draft = _state.value.draftIcon
+        _state.update { it.copy(draftIcon = null) }
+        if (draft != null) saveCreatedIcon(sessionId, draft)
     }
 
     /** 每次换到别的聊天（新聊天、打开历史聊天、打开刚建的聊天）加一，用来判断慢请求回来时用户是否已经去了别处。 */
@@ -257,7 +315,10 @@ class ChatViewModel(
         navigationCount++
         stop()
         loadJob?.cancel()
-        _state.update { it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false) }
+        _state.update {
+            it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                notice = it.notice.withoutIconFailure())
+        }
     }
 
     fun openSession(id: String) {
@@ -265,7 +326,12 @@ class ChatViewModel(
         if (_state.value.activeSessionId == id) return
         // 切换会话时停掉进行中的回答，避免它的文字写进别的会话。
         stop()
-        _state.update { it.copy(activeSessionId = id, messages = emptyList(), messagesLoading = true, messagesFailed = false) }
+        // 打开别的聊天时丢掉新聊天的草稿图标（网页 loadMessages 里的 changeDraftIcon(null)）。
+        // 图标保存失败的提示属于刚才那个聊天，换聊天时清掉（网页 loadMessages / createSession 里的 setSendError("")）。
+        _state.update {
+            it.copy(activeSessionId = id, messages = emptyList(), messagesLoading = true, messagesFailed = false, draftIcon = null,
+                notice = it.notice.withoutIconFailure())
+        }
         loadMessages(id)
     }
 
@@ -446,6 +512,7 @@ class ChatViewModel(
             if (sessionId == null && result.sessionId != null) {
                 sessionId = result.sessionId
                 _state.update { it.copy(activeSessionId = result.sessionId) }
+                adoptDraftIcon(result.sessionId)
             }
             updateAssistant(assistantId) {
                 it.copy(generatingImage = false, images = listOf(GeneratedImageDto("local-${++localIds}", image.dataUrl, image.mimeType)))
@@ -518,6 +585,7 @@ class ChatViewModel(
                             is ChatStreamEvent.Started -> if (sessionId == null && event.sessionId != null) {
                                 sessionId = event.sessionId
                                 _state.update { it.copy(activeSessionId = event.sessionId) }
+                                adoptDraftIcon(event.sessionId)
                                 refreshSessions()
                             }
                             is ChatStreamEvent.Delta -> pending.append(event.text)
@@ -582,6 +650,7 @@ class ChatViewModel(
                         }
                     },
                     savedState = extras.createSavedStateHandle(),
+                    saveIcon = com.kakumine.studymate.data.SessionsApi(app.api.http)::updateSessionIcon,
                 ) as T
             }
         }

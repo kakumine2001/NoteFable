@@ -97,7 +97,11 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Open) {
-            if (notes.workspace == Workspace.Notes) notesViewModel.refresh() else {
+            if (notes.workspace == Workspace.Notes) {
+                notesViewModel.refresh()
+                // 网页的 iconError 是侧栏组件自己的状态，抽屉关掉就没了：重新打开时不再显示上次的失败。
+                notesViewModel.dismissIconError()
+            } else {
                 viewModel.refreshSessions()
                 sidebarViewModel.refreshProjects()
                 // 上次"在项目里新建聊天"的失败原因只在当时那次打开里显示（网页的 sendError 下一次操作就清掉）。
@@ -158,6 +162,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onRenameGroup = { dialog = NotesDialogState.RenameGroup(it) },
                         onDeleteGroup = { dialog = NotesDialogState.DeleteGroup(it) },
                         onOpenTrash = notesViewModel::openTrash,
+                        onChangeIcon = { page, icon -> scope.launch { notesViewModel.changeIcon(page.id, icon) } },
                         modifier = Modifier.weight(1f),
                     )
                 } else {
@@ -168,6 +173,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onOpen = { id -> viewModel.openSession(id); closeDrawer() },
                         onRetry = viewModel::refreshSessions,
                         closeDrawer = closeDrawer,
+                        onChangeIcon = viewModel::changeSessionIcon,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -192,6 +198,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onRemoveFile = viewModel::removeFile,
                 onImageMode = viewModel::setImageMode,
                 onSwitchWorkspace = notesViewModel::setWorkspace,
+                onChangeIcon = viewModel::changeIcon,
             )
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {

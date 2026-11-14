@@ -58,7 +58,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、侧栏聊天行的改图标（表情选择器）、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手），以及侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `STUDYMATE_MODELS` 决定。
 
@@ -73,7 +73,7 @@ mobile/android/
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
             ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、AssistantTurn（一条回答）、ChatSidebar（侧栏的聊天部分）、
             NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
-  app/src/main/assets/   models.json、system-text.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
+  app/src/main/assets/   models.json、system-text.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
@@ -111,6 +111,18 @@ mobile/android/
 - 项目设置：共通指示（计数 n/4000）、参考笔记（筛选、勾选最多 `MAX_PROJECT_NOTES` 篇、已选标签、一次最多列 100 篇），保存时只发改了的字段（`projectSettingsChanges`）。加载失败和网页一样先看项目详情：详情读不到是 "Could not load the project settings."，笔记读不到是 "Could not load your notes."，服务端给了原因就用原因。
 - 拖动排序：按住行首把手直接拖（与网页触屏一致），放到别的行前 / 后走 `POST /api/sessions/reorder`（跨组时服务端顺便改项目和置顶），放到项目行或 CHATS 标签上是移进该项目并取消置顶。把手吃掉这次拖动，所以不会同时触发抽屉的横滑关闭和列表滚动；手指在列表上下边 30 以内移动时每次移动滚 12（和网页一样，手指不动就不滚）。正在移动的那一行把手不能拖，别的行照常能拖；排序请求同一时间只做一次，上一次没完时再排序提示 "Wait for the previous move to finish."（拖进项目走普通更新，不受这个限制，和网页一样）。折叠 / 删除后离开列表的行不再参与命中。网页的键盘上下移动在原生版没有。
 - 接口：`data/SessionsApi.kt`（PATCH / DELETE / POST `/api/sessions`、reorder）、`data/ProjectsApi.kt`（`/api/chat-projects`，参考笔记候选来自 `GET /api/pages`）。状态在 `ui/SidebarViewModel.kt`；会话列表本身仍在 `ChatViewModel`，成功后通过 `patchSessions` / `onSessionDeleted` / `openCreatedSession` 更新。打开抽屉时同时刷新会话和项目；本地改了项目列表时若有刷新在进行就再刷一次（和 `patchSessions` 一样），免得旧结果盖掉新改动；登录 / 退出后丢弃旧身份的结果。单元测试：`SidebarViewModelTest`、`SidebarApiTest`。
+
+## 表情选择器与聊天 / 笔记图标
+
+网页的选择器是 emoji-picker-react（`src/components/emoji-picker.tsx`、`full-emoji-picker.tsx`），原生版 `ui/EmojiPicker.kt` 照着它画（412×915 下量的值写在文件开头的注释里），文案在 `strings_emoji.xml`。
+
+- **数据**：`assets/emoji.json` 由 `npx tsx scripts/gen-native-emoji.ts` 从同一个 npm 包生成（表情、分类顺序、肤色变体、en / zh / zh-Hant / ja 四份搜索关键词，以及包里的分类图标、放大镜和清除图标的路径），不手改；升级 emoji-picker-react 后重新生成，`src/lib/native-emoji-asset.test.ts` 检查是否过期。读取和搜索在 `data/EmojiCatalog.kt`：关键词按界面语言（`ui_locale`）选；搜索是去空白、转小写后"任一关键词包含"（与包的 `normalizeQuery` + `includes` 相同）；本机字体画不出来的表情不显示（`Paint.hasGlyph`，网页同样隐藏浏览器不支持的表情）。
+- **界面**：弹出框宽 min(408, 屏宽 − 24)、高 36 + min(380, 屏高 − 60)，位置照网页 `floatingPositionFor`（按钮下方 6，放不下就上方，离屏幕边至少 12），打开时和 `.notes-popover` 一样淡入上移（120ms）。顶部条是 Emoji + 当前表情（选中标记）、Random（换一个、不关）、Remove（去掉并关闭）；下面是搜索框、肤色（点开展开 6 个）、9 个分类图标（space-around；搜索框有字时变淡到 .3 且不能点）、吸顶分类标题和表情格（每格 34，一行放几个按宽度算：floor((宽 − 20) / 34)，与包的 grid auto-fill 相同，412 宽时 10 个）。表情数据读不出来时显示 "Could not load emoji." 和 "Try again"（包的 LoadError）。点表情选中并关闭；有肤色变体的表情长按 0.5 秒出变体条。"最近使用"存在本机（`SharedPreferences` 的 `emoji/recent`，最多 14 个、新的在前；网页存在 localStorage 的 `epr_suggested`），为空时这一类不显示。点外面或按返回键关闭。`EmojiPickerBody` 也能直接放进页面（之后的账号头像表情页用它）。
+- **聊天图标**：顶栏标题左边的图标（40×40）、空白页标题左边的图标（41.6，表情 27.2 / 默认 MessageSquareText 22.4、描边 1.8）和侧栏聊天行的图标（40×40）都能点开选择器。保存走 `PATCH /api/sessions/:id {icon}`（`SessionsApi.updateSessionIcon`），排队和对账在 `ui/SessionIconSync.kt`（网页 `session-icon-sync.ts` 的移植：先显示，连点只发最后一次，失败退回最后保存成功的值并在输入栏上方提示 "Failed to change the chat icon."（换到别的聊天或新聊天时清掉，网页 `setSendError("")`），刷新回来的旧列表不会冲掉刚选的图标）。
+- **还没保存的新聊天**：先选的图标是草稿（`ChatUiState.draftIcon`）。原生的会话由 `/api/chat`（或 `/api/images`）在发第一条消息时创建、不带图标，所以收到 `X-Session-Id`（图片模式是返回的 `sessionId`）后再 `PATCH` 上去；从新聊天点项目的 ＋ 建好聊天时也把草稿带过去：新行一放进列表就带着这个图标，再去保存。打开别的聊天时丢掉草稿（网页 `loadMessages` 同样清掉）。
+- **空白页标题**：没有消息的聊天（含已保存但还没消息的）显示空白页，标题是这个聊天的标题（新聊天是 "New chat"）和它的图标；这时顶栏不放标题和"新建聊天"（网页 `emptyState`）。
+- **笔记侧栏行的图标**：没打开的笔记点图标就能改，走 `PUT /api/pages/:id/icon`（`data/NoteIconApi.kt`，服务端把版本号加一，列表换成返回的图标和版本）；失败时在 NOTES 标签上方显示 "Could not change the icon. Try again."，下次打开抽屉时清掉（网页侧栏关掉后组件卸载，提示跟着消失）。打开着的笔记的图标在原生侧栏里只显示、不弹选择器（见上面的"有意不放的网页控件"）。
+- 单元测试：`EmojiCatalogTest`、`ChatIconTest`、`NoteIconTest`、`IconApiTest`。
 
 ## 附件与图片
 
@@ -160,6 +172,6 @@ cd mobile/android
 
 1. ✅ 聊天（本阶段）。
 2. 附件与图片：✅ 文件选择上传和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；还差拍照入口、生成图片的保存；推理、搜索、笔记工具的进度条；笔记编辑提案卡片。
-3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、侧栏行里改图标、搜索。
+3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、搜索。
 4. 账号：已有 Credential Manager Google 登录、退出和修改显示名，沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

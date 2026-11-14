@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表情选择器与聊天 / 笔记图标（Batch 6）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="em_emoji">表情</string>
+    <string name="em_random">随机</string>
+    <string name="em_remove">移除</string>
+    <string name="em_cat_suggested">最近使用</string>
+    <string name="em_cat_smileys_people">表情与人物</string>
+    <string name="em_cat_animals_nature">动物与自然</string>
+    <string name="em_cat_food_drink">食物与饮品</string>
+    <string name="em_cat_travel_places">旅行与地点</string>
+    <string name="em_cat_activities">活动</string>
+    <string name="em_cat_objects">物品</string>
+    <string name="em_cat_symbols">符号</string>
+    <string name="em_cat_flags">旗帜</string>
+    <string name="em_search_placeholder">搜索表情…</string>
+    <string name="em_search_label">搜索表情</string>
+    <string name="em_clear_search">清除搜索</string>
+    <string name="em_none_found">没有找到表情</string>
+    <string name="em_categories">表情分类</string>
+    <string name="em_tone_neutral">默认肤色</string>
+    <string name="em_tone_light">浅肤色</string>
+    <string name="em_tone_medium_light">中浅肤色</string>
+    <string name="em_tone_medium">中等肤色</string>
+    <string name="em_tone_medium_dark">中深肤色</string>
+    <string name="em_tone_dark">深肤色</string>
+    <string name="em_change_chat_icon">更换聊天图标</string>
+    <string name="em_change_icon_of">更换 %1$s 的图标</string>
+    <string name="em_choose">选择表情</string>
+    <string name="em_current">当前表情</string>
+    <string name="em_chat_icon_failed">更换聊天图标失败。</string>
+    <string name="em_note_icon_failed">无法更换图标，请重试。</string>
+    <string name="em_loading">正在加载表情…</string>
+    <string name="em_load_failed">无法加载表情。</string>
+</resources>

@@ -52,6 +52,15 @@ class SessionsApi internal constructor(private val http: StudyMateHttp) : Sessio
         http.send<JsonObjectResponse>(Request.Builder().url(http.absoluteUrl("/api/sessions/${segment(id)}")).patch(body.toRequestBody(StudyMateHttp.JSON)))
     }
 
+    /**
+     * 改聊天图标（`PATCH /api/sessions/:id {icon}`，null 是去掉）。和网页 saveSessionIcon 一样只回报成败，
+     * 失败时界面退回原来的图标并提示（见 ui/SessionIconSync.kt）。
+     */
+    suspend fun updateSessionIcon(id: String, icon: String?): Boolean = runCatching {
+        val body = buildJsonObject { put("icon", icon?.let(::JsonPrimitive) ?: JsonNull) }.toString()
+        http.send<JsonObjectResponse>(Request.Builder().url(http.absoluteUrl("/api/sessions/${segment(id)}")).patch(body.toRequestBody(StudyMateHttp.JSON)))
+    }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }.isSuccess
+
     override suspend fun deleteSession(id: String) {
         http.send<JsonObjectResponse>(Request.Builder().url(http.absoluteUrl("/api/sessions/${segment(id)}")).delete())
     }
