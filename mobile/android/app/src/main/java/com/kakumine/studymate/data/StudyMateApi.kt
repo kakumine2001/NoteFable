@@ -255,12 +255,6 @@ class StudyMateApi(
 
     override suspend fun account(): AccountResponse = getJson("/api/account")
 
-    override suspend fun updateProfile(displayName: String?, resetToGoogle: Boolean): AccountUser? {
-        val body = if (resetToGoogle) """{"displayName":null,"icon":null}"""
-        else buildJsonObject { put("displayName", displayName) }.toString()
-        return send<ProfileResponse>(Request.Builder().url(absoluteUrl("/api/account")).patch(body.toRequestBody(JSON))).user
-    }
-
     override suspend fun nativeSignInNonce(): String =
         send<NonceResponse>(Request.Builder().url(absoluteUrl("/api/native-auth/nonce")).post(ByteArray(0).toRequestBody(null))).nonce
 

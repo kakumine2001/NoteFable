@@ -164,8 +164,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 )
                             }
                         },
-                        onSaveName = accountViewModel::saveName,
-                        onResetToGoogle = accountViewModel::resetToGoogle,
+                        profile = accountViewModel,
                     )
                 },
             ) {

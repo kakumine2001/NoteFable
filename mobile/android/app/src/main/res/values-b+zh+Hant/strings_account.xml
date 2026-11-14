@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 账号头像：照片 / 表情（Batch 7b）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="acct_change_avatar">更換照片或圖示</string>
+    <string name="acct_photo">照片</string>
+    <string name="acct_upload_photo">上傳照片</string>
+    <string name="acct_photo_hint">支援 JPEG、PNG、WebP 或 GIF，下一步可裁剪。</string>
+    <string name="acct_remove_photo">移除我的照片</string>
+    <string name="acct_use_google_photo">使用 Google 頭像</string>
+    <string name="acct_choose_image">請選擇圖片檔案。</string>
+    <string name="acct_photo_too_big">請選擇小於 10 MB 的照片。</string>
+    <string name="acct_upload_failed">無法上傳這張照片，請重試。</string>
+    <string name="acct_upload_offline">無法上傳這張照片，請檢查網路連線後重試。</string>
+    <string name="acct_crop_preview">照片預覽。可拖動或使用方向鍵調整位置。</string>
+    <string name="acct_zoom">縮放</string>
+    <string name="acct_crop_hint">拖動照片調整位置。</string>
+    <string name="acct_photo_too_small">這張照片太小，請選擇至少 %1$d × %1$d 畫素的照片。</string>
+    <string name="acct_photo_unreadable">無法讀取這張圖片，請換一張照片。</string>
+    <string name="acct_could_not_save">無法儲存。</string>
+</resources>
