@@ -14,8 +14,8 @@ android {
         applicationId = "com.kakumine.studymate"
         minSdk = 26
         targetSdk = 36
-        versionCode = 6
-        versionName = "0.3.0"
+        versionCode = 7
+        versionName = "0.4.0"
 
         val baseUrl = (project.findProperty("studymate.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")

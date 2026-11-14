@@ -43,6 +43,7 @@ class NoteIconTest {
         override suspend fun createNote() = error("unused")
         override suspend fun trashNote(id: String) = Unit
         override suspend fun moveNote(id: String, groupId: String?) = Unit
+        override suspend fun reorderNote(id: String, targetId: String, after: Boolean) = emptyList<com.kakumine.studymate.data.NoteOrderUpdate>()
         override suspend fun createGroup(name: String) = NoteGroupSummary("g", name)
         override suspend fun renameGroup(id: String, name: String) = NoteGroupSummary(id, name)
         override suspend fun deleteGroup(id: String) = Unit

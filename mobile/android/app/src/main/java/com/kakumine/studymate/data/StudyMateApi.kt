@@ -197,6 +197,17 @@ class StudyMateApi(
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/group")).put(body.toRequestBody(JSON)))
     }
 
+    override suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<NoteOrderUpdate> {
+        val body = buildJsonObject {
+            put("id", id)
+            put("targetId", targetId)
+            put("after", after)
+        }.toString()
+        return NoteOrderUpdate.parse(
+            send<kotlinx.serialization.json.JsonObject>(Request.Builder().url(absoluteUrl("/api/pages/reorder")).post(body.toRequestBody(JSON))),
+        )
+    }
+
     override suspend fun createGroup(name: String): NoteGroupSummary {
         val body = buildJsonObject { put("name", name) }.toString()
         return send<GroupResponse>(Request.Builder().url(absoluteUrl("/api/pages/groups")).post(body.toRequestBody(JSON))).group

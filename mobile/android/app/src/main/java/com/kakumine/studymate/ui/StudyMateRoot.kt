@@ -74,6 +74,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val account by accountViewModel.state.collectAsStateWithLifecycle()
     val notes by notesViewModel.state.collectAsStateWithLifecycle()
+    val noteReorder = remember(notesViewModel) {
+        NoteReorder(notesViewModel::reorder, notesViewModel::dropIntoGroup, notesViewModel::dismissReorderError)
+    }
     // 侧栏的置顶、项目、整理（Batch 3）；会话列表本身仍在 ChatViewModel。
     val sidebarViewModel: SidebarViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = SidebarViewModel.factory(viewModel))
     val activity = LocalActivity.current ?: return
@@ -183,6 +186,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onChangeIcon = { page, icon -> scope.launch { notesViewModel.changeIcon(page.id, icon) } },
                         modifier = Modifier.weight(1f),
                         onSearch = openSearch,
+                        reorder = noteReorder,
                     )
                 } else {
                     ChatDrawerBody(
@@ -288,6 +292,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onMove = { dialog = NotesDialogState.Move(it.id) },
                     onNewGroup = { dialog = NotesDialogState.NewGroup },
                     onRetry = notesViewModel::refresh,
+                    reorder = noteReorder,
                 )
             }
         }

@@ -1,11 +1,8 @@
 package com.kakumine.studymate.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,7 +12,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -26,7 +22,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
-import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -35,7 +30,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -43,29 +37,21 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
 import androidx.compose.foundation.layout.requiredSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakumine.studymate.R
@@ -86,59 +72,7 @@ import kotlinx.coroutines.launch
  *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。把手吃掉了这次拖动，所以抽屉的横滑关闭和列表滚动不会同时触发。
  */
 
-private val DropBlue = Color(0xFF2383E2)
-private val DropFill = Color(0x1F2383E2) // rgba(35,131,226,.12)
 private val ErrorRed = Color(0xFFB91C1C)
-
-/** 拖动时手指下的目标：某一行的前 / 后，或某个项目（null = CHATS，即无项目）。 */
-private sealed interface DropTarget {
-    data class Row(val id: String, val after: Boolean) : DropTarget
-    data class Into(val projectId: String?) : DropTarget
-}
-
-/**
- * 拖动状态：被拖的聊天、手指在窗口里的位置、当前目标。行和投放区的位置由各自 onGloballyPositioned 登记，
- * 离开组合（折叠、删除）时由 DisposableEffect 注销，免得命中已经看不见的行。
- */
-private class DragState(private val scroll: ScrollState) {
-    var dragging by mutableStateOf<String?>(null)
-    var pointer by mutableStateOf(Offset.Zero)
-    var target by mutableStateOf<DropTarget?>(null)
-    /** 列表可见区域（窗口坐标），自动滚动用。 */
-    var listBounds = Rect.Zero
-    val rows = mutableStateMapOf<String, Rect>()
-    /** 投放区：项目 id → 项目行；"" → CHATS 标签。 */
-    val zones = mutableStateMapOf<String, Rect>()
-
-    fun update(point: Offset) {
-        pointer = point
-        val id = dragging ?: return
-        val zone = zones.entries.firstOrNull { it.value.contains(point) }
-        target = when {
-            zone != null -> DropTarget.Into(zone.key.ifEmpty { null })
-            else -> rows.entries.firstOrNull { it.key != id && it.value.contains(point) }
-                ?.let { DropTarget.Row(it.key, point.y > it.value.center.y) }
-        }
-    }
-
-    /** 手指移动一次：先找目标，再在列表上下边 30 以内滚 12（网页 updateTarget）。 */
-    fun move(point: Offset, density: Density) {
-        update(point)
-        val edge = with(density) { 30.dp.toPx() }
-        val step = with(density) { 12.dp.toPx() }
-        val delta = when {
-            point.y < listBounds.top + edge -> -step
-            point.y > listBounds.bottom - edge -> step
-            else -> 0f
-        }
-        if (delta != 0f) scroll.dispatchRawDelta(delta)
-    }
-
-    fun clear() {
-        dragging = null
-        target = null
-    }
-}
 
 @Composable
 internal fun ChatDrawerBody(
@@ -192,7 +126,7 @@ internal fun ChatDrawerBody(
                 onDrop = { id ->
                     when (val target = drag.target) {
                         is DropTarget.Row -> sidebar.reorder(ReorderMove(id, target.id, target.after))
-                        is DropTarget.Into -> sidebar.dropIntoProject(id, target.projectId)
+                        is DropTarget.Into -> sidebar.dropIntoProject(id, target.containerId)
                         null -> Unit
                     }
                     drag.clear()
@@ -285,12 +219,6 @@ private class RowProps(
 )
 
 // 投放进项目时的样子：浅蓝底 + 1px 蓝框，圆角 4。
-private fun Modifier.dropZone(active: Boolean): Modifier = if (!active) this else drawBehind {
-    val r = CornerRadius(4.dp.toPx())
-    drawRoundRect(DropFill, cornerRadius = r)
-    drawRoundRect(DropBlue, cornerRadius = r, style = Stroke(1.dp.toPx()))
-}
-
 @Composable
 private fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     val label = text.uppercase()
@@ -402,8 +330,6 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
     val lineBefore = target?.id == session.id && !target.after
     val lineAfter = target?.id == session.id && target.after
     val reorderError = props.side.reorderError?.takeIf { it.first == session.id }?.second
-    var handleCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-    val density = LocalDensity.current
     DisposableEffect(session.id) { onDispose { drag.rows.remove(session.id) } }
 
     Box {
@@ -430,35 +356,12 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
             // 拖动把手 28×44（.list-reorder-handle，触屏尺寸），GripVertical 13 灰。
             val reorderLabel = stringResource(R.string.sb_reorder_title, session.title)
             val moveBusy = session.id in props.side.moveBusy
-            Box(
-                Modifier.size(28.dp, 44.dp).clip(RoundedCornerShape(4.dp))
-                    .onGloballyPositioned { handleCoords = it }
-                    // 和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
-                    .pointerInput(session.id, moveBusy) {
-                        if (moveBusy) return@pointerInput
-                        // 手势协程被取消（行离开组合、key 变了）时 detectDragGestures 不会调 onDragCancel，这里自己收尾。
-                        try {
-                            detectDragGestures(
-                                onDragStart = { offset ->
-                                    val origin = handleCoords?.localToWindow(offset) ?: return@detectDragGestures
-                                    props.onDismissError()
-                                    drag.dragging = session.id
-                                    drag.update(origin)
-                                },
-                                onDrag = { change, amount ->
-                                    change.consume()
-                                    drag.move(drag.pointer + amount, density)
-                                },
-                                onDragEnd = { props.onDrop(session.id) },
-                                onDragCancel = { drag.clear() },
-                            )
-                        } finally {
-                            if (drag.dragging == session.id) drag.clear()
-                        }
-                    }
-                    .semantics { contentDescription = reorderLabel },
-                Alignment.Center,
-            ) { LucideIcon(Lucide.GripVertical, 13.dp, Sm.Muted) }
+            // 和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
+            ReorderGrip(
+                id = session.id, label = reorderLabel, drag = drag, locked = moveBusy,
+                onStart = props.onDismissError, onDrop = { props.onDrop(session.id) },
+                modifier = Modifier.size(28.dp, 44.dp),
+            )
 
             // 图标按钮 40×40（左距 2、圆角 4）：表情（.notes-row-icon 15、行高 1）或 MessageSquareText 15 灰，点开表情选择器（aria-label "Change icon of {title}"）。
             EmojiTriggerButton(
@@ -503,16 +406,3 @@ private fun PinButton(session: SessionSummary, busy: Boolean, failed: Boolean, o
     RowAction(Lucide.Pin, 14.dp, if (failed) "$label. $failure" else label, pressed = session.pinned, enabled = !busy, onClick = onClick)
 }
 
-// .list-reorder-error：行下方，宽 min(220, 90vw)、内边距 6、白底、1px 细线、12 红字。点一下关闭。
-@Composable
-private fun ReorderErrorPopup(text: String, onDismiss: () -> Unit) {
-    val density = LocalDensity.current
-    Popup(offset = IntOffset(0, with(density) { 44.dp.roundToPx() }), onDismissRequest = onDismiss) {
-        Text(
-            text,
-            color = ErrorRed, fontSize = 12.sp, lineHeight = 16.sp,
-            modifier = Modifier.widthIn(max = 220.dp).border(1.dp, Sm.Border).background(Color.White).clickable(onClick = onDismiss)
-                .padding(6.dp).semantics { liveRegion = LiveRegionMode.Assertive },
-        )
-    }
-}

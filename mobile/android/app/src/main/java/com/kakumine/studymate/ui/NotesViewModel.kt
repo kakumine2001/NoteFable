@@ -74,6 +74,12 @@ data class NotesUiState(
     val trash: TrashUiState? = null,
     /** 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。 */
     val iconError: Boolean = false,
+    /** 有一次 POST /api/pages/reorder 还没完（网页 use-note-pages 的 reorderBusy）：这时再排序会提示等上一次完成。 */
+    val reorderBusy: Boolean = false,
+    /** 正在移动（排序或拖进项目）的笔记：这些行的把手不能拖（网页每个 ReorderHandle 自己的 busy）。 */
+    val moveBusy: Set<String> = emptySet(),
+    /** 拖动失败的行和原因（网页 ReorderHandle 的 list-reorder-error）。 */
+    val reorderError: ReorderFailure? = null,
 ) {
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。 */
     val loosePages: List<NotePageSummary>
@@ -81,6 +87,12 @@ data class NotesUiState(
 
     fun members(groupId: String) = pages.filter { it.groupId == groupId }
 }
+
+/**
+ * 拖动失败：[id] 是被拖的笔记。[detail] 是服务端原句（经词典翻译后显示）；没有时 [wait] 为真显示
+ * "Wait for the previous move to finish."，否则 "Could not move the item. Try again."。
+ */
+data class ReorderFailure(val id: String, val detail: String? = null, val wait: Boolean = false)
 
 /** 折叠了哪些项目，重开 App 后保留（网页存在 localStorage）。 */
 interface NotesPrefs {
@@ -497,6 +509,68 @@ class NotesViewModel(
     /** 抽屉重新打开时清掉上次改图标失败的提示（网页侧栏关掉后组件卸载，iconError 跟着没了）。 */
     fun dismissIconError() = _state.update { it.copy(iconError = false) }
 
+    // ---- 拖动排序（网页 notes-sidebar / notes-home 的 ReorderHandle） ----
+
+    /** 拖到另一篇笔记前 / 后（POST /api/pages/reorder，目标在别的项目里时服务端也改项目）。同一时间只做一次，和网页一样上一次没完就报错。 */
+    fun reorder(move: ReorderMove) {
+        if (_state.value.reorderBusy) {
+            _state.update { it.copy(reorderError = ReorderFailure(move.id, wait = true)) }
+            return
+        }
+        if (move.id == move.targetId || move.id in _state.value.moveBusy) return
+        val owner = identity
+        _state.update { it.copy(reorderBusy = true, moveBusy = it.moveBusy + move.id, reorderError = null) }
+        viewModelScope.launch {
+            val result = try {
+                Result.success(backend.reorderNote(move.id, move.targetId, move.after))
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                Result.failure(e)
+            }
+            if (owner != identity) return@launch
+            result.onSuccess { updates -> commit(owner) { _state.update { it.copy(pages = applyOrder(it.pages, updates)) } } }
+            _state.update {
+                it.copy(
+                    reorderBusy = false,
+                    moveBusy = it.moveBusy - move.id,
+                    reorderError = result.exceptionOrNull()?.let { e -> ReorderFailure(move.id, serverDetail(e)) },
+                )
+            }
+        }
+    }
+
+    /**
+     * 拖到项目标题或 Notes 标签上（网页 onMoveGroup）：移进该项目（null = 无项目），走普通的移动接口，不受排序锁限制，
+     * 只锁被拖的这一篇。侧栏里移进项目后展开它（网页 notes-sidebar 的 setCollapsed）。
+     */
+    fun dropIntoGroup(id: String, groupId: String?) {
+        if (id in _state.value.moveBusy) return
+        if (_state.value.pages.firstOrNull { it.id == id }?.groupId == groupId) return
+        val owner = identity
+        _state.update { it.copy(moveBusy = it.moveBusy + id, reorderError = null) }
+        viewModelScope.launch {
+            val error = try {
+                backend.moveNote(id, groupId)
+                null
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                e
+            }
+            if (owner != identity) return@launch
+            if (error == null) {
+                commit(owner) { _state.update { s -> s.copy(pages = s.pages.map { if (it.id == id) it.copy(groupId = groupId) else it }) } }
+                if (groupId != null && groupId in _state.value.collapsed) toggleGroup(groupId)
+            }
+            _state.update {
+                it.copy(moveBusy = it.moveBusy - id, reorderError = error?.let { e -> ReorderFailure(id, serverDetail(e)) })
+            }
+        }
+    }
+
+    fun dismissReorderError() = _state.update { it.copy(reorderError = null) }
+
     fun toggleGroup(id: String) {
         val next = _state.value.collapsed.let { if (id in it) it - id else it + id }
         prefs.collapsedGroups = next
@@ -587,14 +661,24 @@ class NotesViewModel(
         _state.update { s -> s.trash?.let { s.copy(trash = transform(it)) } ?: s }
     }
 
-    private fun errorOf(kind: NotesError.Kind, error: Throwable) =
-        NotesError(kind, (error as? ApiException)?.message?.takeIf { !it.startsWith("HTTP ") })
+    private fun errorOf(kind: NotesError.Kind, error: Throwable) = NotesError(kind, serverDetail(error))
+
+    private fun serverDetail(error: Throwable): String? = (error as? ApiException)?.message?.takeIf { it.isNotBlank() && !it.startsWith("HTTP ") }
 
     companion object {
         /** 加入或替换一条，再按服务端的顺序（position 升序、新建的在前）排。 */
         internal fun upsert(pages: List<NotePageSummary>, page: NotePageSummary): List<NotePageSummary> =
             (pages.filterNot { it.id == page.id } + page)
                 .sortedWith(compareBy<NotePageSummary> { it.position }.thenByDescending { it.createdAt })
+
+        /** 排序结果写进列表：换成新的 position（被移动的那篇还换项目），再按服务端的顺序排（网页 byPosition）。 */
+        internal fun applyOrder(pages: List<NotePageSummary>, updates: List<com.kakumine.studymate.data.NoteOrderUpdate>): List<NotePageSummary> {
+            val byId = updates.associateBy { it.id }
+            return pages.map { page ->
+                val update = byId[page.id] ?: return@map page
+                if (update.movedGroup) page.copy(position = update.position, groupId = update.groupId) else page.copy(position = update.position)
+            }.sortedWith(compareBy<NotePageSummary> { it.position }.thenByDescending { it.createdAt }.thenByDescending { it.id })
+        }
 
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

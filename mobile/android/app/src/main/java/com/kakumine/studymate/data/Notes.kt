@@ -33,6 +33,27 @@ data class NotesList(val pages: List<NotePageSummary> = emptyList(), val groups:
 @Serializable
 data class NoteTrashItem(val id: String, val title: String = "", val icon: String? = null, val deletedAt: String, val purgeAt: String)
 
+/**
+ * `POST /api/pages/reorder` 返回的新顺序（`{items:[{id, position, groupId?}]}`）。只有被移动的那一篇带 groupId
+ * （跨项目拖动时服务端顺便改它的项目），null 也是有效值（移出项目），所以用 [movedGroup] 记字段在不在。
+ */
+data class NoteOrderUpdate(val id: String, val position: Int, val groupId: String? = null, val movedGroup: Boolean = false) {
+    companion object {
+        fun parse(response: JsonObject): List<NoteOrderUpdate> {
+            val items = response["items"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
+            return items.mapNotNull { element ->
+                val item = element as? JsonObject ?: return@mapNotNull null
+                val id = (item["id"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { it.isString }?.content ?: return@mapNotNull null
+                val position = (item["position"] as? kotlinx.serialization.json.JsonPrimitive)?.takeIf { !it.isString }
+                    ?.content?.toIntOrNull() ?: return@mapNotNull null
+                val moved = "groupId" in item
+                val groupId = if (moved) (item["groupId"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull else null
+                NoteOrderUpdate(id, position, groupId, moved)
+            }
+        }
+    }
+}
+
 @Serializable
 internal data class PageResponse(val page: NotePageSummary)
 
@@ -53,6 +74,9 @@ interface NotesBackend {
     suspend fun trashNote(id: String)
 
     suspend fun moveNote(id: String, groupId: String?)
+
+    /** 拖动排序：把 [id] 放到 [targetId] 的前 / 后（网页 ReorderRequest）。目标在别的项目里时也一起移过去。 */
+    suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<NoteOrderUpdate>
     suspend fun createGroup(name: String): NoteGroupSummary
     suspend fun renameGroup(id: String, name: String): NoteGroupSummary
     suspend fun deleteGroup(id: String)

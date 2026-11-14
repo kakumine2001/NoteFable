@@ -31,8 +31,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,6 +53,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
@@ -133,6 +137,42 @@ private fun androidx.compose.foundation.layout.RowScope.Segment(text: String, ic
 // ---------------------------------------------------------------------------------------------
 // 侧栏的笔记部分（网页 NotesSidebar，手机尺寸）。头部和底部（品牌、账号）由 StudyMateRoot 放。
 
+/** 拖动排序的回调（NotesViewModel.reorder / dropIntoGroup / dismissReorderError）。 */
+class NoteReorder(
+    val onReorder: (ReorderMove) -> Unit,
+    val onDropInto: (pageId: String, groupId: String?) -> Unit,
+    val onDismissError: () -> Unit,
+) {
+    /**
+     * 最近一次拖动是从哪个列表开始的（侧栏或首页）。两个列表同时在组合里（抽屉盖在首页上），
+     * 失败提示只显示在发起拖动的那个列表里，不然弹层会在两处各出一个。
+     */
+    var surface by mutableStateOf<NoteListSurface?>(null)
+
+    companion object {
+        val None = NoteReorder({}, { _, _ -> }, {})
+    }
+}
+
+/** 松手：放到行前 / 后是排序，放到项目标题或 Notes 标签上是移进去。 */
+private fun DragState.drop(id: String, reorder: NoteReorder) {
+    when (val target = target) {
+        is DropTarget.Row -> reorder.onReorder(ReorderMove(id, target.id, target.after))
+        is DropTarget.Into -> reorder.onDropInto(id, target.containerId)
+        null -> Unit
+    }
+    clear()
+}
+
+enum class NoteListSurface { Drawer, Home }
+
+/** 一行笔记拖动相关的状态和回调，侧栏和首页共用。 */
+private class NoteRowDrag(val drag: DragState, val state: NotesUiState, val busy: Boolean, val reorder: NoteReorder, val surface: NoteListSurface) {
+    /** 这一篇的拖动失败提示（只在发起拖动的列表里显示）。 */
+    fun errorFor(id: String): ReorderFailure? =
+        state.reorderError?.takeIf { it.id == id && reorder.surface == surface }
+}
+
 @Composable
 fun NotesDrawerBody(
     state: NotesUiState,
@@ -149,8 +189,12 @@ fun NotesDrawerBody(
     onChangeIcon: (NotePageSummary, String?) -> Unit,
     modifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
+    reorder: NoteReorder = NoteReorder.None,
 ) {
     val busy = state.busy || state.loading
+    val scroll = rememberScrollState()
+    val drag = remember(scroll) { DragState(scroll) }
+    val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Drawer)
     Column(modifier) {
         // "新笔记"（.sidebar-primary-action，手机）：上距 12、高 44、圆角 8、深色底，左对齐图标 16 + 间距 8 + 16/550 白字。
         Row(
@@ -168,7 +212,11 @@ fun NotesDrawerBody(
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
         SidebarSearchRow(onSearch)
 
-        Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(start = 8.dp, end = 8.dp, bottom = 16.dp)) {
+        Column(
+            Modifier.weight(1f).fillMaxWidth()
+                .onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
+                .verticalScroll(scroll).padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
+        ) {
             // "PROJECTS" 小标题 + 右侧 40 的"新项目"按钮（上下 -4.8，整行高 49.6）。
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
                 val heading = stringResource(R.string.projects).uppercase()
@@ -178,7 +226,12 @@ fun NotesDrawerBody(
             state.groups.forEach { group ->
                 val members = state.members(group.id)
                 val open = group.id !in state.collapsed
-                GroupRow(group, members.size, open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) })
+                // 项目行同时是"移进这个项目"的投放区（网页 data-note-group-drop={group.id}）。
+                DisposableEffect(group.id) { onDispose { drag.zones.remove(group.id) } }
+                GroupRow(
+                    group, members.size, open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) },
+                    modifier = Modifier.dropZone(drag.target == DropTarget.Into(group.id)).onGloballyPositioned { drag.zones[group.id] = it.boundsInWindow() },
+                )
                 if (open) {
                     // .notes-group-members：左距 12、1px 竖线、内左距 4。
                     Column(
@@ -190,7 +243,7 @@ fun NotesDrawerBody(
                             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 12.sp, lineHeight = 16.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
                         }
-                        members.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash, onChangeIcon) }
+                        members.forEach { page -> key(page.id) { NoteRow(page, state.open?.id == page.id, busy, rowDrag, onOpen, onMove, onTrash, onChangeIcon) } }
                     }
                 }
             }
@@ -200,8 +253,14 @@ fun NotesDrawerBody(
                     modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive })
             }
             val notesLabel = stringResource(R.string.notes).uppercase()
-            Text(notesLabel, style = roleLabelStyle(notesLabel), modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp))
-            state.loosePages.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash, onChangeIcon) }
+            // NOTES 标签同时是"移出项目"的投放区（网页 data-note-group-drop=""）。
+            Text(
+                notesLabel, style = roleLabelStyle(notesLabel),
+                modifier = Modifier.fillMaxWidth().dropZone(drag.target == DropTarget.Into(null))
+                    .onGloballyPositioned { drag.zones[""] = it.boundsInWindow() }
+                    .padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp),
+            )
+            state.loosePages.forEach { page -> key(page.id) { NoteRow(page, state.open?.id == page.id, busy, rowDrag, onOpen, onMove, onTrash, onChangeIcon) } }
             if (state.pages.isEmpty() && state.loaded) {
                 Text(stringResource(R.string.notes_list_empty), color = Sm.Muted, fontSize = 12.sp, lineHeight = 20.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
@@ -224,8 +283,11 @@ fun NotesDrawerBody(
 // 项目行（.notion-session-row + .chat-project-toggle）：高 44；展开箭头 14、文件夹 15、名称 14/500、数量 12 浅灰；
 // 右侧重命名（铅笔 13）和删除（垃圾桶 14）两个 25.6 的小按钮，触屏上常显。
 @Composable
-private fun GroupRow(group: NoteGroupSummary, count: Int, open: Boolean, onToggle: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit) {
-    Row(Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)), verticalAlignment = Alignment.CenterVertically) {
+private fun GroupRow(
+    group: NoteGroupSummary, count: Int, open: Boolean, onToggle: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)), verticalAlignment = Alignment.CenterVertically) {
         Row(
             Modifier.weight(1f).clickable(onClick = onToggle).padding(horizontal = 3.2.dp, vertical = 6.4.dp)
                 .semantics { role = Role.Button },
@@ -243,57 +305,101 @@ private fun GroupRow(group: NoteGroupSummary, count: Int, open: Boolean, onToggl
     }
 }
 
-// 笔记行：高 44、圆角 6.4；图标按钮区 40（左距 2，内含 20 的图标：表情 15 或文件图标 15 灰）；标题 14；
+// 笔记行：高 44、圆角 6.4；拖动把手 28×44（GripVertical 13）；图标按钮区 40（左距 2，内含 20 的图标：表情 15 或文件图标 15 灰）；标题 14；
 // 右侧"移到项目"和"移到回收站"两个 25.6 的小按钮（图标 14 灰，右距 3.2）。当前打开的行浅蓝底加左侧蓝条。
+// 拖动中被拖的行半透明，目标行上 / 下 2px 蓝线（这时不画左侧蓝条）。
 @Composable
 private fun NoteRow(
     page: NotePageSummary,
     active: Boolean,
     busy: Boolean,
+    rowDrag: NoteRowDrag,
     onOpen: (String) -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onTrash: (NotePageSummary) -> Unit,
     onChangeIcon: (NotePageSummary, String?) -> Unit,
 ) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
-            .background(if (active) Sm.AccentSoft else Color.Transparent)
-            .drawBehind {
-                if (active) {
-                    val inset = 7.2.dp.toPx()
-                    drawRoundRect(Sm.Blue, topLeft = Offset(0f, inset), size = Size(3.dp.toPx(), size.height - inset * 2),
-                        cornerRadius = CornerRadius(1.5.dp.toPx()))
+    val drag = rowDrag.drag
+    val target = drag.target as? DropTarget.Row
+    val lineBefore = target?.id == page.id && !target.after
+    val lineAfter = target?.id == page.id && target.after
+    val reorderError = rowDrag.errorFor(page.id)
+    DisposableEffect(page.id) { onDispose { drag.rows.remove(page.id) } }
+    Box {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp)
+                .alpha(if (drag.dragging == page.id) 0.5f else 1f)
+                .onGloballyPositioned { drag.rows[page.id] = it.boundsInWindow() }
+                .clip(RoundedCornerShape(6.4.dp))
+                .background(if (active) Sm.AccentSoft else Color.Transparent)
+                .drawBehind {
+                    if (active && !lineBefore && !lineAfter) {
+                        val inset = 7.2.dp.toPx()
+                        drawRoundRect(Sm.Blue, topLeft = Offset(0f, inset), size = Size(3.dp.toPx(), size.height - inset * 2),
+                            cornerRadius = CornerRadius(1.5.dp.toPx()))
+                    }
                 }
+                .dropLine(lineBefore, lineAfter),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
+            Row(
+                Modifier.weight(1f).heightIn(min = 44.dp).clickable(enabled = !busy) { onOpen(page.id) },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (active) {
+                    // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
+                    Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+                } else {
+                    // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
+                    EmojiTriggerButton(
+                        current = page.icon,
+                        onChange = { icon -> onChangeIcon(page, icon) },
+                        description = stringResource(R.string.em_change_icon_of, page.title),
+                        modifier = Modifier.padding(start = 2.dp).size(40.dp),
+                        enabled = !busy,
+                    ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+                }
+                Text(
+                    page.title,
+                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    color = if (active) Sm.Ink else Sm.Text,
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = if (active) FontWeight(550) else FontWeight.Normal,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                RowAction(Lucide.FolderInput, 14.dp, stringResource(R.string.move_title_to_project, page.title), enabled = !busy) { onMove(page) }
+                RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.move_title_to_trash, page.title), enabled = !busy) { onTrash(page) }
             }
-            .clickable(enabled = !busy) { onOpen(page.id) },
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (active) {
-            // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
-            Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
-        } else {
-            // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
-            EmojiTriggerButton(
-                current = page.icon,
-                onChange = { icon -> onChangeIcon(page, icon) },
-                description = stringResource(R.string.em_change_icon_of, page.title),
-                modifier = Modifier.padding(start = 2.dp).size(40.dp),
-                enabled = !busy,
-            ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
         }
-        Text(
-            page.title,
-            modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
-            color = if (active) Sm.Ink else Sm.Text,
-            fontSize = 14.sp,
-            lineHeight = 20.sp,
-            fontWeight = if (active) FontWeight(550) else FontWeight.Normal,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-        RowAction(Lucide.FolderInput, 14.dp, stringResource(R.string.move_title_to_project, page.title), enabled = !busy) { onMove(page) }
-        RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.move_title_to_trash, page.title), enabled = !busy) { onTrash(page) }
+        if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError)
     }
+}
+
+/** 笔记行的拖动把手（网页 ReorderHandle，disabled={busy}；正在移动的这一篇也不能拖）。 */
+@Composable
+private fun NoteGrip(page: NotePageSummary, rowDrag: NoteRowDrag, modifier: Modifier) {
+    ReorderGrip(
+        id = page.id,
+        label = stringResource(R.string.sb_reorder_title, page.title),
+        drag = rowDrag.drag,
+        locked = rowDrag.busy || page.id in rowDrag.state.moveBusy,
+        onStart = {
+            rowDrag.reorder.surface = rowDrag.surface
+            rowDrag.reorder.onDismissError()
+        },
+        onDrop = { rowDrag.drag.drop(page.id, rowDrag.reorder) },
+        modifier = modifier,
+    )
+}
+
+@Composable
+private fun reorderFailureText(failure: ReorderFailure): String = when {
+    failure.wait -> stringResource(R.string.sb_err_wait_move)
+    failure.detail != null -> rememberSystemText().localize(failure.detail)
+    else -> stringResource(R.string.sb_err_move_item)
 }
 
 @Composable
@@ -341,9 +447,16 @@ fun NotesHome(
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
     onRetry: () -> Unit,
+    reorder: NoteReorder = NoteReorder.None,
 ) {
     val busy = state.busy || state.loading
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(start = 24.dp, end = 24.dp, bottom = 96.dp)) {
+    val scroll = rememberScrollState()
+    val drag = remember(scroll) { DragState(scroll) }
+    val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Home)
+    Column(
+        Modifier.fillMaxSize().onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
+            .verticalScroll(scroll).padding(start = 24.dp, end = 24.dp, bottom = 96.dp),
+    ) {
         WorkspaceSwitch(Workspace.Notes, onSwitch, Modifier.padding(top = 4.dp))
         state.error?.let { ErrorBar(notesErrorText(it), onRetry, Modifier.padding(top = 24.dp)) }
         when {
@@ -351,7 +464,7 @@ fun NotesHome(
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 96.dp, bottom = 16.dp))
             state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(busy, onCreate)
-            else -> NotesHomeList(state, busy, onOpen, onCreate, onMove, onNewGroup)
+            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup)
         }
     }
 }
@@ -360,28 +473,40 @@ fun NotesHome(
 private fun NotesHomeList(
     state: NotesUiState,
     busy: Boolean,
+    rowDrag: NoteRowDrag,
     onOpen: (String) -> Unit,
     onCreate: () -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
 ) {
+    val drag = rowDrag.drag
+    // 标题 "Notes" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
+    fun Modifier.zone(key: String): Modifier =
+        dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
+    DisposableEffect(Unit) { onDispose { drag.zones.clear() } }
+    val hasLooseHeading = state.groups.isNotEmpty() && state.loosePages.isNotEmpty()
+    DisposableEffect(hasLooseHeading) { onDispose { drag.zones.remove(" ") } }
     Text(
         stringResource(R.string.notes),
-        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp),
+        modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
         color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = (-1.28).sp,
     )
     state.groups.forEach { group ->
         val members = state.members(group.id)
-        GroupHeading(group.name, members.size)
+        key(group.id) {
+            DisposableEffect(group.id) { onDispose { drag.zones.remove(group.id) } }
+            GroupHeading(group.name, members.size, Modifier.zone(group.id))
+        }
         if (members.isEmpty()) {
             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
         } else {
-            Column(Modifier.padding(bottom = 16.dp)) { members.forEach { HomeItem(it, busy, onOpen, onMove) } }
+            Column(Modifier.padding(bottom = 16.dp)) { members.forEach { key(it.id) { HomeItem(it, busy, rowDrag, onOpen, onMove) } } }
         }
     }
     val loose = state.loosePages
-    if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), loose.size)
-    if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { HomeItem(it, busy, onOpen, onMove) } }
+    // "No project" 小标题的键是 " "（空白键都表示无项目），和标题 "Notes" 的 "" 分开登记、分开高亮。
+    if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), loose.size, Modifier.zone(" "))
+    if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { key(it.id) { HomeItem(it, busy, rowDrag, onOpen, onMove) } } }
     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         InkButton(stringResource(R.string.new_note), 40.dp, enabled = !busy, onClick = onCreate)
         Row(
@@ -396,8 +521,9 @@ private fun NotesHomeList(
 }
 
 @Composable
-private fun GroupHeading(name: String, count: Int) {
-    Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun GroupHeading(name: String, count: Int, modifier: Modifier = Modifier) {
+    // 外边距 20/4/4 放在投放区外面：高亮框只包住这一行（网页 h2 的 margin 不在背景里）。
+    Row(Modifier.padding(start = 4.dp, end = 4.dp, top = 20.dp, bottom = 4.dp).then(modifier), verticalAlignment = Alignment.CenterVertically) {
         Text(name, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
         Spacer(Modifier.width(8.dp))
@@ -406,13 +532,24 @@ private fun GroupHeading(name: String, count: Int) {
 }
 
 @Composable
-private fun HomeItem(page: NotePageSummary, busy: Boolean, onOpen: (String) -> Unit, onMove: (NotePageSummary) -> Unit) {
+private fun HomeItem(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag, onOpen: (String) -> Unit, onMove: (NotePageSummary) -> Unit) {
     val moveLabel = stringResource(R.string.move_title_to_project, page.title)
+    val drag = rowDrag.drag
+    val target = drag.target as? DropTarget.Row
+    val reorderError = rowDrag.errorFor(page.id)
+    DisposableEffect(page.id) { onDispose { drag.rows.remove(page.id) } }
+    Box {
     Row(
-        Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
+        Modifier.fillMaxWidth()
+            .alpha(if (drag.dragging == page.id) 0.5f else 1f)
+            .onGloballyPositioned { drag.rows[page.id] = it.boundsInWindow() }
+            .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
+            .dropLine(target?.id == page.id && !target.after, target?.id == page.id && target.after)
             .padding(bottom = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
+        // .notes-home-item .list-reorder-handle：宽 28、最小高 44。
+        NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
         Row(
             Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -429,6 +566,8 @@ private fun HomeItem(page: NotePageSummary, busy: Boolean, onOpen: (String) -> U
                 .semantics { contentDescription = moveLabel; role = Role.Button },
             Alignment.Center,
         ) { LucideIcon(Lucide.FolderInput, 18.dp, Faint) }
+    }
+    if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError, rowHeight = 57.dp)
     }
 }
 
