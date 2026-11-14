@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 账号头像：照片 / 表情（Batch 7b）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="acct_change_avatar">Change photo or icon</string>
+    <string name="acct_photo">Photo</string>
+    <string name="acct_upload_photo">Upload a photo</string>
+    <string name="acct_photo_hint">JPEG, PNG, WebP or GIF. You can crop it next.</string>
+    <string name="acct_remove_photo">Remove my photo</string>
+    <string name="acct_use_google_photo">Use Google photo</string>
+    <string name="acct_choose_image">Choose an image file.</string>
+    <string name="acct_photo_too_big">Choose a photo under 10 MB.</string>
+    <string name="acct_upload_failed">Could not upload that photo. Try again.</string>
+    <string name="acct_upload_offline">Could not upload that photo. Check your connection and try again.</string>
+    <string name="acct_crop_preview">Photo preview. Drag or use the arrow keys to move it.</string>
+    <string name="acct_zoom">Zoom</string>
+    <string name="acct_crop_hint">Drag the photo to reposition it.</string>
+    <string name="acct_photo_too_small">That photo is too small. Choose one that is at least %1$d × %1$d pixels.</string>
+    <string name="acct_photo_unreadable">Could not read that image. Try another photo.</string>
+    <string name="acct_could_not_save">Could not save.</string>
+</resources>

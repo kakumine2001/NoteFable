@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 账号头像：照片 / 表情（Batch 7b）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="acct_change_avatar">写真やアイコンを変更</string>
+    <string name="acct_photo">写真</string>
+    <string name="acct_upload_photo">写真をアップロード</string>
+    <string name="acct_photo_hint">JPEG、PNG、WebP、GIFに対応。このあと切り抜けます。</string>
+    <string name="acct_remove_photo">写真を削除</string>
+    <string name="acct_use_google_photo">Googleの写真を使う</string>
+    <string name="acct_choose_image">画像ファイルを選んでください。</string>
+    <string name="acct_photo_too_big">10 MB未満の写真を選んでください。</string>
+    <string name="acct_upload_failed">写真をアップロードできませんでした。もう一度お試しください。</string>
+    <string name="acct_upload_offline">写真をアップロードできませんでした。接続を確認して、もう一度お試しください。</string>
+    <string name="acct_crop_preview">写真のプレビュー。ドラッグまたは矢印キーで位置を調整できます。</string>
+    <string name="acct_zoom">ズーム</string>
+    <string name="acct_crop_hint">写真をドラッグして位置を調整してください。</string>
+    <string name="acct_photo_too_small">写真が小さすぎます。%1$d × %1$dピクセル以上の写真を選んでください。</string>
+    <string name="acct_photo_unreadable">画像を読み込めませんでした。別の写真をお試しください。</string>
+    <string name="acct_could_not_save">保存できませんでした。</string>
+</resources>

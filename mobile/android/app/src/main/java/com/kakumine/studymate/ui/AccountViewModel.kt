@@ -5,45 +5,105 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.studymate.StudyMateApp
+import com.kakumine.studymate.data.AccountApi
 import com.kakumine.studymate.data.AccountBackend
+import com.kakumine.studymate.data.AccountProfileBackend
 import com.kakumine.studymate.data.AccountUser
+import com.kakumine.studymate.data.ApiException
+import com.kakumine.studymate.data.ProfileEdit
+import com.kakumine.studymate.data.applyProfileEdit
+import com.kakumine.studymate.data.profileEditChanges
+import com.kakumine.studymate.data.serverMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class AccountUiState(
     /** 服务端开了 Google 登录才显示登录入口（和网页 AccountButton 一样，未配置时什么都不显示）。 */
     val configured: Boolean = false,
+    /** 显示用的资料：服务端确认过的 + 还没确认的编辑（网页 account-store 的 view()）。 */
     val user: AccountUser? = null,
     val googleClientId: String? = null,
     val signingIn: Boolean = false,
     /** 上一次登录失败：按钮文字换成"登录失败，请重试"。 */
     val signInFailed: Boolean = false,
-    /** 资料保存失败时的服务端提示。 */
-    val profileError: String? = null,
+    /** 资料保存失败时的提示：服务端的英文原句（经系统文词典翻译），没有时是网页兜底的 "Could not save."（字符串资源）。 */
+    val profileError: ProfileError? = null,
+    /** 头像照片正在上传（网页 ProfileMenu 的 uploading：期间菜单不关、保存键变"正在保存…"）。 */
+    val uploading: Boolean = false,
+    /** 照片这一栏的提示（网页 uploadError）。 */
+    val photoError: PhotoError? = null,
 )
+
+/** 照片栏的提示：选的文件不对，或上传失败（服务端原句 / 网页的两句兜底文）。 */
+/** 资料（名字 / 图标）保存失败的原因。 */
+sealed interface ProfileError {
+    data class Server(val message: String) : ProfileError
+    /** 网页 account-store 的兜底文 "Could not save."（R.string.acct_could_not_save）。 */
+    data object CouldNotSave : ProfileError
+}
+
+sealed interface PhotoError {
+    data object NotImage : PhotoError
+    data object TooLarge : PhotoError
+    data class Server(val message: String) : PhotoError
+    data object UploadFailed : PhotoError
+    data object Offline : PhotoError
+}
+
+/** 选的原图上限（网页 MAX_PICKED_BYTES）；真正上传的是裁好的 512 图。 */
+const val MAX_PICKED_PHOTO_BYTES = 10L * 1024 * 1024
+
+/** 选好的文件能不能进裁剪（网页 choosePhoto）：不是图片、超过 10 MB 的直接提示。读不到大小时交给解码去判断。 */
+fun checkPickedPhoto(mimeType: String?, size: Long?): PhotoError? = when {
+    mimeType?.startsWith("image/") != true -> PhotoError.NotImage
+    size != null && size > MAX_PICKED_PHOTO_BYTES -> PhotoError.TooLarge
+    else -> null
+}
 
 /**
  * 侧栏底部的账号。登录 / 退出都会换身份，成功后由界面通知聊天页重新加载（onIdentityChanged）。
  * 选择框需要 Activity，所以"拿 ID 令牌"由界面传进来。
  */
-class AccountViewModel(private val backend: AccountBackend) : ViewModel() {
+class AccountViewModel(
+    private val backend: AccountBackend,
+    private val profile: AccountProfileBackend,
+) : ViewModel() {
     private val _state = MutableStateFlow(AccountUiState())
     val state: StateFlow<AccountUiState> = _state.asStateFlow()
+
+    // 和网页 account-store 一样：服务端确认过的资料 + 还没确认的编辑，界面看到的是两者叠起来的结果（先显示，后保存）。
+    private var confirmed: AccountUser? = null
+    private val pending = ArrayList<ProfileEdit>()
+
+    // 资料和照片按发出的顺序一个一个送（Mutex 先到先得），旧的回复不会盖掉新的编辑；退出前也等它们送完。
+    private val saves = Mutex()
 
     init {
         refresh()
     }
 
+    private fun publish() {
+        val user = confirmed?.let { pending.fold(it, ::applyProfileEdit) }
+        _state.update { it.copy(user = user) }
+    }
+
+    private fun setConfirmed(user: AccountUser?) {
+        confirmed = user
+        if (user == null) pending.clear()
+        publish()
+    }
+
     fun refresh() {
         viewModelScope.launch {
             runCatching { backend.account() }.onSuccess { response ->
-                _state.update {
-                    it.copy(configured = response.configured, user = response.user, googleClientId = response.googleClientId)
-                }
+                _state.update { it.copy(configured = response.configured, googleClientId = response.googleClientId) }
+                setConfirmed(response.user)
             }
         }
     }
@@ -63,7 +123,8 @@ class AccountViewModel(private val backend: AccountBackend) : ViewModel() {
                 if (idToken != null) {
                     backend.nativeSignIn(idToken)
                     val account = backend.account()
-                    _state.update { it.copy(configured = account.configured, user = account.user, googleClientId = account.googleClientId) }
+                    _state.update { it.copy(configured = account.configured, googleClientId = account.googleClientId) }
+                    setConfirmed(account.user)
                     onSignedIn()
                 }
             } catch (cancelled: CancellationException) {
@@ -78,9 +139,12 @@ class AccountViewModel(private val backend: AccountBackend) : ViewModel() {
 
     fun signOut(clearDeviceChoice: suspend () -> Unit, onSignedOut: () -> Unit) {
         viewModelScope.launch {
+            // 网页 settled()：刚改的名字 / 图标 / 照片先送完再退出（退出后再送会 401）。
+            saves.withLock { }
             runCatching { clearDeviceChoice() }
             runCatching { backend.signOut() }
-            _state.update { it.copy(user = null, profileError = null) }
+            _state.update { it.copy(profileError = null, photoError = null, uploading = false) }
+            setConfirmed(null)
             onSignedOut()
             refresh()
         }
@@ -92,26 +156,81 @@ class AccountViewModel(private val backend: AccountBackend) : ViewModel() {
         val next = draft.replace(Regex("\\s+"), " ").trim()
         val value = if (next.isEmpty() || next == (user.googleName ?: "")) null else next
         if (value == user.displayName) return
-        saveProfile { backend.updateProfile(value, resetToGoogle = false) }
+        save(ProfileEdit.name(value))
     }
 
-    fun resetToGoogle() = saveProfile { backend.updateProfile(null, resetToGoogle = true) }
+    /** 选表情头像；null 是"使用 Google 头像"，照片栏的"移除我的照片"也走这里（网页 onSave({ icon: null })）。 */
+    fun setIcon(icon: String?) = save(ProfileEdit.icon(icon))
 
-    private fun saveProfile(call: suspend () -> AccountUser?) {
+    fun resetToGoogle() = save(ProfileEdit.ResetToGoogle)
+
+    /** 网页 saveProfile：马上显示，排队发送；已经是这个状态就什么也不做。 */
+    private fun save(edit: ProfileEdit) {
+        val current = _state.value.user ?: return
+        if (!profileEditChanges(current, edit)) return
+        pending += edit
+        _state.update { it.copy(profileError = null) }
+        publish()
         viewModelScope.launch {
-            _state.update { it.copy(profileError = null) }
-            runCatching { call() }
-                .onSuccess { user -> if (user != null) _state.update { it.copy(user = user) } }
-                .onFailure { error -> _state.update { it.copy(profileError = error.message) } }
+            saves.withLock {
+                try {
+                    val user = profile.updateProfile(edit)
+                    if (confirmed != null) confirmed = user
+                    _state.update { it.copy(profileError = null) }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Throwable) {
+                    // 只撤掉失败的这一次编辑，后面排着的照常（网页 sendPatch）。
+                    _state.update { it.copy(profileError = (error as? ApiException)?.serverMessage()?.let(ProfileError::Server) ?: ProfileError.CouldNotSave) }
+                } finally {
+                    // 按身份比对：同样内容的编辑连发两次时只去掉这一次的那一个。
+                    val index = pending.indexOfFirst { it === edit }
+                    if (index >= 0) pending.removeAt(index)
+                    publish()
+                }
+            }
         }
     }
+
+    /**
+     * 上传裁好的照片（网页 uploadPhoto，和资料保存排在同一个队列里）。成功后调用 [onSaved]（菜单收起照片栏），
+     * 失败把原因放进 [AccountUiState.photoError]。
+     */
+    fun uploadPhoto(bytes: ByteArray, mimeType: String, onSaved: () -> Unit) {
+        if (_state.value.uploading) return
+        _state.update { it.copy(uploading = true, photoError = null) }
+        viewModelScope.launch {
+            saves.withLock {
+                try {
+                    val user = profile.uploadAvatar(bytes, mimeType)
+                    if (confirmed != null) confirmed = user
+                    _state.update { it.copy(profileError = null, uploading = false) }
+                    publish()
+                    onSaved()
+                } catch (cancelled: CancellationException) {
+                    _state.update { it.copy(uploading = false) }
+                    throw cancelled
+                } catch (error: ApiException) {
+                    val reason = error.serverMessage()?.let(PhotoError::Server) ?: PhotoError.UploadFailed
+                    _state.update { it.copy(uploading = false, photoError = reason) }
+                } catch (_: Throwable) {
+                    _state.update { it.copy(uploading = false, photoError = PhotoError.Offline) }
+                }
+            }
+        }
+    }
+
+    fun showPhotoError(error: PhotoError?) = _state.update { it.copy(photoError = error) }
+
+    /** 打开个人资料时清掉上一次的错误（网页 clearSaveError；照片栏的提示随菜单一起消失）。 */
+    fun clearProfileError() = _state.update { it.copy(profileError = null, photoError = null) }
 
     companion object {
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as StudyMateApp
-                return AccountViewModel(app.api) as T
+                return AccountViewModel(app.api, AccountApi(app.api.http)) as T
             }
         }
     }
