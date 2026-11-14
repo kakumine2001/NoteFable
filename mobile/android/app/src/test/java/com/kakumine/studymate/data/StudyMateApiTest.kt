@@ -24,7 +24,7 @@ class StudyMateApiTest {
             server.enqueue(MockResponse().setBody("""{"user":{"name":"Ann","icon":null,"avatarUrl":null}}"""))
             val api = StudyMateApi(server.url("/").toString().trimEnd('/'), CookieJar.NO_COOKIES)
 
-            assertEquals("Ann", api.updateProfile(null, resetToGoogle = true)?.name)
+            assertEquals("Ann", AccountApi(api.http).updateProfile(ProfileEdit.ResetToGoogle).name)
 
             val request = server.takeRequest(1, TimeUnit.SECONDS)
             assertNotNull(request)
@@ -97,7 +97,7 @@ class StudyMateApiTest {
             server.enqueue(MockResponse().setBody("""{"user":{"name":"Local","icon":"🙂"}}"""))
             val api = StudyMateApi(server.url("/").toString().trimEnd('/'), CookieJar.NO_COOKIES)
 
-            assertEquals("🙂", api.updateProfile("Local", resetToGoogle = false)?.icon)
+            assertEquals("🙂", AccountApi(api.http).updateProfile(ProfileEdit.name("Local")).icon)
 
             val request = server.takeRequest(1, TimeUnit.SECONDS)
             assertNotNull(request)
