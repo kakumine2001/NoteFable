@@ -11,7 +11,7 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
   return (
     <main lang="en" className="h-dvh overflow-y-auto bg-white text-[var(--notion-text)]" style={{ fontFamily: "var(--font-ui)" }}>
       <article className="mx-auto w-full max-w-[44rem] px-6 pb-24 pt-12 text-[15px] leading-7">
-        <Link href="/" className="text-sm text-[var(--notion-muted)] hover:underline">← StudyMate</Link>
+        <Link href="/" className="text-sm text-[var(--notion-muted)] hover:underline">← NoteFable</Link>
         <h1 className="mt-6 text-[2rem] font-bold leading-tight tracking-[-0.02em]">{title}</h1>
         <p className="mt-2 text-sm text-[var(--notion-muted)]">Last updated: {LEGAL_UPDATED}</p>
         <div className="mt-8 space-y-8">{children}</div>

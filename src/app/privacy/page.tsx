@@ -2,18 +2,18 @@ import type { Metadata } from "next";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy – StudyMate",
-  description: "How StudyMate handles your data.",
+  title: "Privacy Policy – NoteFable",
+  description: "How NoteFable handles your data.",
 };
 
 export default function PrivacyPage() {
   return (
     <LegalPage title="Privacy Policy">
-      <LegalSection title="1. About StudyMate">
+      <LegalSection title="1. About NoteFable">
         <p>
-          StudyMate is a personal AI study assistant with chat and Notes, available at
-          {" "}<a href="https://studymate-lab-ai.vercel.app">studymate-lab-ai.vercel.app</a>. It is run by an individual developer.
-          This policy explains what data StudyMate handles and why. Questions: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
+          NoteFable is a personal AI study assistant with chat and Notes, available at
+          {" "}<a href="https://notefable.com">notefable.com</a>. It is run by an individual developer.
+          This policy explains what data NoteFable handles and why. Questions: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
         </p>
       </LegalSection>
 
@@ -64,7 +64,7 @@ export default function PrivacyPage() {
       </LegalSection>
 
       <LegalSection title="4. Who we share it with">
-        <p>We share data only with the service providers needed to run StudyMate:</p>
+        <p>We share data only with the service providers needed to run NoteFable:</p>
         <ul>
           <li>
             <strong>AI model providers.</strong> To answer you, the text of your message, earlier messages in that chat, and any attached images or extracted file
@@ -91,7 +91,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="5. Google user data">
         <p>
-          StudyMate’s use and transfer to any other app of information received from Google APIs will adhere to the
+          NoteFable’s use and transfer to any other app of information received from Google APIs will adhere to the
           {" "}<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.
           We use the Google profile information only to sign you in and to link your account. It is stored in our database and in the sign-in cookie.
           We do not send it to the AI providers, use it for advertising, or transfer it to anyone else except the hosting and storage providers listed above as needed to run the service.
@@ -100,7 +100,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="6. Retention and deletion">
         <p>
-          We keep your data until you delete it. You can delete a chat or a note in StudyMate. That removes it from your account in our database, including the
+          We keep your data until you delete it. You can delete a chat or a note in NoteFable. That removes it from your account in our database, including the
           messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, note files and cover images can remain in file storage
           until we remove them. There is no delete-account button, and signing out does not delete anything. To delete your account, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> and within 30 days we will delete your account record, its database rows and the stored files we can still link to you.
@@ -110,12 +110,12 @@ export default function PrivacyPage() {
       <LegalSection title="7. Security">
         <p>
           Data is sent over HTTPS, the device cookie is signed, and each chat and note can be read only through the browser or Google account that created it.
-          No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using StudyMate without signing in on shared devices.
+          No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using NoteFable without signing in on shared devices.
         </p>
       </LegalSection>
 
       <LegalSection title="8. Children">
-        <p>StudyMate is not directed to children under 13, and we do not knowingly collect their data.</p>
+        <p>NoteFable is not directed to children under 13, and we do not knowingly collect their data.</p>
       </LegalSection>
 
       <LegalSection title="9. Changes">

@@ -177,7 +177,7 @@ export const zhServer: Record<string, string> = {
   "The code has expired. Request a new one.": "验证码已过期，请重新获取。",
   "Too many wrong attempts. Request a new code.": "错误次数过多，请重新获取验证码。",
   "That code is incorrect.": "验证码不正确。",
-  "Your StudyMate sign-in code: {code}": "你的 StudyMate 登录验证码：{code}",
+  "Your NoteFable sign-in code: {code}": "你的 NoteFable 登录验证码：{code}",
   "Your sign-in code is {code}.": "你的登录验证码是 {code}。",
   "It expires in 10 minutes. If you didn't ask for it, you can ignore this email.": "验证码 10 分钟内有效。如果不是你本人操作，请忽略这封邮件。",
 };

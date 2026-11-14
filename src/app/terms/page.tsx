@@ -3,8 +3,8 @@ import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
 
 export const metadata: Metadata = {
-  title: "Terms of Service – StudyMate",
-  description: "The terms for using StudyMate.",
+  title: "Terms of Service – NoteFable",
+  description: "The terms for using NoteFable.",
 };
 
 export default function TermsPage() {
@@ -12,14 +12,14 @@ export default function TermsPage() {
     <LegalPage title="Terms of Service">
       <LegalSection title="1. Agreement">
         <p>
-          These terms apply to your use of StudyMate at <a href="https://studymate-lab-ai.vercel.app">studymate-lab-ai.vercel.app</a>
-          {" "}and its Android app. By using StudyMate you agree to them and to the <Link href="/privacy">Privacy Policy</Link>. If you do not agree, please do not use it.
+          These terms apply to your use of NoteFable at <a href="https://notefable.com">notefable.com</a>
+          {" "}and its Android app. By using NoteFable you agree to them and to the <Link href="/privacy">Privacy Policy</Link>. If you do not agree, please do not use it.
         </p>
       </LegalSection>
 
       <LegalSection title="2. The service">
         <p>
-          StudyMate is an AI study assistant: you can chat with AI models, keep Notes, attach files and generate images. It is a free personal project provided
+          NoteFable is an AI study assistant: you can chat with AI models, keep Notes, attach files and generate images. It is a free personal project provided
           “as is”. Features, models and limits can change, and the service can be interrupted or stopped at any time without notice.
           Keep your own copy of anything important.
         </p>
@@ -27,14 +27,14 @@ export default function TermsPage() {
 
       <LegalSection title="3. Your account and content">
         <p>
-          You can use StudyMate without signing in (your data is tied to your browser) or sign in with Google. You are responsible for what happens under your browser or account.
+          You can use NoteFable without signing in (your data is tied to your browser) or sign in with Google. You are responsible for what happens under your browser or account.
           You keep ownership of the content you create. You allow us to store and process it only as needed to run the service, including sending it to the AI providers
           described in the Privacy Policy.
         </p>
       </LegalSection>
 
       <LegalSection title="4. Acceptable use">
-        <p>Do not use StudyMate to:</p>
+        <p>Do not use NoteFable to:</p>
         <ul>
           <li>break the law or infringe anyone’s rights, or upload content you have no right to use;</li>
           <li>create or share malware, or content that harms or harasses others;</li>
@@ -53,20 +53,20 @@ export default function TermsPage() {
 
       <LegalSection title="6. Third-party services">
         <p>
-          StudyMate relies on third parties — OpenAI, Anthropic, DeepSeek, Google, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect StudyMate.
+          NoteFable relies on third parties — OpenAI, Anthropic, DeepSeek, Google, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect NoteFable.
         </p>
       </LegalSection>
 
       <LegalSection title="7. Disclaimer and liability">
         <p>
-          To the extent permitted by law, StudyMate is provided without warranties of any kind, and we are not liable for indirect or incidental damages,
+          To the extent permitted by law, NoteFable is provided without warranties of any kind, and we are not liable for indirect or incidental damages,
           lost data, or lost profits arising from your use of the service.
         </p>
       </LegalSection>
 
       <LegalSection title="8. Ending use">
         <p>
-          You can stop using StudyMate at any time and ask for your data to be deleted (see the Privacy Policy). We may end or change the service or your access at any time.
+          You can stop using NoteFable at any time and ask for your data to be deleted (see the Privacy Policy). We may end or change the service or your access at any time.
         </p>
       </LegalSection>
 
