@@ -2,8 +2,9 @@ package com.kakumine.studymate.ui
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.kakumine.studymate.R
 import com.kakumine.studymate.StudyMateApp
 import com.kakumine.studymate.data.SystemText
 import com.kakumine.studymate.data.SystemTextTranslator
@@ -12,7 +13,8 @@ import com.kakumine.studymate.data.SystemTextTranslator
 @Composable
 fun rememberSystemText(): SystemTextTranslator {
     val context = LocalContext.current
-    val language = LocalConfiguration.current.locales[0]?.language
+    // 跟资源解析出的界面语言走（en / zh / zh-Hant / ja），不直接看系统的 Locale。
+    val language = stringResource(R.string.ui_locale)
     val table = remember(context) { (context.applicationContext as? StudyMateApp)?.systemText ?: SystemText.Empty }
     return remember(table, language) { table.translator(language) }
 }

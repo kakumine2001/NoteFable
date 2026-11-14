@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 侧栏与聊天项目（Batch 3）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="sb_pinned">已置頂</string>
+    <string name="sb_close_sidebar">關閉側邊欄</string>
+    <string name="sb_pin_chat">置頂聊天</string>
+    <string name="sb_unpin_chat">取消置頂聊天</string>
+    <string name="sb_pin_title">置頂 %1$s</string>
+    <string name="sb_unpin_title">取消置頂 %1$s</string>
+    <string name="sb_pin_failed">無法儲存置頂設定，請重試。</string>
+    <string name="sb_could_not_save_retry">無法儲存，請重試。</string>
+    <string name="sb_actions_for_title">%1$s 的操作</string>
+    <string name="sb_actions_for_name">%1$s 的操作</string>
+    <string name="sb_actions_for_project">專案 %1$s 的操作</string>
+    <string name="sb_rename">重新命名</string>
+    <string name="sb_delete_">刪除</string>
+    <string name="sb_new_chat_in_name">在 %1$s 中新建聊天</string>
+    <string name="sb_new_chat_in_project">在此專案中新建聊天</string>
+    <string name="sb_all_chats_pinned">所有聊天均已置頂</string>
+    <string name="sb_no_chats">暫無聊天</string>
+    <string name="sb_hint_instructions">指示</string>
+    <string name="sb_one_reference_note">1 篇參考筆記</string>
+    <string name="sb_n_reference_notes">%1$d 篇參考筆記</string>
+    <string name="sb_project_settings">專案設定</string>
+    <string name="sb_new_project_plus">＋ 新建專案</string>
+    <string name="sb_delete_chat">刪除聊天</string>
+    <string name="sb_delete_name_q">刪除“%1$s”？</string>
+    <string name="sb_project_delete_body">聊天將保留，並移到聊天列表。</string>
+    <string name="sb_chat_delete_body">這將永久刪除此聊天。</string>
+    <string name="sb_rename_chat">重新命名聊天</string>
+    <string name="sb_chat_name">聊天名稱</string>
+    <string name="sb_err_save_change">無法儲存更改，請重試。</string>
+    <string name="sb_err_wait_reply_delete">請等待回答完成後再刪除此聊天。</string>
+    <string name="sb_err_delete_chat">刪除聊天失敗，請重試。</string>
+    <string name="sb_err_load_projects">無法載入專案，請重新整理重試。</string>
+    <string name="sb_err_save_chat">無法儲存聊天，請重試。</string>
+    <string name="sb_err_save_project">無法儲存專案，請重試。</string>
+    <string name="sb_loading">正在載入…</string>
+    <string name="sb_instructions">指示</string>
+    <string name="sb_instructions_help">適用於此專案的每個聊天。可說明專案用途、回答語言和格式要求。</string>
+    <string name="sb_instructions_placeholder">例如：幫我寫日語商務郵件。保持禮貌，先給出一份簡短草稿。</string>
+    <string name="sb_reference_notes">參考筆記</string>
+    <string name="sb_reference_notes_help">只有在這裡選中的筆記才會提供給此專案聊天中的 AI。每次都會讀取最新內容，修改會從下一條訊息起生效。</string>
+    <string name="sb_selected_notes">已選筆記</string>
+    <string name="sb_remove_title">移除 %1$s</string>
+    <string name="sb_filter_notes">篩選筆記</string>
+    <string name="sb_your_notes">你的筆記</string>
+    <string name="sb_untitled">無標題</string>
+    <string name="sb_no_notes_match">沒有匹配的筆記。</string>
+    <string name="sb_no_notes_yet">你還沒有筆記。</string>
+    <string name="sb_showing_first_notes">顯示前 %1$d 篇筆記，輸入篩選詞可查詢其他筆記。</string>
+    <string name="sb_notes_limit">最多可選擇 %1$d 篇筆記，移除一篇後才能繼續新增。</string>
+    <string name="sb_saving">正在儲存…</string>
+    <string name="sb_err_load_project_settings">無法載入專案設定。</string>
+    <string name="sb_err_load_your_notes">無法載入筆記。</string>
+    <string name="sb_err_save_project_settings">無法儲存專案設定，請重試。</string>
+    <string name="sb_reorder_title">調整 %1$s 的順序</string>
+    <string name="sb_err_move_item">無法移動此項，請重試。</string>
+    <string name="sb_err_wait_move">請等待上一次移動完成。</string>
+    <string name="sb_err_move_chat">無法移動聊天。</string>
+    <string name="sb_err_create_chat">資料庫不可用，請啟動本地 PostgreSQL 後重試。</string>
+</resources>
