@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst } } }));
 import { PUT } from "./route";
 

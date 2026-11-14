@@ -52,7 +52,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/group` | 把页面移入自己的分组，或用 `{ groupId: null }` 移出 |
 | `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji 或 null> }`，返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
 
-所有操作沿用签名设备 Cookie 和 `getOrCreateAnonymousUser()`；页面不存在、属于其他设备或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
+所有操作沿用签名设备 Cookie 和 `getOrCreateUser()`；页面不存在、属于其他设备或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
 
 ## Trash（回收站）
 

@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { readLimitedBody } from "@/lib/note-upload";
 import { COVER_CONTENT_TYPES, sniffCoverImage } from "@/lib/note-covers";
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const buffer = Buffer.from(await file.arrayBuffer());
     const mimeType = sniffCoverImage(buffer);
     if (!mimeType) return NextResponse.json({ error: msg("Upload a JPEG, PNG, WebP or GIF image.") }, { status: 400 });
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const storagePath = `page-covers/${user.id}/${randomUUID()}${getImageExtension(mimeType)}`;
     // 先に資産行を作り、画像の書き込みが途中で止まっても追跡できない画像を残さない。
     // まだどのページにも付いていないため、作成時点を解放時刻にする。使われなければ日次処理で回収される。
@@ -49,7 +49,7 @@ export async function GET(request: Request) {
   try {
     const key = new URL(request.url).searchParams.get("key") ?? "";
     const upload = uploadedCoverPath(`upload:${key}`);
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     if (!upload || upload.ownerId !== user.id) return NextResponse.json({ error: msg("Cover not found.") }, { status: 404 });
     let image: Buffer;
     try { image = await readStoredImage(upload.path); } catch { return NextResponse.json({ error: msg("Cover not found.") }, { status: 404 }); }

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
@@ -13,7 +13,7 @@ export async function PUT(request: Request, context: Context) {
   try {
     const { groupId } = await readSmallJson(request);
     if (groupId !== null && (typeof groupId !== "string" || !groupId || groupId.length > 64)) throw new NoteValidationError("groupId must be a group ID or null.");
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     // 自分のグループだけを指定できる。
     if (groupId !== null && !(await prisma.noteGroup.count({ where: { id: groupId, userId: user.id } }))) {

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
@@ -22,7 +22,7 @@ export async function POST(request: Request, context: Context) {
     const body = await readSmallJson(request);
     if (!Number.isSafeInteger(body.version) || (body.version as number) < 0) throw new NoteValidationError(msg("A valid note version is required."));
     const version = body.version as number;
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId, revisionId } = await context.params;
     let outcome: { page: unknown } | "note-missing" | "revision-missing" | "stale";
     try {

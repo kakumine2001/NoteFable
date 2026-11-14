@@ -22,7 +22,7 @@ vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 
 vi.mock("@/lib/auth", () => ({
-  getOrCreateAnonymousUser: async () => ({ id: "user", ...mocks.userRow.extra }),
+  getOrCreateUser: async () => ({ id: "user", ...mocks.userRow.extra }),
   isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
 }));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));

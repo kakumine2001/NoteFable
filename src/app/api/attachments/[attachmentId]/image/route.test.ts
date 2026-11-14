@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ find: vi.fn(), url: vi.fn(), read: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "owner" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "owner" }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: { attachment: { findFirst: mocks.find } } }));
 vi.mock("@/lib/storage", () => ({ getStoredImageReadUrl: mocks.url, readStoredImage: mocks.read }));
 import { GET } from "./route";

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { parseSearchTerms, searchChats, searchNotes } from "@/lib/search";
 import { MAX_SEARCH_QUERY_CHARS, SEARCH_PROJECT_ID_PATTERN, SEARCH_SCOPES, type SearchScope } from "@/types/search";
 import { msg, fmt } from "@/lib/i18n/translate";
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const terms = parseSearchTerms(query);
     const [notes, chats] = await Promise.all([
       scope === "chats" ? [] : searchNotes(user.id, terms),

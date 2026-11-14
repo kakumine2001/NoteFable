@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { parseStoredActivity } from "@/lib/chat-activity";
 import { proposalsByMessage } from "@/lib/note-proposals";
 import { prisma } from "@/lib/prisma";
@@ -27,7 +27,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // メッセージ取得前に、指定セッションが現在の匿名ユーザーのものか確認する。
   // 存在確認と所有者確認を分けずに行うことで、他ユーザーのセッション内容を返さない。
   // Cookie から現在の匿名ユーザーを決める。
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   // URL の [sessionId] パラメータ。
   const { sessionId } = await context.params;
 

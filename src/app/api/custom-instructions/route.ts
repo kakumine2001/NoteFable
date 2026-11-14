@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
+import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { validCustomInstructions } from "@/lib/custom-instructions";
 import { msg } from "@/lib/i18n/translate";
 import { NoteValidationError } from "@/lib/note-document";
@@ -14,10 +14,10 @@ function failure(error: unknown, fallback: string) {
   return NextResponse.json({ error: fallback }, { status: 503 });
 }
 
-// カスタム指示はログインした利用者の設定。getOrCreateAnonymousUser はログインのセッションが有効なときだけ
+// カスタム指示はログインした利用者の設定。getOrCreateUser はログインのセッションが有効なときだけ
 // アカウントの行を返すので、それ以外（未ログイン）は 401 にする。
 async function signedInUser() {
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   if (!isAccountUser(user)) throw new NoteValidationError(msg("Sign in to use custom instructions."), 401);
   return user;
 }
@@ -40,7 +40,7 @@ export async function PUT(request: Request) {
     const body = await readSmallJson(request, 16384);
     if (!("instructions" in body)) throw new NoteValidationError(msg("Nothing to update."));
     const instructions = validCustomInstructions(body.instructions);
-    await prisma.anonymousUser.update({ where: { id: user.id }, data: { customInstructions: instructions } });
+    await prisma.user.update({ where: { id: user.id }, data: { customInstructions: instructions } });
     return NextResponse.json({ instructions }, NO_STORE);
   } catch (error) {
     return failure(error, msg("Could not save your custom instructions. Please try again."));

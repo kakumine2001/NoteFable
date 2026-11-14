@@ -51,7 +51,7 @@ enum ReasoningEffort {
   MAX
 }
 
-model AnonymousUser {
+model User {
   id          String   @id @default(cuid())
   deviceId    String   @unique
   // Google ログインと紐付けた場合だけ設定する。別端末でも同じ利用者として復元できる。
@@ -117,7 +117,7 @@ model NotePage {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user  AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
   group NoteGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   assistantSessions Session[]
@@ -143,7 +143,7 @@ model NoteRevision {
   createdAt DateTime           @default(now())
 
   note NotePage      @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([noteId, createdAt])
   @@index([userId])
@@ -157,7 +157,7 @@ model NoteGroup {
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  user  AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
   pages NotePage[]
 
   @@index([userId, position])
@@ -178,7 +178,7 @@ model Session {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user          AnonymousUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   project       ChatProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
   note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
   messages      Message[]
@@ -196,7 +196,7 @@ model ChatProject {
   // プロジェクト内のすべての会話に渡す共通の指示（目的・回答の言語や形式など）。null は指示なし。
   instructions String?
   createdAt DateTime @default(now())
-  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   sessions Session[]
   notes ChatProjectNote[]
   @@index([userId, createdAt])
@@ -263,7 +263,7 @@ model NoteCoverAsset {
   checkedAt  DateTime?
   createdAt  DateTime  @default(now())
 
-  user AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([releasedAt])
   @@index([checkedAt])
@@ -286,7 +286,7 @@ model NoteProposal {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  user    AnonymousUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
   session Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])

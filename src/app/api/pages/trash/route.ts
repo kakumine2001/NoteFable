@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { toTrashItem, trashCutoff, tryPurgeExpiredNotes } from "@/lib/note-trash";
 import { prisma } from "@/lib/prisma";
@@ -8,7 +8,7 @@ import { msg } from "@/lib/i18n/translate";
 // ゴミ箱の一覧（捨てた新しい順）。期限切れは先に完全削除し、掃除に失敗しても一覧には出さない。
 export async function GET() {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     await tryPurgeExpiredNotes(user.id);
     const rows = await prisma.notePage.findMany({
       where: { userId: user.id, deletedAt: { gte: trashCutoff() } },
@@ -26,7 +26,7 @@ export async function DELETE(request: Request) {
     const before = new URL(request.url).searchParams.get("before");
     const cutoff = before === null ? null : new Date(before);
     if (cutoff && Number.isNaN(cutoff.getTime())) return NextResponse.json({ error: msg("Invalid time.") }, { status: 400 });
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const result = await prisma.notePage.deleteMany({ where: { userId: user.id, deletedAt: cutoff ? { lte: cutoff } : { not: null } } });
     return NextResponse.json({ ok: true, count: result.count });
   } catch (error) { return noteApiError(error); }

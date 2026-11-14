@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks=vi.hoisted(()=>({find:vi.fn(),findOne:vi.fn(),count:vi.fn(),create:vi.fn(),update:vi.fn(),remove:vi.fn(),lock:vi.fn()}));
-vi.mock("@/lib/auth",()=>({getOrCreateAnonymousUser:async()=>({id:"mine"})}));
+vi.mock("@/lib/auth",()=>({getOrCreateUser:async()=>({id:"mine"})}));
 vi.mock("@/lib/prisma",()=>{
   const chatProject={findMany:mocks.find,findFirst:mocks.findOne,count:mocks.count,create:mocks.create,updateMany:mocks.update,deleteMany:mocks.remove};
   return {prisma:{chatProject,$transaction:async(work:(tx:unknown)=>unknown)=>work({chatProject,$executeRaw:mocks.lock})}};

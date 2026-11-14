@@ -1,6 +1,6 @@
 import {beforeEach,describe,expect,it,vi} from "vitest";
 const mocks=vi.hoisted(()=>({find:vi.fn(),sql:vi.fn()}));
-vi.mock("@/lib/auth",()=>({getOrCreateAnonymousUser:async()=>({id:"mine"})}));
+vi.mock("@/lib/auth",()=>({getOrCreateUser:async()=>({id:"mine"})}));
 vi.mock("@/lib/prisma",()=>({databaseSchema:"public",prisma:{$transaction:async(work:(tx:unknown)=>unknown)=>work({session:{findMany:mocks.find},notePage:{findMany:mocks.find},$executeRaw:mocks.sql})}}));
 import {reorderList} from "./list-order-api";
 const req=(body:unknown)=>new Request("http://localhost/reorder",{method:"POST",body:JSON.stringify(body)});

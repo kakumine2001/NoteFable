@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { MAX_NOTE_FILE_BYTES, noteFileContentType, noteFileKeyParts, noteFileUrl, safeFileName } from "@/lib/note-file-keys";
 import { classifyUpload } from "@/lib/note-files";
@@ -33,7 +33,7 @@ export async function POST(request: Request) {
     const name = safeFileName(file.name) || "file";
     const kind = classifyUpload(buffer, name);
     if (!kind) return NextResponse.json({ error: msg("This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.") }, { status: 400 });
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const path = `note-files/${user.id}/${randomUUID()}.${kind.extension}`;
     await writeStoredImageAt(path, buffer, noteFileContentType(kind.extension));
     return NextResponse.json({ url: noteFileUrl(path, name), name, size: buffer.byteLength, kind: kind.kind }, { status: 201 });
@@ -45,7 +45,7 @@ export async function GET(request: Request) {
   try {
     const params = new URL(request.url).searchParams;
     const key = noteFileKeyParts(params.get("key"));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     if (!key || key.ownerId !== user.id) return NextResponse.json({ error: msg("File not found.") }, { status: 404 });
     let data: Buffer;
     try { data = await readStoredImage(key.path); } catch { return NextResponse.json({ error: msg("File not found.") }, { status: 404 }); }

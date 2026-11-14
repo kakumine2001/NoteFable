@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { answerConversationUrl, answerToNoteContent } from "@/lib/answer-export";
 import { readFromAnswer, savedAtFrom } from "@/lib/answer-export-server";
 import { noteApiError } from "@/lib/note-api";
@@ -16,7 +16,7 @@ import { msg } from "@/lib/i18n/translate";
 export async function POST(request: Request) {
   try {
     const body = readFromAnswer(await readNoteRequest(request));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const session = await prisma.session.findFirst({
       where: { id: body.sessionId, userId: user.id, noteId: null },
       select: { title: true },

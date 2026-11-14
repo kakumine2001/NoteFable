@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { toRevisionDetail } from "@/lib/note-revisions";
 import { prisma } from "@/lib/prisma";
@@ -10,7 +10,7 @@ type Context = { params: Promise<{ pageId: string; revisionId: string }> };
 // 履歴 1 件の中身（プレビュー用）。他人のノート・ゴミ箱のノート・別のノートの履歴は 404。
 export async function GET(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId, revisionId } = await context.params;
     const revision = await prisma.noteRevision.findFirst({
       where: { id: revisionId, noteId: pageId, userId: user.id, note: { userId: user.id, deletedAt: null } },

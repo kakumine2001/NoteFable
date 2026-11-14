@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { NoteValidationError } from "@/lib/note-document";
@@ -11,7 +11,7 @@ export async function reorderList(request: Request, kind: "chat" | "note") {
   try {
     const body=await readSmallJson(request);
     if(typeof body.id!=="string" || typeof body.targetId!=="string" || body.id.length>100 || body.targetId.length>100 || typeof body.after!=="boolean") throw new NoteValidationError(msg("Invalid move."));
-    const user=await getOrCreateAnonymousUser();
+    const user=await getOrCreateUser();
     const move={id:body.id,targetId:body.targetId,after:body.after};
     const items=await prisma.$transaction(async tx=>{
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${kind}-order:${user.id}`}))`;

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { listProjectSummaries, projectError, validProjectName } from "@/lib/chat-project-api";
@@ -8,14 +8,14 @@ import { msg } from "@/lib/i18n/translate";
 
 export async function GET() {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     return NextResponse.json({ projects: await listProjectSummaries(prisma, user.id) });
   } catch (error) { return projectError(error); }
 }
 export async function POST(request: Request) {
   try {
     const name = validProjectName((await readSmallJson(request)).name);
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const project = await prisma.$transaction(async tx => {
       // Serialize creations for this owner so the limit also holds for concurrent requests.
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${user.id}))`;

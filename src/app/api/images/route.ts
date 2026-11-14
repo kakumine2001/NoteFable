@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import { optionalEnv, requireEnv } from "@/lib/env";
 import {
@@ -298,7 +298,7 @@ export async function POST(request: Request) {
     body = await readImageRequest(request);
     if (body.uploads) {
       const tickets = parseUploadReferences(body.uploads);
-      const user = await getOrCreateAnonymousUser();
+      const user = await getOrCreateUser();
       body.files = await loadChatUploads(tickets, user.id, body.files);
     }
   } catch (error) {
@@ -356,7 +356,7 @@ export async function POST(request: Request) {
 
   try {
     // 匿名ユーザーを確定し、既存セッションが指定されている場合は所有者確認に使う。
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     // sessionId が指定された場合だけ既存セッションを入れる。未指定なら completed 時に作成する。
     let existingSession: { id: string; title: string } | null = null;
 

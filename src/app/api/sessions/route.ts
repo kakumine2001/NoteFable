@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
@@ -9,7 +9,7 @@ export async function GET() {
   // 匿名デバイス ID から利用者を決め、その利用者が所有する会話だけを更新順で返す。
   try {
     // Cookie から現在の匿名ユーザーを確定する。
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     // サイドバーに必要な最小限の情報だけ取得する。
     const sessions = await prisma.session.findMany({
       // ノートを開いたまま使う AI アシスタントの会話（noteId あり）は Chats の一覧に出さない。
@@ -54,7 +54,7 @@ export async function POST(request: Request) {
 
   try {
     // 新規セッションの所有者になる匿名ユーザー。
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     // 他人のプロジェクトや存在しないプロジェクトには作らせない。
     if (projectId && !await prisma.chatProject.findFirst({ where: { id: projectId, userId: user.id }, select: { id: true } })) {
       return NextResponse.json({ error: msg("Project not found.") }, { status: 404 });
