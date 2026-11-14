@@ -1,7 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { getCookieSecret } from "@/lib/env";
-import { isGoogleLoginConfigured } from "@/lib/google-auth";
+import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
+import { normalizeEmail } from "@/lib/email-address";
 import { prisma } from "@/lib/prisma";
 
 // 匿名利用者を識別するための Cookie 名。
@@ -77,54 +78,115 @@ export async function ensureAnonymousDeviceId() {
   return existingDeviceId ?? issueDeviceId();
 }
 
-type GoogleIdentity = { sub: string; email: string | null; name: string | null; image: string | null };
+type GoogleIdentity = {
+  kind: "google";
+  sub: string;
+  email: string | null;
+  // Google が確認済みとしたアドレス（小文字）。未確認なら null で、メールログインの利用者とはまとめない。
+  verifiedEmail: string | null;
+  name: string | null;
+  image: string | null;
+};
+type EmailIdentity = { kind: "email"; email: string };
+export type AccountIdentity = GoogleIdentity | EmailIdentity;
 
-async function getGoogleIdentity(): Promise<GoogleIdentity | null> {
-  // 設定が無い環境や Auth.js の失敗では匿名利用に戻し、既存の API を止めない。
-  if (!isGoogleLoginConfigured()) return null;
+export { normalizeEmail };
+
+// ログイン Cookie（Auth.js の JWT）から、Google かメールのどちらでログインしているかを読む。
+// 設定が無い環境や Auth.js の失敗では匿名利用に戻し、既存の API を止めない。
+export async function getAccountIdentity(): Promise<AccountIdentity | null> {
+  if (!isAccountLoginConfigured()) return null;
 
   try {
     const { auth } = await import("@/lib/google-auth");
     const session = await auth();
     const sub = session?.user?.id;
-    if (!sub) return null;
-
-    return {
-      sub,
-      email: session.user?.email ?? null,
-      name: session.user?.name ?? null,
-      image: session.user?.image ?? null,
-    };
+    if (sub && isGoogleLoginConfigured()) {
+      const email = session.user?.email ?? null;
+      return {
+        kind: "google",
+        sub,
+        email,
+        verifiedEmail: email && session.googleEmailVerified ? normalizeEmail(email) : null,
+        name: session.user?.name ?? null,
+        image: session.user?.image ?? null,
+      };
+    }
+    if (session?.loginEmail && isEmailLoginConfigured()) return { kind: "email", email: normalizeEmail(session.loginEmail) };
+    return null;
   } catch {
     return null;
   }
 }
 
-async function getOrCreateGoogleUser(identity: GoogleIdentity) {
+function isUniqueViolation(error: unknown) {
+  return (error as { code?: string }).code === "P2002";
+}
+
+// いま使っている端末の匿名の行。まだどのアカウントにも紐付いていなければ、ログインした人がこのデータを引き継ぐ。
+async function currentDeviceUser() {
+  const deviceId = await ensureAnonymousDeviceId();
+  return prisma.anonymousUser.upsert({ where: { deviceId }, update: {}, create: { deviceId } });
+}
+
+async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<ReturnType<typeof currentDeviceUser>>> {
   const profile = { email: identity.email, name: identity.name, image: identity.image };
   const existing = await prisma.anonymousUser.findUnique({ where: { googleSub: identity.sub } });
 
   if (existing) {
-    // プロフィール（メール・名前・画像）が変わっていたときだけ更新する。
+    // プロフィール（メール・名前・画像）が変わっていたときだけ更新する。確認済みのメールはまだ持っていなければ記録する
+    // （このアドレスでメールログインしたときに同じ利用者になるように）。別の利用者が使っているアドレスなら付けない。
+    const addEmail = identity.verifiedEmail && !existing.verifiedEmail ? identity.verifiedEmail : null;
     const changed =
-      existing.email !== profile.email || existing.name !== profile.name || existing.image !== profile.image;
-    return changed ? prisma.anonymousUser.update({ where: { id: existing.id }, data: profile }) : existing;
+      existing.email !== profile.email || existing.name !== profile.name || existing.image !== profile.image || addEmail;
+    if (!changed) return existing;
+    try {
+      return await prisma.anonymousUser.update({
+        where: { id: existing.id },
+        data: addEmail ? { ...profile, verifiedEmail: addEmail } : profile,
+      });
+    } catch (error) {
+      if (!addEmail || !isUniqueViolation(error)) throw error;
+      // このアドレスはすでに別の利用者のもの（確認済みの印が付く前の Google 利用者が、別の端末でメールログインした場合など）。
+      // 2 人分のデータをまとめるには利用者 ID を含む保存先（ノートのファイルや表紙）まで移す必要があり危ないので、しない。
+      // それぞれの利用者のまま残す（docs/architecture/database.md の verifiedEmail）。
+      return prisma.anonymousUser.update({ where: { id: existing.id }, data: profile });
+    }
+  }
+
+  // このアドレスで先にメールログインしていた利用者がいれば、その利用者に Google を紐付ける（同じ人として扱う）。
+  // アドレスが別の Google アカウントの利用者のものなら（Google 側でアドレスが移った場合など）、アドレスは付けずに進む。
+  let claimEmail = identity.verifiedEmail;
+  if (identity.verifiedEmail) {
+    const byEmail = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.verifiedEmail } });
+    if (byEmail?.googleSub) claimEmail = null;
+    if (byEmail && !byEmail.googleSub) {
+      const linked = await prisma.anonymousUser
+        .updateMany({ where: { id: byEmail.id, googleSub: null }, data: { googleSub: identity.sub, ...profile } })
+        .catch((error: unknown) => {
+          if (isUniqueViolation(error)) return { count: 0 };
+          throw error;
+        });
+      if (linked.count === 1) return prisma.anonymousUser.findUniqueOrThrow({ where: { id: byEmail.id } });
+      const raced = await prisma.anonymousUser.findUnique({ where: { googleSub: identity.sub } });
+      if (raced) return raced;
+    }
   }
 
   // 初めての Google ログイン: いま使っている端末の匿名データをこのアカウントに引き継ぐ。
-  const deviceId = await ensureAnonymousDeviceId();
-  const deviceUser = await prisma.anonymousUser.upsert({
-    where: { deviceId },
-    update: {},
-    create: { deviceId },
-  });
+  const deviceUser = await currentDeviceUser();
+  const data = {
+    googleSub: identity.sub,
+    ...profile,
+    ...(claimEmail ? { verifiedEmail: claimEmail } : {}),
+  };
 
   try {
-    // 端末の利用者が別の Google アカウントに紐付済みなら引き継がず、新しい利用者を作る。
-    // googleSub が null の行だけを条件に更新し、同時リクエストでも紐付けが 1 回だけになるようにする。
+    // 端末の利用者が別のアカウントに紐付済みなら引き継がず、新しい利用者を作る。
+    // googleSub / verifiedEmail が null の行だけを条件に更新し、同時リクエストでも紐付けが 1 回だけになるようにする。
     const claimed = await prisma.anonymousUser.updateMany({
-      where: { id: deviceUser.id, googleSub: null },
-      data: { googleSub: identity.sub, ...profile },
+      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null },
+      data,
     });
 
     if (claimed.count === 1) {
@@ -134,23 +196,62 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity) {
     const raced = await prisma.anonymousUser.findUnique({ where: { googleSub: identity.sub } });
     if (raced) return raced;
 
-    return await prisma.anonymousUser.create({
-      data: { deviceId: randomUUID(), googleSub: identity.sub, ...profile },
-    });
+    return await prisma.anonymousUser.create({ data: { deviceId: randomUUID(), ...data } });
   } catch (error) {
-    // 別の端末が同じアカウントを同時に初回ログインして googleSub の一意制約に当たった場合は、先に作られた行を使う。
-    if ((error as { code?: string }).code !== "P2002") throw error;
+    // 別の端末が同じアカウントを同時に初回ログインして一意制約に当たった場合は、先に作られた行を使う。
+    // 同じアドレスのメールログインの行が先にできていたら、その行に紐付け直す。
+    if (!isUniqueViolation(error)) throw error;
 
     const winner = await prisma.anonymousUser.findUnique({ where: { googleSub: identity.sub } });
+    if (winner) return winner;
+    const byEmail = identity.verifiedEmail
+      ? await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.verifiedEmail } })
+      : null;
+    if (byEmail && !byEmail.googleSub) return getOrCreateGoogleUser(identity);
+    // 同時に別の Google アカウントがこのアドレスを取った: アドレスを付けずにやり直す（毎回失敗し続けないように）。
+    if (byEmail && claimEmail) return getOrCreateGoogleUser({ ...identity, verifiedEmail: null });
+    throw error;
+  }
+}
+
+async function getOrCreateEmailUser(identity: EmailIdentity) {
+  // 同じアドレスの利用者（メールで、または確認済みの Google で以前ログインした人）がいればその人。
+  const existing = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.email } });
+  if (existing) return existing;
+
+  // 初めてのログイン: いま使っている端末の匿名データを引き継ぐ。端末の行がすでに誰かのものなら新しい利用者を作る。
+  const deviceUser = await currentDeviceUser();
+  try {
+    const claimed = await prisma.anonymousUser.updateMany({
+      where: { id: deviceUser.id, googleSub: null, verifiedEmail: null },
+      data: { verifiedEmail: identity.email, email: identity.email },
+    });
+    if (claimed.count === 1) return await prisma.anonymousUser.findUniqueOrThrow({ where: { id: deviceUser.id } });
+
+    const raced = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.email } });
+    if (raced) return raced;
+
+    return await prisma.anonymousUser.create({
+      data: { deviceId: randomUUID(), verifiedEmail: identity.email, email: identity.email },
+    });
+  } catch (error) {
+    if (!isUniqueViolation(error)) throw error;
+    const winner = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.email } });
     if (winner) return winner;
     throw error;
   }
 }
 
+// アカウント（Google またはメール）に紐付いた行か。未ログインの端末にこの行のデータを見せてはいけない。
+export function isAccountUser(user: { googleSub: string | null; verifiedEmail?: string | null }) {
+  return Boolean(user.googleSub || user.verifiedEmail);
+}
+
 export async function getOrCreateAnonymousUser() {
-  // Google にログイン済みならそのアカウントの利用者を返す。
-  const googleIdentity = await getGoogleIdentity();
-  if (googleIdentity) return getOrCreateGoogleUser(googleIdentity);
+  // ログイン済みならそのアカウントの利用者を返す。
+  const identity = await getAccountIdentity();
+  if (identity?.kind === "google") return getOrCreateGoogleUser(identity);
+  if (identity?.kind === "email") return getOrCreateEmailUser(identity);
 
   // 未ログインなら従来どおり Cookie の deviceId と DB の AnonymousUser を対応させる。
   const deviceId = await ensureAnonymousDeviceId();
@@ -160,9 +261,17 @@ export async function getOrCreateAnonymousUser() {
     create: { deviceId },
   });
 
-  if (!user.googleSub) return user;
+  if (!isAccountUser(user)) return user;
 
-  // この端末の Cookie は Google アカウントの行を指している。ログアウト後や Google ログインを
-  // 無効にした環境で、認証なしにそのアカウントのデータを見せないよう、新しい匿名の利用者に切り替える。
+  // この端末の Cookie はアカウントの行を指している。ログアウト後やログインを無効にした環境で、
+  // 認証なしにそのアカウントのデータを見せないよう、新しい匿名の利用者に切り替える。
   return prisma.anonymousUser.create({ data: { deviceId: await issueDeviceId() } });
+}
+
+// 画面に出すアカウントのプロフィール（Google の名前・写真、メールログインならアドレスだけ）。未ログインなら null。
+export async function currentAccountProfile(): Promise<{ name: string | null; email: string | null; image: string | null } | null> {
+  const identity = await getAccountIdentity();
+  if (!identity) return null;
+  if (identity.kind === "email") return { name: null, email: identity.email, image: null };
+  return { name: identity.name, email: identity.email, image: identity.image };
 }

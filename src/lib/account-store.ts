@@ -4,6 +4,9 @@ import { msg } from "@/lib/i18n/translate";
 
 export type Account = {
   configured: boolean;
+  // それぞれのログイン方法が使えるか。古いサーバーの返事には無いので、無いときは Google だけとみなす。
+  google?: boolean;
+  email?: boolean;
   user: AccountUser | null;
   googleClientId?: string | null;
 };

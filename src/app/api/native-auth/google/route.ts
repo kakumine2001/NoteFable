@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { isGoogleLoginConfigured } from "@/lib/google-auth";
 import {
+  attachSessionCookie,
   createSessionCookie,
   GoogleVerificationUnavailableError,
   isSameOrigin,
+  isSecureRequest,
   NONCE_COOKIE,
   readNonce,
-  sessionCookieName,
   verifyGoogleIdToken,
 } from "@/lib/native-google-login";
 
@@ -31,7 +32,7 @@ export async function POST(request: NextRequest) {
 
   // nonce はログイン開始時にこの端末へ発行したもの。使い捨てなので、成否にかかわらずここで消す。
   const nonce = readNonce(request.cookies.get(NONCE_COOKIE)?.value);
-  const secure = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
+  const secure = isSecureRequest(request);
   const clearNonce = (response: NextResponse) => {
     response.cookies.set(NONCE_COOKIE, "", { httpOnly: true, sameSite: "lax", secure, path: "/api/native-auth", maxAge: 0 });
     return response;
@@ -55,19 +56,5 @@ export async function POST(request: NextRequest) {
   } catch {
     return clearNonce(fail(500, "Could not start the session."));
   }
-  const response = clearNonce(NextResponse.json({ ok: true }));
-  response.cookies.set(cookie.name, cookie.value, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure,
-    path: "/",
-    maxAge: cookie.maxAge,
-  });
-
-  // 以前の分割保存（authjs.session-token.0 など）が残っていると、新しい Cookie と連結されて読めなくなる。
-  const base = sessionCookieName(secure);
-  for (const { name } of request.cookies.getAll()) {
-    if (name.startsWith(`${base}.`)) response.cookies.set(name, "", { httpOnly: true, secure, path: "/", maxAge: 0 });
-  }
-  return response;
+  return attachSessionCookie(request, clearNonce(NextResponse.json({ ok: true })), cookie, secure);
 }

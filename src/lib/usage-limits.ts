@@ -16,9 +16,10 @@ export function usageDay(now = new Date()) {
   return new Date(now.getTime() + DAY_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-export function usageTier(user: { googleSub: string | null; plan?: string | null }): UsageTier {
+export function usageTier(user: { googleSub: string | null; verifiedEmail?: string | null; plan?: string | null }): UsageTier {
   if (user.plan === "PRO") return "pro";
-  return user.googleSub ? "member" : "guest";
+  // Google でもメールでも、ログインしていれば会員。
+  return user.googleSub || user.verifiedEmail ? "member" : "guest";
 }
 
 export function clientNetworkKey(request: Request) {
@@ -33,8 +34,8 @@ export function clientNetworkKey(request: Request) {
 export function limitReachedMessage(tier: UsageTier, kind: UsageKind) {
   if (tier === "guest") {
     return kind === "image"
-      ? msg("You've used today's free image generations. Sign in with Google for more, or try again tomorrow.")
-      : msg("You've used today's free messages. Sign in with Google for more, or try again tomorrow.");
+      ? msg("You've used today's free image generations. Sign in for more, or try again tomorrow.")
+      : msg("You've used today's free messages. Sign in for more, or try again tomorrow.");
   }
   return kind === "image"
     ? msg("You've reached today's image generation limit. Try again tomorrow.")
@@ -55,7 +56,7 @@ class LimitReached extends Error {}
 const table = () => Prisma.raw(`"${databaseSchema}"."UsageCounter"`);
 
 export async function consumeUsage(
-  user: { id: string; googleSub: string | null; plan?: string | null },
+  user: { id: string; googleSub: string | null; verifiedEmail?: string | null; plan?: string | null },
   kind: UsageKind,
   networkKey: string | null,
 ): Promise<UsageResult> {
