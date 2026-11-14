@@ -18,7 +18,7 @@ export function GuestLimitPrompt({ kind, onClose, onBeforeSignIn, attachmentsLos
 }) {
   const t = useT();
   const { account } = useAccount();
-  const { start, failed } = useGoogleSignIn(account);
+  const { start, failed } = useGoogleSignIn();
 
   if (!account?.configured || account.user) return null;
 

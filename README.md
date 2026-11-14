@@ -4,7 +4,7 @@
 
 项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Notes 笔记、回答的复制 / 保存到 Notes / Markdown 导出、跨 Chats 与 Notes 的关键词搜索（容忍全角半角、平假名片假名等写法差异，也搜索附件文本）、聊天项目的共通指示与参考笔记，以及笔记的 Trash（回收站）和编辑历史。
 
-网站根路径 `/` 是产品介绍主页，点击主页入口后进入 `/app` 使用聊天与 Notes；也可以直接收藏 `/app`。旧的根路径会话和笔记链接（带 `chat`、`message`、`view` 或 `page` 参数）会保留全部查询参数转到 `/app`，已保存的链接继续可用。Android 外壳从原来的根地址启动时会自动进入 `/app`，无需重新打包。
+网站根路径 `/` 是产品介绍主页，点击主页入口后进入 `/app` 使用聊天与 Notes；也可以直接收藏 `/app`。旧的根路径会话和笔记链接（带 `chat`、`message`、`view` 或 `page` 参数）会保留全部查询参数转到 `/app`，已保存的链接继续可用。
 
 界面支持 English、简体中文、繁體中文和日本語。首页右上角及工作区侧栏底部的语言选项对匿名和登录用户都可用。自动模式按“手动选择的 Cookie → 浏览器 `Accept-Language` → Vercel 访问地区 → 英文”决定语言；浏览器偏好优先于地理位置。浏览器为 zh-TW / zh-HK / zh-Hant 时显示繁体中文；地区回退时中国大陆、新加坡使用简体中文，台湾、香港、澳门使用繁体中文，日本使用日文。首页和 `/app` 按语言预先生成静态页面，由 `src/proxy.ts` 选择语言并在网址不变的情况下返回对应页面。手动选择在当前浏览器保存一年，选择“自动”会清除该偏好。它不跟随 Google 账号跨设备同步，也不改写聊天、笔记或 AI 的输出语言。隐私政策、服务条款正文及上游服务的原始错误仍为英文。实现和维护方式见[界面语言](docs/architecture/i18n.md)。
 
@@ -264,7 +264,7 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## 回答的复制、保存与导出
 
-每条完成的 AI 回答下面只保留复制和三个点（More options）两个图标；三个点菜单里提供 Save to page、保存后的 Open saved page，以及 Download conversation（下载整段对话），把好的回答直接用到工作里，不必再请 AI 重述。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（`POST /api/pages`，和手动新建同一个接口）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用和 Web 搜索的出处链接（表格变成每行一个段落），末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/?chat=<会话 ID>&message=<消息 ID>`，打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie / Google 账号归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。安卓 App 里的 Markdown 下载没有验证（见 [android.md](docs/architecture/android.md#限制)）。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
+每条完成的 AI 回答下面只保留复制和三个点（More options）两个图标；三个点菜单里提供 Save to page、保存后的 Open saved page，以及 Download conversation（下载整段对话），把好的回答直接用到工作里，不必再请 AI 重述。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（`POST /api/pages`，和手动新建同一个接口）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用和 Web 搜索的出处链接（表格变成每行一个段落），末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/?chat=<会话 ID>&message=<消息 ID>`，打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie / Google 账号归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
 
 ## 搜索、项目上下文与 Trash
 
@@ -278,7 +278,7 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## Android 应用
 
-`mobile/android/` 是 Capacitor 安卓外壳，直接打开线上网页，网站更新后无需重新打包，见 [android.md](docs/architecture/android.md)。`mobile/native/` 是接替外壳的 Kotlin / Compose 客户端，已有聊天、模型切换和 Google 登录代码；笔记编辑器尚未接入，见 [android-native.md](docs/architecture/android-native.md)。两者使用同一个包名，不能同时安装。
+Android 客户端是 `mobile/native/` 的 Kotlin / Compose 原生 App（原来的 Capacitor 外壳已删除），已有聊天、模型切换、附件、生成图片和 Google 登录；笔记尚未接入，见 [android-native.md](docs/architecture/android-native.md)。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)。
 
 ## API 保护
 

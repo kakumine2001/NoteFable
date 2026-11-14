@@ -20,7 +20,7 @@
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
-8. [android.md](android.md) — 安卓外壳：怎么改、开发环境、打包、限制
+8. [android.md](android.md) — Android 开发环境、APK 交付、App 内 Google 登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [i18n.md](i18n.md) — 英/简中/繁中/日界面、语言选择 Cookie、浏览器和地区回退
 
@@ -79,7 +79,7 @@ flowchart LR
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；已 Google 登录时返回对应账号的用户 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |
-| `src/lib/native-google-login.ts`、`src/app/api/native-auth/*`、`src/lib/native-app.ts` | Android App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)） |
+| `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)） |
 | `src/lib/models.ts` | 模型能力、推理档位 |
 | `src/lib/claude-image.ts` | Claude 模型图片副本压缩与尺寸控制，原图保留 |
 | `src/lib/files.ts` | 文件校验、PDF/文本抽取、图片预处理 |

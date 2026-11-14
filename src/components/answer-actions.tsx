@@ -5,7 +5,6 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSy
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
-import { isNativeApp } from "@/lib/native-app";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -34,7 +33,6 @@ function subscribe(listener: () => void) {
   return () => { listeners.delete(listener); };
 }
 
-const noSubscription = () => () => {};
 
 const SAVE_FAILED = msg("Could not save to Notes. Try again.");
 
@@ -160,8 +158,6 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   const closeMenu = useCallback(() => setMenu(null), []);
   const alive = useRef(true);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  // Android アプリでは Markdown のダウンロードが動かないので出さない（サーバー描画と合わせるため、マウント後に判定する）。
-  const native = useSyncExternalStore(noSubscription, isNativeApp, () => false);
 
   useEffect(() => {
     alive.current = true;
@@ -265,10 +261,10 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           href={`/?view=pages&page=${encodeURIComponent(save.pageId)}`} onClick={event => openNote(event, save.pageId)}>
           <ArrowUpRight size={16} aria-hidden="true" />{t("Open saved page")}
         </a>}
-        {!native && <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={downloading} aria-busy={downloading} onClick={() => void download()}>
+        <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={downloading} aria-busy={downloading} onClick={() => void download()}>
           {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
           {downloading ? t("Downloading…") : t("Download conversation")}
-        </button>}
+        </button>
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
         {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error.message, t)}</p>}
       </AnswerMenu>}
