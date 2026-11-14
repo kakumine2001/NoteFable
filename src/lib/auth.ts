@@ -147,12 +147,9 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
       });
     } catch (error) {
       if (!addEmail || !isUniqueViolation(error)) throw error;
-      // このアドレスで先にメールログインしていた別の利用者がいる（以前の Google 利用者が、確認済みの印が付く前に
-      // 別の端末でメールログインした場合）。同じ人なので、その利用者のデータをこの Google の利用者にまとめる。
-      const emailUser = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: addEmail } });
-      if (emailUser && !emailUser.googleSub && emailUser.id !== existing.id) {
-        return mergeEmailUserInto(existing.id, emailUser.id, addEmail, profile);
-      }
+      // このアドレスはすでに別の利用者のもの（確認済みの印が付く前の Google 利用者が、別の端末でメールログインした場合など）。
+      // 2 人分のデータをまとめるには利用者 ID を含む保存先（ノートのファイルや表紙）まで移す必要があり危ないので、しない。
+      // それぞれの利用者のまま残す（docs/architecture/database.md の verifiedEmail）。
       return prisma.anonymousUser.update({ where: { id: existing.id }, data: profile });
     }
   }
@@ -215,28 +212,6 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
     if (byEmail && claimEmail) return getOrCreateGoogleUser({ ...identity, verifiedEmail: null });
     throw error;
   }
-}
-
-// メールだけで使っていた利用者（googleSub なし）のデータを、同じアドレスの Google の利用者に移して 1 人にまとめる。
-// 移すのは利用者に直接ぶら下がる行だけ（メッセージや添付はチャットごと付いてくる）。移した後の空の行は消す。
-async function mergeEmailUserInto(
-  targetId: string,
-  emailUserId: string,
-  email: string,
-  profile: { email: string | null; name: string | null; image: string | null },
-) {
-  return prisma.$transaction(async (tx) => {
-    const move = { where: { userId: emailUserId }, data: { userId: targetId } };
-    await tx.session.updateMany(move);
-    await tx.chatProject.updateMany(move);
-    await tx.noteGroup.updateMany(move);
-    await tx.notePage.updateMany(move);
-    await tx.noteRevision.updateMany(move);
-    await tx.noteProposal.updateMany(move);
-    await tx.noteCoverAsset.updateMany(move);
-    await tx.anonymousUser.delete({ where: { id: emailUserId } });
-    return tx.anonymousUser.update({ where: { id: targetId }, data: { ...profile, verifiedEmail: email } });
-  });
 }
 
 async function getOrCreateEmailUser(identity: EmailIdentity) {

@@ -217,7 +217,7 @@ erDiagram
 - `id`：内部主键
 - `deviceId`：签名 Cookie 对应的唯一设备 ID
 - `googleSub`：可空且唯一，Google 账号 ID；首次 Google 登录时绑定到当前设备的用户，之后在任何设备登录同一账号都会得到这一行
-- `verifiedEmail`：可空且唯一，确认过的邮箱（小写）。用邮箱验证码登录的邮箱，或 Google 登录时 Gmail / Google Workspace（ID 令牌带 `hd`）的已验证邮箱（`isAuthoritativeGoogleEmail`，`src/lib/email-address.ts`），都写在这里；同一个邮箱就是同一个用户，所以先用 Google 再用邮箱（或反过来）登录会进同一个账号（`src/lib/auth.ts`）。其他 Google 账号上登记的外部邮箱即使 `email_verified` 也不写、不合并：那种邮箱可能已经换了主人，合并会让旧主人看到新主人的数据。已有 Google 用户：Gmail 由 `20261114120100_email_login_gmail_backfill` 迁移补上，Workspace 用户在下次重新 Google 登录后补上；补的时候如果这个邮箱已经被一个只用邮箱登录的用户占了，就把那个用户的聊天、项目、笔记、分组、历史、提案和封面移到 Google 用户名下并删掉空行（`mergeEmailUserInto`）。通过 `20261114120000_email_login` migration 部署
+- `verifiedEmail`：可空且唯一，确认过的邮箱（小写）。用邮箱验证码登录的邮箱，或 Google 登录时 Gmail / Google Workspace（ID 令牌带 `hd`）的已验证邮箱（`isAuthoritativeGoogleEmail`，`src/lib/email-address.ts`），都写在这里；同一个邮箱就是同一个用户，所以先用 Google 再用邮箱（或反过来）登录会进同一个账号（`src/lib/auth.ts`）。其他 Google 账号上登记的外部邮箱即使 `email_verified` 也不写、不合并：那种邮箱可能已经换了主人，合并会让旧主人看到新主人的数据。已有 Google 用户：Gmail 由 `20261114120100_email_login_gmail_backfill` 迁移补上，Workspace 用户在下次重新 Google 登录后补上；补的时候如果这个邮箱已经被一个只用邮箱登录的用户占了（Workspace 老用户在补上之前先在别的设备用邮箱登录过），两个用户保持分开、不合并数据：笔记文件和封面的存储路径里带着用户 ID，搬数据要连文件一起改，风险大，而这种情况只会出现在邮箱登录上线初期的 Workspace 老用户身上。通过 `20261114120000_email_login` migration 部署
 - `email` / `name` / `image`：可空，登录时从 Google 同步的资料（邮箱登录的用户只有 `email`）
 - `displayName` / `avatarIcon` / `avatarImage`：可空，用户在侧栏“个人资料”里自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已登录（Google 或邮箱）的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
 
@@ -245,7 +245,7 @@ AnonymousUser 1 -> N Session
 
 ### EmailLoginCode
 
-邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是发送方 IP 的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后把这个邮箱所有未过期的验证码设为过期（不删除，否则限流的计数会被清零）；任何一个未过期、还有剩余次数的验证码都能用，所以别人替你再要一个新码不会让你手上的码失效；输错时这些码的次数一起加 1；过期 1 小时以上的行在发新码时顺带删除（没有定时任务）。没有外键。
+邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是发送方 IP 的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后把这个邮箱所有还能用的验证码标成已使用（`attempts` 设为 1000 并过期；不删除，否则限流的计数会被清零；用 `attempts` 而不是时间来判断，所以同一个码同时提交两次只有一次成功）；任何一个未过期、还有剩余次数的验证码都能用，所以别人替你再要一个新码不会让你手上的码失效；输错时这些码的次数一起加 1；过期 1 小时以上的行在发新码时顺带删除（没有定时任务）。没有外键。
 
 ### NotePage
 

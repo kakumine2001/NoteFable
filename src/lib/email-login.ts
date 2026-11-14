@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma";
 // コードそのものは保存せず、AUTH_SECRET を鍵にした HMAC だけを持つ。
 export const CODE_TTL_MS = 10 * 60 * 1000;
 export const MAX_ATTEMPTS = 5;
+// 使い終わったコードの印。試行回数の上限より大きいので、照合の条件（attempts < MAX_ATTEMPTS）に二度と当てはまらない。
+export const CONSUMED_ATTEMPTS = 1000;
 // 同じアドレスへの送信は 1 分に 1 回、1 時間に 5 回まで。同じ送信元からは 1 時間に 20 回まで。
 export const RESEND_INTERVAL_MS = 60 * 1000;
 export const MAX_CODES_PER_EMAIL_PER_HOUR = 5;
@@ -107,7 +109,7 @@ export async function verifyLoginCode(email: string, code: string, now = new Dat
   });
   if (!rows.length) return "expired";
   const open = rows.filter((row) => row.attempts < MAX_ATTEMPTS);
-  if (!open.length) return "locked";
+  if (!open.length) return rows.some((row) => row.attempts === CONSUMED_ATTEMPTS) ? "expired" : "locked";
 
   const actual = hashCode(email, code);
   const match = open.find((row) => sameHash(row.codeHash, actual));
@@ -123,12 +125,16 @@ export async function verifyLoginCode(email: string, code: string, now = new Dat
 
   // 使ったコードは消さずに期限切れにする（送信の回数制限はこの行の createdAt で数えるので、消すと制限が戻ってしまう）。
   // 同時に 2 回正しいコードが送られても、期限切れにできた方だけを成功にする。
+  // 期限ではなく試行回数を「使用済み」にして判定する: 時刻はリクエストごとに違うので、期限だけだと
+  // 少し早く始まった同じコードのリクエストが、先に終わった方の書いた期限より前の時刻で通ってしまう。
   const consumed = await prisma.emailLoginCode.updateMany({
-    where: { id: match.id, attempts: { lt: MAX_ATTEMPTS }, expiresAt: { gt: now } },
-    data: { expiresAt: now },
+    where: { id: match.id, attempts: { lt: MAX_ATTEMPTS } },
+    data: { attempts: CONSUMED_ATTEMPTS, expiresAt: now },
   });
   if (!consumed.count) return "expired";
-  await prisma.emailLoginCode.updateMany({ where: { email, expiresAt: { gt: now } }, data: { expiresAt: now } }).catch(() => {});
+  await prisma.emailLoginCode
+    .updateMany({ where: { email, attempts: { lt: MAX_ATTEMPTS } }, data: { attempts: CONSUMED_ATTEMPTS, expiresAt: now } })
+    .catch(() => {});
   return "ok";
 }
 

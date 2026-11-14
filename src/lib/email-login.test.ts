@@ -16,6 +16,7 @@ const prismaMock = vi.hoisted(() => ({
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 
 import {
+  CONSUMED_ATTEMPTS,
   createLoginCode,
   hashCode,
   loginEmailContent,
@@ -105,8 +106,8 @@ describe("verifyLoginCode", () => {
     prismaMock.emailLoginCode.updateMany.mockResolvedValue({ count: 1 });
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("ok");
     expect(prismaMock.emailLoginCode.updateMany).toHaveBeenCalledWith({
-      where: { email: "a@example.com", expiresAt: { gt: now } },
-      data: { expiresAt: now },
+      where: { email: "a@example.com", attempts: { lt: MAX_ATTEMPTS } },
+      data: { attempts: CONSUMED_ATTEMPTS, expiresAt: now },
     });
     expect(prismaMock.emailLoginCode.deleteMany).not.toHaveBeenCalled();
   });
@@ -116,8 +117,8 @@ describe("verifyLoginCode", () => {
     prismaMock.emailLoginCode.updateMany.mockResolvedValue({ count: 1 });
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("ok");
     expect(prismaMock.emailLoginCode.updateMany).toHaveBeenCalledWith({
-      where: { id: "old", attempts: { lt: MAX_ATTEMPTS }, expiresAt: { gt: now } },
-      data: { expiresAt: now },
+      where: { id: "old", attempts: { lt: MAX_ATTEMPTS } },
+      data: { attempts: CONSUMED_ATTEMPTS, expiresAt: now },
     });
   });
 
@@ -141,6 +142,11 @@ describe("verifyLoginCode", () => {
 
     prismaMock.emailLoginCode.findMany.mockResolvedValue([row(MAX_ATTEMPTS)]);
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("locked");
+  });
+
+  it("treats an already used code as expired, not as locked", async () => {
+    prismaMock.emailLoginCode.findMany.mockResolvedValue([row(CONSUMED_ATTEMPTS)]);
+    expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("expired");
   });
 
   it("reports an expired code when none is valid", async () => {

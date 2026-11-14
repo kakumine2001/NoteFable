@@ -217,21 +217,19 @@ describe("getOrCreateAnonymousUser", () => {
       data: expect.not.objectContaining({ verifiedEmail: expect.anything() }),
     });
   });
-
-  it("merges an earlier email-only user into the Google user when the address collides", async () => {
-    prismaMock.$transaction.mockImplementation(async (work: (tx: typeof prismaMock) => unknown) => work(prismaMock));
+  it("keeps the Google user separate when an email-only user already holds the address", async () => {
     session.value = { ...google, googleEmailVerified: true };
-    prismaMock.anonymousUser.findUnique
-      .mockResolvedValueOnce({ id: "google-user", googleSub: "g-1", verifiedEmail: null, email: "a@example.com", name: "A", image: null })
-      .mockResolvedValueOnce({ id: "email-user", googleSub: null, verifiedEmail: "a@example.com" });
+    prismaMock.anonymousUser.findUnique.mockResolvedValueOnce({
+      id: "google-user", googleSub: "g-1", verifiedEmail: null, email: "a@example.com", name: "A", image: null,
+    });
     prismaMock.anonymousUser.update
       .mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }))
-      .mockResolvedValueOnce({ id: "google-user", verifiedEmail: "a@example.com" });
+      .mockResolvedValueOnce({ id: "google-user" });
     const user = await getOrCreateAnonymousUser();
     expect(user.id).toBe("google-user");
-    for (const model of [prismaMock.session, prismaMock.notePage, prismaMock.chatProject, prismaMock.noteGroup]) {
-      expect(model.updateMany).toHaveBeenCalledWith({ where: { userId: "email-user" }, data: { userId: "google-user" } });
-    }
-    expect(prismaMock.anonymousUser.delete).toHaveBeenCalledWith({ where: { id: "email-user" } });
+    expect(prismaMock.anonymousUser.update).toHaveBeenLastCalledWith({
+      where: { id: "google-user" },
+      data: { email: "a@example.com", name: "A", image: null },
+    });
   });
 });

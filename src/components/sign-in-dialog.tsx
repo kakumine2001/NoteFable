@@ -59,6 +59,8 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
   const ref = useRef<HTMLDialogElement>(null);
   const [step, setStep] = useState<"choose" | "code">("choose");
   const [email, setEmail] = useState("");
+  // コードを送ったアドレス。送信中に入力欄を書き換えても、コードの画面と照合はこのアドレスで行う。
+  const [sentTo, setSentTo] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -71,10 +73,12 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
   const showEmail = Boolean(account?.email);
 
   async function sendCode(again = false) {
+    const address = again ? sentTo : email;
     setBusy(true); setError(""); setNotice("");
-    const failed = await post("/api/auth/email/start", { email, locale });
+    const failed = await post("/api/auth/email/start", { email: address, locale });
     setBusy(false);
     if (failed) return setError(failed);
+    setSentTo(address);
     setStep("code");
     setCode("");
     if (again) setNotice(msg("We sent a new code."));
@@ -82,7 +86,7 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
 
   async function verify() {
     setBusy(true); setError(""); setNotice("");
-    const failed = await post("/api/auth/email/verify", { email, code });
+    const failed = await post("/api/auth/email/verify", { email: sentTo, code });
     if (failed) {
       setBusy(false);
       return setError(failed);
@@ -119,7 +123,7 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
           {showGoogle && showEmail && <div className="signin-divider" role="separator"><span>{t("or")}</span></div>}
           {showEmail && (
             <form onSubmit={(event) => { event.preventDefault(); void sendCode(); }}>
-              <input type="email" inputMode="email" autoComplete="email" value={email} maxLength={254}
+              <input type="email" inputMode="email" autoComplete="email" value={email} maxLength={254} readOnly={busy}
                 onChange={(event) => setEmail(event.target.value)} placeholder={t("Email address")}
                 className="notes-dialog-input signin-input" aria-label={t("Email address")} autoFocus={!showGoogle} />
               {feedback}
@@ -137,7 +141,7 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
             <ArrowLeft size={16} /><span>{t("Back")}</span>
           </button>
           <h2 className="signin-title">{t("Check your email")}</h2>
-          <p className="signin-subtitle break-words">{t("We sent a 6-digit code to {email}. It expires in 10 minutes.", { email })}</p>
+          <p className="signin-subtitle break-words">{t("We sent a 6-digit code to {email}. It expires in 10 minutes.", { email: sentTo })}</p>
           <input autoFocus inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={code}
             onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
             className="notes-dialog-input signin-input signin-code" aria-label={t("6-digit code")} placeholder="000000" />
