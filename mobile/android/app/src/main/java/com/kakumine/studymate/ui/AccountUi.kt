@@ -437,9 +437,12 @@ private fun ProfileMenu(
                     }
                 }
                 // 设置（网页 onOpenSettings）：关掉弹层再开设置窗口；输入中的名字和关弹层时一样先存掉。
+                // 照片上传中不开（弹层一关，失败的提示就没地方显示，和 canClose 同一条规则）。
                 ProfileAction(Lucide.Settings, stringResource(R.string.acct_settings)) {
-                    profile.saveName(draft)
-                    onOpenSettings()
+                    if (canClose()) {
+                        profile.saveName(draft)
+                        onOpenSettings()
+                    }
                 }
                 // 网页靠 blur 先把输入中的名字存掉；这里点按钮不会抢焦点，所以先排进保存队列，signOut 会等它发完。
                 ProfileAction(Lucide.LogOut, stringResource(R.string.sign_out)) {

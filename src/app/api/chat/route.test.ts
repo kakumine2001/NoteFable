@@ -637,6 +637,8 @@ describe("chats inside a project", () => {
       // プロジェクトの共通指示は後ろに置き、食い違うときはそちらが優先する。
       expect(prompt.indexOf("=== Project instructions ===")).toBeGreaterThan(custom);
       expect(prompt).toContain("the project instructions win");
+      // 終わりの区切りは 1 行で終わり、プロジェクトの文が同じ行に続かない。
+      expect(prompt).toContain("=== End of user's custom instructions ===\n This chat belongs");
     });
 
     it("applies them in a chat outside any project", async () => {

@@ -88,6 +88,13 @@ fun toggleProjectNote(selected: List<ChatProjectNote>, note: ChatProjectNote): L
     else -> selected + note
 }
 
+/** 输入框的字数上限（网页 textarea 的 maxLength，按 UTF-16 计）：超出的截掉，但不把一个表情（代理对）从中间切开。 */
+fun clipInstructions(text: String, max: Int): String {
+    if (text.length <= max) return text
+    val end = if (max > 0 && text[max - 1].isHighSurrogate()) max - 1 else max
+    return text.substring(0, end)
+}
+
 private val SettingsDanger = Color(0xFFB91C1C) // .project-settings-error
 private val CountFull = Color(0xFFB45309)      // .project-settings-count.is-full
 private val SettingsShadow = Color(0x1F0F0F0F) // --notion-shadow
@@ -178,7 +185,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                         // 共通指示
                         SettingsSectionLabel(stringResource(R.string.sb_instructions), "${instructions.length}/$MAX_PROJECT_INSTRUCTIONS", full = false)
                         SettingsHelpText(stringResource(R.string.sb_instructions_help))
-                        InstructionsField(instructions, { instructions = it.take(MAX_PROJECT_INSTRUCTIONS) }, enabled = !busy,
+                        InstructionsField(instructions, { instructions = clipInstructions(it, MAX_PROJECT_INSTRUCTIONS) }, enabled = !busy,
                             label = stringResource(R.string.sb_instructions), placeholder = stringResource(R.string.sb_instructions_placeholder))
 
                         // 参考笔记

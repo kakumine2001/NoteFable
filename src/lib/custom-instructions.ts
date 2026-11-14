@@ -1,10 +1,17 @@
 import { validProjectInstructions } from "@/lib/chat-project-api";
 
-// カスタム指示: 利用者がすべてのチャットに対して書く指示。プロジェクトの共通指示と同じ検証（最大 4,000 文字、
+// カスタム指示: ログインした利用者がすべてのチャットに対して書く指示。プロジェクトの共通指示と同じ検証（最大 4,000 文字、
 // 改行とタブ以外の制御文字は不可、空は null）を使う。
 export const validCustomInstructions = validProjectInstructions;
 
+// カスタム指示を使える利用者（ログイン済み）か。匿名の行（端末 Cookie だけ）は使えない。
+// verifiedEmail はメールでのログインが入ったときの印で、その利用者も Google の利用者と同じに扱う。
+export function canUseCustomInstructions(user: { googleSub: string | null; verifiedEmail?: string | null }) {
+  return Boolean(user.googleSub || user.verifiedEmail);
+}
+
 // システム指示に足す文章。利用者自身の指示なので従う対象として渡す。プロジェクトの共通指示があるときはそちらが優先する。
+// 終わりの区切り行のあとに続く文（プロジェクトの文脈）が同じ行につながらないよう、改行で終える。
 export function formatCustomInstructions(instructions: string | null | undefined): string | null {
   const text = instructions?.trim();
   if (!text) return null;
@@ -13,5 +20,6 @@ export function formatCustomInstructions(instructions: string | null | undefined
     "=== User's custom instructions ===",
     text,
     "=== End of user's custom instructions ===",
+    "",
   ].join("\n");
 }

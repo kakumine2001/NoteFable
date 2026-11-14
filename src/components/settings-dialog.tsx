@@ -30,7 +30,9 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [instructions, setInstructions] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  useBackToClose(true, onClose);
+  // 保存中は閉じない（Esc・戻る・外側のクリック）。閉じると、保存に失敗しても知らせる場所がなくなる。
+  const close = () => { if (!locked.current) onClose(); };
+  useBackToClose(true, close);
   useEffect(() => { ref.current?.showModal(); }, []);
 
   useEffect(() => {
@@ -64,8 +66,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
 
   // サイドバーは幅によって隠れる（デスクトップ用と抽屉用の 2 つがある）ので、その外（body）に出す。
   return createPortal(<dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings"
-    onCancel={(event) => { event.preventDefault(); onClose(); }}
-    onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
+    onCancel={(event) => { event.preventDefault(); close(); }}
+    onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
     <form className="project-settings-shell" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className="project-settings-header">
         <h2 id={titleId}>{t("Settings")}</h2>

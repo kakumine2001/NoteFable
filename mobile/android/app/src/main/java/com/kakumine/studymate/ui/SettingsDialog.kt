@@ -136,7 +136,7 @@ fun SettingsDialog(profile: AccountViewModel, onClose: () -> Unit) {
                     else -> {
                         SettingsSectionLabel(stringResource(R.string.acct_custom_instructions), "${instructions.length}/$MAX_CUSTOM_INSTRUCTIONS", full = false)
                         SettingsHelpText(stringResource(R.string.acct_custom_instructions_help))
-                        InstructionsField(instructions, { instructions = it.take(MAX_CUSTOM_INSTRUCTIONS) }, enabled = !busy,
+                        InstructionsField(instructions, { instructions = clipInstructions(it, MAX_CUSTOM_INSTRUCTIONS) }, enabled = !busy,
                             label = stringResource(R.string.acct_custom_instructions), placeholder = stringResource(R.string.acct_custom_instructions_placeholder))
                     }
                 }

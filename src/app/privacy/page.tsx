@@ -36,7 +36,8 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
-            alongside them), files and images you attach or generate, and your Notes (pages, covers, images, files and groups).
+            alongside them), files and images you attach or generate, your Notes (pages, covers, images, files and groups), and any instructions you write for the AI (custom instructions in Settings and
+            project instructions), which are sent to the AI provider along with your messages.
             Attached documents such as PDFs and text files are kept as extracted text; images are kept as files. If you upload a profile photo, we keep
             the cropped photo (about 512×512) in file storage and delete the old file when you replace or remove it.
           </li>

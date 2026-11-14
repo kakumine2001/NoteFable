@@ -117,6 +117,19 @@ class AccountViewModelTest {
         assertEquals(failure, model.saveCustomInstructions("x"))
     }
 
+    @Test
+    fun `settings save only when the trimmed text changed, and clipping never splits an emoji`() {
+        assertFalse(customInstructionsChanged("Be brief.", "  Be brief.\n"))
+        assertFalse(customInstructionsChanged("", "   "))
+        assertTrue(customInstructionsChanged("Be brief.", "Be brief!"))
+        assertTrue(customInstructionsChanged("Be brief.", ""))
+
+        assertEquals("abc", clipInstructions("abc", 4))
+        assertEquals("abcd", clipInstructions("abcde", 4))
+        assertEquals("abc", clipInstructions("abc😀", 4))
+        assertEquals("ab😀", clipInstructions("ab😀x", 4))
+    }
+
     private fun model(backend: FakeAccount, profile: FakeProfile = FakeProfile(backend)) = AccountViewModel(backend, profile)
 
     @Test

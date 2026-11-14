@@ -190,7 +190,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
             <RotateCcw size={14} />{t("Use my Google name and photo")}
           </button>
         )}
-        <button type="button" aria-haspopup="dialog" onClick={onOpenSettings}><Settings size={14} />{t("Settings")}</button>
+        {/* 写真を送っている最中は開かない（メニューが閉じると、失敗の知らせが消える）。 */}
+        <button type="button" aria-haspopup="dialog" disabled={uploading} onClick={onOpenSettings}><Settings size={14} />{t("Settings")}</button>
         <button type="button" onClick={onSignOut}><LogOut size={14} />{t("Sign out")}</button>
       </div>
     </Popover>,

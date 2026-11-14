@@ -64,10 +64,16 @@ describe("saving custom instructions", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("refuses a guest without writing", async () => {
+  it.each([["a valid body", { instructions: "Be brief" }], ["a bad body", "{"]])("refuses a guest with %s without writing", async (_name, body) => {
     mocks.user.mockResolvedValue({ id: "guest", googleSub: null, customInstructions: null });
-    expect((await put({ instructions: "Be brief" })).status).toBe(401);
+    expect((await put(body)).status).toBe(401);
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts an account that signed in by email", async () => {
+    mocks.user.mockResolvedValue({ id: "mail", googleSub: null, verifiedEmail: "a@example.test", customInstructions: null });
+    expect((await put({ instructions: "Be brief" })).status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "mail" }, data: { customInstructions: "Be brief" } });
   });
 
   it("answers 503 when the write fails", async () => {
