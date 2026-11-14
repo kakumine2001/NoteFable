@@ -15,6 +15,8 @@ import okhttp3.FormBody
 import okhttp3.MediaType
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import java.io.OutputStream
 import okhttp3.RequestBody
 import okio.BufferedSink
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -57,8 +59,12 @@ class StudyMateApi(
     /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
     private val openFile: (String) -> InputStream = { throw IOException("no file access") },
 ) : ChatBackend, AccountBackend, NotesBackend {
+    /** 身份没确定前只放一个请求（见 [IdentityGate]）；所有客户端都由 [client] 派生，都经过它。 */
+    val identityGate = IdentityGate(baseUrl.toHttpUrl().host)
+
     private val client: OkHttpClient = OkHttpClient.Builder()
         .cookieJar(cookieJar)
+        .addInterceptor(identityGate)
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .callTimeout(60, TimeUnit.SECONDS)
@@ -253,8 +259,30 @@ class StudyMateApi(
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash?before=" + URLEncoder.encode(before, "UTF-8"))).delete())
     }
 
-    override fun noteEmbedUrl(pageId: String, lang: String?): String =
-        absoluteUrl("/note-embed?page=" + URLEncoder.encode(pageId, "UTF-8") + (lang?.let { "&lang=$it" } ?: ""))
+    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?): String =
+        absoluteUrl(
+            "/note-embed?page=" + segment(pageId) +
+                (lang?.let { "&lang=$it" } ?: "") +
+                (model?.let { "&model=" + segment(it) } ?: "") +
+                (reasoning?.let { "&reasoning=" + segment(it) } ?: ""),
+        )
+
+    /**
+     * 下载笔记里的文件（`/api/pages/files?key=…`）。文件是私有的，要带 App 的 Cookie，所以不能交给系统浏览器。
+     * 拿到响应头后用文件名和类型调用 [target] 要一个输出流，再把内容写进去。服务端出错时抛 [ApiException]。
+     */
+    suspend fun downloadNoteFile(url: String, target: (name: String, mimeType: String) -> OutputStream): NoteFileDownload {
+        val response = client.newCall(Request.Builder().url(absoluteUrl(url)).get().build()).await()
+        return response.use {
+            if (!it.isSuccessful) throw it.toApiException()
+            val name = NoteFileLinks.fileName(it.header("Content-Disposition"), it.request.url)
+            val mimeType = it.body.contentType()?.let { type -> "${type.type}/${type.subtype}" } ?: "application/octet-stream"
+            withContext(Dispatchers.IO) {
+                target(name, mimeType).use { out -> it.body.byteStream().copyTo(out) }
+            }
+            NoteFileDownload(name, mimeType)
+        }
+    }
 
     private fun segment(id: String) = URLEncoder.encode(id, "UTF-8")
 
@@ -274,6 +302,7 @@ class StudyMateApi(
     override suspend fun nativeSignIn(idToken: String) {
         val body = buildJsonObject { put("idToken", idToken) }.toString()
         send<ApiError>(Request.Builder().url(absoluteUrl("/api/native-auth/google")).post(body.toRequestBody(JSON)))
+        identityGate.reset()
     }
 
     // 和网页的 next-auth signOut() 一样走 Auth.js 的 CSRF 流程；无论服务端是否成功，都删掉本地的会话 Cookie，
@@ -286,6 +315,8 @@ class StudyMateApi(
             response.close()
         } finally {
             (cookieJar as? PersistentCookieJar)?.removeWhere { it.name.contains("authjs.session-token") }
+            // 设备 Cookie 指向的是已绑定 Google 的用户，服务端会给下一个请求签发新的匿名身份：让它单独走。
+            identityGate.reset()
         }
     }
 

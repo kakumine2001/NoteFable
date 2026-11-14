@@ -58,6 +58,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.kakumine.studymate.BuildConfig
 import com.kakumine.studymate.R
 import com.kakumine.studymate.data.EmbedMessage
+import com.kakumine.studymate.data.NoteFileLinks
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -170,12 +171,15 @@ fun NoteEditorScreen(
     onMenu: () -> Unit,
     onBack: () -> Unit,
     onDismissNotice: () -> Unit,
+    /** 笔记里的私有文件（`/api/pages/files?…`）：由 App 带着 Cookie 下载。 */
+    onDownload: (String) -> Unit,
     onMessage: (String, EmbedMessage) -> Unit,
     registerFlush: (NoteEmbedBridge?) -> Unit,
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
     val currentEmbedUrl by rememberUpdatedState(embedUrl)
+    val currentOnDownload by rememberUpdatedState(onDownload)
     // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
     val bridge = remember(open.editor) { NoteEmbedBridge { message -> currentOnMessage(open.editor, message) } }
     // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
@@ -254,10 +258,22 @@ fun NoteEditorScreen(
                     settings.allowContentAccess = false
                     settings.setSupportMultipleWindows(false)
                     addJavascriptInterface(bridge, "StudyMateNative")
+                    // 网页按下载处理的响应（Content-Disposition: attachment）：本站的笔记文件由 App 下载，其它交给系统。
+                    setDownloadListener { url, _, _, _, _ ->
+                        if (NoteFileLinks.isNoteFile(url, baseUrl)) currentOnDownload(url)
+                        else try {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                        } catch (_: ActivityNotFoundException) { }
+                    }
                     webViewClient = object : WebViewClient() {
-                        // 只在 WebView 里打开本站的 /note-embed；其它链接（笔记里的网址等）交给系统浏览器。
+                        // 只在 WebView 里打开本站的 /note-embed；本站的笔记文件由 App 带着 Cookie 下载
+                        // （系统浏览器没有 App 的 Cookie，只会拿到 404）；其它链接（笔记里的网址等）交给系统浏览器。
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
                             val target = request.url
+                            if (NoteFileLinks.isNoteFile(target.toString(), baseUrl)) {
+                                currentOnDownload(target.toString())
+                                return true
+                            }
                             val base = Uri.parse(baseUrl)
                             val sameSite = target.scheme == base.scheme && target.host == base.host && target.port == base.port
                             if (sameSite && target.path.orEmpty().contains("/note-embed")) return false

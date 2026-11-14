@@ -507,4 +507,27 @@ class ChatViewModelTest {
         assertEquals("No image today.", answer.errorDetail)
         assertFalse(vm.state.value.sending)
     }
+
+    @Test
+    fun `the composer draft lives in the view model and clears only once the message is sent`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { uploadError = IOException("offline") }
+        val vm = newViewModel(backend)
+        vm.updateDraft("half-written question")
+        // 切到笔记再回来时 ChatScreen 重新组合，草稿从 ViewModel 读回。
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertEquals("half-written question", vm.draft)
+
+        vm.addFiles(listOf(notes))
+        vm.send(vm.draft)
+        advanceUntilIdle()
+        assertEquals("half-written question", vm.draft)
+
+        backend.uploadError = null
+        vm.send(vm.draft)
+        settle()
+        assertEquals("", vm.draft)
+        backend.events.close()
+        advanceUntilIdle()
+    }
 }

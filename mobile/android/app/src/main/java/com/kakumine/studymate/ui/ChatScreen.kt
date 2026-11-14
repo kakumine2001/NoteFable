@@ -99,6 +99,8 @@ private val TurnGap = 36.dp
 @Composable
 fun ChatScreen(
     state: ChatUiState,
+    input: String,
+    onInputChange: (String) -> Unit,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onSend: (String) -> Unit,
@@ -111,17 +113,9 @@ fun ChatScreen(
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
 ) {
-    var input by rememberSaveable { mutableStateOf("") }
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
     val pickFiles = rememberFilePicker(onAddFiles)
-    // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
-    // 不随进程保存：进程重建后计数从 0 开始，保存旧值会把恢复出来的草稿误清掉。
-    var clearedAt by remember { mutableStateOf(state.sentCount) }
-    if (clearedAt != state.sentCount) {
-        clearedAt = state.sentCount
-        input = ""
-    }
     val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
 
     Scaffold(
@@ -145,7 +139,7 @@ fun ChatScreen(
             }
             Composer(
                 input = input,
-                onInputChange = { input = it },
+                onInputChange = onInputChange,
                 sending = state.sending,
                 canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null,
                 modelLabel = state.selectedModel?.label,

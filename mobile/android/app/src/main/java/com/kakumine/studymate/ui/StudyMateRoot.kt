@@ -79,6 +79,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
+    val downloadNoteFile = rememberNoteFileDownloader(app.api)
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     val onIdentityChanged = {
         viewModel.onIdentityChanged()
@@ -166,6 +167,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         when {
             notes.workspace == Workspace.Chat -> ChatScreen(
                 state = state,
+                // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
+                input = viewModel.draft,
+                onInputChange = viewModel::updateDraft,
                 onMenu = { scope.launch { drawerState.open() } },
                 onNewChat = viewModel::newChat,
                 onSend = viewModel::send,
@@ -184,7 +188,9 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     open = open,
                     saveState = notes.saveState,
                     notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
-                    embedUrl = { lang -> app.api.noteEmbedUrl(open.id, lang) },
+                    // 编辑器里的 AI 助手用 App 里选的模型和推理强度（网页按服务端的模型列表核对）。
+                    embedUrl = { lang -> app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning) },
+                    onDownload = downloadNoteFile,
                     baseUrl = BuildConfig.BASE_URL,
                     cookieJar = app.cookieJar,
                     drawerOpen = drawerState.isOpen,

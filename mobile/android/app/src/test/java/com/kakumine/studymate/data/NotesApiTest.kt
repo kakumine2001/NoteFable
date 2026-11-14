@@ -82,6 +82,11 @@ class NotesApiTest {
         val api = StudyMateApi("https://example.test", CookieJar.NO_COOKIES)
         assertEquals("https://example.test/note-embed?page=abc&lang=ja", api.noteEmbedUrl("abc", "ja"))
         assertEquals("https://example.test/note-embed?page=a%2Fb", api.noteEmbedUrl("a/b", null))
+        assertEquals(
+            "https://example.test/note-embed?page=abc&lang=zh&model=gpt-5.5&reasoning=high",
+            api.noteEmbedUrl("abc", "zh", "gpt-5.5", "high"),
+        )
+        assertEquals("https://example.test/note-embed?page=abc&model=a%26b", api.noteEmbedUrl("abc", null, "a&b", null))
     }
 
     @Test

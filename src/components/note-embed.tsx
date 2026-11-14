@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
-import { readModelPreference, resolveModelPreference } from "@/lib/model-preference";
+import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { createEmbedApi, installEmbedApi, pageMeta, postToNative, toEmbedSaveState } from "@/lib/native-bridge";
 import { useNotePages } from "@/lib/use-note-pages";
 
@@ -18,7 +18,8 @@ export function NoteEmbed() {
   const { active, activeId, loading } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
-  // AI アシスタントは /app と同じく、このブラウザ（WebView）で最後に選んだモデルと推論強度を使う。
+  // AI アシスタントは、アプリが URL（&model=&reasoning=）で渡したモデルと推論強度を使う。渡されていない・今の一覧にないときは
+  // /app と同じく、このブラウザ（WebView）で最後に選んだもの、それもなければサーバーの標準。
   const { defaultModel, getModelOption, options } = useModels();
   const [model, setModel] = useState(defaultModel);
   const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
@@ -31,8 +32,10 @@ export function NoteEmbed() {
 
   // ページは静的に配るので、開くノートは表示後に URL から読む。
   useEffect(() => {
-    const id = new URL(window.location.href).searchParams.get("page");
-    const restored = resolveModelPreference(readModelPreference(), options);
+    const params = new URL(window.location.href).searchParams;
+    const id = params.get("page");
+    const restored = resolveModelPreference(readEmbedModelPreference(params), options)
+      ?? resolveModelPreference(readModelPreference(), options);
     queueMicrotask(() => {
       if (restored) { setModel(restored.model); setReasoning(restored.reasoning); }
       setPageId(id);

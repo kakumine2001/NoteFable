@@ -1,6 +1,9 @@
 package com.kakumine.studymate.ui
 
 import android.content.Context
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -139,6 +142,17 @@ class ChatViewModel(
         ChatUiState(chosenModelId = settings.modelId, chosenReasoning = settings.reasoning),
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
+
+    /**
+     * 输入栏里还没发出的文字。放在 ViewModel 里，切到笔记再切回来、换屏幕方向都还在。
+     * 用 Compose 的状态而不是 StateFlow：输入框每次按键同步更新，光标不会跳。
+     */
+    var draft by mutableStateOf("")
+        private set
+
+    fun updateDraft(text: String) {
+        draft = text
+    }
 
     private var streamJob: Job? = null
     private var loadJob: Job? = null
@@ -331,6 +345,8 @@ class ChatViewModel(
                 files = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1,
             )
         }
+        // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
+        draft = ""
         return assistantId
     }
 

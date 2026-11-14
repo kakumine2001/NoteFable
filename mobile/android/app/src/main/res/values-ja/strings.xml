@@ -16,6 +16,7 @@
     <string name="send">メッセージを送信</string>
     <string name="stop">停止</string>
     <string name="copy">回答をコピー</string>
+    <string name="downloading">ダウンロード中…</string>
     <string name="request_failed">リクエストに失敗しました：%1$s</string>
 
     <string name="model">モデル</string>
