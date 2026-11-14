@@ -72,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -140,6 +141,8 @@ fun ChatScreen(
     account: AccountUiState = AccountUiState(),
     onSignIn: () -> Unit = {},
     onDismissGuestLimit: () -> Unit = {},
+    onSearch: () -> Unit = {},
+    onRevealDone: (Long) -> Unit = {},
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
@@ -172,12 +175,13 @@ fun ChatScreen(
                 onMenu = onMenu,
                 onNewChat = onNewChat,
                 onChangeIcon = onChangeIcon,
+                onSearch = onSearch,
             )
         },
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon)
+                MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
             }
             val guestLimit = state.guestLimit
             Composer(
@@ -208,6 +212,7 @@ fun ChatScreen(
                     is ComposerNotice.Rejected -> attachErrorText(notice.error)
                     ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
                     ComposerNotice.IconFailed -> stringResource(R.string.em_chat_icon_failed)
+                    ComposerNotice.LinkFailed -> stringResource(R.string.messages_load_failed)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -245,6 +250,7 @@ private fun TopBar(
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
     onChangeIcon: (String?) -> Unit,
+    onSearch: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -269,7 +275,12 @@ private fun TopBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
-        if (showNewChat) TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        // 右侧按钮组（gap 8）：搜索在"新建聊天"前面，空白首页只有搜索（Batch 4）。
+        TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), onSearch)
+        if (showNewChat) {
+            Spacer(Modifier.width(8.dp))
+            TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        }
     }
 }
 
@@ -288,7 +299,7 @@ internal fun TopIconButton(paths: List<String>, description: String, onClick: ()
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit) {
+private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit, onRevealDone: (Long) -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -299,6 +310,8 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
     // "滚动到底部"按钮自己发起的滚动：不能当成用户往回滚而停止跟随。
     val programmaticScroll = remember { mutableStateOf(false) }
     val lastIndex = state.messages.lastIndex
+    // 检索结果 / 链接要定位到某条消息：定位完之前不贴底（网页 openChatFromLink 关掉 pinToBottom）。
+    val revealPending = rememberUpdatedState(state.reveal != null && state.reveal.sessionId == state.activeSessionId)
     LaunchedEffect(state.activeSessionId, state.messages.size) { follow.value = true }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -319,6 +332,7 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 scrolling = listState.isScrollInProgress,
                 programmaticScroll = programmaticScroll.value,
                 hasItems = listState.layoutInfo.totalItemsCount > 0,
+                revealPending = revealPending.value,
             )
         }.collect { action ->
             when (action) {
@@ -332,11 +346,16 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
     }
     // 跟随时，在这一帧的测量之前就把位置定到最底部：新增的文字直接出现在底部，不会先跳一下。
     SideEffect {
-        if (follow.value && lastIndex >= 0 && !listState.isScrollInProgress) listState.requestScrollToItem(lastIndex, PIN_TO_END)
+        if (follow.value && !revealPending.value && lastIndex >= 0 && !listState.isScrollInProgress) {
+            listState.requestScrollToItem(lastIndex, PIN_TO_END)
+        }
     }
     val atBottom by remember {
         derivedStateOf { distanceToBottom(listState) <= with(density) { 8.dp.toPx() } }
     }
+    // 检索结果 / 链接：读完后滚到那条消息并闪一下（见 SearchScreen.kt 的 revealMessage）。
+    // 滚到了就停止跟随，免得马上被拉回底部；消息已不存在就恢复跟随，停在最底部。
+    val flash = revealMessage(state, listState, onRevealed = { found -> follow.value = !found }, onRevealDone = onRevealDone)
 
     when {
         state.messagesLoading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -371,7 +390,9 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                     val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
                     // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
                     val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
-                    if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                    Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
+                        if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                    }
                 }
             }
             ScrollToBottomButton(

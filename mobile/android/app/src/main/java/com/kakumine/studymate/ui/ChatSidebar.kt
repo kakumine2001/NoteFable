@@ -151,6 +151,7 @@ internal fun ChatDrawerBody(
     /** 行首图标改表情（网页 chat-sidebar.tsx 的 .chat-row-icon-button）。 */
     onChangeIcon: (sessionId: String, icon: String?) -> Unit,
     modifier: Modifier = Modifier,
+    onSearch: () -> Unit = {},
 ) {
     val side by sidebar.state.collectAsStateWithLifecycle()
     var action by remember { mutableStateOf<ChatAction?>(null) }
@@ -172,6 +173,8 @@ internal fun ChatDrawerBody(
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.new_chat), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight(550))
         }
+        // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
+        SidebarSearchRow(onSearch)
 
         Column(
             Modifier.weight(1f).fillMaxWidth()

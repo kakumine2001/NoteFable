@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Batch 4：搜索（网页 src/components/search-dialog.tsx 的文案，英文原句）。 -->
+<resources>
+    <string name="search">Search</string>
+    <string name="search_chats_and_notes">Search chats and notes</string>
+    <string name="search_close">Close search</string>
+    <string name="search_tab_all">All</string>
+    <string name="search_tab_chats">Chats</string>
+    <string name="search_project">Project</string>
+    <string name="search_all_projects">All projects</string>
+    <string name="search_idle_title">Search your chats and notes</string>
+    <string name="search_idle_body">Every word you type has to appear somewhere in the same chat or note: its title, a message or an attached file.</string>
+    <string name="search_unavailable_title">Search is unavailable</string>
+    <string name="search_unavailable_body">Check your connection and try again.</string>
+    <string name="search_try_again">Try again</string>
+    <string name="search_searching">Searching…</string>
+    <string name="search_no_results">No results for “%1$s”</string>
+    <string name="search_no_results_body">Try fewer words. Upper/lower case, full-width/half-width and hiragana/katakana are treated as the same, but synonyms and other spellings are not found.</string>
+    <string name="search_results">Search results</string>
+    <string name="search_speaker_you">"You: "</string>
+    <string name="search_speaker_studymate">"StudyMate: "</string>
+    <string name="search_in_file">in %1$s</string>
+</resources>
