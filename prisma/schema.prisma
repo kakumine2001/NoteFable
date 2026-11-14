@@ -52,26 +52,26 @@ enum ReasoningEffort {
 }
 
 model User {
-  id          String   @id @default(cuid())
-  deviceId    String   @unique
+  id                 String   @id @default(cuid())
+  deviceId           String   @unique
   // Google ログインと紐付けた場合だけ設定する。別端末でも同じ利用者として復元できる。
-  googleSub   String?  @unique
+  googleSub          String?  @unique
   // 確認済みのメールアドレス（小文字）。メールの確認コードでログインした、または Google が確認済みとしたメール。
   // 同じアドレスなら Google でもメールでも同じ利用者になる。null は未ログイン（または未確認のメールだけの Google 利用者）。
-  verifiedEmail String? @unique
-  email       String?
-  name        String?
-  image       String?
+  verifiedEmail      String?  @unique
+  email              String?
+  name               String?
+  image              String?
   // Google のプロフィールとは別に、利用者が自分で決めた表示名と絵文字アイコン。null は Google の名前・写真を使う。
-  displayName String?
-  avatarIcon  String?
+  displayName        String?
+  avatarIcon         String?
   // 自分でアップロードした写真の保存先（ストレージ内のパス）。null は写真なし。アイコン（絵文字）とはどちらか一方だけ設定する。
-  avatarImage String?
+  avatarImage        String?
   // すべてのチャットに渡す、利用者自身の指示（カスタム指示）。null は指示なし。ログインした利用者だけが設定でき、匿名の行では使わない。
   customInstructions String?
-  plan      UserPlan @default(FREE)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  plan               UserPlan @default(FREE)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   sessions      Session[]
   chatProjects  ChatProject[]
@@ -99,26 +99,26 @@ model EmailLoginCode {
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。
 model NotePage {
-  id            String   @id @default(cuid())
+  id            String    @id @default(cuid())
   userId        String
-  title         String   @default("Untitled")
-  position      Int      @default(0)
+  title         String    @default("Untitled")
+  position      Int       @default(0)
   // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
   icon          String?
   cover         String?
   // アップロード画像カバーの縦位置（0〜100%）。プリセットでは使わない。
   coverPosition Int?
   blocks        Json
-  version       Int      @default(0)
+  version       Int       @default(0)
   // 所属グループ。未設定は「グループなし」。グループを消してもノートは残る。
   groupId       String?
   // ゴミ箱に入れた時刻。null は通常のノート。30 日たつと復元できず、完全に削除される。
   deletedAt     DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
-  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group NoteGroup?    @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group NoteGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
 
   assistantSessions Session[]
   revisions         NoteRevision[]
@@ -142,8 +142,8 @@ model NoteRevision {
   version   Int
   createdAt DateTime           @default(now())
 
-  note NotePage      @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note NotePage @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([noteId, createdAt])
   @@index([userId])
@@ -157,29 +157,29 @@ model NoteGroup {
   position  Int      @default(0)
   createdAt DateTime @default(now())
 
-  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   pages NotePage[]
 
   @@index([userId, position])
 }
 
 model Session {
-  id        String   @id @default(cuid())
-  title     String   @default("New chat")
-  position  Int      @default(0)
+  id          String   @id @default(cuid())
+  title       String   @default("New chat")
+  position    Int      @default(0)
   // 単一の絵文字。null は既定のチャットアイコン。
-  icon      String?
-  pinned    Boolean @default(false)
-  titleManual Boolean @default(false)
-  projectId String?
-  userId    String
+  icon        String?
+  pinned      Boolean  @default(false)
+  titleManual Boolean  @default(false)
+  projectId   String?
+  userId      String
   // ノートを開いたまま使う AI アシスタントの会話は、そのノートに結びつけて Chats の一覧から外す。ノートを消すと一緒に消える。
-  noteId    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  noteId      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  user          User  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project       ChatProject? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project       ChatProject?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
   note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
   messages      Message[]
   noteProposals NoteProposal[]
@@ -190,15 +190,16 @@ model Session {
 }
 
 model ChatProject {
-  id String @id @default(cuid())
-  userId String
-  name String
+  id           String            @id @default(cuid())
+  userId       String
+  name         String
   // プロジェクト内のすべての会話に渡す共通の指示（目的・回答の言語や形式など）。null は指示なし。
   instructions String?
-  createdAt DateTime @default(now())
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sessions Session[]
-  notes ChatProjectNote[]
+  createdAt    DateTime          @default(now())
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sessions     Session[]
+  notes        ChatProjectNote[]
+
   @@index([userId, createdAt])
 }
 
@@ -286,8 +287,8 @@ model NoteProposal {
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
 
-  user    User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  session Session       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  session Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   @@index([sessionId, createdAt])
   @@index([messageId])

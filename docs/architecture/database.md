@@ -211,7 +211,9 @@ erDiagram
 
 ### User
 
-用户记录：未登录时是匿名浏览器设备（签名 Cookie），Google / 邮箱登录后也是这一行。表原名 `AnonymousUser`，由 `20261115000000_rename_user_table` migration 改名为 `User`（只改名字，主键和唯一索引一并改名，外键约束名不变）。为了让改名时还在运行的旧版本不报错，这个 migration 同时留了一个同名的可更新视图 `"AnonymousUser"`（`SELECT * FROM "User"`）；它不在 Prisma schema 里，新版本上线后由后续 migration 删除。
+用户记录：未登录时是匿名浏览器设备（签名 Cookie），Google / 邮箱登录后也是这一行。表原名 `AnonymousUser`，由 `20261115000000_rename_user_table` migration 改名为 `User`（只改名字，主键和唯一索引一并改名，外键约束名不变）。为了让改名时还在运行的旧版本不报错，这个 migration 同时留了一个同名的可更新视图 `"AnonymousUser"`（`SELECT * FROM "User"`）；它不在 Prisma schema 里，新版本上线后由后续 migration 删除；视图存在期间不能删除 `User` 的列或改列类型。视图删除后，不能再把生产回滚到改名之前的部署（旧代码查的是 `"AnonymousUser"`）。
+
+手写 SQL 时表名必须带双引号：`SELECT * FROM "User"`。`user` 是 PostgreSQL 的保留字，不带引号的 `SELECT * FROM user` 返回的是当前数据库角色，不是这张表。
 
 核心字段：
 
