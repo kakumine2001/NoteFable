@@ -82,6 +82,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.unit.LayoutDirection
@@ -578,25 +580,26 @@ private fun EmojiButton(unified: String, item: EmojiItem, showVariations: Boolea
 /**
  * 长按出现的肤色变体条（emoji-picker-react EmojiVariationPicker）：左右各缩 15、高 45、内边距 5、平均分布，
  * 白底、1px #E7E7E7 边、圆角 3、阴影 0 2 5 .2；放在那一行上方，上方放不下就放下方。
+ * 画在选择器自己的弹窗里（表情区上面盖一层），不再开一个嵌套的 Popup：嵌套弹窗按屏幕坐标摆，
+ * 而 [cell] / [body] 是外层弹窗里的坐标，会错位。点变体条以外的地方关闭。
  */
 @Composable
 private fun VariationBar(item: EmojiItem, cell: IntRect, body: IntRect, onPick: (String) -> Unit, onDismiss: () -> Unit) {
     val density = LocalDensity.current
     val options = (listOf(item.unified) + item.variations).take(6)
-    val provider = remember(cell, body) {
-        object : PopupPositionProvider {
-            override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-                val inset = with(density) { 15.dp.roundToPx() }
-                val above = cell.top - popupContentSize.height
-                return IntOffset(body.left + inset, if (above >= body.top) above else cell.bottom)
-            }
-        }
-    }
-    Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
+    val barHeight = with(density) { 45.dp.roundToPx() }
+    val inset = with(density) { 15.dp.roundToPx() }
+    val above = cell.top - body.top - barHeight
+    val y = if (above >= 0) above else cell.bottom - body.top
+    Box(
+        Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { onDismiss() } },
+    ) {
         Row(
-            Modifier.width(with(density) { (body.width).toDp() } - 30.dp).height(45.dp)
+            Modifier.offset { IntOffset(inset, y) }
+                .width(with(density) { (body.width).toDp() } - 30.dp).height(45.dp)
                 .shadow(5.dp, RoundedCornerShape(3.dp), ambientColor = Color(0x33000000), spotColor = Color(0x33000000))
                 .clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, PickerBorder, RoundedCornerShape(3.dp))
+                .pointerInput(Unit) { detectTapGestures { } }
                 .padding(5.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically,

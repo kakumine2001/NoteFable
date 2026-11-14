@@ -121,7 +121,7 @@ mobile/android/
 - **聊天图标**：顶栏标题左边的图标（40×40）、空白页标题左边的图标（41.6，表情 27.2 / 默认 MessageSquareText 22.4、描边 1.8）和侧栏聊天行的图标（40×40）都能点开选择器。保存走 `PATCH /api/sessions/:id {icon}`（`SessionsApi.updateSessionIcon`），排队和对账在 `ui/SessionIconSync.kt`（网页 `session-icon-sync.ts` 的移植：先显示，连点只发最后一次，失败退回最后保存成功的值并在输入栏上方提示 "Failed to change the chat icon."（换到别的聊天或新聊天时清掉，网页 `setSendError("")`），刷新回来的旧列表不会冲掉刚选的图标）。
 - **还没保存的新聊天**：先选的图标是草稿（`ChatUiState.draftIcon`）。原生的会话由 `/api/chat`（或 `/api/images`）在发第一条消息时创建、不带图标，所以收到 `X-Session-Id`（图片模式是返回的 `sessionId`）后再 `PATCH` 上去；从新聊天点项目的 ＋ 建好聊天时也把草稿带过去：新行一放进列表就带着这个图标，再去保存。打开别的聊天时丢掉草稿（网页 `loadMessages` 同样清掉）。
 - **空白页标题**：没有消息的聊天（含已保存但还没消息的）显示空白页，标题是这个聊天的标题（新聊天是 "New chat"）和它的图标；这时顶栏不放标题和"新建聊天"（网页 `emptyState`）。
-- **笔记侧栏行的图标**：没打开的笔记点图标就能改，走 `PUT /api/pages/:id/icon`（`data/NoteIconApi.kt`，服务端把版本号加一，列表换成返回的图标和版本）；失败时在 NOTES 标签上方显示 "Could not change the icon. Try again."，下次打开抽屉时清掉（网页侧栏关掉后组件卸载，提示跟着消失）。打开着的笔记的图标在原生侧栏里只显示、不弹选择器（见上面的"有意不放的网页控件"）。
+- **笔记侧栏行的图标**：没打开的笔记点图标就能改，走 `PUT /api/pages/:id/icon`（`data/NoteIconApi.kt`，服务端把版本号加一，列表换成返回的图标和版本；同一篇的请求串行，前一个没回来时再选只记下最后的值，回来后再发一次；这时打开那篇会先等写完，免得编辑器读到旧版本、下次保存 409）；失败时在 NOTES 标签上方显示 "Could not change the icon. Try again."，下次打开抽屉时清掉（网页侧栏关掉后组件卸载，提示跟着消失）。打开着的笔记的图标在原生侧栏里只显示、不弹选择器（见上面的"有意不放的网页控件"）。
 - 单元测试：`EmojiCatalogTest`、`ChatIconTest`、`NoteIconTest`、`IconApiTest`。
 
 ## 附件与图片

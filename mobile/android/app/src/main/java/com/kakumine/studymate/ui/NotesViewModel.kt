@@ -13,6 +13,7 @@ import com.kakumine.studymate.data.NoteTrashItem
 import com.kakumine.studymate.data.NotesBackend
 import com.kakumine.studymate.data.NotesList
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -234,7 +235,13 @@ class NotesViewModel(
             else -> return
         }
         leaveThen {
-            _state.update { it.copy(workspace = Workspace.Notes, open = open, saveState = null, notice = null) }
+            // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
+            val pending = iconWrites[id]
+            val target = if (pending == null) open else {
+                pending.done.await()
+                _state.value.pages.firstOrNull { it.id == id }?.let { OpenNote(it.id, it.title, it.icon) } ?: open
+            }
+            _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
         }
     }
 
@@ -435,23 +442,51 @@ class NotesViewModel(
         Pair({ _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) } }, true)
     } ?: false
 
+    /** 一篇笔记正在写的图标（[changeIcon]）。[desired] 是最后选的值，[dirty] 表示还有没发出去的选择。 */
+    private class IconWrite(var desired: String?) {
+        var dirty = true
+        val done = CompletableDeferred<Boolean>()
+    }
+
+    /** 每篇笔记同一时刻只有一个 PUT：中途再选的图标合并成下一次请求，响应按顺序写进列表，版本号不会倒退。 */
+    private val iconWrites = HashMap<String, IconWrite>()
+
     /**
      * 侧栏里改笔记图标（网页 use-note-pages.ts 的 changeIcon，只用于没打开的笔记）。成功后列表换成服务端的图标和版本号；
      * 失败返回 false 并在侧栏显示"Could not change the icon. Try again."。
+     * 同一篇的请求串行：前一个还没回来时只记下最新的选择，等它回来再发（中间的选择不发）；所有调用者拿到整串的结果。
+     * 只在主线程调用。
      */
     suspend fun changeIcon(pageId: String, icon: String?): Boolean {
-        val owner = identity
         _state.update { it.copy(iconError = false) }
-        return try {
-            val page = noteIcons.setNoteIcon(pageId, icon)
-            commit(owner) {
-                _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
+        iconWrites[pageId]?.let { pending ->
+            pending.desired = icon
+            pending.dirty = true
+            return pending.done.await()
+        }
+        val owner = identity
+        val write = IconWrite(icon)
+        iconWrites[pageId] = write
+        var ok = false
+        try {
+            while (write.dirty) {
+                write.dirty = false
+                val page = noteIcons.setNoteIcon(pageId, write.desired)
+                val applied = commit(owner) {
+                    _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
+                }
+                if (!applied) return false
             }
+            ok = true
+            return true
         } catch (e: CancellationException) {
             throw e
         } catch (e: Throwable) {
             if (owner == identity) _state.update { it.copy(iconError = true) }
-            false
+            return false
+        } finally {
+            if (iconWrites[pageId] === write) iconWrites.remove(pageId)
+            write.done.complete(ok)
         }
     }
 

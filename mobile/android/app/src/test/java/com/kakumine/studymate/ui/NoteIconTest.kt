@@ -6,7 +6,9 @@ import com.kakumine.studymate.data.NotePageSummary
 import com.kakumine.studymate.data.NoteTrashItem
 import com.kakumine.studymate.data.NotesBackend
 import com.kakumine.studymate.data.NotesList
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -16,6 +18,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -83,5 +86,63 @@ class NoteIconTest {
         fail = false
         assertTrue(vm.changeIcon("a", null))
         assertFalse(vm.state.value.iconError)
+    }
+
+    @Test
+    fun `icon writes for one note run one at a time and a later pick wins`() = runTest(dispatcher) {
+        val calls = mutableListOf<String?>()
+        val gates = mutableListOf<CompletableDeferred<Unit>>()
+        var version = 3
+        val vm = NotesViewModel(Notes(), Prefs(), NoteIconBackend { id, icon ->
+            calls += icon
+            val gate = CompletableDeferred<Unit>().also { gates += it }
+            gate.await()
+            NotePageSummary(id, "Bio", icon, version = ++version)
+        })
+        vm.setWorkspace(Workspace.Notes)
+        advanceUntilIdle()
+
+        val results = mutableListOf<Boolean>()
+        launch { results += vm.changeIcon("a", "🧬") }
+        advanceUntilIdle()
+        launch { results += vm.changeIcon("a", "🎲") }
+        launch { results += vm.changeIcon("a", "📚") }
+        advanceUntilIdle()
+        // 第一个还没回来：后面两次只记下最后的选择，不另发请求。
+        assertEquals(listOf<String?>("🧬"), calls)
+
+        gates[0].complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf<String?>("🧬", "📚"), calls)
+        assertEquals("🧬", vm.state.value.pages.single().icon)
+
+        gates[1].complete(Unit)
+        advanceUntilIdle()
+        assertEquals("📚", vm.state.value.pages.single().icon)
+        assertEquals(5, vm.state.value.pages.single().version)
+        assertEquals(listOf(true, true, true), results)
+    }
+
+    @Test
+    fun `opening a note waits for its pending icon write`() = runTest(dispatcher) {
+        val gate = CompletableDeferred<Unit>()
+        val vm = NotesViewModel(Notes(), Prefs(), NoteIconBackend { id, icon ->
+            gate.await()
+            NotePageSummary(id, "Bio", icon, version = 4)
+        })
+        vm.setWorkspace(Workspace.Notes)
+        advanceUntilIdle()
+
+        launch { vm.changeIcon("a", "🧬") }
+        advanceUntilIdle()
+        vm.openNote("a")
+        advanceUntilIdle()
+        // PUT 还没回来：编辑器不能先读旧版本。
+        assertNull(vm.state.value.open)
+
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(OpenNote("a", "Bio", "🧬"), vm.state.value.open)
+        assertEquals(4, vm.state.value.pages.single().version)
     }
 }
