@@ -289,8 +289,11 @@ private fun ProfileMenu(
     val density = LocalDensity.current
     val configuration = LocalConfiguration.current
     val provider = remember(density) { with(density) { AboveAnchor(6.dp.roundToPx(), 12.dp.roundToPx()) } }
-    var draft by remember(user.displayName, user.googleName) { mutableStateOf(user.displayName ?: user.googleName ?: "") }
+    val savedName = user.displayName ?: user.googleName ?: ""
+    var draft by remember { mutableStateOf(savedName) }
     var editing by remember { mutableStateOf(false) }
+    // 输入框没在编辑时才跟着保存后的名字走：保存失败回滚时不会盖掉用户接着输入、还没发出的文字。
+    LaunchedEffect(savedName) { if (!editing) draft = savedName }
     val customized = user.displayName != null || user.icon != null || user.avatarUrl != null
     val shape = RoundedCornerShape(8.dp)
     val width = minOf(300.dp, configuration.screenWidthDp.dp - 24.dp)

@@ -61,4 +61,14 @@ class AvatarCropTest {
         assertNull(checkPickedPhoto("image/png", MAX_PICKED_PHOTO_BYTES))
         assertNull("size unknown: the decoder decides", checkPickedPhoto("image/webp", null))
     }
+
+    @Test
+    fun `non-round image sizes never produce a negative clamp range`() {
+        for ((w, h) in listOf(309f to 400f, 400f to 309f, 201f to 333f, 777f to 213f)) {
+            for (zoom in listOf(1f, 1.37f, 3f)) {
+                val layout = cropLayout(w, h, zoom = zoom, offsetX = 1000f, offsetY = -1000f, view = 200f)
+                org.junit.Assert.assertTrue(layout.w >= 199.99f && layout.h >= 199.99f)
+            }
+        }
+    }
 }

@@ -93,8 +93,9 @@ fun cropLayout(imageWidth: Float, imageHeight: Float, zoom: Float, offsetX: Floa
     val scale = max(view / imageWidth, view / imageHeight) * zoom
     val w = imageWidth * scale
     val h = imageHeight * scale
-    val limitX = (w - view) / 2
-    val limitY = (h - view) / 2
+    // 浮点误差会让刚好铺满的一边算出 -0.00001：夹到 0，否则 coerceIn 的范围倒过来会抛异常。
+    val limitX = max(0f, (w - view) / 2)
+    val limitY = max(0f, (h - view) / 2)
     val x = offsetX.coerceIn(-limitX, limitX)
     val y = offsetY.coerceIn(-limitY, limitY)
     return CropLayout((view - w) / 2 + x, (view - h) / 2 + y, w, h, x, y)
@@ -156,7 +157,9 @@ private fun decodeWithImageDecoder(resolver: ContentResolver, uri: Uri): AvatarS
 
 private fun decodeWithBitmapFactory(resolver: ContentResolver, uri: Uri): AvatarSource {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) } ?: return AvatarSource.Unreadable
+    // 只读尺寸时 decodeStream 本来就返回 null（Android 8.x 走这里）：只看流能不能打开，尺寸看 bounds。
+    val stream = resolver.openInputStream(uri) ?: return AvatarSource.Unreadable
+    stream.use { BitmapFactory.decodeStream(it, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return AvatarSource.Unreadable
     if (min(bounds.outWidth, bounds.outHeight) < AVATAR_MIN_SIDE) return AvatarSource.TooSmall
     val options = BitmapFactory.Options().apply { inSampleSize = avatarSampleSize(bounds.outWidth, bounds.outHeight) }
