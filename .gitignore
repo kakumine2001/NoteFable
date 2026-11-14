@@ -53,8 +53,3 @@ next-env.d.ts
 
 # Local review screenshots and reports
 /artifacts/
-
-# Android wrapper (Capacitor): dependencies, generated icon sources and built APKs
-/mobile/node_modules/
-/mobile/resources/
-/mobile/dist/

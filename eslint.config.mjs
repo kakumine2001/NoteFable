@@ -13,7 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     ".codex-temp/**",
-    // Capacitor の Android 外壳（生成物や node_modules を含む）はこのアプリの lint 対象外。
+    // mobile/ はネイティブクライアント（Kotlin / Swift）なので、このアプリの lint 対象外。
     "mobile/**",
   ]),
 ]);
