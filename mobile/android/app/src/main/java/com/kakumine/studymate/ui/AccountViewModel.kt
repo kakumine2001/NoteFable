@@ -8,6 +8,7 @@ import com.kakumine.studymate.StudyMateApp
 import com.kakumine.studymate.data.AccountApi
 import com.kakumine.studymate.data.AccountBackend
 import com.kakumine.studymate.data.AccountProfileBackend
+import com.kakumine.studymate.data.AccountResponse
 import com.kakumine.studymate.data.AccountUser
 import com.kakumine.studymate.data.ApiException
 import com.kakumine.studymate.data.ProfileEdit
@@ -29,6 +30,9 @@ data class AccountUiState(
     /** 显示用的资料：服务端确认过的 + 还没确认的编辑（网页 account-store 的 view()）。 */
     val user: AccountUser? = null,
     val googleClientId: String? = null,
+    /** 登录窗口里列哪些方式（服务端 `GET /api/account` 的 google / email）。 */
+    val googleEnabled: Boolean = true,
+    val emailEnabled: Boolean = false,
     val signingIn: Boolean = false,
     /** 上一次登录失败：按钮文字换成"登录失败，请重试"。 */
     val signInFailed: Boolean = false,
@@ -46,6 +50,13 @@ sealed interface ProfileError {
     data class Server(val message: String) : ProfileError
     /** 网页 account-store 的兜底文 "Could not save."（R.string.acct_could_not_save）。 */
     data object CouldNotSave : ProfileError
+}
+
+/** 邮箱登录失败的原因：服务端原句，或网页的两句兜底文。 */
+sealed interface SignInError {
+    data class Server(val message: String) : SignInError
+    data object Generic : SignInError
+    data object Offline : SignInError
 }
 
 sealed interface PhotoError {
@@ -99,11 +110,23 @@ class AccountViewModel(
         publish()
     }
 
+    private fun applyAccount(response: AccountResponse) {
+        _state.update {
+            it.copy(
+                configured = response.configured,
+                googleClientId = response.googleClientId,
+                // 网页 SignInDialog：showGoogle = account.google !== false，showEmail = Boolean(account.email)。
+                googleEnabled = response.google != false,
+                emailEnabled = response.email == true,
+            )
+        }
+        setConfirmed(response.user)
+    }
+
     fun refresh() {
         viewModelScope.launch {
             runCatching { backend.account() }.onSuccess { response ->
-                _state.update { it.copy(configured = response.configured, googleClientId = response.googleClientId) }
-                setConfirmed(response.user)
+                applyAccount(response)
             }
         }
     }
@@ -123,8 +146,7 @@ class AccountViewModel(
                 if (idToken != null) {
                     backend.nativeSignIn(idToken)
                     val account = backend.account()
-                    _state.update { it.copy(configured = account.configured, googleClientId = account.googleClientId) }
-                    setConfirmed(account.user)
+                    applyAccount(account)
                     onSignedIn()
                 }
             } catch (cancelled: CancellationException) {
@@ -135,6 +157,35 @@ class AccountViewModel(
                 _state.update { it.copy(signingIn = false) }
             }
         }
+    }
+
+    /** 邮箱登录第一步：发验证码（网页 SignInDialog.sendCode）。成功返回 null，失败返回原因。 */
+    suspend fun sendEmailCode(email: String, locale: String): SignInError? =
+        emailStep { backend.emailSignInStart(email, locale) }
+
+    /**
+     * 邮箱登录第二步：核对验证码（网页 SignInDialog.verify）。成功后和 Google 登录一样重新读账号、通知换了身份，返回 null。
+     * [beforeIdentityChange] 在验证码通过、身份真正换掉之前做完（把打开的笔记存掉）。
+     */
+    suspend fun verifyEmailCode(email: String, code: String, beforeIdentityChange: suspend () -> Unit, onSignedIn: () -> Unit): SignInError? =
+        emailStep {
+            beforeIdentityChange()
+            backend.emailSignInVerify(email, code)
+            // 会话已经换了：读不到账号也算登录成功（下次刷新会补上），不把它报成验证码错误。
+            runCatching { backend.account() }.onSuccess(::applyAccount)
+            onSignedIn()
+        }
+
+    // 网页 post()：服务端给了原因就用原因，没有就是 "Something went wrong. Try again."；连不上是 "Check your connection and try again."。
+    private suspend fun emailStep(block: suspend () -> Unit): SignInError? = try {
+        block()
+        null
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: ApiException) {
+        error.serverMessage()?.let(SignInError::Server) ?: SignInError.Generic
+    } catch (_: Throwable) {
+        SignInError.Offline
     }
 
     fun signOut(clearDeviceChoice: suspend () -> Unit, onSignedOut: () -> Unit) {

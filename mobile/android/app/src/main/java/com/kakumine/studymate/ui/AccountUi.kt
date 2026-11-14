@@ -102,7 +102,8 @@ fun SidebarFooter(
             Box(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
                 val user = account.user
                 if (user == null) {
-                    GoogleSignInButton(failed = account.signInFailed, busy = account.signingIn, onClick = onSignIn)
+                    // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
+                    SignInButton(onClick = onSignIn)
                 } else {
                     ProfileRow(user, account, profile, onSignOut)
                 }
@@ -112,10 +113,10 @@ fun SidebarFooter(
     }
 }
 
-// Google 官方样式的登录按钮（网页 .google-signin-button，手机尺寸）：高 44、1px #747775、圆角 4、白底、15/500、字距 0.25。
+// Google 官方样式的按钮（网页 .google-signin-button，手机尺寸）：高 44、1px #747775、白底、15/500、字距 0.25；
+// 圆角默认 4，登录窗口里（.signin-option）是 8。
 @Composable
-private fun GoogleSignInButton(failed: Boolean, busy: Boolean, onClick: () -> Unit) {
-    val shape = RoundedCornerShape(4.dp)
+internal fun GoogleSignInButton(label: String, busy: Boolean, onClick: () -> Unit, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(4.dp)) {
     Row(
         Modifier.fillMaxWidth().height(44.dp).clip(shape).background(Color.White).border(1.dp, Color(0xFF747775), shape)
             .clickable(enabled = !busy, onClick = onClick).padding(horizontal = 12.dp),
@@ -124,7 +125,7 @@ private fun GoogleSignInButton(failed: Boolean, busy: Boolean, onClick: () -> Un
     ) {
         GoogleLogo(18.dp)
         Text(
-            stringResource(if (failed) R.string.sign_in_failed else R.string.sign_in_google),
+            label,
             color = Color(0xFF1F1F1F),
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,

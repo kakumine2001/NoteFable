@@ -275,6 +275,17 @@ class StudyMateApi(
         identityGate.reset()
     }
 
+    override suspend fun emailSignInStart(email: String, locale: String) {
+        val body = buildJsonObject { put("email", email); put("locale", locale) }.toString()
+        send<ApiError>(Request.Builder().url(absoluteUrl("/api/auth/email/start")).post(body.toRequestBody(JSON)))
+    }
+
+    override suspend fun emailSignInVerify(email: String, code: String) {
+        val body = buildJsonObject { put("email", email); put("code", code) }.toString()
+        send<ApiError>(Request.Builder().url(absoluteUrl("/api/auth/email/verify")).post(body.toRequestBody(JSON)))
+        identityGate.reset()
+    }
+
     // 和网页的 next-auth signOut() 一样走 Auth.js 的 CSRF 流程；无论服务端是否成功，都删掉本地的会话 Cookie，
     // 会话是 JWT、服务端不存状态，本地删掉就等于退出。
     override suspend fun signOut() {

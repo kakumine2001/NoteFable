@@ -41,10 +41,10 @@ class StudyMateApiTest {
     fun `parses the usage-limit fields from a 429 body`() {
         val error = ApiException.from(
             429,
-            """{"error":"You've used today's free messages. Sign in with Google for more, or try again tomorrow.","code":"usage_limit","tier":"guest","kind":"chat"}""",
+            """{"error":"You've used today's free messages. Sign in for more, or try again tomorrow.","code":"usage_limit","tier":"guest","kind":"chat"}""",
         )
         assertEquals(429, error.status)
-        assertEquals("You've used today's free messages. Sign in with Google for more, or try again tomorrow.", error.message)
+        assertEquals("You've used today's free messages. Sign in for more, or try again tomorrow.", error.message)
         assertEquals("usage_limit", error.code)
         assertEquals("guest", error.tier)
         assertEquals("chat", error.kind)

@@ -42,7 +42,6 @@
     <string name="language">Language</string>
     <string name="language_automatic">Automatic</string>
     <string name="account">Account</string>
-    <string name="sign_in_google">Sign in with Google</string>
     <string name="sign_in_failed">Sign-in failed. Try again</string>
     <string name="sign_out">Sign out</string>
     <string name="profile_name">Name</string>
@@ -134,7 +133,7 @@
     <string name="days_left">%1$d days left</string>
     <string name="loading_notes">Loading notes…</string>
     <string name="notes_intro">Write notes with blocks — type %1$s for headings, lists, to-dos and code.</string>
-    <string name="notes_storage_hint">Notes are saved on the server and linked to this device. Sign in with Google to open them on other devices. Clearing app or site data creates a separate workspace.</string>
+    <string name="notes_storage_hint">Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.</string>
     <string name="all_notes">All notes</string>
     <string name="version_history">Version history</string>
     <string name="save_saved">Saved</string>
@@ -149,4 +148,24 @@
     <string name="err_trash_request">Trash request failed. Please try again.</string>
     <string name="err_trash_load">Could not load the trash.</string>
     <string name="err_save_draft">Failed to save. Your draft has been kept.</string>
+    <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
+    <string name="sign_in">Sign in</string>
+    <string name="signin_title">Sign in to StudyMate</string>
+    <string name="signin_subtitle">Keep your chats and notes, and open them on any device.</string>
+    <string name="continue_google">Continue with Google</string>
+    <string name="signin_or">or</string>
+    <string name="signin_email">Email address</string>
+    <string name="continue_email">Continue with email</string>
+    <string name="signin_sending">Sending…</string>
+    <string name="signin_email_hint">We\'ll email you a 6-digit code. No password needed.</string>
+    <string name="back">Back</string>
+    <string name="signin_check_email">Check your email</string>
+    <string name="signin_code_sent">We sent a 6-digit code to %1$s. It expires in 10 minutes.</string>
+    <string name="signin_code">6-digit code</string>
+    <string name="signin_signing_in">Signing in…</string>
+    <string name="signin_no_code">Didn\'t get it?</string>
+    <string name="signin_resend">Send a new code</string>
+    <string name="signin_new_code_sent">We sent a new code.</string>
+    <string name="signin_error_generic">Something went wrong. Try again.</string>
+    <string name="signin_error_offline">Check your connection and try again.</string>
 </resources>

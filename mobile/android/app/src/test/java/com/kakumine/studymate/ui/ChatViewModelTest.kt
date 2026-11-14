@@ -647,7 +647,7 @@ class ChatViewModelTest {
     fun `a usage limit shows the server sentence as the answer, not as a failure`() = runTest(dispatcher) {
         val backend = FakeBackend()
         val vm = newViewModel(backend)
-        val limit = "You've used today's free messages. Sign in with Google for more, or try again tomorrow."
+        val limit = "You've used today's free messages. Sign in for more, or try again tomorrow."
         backend.streamError = ApiException(429, limit, code = ApiException.USAGE_LIMIT_CODE, tier = "guest", kind = "chat")
 
         vm.send("hi")

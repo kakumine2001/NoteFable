@@ -10,5 +10,11 @@ interface AccountBackend {
     /** 第二步：把 Google 的 ID 令牌交给服务端校验，成功后 Cookie 里就有登录会话。 */
     suspend fun nativeSignIn(idToken: String)
 
+    /** 邮箱登录第一步：`POST /api/auth/email/start`，往邮箱发 6 位验证码。[locale] 是界面语言（邮件用它写）。 */
+    suspend fun emailSignInStart(email: String, locale: String)
+
+    /** 邮箱登录第二步：`POST /api/auth/email/verify`，验证码对了 Cookie 里就有登录会话（和 Google 登录同一种）。 */
+    suspend fun emailSignInVerify(email: String, code: String)
+
     suspend fun signOut()
 }
