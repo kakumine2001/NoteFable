@@ -58,15 +58,13 @@ import kotlin.math.sqrt
  * 未登录用户撞到当日上限时，输入栏上方的登录提示（网页 src/components/guest-limit-prompt.tsx，样式在 globals.css 的
  * .guest-limit-*，412 宽手机下实测）：外框内边距 14/40/14/14、1px 蓝描边、圆角 12、浅蓝到浅黄的 135° 渐变 + 输入栏阴影，下距 12；
  * 左边 34 的蓝色圆角 10 图标框（Sparkles 18、描边 2.1、白）、间距 12；标题 15/600 行高 21 墨色；说明 13.5 / 20.925 灰，上距 2；
- * 按钮区上距 12、竖排、间距 8：Google 按钮高 44 全圆角、左右 16，"以后再说"13.5 灰居中；右上 8 处 28 的关闭键（✕ 16，浅灰，圆角 6）。
- * 和网页一样：只有服务端开了 Google 登录且还没登录时才显示（由调用方判断）；数值用 member 的上限。
+ * 按钮区上距 12、竖排、间距 8："登录"按钮高 44 全圆角、左右 16（点了打开登录窗口），"以后再说"13.5 灰居中；右上 8 处 28 的关闭键（✕ 16，浅灰，圆角 6）。
+ * 和网页一样：只有服务端开了登录且还没登录时才显示（由调用方判断）；数值用 member 的上限。
  */
 @Composable
 fun GuestLimitPrompt(
     kind: String,
     attachmentsLost: Boolean,
-    signInFailed: Boolean,
-    signingIn: Boolean,
     onSignIn: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
@@ -134,7 +132,7 @@ fun GuestLimitPrompt(
                     )
                 }
                 Column(Modifier.padding(top = 12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GuestLimitSignInButton(signInFailed, signingIn, motion, onSignIn)
+                    GuestLimitSignInButton(motion, onSignIn)
                     Text(
                         stringResource(R.string.not_now),
                         Modifier.fillMaxWidth().clickable(onClick = onClose).semantics { role = Role.Button },
@@ -154,10 +152,10 @@ fun GuestLimitPrompt(
     }
 }
 
-// .google-signin-button.guest-limit-signin（手机）：高 44、全圆角、1px #747775、白底、左右 16、G 标志 18 + 10 + 15/500 字距 .25；
+// .signin-open-button.guest-limit-signin（手机）：高 44、全圆角、--sm-ink 底、左右 16、白字 15/600；
 // 出现后一道浅蓝高光扫过一次，再向外扩两圈光晕。
 @Composable
-private fun GuestLimitSignInButton(failed: Boolean, busy: Boolean, motion: GuestLimitMotion, onClick: () -> Unit) {
+private fun GuestLimitSignInButton(motion: GuestLimitMotion, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(44.dp)
             .drawBehind {
@@ -173,7 +171,7 @@ private fun GuestLimitSignInButton(failed: Boolean, busy: Boolean, motion: Guest
                     )
                 }
             }
-            .clip(CircleShape).background(Color.White).border(1.dp, Color(0xFF747775), CircleShape)
+            .clip(CircleShape).background(Sm.Ink)
             .drawWithContent {
                 drawContent()
                 // ::after 的高光：linear-gradient(105deg, transparent 35%, rgba(35,131,226,.22) 50%, transparent 65%)，从 -120% 移到 120%。
@@ -191,14 +189,13 @@ private fun GuestLimitSignInButton(failed: Boolean, busy: Boolean, motion: Guest
                     ),
                 )
             }
-            .clickable(enabled = !busy, onClick = onClick).padding(horizontal = 16.dp),
+            .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 16.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.Center,
     ) {
-        GoogleLogo(18.dp)
         Text(
-            stringResource(if (failed) R.string.sign_in_failed else R.string.sign_in_google),
-            color = Color(0xFF1F1F1F), fontSize = 15.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.25.sp,
+            stringResource(R.string.sign_in),
+            color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

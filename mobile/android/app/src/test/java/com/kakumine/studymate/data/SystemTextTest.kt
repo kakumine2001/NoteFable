@@ -98,7 +98,7 @@ class SystemTextTest {
         val zh = asset.translator("zh")
         val ja = asset.translator("ja")
         assertEquals("请求失败：数据库暂时不可用。", zh.localize("Request failed: Database is unavailable."))
-        val limit = "You've used today's free messages. Sign in with Google for more, or try again tomorrow."
+        val limit = "You've used today's free messages. Sign in for more, or try again tomorrow."
         assertNotEquals(limit, zh.localize(limit))
         assertNotEquals(limit, ja.localize(limit))
         assertEquals("「Plan」を読みました", ja.localize("Read “Plan”"))

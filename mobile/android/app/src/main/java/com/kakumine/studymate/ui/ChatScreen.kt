@@ -185,14 +185,12 @@ fun ChatScreen(
             }
             val guestLimit = state.guestLimit
             Composer(
-                // 未登录撞到上限：网页只在服务端开了 Google 登录、且还没登录时显示（GuestLimitPrompt 里的判断）。
+                // 未登录撞到上限：网页只在服务端开了登录、且还没登录时显示（GuestLimitPrompt 里的判断）。
                 prompt = if (guestLimit != null && account.configured && account.user == null) {
                     {
                         GuestLimitPrompt(
                             kind = guestLimit,
                             attachmentsLost = state.files.isNotEmpty(),
-                            signInFailed = account.signInFailed,
-                            signingIn = account.signingIn,
                             onSignIn = onSignIn,
                             onClose = onDismissGuestLimit,
                         )

@@ -38,13 +38,48 @@ class StudyMateApiTest {
     }
 
     @Test
+    fun `email sign-in posts the address with the UI language, then the code, and keeps the server's reason`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"ok":true}"""))
+            server.enqueue(MockResponse().setBody("""{"ok":true}"""))
+            server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"That code is incorrect."}"""))
+            val api = StudyMateApi(server.url("/").toString().trimEnd('/'), CookieJar.NO_COOKIES)
+
+            api.emailSignInStart("a@example.test", "zh-Hant")
+            api.emailSignInVerify("a@example.test", "123456")
+
+            val start = server.takeRequest(1, TimeUnit.SECONDS)!!
+            assertEquals("POST", start.method)
+            assertEquals("/api/auth/email/start", start.path)
+            // 服务端只在没有 Origin 时放行原生客户端（isSameOrigin）。
+            assertNull(start.getHeader("Origin"))
+            val startBody = Json.parseToJsonElement(start.body.readUtf8()).jsonObject
+            assertEquals(JsonPrimitive("a@example.test"), startBody["email"])
+            assertEquals(JsonPrimitive("zh-Hant"), startBody["locale"])
+
+            val verify = server.takeRequest(1, TimeUnit.SECONDS)!!
+            assertEquals("/api/auth/email/verify", verify.path)
+            val verifyBody = Json.parseToJsonElement(verify.body.readUtf8()).jsonObject
+            assertEquals(setOf("email", "code"), verifyBody.keys)
+            assertEquals(JsonPrimitive("123456"), verifyBody["code"])
+
+            try {
+                api.emailSignInVerify("a@example.test", "000000")
+                org.junit.Assert.fail("expected 400")
+            } catch (error: ApiException) {
+                assertEquals("That code is incorrect.", error.serverMessage())
+            }
+        }
+    }
+
+    @Test
     fun `parses the usage-limit fields from a 429 body`() {
         val error = ApiException.from(
             429,
-            """{"error":"You've used today's free messages. Sign in with Google for more, or try again tomorrow.","code":"usage_limit","tier":"guest","kind":"chat"}""",
+            """{"error":"You've used today's free messages. Sign in for more, or try again tomorrow.","code":"usage_limit","tier":"guest","kind":"chat"}""",
         )
         assertEquals(429, error.status)
-        assertEquals("You've used today's free messages. Sign in with Google for more, or try again tomorrow.", error.message)
+        assertEquals("You've used today's free messages. Sign in for more, or try again tomorrow.", error.message)
         assertEquals("usage_limit", error.code)
         assertEquals("guest", error.tier)
         assertEquals("chat", error.kind)

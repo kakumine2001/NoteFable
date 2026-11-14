@@ -8,6 +8,7 @@ import com.kakumine.studymate.StudyMateApp
 import com.kakumine.studymate.data.AccountApi
 import com.kakumine.studymate.data.AccountBackend
 import com.kakumine.studymate.data.AccountProfileBackend
+import com.kakumine.studymate.data.AccountResponse
 import com.kakumine.studymate.data.AccountUser
 import com.kakumine.studymate.data.ApiException
 import com.kakumine.studymate.data.ProfileEdit
@@ -15,6 +16,8 @@ import com.kakumine.studymate.data.applyProfileEdit
 import com.kakumine.studymate.data.profileEditChanges
 import com.kakumine.studymate.data.serverMessage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -29,6 +32,9 @@ data class AccountUiState(
     /** 显示用的资料：服务端确认过的 + 还没确认的编辑（网页 account-store 的 view()）。 */
     val user: AccountUser? = null,
     val googleClientId: String? = null,
+    /** 登录窗口里列哪些方式（服务端 `GET /api/account` 的 google / email）。 */
+    val googleEnabled: Boolean = true,
+    val emailEnabled: Boolean = false,
     val signingIn: Boolean = false,
     /** 上一次登录失败：按钮文字换成"登录失败，请重试"。 */
     val signInFailed: Boolean = false,
@@ -46,6 +52,13 @@ sealed interface ProfileError {
     data class Server(val message: String) : ProfileError
     /** 网页 account-store 的兜底文 "Could not save."（R.string.acct_could_not_save）。 */
     data object CouldNotSave : ProfileError
+}
+
+/** 邮箱登录失败的原因：服务端原句，或网页的两句兜底文。 */
+sealed interface SignInError {
+    data class Server(val message: String) : SignInError
+    data object Generic : SignInError
+    data object Offline : SignInError
 }
 
 sealed interface PhotoError {
@@ -99,11 +112,23 @@ class AccountViewModel(
         publish()
     }
 
+    private fun applyAccount(response: AccountResponse) {
+        _state.update {
+            it.copy(
+                configured = response.configured,
+                googleClientId = response.googleClientId,
+                // 网页 SignInDialog：showGoogle = account.google !== false，showEmail = Boolean(account.email)。
+                googleEnabled = response.google != false,
+                emailEnabled = response.email == true,
+            )
+        }
+        setConfirmed(response.user)
+    }
+
     fun refresh() {
         viewModelScope.launch {
             runCatching { backend.account() }.onSuccess { response ->
-                _state.update { it.copy(configured = response.configured, googleClientId = response.googleClientId) }
-                setConfirmed(response.user)
+                applyAccount(response)
             }
         }
     }
@@ -123,8 +148,7 @@ class AccountViewModel(
                 if (idToken != null) {
                     backend.nativeSignIn(idToken)
                     val account = backend.account()
-                    _state.update { it.copy(configured = account.configured, googleClientId = account.googleClientId) }
-                    setConfirmed(account.user)
+                    applyAccount(account)
                     onSignedIn()
                 }
             } catch (cancelled: CancellationException) {
@@ -135,6 +159,73 @@ class AccountViewModel(
                 _state.update { it.copy(signingIn = false) }
             }
         }
+    }
+
+    /** 邮箱登录第一步：发验证码（网页 SignInDialog.sendCode）。成功返回 null，失败返回原因。 */
+    suspend fun sendEmailCode(email: String, locale: String): SignInError? =
+        emailStep { backend.emailSignInStart(email, locale) }
+
+    /**
+     * 邮箱登录第二步：核对验证码（网页 SignInDialog.verify）。成功后和 Google 登录一样重新读账号、通知换了身份，返回 null。
+     * [beforeIdentityChange] 在验证码通过、身份真正换掉之前做完（把打开的笔记存掉）。
+     */
+    suspend fun verifyEmailCode(email: String, code: String, beforeIdentityChange: suspend () -> Unit, onSignedIn: () -> Unit): SignInError? {
+        // 存笔记失败不是网络问题，也还没核对验证码：按"出了点问题"报，不继续换身份。
+        try {
+            beforeIdentityChange()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            return SignInError.Generic
+        }
+        // 放在 viewModelScope 里跑完：验证码一通过会话就换了，登录窗口这时关掉（它的协程被取消）也要把"换了身份"通知出去。
+        return viewModelScope.async {
+            emailStep {
+                backend.emailSignInVerify(email, code)
+                // 读不到账号也算登录成功，不把它报成验证码错误；过一会儿再读，免得侧栏一直停在"登录"。
+                try {
+                    applyAccount(backend.account())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    retryAccountLater()
+                }
+                onSignedIn()
+            }
+        }.await()
+    }
+
+    // 登录成功但账号没读到：隔 2、4、8 秒再读，读到就停。
+    private fun retryAccountLater() {
+        viewModelScope.launch {
+            for (seconds in listOf(2L, 4L, 8L)) {
+                delay(seconds * 1000)
+                val response = try {
+                    backend.account()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                    continue
+                }
+                applyAccount(response)
+                return@launch
+            }
+        }
+    }
+
+    /** 打开登录窗口时清掉上一次 Google 登录失败的提示（网页的 failed 是窗口自己的状态，每次打开都是新的）。 */
+    fun clearSignInFailed() = _state.update { it.copy(signInFailed = false) }
+
+    // 网页 post()：服务端给了原因就用原因，没有就是 "Something went wrong. Try again."；连不上是 "Check your connection and try again."。
+    private suspend fun emailStep(block: suspend () -> Unit): SignInError? = try {
+        block()
+        null
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: ApiException) {
+        error.serverMessage()?.let(SignInError::Server) ?: SignInError.Generic
+    } catch (_: Throwable) {
+        SignInError.Offline
     }
 
     fun signOut(clearDeviceChoice: suspend () -> Unit, onSignedOut: () -> Unit) {

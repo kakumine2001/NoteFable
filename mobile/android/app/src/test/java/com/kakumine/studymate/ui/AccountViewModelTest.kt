@@ -39,7 +39,16 @@ class AccountViewModelTest {
         val calls = mutableListOf<String>()
         var failSignIn = false
 
-        override suspend fun account() = AccountResponse(configured = true, user = user, googleClientId = "web-client")
+        /** 接下来这么多次读账号会失败（模拟登录后那一下网络不通）。 */
+        var failAccountTimes = 0
+
+        override suspend fun account(): AccountResponse {
+            if (failAccountTimes > 0) {
+                failAccountTimes--
+                throw IOException("offline")
+            }
+            return AccountResponse(configured = true, user = user, googleClientId = "web-client")
+        }
 
         override suspend fun nativeSignInNonce(): String {
             calls += "nonce"
@@ -56,6 +65,89 @@ class AccountViewModelTest {
             calls += "signOut"
             user = null
         }
+
+        var emailEnabled = false
+        var failEmail: Throwable? = null
+
+        override suspend fun emailSignInStart(email: String, locale: String) {
+            calls += "emailStart:$email:$locale"
+            failEmail?.let { throw it }
+        }
+
+        override suspend fun emailSignInVerify(email: String, code: String) {
+            calls += "emailVerify:$email:$code"
+            failEmail?.let { throw it }
+            user = AccountUser(name = null, googleName = null, email = email)
+        }
+    }
+
+    @Test
+    fun `the server decides which sign-in methods the dialog lists`() = runTest(dispatcher) {
+        val vm = model(FakeAccount())
+        advanceUntilIdle()
+        // FakeAccount.account() 不带 google / email：Google 缺省算开，邮箱缺省算关（网页 SignInDialog 的规则）。
+        assertTrue(vm.state.value.googleEnabled)
+        assertFalse(vm.state.value.emailEnabled)
+    }
+
+    @Test
+    fun `email sign-in sends a code, verifies it after saving open work, and reports the new identity`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        assertNull(vm.sendEmailCode("a@example.test", "ja"))
+        val order = mutableListOf<String>()
+        assertNull(vm.verifyEmailCode("a@example.test", "123456", { order += "flush:" + backend.calls.last() }, { order += "signedIn" }))
+        assertEquals(listOf("emailStart:a@example.test:ja", "emailVerify:a@example.test:123456"), backend.calls)
+        // 先存笔记，再核对验证码，最后通知换了身份。
+        assertEquals(listOf("flush:emailStart:a@example.test:ja", "signedIn"), order)
+        assertEquals("a@example.test", vm.state.value.user?.email)
+    }
+
+    @Test
+    fun `email sign-in failures keep the server sentence, or fall back like the web`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        backend.failEmail = ApiException(400, "That code is incorrect.")
+        var signedIn = false
+        assertEquals(SignInError.Server("That code is incorrect."), vm.verifyEmailCode("a@example.test", "000000", {}, { signedIn = true }))
+        assertFalse(signedIn)
+        assertNull(vm.state.value.user)
+        backend.failEmail = ApiException(500, "HTTP 500")
+        assertEquals(SignInError.Generic, vm.sendEmailCode("a@example.test", "en"))
+        backend.failEmail = IOException("offline")
+        assertEquals(SignInError.Offline, vm.sendEmailCode("a@example.test", "en"))
+    }
+
+    @Test
+    fun `a note that cannot be saved stops the email sign-in before the code is checked`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        assertEquals(SignInError.Generic, vm.verifyEmailCode("a@example.test", "123456", { throw IllegalStateException("save failed") }, {}))
+        assertTrue(backend.calls.none { it.startsWith("emailVerify") })
+    }
+
+    @Test
+    fun `when the account cannot be read right after an accepted code, sign-in still succeeds and the account is read again`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        backend.failAccountTimes = 2
+        var signedIn = false
+        assertNull(vm.verifyEmailCode("a@example.test", "123456", {}, { signedIn = true }))
+        assertTrue(signedIn)
+        assertNull(vm.state.value.user)
+        // 2 秒后的第一次重读还失败，再过 4 秒读到。
+        advanceUntilIdle()
+        assertEquals("a@example.test", vm.state.value.user?.email)
+    }
+
+    @Test
+    fun `the code field keeps only six digits`() {
+        assertEquals("123456", cleanLoginCode("12 34-56 78"))
+        assertEquals("", cleanLoginCode("abc"))
     }
 
     /** 假的资料接口：记下每次发出的编辑；[gate] 不为 null 时等它放行才回复（用来看排队）。 */

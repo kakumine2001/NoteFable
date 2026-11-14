@@ -120,6 +120,9 @@ data class AccountResponse(
     val configured: Boolean = false,
     val user: AccountUser? = null,
     val googleClientId: String? = null,
+    /** 服务端开了哪些登录方式（登录窗口只列这些）。旧服务端不返回：按网页的规则，Google 缺省算开、邮箱缺省算关。 */
+    val google: Boolean? = null,
+    val email: Boolean? = null,
 )
 
 @Serializable

@@ -129,7 +129,13 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         }
     }
 
-    // 侧栏底部和上限登录提示（GuestLimitPrompt）共用的登录。草稿在 ChatViewModel 里，换身份后仍在。
+    // 侧栏底部和上限登录提示（GuestLimitPrompt）的"登录"都只打开登录窗口（网页 SignInButton → SignInDialog）。
+    var signInOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val openSignIn: () -> Unit = { signInOpen = true }
+    // 登录成功（账号里有了用户）就关掉窗口。
+    LaunchedEffect(account.user != null) { if (account.user != null) signInOpen = false }
+
+    // 窗口里"使用 Google 继续"发起的登录。草稿在 ChatViewModel 里，换身份后仍在。
     val signIn: () -> Unit = {
         scope.launch {
             notesViewModel.flushBeforeIdentityChange()
@@ -138,6 +144,18 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onSignedIn = onIdentityChanged,
             )
         }
+    }
+
+    if (signInOpen && account.configured && account.user == null) {
+        SignInDialog(
+            account = account,
+            profile = accountViewModel,
+            onGoogle = signIn,
+            // 换身份前先把打开的笔记存掉（和 Google 登录、退出时一样）。
+            beforeIdentityChange = { notesViewModel.flushBeforeIdentityChange() },
+            onSignedIn = onIdentityChanged,
+            onClose = { signInOpen = false },
+        )
     }
 
     val switchWorkspace: (Workspace) -> Unit = { target ->
@@ -157,7 +175,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     SidebarFooter(
                         account = account,
                         // 换身份前先把打开的笔记存掉（WebView 还带着旧身份的 Cookie），身份换了编辑器会被关掉。
-                        onSignIn = signIn,
+                        onSignIn = openSignIn,
                         onSignOut = {
                             scope.launch {
                                 notesViewModel.flushBeforeIdentityChange()
@@ -241,7 +259,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onSearch = openSearch,
                 onRevealDone = viewModel::consumeReveal,
                 account = account,
-                onSignIn = signIn,
+                onSignIn = openSignIn,
                 onDismissGuestLimit = viewModel::dismissGuestLimit,
             ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
