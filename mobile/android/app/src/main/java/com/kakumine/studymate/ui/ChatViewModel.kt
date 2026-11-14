@@ -193,6 +193,32 @@ class ChatViewModel(
         }
     }
 
+    // ---- 侧栏整理（置顶、改名、移动、删除、排序、在项目里新建）：接口调用在 SidebarViewModel，这里只改本地状态 ----
+
+    /** 服务端已保存的改动写进本地列表。进行中的刷新可能读到改动前的列表，所以让它重读一次。 */
+    fun patchSessions(transform: (List<SessionSummary>) -> List<SessionSummary>) {
+        _state.update { it.copy(sessions = transform(it.sessions)) }
+        if (sessionsJob?.isActive == true) refreshSessions()
+    }
+
+    /** 聊天已删除：从列表去掉；删的是正在看的聊天时回到新聊天（网页 deleteSession）。 */
+    fun onSessionDeleted(id: String) {
+        if (_state.value.activeSessionId == id) newChat()
+        patchSessions { list -> list.filterNot { it.id == id } }
+    }
+
+    /** 刚在项目里建好的空聊天：放到列表最前并打开（网页 createSession(projectId)）。 */
+    fun openCreatedSession(session: SessionSummary) {
+        stop()
+        loadJob?.cancel()
+        _state.update {
+            it.copy(
+                sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id },
+                activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+            )
+        }
+    }
+
     // 首次启动时，设备 Cookie 由第一个到达服务端的请求签发。发送前先等会话列表请求结束，
     // 否则它和 /api/chat 各签发一个身份，后到的 Cookie 会覆盖先到的，第一个聊天就读不回来了。
     private suspend fun awaitSessionsRequest() {

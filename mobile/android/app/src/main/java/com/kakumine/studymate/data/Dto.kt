@@ -130,3 +130,39 @@ data class NonceResponse(val nonce: String)
 
 @Serializable
 data class CsrfResponse(val csrfToken: String)
+
+// ---- 聊天项目（侧栏的 Projects，src/app/api/chat-projects；类型见 src/types/chat.ts） ----
+
+/** 侧栏列表、新建和保存的返回值。noteCount 只数没进回收站的参考笔记。 */
+@Serializable
+data class ChatProjectSummary(
+    val id: String,
+    val name: String,
+    val noteCount: Int = 0,
+    val hasInstructions: Boolean = false,
+)
+
+@Serializable
+data class ChatProjectsResponse(val projects: List<ChatProjectSummary> = emptyList())
+
+@Serializable
+data class ChatProjectResponse(val project: ChatProjectSummary)
+
+/** 设置窗口用的详情：notes 按选的顺序，不含回收站里的笔记。 */
+@Serializable
+data class ChatProjectNote(val id: String, val title: String = "", val icon: String? = null)
+
+@Serializable
+data class ChatProjectDetail(
+    val id: String,
+    val name: String,
+    val instructions: String? = null,
+    val notes: List<ChatProjectNote> = emptyList(),
+)
+
+@Serializable
+data class ChatProjectDetailResponse(val project: ChatProjectDetail)
+
+/** 与 src/types/chat.ts 相同的上限。 */
+const val MAX_PROJECT_INSTRUCTIONS = 4000
+const val MAX_PROJECT_NOTES = 5

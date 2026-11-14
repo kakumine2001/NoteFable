@@ -48,7 +48,7 @@ class StudyMateApi(
     /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
     private val openFile: (String) -> InputStream = { throw IOException("no file access") },
 ) : ChatBackend, AccountBackend, NotesBackend {
-    private val http = StudyMateHttp(baseUrl, cookieJar)
+    internal val http = StudyMateHttp(baseUrl, cookieJar)
     private val client: OkHttpClient get() = http.client
     private val streamClient: OkHttpClient get() = http.streamClient
     private val uploadClient: OkHttpClient get() = http.uploadClient
