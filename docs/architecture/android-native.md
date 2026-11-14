@@ -25,8 +25,10 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 
 - **数值来源**：网页 `src/app/globals.css` 与组件，用浏览器在 412×915 下读取真实的位置和样式。原生里 1dp = 网页 1 CSS px。
 - **文案**：沿用网页字典（空列表、加载失败也用网页已有的句子，没有就不另写）（`src/lib/i18n/messages/{zh,ja}.ts`），英文原句就是 `res/values/strings.xml` 的内容，`values-zh`、`values-ja` 与字典逐条对应。网页新增或改写文案时，这里要同步。
+- **文案文件按批次分开**：`strings.xml` 是已有界面的文案。之后每一批功能把新文案放进自己的 `res/values/strings_<批次>.xml`（例如 `strings_activity.xml`、`strings_search.xml`），`values-zh`、`values-ja` 里放同名文件，三份的键一一对应。这样几批并行开发时不会改同一个文件；同一个句子只放一处，后面的批次直接引用已有的键，不重复定义。
+- **服务端发来的文字**不进 `strings*.xml`，见下文“与服务端的约定”里的系统文词典。
 - **颜色**：`ui/Theme.kt` 的 `Sm` 对象，逐项对应 `--sm-*` / `--notion-*`。**网页只有浅色主题**，所以原生版也只做浅色，不跟随系统深色模式。
-- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制，品牌标志同理。
+- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制，品牌标志同理。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
 - **字体**：网页的字体栈在安卓上落到 Roboto（日文 / 中文用系统 Noto CJK），原生版用系统默认，所以一致。等宽的角色标签网页用 Geist Mono，原生版先用系统等宽，没有内置字体文件。
 
 | 位置 | 网页数值（CSS px） | 原生 |
@@ -64,10 +66,13 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 ```
 mobile/android/
   app/src/main/java/com/kakumine/studymate/
-    data/   StudyMateApi（OkHttp、SSE）、PersistentCookieJar、ChatStreamParser、DTO、Notes（笔记 DTO、NotesBackend、JS 桥消息）
+    data/   StudyMateApi（各接口）、StudyMateHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
+            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Notes（笔记 DTO、NotesBackend、JS 桥消息）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
-            ChatScreen、NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Theme
-  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、AssistantTurn（一条回答）、ChatSidebar（侧栏的聊天部分）、
+            NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
+  app/src/main/assets/   models.json、system-text.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
+  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
 - 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
@@ -78,7 +83,9 @@ mobile/android/
 - 身份：和网页一样靠 `studymate_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
-- 错误文：服务端 API 返回的是英文原句（`msg()` 只做标记，网页端拿它当键用 `t()` 翻译），原生端目前原样显示，外面套本地化的"请求失败：…"。要让中 / 日界面显示译文，需要让服务端按请求语言翻译，或提供错误文词典给原生端（路线图第 2 步顺带做）。
+- 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿、弹出登录提示（GuestLimitPrompt）还没做；工具完成标签在对应批次接上。
+  - 词典由 `npx tsx scripts/gen-native-system-text.ts` 生成：从 `src/app/api` 的路由沿 import 收集 `msg()` / `fmt()` 的句子，加上 `zh-server.ts` 的全部键和 `SYSTEM_TEXT_TEMPLATES`，译文取自网页的中 / 日字典（缺译文时生成失败）。改了服务端的句子或字典后重新生成；`src/lib/native-system-text-asset.test.ts` 在资源过期时失败。
+  - 错误响应解析成 `ApiException`（`data/StudyMateHttp.kt`）：`message` 是服务端原句（读不到时 "HTTP <状态码>"），429 使用上限另有 `code`（`usage_limit`）、`tier`、`kind`（`src/lib/usage-limits.ts`），`isUsageLimit` 判断是否是上限。
 - 首次启动：设备 Cookie 由第一个到达服务端的请求签发。App 先发会话列表请求，发送提问前会等它结束，否则 `/api/sessions` 和 `/api/chat` 各签发一个身份、后到的 Cookie 覆盖先到的，第一个聊天就读不回来。
 - 同一时刻只认最新一次会话列表刷新和历史读取，被取消的在途请求结果会被丢弃；历史加载中不能发送。
 - 流式请求不设读超时，思考型模型可能很久没有输出。停止生成会取消底层网络请求；切换聊天也会先停掉进行中的回答。停止后不用服务器版本覆盖屏幕，只有正常结束才对账。
@@ -127,7 +134,7 @@ cd mobile/android
 ## 路线图
 
 1. ✅ 聊天（本阶段）。
-2. 附件与图片：✅ 文件选择上传和「生成图片」模式；还差拍照入口、生成图片的保存；服务端错误文的中 / 日译文；推理、搜索、笔记工具的进度条；笔记编辑提案卡片。
+2. 附件与图片：✅ 文件选择上传和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；还差拍照入口、生成图片的保存；推理、搜索、笔记工具的进度条；笔记编辑提案卡片。
 3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、侧栏行里改图标、搜索。
 4. 账号：已有 Credential Manager Google 登录、退出和修改显示名，沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

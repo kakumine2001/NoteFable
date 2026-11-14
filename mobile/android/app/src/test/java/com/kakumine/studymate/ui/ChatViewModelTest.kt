@@ -1,10 +1,14 @@
 package com.kakumine.studymate.ui
 
+import com.kakumine.studymate.data.ApiException
 import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.AttachError
 import com.kakumine.studymate.data.ChatStreamEvent
+import com.kakumine.studymate.data.FailureInfo
 import com.kakumine.studymate.data.GeneratedImagePayload
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import com.kakumine.studymate.data.ImageResult
 import com.kakumine.studymate.data.LocalFile
 import com.kakumine.studymate.data.UploadPlan
@@ -162,6 +166,39 @@ class ChatViewModelTest {
         assertEquals("Daily limit reached", assistant.errorDetail)
         assertFalse(assistant.streaming)
         assertFalse(vm.state.value.sending)
+    }
+
+    @Test
+    fun `remembers where the server appended its failure text, live and from stored activity`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        val failure = FailureInfo(9, "Note not found.")
+
+        vm.send("hi")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Partial\n\nRequest failed: Note not found."))
+        backend.events.send(
+            ChatStreamEvent.Activity(
+                Json.parseToJsonElement("""{"type":"failure","id":"request-failure","offset":9,"detail":"Note not found."}""").jsonObject,
+            ),
+        )
+        settle()
+        assertEquals(failure, vm.state.value.messages.last().failure)
+
+        backend.stored = listOf(
+            MessageDto("db-1", "USER", "hi"),
+            MessageDto(
+                "db-2", "ASSISTANT", "Partial\n\nRequest failed: Note not found.",
+                activity = Json.parseToJsonElement(
+                    """[{"id":"t","kind":"thought","text":"x"},{"id":"request-failure","kind":"failure","offset":9,"detail":"Note not found."}]""",
+                ),
+            ),
+        )
+        backend.events.close()
+        advanceUntilIdle()
+        assertEquals(listOf("db-1", "db-2"), vm.state.value.messages.map { it.id })
+        assertEquals(failure, vm.state.value.messages.last().failure)
+        assertNull(vm.state.value.messages.first().failure)
     }
 
     @Test
@@ -491,6 +528,24 @@ class ChatViewModelTest {
         assertEquals("img-1", vm.state.value.activeSessionId)
         assertFalse(vm.state.value.sending)
         assertEquals(listOf("db-1", "db-2"), vm.state.value.messages.map { it.id })
+    }
+
+    @Test
+    fun `a usage limit shows the server sentence as the answer, not as a failure`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        val limit = "You've used today's free messages. Sign in with Google for more, or try again tomorrow."
+        backend.streamError = ApiException(429, limit, code = ApiException.USAGE_LIMIT_CODE, tier = "guest", kind = "chat")
+
+        vm.send("hi")
+        advanceUntilIdle()
+
+        val assistant = vm.state.value.messages.last()
+        assertEquals(limit, assistant.content)
+        assertTrue(assistant.usageLimit)
+        assertEquals(null, assistant.errorDetail)
+        assertFalse(assistant.streaming)
+        assertFalse(vm.state.value.sending)
     }
 
     @Test

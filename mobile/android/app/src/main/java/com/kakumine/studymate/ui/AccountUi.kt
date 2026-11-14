@@ -255,7 +255,7 @@ private fun ProfileMenu(
                 Text(it, color = Sm.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
             }
             error?.let {
-                Text(it, color = Sm.Danger, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
+                Text(rememberSystemText().localize(it), color = Sm.Danger, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
             }
             // 操作区：上方 1px 分隔线，按钮行高 44、15sp，图标 14。
             Column(

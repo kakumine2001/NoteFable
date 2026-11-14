@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.studymate.StudyMateApp
+import com.kakumine.studymate.data.ApiException
 import com.kakumine.studymate.data.AttachError
 import com.kakumine.studymate.data.AttachmentDto
 import com.kakumine.studymate.data.LocalFile
@@ -14,6 +15,7 @@ import com.kakumine.studymate.data.selectionError
 import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.ChatStreamEvent
+import com.kakumine.studymate.data.FailureInfo
 import com.kakumine.studymate.data.GeneratedImageDto
 import com.kakumine.studymate.data.MessageDto
 import com.kakumine.studymate.data.ModelInfo
@@ -47,6 +49,13 @@ data class UiMessage(
     val thinkingMs: Long? = null,
     /** 正在生成图片：显示占位卡片而不是转圈。 */
     val generatingImage: Boolean = false,
+    /** 服务端在正文末尾追加的"Request failed: …"的位置（activity 里的 failure），界面据此换成译文。 */
+    val failure: FailureInfo? = null,
+    /**
+     * 当日使用次数已用完（429 usage_limit）。和网页一样：正文换成服务端的英文原句，界面只翻译、
+     * 当普通回答显示，不套"请求失败："也不标红（chat-message.tsx 的 usageLimit 分支）。
+     */
+    val usageLimit: Boolean = false,
 )
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
@@ -398,6 +407,8 @@ class ChatViewModel(
                 if (message.id != assistantId) return@mapNotNull message
                 val done = message.copy(streaming = false, generatingImage = false)
                 when {
+                    failed is ApiException && failed.isUsageLimit ->
+                        done.copy(content = failed.message.orEmpty(), usageLimit = true, failure = null)
                     failed != null -> done.copy(errorDetail = failed.message ?: failed.javaClass.simpleName)
                     // 没收到任何内容就被停止：不留空气泡。
                     message.content.isEmpty() && message.images.isEmpty() -> null
@@ -449,7 +460,10 @@ class ChatViewModel(
                                 refreshSessions()
                             }
                             is ChatStreamEvent.Delta -> pending.append(event.text)
-                            is ChatStreamEvent.Activity -> Unit // 推理/搜索进度条后续再做原生展示
+                            // 推理/搜索进度条后续再做原生展示；这里只记下服务端追加的失败文的位置。
+                            is ChatStreamEvent.Activity -> FailureInfo.from(event.payload)?.let { failure ->
+                                updateAssistant(assistantId) { it.copy(failure = failure) }
+                            }
                         }
                     }
                 } finally {
@@ -488,6 +502,7 @@ class ChatViewModel(
         images = dto.generatedImages.map { it.copy(dataUrl = backend.absoluteUrl(it.dataUrl)) },
         thinkingMs = dto.thinkingMs,
         modelId = dto.model,
+        failure = FailureInfo.fromActivity(dto.activity),
     )
 
     companion object {

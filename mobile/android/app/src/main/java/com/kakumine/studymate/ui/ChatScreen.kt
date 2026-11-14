@@ -308,7 +308,7 @@ private fun EmptyState() {
 }
 
 // 角色标签：12sp 等宽、大写、字距 .06em、灰色，和下面的内容隔 7.2。
-private val RoleLabelBase = TextStyle(
+internal val RoleLabelBase = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontSize = 12.sp,
     lineHeight = 18.sp,
@@ -321,8 +321,6 @@ private val RoleLabelBase = TextStyle(
 // 所以含中日文的标签直接用默认字体，拉丁字母的标签仍用等宽。
 internal fun roleLabelStyle(text: String): TextStyle =
     if (text.any { it.code >= 0x2E80 }) RoleLabelBase.copy(fontFamily = FontFamily.Default) else RoleLabelBase
-
-private val RoleLabelStyle = RoleLabelBase
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -387,64 +385,6 @@ private fun FileChip(name: String) {
         Text(name, color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
-
-@Composable
-private fun AssistantTurn(message: UiMessage, modelLabel: String?) {
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-
-    Column(Modifier.fillMaxWidth()) {
-        // "StudyMate · 模型名"：品牌标志 12，间距 5.6；模型名不转大写，字距 .02em。
-        Row(Modifier.padding(bottom = 7.2.dp), verticalAlignment = Alignment.CenterVertically) {
-            BrandMark(12.dp, Sm.Ink)
-            Spacer(Modifier.width(5.6.dp))
-            Text("STUDYMATE", style = RoleLabelStyle)
-            if (modelLabel != null) {
-                Spacer(Modifier.width(5.6.dp))
-                Text("· $modelLabel", style = RoleLabelStyle.copy(letterSpacing = 0.24.sp))
-            }
-        }
-        when {
-            message.generatingImage -> GeneratingImagePreview()
-            message.content.isEmpty() && message.streaming ->
-                CircularProgressIndicator(Modifier.size(18.dp), color = Sm.Muted, strokeWidth = 2.dp)
-            message.content.isNotEmpty() -> SelectionContainer { AnswerMarkdown(message.content) }
-        }
-        message.images.forEach { image ->
-            AsyncImage(
-                model = remember(image.dataUrl) { imageModel(image.dataUrl) },
-                contentDescription = null,
-                contentScale = ContentScale.Fit,
-                // .generated-image：最宽 576、圆角 4.8、1px #e2e8f0 描边、#f8fafc 底。
-                modifier = Modifier.padding(top = 8.dp).widthIn(max = 576.dp).fillMaxWidth().clip(RoundedCornerShape(4.8.dp))
-                    .background(Color(0xFFF8FAFC)).border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(4.8.dp)),
-            )
-        }
-        message.errorDetail?.let { detail ->
-            Text(
-                stringResource(R.string.request_failed, detail),
-                color = Sm.Danger,
-                fontSize = 15.sp,
-                modifier = Modifier.padding(top = 6.dp),
-            )
-        }
-        if (!message.streaming && message.content.isNotEmpty()) {
-            // 操作行：36x36 的图标按钮，整体左移 10 让图标和正文左边缘对齐，距正文 6.4。
-            Row(Modifier.padding(top = 6.4.dp).offset(x = (-10).dp)) {
-                val copyLabel = stringResource(R.string.copy)
-                Box(
-                    Modifier.size(36.dp).clip(RoundedCornerShape(4.8.dp)).clickable {
-                        scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("StudyMate", message.content))) }
-                    }.semantics { contentDescription = copyLabel; role = Role.Button },
-                    Alignment.Center,
-                ) {
-                    LucideIcon(Lucide.Copy, 16.dp, Sm.Muted, strokeWidth = 1.9f)
-                }
-            }
-        }
-    }
-}
-
 
 // ---------------------------------------------------------------------------------------------
 // 输入栏（.notion-composer）：外边距 10.4 / 上 12 / 下 16，白底、1px 描边、圆角 16、内边距 10。
