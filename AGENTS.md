@@ -6,7 +6,7 @@ Next.js 16 App Router, React 19, Tailwind v4, Prisma 7, Neon PostgreSQL, Vercel,
 
 - Discussion produces a reviewable plan in chat; an implementation request goes straight to local changes, checks and a local preview. No plan or analysis files unless asked.
 - Read the area's doc before exploring code: `docs/architecture/` covers chat-flow, image-flow, notes-flow, provider-requests, database, deployment, i18n, android and android-native.
-- Never deploy to production or push to a production-triggering branch unless the user asks for a release in the current chat.
+- Production deploys only by merging a PR that passed the review flow (Review and Validation). Never push to `main` directly or deploy any other way unless the user asks in the current chat.
 - UI: inspect the existing screen and keep its language, spacing and motion. Translate UI via `useT()` / `useI18n()`, mark constant text with `msg()`, update both zh and ja dictionaries (`docs/architecture/i18n.md`).
 - Keep `/` and `/app` static under `src/app/[locale]/`; no cookies or headers in layouts. Regenerate `zh-hant.ts` after dictionary changes; close mobile drawers outside `runTransition`.
 - No secrets in code or docs; provider credentials stay server-side.
@@ -15,11 +15,12 @@ Next.js 16 App Router, React 19, Tailwind v4, Prisma 7, Neon PostgreSQL, Vercel,
 
 Several agents work on this repo at the same time. These rules keep their work from colliding.
 
-- One task, one branch, one worktree. Start with `git fetch` and `git worktree list`, then cut the branch from `origin/main` in its own worktree and name it after the task. Don't start a task in a checkout that holds another task's uncommitted changes, and don't put two features on one branch.
+- One task, one branch, one worktree. Start with `npm run git:cleanup` (fetches, removes merged worktrees and branches) and `git worktree list`, then cut the branch from `origin/main` in its own worktree and name it after the task. Don't start a task in a checkout that holds another task's uncommitted changes, and don't put two features on one branch.
 - Before building something, check `origin/main` and the open branches for it: another agent may already have shipped it.
 - One writing agent per worktree. A second agent on the same task reviews; it does not edit the same files.
 - Commit on the task branch as soon as a unit of work passes its checks; don't leave finished work uncommitted. Never commit, stash or revert another agent's uncommitted changes.
-- Keep branches short-lived: bring `origin/main` in before opening a PR, and remove the worktree once the branch is merged.
+- Keep branches short-lived. Merge with a merge commit (no squash or rebase), so the cleanup can tell the branch is merged.
+- The agent that merges cleans up in the same turn, from the main checkout (it can't remove the worktree it runs in): `npm run git:cleanup` removes the worktree, the local branch and `origin/<branch>`, and fast-forwards the main checkout. It skips anything with uncommitted changes or unmerged commits and lists it; resolve those, don't leave them. A merged branch is finished: new work goes on a new branch.
 
 ## Auth
 
@@ -68,16 +69,20 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 Match the effort to the change. The full suite and the review run once per task, at the end, not after every edit.
 
-| Change | Checks | Review before commit |
+| Change | Checks | Review effort |
 | --- | --- | --- |
-| Docs and comments only | none | none |
-| Dictionary text only | `npm run typecheck` | none |
-| Other code | `npx vitest run <file>` while iterating; `npm test`, `npm run typecheck`, `npm run lint` once at the end | `gpt-6.1-sol` at `high` |
-| Auth, database and migrations, storage, API routes, usage limits, model routing | the same, plus `npx prisma validate` for schema changes | `gpt-6.1-sol` at `xhigh` |
+| Docs and comments only | none | none: commit, PR, merge |
+| Dictionary text only | `npm run typecheck` | none: commit, PR, merge |
+| Other code | `npx vitest run <file>` while iterating; `npm test`, `npm run typecheck`, `npm run lint` once at the end | `high` |
+| Auth, database and migrations, storage, API routes, usage limits, model routing | the same, plus `npx prisma validate` for schema changes | `xhigh` |
 
-- The review is independent and read-only: fresh context, given only the requirements, this task's diff and these rules (e.g. `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"high"' --uncommitted`). If the working tree also holds other work, pass `git diff -- <paths>` for this task's files instead.
-- Verify the findings, fix the valid ones and rerun the checks. Review again only when the fix itself changed behavior beyond what the finding asked for.
-- Cross-calls: Claude Code → Codex `codex exec -m gpt-6.1-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-sonnet-5-5 --effort high ...`.
+Every task that needs review goes through the same flow:
+
+1. Self-review: when the checks pass, review your own diff with your built-in reviewer (Claude Code: `/code-review <effort>`; Codex: `codex review --uncommitted`). Verify each finding, fix the valid ones, rerun the checks, commit.
+2. PR: bring `origin/main` in, push the branch, open a PR.
+3. Cross-review: the other agent reviews the PR read-only, with fresh context and only the requirements, the PR diff and these rules. Claude Code → `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"<effort>"' --base origin/main`; Codex → `claude -p --model claude-sonnet-5-5 --effort <effort> "/code-review <effort> <PR number>"`. Verify the findings, fix the valid ones, push. Review again only when a fix changed behavior beyond what the finding asked for.
+4. Merge: once the cross-review has no open valid findings and the checks pass, merge the PR into `main` with a merge commit (`gh pr merge --merge`), then run `npm run git:cleanup`. Merging deploys production; this flow is the release approval, so don't push to `main` any other way.
+- Other cross-calls (questions, second opinions): Claude Code → Codex `codex exec -m gpt-6.1-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-sonnet-5-5 --effort high ...`.
 - Verify UI changes in a browser. No Playwright/E2E unless asked.
 
 ## Keep This File Small

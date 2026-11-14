@@ -17,7 +17,8 @@
     "lint": "eslint",
     "typecheck": "prisma generate && tsc --noEmit",
     "prisma:generate": "prisma generate",
-    "prisma:migrate": "node scripts/prisma-migrate-retry.mjs"
+    "prisma:migrate": "node scripts/prisma-migrate-retry.mjs",
+    "git:cleanup": "node scripts/git-cleanup.mjs"
   },
   "dependencies": {
     "@blocknote/ariakit": "0.55.0",
