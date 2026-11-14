@@ -193,7 +193,7 @@ fun NoteEditorScreen(
     val currentOnDownload by rememberUpdatedState(onDownload)
     val currentOnChatLink by rememberUpdatedState(onChatLink)
     // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
-    val bridge = remember(open.editor) { NoteEmbedBridge { message -> currentOnMessage(open.editor, message) } }
+    val bridge: NoteEmbedBridge = remember(open.editor) { NoteEmbedBridge { message -> currentOnMessage(open.editor, message) } }
     // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
     var generation by remember(open.editor) { mutableIntStateOf(0) }
     val fileCallback = remember(open.editor) { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
@@ -271,7 +271,7 @@ fun NoteEditorScreen(
                     settings.allowFileAccess = false
                     settings.allowContentAccess = false
                     settings.setSupportMultipleWindows(false)
-                    addJavascriptInterface(bridge, "StudyMateNative")
+                    attachBridge(bridge)
                     // 网页按下载处理的响应（Content-Disposition: attachment）：本站的笔记文件由 App 下载，其它交给系统。
                     setDownloadListener { url, _, _, _, _ ->
                         if (NoteFileLinks.isNoteFile(url, baseUrl)) currentOnDownload(url)
@@ -338,3 +338,6 @@ fun NoteEditorScreen(
         }
     }
 }
+
+/** 网页侧的 `window.StudyMateNative`。单独一个有具体类型的函数：lint 在 apply 块里看不出 [bridge] 的类型（只看到泛型 T）。 */
+private fun WebView.attachBridge(bridge: NoteEmbedBridge) = addJavascriptInterface(bridge, "StudyMateNative")
