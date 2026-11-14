@@ -74,16 +74,21 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val state by viewModel.state.collectAsStateWithLifecycle()
     val account by accountViewModel.state.collectAsStateWithLifecycle()
     val notes by notesViewModel.state.collectAsStateWithLifecycle()
+    // 侧栏的置顶、项目、整理（Batch 3）；会话列表本身仍在 ChatViewModel。
+    val sidebarViewModel: SidebarViewModel = androidx.lifecycle.viewmodel.compose.viewModel(factory = SidebarViewModel.factory(viewModel))
     val activity = LocalActivity.current ?: return
     val app = LocalContext.current.applicationContext as StudyMateApp
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
+    // 当前打开着的网页编辑器的 JS 桥（没有打开笔记时为 null）。
+    var editorBridge by remember { mutableStateOf<NoteEmbedBridge?>(null) }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     val onIdentityChanged = {
         viewModel.onIdentityChanged()
         notesViewModel.onIdentityChanged()
+        sidebarViewModel.onIdentityChanged()
     }
 
     // 返回键：先关抽屉；笔记编辑页自己处理（先交给网页关面板，再保存后回列表）；笔记列表回到聊天；最后退出 App。
@@ -94,7 +99,12 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Open) {
-            if (notes.workspace == Workspace.Notes) notesViewModel.refresh() else viewModel.refreshSessions()
+            if (notes.workspace == Workspace.Notes) notesViewModel.refresh() else {
+                viewModel.refreshSessions()
+                sidebarViewModel.refreshProjects()
+                // 上次"在项目里新建聊天"的失败原因只在当时那次打开里显示（网页的 sendError 下一次操作就清掉）。
+                sidebarViewModel.dismissCreateError()
+            }
         }
     }
 
@@ -110,6 +120,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             AppDrawer(
                 workspace = notes.workspace,
                 onSwitch = switchWorkspace,
+                onClose = closeDrawer,
                 footer = {
                     SidebarFooter(
                         account = account,
@@ -154,9 +165,11 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 } else {
                     ChatDrawerBody(
                         state = state,
+                        sidebar = sidebarViewModel,
                         onNewChat = { viewModel.newChat(); closeDrawer() },
                         onOpen = { id -> viewModel.openSession(id); closeDrawer() },
                         onRetry = viewModel::refreshSessions,
+                        closeDrawer = closeDrawer,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -164,8 +177,17 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         },
     ) {
         val open = notes.open
-        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 studymate:page-updated / page-created）。
-        LaunchedEffect(app) { app.proposals.changes.collect { notesViewModel.refresh() } }
+        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 studymate:page-updated / page-created），
+        // 改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然它还拿着旧版本，下次保存会 409）。
+        LaunchedEffect(app) {
+            app.proposals.changes.collect { change ->
+                notesViewModel.refresh()
+                val page = change.page
+                if (!change.created && page != null && change.pageId != null && notesViewModel.state.value.open?.id == change.pageId) {
+                    editorBridge?.pageUpdated(page)
+                }
+            }
+        }
         when {
             notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink) { ChatScreen(
                 state = state,
@@ -209,7 +231,10 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.Flushed -> Unit
                         }
                     },
-                    registerFlush = { bridge -> notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } } },
+                    registerFlush = { bridge ->
+                        editorBridge = bridge
+                        notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } }
+                    },
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -291,6 +316,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
 private fun AppDrawer(
     workspace: Workspace,
     onSwitch: (Workspace) -> Unit,
+    onClose: () -> Unit,
     footer: @Composable () -> Unit,
     body: @Composable ColumnScope.() -> Unit,
 ) {
@@ -305,6 +331,9 @@ private fun AppDrawer(
                 BrandMark(20.dp, Sm.Ink)
                 Spacer(Modifier.width(7.2.dp))
                 Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                // 头部右侧的"关闭侧栏"（.notion-icon-button 40，PanelLeftClose 17 灰）；聊天和笔记两边的网页侧栏都有。
+                TopIconButton(Lucide.PanelLeftClose, stringResource(R.string.sb_close_sidebar), onClose, iconSize = 17.dp)
             }
             WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp))
             body()

@@ -1,10 +1,5 @@
 package com.kakumine.studymate.ui
 
-import android.app.LocaleManager
-import android.content.Intent
-import android.net.Uri
-import android.os.Build
-import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -82,7 +77,7 @@ fun SidebarFooter(
     onResetToGoogle: () -> Unit,
 ) {
     Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
-        LanguageRow()
+        LanguageSelect()
         if (account.configured) {
             Box(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
                 val user = account.user
@@ -94,36 +89,6 @@ fun SidebarFooter(
             }
         }
         LegalLinks()
-    }
-}
-
-// 网页的表示语言是自己的菜单；安卓有系统级的"应用语言"设置（Android 13+），原生版直接打开它，选项同样是 自动 / English / 简体中文 / 日本語。
-@Composable
-private fun LanguageRow() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    val context = LocalContext.current
-    val locales = remember { context.getSystemService(LocaleManager::class.java)?.applicationLocales }
-    val value = when (locales?.takeIf { !it.isEmpty }?.get(0)?.language) {
-        "en" -> "English"
-        "zh" -> "简体中文"
-        "ja" -> "日本語"
-        else -> stringResource(R.string.language_automatic)
-    }
-    Row(
-        Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp).fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
-            .clickable {
-                context.startActivity(
-                    Intent(Settings.ACTION_APP_LOCALE_SETTINGS, Uri.parse("package:${context.packageName}")),
-                )
-            }
-            .padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.8.dp),
-    ) {
-        LucideIcon(Lucide.Globe, 16.dp, Sm.Muted)
-        Text(stringResource(R.string.language), modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp)
-        Text(value, color = Sm.Muted, fontSize = 13.sp, maxLines = 1)
-        LucideIcon(Lucide.ChevronDown, 14.dp, Sm.Muted)
     }
 }
 

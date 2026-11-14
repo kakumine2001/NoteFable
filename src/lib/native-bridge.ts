@@ -1,4 +1,4 @@
-import type { NoteSaveStatus } from "@/types/notes";
+import type { NotePage, NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
 // 取り決めは docs/architecture/notes-flow.md の「Android アプリへの埋め込み」。ここを変えたらアプリ側も合わせる。
@@ -16,9 +16,11 @@ export type NativeMessage =
 
 export type NativeHost = { postMessage: (json: string) => void };
 // アプリ → web。アプリは evaluateJavascript で window.studymateEmbed.flush("<requestId>") などを呼ぶ。
+// pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
   flush: (requestId?: unknown) => Promise<boolean>;
   openHistory: () => void;
+  pageUpdated: (page: unknown) => boolean;
 };
 
 type BridgeWindow = { StudyMateNative?: unknown; studymateEmbed?: EmbedApi };
@@ -59,12 +61,33 @@ function requestIdOf(value: unknown) {
   return typeof value === "string" ? value : value === undefined || value === null ? "" : String(value);
 }
 
+// アプリから渡されたページを確かめる。JSON 文字列でも受け、id・version・本文（blocks）がそろっていなければ捨てる。
+export function parseUpdatedPage(value: unknown): NotePage | null {
+  let page: unknown = value;
+  if (typeof page === "string") {
+    try { page = JSON.parse(page); } catch { return null; }
+  }
+  if (!page || typeof page !== "object") return null;
+  const candidate = page as Partial<NotePage>;
+  if (typeof candidate.id !== "string" || !candidate.id) return null;
+  if (typeof candidate.version !== "number" || !Number.isFinite(candidate.version)) return null;
+  if (typeof candidate.title !== "string" || !Array.isArray(candidate.blocks)) return null;
+  return candidate as NotePage;
+}
+
+// web の編集案カードと同じ studymate:page-updated を出す。useNotePages が受け取り、未保存の編集がなければ最新版に替え、
+// あれば衝突として知らせる（docs/architecture/notes-flow.md）。
+export function dispatchPageUpdated(page: NotePage) {
+  window.dispatchEvent(new CustomEvent<NotePage>("studymate:page-updated", { detail: page }));
+}
+
 // window.studymateEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, post }: {
   flush: () => Promise<boolean>;
   draftKept?: () => boolean;
   openHistory: () => void;
+  pageUpdated?: (page: NotePage) => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -78,6 +101,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, po
       return ok;
     },
     openHistory() { openHistory(); },
+    pageUpdated(value) {
+      const page = parseUpdatedPage(value);
+      if (!page) return false;
+      pageUpdated(page);
+      return true;
+    },
   };
 }
 

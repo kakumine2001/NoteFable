@@ -21,11 +21,14 @@ import java.net.URLEncoder
 
 /** 应用 / 放弃 AI 的笔记提案（`POST /api/proposals/:id/apply|discard`）。拆成接口便于单元测试。 */
 interface ProposalBackend {
-    /** 应用提案，返回被改动或新建的笔记 ID（新建时取自响应的 `page.id`）。失败时抛出，消息是服务端原句或 null。 */
-    suspend fun apply(proposalId: String): String?
+    /** 应用提案，返回响应里的笔记（`page`）。失败时抛出，消息是服务端原句或 null。 */
+    suspend fun apply(proposalId: String): AppliedPage
 
     suspend fun discard(proposalId: String)
 }
+
+/** 应用提案后服务端返回的笔记：[id] 是 `page.id`，[json] 是整个 `page` 对象的 JSON（转给打开着的网页编辑器）。 */
+data class AppliedPage(val id: String?, val json: String?)
 
 /** 服务端拒绝了操作。[serverMessage] 是响应里的 `error`（英文原句），没有时界面用"无法应用修改建议。"。 */
 class ProposalException(val serverMessage: String?) : Exception(serverMessage)
@@ -34,11 +37,11 @@ class ProposalApi(
     private val client: OkHttpClient,
     private val absoluteUrl: (String) -> String,
 ) : ProposalBackend {
-    override suspend fun apply(proposalId: String): String? {
+    override suspend fun apply(proposalId: String): AppliedPage {
         val body = post(proposalId, "apply")
-        return runCatching { StudyMateJson.parseToJsonElement(body) as? JsonObject }.getOrNull()
-            ?.let { (it["page"] as? JsonObject)?.get("id") as? JsonPrimitive }
-            ?.takeIf { it.isString }?.content
+        val page = runCatching { StudyMateJson.parseToJsonElement(body) as? JsonObject }.getOrNull()?.get("page") as? JsonObject
+        val id = (page?.get("id") as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return AppliedPage(id, page?.toString())
     }
 
     override suspend fun discard(proposalId: String) {
@@ -105,13 +108,13 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
         set(proposal.id, ProposalState(ProposalState.Status.Applying))
         scope.launch {
             try {
-                val created = backend.apply(proposal.id)
+                val applied = backend.apply(proposal.id)
                 val pageId = when (proposal) {
                     is Proposal.Edit -> proposal.pageId
-                    is Proposal.Create -> created
+                    is Proposal.Create -> applied.id
                 }
                 set(proposal.id, ProposalState(ProposalState.Status.Applied, pageId = pageId))
-                _changes.tryEmit(ProposalChangeEvent(pageId, created = proposal is Proposal.Create))
+                _changes.tryEmit(ProposalChangeEvent(pageId, created = proposal is Proposal.Create, page = applied.json))
             } catch (e: CancellationException) {
                 set(proposal.id, ProposalState())
                 throw e
@@ -154,5 +157,8 @@ class ProposalStore(private val backend: ProposalBackend, private val scope: Cor
     }
 }
 
-/** 应用提案后改动或新建的笔记。 */
-data class ProposalChangeEvent(val pageId: String?, val created: Boolean)
+/**
+ * 应用提案后改动或新建的笔记。[page] 是服务端返回的新版本（`page` 的 JSON）：改动的笔记正开在编辑器里时，
+ * 交给网页的 `window.studymateEmbed.pageUpdated`，和网页 studymate:page-updated 一样换成新版本（有未保存的编辑则提示冲突）。
+ */
+data class ProposalChangeEvent(val pageId: String?, val created: Boolean, val page: String? = null)

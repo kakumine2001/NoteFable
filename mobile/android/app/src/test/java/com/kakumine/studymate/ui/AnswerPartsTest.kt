@@ -36,6 +36,22 @@ class AnswerPartsTest {
     }
 
     @Test
+    fun `large json is tokenized in linear time and keys still found across spaces`() {
+        // 4 万个键值对（约 1MB）：按下标找冒号，不对每个字符串复制剩余文本。平方级时这里要几十秒以上。
+        val json = (0 until 40_000).joinToString(",\n", "{\n", "\n}") { "\"key$it\" \t: \"value$it\"" }
+        val started = System.nanoTime()
+        val tokens = CodeHighlighter.tokenize(json, "json")
+        val elapsedMs = (System.nanoTime() - started) / 1_000_000
+        assertTrue("tokenizing took ${elapsedMs}ms", elapsedMs < 5_000)
+        assertEquals(80_000, tokens.size)
+        assertEquals(40_000, tokens.count { it.kind == CodeTokenKind.Variable })
+        assertEquals(CodeTokenKind.Variable, tokens.first().kind)
+        assertEquals(CodeTokenKind.String, tokens.last().kind)
+        // 字符串在末尾、后面没有冒号时是值。
+        assertEquals(listOf(CodeTokenKind.String), CodeHighlighter.tokenize("\"tail\"  ", "json").map { it.kind })
+    }
+
+    @Test
     fun `json keys, html tags, bash variables and sql keywords`() {
         val json = """{"name": "x", "n": -2, "ok": true}"""
         val j = CodeHighlighter.tokenize(json, "json").associate { json.substring(it.start, it.end) to it.kind }

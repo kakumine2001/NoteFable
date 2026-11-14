@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 批次 1（回答体验）的文案：网页 chat-activity.tsx、page-edit-proposal.tsx、assistant-markdown.tsx、answer-actions.tsx、chat-message.tsx 的原句，译文取自 src/lib/i18n/messages/{zh,ja}.ts。values / values-zh / values-ja 三份的键一一对应。 -->
+<resources>
+    <string name="activity_thinking">正在思考</string>
+    <string name="activity_using_project">正在使用專案“%1$s”</string>
+    <string name="activity_searching_web">正在搜尋網路</string>
+    <string name="activity_searching_query">正在搜尋“%1$s”</string>
+    <string name="activity_reading_host">正在讀取 %1$s</string>
+    <string name="activity_scanning_host">正在瀏覽 %1$s</string>
+    <string name="activity_searching_notes">正在搜尋筆記</string>
+    <string name="activity_reading_note">正在讀取筆記</string>
+    <string name="activity_one_search">搜尋了 1 次</string>
+    <string name="activity_searches">搜尋了 %1$s 次</string>
+    <string name="activity_one_source">1 個來源</string>
+    <string name="activity_sources">%1$s 個來源</string>
+    <string name="activity_one_note_lookup">查閱了 1 次筆記</string>
+    <string name="activity_note_lookups">查閱了 %1$s 次筆記</string>
+    <string name="activity_one_project_note">1 篇專案筆記</string>
+    <string name="activity_project_notes">%1$s 篇專案筆記</string>
+    <string name="activity_project_instructions">專案指示</string>
+    <string name="activity_more">另有 %1$s 項</string>
+    <string name="activity_instructions">指示</string>
+    <string name="activity_one_reference_note">1 篇參考筆記</string>
+    <string name="activity_reference_notes">%1$s 篇參考筆記</string>
+    <string name="activity_used_project">已使用專案“%1$s”：%2$s</string>
+    <string name="activity_partial">部分內容</string>
+    <string name="activity_searching_web_running">正在搜尋網路…</string>
+    <string name="activity_searched">已搜尋</string>
+    <string name="activity_the_web">網路</string>
+    <string name="activity_looked_for">查詢“%1$s”的位置：</string>
+    <string name="activity_read">已讀取</string>
+    <string name="activity_thought_for">已思考 %1$s</string>
+    <string name="activity_thought_process">思考過程</string>
+    <string name="proposal_discarded">已放棄</string>
+    <string name="proposal_minimize">最小化</string>
+    <string name="proposal_expand">擴寫</string>
+    <string name="proposal_open">開啟</string>
+    <string name="proposal_discard">放棄</string>
+    <string name="proposal_open_note">開啟筆記</string>
+    <string name="proposal_new_label">新筆記建議</string>
+    <string name="proposal_create">建立筆記</string>
+    <string name="proposal_created">已建立</string>
+    <string name="proposal_new_title">新筆記%1$s“%2$s”</string>
+    <string name="proposal_empty_note">空白筆記</string>
+    <string name="proposal_edit_label">筆記修改建議</string>
+    <string name="proposal_apply">應用</string>
+    <string name="proposal_applied">已應用</string>
+    <string name="proposal_edit_title">對“%1$s”的修改建議</string>
+    <string name="proposal_rename">重新命名</string>
+    <string name="proposal_op_replace">替換</string>
+    <string name="proposal_op_insert">插入</string>
+    <string name="proposal_op_delete">刪除</string>
+    <string name="proposal_op_block">%1$s · 塊 %2$s</string>
+    <string name="proposal_op_start">%1$s · 筆記開頭</string>
+    <string name="proposal_drops_media">此塊中的已上傳圖片或檔案將從筆記中移除。</string>
+    <string name="proposal_drops_formatting">被替換塊中的文字顏色、下劃線和對齊格式將丟失。</string>
+    <string name="proposal_apply_failed">無法應用修改建議。</string>
+    <string name="proposal_discard_failed">無法放棄修改建議。</string>
+    <string name="code_label_plain">程式碼</string>
+    <string name="code_copied_code">程式碼已複製</string>
+    <string name="code_copy_code">複製程式碼</string>
+    <string name="answer_copied">已複製</string>
+    <string name="answer_copy_failed">無法複製，請選中文字後手動複製。</string>
+    <string name="image_download">下載圖片</string>
+    <string name="generated_image">生成的圖片</string>
+</resources>

@@ -56,6 +56,8 @@ kotlin {
 dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.androidx.core.ktx)
+    // 应用内切换语言（AppCompatDelegate.setApplicationLocales，Android 13 以下由 AppCompat 保存选择）。
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)

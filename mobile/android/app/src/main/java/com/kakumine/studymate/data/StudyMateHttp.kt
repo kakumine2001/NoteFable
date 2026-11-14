@@ -67,6 +67,8 @@ internal class StudyMateHttp(private val baseUrl: String, cookieJar: CookieJar) 
             chain.proceed(
                 chain.request().newBuilder()
                     .header("User-Agent", USER_AGENT)
+                    // 和界面语言一致（见 AppLanguage），服务端按它决定语言的地方与网页相同。
+                    .header("Accept-Language", AppLanguage.acceptLanguage(AppLanguage.uiLocale))
                     .build(),
             )
         }

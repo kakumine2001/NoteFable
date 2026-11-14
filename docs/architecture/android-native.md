@@ -13,11 +13,11 @@
 
 ## 现状（阶段 3）
 
-已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `STUDYMATE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、中 / 日 / 英界面（`res/values-zh`、`values-ja`）、持久化 Cookie（匿名设备身份）。
+已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `STUDYMATE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。还没有：搜索、聊天项目、设置页、繁体中文及网页的上限登录提示与草稿恢复交互。
+另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。还没有：搜索、设置页及网页的上限登录提示与草稿恢复交互。
 
 ## 与网页界面保持一致
 
@@ -55,9 +55,10 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 笔记空状态 | 上距 120；文件图标 28（线宽 1.4、浅灰）；"Notes"40/750、行高 50、上 16；说明 15/24 灰（"/"等宽键帽）；"新笔记"高 32、上 24；存储说明 12/20 浅灰、上 40、最宽 384 | `NotesEmpty` |
 | 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`） | `NoteEditorScreen` |
 | 笔记对话框 | 宽 min(100% − 48, 400)、内边距 24、圆角 8、遮罩 `rgba(15,15,15,.2)`；标题 16/600、说明 14 灰；输入框 1px 深描边、圆角 6、内边距 8.8×11.2、聚焦 2px 蓝；选项行 ≥40、圆角 6、15 字，当前项灰底 600 + ✓；按钮 ≥32、圆角 4.8、12.8/500，危险操作红字 `#b91c1c` | `NotesDialog` 等 |
+| 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、聊天项目、侧栏里的拖动 / 置顶 / 更多、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、侧栏聊天行的改图标（表情选择器）、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `STUDYMATE_MODELS` 决定。
 
@@ -91,6 +92,26 @@ mobile/android/
 - 同一时刻只认最新一次会话列表刷新和历史读取，被取消的在途请求结果会被丢弃；历史加载中不能发送。
 - 流式请求不设读超时，思考型模型可能很久没有输出。停止生成会取消底层网络请求；切换聊天也会先停掉进行中的回答。停止后不用服务器版本覆盖屏幕，只有正常结束才对账。
 
+## 界面语言
+
+和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`），外加"自动"。
+
+- **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
+- **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
+- **语言菜单**（`ui/LanguageUi.kt` 的 `LanguageSelect`，复刻网页 `LanguageSelect`）：选择用 `AppCompatDelegate.setApplicationLocales` 保存成"应用语言"（Android 13+ 由系统保存、也能在系统设置里改，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。"自动"＝清空，跟系统语言。语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；菜单打开时有网页 `motion-menu-enter` 的 120ms 淡入上移，各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化；切换中显示转圈，失败时显示网页的"无法切换语言"。
+
+## 侧栏：置顶、聊天项目与整理
+
+和网页 `chat-sidebar.tsx` / `chat-actions.tsx` / `chat-project-settings.tsx` 一一对应（数值在 412×915 下量，写在 `ui/ChatSidebar.kt`、`ui/ChatActions.kt`、`ui/ProjectSettings.kt` 的注释里；文案在 `strings_sidebar.xml`）。
+
+- 抽屉头部右侧有"关闭侧栏"（PanelLeftClose 17，40 按钮），聊天和笔记两边都有。
+- 列表顺序：Pinned（有置顶时）→ PROJECTS（右侧 ＋ 新建项目）→ 各项目（可折叠，折叠状态只在内存里，和网页一样）→ CHATS。组内按置顶、position、更新时间排序（`orderedSessions`）。项目里没有聊天时显示 "No chats"，全都置顶了显示 "All chats pinned"；项目有共通指示 / 参考笔记时名称后加 ScrollText 小图标。
+- 聊天行：拖动把手、图标、标题、"更多"、置顶。置顶失败只给读屏一句提示（网页是 sr-only alert）。"更多"菜单：改名（最多 120 字）、移到项目（含"＋ 新项目 / 创建并移动"，建好但移动失败时项目保留）、删除（确认；删的是正在看的聊天时回到新聊天；回答生成中不能删）。项目菜单：项目设置、改名（60 字）、删除（聊天保留并移到 Chats）。返回键先关菜单和对话框；请求进行中对话框不能关（网页 run() 锁住窗口），免得结果到了本地列表却没更新。
+- 项目行的 ＋：正在看的是空的新聊天时不多建——同一项目直接用，别的项目（且没置顶）就移过来；否则 `POST /api/sessions {projectId}` 新建并打开。失败时抽屉不关，原因显示在 PROJECTS 下面（网页显示在输入栏上方，原生版输入栏属于别的批次）；下次打开抽屉时清掉。
+- 项目设置：共通指示（计数 n/4000）、参考笔记（筛选、勾选最多 `MAX_PROJECT_NOTES` 篇、已选标签、一次最多列 100 篇），保存时只发改了的字段（`projectSettingsChanges`）。加载失败和网页一样先看项目详情：详情读不到是 "Could not load the project settings."，笔记读不到是 "Could not load your notes."，服务端给了原因就用原因。
+- 拖动排序：按住行首把手直接拖（与网页触屏一致），放到别的行前 / 后走 `POST /api/sessions/reorder`（跨组时服务端顺便改项目和置顶），放到项目行或 CHATS 标签上是移进该项目并取消置顶。把手吃掉这次拖动，所以不会同时触发抽屉的横滑关闭和列表滚动；手指在列表上下边 30 以内移动时每次移动滚 12（和网页一样，手指不动就不滚）。正在移动的那一行把手不能拖，别的行照常能拖；排序请求同一时间只做一次，上一次没完时再排序提示 "Wait for the previous move to finish."（拖进项目走普通更新，不受这个限制，和网页一样）。折叠 / 删除后离开列表的行不再参与命中。网页的键盘上下移动在原生版没有。
+- 接口：`data/SessionsApi.kt`（PATCH / DELETE / POST `/api/sessions`、reorder）、`data/ProjectsApi.kt`（`/api/chat-projects`，参考笔记候选来自 `GET /api/pages`）。状态在 `ui/SidebarViewModel.kt`；会话列表本身仍在 `ChatViewModel`，成功后通过 `patchSessions` / `onSessionDeleted` / `openCreatedSession` 更新。打开抽屉时同时刷新会话和项目；本地改了项目列表时若有刷新在进行就再刷一次（和 `patchSessions` 一样），免得旧结果盖掉新改动；登录 / 退出后丢弃旧身份的结果。单元测试：`SidebarViewModelTest`、`SidebarApiTest`。
+
 ## 附件与图片
 
 流程和网页相同（`src/lib/client-chat-upload.ts`）：点发送后先上传附件，全部成功才把这条消息放进对话；上传失败时文字和附件都留在输入栏，并删掉已经传上去的文件。
@@ -109,7 +130,7 @@ mobile/android/
 
 - **过程数据**（`data/Activity.kt`）：移植 `src/lib/chat-activity.ts` 的 `applyActivityEvent`（按 id 合并：推理增量拼接，其它同 id 替换）、`parseStoredActivity` 的校验（不安全的地址、没完成的搜索、坏的项目上下文都丢掉）、`splitThought`、`hostOf`，`ActivityTest` 与 `chat-activity.test.ts` 逐条对应，两边一起改。流里的 `{activity}` 事件在 `ChatViewModel.runStream` 里和正文一起攒着，每次刷新合并一次；历史里的 `activity` / `proposals` 在 `toUiMessage` 里解析。正文开始出现前的时长记为 `thinkingMs`。
 - **过程面板**（`ui/ChatActivity.kt`，网页 `chat-activity.tsx`）：等待中（还没有正文和图片，包括生成图片时）标题行是"当前一步 · N s"并带流动高光、步骤列表自动展开并跟到最新一步；正文来了收起，标题变成"已思考 N s · N 次搜索 · N 个来源 · N 次查阅笔记 · 项目笔记 / 项目指示"。步骤：推理（标题 + 正文）、搜索（搜索词 + 来源标签，先显示 6 个、其余收进"+N"）、读取 / 在页面里查找（地址链接）、笔记工具（进行中转圈，完成后显示服务端的标签，经系统文词典翻译）、项目上下文（笔记标签可点，`partial` 徽标）。来源和链接用系统浏览器打开（`LocalUriHandler`）。
-- **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
+- **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
 - **代码块**（`ui/CodeBlock.kt`，网页 `MarkdownCodeBlock` + `.markdown-code-*`）：头部 Code2 + 语言名（围栏语言含别名 → `guessLanguage` 的 Python 规则 → 自动识别，识别不出显示"代码"）+ 复制键（✓ 停 1.2 秒）；代码不折行、横向滚动。网页用 highlight.js，原生是自带的小词法高亮器，覆盖同样 17 种语言、用同一套颜色类别；逐个记号和自动识别结果是近似，不保证与 highlight.js 完全一致。行内代码按 `.markdown-inline-code`（#e2e8f0 底、13.6）。
 - **表格**（`AnswerMarkdown` 的 `AnswerTable`）：渲染库自带的表格是固定列宽、只有分隔线，和网页不同，所以自己排：1px 边框、内边距 7.2×11.2、表头浅蓝灰底 + 600，左上对齐；列宽按浏览器自动表格布局分配（每列最窄 88 或最长的词，放得下用自然宽度，否则按比例分，最窄都放不下时横向滚动）。
 - **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。网页的"…"菜单（存到笔记、下载对话）不在这一批。
@@ -123,7 +144,7 @@ mobile/android/
 编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`studymate_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 
 - 网页 → App：`window.StudyMateNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
-- App → 网页：`window.studymateEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。
+- App → 网页：`window.studymateEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `studymate:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
 - 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`studymateEmbed` 不存在）时没有可保存的编辑，直接离开。
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。

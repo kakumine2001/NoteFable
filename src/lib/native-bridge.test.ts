@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+import type { NotePage } from "@/types/notes";
+import { createEmbedApi, installEmbedApi, pageMeta, parseUpdatedPage, postToNative, toEmbedSaveState, type NativeMessage } from "./native-bridge";
 
 describe("postToNative", () => {
   it("sends the message as a JSON string to the app", () => {
@@ -41,8 +42,9 @@ describe("embed api", () => {
   function setup(flush: () => Promise<boolean>, draftKept?: () => boolean) {
     const messages: NativeMessage[] = [];
     const openHistory = vi.fn();
-    const api = createEmbedApi({ flush, draftKept, openHistory, post: (message) => messages.push(message) });
-    return { api, messages, openHistory };
+    const pageUpdated = vi.fn();
+    const api = createEmbedApi({ flush, draftKept, openHistory, pageUpdated, post: (message) => messages.push(message) });
+    return { api, messages, openHistory, pageUpdated };
   }
 
   it("replies with flushed and the request id when everything is saved", async () => {
@@ -80,6 +82,42 @@ describe("embed api", () => {
     const { api, openHistory } = setup(async () => true);
     api.openHistory();
     expect(openHistory).toHaveBeenCalledTimes(1);
+  });
+
+  const page = { id: "p1", title: "Plan", icon: null, cover: null, coverPosition: null, blocks: [], version: 4, groupId: null, createdAt: "", updatedAt: "" };
+
+  it("forwards a page updated in the app (JSON string or object) to the page-updated path", () => {
+    const { api, pageUpdated } = setup(async () => true);
+    expect(api.pageUpdated(JSON.stringify(page))).toBe(true);
+    expect(api.pageUpdated(page)).toBe(true);
+    expect(pageUpdated).toHaveBeenNthCalledWith(1, page);
+    expect(pageUpdated).toHaveBeenNthCalledWith(2, page);
+  });
+
+  it("ignores malformed pages from the app", () => {
+    const { api, pageUpdated } = setup(async () => true);
+    expect(api.pageUpdated("{not json")).toBe(false);
+    expect(api.pageUpdated(null)).toBe(false);
+    expect(api.pageUpdated({ ...page, version: "4" })).toBe(false);
+    expect(api.pageUpdated({ ...page, id: "" })).toBe(false);
+    expect(api.pageUpdated({ ...page, blocks: undefined })).toBe(false);
+    expect(pageUpdated).not.toHaveBeenCalled();
+    expect(parseUpdatedPage(page)).toEqual(page);
+  });
+
+  it("dispatches studymate:page-updated by default", () => {
+    const listener = vi.fn();
+    const target = new EventTarget();
+    vi.stubGlobal("window", target);
+    try {
+      target.addEventListener("studymate:page-updated", listener);
+      const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} });
+      expect(api.pageUpdated(JSON.stringify(page))).toBe(true);
+      expect(listener).toHaveBeenCalledTimes(1);
+      expect((listener.mock.calls[0][0] as CustomEvent<NotePage>).detail).toEqual(page);
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("installs on the window and removes only its own api", () => {

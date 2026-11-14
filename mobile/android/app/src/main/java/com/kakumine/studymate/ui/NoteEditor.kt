@@ -48,7 +48,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -71,7 +70,7 @@ import kotlin.coroutines.resume
 
 /**
  * 原生和网页编辑器（/note-embed）之间的 JS 桥。约定见 src/lib/native-bridge.ts：
- * 网页 → 原生：`window.StudyMateNative.postMessage(json)`；原生 → 网页：`window.studymateEmbed.flush(id)` / `openHistory()`。
+ * 网页 → 原生：`window.StudyMateNative.postMessage(json)`；原生 → 网页：`window.studymateEmbed.flush(id)` / `openHistory()` / `pageUpdated(pageJson)`。
  */
 class NoteEmbedBridge(private val onMessage: (EmbedMessage) -> Unit) {
     private val main = Handler(Looper.getMainLooper())
@@ -127,8 +126,20 @@ class NoteEmbedBridge(private val onMessage: (EmbedMessage) -> Unit) {
         webView?.evaluateJavascript("(function(){var e=window.studymateEmbed;if(e&&typeof e.openHistory==='function')e.openHistory()})()", null)
     }
 
-    private companion object {
-        const val FLUSH_TIMEOUT_MS = 15_000L
+    /**
+     * 别处（聊天里的提案）改了这篇笔记：把服务端返回的新版本交给网页，走网页 studymate:page-updated 的同一条路
+     * （没有未保存的编辑就换成新版本，有就提示冲突），否则编辑器还拿着旧版本，下次保存会 409。
+     */
+    fun pageUpdated(pageJson: String) {
+        webView?.evaluateJavascript(pageUpdatedScript(pageJson), null)
+    }
+
+    companion object {
+        /** 页面 JSON 作为字符串字面量传过去，网页里再 JSON.parse。 */
+        fun pageUpdatedScript(pageJson: String) =
+            "(function(){var e=window.studymateEmbed;if(e&&typeof e.pageUpdated==='function')e.pageUpdated(${JSONObject.quote(pageJson)})})()"
+
+        private const val FLUSH_TIMEOUT_MS = 15_000L
     }
 }
 
@@ -146,13 +157,9 @@ private suspend fun syncCookies(baseUrl: String, jar: CookieJar) {
     manager.flush()
 }
 
-/** 网页的语言代码：App 的界面语言是中文 / 日文时带上，其他用英文。 */
+/** 网页的语言代码（en / zh / zh-Hant / ja）：和 App 界面实际用的语言（资源里的 ui_locale）一致。 */
 @Composable
-private fun embedLanguage(): String = when (LocalConfiguration.current.locales[0]?.language) {
-    "zh" -> "zh"
-    "ja" -> "ja"
-    else -> "en"
-}
+private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、

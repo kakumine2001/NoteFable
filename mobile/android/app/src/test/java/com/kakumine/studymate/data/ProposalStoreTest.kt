@@ -23,11 +23,11 @@ class ProposalStoreTest {
         var fail: Throwable? = null
         var createdId: String? = "new-page"
 
-        override suspend fun apply(proposalId: String): String? {
+        override suspend fun apply(proposalId: String): AppliedPage {
             calls += "apply:$proposalId"
             gate?.await()
             fail?.let { throw it }
-            return createdId
+            return AppliedPage(createdId, createdId?.let { """{"id":"$it","version":3}""" })
         }
 
         override suspend fun discard(proposalId: String) {
@@ -52,7 +52,8 @@ class ProposalStoreTest {
         advanceUntilIdle()
         assertEquals(listOf("apply:pr1"), backend.calls)
         assertEquals(ProposalState(ProposalState.Status.Applied, pageId = "p1"), store.stateOf(edit))
-        assertEquals(listOf(ProposalChangeEvent("p1", created = false)), changes)
+        // 服务端返回的新版本跟着事件走，打开着的编辑器用它换成新版本。
+        assertEquals(listOf(ProposalChangeEvent("p1", created = false, page = """{"id":"new-page","version":3}""")), changes)
         collector.cancel()
     }
 
@@ -98,13 +99,15 @@ class ProposalStoreTest {
     @Test
     fun `api posts to apply and discard and reads the created page id`() = runTest {
         val server = MockWebServer()
-        server.enqueue(MockResponse().setBody("""{"page":{"id":"pg9","title":"Plan"}}"""))
+        server.enqueue(MockResponse().setBody("""{"status":"applied","page":{"id":"pg9","title":"Plan","version":4}}"""))
         server.enqueue(MockResponse().setResponseCode(409).setBody("""{"error":"The note changed."}"""))
         server.enqueue(MockResponse().setBody("{}"))
         server.start()
         try {
             val api = ProposalApi(OkHttpClient()) { server.url(it).toString() }
-            assertEquals("pg9", api.apply("np 1"))
+            val applied = api.apply("np 1")
+            assertEquals("pg9", applied.id)
+            assertEquals("""{"id":"pg9","title":"Plan","version":4}""", applied.json)
             val first = server.takeRequest()
             assertEquals("POST", first.method)
             assertEquals("/api/proposals/np%201/apply", first.path)

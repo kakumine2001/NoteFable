@@ -73,6 +73,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.kakumine.studymate.R
+import com.kakumine.studymate.data.AppLanguage
 import com.kakumine.studymate.data.NoteGroupSummary
 import com.kakumine.studymate.data.NotePageSummary
 import com.kakumine.studymate.data.NoteTrashItem
@@ -407,10 +408,13 @@ private fun HomeItem(page: NotePageSummary, busy: Boolean, onOpen: (String) -> U
     }
 }
 
-/** 网页 `toLocaleDateString(tag, { month: "short", day: "numeric" })`：英文 "Nov 14"、中日文 "11月14日"。 */
+/**
+ * 网页 `toLocaleDateString(tag, { month: "short", day: "numeric" })`：英文 "Nov 14"、中日文 "11月14日"。
+ * tag 是界面语言（`ui_locale`）对应的网页 LOCALE_TAGS，不是系统语言（系统是德语等时界面落到英文，日期也用英文）。
+ */
 @Composable
 private fun shortDate(iso: String): String {
-    val locale = LocalConfiguration.current.locales[0] ?: Locale.getDefault()
+    val locale = Locale.forLanguageTag(AppLanguage.acceptLanguage(stringResource(R.string.ui_locale)))
     return remember(iso, locale) {
         runCatching {
             val pattern = android.text.format.DateFormat.getBestDateTimePattern(locale, "MMMd")

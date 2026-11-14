@@ -504,7 +504,12 @@ object CodeHighlighter {
             }
             if (c in spec.quotes) {
                 val end = readString(code, i, c)
-                val isKey = keyBeforeColon && code.substring(end).trimStart(' ', '\t').startsWith(":")
+                // 按下标往后跳过空格看冒号，不复制剩余文本（每个字符串都 substring 一次，大 JSON 会变成平方级）。
+                val isKey = keyBeforeColon && run {
+                    var next = end
+                    while (next < code.length && (code[next] == ' ' || code[next] == '\t')) next++
+                    next < code.length && code[next] == ':'
+                }
                 tokens += CodeToken(i, end, if (isKey) CodeTokenKind.Variable else CodeTokenKind.String)
                 i = end
                 continue

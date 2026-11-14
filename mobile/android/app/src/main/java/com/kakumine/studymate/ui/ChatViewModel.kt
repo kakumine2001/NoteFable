@@ -203,6 +203,40 @@ class ChatViewModel(
         }
     }
 
+    // ---- 侧栏整理（置顶、改名、移动、删除、排序、在项目里新建）：接口调用在 SidebarViewModel，这里只改本地状态 ----
+
+    /** 服务端已保存的改动写进本地列表。进行中的刷新可能读到改动前的列表，所以让它重读一次。 */
+    fun patchSessions(transform: (List<SessionSummary>) -> List<SessionSummary>) {
+        _state.update { it.copy(sessions = transform(it.sessions)) }
+        if (sessionsJob?.isActive == true) refreshSessions()
+    }
+
+    /** 聊天已删除：从列表去掉；删的是正在看的聊天时回到新聊天（网页 deleteSession）。 */
+    fun onSessionDeleted(id: String) {
+        if (_state.value.activeSessionId == id) newChat()
+        patchSessions { list -> list.filterNot { it.id == id } }
+    }
+
+    /** 刚在项目里建好的空聊天：放到列表最前并打开（网页 createSession(projectId)）。 */
+    fun openCreatedSession(session: SessionSummary) {
+        navigationCount++
+        stop()
+        loadJob?.cancel()
+        _state.update {
+            it.copy(
+                sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id },
+                activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+            )
+        }
+        // 进行中的刷新可能读到建好之前的列表，回来会把新聊天盖掉：让它重读。
+        if (sessionsJob?.isActive == true) refreshSessions()
+    }
+
+    /** 建好了，但用户在等待期间已经去了别的聊天：只加进列表，不打开。 */
+    fun addCreatedSession(session: SessionSummary) {
+        patchSessions { list -> listOf(session) + list.filterNot { it.id == session.id } }
+    }
+
     // 首次启动时，设备 Cookie 由第一个到达服务端的请求签发。发送前先等会话列表请求结束，
     // 否则它和 /api/chat 各签发一个身份，后到的 Cookie 会覆盖先到的，第一个聊天就读不回来了。
     private suspend fun awaitSessionsRequest() {
@@ -225,13 +259,19 @@ class ChatViewModel(
         refreshSessions()
     }
 
+    /** 每次换到别的聊天（新聊天、打开历史聊天、打开刚建的聊天）加一，用来判断慢请求回来时用户是否已经去了别处。 */
+    var navigationCount = 0L
+        private set
+
     fun newChat() {
+        navigationCount++
         stop()
         loadJob?.cancel()
         _state.update { it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false) }
     }
 
     fun openSession(id: String) {
+        navigationCount++
         if (_state.value.activeSessionId == id) return
         // 切换会话时停掉进行中的回答，避免它的文字写进别的会话。
         stop()
