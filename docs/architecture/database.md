@@ -80,6 +80,7 @@ erDiagram
         string id PK
         string deviceId
         string googleSub "nullable, unique"
+        string verifiedEmail "nullable, unique"
         string email "nullable"
         string name "nullable"
         string image "nullable"
@@ -209,15 +210,16 @@ erDiagram
 
 ### AnonymousUser
 
-匿名浏览器设备，同时也是 Google 登录后的用户记录（表名沿用，不重命名）。
+匿名浏览器设备，同时也是 Google / 邮箱登录后的用户记录（表名沿用，不重命名）。
 
 核心字段：
 
 - `id`：内部主键
 - `deviceId`：签名 Cookie 对应的唯一设备 ID
 - `googleSub`：可空且唯一，Google 账号 ID；首次 Google 登录时绑定到当前设备的用户，之后在任何设备登录同一账号都会得到这一行
-- `email` / `name` / `image`：可空，登录时从 Google 同步的资料
-- `displayName` / `avatarIcon` / `avatarImage`：可空，用户在侧栏“个人资料”里自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已用 Google 登录的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
+- `verifiedEmail`：可空且唯一，确认过的邮箱（小写）。用邮箱验证码登录，或 Google 返回 `email_verified` 的邮箱，都写在这里；同一个邮箱就是同一个用户，所以先用 Google 再用邮箱（或反过来）登录会进同一个账号（`src/lib/auth.ts`）。Google 邮箱未确认时不写、也不合并，避免有人用别人的邮箱占号。旧的 Google 用户在下次重新 Google 登录（新的登录凭证带上 `googleEmailVerified`）后补上；通过 `20261114120000_email_login` migration 部署
+- `email` / `name` / `image`：可空，登录时从 Google 同步的资料（邮箱登录的用户只有 `email`）
+- `displayName` / `avatarIcon` / `avatarImage`：可空，用户在侧栏“个人资料”里自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已登录（Google 或邮箱）的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
 
 - `plan`：`FREE`（默认）或 `PRO`。决定每日用量上限的档位（见下方 `UsageCounter`）；`PRO` 为将来的付费方案预留，目前只能手动改库设置。字段通过 `20261113000000_usage_limits` migration 部署
 
@@ -236,10 +238,14 @@ AnonymousUser 1 -> N Session
 | 档位 | 条件 | 聊天 / 天 | 图片 / 天 |
 | --- | --- | --- | --- |
 | guest | 未登录 | 20 | 3 |
-| member | 已用 Google 登录 | 100 | 20 |
+| member | 已登录（Google 或邮箱） | 100 | 20 |
 | pro | `plan = PRO` | 1000 | 200 |
 
 未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat` 和 `/api/images` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。
+
+### EmailLoginCode
+
+邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是发送方 IP 的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后删掉这个邮箱的所有验证码；过期 1 小时以上的行在发新码时顺带删除（没有定时任务）。没有外键。
 
 ### NotePage
 

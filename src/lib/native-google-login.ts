@@ -113,6 +113,8 @@ export async function createSessionCookie(identity: GoogleIdentity, secure: bool
     token: {
       sub: identity.sub,
       googleSub: identity.sub,
+      // verifyGoogleIdToken はメールが未確認のトークンを受け付けないので、メールがあれば確認済み。
+      googleEmailVerified: Boolean(identity.email),
       name: identity.name,
       email: identity.email,
       picture: identity.image,

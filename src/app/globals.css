@@ -230,6 +230,40 @@ button:disabled {
 .google-signin-button:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 2px; }
 @media (max-width: 639px) { .google-signin-button { height: 44px; font-size: 15px; } }
 
+/* ログイン。サイドバーと上限の案内には「Sign in」ボタンだけを置き、押すと方法を選ぶ窓が開く（主流のサービスと同じ形）。 */
+.signin-open-button {
+  display: flex; width: 100%; height: 40px; align-items: center; justify-content: center; padding: 0 12px;
+  border-radius: 6px; background: var(--sm-ink); color: #fff; font-size: 14px; font-weight: 600;
+  transition: background-color 150ms ease;
+}
+.signin-open-button:hover { background: var(--sm-ink-hover); }
+.signin-open-button:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 2px; }
+@media (max-width: 639px) { .signin-open-button { height: 44px; font-size: 15px; } }
+
+/* ログインの窓: 見出し、Google で続ける、「または」の区切り、メール欄と「メールで続ける」。 */
+.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem); padding: 2rem 1.75rem 1.5rem; }
+.signin-close {
+  position: absolute; top: 0.75rem; right: 0.75rem; display: grid; width: 2rem; height: 2rem; place-items: center;
+  border-radius: 6px; color: var(--notion-muted);
+}
+.signin-close:hover { background: var(--notion-hover); }
+.signin-back { display: inline-flex; align-items: center; gap: 0.3rem; margin: -0.75rem 0 0.75rem -0.25rem; padding: 0.25rem; border-radius: 6px; font-size: 0.875rem; color: var(--notion-muted); }
+.signin-back:hover:not(:disabled) { background: var(--notion-hover); }
+.signin-title { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; text-align: center; color: var(--notion-text); }
+.signin-subtitle { margin: 0.4rem 0 1.5rem; text-align: center; font-size: 0.875rem; line-height: 1.5; color: var(--notion-muted); }
+.signin-option { height: 44px; border-radius: 8px; font-size: 15px; }
+.signin-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; font-size: 0.8125rem; color: var(--notion-faint); }
+.signin-divider::before, .signin-divider::after { content: ""; flex: 1; height: 1px; background: var(--notion-border); }
+.signin-input { margin-top: 0; height: 44px; border-radius: 8px; }
+.signin-code { text-align: center; font-size: 1.5rem; letter-spacing: 0.45em; font-variant-numeric: tabular-nums; }
+.signin-submit { width: 100%; min-height: 44px; margin-top: 0.75rem; border-radius: 8px; font-size: 15px; font-weight: 600; }
+.signin-hint { margin-top: 0.75rem; text-align: center; font-size: 0.8125rem; color: var(--notion-faint); }
+.signin-error { margin-top: 0.5rem; font-size: 0.875rem; color: #b91c1c; }
+.signin-notice { margin-top: 0.5rem; font-size: 0.875rem; color: var(--notion-muted); }
+.signin-link { color: var(--notion-blue); }
+.signin-link:hover:not(:disabled) { text-decoration: underline; }
+.signin-link:disabled { color: var(--notion-faint); }
+
 /* 未ログインで 1 日の上限に達したときのログイン案内。下からふわっと出て、アイコンが弾み、ログインボタンに一度だけ光が走る。 */
 .guest-limit-prompt {
   position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 40px 14px 14px;

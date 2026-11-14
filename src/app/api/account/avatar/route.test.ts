@@ -10,8 +10,22 @@ const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   del: vi.fn(),
 }));
-vi.mock("@/lib/google-auth", () => ({ isGoogleLoginConfigured: mocks.configured, auth: mocks.auth }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: mocks.currentUser }));
+vi.mock("@/lib/google-auth", () => ({
+  isGoogleLoginConfigured: mocks.configured,
+  isAccountLoginConfigured: mocks.configured,
+  isEmailLoginConfigured: () => false,
+  auth: mocks.auth,
+}));
+vi.mock("@/lib/auth", () => ({
+  getOrCreateAnonymousUser: mocks.currentUser,
+  isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
+  currentAccountProfile: async () => {
+    if (!mocks.configured()) return null;
+    const session = await mocks.auth();
+    const user = session?.user;
+    return user?.id ? { name: user.name ?? null, email: user.email ?? null, image: user.image ?? null } : null;
+  },
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { anonymousUser: { updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
 vi.mock("@/lib/storage", () => ({
   getImageExtension: (mime: string) => ({ "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" })[mime] ?? ".bin",

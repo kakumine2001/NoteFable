@@ -1,37 +1,20 @@
 "use client";
 
 import { ChevronsUpDown } from "lucide-react";
-import { signIn, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { useRef, useState } from "react";
 import { usePickerBackToClose } from "@/components/emoji-picker";
-import { GoogleLogo } from "@/components/google-logo";
+import { SignInButton } from "@/components/sign-in-dialog";
 import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/profile-menu";
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { useT } from "@/components/i18n-provider";
 
-// Google ログインを始める。サイドバーのボタンと、未ログインで上限に達したときの案内で同じ動きにする。
-export function useGoogleSignIn() {
-  const [failed, setFailed] = useState(false);
-
-  async function start() {
-    setFailed(false);
-    try {
-      await signIn("google");
-    } catch {
-      setFailed(true);
-    }
-  }
-
-  return { start, failed };
-}
-
-// サイドバー下部のアカウント。ログイン前は「Sign in with Google」、ログイン後は顔と名前の行で、押すとプロフィールが開く。
-// Google ログインが未設定の環境では何も表示しない。状態はページ全体で 1 つ（account-store）。
+// サイドバー下部のアカウント。ログイン前は「Sign in」（押すと Google / メールを選ぶ窓）、ログイン後は顔と名前の行で、押すとプロフィールが開く。
+// どのログインも未設定の環境では何も表示しない。状態はページ全体で 1 つ（account-store）。
 export function AccountButton() {
   const t = useT();
   const { account, saveError } = useAccount();
-  const { start: startSignIn, failed } = useGoogleSignIn();
   const [menu, setMenu] = useState<MenuPosition | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenu(null);
@@ -41,9 +24,7 @@ export function AccountButton() {
 
   if (!account.user) {
     return (
-      <button type="button" className="google-signin-button" onClick={() => void startSignIn()}>
-        <GoogleLogo size={18} /><span>{failed ? t("Sign-in failed. Try again") : t("Sign in with Google")}</span>
-      </button>
+      <SignInButton />
     );
   }
 

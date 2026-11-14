@@ -1,5 +1,5 @@
 import NextAuth from "next-auth";
-import type { Account, Session } from "next-auth";
+import type { Account, Profile, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import { optionalEnv } from "@/lib/env";
@@ -11,18 +11,43 @@ export function isGoogleLoginConfigured() {
   );
 }
 
+// メールの確認コードでのログインに必要な設定。本番は送信サービスの鍵と差出人が要る。開発中は鍵が無くてもコードをサーバーのログに出す。
+export function isEmailLoginConfigured() {
+  if (!optionalEnv("AUTH_SECRET")) return false;
+  if (optionalEnv("RESEND_API_KEY") && optionalEnv("EMAIL_FROM")) return true;
+  return process.env.NODE_ENV !== "production";
+}
+
+// どちらかのログインが使えるか。ログイン Cookie（Auth.js の JWT）を読むかどうかはこれで決める。
+export function isAccountLoginConfigured() {
+  return isGoogleLoginConfigured() || isEmailLoginConfigured();
+}
+
+declare module "next-auth" {
+  interface Session {
+    // メールの確認コードでログインしたときのアドレス（小文字）。Google ログインでは undefined。
+    loginEmail?: string;
+    // Google がメールを確認済みとしたか。確認済みのときだけ、同じアドレスのメールログインの利用者とまとめる。
+    googleEmailVerified?: boolean;
+  }
+}
+
 // token.sub は DB adapter が無いとログインのたびに作り直される値なので、利用者の特定には使えない。
 // Google のアカウント ID（providerAccountId）を別のキーに保存し、これを DB の googleSub と対応させる。
 export const authCallbacks = {
-  jwt({ token, account }: { token: JWT; account?: Account | null }) {
+  jwt({ token, account, profile }: { token: JWT; account?: Account | null; profile?: Profile }) {
     if (account?.provider === "google" && account.providerAccountId) {
       token.googleSub = account.providerAccountId;
+      token.googleEmailVerified = profile?.email_verified === true;
     }
     return token;
   },
   session({ session, token }: { session: Session; token: JWT }) {
     if (session.user && typeof token.googleSub === "string") {
       session.user.id = token.googleSub;
+      session.googleEmailVerified = token.googleEmailVerified === true;
+    } else if (typeof token.loginEmail === "string") {
+      session.loginEmail = token.loginEmail;
     }
     return session;
   },

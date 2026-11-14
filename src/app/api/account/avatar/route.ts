@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
-import { isGoogleLoginConfigured } from "@/lib/google-auth";
+import { currentAccountProfile, getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
 import { sniffImage } from "@/lib/note-file-keys";
 import { readLimitedBody } from "@/lib/note-upload";
 import { prisma } from "@/lib/prisma";
@@ -19,20 +18,14 @@ const MAX_BODY_BYTES = MAX_AVATAR_BYTES + 64 * 1024;
 const CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 
 async function currentGoogleUser() {
-  if (!isGoogleLoginConfigured()) return null;
-  try {
-    const { auth } = await import("@/lib/google-auth");
-    const session = await auth();
-    return session?.user?.id ? session.user : null;
-  } catch {
-    return null;
-  }
+  // Google でもメールでも、ログインしている本人のプロフィール。
+  return currentAccountProfile().catch(() => null);
 }
 
 // 写真を差し替える。Google にログインしている本人だけ。古い写真は消し、絵文字アイコンは外す（写真かアイコンのどちらか一方）。
 export async function POST(request: Request) {
   const google = await currentGoogleUser();
-  if (!google) return NextResponse.json({ error: msg("Sign in with Google to change your photo.") }, { status: 401 });
+  if (!google) return NextResponse.json({ error: msg("Sign in to change your photo.") }, { status: 401 });
 
   const tooLarge = () => NextResponse.json({ error: msg("That photo is too large.") }, { status: 413 });
   if (Number(request.headers.get("content-length") ?? 0) > MAX_BODY_BYTES) return tooLarge();
@@ -57,7 +50,7 @@ export async function POST(request: Request) {
   if (!mimeType) return NextResponse.json({ error: msg("Upload a JPEG, PNG, WebP or GIF photo.") }, { status: 400 });
 
   const row = await getOrCreateAnonymousUser();
-  if (!row.googleSub) return NextResponse.json({ error: msg("Sign in with Google to change your photo.") }, { status: 401 });
+  if (!isAccountUser(row)) return NextResponse.json({ error: msg("Sign in to change your photo.") }, { status: 401 });
 
   const storagePath = `${AVATAR_ROOT}/${row.id}/${randomUUID()}${getImageExtension(mimeType)}`;
   await writeStoredImageAt(storagePath, buffer, mimeType);
@@ -91,7 +84,7 @@ export async function GET(request: Request) {
   if (!google) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   const row = await getOrCreateAnonymousUser();
-  if (!row.googleSub || !row.avatarImage) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
+  if (!isAccountUser(row) || !row.avatarImage) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   let image: Buffer;
   try {
