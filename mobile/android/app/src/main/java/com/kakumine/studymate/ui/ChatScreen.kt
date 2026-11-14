@@ -304,7 +304,7 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
     val programmaticScroll = remember { mutableStateOf(false) }
     val lastIndex = state.messages.lastIndex
     // 检索结果 / 链接要定位到某条消息：定位完之前不贴底（网页 openChatFromLink 关掉 pinToBottom）。
-    val revealPending = rememberUpdatedState(state.reveal != null)
+    val revealPending = rememberUpdatedState(state.reveal != null && state.reveal.sessionId == state.activeSessionId)
     LaunchedEffect(state.activeSessionId, state.messages.size) { follow.value = true }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->

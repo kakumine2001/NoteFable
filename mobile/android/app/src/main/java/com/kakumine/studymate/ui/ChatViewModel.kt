@@ -244,6 +244,7 @@ class ChatViewModel(
             it.copy(
                 sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id },
                 activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                reveal = null, notice = it.notice.clearLinkFailed(),
             )
         }
         // 进行中的刷新可能读到建好之前的列表，回来会把新聊天盖掉：让它重读。
@@ -274,7 +275,7 @@ class ChatViewModel(
             it.copy(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
-                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null,
+                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null, reveal = null,
             )
         }
         refreshSessions()
