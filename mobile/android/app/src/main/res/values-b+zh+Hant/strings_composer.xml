@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="guest_limit_title_chat">今天的免費訊息次數用完了</string>
+    <string name="guest_limit_title_image">今天的免費圖片生成次數用完了</string>
+    <string name="guest_limit_body">登入 Google 後每天可發 %1$d 條訊息、生成 %2$d 張圖片，換裝置也能找回聊天記錄。</string>
+    <string name="guest_limit_attachments_lost">登入時不會保留附件，登入後請重新新增。</string>
+    <string name="not_now">以後再說</string>
+    <string name="scroll_to_bottom">滾動到底部</string>
+</resources>
