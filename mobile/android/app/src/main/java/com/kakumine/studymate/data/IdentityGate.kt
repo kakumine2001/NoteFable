@@ -36,7 +36,7 @@ class IdentityGate(private val host: String) : Interceptor {
 
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
-        if (settled || request.url.host != host) return chain.proceed(request)
+        if (settled || request.url.host != host || request.url.encodedPath in IDENTITY_FREE_PATHS) return chain.proceed(request)
         return lock.withLock {
             // 等锁期间前一个请求可能已经把身份定下来了。
             if (settled) return@withLock chain.proceed(request)
@@ -46,5 +46,13 @@ class IdentityGate(private val host: String) : Interceptor {
             synchronized(stateLock) { if (epoch == started) settled = true }
             response
         }
+    }
+
+    companion object {
+        /**
+         * 不读也不签发身份的接口：不排队，也不能把身份标成已确定。
+         * 否则启动时最先发出的 /api/models 一回来闸门就开了，后面的会话、账号请求又会各拿一个新身份。
+         */
+        val IDENTITY_FREE_PATHS = setOf("/api/models")
     }
 }

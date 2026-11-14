@@ -530,4 +530,13 @@ class ChatViewModelTest {
         backend.events.close()
         advanceUntilIdle()
     }
+
+    @Test
+    fun `the draft survives the process being recreated`() {
+        val saved = androidx.lifecycle.SavedStateHandle()
+        val first = ChatViewModel(FakeBackend(), MemorySettings(), flushIntervalMs = 10, savedState = saved)
+        first.updateDraft("keep me")
+        val second = ChatViewModel(FakeBackend(), MemorySettings(), flushIntervalMs = 10, savedState = saved)
+        assertEquals("keep me", second.draft)
+    }
 }

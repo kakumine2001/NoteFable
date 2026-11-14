@@ -357,7 +357,7 @@ class NotesViewModel(
 
     suspend fun createGroup(name: String): NoteGroupSummary? = groupAction {
         val group = backend.createGroup(name)
-        Pair({ _state.update { it.copy(groups = it.groups + group) } }, group)
+        Pair({ _state.update { it.copy(groups = it.groups.filter { g -> g.id != group.id } + group) } }, group)
     }
 
     suspend fun renameGroup(id: String, name: String): Boolean = groupAction {

@@ -79,6 +79,17 @@ class IdentityGateAndFilesTest {
     }
 
     @Test
+    fun `the models list neither waits nor settles the identity`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"models":[],"defaultModel":null}"""))
+            val api = StudyMateApi(server.url("/").toString().trimEnd('/'), CookieJar.NO_COOKIES)
+            runCatching { api.models() }
+            assertEquals(1, server.requestCount)
+            assertFalse(api.identityGate.isSettled)
+        }
+    }
+
+    @Test
     fun `after sign-out the next request runs alone again`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"sessions":[]}"""))
