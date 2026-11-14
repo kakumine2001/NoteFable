@@ -471,7 +471,7 @@ fun ErrorBar(text: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier
 }
 
 @Composable
-fun notesErrorText(error: NotesError): String = error.detail ?: stringResource(
+fun notesErrorText(error: NotesError): String = error.detail?.let { rememberSystemText().localize(it) } ?: stringResource(
     when (error.kind) {
         NotesError.Kind.Load -> R.string.err_load_notes
         NotesError.Kind.Create -> R.string.err_create_note

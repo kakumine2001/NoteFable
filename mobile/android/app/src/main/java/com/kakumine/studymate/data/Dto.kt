@@ -77,8 +77,14 @@ data class ModelsResponse(
     val models: List<ModelInfo> = emptyList(),
 )
 
+// 错误响应。429 的使用上限还带 code / tier / kind（src/lib/usage-limits.ts）。
 @Serializable
-data class ApiError(val error: String? = null)
+data class ApiError(
+    val error: String? = null,
+    val code: String? = null,
+    val tier: String? = null,
+    val kind: String? = null,
+)
 
 // POST /api/uploads：每个文件一张上传凭证（ticket）和存放路径；mode 是 "blob"（线上）或 "local"（本机开发）。
 @Serializable

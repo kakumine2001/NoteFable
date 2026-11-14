@@ -7,13 +7,9 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.FormBody
 import okhttp3.MediaType
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.OutputStream
@@ -24,13 +20,9 @@ import okhttp3.CookieJar
 import okhttp3.MultipartBody
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import okhttp3.Response
 import java.io.IOException
 import java.io.InputStream
 import java.net.URLEncoder
-import java.util.concurrent.TimeUnit
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
 import kotlinx.serialization.json.buildJsonArray
@@ -38,9 +30,6 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
-
-/** 服务端返回了错误（含「今日次数已用完」这类业务错误），message 可以直接给用户看。 */
-class ApiException(val status: Int, message: String) : IOException(message)
 
 /** 发给 `/api/chat` 的一次提问。字段名与网页端的 FormData 一致。 */
 data class ChatRequest(
@@ -59,40 +48,16 @@ class StudyMateApi(
     /** 按 content:// 地址打开附件。由 Application 提供，单元测试里不需要。 */
     private val openFile: (String) -> InputStream = { throw IOException("no file access") },
 ) : ChatBackend, AccountBackend, NotesBackend {
-    /** 身份没确定前只放一个请求（见 [IdentityGate]）；所有客户端都由 [client] 派生，都经过它。 */
-    val identityGate = IdentityGate(baseUrl.toHttpUrl().host)
+    private val http = StudyMateHttp(baseUrl, cookieJar)
+    private val client: OkHttpClient get() = http.client
+    private val streamClient: OkHttpClient get() = http.streamClient
+    private val uploadClient: OkHttpClient get() = http.uploadClient
+    /** 身份没确定前只放一个请求（见 [IdentityGate]）；所有客户端都由 http.client 派生，都经过它。 */
+    val identityGate: IdentityGate get() = http.identityGate
 
-    private val client: OkHttpClient = OkHttpClient.Builder()
-        .cookieJar(cookieJar)
-        .addInterceptor(identityGate)
-        .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(30, TimeUnit.SECONDS)
-        .callTimeout(60, TimeUnit.SECONDS)
-        .addInterceptor { chain ->
-            chain.proceed(
-                chain.request().newBuilder()
-                    .header("User-Agent", USER_AGENT)
-                    .build(),
-            )
-        }
-        .build()
+    val httpClient: OkHttpClient get() = http.client
 
-    // 思考型模型可能很久没有任何输出，流式请求不设读超时和总超时，靠取消结束。
-    private val streamClient: OkHttpClient = client.newBuilder()
-        .readTimeout(0, TimeUnit.MILLISECONDS)
-        .callTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
-
-    // 大文件在手机网络上可能传一分多钟：不设总超时，只要求一直有进展。
-    private val uploadClient: OkHttpClient = client.newBuilder()
-        .writeTimeout(60, TimeUnit.SECONDS)
-        .callTimeout(0, TimeUnit.MILLISECONDS)
-        .build()
-
-    val httpClient: OkHttpClient get() = client
-
-    override fun absoluteUrl(path: String): String =
-        if (path.startsWith("http://") || path.startsWith("https://")) path else baseUrl + path
+    override fun absoluteUrl(path: String): String = http.absoluteUrl(path)
 
     override suspend fun sessions(): List<SessionSummary> =
         getJson<SessionsResponse>("/api/sessions").sessions
@@ -320,35 +285,13 @@ class StudyMateApi(
         }
     }
 
-    private suspend inline fun <reified T> send(builder: Request.Builder, with: OkHttpClient = client): T {
-        val response = with.newCall(builder.header("Accept", "application/json").build()).await()
-        return response.use {
-            if (!it.isSuccessful) throw it.toApiException()
-            val text = withContext(Dispatchers.IO) { it.body.string() }
-            StudyMateJson.decodeFromString(text)
-        }
-    }
+    private suspend inline fun <reified T> send(builder: Request.Builder, with: OkHttpClient = client): T = http.send(builder, with)
 
-    private suspend inline fun <reified T> getJson(path: String): T {
-        val request = Request.Builder().url(absoluteUrl(path)).get()
-            .header("Accept", "application/json").build()
-        val response = client.newCall(request).await()
-        return response.use {
-            if (!it.isSuccessful) throw it.toApiException()
-            val text = withContext(Dispatchers.IO) { it.body.string() }
-            StudyMateJson.decodeFromString(text)
-        }
-    }
-
-    private fun Response.toApiException(): ApiException {
-        val text = runCatching { body.string() }.getOrDefault("")
-        val message = runCatching { StudyMateJson.decodeFromString<ApiError>(text).error }.getOrNull()
-        return ApiException(code, message?.takeIf { it.isNotBlank() } ?: "HTTP $code")
-    }
+    private suspend inline fun <reified T> getJson(path: String): T = http.getJson(path)
 
     companion object {
-        const val USER_AGENT = "StudyMateNative/0.1 (Android)"
-        private val JSON = "application/json".toMediaType()
+        const val USER_AGENT = StudyMateHttp.USER_AGENT
+        private val JSON = StudyMateHttp.JSON
 
         // Vercel Blob 的上传接口和协议版本，取自网页使用的 @vercel/blob 客户端；升级那个包时一起核对。
         private const val BLOB_API = "https://vercel.com/api/blob"
@@ -383,18 +326,4 @@ private class FileBody(
             }
         }
     }
-}
-
-private suspend fun Call.await(): Response = suspendCancellableCoroutine { continuation ->
-    continuation.invokeOnCancellation { cancel() }
-    enqueue(object : Callback {
-        override fun onFailure(call: Call, e: IOException) {
-            if (continuation.isActive) continuation.resumeWithException(e)
-        }
-
-        override fun onResponse(call: Call, response: Response) {
-            // 响应送到时协程已被取消的话，没人会再去关它，这里负责关闭，避免连接泄漏。
-            continuation.resume(response) { response.close() }
-        }
-    })
 }
