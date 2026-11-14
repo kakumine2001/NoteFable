@@ -114,8 +114,16 @@ for (const line of git(["for-each-ref", "--format=%(refname:short) %(objectname)
   const [ref, sha] = line.split(" ");
   const branch = ref?.replace(/^origin\//, "");
   if (!branch || branch === "main" || branch === "HEAD" || ref === "origin") continue;
-  if (isMerged(sha)) act(`delete origin/${branch}`, () => git(["push", "origin", "--delete", branch]));
-  else skipped.push(whyKept(`origin/${branch}`, sha));
+  if (!isMerged(sha)) {
+    skipped.push(whyKept(`origin/${branch}`, sha));
+  } else if (checkedOut.has(branch) && !removedBranches.has(branch)) {
+    skipped.push(`origin/${branch}: merged, kept because its worktree was left in place`);
+  } else {
+    // The lease makes the push fail if someone pushed to the branch after our fetch.
+    act(`delete origin/${branch}`, () =>
+      git(["push", `--force-with-lease=refs/heads/${branch}:${sha}`, "origin", "--delete", branch]),
+    );
+  }
 }
 
 // Main checkout: fast-forward when it is on main and clean.
