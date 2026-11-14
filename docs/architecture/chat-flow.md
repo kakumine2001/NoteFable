@@ -363,7 +363,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 ### 保存出来的笔记
 
 - **标题**：回答里（代码围栏之外）第一个标题；没有就取第一个非空行（去掉 Markdown 符号）；再没有就用会话标题；最后是 `Untitled`。最长 80 个字素、且不超过 200 个 UTF-16 单位（笔记标题上限），截断时加 `…`。标题来自开头的标题时，正文里去掉那一行以免重复；标题来自第一行普通文字时，正文保留它（所以一行的回答会同时出现在标题和正文里）。
-- **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格没有对应的块，每行变成一个段落，单元格用 ` | ` 连接；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
+- **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
 - **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/?chat=<会话 ID>&message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
 - **上限**：最多 2,000 个块，整篇 JSON 不超过 1 MiB 减 2 KiB 余量。超出时在块的边界处二分截断正文，来源段落追加 “The answer was too long to save in full, so the end was left out.”
 

@@ -41,7 +41,11 @@ function* walkBlocks(blocks: unknown): Generator<BlockLike> {
 function inlineText(content: unknown): string {
   if (Array.isArray(content)) return content.map(inlineText).join("");
   if (!content || typeof content !== "object") return "";
-  const node = content as { text?: unknown; content?: unknown };
+  const node = content as { text?: unknown; content?: unknown; rows?: unknown };
+  // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
+  if (Array.isArray(node.rows)) {
+    return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");
+  }
   return (typeof node.text === "string" ? node.text : "") + inlineText(node.content);
 }
 

@@ -24,7 +24,8 @@ function EditorLoading() {
 
 // ブロックの JSON が内容として同じか（キーの順序と undefined の項目は無視する。DB の JSONB はキーの順序が変わる）。
 function sameJson(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
+  // 配列の中の undefined は JSON では null になる（表の未設定の列幅など）ので、同じとみなす。
+  if (a === b || (a == null && b == null)) return true;
   if (typeof a !== "object" || typeof b !== "object" || !a || !b || Array.isArray(a) !== Array.isArray(b)) return false;
   const left = a as Record<string, unknown>;
   const right = b as Record<string, unknown>;

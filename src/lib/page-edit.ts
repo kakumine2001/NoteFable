@@ -15,12 +15,40 @@ const CARRIED_PROPS = ["textColor", "backgroundColor", "textAlignment"] as const
 
 function richBlockProps(block: NoteBlock) {
   const props = block.props ?? {};
-  return CARRIED_PROPS.some((key) => props[key] !== undefined && props[key] !== "default" && props[key] !== "left");
+  // コールアウトの灰色の背景は既定値なので、書式には数えない。
+  return CARRIED_PROPS.some((key) => props[key] !== undefined && props[key] !== "default" && props[key] !== "left"
+    && !(block.type === "callout" && key === "backgroundColor" && props[key] === "gray"));
 }
 
 function richInline(content: unknown): boolean {
+  // 表はセルごとに調べる（セルの色・配置・結合も Markdown では表せない）。
+  const rows = (content as { rows?: unknown } | null)?.rows;
+  if (Array.isArray(rows)) {
+    return rows.some((row) => ((row as { cells?: unknown[] } | null)?.cells ?? []).some((cell) => Array.isArray(cell) ? richInline(cell) : (() => {
+      const { props = {}, content: inner } = (cell ?? {}) as { props?: Record<string, unknown>; content?: unknown };
+      return richInline(inner) || ["textColor", "backgroundColor"].some((key) => props[key] !== undefined && props[key] !== "default")
+        || (props.textAlignment !== undefined && props.textAlignment !== "left") || Number(props.colspan ?? 1) > 1 || Number(props.rowspan ?? 1) > 1;
+    })()));
+  }
   return Array.isArray(content) && content.some((node: { styles?: Record<string, unknown>; content?: unknown }) =>
     Object.keys(node?.styles ?? {}).some((key) => !["bold", "italic", "strike", "code"].includes(key)) || richInline(node?.content));
+}
+
+// 表を表 1 つへ置き換える時は、Markdown で表せない見出しの行・列の指定と列幅を引き継ぐ（Markdown は 1 行目を必ず見出しとして書く）。
+// 列幅は列数が同じ時だけ。見出しの数は新しい表の行数・列数を超えないようにする。
+function carryTableLayout(from: unknown, to: unknown) {
+  type Table = { type?: unknown; columnWidths?: unknown[]; headerRows?: unknown; headerCols?: unknown; rows?: { cells?: unknown[] }[] };
+  const [source, target] = [from as Table | null, to as Table | null];
+  if (source?.type !== "tableContent" || target?.type !== "tableContent" || !Array.isArray(target.rows)) return;
+  const columns = target.rows[0]?.cells?.length ?? 0;
+  const carry = (key: "headerRows" | "headerCols", limit: number) => {
+    const value = Number.isSafeInteger(source[key]) ? Math.min(Math.max(Number(source[key]), 0), limit) : 0;
+    if (value > 0) target[key] = value;
+    else delete target[key];
+  };
+  carry("headerRows", target.rows.length);
+  carry("headerCols", columns);
+  if (Array.isArray(source.columnWidths) && source.columnWidths.length === columns) target.columnWidths = [...source.columnWidths];
 }
 
 // 置き換えで捨てられる範囲（ブロック本人と子孫）に、Markdown で表せない書式があるか。
@@ -160,6 +188,7 @@ export function applyPageEdits(blocks: NoteBlock[], rawEdits: unknown): { blocks
     if (edit.op === "replace") {
       if (parsed.length === 1 && parsed[0].type === target.type) {
         for (const key of CARRIED_PROPS) if (target.props?.[key] !== undefined) { parsed[0].props[key] = target.props[key]; carried = true; }
+        carryTableLayout(target.content, parsed[0].content);
       }
       replacements.set(idOf(edit.block), parsed);
     }

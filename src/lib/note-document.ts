@@ -4,7 +4,7 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "quote", "codeBlock", "divider", "image", "file"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 export const MAX_NOTE_TITLE = 200;
 
@@ -71,6 +71,35 @@ function validInline(value: unknown, links = true): boolean {
   });
 }
 
+const validColor = (entry: unknown) => typeof entry === "string" && /^[a-zA-Z]+$/.test(entry) && entry.length <= 32;
+const ALIGNMENTS = ["left", "center", "right", "justify"];
+
+// 表ブロックの content（BlockNote の tableContent）。セルは本文の配列か、色・配置・結合を持つ tableCell。
+// 行数・列数には上限を置かない（エディターで作れる・貼り付けられる表を保存で弾かない）。大きさはノート全体の 1 MiB で抑える。
+function validTable(content: unknown) {
+  if (!object(content) || content.type !== "tableContent") return false;
+  if (!Object.keys(content).every((key) => ["type", "columnWidths", "headerRows", "headerCols", "rows"].includes(key))) return false;
+  const { columnWidths, headerRows, headerCols, rows } = content;
+  // 未設定の列幅は JSON では null になる。
+  if (columnWidths !== undefined && !(Array.isArray(columnWidths)
+    && columnWidths.every((width) => width === null || width === undefined || (typeof width === "number" && Number.isFinite(width) && width > 0 && width <= 4000)))) return false;
+  // BlockNote は「すべてのセルが見出し」の行・列を数えるので、1 より大きくなることがある（見出し行が 2 つある表の貼り付けなど）。
+  const count = (entry: unknown) => entry === undefined || (Number.isSafeInteger(entry) && Number(entry) >= 0);
+  if (!count(headerRows) || !count(headerCols)) return false;
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const span = (entry: unknown) => entry === undefined || (Number.isSafeInteger(entry) && Number(entry) >= 1);
+  return rows.every((row) => object(row) && Object.keys(row).every((key) => key === "cells") && Array.isArray(row.cells) && row.cells.length > 0
+    && row.cells.every((cell) => {
+      if (Array.isArray(cell)) return validInline(cell);
+      if (!object(cell) || cell.type !== "tableCell" || !validInline(cell.content) || !Object.keys(cell).every((key) => ["type", "props", "content"].includes(key))) return false;
+      if (cell.props === undefined) return true;
+      return object(cell.props) && Object.entries(cell.props).every(([key, entry]) =>
+        key === "backgroundColor" || key === "textColor" ? validColor(entry) :
+          key === "textAlignment" ? ALIGNMENTS.includes(String(entry)) :
+            (key === "colspan" || key === "rowspan") && span(entry));
+    }));
+}
+
 export function validateNoteContent(value: unknown): NoteContent {
   if (!object(value) || typeof value.title !== "string" || value.title.length > MAX_NOTE_TITLE) {
     throw new NoteValidationError(fmt("Note title must be at most {max} characters.", { max: MAX_NOTE_TITLE }));
@@ -88,7 +117,8 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (["backgroundColor", "textColor"].includes(key)) return typeof entry === "string" && /^[a-zA-Z]+$/.test(entry) && entry.length <= 32;
         if (key === "textAlignment") return ["left", "center", "right", "justify"].includes(String(entry));
         if (key === "level") return block.type === "heading" && [1, 2, 3].includes(Number(entry)) && typeof entry === "number";
-        if (key === "isToggleable") return block.type === "heading" && entry === false;
+        if (key === "isToggleable") return block.type === "heading" && typeof entry === "boolean";
+        if (key === "emoji") return block.type === "callout" && isEmojiIcon(entry);
         if (key === "checked") return block.type === "checkListItem" && typeof entry === "boolean";
         if (key === "start") return block.type === "numberedListItem" && Number.isInteger(entry) && Number(entry) > 0;
         if (key === "language") return block.type === "codeBlock" && typeof entry === "string" && entry.length <= 80;
@@ -103,6 +133,9 @@ export function validateNoteContent(value: unknown): NoteContent {
       if (!validProps) return false;
       if (block.type === "divider") {
         if (block.content !== undefined || Object.keys(props).length) return false;
+      } else if (block.type === "table") {
+        // 表は子ブロックを持たない。
+        if (!validTable(block.content) || (block.children !== undefined && !(Array.isArray(block.children) && !block.children.length))) return false;
       } else if (block.type === "image" || block.type === "file") {
         if (block.content !== undefined) return false;
       } else if (block.type === "codeBlock") {

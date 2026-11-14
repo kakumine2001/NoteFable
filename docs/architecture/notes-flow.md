@@ -6,7 +6,17 @@ Notes 是 StudyMate 内部的文字笔记模式。切换模式保留聊天输入
 
 Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选择器，打开时才加载，支持英文搜索、分类、最近使用和肤色。表情以单个 Unicode 字素保存，包含旗帜、键帽和组合表情；原生显示受设备字体支持范围限制。头像照片与封面的现有上传流程保留，不提供独立的图标素材库。
 
-`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 只包含段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放表格、视频/音频块、外部链接嵌入、折叠标题或子页面。
+`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 包含段落、H1–H3（可设为折叠标题，`isToggleable`）、项目/编号/待办列表、折叠列表（`toggleListItem`）、引用、Callout（`callout`，自定义块，见下）、代码、分隔线和表格（`table`）；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放视频/音频块、外部链接嵌入或子页面。
+
+### 仿 Notion 的块与操作
+
+- **折叠。** 折叠列表和折叠标题用 BlockNote 自带的实现：子块缩进在其下，点三角展开/收起；展开状态只存在本机（BlockNote 用 localStorage 记），不进文档 JSON。
+- **Callout。** `src/components/note-callout.tsx`：props 为 `emoji`（单个 emoji，默认 💡）、`backgroundColor`（默认 `gray`）和 `textColor`，正文是行内内容。点 emoji 打开与页面图标相同的表情选择器；背景色用手柄菜单的 Color 修改，选 Default 时只剩边框。
+- **表格。** BlockNote 的 `table`：`content` 是 `tableContent`（`rows[].cells[]`，单元格带颜色、对齐和合并）。编辑器以 `tables: { headers, splitCells, cellBackgroundColor, cellTextColor }` 全部开启：手柄菜单里有 Header row / Header column，行列手柄可以增删行列和给单元格上色，选中多个单元格时工具栏出现合并按钮。`headerRows` / `headerCols` 是“整行/整列都是表头”的数量，可能大于 1（例如粘贴带两行表头的表）。行列数不设上限，大小只受整篇笔记 1 MiB 的限制（约几千个单元格，超过时保存返回 413 `Note content exceeds 1 MiB.`）；表格没有子块。未设置的列宽在编辑器里是 `undefined`、存进 JSON 后是 `null`，`notes-workspace.tsx` 的 `sameJson` 把两者视为相同，避免把没改过的表格当成编辑。
+- **输入规则与快捷键**与 Notion 一致：行首 `> ` 生成折叠列表，`" ` 或 `| ` 生成引用（BlockNote 默认的 `> ` 引用被替换）；`Ctrl+Shift+0–8`（macOS 是 `⌘+⌥+0–8`）转换块类型（7 是折叠列表），`Ctrl/⌘+Shift+↑/↓` 上下移动块，`Ctrl/⌘+D` 复制块。把 Callout 转成其他类型时去掉它默认的灰色背景，反过来把没有背景色的块转成 Callout 时补上灰色。
+- **斜杠命令。** 除了插入块和 `/turn…` 转换，输入文字后还会匹配作用于当前块的命令：文字颜色（`/red`）、背景色（`/blue background`）、`/duplicate`、`/delete`。这些只在输入了查询时出现，空菜单不列出。
+
+AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：折叠列表是 `▸ 文字`，折叠标题是 `# ▸ 文字`，子块缩进两格；Callout 是 `> [!💡] 文字`；表格是 GFM 表格，整张表算一个块（`read_note` 只给表格一个编号，第一行当表头）。表格里单元格的颜色、对齐、合并无法用 Markdown 表达，AI 替换这样的表格时提案会带 `dropsFormatting` 警告；表头行/列的设置和列宽（列数不变时）在“表格替换成一张表格”时从原表继承（`carryTableLayout`，`src/lib/page-edit.ts`）。单元格里的 `|` 写成 `\|`，行的切分（`splitTableRow`）不在代码片段里切，也不被转义的反引号打断；正文里其他位置的 `\|` 保持原样。聊天回答 “Save to Notes” 时，回答里的 GFM 表格会保存成表格块。站内搜索会搜到表格单元格里的文字。
 
 ## 图片与文件
 

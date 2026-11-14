@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { validateNoteContent } from "./note-document";
-import { blocksToMarkdown, flattenBlocks, markdownToBlocks } from "./note-markdown";
+import { blocksToMarkdown, flattenBlocks, markdownToBlocks, splitTableRow } from "./note-markdown";
 
 type Shape = { type: string; children: Shape[] };
 const shape = (blocks: Shape[]): unknown[] => blocks.map((block) => [block.type, shape(block.children)]);
@@ -131,6 +131,91 @@ describe("markdown round trips", () => {
     expect(large).toBeLessThan(2000);
     // 6 倍の入力で 40 倍以上かかるなら二乗に近い（小さい側が速すぎて比が暴れる場合は絶対値だけを見る）。
     if (small > 20) expect(large / small).toBeLessThan(40);
+  });
+});
+
+describe("toggles, callouts and tables", () => {
+  const source = [
+    "▸ Toggle",
+    "  hidden **text**",
+    "## ▸ Toggle heading",
+    "  - inside",
+    "> [!🔥] Watch *out*",
+    "| Name | Note |",
+    "| --- | --- |",
+    "| a\\|b | `x|y` |",
+    "| **c** |  |",
+    "after",
+  ].join("\n");
+
+  it("parses them into blocks that pass validation and round-trip", () => {
+    const blocks = markdownToBlocks(source);
+    expect(() => validateNoteContent({ title: "t", blocks })).not.toThrow();
+    expect(shape(blocks as unknown as Shape[])).toEqual([
+      ["toggleListItem", [["paragraph", []]]], ["heading", [["bulletListItem", []]]], ["callout", []], ["table", []], ["paragraph", []],
+    ]);
+    expect(blocks[1].props).toEqual({ level: 2, isToggleable: true });
+    expect(blocks[2].props).toEqual({ emoji: "🔥" });
+    const table = blocks[3].content as { headerRows: number; rows: { cells: { content: { text: string; styles: object }[] }[] }[] };
+    expect(table.headerRows).toBe(1);
+    expect(table.rows.map((row) => row.cells.map((cell) => cell.content.map((entry) => entry.text).join("")))).toEqual([["Name", "Note"], ["a|b", "x|y"], ["c", ""]]);
+    expect(table.rows[1].cells[1].content[0].styles).toEqual({ code: true });
+    expect(blocksToMarkdown(blocks)).toBe(source.replace("`x|y`", "`x\\|y`"));
+  });
+
+  it("numbers a table as one block", () => {
+    expect(blocksToMarkdown(markdownToBlocks("| a |\n| --- |\n| b |\nnext"), 0, { n: 0 })).toBe("[1] | a |\n| --- |\n| b |\n[2] next");
+  });
+
+  it("keeps look-alike text as plain blocks", () => {
+    const paragraph = (value: string) => ({ id: value, type: "paragraph", props: {}, content: [{ type: "text", text: value, styles: {} }], children: [] });
+    const heading = { id: "h", type: "heading", props: { level: 1 }, content: [{ type: "text", text: "▸ not a toggle", styles: {} }], children: [] };
+    const quote = { id: "q", type: "quote", props: {}, content: [{ type: "text", text: "[!💡] not a callout", styles: {} }], children: [] };
+    const blocks = [paragraph("▸ arrow"), paragraph("| a | b |"), paragraph("| --- | --- |"), heading, quote];
+    const back = markdownToBlocks(blocksToMarkdown(blocks));
+    expect(back.map((block) => block.type)).toEqual(["paragraph", "paragraph", "paragraph", "heading", "quote"]);
+    expect(back.map((block) => (block.content as { text: string }[]).map((entry) => entry.text).join(""))).toEqual(["▸ arrow", "| a | b |", "| --- | --- |", "▸ not a toggle", "[!💡] not a callout"]);
+    expect(back[3].props).toEqual({ level: 1 });
+    // 区切り行の続かない | の行、絵文字でない [!x] は表やコールアウトにしない。
+    expect(markdownToBlocks("| a | b |\nplain\n> [!NOTE] text").map((block) => block.type)).toEqual(["paragraph", "paragraph", "quote"]);
+  });
+
+  it("keeps long and wide tables as one table", () => {
+    const wide = Array.from({ length: 60 }, () => "c").join(" | ");
+    const long = ["| h | i |", "| --- | --- |", ...Array.from({ length: 600 }, (_, index) => `| r${index} |`)].join("\n");
+    const blocks = markdownToBlocks(`${long}\n\n| ${wide} |\n| ${wide.replace(/c/g, "---")} |`);
+    expect(blocks.map((block) => block.type)).toEqual(["table", "table"]);
+    const rows = blocks.map((block) => (block.content as { rows: { cells: unknown[] }[] }).rows);
+    // 短い行は列数に合わせて空のセルで埋める。
+    expect([rows[0].length, rows[0][600].cells.length, rows[1].length, rows[1][0].cells.length]).toEqual([601, 2, 1, 60]);
+    expect(() => validateNoteContent({ title: "t", blocks })).not.toThrow();
+  });
+
+  it("splits rows around code spans and escaped characters", () => {
+    expect(splitTableRow("| a\\|b | `x|y` | c |")).toEqual(["a|b", "`x|y`", "c"]);
+    // コードの外の \` はコードを開かない。閉じる列の無いバッククォートも同じ。
+    expect(splitTableRow("| a\\`b | c |")).toEqual(["a\\`b", "c"]);
+    expect(splitTableRow("| a`b | c |")).toEqual(["a`b", "c"]);
+    // バッククォートを含むコードは、同じ長さの列で閉じるまでが 1 つのコード。
+    expect(splitTableRow("| `` a`|b `` | c |")).toEqual(["`` a`|b ``", "c"]);
+    expect(splitTableRow("| x\\\\ | y |")).toEqual(["x\\\\", "y"]);
+  });
+
+  it("round-trips cells that contain backticks, pipes and backslashes", () => {
+    const cellOf = (content: unknown[]) => ({ type: "tableCell", props: {}, content });
+    const text = (value: string, styles: Record<string, boolean> = {}) => ({ type: "text", text: value, styles });
+    const table = { id: "t", type: "table", props: {}, children: [], content: { type: "tableContent", rows: [
+      { cells: [cellOf([text("a`b")]), cellOf([text("p|q\\")])] },
+      { cells: [cellOf([text("x`|y", { code: true })]), cellOf([text("\\|")])] },
+    ] } };
+    const back = markdownToBlocks(blocksToMarkdown([table]))[0].content as { rows: { cells: { content: { text: string; styles: object }[] }[] }[] };
+    expect(back.rows.map((row) => row.cells.map((cell) => cell.content.map((entry) => entry.text).join("")))).toEqual([["a`b", "p|q\\"], ["x`|y", "\\|"]]);
+    expect(back.rows[1].cells[0].content[0].styles).toEqual({ code: true });
+  });
+
+  it("leaves \\| inside ordinary text as written", () => {
+    const [paragraph] = markdownToBlocks("norm $\\|x\\|$");
+    expect((paragraph.content as { text: string }[]).map((entry) => entry.text).join("")).toBe("norm $\\|x\\|$");
   });
 });
 

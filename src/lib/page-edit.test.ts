@@ -86,6 +86,31 @@ describe("applyPageEdits", () => {
     expect(applyPageEdits(blocks, [{ op: "replace", block: 1, markdown: "- parent" }]).changes[0].dropsFormatting).toBe(true);
   });
 
+  it("keeps a table's header settings and column widths when it is replaced by a table, and warns about cell formatting", () => {
+    type Table = { headerRows?: number; headerCols?: number; columnWidths: unknown[]; rows: { cells: { props: Record<string, unknown> }[] }[] };
+    const table = () => {
+      const blocks = markdownToBlocks("| a | b |\n| --- | --- |\n| c | d |\n| e | f |") as NoteBlock[];
+      const content = blocks[0].content as Table;
+      delete content.headerRows;
+      content.headerCols = 1;
+      content.columnWidths = [120, 300];
+      return { blocks, content };
+    };
+    const plain = table();
+    const edited = applyPageEdits(plain.blocks, [{ op: "replace", block: 1, markdown: "| a | b |\n| --- | --- |\n| c | D |" }]);
+    expect(edited.blocks[0].content).toMatchObject({ headerCols: 1, columnWidths: [120, 300] });
+    expect(edited.blocks[0].content).not.toHaveProperty("headerRows");
+    expect(edited.changes[0].dropsFormatting).toBeUndefined();
+    expect(() => validateNoteContent({ title: "t", blocks: edited.blocks })).not.toThrow();
+    // 列数が変わったら列幅は引き継がない。
+    const wider = applyPageEdits(table().blocks, [{ op: "replace", block: 1, markdown: "| a | b | c |\n| --- | --- | --- |" }]);
+    expect(wider.blocks[0].content).toMatchObject({ headerCols: 1, columnWidths: [null, null, null] });
+    // セルの色や結合は Markdown で表せないので警告する。
+    const colored = table();
+    colored.content.rows[1].cells[0].props.backgroundColor = "yellow";
+    expect(applyPageEdits(colored.blocks, [{ op: "replace", block: 1, markdown: "| a | b |\n| --- | --- |" }]).changes[0].dropsFormatting).toBe(true);
+  });
+
   it("does not modify the input blocks", () => {
     const original = page();
     const snapshot = JSON.stringify(original);
