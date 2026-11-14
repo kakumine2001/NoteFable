@@ -571,7 +571,13 @@ object CodeHighlighter {
         val keyRanges = key.findAll(code).map { it.groups[2]!!.range }.toList()
         keyRanges.forEach { tokens += CodeToken(it.first, it.last + 1, CodeTokenKind.Variable) }
         val rest = tokenizeGeneric(code, specs.getValue("yaml"))
-        tokens += rest.filter { t -> keyRanges.none { t.start <= it.last && t.end > it.first } }
+        // 两边都按起点排好序：双指针去掉和键重叠的记号，避免 记号数 × 键数 的开销。
+        var k = 0
+        for (t in rest.sortedBy { it.start }) {
+            while (k < keyRanges.size && keyRanges[k].last < t.start) k++
+            if (k < keyRanges.size && keyRanges[k].first < t.end) continue
+            tokens += t
+        }
         return tokens.sortedBy { it.start }
     }
 
