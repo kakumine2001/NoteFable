@@ -1,6 +1,6 @@
 # 原生 Android 界面（Kotlin / Compose）
 
-> 目录：`mobile/native/`。与 `mobile/android/` 的 Capacitor 外壳是同一个包名（`com.kakumine.studymate`），装上就覆盖旧版，两者不能同时安装；原生版取代外壳。
+> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个包名（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
 
 ## 为什么是"混合原生"，不是全部重写
 
@@ -55,19 +55,19 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 ## 目录
 
 ```
-mobile/native/
+mobile/android/
   app/src/main/java/com/kakumine/studymate/
     data/   StudyMateApi（OkHttp、SSE）、PersistentCookieJar、ChatStreamParser、DTO
     ui/     ChatViewModel（状态与流式逻辑）、StudyMateRoot（抽屉）、ChatScreen、Theme
   app/src/test/   ChatStreamParser 与 ChatViewModel 的单元测试（假后端，不联网）
 ```
 
-- 包名 `com.kakumine.studymate`（和 Capacitor 外壳相同，装上就覆盖旧版；versionCode 必须大于外壳的 3），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
+- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
 
-- 身份：和网页一样靠 `studymate_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和 Capacitor 外壳互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
+- 身份：和网页一样靠 `studymate_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
 - 错误文：服务端 API 返回的是英文原句（`msg()` 只做标记，网页端拿它当键用 `t()` 翻译），原生端目前原样显示，外面套本地化的"请求失败：…"。要让中 / 日界面显示译文，需要让服务端按请求语言翻译，或提供错误文词典给原生端（路线图第 2 步顺带做）。
@@ -90,15 +90,14 @@ mobile/native/
 ## 构建与测试
 
 ```bash
-cd mobile/native
+cd mobile/android
 # local.properties（不提交）里写一行：sdk.dir=A\:/Android/Sdk（使用正斜杠）
 ./gradlew testDebugUnitTest assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- 交付用 release 包：`./gradlew assembleRelease`（R8 压缩后约 2 MB，产物 `app/build/outputs/apk/release/app-release.apk`）。它暂时用 debug 密钥签名，能直接侧载安装；Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。文件名 `StudyMate-native-v<版本>-dev.apk`，上传到 `android.md` 里的 Drive 文件夹。
+- 交付用 release 包：`./gradlew assembleRelease`（R8 压缩后约 2 MB，产物 `app/build/outputs/apk/release/app-release.apk`）。它暂时用 debug 密钥签名，能直接侧载安装；Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。文件名和上传规则见 [android.md](android.md#安装包交付)。
 - 默认连线上 `https://studymate-lab-ai.vercel.app`。连电脑上的开发服务器：`./gradlew assembleDebug -Pstudymate.baseUrl=http://10.0.2.2:3000`。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
-- 交付 APK 的规则同 `android.md`：上传 Google Drive 并给出链接。
 
 ## 路线图
 
@@ -106,4 +105,4 @@ cd mobile/native
 2. 附件与图片：✅ 文件选择上传和「生成图片」模式；还差拍照入口、生成图片的保存；服务端错误文的中 / 日译文；推理、搜索、笔记工具的进度条；笔记编辑提案卡片。
 3. 笔记：原生笔记列表、分组、回收站；编辑器用 WebView 加载网页端提供的"仅编辑器"页面，通过 JS 桥同步标题、版本和返回键。这一步需要先在 `src/` 增加该页面。
 4. 账号：已有 Credential Manager Google 登录、退出和修改显示名，沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
-5. 替换 Capacitor 外壳：当前包名已是 `com.kakumine.studymate`，同一签名可覆盖安装。匿名数据无法跨 Cookie 迁移，替换前要先登录 Google，或接受匿名数据不继承。
+5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

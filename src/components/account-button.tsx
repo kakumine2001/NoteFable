@@ -7,24 +7,17 @@ import { usePickerBackToClose } from "@/components/emoji-picker";
 import { GoogleLogo } from "@/components/google-logo";
 import { menuPositionFor, ProfileMenu, type MenuPosition } from "@/components/profile-menu";
 import { UserAvatar } from "@/components/user-avatar";
-import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount, type Account } from "@/lib/account-store";
-import { canSignInNatively, signInWithNativeGoogle, signOutOfNativeGoogle } from "@/lib/native-app";
+import { clearSaveError, saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { useT } from "@/components/i18n-provider";
 
-// Google ログインを始める。Android アプリの WebView では Google が Web のログイン画面を拒否するので、端末側のログインを使う。
-// サイドバーのボタンと、未ログインで上限に達したときの案内で同じ動きにする。
-export function useGoogleSignIn(account: Account | null) {
+// Google ログインを始める。サイドバーのボタンと、未ログインで上限に達したときの案内で同じ動きにする。
+export function useGoogleSignIn() {
   const [failed, setFailed] = useState(false);
-  const clientId = account?.googleClientId;
 
   async function start() {
     setFailed(false);
     try {
-      if (clientId && canSignInNatively()) {
-        if (await signInWithNativeGoogle(clientId)) window.location.reload();
-      } else {
-        await signIn("google");
-      }
+      await signIn("google");
     } catch {
       setFailed(true);
     }
@@ -38,7 +31,7 @@ export function useGoogleSignIn(account: Account | null) {
 export function AccountButton() {
   const t = useT();
   const { account, saveError } = useAccount();
-  const { start: startSignIn, failed } = useGoogleSignIn(account);
+  const { start: startSignIn, failed } = useGoogleSignIn();
   const [menu, setMenu] = useState<MenuPosition | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const closeMenu = () => setMenu(null);
@@ -74,7 +67,6 @@ export function AccountButton() {
           onSignOut={async () => {
             // 直前に編集した名前や写真の保存が終わってからログアウトする（ログアウト後だと 401 で取りこぼす）。
             await settled();
-            await signOutOfNativeGoogle();
             await signOut();
           }} />
       )}

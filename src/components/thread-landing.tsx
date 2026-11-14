@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { LandingNativeRedirect } from "@/components/landing-native-redirect";
 import { LanguageSelect } from "@/components/language-select";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/studymate-logo";
@@ -247,7 +246,6 @@ export function ThreadLanding() {
 
   return (
     <div className="tl-page">
-      <LandingNativeRedirect />
       <a className="tl-skip" href="#tl-main">{t("Skip to content")}</a>
 
       <header className="tl-nav tl-wrap">

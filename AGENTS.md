@@ -58,12 +58,11 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 ## Android
 
-- `mobile/android/` is the old Capacitor wrapper (hosted app in a WebView); `mobile/native/` is the Kotlin/Compose client that replaces it (same package name, see `docs/architecture/android-native.md`). Native UI must replicate the web UI: measure the web first (CSS, computed styles at 412x915, i18n dictionaries), never invent styling, dark mode or copy; leave out controls that have no working feature yet. When the web UI changes, native must match before the next APK is delivered: batch the catch-up there instead of building an APK per web tweak, and say in the final report which web changes native still lacks.
-- Layout and touch fixes for the Capacitor wrapper are web changes under `src/`; `mobile/android/` is only for icon, name, permissions, offline page, native plugins.
-- Don't commit `mobile/node_modules`, `mobile/dist`, `mobile/resources`, APKs or `local.properties` (use forward slashes for `sdk.dir`).
+- `mobile/android/` is the only Android client (Kotlin/Compose, see `docs/architecture/android-native.md`); the old Capacitor wrapper was removed. `mobile/` holds only native clients (`android/`, later `ios/`); no cross-platform shells. Native UI must replicate the web UI: measure the web first (CSS, computed styles at 412x915, i18n dictionaries), never invent styling, dark mode or copy; leave out controls that have no working feature yet. When the web UI changes, native must match before the next APK is delivered: batch the catch-up there instead of building an APK per web tweak, and say in the final report which web changes native still lacks.
+- Don't commit APKs, build outputs or `local.properties` (use forward slashes for `sdk.dir`).
 - Every delivered APK goes to the Google Drive release folder in `docs/architecture/android.md`, and the folder holds exactly one APK: the latest. Upload the new one, verify size and folder, then move all older APKs to the trash and return the link.
 - `globals.css` rules are unlayered and beat Tailwind utilities: restyle at breakpoints with an equal-or-higher-specificity `@media` rule placed after, not `hidden` / `sm:hidden`. Panels needing the Back key push a history entry (`use-back-to-close.ts`).
-- Native Google login: token audience is the Web client ID; never pass `scopes` to the plugin.
+- Native Google login: token audience is the Web client ID.
 
 ## Review and Validation
 
