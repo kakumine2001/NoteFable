@@ -154,6 +154,9 @@ class NotesViewModel(
     /** 登录或退出后身份变了：清掉列表和打开的笔记，按新身份重新读。 */
     fun onIdentityChanged() {
         identity++
+        // 旧身份的图标写入不再算数：等着它的打开操作放行，新身份同一篇笔记的选择重新排队。
+        iconWrites.values.forEach { it.done.complete(false) }
+        iconWrites.clear()
         loadJob?.cancel()
         // 换身份前排着的打开 / 新建不再执行，回收站里进行中的操作也不再写回。
         navigationJob?.cancel()
@@ -185,9 +188,11 @@ class NotesViewModel(
      * 和网页 /app 一样不把人困在笔记里（网页切走时也只是 `void flush()`，草稿留在 localStorage 之后重试）。
      * 保存途中编辑器自己关掉了（笔记已不存在）也放行。同一时刻只跑一个导航，连点不会叠加。
      */
-    private fun leaveThen(action: suspend () -> Unit) {
+    private fun leaveThen(before: (suspend () -> Unit)? = null, action: suspend () -> Unit) {
         if (navigationJob?.isActive == true) return
         navigationJob = viewModelScope.launch {
+            // 先等（例如目标笔记的图标写入），再保存当前笔记：等待期间在旧编辑器里输入的内容也会存上。
+            before?.invoke()
             if (_state.value.open != null) {
                 val warned = _state.value.notice?.kind == NotesError.Kind.UnsavedDraft
                 val result = flushOpen()
@@ -234,11 +239,10 @@ class NotesViewModel(
             title != null -> OpenNote(id, title, icon)
             else -> return
         }
-        leaveThen {
-            // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
-            val pending = iconWrites[id]
+        // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
+        val pending = iconWrites[id]
+        leaveThen(before = { pending?.done?.await() }) {
             val target = if (pending == null) open else {
-                pending.done.await()
                 _state.value.pages.firstOrNull { it.id == id }?.let { OpenNote(it.id, it.title, it.icon) } ?: open
             }
             _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
