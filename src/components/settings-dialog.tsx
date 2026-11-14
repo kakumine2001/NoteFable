@@ -31,7 +31,8 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   // 保存中は閉じない（Esc・戻る・外側のクリック）。閉じると、保存に失敗しても知らせる場所がなくなる。
-  const close = () => { if (!locked.current) onClose(); };
+  // false を返すと useBackToClose は「戻る」の登録を保つ。
+  const close = () => { if (locked.current) return false; onClose(); };
   useBackToClose(true, close);
   useEffect(() => { ref.current?.showModal(); }, []);
 
