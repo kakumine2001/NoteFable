@@ -130,7 +130,10 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
         if (proposals.isNotEmpty() && store != null) ProposalCards(proposals, store, openNote)
         message.errorDetail?.let { detail ->
             Text(
-                stringResource(R.string.request_failed, systemText.localize(detail)),
+                stringResource(
+                    R.string.request_failed,
+                    if (detail == CONNECTION_FAILED) stringResource(R.string.check_connection) else systemText.localize(detail),
+                ),
                 color = Sm.Danger,
                 fontSize = 15.sp,
                 modifier = Modifier.padding(top = 6.dp),

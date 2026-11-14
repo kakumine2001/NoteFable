@@ -56,6 +56,25 @@ class NotesApiTest {
     }
 
     @Test
+    fun `reorders a note and reads which note changed project`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"items":[{"id":"b","position":1,"groupId":null},{"id":"a","position":2},{"id":"c","position":3}]}"""))
+            val updates = server.api().reorderNote("b", "a", after = false)
+            val request = server.next()
+            assertEquals("POST", request.method)
+            assertEquals("/api/pages/reorder", request.path)
+            val body = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+            assertEquals(JsonPrimitive("b"), body["id"])
+            assertEquals(JsonPrimitive("a"), body["targetId"])
+            assertEquals(JsonPrimitive(false), body["after"])
+            assertEquals(
+                listOf(NoteOrderUpdate("b", 1, null, movedGroup = true), NoteOrderUpdate("a", 2), NoteOrderUpdate("c", 3)),
+                updates,
+            )
+        }
+    }
+
+    @Test
     fun `trash endpoints and server errors`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setBody("""{"pages":[{"id":"t","title":"Old","icon":null,"deletedAt":"2026-11-14T00:00:00.000Z","purgeAt":"2026-12-14T00:00:00.000Z"}]}"""))

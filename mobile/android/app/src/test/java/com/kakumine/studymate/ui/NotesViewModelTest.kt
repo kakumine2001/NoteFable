@@ -71,6 +71,14 @@ class NotesViewModelTest {
         }
         override suspend fun trashNote(id: String) { calls += "trash:$id"; maybeFail(); pages.removeAll { it.id == id } }
         override suspend fun moveNote(id: String, groupId: String?) { calls += "move:$id:$groupId"; maybeFail() }
+        /** 模拟服务端：b 放到 a 前面，b 跟着 a 进 g1。 */
+        override suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<com.kakumine.studymate.data.NoteOrderUpdate> {
+            calls += "reorder:$id:$targetId:$after"; maybeFail(); hold("reorder")
+            return listOf(
+                com.kakumine.studymate.data.NoteOrderUpdate("b", 1, "g1", movedGroup = true),
+                com.kakumine.studymate.data.NoteOrderUpdate("a", 2),
+            )
+        }
         override suspend fun createGroup(name: String): NoteGroupSummary { calls += "group:$name"; maybeFail(); hold("group"); return NoteGroupSummary("g2", name, 1) }
         override suspend fun renameGroup(id: String, name: String): NoteGroupSummary { calls += "rename:$id:$name"; maybeFail(); return NoteGroupSummary(id, name) }
         override suspend fun deleteGroup(id: String) { calls += "deleteGroup:$id"; maybeFail() }
@@ -487,5 +495,115 @@ class NotesViewModelTest {
         vm.refresh()
         advanceUntilIdle()
         assertEquals(2, backend.calls.count { it == "notes" })
+    }
+
+    @Test
+    fun `reorder applies the server order and moves the dragged note into the target project`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.reorder(ReorderMove("b", "a", after = false))
+        assertTrue(vm.state.value.reorderBusy)
+        assertTrue("b" in vm.state.value.moveBusy)
+        advanceUntilIdle()
+        val state = vm.state.value
+        assertEquals(listOf("b", "a"), state.pages.map { it.id })
+        assertEquals("g1", state.pages.first { it.id == "b" }.groupId)
+        assertEquals(listOf("b", "a"), state.members("g1").map { it.id })
+        assertFalse(state.reorderBusy)
+        assertTrue(state.moveBusy.isEmpty())
+        assertNull(state.reorderError)
+        assertTrue("reorder:b:a:false" in backend.calls)
+    }
+
+    @Test
+    fun `a second reorder while one is running asks to wait`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val gate = CompletableDeferred<Unit>()
+        backend.holds["reorder"] = gate
+        vm.reorder(ReorderMove("b", "a", after = false))
+        runCurrent()
+        vm.reorder(ReorderMove("a", "b", after = true))
+        assertEquals(ReorderFailure("a", wait = true), vm.state.value.reorderError)
+        assertEquals(1, backend.calls.count { it.startsWith("reorder:") })
+        gate.complete(Unit)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.reorderBusy)
+    }
+
+    @Test
+    fun `failed reorder keeps the list and shows the server message on that row`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val before = vm.state.value.pages
+        backend.failNext = ApiException(404, "Item not found.")
+        vm.reorder(ReorderMove("b", "a", after = false))
+        advanceUntilIdle()
+        assertEquals(before, vm.state.value.pages)
+        assertEquals(ReorderFailure("b", "Item not found."), vm.state.value.reorderError)
+        vm.dismissReorderError()
+        assertNull(vm.state.value.reorderError)
+    }
+
+    @Test
+    fun `network failure while reordering uses the generic message`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        backend.failNext = IOException("offline")
+        vm.reorder(ReorderMove("b", "a", after = true))
+        advanceUntilIdle()
+        assertEquals(ReorderFailure("b"), vm.state.value.reorderError)
+    }
+
+    @Test
+    fun `dropping on a project moves the note and expands a collapsed project`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val prefs = MemoryPrefs().apply { collapsedGroups = setOf("g1") }
+        val vm = notesVm(backend, prefs)
+        vm.dropIntoGroup("b", "g1")
+        advanceUntilIdle()
+        assertEquals("g1", vm.state.value.pages.first { it.id == "b" }.groupId)
+        assertFalse("g1" in vm.state.value.collapsed)
+        assertTrue("move:b:g1" in backend.calls)
+        // 已经在那个项目里：不发请求。
+        vm.dropIntoGroup("b", "g1")
+        advanceUntilIdle()
+        assertEquals(1, backend.calls.count { it == "move:b:g1" })
+        // 拖到 Notes 标签上：移出项目。
+        vm.dropIntoGroup("a", null)
+        advanceUntilIdle()
+        assertNull(vm.state.value.pages.first { it.id == "a" }.groupId)
+    }
+
+    @Test
+    fun `failed drop into a project leaves the note where it was`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        backend.failNext = IOException("offline")
+        vm.dropIntoGroup("b", "g1")
+        advanceUntilIdle()
+        assertNull(vm.state.value.pages.first { it.id == "b" }.groupId)
+        assertEquals(ReorderFailure("b"), vm.state.value.reorderError)
+        assertTrue(vm.state.value.moveBusy.isEmpty())
+    }
+
+    @Test
+    fun `apply order sorts like the web and only moves the dragged note between projects`() {
+        val pages = listOf(
+            NotePageSummary("x", position = 1, groupId = "g", createdAt = "2026-01-01"),
+            NotePageSummary("y", position = 2, createdAt = "2026-01-02"),
+            NotePageSummary("z", position = 3, groupId = "g", createdAt = "2026-01-03"),
+        )
+        val sorted = NotesViewModel.applyOrder(
+            pages,
+            listOf(
+                com.kakumine.studymate.data.NoteOrderUpdate("z", 1, null, movedGroup = true),
+                com.kakumine.studymate.data.NoteOrderUpdate("x", 2),
+                com.kakumine.studymate.data.NoteOrderUpdate("y", 3),
+            ),
+        )
+        assertEquals(listOf("z", "x", "y"), sorted.map { it.id })
+        assertNull(sorted[0].groupId)
+        assertEquals("g", sorted[1].groupId)
     }
 }

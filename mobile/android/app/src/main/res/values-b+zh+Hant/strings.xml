@@ -19,6 +19,7 @@
     <string name="copy">複製回答</string>
     <string name="downloading">正在下載…</string>
     <string name="request_failed">請求失敗：%1$s</string>
+    <string name="check_connection">請檢查網路連線後重試。</string>
 
     <string name="model">模型</string>
     <string name="model_and_reasoning">模型與思考</string>

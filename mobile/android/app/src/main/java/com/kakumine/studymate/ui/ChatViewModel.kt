@@ -869,7 +869,7 @@ class ChatViewModel(
                 val done = message.copy(streaming = false, generatingImage = false)
                 when {
                     limited -> done.copy(content = failed?.message.orEmpty(), usageLimit = true, failure = null)
-                    failed != null -> done.copy(errorDetail = failed.message ?: failed.javaClass.simpleName)
+                    failed != null -> done.copy(errorDetail = chatFailureDetail(failed))
                     // 没收到任何内容就被停止：不留空气泡。已有过程或提案卡片（服务器已存了提案）时保留，和网页一样。
                     message.content.isEmpty() && message.images.isEmpty() &&
                         message.activity.isEmpty() && message.proposals.isEmpty() -> null
@@ -1072,6 +1072,21 @@ class ChatViewModel(
         }
     }
 }
+
+/**
+ * 回答失败时显示在"Request failed: …"后面的原因。连不上服务器（断网、域名解析失败、连接被拒或超时、TLS 握手失败）时
+ * OkHttp 的原句是英文的技术信息（还带着主机地址），换成网页字典里的 [CONNECTION_FAILED]，界面按语言显示译文；
+ * 服务端返回的错误（[ApiException]）和其它异常保持原句，和网页一样。
+ */
+internal fun chatFailureDetail(error: Throwable): String = when (error) {
+    is ApiException -> error.message ?: error.javaClass.simpleName
+    is java.net.UnknownHostException, is java.net.SocketException,
+    is java.net.SocketTimeoutException, is javax.net.ssl.SSLException -> CONNECTION_FAILED
+    else -> error.message ?: error.javaClass.simpleName
+}
+
+/** 网页字典里的 "Check your connection and try again."（界面用 R.string.check_connection 显示译文）。 */
+internal const val CONNECTION_FAILED = "Check your connection and try again."
 
 /**
  * 对账：先按服务端 ID 沿用旧列表里已有的 key（之前的回合对账过、key 还是 `local-N` 的消息，不能退回服务端 ID 而重建，

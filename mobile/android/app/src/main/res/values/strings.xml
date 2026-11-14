@@ -19,6 +19,7 @@
     <string name="copy">Copy answer</string>
     <string name="downloading">Downloading…</string>
     <string name="request_failed">Request failed: %1$s</string>
+    <string name="check_connection">Check your connection and try again.</string>
 
     <string name="model">Model</string>
     <string name="model_and_reasoning">Model and reasoning</string>

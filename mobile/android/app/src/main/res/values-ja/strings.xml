@@ -18,6 +18,7 @@
     <string name="copy">回答をコピー</string>
     <string name="downloading">ダウンロード中…</string>
     <string name="request_failed">リクエストに失敗しました：%1$s</string>
+    <string name="check_connection">接続を確認して、もう一度お試しください。</string>
 
     <string name="model">モデル</string>
     <string name="model_and_reasoning">モデルと思考の深さ</string>
