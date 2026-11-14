@@ -532,4 +532,113 @@ class ChatViewModelBackgroundTest {
         assertEquals("db-1", vm.state.value.reveal!!.messageId)
         advanceUntilIdle()
     }
+    /** 私有的按聊天存的表（cache、draftIcons）里现有的键：确认没有留下再也打不开的新聊天。 */
+    private fun ChatViewModel.privateKeys(field: String): Set<String> {
+        val f = ChatViewModel::class.java.getDeclaredField(field)
+        f.isAccessible = true
+        return (f.get(this) as Map<*, *>).keys.map { it as String }.toSet()
+    }
+
+    private fun ChatViewModel.leftoverNewChats() =
+        (privateKeys("cache") + privateKeys("draftIcons")).filter { it.startsWith("new-chat:") }
+
+    @Test
+    fun `a new chat in a project takes the draft icon of a new chat still uploading its first send`() = test {
+        val backend = Backend()
+        val saved = mutableListOf<Pair<String, String?>>()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10, saveIcon = { id, icon -> saved += id to icon; true })
+        created += vm
+        advanceUntilIdle()
+
+        vm.changeIcon("🧪")
+        vm.addFiles(listOf(LocalFile("content://notes", "notes.txt", "text/plain", 1200)))
+        vm.updateDraft("with file")
+        vm.send("with file")
+        settle()
+        assertTrue(vm.state.value.sending)
+        // 上传还没完就在项目里新建：这次上传不会发出，草稿图标带到建好的聊天上。
+        vm.openCreatedSession(SessionSummary("p1", "New chat", projectId = "proj"))
+        settle()
+        assertEquals("p1", vm.state.value.activeSessionId)
+        assertEquals("🧪", vm.state.value.activeIcon)
+        assertEquals(listOf("p1" to "🧪"), saved)
+
+        backend.uploadGate.complete(Unit)
+        advanceUntilIdle()
+        assertTrue(backend.requests.isEmpty())
+        assertEquals("with file", vm.draft)
+        assertEquals(emptyList<String>(), vm.leftoverNewChats())
+    }
+
+    @Test
+    fun `a discarded upload of a new chat the user left leaves no cache or draft icon`() = test {
+        val backend = Backend()
+        val vm = newViewModel(backend)
+
+        vm.changeIcon("🧪")
+        vm.addFiles(listOf(LocalFile("content://notes", "notes.txt", "text/plain", 1200)))
+        vm.send("with file")
+        settle()
+        vm.openSession("s7")
+        backend.uploadGate.complete(Unit)
+        advanceUntilIdle()
+
+        assertTrue(backend.requests.isEmpty())
+        assertEquals(emptyList<String>(), vm.leftoverNewChats())
+    }
+
+    @Test
+    fun `a usage limit on a new chat the user left puts the prompt back and leaves no cache`() = test {
+        val backend = Backend()
+        backend.stored["s9"] = listOf(MessageDto("o-1", "USER", "other chat"))
+        val vm = newViewModel(backend)
+
+        vm.changeIcon("🧪")
+        vm.updateDraft("over")
+        vm.send("over")
+        runCurrent()
+        vm.openSession("s9")
+        settle()
+        backend.streams[0].close(ApiException(429, "Daily limit reached.", code = ApiException.USAGE_LIMIT_CODE, tier = "guest", kind = "chat"))
+        advanceUntilIdle()
+
+        assertEquals("over", vm.draft)
+        assertEquals("chat", vm.state.value.guestLimit)
+        assertEquals(listOf("other chat"), vm.contents())
+        assertTrue(vm.state.value.generatingSessionIds.isEmpty())
+        assertEquals(emptyList<String>(), vm.leftoverNewChats())
+    }
+
+    @Test
+    fun `a prompt put back while the open chat uploads survives that send`() = test {
+        val backend = Backend()
+        backend.stored["s9"] = listOf(MessageDto("o-1", "USER", "other chat"))
+        val vm = newViewModel(backend)
+        val notes = LocalFile("content://notes", "notes.txt", "text/plain", 1200)
+
+        vm.updateDraft("lost?")
+        vm.send("lost?")
+        runCurrent()
+        vm.openSession("s9")
+        settle()
+        vm.addFiles(listOf(notes))
+        vm.updateDraft("with file")
+        vm.send("with file")
+        settle()
+        assertTrue(vm.state.value.upload != null)
+        // 后台的新聊天失败：现在放回去会被这次发送清掉，等上传结束再放。
+        backend.streams[0].close(java.io.IOException("boom"))
+        settle()
+        assertEquals("with file", vm.draft)
+
+        backend.uploadGate.complete(Unit)
+        settle()
+        assertEquals(2, backend.requests.size)
+        assertEquals("with file", backend.requests[1].message)
+        assertEquals("lost?", vm.draft)
+        assertTrue(vm.state.value.files.isEmpty())
+        backend.streams[1].close()
+        advanceUntilIdle()
+        assertEquals("lost?", vm.draft)
+    }
 }

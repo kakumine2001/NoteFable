@@ -347,9 +347,10 @@ class ChatViewModel(
     /** 刚在项目里建好的空聊天：放到列表最前并打开（网页 createSession(projectId)）。别的聊天的回答照常继续。 */
     fun openCreatedSession(session: SessionSummary) {
         // 从还没发过东西的新聊天过来：先选的图标带到建好的聊天上（网页 createEmptySession(carriedIcon, projectId)）。
-        // 已经发出去、还在等会话 ID 的新聊天的图标属于那次发送，不带走。
+        // 已经发出去、还在等会话 ID 的新聊天的图标属于那次发送，不带走。附件还在上传（缓存里还没有消息）的不算发出去：
+        // 离开后这次上传不会发出（见 send），图标也跟着到建好的聊天上。
         val from = keyOf(_state.value)
-        val carried = if (_state.value.activeSessionId == null && from !in streams && cache[from].isNullOrEmpty()) draftIcons.remove(from) else null
+        val carried = if (_state.value.activeSessionId == null && cache[from].isNullOrEmpty()) draftIcons.remove(from) else null
         val icon = session.icon ?: carried
         cache[session.id] = emptyList()
         // 先把带图标的聊天放进列表再打开、再保存：保存时先显示的那一步要能找到这一行。
@@ -377,6 +378,8 @@ class ChatViewModel(
     /** 登录或退出后身份变了：停掉所有聊天的回答，清掉缓存和列表，按新身份重新加载。 */
     fun onIdentityChanged() {
         epoch++
+        // 等着放回的提问：文字留着，附件和待发送附件一样不跨登录保留。
+        pendingRestores.replaceAll { Restore(it.text, emptyList()) }
         streams.values.flatten().forEach { it.cancel() }
         streams.clear()
         reconcileJobs.values.forEach { it.cancel() }
@@ -670,15 +673,28 @@ class ChatViewModel(
         val navigation = navigationCount
         val run = TurnRun(key, epoch)
         launchTurn(run) {
-            val tickets = uploadFiles(files, navigation) ?: return@launchTurn null
+            val tickets = uploadFiles(files, navigation)
+            if (tickets == null) {
+                dropLeftNewChat(run.key)
+                return@launchTurn null
+            }
             // 上传期间去了别的聊天：和网页一样不发了，清掉传上去的文件；文字和附件还在输入栏。
             if (navigation != navigationCount) {
+                flushRestores()
+                dropLeftNewChat(run.key)
                 withContext(NonCancellable) { backend.discardUploads(tickets) }
                 return@launchTurn null
             }
             val turn = beginTurn(run, prompt, text, files, imageMode, modelId)
             runTurn(run, turn, request.copy(uploads = tickets), imageMode)
         }
+    }
+
+    /** 没发出去的新聊天，而用户已经离开它：再也回不来，它的缓存和草稿图标都不留。 */
+    private fun dropLeftNewChat(key: String) {
+        if (!key.startsWith(NEW_CHAT_PREFIX) || key == keyOf(_state.value)) return
+        cache.remove(key)
+        draftIcons.remove(key)
     }
 
     /** 一次发送所属的聊天。新聊天拿到会话 ID 后 [key] 换成它（[migrate]）。 */
@@ -755,6 +771,8 @@ class ChatViewModel(
         _state.update { it.copy(files = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1) }
         // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
         updateDraft("")
+        // 上传期间别的聊天退回来的提问，等这里清空输入栏后再放回去。
+        flushRestores()
         return Turn(assistantId, userId, rawText, files)
     }
 
@@ -780,6 +798,7 @@ class ChatViewModel(
             // 用户已经去了别的聊天：不在那边的输入栏报错（网页只在 navigationIntent 没变时 setSendError）。
             val report = error !is CancellationException && navigation == navigationCount
             _state.update { it.copy(upload = null, notice = if (report) ComposerNotice.UploadFailed else it.notice) }
+            flushRestores()
             if (error is CancellationException) throw error
             return null
         }
@@ -824,11 +843,10 @@ class ChatViewModel(
         val assistantId = turn.assistantId
         val limited = failed is ApiException && failed.isUsageLimit
         // 还没拿到会话 ID 的新聊天失败了，而用户已经离开它：这个聊天再也打不开（网页发送前就建好了会话，
-        // 侧栏里能找回）。把提问和附件放回输入栏，不留看不到的缓存。
-        if (failed != null && !limited && run.key.startsWith(NEW_CHAT_PREFIX) && run.key != keyOf(_state.value)) {
-            restoreDraft(turn)
-            cache.remove(run.key)
-            draftIcons.remove(run.key)
+        // 侧栏里能找回）。把提问和附件放回输入栏，不留看不到的缓存。撞到上限也一样（未登录时照常显示登录提示）。
+        if (failed != null && run.key.startsWith(NEW_CHAT_PREFIX) && run.key != keyOf(_state.value)) {
+            if (limited) restoreRejected(turn, failed as ApiException) else restoreDraft(turn)
+            dropLeftNewChat(run.key)
             return
         }
         if (limited) restoreRejected(turn, failed as ApiException)
@@ -862,15 +880,38 @@ class ChatViewModel(
         if (error.tier == "guest") _state.update { it.copy(guestLimit = if (error.kind == "image") "image" else "chat") }
     }
 
+    /** 要放回输入栏的原文和附件。 */
+    private class Restore(val text: String, val files: List<LocalFile>)
+
+    /**
+     * 当前聊天正在上传附件时退回来的提问：上传成功后 [beginTurn] 会清空输入栏，现在放回去会被一起清掉，
+     * 所以等上传结束（发出、失败或离开后不发）再放。
+     */
+    private val pendingRestores = mutableListOf<Restore>()
+
+    private fun restoreDraft(turn: Turn) = restoreDraft(Restore(turn.rawText, turn.files))
+
     /** 没发出去的原文和附件放回输入栏，排在等待期间新写的字和新加的附件前面。 */
-    private fun restoreDraft(turn: Turn) {
-        updateDraft(mergeRejectedDraft(turn.rawText, draft))
+    private fun restoreDraft(restore: Restore) {
+        if (_state.value.upload != null) {
+            pendingRestores += restore
+            return
+        }
+        updateDraft(mergeRejectedDraft(restore.text, draft))
         _state.update { state ->
             state.copy(
-                files = if (turn.files.isEmpty()) state.files
-                else turn.files + state.files.filterNot { current -> turn.files.any { it.uri == current.uri } },
+                files = if (restore.files.isEmpty()) state.files
+                else restore.files + state.files.filterNot { current -> restore.files.any { it.uri == current.uri } },
             )
         }
+    }
+
+    /** 上传结束了：放回等着的提问。 */
+    private fun flushRestores() {
+        if (pendingRestores.isEmpty() || _state.value.upload != null) return
+        val restores = pendingRestores.toList()
+        pendingRestores.clear()
+        restores.forEach(::restoreDraft)
     }
 
     /**
