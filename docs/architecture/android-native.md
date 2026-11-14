@@ -17,7 +17,7 @@
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。还没有：推理 / 搜索进度条、设置页及网页的上限登录提示与草稿恢复交互。
+另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。还没有：设置页。
 
 ## 与网页界面保持一致
 
@@ -68,13 +68,13 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 mobile/android/
   app/src/main/java/com/kakumine/studymate/
     data/   StudyMateApi（各接口）、StudyMateHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
-            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
+            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
             IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、AssistantTurn（一条回答）、ChatSidebar（侧栏的聊天部分）、
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、
             NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
-  app/src/main/assets/   models.json、system-text.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
-  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
+  app/src/main/assets/   models.json、system-text.json、usage-limits.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
+  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
 - 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
@@ -85,7 +85,7 @@ mobile/android/
 - 身份：和网页一样靠 `studymate_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
-- 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿、弹出登录提示（GuestLimitPrompt）还没做；工具完成标签在对应批次接上。
+- 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿和登录提示见“输入栏与使用上限”；笔记工具的完成标签在过程面板里同样经词典翻译。
   - 词典由 `npx tsx scripts/gen-native-system-text.ts` 生成：从 `src/app/api` 的路由沿 import 收集 `msg()` / `fmt()` 的句子，加上 `zh-server.ts` 的全部键和 `SYSTEM_TEXT_TEMPLATES`，译文取自网页的中 / 日字典（缺译文时生成失败）。改了服务端的句子或字典后重新生成；`src/lib/native-system-text-asset.test.ts` 在资源过期时失败。
   - 错误响应解析成 `ApiException`（`data/StudyMateHttp.kt`）：`message` 是服务端原句（读不到时 "HTTP <状态码>"），429 使用上限另有 `code`（`usage_limit`）、`tier`、`kind`（`src/lib/usage-limits.ts`），`isUsageLimit` 判断是否是上限。
 - 首次启动、登录、退出后：设备 Cookie 由第一个到达服务端的请求签发（退出后设备 Cookie 指向已绑定 Google 的用户，服务端会重新签发匿名身份）。几个请求同时发出的话会各签发一个身份，后到的 Cookie 覆盖先到的，前面那个身份下建的聊天 / 笔记就读不回来。所以 `StudyMateHttp` 的 OkHttp 客户端装了 `IdentityGate`（`data/IdentityGate.kt`，聊天、笔记、账号、附件图片、笔记文件下载共用）：身份未确定时第一个本站请求单独走，其它请求等它拿到响应（Set-Cookie 已存进 Cookie jar）再走；之后并行。登录成功和退出时 `reset()`，下一个请求又单独走；网络错误不算确定；`/api/models` 不读也不签发身份，不排队也不算确定（否则启动时它先回来就把闸门打开了）。聊天发送前另外还会等会话列表请求结束（`awaitSessionsRequest`）。
@@ -122,7 +122,28 @@ mobile/android/
 
 限制和提示文字与网页一致（`data/Attachments.kt` 对应 `src/lib/client-files.ts`、`upload-limits.ts`）：每条消息最多 10 个文件、单个 20 MiB、合计 100 MiB；图片只收 PNG / JPEG / WEBP，当前模型不能读图时不能附图（打开「生成图片」时可以）。一次选的文件有问题就整批不加。
 
-和网页的差别：网页的文件选择框在手机上可以直接拍照，原生版用系统文件选择器，暂时没有单独的拍照入口；生成的图片还不能保存到相册。
+和网页的差别：生成的图片右下角有下载键，见下文“回答体验”。
+
+## 输入栏与使用上限
+
+- **上限（429 `usage_limit`）**：和网页 `page.tsx` 的 `UsageLimitError` 分支一样，被拒的原文和附件放回输入栏（`ChatViewModel.restoreRejected`）：等待期间又写了字就把原文放前面、空一行接上（`mergeRejectedDraft`），附件排在新加的前面；已发出的提问气泡去掉本机图片预览（变成文件标签）。草稿在 ViewModel 里（`SavedStateHandle`），登录、退出后仍在；附件和网页一样不跨登录保留（网页登录会重载页面），所以 `onIdentityChanged` 清掉待发送附件。
+- **登录提示**（`ui/GuestLimitPrompt.kt`，网页 `guest-limit-prompt.tsx`）：`tier = guest` 时记下 `ChatUiState.guestLimit`（`chat` / `image`），只在服务端开了 Google 登录且还没登录时显示在输入栏上方（提示条和待发送附件之前）。外框、图标、按钮的数值和进场、图标弹出、高光、光晕动画都照 `.guest-limit-*`（412 宽实测），系统关掉动画时不动。Google 按钮走侧栏同一个原生登录；"以后再说"和 ✕ 关闭。说明里的每日条数用 member 的上限：安装包里的 `assets/usage-limits.json` 由 `scripts/gen-native-usage-limits.ts` 从 `src/lib/usage-plans.ts` 生成，`src/lib/native-usage-limits-asset.test.ts` 在数值过期时失败。
+- **滚动到底部**：网页输入栏区顶部那一行（40 + 下距 8）。手机宽度下这一行一直占位，隐藏时只是透明（空白首页也一样；只有 ≥ 640 的空白首页才 `display: none`）。原生是列表底部居中的 40 白底按钮（圆角 4.8、`--notion-shadow`、ArrowDown 20），离底部超过 8 时 150ms 淡入放大；列表底部内边距 96 = 消息列自己的 `pb-12`（48）+ 这一行（48），空白首页的标题居中也按 48 + 48 留底。消息列表改为正向排列（短对话从顶部开始，和网页一样），"跟随最新内容"的规则照 `followBottomRef`：打开会话、发出消息、点按钮时跟随；用户一滚（拖动、滚轮、无障碍滚动）离开底部就停止，滚动停在底部 2 以内又跟随，滚动进行中不恢复。判断规则是 `ChatFollow.kt` 的纯函数 `followAction`，有单元测试。跟随时在测量前用 `requestScrollToItem` 贴底，回答变长不会先跳一下。
+- **粘贴图片**：输入框换成 `TextFieldState` 版的 `BasicTextField`（草稿仍在 ViewModel，两边同步），用 `contentReceiver` 收剪贴板 / 键盘里的 PNG、JPEG、WEBP（网页 `getClipboardImageFiles`），其它内容照常粘贴成文字。图片先拷进缓存目录（`image.png` 等，和网页粘贴的文件名一样），再走 `addFiles` 的校验。拷贝（以及文件选择器读文件名和大小）经 `ChatViewModel.importFiles` 在后台进行，期间 `importing` 大于 0、不能发送，免得图片漏掉、跑进下一条。键盘插入的图片，临时读取权限挂在 `TransferableContent` extras 里的 `InputContentInfo` 上：拷贝期间一直引用着它，拷完调 `releasePermission`。
+- **拍照**：没有新加一行，"添加文件或照片"打开的系统选择器里同时列出相机 App（`ACTION_GET_CONTENT` 选择器 + `EXTRA_INITIAL_INTENTS` 的拍照意图，和手机浏览器里网页的文件选择框一样）。照片写到缓存目录 `attachments/`，经 FileProvider（`${applicationId}.attachments`，`res/xml/file_paths.xml`）交给相机 App；不需要相机权限，Manifest 里用 `<queries>` 声明要查相机。缓存里超过一天的副本在下次新建副本（打开选择器或粘贴图片）时清掉；不再拍照或粘贴的话，旧副本留到系统清缓存为止。选择器返回后用哪些文件（选中的文件优先，否则看相机文件有没有内容）在 `pickedAttachmentSources`，有单元测试。
+
+## 回答体验
+
+一条回答从上到下和网页 `chat-message.tsx` 相同：标签 → 过程面板 → 生成的图片 → 正文 → 提案卡片 → 失败文 → 操作行（`ui/AssistantTurn.kt`）。
+
+- **过程数据**（`data/Activity.kt`）：移植 `src/lib/chat-activity.ts` 的 `applyActivityEvent`（按 id 合并：推理增量拼接，其它同 id 替换）、`parseStoredActivity` 的校验（不安全的地址、没完成的搜索、坏的项目上下文都丢掉）、`splitThought`、`hostOf`，`ActivityTest` 与 `chat-activity.test.ts` 逐条对应，两边一起改。流里的 `{activity}` 事件在 `ChatViewModel.runStream` 里和正文一起攒着，每次刷新合并一次；历史里的 `activity` / `proposals` 在 `toUiMessage` 里解析。正文开始出现前的时长记为 `thinkingMs`。
+- **过程面板**（`ui/ChatActivity.kt`，网页 `chat-activity.tsx`）：等待中（还没有正文和图片，包括生成图片时）标题行是"当前一步 · N s"并带流动高光、步骤列表自动展开并跟到最新一步；正文来了收起，标题变成"已思考 N s · N 次搜索 · N 个来源 · N 次查阅笔记 · 项目笔记 / 项目指示"。步骤：推理（标题 + 正文）、搜索（搜索词 + 来源标签，先显示 6 个、其余收进"+N"）、读取 / 在页面里查找（地址链接）、笔记工具（进行中转圈，完成后显示服务端的标签，经系统文词典翻译）、项目上下文（笔记标签可点，`partial` 徽标）。来源和链接用系统浏览器打开（`LocalUriHandler`）。
+- **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
+- **代码块**（`ui/CodeBlock.kt`，网页 `MarkdownCodeBlock` + `.markdown-code-*`）：头部 Code2 + 语言名（围栏语言含别名 → `guessLanguage` 的 Python 规则 → 自动识别，识别不出显示"代码"）+ 复制键（✓ 停 1.2 秒）；代码不折行、横向滚动。网页用 highlight.js，原生是自带的小词法高亮器，覆盖同样 17 种语言、用同一套颜色类别；逐个记号和自动识别结果是近似，不保证与 highlight.js 完全一致。行内代码按 `.markdown-inline-code`（#e2e8f0 底、13.6）。
+- **表格**（`AnswerMarkdown` 的 `AnswerTable`）：渲染库自带的表格是固定列宽、只有分隔线，和网页不同，所以自己排：1px 边框、内边距 7.2×11.2、表头浅蓝灰底 + 600，左上对齐；列宽按浏览器自动表格布局分配（每列最窄 88 或最长的词，放得下用自然宽度，否则按比例分，最窄都放不下时横向滚动）。
+- **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。网页的"…"菜单（存到笔记、下载对话）不在这一批。
+- **生成图片的下载**：每张图片右下角 44 的圆形下载键（`.generated-image-download`）。存进相册的 Pictures（`data/ImageSaver.kt`，文件名 `studymate-<id>.<扩展名>`，扩展名按图片的 MIME 类型（jpg / webp / gif，默认 png；网页总是 `.png`），id 里不安全的字符换成 `_`；下载在 App 级作用域（`StudyMateApp.scope`）里跑，回合滚出屏幕也不中断；Android 8–9 媒体库没扫到时只存不打开；Android 10+ 用 MediaStore 不需要权限，8–9 先申请 `WRITE_EXTERNAL_STORAGE`，清单里 `maxSdkVersion=28`），提示和成功后打开的方式与笔记文件下载相同。
+- 和网页的差别：删除线颜色（网页是半透明红）用文字色；代码高亮是近似（见上）。
 
 ## 笔记
 
@@ -131,7 +152,7 @@ mobile/android/
 编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`studymate_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 
 - 网页 → App：`window.StudyMateNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
-- App → 网页：`window.studymateEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。
+- App → 网页：`window.studymateEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `studymate:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
 - 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`studymateEmbed` 不存在）时没有可保存的编辑，直接离开。
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。
@@ -152,9 +173,9 @@ mobile/android/
 - 面板：All / Chats / Notes 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在笔记界面时 Notes 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "StudyMate: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
 - 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
 - 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题和图标打开原生笔记编辑页（列表还没读过也能开）。网页会滚到命中的笔记块（blockId），原生版的 `/note-embed` 还没有对应参数，只打开笔记开头。
-- 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪过一次就作废，滚出屏幕再回来或从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上）再判断目标在不在屏幕上。
+- 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。
 - 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 写 `autoVerify="false"`，不需要 `assetlinks.json`：Android 12+ 默认仍由浏览器打开，用户在系统设置的"打开支持的链接"里把站点加给 App 后才会进 App。外部链接经 `ChatViewModel.linkRequests` 交给 `StudyMateRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
-- 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`。
+- 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`、`ChatRevealLayoutTest`。
 
 ## 构建与测试
 
@@ -171,7 +192,7 @@ cd mobile/android
 ## 路线图
 
 1. ✅ 聊天（本阶段）。
-2. 附件与图片：✅ 文件选择上传和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；还差拍照入口、生成图片的保存；推理、搜索、笔记工具的进度条；笔记编辑提案卡片。
-3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、侧栏行里改图标。
+2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
+3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、侧栏行里改图标。（搜索见“搜索与跳转”。）
 4. 账号：已有 Credential Manager Google 登录、退出和修改显示名，沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

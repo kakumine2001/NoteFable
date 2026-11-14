@@ -454,27 +454,39 @@ internal fun formatSearchDate(value: String, locale: Locale): String {
 // 然后闪 2 秒（search-dialog.css 的 .search-reveal-flash：圆角 6，黄色底 rgba(255,207,0,.42) 保持到 60%，
 // 再连同 3px 的外圈 rgba(255,207,0,.5) 一起淡出）。消息已不存在（删了）就和平常一样停在最底部。
 
-/** 返回正在闪的消息 id 和这次的序号（同一条消息再次定位时重新闪）。 */
+/** 正在闪的消息：[startMs] 是开始闪的那一帧的时间（帧时钟），条目滚出屏幕再回来时按它接着闪，不从头重放。 */
+internal data class RevealFlash(val messageId: String, val token: Long, val startMs: Long)
+
+/**
+ * 定位请求的处理结果交给 MessageList：[found] 时它停止"跟随底部"（否则马上被拉回底部），
+ * 没找到时恢复跟随，和平常一样停在最底部。
+ */
 @Composable
 internal fun revealMessage(
     state: ChatUiState,
     listState: androidx.compose.foundation.lazy.LazyListState,
+    onRevealed: (found: Boolean) -> Unit,
     onRevealDone: (Long) -> Unit,
-): Pair<String, Long>? {
-    var flash by remember { mutableStateOf<Pair<String, Long>?>(null) }
+): RevealFlash? {
+    var flash by remember { mutableStateOf<RevealFlash?>(null) }
     val reveal = state.reveal
     LaunchedEffect(reveal?.token, state.activeSessionId, state.messagesLoading, state.messagesFailed, state.messages.size) {
         val request = reveal ?: return@LaunchedEffect
         if (state.activeSessionId != request.sessionId || state.messagesLoading) return@LaunchedEffect
-        val index = if (state.messagesFailed) -1 else state.messages.asReversed().indexOfFirst { it.id == request.messageId }
+        val messages = state.messages
+        val index = if (state.messagesFailed) -1 else revealIndex(messages, request.messageId)
         if (index < 0) {
-            if (state.messages.isNotEmpty()) listState.scrollToItem(0)
+            onRevealed(false)
             onRevealDone(request.token)
             return@LaunchedEffect
         }
-        // listState 和上一段聊天共用：刚读完时 layoutInfo 还是旧列表的。先等这段聊天的列表量好一帧，再看目标在不在屏幕上。
-        androidx.compose.runtime.withFrameNanos { }
-        androidx.compose.runtime.snapshotFlow { listState.layoutInfo.totalItemsCount }.first { it == state.messages.size }
+        // listState 和上一段聊天共用：列表在读消息期间不在界面上，layoutInfo 还是上一段聊天的。
+        // 等这段聊天的列表真正量好（可见项的 key 都属于当前消息）再判断目标在不在屏幕上。
+        val ids = messages.mapTo(HashSet()) { it.id }
+        androidx.compose.runtime.snapshotFlow {
+            val info = listState.layoutInfo
+            layoutIsCurrent(info.totalItemsCount, info.visibleItemsInfo.map { it.key }, messages.size, ids)
+        }.first { it }
         // 不在屏幕上时先跳过去，再平滑地移到中间。
         if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) {
             listState.scrollToItem(index)
@@ -486,10 +498,12 @@ internal fun revealMessage(
             val itemCenter = item.offset + item.size / 2f
             listState.animateScrollBy(itemCenter - viewportCenter)
         }
-        flash = request.messageId to request.token
+        val start = androidx.compose.runtime.withFrameMillis { it }
+        flash = RevealFlash(request.messageId, request.token, start)
+        onRevealed(true)
         onRevealDone(request.token)
     }
-    // 闪完就作废（网页 clearFlash 在 2 秒后去掉 class）：滚出屏幕再回来、或从侧栏重开这段聊天时不再闪。
+    // 闪完就作废（网页 clearFlash 在 2 秒后去掉 class）：从侧栏重开这段聊天时不再闪。
     // 单独一个 effect：上面那个在 onRevealDone 清掉 reveal 后会重启，不能在里面等。
     val flashing = flash
     LaunchedEffect(flashing) {
@@ -501,25 +515,45 @@ internal fun revealMessage(
     return flash
 }
 
+/** 目标消息在列表里的位置（列表是正常顺序，最新的在最后）；没有就是 -1。 */
+internal fun revealIndex(messages: List<UiMessage>, messageId: String): Int = messages.indexOfFirst { it.id == messageId }
+
+/** 列表的这次布局是不是当前这段聊天的：项数对得上，且可见项的 key 都是当前消息的 id（消息 id 跨聊天唯一）。 */
+internal fun layoutIsCurrent(totalItems: Int, visibleKeys: List<Any>, messageCount: Int, ids: Set<String>): Boolean =
+    totalItems == messageCount && visibleKeys.isNotEmpty() && visibleKeys.all { it in ids }
+
 private const val RevealFlashMs = 2000L
+private const val RevealHoldMs = 1200L
+
+/** 开始闪之后 [elapsedMs] 时的强度：1.2 秒保持 1，之后 0.8 秒 ease-out 淡到 0。 */
+internal fun revealFlashLevel(elapsedMs: Long): Float = when {
+    elapsedMs < 0 -> 1f
+    elapsedMs < RevealHoldMs -> 1f
+    elapsedMs >= RevealFlashMs -> 0f
+    else -> 1f - androidx.compose.animation.core.EaseOut.transform((elapsedMs - RevealHoldMs) / (RevealFlashMs - RevealHoldMs).toFloat())
+}
 
 private val FlashColor = Color(0xFFFFCF00)
 
-/** [token] 非空时闪一次（每个新 token 重新开始）。 */
+/**
+ * [flash] 非空时闪。强度按开始时间算：条目滚出屏幕（被回收）再回来时接着当前进度，不从头再闪；过了 2 秒就不画。
+ */
 @Composable
-internal fun Modifier.revealFlash(token: Long?): Modifier {
-    val progress = remember { androidx.compose.animation.core.Animatable(0f) }
-    LaunchedEffect(token) {
-        if (token == null) {
-            progress.snapTo(0f)
+internal fun Modifier.revealFlash(flash: RevealFlash?): Modifier {
+    var level by remember { mutableStateOf(0f) }
+    LaunchedEffect(flash) {
+        if (flash == null) {
+            level = 0f
             return@LaunchedEffect
         }
-        progress.snapTo(1f)
-        kotlinx.coroutines.delay(1200)
-        progress.animateTo(0f, tween(800, easing = androidx.compose.animation.core.EaseOut))
+        while (true) {
+            val now = androidx.compose.runtime.withFrameMillis { it }
+            level = revealFlashLevel(now - flash.startMs)
+            if (level <= 0f) break
+        }
     }
     return drawBehind {
-        val p = progress.value
+        val p = level
         if (p <= 0f) return@drawBehind
         val ring = 3.dp.toPx()
         val radius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx())

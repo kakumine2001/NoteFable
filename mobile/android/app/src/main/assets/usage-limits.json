@@ -1,0 +1,14 @@
+{
+  "guest": {
+    "chat": 20,
+    "image": 3
+  },
+  "member": {
+    "chat": 100,
+    "image": 20
+  },
+  "pro": {
+    "chat": 1000,
+    "image": 200
+  }
+}

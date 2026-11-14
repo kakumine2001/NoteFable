@@ -21,7 +21,11 @@ import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatLink
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.ChatStreamEvent
+import com.kakumine.studymate.data.Activity
+import com.kakumine.studymate.data.ActivityEvent
+import com.kakumine.studymate.data.ActivityStep
 import com.kakumine.studymate.data.FailureInfo
+import com.kakumine.studymate.data.Proposal
 import com.kakumine.studymate.data.GeneratedImageDto
 import com.kakumine.studymate.data.MessageDto
 import com.kakumine.studymate.data.ModelInfo
@@ -65,6 +69,12 @@ data class UiMessage(
      * 当普通回答显示，不套"请求失败："也不标红（chat-message.tsx 的 usageLimit 分支）。
      */
     val usageLimit: Boolean = false,
+    /** 推理、搜索、笔记工具、项目上下文与提案（data/Activity.kt）。流里实时合并，历史里从 activity 读出。 */
+    val activity: List<ActivityStep> = emptyList(),
+    /** 服务端保存的提案（历史的 proposals 字段）；流里新出的提案在 [activity] 里。 */
+    val proposals: List<Proposal> = emptyList(),
+    /** 开始等待回答的时刻（System.currentTimeMillis），进度条的"已等 N 秒"用。 */
+    val startedAt: Long? = null,
 )
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
@@ -109,6 +119,13 @@ data class ChatUiState(
     val sentCount: Int = 0,
     /** 等消息读完后要定位的消息（Batch 4）。 */
     val reveal: MessageReveal? = null,
+    /**
+     * 未登录用户撞到当日上限（429 usage_limit、tier = guest）时是 "chat" 或 "image"：
+     * 输入栏上方显示登录提示（网页 GuestLimitPrompt）。关掉、登录或退出后清空。
+     */
+    val guestLimit: String? = null,
+    /** 还在拷贝、校验的附件（粘贴的图片、刚选的文件）有几批；没处理完前不能发送，否则它们会漏掉、跑到下一条里。 */
+    val importing: Int = 0,
 ) {
     /** 图片交给图片接口时不受聊天模型限制。 */
     val supportsImages: Boolean
@@ -251,10 +268,13 @@ class ChatViewModel(
     fun onIdentityChanged() {
         stop()
         loadJob?.cancel()
+        // 草稿文字留着（网页登录前把它预存起来、回来后放回输入栏）；附件和网页一样不跨登录保留（网页登录会重载页面，
+        // 登录提示里也写着"登录时不会保留附件"）。
         _state.update {
             it.copy(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null,
             )
         }
         refreshSessions()
@@ -365,13 +385,34 @@ class ChatViewModel(
     // ---- 附件与图片模式 ----
 
     fun addFiles(incoming: List<LocalFile>) {
-        if (incoming.isEmpty()) return
-        _state.update { state ->
-            if (state.upload != null) return@update state
-            val error = selectionError(state.files, incoming, state.supportsImages)
-            if (error != null) state.copy(notice = ComposerNotice.Rejected(error))
-            else state.copy(files = state.files + incoming, notice = null)
+        _state.update { withFiles(it, incoming) }
+    }
+
+    /**
+     * 附件要先在后台读出来（拷贝粘贴的图片、读文件名和大小）：读的期间 [ChatUiState.importing] 加一，发送键不可用；
+     * 读完后在同一次状态更新里减一并加进附件，中间不会有可以发送的空档。
+     */
+    fun importFiles(load: suspend () -> List<LocalFile>) {
+        _state.update { it.copy(importing = it.importing + 1) }
+        viewModelScope.launch {
+            var files = emptyList<LocalFile>()
+            try {
+                files = load()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // 读不出来的附件当作没选（和读取函数里返回 null 的情况一样）。
+            } finally {
+                _state.update { withFiles(it.copy(importing = (it.importing - 1).coerceAtLeast(0)), files) }
+            }
         }
+    }
+
+    private fun withFiles(state: ChatUiState, incoming: List<LocalFile>): ChatUiState {
+        if (incoming.isEmpty() || state.upload != null) return state
+        val error = selectionError(state.files, incoming, state.supportsImages)
+        return if (error != null) state.copy(notice = ComposerNotice.Rejected(error))
+        else state.copy(files = state.files + incoming, notice = null)
     }
 
     fun removeFile(uri: String) {
@@ -379,6 +420,10 @@ class ChatViewModel(
             if (state.upload != null) state
             else state.copy(files = state.files.filterNot { it.uri == uri }, notice = null)
         }
+    }
+
+    fun dismissGuestLimit() {
+        _state.update { it.copy(guestLimit = null) }
     }
 
     fun setImageMode(on: Boolean) {
@@ -396,7 +441,7 @@ class ChatViewModel(
         val current = _state.value
         // 历史还在加载、或加载失败时发送，新消息会插进空列表（失败页还会盖住它们）；而回答结束后的对账又会换掉整个列表。读到历史再发。
         if (prompt.isEmpty() || current.sending || current.messagesLoading || current.messagesFailed) return
-        if (current.upload != null || current.filesError != null) return
+        if (current.upload != null || current.filesError != null || current.importing > 0) return
         // 正在进行的静默对账返回的是发送前的快照，会抹掉刚加进去的消息，所以先取消。
         loadJob?.cancel()
 
@@ -411,8 +456,8 @@ class ChatViewModel(
         )
 
         if (files.isEmpty()) {
-            val assistantId = beginTurn(prompt, files, imageMode, current.selectedModel?.id)
-            streamJob = viewModelScope.launch { runTurn(assistantId, request, imageMode) }
+            val turn = beginTurn(prompt, text, files, imageMode, current.selectedModel?.id)
+            streamJob = viewModelScope.launch { runTurn(turn, request, imageMode) }
             return
         }
 
@@ -420,16 +465,20 @@ class ChatViewModel(
         _state.update { it.copy(sending = true, upload = UploadProgress.Preparing, notice = null) }
         streamJob = viewModelScope.launch {
             val tickets = uploadFiles(files) ?: return@launch
-            val assistantId = beginTurn(prompt, files, imageMode, current.selectedModel?.id)
-            runTurn(assistantId, request.copy(uploads = tickets), imageMode)
+            val turn = beginTurn(prompt, text, files, imageMode, current.selectedModel?.id)
+            runTurn(turn, request.copy(uploads = tickets), imageMode)
         }
     }
 
-    /** 把提问和等待中的回答放进对话，并清空输入栏里的附件。返回回答气泡的本地 ID。 */
-    private fun beginTurn(prompt: String, files: List<LocalFile>, imageMode: Boolean, modelId: String?): String {
+    /** 一次发送：两个气泡的本地 ID，以及被上限拒绝时要放回输入栏的原文和附件。 */
+    private class Turn(val assistantId: String, val userId: String, val rawText: String, val files: List<LocalFile>)
+
+    /** 把提问和等待中的回答放进对话，并清空输入栏里的附件。 */
+    private fun beginTurn(prompt: String, rawText: String, files: List<LocalFile>, imageMode: Boolean, modelId: String?): Turn {
         val assistantId = "local-${++localIds}"
+        val userId = "local-${++localIds}"
         val userMessage = UiMessage(
-            "local-${++localIds}", MessageRole.User, prompt,
+            userId, MessageRole.User, prompt,
             // 发送后先用本机文件显示缩略图，回答结束后换成服务器保存的版本。
             attachments = files.map { AttachmentDto(it.uri, it.name, it.mimeType, it.size, it.uri.takeIf { _ -> it.isImage }) },
         )
@@ -446,7 +495,7 @@ class ChatViewModel(
         }
         // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
         updateDraft("")
-        return assistantId
+        return Turn(assistantId, userId, rawText, files)
     }
 
     /** 逐个上传附件，返回凭证；失败或被取消时清掉已上传的文件并返回 null（被取消时向上抛出）。 */
@@ -475,14 +524,17 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun runTurn(assistantId: String, request: ChatRequest, imageMode: Boolean) {
-        if (imageMode) runImage(assistantId, request) else runStream(assistantId, request)
+    private suspend fun runTurn(turn: Turn, request: ChatRequest, imageMode: Boolean) {
+        if (imageMode) runImage(turn, request) else runStream(turn, request)
     }
 
-    private suspend fun runImage(assistantId: String, request: ChatRequest) {
+    private suspend fun runImage(turn: Turn, request: ChatRequest) {
+        val assistantId = turn.assistantId
         var sessionId = request.sessionId
         var failure: Throwable? = null
         var completed = false
+        // 网页在分到 /api/images 之前就记下开始时间：等待秒数不因界面重组而归零。
+        updateAssistant(assistantId) { it.copy(startedAt = System.currentTimeMillis()) }
         try {
             awaitSessionsRequest()
             val result = backend.generateImage(request)
@@ -501,27 +553,51 @@ class ChatViewModel(
         } catch (error: Throwable) {
             failure = error
         } finally {
-            withContext(NonCancellable) { finishAssistant(assistantId, failure) }
+            withContext(NonCancellable) { finishAssistant(turn, failure) }
         }
         reconcile(sessionId, completed)
     }
 
     /** 回答结束（完成、失败或被停止）时收尾：去掉"进行中"状态，失败则记下原因。 */
-    private fun finishAssistant(assistantId: String, failed: Throwable?) {
+    private fun finishAssistant(turn: Turn, failed: Throwable?) {
+        val assistantId = turn.assistantId
+        val limited = failed is ApiException && failed.isUsageLimit
+        if (limited) restoreRejected(turn, failed as ApiException)
         _state.update { state ->
             val messages = state.messages.mapNotNull { message ->
+                // 被拒的提问不再显示本机图片：附件已经放回输入栏（网页 stripAttachmentPreviewUrls）。
+                if (limited && message.id == turn.userId) {
+                    return@mapNotNull message.copy(attachments = message.attachments.map { it.copy(dataUrl = null) })
+                }
                 if (message.id != assistantId) return@mapNotNull message
                 val done = message.copy(streaming = false, generatingImage = false)
                 when {
-                    failed is ApiException && failed.isUsageLimit ->
-                        done.copy(content = failed.message.orEmpty(), usageLimit = true, failure = null)
+                    limited -> done.copy(content = failed?.message.orEmpty(), usageLimit = true, failure = null)
                     failed != null -> done.copy(errorDetail = failed.message ?: failed.javaClass.simpleName)
-                    // 没收到任何内容就被停止：不留空气泡。
-                    message.content.isEmpty() && message.images.isEmpty() -> null
+                    // 没收到任何内容就被停止：不留空气泡。已有过程或提案卡片（服务器已存了提案）时保留，和网页一样。
+                    message.content.isEmpty() && message.images.isEmpty() &&
+                        message.activity.isEmpty() && message.proposals.isEmpty() -> null
                     else -> done
                 }
             }
             state.copy(messages = messages, sending = false)
+        }
+    }
+
+    /**
+     * 上限拒绝的发送没有保存在任何地方：和网页一样把原文和附件放回输入栏。
+     * 等待期间又写了字或加了附件的话不覆盖，被拒的原文放在前面（空一行），附件也排在前面。
+     * 未登录用户（tier = guest）另外显示登录提示。
+     */
+    private fun restoreRejected(turn: Turn, error: ApiException) {
+        val typedMeanwhile = draft
+        updateDraft(mergeRejectedDraft(turn.rawText, typedMeanwhile))
+        _state.update { state ->
+            state.copy(
+                files = if (turn.files.isEmpty()) state.files
+                else turn.files + state.files.filterNot { current -> turn.files.any { it.uri == current.uri } },
+                guestLimit = if (error.tier == "guest") (if (error.kind == "image") "image" else "chat") else state.guestLimit,
+            )
         }
     }
 
@@ -535,17 +611,32 @@ class ChatViewModel(
         }
     }
 
-    private suspend fun runStream(assistantId: String, request: ChatRequest) {
+    private suspend fun runStream(turn: Turn, request: ChatRequest) {
+        val assistantId = turn.assistantId
         val pending = StringBuilder()
+        // 过程事件（推理摘要是很碎的增量）和正文一起攒着，每次刷新只重组一次（网页每次 read 合并一次）。
+        val activityEvents = mutableListOf<ActivityEvent>()
         var sessionId = request.sessionId
         var failure: Throwable? = null
         var completed = false
+        val startedAt = System.currentTimeMillis()
+        updateAssistant(assistantId) { it.copy(startedAt = startedAt) }
 
         fun flush() {
-            if (pending.isEmpty()) return
+            if (pending.isEmpty() && activityEvents.isEmpty()) return
             val chunk = pending.toString()
             pending.setLength(0)
-            updateAssistant(assistantId) { it.copy(content = it.content + chunk) }
+            val events = activityEvents.toList()
+            activityEvents.clear()
+            val receivedAt = System.currentTimeMillis()
+            updateAssistant(assistantId) {
+                it.copy(
+                    content = it.content + chunk,
+                    activity = Activity.apply(it.activity, events),
+                    // 正文开始出现前的时间就是"思考了多久"。
+                    thinkingMs = it.thinkingMs ?: if (chunk.isNotEmpty()) receivedAt - startedAt else null,
+                )
+            }
         }
 
         try {
@@ -566,9 +657,12 @@ class ChatViewModel(
                                 refreshSessions()
                             }
                             is ChatStreamEvent.Delta -> pending.append(event.text)
-                            // 推理/搜索进度条后续再做原生展示；这里只记下服务端追加的失败文的位置。
-                            is ChatStreamEvent.Activity -> FailureInfo.from(event.payload)?.let { failure ->
-                                updateAssistant(assistantId) { it.copy(failure = failure) }
+                            // 进度条与提案卡片的事件；服务端追加的失败文的位置另外记下。
+                            is ChatStreamEvent.Activity -> {
+                                Activity.parseEvent(event.payload)?.let(activityEvents::add)
+                                FailureInfo.from(event.payload)?.let { failure ->
+                                    updateAssistant(assistantId) { it.copy(failure = failure) }
+                                }
                             }
                         }
                     }
@@ -584,7 +678,7 @@ class ChatViewModel(
         } finally {
             withContext(NonCancellable) {
                 flush()
-                finishAssistant(assistantId, failure)
+                finishAssistant(turn, failure)
             }
         }
         reconcile(sessionId, completed)
@@ -609,10 +703,16 @@ class ChatViewModel(
         thinkingMs = dto.thinkingMs,
         modelId = dto.model,
         failure = FailureInfo.fromActivity(dto.activity),
+        activity = Activity.parseStored(dto.activity),
+        proposals = Activity.parseStoredProposals(dto.proposals),
     )
 
     companion object {
         private const val DRAFT_KEY = "draft"
+
+        /** 被拒的原文 + 等待期间写的字（网页 page.tsx 的 restored）。 */
+        internal fun mergeRejectedDraft(rejected: String, typedMeanwhile: String): String =
+            if (typedMeanwhile.isNotBlank()) rejected.trimEnd() + "\n\n" + typedMeanwhile else rejected
 
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
