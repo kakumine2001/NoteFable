@@ -287,18 +287,27 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `switching chats stops the running answer so it cannot leak into the other chat`() = runTest(dispatcher) {
-        val backend = FakeBackend()
+    fun `switching chats keeps the running answer in its own chat without leaking into the other one`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { messagesHandler = { id -> if (id == "s2") listOf(MessageDto("o-1", "USER", "other")) else stored } }
         val vm = newViewModel(backend)
 
         vm.send("q")
         backend.events.send(ChatStreamEvent.Started("s1"))
         settle()
         vm.openSession("s2")
-        advanceUntilIdle()
+        backend.events.send(ChatStreamEvent.Delta("late"))
+        settle()
 
         assertFalse(vm.state.value.sending)
         assertEquals("s2", vm.state.value.activeSessionId)
+        assertEquals(listOf("other"), vm.state.value.messages.map { it.content })
+        assertEquals(setOf("s1"), vm.state.value.generatingSessionIds)
+
+        vm.openSession("s1")
+        assertTrue(vm.state.value.sending)
+        assertEquals(listOf("q", "late"), vm.state.value.messages.map { it.content })
+        vm.stop()
+        advanceUntilIdle()
     }
 
     @Test

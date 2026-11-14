@@ -197,7 +197,7 @@ class SidebarViewModel(
     suspend fun delete(id: String): SidebarError? {
         val current = chat.state.value
         // 网页：回答还在生成的聊天不能删。
-        if (current.sending && current.activeSessionId == id) return SidebarError(null, R.string.sb_err_wait_reply_delete)
+        if (id in current.generatingSessionIds) return SidebarError(null, R.string.sb_err_wait_reply_delete)
         return guarded(R.string.sb_err_delete_chat) {
             sessions.deleteSession(id)
             chat.onSessionDeleted(id)
