@@ -211,6 +211,7 @@ fun ChatScreen(
                 error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
                     is ComposerNotice.Rejected -> attachErrorText(notice.error)
                     ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
+                    ComposerNotice.LoadFailed -> stringResource(R.string.messages_load_failed)
                     ComposerNotice.IconFailed -> stringResource(R.string.em_chat_icon_failed)
                     ComposerNotice.LinkFailed -> stringResource(R.string.messages_load_failed)
                     null -> null
