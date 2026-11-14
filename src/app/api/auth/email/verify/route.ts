@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createEmailSessionCookie, parseCode, parseEmail, verifyLoginCode } from "@/lib/email-login";
 import { isEmailLoginConfigured } from "@/lib/google-auth";
 import { msg } from "@/lib/i18n/translate";
-import { isSameOrigin, sessionCookieName } from "@/lib/native-google-login";
+import { attachSessionCookie, isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 
 function fail(status: number, error: string) {
   return NextResponse.json({ error }, { status });
@@ -26,14 +26,7 @@ export async function POST(request: NextRequest) {
   if (result === "locked") return fail(400, msg("Too many wrong attempts. Request a new code."));
   if (result === "wrong") return fail(400, msg("That code is incorrect."));
 
-  const secure = request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
+  const secure = isSecureRequest(request);
   const cookie = await createEmailSessionCookie(email, secure);
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(cookie.name, cookie.value, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: cookie.maxAge });
-  // 以前の分割保存（authjs.session-token.0 など）が残っていると、新しい Cookie と連結されて読めなくなる。
-  const base = sessionCookieName(secure);
-  for (const { name } of request.cookies.getAll()) {
-    if (name.startsWith(`${base}.`)) response.cookies.set(name, "", { httpOnly: true, secure, path: "/", maxAge: 0 });
-  }
-  return response;
+  return attachSessionCookie(request, NextResponse.json({ ok: true }), cookie, secure);
 }

@@ -240,8 +240,9 @@ button:disabled {
 .signin-open-button:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 2px; }
 @media (max-width: 639px) { .signin-open-button { height: 44px; font-size: 15px; } }
 
-/* ログインの窓: 見出し、Google で続ける、「または」の区切り、メール欄と「メールで続ける」。 */
-.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem); padding: 2rem 1.75rem 1.5rem; }
+/* ログインの窓: 見出し、Google で続ける、「または」の区切り、メール欄と「メールで続ける」。
+   .notes-dialog / .notes-dialog-input / .notion-button はこの後ろにあるので、上書きされないよう親クラス付きで指定する。 */
+dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem); padding: 2rem 1.75rem 1.5rem; }
 .signin-close {
   position: absolute; top: 0.75rem; right: 0.75rem; display: grid; width: 2rem; height: 2rem; place-items: center;
   border-radius: 6px; color: var(--notion-muted);
@@ -254,9 +255,9 @@ button:disabled {
 .signin-option { height: 44px; border-radius: 8px; font-size: 15px; }
 .signin-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; font-size: 0.8125rem; color: var(--notion-faint); }
 .signin-divider::before, .signin-divider::after { content: ""; flex: 1; height: 1px; background: var(--notion-border); }
-.signin-input { margin-top: 0; height: 44px; border-radius: 8px; }
-.signin-code { text-align: center; font-size: 1.5rem; letter-spacing: 0.45em; font-variant-numeric: tabular-nums; }
-.signin-submit { width: 100%; min-height: 44px; margin-top: 0.75rem; border-radius: 8px; font-size: 15px; font-weight: 600; }
+.signin-dialog .signin-input { margin-top: 0; height: 44px; border-radius: 8px; }
+.signin-dialog .signin-code { text-align: center; font-size: 1.5rem; letter-spacing: 0.45em; font-variant-numeric: tabular-nums; }
+.signin-dialog .signin-submit { width: 100%; min-height: 44px; margin-top: 0.75rem; border-radius: 8px; font-size: 15px; font-weight: 600; }
 .signin-hint { margin-top: 0.75rem; text-align: center; font-size: 0.8125rem; color: var(--notion-faint); }
 .signin-error { margin-top: 0.5rem; font-size: 0.875rem; color: #b91c1c; }
 .signin-notice { margin-top: 0.5rem; font-size: 0.875rem; color: var(--notion-muted); }

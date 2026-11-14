@@ -17,14 +17,14 @@ const MAX_BODY_BYTES = MAX_AVATAR_BYTES + 64 * 1024;
 
 const CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 
-async function currentGoogleUser() {
+async function currentProfile() {
   // Google でもメールでも、ログインしている本人のプロフィール。
   return currentAccountProfile().catch(() => null);
 }
 
 // 写真を差し替える。Google にログインしている本人だけ。古い写真は消し、絵文字アイコンは外す（写真かアイコンのどちらか一方）。
 export async function POST(request: Request) {
-  const google = await currentGoogleUser();
+  const google = await currentProfile();
   if (!google) return NextResponse.json({ error: msg("Sign in to change your photo.") }, { status: 401 });
 
   const tooLarge = () => NextResponse.json({ error: msg("That photo is too large.") }, { status: 413 });
@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
 // 自分の写真だけを返す。URL の v はアップロードごとに変わる版で、現在の版のときだけ長くキャッシュさせる。
 export async function GET(request: Request) {
-  const google = await currentGoogleUser();
+  const google = await currentProfile();
   if (!google) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   const row = await getOrCreateAnonymousUser();

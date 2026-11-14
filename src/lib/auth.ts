@@ -2,6 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "crypto";
 import { cookies } from "next/headers";
 import { getCookieSecret } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
+import { normalizeEmail } from "@/lib/email-address";
 import { prisma } from "@/lib/prisma";
 
 // 匿名利用者を識別するための Cookie 名。
@@ -89,9 +90,7 @@ type GoogleIdentity = {
 type EmailIdentity = { kind: "email"; email: string };
 export type AccountIdentity = GoogleIdentity | EmailIdentity;
 
-export function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+export { normalizeEmail };
 
 // ログイン Cookie（Auth.js の JWT）から、Google かメールのどちらでログインしているかを読む。
 // 設定が無い環境や Auth.js の失敗では匿名利用に戻し、既存の API を止めない。
@@ -153,8 +152,11 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
   }
 
   // このアドレスで先にメールログインしていた利用者がいれば、その利用者に Google を紐付ける（同じ人として扱う）。
+  // アドレスが別の Google アカウントの利用者のものなら（Google 側でアドレスが移った場合など）、アドレスは付けずに進む。
+  let claimEmail = identity.verifiedEmail;
   if (identity.verifiedEmail) {
     const byEmail = await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.verifiedEmail } });
+    if (byEmail?.googleSub) claimEmail = null;
     if (byEmail && !byEmail.googleSub) {
       const linked = await prisma.anonymousUser
         .updateMany({ where: { id: byEmail.id, googleSub: null }, data: { googleSub: identity.sub, ...profile } })
@@ -173,7 +175,7 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
   const data = {
     googleSub: identity.sub,
     ...profile,
-    ...(identity.verifiedEmail ? { verifiedEmail: identity.verifiedEmail } : {}),
+    ...(claimEmail ? { verifiedEmail: claimEmail } : {}),
   };
 
   try {
@@ -203,6 +205,8 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
       ? await prisma.anonymousUser.findUnique({ where: { verifiedEmail: identity.verifiedEmail } })
       : null;
     if (byEmail && !byEmail.googleSub) return getOrCreateGoogleUser(identity);
+    // 同時に別の Google アカウントがこのアドレスを取った: アドレスを付けずにやり直す（毎回失敗し続けないように）。
+    if (byEmail && claimEmail) return getOrCreateGoogleUser({ ...identity, verifiedEmail: null });
     throw error;
   }
 }

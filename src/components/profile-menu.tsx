@@ -124,6 +124,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
   }
 
   const customized = Boolean(user.displayName || user.icon || user.avatarUrl);
+  // メールでログインした人には Google の名前・写真が無い。「Google に戻す」系の文言は Google のプロフィールがあるときだけ。
+  const hasGoogleProfile = Boolean(user.googleName || user.image);
 
   return createPortal(
     <Popover className="profile-menu" label={t("Profile")} trigger={trigger} onClose={closeIfAllowed} style={position}>
@@ -173,7 +175,7 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
 
           {editor === "emoji" && (
             <div className="profile-emoji">
-              <EmojiPickerBody current={user.icon} removeLabel={t("Use Google photo")}
+              <EmojiPickerBody current={user.icon} removeLabel={hasGoogleProfile ? t("Use Google photo") : undefined}
                 onChange={(icon) => onSave({ icon })} onClose={() => switchEditor("closed")} />
             </div>
           )}
@@ -183,7 +185,7 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
       {error && <div className="profile-error" role="alert">{localizeSystemText(error, t)}</div>}
 
       <div className="profile-actions">
-        {customized && (
+        {customized && hasGoogleProfile && (
           <button type="button" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
             <RotateCcw size={14} />{t("Use my Google name and photo")}
           </button>

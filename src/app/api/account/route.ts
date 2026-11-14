@@ -7,11 +7,6 @@ import { deleteStoredImage } from "@/lib/storage";
 import { parseProfilePatch, toAccountUser } from "@/lib/user-profile";
 import { msg } from "@/lib/i18n/translate";
 
-// Google でもメールでも、ログインしている本人のプロフィール。
-async function currentGoogleSession() {
-  return currentAccountProfile();
-}
-
 // サイドバーのアカウント / プロフィール表示用。どのログインも未設定ならボタン自体を出さない。
 // google / email はそれぞれのログイン方法が使えるか（使えない方のボタンは出さない）。
 export async function GET() {
@@ -21,7 +16,7 @@ export async function GET() {
   const methods = { google: isGoogleLoginConfigured(), email: isEmailLoginConfigured() };
 
   try {
-    const google = await currentGoogleSession();
+    const google = await currentAccountProfile();
     // googleClientId は公開しても問題ない値（ログイン画面の URL にも含まれる）。Android アプリの端末側ログインが使う。
     const googleClientId = methods.google ? (optionalEnv("AUTH_GOOGLE_ID") ?? null) : null;
     if (!google) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
@@ -43,7 +38,7 @@ export async function PATCH(request: Request) {
 
   let google;
   try {
-    google = await currentGoogleSession();
+    google = await currentAccountProfile();
   } catch {
     google = null;
   }

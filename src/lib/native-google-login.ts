@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { encode } from "next-auth/jwt";
+import type { NextRequest, NextResponse } from "next/server";
 import { optionalEnv } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 
@@ -104,28 +105,48 @@ export function sessionCookieName(secure: boolean) {
 }
 
 // Auth.js が読むセッション Cookie の値を作る。salt は Cookie 名、payload は google-auth.ts の callbacks と対応させる。
-export async function createSessionCookie(identity: GoogleIdentity, secure: boolean) {
+// Google（この端末側ログイン）とメールの確認コードのログインが共通で使う。
+export async function encodeSessionCookie(token: Record<string, unknown>, secure: boolean) {
   const secret = optionalEnv("AUTH_SECRET");
   if (!secret) throw new Error("AUTH_SECRET is not configured.");
 
   const name = sessionCookieName(secure);
-  const value = await encode({
-    token: {
-      sub: identity.sub,
-      googleSub: identity.sub,
-      // verifyGoogleIdToken はメールが未確認のトークンを受け付けないので、メールがあれば確認済み。
-      googleEmailVerified: Boolean(identity.email),
-      name: identity.name,
-      email: identity.email,
-      picture: identity.image,
-    },
-    secret,
-    salt: name,
-    maxAge: SESSION_MAX_AGE,
-  });
+  const value = await encode({ token, secret, salt: name, maxAge: SESSION_MAX_AGE });
   if (value.length > MAX_COOKIE_VALUE_LENGTH) throw new Error("The session is too large for a single cookie.");
 
   return { name, value, maxAge: SESSION_MAX_AGE };
+}
+
+export async function createSessionCookie(identity: GoogleIdentity, secure: boolean) {
+  return encodeSessionCookie({
+    sub: identity.sub,
+    googleSub: identity.sub,
+    // verifyGoogleIdToken はメールが未確認のトークンを受け付けないので、メールがあれば確認済み。
+    googleEmailVerified: Boolean(identity.email),
+    name: identity.name,
+    email: identity.email,
+    picture: identity.image,
+  }, secure);
+}
+
+export function isSecureRequest(request: NextRequest) {
+  return request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
+}
+
+// 応答にログイン Cookie を付ける。以前の分割保存（authjs.session-token.0 など）が残っていると、
+// 新しい Cookie と連結されて読めなくなるので消す。
+export function attachSessionCookie(
+  request: NextRequest,
+  response: NextResponse,
+  cookie: { name: string; value: string; maxAge: number },
+  secure: boolean,
+) {
+  response.cookies.set(cookie.name, cookie.value, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: cookie.maxAge });
+  const base = sessionCookieName(secure);
+  for (const { name } of request.cookies.getAll()) {
+    if (name.startsWith(`${base}.`)) response.cookies.set(name, "", { httpOnly: true, secure, path: "/", maxAge: 0 });
+  }
+  return response;
 }
 
 // 別サイトのページから、他人のトークンで勝手にログインさせられないよう、同一オリジンのリクエストだけ受け付ける。

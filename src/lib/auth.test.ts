@@ -193,4 +193,19 @@ describe("getOrCreateAnonymousUser", () => {
     const user = await getOrCreateAnonymousUser();
     expect(user.id).toBe("fresh-anonymous");
   });
+
+  it("signs in a Google account whose verified email belongs to another Google user, without taking the email", async () => {
+    session.value = { ...google, googleEmailVerified: true };
+    prismaMock.anonymousUser.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ id: "other", googleSub: "g-old", verifiedEmail: "a@example.com" });
+    prismaMock.anonymousUser.updateMany.mockResolvedValue({ count: 1 });
+    prismaMock.anonymousUser.findUniqueOrThrow.mockResolvedValue({ id: "device-user", googleSub: "g-1" });
+    const user = await getOrCreateAnonymousUser();
+    expect(user.id).toBe("device-user");
+    expect(prismaMock.anonymousUser.updateMany).toHaveBeenCalledWith({
+      where: { id: "device-user", googleSub: null, verifiedEmail: null },
+      data: expect.not.objectContaining({ verifiedEmail: expect.anything() }),
+    });
+  });
 });

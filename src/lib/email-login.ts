@@ -1,10 +1,10 @@
 import { createHmac, randomInt, timingSafeEqual } from "crypto";
-import { encode } from "next-auth/jwt";
 import { optionalEnv } from "@/lib/env";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 import { createTranslator, msg } from "@/lib/i18n/translate";
-import { sessionCookieName } from "@/lib/native-google-login";
+import { normalizeEmail } from "@/lib/email-address";
+import { encodeSessionCookie } from "@/lib/native-google-login";
 import { prisma } from "@/lib/prisma";
 
 // メールの確認コードでのログイン。コードは 6 桁、10 分有効、5 回まで試せる。
@@ -16,14 +16,13 @@ export const RESEND_INTERVAL_MS = 60 * 1000;
 export const MAX_CODES_PER_EMAIL_PER_HOUR = 5;
 export const MAX_CODES_PER_REQUESTER_PER_HOUR = 20;
 const HOUR_MS = 60 * 60 * 1000;
-const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 const MAX_EMAIL_LENGTH = 254;
 // ふつうのアドレスの形だけを確かめる（届くかどうかはコードを送って確かめる）。
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function parseEmail(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const email = value.trim().toLowerCase();
+  const email = normalizeEmail(value);
   if (!email || email.length > MAX_EMAIL_LENGTH || !EMAIL_PATTERN.test(email)) return null;
   return email;
 }
@@ -52,31 +51,38 @@ export function newCode() {
   return String(randomInt(0, 1_000_000)).padStart(6, "0");
 }
 
-export type StartResult = { ok: true } | { ok: false; reason: "too-soon" | "too-many" };
-
 // 送信の回数制限を確かめてから、新しいコードを作って保存する。送信に失敗したら呼び出し側が discardCode で消す。
+// 同じアドレス・同じ送信元からの同時リクエストが制限をすり抜けないよう、トランザクション内で順番待ちのロックを取る。
 export async function createLoginCode(email: string, requester: string | null, now = new Date()) {
   const requesterHash = requester ? hashRequester(requester) : null;
   const hourAgo = new Date(now.getTime() - HOUR_MS);
-  const recent = await prisma.emailLoginCode.findMany({
-    where: { email, createdAt: { gt: hourAgo } },
-    select: { createdAt: true },
-    orderBy: { createdAt: "desc" },
-  });
-  if (recent[0] && now.getTime() - recent[0].createdAt.getTime() < RESEND_INTERVAL_MS) return { ok: false, reason: "too-soon" } as const;
-  if (recent.length >= MAX_CODES_PER_EMAIL_PER_HOUR) return { ok: false, reason: "too-many" } as const;
-  if (requesterHash) {
-    const fromRequester = await prisma.emailLoginCode.count({ where: { requesterHash, createdAt: { gt: hourAgo } } });
-    if (fromRequester >= MAX_CODES_PER_REQUESTER_PER_HOUR) return { ok: false, reason: "too-many" } as const;
-  }
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`email-login:${email}`}))`;
+    if (requesterHash) await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`email-login-requester:${requesterHash}`}))`;
 
-  const code = newCode();
-  const row = await prisma.emailLoginCode.create({
-    data: { email, codeHash: hashCode(email, code), expiresAt: new Date(now.getTime() + CODE_TTL_MS), requesterHash, createdAt: now },
+    const recent = await tx.emailLoginCode.findMany({
+      where: { email, createdAt: { gt: hourAgo } },
+      select: { createdAt: true },
+      orderBy: { createdAt: "desc" },
+    });
+    if (recent[0] && now.getTime() - recent[0].createdAt.getTime() < RESEND_INTERVAL_MS) return { ok: false, reason: "too-soon" } as const;
+    if (recent.length >= MAX_CODES_PER_EMAIL_PER_HOUR) return { ok: false, reason: "too-many" } as const;
+    if (requesterHash) {
+      const fromRequester = await tx.emailLoginCode.count({ where: { requesterHash, createdAt: { gt: hourAgo } } });
+      if (fromRequester >= MAX_CODES_PER_REQUESTER_PER_HOUR) return { ok: false, reason: "too-many" } as const;
+    }
+
+    const code = newCode();
+    const row = await tx.emailLoginCode.create({
+      data: { email, codeHash: hashCode(email, code), expiresAt: new Date(now.getTime() + CODE_TTL_MS), requesterHash, createdAt: now },
+    });
+    return { ok: true, id: row.id, code } as const;
   });
-  // 期限切れのコードは見つけたついでに消す（定期ジョブは無い）。失敗しても送信は続ける。
-  await prisma.emailLoginCode.deleteMany({ where: { expiresAt: { lt: hourAgo } } }).catch(() => {});
-  return { ok: true, id: row.id, code } as const;
+  // 期限切れのコードはときどき（20 回に 1 回）ついでに消す（定期ジョブは無い）。失敗しても送信は続ける。
+  if (result.ok && Math.random() < 0.05) {
+    await prisma.emailLoginCode.deleteMany({ where: { expiresAt: { lt: hourAgo } } }).catch(() => {});
+  }
+  return result;
 }
 
 export async function discardCode(id: string) {
@@ -85,29 +91,38 @@ export async function discardCode(id: string) {
 
 export type VerifyResult = "ok" | "expired" | "wrong" | "locked";
 
-// いちばん新しい有効なコードとだけ照らし合わせる。合えばそのアドレスのコードをすべて消す（使い回し不可）。
+function sameHash(a: string, b: string) {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
+// 有効期限内で、まだ試行回数が残っているコードのどれかと合えば成功。新しいコードを頼んでも（他人が頼んでも）
+// 入力中の前のコードは無効にならない。間違えたときは残っているすべてのコードの試行回数を 1 つ増やすので、
+// 試せる回数はコードを何通送っても 1 通あたり 5 回のまま。合えばそのアドレスのコードをすべて消す（使い回し不可）。
 export async function verifyLoginCode(email: string, code: string, now = new Date()): Promise<VerifyResult> {
-  const row = await prisma.emailLoginCode.findFirst({
+  const rows = await prisma.emailLoginCode.findMany({
     where: { email, expiresAt: { gt: now } },
     orderBy: { createdAt: "desc" },
   });
-  if (!row) return "expired";
-  if (row.attempts >= MAX_ATTEMPTS) return "locked";
+  if (!rows.length) return "expired";
+  const open = rows.filter((row) => row.attempts < MAX_ATTEMPTS);
+  if (!open.length) return "locked";
 
-  const expected = Buffer.from(row.codeHash);
-  const actual = Buffer.from(hashCode(email, code));
-  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) {
+  const actual = hashCode(email, code);
+  const match = open.find((row) => sameHash(row.codeHash, actual));
+  if (!match) {
     // 試行回数は条件付きで 1 つずつ増やす。同時に送られても上限を超えて試せない。
     const counted = await prisma.emailLoginCode.updateMany({
-      where: { id: row.id, attempts: { lt: MAX_ATTEMPTS } },
+      where: { id: { in: open.map((row) => row.id) }, attempts: { lt: MAX_ATTEMPTS } },
       data: { attempts: { increment: 1 } },
     });
     if (!counted.count) return "locked";
-    return row.attempts + 1 >= MAX_ATTEMPTS ? "locked" : "wrong";
+    return open.every((row) => row.attempts + 1 >= MAX_ATTEMPTS) ? "locked" : "wrong";
   }
 
   // 同時に 2 回正しいコードが送られても、行を消せた方だけを成功にする。
-  const consumed = await prisma.emailLoginCode.deleteMany({ where: { id: row.id, attempts: { lt: MAX_ATTEMPTS } } });
+  const consumed = await prisma.emailLoginCode.deleteMany({ where: { id: match.id, attempts: { lt: MAX_ATTEMPTS } } });
   if (!consumed.count) return "expired";
   await prisma.emailLoginCode.deleteMany({ where: { email } }).catch(() => {});
   return "ok";
@@ -115,14 +130,7 @@ export async function verifyLoginCode(email: string, code: string, now = new Dat
 
 // Auth.js が読むセッション Cookie を、メールでのログインとして作る（google-auth.ts の session callback と対応）。
 export async function createEmailSessionCookie(email: string, secure: boolean) {
-  const name = sessionCookieName(secure);
-  const value = await encode({
-    token: { sub: `email:${email}`, loginEmail: email, email },
-    secret: secret(),
-    salt: name,
-    maxAge: SESSION_MAX_AGE,
-  });
-  return { name, value, maxAge: SESSION_MAX_AGE };
+  return encodeSessionCookie({ sub: `email:${email}`, loginEmail: email, email }, secure);
 }
 
 export function emailLocale(value: unknown): Locale {
