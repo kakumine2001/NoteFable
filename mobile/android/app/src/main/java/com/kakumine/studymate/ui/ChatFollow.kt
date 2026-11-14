@@ -8,6 +8,7 @@ internal enum class FollowAction { None, Follow, Unfollow, Pin }
  *
  * - 用户在滚（拖动、惯性、滚轮、无障碍滚动，[programmaticScroll] 为 false）且离开底部：停止跟随。
  * - 滚动停下、且离底部不超过阈值：恢复跟随。滚动进行中不恢复，否则从底部开始的拖动会马上被拉回去。
+ * - 有待处理的定位请求（[revealPending]）时什么都不做。
  * - 跟随中、没在滚、却离开了底部（回答在列表没重组时变高，或刚开始跟随）：贴底。
  */
 internal fun followAction(
@@ -17,9 +18,13 @@ internal fun followAction(
     scrolling: Boolean,
     programmaticScroll: Boolean,
     hasItems: Boolean,
+    revealPending: Boolean = false,
 ): FollowAction {
     val nearBottom = distanceToBottomPx <= thresholdPx
     return when {
+        // 正在定位到检索结果 / 链接里的消息：不贴底、也不改跟随状态（定位自己的滚动不算用户滚动），
+        // 定位结束后由 MessageList 决定是否跟随（网页 openChatFromLink 关掉 pinToBottom）。
+        revealPending -> FollowAction.None
         scrolling && !programmaticScroll -> if (following && !nearBottom) FollowAction.Unfollow else FollowAction.None
         scrolling -> FollowAction.None
         nearBottom -> if (following) FollowAction.None else FollowAction.Follow

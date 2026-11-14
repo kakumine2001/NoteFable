@@ -18,6 +18,7 @@ import com.kakumine.studymate.data.LocalFile
 import com.kakumine.studymate.data.attachmentError
 import com.kakumine.studymate.data.selectionError
 import com.kakumine.studymate.data.ChatBackend
+import com.kakumine.studymate.data.ChatLink
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.ChatStreamEvent
 import com.kakumine.studymate.data.Activity
@@ -35,9 +36,12 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,7 +88,12 @@ sealed interface ComposerNotice {
     /** 新选的文件整批没有加进去。 */
     data class Rejected(val error: AttachError) : ComposerNotice
     data object UploadFailed : ComposerNotice
+    /** 链接（?chat=）里的 ID 不对：网页在输入栏上方显示 "Failed to load conversation."。 */
+    data object LinkFailed : ComposerNotice
 }
+
+/** 打开聊天后要滚到并闪一下的消息（检索结果、?chat=&message= 链接）。[token] 区分同一条消息的多次请求。 */
+data class MessageReveal(val sessionId: String, val messageId: String, val token: Long)
 
 data class ChatUiState(
     val sessions: List<SessionSummary> = emptyList(),
@@ -108,6 +117,8 @@ data class ChatUiState(
     val notice: ComposerNotice? = null,
     /** 每成功发出一条消息加一；输入栏据此清空草稿（上传失败时不清，文字还在）。 */
     val sentCount: Int = 0,
+    /** 等消息读完后要定位的消息（Batch 4）。 */
+    val reveal: MessageReveal? = null,
     /**
      * 未登录用户撞到当日上限（429 usage_limit、tier = guest）时是 "chat" 或 "image"：
      * 输入栏上方显示登录提示（网页 GuestLimitPrompt）。关掉、登录或退出后清空。
@@ -233,6 +244,7 @@ class ChatViewModel(
             it.copy(
                 sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id },
                 activeSessionId = session.id, messages = emptyList(), messagesLoading = false, messagesFailed = false,
+                reveal = null, notice = it.notice.clearLinkFailed(),
             )
         }
         // 进行中的刷新可能读到建好之前的列表，回来会把新聊天盖掉：让它重读。
@@ -263,7 +275,7 @@ class ChatViewModel(
             it.copy(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
-                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null,
+                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null, reveal = null,
             )
         }
         refreshSessions()
@@ -277,17 +289,60 @@ class ChatViewModel(
         navigationCount++
         stop()
         loadJob?.cancel()
-        _state.update { it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false) }
+        _state.update {
+            it.copy(activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false, reveal = null, notice = it.notice.clearLinkFailed())
+        }
     }
 
     fun openSession(id: String) {
         navigationCount++
+        // 换了聊天：之前的定位请求和链接错误都作废（网页 loadMessages 的 cancelReveal / setSendError("")）。
+        _state.update { it.copy(reveal = null, notice = it.notice.clearLinkFailed()) }
         if (_state.value.activeSessionId == id) return
         // 切换会话时停掉进行中的回答，避免它的文字写进别的会话。
         stop()
         _state.update { it.copy(activeSessionId = id, messages = emptyList(), messagesLoading = true, messagesFailed = false) }
         loadMessages(id)
     }
+
+    /** 从检索结果或链接打开聊天，有 [messageId] 时读完后滚到那条消息并闪一下（网页 openChatFromLink）。 */
+    fun openSessionAt(id: String, messageId: String?) {
+        val wasActive = _state.value.activeSessionId == id
+        openSession(id)
+        if (messageId == null) return
+        // 已经开着这段聊天、但本地历史里没有这条（别的设备后来加的）：先重读历史再定位，免得把存在的消息当成已删除。
+        // 正在生成时不重读，免得覆盖进行中的回答；这时找不到就按不存在处理。
+        val current = _state.value
+        val reload = wasActive && !current.sending && !current.messagesLoading && current.messages.none { it.id == messageId }
+        _state.update {
+            it.copy(reveal = MessageReveal(id, messageId, ++revealTokens), messagesLoading = it.messagesLoading || reload)
+        }
+        if (reload) loadMessages(id)
+    }
+
+    /** 链接里的 ID 形式不对：和网页一样回到新聊天，在输入栏上方提示读不到。 */
+    fun showLinkFailed() {
+        newChat()
+        _state.update { it.copy(notice = ComposerNotice.LinkFailed) }
+    }
+
+    // 外部链接（VIEW intent）：交给 StudyMateRoot，先关掉检索面板和抽屉再打开（它们是界面状态，不在 ViewModel 里）。
+    // 有缓冲：冷启动时 onCreate 先于界面开始收集。
+    private val externalLinks = Channel<ChatLink>(Channel.UNLIMITED)
+    val linkRequests: Flow<ChatLink> = externalLinks.receiveAsFlow()
+
+    fun requestLink(link: ChatLink) {
+        externalLinks.trySend(link)
+    }
+
+    /** 界面处理完（滚到了、或消息已不存在）后清掉这次定位请求。 */
+    fun consumeReveal(token: Long) {
+        _state.update { if (it.reveal?.token == token) it.copy(reveal = null) else it }
+    }
+
+    private var revealTokens = 0L
+
+    private fun ComposerNotice?.clearLinkFailed() = takeUnless { it == ComposerNotice.LinkFailed }
 
     fun reloadActive() {
         _state.value.activeSessionId?.let { loadMessages(it) }

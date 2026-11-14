@@ -1,5 +1,6 @@
 package com.kakumine.studymate
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
@@ -10,6 +11,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
 import com.kakumine.studymate.data.AppLanguage
+import com.kakumine.studymate.data.ChatLink
 import com.kakumine.studymate.ui.AccountViewModel
 import com.kakumine.studymate.ui.ChatViewModel
 import com.kakumine.studymate.ui.NotesViewModel
@@ -34,6 +36,25 @@ class MainActivity : AppCompatActivity() {
                 StudyMateRoot(viewModel, accountViewModel, notesViewModel)
             }
         }
+        // 从外部打开的聊天链接。重建 Activity 时不再重复打开；从"最近任务"重新进入时系统会带着当初的 VIEW intent
+        //（FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY），那是旧链接，也不打开（网页处理完就把 ?chat= 从地址里去掉）。
+        val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
+        if (savedInstanceState == null && !fromHistory) handleLink(intent)
+    }
+
+    // singleTask：App 已在运行时，链接从这里进来。
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleLink(intent)
+    }
+
+    /** `https://<站点>/?chat=<会话>&message=<消息>`：在 App 里打开那段聊天（Batch 4）。别的链接不处理，照常打开 App。 */
+    private fun handleLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        val link = intent.dataString?.let { ChatLink.parse(it, BuildConfig.BASE_URL) } ?: return
+        // 交给 StudyMateRoot：它先关掉检索面板和抽屉，再用 openChatLink 打开。
+        viewModel.requestLink(link)
     }
 
     // 语言变化由 configChanges 接住（不重建 Activity、保留输入中的内容）：这里更新 Accept-Language 用的界面语言。
