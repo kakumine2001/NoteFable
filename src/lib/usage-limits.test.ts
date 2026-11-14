@@ -63,7 +63,7 @@ describe("usage limits", () => {
     mocks.query.mockResolvedValueOnce([{ count: 3 }]).mockResolvedValueOnce([]);
     const result = await consumeUsage(guest, "image", "ip:abc");
     expect(result).toMatchObject({ ok: false, tier: "guest" });
-    expect(!result.ok && result.message).toContain("Sign in with Google");
+    expect(!result.ok && result.message).toContain("Sign in for more");
   });
 
   it("refunds every counted bucket and swallows refund errors", async () => {

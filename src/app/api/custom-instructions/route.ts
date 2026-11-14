@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
-import { canUseCustomInstructions, validCustomInstructions } from "@/lib/custom-instructions";
+import { getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
+import { validCustomInstructions } from "@/lib/custom-instructions";
 import { msg } from "@/lib/i18n/translate";
 import { NoteValidationError } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
@@ -18,7 +18,7 @@ function failure(error: unknown, fallback: string) {
 // アカウントの行を返すので、それ以外（未ログイン）は 401 にする。
 async function signedInUser() {
   const user = await getOrCreateAnonymousUser();
-  if (!canUseCustomInstructions(user)) throw new NoteValidationError(msg("Sign in to use custom instructions."), 401);
+  if (!isAccountUser(user)) throw new NoteValidationError(msg("Sign in to use custom instructions."), 401);
   return user;
 }
 

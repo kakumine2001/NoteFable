@@ -1,6 +1,8 @@
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { encode } from "next-auth/jwt";
+import type { NextRequest, NextResponse } from "next/server";
+import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 
@@ -15,7 +17,8 @@ const MAX_COOKIE_VALUE_LENGTH = 3800;
 export const NONCE_COOKIE = "studymate_native_nonce";
 export const NONCE_MAX_AGE = 300;
 
-export type GoogleIdentity = { sub: string; email: string | null; name: string | null; image: string | null };
+// emailAuthoritative: Gmail / Workspace の確認済みアドレス（メールログインの利用者とまとめてよい）。
+export type GoogleIdentity = { sub: string; email: string | null; emailAuthoritative?: boolean; name: string | null; image: string | null };
 
 // Google の鍵を取りに行けないなどサーバー側の事情で検証できなかった場合。トークン自体が不正な場合とは区別する。
 export class GoogleVerificationUnavailableError extends Error {}
@@ -96,7 +99,13 @@ export async function verifyGoogleIdToken(
   // メールが未確認のアカウントは受け付けない。
   if (email && claims.email_verified !== true && claims.email_verified !== "true") return null;
 
-  return { sub, email, name: text(claims.name), image: text(claims.picture) };
+  return {
+    sub,
+    email,
+    emailAuthoritative: isAuthoritativeGoogleEmail(email, claims.email_verified, claims.hd),
+    name: text(claims.name),
+    image: text(claims.picture),
+  };
 }
 
 export function sessionCookieName(secure: boolean) {
@@ -104,26 +113,47 @@ export function sessionCookieName(secure: boolean) {
 }
 
 // Auth.js が読むセッション Cookie の値を作る。salt は Cookie 名、payload は google-auth.ts の callbacks と対応させる。
-export async function createSessionCookie(identity: GoogleIdentity, secure: boolean) {
+// Google（この端末側ログイン）とメールの確認コードのログインが共通で使う。
+export async function encodeSessionCookie(token: Record<string, unknown>, secure: boolean) {
   const secret = optionalEnv("AUTH_SECRET");
   if (!secret) throw new Error("AUTH_SECRET is not configured.");
 
   const name = sessionCookieName(secure);
-  const value = await encode({
-    token: {
-      sub: identity.sub,
-      googleSub: identity.sub,
-      name: identity.name,
-      email: identity.email,
-      picture: identity.image,
-    },
-    secret,
-    salt: name,
-    maxAge: SESSION_MAX_AGE,
-  });
+  const value = await encode({ token, secret, salt: name, maxAge: SESSION_MAX_AGE });
   if (value.length > MAX_COOKIE_VALUE_LENGTH) throw new Error("The session is too large for a single cookie.");
 
   return { name, value, maxAge: SESSION_MAX_AGE };
+}
+
+export async function createSessionCookie(identity: GoogleIdentity, secure: boolean) {
+  return encodeSessionCookie({
+    sub: identity.sub,
+    googleSub: identity.sub,
+    googleEmailVerified: identity.emailAuthoritative === true,
+    name: identity.name,
+    email: identity.email,
+    picture: identity.image,
+  }, secure);
+}
+
+export function isSecureRequest(request: NextRequest) {
+  return request.nextUrl.protocol === "https:" || request.headers.get("x-forwarded-proto") === "https";
+}
+
+// 応答にログイン Cookie を付ける。以前の分割保存（authjs.session-token.0 など）が残っていると、
+// 新しい Cookie と連結されて読めなくなるので消す。
+export function attachSessionCookie(
+  request: NextRequest,
+  response: NextResponse,
+  cookie: { name: string; value: string; maxAge: number },
+  secure: boolean,
+) {
+  response.cookies.set(cookie.name, cookie.value, { httpOnly: true, sameSite: "lax", secure, path: "/", maxAge: cookie.maxAge });
+  const base = sessionCookieName(secure);
+  for (const { name } of request.cookies.getAll()) {
+    if (name.startsWith(`${base}.`)) response.cookies.set(name, "", { httpOnly: true, secure, path: "/", maxAge: 0 });
+  }
+  return response;
 }
 
 // 別サイトのページから、他人のトークンで勝手にログインさせられないよう、同一オリジンのリクエストだけ受け付ける。

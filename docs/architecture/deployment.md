@@ -143,6 +143,16 @@ AUTH_GOOGLE_SECRET
 
 **Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期在 `src/components/legal-page.tsx`；两个链接也放在聊天 / 笔记侧栏底部。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://studymate-lab-ai.vercel.app`，隐私权政策 `https://studymate-lab-ai.vercel.app/privacy`，服务条款 `https://studymate-lab-ai.vercel.app/terms`；已授权网域只登记 `studymate-lab-ai.vercel.app`，所以登录要从这个域名进入（别的域名的回调地址没有登记，会报 `redirect_uri_mismatch`）。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面。
 
+### 邮箱验证码登录（可选）
+
+```text
+AUTH_SECRET
+RESEND_API_KEY
+EMAIL_FROM
+```
+
+用户输入邮箱，收到 6 位验证码后登录（`/api/auth/email/start`、`/api/auth/email/verify`），不设密码。发信用 [Resend](https://resend.com)；`EMAIL_FROM` 是发件人，例如 `StudyMate <login@你的域名>`，这个域名要先在 Resend 的 Domains 里验证（加它给出的 DNS 记录）。没验证域名时 Resend 只能用 `onboarding@resend.dev` 发给注册账号本人，`*.vercel.app` 也不能验证，所以正式开放需要自己的域名。本地开发（非 production）没配 `RESEND_API_KEY` 时也能用：验证码不发信，打印在开发服务器日志里（`[email-login] code for …`）。production 没配齐时不显示邮箱登录。登录成功后签发和 Google 登录同一种 Auth.js 会话 Cookie（`loginEmail`），账号合并规则见 [database.md](database.md) 的 `verifiedEmail`。
+
 Android App 内的登录复用同一个 Web 客户端 ID（`AUTH_GOOGLE_ID`）校验令牌，不需要新增环境变量；另需在同一个 Google Cloud 项目里建一个 Android 类型客户端（包名 + 签名 SHA-1），详见 [android.md](android.md)。
 
 ### OpenAI

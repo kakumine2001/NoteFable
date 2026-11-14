@@ -15,7 +15,7 @@ describe("native system text asset", { timeout: 60_000 }, () => {
     for (const key of [
       "Request failed: {detail}",
       "Note not found.",
-      "You've used today's free messages. Sign in with Google for more, or try again tomorrow.",
+      "You've used today's free messages. Sign in for more, or try again tomorrow.",
       "Searched notes for “{query}”",
       "Could not save the chat. Please try again.",
     ]) {

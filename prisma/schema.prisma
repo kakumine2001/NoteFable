@@ -56,6 +56,9 @@ model AnonymousUser {
   deviceId    String   @unique
   // Google ログインと紐付けた場合だけ設定する。別端末でも同じ利用者として復元できる。
   googleSub   String?  @unique
+  // 確認済みのメールアドレス（小文字）。メールの確認コードでログインした、または Google が確認済みとしたメール。
+  // 同じアドレスなら Google でもメールでも同じ利用者になる。null は未ログイン（または未確認のメールだけの Google 利用者）。
+  verifiedEmail String? @unique
   email       String?
   name        String?
   image       String?
@@ -77,6 +80,21 @@ model AnonymousUser {
   noteProposals NoteProposal[]
   noteGroups    NoteGroup[]
   noteRevisions NoteRevision[]
+}
+
+// メールでのログイン用の確認コード。コードそのものは保存せず、HMAC だけを持つ。使ったら消す。
+model EmailLoginCode {
+  id            String   @id @default(cuid())
+  email         String
+  codeHash      String
+  expiresAt     DateTime
+  attempts      Int      @default(0)
+  // 送信元（IP）の HMAC。同じ送信元からの大量送信を数えるためだけに使う。
+  requesterHash String?
+  createdAt     DateTime @default(now())
+
+  @@index([email, createdAt])
+  @@index([requesterHash, createdAt])
 }
 
 // アプリ内のページ。ブロックの順序と装飾は編集器の JSON に保持する。

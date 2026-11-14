@@ -4,12 +4,6 @@ import { validProjectInstructions } from "@/lib/chat-project-api";
 // 改行とタブ以外の制御文字は不可、空は null）を使う。
 export const validCustomInstructions = validProjectInstructions;
 
-// カスタム指示を使える利用者（ログイン済み）か。匿名の行（端末 Cookie だけ）は使えない。
-// verifiedEmail はメールでのログインが入ったときの印で、その利用者も Google の利用者と同じに扱う。
-export function canUseCustomInstructions(user: { googleSub: string | null; verifiedEmail?: string | null }) {
-  return Boolean(user.googleSub || user.verifiedEmail);
-}
-
 // システム指示に足す文章。利用者自身の指示なので従う対象として渡す。プロジェクトの共通指示があるときはそちらが優先する。
 // 終わりの区切り行のあとに続く文（プロジェクトの文脈）が同じ行につながらないよう、改行で終える。
 export function formatCustomInstructions(instructions: string | null | undefined): string | null {

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import {
   AttachmentValidationError,
@@ -31,7 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { applyActivityEvent, contextActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
 import { formatProjectContext, loadProjectContext, type ProjectContext } from "@/lib/chat-project-context";
-import { canUseCustomInstructions, formatCustomInstructions } from "@/lib/custom-instructions";
+import { formatCustomInstructions } from "@/lib/custom-instructions";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
@@ -620,7 +620,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           : undefined;
         const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined, projectContext,
           // カスタム指示はログインした利用者の設定。匿名の行に値が残っていても使わない。
-          canUseCustomInstructions(user) ? user.customInstructions : null);
+          isAccountUser(user) ? user.customInstructions : null);
         const upstream =
           modelOption.provider === "anthropic"
             ? await createAnthropicStream(buildAnthropicRequest({

@@ -251,9 +251,9 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 已登录的用户可以写一段适用于自己**所有聊天**的指令（介绍自己、希望怎样回答），类似其他产品的 custom instructions。游客没有这个功能。
 
 - 存在 `AnonymousUser.customInstructions`，最多 4,000 字符（`MAX_CUSTOM_INSTRUCTIONS`），校验沿用项目共通指示的 `validProjectInstructions`（换行统一为 `\n`、去掉首尾空白、空白存为 null、不允许换行和制表符以外的控制字符）。
-- 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`canUseCustomInstructions()`，`src/lib/custom-instructions.ts`：用户行有 `googleSub`，或有邮箱登录的 `verifiedEmail`），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
+- 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google 或邮箱登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
 - 入口在侧栏底部个人资料弹层的 “Settings”（`src/components/settings-dialog.tsx`，从 `account-button.tsx` 打开），沿用项目设置对话框的样式，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取，文字没变就不发请求；保存中不能关闭（Esc、返回键、点外面都不关），免得保存失败时没有地方提示。上传头像照片期间 “Settings” 不可点。Android 是 `ui/SettingsDialog.kt`，见 [android-native.md](android-native.md)。
-- `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `canUseCustomInstructions()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
+- `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `isAccountUser()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
 - 不影响标题生成（`chat-title.ts`）和图片生成，不产生 `context` 途中经过事件，也不写进 `Message`。
 
 ## 项目的共通指示与参考笔记

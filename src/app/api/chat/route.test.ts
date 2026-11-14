@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
   consumeUsage: vi.fn().mockResolvedValue({ ok: true, ticket: { kind: "chat", day: "2026-01-01", keys: ["user:user"] } }),
   refundUsage: vi.fn().mockResolvedValue(undefined),
   // 利用者の行に足す項目（googleSub・customInstructions）。既定は匿名の利用者。
-  userRow: { extra: {} as { googleSub?: string | null; customInstructions?: string | null } },
+  userRow: { extra: {} as { googleSub?: string | null; verifiedEmail?: string | null; customInstructions?: string | null } },
 }));
 
 const defaultSession = { id: "session", title: "Existing chat" };
@@ -21,7 +21,10 @@ mocks.findSession.mockResolvedValue(defaultSession);
 vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "user", ...mocks.userRow.extra }) }));
+vi.mock("@/lib/auth", () => ({
+  getOrCreateAnonymousUser: async () => ({ id: "user", ...mocks.userRow.extra }),
+  isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
+}));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/files", () => ({
@@ -647,6 +650,12 @@ describe("chats inside a project", () => {
       const { prompt, events } = await chat("gpt-6-luna", answer());
       expect(prompt).toContain("Call me Mine.");
       expect(events.some((event) => typeof event !== "string")).toBe(false);
+    });
+
+    it("applies them for an account that signed in by email", async () => {
+      mocks.findSession.mockResolvedValue(defaultSession);
+      mocks.userRow.extra = { googleSub: null, verifiedEmail: "a@example.test", customInstructions: "Call me Mine." };
+      expect((await chat("gpt-6-luna", answer())).prompt).toContain("Call me Mine.");
     });
 
     it.each([

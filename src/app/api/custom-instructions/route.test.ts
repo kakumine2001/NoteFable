@@ -1,7 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), update: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: mocks.user }));
+vi.mock("@/lib/auth", () => ({
+  getOrCreateAnonymousUser: mocks.user,
+  isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { anonymousUser: { update: mocks.update } } }));
 import { GET, PUT } from "./route";
 

@@ -10,8 +10,22 @@ const mocks = vi.hoisted(() => ({
   del: vi.fn(),
 }));
 vi.mock("@/lib/env", () => ({ optionalEnv: (key: string) => (key === "AUTH_GOOGLE_ID" ? "client-id" : undefined) }));
-vi.mock("@/lib/google-auth", () => ({ isGoogleLoginConfigured: mocks.configured, auth: mocks.auth }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: mocks.currentUser }));
+vi.mock("@/lib/google-auth", () => ({
+  isGoogleLoginConfigured: mocks.configured,
+  isAccountLoginConfigured: mocks.configured,
+  isEmailLoginConfigured: () => false,
+  auth: mocks.auth,
+}));
+vi.mock("@/lib/auth", () => ({
+  getOrCreateAnonymousUser: mocks.currentUser,
+  isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
+  currentAccountProfile: async () => {
+    if (!mocks.configured()) return null;
+    const session = await mocks.auth();
+    const user = session?.user;
+    return user?.id ? { name: user.name ?? null, email: user.email ?? null, image: user.image ?? null } : null;
+  },
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: { anonymousUser: { update: mocks.update, updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
 import { GET, PATCH } from "./route";
@@ -33,7 +47,7 @@ describe("account profile", () => {
     mocks.findUnique.mockImplementation(async () => ({ ...mocks.currentUser.mock.results.at(-1)?.value, ...{} }));
   });
 
-  it("hides the sign-in UI when Google login is not configured", async () => {
+  it("hides the sign-in UI when no login is configured", async () => {
     mocks.configured.mockReturnValue(false);
     expect(await (await GET()).json()).toEqual({ configured: false, user: null });
     expect((await PATCH(patch({ icon: "🚀" }))).status).toBe(404);
@@ -41,7 +55,7 @@ describe("account profile", () => {
 
   it("shows no user when signed out", async () => {
     mocks.auth.mockResolvedValue(null);
-    expect(await (await GET()).json()).toEqual({ configured: true, user: null, googleClientId: "client-id" });
+    expect(await (await GET()).json()).toEqual({ configured: true, google: true, email: false, user: null, googleClientId: "client-id" });
   });
 
   it("shows the Google name and photo by default", async () => {
