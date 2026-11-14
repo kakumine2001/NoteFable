@@ -20,7 +20,11 @@ import com.kakumine.studymate.data.selectionError
 import com.kakumine.studymate.data.ChatBackend
 import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.ChatStreamEvent
+import com.kakumine.studymate.data.Activity
+import com.kakumine.studymate.data.ActivityEvent
+import com.kakumine.studymate.data.ActivityStep
 import com.kakumine.studymate.data.FailureInfo
+import com.kakumine.studymate.data.Proposal
 import com.kakumine.studymate.data.GeneratedImageDto
 import com.kakumine.studymate.data.MessageDto
 import com.kakumine.studymate.data.ModelInfo
@@ -61,6 +65,12 @@ data class UiMessage(
      * 当普通回答显示，不套"请求失败："也不标红（chat-message.tsx 的 usageLimit 分支）。
      */
     val usageLimit: Boolean = false,
+    /** 推理、搜索、笔记工具、项目上下文与提案（data/Activity.kt）。流里实时合并，历史里从 activity 读出。 */
+    val activity: List<ActivityStep> = emptyList(),
+    /** 服务端保存的提案（历史的 proposals 字段）；流里新出的提案在 [activity] 里。 */
+    val proposals: List<Proposal> = emptyList(),
+    /** 开始等待回答的时刻（System.currentTimeMillis），进度条的"已等 N 秒"用。 */
+    val startedAt: Long? = null,
 )
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
@@ -478,6 +488,8 @@ class ChatViewModel(
         var sessionId = request.sessionId
         var failure: Throwable? = null
         var completed = false
+        // 网页在分到 /api/images 之前就记下开始时间：等待秒数不因界面重组而归零。
+        updateAssistant(assistantId) { it.copy(startedAt = System.currentTimeMillis()) }
         try {
             awaitSessionsRequest()
             val result = backend.generateImage(request)
@@ -517,8 +529,9 @@ class ChatViewModel(
                 when {
                     limited -> done.copy(content = failed?.message.orEmpty(), usageLimit = true, failure = null)
                     failed != null -> done.copy(errorDetail = failed.message ?: failed.javaClass.simpleName)
-                    // 没收到任何内容就被停止：不留空气泡。
-                    message.content.isEmpty() && message.images.isEmpty() -> null
+                    // 没收到任何内容就被停止：不留空气泡。已有过程或提案卡片（服务器已存了提案）时保留，和网页一样。
+                    message.content.isEmpty() && message.images.isEmpty() &&
+                        message.activity.isEmpty() && message.proposals.isEmpty() -> null
                     else -> done
                 }
             }
@@ -556,15 +569,29 @@ class ChatViewModel(
     private suspend fun runStream(turn: Turn, request: ChatRequest) {
         val assistantId = turn.assistantId
         val pending = StringBuilder()
+        // 过程事件（推理摘要是很碎的增量）和正文一起攒着，每次刷新只重组一次（网页每次 read 合并一次）。
+        val activityEvents = mutableListOf<ActivityEvent>()
         var sessionId = request.sessionId
         var failure: Throwable? = null
         var completed = false
+        val startedAt = System.currentTimeMillis()
+        updateAssistant(assistantId) { it.copy(startedAt = startedAt) }
 
         fun flush() {
-            if (pending.isEmpty()) return
+            if (pending.isEmpty() && activityEvents.isEmpty()) return
             val chunk = pending.toString()
             pending.setLength(0)
-            updateAssistant(assistantId) { it.copy(content = it.content + chunk) }
+            val events = activityEvents.toList()
+            activityEvents.clear()
+            val receivedAt = System.currentTimeMillis()
+            updateAssistant(assistantId) {
+                it.copy(
+                    content = it.content + chunk,
+                    activity = Activity.apply(it.activity, events),
+                    // 正文开始出现前的时间就是"思考了多久"。
+                    thinkingMs = it.thinkingMs ?: if (chunk.isNotEmpty()) receivedAt - startedAt else null,
+                )
+            }
         }
 
         try {
@@ -585,9 +612,12 @@ class ChatViewModel(
                                 refreshSessions()
                             }
                             is ChatStreamEvent.Delta -> pending.append(event.text)
-                            // 推理/搜索进度条后续再做原生展示；这里只记下服务端追加的失败文的位置。
-                            is ChatStreamEvent.Activity -> FailureInfo.from(event.payload)?.let { failure ->
-                                updateAssistant(assistantId) { it.copy(failure = failure) }
+                            // 进度条与提案卡片的事件；服务端追加的失败文的位置另外记下。
+                            is ChatStreamEvent.Activity -> {
+                                Activity.parseEvent(event.payload)?.let(activityEvents::add)
+                                FailureInfo.from(event.payload)?.let { failure ->
+                                    updateAssistant(assistantId) { it.copy(failure = failure) }
+                                }
                             }
                         }
                     }
@@ -628,6 +658,8 @@ class ChatViewModel(
         thinkingMs = dto.thinkingMs,
         modelId = dto.model,
         failure = FailureInfo.fromActivity(dto.activity),
+        activity = Activity.parseStored(dto.activity),
+        proposals = Activity.parseStoredProposals(dto.proposals),
     )
 
     companion object {
