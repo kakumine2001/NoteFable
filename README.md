@@ -1,26 +1,30 @@
 # NoteFable
 
-供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
+NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，正在持续打磨 Web 和原生 Android 体验。
 
-项目保留 `NoteFable` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Notes 笔记、回答的复制 / 保存到 Notes / Markdown 导出、跨 Chats 与 Notes 的关键词搜索（容忍全角半角、平假名片假名等写法差异，也搜索附件文本）、聊天项目的共通指示与参考笔记，以及笔记的 Trash（回收站）和编辑历史。
+用户可以从聊天开始，把回答和资料整理成 Notes，再让 AI 读取笔记、提出修改建议，确认后应用。当前支持匿名试用、Google / 邮箱验证码登录、流式聊天、文件上下文、图片输入与生成、Web 搜索、回答保存与整段对话导出、跨 Chats 与 Notes 的关键词搜索、自定义指令、项目共通指示与参考笔记，以及笔记的回收站和编辑历史。以下记录当前实现；产品化方向不代表付费、公开分享或协作功能已经上线。
 
 网站根路径 `/` 是产品介绍主页，点击主页入口后进入 `/app` 使用聊天与 Notes；也可以直接收藏 `/app`。旧的根路径会话和笔记链接（带 `chat`、`message`、`view` 或 `page` 参数）会保留全部查询参数转到 `/app`，已保存的链接继续可用。
 
 界面支持 English、简体中文、繁體中文和日本語。首页右上角及工作区侧栏底部的语言选项对匿名和登录用户都可用。自动模式按“手动选择的 Cookie → 浏览器 `Accept-Language` → Vercel 访问地区 → 英文”决定语言；浏览器偏好优先于地理位置。浏览器为 zh-TW / zh-HK / zh-Hant 时显示繁体中文；地区回退时中国大陆、新加坡使用简体中文，台湾、香港、澳门使用繁体中文，日本使用日文。首页和 `/app` 按语言预先生成静态页面，由 `src/proxy.ts` 选择语言并在网址不变的情况下返回对应页面。手动选择在当前浏览器保存一年，选择“自动”会清除该偏好。它不跟随 Google 账号跨设备同步，也不改写聊天、笔记或 AI 的输出语言。隐私政策、服务条款正文及上游服务的原始错误仍为英文。实现和维护方式见[界面语言](docs/architecture/i18n.md)。
 
-## 当前生产环境
+## 聊天与项目
 
 聊天侧栏右侧依次是三点按钮和固定图钉按钮：图钉直接置顶/取消置顶，三点菜单提供重命名、移动到独立聊天项目、删除确认。项目可新建、改名、删除；删除项目保留聊天。项目菜单里的 Project settings 可设置共通指示和参考笔记（见下文“搜索、项目上下文与 Trash”）。共享与归档暂不提供。Chat 和 Notes 左侧都有六点拖动柄，可拖动调整顺序，键盘方向键也可在拖动柄上调整，刷新后保留。Chat 的拖动柄还支持拖到项目行移入项目、拖到 Chats 标题移出项目；移入项目的聊天会取消置顶，项目自动展开。聊天标题点击打开会话，标题区域保留正常滚动。
 
-GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资源信息于 2026-09-05 核对：
+## 部署概览
+
+源码仓库、Vercel 项目名和域名已于 2026-11-15 核对；数据库资源信息沿用此前记录，当前运行状态需以实际部署和数据库为准，核对方法见 [deployment.md](docs/architecture/deployment.md)。
 
 - 源码：GitHub `kakumine2001/NoteFable`，主分支 `main`
-- 应用托管：Vercel 项目 `studymate`
+- 应用托管：Vercel 项目 `notefable`
 - Framework：Next.js
 - Vercel Node.js：24.x
 - Vercel Production region：`iad1`
 - Production aliases：
   - `notefable.com`
+  - `www.notefable.com`（跳转到主域名）
+  - `studymate-lab-ai.vercel.app`（保留给旧链接与 Android 客户端）
   - `notefable-kaku10.vercel.app`（Vercel 项目 2026-11-15 由 studymate 改名为 notefable）
 - 数据库：Neon PostgreSQL
   - Neon project：`neon_db`
@@ -64,14 +68,14 @@ flowchart LR
 - [图片上传与生成流程](docs/architecture/image-flow.md)
 - [部署与运行环境](docs/architecture/deployment.md)
 
-## 使用边界
+## 当前边界
 
-- 面向项目所有者本人，优先保证随时可用、操作简单和维护成本低
+- 面向 AI 对话与个人知识整理，持续打磨聊天、Notes 和移动端的一体体验；当前没有团队协作、公开分享或付费订阅入口
 - 模型及第三方服务凭据由服务端环境变量统一配置，不暴露给浏览器
 - 当前签名设备 Cookie 用于隔离不同浏览器的会话和附件，不等同于登录或访问控制
-- 可选的 Google 登录（Auth.js）只用于跨设备找回同一份数据：首次登录时把当前设备的匿名数据绑定到该 Google 账号；登出（或停用登录）后浏览器回到全新的匿名状态，不会继续显示该账号的数据，再次登录即可找回；未配置相关环境变量时自动停用，仍是纯匿名模式
+- 可配置 Google / 邮箱验证码登录（Auth.js JWT 会话）以跨设备找回数据。首次登录绑定当前设备的匿名数据；已有账号登录不会自动合并另一设备的匿名数据。登出后回到新的匿名身份，账号数据仍可再次登录找回。两种方式分别按环境变量启用；邮箱与 Google 账号的关联规则见 [database.md](docs/architecture/database.md#user)
 - 若部署地址可能被其他人获知，每日用量上限只能控制单人消耗；仍需要真正的访问控制时，应在 Vercel、反向代理或应用层增加认证
-- 使用时仍需遵守工作地点的网络、信息安全及数据处理规定，不应提交不允许传给外部 AI 服务的内容
+- 聊天、附件和被选作上下文的笔记会按请求发送给对应 AI 服务；使用时需遵守资料所属组织的数据处理规定
 
 ## 技术栈
 
@@ -140,6 +144,16 @@ AUTH_SECRET="replace-with-a-long-random-secret"
 AUTH_GOOGLE_ID="....apps.googleusercontent.com"
 AUTH_GOOGLE_SECRET="..."
 ```
+
+邮箱验证码登录（可选；生产环境三项都配置才启用，与 Google 登录共用 `AUTH_SECRET`）：
+
+```bash
+AUTH_SECRET="replace-with-a-long-random-secret"
+RESEND_API_KEY="your-resend-sending-key"
+EMAIL_FROM="NoteFable <login@your-verified-domain.example>"
+```
+
+发件域名需要在 Resend 验证。非 production 环境未配置发信密钥或发件人时，验证码只打印在开发服务器日志中；完整配置和账号关联规则见 [deployment.md](docs/architecture/deployment.md#邮箱验证码登录可选) 与 [database.md](docs/architecture/database.md#user)。
 
 按启用的功能配置：
 
@@ -214,7 +228,7 @@ npm run prisma:migrate
 - DeepSeek-V4.1-Flash：支持图片输入和 Notes 工具，不支持内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
 - 图片生成不依赖所选聊天模型：任何模型下都可以打开 Create an image，`/api/images` 固定调用 OpenAI 的图片接口，所选模型只记录在保存的消息上
 
-三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes（Trash 里的除外），并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
+三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes（Trash 里的除外），用 `list_chat_attachments` 查找当前聊天的附件，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面，包括把符合条件的聊天图片放进笔记：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
 
 Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含思考与回答；模型默认提供 1,000,000 token 上下文，无需额外开启参数。GPT-6 Luna 与 Claude 使用厂商原生自动压缩：Luna 请求 `context_management: [{type: "compaction"}]`，不覆盖厂商默认触发值；Claude 使用 `compact-2026-01-12` Beta 与 `compact_20260112`，沿用官方默认的 150,000 输入 token 触发值及摘要规则。摘要生成会产生额外模型用量；短会话不触发时没有这次摘要生成用量。
 
@@ -236,7 +250,7 @@ Blob pathname 结构：
 images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `STUDYMATE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验匿名用户所有权。
+图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `STUDYMATE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验当前用户所有权（匿名设备或已登录账号）。
 
 本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。
 
@@ -244,19 +258,19 @@ Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/
 
 ## 站内 Notes
 
-侧栏最下面是账号区：没登录时是 Google 官方样式的 “Sign in with Google” 按钮；登录后显示你的头像和名字，点开是个人资料——默认用 Google 的头像和名字，可以自己上传头像（选图后在圆形框里拖动、缩放来裁剪，和常见网站一样）或选一个 emoji 当图标，可以改显示名，也可以一键恢复成 Google 的，还有退出登录；自己设的名字、头像跟着账号走，换设备登录也在（匿名使用时没有个人资料）。账号区下面是 `Privacy · Terms` 链接。
+侧栏底部是账号区：没登录时点 “Sign in” 打开登录弹窗，按服务端配置提供 Google 和邮箱验证码两种方式；未启用任何登录方式时隐藏入口。登录后显示头像和名字（邮箱账号可显示邮箱），点开可改显示名、上传并裁剪头像、选择 emoji，或退出登录。个人资料菜单里的 Settings 可保存最多 4,000 字符的自定义指令，适用于之后的聊天和笔记 AI 助手；项目共通指示优先于这份个人设置。资料和指令随账号保存。账号区下面是 `Privacy · Terms` 链接。
 
-侧栏顶部的 `Chat / Notes` 在聊天和笔记之间切换（聊天与 Notes 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Notes 侧栏支持创建、选择和删除（移入 Trash）页面，并有 Trash 入口。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面可从预设渐变/纯色中选择，也可上传图片（最大 4 MB）并拖动调整位置。代码块支持语法高亮、语言选择和一键复制。页面平铺排列，按创建时间排序，编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
+侧栏顶部的 `Chat / Notes` 在聊天和笔记之间切换（聊天与 Notes 侧栏共用同一组入口；收起侧栏后需先展开才能切换）。Notes 侧栏支持创建、选择和删除（移入 Trash）页面，并有 Trash 入口。页面外观按 Notion 设计：悬停标题区域出现 `Add icon / Add cover`，图标为emoji（侧栏与顶部同步显示），封面可从预设渐变/纯色中选择，也可上传图片（最大 4 MiB）并拖动调整位置。代码块支持语法高亮、语言选择和一键复制。页面按保存的拖动顺序排列，同序时按创建时间倒序；编辑和自动保存不会改变页面位置。页面切换支持浏览器后退与前进。
 
 每个聊天也可以设置一个 emoji 图标（与 Notes 共用同一个选择器）：图标在标题左边，未设置时显示默认的聊天气泡，点它就能选；新聊天在发出第一条消息之前就可以选，会在创建会话时一起保存。侧栏里每一行最左边的图标也可以直接点开选择器，`Remove` 恢复默认图标。顶部栏在手机上同样可以改。修改图标不改变会话在侧栏中的排序，快速连续修改时按顺序保存最后一次选择，保存失败会回到上一次已保存的图标。
 
-编辑器使用 BlockNote 社区版，支持段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；通过 `/` 菜单、Markdown 快捷输入、行内格式工具栏和拖动整理内容。首版只开放文字区块。
+编辑器使用 BlockNote 社区版，支持段落、H1–H3、项目/编号/待办列表、引用、代码、分隔线，以及上传的图片和文件块；通过 `/` 菜单、Markdown 快捷输入、行内格式工具栏和拖动整理内容。笔记附件每个最多 4 MiB（4,194,304 字节），与聊天附件限制不同；具体类型和归属校验见 [notes-flow.md](docs/architecture/notes-flow.md#图片与文件)。
 
 标题自动换行，Enter 进入正文；首个区块开头按 ↑ 返回标题。点击正文下方空白继续输入，区块加号默认在下方插入，Alt＋点击在上方插入。手柄菜单支持转换类型、颜色、复制与删除；`/turn` 可转换当前文字区块，Ctrl/Cmd＋D 复制当前或选中的区块（包含子区块）。Windows 下 Ctrl＋Shift＋0/1/2/3/4/5/6/8 分别转换为文本、H1/H2/H3、待办、项目列表、编号列表、代码；Mac 使用 Cmd＋Option＋对应数字。Ctrl/Cmd＋E 设置行内代码，Ctrl/Cmd＋Shift＋S 设置删除线。
 
-停止输入约一秒后自动保存，顶部显示 `Saving… / Saved`。正文以原生区块 JSON 存入 PostgreSQL 的 `NotePage` 表，并沿用现有签名设备 Cookie 的匿名用户归属。浏览器只缓存尚未成功保存的草稿；失败后可以重试或刷新恢复。两个标签页修改同一页面时通过版本号阻止覆盖，冲突可以保存为新页面或载入最新版本。
+停止输入约一秒后自动保存，顶部显示 `Saving… / Saved`。正文以原生区块 JSON 存入 PostgreSQL 的 `NotePage` 表，并通过当前用户身份（签名设备 Cookie 或登录会话）确定归属。浏览器只缓存尚未成功保存的草稿；失败后可以重试或刷新恢复。两个标签页修改同一页面时通过版本号阻止覆盖，冲突可以保存为新页面或载入最新版本。
 
-未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除只是移入 Trash，30 天内可以复原（见下节），超过后才永久删除。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
+未登录时页面与同一浏览器、同一域名绑定：清除网站 Cookie、切换浏览器/设备/域名后，数据库中的页面仍在，但无法重新认领。使用 Google 或邮箱验证码登录后，同一账号在其他设备登录即可找回；已登录账号下的页面不会自动合并来自另一台设备的匿名数据。删除页面前会确认，删除只是移入 Trash，30 天内可以复原（见下节），超过后才永久删除。标题最多 200 字符，单页请求最大 1 MiB、最多 2,000 个块及 8 层块嵌套。正文列表可以缩进，页面列表没有子页面层级。
 
 Notes 编辑和自动保存本身不调用 AI；笔记内的 AI 助手只在用户发送请求后调用所选模型。无需新增环境变量。新增表通过正常的 `npm run prisma:migrate` 部署。详细数据流见 [notes-flow.md](docs/architecture/notes-flow.md)。
 
@@ -278,15 +292,15 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## Android 应用
 
-Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App（原来的 Capacitor 外壳已删除），已有聊天、模型切换、附件、生成图片和 Google 登录；笔记尚未接入，见 [android-native.md](docs/architecture/android-native.md)。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)。
+Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App：聊天、侧栏、搜索、附件、图片生成、笔记列表与项目、回收站使用原生界面；笔记编辑器通过 WebView 加载同一套 `/note-embed`。代码已接入 Google / 邮箱验证码登录、个人资料和自定义指令设置，真实账号登录流程的验证状态与网页尚未对齐的细节见 [android-native.md](docs/architecture/android-native.md)。默认仍连接旧域名 `studymate-lab-ai.vercel.app`，保留已安装 App 的 Cookie 身份。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)；`mobile/ios/` 目前只有原生 iOS 的目录说明，尚未开发。
 
 ## API 保护
 
-聊天（包括笔记内 AI 助手）和图片生成按天限次（日本时间 0 点重置）：未登录 20 条 / 3 张，Google 登录后 100 条 / 20 张，预留的付费档 `PRO` 1000 条 / 200 张；同一 IP 的未登录用户另有共享上限，防止清 Cookie 刷额度。超限返回 429，失败且没有交付内容的请求不计数。游客触发上限时，输入框上方显示带动效的 Google 登录提示；关闭提示后仍保留超限原因，系统开启“减少动态效果”时停用动画。数值在 `src/lib/usage-plans.ts`，计数表见 [database.md](docs/architecture/database.md#usagecounter)。Notes 保存、搜索等不限次数；更细的限流（按秒/分钟防刷）可以在 Vercel 防火墙或网关层配置。
+聊天（包括笔记内 AI 助手）和图片生成按天限次（日本时间 0 点重置）：未登录 20 条 / 3 张，登录后（Google 或邮箱）100 条 / 20 张，预留的付费档 `PRO` 1000 条 / 200 张；同一 IP 的未登录用户另有共享上限，防止清 Cookie 刷额度。超限返回 429，失败且没有交付内容的请求不计数。游客触发上限时，输入框上方显示带动效的登录提示（打开与侧栏相同的登录弹窗）；关闭提示后仍保留超限原因，系统开启“减少动态效果”时停用动画。数值在 `src/lib/usage-plans.ts`，计数表见 [database.md](docs/architecture/database.md#usagecounter)。Notes 保存、搜索等不限次数；更细的限流（按秒/分钟防刷）可以在 Vercel 防火墙或网关层配置。
 
 ## Vercel 部署
 
-- 项目：`studymate`
+- 项目：`notefable`
 - 线上 URL：`https://notefable.com`
 - 方式：GitHub 联动（main 分支 push 后自动部署）
 - `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用
@@ -302,6 +316,7 @@ Vercel 上需要配置的环境变量：
 - `ANTHROPIC_BASE_URL` / `ANTHROPIC_HAIKU_MODEL`（可选）
 - `COOKIE_SECRET`
 - `AUTH_SECRET`、`AUTH_GOOGLE_ID`、`AUTH_GOOGLE_SECRET`（启用 Google 登录时；需在 Google Cloud 的 OAuth 客户端里登记 `https://<域名>/api/auth/callback/google`）
+- `AUTH_SECRET`、`RESEND_API_KEY`、`EMAIL_FROM`（启用邮箱验证码登录时，发件域名需在 Resend 验证）
 - `BLOB_READ_WRITE_TOKEN`（Vercel Blob：图片存储，必填）
 
 Vercel 的 Build Command 会先执行 `npm run prisma:migrate`，再执行应用构建；因此部署前必须配置 `DATABASE_URL`，并确保 Preview 环境不会指向不应迁移的生产数据库。生产 schema 变更只执行 `npm run prisma:migrate`（内部仅运行 `prisma migrate deploy`），不要运行 `prisma db push`、`prisma migrate reset` 等破坏性命令。该命令会用有限重试包装器处理 Neon 冷启动时的短暂连接失败，不会重试 SQL、认证或 Schema 错误。

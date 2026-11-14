@@ -25,7 +25,7 @@ sequenceDiagram
         Browser->>PrivateBlob: Direct binary upload with progress
     end
     Browser->>ChatAPI: Submit text and signed upload references
-    ChatAPI->>Auth: Resolve anonymous user
+    ChatAPI->>Auth: Resolve device or signed-in account user
     Auth->>Database: Find or create user
     ChatAPI->>Database: Reserve daily chat quota atomically
     ChatAPI->>Database: Find or create session
@@ -38,7 +38,7 @@ sequenceDiagram
     end
 
     ChatAPI->>Database: Save user message
-    ChatAPI->>Database: Load recent history
+    ChatAPI->>Database: Load history or restore provider compaction state
     ChatAPI->>Provider: Start response
     Provider-->>ChatAPI: Stream text
     ChatAPI-->>Browser: Stream text
@@ -47,7 +47,7 @@ sequenceDiagram
 
 ## 前端发送的数据
 
-`/api/chat` 在调用模型前预占当天的聊天次数，笔记内 AI 助手也使用同一份额度。满额时返回 `429` 与 `code: "usage_limit"`；游客看到可关闭的 Google 登录引导。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)。
+`/api/chat` 在调用模型前预占当天的聊天次数，笔记内 AI 助手也使用同一份额度。满额时返回 `429` 与 `code: "usage_limit"`；游客看到可关闭的登录引导，点开与侧栏相同的 Google / 邮箱登录弹窗（按服务端配置显示）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)。
 
 `src/app/[locale]/app/page.tsx`（`/app` 工作区）会构建：
 
@@ -92,7 +92,7 @@ create Session
 title = message 前部生成（仅作临时标题）
 ```
 
-所以 Session 所有权始终跟匿名设备绑定。
+所以 Session 所有权始终跟服务端识别的 `User` 绑定：未登录时由签名设备 Cookie 定位，Google / 邮箱登录后由账号会话定位。账号关联与匿名数据处理见 [database.md](database.md#user)。
 
 在项目里新建聊天时使用 `POST /api/sessions`，body 除 `icon` 外还可带 `projectId`，会话从一开始就属于该项目：`projectId` 必须是非空字符串，否则 400 `Project must be a project ID.`；项目不存在或不属于当前用户则 404，且不创建会话；`null` 或不带表示不入项目，也不查项目。会话的 `projectId` 决定每次发送时是否带入项目的共通指示和参考笔记，见下文“项目的共通指示与参考笔记”。
 
@@ -216,8 +216,8 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 - `search_notes({ query })`：在数据库内搜索该用户的全部笔记（不含 Trash 里的，SQL 带 `"deletedAt" IS NULL`）。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。不做同义词或翻译，工具说明会提示模型换说法重试。
 - `read_note({ noteId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断；Trash 里的笔记视为不存在（返回 Note not found）。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回笔记 `version`。
-- `list_chat_attachments()`：列出当前聊天里用户附加的文件（最新在前，最多 30 个），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
-- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不写库**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###`、`-` 列表、`1.`、`- [ ]`、`>`、代码围栏、`---`、粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套，每个非空行一个块），`src/lib/page-edit.ts` 把编辑应用到笔记块上，再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
+- `list_chat_attachments()`：列出当前聊天里的附件（最新在前，最多 30 个，包含用户上传和助手生成的图片），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MiB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
+- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###`、`-` 列表、`1.`、`- [ ]`、`>`、代码围栏、`---`、粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套，每个非空行一个块），`src/lib/page-edit.ts` 把编辑应用到笔记块上，再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
 
 两条循环实现：
 
@@ -228,7 +228,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 每轮工具循环都要重发此前全部内容。Claude 请求带顶层 `cache_control`（自动提示缓存），重复的前缀按缓存读取计费；OpenAI 和 DeepSeek 的前缀缓存由厂商自动处理，无需参数。
 
-- `propose_note_create({ title, markdown, icon })`：**只提议新建，不写库**。`markdown` 用与编辑相同的格式转成块（为 null 时是空笔记，最长 60,000 字符），`icon` 是一个 emoji 或 null；整体用保存笔记时同一个 `validateNoteContent` 校验。不读数据库，所以不需要 userId，失败（标题为空、标题过长、icon 不是 emoji、Markdown 过长）作为工具错误返回给模型。
+- `propose_note_create({ title, markdown, icon })`：**只提议新建，不直接创建笔记**。`markdown` 用与编辑相同的格式转成块（为 null 时是空笔记，最长 60,000 字符），`icon` 是一个 emoji 或 null；整体用保存笔记时同一个 `validateNoteContent` 校验。工具接收服务端识别的 `userId` 和 `sessionId`；Markdown 含 `attachment:ID` 时会查库验证附件归属，并把图片复制到用户的笔记文件目录，再校验文件引用归属。成功后保存 `NoteProposal`，用户确认时才创建 `NotePage`；校验或附件处理失败作为工具错误返回给模型。
 
 ### 编辑案与确认
 
