@@ -111,7 +111,6 @@ import java.util.Locale
 private val MarkColor = Color(0x66FFCF00)
 
 // CSS 的 ease-out / ease。
-private val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 private val CssEase = CubicBezierEasing(0.25f, 0.1f, 0.25f, 1f)
 
 @Composable

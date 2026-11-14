@@ -13,6 +13,7 @@ import com.kakumine.studymate.data.NoteTrashItem
 import com.kakumine.studymate.data.NotesBackend
 import com.kakumine.studymate.data.NotesList
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +72,8 @@ data class NotesUiState(
     val notice: NotesError? = null,
     /** 回收站窗口；null 表示没打开。 */
     val trash: TrashUiState? = null,
+    /** 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。 */
+    val iconError: Boolean = false,
 ) {
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。 */
     val loosePages: List<NotePageSummary>
@@ -94,6 +97,8 @@ class PrefsNotesPrefs(context: Context) : NotesPrefs {
 class NotesViewModel(
     private val backend: NotesBackend,
     private val prefs: NotesPrefs,
+    /** 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。 */
+    private val noteIcons: com.kakumine.studymate.data.NoteIconBackend = com.kakumine.studymate.data.NoteIconBackend { _, _ -> error("no icon backend") },
 ) : ViewModel() {
     private val _state = MutableStateFlow(NotesUiState(collapsed = prefs.collapsedGroups))
     val state: StateFlow<NotesUiState> = _state.asStateFlow()
@@ -149,6 +154,9 @@ class NotesViewModel(
     /** 登录或退出后身份变了：清掉列表和打开的笔记，按新身份重新读。 */
     fun onIdentityChanged() {
         identity++
+        // 旧身份的图标写入不再算数：等着它的打开操作放行，新身份同一篇笔记的选择重新排队。
+        iconWrites.values.forEach { it.done.complete(false) }
+        iconWrites.clear()
         loadJob?.cancel()
         // 换身份前排着的打开 / 新建不再执行，回收站里进行中的操作也不再写回。
         navigationJob?.cancel()
@@ -180,9 +188,11 @@ class NotesViewModel(
      * 和网页 /app 一样不把人困在笔记里（网页切走时也只是 `void flush()`，草稿留在 localStorage 之后重试）。
      * 保存途中编辑器自己关掉了（笔记已不存在）也放行。同一时刻只跑一个导航，连点不会叠加。
      */
-    private fun leaveThen(action: suspend () -> Unit) {
+    private fun leaveThen(before: (suspend () -> Unit)? = null, action: suspend () -> Unit) {
         if (navigationJob?.isActive == true) return
         navigationJob = viewModelScope.launch {
+            // 先等（例如目标笔记的图标写入），再保存当前笔记：等待期间在旧编辑器里输入的内容也会存上。
+            before?.invoke()
             if (_state.value.open != null) {
                 val warned = _state.value.notice?.kind == NotesError.Kind.UnsavedDraft
                 val result = flushOpen()
@@ -229,8 +239,13 @@ class NotesViewModel(
             title != null -> OpenNote(id, title, icon)
             else -> return
         }
-        leaveThen {
-            _state.update { it.copy(workspace = Workspace.Notes, open = open, saveState = null, notice = null) }
+        // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
+        val pending = iconWrites[id]
+        leaveThen(before = { pending?.done?.await() }) {
+            val target = if (pending == null) open else {
+                _state.value.pages.firstOrNull { it.id == id }?.let { OpenNote(it.id, it.title, it.icon) } ?: open
+            }
+            _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
         }
     }
 
@@ -431,6 +446,57 @@ class NotesViewModel(
         Pair({ _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) } }, true)
     } ?: false
 
+    /** 一篇笔记正在写的图标（[changeIcon]）。[desired] 是最后选的值，[dirty] 表示还有没发出去的选择。 */
+    private class IconWrite(var desired: String?) {
+        var dirty = true
+        val done = CompletableDeferred<Boolean>()
+    }
+
+    /** 每篇笔记同一时刻只有一个 PUT：中途再选的图标合并成下一次请求，响应按顺序写进列表，版本号不会倒退。 */
+    private val iconWrites = HashMap<String, IconWrite>()
+
+    /**
+     * 侧栏里改笔记图标（网页 use-note-pages.ts 的 changeIcon，只用于没打开的笔记）。成功后列表换成服务端的图标和版本号；
+     * 失败返回 false 并在侧栏显示"Could not change the icon. Try again."。
+     * 同一篇的请求串行：前一个还没回来时只记下最新的选择，等它回来再发（中间的选择不发）；所有调用者拿到整串的结果。
+     * 只在主线程调用。
+     */
+    suspend fun changeIcon(pageId: String, icon: String?): Boolean {
+        _state.update { it.copy(iconError = false) }
+        iconWrites[pageId]?.let { pending ->
+            pending.desired = icon
+            pending.dirty = true
+            return pending.done.await()
+        }
+        val owner = identity
+        val write = IconWrite(icon)
+        iconWrites[pageId] = write
+        var ok = false
+        try {
+            while (write.dirty) {
+                write.dirty = false
+                val page = noteIcons.setNoteIcon(pageId, write.desired)
+                val applied = commit(owner) {
+                    _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(icon = page.icon, version = page.version) else it }) }
+                }
+                if (!applied) return false
+            }
+            ok = true
+            return true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (owner == identity) _state.update { it.copy(iconError = true) }
+            return false
+        } finally {
+            if (iconWrites[pageId] === write) iconWrites.remove(pageId)
+            write.done.complete(ok)
+        }
+    }
+
+    /** 抽屉重新打开时清掉上次改图标失败的提示（网页侧栏关掉后组件卸载，iconError 跟着没了）。 */
+    fun dismissIconError() = _state.update { it.copy(iconError = false) }
+
     fun toggleGroup(id: String) {
         val next = _state.value.collapsed.let { if (id in it) it - id else it + id }
         prefs.collapsedGroups = next
@@ -534,7 +600,7 @@ class NotesViewModel(
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
                 val app = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY] as StudyMateApp
-                return NotesViewModel(app.api, PrefsNotesPrefs(app)) as T
+                return NotesViewModel(app.api, PrefsNotesPrefs(app), com.kakumine.studymate.data.NoteIconApi(app.api.http)) as T
             }
         }
     }

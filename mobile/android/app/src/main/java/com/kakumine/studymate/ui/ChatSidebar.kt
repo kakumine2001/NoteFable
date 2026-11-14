@@ -148,6 +148,8 @@ internal fun ChatDrawerBody(
     onOpen: (String) -> Unit,
     onRetry: () -> Unit,
     closeDrawer: () -> Unit,
+    /** 行首图标改表情（网页 chat-sidebar.tsx 的 .chat-row-icon-button）。 */
+    onChangeIcon: (sessionId: String, icon: String?) -> Unit,
     modifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
 ) {
@@ -184,6 +186,7 @@ internal fun ChatDrawerBody(
             val rowProps = RowProps(
                 activeId = state.activeSessionId, side = side, drag = drag,
                 onOpen = onOpen,
+                onChangeIcon = onChangeIcon,
                 onMenu = { session, anchor -> action = ChatAction.Menu(session, anchor) },
                 onPin = sidebar::togglePin,
                 onDrop = { id ->
@@ -274,6 +277,7 @@ private class RowProps(
     val side: SidebarUiState,
     val drag: DragState,
     val onOpen: (String) -> Unit,
+    val onChangeIcon: (String, String?) -> Unit,
     val onMenu: (SessionSummary, IntRect) -> Unit,
     val onPin: (SessionSummary) -> Unit,
     val onDrop: (String) -> Unit,
@@ -456,14 +460,19 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                 Alignment.Center,
             ) { LucideIcon(Lucide.GripVertical, 13.dp, Sm.Muted) }
 
+            // 图标按钮 40×40（左距 2、圆角 4）：表情（.notes-row-icon 15、行高 1）或 MessageSquareText 15 灰，点开表情选择器（aria-label "Change icon of {title}"）。
+            EmojiTriggerButton(
+                current = session.icon,
+                onChange = { icon -> props.onChangeIcon(session.id, icon) },
+                description = stringResource(R.string.em_change_icon_of, session.title),
+                modifier = Modifier.padding(start = 2.dp).size(40.dp),
+            ) {
+                if (session.icon != null) Text(session.icon, fontSize = 15.sp, lineHeight = 15.sp) else LucideIcon(Lucide.MessageSquareText, 15.dp, Sm.Muted)
+            }
             Row(
                 Modifier.weight(1f).height(44.dp).clickable { props.onOpen(session.id) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // 图标区 40（左距 2）：表情或 MessageSquareText 15 灰。改图标在网页上是这个按钮，原生版还没有表情选择器，点它等于打开聊天。
-                Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) {
-                    if (session.icon != null) Text(session.icon, fontSize = 16.sp) else LucideIcon(Lucide.MessageSquareText, 15.dp, Sm.Muted)
-                }
                 Text(
                     session.title,
                     modifier = Modifier.weight(1f).padding(end = 8.dp),

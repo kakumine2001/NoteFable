@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 表情选择器与聊天 / 笔记图标（Batch 6）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="em_emoji">表情</string>
+    <string name="em_random">隨機</string>
+    <string name="em_remove">移除</string>
+    <string name="em_cat_suggested">最近使用</string>
+    <string name="em_cat_smileys_people">表情與人物</string>
+    <string name="em_cat_animals_nature">動物與自然</string>
+    <string name="em_cat_food_drink">食物與飲品</string>
+    <string name="em_cat_travel_places">旅行與地點</string>
+    <string name="em_cat_activities">活動</string>
+    <string name="em_cat_objects">物品</string>
+    <string name="em_cat_symbols">符號</string>
+    <string name="em_cat_flags">旗幟</string>
+    <string name="em_search_placeholder">搜尋表情…</string>
+    <string name="em_search_label">搜尋表情</string>
+    <string name="em_clear_search">清除搜尋</string>
+    <string name="em_none_found">沒有找到表情</string>
+    <string name="em_categories">表情分類</string>
+    <string name="em_tone_neutral">預設膚色</string>
+    <string name="em_tone_light">淺膚色</string>
+    <string name="em_tone_medium_light">中淺膚色</string>
+    <string name="em_tone_medium">中等膚色</string>
+    <string name="em_tone_medium_dark">中深膚色</string>
+    <string name="em_tone_dark">深膚色</string>
+    <string name="em_change_chat_icon">更換聊天圖示</string>
+    <string name="em_change_icon_of">更換 %1$s 的圖示</string>
+    <string name="em_choose">選擇表情</string>
+    <string name="em_current">當前表情</string>
+    <string name="em_chat_icon_failed">更換聊天圖示失敗。</string>
+    <string name="em_note_icon_failed">無法更換圖示，請重試。</string>
+    <string name="em_loading">正在載入表情…</string>
+    <string name="em_load_failed">無法載入表情。</string>
+</resources>

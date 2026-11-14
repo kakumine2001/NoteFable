@@ -56,6 +56,7 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
@@ -144,6 +145,8 @@ fun NotesDrawerBody(
     onRenameGroup: (NoteGroupSummary) -> Unit,
     onDeleteGroup: (NoteGroupSummary) -> Unit,
     onOpenTrash: () -> Unit,
+    /** 行首图标改表情（网页 notes-sidebar.tsx 的 .chat-row-icon-button；打开着的笔记在编辑器里改）。 */
+    onChangeIcon: (NotePageSummary, String?) -> Unit,
     modifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
 ) {
@@ -187,13 +190,18 @@ fun NotesDrawerBody(
                             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 12.sp, lineHeight = 16.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
                         }
-                        members.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash) }
+                        members.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash, onChangeIcon) }
                     }
                 }
             }
+            // 网页：改图标失败的提示在 NOTES 标签上方，px-2、12 红字。
+            if (state.iconError) {
+                Text(stringResource(R.string.em_note_icon_failed), color = Sm.Danger, fontSize = 12.sp, lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive })
+            }
             val notesLabel = stringResource(R.string.notes).uppercase()
             Text(notesLabel, style = roleLabelStyle(notesLabel), modifier = Modifier.padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp))
-            state.loosePages.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash) }
+            state.loosePages.forEach { page -> NoteRow(page, state.open?.id == page.id, busy, onOpen, onMove, onTrash, onChangeIcon) }
             if (state.pages.isEmpty() && state.loaded) {
                 Text(stringResource(R.string.notes_list_empty), color = Sm.Muted, fontSize = 12.sp, lineHeight = 20.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
@@ -245,6 +253,7 @@ private fun NoteRow(
     onOpen: (String) -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onTrash: (NotePageSummary) -> Unit,
+    onChangeIcon: (NotePageSummary, String?) -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
@@ -259,7 +268,19 @@ private fun NoteRow(
             .clickable(enabled = !busy) { onOpen(page.id) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+        if (active) {
+            // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
+            Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+        } else {
+            // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
+            EmojiTriggerButton(
+                current = page.icon,
+                onChange = { icon -> onChangeIcon(page, icon) },
+                description = stringResource(R.string.em_change_icon_of, page.title),
+                modifier = Modifier.padding(start = 2.dp).size(40.dp),
+                enabled = !busy,
+            ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+        }
         Text(
             page.title,
             modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
