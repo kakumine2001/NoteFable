@@ -16,6 +16,7 @@ import com.kakumine.studymate.data.applyProfileEdit
 import com.kakumine.studymate.data.profileEditChanges
 import com.kakumine.studymate.data.serverMessage
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -167,14 +168,33 @@ class AccountViewModel(
      * 邮箱登录第二步：核对验证码（网页 SignInDialog.verify）。成功后和 Google 登录一样重新读账号、通知换了身份，返回 null。
      * [beforeIdentityChange] 在验证码通过、身份真正换掉之前做完（把打开的笔记存掉）。
      */
-    suspend fun verifyEmailCode(email: String, code: String, beforeIdentityChange: suspend () -> Unit, onSignedIn: () -> Unit): SignInError? =
-        emailStep {
+    suspend fun verifyEmailCode(email: String, code: String, beforeIdentityChange: suspend () -> Unit, onSignedIn: () -> Unit): SignInError? {
+        // 存笔记失败不是网络问题，也还没核对验证码：按"出了点问题"报，不继续换身份。
+        try {
             beforeIdentityChange()
-            backend.emailSignInVerify(email, code)
-            // 会话已经换了：读不到账号也算登录成功（下次刷新会补上），不把它报成验证码错误。
-            runCatching { backend.account() }.onSuccess(::applyAccount)
-            onSignedIn()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Throwable) {
+            return SignInError.Generic
         }
+        // 放在 viewModelScope 里跑完：验证码一通过会话就换了，登录窗口这时关掉（它的协程被取消）也要把"换了身份"通知出去。
+        return viewModelScope.async {
+            emailStep {
+                backend.emailSignInVerify(email, code)
+                // 读不到账号也算登录成功（下次刷新会补上），不把它报成验证码错误。
+                try {
+                    applyAccount(backend.account())
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (_: Throwable) {
+                }
+                onSignedIn()
+            }
+        }.await()
+    }
+
+    /** 打开登录窗口时清掉上一次 Google 登录失败的提示（网页的 failed 是窗口自己的状态，每次打开都是新的）。 */
+    fun clearSignInFailed() = _state.update { it.copy(signInFailed = false) }
 
     // 网页 post()：服务端给了原因就用原因，没有就是 "Something went wrong. Try again."；连不上是 "Check your connection and try again."。
     private suspend fun emailStep(block: suspend () -> Unit): SignInError? = try {

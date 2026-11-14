@@ -92,7 +92,7 @@ fun SignInButton(onClick: () -> Unit, modifier: Modifier = Modifier, shape: Shap
 private enum class SignInStep { Choose, Code }
 
 /**
- * 登录窗口（网页 SignInDialog，globals.css 的 .signin-*，412 宽手机下的值）：
+ * 登录窗口（网页 SignInDialog，globals.css 的 .signin-*；数值是在 412×915 下对网页量的计算样式）：
  * - 外框：dialog.signin-dialog 宽 min(100% − 32, 400)，再受浏览器 `<dialog>` 默认 max-width（100% − 38）限制，412 宽时是 374（左右各 19）；
  *   内边距 32 / 28 / 24，白底、圆角 8、--notion-shadow。右上 12 处 32 的关闭键（✕ 18 灰，圆角 6）。
  * - 第一屏：标题 22/700 居中、字距 −0.01em；副标题 14 / 行高 1.5 灰，上 6.4 下 24；"使用 Google 继续"（高 44、圆角 8、15 字）；
@@ -124,6 +124,7 @@ fun SignInDialog(
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
     val close = { if (!busy) onClose() }
+    LaunchedEffect(Unit) { profile.clearSignInFailed() }
 
     val sendCode: (Boolean) -> Unit = send@{ again ->
         val address = if (again) sentTo else email

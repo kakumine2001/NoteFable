@@ -112,6 +112,15 @@ class AccountViewModelTest {
     }
 
     @Test
+    fun `a note that cannot be saved stops the email sign-in before the code is checked`() = runTest(dispatcher) {
+        val backend = FakeAccount()
+        val vm = model(backend)
+        advanceUntilIdle()
+        assertEquals(SignInError.Generic, vm.verifyEmailCode("a@example.test", "123456", { throw IllegalStateException("save failed") }, {}))
+        assertTrue(backend.calls.none { it.startsWith("emailVerify") })
+    }
+
+    @Test
     fun `the code field keeps only six digits`() {
         assertEquals("123456", cleanLoginCode("12 34-56 78"))
         assertEquals("", cleanLoginCode("abc"))

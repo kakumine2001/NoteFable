@@ -36,6 +36,8 @@
 
 ## Google 登录（App 内）
 
+App 里点"登录"打开和网页相同的登录窗口（`ui/SignInDialog.kt`，见 [android-native.md](android-native.md)），里面按服务端开着的方式列出"使用 Google 继续"和邮箱验证码登录。邮箱登录直接用网页的 `/api/auth/email/start` 和 `/api/auth/email/verify`（原生请求不带 `Origin`，服务端放行），不经过下面的 `native-auth` 接口。
+
 Google 不允许在内嵌 WebView 里走网页登录，App 用安卓系统的账号选择框（Credential Manager）拿 ID 令牌，再交给服务端换成和网页相同的会话 Cookie。
 
 1. App 先 `POST /api/native-auth/nonce` 拿一个使用一次的 nonce（服务端同时把签名后的副本写进 `studymate_native_nonce` Cookie，路径限定 `/api/native-auth`，5 分钟有效）。
