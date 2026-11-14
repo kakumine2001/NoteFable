@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findProject: vi.fn(), updateProject: vi.fn(), findNotes: vi.fn(), deleteLinks: vi.fn(), createLinks: vi.fn(), lock: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => {
   const tx = {
     chatProject: { findFirst: mocks.findProject, updateMany: mocks.updateProject },

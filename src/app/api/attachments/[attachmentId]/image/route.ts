@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getStoredImageReadUrl, readStoredImage } from "@/lib/storage";
 import { msg } from "@/lib/i18n/translate";
@@ -14,7 +14,7 @@ export async function GET(_request: Request, context: RouteContext) {
   // 添付画像を返す前に、画像が現在の匿名ユーザーのセッションに紐づくか確認する。
   // ファイルパスを URL に直接出さず、この API を通すことでアクセス制御とキャッシュ設定をまとめる。
   // 現在アクセスしている匿名ユーザー。添付の所有者確認に使う。
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   // URL の [attachmentId] パラメータ。
   const { attachmentId } = await context.params;
 

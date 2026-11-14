@@ -10,7 +10,7 @@ function fail(status: number, error: string) {
 
 // 確認コードが合えば、Google ログインと同じ形式のログイン Cookie を発行する。
 // 利用者の行との紐付け（同じアドレスの人がいればその人、いなければこの端末の匿名データを引き継ぐ）は
-// 次のリクエストで getOrCreateAnonymousUser が行う（Google ログインと同じ）。
+// 次のリクエストで getOrCreateUser が行う（Google ログインと同じ）。
 export async function POST(request: NextRequest) {
   if (!isEmailLoginConfigured()) return fail(404, msg("Email sign-in is not enabled."));
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return fail(403, "Forbidden.");

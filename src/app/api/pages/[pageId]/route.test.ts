@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   find: vi.fn(), update: vi.fn(), purge: vi.fn(), raw: vi.fn(), unsafe: vi.fn(), revisionFind: vi.fn(), revisionDelete: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.purge };
   const noteRevision = { findMany: mocks.revisionFind, deleteMany: mocks.revisionDelete };

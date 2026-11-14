@@ -55,7 +55,7 @@ export const authCallbacks = {
   },
 };
 
-// セッションは JWT Cookie に持たせる。利用者データは AnonymousUser 側に保存するので DB adapter は使わない。
+// セッションは JWT Cookie に持たせる。利用者データは User 側に保存するので DB adapter は使わない。
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [Google],
   session: { strategy: "jwt" },

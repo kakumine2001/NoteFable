@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError } from "@/lib/note-document";
 import { MAX_NOTE_GROUPS, readSmallJson, validGroupName } from "@/lib/note-groups";
@@ -10,7 +10,7 @@ import { fmt } from "@/lib/i18n/translate";
 export async function POST(request: Request) {
   try {
     const name = validGroupName((await readSmallJson(request)).name);
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const group = await prisma.$transaction(async (tx) => {
       const existing = await tx.noteGroup.aggregate({ where: { userId: user.id }, _count: true, _max: { position: true } });
       if (existing._count >= MAX_NOTE_GROUPS) throw new NoteValidationError(fmt("You can have at most {max} groups.", { max: MAX_NOTE_GROUPS }));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { trashCutoff } from "@/lib/note-trash";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +13,7 @@ const notFound = () => NextResponse.json({ error: msg("Note not found in the tra
 // 応答は GET /api/pages の 1 件と同じ形で、そのまま一覧へ加えられる。
 export async function POST(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const restored = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id, deletedAt: { gte: trashCutoff() } }, data: { deletedAt: null } });
     if (!restored.count) return notFound();
@@ -28,7 +28,7 @@ export async function POST(_request: Request, context: Context) {
 // ゴミ箱にある 1 件を完全に削除する（元に戻せない）。通常のノートはこの API では消せない。
 export async function DELETE(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.deleteMany({ where: { id: pageId, userId: user.id, deletedAt: { not: null } } });
     return result.count ? NextResponse.json({ ok: true }) : notFound();

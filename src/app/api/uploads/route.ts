@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { optionalEnv } from "@/lib/env";
 import { issueUploadTicket, validateUploadMetadata, verifyUploadTicket } from "@/lib/chat-upload-ticket";
 import { cleanupExpiredChatUploads, parseUploadReferences, removeChatUploads } from "@/lib/chat-uploads";
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
     const raw = await readLimitedBody(request, 64 * 1024);
     if (!raw) throw new AttachmentValidationError(msg("Upload request is too large."), 413);
     const body = JSON.parse(new TextDecoder().decode(raw));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     if (body.type === "blob.generate-client-token") {
       const result = await handleUpload({
         request, body: body as HandleUploadBody,
@@ -42,7 +42,7 @@ export async function DELETE(request: Request) {
     const raw = await readLimitedBody(request, 128 * 1024);
     if (!raw) throw new Error();
     const body = JSON.parse(new TextDecoder().decode(raw));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const tickets = parseUploadReferences(body.uploads);
     await removeChatUploads(tickets, user.id);
     return NextResponse.json({ ok: true });

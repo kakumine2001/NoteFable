@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError } from "@/lib/note-document";
@@ -15,7 +15,7 @@ export async function PUT(request: Request, context: Context) {
   try {
     const { icon } = await readSmallJson(request);
     if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji."));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.updateMany({
       where: { id: pageId, userId: user.id, deletedAt: null },

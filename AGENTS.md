@@ -25,7 +25,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 ## Auth
 
 - Keep the anonymous signed device-cookie model unless an auth redesign is requested. It separates ownership; it is not access control. No public multi-user features unless requested.
-- Optional Google login (Auth.js, JWT, no DB adapter) links to `AnonymousUser` via `googleSub`: key on the provider account id, never `token.sub`. A device cookie pointing at a Google-linked row must not be served anonymously.
+- Optional Google login (Auth.js, JWT, no DB adapter) links to `User` via `googleSub`: key on the provider account id, never `token.sub`. A device cookie pointing at a Google-linked row must not be served anonymously.
 - Daily usage limits: plans in `src/lib/usage-plans.ts`, enforcement in `src/lib/usage-limits.ts`. Preserve rejected drafts across sign-in and navigation.
 
 ## Models and API

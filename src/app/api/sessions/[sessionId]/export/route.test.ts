@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { conversationToMarkdownFile } from "@/lib/answer-export";
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), messages: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: { session: { findFirst: mocks.session }, message: { findMany: mocks.messages } } }));
 import { GET } from "./route";
 

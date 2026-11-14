@@ -3,7 +3,7 @@ import { answerToNoteContent } from "@/lib/answer-export";
 import { validateNoteContent } from "@/lib/note-document";
 
 const mocks = vi.hoisted(() => ({ session: vi.fn(), create: vi.fn(), transaction: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     session: { findFirst: mocks.session },

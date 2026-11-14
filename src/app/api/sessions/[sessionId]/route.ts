@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 }
 async function updateMetadata(request: NextRequest, context: RouteContext) {
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   const { sessionId } = await context.params;
 
   const body = await request.json().catch(() => null);
@@ -77,7 +77,7 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
   // セッション ID だけで削除すると、別ユーザーの会話を消せてしまう。
   // userId も where 条件に含め、現在の匿名ユーザーが所有するセッションだけ削除する。
   // 現在の匿名ユーザー。削除条件の userId に使う。
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   // Next.js の動的ルート [sessionId] から削除対象 ID を取り出す。
   const { sessionId } = await context.params;
 

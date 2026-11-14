@@ -17,7 +17,7 @@ vi.mock("@/lib/google-auth", () => ({
   auth: mocks.auth,
 }));
 vi.mock("@/lib/auth", () => ({
-  getOrCreateAnonymousUser: mocks.currentUser,
+  getOrCreateUser: mocks.currentUser,
   isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
   currentAccountProfile: async () => {
     if (!mocks.configured()) return null;
@@ -26,7 +26,7 @@ vi.mock("@/lib/auth", () => ({
     return user?.id ? { name: user.name ?? null, email: user.email ?? null, image: user.image ?? null } : null;
   },
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { anonymousUser: { update: mocks.update, updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: mocks.update, updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
 import { GET, PATCH } from "./route";
 

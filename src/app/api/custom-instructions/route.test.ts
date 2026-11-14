@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ user: vi.fn(), update: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
-  getOrCreateAnonymousUser: mocks.user,
+  getOrCreateUser: mocks.user,
   isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { anonymousUser: { update: mocks.update } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: mocks.update } } }));
 import { GET, PUT } from "./route";
 
 const put = (body: unknown) => PUT(new Request("http://localhost/api/custom-instructions", { method: "PUT", body: typeof body === "string" ? body : JSON.stringify(body) }));

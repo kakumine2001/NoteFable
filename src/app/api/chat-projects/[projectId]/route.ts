@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { readSmallJson } from "@/lib/note-groups";
 import { NoteValidationError } from "@/lib/note-document";
@@ -10,7 +10,7 @@ const NOT_FOUND = { error: msg("Project not found.") };
 // 設定画面用。ゴミ箱のノートは含めず、選んだ順に返す。
 export async function GET(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { projectId } = await context.params;
     const project = await prisma.chatProject.findFirst({
       where: { id: projectId, userId: user.id },
@@ -33,7 +33,7 @@ export async function PATCH(request: Request, context: Context) {
     if ("instructions" in body) data.instructions = validProjectInstructions(body.instructions);
     const noteIds = "noteIds" in body ? validProjectNoteIds(body.noteIds) : undefined;
     if (!Object.keys(data).length && !noteIds) throw new NoteValidationError(msg("Nothing to update."));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { projectId } = await context.params;
     const project = await prisma.$transaction(async tx => {
       // 同じプロジェクトへの置き換えが重なっても、削除と作成が入り交じらないようにする。
@@ -56,7 +56,7 @@ export async function PATCH(request: Request, context: Context) {
 }
 export async function DELETE(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { projectId } = await context.params;
     const result = await prisma.chatProject.deleteMany({ where: { id: projectId, userId: user.id } });
     return result.count ? NextResponse.json({ ok: true }) : NextResponse.json(NOT_FOUND, { status: 404 });

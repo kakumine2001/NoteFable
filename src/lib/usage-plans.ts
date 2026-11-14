@@ -1,7 +1,7 @@
 // 日ごとの上限の数値と、上限に達したときの API 応答の形。サーバーと画面の両方から読むので、DB などには依存させない。
 
 export type UsageKind = "chat" | "image";
-// guest: 未ログイン、member: Google ログイン済み、pro: 有料プラン（AnonymousUser.plan = PRO）。
+// guest: 未ログイン、member: Google ログイン済み、pro: 有料プラン（User.plan = PRO）。
 export type UsageTier = "guest" | "member" | "pro";
 
 // 1 日あたりの上限。チャットは送信 1 回、画像は生成 1 枚で 1 回と数える。

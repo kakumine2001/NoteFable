@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
+import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import {
   AttachmentValidationError,
@@ -372,11 +372,11 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     .filter((value): value is File => value instanceof File);
 
   const uploadRefs = formData.get("uploads");
-  let uploadUser: Awaited<ReturnType<typeof getOrCreateAnonymousUser>> | undefined;
+  let uploadUser: Awaited<ReturnType<typeof getOrCreateUser>> | undefined;
   if (uploadRefs) {
     try {
       const tickets = parseUploadReferences(uploadRefs);
-      uploadUser = await getOrCreateAnonymousUser();
+      uploadUser = await getOrCreateUser();
       files = await loadChatUploads(tickets, uploadUser.id, files);
     } catch (error) {
       return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : msg("Unable to read attachments. Please upload them again.") }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
@@ -401,7 +401,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
 
 
   // 署名付き Cookie から匿名ユーザーを取得または作成し、以降の DB 操作の所有者にする。
-  const user = uploadUser ?? await getOrCreateAnonymousUser();
+  const user = uploadUser ?? await getOrCreateUser();
 
   // ノート用の送信なら、自分のノートかを確かめる（他人のノートや存在しないノートは使わせない）。
   const note = noteId

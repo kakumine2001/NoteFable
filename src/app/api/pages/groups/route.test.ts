@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   aggregate: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), pageUpdateMany: vi.fn(),
 }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "mine" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => {
   const noteGroup = { aggregate: mocks.aggregate, create: mocks.create, updateMany: mocks.updateMany, deleteMany: mocks.deleteMany, count: mocks.count };
   const notePage = { updateMany: mocks.pageUpdateMany };

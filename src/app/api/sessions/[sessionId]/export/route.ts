@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { answerConversationUrl, answerFileName, conversationToMarkdownFile } from "@/lib/answer-export";
 import { savedAtFrom, toConversationMessages } from "@/lib/answer-export-server";
 import { prisma } from "@/lib/prisma";
@@ -12,7 +12,7 @@ type RouteContext = { params: Promise<{ sessionId: string }> };
 // USER / ASSISTANT だけを読み、SYSTEM メッセージや providerContext は読まない。
 // ?date=YYYY-MM-DD は端末の日付（出典の日付）。→ 200 { fileName, markdown }
 export async function GET(request: Request, context: RouteContext) {
-  const user = await getOrCreateAnonymousUser();
+  const user = await getOrCreateUser();
   const { sessionId } = await context.params;
   const session = await prisma.session.findFirst({
     where: { id: sessionId, userId: user.id, noteId: null },

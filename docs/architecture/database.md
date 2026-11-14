@@ -59,24 +59,24 @@ Node 运行时在创建 adapter 前，通过 `src/lib/database-url.ts` 把 `sslm
 
 ```mermaid
 erDiagram
-    AnonymousUser ||--o{ Session : owns
-    AnonymousUser ||--o{ ChatProject : owns
+    User ||--o{ Session : owns
+    User ||--o{ ChatProject : owns
     ChatProject ||--o{ Session : groups
     Session ||--o{ Message : contains
     Message ||--o{ Attachment : has
-    AnonymousUser ||--o{ NotePage : owns
-    AnonymousUser ||--o{ NoteCoverAsset : uploads
-    AnonymousUser ||--o{ NoteGroup : owns
+    User ||--o{ NotePage : owns
+    User ||--o{ NoteCoverAsset : uploads
+    User ||--o{ NoteGroup : owns
     NoteGroup ||--o{ NotePage : groups
-    AnonymousUser ||--o{ NoteRevision : owns
+    User ||--o{ NoteRevision : owns
     NotePage ||--o{ NoteRevision : "history (cascade)"
     NotePage ||--o{ Session : "note assistant (cascade)"
     ChatProject ||--o{ ChatProjectNote : "references (cascade)"
     NotePage ||--o{ ChatProjectNote : "referenced by (cascade)"
-    AnonymousUser ||--o{ NoteProposal : owns
+    User ||--o{ NoteProposal : owns
     Session ||--o{ NoteProposal : proposes
 
-    AnonymousUser {
+    User {
         string id PK
         string deviceId
         string googleSub "nullable, unique"
@@ -209,9 +209,11 @@ erDiagram
 
 ## Table Responsibilities
 
-### AnonymousUser
+### User
 
-匿名浏览器设备，同时也是 Google / 邮箱登录后的用户记录（表名沿用，不重命名）。
+用户记录：未登录时是匿名浏览器设备（签名 Cookie），Google / 邮箱登录后也是这一行。表原名 `AnonymousUser`，由 `20261115000000_rename_user_table` migration 改名为 `User`（只改名字，主键和唯一索引一并改名，外键约束名不变）。为了让改名时还在运行的旧版本不报错，这个 migration 同时留了一个同名的可更新视图 `"AnonymousUser"`（`SELECT * FROM "User"`）；它不在 Prisma schema 里，新版本上线后由后续 migration 删除；视图存在期间不能删除 `User` 的列或改列类型。视图删除后，不能再把生产回滚到改名之前的部署（旧代码查的是 `"AnonymousUser"`）。
+
+手写 SQL 时表名必须带双引号：`SELECT * FROM "User"`。`user` 是 PostgreSQL 的保留字，不带引号的 `SELECT * FROM user` 返回的是当前数据库角色，不是这张表。
 
 核心字段：
 
@@ -228,14 +230,14 @@ erDiagram
 关系：
 
 ```text
-AnonymousUser 1 -> N Session
+User 1 -> N Session
 ```
 
 删除用户会级联删除 Session。
 
 ### UsageCounter
 
-每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<AnonymousUser.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
+每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
 
 | 档位 | 条件 | 聊天 / 天 | 图片 / 天 |
 | --- | --- | --- | --- |
@@ -251,7 +253,7 @@ AnonymousUser 1 -> N Session
 
 ### NotePage
 
-站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `AnonymousUser`，删除匿名用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个emoji，`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属匿名用户 ID，服务端只允许引用自己目录下的键；上传封面登记在 `NoteCoverAsset`（`path` 主键、`userId`、`releasedAt`、`deletingAt`）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`），行已不存在则拒绝保存。`collectUnusedCovers()`（`src/lib/note-covers.ts`）先给不再被引用的行记录 `releasedAt`，记录后再次确认引用，避免与保存同时发生时误记。连续未使用 7 天后用条件更新设置 `deletingAt`（此后不能再被引用），删除存储中的图片成功后才删除该行，失败的在下次运行重试；目前没有定时任务调用它（Vercel Cron 已移除），未引用的封面图片会留在存储中，需要时再接入；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。只处理本数据库登记的封面，因此与本地开发共享 Blob 存储也不会误删。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
+站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除匿名用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个emoji，`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属匿名用户 ID，服务端只允许引用自己目录下的键；上传封面登记在 `NoteCoverAsset`（`path` 主键、`userId`、`releasedAt`、`deletingAt`）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`），行已不存在则拒绝保存。`collectUnusedCovers()`（`src/lib/note-covers.ts`）先给不再被引用的行记录 `releasedAt`，记录后再次确认引用，避免与保存同时发生时误记。连续未使用 7 天后用条件更新设置 `deletingAt`（此后不能再被引用），删除存储中的图片成功后才删除该行，失败的在下次运行重试；目前没有定时任务调用它（Vercel Cron 已移除），未引用的封面图片会留在存储中，需要时再接入；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。只处理本数据库登记的封面，因此与本地开发共享 Blob 存储也不会误删。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、匿名用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引用于侧栏列表。所有页面读写限制在当前匿名用户。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 
@@ -261,11 +263,11 @@ AnonymousUser 1 -> N Session
 
 ### NoteGroup
 
-Notes 的单层分组（文件夹）。`userId` 关联 `AnonymousUser`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面只改 `groupId`，不增加 `version`。
+Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面只改 `groupId`，不增加 `version`。
 
 ### NoteRevision
 
-笔记的编辑历史（`20261015100000_note_trash_and_revisions` 新增），是“恢复到过去某个版本”的来源。每一行是**被覆盖之前**的一份快照：`title`、`icon`、`blocks` 和当时的 `NotePage.version`；不保存封面、封面位置、分组和位置，恢复时这些保持现状。`noteId` 指向 `NotePage`，`userId` 指向 `AnonymousUser`，两者都 `ON DELETE CASCADE`；索引 `(noteId, createdAt)` 用于按笔记读取历史，`(userId)` 用于级联删除。
+笔记的编辑历史（`20261015100000_note_trash_and_revisions` 新增），是“恢复到过去某个版本”的来源。每一行是**被覆盖之前**的一份快照：`title`、`icon`、`blocks` 和当时的 `NotePage.version`；不保存封面、封面位置、分组和位置，恢复时这些保持现状。`noteId` 指向 `NotePage`，`userId` 指向 `User`，两者都 `ON DELETE CASCADE`；索引 `(noteId, createdAt)` 用于按笔记读取历史，`(userId)` 用于级联删除。
 
 `reason`（枚举 `NoteRevisionReason`）说明为什么留下这一份：
 

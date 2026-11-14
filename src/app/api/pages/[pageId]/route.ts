@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma } from "@/generated/prisma/client";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
@@ -16,7 +16,7 @@ type Context = { params: Promise<{ pageId: string }> };
 // ゴミ箱のノートは、この API からは読めず、保存もできない（ゴミ箱の API だけが扱う）。
 export async function GET(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
     return page ? NextResponse.json({ page }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
@@ -26,7 +26,7 @@ export async function GET(_request: Request, context: Context) {
 export async function PATCH(request: Request, context: Context) {
   try {
     const update = validateNoteUpdate(await readNoteRequest(request));
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     assertCoverOwner(update.cover, user.id);
     assertNoteFilesOwner(update.blocks, user.id);
@@ -53,7 +53,7 @@ export async function PATCH(request: Request, context: Context) {
 // ノートをゴミ箱へ移す（deletedAt を付けるだけで、位置・グループ・本文はそのまま）。復元は /api/pages/trash/:id。
 export async function DELETE(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { pageId } = await context.params;
     const result = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id, deletedAt: null }, data: { deletedAt: new Date() } });
     if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });

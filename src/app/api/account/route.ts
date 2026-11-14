@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { currentAccountProfile, getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
+import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { optionalEnv } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
@@ -22,7 +22,7 @@ export async function GET() {
     if (!google) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
 
     // 自分で決めた表示名とアイコンは利用者の行に持つ。取れなくても Google の名前と写真で表示を続ける。
-    const row = await getOrCreateAnonymousUser().catch(() => null);
+    const row = await getOrCreateUser().catch(() => null);
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null }, google);
     return NextResponse.json({ configured: true, ...methods, user, googleClientId });
   } catch {
@@ -51,7 +51,7 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const row = await getOrCreateAnonymousUser();
+  const row = await getOrCreateUser();
   // 念のためアカウントに紐付いた行だけを更新する（匿名の行は変えない）。
   if (!isAccountUser(row)) {
     return NextResponse.json({ error: msg("Sign in to edit your profile.") }, { status: 401 });
@@ -62,17 +62,17 @@ export async function PATCH(request: Request) {
   let updated;
   if (replacesPhoto) {
     // 読んだときの写真のままの場合だけ外す。別のタブが同時に新しい写真をアップロードしていたら、そちらを消さない。
-    const result = await prisma.anonymousUser.updateMany({
+    const result = await prisma.user.updateMany({
       where: { id: row.id, avatarImage: row.avatarImage },
       data: { ...parsed.data, avatarImage: null },
     });
     if (!result.count) {
       return NextResponse.json({ error: msg("Your profile changed somewhere else. Try again.") }, { status: 409 });
     }
-    updated = await prisma.anonymousUser.findUniqueOrThrow({ where: { id: row.id } });
+    updated = await prisma.user.findUniqueOrThrow({ where: { id: row.id } });
     if (row.avatarImage) await deleteStoredImage(row.avatarImage).catch(() => {});
   } else {
-    updated = await prisma.anonymousUser.update({ where: { id: row.id }, data: parsed.data });
+    updated = await prisma.user.update({ where: { id: row.id }, data: parsed.data });
   }
   return NextResponse.json({ user: toAccountUser(updated, google) });
 }

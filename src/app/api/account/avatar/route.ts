@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { currentAccountProfile, getOrCreateAnonymousUser, isAccountUser } from "@/lib/auth";
+import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { sniffImage } from "@/lib/note-file-keys";
 import { readLimitedBody } from "@/lib/note-upload";
 import { prisma } from "@/lib/prisma";
@@ -49,7 +49,7 @@ export async function POST(request: Request) {
   const mimeType = sniffImage(buffer);
   if (!mimeType) return NextResponse.json({ error: msg("Upload a JPEG, PNG, WebP or GIF photo.") }, { status: 400 });
 
-  const row = await getOrCreateAnonymousUser();
+  const row = await getOrCreateUser();
   if (!isAccountUser(row)) return NextResponse.json({ error: msg("Sign in to change your photo.") }, { status: 401 });
 
   const storagePath = `${AVATAR_ROOT}/${row.id}/${randomUUID()}${getImageExtension(mimeType)}`;
@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
   // 読んだときの写真のままの場合だけ差し替える（同時に別のタブが差し替えていたら、そちらを消さず、こちらを取り消す）。
   try {
-    const result = await prisma.anonymousUser.updateMany({
+    const result = await prisma.user.updateMany({
       where: { id: row.id, avatarImage: row.avatarImage },
       data: { avatarImage: storagePath, avatarIcon: null },
     });
@@ -73,7 +73,7 @@ export async function POST(request: Request) {
   // 差し替え前の写真を消す（消せなくても保存は成功のまま。残っても本人だけが読める場所にある）。
   if (row.avatarImage && row.avatarImage !== storagePath) await deleteStoredImage(row.avatarImage).catch(() => {});
   // 更新が確定した後の読取失敗では、現在参照されている新しい写真を消さない。
-  const updated = await prisma.anonymousUser.findUniqueOrThrow({ where: { id: row.id } });
+  const updated = await prisma.user.findUniqueOrThrow({ where: { id: row.id } });
 
   return NextResponse.json({ user: toAccountUser(updated, google) }, { status: 201 });
 }
@@ -83,7 +83,7 @@ export async function GET(request: Request) {
   const google = await currentProfile();
   if (!google) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
-  const row = await getOrCreateAnonymousUser();
+  const row = await getOrCreateUser();
   if (!isAccountUser(row) || !row.avatarImage) return NextResponse.json({ error: msg("Not found.") }, { status: 404 });
 
   let image: Buffer;

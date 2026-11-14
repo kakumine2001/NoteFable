@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ findSession: vi.fn(), history: vi.fn(), createMessage: vi.fn(), read: vi.fn(), write: vi.fn(), fetch: vi.fn(), consumeUsage: vi.fn(), refundUsage: vi.fn() }));
-vi.mock("@/lib/auth", () => ({ getOrCreateAnonymousUser: async () => ({ id: "owner" }) }));
+vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "owner" }) }));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImage: mocks.write }));

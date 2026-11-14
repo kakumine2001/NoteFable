@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getOrCreateAnonymousUser } from "@/lib/auth";
+import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { readSmallJson, validGroupName } from "@/lib/note-groups";
 import { prisma } from "@/lib/prisma";
@@ -13,7 +13,7 @@ const notFound = () => NextResponse.json({ error: msg("Group not found.") }, { s
 export async function PATCH(request: Request, context: Context) {
   try {
     const name = validGroupName((await readSmallJson(request)).name);
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { groupId } = await context.params;
     const result = await prisma.noteGroup.updateMany({ where: { id: groupId, userId: user.id }, data: { name } });
     return result.count ? NextResponse.json({ group: { id: groupId, name } }) : notFound();
@@ -23,7 +23,7 @@ export async function PATCH(request: Request, context: Context) {
 // グループを消す。中のノートは消えず「グループなし」に戻る（外部キーの SetNull）。
 export async function DELETE(_request: Request, context: Context) {
   try {
-    const user = await getOrCreateAnonymousUser();
+    const user = await getOrCreateUser();
     const { groupId } = await context.params;
     const result = await prisma.noteGroup.deleteMany({ where: { id: groupId, userId: user.id } });
     return result.count ? NextResponse.json({ ok: true }) : notFound();
