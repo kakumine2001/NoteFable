@@ -23,10 +23,12 @@ function EditorLoading() {
 }
 
 // ブロックの JSON が内容として同じか（キーの順序と undefined の項目は無視する。DB の JSONB はキーの順序が変わる）。
-function sameJson(a: unknown, b: unknown): boolean {
+export function sameJson(a: unknown, b: unknown): boolean {
   // 配列の中の undefined は JSON では null になる（表の未設定の列幅など）ので、同じとみなす。
   if (a === b || (a == null && b == null)) return true;
   if (typeof a !== "object" || typeof b !== "object" || !a || !b || Array.isArray(a) !== Array.isArray(b)) return false;
+  // 配列は位置ごとに比べる（下のキーの比較は undefined の要素を飛ばすので、[undefined] と [null] が違って見える）。
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((entry, index) => sameJson(entry, b[index]));
   const left = a as Record<string, unknown>;
   const right = b as Record<string, unknown>;
   const keys = Object.keys(left).filter((key) => left[key] !== undefined);

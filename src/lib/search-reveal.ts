@@ -85,9 +85,23 @@ function reveal(find: () => HTMLElement | null, flashTarget: (element: HTMLEleme
 }
 
 // ノートのブロックを画面の中央へ動かして強調する。見つかったら true、時間内に現れなければ false。
+// 折りたたまれたトグル（折りたたみリスト・折りたたみ見出し）の中にあるブロックは display: none で見えない。
+// 外側のトグルを内から外へ順に開く（開閉は BlockNote のボタンに任せ、開いた状態もそちらが覚える）。
+function expandCollapsedAncestors(element: HTMLElement) {
+  for (let outer = element.parentElement?.closest<HTMLElement>(".bn-block-outer"); outer; outer = outer.parentElement?.closest<HTMLElement>(".bn-block-outer")) {
+    const wrapper = [...outer.querySelectorAll<HTMLElement>('.bn-toggle-wrapper[data-show-children="false"]')]
+      .find((candidate) => candidate.closest(".bn-block-outer") === outer);
+    wrapper?.querySelector<HTMLElement>(".bn-toggle-button")?.click();
+  }
+}
+
 export function revealNoteBlock(blockId: string, options: RevealOptions = {}) {
   return reveal(
-    () => document.querySelector<HTMLElement>(noteBlockSelector(blockId)),
+    () => {
+      const element = document.querySelector<HTMLElement>(noteBlockSelector(blockId));
+      if (element) expandCollapsedAncestors(element);
+      return element;
+    },
     // 子ブロックまで光らないよう、そのブロック自身の本文だけを強調する。
     (outer) => outer.querySelector<HTMLElement>(":scope > .bn-block > .bn-block-content") ?? outer,
     options.signal,

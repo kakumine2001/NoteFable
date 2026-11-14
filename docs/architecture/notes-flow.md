@@ -16,7 +16,7 @@ Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选�
 - **输入规则与快捷键**与 Notion 一致：行首 `> ` 生成折叠列表，`" ` 或 `| ` 生成引用（BlockNote 默认的 `> ` 引用被替换）；`Ctrl+Shift+0–8`（macOS 是 `⌘+⌥+0–8`）转换块类型（7 是折叠列表），`Ctrl/⌘+Shift+↑/↓` 上下移动块，`Ctrl/⌘+D` 复制块。把 Callout 转成其他类型时去掉它默认的灰色背景，反过来把没有背景色的块转成 Callout 时补上灰色。
 - **斜杠命令。** 除了插入块和 `/turn…` 转换，输入文字后还会匹配作用于当前块的命令：文字颜色（`/red`）、背景色（`/blue background`）、`/duplicate`、`/delete`。这些只在输入了查询时出现，空菜单不列出。
 
-AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：折叠列表是 `▸ 文字`，折叠标题是 `# ▸ 文字`，子块缩进两格；Callout 是 `> [!💡] 文字`；表格是 GFM 表格，整张表算一个块（`read_note` 只给表格一个编号，第一行当表头）。表格里单元格的颜色、对齐、合并无法用 Markdown 表达，AI 替换这样的表格时提案会带 `dropsFormatting` 警告；表头行/列的设置和列宽（列数不变时）在“表格替换成一张表格”时从原表继承（`carryTableLayout`，`src/lib/page-edit.ts`）。单元格里的 `|` 写成 `\|`，行的切分（`splitTableRow`）不在代码片段里切，也不被转义的反引号打断；正文里其他位置的 `\|` 保持原样。聊天回答 “Save to Notes” 时，回答里的 GFM 表格会保存成表格块。站内搜索会搜到表格单元格里的文字。
+AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：折叠列表是 `▸ 文字`，折叠标题是 `# ▸ 文字`，子块缩进两格；Callout 是 `> [!💡] 文字`；表格是 GFM 表格，整张表算一个块（`read_note` 只给表格一个编号，第一行当表头）。表格里单元格的颜色、对齐、合并无法用 Markdown 表达，AI 替换这样的表格时提案会带 `dropsFormatting` 警告；表头行/列的设置和列宽（列数不变时）在“表格替换成一张表格”时从原表继承（`carryTableLayout`，`src/lib/page-edit.ts`）。单元格里的 `|` 写成 `\|`，行的切分（`splitTableRow`）不在代码片段里切，也不被转义的反引号打断；正文里其他位置的 `\|` 保持原样。从 Markdown 生成表格时，每行会补空单元格到最大列数；补完超过 20,000 个单元格（`MAX_PARSED_TABLE_CELLS`）的不当作表格、按普通行读入，防止很短的输入膨胀成巨大的表。不带编号的输出里，相邻的两张表之间空一行，否则读回来会并成一张；编辑历史的预览（`previewMarkdown`）保持表格各行相连。搜索命中折叠块里的内容时，`revealNoteBlock` 先点开外层的折叠再滚动高亮。聊天回答 “Save to Notes” 时，回答里的 GFM 表格会保存成表格块。站内搜索会搜到表格单元格里的文字。
 
 ## 图片与文件
 

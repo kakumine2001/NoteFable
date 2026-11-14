@@ -503,7 +503,9 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* 表: 細い灰色の罫線、見出しの行・列は薄い灰色地。 */
 .notes-block-editor .bn-block-content[data-content-type="table"] th,
 .notes-block-editor .bn-block-content[data-content-type="table"] td { border: 1px solid #e9e9e7; padding: 7px 9px; font-size: 14px; line-height: 1.5; vertical-align: top; }
-.notes-block-editor .bn-block-content[data-content-type="table"] th { background: #f7f6f3; font-weight: 600; }
+.notes-block-editor .bn-block-content[data-content-type="table"] th { font-weight: 600; }
+/* 見出しの薄い灰色は、セルに背景色を付けていない時だけ（付けた色を上書きしない）。 */
+.notes-block-editor .bn-block-content[data-content-type="table"] th:not([data-background-color]) { background: #f7f6f3; }
 .notes-block-editor .bn-block-content[data-content-type="table"] th > p,
 .notes-block-editor .bn-block-content[data-content-type="table"] td > p { min-height: 21px; margin: 0; }
 

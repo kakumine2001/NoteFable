@@ -51,6 +51,11 @@ describe("history preview markdown", () => {
   it("does not turn an indented paragraph into a code block, and leaves fenced code untouched", () => {
     const nested = block("bulletListItem", "parent", {}, [block("paragraph", "child", {}, [block("paragraph", "grandchild")])]);
     expect(previewMarkdown([nested])).toBe("- parent\n\nchild\n\ngrandchild");
+    // 表の行は詰めたまま（空行が入ると表として描かれない）。続く 2 つの表は空行で分かれる。
+    const cells = (...texts: string[]) => ({ cells: texts.map((text) => [{ type: "text", text, styles: {} }]) });
+    const table = (id: string, ...rows: string[][]) => ({ id, type: "table", props: {}, content: { type: "tableContent", rows: rows.map((row) => cells(...row)) }, children: [] });
+    expect(previewMarkdown([block("paragraph", "before"), table("t1", ["a", "b"], ["c", "d"]), table("t2", ["e"]), block("paragraph", "after")]))
+      .toBe("before\n\n| a | b |\n| --- | --- |\n| c | d |\n\n| e |\n| --- |\n\nafter");
     const code = { id: "c", type: "codeBlock", props: { language: "python" }, content: [text("x = 1\n\ny = 2")], children: [] };
     expect(previewMarkdown([block("paragraph", "before"), code, block("paragraph", "after")])).toBe("before\n\n```python\nx = 1\n\ny = 2\n```\n\nafter");
   });

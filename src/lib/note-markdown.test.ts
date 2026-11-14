@@ -191,6 +191,23 @@ describe("toggles, callouts and tables", () => {
     expect(() => validateNoteContent({ title: "t", blocks })).not.toThrow();
   });
 
+  it("does not expand a ragged table into a huge grid", () => {
+    // 列の多い 1 行と大量の短い行: 埋めるとセル数が膨らむので、表にしない。
+    const ragged = [`|${" x |".repeat(400)}`, "| --- |", ...Array.from({ length: 400 }, () => "| y |")].join("\n");
+    expect(ragged.length).toBeLessThan(5000);
+    const blocks = markdownToBlocks(ragged);
+    expect(blocks.some((block) => block.type === "table")).toBe(false);
+    expect(JSON.stringify(blocks).length).toBeLessThan(200_000);
+  });
+
+  it("keeps adjacent tables apart when written without numbers", () => {
+    const source = "| a |\n| --- |\n| b |\n\n| c |\n| --- |\n| d |";
+    const blocks = markdownToBlocks(source);
+    expect(blocks.map((block) => block.type)).toEqual(["table", "table"]);
+    expect(blocksToMarkdown(blocks)).toBe(source);
+    expect(markdownToBlocks(blocksToMarkdown(blocks)).map((block) => (block.content as { rows: unknown[] }).rows.length)).toEqual([2, 2]);
+  });
+
   it("splits rows around code spans and escaped characters", () => {
     expect(splitTableRow("| a\\|b | `x|y` | c |")).toEqual(["a|b", "`x|y`", "c"]);
     // コードの外の \` はコードを開かない。閉じる列の無いバッククォートも同じ。

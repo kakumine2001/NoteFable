@@ -37,6 +37,10 @@ function escapeBlockStart(text: string) {
 
 export const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 
+// Markdown から作る表のセル数の上限。行ごとに列数へ空のセルを足すので、短い入力（列の多い 1 行と大量の短い行）が
+// 巨大な表に膨らまないようにする。1 MiB のノートに入るのは数千セルまでなので、実際の表はこれより小さい。
+export const MAX_PARSED_TABLE_CELLS = 20_000;
+
 // 表の 1 行をセルに分ける。\| とコードの中の | では区切らない。
 // コードは同じ長さのバッククォート列で閉じる（`` a`b `` も 1 つのコード）。コードの外の \` はコードを開かない。
 export function splitTableRow(line: string) {
@@ -137,6 +141,7 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
   if (!Array.isArray(blocks) || depth > 8) return "";
   const indent = "  ".repeat(depth);
   const lines: string[] = [];
+  let previousType: unknown;
   for (const block of blocks as NoteBlock[]) {
     if (!block || typeof block !== "object") continue;
     const props = block.props ?? {};
@@ -154,6 +159,8 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       const rows = tableRows(block.content);
       const columns = rows.reduce((max, row) => Math.max(max, row.length), 1);
       if (rows.length) {
+        // 表が続く時は空行で区切る（詰めて書くと、読み戻した時に 1 つの表になる）。番号付きの時は [n] が区切りになる。
+        if (!counter && previousType === "table") lines.push("");
         lines.push(`${indent}${label}${tableRowMarkdown(rows[0], columns)}`, `${indent}| ${Array.from({ length: columns }, () => "---").join(" | ")} |`,
           ...rows.slice(1).map((row) => indent + tableRowMarkdown(row, columns)));
       } else if (counter) lines.push(`${indent}${label}`);
@@ -178,6 +185,7 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
     }
     const children = blocksToMarkdown(block.children, depth + 1, counter);
     if (children) lines.push(children);
+    previousType = block.type;
   }
   return lines.join("\n");
 }
@@ -394,19 +402,23 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
     // 表: | で始まる行の次が区切り行（| --- | --- |）のとき。大きさの上限はノート全体の 1 MiB だけ。
     if (text.startsWith("|") && index + 1 < lines.length && lines[index + 1].includes("|") && TABLE_SEPARATOR.test(lines[index + 1])) {
       const rows = [splitTableRow(text)];
-      index++;
-      while (index + 1 < lines.length && lines[index + 1].trim().startsWith("|")) rows.push(splitTableRow(lines[++index]));
+      let end = index + 1;
+      while (end + 1 < lines.length && lines[end + 1].trim().startsWith("|")) rows.push(splitTableRow(lines[++end]));
       const columns = rows.reduce((max, row) => Math.max(max, row.length), 1);
-      add("table", { textColor: "default" }, {
-        type: "tableContent", columnWidths: Array.from({ length: columns }, () => null), headerRows: 1,
-        rows: rows.map((row) => ({ cells: Array.from({ length: columns }, (_, column) => ({
-          type: "tableCell", props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1 },
-          content: parseInline(row[column] ?? ""),
-        })) })),
-      });
-      // 表は子を持てない。
-      parents.pop();
-      continue;
+      // 埋めた後のセル数が多すぎるものは表にせず、下の通常の行として読む。
+      if (rows.length * columns <= MAX_PARSED_TABLE_CELLS) {
+        index = end;
+        add("table", { textColor: "default" }, {
+          type: "tableContent", columnWidths: Array.from({ length: columns }, () => null), headerRows: 1,
+          rows: rows.map((row) => ({ cells: Array.from({ length: columns }, (_, column) => ({
+            type: "tableCell", props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1 },
+            content: parseInline(row[column] ?? ""),
+          })) })),
+        });
+        // 表は子を持てない。
+        parents.pop();
+        continue;
+      }
     }
     let match: RegExpExecArray | null;
     if (/^(-{3,}|\*{3,}|_{3,})$/.test(text)) {
