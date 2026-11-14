@@ -164,8 +164,10 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         },
     ) {
         val open = notes.open
+        // 回答里的"打开笔记"（项目参考笔记、提案卡片）去笔记页；应用了提案后刷新笔记列表（网页 studymate:page-updated / page-created）。
+        LaunchedEffect(app) { app.proposals.changes.collect { notesViewModel.refresh() } }
         when {
-            notes.workspace == Workspace.Chat -> ChatScreen(
+            notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink) { ChatScreen(
                 state = state,
                 // 草稿在 ViewModel 里：切到笔记时 ChatScreen 离开组合，回来时文字还在。
                 input = viewModel.draft,
@@ -181,7 +183,7 @@ fun StudyMateRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onRemoveFile = viewModel::removeFile,
                 onImageMode = viewModel::setImageMode,
                 onSwitchWorkspace = notesViewModel::setWorkspace,
-            )
+            ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
                 NoteEditorScreen(

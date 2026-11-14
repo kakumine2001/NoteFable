@@ -153,6 +153,7 @@ class NotesViewModel(
         // 换身份前排着的打开 / 新建不再执行，回收站里进行中的操作也不再写回。
         navigationJob?.cancel()
         navigationJob = null
+        linkJob?.cancel()
         trashJob?.cancel()
         trashActionJobs.toList().forEach { it.cancel() }
         _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed) }
@@ -210,6 +211,33 @@ class NotesViewModel(
         val page = current.pages.firstOrNull { it.id == id } ?: return
         leaveThen {
             _state.update { it.copy(workspace = Workspace.Notes, open = OpenNote(page.id, page.title, page.icon), saveState = null, notice = null) }
+        }
+    }
+
+    private var linkJob: Job? = null
+
+    /**
+     * 从回答里打开笔记（项目参考笔记、提案的 Open / Open the note），对应网页 page.tsx 的 openNoteFromLink：
+     * 马上切到笔记页（列表或读取中），再刷新列表，笔记出现了就打开；没找到（已删除、移到回收站、读取失败）就留在列表上。
+     */
+    fun openNoteFromLink(id: String) {
+        linkJob?.cancel()
+        val current = _state.value
+        if (current.workspace == Workspace.Notes && current.open?.id == id) return
+        leaveThen {
+            _state.update { it.copy(workspace = Workspace.Notes, open = null, saveState = null, notice = null) }
+            refresh()
+            linkJob = viewModelScope.launch {
+                // 等最新的一次刷新结束（中途被新的刷新取代时等新的那次）。
+                while (true) {
+                    val job = loadJob ?: break
+                    job.join()
+                    if (loadJob === job) break
+                }
+                val now = _state.value
+                // 等待期间用户去了别处（回到聊天、打开了别的笔记）就不再打开。
+                if (now.workspace == Workspace.Notes && now.open == null && now.pages.any { it.id == id }) openNote(id)
+            }
         }
     }
 
