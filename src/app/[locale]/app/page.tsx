@@ -47,7 +47,7 @@ import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
-import { readModelPreference, saveModelPreference } from "@/lib/model-preference";
+import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
@@ -610,12 +610,11 @@ export default function Home() {
   // いまサーバーが出していないモデル・強度は使わず、標準のままにする。
   const modelOptionsRef = useRef(modelOptions);
   useEffect(() => {
-    const saved = readModelPreference();
-    const option = saved && modelOptionsRef.current.find((item) => item.id === saved.model);
-    if (!saved || !option) return;
+    const restored = resolveModelPreference(readModelPreference(), modelOptionsRef.current);
+    if (!restored) return;
     queueMicrotask(() => {
-      setModel(option.id);
-      setReasoning(option.reasoningEfforts.includes(saved.reasoning as never) ? saved.reasoning : option.defaultReasoning);
+      setModel(restored.model);
+      setReasoning(restored.reasoning);
     });
   }, []);
 
@@ -876,7 +875,9 @@ export default function Home() {
     const scroller = chatScrollRef.current;
     if (!scroller) return;
 
-    const scrollBehavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    // 回答が届いている途中は、動きをつけると伸びていく末尾に追いつけないので、すぐ最下部へ移して付いていく。
+    followBottomRef.current = true;
+    const scrollBehavior = isActiveSessionStreaming || window.matchMedia("(prefers-reduced-motion: reduce)").matches
       ? "auto"
       : "smooth";
     scroller.scrollTo({
@@ -1303,13 +1304,35 @@ export default function Home() {
 
     updateChatBottomState();
     // 利用者のスクロールで、回答に付いていくかどうかを決め直す（内容が伸びただけではスクロールは起きないので変わらない）。
+    // 上へ動かそうとした時点（ホイール・指のドラッグ）で付いていくのをやめる。少しずつ動かしても、届いた回答に引き戻されないように。
+    // 最下部まで戻ったら、また付いていく。
+    const distance = () => scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop;
     const onChatScroll = () => {
-      followBottomRef.current = scroller.scrollHeight - scroller.clientHeight - scroller.scrollTop <= 48;
+      const current = distance();
+      if (current <= 2) followBottomRef.current = true;
+      else if (current > 48) followBottomRef.current = false;
       updateChatBottomState();
     };
+    const onWheel = (event: WheelEvent) => {
+      if (event.deltaY < 0) followBottomRef.current = false;
+    };
+    const onTouchMove = () => {
+      followBottomRef.current = false;
+    };
+    const onTouchEnd = () => {
+      if (distance() <= 2) followBottomRef.current = true;
+    };
     scroller.addEventListener("scroll", onChatScroll, { passive: true });
+    scroller.addEventListener("wheel", onWheel, { passive: true });
+    scroller.addEventListener("touchmove", onTouchMove, { passive: true });
+    scroller.addEventListener("touchend", onTouchEnd, { passive: true });
 
-    return () => scroller.removeEventListener("scroll", onChatScroll);
+    return () => {
+      scroller.removeEventListener("scroll", onChatScroll);
+      scroller.removeEventListener("wheel", onWheel);
+      scroller.removeEventListener("touchmove", onTouchMove);
+      scroller.removeEventListener("touchend", onTouchEnd);
+    };
   }, [messages.length]);
 
   useEffect(() => {
@@ -1338,19 +1361,56 @@ export default function Home() {
   }, [messages, activeSessionKey]);
 
   // 回答が届いている間、最下部を見ているなら最下部に付いていく。描画の前に寄せるので、伸びた分が一瞬はみ出して見えることもない。
+  // 生成が終わった直後の描画（回答の操作の行が足される）までを含める。
+  const wasStreamingRef = useRef(false);
   useLayoutEffect(() => {
     const scroller = chatScrollRef.current;
-    if (!scroller || !isActiveSessionStreaming || !followBottomRef.current) return;
+    const streaming = isActiveSessionStreaming || wasStreamingRef.current;
+    wasStreamingRef.current = isActiveSessionStreaming;
+    if (!scroller || !streaming || !followBottomRef.current) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [messages, isActiveSessionStreaming]);
 
   // 入力欄は本文の行数に合わせて伸ばす（上限は CSS の max-height。超えたら欄の中でスクロールする）。
-  useLayoutEffect(() => {
+  // 測るために一度縮めると会話の表示域が広がってスクロール位置がずれるので、測ったあとで元の位置（最下部を見ていたなら最下部）へ戻す。
+  function fitComposerHeight() {
     const element = inputRef.current;
     if (!element) return;
+    const scroller = chatScrollRef.current;
+    const top = scroller?.scrollTop ?? 0;
     element.style.height = "auto";
     element.style.height = `${element.scrollHeight}px`;
+    if (scroller) scroller.scrollTop = followBottomRef.current ? scroller.scrollHeight : top;
+  }
+  const fitComposerHeightRef = useRef(fitComposerHeight);
+  useLayoutEffect(() => {
+    fitComposerHeightRef.current = fitComposerHeight;
+    fitComposerHeight();
   }, [input, isNarrowScreen, workspaceView]);
+
+  useEffect(() => {
+    const element = inputRef.current;
+    const scroller = chatScrollRef.current;
+    if (!element || !scroller) return;
+    // 幅が変わると（サイドバーの開閉・画面の回転）折り返しが変わるので、入力欄の高さを合わせ直す。
+    let width = element.clientWidth;
+    const composerObserver = new ResizeObserver(() => {
+      if (element.clientWidth === width) return;
+      width = element.clientWidth;
+      fitComposerHeightRef.current();
+    });
+    composerObserver.observe(element);
+    // 入力欄が伸びて会話の表示域が縮んだとき、最下部を見ていたなら最後の行が隠れないよう最下部を保つ。
+    const scrollerObserver = new ResizeObserver(() => {
+      if (followBottomRef.current) scroller.scrollTop = scroller.scrollHeight;
+      updateChatBottomState();
+    });
+    scrollerObserver.observe(scroller);
+    return () => {
+      composerObserver.disconnect();
+      scrollerObserver.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     // アシスタント本文がまだ空の間、待機表示の秒数を更新する。
@@ -1781,7 +1841,8 @@ export default function Home() {
                     if (
                       event.key === "Enter" &&
                       !event.shiftKey &&
-                      !window.matchMedia("(hover: none) and (pointer: coarse)").matches &&
+                      // そうした端末につないだキーボードからは Ctrl/Cmd+Enter で送れる。
+                      (event.ctrlKey || event.metaKey || !window.matchMedia("(hover: none) and (pointer: coarse)").matches) &&
                       !event.nativeEvent.isComposing &&
                       event.nativeEvent.keyCode !== 229
                     ) {

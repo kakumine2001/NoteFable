@@ -22,3 +22,13 @@ export function saveModelPreference(preference: ModelPreference) {
     // 保存できなくても（プライベートブラウズなど）選択そのものは今の画面で有効。
   }
 }
+
+// 保存値を、いまサーバーが出している一覧に照らす。無いモデルは使わず（null）、そのモデルで選べない強度は標準に置き換える。
+export function resolveModelPreference(
+  saved: ModelPreference | null,
+  options: readonly { id: string; reasoningEfforts: readonly string[]; defaultReasoning: string }[],
+): ModelPreference | null {
+  const option = saved && options.find((item) => item.id === saved.model);
+  if (!saved || !option) return null;
+  return { model: option.id, reasoning: option.reasoningEfforts.includes(saved.reasoning) ? saved.reasoning : option.defaultReasoning };
+}
