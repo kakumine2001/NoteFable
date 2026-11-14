@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const prismaMock = vi.hoisted(() => ({
+  $transaction: vi.fn(),
+  session: { updateMany: vi.fn() },
+  chatProject: { updateMany: vi.fn() },
+  noteGroup: { updateMany: vi.fn() },
+  notePage: { updateMany: vi.fn() },
+  noteRevision: { updateMany: vi.fn() },
+  noteProposal: { updateMany: vi.fn() },
+  noteCoverAsset: { updateMany: vi.fn() },
   anonymousUser: {
     findUnique: vi.fn(),
     findUniqueOrThrow: vi.fn(),
@@ -8,6 +16,7 @@ const prismaMock = vi.hoisted(() => ({
     update: vi.fn(),
     updateMany: vi.fn(),
     create: vi.fn(),
+    delete: vi.fn(),
   },
 }));
 const cookieStore = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
@@ -207,5 +216,22 @@ describe("getOrCreateAnonymousUser", () => {
       where: { id: "device-user", googleSub: null, verifiedEmail: null },
       data: expect.not.objectContaining({ verifiedEmail: expect.anything() }),
     });
+  });
+
+  it("merges an earlier email-only user into the Google user when the address collides", async () => {
+    prismaMock.$transaction.mockImplementation(async (work: (tx: typeof prismaMock) => unknown) => work(prismaMock));
+    session.value = { ...google, googleEmailVerified: true };
+    prismaMock.anonymousUser.findUnique
+      .mockResolvedValueOnce({ id: "google-user", googleSub: "g-1", verifiedEmail: null, email: "a@example.com", name: "A", image: null })
+      .mockResolvedValueOnce({ id: "email-user", googleSub: null, verifiedEmail: "a@example.com" });
+    prismaMock.anonymousUser.update
+      .mockRejectedValueOnce(Object.assign(new Error("unique"), { code: "P2002" }))
+      .mockResolvedValueOnce({ id: "google-user", verifiedEmail: "a@example.com" });
+    const user = await getOrCreateAnonymousUser();
+    expect(user.id).toBe("google-user");
+    for (const model of [prismaMock.session, prismaMock.notePage, prismaMock.chatProject, prismaMock.noteGroup]) {
+      expect(model.updateMany).toHaveBeenCalledWith({ where: { userId: "email-user" }, data: { userId: "google-user" } });
+    }
+    expect(prismaMock.anonymousUser.delete).toHaveBeenCalledWith({ where: { id: "email-user" } });
   });
 });

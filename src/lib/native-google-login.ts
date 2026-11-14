@@ -2,6 +2,7 @@ import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { encode } from "next-auth/jwt";
 import type { NextRequest, NextResponse } from "next/server";
+import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 
@@ -16,7 +17,8 @@ const MAX_COOKIE_VALUE_LENGTH = 3800;
 export const NONCE_COOKIE = "studymate_native_nonce";
 export const NONCE_MAX_AGE = 300;
 
-export type GoogleIdentity = { sub: string; email: string | null; name: string | null; image: string | null };
+// emailAuthoritative: Gmail / Workspace の確認済みアドレス（メールログインの利用者とまとめてよい）。
+export type GoogleIdentity = { sub: string; email: string | null; emailAuthoritative?: boolean; name: string | null; image: string | null };
 
 // Google の鍵を取りに行けないなどサーバー側の事情で検証できなかった場合。トークン自体が不正な場合とは区別する。
 export class GoogleVerificationUnavailableError extends Error {}
@@ -97,7 +99,13 @@ export async function verifyGoogleIdToken(
   // メールが未確認のアカウントは受け付けない。
   if (email && claims.email_verified !== true && claims.email_verified !== "true") return null;
 
-  return { sub, email, name: text(claims.name), image: text(claims.picture) };
+  return {
+    sub,
+    email,
+    emailAuthoritative: isAuthoritativeGoogleEmail(email, claims.email_verified, claims.hd),
+    name: text(claims.name),
+    image: text(claims.picture),
+  };
 }
 
 export function sessionCookieName(secure: boolean) {
@@ -121,8 +129,7 @@ export async function createSessionCookie(identity: GoogleIdentity, secure: bool
   return encodeSessionCookie({
     sub: identity.sub,
     googleSub: identity.sub,
-    // verifyGoogleIdToken はメールが未確認のトークンを受け付けないので、メールがあれば確認済み。
-    googleEmailVerified: Boolean(identity.email),
+    googleEmailVerified: identity.emailAuthoritative === true,
     name: identity.name,
     email: identity.email,
     picture: identity.image,

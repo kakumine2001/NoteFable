@@ -99,7 +99,7 @@ function sameHash(a: string, b: string) {
 
 // 有効期限内で、まだ試行回数が残っているコードのどれかと合えば成功。新しいコードを頼んでも（他人が頼んでも）
 // 入力中の前のコードは無効にならない。間違えたときは残っているすべてのコードの試行回数を 1 つ増やすので、
-// 試せる回数はコードを何通送っても 1 通あたり 5 回のまま。合えばそのアドレスのコードをすべて消す（使い回し不可）。
+// 試せる回数はコードを何通送っても 1 通あたり 5 回のまま。合えばそのアドレスのコードをすべて期限切れにする（使い回し不可）。
 export async function verifyLoginCode(email: string, code: string, now = new Date()): Promise<VerifyResult> {
   const rows = await prisma.emailLoginCode.findMany({
     where: { email, expiresAt: { gt: now } },
@@ -121,10 +121,14 @@ export async function verifyLoginCode(email: string, code: string, now = new Dat
     return open.every((row) => row.attempts + 1 >= MAX_ATTEMPTS) ? "locked" : "wrong";
   }
 
-  // 同時に 2 回正しいコードが送られても、行を消せた方だけを成功にする。
-  const consumed = await prisma.emailLoginCode.deleteMany({ where: { id: match.id, attempts: { lt: MAX_ATTEMPTS } } });
+  // 使ったコードは消さずに期限切れにする（送信の回数制限はこの行の createdAt で数えるので、消すと制限が戻ってしまう）。
+  // 同時に 2 回正しいコードが送られても、期限切れにできた方だけを成功にする。
+  const consumed = await prisma.emailLoginCode.updateMany({
+    where: { id: match.id, attempts: { lt: MAX_ATTEMPTS }, expiresAt: { gt: now } },
+    data: { expiresAt: now },
+  });
   if (!consumed.count) return "expired";
-  await prisma.emailLoginCode.deleteMany({ where: { email } }).catch(() => {});
+  await prisma.emailLoginCode.updateMany({ where: { email, expiresAt: { gt: now } }, data: { expiresAt: now } }).catch(() => {});
   return "ok";
 }
 

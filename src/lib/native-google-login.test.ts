@@ -56,6 +56,7 @@ describe("verifyGoogleIdToken", () => {
     expect(await verifyGoogleIdToken(await idToken(), NONCE, keys)).toEqual({
       sub: "109876543210",
       email: "a@example.com",
+      emailAuthoritative: false,
       name: "A",
       image: "https://example.com/a.png",
     });

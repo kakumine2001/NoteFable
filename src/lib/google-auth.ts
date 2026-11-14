@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import type { Account, Profile, Session } from "next-auth";
 import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
+import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
 
 // Google ログインに必要な環境変数がそろっているか。未設定でも匿名利用はそのまま動かす。
@@ -27,7 +28,7 @@ declare module "next-auth" {
   interface Session {
     // メールの確認コードでログインしたときのアドレス（小文字）。Google ログインでは undefined。
     loginEmail?: string;
-    // Google がメールを確認済みとしたか。確認済みのときだけ、同じアドレスのメールログインの利用者とまとめる。
+    // Google のアドレスが Gmail / Workspace の確認済みアドレスか。そのときだけ、同じアドレスのメールログインの利用者とまとめる。
     googleEmailVerified?: boolean;
   }
 }
@@ -38,7 +39,8 @@ export const authCallbacks = {
   jwt({ token, account, profile }: { token: JWT; account?: Account | null; profile?: Profile }) {
     if (account?.provider === "google" && account.providerAccountId) {
       token.googleSub = account.providerAccountId;
-      token.googleEmailVerified = profile?.email_verified === true;
+      // Gmail / Workspace の確認済みアドレスだけ（email-address.ts の isAuthoritativeGoogleEmail）。
+      token.googleEmailVerified = isAuthoritativeGoogleEmail(profile?.email, profile?.email_verified, profile?.hd);
     }
     return token;
   },

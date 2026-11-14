@@ -100,23 +100,30 @@ describe("createLoginCode", () => {
 describe("verifyLoginCode", () => {
   const row = (attempts = 0, code = "123456", id = "c1") => ({ id, email: "a@example.com", codeHash: hashCode("a@example.com", code), attempts });
 
-  it("accepts the right code once and removes the address's codes", async () => {
+  it("accepts the right code once and expires the address's codes without deleting the send history", async () => {
     prismaMock.emailLoginCode.findMany.mockResolvedValue([row()]);
-    prismaMock.emailLoginCode.deleteMany.mockResolvedValueOnce({ count: 1 });
+    prismaMock.emailLoginCode.updateMany.mockResolvedValue({ count: 1 });
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("ok");
-    expect(prismaMock.emailLoginCode.deleteMany).toHaveBeenCalledWith({ where: { email: "a@example.com" } });
+    expect(prismaMock.emailLoginCode.updateMany).toHaveBeenCalledWith({
+      where: { email: "a@example.com", expiresAt: { gt: now } },
+      data: { expiresAt: now },
+    });
+    expect(prismaMock.emailLoginCode.deleteMany).not.toHaveBeenCalled();
   });
 
   it("still accepts an earlier code after a newer one was requested", async () => {
     prismaMock.emailLoginCode.findMany.mockResolvedValue([row(0, "999999", "new"), row(0, "123456", "old")]);
-    prismaMock.emailLoginCode.deleteMany.mockResolvedValueOnce({ count: 1 });
+    prismaMock.emailLoginCode.updateMany.mockResolvedValue({ count: 1 });
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("ok");
-    expect(prismaMock.emailLoginCode.deleteMany).toHaveBeenCalledWith({ where: { id: "old", attempts: { lt: MAX_ATTEMPTS } } });
+    expect(prismaMock.emailLoginCode.updateMany).toHaveBeenCalledWith({
+      where: { id: "old", attempts: { lt: MAX_ATTEMPTS }, expiresAt: { gt: now } },
+      data: { expiresAt: now },
+    });
   });
 
   it("loses a race for the same code", async () => {
     prismaMock.emailLoginCode.findMany.mockResolvedValue([row()]);
-    prismaMock.emailLoginCode.deleteMany.mockResolvedValueOnce({ count: 0 });
+    prismaMock.emailLoginCode.updateMany.mockResolvedValueOnce({ count: 0 });
     expect(await verifyLoginCode("a@example.com", "123456", now)).toBe("expired");
   });
 
@@ -167,5 +174,16 @@ describe("the email", () => {
     process.env.EMAIL_FROM = "login@example.com";
     const fetcher = vi.fn(async () => new Response("no", { status: 422 }));
     await expect(sendLoginEmail("a@example.com", "042137", "en", fetcher as unknown as typeof fetch)).rejects.toThrow();
+  });
+});
+
+describe("isAuthoritativeGoogleEmail", () => {
+  it("trusts only verified Gmail and Workspace addresses", async () => {
+    const { isAuthoritativeGoogleEmail } = await import("@/lib/email-address");
+    expect(isAuthoritativeGoogleEmail("A@Gmail.com", true, undefined)).toBe(true);
+    expect(isAuthoritativeGoogleEmail("a@school.edu", true, "school.edu")).toBe(true);
+    expect(isAuthoritativeGoogleEmail("a@outlook.com", true, undefined)).toBe(false);
+    expect(isAuthoritativeGoogleEmail("a@other.edu", true, "school.edu")).toBe(false);
+    expect(isAuthoritativeGoogleEmail("a@gmail.com", false, undefined)).toBe(false);
   });
 });
