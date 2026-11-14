@@ -27,7 +27,7 @@ Production aliases：
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）
 www.notefable.com             # 308 跳转到 notefable.com
 studymate-lab-ai.vercel.app   # 旧网址，继续可用（匿名用户的数据跟着各自域名的 Cookie）
-studymate-kaku10.vercel.app
+notefable-kaku10.vercel.app   # Vercel 项目 2026-11-15 由 studymate 改名为 notefable
 ```
 
 生产部署应始终核对 Vercel deployment 的 `gitSource.sha` 是否等于 GitHub `main` 当前提交；不要仅凭域名判断线上代码版本。

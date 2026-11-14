@@ -15,7 +15,7 @@
 
 ## 安装包交付
 
-- 每次向用户交付 APK，都要上传到现有的 Google Drive [studymate 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。文件夹只保留一个最新 APK：先上传新包并核对，再把旧包移入回收站。
+- 每次向用户交付 APK，都要上传到现有的 Google Drive [NoteFable 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。文件夹只保留一个最新 APK：先上传新包并核对，再把旧包移入回收站。
 - 交付用 R8 压缩后的 release 包（约 2.5 MB）。Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。
 - 文件名 `NoteFable-v<版本>.apk`，版本取自 `mobile/android/app/build.gradle.kts` 的 `versionName`；仅供测试的包在文件名里注明 `dev`。保留文件夹的共享设置。
 - 交付新包前把 `versionCode` 加 1、`versionName` 同步更新，否则系统可能不允许覆盖安装，也分不清手机上装的是哪一版。
