@@ -1,4 +1,4 @@
-// StudyMate のロゴマーク（ノートとしおり）。紹介ページ・ワークスペース・アプリアイコンで同じ形を使う。
+// NoteFable のロゴマーク（ノートとしおり）。紹介ページ・ワークスペース・アプリアイコンで同じ形を使う。
 export function BrandMark({ size = 26 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="12 5 44 56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -10,9 +10,9 @@ export function BrandMark({ size = 26 }: { size?: number }) {
 
 export function StudyMateLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="sm-logo" role="img" aria-label="StudyMate">
+    <div className="sm-logo" role="img" aria-label="NoteFable">
       <BrandMark size={20} />
-      {!compact && <span aria-hidden="true">StudyMate</span>}
+      {!compact && <span aria-hidden="true">NoteFable</span>}
     </div>
   );
 }

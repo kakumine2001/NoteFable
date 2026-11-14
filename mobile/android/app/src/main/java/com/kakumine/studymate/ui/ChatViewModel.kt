@@ -56,7 +56,7 @@ data class UiMessage(
     val attachments: List<AttachmentDto> = emptyList(),
     val images: List<GeneratedImageDto> = emptyList(),
     val streaming: Boolean = false,
-    /** 生成这条回答的模型 ID，用来在回答上方显示"StudyMate · 模型名"。 */
+    /** 生成这条回答的模型 ID，用来在回答上方显示"NoteFable · 模型名"。 */
     val modelId: String? = null,
     /** 请求失败时的原因（服务端或网络给出的文字），界面再套本地化外壳。 */
     val errorDetail: String? = null,

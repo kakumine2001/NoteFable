@@ -3,7 +3,7 @@ import { ThreadLanding } from "@/components/thread-landing";
 import "./landing.css";
 
 export const metadata: Metadata = {
-  title: "StudyMate — Ask it. Keep it. Find it again.",
+  title: "NoteFable — Ask it. Keep it. Find it again.",
   description: "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.",
 };
 

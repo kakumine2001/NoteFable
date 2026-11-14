@@ -1,4 +1,4 @@
-# StudyMate Architecture
+# NoteFable Architecture
 
 这个目录的目的不是写“漂亮的设计文档”，而是让未来的自己在几个月没有维护之后，能快速恢复对系统的理解。
 

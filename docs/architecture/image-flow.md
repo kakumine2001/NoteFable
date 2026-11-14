@@ -1,6 +1,6 @@
 # Image Upload & Generation Flow
 
-StudyMate 的“图片”其实有两条完全不同的流程：
+NoteFable 的“图片”其实有两条完全不同的流程：
 
 1. 用户上传图片给模型看
 2. 用户让模型生成/编辑图片
@@ -198,7 +198,7 @@ Neon PostgreSQL
 ### 当前完成度
 
 - Vercel Blob Store：已启用（`studymate-images`）
-- StudyMate production 代码：通过 `put()` / `get()` 读写私有 Blob
+- NoteFable production 代码：通过 `put()` / `get()` 读写私有 Blob
 - `@vercel/blob`：已加入 `package.json`
 - Storage Layer 接线：已完成
 

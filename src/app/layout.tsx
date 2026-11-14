@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   // ブラウザタブや検索結果で使われるアプリ名。
-  title: "StudyMate",
+  title: "NoteFable",
   // Next.js の Metadata API へ渡すページ説明。
   description: "A personal space for AI conversations, notes, and ideas.",
   // 古い favicon キャッシュを拾いにくくするため、使うアイコンを明示する。

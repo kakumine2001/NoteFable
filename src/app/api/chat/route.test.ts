@@ -557,7 +557,7 @@ describe("chats inside a project", () => {
     const { prompt } = await chat(model, reply());
     // 読み込みは、会話の所有者として、会話が属するプロジェクトに対して行う。
     expect(mocks.loadProjectContext).toHaveBeenCalledWith("user", "p1");
-    expect(prompt).toContain("You are StudyMate");
+    expect(prompt).toContain("You are NoteFable");
     expect(prompt).toContain("=== Project instructions ===\nAnswer in Japanese.\n=== End of project instructions ===");
     expect(prompt).toContain('=== Reference note 1: "Style guide" (id: n1) ===\nSECRET-BODY-ONE\n=== End of reference note 1 ===');
     expect(prompt).toContain("(id: n2) [truncated] ===");
@@ -636,7 +636,7 @@ describe("chats inside a project", () => {
       mocks.userRow.extra = { googleSub: "g1", customInstructions: "Call me Mine." };
       const { prompt } = await chat(model, reply());
       const custom = prompt.indexOf("=== User's custom instructions ===\nCall me Mine.\n=== End of user's custom instructions ===");
-      expect(custom).toBeGreaterThan(prompt.indexOf("You are StudyMate"));
+      expect(custom).toBeGreaterThan(prompt.indexOf("You are NoteFable"));
       // プロジェクトの共通指示は後ろに置き、食い違うときはそちらが優先する。
       expect(prompt.indexOf("=== Project instructions ===")).toBeGreaterThan(custom);
       expect(prompt).toContain("the project instructions win");

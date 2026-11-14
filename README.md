@@ -1,8 +1,8 @@
-# StudyMate
+# NoteFable
 
 供个人私下使用的 AI Web 服务。主要用于在工作地点方便访问已配置的 AI 模型，无需在工作设备上登录个人 AI 平台账号。
 
-项目保留 `StudyMate` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Notes 笔记、回答的复制 / 保存到 Notes / Markdown 导出、跨 Chats 与 Notes 的关键词搜索（容忍全角半角、平假名片假名等写法差异，也搜索附件文本）、聊天项目的共通指示与参考笔记，以及笔记的 Trash（回收站）和编辑历史。
+项目保留 `NoteFable` 名称，但当前定位不是对外运营的多用户 SaaS，而是一个轻量的个人 AI 入口。支持匿名设备会话、流式聊天、文件上下文、图片输入、图片生成、Web 搜索、站内 Notes 笔记、回答的复制 / 保存到 Notes / Markdown 导出、跨 Chats 与 Notes 的关键词搜索（容忍全角半角、平假名片假名等写法差异，也搜索附件文本）、聊天项目的共通指示与参考笔记，以及笔记的 Trash（回收站）和编辑历史。
 
 网站根路径 `/` 是产品介绍主页，点击主页入口后进入 `/app` 使用聊天与 Notes；也可以直接收藏 `/app`。旧的根路径会话和笔记链接（带 `chat`、`message`、`view` 或 `page` 参数）会保留全部查询参数转到 `/app`，已保存的链接继续可用。
 
@@ -14,13 +14,13 @@
 
 GitHub / Vercel 部署与数据库连接于 2026-09-16 核对；Neon 项目资源信息于 2026-09-05 核对：
 
-- 源码：GitHub `kakumine2001/StudyMate`，主分支 `main`
+- 源码：GitHub `kakumine2001/NoteFable`，主分支 `main`
 - 应用托管：Vercel 项目 `studymate`
 - Framework：Next.js
 - Vercel Node.js：24.x
 - Vercel Production region：`iad1`
 - Production aliases：
-  - `studymate-lab-ai.vercel.app`
+  - `notefable.com`
   - `studymate-kaku10.vercel.app`
 - 数据库：Neon PostgreSQL
   - Neon project：`neon_db`
@@ -192,7 +192,7 @@ npm run prisma:migrate
 
 生产只运行 `prisma migrate deploy` 路线，不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
 
-注意：当前同一个 Neon database 中还存在 `kaku_log` schema。StudyMate 的数据库操作应限定在 `studymate` schema，不要把另一个 schema 当成 StudyMate 的表。
+注意：当前同一个 Neon database 中还存在 `kaku_log` schema。NoteFable 的数据库操作应限定在 `studymate` schema，不要把另一个 schema 当成 NoteFable 的表。
 
 ## 上传限制
 
@@ -287,7 +287,7 @@ Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App（原来�
 ## Vercel 部署
 
 - 项目：`studymate`
-- 线上 URL：`https://studymate-lab-ai.vercel.app`
+- 线上 URL：`https://notefable.com`
 - 方式：GitHub 联动（main 分支 push 后自动部署）
 - `@vercel/analytics` 与 `@vercel/speed-insights` 已在 `src/app/layout.tsx` 启用
 

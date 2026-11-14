@@ -94,7 +94,7 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
     val proposals = remember(message.proposals, message.activity) { mergeProposals(message.proposals, message.activity) }
 
     Column(Modifier.fillMaxWidth()) {
-        // "StudyMate · 模型名"：品牌标志 12，间距 5.6；模型名不转大写，字距 .02em。
+        // "NoteFable · 模型名"：品牌标志 12，间距 5.6；模型名不转大写，字距 .02em。
         Row(Modifier.padding(bottom = 7.2.dp), verticalAlignment = Alignment.CenterVertically) {
             BrandMark(12.dp, Sm.Ink)
             Spacer(Modifier.width(5.6.dp))
@@ -191,7 +191,7 @@ private fun AnswerActions(key: String, messageId: String, content: String) {
                     more?.error = null
                     scope.launch {
                         val ok = try {
-                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("StudyMate", content)))
+                            clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("NoteFable", content)))
                             true
                         } catch (e: CancellationException) {
                             throw e

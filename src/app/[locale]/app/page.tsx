@@ -475,7 +475,7 @@ export default function Home() {
     ? t("Describe an image to create...")
     : isNarrowScreen
       ? t("Ask anything...")
-      : t("Ask anything — StudyMate searches when needed...");
+      : t("Ask anything — NoteFable searches when needed...");
 
   function replaceCachedMessages(sessionKey: string, nextMessages: Message[]) {
     sessionMessagesRef.current = {

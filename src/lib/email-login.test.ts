@@ -166,13 +166,13 @@ describe("the email", () => {
 
   it("is sent through Resend when configured", async () => {
     process.env.RESEND_API_KEY = "re_test";
-    process.env.EMAIL_FROM = "StudyMate <login@example.com>";
+    process.env.EMAIL_FROM = "NoteFable <login@example.com>";
     const fetcher = vi.fn(async () => new Response("{}", { status: 200 }));
     await sendLoginEmail("a@example.com", "042137", "ja", fetcher as unknown as typeof fetch);
     const [url, init] = fetcher.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.resend.com/emails");
     expect((init.headers as Record<string, string>).authorization).toBe("Bearer re_test");
-    expect(JSON.parse(String(init.body))).toMatchObject({ to: ["a@example.com"], from: "StudyMate <login@example.com>" });
+    expect(JSON.parse(String(init.body))).toMatchObject({ to: ["a@example.com"], from: "NoteFable <login@example.com>" });
   });
 
   it("fails when the service rejects the email", async () => {

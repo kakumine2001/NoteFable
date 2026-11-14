@@ -114,7 +114,7 @@ export const ChatMessage = memo(function ChatMessage({
         {message.role === "USER"
           ? <div className="notion-role-label">{t("You")}</div>
           : <div className="notion-role-label is-assistant">
-              <BrandMark size={12} /><span>StudyMate</span>
+              <BrandMark size={12} /><span>NoteFable</span>
               {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
             </div>}
         {shouldShowActivity && (

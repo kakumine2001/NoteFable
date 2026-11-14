@@ -36,7 +36,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 顶栏 | 高 56，左右 10.4；图标按钮 40×40、图标 20、圆角 4.8；标题 14 灰 | `TopBar` |
 | 空白首页 | 左右 24；图标框 41.6 + 标题 32 粗体、字距 −0.04em、行高 36.8；说明 17 / 27.2 灰，上距 8.8；整体垂直居中 | `EmptyState` |
 | 提问气泡 | 标签"あなた / You"12 等宽灰；气泡圆角 14、`#F3F5F9`、内边距 12×16、字 **15 / 行高 28**；图片缩略图 128、圆角 4，在文字上方；非图片附件是块下方的文件标签 | `UserTurn` |
-| 回答 | 标签 = 品牌标志 12 + "STUDYMATE · 模型名"；正文 16 / 行高 27.52；标题 650 字重；链接蓝色加粗下划线；回合间距 36；复制按钮 36×36，距正文 6.4 | `AssistantTurn`、`AnswerMarkdown` |
+| 回答 | 标签 = 品牌标志 12 + "NOTEFABLE · 模型名"；正文 16 / 行高 27.52；标题 650 字重；链接蓝色加粗下划线；回合间距 36；复制按钮 36×36，距正文 6.4 | `AssistantTurn`、`AnswerMarkdown` |
 | 输入栏 | 外边距 10.4、上 12、下 max(16, 安全区)；白底、1px `rgba(55,53,47,.18)`、圆角 16、内边距 10、浮起阴影；聚焦时描边变蓝并带 3px 浅蓝光圈；输入框最小高 40，字 16/24 | `Composer` |
 | 输入栏的 ＋ | 40×40 图标按钮、圆角 4.8、图标 18（描边 1.8）灰色；右边 6 处接模型按钮 | `Composer` |
 | ＋ 抽屉 | 与模型抽屉同款外框；行高 ≥60、圆角 11.2、内边距 6.4×13.6、图标 22、间距 14.4；标题 17 半粗、说明 14 灰；打开「生成图片」时该行灰底加 ✓ | `AttachSheet` |
@@ -77,7 +77,7 @@ mobile/android/
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
+- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`。包名和 Kotlin 包 `com.kakumine.studymate` 改名后仍保留：改包名等于换成另一个 App，旧版无法覆盖安装。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
@@ -211,7 +211,7 @@ mobile/android/
 和网页 `search-dialog.tsx` 在手机宽度下的全屏面板一致（数值在 412×915 下量，写在 `ui/SearchScreen.kt` 的注释里；文案在 `strings_search.xml`）。
 
 - 入口：聊天和笔记两边抽屉"新建"按钮下面的 Search 行（触屏不显示 Ctrl K 提示）；聊天顶栏右侧"＋"前面的搜索按钮（空白首页只有它）；笔记列表顶栏右侧、笔记编辑页顶栏版本历史前面的搜索按钮。
-- 面板：All / Chats / Notes 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在笔记界面时 Notes 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "StudyMate: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
+- 面板：All / Chats / Notes 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在笔记界面时 Notes 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "NoteFable: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
 - 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
 - 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题和图标打开原生笔记编辑页（列表还没读过也能开）。网页会滚到命中的笔记块（blockId），原生版的 `/note-embed` 还没有对应参数，只打开笔记开头。
 - 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。
@@ -238,7 +238,7 @@ cd mobile/android
 ```
 
 - 交付用 release 包：`./gradlew assembleRelease`（R8 压缩后约 2 MB，产物 `app/build/outputs/apk/release/app-release.apk`）。它暂时用 debug 密钥签名，能直接侧载安装；Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。文件名和上传规则见 [android.md](android.md#安装包交付)。
-- 默认连线上 `https://studymate-lab-ai.vercel.app`。连电脑上的开发服务器：`./gradlew assembleDebug -Pstudymate.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
+- 默认连线上 `https://notefable.com`。连电脑上的开发服务器：`./gradlew assembleDebug -Pstudymate.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 
 ## 路线图
@@ -246,5 +246,5 @@ cd mobile/android
 1. ✅ 聊天（本阶段）。
 2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
 3. ✅ 笔记：原生笔记列表、项目（分组）、回收站、拖动排序（0.4.0）；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：侧栏里给正打开着的笔记改图标（要先给编辑器加桥接口）。（搜索见“搜索与跳转”。）
-4. 账号：已有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情），沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
+4. 账号：已有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情），沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `NoteFable-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

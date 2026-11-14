@@ -45,7 +45,7 @@ export type ModelOption = {
   tokenLimits?: { contextWindow: number; maxOutputTokens: number };
 };
 
-// StudyMate で選択可能なモデル定義。UI 表示と API 側の検証で同じ配列を使う。
+// NoteFable で選択可能なモデル定義。UI 表示と API 側の検証で同じ配列を使う。
 // 表示名はここに固定で書き、環境変数では上書きしない。
 export const MODEL_OPTIONS: readonly ModelOption[] = [
   {

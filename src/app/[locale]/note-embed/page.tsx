@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { NoteEmbed } from "@/components/note-embed";
 
 export const metadata: Metadata = {
-  title: "StudyMate",
+  title: "NoteFable",
   robots: { index: false, follow: false },
 };
 

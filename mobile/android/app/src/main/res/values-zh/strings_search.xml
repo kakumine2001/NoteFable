@@ -18,6 +18,6 @@
     <string name="search_no_results_body">试试减少关键词。搜索不区分大小写、全角半角和平假名片假名，但不会匹配同义词或其他拼写。</string>
     <string name="search_results">搜索结果</string>
     <string name="search_speaker_you">你：</string>
-    <string name="search_speaker_studymate">StudyMate：</string>
+    <string name="search_speaker_studymate">NoteFable：</string>
     <string name="search_in_file">在 %1$s 中</string>
 </resources>

@@ -112,7 +112,7 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
       <button type="button" className="signin-close" onClick={close} aria-label={t("Close")} title={t("Close")}><X size={18} /></button>
       {step === "choose" ? (
         <>
-          <h2 className="signin-title">{t("Sign in to StudyMate")}</h2>
+          <h2 className="signin-title">{t("Sign in to NoteFable")}</h2>
           <p className="signin-subtitle">{t("Keep your chats and notes, and open them on any device.")}</p>
           {showGoogle && (
             <button type="button" className="google-signin-button signin-option" disabled={busy}

@@ -17,7 +17,7 @@ export { blocksToMarkdown };
 export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "search_notes",
-    description: "Search all of the user's StudyMate notes by title and text. Every word must appear (case-insensitive substring match, no synonyms or translation), so try other wordings or languages if nothing matches. Returns up to 10 matches with note IDs and short snippets, title matches first. An empty query lists the most recently edited notes.",
+    description: "Search all of the user's NoteFable notes by title and text. Every word must appear (case-insensitive substring match, no synonyms or translation), so try other wordings or languages if nothing matches. Returns up to 10 matches with note IDs and short snippets, title matches first. An empty query lists the most recently edited notes.",
     parameters: {
       type: "object",
       properties: { query: { type: "string", description: "Words to look for in note titles and text. Use an empty string to list recent notes." } },
@@ -27,7 +27,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "read_note",
-    description: "Read one of the user's StudyMate Notes as Markdown. Use a note ID returned by search_notes. Every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here.",
+    description: "Read one of the user's NoteFable Notes as Markdown. Use a note ID returned by search_notes. Every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here.",
     parameters: {
       type: "object",
       properties: { noteId: { type: "string", description: "The note ID from search_notes." } },
@@ -42,7 +42,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "propose_note_edit",
-    description: `Propose changes to one of the user's StudyMate Notes. This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). read_note shows an uploaded image or file as [Image: name — caption] or [File: name]; you can replace or delete those blocks like any other (the user is warned that the upload leaves the note), and a replacement may contain an image line (below). To put an image the user sent in this chat into the note, use the line \`![caption](attachment:ID)\` with an ID from list_chat_attachments, on its own line. Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
+    description: `Propose changes to one of the user's NoteFable Notes. This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). read_note shows an uploaded image or file as [Image: name — caption] or [File: name]; you can replace or delete those blocks like any other (the user is warned that the upload leaves the note), and a replacement may contain an image line (below). To put an image the user sent in this chat into the note, use the line \`![caption](attachment:ID)\` with an ID from list_chat_attachments, on its own line. Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
     parameters: {
       type: "object",
       properties: {
@@ -69,7 +69,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "propose_note_create",
-    description: "Propose a brand-new StudyMate Note for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the note was created. Use it only when the user asks for a new note or note (to change an existing note use propose_note_edit). markdown is the note body in the same format as propose_note_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. To include an image the user sent in this chat, put `![caption](attachment:ID)` on its own line, with an ID from list_chat_attachments. icon is one emoji or null.",
+    description: "Propose a brand-new NoteFable Note for the user. This does NOT create anything: the user sees the proposal and must approve it, so never say the note was created. Use it only when the user asks for a new note or note (to change an existing note use propose_note_edit). markdown is the note body in the same format as propose_note_edit (each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers; indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, `code`, [text](https://url)). Do not repeat the title as a heading in the body. To include an image the user sent in this chat, put `![caption](attachment:ID)` on its own line, with an ID from list_chat_attachments. icon is one emoji or null.",
     parameters: {
       type: "object",
       properties: {
