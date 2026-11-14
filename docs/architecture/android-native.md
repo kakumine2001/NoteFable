@@ -77,7 +77,7 @@ mobile/android/
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`。包名和 Kotlin 包 `com.kakumine.studymate` 改名后仍保留：改包名等于换成另一个 App，旧版无法覆盖安装。
+- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`。包名和 Kotlin 包 `com.kakumine.studymate` 改名后仍保留：改包名等于换成另一个 App，旧版无法覆盖安装。服务器地址（`gradle.properties` 的 `studymate.baseUrl`）暂时仍是 `https://studymate-lab-ai.vercel.app`：设备身份 Cookie 按主机名保存，直接换成 `notefable.com` 会让已安装的 App 变成新的匿名用户；要先做 Cookie 迁移再换。聊天链接（`ChatLink`）把 `notefable.com` 和旧网址当成同一个站。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定

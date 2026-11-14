@@ -98,7 +98,7 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
         Row(Modifier.padding(bottom = 7.2.dp), verticalAlignment = Alignment.CenterVertically) {
             BrandMark(12.dp, Sm.Ink)
             Spacer(Modifier.width(5.6.dp))
-            Text("STUDYMATE", style = RoleLabelBase)
+            Text("NOTEFABLE", style = RoleLabelBase)
             if (modelLabel != null) {
                 Spacer(Modifier.width(5.6.dp))
                 Text("· $modelLabel", style = RoleLabelBase.copy(letterSpacing = 0.24.sp))
