@@ -17,7 +17,7 @@
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。还没有：搜索、设置页。
+另有 Credential Manager Google 登录、退出及修改显示名的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。还没有：设置页。
 
 ## 与网页界面保持一致
 
@@ -58,7 +58,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：搜索（顶栏和侧栏）、侧栏聊天行的改图标（表情选择器）、回答下面的"更多"；笔记里：拖动排序（侧栏和首页行前的把手）、侧栏行里的改图标（表情选择器；编辑器里仍可改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记里：拖动排序（侧栏和首页行前的把手），以及侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `STUDYMATE_MODELS` 决定。
 
@@ -68,13 +68,13 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 mobile/android/
   app/src/main/java/com/kakumine/studymate/
     data/   StudyMateApi（各接口）、StudyMateHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
-            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
+            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
             IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、
             NotesUi（侧栏笔记部分、首页、对话框、回收站）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
-  app/src/main/assets/   models.json、system-text.json、usage-limits.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
-  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
+  app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
+  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
 - 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "StudyMate"。Google 登录用已登记的 Android 客户端 `StudyMate-Android`。
@@ -105,6 +105,8 @@ mobile/android/
 - 上传附件期间换了聊天：和网页一样这条不发，删掉已传的文件，文字和附件留在输入栏；离开后上传才失败也不在别的聊天里报"无法上传附件"（网页同样只在没换聊天时报错）。在还没发过东西的新聊天里点"新聊天"不算换聊天（网页 `createSession` 直接返回），上传照常进行、发出。上传进度是全局的，上传中哪个聊天都不能发（网页同样）。
 - `ChatUiState.generatingSessionIds` 是所有在发送的聊天；侧栏据此不让删生成中的聊天（网页同样只禁止删除，侧栏不显示"生成中"标记，所以原生版也不显示）。
 - 登录 / 退出时停掉所有聊天的回答并清空缓存，旧身份的半截回答不会再写进来。
+- 任何一次用服务器版本替换某个聊天缓存（打开时的读取、重试、检索前补读、回答结束后的对账，前台后台都一样）都走 `carryLocalKeys` / `replacedLocalIds`，并调用 `onMessageIdChanged`：后台答完的聊天，“存到笔记”的状态同样搬到服务端 ID 下。
+- 检索 / 链接定位（`openSessionAt`）在那个聊天自己的缓存里找；没有这条就保持“读取中”，等读到服务器版本再定位（刚打开的聊天本来就在静默读，本来开着的补读一次），生成中的聊天不重读。
 
 ## 界面语言
 
@@ -125,6 +127,18 @@ mobile/android/
 - 项目设置：共通指示（计数 n/4000）、参考笔记（筛选、勾选最多 `MAX_PROJECT_NOTES` 篇、已选标签、一次最多列 100 篇），保存时只发改了的字段（`projectSettingsChanges`）。加载失败和网页一样先看项目详情：详情读不到是 "Could not load the project settings."，笔记读不到是 "Could not load your notes."，服务端给了原因就用原因。
 - 拖动排序：按住行首把手直接拖（与网页触屏一致），放到别的行前 / 后走 `POST /api/sessions/reorder`（跨组时服务端顺便改项目和置顶），放到项目行或 CHATS 标签上是移进该项目并取消置顶。把手吃掉这次拖动，所以不会同时触发抽屉的横滑关闭和列表滚动；手指在列表上下边 30 以内移动时每次移动滚 12（和网页一样，手指不动就不滚）。正在移动的那一行把手不能拖，别的行照常能拖；排序请求同一时间只做一次，上一次没完时再排序提示 "Wait for the previous move to finish."（拖进项目走普通更新，不受这个限制，和网页一样）。折叠 / 删除后离开列表的行不再参与命中。网页的键盘上下移动在原生版没有。
 - 接口：`data/SessionsApi.kt`（PATCH / DELETE / POST `/api/sessions`、reorder）、`data/ProjectsApi.kt`（`/api/chat-projects`，参考笔记候选来自 `GET /api/pages`）。状态在 `ui/SidebarViewModel.kt`；会话列表本身仍在 `ChatViewModel`，成功后通过 `patchSessions` / `onSessionDeleted` / `openCreatedSession` 更新。打开抽屉时同时刷新会话和项目；本地改了项目列表时若有刷新在进行就再刷一次（和 `patchSessions` 一样），免得旧结果盖掉新改动；登录 / 退出后丢弃旧身份的结果。单元测试：`SidebarViewModelTest`、`SidebarApiTest`。
+
+## 表情选择器与聊天 / 笔记图标
+
+网页的选择器是 emoji-picker-react（`src/components/emoji-picker.tsx`、`full-emoji-picker.tsx`），原生版 `ui/EmojiPicker.kt` 照着它画（412×915 下量的值写在文件开头的注释里），文案在 `strings_emoji.xml`。
+
+- **数据**：`assets/emoji.json` 由 `npx tsx scripts/gen-native-emoji.ts` 从同一个 npm 包生成（表情、分类顺序、肤色变体、en / zh / zh-Hant / ja 四份搜索关键词，以及包里的分类图标、放大镜和清除图标的路径），不手改；升级 emoji-picker-react 后重新生成，`src/lib/native-emoji-asset.test.ts` 检查是否过期。读取和搜索在 `data/EmojiCatalog.kt`：关键词按界面语言（`ui_locale`）选；搜索是去空白、转小写后"任一关键词包含"（与包的 `normalizeQuery` + `includes` 相同）；本机字体画不出来的表情不显示（`Paint.hasGlyph`，网页同样隐藏浏览器不支持的表情）。
+- **界面**：弹出框宽 min(408, 屏宽 − 24)、高 36 + min(380, 屏高 − 60)，位置照网页 `floatingPositionFor`（按钮下方 6，放不下就上方，离屏幕边至少 12），打开时和 `.notes-popover` 一样淡入上移（120ms）。顶部条是 Emoji + 当前表情（选中标记）、Random（换一个、不关）、Remove（去掉并关闭）；下面是搜索框、肤色（点开展开 6 个）、9 个分类图标（space-around；搜索框有字时变淡到 .3 且不能点）、吸顶分类标题和表情格（每格 34，一行放几个按宽度算：floor((宽 − 20) / 34)，与包的 grid auto-fill 相同，412 宽时 10 个）。表情数据读不出来时显示 "Could not load emoji." 和 "Try again"（包的 LoadError）。点表情选中并关闭；有肤色变体的表情长按 0.5 秒出变体条。"最近使用"存在本机（`SharedPreferences` 的 `emoji/recent`，最多 14 个、新的在前；网页存在 localStorage 的 `epr_suggested`），为空时这一类不显示。点外面或按返回键关闭。`EmojiPickerBody` 也能直接放进页面（之后的账号头像表情页用它）。
+- **聊天图标**：顶栏标题左边的图标（40×40）、空白页标题左边的图标（41.6，表情 27.2 / 默认 MessageSquareText 22.4、描边 1.8）和侧栏聊天行的图标（40×40）都能点开选择器。保存走 `PATCH /api/sessions/:id {icon}`（`SessionsApi.updateSessionIcon`），排队和对账在 `ui/SessionIconSync.kt`（网页 `session-icon-sync.ts` 的移植：先显示，连点只发最后一次，失败退回最后保存成功的值并在输入栏上方提示 "Failed to change the chat icon."（换到别的聊天或新聊天时清掉，网页 `setSendError("")`），刷新回来的旧列表不会冲掉刚选的图标）。
+- **还没保存的新聊天**：先选的图标是草稿（`ChatUiState.draftIcon`）。原生的会话由 `/api/chat`（或 `/api/images`）在发第一条消息时创建、不带图标，所以收到 `X-Session-Id`（图片模式是返回的 `sessionId`）后再 `PATCH` 上去；从新聊天点项目的 ＋ 建好聊天时也把草稿带过去：新行一放进列表就带着这个图标，再去保存。打开别的聊天时丢掉草稿（网页 `loadMessages` 同样清掉）。草稿按新聊天的本机键存（见“后台生成”）：已经发出、还在等会话 ID 的新聊天，用户离开后图标仍跟着这次发送迁到会话 ID 上并保存（网页 `send` 的 `sentIcon`），也不会被项目 ＋ 带走。
+- **空白页标题**：没有消息的聊天（含已保存但还没消息的）显示空白页，标题是这个聊天的标题（新聊天是 "New chat"）和它的图标；这时顶栏不放标题和"新建聊天"（网页 `emptyState`）。
+- **笔记侧栏行的图标**：没打开的笔记点图标就能改，走 `PUT /api/pages/:id/icon`（`data/NoteIconApi.kt`，服务端把版本号加一，列表换成返回的图标和版本；同一篇的请求串行，前一个没回来时再选只记下最后的值，回来后再发一次；这时打开那篇会先等写完，免得编辑器读到旧版本、下次保存 409）；失败时在 NOTES 标签上方显示 "Could not change the icon. Try again."，下次打开抽屉时清掉（网页侧栏关掉后组件卸载，提示跟着消失）。打开着的笔记的图标在原生侧栏里只显示、不弹选择器（见上面的"有意不放的网页控件"）。
+- 单元测试：`EmojiCatalogTest`、`ChatIconTest`、`NoteIconTest`、`IconApiTest`。
 
 ## 附件与图片
 
@@ -155,9 +169,19 @@ mobile/android/
 - **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
 - **代码块**（`ui/CodeBlock.kt`，网页 `MarkdownCodeBlock` + `.markdown-code-*`）：头部 Code2 + 语言名（围栏语言含别名 → `guessLanguage` 的 Python 规则 → 自动识别，识别不出显示"代码"）+ 复制键（✓ 停 1.2 秒）；代码不折行、横向滚动。网页用 highlight.js，原生是自带的小词法高亮器，覆盖同样 17 种语言、用同一套颜色类别；逐个记号和自动识别结果是近似，不保证与 highlight.js 完全一致。行内代码按 `.markdown-inline-code`（#e2e8f0 底、13.6）。
 - **表格**（`AnswerMarkdown` 的 `AnswerTable`）：渲染库自带的表格是固定列宽、只有分隔线，和网页不同，所以自己排：1px 边框、内边距 7.2×11.2、表头浅蓝灰底 + 600，左上对齐；列宽按浏览器自动表格布局分配（每列最窄 88 或最长的词，放得下用自然宽度，否则按比例分，最窄都放不下时横向滚动）。
-- **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。网页的"…"菜单（存到笔记、下载对话）不在这一批。
+- **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。复制键后面是"…"菜单，见下文“回答导出”。
 - **生成图片的下载**：每张图片右下角 44 的圆形下载键（`.generated-image-download`）。存进相册的 Pictures（`data/ImageSaver.kt`，文件名 `studymate-<id>.<扩展名>`，扩展名按图片的 MIME 类型（jpg / webp / gif，默认 png；网页总是 `.png`），id 里不安全的字符换成 `_`；下载在 App 级作用域（`StudyMateApp.scope`）里跑，回合滚出屏幕也不中断；Android 8–9 媒体库没扫到时只存不打开；Android 10+ 用 MediaStore 不需要权限，8–9 先申请 `WRITE_EXTERNAL_STORAGE`，清单里 `maxSdkVersion=28`），提示和成功后打开的方式与笔记文件下载相同。
 - 和网页的差别：删除线颜色（网页是半透明红）用文字色；代码高亮是近似（见上）。
+
+### 回答导出（"…"菜单）
+
+`ui/AnswerActions.kt`、`data/ExportApi.kt`，对应网页 `answer-actions.tsx` + `answer-actions.css`（412 宽实测）。复制键后面是 36×36 的"…"（Ellipsis 18、线宽 1.9、Muted），点开的菜单与侧栏菜单同一外观（宽 228、内边距 5.6、圆角 12、细线、阴影 0 8 32 #0002；项最小高 44、内边距 9.6×12、图标 16 + 间距 12、14/21），左边与按钮对齐、在按钮下 4，下方放不下就放到按钮上方，离窗口边至少 8（`answerMenuPosition`）。点外面或返回键关闭。
+
+- **存到笔记**：网页在浏览器里用 `answerToNoteContent` 生成块；原生不移植这段转换，改由服务端 `POST /api/pages/from-answer`（body `{ markdown, sessionId, messageId, savedOn }`）用同一个函数生成，再走与 `POST /api/pages` 相同的 `validateNoteContent` + `createNotePage`（`src/lib/note-create.ts`）。会话只用来取标题和回到会话的链接：必须属于当前用户且不是笔记助手的会话（`noteId: null`），否则 404；正文是 App 显示的回答原文（和 `POST /api/pages` 一样，只是把自己的文字存进自己的笔记），请求体上限 1 MiB（413）。链接的 origin 取请求地址；`savedOn` 是本机日期，出处里的日期与网页一样按用户所在时区。菜单项：保存中转圈 + "正在保存…"，成功变 ✓"已保存到笔记"并多出"打开已保存的笔记"（关菜单，经 `LocalOpenNote` 打开）；保存中 / 已保存的项变 Muted、不能再点。状态按 `会话ID\n消息ID` 存在 App 级的 `AnswerExportStore`（网页模块级 Map），重新绘制、切换对话都不会重复新建；回答刚结束时还是本地 ID（`local-N`），对账换成服务端 ID 时列表项沿用原来的 key（`UiMessage.key`，`carryLocalKeys`：先按服务端 ID 沿用之前回合已有的 key，再把刚发送回合的本地 key 交给服务端的那几条），菜单状态不丢；保存状态由 `ChatViewModel` 在对账时搬到新 ID 下（`onMessageIdChanged` → `AnswerExportStore.rename`，不管那条回答在不在屏幕上；在途的保存完成后记在新 ID 下）；保存成功后 `AnswerExportStore.created` 发出新笔记 ID，`StudyMateRoot` 刷新笔记列表（网页 `studymate:page-created`，离开对话后在后台完成也一样）；重开 App 就忘了（服务端不去重，与网页刷新后相同）。失败时项变"重新保存到笔记"，菜单里显示原因：413 太长、400 服务端原句（经系统文词典翻译）、其余"无法保存到笔记，请重试。"。
+- **下载对话**：`GET /api/sessions/:id/export?date=` 返回 `{ fileName, markdown }`，服务端用网页同一组 `conversationToMarkdownFile` / `answerFileName` 生成（同样的所有权检查；只读 USER / ASSISTANT 的正文和附件，不读 SYSTEM 消息和 providerContext；附件图片是本站绝对地址）。读取中菜单项转圈 + "正在下载…" 并阻止重复点击；读取失败菜单保持打开并显示"无法下载聊天，请重试。"；成功后关菜单，用系统的保存位置选择（SAF `CreateDocument`，`text/markdown`，建议文件名即 `fileName`）写入，写完 Toast "聊天已下载"（网页这里只有读屏通知），取消选择就什么也不做，写入失败在操作行下方显示同一句错误，并删掉选择器已建好的空文件。保存位置选择器注册在 `StudyMateRoot`（`rememberConversationDownloader`，经 `LocalConversationDownloader` 交给回答行），不在回答行里：要写的会话 ID 和文件名存在 `rememberSaveable`，选择器开着时进程被杀、回来后那条回答没有重新组合，结果也能接住。等写入的 Markdown 按会话放在 `AnswerExportStore`（Activity 重建也还在）；进程被杀后没了就重新读一次再写，写入在 App 级作用域里跑；发起的回答行已不在时，写入失败改用 Toast 提示。读取时离开这条回答（滚出屏幕）就不再弹出保存位置选择。
+- **错误**：与网页一样只有一处：复制、保存、下载开始时都清掉上一条，菜单开着时显示在菜单里，关着时显示在操作行下方（复制失败也在这里，`MenuError.Copy`）。
+- 和网页的差别：菜单不随页面滚动关闭；没有键盘方向键导航。
+- 服务端测试：`src/app/api/pages/from-answer/route.test.ts`、`src/app/api/sessions/[sessionId]/export/route.test.ts`（与浏览器端转换结果逐项比对）；原生：`ExportApiTest`（MockWebServer、假后端、新建通知、定位）、`ChatViewModelTest`（对账的 key 沿用与 ID 替换通知）。
 
 ## 笔记
 
@@ -179,6 +203,18 @@ mobile/android/
 
 本机验证时注意：Next 开发服务器默认拒绝来自 `10.0.2.2` 的开发资源请求（`allowedDevOrigins`），编辑器会停在"正在加载笔记…"。模拟器里用 `adb reverse tcp:3000 tcp:3000` 并用 `-Pstudymate.baseUrl=http://localhost:3000` 构建即可。
 
+## 搜索与跳转（Batch 4）
+
+和网页 `search-dialog.tsx` 在手机宽度下的全屏面板一致（数值在 412×915 下量，写在 `ui/SearchScreen.kt` 的注释里；文案在 `strings_search.xml`）。
+
+- 入口：聊天和笔记两边抽屉"新建"按钮下面的 Search 行（触屏不显示 Ctrl K 提示）；聊天顶栏右侧"＋"前面的搜索按钮（空白首页只有它）；笔记列表顶栏右侧、笔记编辑页顶栏版本历史前面的搜索按钮。
+- 面板：All / Chats / Notes 标签；Chats 标签页且有项目时右侧是项目筛选（当前聊天所在的项目排在最前，默认"全部项目"，选的项目没了就退回全部）。输入停 250ms 后 `GET /api/search?q=&scope=&projectId=`，条件变了就取消上一次请求、丢掉晚到的旧结果；检索中保留上一次结果并淡显（0.5）。在聊天界面时 Chats 组在前，在笔记界面时 Notes 在前。空输入 / 失败（"Try again" 重试）/ 检索中 / 无结果的文案都来自网页。每行：图标（表情或 MessageSquareText / FileText）、标题、项目名、摘录（"You: " / "StudyMate: "，附件命中时是回形针 + "in 文件名"）、日期（今年只写月日，`android.icu` 的 MMMd / yMMMd 骨架）；第一行带 hover 底色（网页手机上也是），命中词黄色底。每次打开都是空的（网页只在打开时挂载面板），返回键关闭。打开时整个面板从下方 32 处淡入上移（`model-sheet-up` 200ms ease-out）；检索中旧结果用 120ms ease 淡到 0.5，结果到了立即恢复（同 `.is-stale` 的 transition）。项目筛选的触发框和网页 `<select>` 一样按最长的选项定宽（最宽 48%），箭头在右端；**已知差异**：网页点开是浏览器自己的选择器（Android Chrome 是单选列表对话框），原生用 Material3 `DropdownMenu`（白底，当前项加粗），没有按网页量过。网页的 `<mark>` 有 1px 左右内边距和 2px 圆角，原生用文字背景色，没有这两项。
+- 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
+- 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题和图标打开原生笔记编辑页（列表还没读过也能开）。网页会滚到命中的笔记块（blockId），原生版的 `/note-embed` 还没有对应参数，只打开笔记开头。
+- 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。
+- 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 写 `autoVerify="false"`，不需要 `assetlinks.json`：Android 12+ 默认仍由浏览器打开，用户在系统设置的"打开支持的链接"里把站点加给 App 后才会进 App。外部链接经 `ChatViewModel.linkRequests` 交给 `StudyMateRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
+- 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`、`ChatRevealLayoutTest`。
+
 ## 构建与测试
 
 ```bash
@@ -195,6 +231,6 @@ cd mobile/android
 
 1. ✅ 聊天（本阶段）。
 2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
-3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序、侧栏行里改图标、搜索。
+3. ✅ 笔记：原生笔记列表、项目（分组）、回收站；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：拖动排序。（搜索见“搜索与跳转”。）
 4. 账号：已有 Credential Manager Google 登录、退出和修改显示名，沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），需完成真实账号流程验证。Google Cloud 使用 `StudyMate-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除；同一包名、同一签名覆盖安装。匿名数据不跨 Cookie 迁移（开发阶段不做）。

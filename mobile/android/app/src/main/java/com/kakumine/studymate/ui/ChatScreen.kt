@@ -72,6 +72,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -135,9 +136,13 @@ fun ChatScreen(
     onRemoveFile: (String) -> Unit,
     onImageMode: (Boolean) -> Unit,
     onSwitchWorkspace: (Workspace) -> Unit,
+    /** 改当前聊天的图标（还没保存的新聊天是草稿图标）。 */
+    onChangeIcon: (String?) -> Unit,
     account: AccountUiState = AccountUiState(),
     onSignIn: () -> Unit = {},
     onDismissGuestLimit: () -> Unit = {},
+    onSearch: () -> Unit = {},
+    onRevealDone: (Long) -> Unit = {},
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
@@ -154,7 +159,8 @@ fun ChatScreen(
             }
         }
     }
-    val isEmptyChat = state.activeSessionId == null && state.messages.isEmpty()
+    // 空白页（网页 emptyState：没有消息）：标题在页面中间，顶栏不放标题和"新建聊天"。读历史中 / 失败时不算。
+    val isEmptyChat = state.messages.isEmpty() && !state.messagesLoading && !state.messagesFailed
 
     Scaffold(
         containerColor = Color.White,
@@ -168,12 +174,14 @@ fun ChatScreen(
                 showNewChat = !isEmptyChat,
                 onMenu = onMenu,
                 onNewChat = onNewChat,
+                onChangeIcon = onChangeIcon,
+                onSearch = onSearch,
             )
         },
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages, onSwitchWorkspace)
+                MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
             }
             val guestLimit = state.guestLimit
             Composer(
@@ -204,6 +212,8 @@ fun ChatScreen(
                     is ComposerNotice.Rejected -> attachErrorText(notice.error)
                     ComposerNotice.UploadFailed -> stringResource(R.string.upload_failed)
                     ComposerNotice.LoadFailed -> stringResource(R.string.messages_load_failed)
+                    ComposerNotice.IconFailed -> stringResource(R.string.em_chat_icon_failed)
+                    ComposerNotice.LinkFailed -> stringResource(R.string.messages_load_failed)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -240,6 +250,8 @@ private fun TopBar(
     showNewChat: Boolean,
     onMenu: () -> Unit,
     onNewChat: () -> Unit,
+    onChangeIcon: (String?) -> Unit,
+    onSearch: () -> Unit,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -248,9 +260,10 @@ private fun TopBar(
         TopIconButton(Lucide.Menu, stringResource(R.string.open_menu), onMenu)
         if (title != null) {
             Spacer(Modifier.width(12.dp))
-            Box(Modifier.size(40.dp), Alignment.Center) {
-                if (icon != null) Text(icon, fontSize = 18.sp)
-                else LucideIcon(Lucide.MessageSquareText, 20.dp, Sm.Muted)
+            // 网页 ChatTopbarIcon（手机）：40×40、圆角 4，表情 18 / MessageSquareText 15 灰；点开表情选择器。
+            ChatIconButton(icon, onChangeIcon, Modifier.size(40.dp), RoundedCornerShape(4.dp)) {
+                if (icon != null) Text(icon, fontSize = 18.sp, lineHeight = 18.sp)
+                else LucideIcon(Lucide.MessageSquareText, 15.dp, Sm.Muted)
             }
             Text(
                 title,
@@ -263,7 +276,12 @@ private fun TopBar(
         } else {
             Spacer(Modifier.weight(1f))
         }
-        if (showNewChat) TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        // 右侧按钮组（gap 8）：搜索在"新建聊天"前面，空白首页只有搜索（Batch 4）。
+        TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), onSearch)
+        if (showNewChat) {
+            Spacer(Modifier.width(8.dp))
+            TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
+        }
     }
 }
 
@@ -282,7 +300,7 @@ internal fun TopIconButton(paths: List<String>, description: String, onClick: ()
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit) {
+private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit, onRevealDone: (Long) -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -293,6 +311,8 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
     // "滚动到底部"按钮自己发起的滚动：不能当成用户往回滚而停止跟随。
     val programmaticScroll = remember { mutableStateOf(false) }
     val lastIndex = state.messages.lastIndex
+    // 检索结果 / 链接要定位到某条消息：定位完之前不贴底（网页 openChatFromLink 关掉 pinToBottom）。
+    val revealPending = rememberUpdatedState(state.reveal != null && state.reveal.sessionId == state.activeSessionId)
     LaunchedEffect(state.activeSessionId, state.messages.size) { follow.value = true }
     LaunchedEffect(listState) {
         listState.interactionSource.interactions.collect { interaction ->
@@ -313,6 +333,7 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 scrolling = listState.isScrollInProgress,
                 programmaticScroll = programmaticScroll.value,
                 hasItems = listState.layoutInfo.totalItemsCount > 0,
+                revealPending = revealPending.value,
             )
         }.collect { action ->
             when (action) {
@@ -326,11 +347,16 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
     }
     // 跟随时，在这一帧的测量之前就把位置定到最底部：新增的文字直接出现在底部，不会先跳一下。
     SideEffect {
-        if (follow.value && lastIndex >= 0 && !listState.isScrollInProgress) listState.requestScrollToItem(lastIndex, PIN_TO_END)
+        if (follow.value && !revealPending.value && lastIndex >= 0 && !listState.isScrollInProgress) {
+            listState.requestScrollToItem(lastIndex, PIN_TO_END)
+        }
     }
     val atBottom by remember {
         derivedStateOf { distanceToBottom(listState) <= with(density) { 8.dp.toPx() } }
     }
+    // 检索结果 / 链接：读完后滚到那条消息并闪一下（见 SearchScreen.kt 的 revealMessage）。
+    // 滚到了就停止跟随，免得马上被拉回底部；消息已不存在就恢复跟随，停在最底部。
+    val flash = revealMessage(state, listState, onRevealed = { found -> follow.value = !found }, onRevealDone = onRevealDone)
 
     when {
         state.messagesLoading -> Box(Modifier.fillMaxSize(), Alignment.Center) {
@@ -347,7 +373,10 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
         // 空白首页：网页手机版在顶栏下方放 Chat / Note 切换（左右 24、上距 4），标题在剩下的空间里居中。
         state.messages.isEmpty() -> Column(Modifier.fillMaxSize()) {
             WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
-            Box(Modifier.weight(1f).fillMaxWidth()) { EmptyState() }
+            Box(Modifier.weight(1f).fillMaxWidth()) {
+                // 已保存但还没有消息的聊天显示它自己的标题和图标（网页 EmptyConversation 的 title = activeTitle）。
+                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, onChangeIcon)
+            }
         }
         else -> Box(Modifier.fillMaxSize()) {
             LazyColumn(
@@ -358,11 +387,13 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 contentPadding = PaddingValues(start = PageGutter, end = PageGutter, top = 4.dp, bottom = ListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(TurnGap),
             ) {
-                items(state.messages, key = { it.id }) { message ->
+                items(state.messages, key = { it.key }) { message ->
                     val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
                     // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
                     val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
-                    if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                    Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
+                        if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                    }
                 }
             }
             ScrollToBottomButton(
@@ -435,18 +466,20 @@ private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier
 // 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"；手机宽度（< 640）下输入栏区顶部那一行"滚动到底部"
 // （40 + 8）在空白首页也只是透明、照样占位（只有 ≥ 640 才 display: none）。所以这里底部留 48 + 48，标题的位置才和网页一致。
 @Composable
-private fun EmptyState() {
+private fun EmptyState(title: String?, icon: String?, onChangeIcon: (String?) -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
         verticalArrangement = Arrangement.Center,
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(41.6.dp), Alignment.Center) {
-                LucideIcon(Lucide.MessageSquareText, 20.dp, Sm.Muted, strokeWidth = 1.7f)
+            // 网页 ChatTitleIcon：1.3em（41.6）、圆角 6；表情 0.85em（27.2），没有时 MessageSquareText 0.7em（22.4）描边 1.8。
+            ChatIconButton(icon, onChangeIcon, Modifier.size(41.6.dp), RoundedCornerShape(6.dp)) {
+                if (icon != null) Text(icon, fontSize = 27.2.sp, lineHeight = 27.2.sp)
+                else LucideIcon(Lucide.MessageSquareText, 22.4.dp, Sm.Muted, strokeWidth = 1.8f)
             }
             Spacer(Modifier.width(9.6.dp))
             Text(
-                stringResource(R.string.new_chat),
+                title ?: stringResource(R.string.new_chat),
                 color = Sm.Ink,
                 fontSize = 32.sp,
                 lineHeight = 36.8.sp,

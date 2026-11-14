@@ -161,7 +161,7 @@ private fun Spinner(size: Int) {
 }
 
 // CSS 的 ease-out。
-private val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
+internal val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
 // 菜单贴在触发行上方 [gap] 处、左边对齐（.language-menu：bottom: calc(100% + 4px); left: 0）。
 private class AboveTrigger(private val gap: Int) : PopupPositionProvider {

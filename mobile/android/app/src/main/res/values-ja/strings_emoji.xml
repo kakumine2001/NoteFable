@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表情选择器与聊天 / 笔记图标（Batch 6）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="em_emoji">絵文字</string>
+    <string name="em_random">ランダム</string>
+    <string name="em_remove">削除</string>
+    <string name="em_cat_suggested">最近使った絵文字</string>
+    <string name="em_cat_smileys_people">顔と人</string>
+    <string name="em_cat_animals_nature">動物と自然</string>
+    <string name="em_cat_food_drink">食べ物と飲み物</string>
+    <string name="em_cat_travel_places">旅行と場所</string>
+    <string name="em_cat_activities">アクティビティ</string>
+    <string name="em_cat_objects">もの</string>
+    <string name="em_cat_symbols">記号</string>
+    <string name="em_cat_flags">旗</string>
+    <string name="em_search_placeholder">絵文字を検索…</string>
+    <string name="em_search_label">絵文字を検索</string>
+    <string name="em_clear_search">検索をクリア</string>
+    <string name="em_none_found">絵文字が見つかりません</string>
+    <string name="em_categories">絵文字のカテゴリー</string>
+    <string name="em_tone_neutral">標準の肌の色</string>
+    <string name="em_tone_light">明るい肌の色</string>
+    <string name="em_tone_medium_light">やや明るい肌の色</string>
+    <string name="em_tone_medium">中間の肌の色</string>
+    <string name="em_tone_medium_dark">やや濃い肌の色</string>
+    <string name="em_tone_dark">濃い肌の色</string>
+    <string name="em_change_chat_icon">チャットのアイコンを変更</string>
+    <string name="em_change_icon_of">「%1$s」のアイコンを変更</string>
+    <string name="em_choose">絵文字を選択</string>
+    <string name="em_current">現在の絵文字</string>
+    <string name="em_chat_icon_failed">チャットのアイコンを変更できませんでした。</string>
+    <string name="em_note_icon_failed">アイコンを変更できませんでした。もう一度お試しください。</string>
+    <string name="em_loading">絵文字を読み込み中…</string>
+    <string name="em_load_failed">絵文字を読み込めませんでした。</string>
+</resources>

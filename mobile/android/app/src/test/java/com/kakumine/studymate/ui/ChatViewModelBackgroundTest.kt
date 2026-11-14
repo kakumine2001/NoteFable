@@ -440,4 +440,96 @@ class ChatViewModelBackgroundTest {
         assertTrue(vm.state.value.messages.isEmpty())
         assertEquals(ComposerNotice.LoadFailed, vm.state.value.notice)
     }
+
+    @Test
+    fun `a background chat's reconcile carries local keys and reports replaced ids`() = test {
+        val backend = Backend()
+        val renames = mutableListOf<Triple<String, String, String>>()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10, onMessageIdChanged = { s, from, to -> renames += Triple(s, from, to) })
+        created += vm
+        advanceUntilIdle()
+
+        vm.send("q")
+        runCurrent()
+        backend.streams[0].send(ChatStreamEvent.Started("s1"))
+        backend.streams[0].send(ChatStreamEvent.Delta("a"))
+        settle()
+        val localIds = vm.state.value.messages.map { it.id }
+        // 回答结束前去了别的聊天：对账在后台进行。
+        vm.openSession("s9")
+        settle()
+        backend.stored["s1"] = listOf(MessageDto("db-1", "USER", "q"), MessageDto("db-2", "ASSISTANT", "a"))
+        backend.streams[0].close()
+        advanceUntilIdle()
+
+        assertEquals(listOf(Triple("s1", localIds[0], "db-1"), Triple("s1", localIds[1], "db-2")), renames)
+        backend.messagesGate = CompletableDeferred()
+        vm.openSession("s1")
+        runCurrent()
+        assertEquals(listOf("db-1", "db-2"), vm.state.value.messages.map { it.id })
+        assertEquals(localIds, vm.state.value.messages.map { it.key })
+        // 回来时的静默重读同样沿用 key，不再重复报告。
+        backend.messagesGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(localIds, vm.state.value.messages.map { it.key })
+        assertEquals(2, renames.size)
+    }
+
+    @Test
+    fun `a draft icon follows its send to the session id after the user left that new chat`() = test {
+        val backend = Backend()
+        val saved = mutableListOf<Pair<String, String?>>()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10, saveIcon = { id, icon -> saved += id to icon; true })
+        created += vm
+        advanceUntilIdle()
+
+        vm.changeIcon("🧪")
+        vm.send("q")
+        runCurrent()
+        vm.newChat()
+        // 新开的聊天没有草稿图标；它自己的草稿不影响前一个聊天。
+        assertNull(vm.state.value.draftIcon)
+        vm.changeIcon("🎒")
+        backend.streams[0].send(ChatStreamEvent.Started("s1"))
+        settle()
+
+        assertEquals(listOf("s1" to "🧪"), saved)
+        assertNull(vm.state.value.activeSessionId)
+        assertEquals("🎒", vm.state.value.draftIcon)
+        backend.streams[0].close()
+        advanceUntilIdle()
+    }
+
+    @Test
+    fun `revealing a hit missing from a cached background chat waits for the reload`() = test {
+        val backend = Backend()
+        val vm = newViewModel(backend)
+        vm.send("q")
+        runCurrent()
+        backend.streams[0].send(ChatStreamEvent.Started("s1"))
+        settle()
+        backend.stored["s1"] = listOf(MessageDto("db-1", "USER", "q"), MessageDto("db-2", "ASSISTANT", "a"))
+        backend.streams[0].close()
+        advanceUntilIdle()
+        vm.openSession("s9")
+        advanceUntilIdle()
+
+        backend.stored["s1"] = backend.stored["s1"]!! + MessageDto("db-3", "USER", "from another device")
+        vm.openSessionAt("s1", "db-3")
+        // 缓存先显示，但定位要等服务器版本。
+        assertEquals(listOf("q", "a"), vm.contents())
+        assertTrue(vm.state.value.messagesLoading)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.messagesLoading)
+        assertEquals("db-3", vm.state.value.reveal!!.messageId)
+        assertEquals(3, vm.state.value.messages.size)
+
+        // 缓存里已有的消息直接定位，不等读取。
+        vm.openSession("s9")
+        advanceUntilIdle()
+        vm.openSessionAt("s1", "db-1")
+        assertFalse(vm.state.value.messagesLoading)
+        assertEquals("db-1", vm.state.value.reveal!!.messageId)
+        advanceUntilIdle()
+    }
 }

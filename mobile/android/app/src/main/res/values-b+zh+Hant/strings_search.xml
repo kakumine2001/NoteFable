@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- Batch 4：搜索（src/lib/i18n/messages/zh.ts）。 -->
+<resources>
+    <string name="search">搜尋</string>
+    <string name="search_chats_and_notes">搜尋聊天和筆記</string>
+    <string name="search_close">關閉搜尋</string>
+    <string name="search_tab_all">全部</string>
+    <string name="search_tab_chats">聊天</string>
+    <string name="search_project">專案</string>
+    <string name="search_all_projects">全部專案</string>
+    <string name="search_idle_title">搜尋你的聊天和筆記</string>
+    <string name="search_idle_body">輸入的每個詞都需要出現在同一個聊天或筆記中，可以在標題、訊息或附件裡。</string>
+    <string name="search_unavailable_title">搜尋不可用</string>
+    <string name="search_unavailable_body">請檢查網路連線後重試。</string>
+    <string name="search_try_again">重試</string>
+    <string name="search_searching">正在搜尋…</string>
+    <string name="search_no_results">沒有找到“%1$s”的結果</string>
+    <string name="search_no_results_body">試試減少關鍵詞。搜尋不區分大小寫、全形半形和平假名片假名，但不會匹配同義詞或其他拼寫。</string>
+    <string name="search_results">搜尋結果</string>
+    <string name="search_speaker_you">你：</string>
+    <string name="search_speaker_studymate">StudyMate：</string>
+    <string name="search_in_file">在 %1$s 中</string>
+</resources>

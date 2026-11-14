@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 表情选择器与聊天 / 笔记图标（Batch 6）。英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="em_emoji">Emoji</string>
+    <string name="em_random">Random</string>
+    <string name="em_remove">Remove</string>
+    <string name="em_cat_suggested">Recently used</string>
+    <string name="em_cat_smileys_people">Smileys &amp; people</string>
+    <string name="em_cat_animals_nature">Animals &amp; nature</string>
+    <string name="em_cat_food_drink">Food &amp; drink</string>
+    <string name="em_cat_travel_places">Travel &amp; places</string>
+    <string name="em_cat_activities">Activities</string>
+    <string name="em_cat_objects">Objects</string>
+    <string name="em_cat_symbols">Symbols</string>
+    <string name="em_cat_flags">Flags</string>
+    <string name="em_search_placeholder">Search emoji…</string>
+    <string name="em_search_label">Search for an emoji</string>
+    <string name="em_clear_search">Clear search</string>
+    <string name="em_none_found">No emoji found</string>
+    <string name="em_categories">Emoji categories</string>
+    <string name="em_tone_neutral">Default skin tone</string>
+    <string name="em_tone_light">Light skin tone</string>
+    <string name="em_tone_medium_light">Medium-light skin tone</string>
+    <string name="em_tone_medium">Medium skin tone</string>
+    <string name="em_tone_medium_dark">Medium-dark skin tone</string>
+    <string name="em_tone_dark">Dark skin tone</string>
+    <string name="em_change_chat_icon">Change chat icon</string>
+    <string name="em_change_icon_of">Change icon of %1$s</string>
+    <string name="em_choose">Choose an emoji</string>
+    <string name="em_current">Current emoji</string>
+    <string name="em_chat_icon_failed">Failed to change the chat icon.</string>
+    <string name="em_note_icon_failed">Could not change the icon. Try again.</string>
+    <string name="em_loading">Loading emoji…</string>
+    <string name="em_load_failed">Could not load emoji.</string>
+</resources>
