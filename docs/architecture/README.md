@@ -17,10 +17,11 @@
 1. 本文件 — 系统有哪些组件
 2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考笔记、跨 Chats / Notes 搜索、回答的复制 / 保存到 Notes / Markdown 导出与会话链接
 3. [image-flow.md](image-flow.md) — 图片上传、AI 生成图片、图片保存
+4. [provider-requests.md](provider-requests.md) — 三家模型的上游请求结构、工具循环与压缩续传
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
-6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合
+6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合；Google / 邮箱登录配置
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
-8. [android.md](android.md) — Android 开发环境、APK 交付、App 内 Google 登录、手机网页排版
+8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [i18n.md](i18n.md) — 英/简中/繁中/日界面、语言选择 Cookie、浏览器和地区回退
 
@@ -39,6 +40,7 @@ flowchart LR
     Blob["Private Vercel Blob"]
     OpenAI["OpenAI APIs"]
     DeepSeek["DeepSeek API"]
+    Anthropic["Anthropic Messages API"]
 
     Browser --> App
     App --> Chat
@@ -49,6 +51,7 @@ flowchart LR
     Chat --> Neon
     Chat --> OpenAI
     Chat --> DeepSeek
+    Chat --> Anthropic
     Chat --> Blob
     Images --> OpenAI
     Images --> Neon
@@ -68,7 +71,7 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx` | 公开的隐私权政策与服务条款（Google 同意屏幕要填这两个链接） |
 | `src/app/api/sessions/*` | 会话列表、历史消息读取、会话图标 |
-| `src/app/api/pages/*` | 站内页面 CRUD、匿名归属和版本检查；`trash/*` 是回收站，`[pageId]/revisions/*` 是编辑历史与恢复 |
+| `src/app/api/pages/*` | 站内页面 CRUD、当前用户归属和版本检查；`trash/*` 是回收站，`[pageId]/revisions/*` 是编辑历史与恢复 |
 | `src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | Trash 保留期与惰性清理；编辑历史的快照 SQL、保留上限与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx` | Trash 对话框与编辑历史/恢复对话框 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
@@ -78,7 +81,7 @@ flowchart LR
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
 | `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/?chat=&message=` 会话链接（根页面重定向后，由 `src/app/[locale]/app/page.tsx` 打开会话） |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
-| `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；已 Google 登录时返回对应账号的用户 |
+| `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；Google 或邮箱登录时返回对应账号的用户 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |
 | `src/lib/email-login.ts`、`src/app/api/auth/email/*`、`src/components/sign-in-dialog.tsx` | 邮箱验证码登录（发码、校验、签发同样的会话 Cookie）和登录弹窗（Google / 邮箱）；配置见 [deployment.md](deployment.md) |
 | `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)） |
@@ -106,4 +109,4 @@ Vercel Function
 
 ## 文档更新时间
 
-GitHub / Vercel 部署、生产数据库连接方式与本地数据库：**2026-09-16**。Neon 项目资源信息：**2026-09-05**。
+本轮文档与主分支代码核对：**2026-11-15**，覆盖产品定位、登录、Notes、Android、请求示例和图片读取。源码仓库、Vercel 项目名和域名同日核对。生产数据库连接方式与本地数据库的运行核验仍为 **2026-09-16**，Neon 项目资源核验为 **2026-09-05**；文档同步不代表重新验证了所有线上功能或已交付 APK。
