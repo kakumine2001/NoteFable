@@ -67,6 +67,14 @@ FormData
 POST /api/chat
 ```
 
+### 输入框与滚动（`page.tsx`）
+
+- 模型与推理强度：最后一次选择保存在浏览器 `localStorage`（`src/lib/model-preference.ts`，键 `studymate:model-preference`），页面显示后读取。`/app` 是静态页面，所以不能在服务端决定。保存的模型不在服务端当前给出的列表里时用默认模型；该模型不支持保存的强度时用它的默认强度（`resolveModelPreference`）。只按浏览器保存，登录后也不跨设备同步。
+- 输入框高度随行数增长，上限是 CSS 的 `max-h-40`，超过后在框内滚动；宽度变化时重新计算。
+- Enter 发送、Shift+Enter 换行。触摸为主的设备（`(hover: none) and (pointer: coarse)`）没有 Shift+Enter，所以 Enter 换行，用发送按钮发送；外接键盘可用 Ctrl/Cmd+Enter 发送。IME 确定用的 Enter 不发送。
+- 发送后滚到最下面，回答流式到达期间跟随最下面（`followBottomRef`）。用户向上滚（滚轮向上、手指拖动，或离底部超过 48px）就停止跟随，回到底部后恢复。从搜索结果跳到某条消息时不跟随。
+- 请求中途失败时，已经收到的回答正文保留，失败文字接在后面（`failure` 的 `offset` 指向失败文字的开头）。
+
 ## Session 创建
 
 如果有 `sessionId`：
