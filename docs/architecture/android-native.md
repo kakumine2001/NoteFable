@@ -1,6 +1,6 @@
 # 原生 Android 界面（Kotlin / Compose）
 
-> 目录：`mobile/native/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个包名（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
+> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个包名（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
 
 ## 为什么是"混合原生"，不是全部重写
 
@@ -55,7 +55,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 ## 目录
 
 ```
-mobile/native/
+mobile/android/
   app/src/main/java/com/kakumine/studymate/
     data/   StudyMateApi（OkHttp、SSE）、PersistentCookieJar、ChatStreamParser、DTO
     ui/     ChatViewModel（状态与流式逻辑）、StudyMateRoot（抽屉）、ChatScreen、Theme
@@ -90,7 +90,7 @@ mobile/native/
 ## 构建与测试
 
 ```bash
-cd mobile/native
+cd mobile/android
 # local.properties（不提交）里写一行：sdk.dir=A\:/Android/Sdk（使用正斜杠）
 ./gradlew testDebugUnitTest assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
 ```

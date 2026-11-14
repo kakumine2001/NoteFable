@@ -1,8 +1,8 @@
 # Android 应用
 
-> 目录：`mobile/native/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、App 内 Google 登录，以及手机浏览器里的网页排版约定。
+> 目录：`mobile/android/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、App 内 Google 登录，以及手机浏览器里的网页排版约定。
 
-原来的 Capacitor 外壳（`mobile/android/`，全屏 WebView 打开线上网站）已经删除，由原生客户端接替。原生客户端用同一个包名 `com.kakumine.studymate` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端；要保留就先在旧 App 里登录 Google。
+原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/`，将来的 iOS 放 `ios/`；不再使用 Capacitor 等跨平台方案。原生客户端用同一个包名 `com.kakumine.studymate` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端；要保留就先在旧 App 里登录 Google。
 
 ## 开发环境
 
@@ -10,14 +10,14 @@
 - Android SDK：`platform-tools`、`platforms;android-36`、`build-tools;36.0.0`。可以用 Android Studio 的 SDK Manager 装，也可以只装命令行工具后用 `sdkmanager`（或 Google 的 Android CLI：`android sdk install ...`）。
 - 可选：Android Studio（图形界面、Compose 预览、模拟器管理）；Google 的 [Android CLI](https://developer.android.com/tools/agents/android-cli)（`android` 命令，给 AI 和脚本用）。首次启动 Android Studio 时在向导里选 Custom，把 SDK 指到已有的目录，避免再下载一份。
 - Windows 上 `android emulator` 命令被 Google 禁用，模拟器在 Android Studio 的 Device Manager 里建；`android studio ...` 一组命令需要 Android Studio 正在运行。
-- `mobile/native/local.properties`（不提交）里写 `sdk.dir`，Windows 上用正斜杠，例如 `sdk.dir=A:/Android/Sdk`。写成反斜杠会被当作转义字符，构建报"文件名、目录名或卷标语法不正确"。
+- `mobile/android/local.properties`（不提交）里写 `sdk.dir`，Windows 上用正斜杠，例如 `sdk.dir=A:/Android/Sdk`。写成反斜杠会被当作转义字符，构建报"文件名、目录名或卷标语法不正确"。
 - 构建命令和产物位置见 [android-native.md](android-native.md#构建与测试)。
 
 ## 安装包交付
 
 - 每次向用户交付 APK，都要上传到现有的 Google Drive [studymate 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。文件夹只保留一个最新 APK：先上传新包并核对，再把旧包移入回收站。
 - 交付用 R8 压缩后的 release 包（约 2.5 MB）。Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。
-- 文件名 `StudyMate-v<版本>.apk`，版本取自 `mobile/native/app/build.gradle.kts` 的 `versionName`；仅供测试的包在文件名里注明 `dev`。保留文件夹的共享设置。
+- 文件名 `StudyMate-v<版本>.apk`，版本取自 `mobile/android/app/build.gradle.kts` 的 `versionName`；仅供测试的包在文件名里注明 `dev`。保留文件夹的共享设置。
 - 交付新包前把 `versionCode` 加 1、`versionName` 同步更新，否则系统可能不允许覆盖安装，也分不清手机上装的是哪一版。
 - 上传实际通过构建、签名及运行验证的 APK，随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
 - debug 签名的 APK 只适合自己安装试用。上架 Google Play 需要正式签名密钥、AAB 和开发者账号，不在当前范围内。

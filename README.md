@@ -278,7 +278,7 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## Android 应用
 
-Android 客户端是 `mobile/native/` 的 Kotlin / Compose 原生 App（原来的 Capacitor 外壳已删除），已有聊天、模型切换、附件、生成图片和 Google 登录；笔记尚未接入，见 [android-native.md](docs/architecture/android-native.md)。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)。
+Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App（原来的 Capacitor 外壳已删除），已有聊天、模型切换、附件、生成图片和 Google 登录；笔记尚未接入，见 [android-native.md](docs/architecture/android-native.md)。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)。
 
 ## API 保护
 
