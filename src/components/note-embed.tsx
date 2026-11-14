@@ -45,6 +45,7 @@ export function NoteEmbed() {
   }, [select, options]);
 
   // アプリから呼ぶ window.studymateEmbed。flush は開いているノートの未保存の編集を送り切る。
+  // pageUpdated（アプリのチャットで編集案を適用した）は既定のまま studymate:page-updated を出し、useNotePages が /app と同じく扱う。
   useEffect(() => installEmbedApi(createEmbedApi({
     flush: () => activeRef.current?.flush() ?? Promise.resolve(true),
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。

@@ -8,6 +8,10 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.kakumine.studymate.data.PersistentCookieJar
+import com.kakumine.studymate.data.ProposalApi
+import com.kakumine.studymate.data.ProposalStore
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.MainScope
 import com.kakumine.studymate.data.StudyMateApi
 import com.kakumine.studymate.data.SystemText
 
@@ -18,6 +22,12 @@ class StudyMateApp : Application(), SingletonImageLoader.Factory {
             contentResolver.openInputStream(Uri.parse(uri)) ?: throw IOException("cannot open $uri")
         })
     }
+
+    /** AI 笔记提案的应用 / 放弃状态（按提案 ID，跨界面重建保留；网页 page-edit-proposal.tsx 的 states）。 */
+    val proposals: ProposalStore by lazy { ProposalStore(ProposalApi(api.httpClient, api::absoluteUrl), scope) }
+
+    /** App 级的协程作用域（主线程）：不该随界面离开而取消的事（提案的应用 / 放弃、图片下载）。 */
+    val scope: CoroutineScope = MainScope()
 
     /** 服务端英文系统文的中 / 日译文（assets/system-text.json）。读不到时显示英文原句。 */
     val systemText: SystemText by lazy {

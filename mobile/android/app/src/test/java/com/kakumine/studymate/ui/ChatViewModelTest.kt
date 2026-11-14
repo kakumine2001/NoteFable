@@ -6,6 +6,9 @@ import com.kakumine.studymate.data.ChatRequest
 import com.kakumine.studymate.data.AttachError
 import com.kakumine.studymate.data.ChatStreamEvent
 import com.kakumine.studymate.data.FailureInfo
+import com.kakumine.studymate.data.ActivityStep
+import com.kakumine.studymate.data.Proposal
+import com.kakumine.studymate.data.WebAction
 import com.kakumine.studymate.data.GeneratedImagePayload
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonObject
@@ -36,6 +39,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -202,6 +206,47 @@ class ChatViewModelTest {
     }
 
     @Test
+    fun `merges live activity into the answer and restores activity and proposals from history`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+
+        vm.send("hi")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        fun activity(json: String) = ChatStreamEvent.Activity(Json.parseToJsonElement(json).jsonObject)
+        backend.events.send(activity("""{"type":"thought","id":"rs:0","delta":"**Plan**"}"""))
+        backend.events.send(activity("""{"type":"thought","id":"rs:0","delta":" more"}"""))
+        backend.events.send(activity("""{"type":"web","id":"ws","status":"running"}"""))
+        settle()
+        val waiting = vm.state.value.messages.last()
+        assertEquals(listOf(ActivityStep.Thought("rs:0", "**Plan** more"), ActivityStep.Web("ws", false)), waiting.activity)
+        assertNotNull(waiting.startedAt)
+        assertNull(waiting.thinkingMs)
+
+        backend.events.send(activity("""{"type":"web","id":"ws","status":"done","action":{"kind":"open_page","url":"https://a.com/x"}}"""))
+        backend.events.send(ChatStreamEvent.Delta("Answer"))
+        settle()
+        val answering = vm.state.value.messages.last()
+        assertEquals(ActivityStep.Web("ws", true, WebAction.OpenPage("https://a.com/x")), answering.activity[1])
+        assertNotNull(answering.thinkingMs)
+
+        backend.stored = listOf(
+            MessageDto("db-1", "USER", "hi"),
+            MessageDto(
+                "db-2", "ASSISTANT", "Answer",
+                activity = Json.parseToJsonElement("""[{"id":"rs:0","kind":"thought","text":"**Plan** more"}]"""),
+                proposals = Json.parseToJsonElement(
+                    """[{"kind":"create_proposal","id":"np1","title":"Plan","content":"","proposed":{"title":"Plan","blocks":[]},"status":"applied","appliedPageId":"pg1"}]""",
+                ),
+            ),
+        )
+        backend.events.close()
+        advanceUntilIdle()
+        val stored = vm.state.value.messages.last()
+        assertEquals(listOf(ActivityStep.Thought("rs:0", "**Plan** more")), stored.activity)
+        assertEquals(listOf(Proposal.Create("np1", "Plan", null, "", status = "applied", appliedPageId = "pg1")), stored.proposals)
+    }
+
+    @Test
     fun `stopping keeps what arrived, and drops an empty bubble`() = runTest(dispatcher) {
         val backend = FakeBackend()
         val vm = newViewModel(backend)
@@ -222,6 +267,23 @@ class ChatViewModelTest {
         vm.stop()
         advanceUntilIdle()
         assertEquals(listOf("two"), vm.state.value.messages.map { it.content })
+    }
+
+    @Test
+    fun `stopping keeps an answer that so far holds only activity`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+
+        vm.send("q")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Activity(Json.parseToJsonElement("""{"type":"thought","id":"rs:0","delta":"Plan"}""").jsonObject))
+        settle()
+        vm.stop()
+        advanceUntilIdle()
+
+        val answer = vm.state.value.messages.last()
+        assertEquals(listOf(ActivityStep.Thought("rs:0", "Plan")), answer.activity)
+        assertFalse(answer.streaming)
     }
 
     @Test
