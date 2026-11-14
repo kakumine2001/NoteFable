@@ -1,9 +1,14 @@
 package com.kakumine.studymate.ui
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import android.util.Base64
+import android.view.inputmethod.InputContentInfo
 import android.webkit.MimeTypeMap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -14,9 +19,11 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.keyframes
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.content.TransferableContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -43,8 +50,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.core.content.FileProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -77,23 +88,145 @@ import com.kakumine.studymate.data.formatUploadSize
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.UUID
 
 // 附件与「生成图片」模式的界面。数值来自网页（src/app/[locale]/app/page.tsx 的输入栏、attach-sheet.tsx、globals.css）。
 
-/** 打开系统文件选择器；选好后读出文件名、类型和大小交给 [onPicked]。 */
+/**
+ * 「添加文件或照片」：和手机浏览器里网页的文件选择框一样，一个选择器里既能选文件也能拍照
+ * （系统选择器 + 相机，相机拍的照片先存到缓存目录、经 FileProvider 交给相机 App）。
+ * 选好后读出文件名、类型和大小交给 [onPicked]。
+ */
 @Composable
-fun rememberFilePicker(onPicked: (List<LocalFile>) -> Unit): () -> Unit {
+fun rememberFilePicker(onImport: (suspend () -> List<LocalFile>) -> Unit): () -> Unit {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+    // 相机照片的去处。要跨过 Activity 重建（拍照时系统可能回收 App），所以存在 rememberSaveable 里。
+    var cameraTarget by rememberSaveable { mutableStateOf<String?>(null) }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val target = cameraTarget?.let(Uri::parse)
+        cameraTarget = null
+        target?.let { context.revokeUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION) }
+        if (result.resultCode != Activity.RESULT_OK) return@rememberLauncherForActivityResult
+        val data = result.data
+        val picked = buildList {
+            data?.clipData?.let { clip -> for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let(::add) }
+            if (isEmpty()) data?.data?.let(::add)
+        }
         // 读文件名和大小要访问文件提供方，放到后台线程，不卡界面。
-        scope.launch {
-            val files = withContext(Dispatchers.IO) { uris.mapNotNull { readLocalFile(context, it) } }
-            onPicked(files)
+        // 读完前不能发送（见 ChatViewModel.importFiles）。
+        onImport {
+            withContext(Dispatchers.IO) {
+                pickedAttachmentSources(picked, target) { cameraFileHasContent(context, it) }
+                    .mapNotNull { readLocalFile(context, it) }
+            }
         }
     }
-    return { launcher.launch(ATTACHMENT_PICKER_TYPES) }
+    return {
+        val documents = Intent(Intent.ACTION_GET_CONTENT)
+            .addCategory(Intent.CATEGORY_OPENABLE)
+            .setType("*/*")
+            .putExtra(Intent.EXTRA_MIME_TYPES, ATTACHMENT_PICKER_TYPES)
+            .putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        val target = runCatching { newAttachmentCacheUri(context, "jpg") }.getOrNull()
+        val cameras = if (target == null) emptyList() else cameraIntents(context, target)
+        cameraTarget = target?.takeIf { cameras.isNotEmpty() }?.toString()
+        val chooser = Intent.createChooser(documents, null)
+        if (cameras.isNotEmpty()) chooser.putExtra(Intent.EXTRA_INITIAL_INTENTS, cameras.toTypedArray())
+        runCatching { launcher.launch(chooser) }
+    }
 }
+
+/**
+ * 选择器返回后要读哪些文件：选了文件（clipData 或 data）就用它们；什么都没返回时是相机拍照，
+ * 照片已经写进了我们给的 [cameraTarget]，有内容才算（取消拍照会留下空文件）。
+ */
+internal fun <T> pickedAttachmentSources(picked: List<T>, cameraTarget: T?, cameraHasContent: (T) -> Boolean): List<T> =
+    if (picked.isNotEmpty()) picked else listOfNotNull(cameraTarget?.takeIf(cameraHasContent))
+
+/** 本机每个相机 App 一个拍照意图，照片写到 [target]（预先给它写权限）。 */
+private fun cameraIntents(context: Context, target: Uri): List<Intent> {
+    val capture = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+    val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+    return context.packageManager.queryIntentActivities(capture, 0).map { info ->
+        val pkg = info.activityInfo.packageName
+        context.grantUriPermission(pkg, target, flags)
+        Intent(capture).setClassName(pkg, info.activityInfo.name).putExtra(MediaStore.EXTRA_OUTPUT, target).addFlags(flags)
+    }
+}
+
+private fun cameraFileHasContent(context: Context, uri: Uri): Boolean =
+    runCatching { context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize > 0 } == true }.getOrDefault(false)
+
+/** 缓存目录里放附件副本（拍照、粘贴）的位置，对外经 FileProvider（res/xml/file_paths.xml）提供。 */
+private const val ATTACHMENT_CACHE_DIR = "attachments"
+private const val ATTACHMENT_CACHE_MAX_AGE_MS = 24L * 60 * 60 * 1000
+
+private fun attachmentAuthority(context: Context) = context.packageName + ".attachments"
+
+/** 新建一个空的缓存文件并返回它的 content:// 地址；顺手删掉一天以前的旧副本。 */
+private fun newAttachmentCacheUri(context: Context, extension: String, baseName: String? = null): Uri {
+    val dir = File(context.cacheDir, ATTACHMENT_CACHE_DIR).apply { mkdirs() }
+    val now = System.currentTimeMillis()
+    dir.listFiles()?.forEach { old ->
+        if (now - old.lastModified() > ATTACHMENT_CACHE_MAX_AGE_MS) old.deleteRecursively()
+    }
+    // 每个文件单独一层目录，文件名就能保留原名（网页粘贴的图片叫 image.png）。
+    val slot = File(dir, UUID.randomUUID().toString()).apply { mkdirs() }
+    val name = baseName?.takeIf { it.isNotBlank() && !it.contains('/') }
+        ?: "IMG_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date(now)) + "." + extension
+    val file = File(slot, name)
+    file.createNewFile()
+    return FileProvider.getUriForFile(context, attachmentAuthority(context), file)
+}
+
+/**
+ * 粘贴进输入框的图片（网页 onPaste 的 getClipboardImageFiles）：只收网页也收的图片类型，
+ * 先把字节拷进缓存（剪贴板换了内容后原地址可能就读不到了），再按普通附件处理。
+ */
+fun copyPastedImage(context: Context, uri: Uri): LocalFile? = runCatching {
+    val resolver = context.contentResolver
+    val type = resolver.getType(uri)?.lowercase() ?: return null
+    if (type !in PASTE_IMAGE_TYPES) return null
+    val extension = when (type) {
+        "image/jpeg" -> "jpg"
+        "image/webp" -> "webp"
+        else -> "png"
+    }
+    val target = newAttachmentCacheUri(context, extension, "image.$extension")
+    resolver.openInputStream(uri)?.use { input ->
+        resolver.openOutputStream(target)?.use { output -> input.copyTo(output) }
+    } ?: return null
+    LocalFile(target.toString(), "image.$extension", type, cachedSize(context, target))
+}.getOrNull()
+
+private fun cachedSize(context: Context, uri: Uri): Long =
+    context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
+
+/**
+ * 键盘（IME commitContent）插入的内容：Compose 把 InputContentInfo 放在 extras 里，读取权限跟着它走。
+ * 拷完后释放；剪贴板粘贴没有这一项，什么都不做。
+ */
+@OptIn(ExperimentalFoundationApi::class)
+fun releaseKeyboardContentPermission(content: TransferableContent) {
+    val extras = content.platformTransferableContent?.extras ?: return
+    val info = if (Build.VERSION.SDK_INT >= 33) {
+        extras.getParcelable(KEYBOARD_CONTENT_INFO_KEY, InputContentInfo::class.java)
+    } else {
+        @Suppress("DEPRECATION")
+        extras.getParcelable(KEYBOARD_CONTENT_INFO_KEY) as? InputContentInfo
+    }
+    runCatching { info?.releasePermission() }
+}
+
+/** Compose foundation 放 InputContentInfo 用的键（StatelessInputConnection 里的 EXTRA_INPUT_CONTENT_INFO）。 */
+private const val KEYBOARD_CONTENT_INFO_KEY = "EXTRA_INPUT_CONTENT_INFO"
+
+/** 粘贴时当作附件的图片类型（和网页 isImageMimeType 一样，只有模型能读的 PNG / JPEG / WEBP）。 */
+val PASTE_IMAGE_TYPES = setOf("image/png", "image/jpeg", "image/webp")
 
 private fun readLocalFile(context: Context, uri: Uri): LocalFile? = runCatching {
     val resolver = context.contentResolver
