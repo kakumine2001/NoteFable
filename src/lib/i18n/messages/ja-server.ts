@@ -177,7 +177,7 @@ export const jaServer: Record<string, string> = {
   "The code has expired. Request a new one.": "コードの有効期限が切れました。新しいコードを送ってください。",
   "Too many wrong attempts. Request a new code.": "間違いが多すぎます。新しいコードを送ってください。",
   "That code is incorrect.": "コードが正しくありません。",
-  "Your StudyMate sign-in code: {code}": "StudyMate のログインコード：{code}",
+  "Your NoteFable sign-in code: {code}": "NoteFable のログインコード：{code}",
   "Your sign-in code is {code}.": "ログインコードは {code} です。",
   "It expires in 10 minutes. If you didn't ask for it, you can ignore this email.": "有効期限は 10 分です。心当たりがない場合は、このメールを無視してください。",
 };

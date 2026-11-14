@@ -19,7 +19,7 @@
     <string name="acct_could_not_save">无法保存。</string>
     <string name="acct_settings">设置</string>
     <string name="acct_custom_instructions">自定义指令</string>
-    <string name="acct_custom_instructions_help">从下一条消息起适用于你的所有聊天。可以介绍你自己，以及希望 StudyMate 怎样回答。在项目内，项目的指示优先。</string>
+    <string name="acct_custom_instructions_help">从下一条消息起适用于你的所有聊天。可以介绍你自己，以及希望 NoteFable 怎样回答。在项目内，项目的指示优先。</string>
     <string name="acct_custom_instructions_placeholder">例如：我正在备考 JLPT N1。请用简短的例句讲解语法，回答尽量简洁。</string>
     <string name="acct_err_load_custom_instructions">无法加载你的自定义指令。</string>
     <string name="acct_err_save_custom_instructions">无法保存你的自定义指令，请重试。</string>

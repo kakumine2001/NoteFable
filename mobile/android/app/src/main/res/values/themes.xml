@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- 网页只有浅色主题，原生版也只做浅色。MainActivity 是 AppCompatActivity（应用内切换语言），所以主题要继承 AppCompat。 -->
-    <style name="Theme.StudyMate" parent="Theme.AppCompat.Light.NoActionBar">
+    <style name="Theme.NoteFable" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@android:color/white</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>

@@ -67,6 +67,6 @@ private val NoTrackingTypography = Typography().let { t ->
 }
 
 @Composable
-fun StudyMateTheme(content: @Composable () -> Unit) {
+fun NoteFableTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = Colors, typography = NoTrackingTypography, content = content)
 }

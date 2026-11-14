@@ -1,4 +1,4 @@
-# StudyMate iOS
+# NoteFable iOS
 
 原生 iOS 客户端的位置，尚未开始开发。
 

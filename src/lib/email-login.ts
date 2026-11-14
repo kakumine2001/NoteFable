@@ -149,7 +149,7 @@ export function emailLocale(value: unknown): Locale {
 
 export function loginEmailContent(code: string, locale: Locale) {
   const t = createTranslator(messagesFor(locale));
-  const subject = t(msg("Your StudyMate sign-in code: {code}"), { code });
+  const subject = t(msg("Your NoteFable sign-in code: {code}"), { code });
   const lines = [
     t(msg("Your sign-in code is {code}."), { code }),
     t(msg("It expires in 10 minutes. If you didn't ask for it, you can ignore this email.")),

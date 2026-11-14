@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
 <resources>
-    <string name="app_name">StudyMate</string>
-    <string name="app_title">StudyMate</string>
+    <string name="app_name">NoteFable</string>
+    <string name="app_title">NoteFable</string>
 
     <string name="open_menu">開啟側邊欄</string>
     <string name="new_chat">新聊天</string>
@@ -150,7 +150,7 @@
     <string name="err_save_draft">儲存失敗，草稿已保留。</string>
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">登入</string>
-    <string name="signin_title">登入 StudyMate</string>
+    <string name="signin_title">登入 NoteFable</string>
     <string name="signin_subtitle">儲存你的聊天和筆記，換裝置也能開啟。</string>
     <string name="continue_google">使用 Google 繼續</string>
     <string name="signin_or">或</string>

@@ -16,7 +16,7 @@ import com.kakumine.studymate.ui.AccountViewModel
 import com.kakumine.studymate.ui.ChatViewModel
 import com.kakumine.studymate.ui.NotesViewModel
 import com.kakumine.studymate.ui.StudyMateRoot
-import com.kakumine.studymate.ui.StudyMateTheme
+import com.kakumine.studymate.ui.NoteFableTheme
 
 // AppCompatActivity：应用内切换语言（AppCompatDelegate.setApplicationLocales）在 Android 12 及以下也能生效
 //（那里由 AppCompat 保存选择并就地更新 Resources，见 onConfigurationChanged）。
@@ -32,7 +32,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         AppLanguage.uiLocale = getString(R.string.ui_locale)
         setContent {
-            StudyMateTheme {
+            NoteFableTheme {
                 StudyMateRoot(viewModel, accountViewModel, notesViewModel)
             }
         }

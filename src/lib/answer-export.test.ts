@@ -165,7 +165,7 @@ describe("conversationToMarkdownFile", () => {
       { role: "USER", content: "第二个问题" },
       { role: "ASSISTANT", content: "二つ目の回答" },
     ], source);
-    expect(file).toContain("# Weekly sync\n\n## You\n\nFirst question\n\n## StudyMate\n\nFirst answer\n\n## You\n\n第二个问题\n\n## StudyMate\n\n二つ目の回答");
+    expect(file).toContain("# Weekly sync\n\n## You\n\nFirst question\n\n## NoteFable\n\nFirst answer\n\n## You\n\n第二个问题\n\n## NoteFable\n\n二つ目の回答");
     expect(file).toContain(source.conversationUrl);
   });
 
@@ -188,7 +188,7 @@ describe("conversationToMarkdownFile", () => {
     ], source);
     expect(file).toContain("report \\[1\\].pdf");
     expect(file).toContain("[photo.jpg](<https://studymate.example/api/attachments/photo/image>)");
-    expect(file).toContain("## StudyMate\n\n- [Generated image 1](<https://studymate.example/api/attachments/g1/image>)");
+    expect(file).toContain("## NoteFable\n\n- [Generated image 1](<https://studymate.example/api/attachments/g1/image>)");
   });
 
   it("escapes the heading and does not turn non-HTTP attachment URLs into links", () => {

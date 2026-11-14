@@ -190,7 +190,7 @@ export class AnthropicStreamTurn {
 }
 
 // Convert Messages SSE to the existing frontend contract. Continue long server-tool turns unchanged,
-// and run StudyMate's own tools (tool_use) through runTool before asking Claude to continue.
+// and run NoteFable's own tools (tool_use) through runTool before asking Claude to continue.
 export async function createAnthropicStream(
   body: ReturnType<typeof buildAnthropicRequest>,
   onContext?: (items: Record<string, unknown>[]) => void,

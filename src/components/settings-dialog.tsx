@@ -85,7 +85,7 @@ export function SettingsDialog({ onClose }: { onClose: () => void }) {
             <span className="project-settings-count" aria-live="polite">{instructions.length}/{MAX_CUSTOM_INSTRUCTIONS}</span>
           </label>
           <p id={helpId} className="project-settings-help">
-            {t("Applied to all your chats from the next message. Tell StudyMate about yourself and how you want it to answer. A project’s instructions take priority inside that project.")}
+            {t("Applied to all your chats from the next message. Tell NoteFable about yourself and how you want it to answer. A project’s instructions take priority inside that project.")}
           </p>
           <textarea id={`${titleId}-instructions`} autoFocus className="project-settings-textarea" value={instructions} disabled={busy}
             maxLength={MAX_CUSTOM_INSTRUCTIONS} aria-describedby={helpId}

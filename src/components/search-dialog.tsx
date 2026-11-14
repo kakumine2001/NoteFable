@@ -94,7 +94,7 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
   const icon = result.icon ?? (result.kind === "note" ? <FileText size={16} /> : <MessageSquareText size={16} />);
   const fileName = result.kind === "chat" ? result.attachmentName : null;
   // 添付ファイルの本文に当たったときは、話し手ではなくファイル名を示す。
-  const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? t("You: ") : t("StudyMate: ")) : "";
+  const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? t("You: ") : t("NoteFable: ")) : "";
   return (
     // フォーカスは入力欄に残し、行は aria-activedescendant で示す。クリック時に入力欄のフォーカスが外れないよう mousedown を止める。
     <div role="option" id={id} aria-selected={active} data-index={index} className={`search-row${active ? " is-active" : ""}`}

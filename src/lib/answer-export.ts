@@ -237,7 +237,7 @@ export function conversationToMarkdownFile(messages: readonly ConversationMessag
       ...(message.generatedImages ?? []).map((image, index) => attachment(`Generated image ${index + 1}`, image.dataUrl)),
     ];
     const body = [normalizeNewlines(message.content).trimEnd(), files.join("\n")].filter(Boolean).join("\n\n");
-    return `## ${message.role === "USER" ? "You" : "StudyMate"}\n\n${body}`;
+    return `## ${message.role === "USER" ? "You" : "NoteFable"}\n\n${body}`;
   });
   const title = escapeLabel(shorten(source.conversationTitle, MAX_NOTE_TITLE) || "New chat");
   return answerToMarkdownFile([`# ${title}`, ...sections].join("\n\n"), source);

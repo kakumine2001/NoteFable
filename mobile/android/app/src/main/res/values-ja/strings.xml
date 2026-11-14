@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">StudyMate</string>
-    <string name="app_title">StudyMate</string>
+    <string name="app_name">NoteFable</string>
+    <string name="app_title">NoteFable</string>
 
     <string name="open_menu">サイドバーを開く</string>
     <string name="new_chat">新しいチャット</string>
@@ -149,7 +149,7 @@
     <string name="err_save_draft">保存できませんでした。下書きは保持されています。</string>
     <!-- 登录窗口（网页 sign-in-dialog.tsx）。 -->
     <string name="sign_in">ログイン</string>
-    <string name="signin_title">StudyMate にログイン</string>
+    <string name="signin_title">NoteFable にログイン</string>
     <string name="signin_subtitle">チャットとノートを保存して、どの端末からでも開けます。</string>
     <string name="continue_google">Google で続ける</string>
     <string name="signin_or">または</string>

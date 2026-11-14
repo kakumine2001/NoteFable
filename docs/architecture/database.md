@@ -15,7 +15,7 @@
 | PostgreSQL | 18 |
 | Branch | `production` |
 | Database | `neondb` |
-| StudyMate schema | `studymate` |
+| NoteFable schema | `studymate` |
 
 ### 非常重要
 
@@ -25,7 +25,7 @@
 kaku_log
 ```
 
-它不是 StudyMate 的表。
+它不是 NoteFable 的表。
 
 数据库排查或手工 SQL 时，优先明确写 `studymate.<Table>`，不要因为都在同一个 Neon project 里就把两个应用混在一起。
 

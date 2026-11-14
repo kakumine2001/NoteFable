@@ -81,7 +81,7 @@ describe("Claude Messages boundary", () => {
     expect(fetchMock.mock.calls[0][1].headers["x-api-key"]).toBe("test-only");
   });
 
-  it("adds StudyMate tools beside native search in the provider's schema", () => {
+  it("adds NoteFable tools beside native search in the provider's schema", () => {
     const body = buildAnthropicRequest({
       model: "claude-haiku-5-5", instructions: "p", input: [{ role: "user", content: "hi" }], effort: "medium",
       customTools: [{ name: "read_note", description: "Read", parameters: { type: "object" } }],

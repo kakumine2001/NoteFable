@@ -249,7 +249,7 @@ export function ThreadLanding() {
       <a className="tl-skip" href="#tl-main">{t("Skip to content")}</a>
 
       <header className="tl-nav tl-wrap">
-        <Link className="tl-brand" href="/" aria-label={t("StudyMate home")}><BrandMark /><span>StudyMate</span></Link>
+        <Link className="tl-brand" href="/" aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
         <LanguageSelect compact />
         <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
@@ -269,9 +269,9 @@ export function ThreadLanding() {
           <div className="tl-wrap">
             <p className="tl-kicker">{t("AI chat and notes, in one place")}</p>
             <h1 id="tl-title"><span className="tl-rise">{t("Ask it.")}</span> <span className="tl-rise"><span className="tl-mark">{t("Keep it.")}</span></span><br /><span className="tl-rise">{t("Find it again.")}</span></h1>
-            <p className="tl-lede">{t("StudyMate is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it.")}</p>
+            <p className="tl-lede">{t("NoteFable is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it.")}</p>
 
-            <Link className="tl-composer" href="/app" prefetch={false} aria-label={t("Open StudyMate and ask a question")}>
+            <Link className="tl-composer" href="/app" prefetch={false} aria-label={t("Open NoteFable and ask a question")}>
               <span className="tl-composer-text" aria-hidden="true"><TypedQuestion /></span>
               <span className="tl-composer-bar" aria-hidden="true">
                 <span className="tl-composer-plus"><Plus size={17} /></span>
@@ -285,7 +285,7 @@ export function ThreadLanding() {
         </section>
 
         <section className="tl-journey-section tl-wrap" aria-labelledby="tl-journey-title">
-          <h2 id="tl-journey-title" className="tl-sr">{t("How one question travels through StudyMate")}</h2>
+          <h2 id="tl-journey-title" className="tl-sr">{t("How one question travels through NoteFable")}</h2>
           <ol className="tl-journey" ref={journeyRef}>
             {STATIONS.map((station, index) => (
               <li className="tl-station" key={station.id}>
@@ -320,13 +320,13 @@ export function ThreadLanding() {
         <section className="tl-wrap" aria-labelledby="tl-finale-title">
           <div className="tl-finale">
             <h2 id="tl-finale-title">{t("What is the question you keep coming back to?")}</h2>
-            <Link className="tl-finale-cta" href="/app" prefetch={false}>{t("Open StudyMate")}{" "}<ArrowRight size={17} aria-hidden="true" /></Link>
+            <Link className="tl-finale-cta" href="/app" prefetch={false}>{t("Open NoteFable")}{" "}<ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </section>
       </main>
 
       <footer className="tl-footer tl-wrap">
-        <span className="tl-brand"><BrandMark size={20} /><span>StudyMate</span></span>
+        <span className="tl-brand"><BrandMark size={20} /><span>NoteFable</span></span>
         <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
       </footer>
     </div>
