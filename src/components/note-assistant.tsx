@@ -1,10 +1,16 @@
 "use client";
 
-import { ArrowUp, X } from "lucide-react";
+import { ArrowUp, FileText, Paperclip, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
+import { AttachPageDialog } from "@/components/attach-page-dialog";
+import { AttachMenu } from "@/components/attach-sheet";
 import { ChatMessage } from "@/components/chat-message";
+import { ModelSelect } from "@/components/model-controls";
+import { useModels } from "@/components/models-provider";
+import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
+import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
@@ -13,7 +19,7 @@ import { parseChatStreamLine } from "@/lib/chat-stream";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
-import type { Message } from "@/types/chat";
+import { MAX_MESSAGE_NOTES, type AttachedPage, type Message, type UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
@@ -74,11 +80,15 @@ async function streamChat(
 
 // ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
 // ノートは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。
-export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
+// 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ノートの編集には使わない）。
+export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush }: {
   noteId: string;
   noteTitle: string;
   model: string;
   reasoning: string;
+  // モデルと推論強度を変える（チャットの選択と共通）。渡されないとき（Android アプリの /note-embed）は選択欄を出さない。
+  onModelChange?: (model: string) => void;
+  onReasoningChange?: (reasoning: string) => void;
   // 頼む前に、入力中の内容を保存する（AI が最新の版を読めるように）。保存できなければ false。
   flush: () => Promise<boolean>;
 }) {
@@ -91,6 +101,19 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [guestLimit, setGuestLimit] = useState(false);
+  // 次の発言に添付するファイルとノート。送信が受け付けられたら空にする。
+  const [files, setFiles] = useState<UploadFile[]>([]);
+  const [attachedPages, setAttachedPages] = useState<AttachedPage[]>([]);
+  const [pageDialogOpen, setPageDialogOpen] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ key: string; vars?: Record<string, string | number> } | null>(null);
+  const { getModelOption } = useModels();
+  const modelOption = getModelOption(model);
+  const uploadOptions = { supportsImages: modelOption.supportsImageInput, claudeImages: modelOption.provider === "anthropic" };
+  // モデルを変えたあとに、添付済みのファイルが使えなくなったときの知らせ。
+  const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions, t);
+  // 作ったプレビュー用の URL は、パネルを閉じる（ノートを離れる）ときにまとめて解放する。発言の中のサムネイルもこの URL を使う。
+  const previewsRef = useRef<UploadFile[]>([]);
+  useEffect(() => () => revokeUploadPreviews(previewsRef.current), []);
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
   const inputValueRef = useRef("");
@@ -201,10 +224,34 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
     return () => window.clearInterval(timer);
   }, [streaming]);
 
-  // display は画面に出す発言（ボタンの短い名前など）。AI へは text をそのまま送る。
+  function addFiles(incoming: File[]) {
+    if (busy || !incoming.length) return;
+    const current = files.map(({ file }) => file);
+    const problem = getUploadSelectionError(current, incoming, uploadOptions, t);
+    setError(problem);
+    if (problem) return;
+    // 検証を通ってからプレビュー用の URL を作る。
+    const added = incoming.map(createUploadFile);
+    previewsRef.current.push(...added);
+    setFiles((list) => [...list, ...added]);
+  }
+
+  function removeFile(id: string) {
+    if (busy) return;
+    setError("");
+    setFiles((list) => list.filter((item) => item.id !== id));
+  }
+
+  // display は画面に出す発言（ボタンの短い名前など）。AI へは text をそのまま送る。添付は入力欄から送ったときだけ付ける。
   async function send(text: string, display?: string) {
     const content = text.trim();
     if (!content || sending.current) return;
+    const sentFiles = display === undefined ? files : [];
+    const sentPages = display === undefined ? attachedPages : [];
+    const rawFiles = sentFiles.map(({ file }) => file);
+    const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
+      || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
+    if (problem) { setError(problem); return; }
     sending.current = true;
     setBusy(true);
     setError("");
@@ -214,12 +261,31 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       setBusy(false);
       return;
     }
+
+    let tickets: string[] = [];
+    try {
+      if (rawFiles.length) setUploadProgress({ key: msg("Preparing attachments…") });
+      tickets = await uploadChatFiles(rawFiles, (name, index, total, percentage) => {
+        setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
+      });
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
+      sending.current = false;
+      setBusy(false);
+      return;
+    } finally {
+      setUploadProgress(null);
+    }
     stick.current = true;
 
     const assistantId = crypto.randomUUID();
     setMessages((current) => [
       ...current,
-      { id: crypto.randomUUID(), role: "USER", content: display ?? content },
+      {
+        id: crypto.randomUUID(), role: "USER", content: display ?? content,
+        attachments: sentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
+        ...(sentPages.length ? { pages: sentPages } : {}),
+      },
       { id: assistantId, role: "ASSISTANT", content: "" },
     ]);
     // 定型ボタン（display あり）で送ったときは、入力欄に書きかけの本文を残す。
@@ -233,11 +299,22 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
     body.append("webSearch", "off");
     body.append("noteId", noteId);
     if (sessionId.current) body.append("sessionId", sessionId.current);
+    if (tickets.length) body.append("uploads", JSON.stringify(tickets));
+    if (sentPages.length) body.append("pages", JSON.stringify(sentPages.map((page) => page.id)));
 
+    // サーバーが発言を受け付けたか。受け付ける前に断られたら、添付は入力欄に残し、上げたファイルは片付ける。
+    let accepted = false;
     try {
       await streamChat(
         body,
-        (id) => { sessionId.current = id; },
+        (id) => {
+          sessionId.current = id;
+          accepted = true;
+          if (display === undefined) {
+            setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
+            setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));
+          }
+        },
         (chunk, activity, elapsedMs) => setMessages((current) => current.map((message) => message.id !== assistantId ? message : {
           ...message,
           content: message.content + chunk,
@@ -248,6 +325,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
     } catch (caught) {
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const limited = caught instanceof UsageLimitError;
+      if (!accepted && tickets.length) void cleanupClientUploads(tickets);
       if (limited && caught.tier === "guest") { guestLimitHitRef.current = true; setGuestLimit(true); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
@@ -307,12 +385,53 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
       </div>
 
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
-      {error && <p className="note-ai-error" role="alert">{t(error)}</p>}
+      {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       <form className="note-ai-form" onSubmit={submit}>
-        <textarea ref={inputRef} value={input} rows={1} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
-          placeholder={t("Ask AI to edit this note…")} aria-label={t("Instruction for the AI")} className="note-ai-input" />
-        <button type="submit" className="note-ai-send" disabled={busy || !input.trim()} aria-label={t("Send")}><ArrowUp size={16} /></button>
+        {(attachedPages.length > 0 || files.length > 0) && (
+          // 添付したノートとファイル。押すと外れる（チャットの入力欄と同じ）。
+          <ul className="note-ai-attachments" aria-label={t("Attached pages")}>
+            {attachedPages.map((page) => (
+              <li key={page.id}>
+                <button type="button" className="note-ai-attachment" disabled={busy} aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
+                  onClick={() => { setError(""); setAttachedPages((list) => list.filter((item) => item.id !== page.id)); }}>
+                  {page.icon ? <span aria-hidden="true">{page.icon}</span> : <FileText size={13} aria-hidden="true" />}
+                  <span className="truncate">{page.title || t("Untitled")}</span>
+                  <X size={13} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+            {files.map(({ id, file, previewUrl }) => (
+              <li key={id}>
+                <button type="button" className="note-ai-attachment" disabled={busy} aria-label={t("Remove {title}", { title: file.name })} onClick={() => removeFile(id)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element -- 選んだ画像のその場のプレビュー（blob: URL）。 */}
+                  {previewUrl ? <img src={previewUrl} alt="" className="note-ai-attachment-thumb" /> : <Paperclip size={13} aria-hidden="true" />}
+                  <span className="truncate">{file.name}</span>
+                  <X size={13} aria-hidden="true" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="note-ai-composer">
+          <textarea ref={inputRef} value={input} rows={1} readOnly={Boolean(uploadProgress)} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
+            onPaste={(event) => {
+              const pasted = getClipboardImageFiles(event.clipboardData.items);
+              if (!pasted.length) return;
+              // 画像がある時だけ既定の貼り付けを止め、添付に回す。
+              event.preventDefault();
+              addFiles(pasted);
+            }}
+            placeholder={t("Ask AI to edit this note…")} aria-label={t("Instruction for the AI")} className="note-ai-input" />
+          <div className="note-ai-tools">
+            <AttachMenu className="relative" disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
+              onAttachPages={() => setPageDialogOpen(true)} />
+            {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
+            <button type="submit" className="note-ai-send" disabled={busy || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
+          </div>
+        </div>
+        {uploadProgress && <div role="status" className="note-ai-progress">{t(uploadProgress.key, uploadProgress.vars)}</div>}
       </form>
+      {pageDialogOpen && <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)} onAttach={(pages) => { setError(""); setAttachedPages(pages); }} />}
     </div>
   );
 
