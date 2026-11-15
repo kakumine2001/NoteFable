@@ -1,7 +1,9 @@
 package com.kakumine.notefable.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -13,6 +15,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -487,12 +491,29 @@ fun UserAvatar(user: AccountUser, size: Dp) {
 
 // 隐私政策 / 服务条款（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。
 @Composable
+@OptIn(ExperimentalLayoutApi::class)
 private fun LegalLinks() {
     val uri = LocalUriHandler.current
-    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    val context = LocalContext.current
+    // 和网页 legal-links.tsx 一样，放不下时换行（flex-wrap）。
+    FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        // 介绍页（src/lib/i18n/routing.ts 的 INTRO_HREF）。指定用浏览器打开：用户把站点链接设为由本 App 打开时，不会又回到 App。
+        Text(stringResource(R.string.about), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { openInBrowser(context, BuildConfig.BASE_URL + "/?intro") })
         Text(stringResource(R.string.privacy), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/privacy") })
         Text(stringResource(R.string.terms), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/terms") })
     }
+}
+
+private fun openInBrowser(context: Context, url: String) {
+    val view = { Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+    // 用一个与本站无关的网址找浏览器：默认浏览器优先，没设默认时取第一个不是本 App 的。
+    val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+    val pm = context.packageManager
+    val default = pm.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+    val browser = default?.takeIf { it != "android" && it != context.packageName }
+        ?: pm.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }.firstOrNull { it != context.packageName }
+    try { context.startActivity(view().apply { if (browser != null) setPackage(browser) }) }
+    catch (_: ActivityNotFoundException) { context.startActivity(view()) }
 }
 
 // Google 的四色"G"（src/components/google-logo.tsx，viewBox 48），按品牌规范原样使用。

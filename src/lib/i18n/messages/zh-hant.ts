@@ -22,6 +22,7 @@ export const zhHant: Record<string, string> = {
   "AI chat and notes, in one place": "AI 聊天與筆記，匯聚一處",
   "AI returned an incomplete tool response. Please retry.": "AI 返回的工具結果不完整，請重試。",
   "AI returned an invalid tool response. Please retry, or use GPT for web search.": "AI 返回的工具結果無效。請重試，或改用 GPT 進行聯網搜尋。",
+  "About": "關於",
   "Account": "賬號",
   "Actions": "操作",
   "Actions for project {name}": "專案 {name} 的操作",
