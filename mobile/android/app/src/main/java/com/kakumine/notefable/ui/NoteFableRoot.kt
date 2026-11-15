@@ -194,6 +194,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             }
                         },
                         profile = accountViewModel,
+                        // 设置里的"删除账号"：成功后和退出一样换成新的匿名身份（打开的笔记属于被删的账号，不再保存）。
+                        deleteAccount = {
+                            accountViewModel.deleteAccount(clearDeviceChoice = { clearGoogleCredentialState(activity) })
+                                .also { if (it == null) onIdentityChanged() }
+                        },
                     )
                 },
             ) {

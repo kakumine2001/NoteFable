@@ -1,8 +1,8 @@
 # Android 应用
 
-> 目录：`mobile/android/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、App 内 Google 登录，以及手机浏览器里的网页排版约定。
+> 目录：`mobile/android/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、正式签名与 Google Play、App 内 Google 登录，以及手机浏览器里的网页排版约定。
 
-原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/` 和 `ios/`（原生 iOS，尚未开始，见 [mobile/ios/README.md](../../mobile/ios/README.md)）；不再使用 Capacitor 等跨平台方案。原生客户端的应用 ID 是 `com.kakumine.notefable`，用这台电脑的 debug 签名。
+原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/` 和 `ios/`（原生 iOS，尚未开始，见 [mobile/ios/README.md](../../mobile/ios/README.md)）；不再使用 Capacitor 等跨平台方案。原生客户端的应用 ID 是 `com.kakumine.notefable`；release 包用 Google Play 的上传密钥签名（见下面“正式签名与 Google Play”）。
 
 ## 开发环境
 
@@ -20,7 +20,15 @@
 - 文件名 `NoteFable-v<版本>.apk`，版本取自 `mobile/android/app/build.gradle.kts` 的 `versionName`；仅供测试的包在文件名里注明 `dev`。保留文件夹的共享设置。
 - 交付新包前把 `versionCode` 加 1、`versionName` 同步更新，否则系统可能不允许覆盖安装，也分不清手机上装的是哪一版。
 - 上传实际通过构建、签名及运行验证的 APK，随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
-- debug 签名的 APK 只适合自己安装试用。上架 Google Play 需要正式签名密钥、AAB 和开发者账号，不在当前范围内。
+- 交付的 APK 和上传 Play 的 AAB 用同一个上传密钥签名。以前侧载的 debug 签名包签名不同，不能直接覆盖安装，要先卸载一次。
+
+## 正式签名与 Google Play
+
+- **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包；缺任何一个时 `bundleRelease` / `assembleRelease` 直接失败，只有加 `-Pnotefable.release.debugSigning=true` 才用 debug 签名（只能自己侧载）。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
+- **构建**：`./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`（上传 Play）；`assembleRelease` → APK（侧载、Drive 交付）。每次上传 Play 前 `versionCode` 加 1。
+- **Play 应用签名**：Play 用自己保管的应用签名密钥重新签名后分发。Google Cloud 的 Android OAuth 客户端一个只能填一个 SHA-1，所以每种签名各建一个（包名都是 `com.kakumine.notefable`）：`NoteFable-Android`（这台电脑的 debug 签名）、`NoteFable-Android-Upload`（上传密钥，侧载的 release 包）、以及 Play Console → 应用完整性里的应用签名密钥（从 Play 安装的包，开发者账号建好后再加）。缺哪个，那种安装方式下“使用 Google 继续”就失败（邮箱登录不受影响）。OAuth 同意屏幕已经是“正式版 / 外部”，任何 Google 账号都能登录。
+- **商店资料**：文字和 Console 表单答案在 [docs/play-store/](../play-store/listing.md)，图片在 `mobile/android/play-store/`。
+- Play 政策要求的两个应用内功能：设置里的“删除账号”（`DELETE /api/account`，网页 `/delete-account` 说明删除方法）和每条回答“…”菜单里的“报告回答”（`POST /api/reports`，发到开发者邮箱）。见 [chat-flow.md](chat-flow.md) 和 [database.md](database.md)。
 
 ## 手机网页界面约定
 
@@ -47,5 +55,5 @@ Google 不允许在内嵌 WebView 里走网页登录，App 用安卓系统的账
 
 要点：
 - **受众是 Web 客户端 ID，不是 Android 客户端 ID。** Google Cloud 里建的 Android 类型客户端（包名 + 签名 SHA-1）只是用来登记"这个安装包有资格调用登录"，代码里不会用到它的 ID。
-- 不同签名的包要各自登记指纹：调试签名和将来的正式签名是两个指纹，可以加在同一个 Android 客户端上；换电脑后 debug 签名也会变。
-- OAuth 同意屏幕处于"测试"状态时，只有加入"测试用户"的账号能登录。
+- 不同签名的包要各自登记指纹：debug 签名、上传密钥和 Play 的应用签名密钥是三个指纹，一个 Android 客户端只能填一个，所以各建一个客户端（见“正式签名与 Google Play”）；换电脑后 debug 签名也会变。
+- OAuth 同意屏幕处于"测试"状态时，只有加入"测试用户"的账号能登录（现在是正式版）。

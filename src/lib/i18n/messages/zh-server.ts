@@ -188,4 +188,8 @@ export const zhServer: Record<string, string> = {
   "This chat has nothing to turn into a page yet.": "这段聊天还没有可以整理成笔记的内容。",
   "Attached pages must be a list of page IDs.": "附加的页面必须是页面 ID 列表。",
   "You can attach up to 5 pages to a message.": "每条消息最多可以添加 5 个页面。",
+  "Sign in to delete your account.": "请登录后再删除账号。",
+  "Could not send the report.": "无法发送报告。",
+  "This answer is no longer available.": "这条回答已经不存在。",
+  "You’ve sent many reports today. Try again tomorrow.": "你今天发送的报告太多了，请明天再试。",
 };

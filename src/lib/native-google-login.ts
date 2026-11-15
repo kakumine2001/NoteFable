@@ -1,3 +1,4 @@
+import { loginTimestamp } from "@/lib/login-time";
 import { createHmac, randomBytes, timingSafeEqual } from "crypto";
 import { createRemoteJWKSet, errors, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { encode } from "next-auth/jwt";
@@ -133,6 +134,7 @@ export async function createSessionCookie(identity: GoogleIdentity, secure: bool
     name: identity.name,
     email: identity.email,
     picture: identity.image,
+    signedInAt: loginTimestamp(),
   }, secure);
 }
 

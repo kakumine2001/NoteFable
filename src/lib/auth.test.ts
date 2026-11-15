@@ -21,9 +21,11 @@ const prismaMock = vi.hoisted(() => ({
 }));
 const cookieStore = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn() }));
 const session = vi.hoisted(() => ({ value: null as unknown, configured: true, emailConfigured: true }));
+const deleted = vi.hoisted(() => ({ isDeletedLogin: vi.fn() }));
 
 vi.mock("@/lib/prisma", () => ({ prisma: prismaMock }));
 vi.mock("next/headers", () => ({ cookies: async () => cookieStore }));
+vi.mock("@/lib/deleted-accounts", () => deleted);
 vi.mock("@/lib/google-auth", () => ({
   isGoogleLoginConfigured: () => session.configured,
   isEmailLoginConfigured: () => session.emailConfigured,
@@ -44,6 +46,44 @@ describe("getOrCreateUser", () => {
     session.configured = true;
     session.emailConfigured = true;
     prismaMock.user.upsert.mockResolvedValue({ id: "device-user", googleSub: null });
+    deleted.isDeletedLogin.mockResolvedValue(false);
+  });
+
+  it("does not re-create a deleted Google account from a session issued before the deletion", async () => {
+    session.value = { ...google, signedInAt: 100 };
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(deleted.isDeletedLogin).toHaveBeenCalledWith({ kind: "google", sub: "g-1" }, 100);
+    expect(user.id).toBe("device-user");
+    expect(prismaMock.user.updateMany).not.toHaveBeenCalled();
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("does not re-create a deleted email account from an old session", async () => {
+    session.value = { loginEmail: "B@Example.com" };
+    prismaMock.user.findUnique.mockResolvedValue(null);
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(deleted.isDeletedLogin).toHaveBeenCalledWith({ kind: "email", email: "b@example.com" }, null);
+    expect(user.id).toBe("device-user");
+    expect(prismaMock.user.create).not.toHaveBeenCalled();
+  });
+
+  it("does not let a pre-deletion session into an account that was re-created later", async () => {
+    session.value = { ...google, signedInAt: 100 };
+    prismaMock.user.findUnique.mockResolvedValue({ id: "recreated", email: "a@example.com", name: "A", image: null });
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(user.id).toBe("device-user");
+  });
+
+  it("does not let a pre-deletion email session into a re-created account", async () => {
+    session.value = { loginEmail: "b@example.com" };
+    prismaMock.user.findUnique.mockResolvedValue({ id: "recreated", verifiedEmail: "b@example.com" });
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(user.id).toBe("device-user");
   });
 
   it("uses the device user when not logged in", async () => {

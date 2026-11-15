@@ -27,7 +27,7 @@ export default function TermsPage() {
 
       <LegalSection title="3. Your account and content">
         <p>
-          You can use NoteFable without signing in (your data is tied to your browser) or sign in with Google. You are responsible for what happens under your browser or account.
+          You can use NoteFable without signing in (your data is tied to your browser or app) or sign in with Google or an email code. You are responsible for what happens under your browser or account.
           You keep ownership of the content you create. You allow us to store and process it only as needed to run the service, including sending it to the AI providers
           described in the Privacy Policy.
         </p>
@@ -53,7 +53,7 @@ export default function TermsPage() {
 
       <LegalSection title="6. Third-party services">
         <p>
-          NoteFable relies on third parties — OpenAI, Anthropic, DeepSeek, Google, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect NoteFable.
+          NoteFable relies on third parties — OpenAI, Anthropic, DeepSeek, Google, Resend, Vercel and Neon. Their own terms apply to their services, and their outages or changes can affect NoteFable.
         </p>
       </LegalSection>
 
@@ -66,7 +66,7 @@ export default function TermsPage() {
 
       <LegalSection title="8. Ending use">
         <p>
-          You can stop using NoteFable at any time and ask for your data to be deleted (see the Privacy Policy). We may end or change the service or your access at any time.
+          You can stop using NoteFable at any time and delete your account in Settings, or ask us to delete your data (see the Privacy Policy). We may end or change the service or your access at any time.
         </p>
       </LegalSection>
 

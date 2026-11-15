@@ -4,6 +4,7 @@ import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
+import { loginTimestamp } from "@/lib/login-time";
 
 // Google ログインに必要な環境変数がそろっているか。未設定でも匿名利用はそのまま動かす。
 export function isGoogleLoginConfigured() {
@@ -30,6 +31,8 @@ declare module "next-auth" {
     loginEmail?: string;
     // Google のアドレスが Gmail / Workspace の確認済みアドレスか。そのときだけ、同じアドレスのメールログインの利用者とまとめる。
     googleEmailVerified?: boolean;
+    // ログイン Cookie を発行した時刻（秒、loginTimestamp）。削除したアカウントの古い Cookie を見分ける（deleted-accounts.ts）。
+    signedInAt?: number;
   }
 }
 
@@ -41,10 +44,12 @@ export const authCallbacks = {
       token.googleSub = account.providerAccountId;
       // Gmail / Workspace の確認済みアドレスだけ（email-address.ts の isAuthoritativeGoogleEmail）。
       token.googleEmailVerified = isAuthoritativeGoogleEmail(profile?.email, profile?.email_verified, profile?.hd);
+      token.signedInAt = loginTimestamp();
     }
     return token;
   },
   session({ session, token }: { session: Session; token: JWT }) {
+    if (typeof token.signedInAt === "number") session.signedInAt = token.signedInAt;
     if (session.user && typeof token.googleSub === "string") {
       session.user.id = token.googleSub;
       session.googleEmailVerified = token.googleEmailVerified === true;

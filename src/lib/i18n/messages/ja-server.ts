@@ -188,4 +188,8 @@ export const jaServer: Record<string, string> = {
   "This chat has nothing to turn into a page yet.": "このチャットにはまだノートにまとめられる内容がありません。",
   "Attached pages must be a list of page IDs.": "添付するページはページ ID の一覧で指定してください。",
   "You can attach up to 5 pages to a message.": "1 回のメッセージに添付できるページは 5 件までです。",
+  "Sign in to delete your account.": "アカウントを削除するにはログインしてください。",
+  "Could not send the report.": "報告を送信できませんでした。",
+  "This answer is no longer available.": "この回答はもう存在しません。",
+  "You’ve sent many reports today. Try again tomorrow.": "今日はたくさん報告を送りました。明日もう一度お試しください。",
 };

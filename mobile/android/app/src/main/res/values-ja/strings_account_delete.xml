@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置里的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount）。 -->
+<resources>
+    <string name="acct_delete_account">アカウントを削除</string>
+    <string name="acct_delete_account_warning">アカウントと、その中のチャット・ノート・ファイル・設定をすべて完全に削除します。元に戻すことはできません。</string>
+    <string name="acct_delete_permanently">完全に削除</string>
+    <string name="acct_deleting">削除中…</string>
+    <string name="acct_err_delete_account">アカウントを削除できませんでした。もう一度お試しください。</string>
+</resources>

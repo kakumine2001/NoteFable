@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse, type NextRequest } from "next/server";
+import { deleteAccount } from "@/lib/account-deletion";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
+import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +25,8 @@ export async function GET() {
 
     // 自分で決めた表示名とアイコンは利用者の行に持つ。取れなくても Google の名前と写真で表示を続ける。
     const row = await getOrCreateUser().catch(() => null);
+    // 削除したアカウントの古いログイン Cookie（deleted-accounts.ts）は匿名の行になる。ログインしていない表示にする。
+    if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
     // 行を読めなかったときは表示言語を返さない（null を返すと「未選択」と区別できず、ブラウザの選択で上書きされる）。
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row ? row.locale : undefined }, google);
     return NextResponse.json({ configured: true, ...methods, user, googleClientId });
@@ -76,4 +80,43 @@ export async function PATCH(request: Request) {
     updated = await prisma.user.update({ where: { id: row.id }, data: parsed.data });
   }
   return NextResponse.json({ user: toAccountUser(updated, google) });
+}
+
+// アカウントを完全に削除する（設定の「アカウントを削除」、Google Play のアカウント削除要件）。ログインしている本人だけ。
+// 消した後はログインと端末の Cookie も消す。残すと、次のリクエストで同じ Google / メールの空のアカウントがすぐ作り直される。
+// ネイティブアプリの要求は Origin を付けないので通す（isSameOrigin）。
+export async function DELETE(request: NextRequest) {
+  if (!isAccountLoginConfigured()) {
+    return NextResponse.json({ error: msg("Sign-in is not enabled.") }, { status: 404 });
+  }
+  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const google = await currentAccountProfile().catch(() => null);
+  if (!google) {
+    return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
+  }
+  const row = await getOrCreateUser();
+  if (!isAccountUser(row)) {
+    return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
+  }
+
+  const { cleanup } = await deleteAccount(row);
+  // ファイルは応答のあとに消す（多いと時間がかかり、行を消したのに応答が届かないと画面が失敗と表示するため）。
+  after(async () => {
+    const failed = await cleanup();
+    if (failed.length) console.error(`Account ${row.id} deleted; could not remove stored files: ${failed.join(", ")}`);
+  });
+
+  // ログイン Cookie を消す。端末の Cookie（notefable_device）は残す: 別の匿名の行を指していることがあり、
+  // 消すとその端末のログイン前のデータに戻れなくなる。消したアカウントの行を指していれば、次の要求で新しい匿名の行になる。
+  const response = NextResponse.json({ deleted: true });
+  const secure = isSecureRequest(request);
+  for (const { name } of request.cookies.getAll()) {
+    if (/^(__Secure-|__Host-)?authjs\./.test(name)) {
+      response.cookies.set(name, "", { httpOnly: true, secure: secure || name.startsWith("__"), path: "/", maxAge: 0 });
+    }
+  }
+  return response;
 }

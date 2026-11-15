@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 设置里的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount）。 -->
+<resources>
+    <string name="acct_delete_account">刪除賬號</string>
+    <string name="acct_delete_account_warning">永久刪除你的賬號和其中的全部內容：聊天、筆記、檔案和設定。刪除後無法恢復。</string>
+    <string name="acct_delete_permanently">永久刪除</string>
+    <string name="acct_deleting">正在刪除…</string>
+    <string name="acct_err_delete_account">無法刪除賬號，請重試。</string>
+</resources>

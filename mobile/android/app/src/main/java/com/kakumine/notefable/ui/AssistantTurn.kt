@@ -143,6 +143,9 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
         val failed = message.errorDetail != null || message.usageLimit
         if (!message.streaming && !failed && !message.generatingImage && message.content.isNotBlank()) {
             AnswerActions(message.key, message.id, message.content)
+        } else if (!message.streaming && !failed && !message.generatingImage && message.images.isNotEmpty()) {
+            // 只有图片的回答没有复制 / "…"，但要能报告（网页 ReportAnswerButton，Google Play 的 AI 生成内容政策）。
+            ReportOnlyAction(message.id)
         }
     }
 }
@@ -303,4 +306,21 @@ private suspend fun saveImage(context: Context, image: GeneratedImageDto) {
     } catch (_: RuntimeException) {
         // 其它打不开的情况（如 FileUriExposedException）同样不影响已存好的图片。
     }
+}
+
+// 只有"报告"一个按钮的操作行（网页 ReportAnswerButton）：和操作行同样 36x36、左移 10.4、上距 6.4，旗子 16。
+// 还没换成服务端 ID（local-N）的回答不显示。
+@Composable
+private fun ReportOnlyAction(messageId: String) {
+    if (messageId.startsWith("local-")) return
+    var open by remember { mutableStateOf(false) }
+    val label = stringResource(R.string.report_answer)
+    Box(
+        Modifier.padding(top = 6.4.dp).offset(x = (-10.4).dp).size(36.dp).clip(RoundedCornerShape(4.8.dp))
+            .clickable { open = true }.semantics { contentDescription = label; role = Role.Button },
+        Alignment.Center,
+    ) {
+        LucideIcon(FlagIcon, 16.dp, Sm.Muted, strokeWidth = 1.9f)
+    }
+    if (open) ReportAnswerDialog(messageId, onClose = { open = false })
 }

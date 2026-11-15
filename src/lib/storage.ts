@@ -143,6 +143,28 @@ export async function deleteStoredImage(storagePath: string) {
   await rm(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath), { force: true });
 }
 
+// 1 人の利用者のフォルダ（"note-files/<利用者 ID>/" など）をまとめて消す。アカウント削除だけが使う。
+// prefix は必ず "/" で終わる利用者ごとのフォルダにする（別の利用者の ID が前方一致で巻き込まれないように）。
+export async function deleteStoredPrefix(prefix: string) {
+  const safePrefix = normalizeStoragePath(prefix).replace(/\\/g, "/");
+  if (!prefix.endsWith("/") || safePrefix.split("/").filter(Boolean).length < 2) throw new Error("Invalid storage prefix.");
+  const folder = safePrefix.endsWith("/") ? safePrefix : `${safePrefix}/`;
+
+  if (hasVercelBlobToken()) {
+    const { del, list } = await import("@vercel/blob");
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: folder, cursor, limit: 1000 });
+      if (page.blobs.length) await del(page.blobs.map((blob) => blob.url));
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    return;
+  }
+
+  assertStorageConfigured();
+  await rm(path.join(/*turbopackIgnore: true*/ getStorageRoot(), folder), { recursive: true, force: true });
+}
+
 // Call only after ownership has been checked. Scope the read grant to one image.
 export async function getStoredImageReadUrl(storagePath: string) {
   if (!hasVercelBlobToken()) return null;

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { Download, FileText, ImagePlus, Paperclip } from "lucide-react";
 import { memo } from "react";
-import { AnswerActions } from "@/components/answer-actions";
+import { AnswerActions, ReportAnswerButton } from "@/components/answer-actions";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import type { ProgressStep } from "@/lib/chat-activity";
@@ -94,6 +94,14 @@ export const ChatMessage = memo(function ChatMessage({
     !message.failed &&
     !message.isGeneratingImage &&
     message.content.trim().length > 0;
+  // 操作行が出ない AI の出力（画像だけの回答、sessionId の無いノートの AI アシスタント）にも「報告」だけは出す（Google Play の AI 生成コンテンツのポリシー）。
+  const shouldShowReportOnly =
+    message.role === "ASSISTANT" &&
+    !(shouldShowAnswerActions && sessionId) &&
+    !isGenerating &&
+    !message.failed &&
+    !message.isGeneratingImage &&
+    (message.content.trim().length > 0 || !!message.attachments?.length);
   // 待機中は経過秒数、完了後は本文が届くまでにかかった秒数を出す。
   const activitySeconds = shouldShowThinking
     ? thinkingSeconds
@@ -191,6 +199,7 @@ export const ChatMessage = memo(function ChatMessage({
         {shouldShowAnswerActions && sessionId && (
           <AnswerActions messageId={message.id} content={message.content} sessionId={sessionId} conversationTitle={conversationTitle} />
         )}
+        {shouldShowReportOnly && <ReportAnswerButton messageId={message.id} />}
         {!!message.attachments?.some(
           (attachment) =>
             message.role === "ASSISTANT" || !isImageMimeType(attachment.mimeType),

@@ -83,6 +83,7 @@ internal fun SettingsDialog(
     onCancelCrop: () -> Unit,
     onPhotoSaved: () -> Unit,
     onSignOut: () -> Unit,
+    deleteAccount: suspend () -> Throwable?,
     onClose: () -> Unit,
 ) {
     var attempt by remember { mutableIntStateOf(0) }
@@ -92,6 +93,8 @@ internal fun SettingsDialog(
     var instructions by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Throwable?>(null) }
+    // 正在删除账号：和保存中一样不关对话框、不让按其他按钮。
+    var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
 
@@ -136,7 +139,7 @@ internal fun SettingsDialog(
     Dialog(
         onDismissRequest = {
             when {
-                busy || pickerOpen || account.uploading -> Unit
+                busy || deleting || pickerOpen || account.uploading -> Unit
                 // 编辑区开着（包括选好照片在裁剪）：先只关编辑区（网页 closeGuard）。
                 editor != AvatarEditor.Closed -> onEditor(AvatarEditor.Closed)
                 else -> closeNow()
@@ -206,11 +209,17 @@ internal fun SettingsDialog(
                         .drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }
                         .padding(top = 8.dp),
                 ) {
-                    SettingsInlineAction(Lucide.LogOut, stringResource(R.string.sign_out), enabled = !busy && !photoBusy && !account.signingOut) {
+                    SettingsInlineAction(Lucide.LogOut, stringResource(R.string.sign_out), enabled = !busy && !deleting && !photoBusy && !account.signingOut) {
                         // 输入中的名字先排进保存队列，signOut 会等它发完。
                         profile.saveName(nameDraft)
                         onSignOut()
                     }
+                    DeleteAccountSection(
+                        enabled = !busy && !photoBusy && !account.signingOut,
+                        onBusyChange = { deleting = it },
+                        deleteAccount = deleteAccount,
+                        onDeleted = closeNow,
+                    )
                 }
             }
             Box(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(Sm.Border))
@@ -218,10 +227,10 @@ internal fun SettingsDialog(
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                NotionButton(stringResource(R.string.cancel), onClick = closeNow, enabled = !busy && !photoBusy)
+                NotionButton(stringResource(R.string.cancel), onClick = closeNow, enabled = !busy && !deleting && !photoBusy)
                 NotionButton(
                     stringResource(if (busy) R.string.sb_saving else R.string.save), onClick = save,
-                    enabled = !busy && !photoBusy && initial != null, primary = true,
+                    enabled = !busy && !deleting && !photoBusy && initial != null, primary = true,
                 )
             }
         }

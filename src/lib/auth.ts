@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { getCookieSecret } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { normalizeEmail } from "@/lib/email-address";
+import { isDeletedLogin } from "@/lib/deleted-accounts";
 import { prisma } from "@/lib/prisma";
 
 // 匿名利用者を識別するための Cookie 名。
@@ -86,8 +87,10 @@ type GoogleIdentity = {
   verifiedEmail: string | null;
   name: string | null;
   image: string | null;
+  // このログイン Cookie を発行した時刻（秒）。削除したアカウントの古い Cookie を見分ける。古い Cookie には無い。
+  signedInAt: number | null;
 };
-type EmailIdentity = { kind: "email"; email: string };
+type EmailIdentity = { kind: "email"; email: string; signedInAt: number | null };
 export type AccountIdentity = GoogleIdentity | EmailIdentity;
 
 export { normalizeEmail };
@@ -105,6 +108,7 @@ export async function getAccountIdentity(): Promise<AccountIdentity | null> {
       const email = session.user?.email ?? null;
       return {
         kind: "google",
+        signedInAt: session.signedInAt ?? null,
         sub,
         email,
         verifiedEmail: email && session.googleEmailVerified ? normalizeEmail(email) : null,
@@ -112,7 +116,7 @@ export async function getAccountIdentity(): Promise<AccountIdentity | null> {
         image: session.user?.image ?? null,
       };
     }
-    if (session?.loginEmail && isEmailLoginConfigured()) return { kind: "email", email: normalizeEmail(session.loginEmail) };
+    if (session?.loginEmail && isEmailLoginConfigured()) return { kind: "email", email: normalizeEmail(session.loginEmail), signedInAt: session.signedInAt ?? null };
     return null;
   } catch {
     return null;
@@ -131,7 +135,13 @@ async function currentDeviceUser() {
 
 async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<ReturnType<typeof currentDeviceUser>>> {
   const profile = { email: identity.email, name: identity.name, image: identity.image };
-  const existing = await prisma.user.findUnique({ where: { googleSub: identity.sub } });
+  // 削除したアカウントの、削除より前のログイン Cookie は匿名で扱う。空のアカウントを作り直さず、
+  // 削除のあとに作り直されたアカウントにも入れない（印の確認は行の検索と並行して行う）。
+  const [existing, deleted] = await Promise.all([
+    prisma.user.findUnique({ where: { googleSub: identity.sub } }),
+    isDeletedLogin({ kind: "google", sub: identity.sub }, identity.signedInAt),
+  ]);
+  if (deleted) return anonymousUser();
 
   if (existing) {
     // プロフィール（メール・名前・画像）が変わっていたときだけ更新する。確認済みのメールはまだ持っていなければ記録する
@@ -216,7 +226,12 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
 
 async function getOrCreateEmailUser(identity: EmailIdentity) {
   // 同じアドレスの利用者（メールで、または確認済みの Google で以前ログインした人）がいればその人。
-  const existing = await prisma.user.findUnique({ where: { verifiedEmail: identity.email } });
+  // 削除したアカウントの、削除より前のログイン Cookie は匿名で扱う（getOrCreateGoogleUser と同じ）。
+  const [existing, deleted] = await Promise.all([
+    prisma.user.findUnique({ where: { verifiedEmail: identity.email } }),
+    isDeletedLogin({ kind: "email", email: identity.email }, identity.signedInAt),
+  ]);
+  if (deleted) return anonymousUser();
   if (existing) return existing;
 
   // 初めてのログイン: いま使っている端末の匿名データを引き継ぐ。端末の行がすでに誰かのものなら新しい利用者を作る。
@@ -253,7 +268,11 @@ export async function getOrCreateUser() {
   if (identity?.kind === "google") return getOrCreateGoogleUser(identity);
   if (identity?.kind === "email") return getOrCreateEmailUser(identity);
 
-  // 未ログインなら従来どおり Cookie の deviceId と DB の User を対応させる。
+  return anonymousUser();
+}
+
+// 未ログインなら従来どおり Cookie の deviceId と DB の User を対応させる。
+async function anonymousUser() {
   const deviceId = await ensureAnonymousDeviceId();
   const user = await prisma.user.upsert({
     where: { deviceId },

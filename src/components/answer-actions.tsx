@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, LoaderCircle } from "lucide-react";
+import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
@@ -143,6 +143,76 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
   </dialog>;
 }
 
+// AI の回答を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
+export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+  const t = useT();
+  const ref = useRef<HTMLDialogElement>(null);
+  const titleId = useId();
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [sent, setSent] = useState(false);
+  const close = () => { if (busy) return false; onClose(); };
+  useBackToClose(true, close);
+  useEffect(() => { ref.current?.showModal(); }, []);
+
+  async function send() {
+    setBusy(true); setError("");
+    try {
+      const response = await fetch("/api/reports", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageId, reason: reason.trim() }),
+      });
+      const data = await response.json().catch(() => null) as { error?: unknown } | null;
+      if (!response.ok) throw new Error(typeof data?.error === "string" && data.error ? data.error : msg("Could not send the report."));
+      setSent(true); setBusy(false);
+    } catch (reason) {
+      setError(reason instanceof Error && reason.message ? reason.message : msg("Could not send the report."));
+      setBusy(false);
+    }
+  }
+
+  return <dialog ref={ref} aria-labelledby={titleId} className="notes-dialog answer-report-dialog"
+    onCancel={(event) => { event.preventDefault(); close(); }}>
+    {sent ? <div role="status">
+      <h2 id={titleId} className="text-base font-semibold">{t("Report this answer")}</h2>
+      <p className="mt-2 text-sm text-[var(--notion-muted)]">{t("Report sent. Thank you.")}</p>
+      <div className="mt-5 flex justify-end">
+        <button type="button" autoFocus className="notion-button notion-button-primary" onClick={onClose}>{t("Done")}</button>
+      </div>
+    </div> : <form onSubmit={(event) => { event.preventDefault(); void send(); }}>
+      <h2 id={titleId} className="text-base font-semibold">{t("Report this answer")}</h2>
+      <p className="mt-2 text-sm text-[var(--notion-muted)]">{t("Tell us what’s wrong with this answer. It is sent to the NoteFable team together with your question.")}</p>
+      <textarea autoFocus value={reason} maxLength={1000} disabled={busy} onChange={(event) => setReason(event.target.value)}
+        placeholder={t("What’s wrong? (optional)")} aria-label={t("What’s wrong? (optional)")} className="notes-dialog-input answer-report-reason" />
+      {error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
+      <div className="mt-5 flex justify-end gap-2">
+        <button type="button" className="notion-button" disabled={busy} onClick={onClose}>{t("Cancel")}</button>
+        <button type="submit" disabled={busy} className="notion-button notion-button-primary">{busy ? t("Sending…") : t("Send report")}</button>
+      </div>
+    </form>}
+  </dialog>;
+}
+
+// サーバーに保存済みの回答の ID（cuid）か。表示中だけの回答は crypto.randomUUID() の仮の ID で、報告できない。
+function isSavedMessageId(id: string) {
+  return /^c[a-z0-9]{20,}$/.test(id);
+}
+
+// コピーや保存の操作行が出ない AI の出力（画像だけの回答、ノートの AI アシスタントの返事）にも、報告だけは出す。
+export function ReportAnswerButton({ messageId }: { messageId: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  if (!isSavedMessageId(messageId)) return null;
+  return (
+    <div className="answer-actions" role="group" aria-label={t("Answer actions")}>
+      <button type="button" className="answer-action" onClick={() => setOpen(true)} aria-label={t("Report answer")} title={t("Report answer")}>
+        <Flag size={16} strokeWidth={1.9} />
+      </button>
+      {open && <ReportAnswerDialog messageId={messageId} onClose={() => setOpen(false)} />}
+    </div>
+  );
+}
+
 // 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
 export function AnswerActions({ messageId, content, sessionId, conversationTitle }: Props) {
   const t = useT();
@@ -155,6 +225,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
   const [downloading, setDownloading] = useState(false);
   const downloadLock = useRef(false);
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  const [reporting, setReporting] = useState(false);
   const menuId = useId();
   const closeMenu = useCallback(() => setMenu(null), []);
   const alive = useRef(true);
@@ -266,11 +337,15 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
           {downloading ? t("Downloading…") : t("Download conversation")}
         </button>
+        {isSavedMessageId(messageId) && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); setReporting(true); }}>
+          <Flag size={16} aria-hidden="true" />{t("Report answer")}
+        </button>}
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
         {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error.message, t)}</p>}
       </AnswerMenu>}
       {!menu && <span role="status" aria-live="polite" className="sr-only">{status}</span>}
       {!menu && error && <span role="alert" className="answer-actions-error">{localizeSystemText(error.message, t)}</span>}
+      {reporting && <ReportAnswerDialog messageId={messageId} onClose={() => setReporting(false)} />}
     </div>
   );
 }

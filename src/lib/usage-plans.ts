@@ -15,6 +15,9 @@ export const USAGE_LIMITS: Record<UsageTier, Record<UsageKind, number>> = {
 // 学校などで IP を共有する場合を考えて個人の上限より大きくし、ログインすればこの上限は外れる。
 export const GUEST_NETWORK_LIMITS: Record<UsageKind, number> = { chat: 100, image: 10 };
 
+// 「回答を報告」の 1 日の回数（報告は開発者へのメールになるので、送らせすぎない）。未ログインは同じネットワークでも数える。
+export const REPORT_LIMITS = { user: 10, guestNetwork: 20 };
+
 export const USAGE_LIMIT_CODE = "usage_limit";
 
 // 429 の本文 { error, code: "usage_limit", tier, kind } を画面側で区別するための例外。

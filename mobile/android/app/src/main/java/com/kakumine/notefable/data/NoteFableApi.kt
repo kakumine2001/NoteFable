@@ -327,6 +327,13 @@ class NoteFableApi(
         identityGate.reset()
     }
 
+    override suspend fun deleteAccount() {
+        send<ApiError>(Request.Builder().url(absoluteUrl("/api/account")).delete())
+        // 服务端已经用过期的 Set-Cookie 删掉了登录 Cookie，这里再删一次本地的。设备 Cookie 留着（和网页一样，见 DELETE /api/account）。
+        (cookieJar as? PersistentCookieJar)?.removeWhere { it.name.contains("authjs.") }
+        identityGate.reset()
+    }
+
     // 和网页的 next-auth signOut() 一样走 Auth.js 的 CSRF 流程；无论服务端是否成功，都删掉本地的会话 Cookie，
     // 会话是 JWT、服务端不存状态，本地删掉就等于退出。
     override suspend fun signOut() {

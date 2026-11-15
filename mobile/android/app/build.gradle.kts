@@ -10,12 +10,13 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Google 登录用 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + 这台电脑的 debug 签名）。
+        // Google 登录要求每种签名在 Google Cloud 各有一个 Android 客户端（应用 ID + SHA-1）：NoteFable-Android（debug）、
+        // NoteFable-Android-Upload（上传密钥）、Play 的应用签名密钥（见 docs/architecture/android.md）。
         applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "0.6.0"
+        versionCode = 10
+        versionName = "1.0.0"
 
         val baseUrl = (project.findProperty("notefable.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
@@ -24,11 +25,31 @@ android {
         manifestPlaceholders["notefableHost"] = baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')
     }
 
+    // Google Play 的上传密钥。密钥库和密码不进仓库：写在本机的 ~/.gradle/gradle.properties（notefable.upload.*），
+    // 所有 worktree 共用。没有配置时构建 release 包会直接失败（免得交出 debug 签名的包）；
+    // 只想在别的电脑上侧载试用时加 -Pnotefable.release.debugSigning=true。
+    val uploadProps = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        .associateWith { providers.gradleProperty("notefable.upload.$it").orNull }
+    val debugSignedRelease = providers.gradleProperty("notefable.release.debugSigning").orNull == "true"
+    if (uploadProps.values.all { it != null }) {
+        signingConfigs.create("upload") {
+            storeFile = file(uploadProps.getValue("storeFile")!!)
+            storePassword = uploadProps.getValue("storePassword")
+            keyAlias = uploadProps.getValue("keyAlias")
+            keyPassword = uploadProps.getValue("keyPassword")
+        }
+    } else if (!debugSignedRelease) {
+        val missing = uploadProps.filterValues { it == null }.keys.joinToString { "notefable.upload.$it" }
+        gradle.taskGraph.whenReady {
+            if (allTasks.any { it.name.endsWith("Release") && (it.name.startsWith("bundle") || it.name.startsWith("assemble")) }) {
+                throw GradleException("Release signing is not configured: missing $missing (see docs/architecture/android.md).")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // 过渡方案：用 debug 密钥签名，才能直接安装到手机侧载试用（和现有 Capacitor 外壳一致）。
-            // 上架 Google Play 或给别人用之前，换成自己的正式密钥（密钥和密码不进仓库）。
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

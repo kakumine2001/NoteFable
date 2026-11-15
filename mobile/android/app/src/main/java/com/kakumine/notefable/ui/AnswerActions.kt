@@ -100,6 +100,8 @@ internal sealed interface MenuError {
 internal class AnswerMoreState(val sessionId: String, messageId: String, content: String) {
     var menuOpen by mutableStateOf(false)
     var downloading by mutableStateOf(false)
+    /** "报告回答"的对话框开着。 */
+    var reporting by mutableStateOf(false)
     var error by mutableStateOf<MenuError?>(null)
     /** 对账后换成服务端 ID；正文也以最新的为准。 */
     var messageId by mutableStateOf(messageId)
@@ -245,6 +247,7 @@ internal fun AnswerMoreButton(state: AnswerMoreState) {
         LucideIcon(Lucide.Ellipsis, 18.dp, Sm.Muted, strokeWidth = 1.9f)
         if (state.menuOpen) AnswerMenu(state, save, onSave = ::saveToNotes, onDownload = ::download)
     }
+    if (state.reporting) ReportAnswerDialog(state.messageId, onClose = { state.reporting = false })
 }
 
 /** 菜单关着时的错误（例如保存文件失败），在操作行下方：左 8、上 2.4、13/1.4、#933b34。 */
@@ -310,6 +313,13 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
                 disabled = state.downloading,
                 onClick = onDownload,
             )
+            // 还没换成服务端 ID 的回答（local-N）不能报告（网页 isSavedMessageId）。
+            if (!state.messageId.startsWith("local-")) {
+                MenuEntry(stringResource(R.string.report_answer), FlagIcon) {
+                    close()
+                    state.reporting = true
+                }
+            }
             // .answer-menu-error：上下 5.6、左右 12、13/1.4、#933b34。
             state.error?.let { Text(menuErrorText(it), style = ErrorText, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.6.dp)) }
         }

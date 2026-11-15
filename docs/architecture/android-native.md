@@ -72,8 +72,8 @@ mobile/android/
             ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
             IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、AccountApi（改资料、上传头像）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、拖动排序、回收站、离开前保存）、NoteFableRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
-            NotesUi（侧栏笔记部分、首页、对话框、回收站）、AccountUi / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、SettingsDialog（自定义指令）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单，含“报告回答”ReportAnswerDialog）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
+            NotesUi（侧栏笔记部分、首页、对话框、回收站）、AccountUi / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、SettingsDialog（自定义指令；底部的“删除账号”在 DeleteAccountSection）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
   app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```

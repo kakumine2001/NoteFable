@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 export { LegalLinks } from "@/components/legal-links";
 
 export const LEGAL_CONTACT_EMAIL = "kakumine0824@gmail.com";
-export const LEGAL_UPDATED = "October 14, 2026";
+export const LEGAL_UPDATED = "November 15, 2026";
 
 // プライバシーポリシーと利用規約で共通の見た目。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。
 export function LegalPage({ title, children }: { title: string; children: ReactNode }) {
@@ -18,6 +18,7 @@ export function LegalPage({ title, children }: { title: string; children: ReactN
         <nav className="mt-14 flex gap-5 border-t border-[var(--notion-border)] pt-5 text-sm text-[var(--notion-muted)]" aria-label="Legal">
           <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
           <Link href="/terms" className="hover:underline">Terms of Service</Link>
+          <Link href="/delete-account" className="hover:underline">Delete your account</Link>
         </nav>
       </article>
     </main>

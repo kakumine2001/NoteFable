@@ -77,6 +77,7 @@ fun SidebarFooter(
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
     profile: AccountViewModel,
+    deleteAccount: suspend () -> Throwable?,
 ) {
     Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
         if (account.configured) {
@@ -86,7 +87,7 @@ fun SidebarFooter(
                     // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
                     SignInButton(onClick = onSignIn)
                 } else {
-                    ProfileRow(user, account, profile, onSignOut)
+                    ProfileRow(user, account, profile, onSignOut, deleteAccount)
                 }
             }
         }
@@ -145,7 +146,7 @@ private fun pickedTypeAndSize(context: Context, uri: Uri): Pair<String?, Long?> 
 // 登录后的账号行（.notion-sidebar-action.profile-row，手机）：高 44、左右 8、间距 8.8；头像 22、名字 16、右边齿轮 15（--notion-faint）。
 // 点了打开设置（网页 AccountButton → SettingsDialog）：个人资料、界面语言、自定义指令、退出登录都在里面，设置的入口只有这一个。
 @Composable
-private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit) {
+private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit, deleteAccount: suspend () -> Throwable?) {
     var settingsOpen by rememberSaveable { mutableStateOf(false) }
     // 头像编辑区和选好的照片放在这里而不是设置窗口里：选择器回来时（哪怕 Activity 重建）窗口还没组合好，结果也接得住。
     var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
@@ -215,6 +216,7 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
                 picked = null
                 onSignOut()
             },
+            deleteAccount = deleteAccount,
             onClose = {
                 settingsOpen = false
                 editor = AvatarEditor.Closed

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 报告 AI 回答（网页 answer-actions.tsx 的 ReportAnswerDialog）。 -->
+<resources>
+    <string name="report_answer">報告回答</string>
+    <string name="report_title">報告這條回答</string>
+    <string name="report_help">告訴我們這條回答有什麼問題。報告會連同你的提問一起發給 NoteFable 團隊。</string>
+    <string name="report_reason_placeholder">有什麼問題？（選填）</string>
+    <string name="report_send">傳送報告</string>
+    <string name="report_sending">正在傳送…</string>
+    <string name="report_sent">報告已傳送，謝謝。</string>
+    <string name="report_failed">無法傳送報告。</string>
+</resources>
