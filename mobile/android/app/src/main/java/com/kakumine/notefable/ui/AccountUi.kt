@@ -1,7 +1,9 @@
 package com.kakumine.notefable.ui
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -503,13 +505,15 @@ private fun LegalLinks() {
 }
 
 private fun openInBrowser(context: Context, url: String) {
-    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE)
-        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    intent.selector = Intent.makeMainSelectorActivity(Intent.ACTION_MAIN, Intent.CATEGORY_APP_BROWSER)
-    try { context.startActivity(intent) } catch (_: android.content.ActivityNotFoundException) {
-        // 选不出默认浏览器的设备上照常打开。
-        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-    }
+    val view = { Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+    // 用一个与本站无关的网址找浏览器：默认浏览器优先，没设默认时取第一个不是本 App 的。
+    val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)
+    val pm = context.packageManager
+    val default = pm.resolveActivity(probe, PackageManager.MATCH_DEFAULT_ONLY)?.activityInfo?.packageName
+    val browser = default?.takeIf { it != "android" && it != context.packageName }
+        ?: pm.queryIntentActivities(probe, 0).map { it.activityInfo.packageName }.firstOrNull { it != context.packageName }
+    try { context.startActivity(view().apply { if (browser != null) setPackage(browser) }) }
+    catch (_: ActivityNotFoundException) { context.startActivity(view()) }
 }
 
 // Google 的四色"G"（src/components/google-logo.tsx，viewBox 48），按品牌规范原样使用。
