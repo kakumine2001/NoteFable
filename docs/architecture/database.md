@@ -120,6 +120,12 @@ erDiagram
         string cover
         int coverPosition
         string groupId FK "nullable"
+        string parentId FK "nullable, sub-page of"
+        datetime favoritedAt "nullable"
+        boolean fullWidth
+        boolean smallText
+        string font "default, serif, mono"
+        boolean locked
         json blocks
         int version
         datetime deletedAt "nullable, in Trash when set"
@@ -275,6 +281,8 @@ User 1 -> N Session
 `deletedAt` 可空（`20261015100000_note_trash_and_revisions` 追加，索引 `(userId, deletedAt)`）。`null` 是正常笔记；有值表示笔记在 Trash（回收站）里，是软删除：`DELETE /api/pages/:id` 只写 `deletedAt`，不删行，`version`、`position`、`groupId`、正文和封面都原样保留，所以此前“`DELETE` 删除页面行”的说法已不成立。保留期 30 天（常量 `TRASH_RETENTION_DAYS`，定义在 `src/types/notes.ts`，客户端文案与服务端共用）：期限内可由 `POST /api/pages/trash/:id` 把 `deletedAt` 置回 `null` 复原，期限之后复原被拒绝，行由惰性清理永久删除（没有定时任务，规则见下文“保留与级联”和 [notes-flow.md](notes-flow.md)）。复原和放入 Trash 都经 `updateMany`，会刷新 `@updatedAt`，但不增加 `version`。
 
 **读写规则：** 所有“活着的笔记”的读取和写入都必须带 `deletedAt: null`（列表、单页读写、移动分组、重排、搜索、AI 工具、提案适用、笔记助手的 `noteId` 校验、项目参考笔记的读取，原生 SQL 里是 `p."deletedAt" IS NULL`）；只有 Trash 相关的接口读取 `deletedAt` 非空的行。新增查询笔记的代码时不要漏掉这个条件，否则回收站里的笔记会重新出现在列表、搜索或 AI 回答里。上传封面的引用统计（`referencedPaths()`）则有意不看 `deletedAt`：Trash 里的笔记仍引用它的封面，保留期内封面图片不会被回收；笔记被永久删除、行消失之后，才按原有的 7 天宽限期释放封面。
+
+`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
 ### NoteGroup
 

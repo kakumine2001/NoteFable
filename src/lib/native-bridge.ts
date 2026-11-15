@@ -1,4 +1,4 @@
-import type { NotePage, NoteSaveStatus } from "@/types/notes";
+import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
 // 取り決めは docs/architecture/notes-flow.md の「Android アプリへの埋め込み」。ここを変えたらアプリ側も合わせる。
@@ -21,6 +21,8 @@ export type EmbedApi = {
   flush: (requestId?: unknown) => Promise<boolean>;
   openHistory: () => void;
   pageUpdated: (page: unknown) => boolean;
+  // アプリの「…」メニューで表示設定・ロック・お気に入りを変えたとき、PUT が返した一覧の 1 件（JSON 文字列かオブジェクト）を渡す。
+  pageSettings: (page: unknown) => boolean;
 };
 
 // 改名前の APK は StudyMateNative / studymateEmbed を使う。入れ替わるまで両方の名前で受け付ける。
@@ -76,6 +78,25 @@ export function parseUpdatedPage(value: unknown): NotePage | null {
   return candidate as NotePage;
 }
 
+// アプリから渡された一覧の 1 件（表示設定・お気に入り）を確かめる。id がなければ捨て、設定は不明な値を既定値にそろえる。
+export type PageMetaUpdate = Pick<NotePageSummary, "id" | "favoritedAt" | "fullWidth" | "smallText" | "font" | "locked">;
+export function parsePageSettings(value: unknown): PageMetaUpdate | null {
+  let page: unknown = value;
+  if (typeof page === "string") {
+    try { page = JSON.parse(page); } catch { return null; }
+  }
+  if (!page || typeof page !== "object") return null;
+  const candidate = page as Partial<NotePageSummary>;
+  if (typeof candidate.id !== "string" || !candidate.id) return null;
+  const favoritedAt = typeof candidate.favoritedAt === "string" ? candidate.favoritedAt : null;
+  return { id: candidate.id, favoritedAt, ...pageSettingsOf(candidate) };
+}
+
+// useNotePages が受け取り、一覧のその 1 件の表示設定・お気に入りを置き換える（/note-embed では開いているページに効く）。
+export function dispatchPageMeta(page: PageMetaUpdate) {
+  window.dispatchEvent(new CustomEvent<PageMetaUpdate>("notefable:page-meta", { detail: page }));
+}
+
 // web の編集案カードと同じ notefable:page-updated を出す。useNotePages が受け取り、未保存の編集がなければ最新版に替え、
 // あれば衝突として知らせる（docs/architecture/notes-flow.md）。
 export function dispatchPageUpdated(page: NotePage) {
@@ -84,11 +105,12 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, post }: {
   flush: () => Promise<boolean>;
   draftKept?: () => boolean;
   openHistory: () => void;
   pageUpdated?: (page: NotePage) => void;
+  pageSettings?: (page: PageMetaUpdate) => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -106,6 +128,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const page = parseUpdatedPage(value);
       if (!page) return false;
       pageUpdated(page);
+      return true;
+    },
+    pageSettings(value) {
+      const page = parsePageSettings(value);
+      if (!page) return false;
+      pageSettings(page);
       return true;
     },
   };

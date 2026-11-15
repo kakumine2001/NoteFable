@@ -2,8 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   aggregate: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), count: vi.fn(), pageUpdateMany: vi.fn(),
+  setMeta: vi.fn(), setGroup: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
+// 親子とグループの書き込み（生の SQL）は note-tree-server に任せる。ここではどう呼ぶかだけを確かめる。
+vi.mock("@/lib/note-tree-server", () => ({ lockNoteOrder: async () => {}, setPageMeta: mocks.setMeta, setSubtreeGroup: mocks.setGroup }));
 vi.mock("@/lib/prisma", () => {
   const noteGroup = { aggregate: mocks.aggregate, create: mocks.create, updateMany: mocks.updateMany, deleteMany: mocks.deleteMany, count: mocks.count };
   const notePage = { updateMany: mocks.pageUpdateMany };
@@ -51,22 +54,29 @@ describe("note groups", () => {
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: "g1", userId: "mine" } });
   });
 
-  it("moves a note only into the user's own group, or out of any group", async () => {
-    mocks.pageUpdateMany.mockResolvedValue({ count: 1 });
+  it("moves a note (and its sub-pages) only into the user's own group, or out of any group, detaching it from its parent", async () => {
+    mocks.setMeta.mockResolvedValue(1);
+    mocks.setGroup.mockResolvedValue(["p1", "c1"]);
     mocks.count.mockResolvedValue(0);
     expect((await PUT(json({ groupId: "someone-elses" }, "PUT"), pageContext)).status).toBe(404);
-    expect(mocks.pageUpdateMany).not.toHaveBeenCalled();
+    expect(mocks.setMeta).not.toHaveBeenCalled();
 
     mocks.count.mockResolvedValue(1);
-    expect((await PUT(json({ groupId: "g1" }, "PUT"), pageContext)).status).toBe(200);
+    const moved = await PUT(json({ groupId: "g1" }, "PUT"), pageContext);
+    expect(moved.status).toBe(200);
+    expect(await moved.json()).toEqual({ id: "p1", groupId: "g1", parentId: null, ids: ["p1", "c1"] });
     expect(mocks.count).toHaveBeenLastCalledWith({ where: { id: "g1", userId: "mine" } });
-    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, data: { groupId: "g1" } });
+    expect(mocks.setMeta).toHaveBeenLastCalledWith(expect.anything(), "mine", "p1", { parentId: null });
+    expect(mocks.setGroup).toHaveBeenLastCalledWith(expect.anything(), "mine", "p1", "g1");
 
     expect((await PUT(json({ groupId: null }, "PUT"), pageContext)).status).toBe(200);
-    expect(mocks.pageUpdateMany).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, data: { groupId: null } });
+    expect(mocks.setGroup).toHaveBeenLastCalledWith(expect.anything(), "mine", "p1", null);
 
-    mocks.pageUpdateMany.mockResolvedValue({ count: 0 });
+    // ゴミ箱のノート・他人のノートは動かさない（setPageMeta が 0 行）。
+    mocks.setMeta.mockResolvedValue(0);
+    mocks.setGroup.mockClear();
     expect((await PUT(json({ groupId: null }, "PUT"), pageContext)).status).toBe(404);
+    expect(mocks.setGroup).not.toHaveBeenCalled();
     expect((await PUT(json({ groupId: 7 }, "PUT"), pageContext)).status).toBe(400);
     expect((await PUT(json({}, "PUT"), pageContext)).status).toBe(400);
   });
