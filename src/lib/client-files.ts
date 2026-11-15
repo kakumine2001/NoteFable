@@ -1,6 +1,7 @@
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { MAX_MULTIPART_REQUEST_BYTES, MAX_UPLOAD_FILES, MAX_UPLOAD_FILE_BYTES, MAX_UPLOAD_TOTAL_BYTES } from "@/lib/upload-limits";
 import { createTranslator, type Translate } from "@/lib/i18n/translate";
+import type { UploadFile } from "@/types/chat";
 
 const english = createTranslator({});
 
@@ -70,4 +71,28 @@ export function getClipboardImageFiles(items: ArrayLike<ClipboardFileItem>) {
     const file = item.getAsFile();
     return file ? [file] : [];
   });
+}
+
+export function createUploadFile(file: File): UploadFile {
+  // ブラウザが MIME type を返さないファイルもあるため、未設定時は汎用バイナリとして扱う。
+  const mimeType = file.type || "application/octet-stream";
+
+  return {
+    // React の key や削除対象の識別に使う、画面内だけの一時 ID。
+    id: crypto.randomUUID(),
+    // 送信時に FormData へ詰める元の File オブジェクト。
+    file,
+    // 画像だけは送信前にサムネイル表示できるよう object URL を作る。
+    previewUrl: isImageMimeType(mimeType) ? URL.createObjectURL(file) : undefined,
+  };
+}
+
+export function revokeUploadPreviews(files: UploadFile[]) {
+  // 画像プレビュー用の object URL はブラウザのメモリを保持する。
+  // 送信完了・削除・画面破棄のタイミングで明示的に解放し、長時間利用時のメモリ増加を抑える。
+  for (const file of files) {
+    if (file.previewUrl) {
+      URL.revokeObjectURL(file.previewUrl);
+    }
+  }
 }
