@@ -131,12 +131,19 @@ sequenceDiagram
     MessagesAPI-->>Browser: Return protected image route
     Browser->>ImageRoute: Request image
     ImageRoute->>Database: Check ownership
-    ImageRoute->>Storage: Read stored image
-    Storage-->>ImageRoute: Return image bytes
-    ImageRoute-->>Browser: Return image
+    alt Private Blob
+        ImageRoute->>Storage: Create single-image read URL (5 minutes)
+        ImageRoute-->>Browser: 302 redirect (private, no-store)
+        Browser->>Storage: Fetch image with short-lived URL
+        Storage-->>Browser: Return image bytes
+    else Local file storage
+        ImageRoute->>Storage: Read stored image
+        Storage-->>ImageRoute: Return image bytes
+        ImageRoute-->>Browser: Return image
+    end
 ```
 
-这条受控 API 的设计是对的：浏览器不知道服务器真实文件路径。
+该 API 先检查当前用户归属，再签发单张图片的短时读取权限。Blob 模式下浏览器会看到签名后的读取 URL，但拿不到 Blob 写入密钥或其他图片的访问权限；本地模式直接返回文件字节。
 
 ## 4. 当前图片实际存在哪里
 
