@@ -51,28 +51,31 @@ function clip(text: string, limit: number) {
 
 // USER / ASSISTANT の発言だけを、新しい発言から予算に入る分まで、時系列の順に並べる。中身のない発言は飛ばす。
 // 添付のファイル名は利用者の発言だけに書く（アシスタントの添付は生成した画像で、モデルは中身を見ていない）。
-// earlierLeftOut は、呼び出し側がもっと古い発言を読まなかったとき。省いたかどうかは omitted で返す。
+// earlierLeftOut は、呼び出し側がもっと古い発言を読まなかったとき。古い発言を省いた・長い発言の後ろを切ったときは omitted を true で返す。
 // 何も残らなければ null（ページにする材料がない）。
 export function buildTranscript(title: string, messages: readonly TranscriptMessage[], earlierLeftOut = false) {
   const parts: string[] = [];
   let used = 0;
   let omitted = earlierLeftOut;
+  let clipped = false;
   for (let index = messages.length - 1; index >= 0; index--) {
     const message = messages[index];
     if (message.role !== "USER" && message.role !== "ASSISTANT") continue;
     const files = (message.role === "USER" ? message.attachments ?? [] : []).map((file) => `[Attached file: ${file.filename.replace(/\s+/g, " ").trim()}]`);
-    const body = [clip(message.content.replace(/\r\n?/g, "\n").trim(), MAX_MESSAGE_CHARS), ...files].filter(Boolean).join("\n");
+    const content = message.content.replace(/\r\n?/g, "\n").trim();
+    const body = [clip(content, MAX_MESSAGE_CHARS), ...files].filter(Boolean).join("\n");
     if (!body) continue;
     const tag = message.role === "USER" ? "user" : "assistant";
     const part = `<${tag}>\n${neutralizeTags(body)}\n</${tag}>`;
     if (used + part.length > MAX_TRANSCRIPT_CHARS && parts.length) { omitted = true; break; }
     parts.unshift(part);
     used += part.length;
+    if (content.length > MAX_MESSAGE_CHARS) clipped = true;
   }
   if (!parts.length) return null;
   const header = `Chat title: ${neutralizeTags(title.replace(/\s+/g, " ").trim() || "Untitled")}`;
   const note = omitted ? "\n(Earlier messages were left out because of the size limit.)" : "";
-  return { text: `<conversation>\n${header}${note}\n${parts.join("\n")}\n</conversation>`, omitted };
+  return { text: `<conversation>\n${header}${note}\n${parts.join("\n")}\n</conversation>`, omitted: omitted || clipped };
 }
 
 // モデルが全体を 1 つのコードブロックで囲んで返したときだけ外す。言語が markdown / md なら外す。

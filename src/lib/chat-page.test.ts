@@ -16,6 +16,7 @@ describe("buildTranscript", () => {
     expect(text).toContain("[Attached file: notes page.pdf]");
     expect(text.match(/<assistant>/g)).toHaveLength(1);
     expect(text).not.toContain("left out");
+    expect(buildTranscript("t", [{ role: "USER", content: "x" }])!.omitted).toBe(false);
   });
 
   it("lists attachment names only for user messages and passes on earlier messages left out", () => {
@@ -27,6 +28,12 @@ describe("buildTranscript", () => {
     expect(result.text).not.toContain("generated-image.png");
     expect(result.omitted).toBe(true);
     expect(result.text).toContain("Earlier messages were left out");
+  });
+
+  it("reports a long message whose end was clipped as partial", () => {
+    const result = buildTranscript("t", [{ role: "USER", content: "q" }, { role: "ASSISTANT", content: "a".repeat(MAX_MESSAGE_CHARS + 10) }])!;
+    expect(result.omitted).toBe(true);
+    expect(result.text).toContain("[…]");
   });
 
   it("returns null when there is nothing to rewrite", () => {

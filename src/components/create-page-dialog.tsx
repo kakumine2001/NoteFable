@@ -12,7 +12,7 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 
 export type CreatePageJob =
   | { status: "working" }
-  // partial: 長い会話で、古い発言を使わずに作った。
+  // partial: 長い会話で、古い発言や長い発言の後ろを使わずに作った。
   | { status: "done"; page: { id: string; title: string }; partial: boolean }
   | { status: "error"; message: string };
 
@@ -98,10 +98,10 @@ export function CreatePageDialog({ sessionId, model, busy, onClose }: { sessionI
     ) : job?.status === "done" ? (
       <p role="status" className="mt-3 text-sm text-[var(--notion-muted)]">
         {t("Created “{title}” in Notes.", { title: job.page.title })}
-        {job.partial && <> {t("This chat is long, so only the most recent messages were used.")}</>}
+        {job.partial && <> {t("This chat is long, so some of it was left out.")}</>}
       </p>
     ) : (
-      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this conversation into an organized note in Notes, using the selected model. In a very long chat, only the most recent messages are used. It counts as one message toward today’s limit.")}</p>
+      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this conversation into an organized note in Notes, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.")}</p>
     )}
     {job?.status === "error" && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(job.message, t)}</p>}
     <div className="mt-5 flex justify-end gap-2">

@@ -393,7 +393,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 “Save to page” 只把一条回答原样存成笔记；**Create page** 让 AI 把整段对话改写成一篇条理清晰、可以复习的笔记（类似 Perplexity 的 Create Page）。入口是聊天顶栏的 `FilePlus` 图标（`page.tsx`，标签 “Create page”）：只在 Chat 视图、会话已保存且有消息时显示，当前会话正在上传附件或生成回答时不可点（最后一条回答还没入库），窗口里的 Create page 按钮也一样。笔记里的 AI 助手会话不在 Chat 视图里，所以没有这个入口；服务端也拒绝它们。
 
-点图标打开确认窗口（`src/components/create-page-dialog.tsx`），说明会用当前选择的模型改写这段对话、很长的对话只用最近的消息、计入当天 1 次聊天额度。点 Create page 后请求 `POST /api/sessions/:sessionId/page`（body `{ model, savedOn }`，`savedOn` 是浏览器的本地日期，用于来源段落）。生成可能要几十秒：窗口显示进度，可以关闭，请求继续；完成后派发 `notefable:page-created`（新笔记加入侧栏），窗口里出现 **Open page**（较早的消息没有用到时，`partial` 为 true，窗口另外说明只用了最近的消息），点击派发 `notefable:open-note` 打开它。状态按会话 ID 放在组件外的 Map，重新打开窗口时进行中的请求不会再发一次；关闭窗口时忘掉已结束的结果，之后可以从继续过的对话再生成一篇。错误显示在窗口里（`localizeSystemText`），可以重试：429 / 400 / 413 显示服务端原句（游客的上限句子里带登录提示），404 显示 “Session not found.”，其余显示 “Could not create a page from this chat. Try again.”。
+点图标打开确认窗口（`src/components/create-page-dialog.tsx`），说明会用当前选择的模型改写这段对话、很长的对话会被缩短（优先保留最近的消息）、计入当天 1 次聊天额度。点 Create page 后请求 `POST /api/sessions/:sessionId/page`（body `{ model, savedOn }`，`savedOn` 是浏览器的本地日期，用于来源段落）。生成可能要几十秒：窗口显示进度，可以关闭，请求继续；完成后派发 `notefable:page-created`（新笔记加入侧栏），窗口里出现 **Open page**（省略了较早的消息或截断了过长的消息时，`partial` 为 true，窗口另外说明省略了一部分），点击派发 `notefable:open-note` 打开它。状态按会话 ID 放在组件外的 Map，重新打开窗口时进行中的请求不会再发一次；关闭窗口时忘掉已结束的结果，之后可以从继续过的对话再生成一篇。错误显示在窗口里（`localizeSystemText`），可以重试：429 / 400 / 413 显示服务端原句（游客的上限句子里带登录提示），404 显示 “Session not found.”，其余显示 “Could not create a page from this chat. Try again.”。
 
 服务端（`src/app/api/sessions/[sessionId]/page/route.ts`，`maxDuration = 300`）：
 
