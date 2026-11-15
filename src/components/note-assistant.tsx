@@ -111,9 +111,13 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const uploadOptions = { supportsImages: modelOption.supportsImageInput, claudeImages: modelOption.provider === "anthropic" };
   // モデルを変えたあとに、添付済みのファイルが使えなくなったときの知らせ。
   const uploadError = getUploadValidationError(files.map(({ file }) => file), uploadOptions, t);
-  // 作ったプレビュー用の URL は、パネルを閉じる（ノートを離れる）ときにまとめて解放する。発言の中のサムネイルもこの URL を使う。
-  const previewsRef = useRef<UploadFile[]>([]);
-  useEffect(() => () => revokeUploadPreviews(previewsRef.current), []);
+  // 作ったプレビュー用の URL（発言の中のサムネイルもこの URL を使う）。外したファイルの分はその場で、残りはノートを離れるときに解放する。
+  // File そのものは持たない（外したファイルの中身をメモリに残さない）。
+  const previewUrlsRef = useRef(new Set<string>());
+  useEffect(() => {
+    const urls = previewUrlsRef.current;
+    return () => { for (const url of urls) URL.revokeObjectURL(url); };
+  }, []);
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
   const inputValueRef = useRef("");
@@ -232,13 +236,16 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (problem) return;
     // 検証を通ってからプレビュー用の URL を作る。
     const added = incoming.map(createUploadFile);
-    previewsRef.current.push(...added);
+    for (const { previewUrl } of added) if (previewUrl) previewUrlsRef.current.add(previewUrl);
     setFiles((list) => [...list, ...added]);
   }
 
   function removeFile(id: string) {
     if (busy) return;
     setError("");
+    const removed = files.filter((item) => item.id === id);
+    for (const { previewUrl } of removed) if (previewUrl) previewUrlsRef.current.delete(previewUrl);
+    revokeUploadPreviews(removed);
     setFiles((list) => list.filter((item) => item.id !== id));
   }
 
@@ -423,7 +430,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             }}
             placeholder={t("Ask AI to edit this note…")} aria-label={t("Instruction for the AI")} className="note-ai-input" />
           <div className="note-ai-tools">
-            <AttachMenu className="relative" disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
+            <AttachMenu className="relative" backToClose={phone} disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
               onAttachPages={() => setPageDialogOpen(true)} />
             {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
             <button type="submit" className="note-ai-send" disabled={busy || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>

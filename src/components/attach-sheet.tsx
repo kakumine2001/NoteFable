@@ -105,6 +105,7 @@ export function AttachMenu({
   onToggleImageMode,
   onAttachPages,
   className = "relative col-start-1 row-start-2",
+  backToClose = false,
 }: {
   disabled: boolean;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
@@ -112,6 +113,8 @@ export function AttachMenu({
   onToggleImageMode?: () => void;
   onAttachPages?: () => void;
   className?: string;
+  // スマホのシートの中で使うとき：端末の「戻る」と Esc で、下のシートより先にこのメニューだけを閉じる。
+  backToClose?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -123,6 +126,7 @@ export function AttachMenu({
   const shown = open && !disabled;
   // 隠している間に開いたままの状態を残すと、アップロードが終わったときに勝手に開き直してしまう。
   if (open && disabled) setOpen(false);
+  useBackToClose(shown && backToClose, () => setOpen(false));
 
   useEffect(() => {
     if (!shown) return;
