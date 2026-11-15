@@ -30,6 +30,7 @@ import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { applyActivityEvent, contextActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
 import { formatProjectContext, loadProjectContext, type ProjectContext } from "@/lib/chat-project-context";
+import { AttachedNotesError, formatAttachedNotes, liveOwnedNoteIds, loadAttachedNotesContext, parseAttachedNoteIds, type AttachedContextNote } from "@/lib/chat-attached-notes";
 import { formatCustomInstructions } from "@/lib/custom-instructions";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
@@ -56,8 +57,9 @@ function makeTitle(message: string) {
 
 // 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
-function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }, project?: ProjectContext | null, customInstructions?: string | null) {
+function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string }, project?: ProjectContext | null, customInstructions?: string | null, attachedNotes: AttachedContextNote[] = []) {
   const custom = formatCustomInstructions(customInstructions);
+  const attached = formatAttachedNotes(attachedNotes, pageTools);
   return [
     "You are NoteFable, a concise, friendly AI study assistant. Help users learn clearly.",
     "Answer in the user's language unless they ask otherwise.",
@@ -93,7 +95,10 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     // 利用者のカスタム指示（すべてのチャット共通）。既定の言語・書式より優先し、プロジェクトの共通指示には譲る。
     ...(custom ? [custom] : []),
     // プロジェクトの共通指示（ユーザー自身の指示）と参照ノート（私的なデータ）。既定の言語・書式より優先する。
-    ...(project ? [formatProjectContext(project, pageTools)] : []),
+    // 後ろに添付ノートが続くときは改行で区切り、区切り行（=== End of … ===）に次の文がつながらないようにする。
+    ...(project ? [formatProjectContext(project, pageTools) + (attached ? "\n" : "")] : []),
+    // 利用者がこの会話の発言に添付したノート（私的なデータ）。送信のたびに読み直すので、最後に置く。
+    ...(attached ? [attached] : []),
   ].join(" ");
 }
 
@@ -345,6 +350,15 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     return NextResponse.json({ error: msg("Message is required.") }, { status: 400 });
   }
 
+  // 発言に添付したノートの ID。本文はここでは読まず、所有の確認のあとで文脈として読み直す。
+  let pageIds: string[];
+  try {
+    pageIds = parseAttachedNoteIds(formData.get("pages"));
+  } catch (error) {
+    if (!(error instanceof AttachedNotesError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: 400 });
+  }
+
   // FormData 内の files フィールドから、実際の File オブジェクトだけを取り出す。
   let files = formData
     .getAll("files")
@@ -389,6 +403,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   if (noteId && !note) {
     return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   }
+  // 添付するノートは自分の生きたノートだけを残す。ほかの ID は記録も文脈にも使わない。
+  pageIds = await liveOwnedNoteIds(user.id, pageIds);
 
   // 1 日の送信回数を数える。上限なら会話を作る前に断る。このあとの検証で断るとき、何も返せずに失敗したときは戻す。
   const usage = await consumeUsage(user, "chat", clientNetworkKey(request));
@@ -462,8 +478,17 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           imageStoragePath: attachment.imageStoragePath,
         })),
       },
+      ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
     },
   });
+
+  // この会話で添付されたノートを読み直す（プロジェクトの参照ノートと重なる分は除く）。失敗してもチャットは止めない。
+  let attachedNotes: AttachedContextNote[] = [];
+  try {
+    attachedNotes = await loadAttachedNotesContext(user.id, session.id, userMessage.id, projectContext?.notes.map((item) => item.id));
+  } catch (error) {
+    console.error("Failed to load attached notes", getErrorMessage(error));
+  }
 
   // 新規作成、または空の "New chat" に最初の発言が来たときだけ AI タイトルを作る。
   const isFirstMessage = !sessionId || (session.title === "New chat" && !session.titleManual);
@@ -599,7 +624,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           : undefined;
         const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, note ?? undefined, projectContext,
           // カスタム指示はログインした利用者の設定。匿名の行に値が残っていても使わない。
-          isAccountUser(user) ? user.customInstructions : null);
+          isAccountUser(user) ? user.customInstructions : null, attachedNotes);
         const upstream =
           modelOption.provider === "anthropic"
             ? await createAnthropicStream(buildAnthropicRequest({

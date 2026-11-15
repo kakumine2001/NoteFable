@@ -13,7 +13,7 @@ export type ProjectContextNote = { id: string; title: string; markdown: string; 
 export type ProjectContext = { projectName: string; instructions: string | null; notes: ProjectContextNote[] };
 
 // 上限で切る。サロゲートペアの途中では切らない。
-function clip(text: string, limit: number) {
+export function clip(text: string, limit: number) {
   if (text.length <= limit) return { text, truncated: false };
   const end = limit > 0 && (text.charCodeAt(limit - 1) & 0xfc00) === 0xd800 ? limit - 1 : limit;
   return { text: text.slice(0, end).trimEnd(), truncated: true };
@@ -47,7 +47,7 @@ export async function loadProjectContext(userId: string, projectId: string): Pro
 }
 
 // ノート本文の行が区切り行（=== ...）に見えると、ノートの終わりと誤読されうる。区切りに見える行頭だけ崩す。
-const defang = (text: string) => text.replace(/^([ \t]*)={3,}/gm, "$1= = =");
+export const defang = (text: string) => text.replace(/^([ \t]*)={3,}/gm, "$1= = =");
 
 // システム指示に足す文章。共通指示はユーザー自身の指示、ノートの本文は私的なデータとして区別する。
 // canReadNotes: モデルが read_note を呼べるとき、切り詰められたノートの続きを取りに行くよう伝える。

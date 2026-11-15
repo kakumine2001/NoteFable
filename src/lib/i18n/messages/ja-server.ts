@@ -183,6 +183,6 @@ export const jaServer: Record<string, string> = {
   "Your NoteFable sign-in code: {code}": "NoteFable のログインコード：{code}",
   "Your sign-in code is {code}.": "ログインコードは {code} です。",
   "It expires in 10 minutes. If you didn't ask for it, you can ignore this email.": "有効期限は 10 分です。心当たりがない場合は、このメールを無視してください。",
-  "Could not create a page from this chat. Try again.": "このチャットからノートを作成できませんでした。もう一度お試しください。",
-  "This chat has nothing to turn into a page yet.": "このチャットにはまだノートにまとめられる内容がありません。",
+  "Could not create a page from this chat. Try again.": "このチャットからノートを作成できませんでした。もう一度お試しください。",  "This chat has nothing to turn into a page yet.": "このチャットにはまだノートにまとめられる内容がありません。",  "Attached pages must be a list of page IDs.": "添付するページはページ ID の一覧で指定してください。",
+  "You can attach up to 5 pages to a message.": "1 回のメッセージに添付できるページは 5 件までです。",
 };

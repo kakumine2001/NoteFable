@@ -136,6 +136,7 @@ model NotePage {
   assistantSessions Session[]
   revisions         NoteRevision[]
   projectRefs       ChatProjectNote[]
+  messageRefs       MessageNote[]
 
   @@index([userId, updatedAt])
   @@index([userId, groupId])
@@ -247,8 +248,23 @@ model Message {
 
   session     Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   attachments Attachment[]
+  // 利用者がこの発言に添付した自分のノート（ID だけ。本文は送信のたびにノートから読み直す）。
+  notes       MessageNote[]
 
   @@index([sessionId, createdAt])
+}
+
+// チャットの発言に添付したノート。ノートの本文はコピーしない。ノートが完全に削除されると一緒に消える。
+model MessageNote {
+  messageId String
+  noteId    String
+  position  Int    @default(0)
+
+  message Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  note    NotePage @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@id([messageId, noteId])
+  @@index([noteId])
 }
 
 model Attachment {
