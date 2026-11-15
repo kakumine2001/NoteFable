@@ -52,6 +52,7 @@ export const zh: Record<string, string> = {
   "Image generation only accepts image uploads. Remove non-image files or turn off Image generation.": "图片生成仅接受图片附件，请移除其他文件或关闭图片生成。",
   "Language": "语言",
   "Automatic": "自动",
+  "Until you choose a language, NoteFable uses your browser’s language.": "在你选择语言之前，NoteFable 使用浏览器的语言。",
   "Changing language…": "正在切换语言…",
   "None": "关闭",
   "Low": "低",

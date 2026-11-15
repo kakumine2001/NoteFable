@@ -329,7 +329,6 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .user-avatar.is-emoji { background: rgba(55, 53, 47, 0.06); font-weight: 400; }
 .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
-.profile-menu { position: fixed; z-index: 70; padding: 14px; overflow-y: auto; overscroll-behavior: contain; }
 .profile-menu-head { display: flex; align-items: center; gap: 12px; }
 .profile-avatar-button { position: relative; flex-shrink: 0; border-radius: 9999px; }
 .profile-avatar-badge {
@@ -371,17 +370,21 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .avatar-crop-actions .is-primary { background: var(--sm-ink); color: #fff; }
 .avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--sm-ink-hover); }
 .avatar-crop-actions button:disabled { opacity: 0.55; }
-.profile-actions { display: grid; gap: 2px; margin: 12px -6px -6px; padding-top: 6px; border-top: 1px solid var(--notion-border); }
-.profile-actions button {
-  display: flex; min-height: 34px; align-items: center; gap: 8px; padding: 0 8px; border-radius: 6px;
+/* 設定画面のプロフィール。メニューだった頃の負の余白をやめ、編集欄は枠で囲む。 */
+.settings-profile .profile-editor { margin: 12px 0 0; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 8px; }
+.settings-inline-action {
+  display: inline-flex; min-height: 34px; align-items: center; gap: 8px; margin: 10px -8px 0; padding: 0 8px; border-radius: 6px;
   font-size: 14px; color: var(--notion-text); text-align: left;
 }
-.profile-actions button:hover { background: var(--notion-hover); }
+.settings-inline-action:hover:not(:disabled) { background: var(--notion-hover); }
+.settings-inline-action:disabled { opacity: 0.55; }
+.settings-language-list { display: grid; gap: 2px; margin-top: 0.4rem; }
+.settings-account { padding-top: 0.5rem; border-top: 1px solid var(--notion-border); }
 @media (max-width: 639px) {
+  .settings-inline-action { min-height: 44px; font-size: 15px; }
   .profile-upload-button { height: 44px; font-size: 15px; }
   .avatar-crop-actions button { height: 42px; font-size: 15px; }
   .profile-name-input { height: 40px; font-size: 16px; }
-  .profile-actions button { min-height: 44px; font-size: 15px; }
 }
 .notes-popover:focus { outline: none; }
 .chat-title-picker { top: calc(100% + 6px); left: 0; width: min(408px, calc(100vw - 48px)); font-size: 1rem; font-weight: 400; letter-spacing: normal; }
@@ -712,33 +715,6 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .notion-segment:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 .notion-segment.is-active svg { color: var(--sm-accent); }
-
-/* 表示言語。サイドバーでは他の行（New note・Trash）と同じ見た目の 1 行。開くとアプリ共通のメニュー（chat-menu-item）が上に出る。 */
-.language-select { position: relative; width: 100%; }
-.language-select-trigger { display: flex; width: 100%; height: 2rem; align-items: center; gap: 0.55rem; border-radius: 0.3rem; padding: 0 0.5rem; color: var(--notion-text); font-size: 0.875rem; text-align: left; }
-.language-select-trigger > svg { flex: none; color: var(--notion-muted); }
-.language-select-label { flex: 1; min-width: 0; }
-.language-select-value { color: var(--notion-muted); font-size: 0.8125rem; white-space: nowrap; }
-.language-select-trigger:focus-visible { outline: 2px solid rgba(35, 131, 226, 0.45); outline-offset: 1px; }
-.language-select-trigger:disabled { cursor: wait; opacity: 0.6; }
-.language-menu { bottom: calc(100% + 4px); left: 0; width: 100%; min-width: 11rem; padding: .35rem; border: 1px solid var(--notion-border); border-radius: .75rem; }
-.language-menu-item { min-height: 36px; padding: .45rem .75rem; }
-.language-menu-item[aria-checked="true"] { font-weight: 600; }
-.language-select.is-compact { width: auto; }
-.language-select.is-compact .language-select-trigger { width: auto; height: 2.5rem; gap: 0.4rem; border: 1px solid var(--notion-border); border-radius: 999px; padding-inline: 0.75rem; background: #fff; font-size: 0.8125rem; }
-.language-select.is-compact .language-select-value { color: var(--notion-text); }
-.language-select.is-compact .language-menu { top: calc(100% + 6px); bottom: auto; left: auto; right: 0; width: 11rem; }
-.tl-nav > .language-select { margin-left: auto; margin-right: 0.75rem; }
-@media (hover: hover) { .language-select-trigger:hover { background: var(--notion-hover); } .language-select.is-compact .language-select-trigger:hover { background: #fff; border-color: var(--notion-faint); } }
-@media (max-width: 639px) {
-  .language-select-trigger { height: 2.75rem; font-size: 0.9375rem; }
-  .language-select.is-compact .language-select-trigger { height: 2.5rem; gap: 0.3rem; padding-inline: 0.6rem; font-size: 0.75rem; }
-  .language-menu-item { min-height: 44px; }
-  .tl-nav > .language-select { margin-right: 0.5rem; }
-  .tl-nav .tl-brand > span { display: none; }
-  .tl-nav .tl-nav-cta { gap: 4px; padding-inline: 10px; font-size: 12px; }
-  .tl-nav .tl-nav-cta > svg { display: none; }
-}
 
 /* ノートのグループ操作ダイアログとサイドバーのグループ表示。 */
 .notes-dialog-input { display: block; width: 100%; margin-top: 0.75rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 1rem; color: var(--notion-text); background: #fff; }

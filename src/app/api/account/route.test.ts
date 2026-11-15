@@ -61,7 +61,7 @@ describe("account profile", () => {
   it("shows the Google name and photo by default", async () => {
     const body = await (await GET()).json();
     expect(body.user).toEqual({
-      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null,
+      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null, locale: null,
     });
   });
 
@@ -119,6 +119,20 @@ describe("account profile", () => {
     await PATCH(patch({ displayName: "Kaku" }));
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { displayName: "Kaku" } });
     expect(mocks.del).not.toHaveBeenCalled();
+  });
+
+  it("saves and returns the chosen display language", async () => {
+    const response = await PATCH(patch({ locale: "ja" }));
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { locale: "ja" } });
+    expect((await response.json()).user.locale).toBe("ja");
+    mocks.currentUser.mockResolvedValue({ ...row, locale: "zh" });
+    expect((await (await GET()).json()).user.locale).toBe("zh");
+  });
+
+  it("rejects automatic or unknown display languages", async () => {
+    for (const locale of ["auto", null, "fr"]) expect((await PATCH(patch({ locale }))).status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("shows the uploaded photo's URL", async () => {

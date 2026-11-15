@@ -47,6 +47,7 @@ export const jaServer: Record<string, string> = {
   "Sign-in is not enabled.": "ログインは有効になっていません。",
   "Group names cannot contain control characters.": "プロジェクト名に制御文字は使えません。",
   "Group not found.": "プロジェクトが見つかりません。",
+  "Choose one of the listed languages.": "一覧の言語から選んでください。",
   "Icon must be a single emoji.": "アイコンは絵文字 1 つにしてください。",
   "Image generation accepts PNG, JPEG, or WebP reference images only.": "画像の作成に使える参考画像は PNG、JPEG、WebP だけです。",
   "Image generation only accepts image uploads.": "画像の作成でアップロードできるのは画像だけです。",

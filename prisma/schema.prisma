@@ -69,6 +69,8 @@ model User {
   avatarImage        String?
   // すべてのチャットに渡す、利用者自身の指示（カスタム指示）。null は指示なし。ログインした利用者だけが設定でき、匿名の行では使わない。
   customInstructions String?
+  // ログインした利用者が設定画面で選んだ表示言語（en / zh / zh-Hant / ja）。null は選んでいない（環境の言語に従う）。匿名の行では使わない。
+  locale             String?
   plan               UserPlan @default(FREE)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt

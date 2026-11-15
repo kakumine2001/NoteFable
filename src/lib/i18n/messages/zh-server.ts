@@ -47,6 +47,7 @@ export const zhServer: Record<string, string> = {
   "Sign-in is not enabled.": "未启用登录。",
   "Group names cannot contain control characters.": "项目名称不能包含控制字符。",
   "Group not found.": "找不到项目。",
+  "Choose one of the listed languages.": "请从列表中选择一种语言。",
   "Icon must be a single emoji.": "图标只能是一个表情符号。",
   "Image generation accepts PNG, JPEG, or WebP reference images only.": "生成图片只接受 PNG、JPEG 或 WebP 参考图。",
   "Image generation only accepts image uploads.": "生成图片只能上传图片。",

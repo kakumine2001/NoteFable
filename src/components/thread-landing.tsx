@@ -6,7 +6,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { LanguageSelect } from "@/components/language-select";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
 import { useT } from "@/components/i18n-provider";
@@ -250,7 +249,6 @@ export function ThreadLanding() {
 
       <header className="tl-nav tl-wrap">
         <Link className="tl-brand" href="/" aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
-        <LanguageSelect compact />
         <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 

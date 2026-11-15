@@ -23,14 +23,14 @@ export async function GET() {
 
     // 自分で決めた表示名とアイコンは利用者の行に持つ。取れなくても Google の名前と写真で表示を続ける。
     const row = await getOrCreateUser().catch(() => null);
-    const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null }, google);
+    const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row?.locale ?? null }, google);
     return NextResponse.json({ configured: true, ...methods, user, googleClientId });
   } catch {
     return NextResponse.json({ configured: false, user: null });
   }
 }
 
-// 表示名と絵文字アイコンを変える。Google にログインしている本人だけ。null で Google の名前・写真に戻す。
+// 表示名・絵文字アイコン・表示言語を変える。Google にログインしている本人だけ。null で Google の名前・写真に戻す。
 export async function PATCH(request: Request) {
   if (!isAccountLoginConfigured()) {
     return NextResponse.json({ error: msg("Sign-in is not enabled.") }, { status: 404 });

@@ -34,6 +34,14 @@ const subscribePreference = (listener: () => void) => {
 };
 const serverPreference = (): LocalePreference => "auto";
 
+// ブラウザに残した言語の選択を消す（ログアウトの直前に呼ぶ）。次に開いたページは環境の言語で表示される。
+export function forgetLocaleChoice() {
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  document.cookie = `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  document.cookie = `${LEGACY_LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  preferenceListeners.forEach((listener) => listener());
+}
+
 // 最初は静的ページの言語だけを受け取る。切替時は辞書だけを取得し、入力や送信中の状態を保つ。
 // router.refresh() は [locale] のセグメントを変え、ワークスペースを作り直してしまうため使わない。
 export function I18nProvider({ locale, messages, children }: {
