@@ -27,5 +27,5 @@ export function getCookieSecret() {
     throw new Error("COOKIE_SECRET is not configured.");
   }
 
-  return "studymate-dev-cookie-secret";
+  return "notefable-dev-cookie-secret";
 }

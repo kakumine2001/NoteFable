@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ queryRaw: vi.fn(), findFirst: vi.fn(), createProposal: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { $queryRaw: mocks.queryRaw, notePage: { findFirst: mocks.findFirst }, noteProposal: { create: mocks.createProposal } } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { $queryRaw: mocks.queryRaw, notePage: { findFirst: mocks.findFirst }, noteProposal: { create: mocks.createProposal } } }));
 import { blocksToMarkdown, buildSnippet, likePattern, MAX_READ_CHARS, runPageTool } from "./page-tools";
 
 const text = (value: string, styles = {}) => ({ type: "text", text: value, styles });
@@ -45,7 +45,7 @@ describe("page tools", () => {
     mocks.queryRaw.mockResolvedValue([{ id: "p1", title: "Biology", updatedAt, body: "cell division and mitosis" }]);
     const result = await runPageTool("search_notes", { query: "Mitosis  cell" }, "mine", "s1");
     const sql = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
-    expect(sql.sql).toContain('FROM "studymate"."NotePage"');
+    expect(sql.sql).toContain('FROM "notefable"."NotePage"');
     expect(sql.sql).toContain("jsonb_array_elements_text");
     expect(sql.values).toContain("mine");
     // ゴミ箱のノートは検索に出さない。

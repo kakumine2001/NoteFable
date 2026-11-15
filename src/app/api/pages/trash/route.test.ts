@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findMany: vi.fn(), findFirst: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn(), descendants: vi.fn(), setGroup: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({
-  databaseSchema: "studymate",
-  prisma: { notePage: { findMany: mocks.findMany, findFirst: mocks.findFirst, updateMany: mocks.updateMany, deleteMany: mocks.deleteMany } },
+vi.mock("@/lib/prisma", () => {
+  const notePage = { findMany: mocks.findMany, findFirst: mocks.findFirst, updateMany: mocks.updateMany, deleteMany: mocks.deleteMany };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
+});
+// サブページの探索（再帰の SQL）とグループの書き込みは note-tree-server に任せる。
+vi.mock("@/lib/note-tree-server", async (original) => ({
+  ...(await original<typeof import("@/lib/note-tree-server")>()), lockNoteOrder: async () => {}, descendantIds: mocks.descendants, setSubtreeGroup: mocks.setGroup,
 }));
 import { DELETE as emptyTrash, GET as listTrash } from "./route";
 import { DELETE as deleteForever, POST as restore } from "./[pageId]/route";
@@ -20,11 +24,15 @@ describe("GET /api/pages/trash", () => {
 
   it("purges this user's expired notes first, then lists the rest newest-deleted first with their purge time", async () => {
     const deletedAt = new Date(Date.now() - 2 * DAY);
-    mocks.findMany.mockResolvedValue([{ id: "n1", title: "Plan", icon: "📚", deletedAt }, { id: "n2", title: "Old", icon: null, deletedAt: new Date(Date.now() - 5 * DAY) }]);
+    // n3 は親の n1 と一緒に捨てたサブページなので、一覧には出さない（親を戻すと一緒に戻る）。
+    mocks.findMany.mockResolvedValue([{ id: "n1", title: "Plan", icon: "📚", deletedAt, parent: null }, { id: "n3", title: "Child", icon: null, deletedAt, parent: { deletedAt } },
+      { id: "n2", title: "Old", icon: null, deletedAt: new Date(Date.now() - 5 * DAY), parent: { deletedAt: null } }]);
     const response = await listTrash();
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect((await response.json()).pages[0]).toEqual({ id: "n1", title: "Plan", icon: "📚", deletedAt: deletedAt.toISOString(), purgeAt: new Date(deletedAt.getTime() + 30 * DAY).toISOString() });
+    const { pages } = await response.json();
+    expect(pages.map((page: { id: string }) => page.id)).toEqual(["n1", "n2"]);
+    expect(pages[0]).toEqual({ id: "n1", title: "Plan", icon: "📚", deletedAt: deletedAt.toISOString(), purgeAt: new Date(deletedAt.getTime() + 30 * DAY).toISOString() });
 
     const purge = mocks.deleteMany.mock.calls[0][0].where;
     expect(purge.userId).toBe("mine");
@@ -36,7 +44,7 @@ describe("GET /api/pages/trash", () => {
     expectCutoff(query.where.deletedAt);
     expect(query.orderBy).toEqual([{ deletedAt: "desc" }, { id: "desc" }]);
     // 本文は取らない。
-    expect(query.select).toEqual({ id: true, title: true, icon: true, deletedAt: true });
+    expect(query.select).toEqual({ id: true, title: true, icon: true, deletedAt: true, parent: { select: { deletedAt: true } } });
   });
 
   it("never lists an expired note even when purging failed", async () => {
@@ -76,46 +84,75 @@ describe("DELETE /api/pages/trash (empty the trash)", () => {
 });
 
 describe("POST /api/pages/trash/:pageId (restore)", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
-  const summary = { id: "n1", position: 2, title: "Plan", icon: null, version: 5, groupId: null, createdAt: new Date(), updatedAt: new Date() };
+  beforeEach(() => { vi.clearAllMocks(); mocks.descendants.mockResolvedValue([]); mocks.updateMany.mockResolvedValue({ count: 1 }); });
+  const deletedAt = new Date(Date.now() - DAY);
+  const summary = { id: "n1", position: 2, title: "Plan", icon: null, version: 5, groupId: null, parentId: null, createdAt: new Date(), updatedAt: new Date() };
 
   it("restores a note that is in the trash and within retention, answering with a list item", async () => {
-    mocks.updateMany.mockResolvedValue({ count: 1 });
-    mocks.findFirst.mockResolvedValue(summary);
+    mocks.findFirst.mockResolvedValue({ deletedAt, parentId: null, groupId: null, parent: null });
+    mocks.findMany.mockResolvedValue([summary]);
     const response = await restore(call("POST"), context);
     expect(response.status).toBe(200);
-    expect((await response.json()).page.id).toBe("n1");
-    const { where, data } = mocks.updateMany.mock.calls[0][0];
+    const body = await response.json();
+    expect(body.page.id).toBe("n1");
+    expect(body.pages.map((page: { id: string }) => page.id)).toEqual(["n1"]);
+    const { where } = mocks.findFirst.mock.calls[0][0];
     expect(where).toMatchObject({ id: "n1", userId: "mine" });
     expectCutoff(where.deletedAt);
-    expect(where.deletedAt.gte).toBeInstanceOf(Date);
-    expect(data).toEqual({ deletedAt: null });
-    const read = mocks.findFirst.mock.calls[0][0];
-    expect(read.where).toEqual({ id: "n1", userId: "mine", deletedAt: null });
-    // GET /api/pages の 1 件と同じ項目だけ。
-    expect(read.select).toEqual({ id: true, position: true, title: true, icon: true, version: true, groupId: true, createdAt: true, updatedAt: true });
+    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["n1"] }, userId: "mine" }, data: { deletedAt: null } });
+    // GET /api/pages の 1 件と同じ項目だけ（本文は含めない）。
+    expect(mocks.findMany.mock.calls.at(-1)![0].select).not.toHaveProperty("blocks");
+  });
+
+  it("restores the sub-pages trashed with it, and moves it to the top level when its parent is still in the trash", async () => {
+    mocks.findFirst.mockResolvedValue({ deletedAt, parentId: "p0", groupId: "g1", parent: { deletedAt: new Date(), groupId: "g1" } });
+    mocks.descendants.mockResolvedValue(["c1", "c2"]);
+    // c1 は一緒に捨てたもの、c2 は別の時刻に捨てたもの（一緒には戻さない）。
+    mocks.findMany.mockImplementation(async ({ where, select }) => {
+      if (where.deletedAt) return [{ id: "c1" }];
+      if (select?.parentId && !select.title) return [{ id: "c1", parentId: "n1" }];
+      return [summary, { ...summary, id: "c1", parentId: "n1" }];
+    });
+    const response = await restore(call("POST"), context);
+    expect(response.status).toBe(200);
+    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: { in: ["n1", "c1"] }, userId: "mine" }, data: { deletedAt: null } });
+    expect(mocks.updateMany).toHaveBeenCalledWith({ where: { id: "n1", userId: "mine" }, data: { parentId: null } });
+    expect(mocks.setGroup).not.toHaveBeenCalled();
+  });
+
+  it("returns under a live parent and follows the parent's current group", async () => {
+    mocks.findFirst.mockResolvedValue({ deletedAt, parentId: "p0", groupId: null, parent: { deletedAt: null, groupId: "g2" } });
+    mocks.findMany.mockResolvedValue([{ ...summary, parentId: "p0", groupId: "g2" }]);
+    expect((await restore(call("POST"), context)).status).toBe(200);
+    expect(mocks.updateMany).not.toHaveBeenCalledWith(expect.objectContaining({ data: { parentId: null } }));
+    expect(mocks.setGroup).toHaveBeenCalledWith(expect.anything(), "mine", "n1", "g2");
   });
 
   it("answers 404 for a live note, someone else's note, an unknown note and a note past retention", async () => {
-    mocks.updateMany.mockResolvedValue({ count: 0 });
+    mocks.findFirst.mockResolvedValue(null);
     const response = await restore(call("POST"), context);
     expect(response.status).toBe(404);
-    expect(mocks.findFirst).not.toHaveBeenCalled();
+    expect(mocks.updateMany).not.toHaveBeenCalled();
   });
 });
 
 describe("DELETE /api/pages/trash/:pageId (delete forever)", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.descendants.mockResolvedValue(["c1"]); });
 
-  it("deletes one trashed note of this user permanently", async () => {
-    mocks.deleteMany.mockResolvedValue({ count: 1 });
+  it("deletes one trashed note of this user and its trashed sub-pages permanently", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "n1" });
+    mocks.findMany.mockResolvedValue([{ id: "n1" }, { id: "c1" }]);
+    mocks.deleteMany.mockResolvedValue({ count: 2 });
     const response = await deleteForever(call("DELETE"), context);
-    expect(await response.json()).toEqual({ ok: true });
-    expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: "n1", userId: "mine", deletedAt: { not: null } } });
+    expect(await response.json()).toEqual({ ok: true, ids: ["n1", "c1"] });
+    expect(mocks.findFirst).toHaveBeenCalledWith({ where: { id: "n1", userId: "mine", deletedAt: { not: null } }, select: { id: true } });
+    expect(mocks.descendants).toHaveBeenCalledWith(expect.anything(), "mine", "n1", { live: false });
+    expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["n1", "c1"] }, userId: "mine", deletedAt: { not: null } } });
   });
 
   it("cannot delete a live note or another user's note through the trash", async () => {
-    mocks.deleteMany.mockResolvedValue({ count: 0 });
+    mocks.findFirst.mockResolvedValue(null);
     expect((await deleteForever(call("DELETE"), context)).status).toBe(404);
+    expect(mocks.deleteMany).not.toHaveBeenCalled();
   });
 });

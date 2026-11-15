@@ -36,20 +36,25 @@ class NoteIconTest {
 
     private class Prefs : NotesPrefs {
         override var collapsedGroups: Set<String> = emptySet()
+        override var expandedPages: Set<String> = emptySet()
     }
 
     private class Notes : NotesBackend {
         override suspend fun notes() = NotesList(listOf(NotePageSummary("a", "Bio", null, version = 3)), emptyList())
-        override suspend fun createNote() = error("unused")
-        override suspend fun trashNote(id: String) = Unit
-        override suspend fun moveNote(id: String, groupId: String?) = Unit
+        override suspend fun createNote(parentId: String?) = error("unused")
+        override suspend fun trashNote(id: String) = listOf(id)
+        override suspend fun moveNote(id: String, groupId: String?) = listOf(id)
+        override suspend fun moveToPage(id: String, parentId: String?) = emptyList<NotePageSummary>()
+        override suspend fun setFavorite(id: String, favorite: Boolean) = error("unused")
+        override suspend fun updateSettings(id: String, settings: com.kakumine.notefable.data.NotePageSettings) = error("unused")
+        override suspend fun duplicate(id: String) = error("unused")
         override suspend fun reorderNote(id: String, targetId: String, after: Boolean) = emptyList<com.kakumine.notefable.data.NoteOrderUpdate>()
         override suspend fun createGroup(name: String) = NoteGroupSummary("g", name)
         override suspend fun renameGroup(id: String, name: String) = NoteGroupSummary(id, name)
         override suspend fun deleteGroup(id: String) = Unit
         override suspend fun trash() = emptyList<NoteTrashItem>()
         override suspend fun restoreNote(id: String) = error("unused")
-        override suspend fun deleteForever(id: String) = Unit
+        override suspend fun deleteForever(id: String) = listOf(id)
         override suspend fun emptyTrash(before: String) = Unit
         override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) = ""
     }

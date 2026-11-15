@@ -18,14 +18,14 @@ sealed interface ChatLink {
         private val LINK_ID = Regex("^[A-Za-z0-9_-]{1,64}$")
         private val LOCALE_APP = Regex("^/[A-Za-z-]{2,8}/app/?$")
 
-        /** 线上站点的主机名：新域名和旧的 vercel.app 网址。两个都是同一个网站，链接互相认。 */
-        private val SITE_HOSTS = setOf("notefable.com", "www.notefable.com", "studymate-lab-ai.vercel.app")
+        /** 线上站点的主机名：notefable.com 和 www（跳转到 notefable.com），链接互相认。 */
+        private val SITE_HOSTS = setOf("notefable.com", "www.notefable.com")
 
         private fun sameSite(target: okhttp3.HttpUrl, base: okhttp3.HttpUrl) =
             target.scheme == base.scheme && target.port == base.port &&
                 (target.host == base.host || (target.host in SITE_HOSTS && base.host in SITE_HOSTS))
 
-        /** 不是本站（[baseUrl] 同协议、同主机、同端口；线上的新旧两个网址算同一个站）的聊天链接时返回 null。 */
+        /** 不是本站（[baseUrl] 同协议、同主机、同端口；notefable.com 和 www 算同一个站）的聊天链接时返回 null。 */
         fun parse(url: String, baseUrl: String): ChatLink? {
             val target = url.toHttpUrlOrNull() ?: return null
             val base = baseUrl.toHttpUrlOrNull() ?: return null
