@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   try {
     await sendReport(reportEmail({
       userId: user.id, signedIn: isAccountUser(user), sessionId: answer.sessionId, messageId: answer.id,
-      model: answer.model, createdAt: answer.createdAt, answer: answer.content, prompt: answer.prompt, reason: parsed.data.reason,
+      model: answer.model, createdAt: answer.createdAt, answer: answer.content, prompt: answer.prompt, images: answer.images, reason: parsed.data.reason,
     }));
   } catch (error) {
     await refundUsage(ticket);

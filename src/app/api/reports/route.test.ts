@@ -45,6 +45,14 @@ describe("POST /api/reports", () => {
     expect(email.text).toContain("An answer");
   });
 
+  it("includes the storage paths of generated images", async () => {
+    mocks.find.mockResolvedValueOnce({ ...answer, content: "", images: [{ id: "a1", filename: "image.png", path: "images/2026/11/15/x.png" }] });
+    expect((await POST(post({ messageId: "m2" }))).status).toBe(200);
+    const email = mocks.send.mock.calls[0][0] as { text: string };
+    expect(email.text).toContain("(no text)");
+    expect(email.text).toContain("image.png: images/2026/11/15/x.png (attachment a1)");
+  });
+
   it("only reports the user's own answers", async () => {
     mocks.find.mockResolvedValueOnce(null);
     expect((await POST(post({ messageId: "other" }))).status).toBe(404);

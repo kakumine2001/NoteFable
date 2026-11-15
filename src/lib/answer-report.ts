@@ -25,7 +25,7 @@ const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0
 // 通報メールの本文。回答の全文（長すぎれば切る）と、その直前の利用者の発言を付ける。
 export function reportEmail(report: {
   userId: string; signedIn: boolean; sessionId: string; messageId: string; model: string | null; createdAt: Date;
-  answer: string; prompt: string | null; reason: string;
+  answer: string; prompt: string | null; reason: string; images?: { id: string; filename: string; path: string }[];
 }) {
   const lines = [
     `Reason: ${report.reason || "(none given)"}`,
@@ -40,7 +40,9 @@ export function reportEmail(report: {
     report.prompt === null ? "(none)" : clip(report.prompt, MAX_PROMPT_CHARS),
     "",
     "--- Reported answer ---",
-    clip(report.answer, MAX_ANSWER_CHARS),
+    report.answer.trim() ? clip(report.answer, MAX_ANSWER_CHARS) : "(no text)",
+    // 生成した画像は保存先のパス（Vercel Blob）で示す。運営者はストレージから直接見られる。
+    ...(report.images?.length ? ["", "--- Images in the answer (storage paths) ---", ...report.images.map((image) => `${image.filename}: ${image.path} (attachment ${image.id})`)] : []),
   ];
   return { subject: `[NoteFable] Reported answer ${report.messageId}`, text: lines.join("\n") };
 }
@@ -49,7 +51,10 @@ export function reportEmail(report: {
 export async function findReportedAnswer(userId: string, messageId: string) {
   const answer = await prisma.message.findFirst({
     where: { id: messageId, role: "ASSISTANT", session: { userId } },
-    select: { id: true, sessionId: true, content: true, model: true, createdAt: true },
+    select: {
+      id: true, sessionId: true, content: true, model: true, createdAt: true,
+      attachments: { where: { imageStoragePath: { not: null } }, select: { id: true, filename: true, imageStoragePath: true } },
+    },
   });
   if (!answer) return null;
   const prompt = await prisma.message.findFirst({
@@ -57,7 +62,8 @@ export async function findReportedAnswer(userId: string, messageId: string) {
     orderBy: { createdAt: "desc" },
     select: { content: true },
   });
-  return { ...answer, prompt: prompt?.content ?? null };
+  const { attachments, ...rest } = answer;
+  return { ...rest, prompt: prompt?.content ?? null, images: attachments.map((image) => ({ id: image.id, filename: image.filename, path: image.imageStoragePath! })) };
 }
 
 export async function sendReport(email: { subject: string; text: string }) {

@@ -70,11 +70,20 @@ describe("getOrCreateUser", () => {
     expect(prismaMock.user.create).not.toHaveBeenCalled();
   });
 
-  it("does not check deletion marks for an account that exists", async () => {
-    session.value = google;
-    prismaMock.user.findUnique.mockResolvedValue({ id: "account-user", email: "a@example.com", name: "A", image: null });
-    await getOrCreateUser();
-    expect(deleted.isDeletedLogin).not.toHaveBeenCalled();
+  it("does not let a pre-deletion session into an account that was re-created later", async () => {
+    session.value = { ...google, signedInAt: 100 };
+    prismaMock.user.findUnique.mockResolvedValue({ id: "recreated", email: "a@example.com", name: "A", image: null });
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(user.id).toBe("device-user");
+  });
+
+  it("does not let a pre-deletion email session into a re-created account", async () => {
+    session.value = { loginEmail: "b@example.com" };
+    prismaMock.user.findUnique.mockResolvedValue({ id: "recreated", verifiedEmail: "b@example.com" });
+    deleted.isDeletedLogin.mockResolvedValue(true);
+    const user = await getOrCreateUser();
+    expect(user.id).toBe("device-user");
   });
 
   it("uses the device user when not logged in", async () => {

@@ -144,7 +144,7 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
 }
 
 // AI の回答を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
-function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -196,6 +196,21 @@ function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose
 // サーバーに保存済みの回答の ID（cuid）か。表示中だけの回答は crypto.randomUUID() の仮の ID で、報告できない。
 function isSavedMessageId(id: string) {
   return /^c[a-z0-9]{20,}$/.test(id);
+}
+
+// コピーや保存の操作行が出ない AI の出力（画像だけの回答、ノートの AI アシスタントの返事）にも、報告だけは出す。
+export function ReportAnswerButton({ messageId }: { messageId: string }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  if (!isSavedMessageId(messageId)) return null;
+  return (
+    <div className="answer-actions" role="group" aria-label={t("Answer actions")}>
+      <button type="button" className="answer-action" onClick={() => setOpen(true)} aria-label={t("Report answer")} title={t("Report answer")}>
+        <Flag size={16} strokeWidth={1.9} />
+      </button>
+      {open && <ReportAnswerDialog messageId={messageId} onClose={() => setOpen(false)} />}
+    </div>
+  );
 }
 
 // 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。

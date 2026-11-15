@@ -135,9 +135,13 @@ async function currentDeviceUser() {
 
 async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<ReturnType<typeof currentDeviceUser>>> {
   const profile = { email: identity.email, name: identity.name, image: identity.image };
-  const existing = await prisma.user.findUnique({ where: { googleSub: identity.sub } });
-  // 削除したアカウントの、削除より前のログイン Cookie。空のアカウントを作り直さず、匿名で扱う。
-  if (!existing && await isDeletedLogin({ kind: "google", sub: identity.sub }, identity.signedInAt)) return anonymousUser();
+  // 削除したアカウントの、削除より前のログイン Cookie は匿名で扱う。空のアカウントを作り直さず、
+  // 削除のあとに作り直されたアカウントにも入れない（印の確認は行の検索と並行して行う）。
+  const [existing, deleted] = await Promise.all([
+    prisma.user.findUnique({ where: { googleSub: identity.sub } }),
+    isDeletedLogin({ kind: "google", sub: identity.sub }, identity.signedInAt),
+  ]);
+  if (deleted) return anonymousUser();
 
   if (existing) {
     // プロフィール（メール・名前・画像）が変わっていたときだけ更新する。確認済みのメールはまだ持っていなければ記録する
@@ -222,9 +226,13 @@ async function getOrCreateGoogleUser(identity: GoogleIdentity): Promise<Awaited<
 
 async function getOrCreateEmailUser(identity: EmailIdentity) {
   // 同じアドレスの利用者（メールで、または確認済みの Google で以前ログインした人）がいればその人。
-  const existing = await prisma.user.findUnique({ where: { verifiedEmail: identity.email } });
+  // 削除したアカウントの、削除より前のログイン Cookie は匿名で扱う（getOrCreateGoogleUser と同じ）。
+  const [existing, deleted] = await Promise.all([
+    prisma.user.findUnique({ where: { verifiedEmail: identity.email } }),
+    isDeletedLogin({ kind: "email", email: identity.email }, identity.signedInAt),
+  ]);
+  if (deleted) return anonymousUser();
   if (existing) return existing;
-  if (await isDeletedLogin({ kind: "email", email: identity.email }, identity.signedInAt)) return anonymousUser();
 
   // 初めてのログイン: いま使っている端末の匿名データを引き継ぐ。端末の行がすでに誰かのものなら新しい利用者を作る。
   const deviceUser = await currentDeviceUser();
