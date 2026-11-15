@@ -152,10 +152,10 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
 }
 
-// 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。
+// Notes のホームを出すのは「Notes・URL に page= が無い」とき。
 function computeNotesList() {
   const params = new URL(window.location.href).searchParams;
-  return window.matchMedia("(max-width: 639px)").matches && params.get("view") === "pages" && !params.get("page");
+  return params.get("view") === "pages" && !params.get("page");
 }
 
 export default function Home() {
@@ -163,10 +163,10 @@ export default function Home() {
   const { defaultModel, getModelOption, options: modelOptions } = useModels();
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
-  // スマホで Notes を開いたとき、ノートが選ばれていない間は一覧（NotesHome）を出す。URL に page= が無いことと対応させる。
+  // Notes でノートを開いていない間は、ホーム（NotesHome：最近のノートと一覧）を出す。URL に page= が無いことと対応させる。
   const [notesList, setNotesList] = useState(false);
 
-  // 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。URL が変わる操作のあとにここで合わせ直す。
+  // ホームを出すのは「Notes・URL に page= が無い」とき。URL が変わる操作のあとにここで合わせ直す。
   function syncNotesList() {
     setNotesList(computeNotesList());
   }
@@ -183,11 +183,9 @@ export default function Home() {
   const revealRef = useRef<RevealRequest | null>(null);
   const revealAbortRef = useRef<AbortController | null>(null);
   const [revealTick, setRevealTick] = useState(0);
-  const notesRef = useRef(notes);
   // 戻る操作で画面が変わるかを見分けて、変わるときだけ動きをつけるために、いまの表示を覚えておく。
   const shownRef = useRef({ view: workspaceView, list: notesList });
   useEffect(() => {
-    notesRef.current = notes;
     shownRef.current = { view: workspaceView, list: notesList };
   });
 
@@ -207,32 +205,17 @@ export default function Home() {
     const onPopState = () => syncWorkspace(true);
     queueMicrotask(() => syncWorkspace(false));
     window.addEventListener("popstate", onPopState);
-
-    // 画面を回して幅が変わったら一覧モードを合わせ直す。パソコン幅へ広がったときは、開いているノートが無ければ先頭を開く。
-    const phone = window.matchMedia("(max-width: 639px)");
-    function onWidthChange() {
-      syncNotesList();
-      const current = notesRef.current;
-      if (!phone.matches && !current.activeId && current.pages[0]) void current.select(current.pages[0].id, "replace");
-    }
-    phone.addEventListener("change", onWidthChange);
-    return () => {
-      window.removeEventListener("popstate", onPopState);
-      phone.removeEventListener("change", onWidthChange);
-    };
+    return () => window.removeEventListener("popstate", onPopState);
   }, []);
 
   function changeWorkspace(view: WorkspaceView) {
     const url = new URL(window.location.href);
     if (view === (url.searchParams.get("view") === "pages" ? "pages" : "chat")) return;
     cancelReveal();
-    let list = false;
     if (view === "pages") {
+      // Notes はいつもホームから始める（前に開いていたノートへ勝手に飛ばない）。
       url.searchParams.set("view", "pages");
-      const phone = window.matchMedia("(max-width: 639px)").matches;
-      if (phone) url.searchParams.delete("page");
-      else if (notes.activeId) url.searchParams.set("page", notes.activeId);
-      list = phone;
+      url.searchParams.delete("page");
     }
     else url.searchParams.delete("view");
     // ドロワーは切り替えの動きの外で閉じる。動きの中（runTransition の更新）に入れると、直後の別の画面更新で
@@ -241,7 +224,7 @@ export default function Home() {
     // Chat ⇄ Note は、同じ場所でふわっと入れ替える。
     runTransition(() => {
       setWorkspaceView(view);
-      if (view === "pages") setNotesList(list);
+      if (view === "pages") setNotesList(true);
     }, "fade");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
     if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
@@ -252,11 +235,15 @@ export default function Home() {
 
   function openNote(id: string) {
     cancelReveal();
-    if (!window.matchMedia("(max-width: 639px)").matches) {
-      void notes.select(id);
+    // パソコン幅：読み込めてから URL（page= の履歴を 1 件積む）と表示を切り替える。読み込めなかったら、いまの画面と URL のまま。
+    if (!window.matchMedia("(max-width: 639px)").matches && notes.activeId !== id) {
+      void notes.select(id).then((opened) => {
+        if (opened) runTransition(syncNotesList, "forward");
+        else forgetMissingNote(id);
+      });
       return;
     }
-    // スマホ：一覧から開くとき、戻るで一覧へ戻れるよう page= 付きの履歴を 1 件積んでから読み込む。
+    // スマホ、または前に開いていたノートへ戻るとき：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
     // ドロワーや底部シートが積んだ履歴の上なら、新しく積まずその履歴を置き換える（空の戻り先を残さない）。
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
@@ -267,7 +254,18 @@ export default function Home() {
     }
     // 一覧からノートへは、右から入ってくる動き。
     runTransition(() => setNotesList(false), "forward");
-    if (notes.activeId !== id) void notes.select(id, "none");
+    if (notes.activeId !== id) void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+  }
+
+  // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
+  function forgetMissingNote(id: string) {
+    cancelReveal();
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("page") === id) {
+      url.searchParams.delete("page");
+      window.history.replaceState(null, "", url);
+    }
+    syncNotesList();
   }
 
   async function deleteNote(id: string) {
@@ -275,7 +273,7 @@ export default function Home() {
     if (!removed) return false;
     // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
     refreshChatProjects();
-    // スマホで開いていたノートを消したら、URL から page= が外れているので一覧に戻る。
+    // 開いていたノートを消したら、URL から page= が外れているのでホームに戻る。
     runTransition(syncNotesList, "back");
     return true;
   }
@@ -285,7 +283,8 @@ export default function Home() {
     cancelReveal();
     runTransition(() => setNotesList(false), "forward");
     // ボタンの onClick に直接渡された場合のクリックイベントは親 ID にしない。
-    void notes.create(false, typeof parentId === "string" ? parentId : null);
+    // 作れなかったとき（URL に page= が付かない）は、ホームに戻す。
+    void notes.create(false, typeof parentId === "string" ? parentId : null).then(syncNotesList);
   }
 
   // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
@@ -321,17 +320,7 @@ export default function Home() {
     else show();
     // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
     if (notes.activeId !== id) {
-      void notes.select(id, "none").then((opened) => {
-        if (opened) return;
-        // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は、URL に残さない。
-        cancelReveal();
-        const next = new URL(window.location.href);
-        if (next.searchParams.get("page") === id) {
-          next.searchParams.delete("page");
-          window.history.replaceState(null, "", next);
-        }
-        syncNotesList();
-      });
+      void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
@@ -354,6 +343,8 @@ export default function Home() {
 
   function openNotesList() {
     const url = new URL(window.location.href);
+    // すでに URL がホームを指しているなら、履歴は積まずに表示だけ合わせる。
+    if (!url.searchParams.get("page")) { setNotesList(true); return; }
     url.searchParams.delete("page");
     // シートが積んだ目印が一番上にあるときは置き換えて、戻る操作で空振りする履歴を残さない。
     if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
@@ -1590,7 +1581,8 @@ export default function Home() {
     else setSidebarOpen(false);
   };
   const sidebar = workspaceView === "pages" ? (
-    <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
+    <NotesSidebar pages={notes.pages} activeId={notesList ? null : notes.activeId} busy={notes.busy || notes.loading}
+      home={notesList} onHome={() => { setSidebarOpen(false); openNotesList(); }}
       onCreate={(parentId) => { setSidebarOpen(false); createNote(parentId); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
@@ -1683,11 +1675,11 @@ export default function Home() {
                   </button>
                   <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
                 </span>)}
-                {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
+                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
-                <span className="truncate">{workspaceView === "pages" ? notes.active?.content.title || t("Notes") : activeTitle}</span>
+                <span className="truncate">{workspaceView === "pages" ? (!notesList && notes.active?.content.title) || t("Notes") : activeTitle}</span>
               </div>
             </div>
           </div>
