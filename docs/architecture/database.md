@@ -15,7 +15,7 @@
 | PostgreSQL | 18 |
 | Branch | `production` |
 | Database | `neondb` |
-| NoteFable schema | `studymate` |
+| NoteFable schema | `notefable` |
 
 ### 非常重要
 
@@ -27,7 +27,7 @@ kaku_log
 
 它不是 NoteFable 的表。
 
-数据库排查或手工 SQL 时，优先明确写 `studymate.<Table>`，不要因为都在同一个 Neon project 里就把两个应用混在一起。
+数据库排查或手工 SQL 时，优先明确写 `notefable.<Table>`，不要因为都在同一个 Neon project 里就把两个应用混在一起。
 
 ## Runtime Connection
 
@@ -36,22 +36,22 @@ kaku_log
 ```text
 DATABASE_URL
     ↓
-读取 ?schema=...
+schema 固定为 notefable（覆盖 URL 里的 ?schema=）
     ↓
 PrismaPg(databaseUrl, { schema })
     ↓
 PrismaClient
 ```
 
-默认 schema 回退值是 `studymate`。
+schema 固定为 `notefable`（`src/lib/database-url.ts` 的 `DATABASE_SCHEMA`）：`src/lib/prisma.ts` 和 `prisma.config.ts` 都会把 `DATABASE_URL` 里的 `schema` 参数换成它。
 
 2026-09-16 的生产构建日志确认 `DATABASE_URL` 使用 Neon pooled endpoint。连接方式以部署实际使用的地址为准，不能从旧的 compute 状态推断。
 
-Node 运行时在创建 adapter 前，通过 `src/lib/database-url.ts` 把 `sslmode=prefer/require/verify-ca` 明确为 `verify-full`，保持当前 pg 8 的证书与主机名验证语义，避免将来升级改变行为。显式的 `uselibpqcompat=true` 设置不改写；没有 TLS 参数的本地连接也不改写。Prisma CLI 继续使用原始 `DATABASE_URL`。
+Node 运行时在创建 adapter 前，通过 `src/lib/database-url.ts` 把 `sslmode=prefer/require/verify-ca` 明确为 `verify-full`，保持当前 pg 8 的证书与主机名验证语义，避免将来升级改变行为。显式的 `uselibpqcompat=true` 设置不改写；没有 TLS 参数的本地连接也不改写。Prisma CLI 使用 `DATABASE_URL`，只把 schema 换成 `notefable`。
 
 ## Local Database
 
-本地开发使用独立的 Docker PostgreSQL 18.4 容器 `studymate-pg18-dev`，主机端口 5432，数据库 `studymate`，schema `public`。它与生产 Neon 的 `neondb/studymate` 分离；不要为了统一名称移动已有表或重置数据。
+本地开发使用独立的 Docker PostgreSQL 18.4 容器 `notefable-pg18-dev`，主机端口 5432，数据库 `notefable`，schema `notefable`。它与生产 Neon 的 `neondb/notefable` 分离。
 
 启动与连接排查见 [README 的本地启动](../../README.md#本地启动)。Docker Desktop 和容器必须运行；数据库不可用时，静态页面仍可能显示，但会话 API 会返回 503。
 
@@ -122,6 +122,12 @@ erDiagram
         string cover
         int coverPosition
         string groupId FK "nullable"
+        string parentId FK "nullable, sub-page of"
+        datetime favoritedAt "nullable"
+        boolean fullWidth
+        boolean smallText
+        string font "default, serif, mono"
+        boolean locked
         json blocks
         int version
         datetime deletedAt "nullable, in Trash when set"
@@ -284,6 +290,8 @@ User 1 -> N Session
 
 **读写规则：** 所有“活着的笔记”的读取和写入都必须带 `deletedAt: null`（列表、单页读写、移动分组、重排、搜索、AI 工具、提案适用、笔记助手的 `noteId` 校验、项目参考笔记的读取，原生 SQL 里是 `p."deletedAt" IS NULL`）；只有 Trash 相关的接口读取 `deletedAt` 非空的行。新增查询笔记的代码时不要漏掉这个条件，否则回收站里的笔记会重新出现在列表、搜索或 AI 回答里。上传封面的引用统计（`referencedPaths()`）则有意不看 `deletedAt`：Trash 里的笔记仍引用它的封面，保留期内封面图片不会被回收；笔记被永久删除、行消失之后，才按原有的 7 天宽限期释放封面。
 
+`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
+
 ### NoteGroup
 
 Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面只改 `groupId`，不增加 `version`。
@@ -300,7 +308,7 @@ Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时�
 | `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
 | `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）、覆盖笔记之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
 
-**保留：** 每个笔记最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（本地 `public`，Neon `studymate`）。
+**保留：** 每个笔记最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（`notefable`）。
 
 ### NoteProposal
 

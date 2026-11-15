@@ -109,8 +109,7 @@ let cached: { raw: string | undefined; registry: ModelRegistry } | null = null;
 
 // サーバー側の唯一の入口。環境変数が変わらない間は同じ結果を返す。
 export function getModelRegistry(): ModelRegistry {
-  // 改名前の STUDYMATE_MODELS もまだ読む（Vercel の環境変数を新しい名前へ移すまでの間）。
-  const raw = process.env.NOTEFABLE_MODELS ?? process.env.STUDYMATE_MODELS;
+  const raw = process.env.NOTEFABLE_MODELS;
   if (!cached || cached.raw !== raw) cached = { raw, registry: parseModelRegistry(raw) };
   return cached.registry;
 }

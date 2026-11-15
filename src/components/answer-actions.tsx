@@ -87,8 +87,9 @@ function downloadText(fileName: string, text: string) {
 const STATUS_MS = 2000;
 
 // サイドバーと同じメニューの見た目と、Android の「戻る」で閉じる挙動を使う。
-function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
-  id: string; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean; onClose: () => void; children: ReactNode;
+// 「…」ボタンから開くメニュー。回答の操作とノートのページメニューが同じものを使う。
+export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, label, className = "" }: {
+  id: string; anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean; onClose: () => void; children: ReactNode; label?: string; className?: string;
 }) {
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
@@ -106,7 +107,7 @@ function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
     position();
     const observer = new ResizeObserver(position);
     observer.observe(dialog);
-    const items = dialog.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])');
+    const items = dialog.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])');
     items[focusLast ? items.length - 1 : 0]?.focus({ preventScroll: true });
     const dismissOnScroll = (event: Event) => { if (!(event.target instanceof Node) || !dialog.contains(event.target)) onClose(); };
     window.addEventListener("resize", onClose);
@@ -123,7 +124,7 @@ function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
   function keyboard(event: KeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not([aria-disabled="true"])'));
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role^="menuitem"]:not([aria-disabled="true"])'));
     if (!items.length) return;
     const current = items.indexOf(document.activeElement as HTMLElement);
     const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
@@ -131,14 +132,14 @@ function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children }: {
     items[next]?.focus();
   }
 
-  return <dialog ref={ref} id={id} aria-label={t("Answer options")} className="chat-actions-menu answer-actions-menu"
+  return <dialog ref={ref} id={id} aria-label={label ?? t("Answer options")} className={`chat-actions-menu answer-actions-menu ${className}`}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => {
       if (event.target !== event.currentTarget) return;
       const bounds = event.currentTarget.getBoundingClientRect();
       if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) onClose();
     }}>
-    <div role="menu" aria-label={t("Answer options")} onKeyDown={keyboard}>{children}</div>
+    <div role="menu" aria-label={label ?? t("Answer options")} onKeyDown={keyboard}>{children}</div>
   </dialog>;
 }
 

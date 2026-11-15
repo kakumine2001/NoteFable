@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ deleteMany: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { notePage: { deleteMany: mocks.deleteMany } } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { notePage: { deleteMany: mocks.deleteMany } } }));
 import { purgeExpiredNotes, toTrashItem, TRASH_RETENTION_DAYS, TRASH_RETENTION_MS, trashCutoff, trashPurgeAt, tryPurgeExpiredNotes } from "./note-trash";
 
 const DAY = 24 * 60 * 60 * 1000;

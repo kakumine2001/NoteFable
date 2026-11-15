@@ -190,11 +190,17 @@ fun NotesDrawerBody(
     modifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
     reorder: NoteReorder = NoteReorder.None,
+    /** 子页面的树：展开 / 收起、在这一篇里新建（网页 notes-sidebar 的箭头和"+"）。 */
+    onToggleExpanded: (String) -> Unit = {},
+    onCreateInside: (NotePageSummary) -> Unit = {},
+    /** Favorites 行右侧的"从收藏中移除"。 */
+    onUnfavorite: (NotePageSummary) -> Unit = {},
 ) {
     val busy = state.busy || state.loading
     val scroll = rememberScrollState()
     val drag = remember(scroll) { DragState(scroll) }
     val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Drawer)
+    val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside)
     Column(modifier) {
         // "新笔记"（.sidebar-primary-action，手机）：上距 12、高 44、圆角 8、深色底，左对齐图标 16 + 间距 8 + 16/550 白字。
         Row(
@@ -217,6 +223,13 @@ fun NotesDrawerBody(
                 .onGloballyPositioned { drag.listBounds = it.boundsInWindow() }
                 .verticalScroll(scroll).padding(start = 8.dp, end = 8.dp, bottom = 16.dp),
         ) {
+            // FAVORITES（网页 .chat-section-label，在 Projects 上面）：收藏的页面，平铺、不能拖，右侧"从收藏中移除"。
+            val favorites = state.favorites
+            if (favorites.isNotEmpty()) {
+                val label = stringResource(R.string.pg_favorites).uppercase()
+                Text(label, style = roleLabelStyle(label), modifier = Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp))
+                favorites.forEach { page -> key("fav-" + page.id) { FavoriteRow(page, state.open?.id == page.id, busy, onOpen, onUnfavorite) } }
+            }
             // "PROJECTS" 小标题 + 右侧 40 的"新项目"按钮（上下 -4.8，整行高 49.6）。
             Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
                 val heading = stringResource(R.string.projects).uppercase()
@@ -229,7 +242,7 @@ fun NotesDrawerBody(
                 // 项目行同时是"移进这个项目"的投放区（网页 data-note-group-drop={group.id}）。
                 DisposableEffect(group.id) { onDispose { drag.zones.remove(group.id) } }
                 GroupRow(
-                    group, members.size, open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) },
+                    group, state.memberCount(group.id), open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) },
                     modifier = Modifier.dropZone(drag.target == DropTarget.Into(group.id)).onGloballyPositioned { drag.zones[group.id] = it.boundsInWindow() },
                 )
                 if (open) {
@@ -243,7 +256,7 @@ fun NotesDrawerBody(
                             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 12.sp, lineHeight = 16.sp,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
                         }
-                        members.forEach { page -> key(page.id) { NoteRow(page, state.open?.id == page.id, busy, rowDrag, onOpen, onMove, onTrash, onChangeIcon) } }
+                        members.forEach { page -> key(page.id) { NoteTree(page, busy, rowDrag, tree) } }
                     }
                 }
             }
@@ -260,7 +273,7 @@ fun NotesDrawerBody(
                     .onGloballyPositioned { drag.zones[""] = it.boundsInWindow() }
                     .padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp),
             )
-            state.loosePages.forEach { page -> key(page.id) { NoteRow(page, state.open?.id == page.id, busy, rowDrag, onOpen, onMove, onTrash, onChangeIcon) } }
+            state.loosePages.forEach { page -> key(page.id) { NoteTree(page, busy, rowDrag, tree) } }
             if (state.pages.isEmpty() && state.loaded) {
                 Text(stringResource(R.string.notes_list_empty), color = Sm.Muted, fontSize = 12.sp, lineHeight = 20.sp,
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
@@ -308,6 +321,60 @@ private fun GroupRow(
 // 笔记行：高 44、圆角 6.4；拖动把手 28×44（GripVertical 13）；图标按钮区 40（左距 2，内含 20 的图标：表情 15 或文件图标 15 灰）；标题 14；
 // 右侧"移到项目"和"移到回收站"两个 25.6 的小按钮（图标 14 灰，右距 3.2）。当前打开的行浅蓝底加左侧蓝条。
 // 拖动中被拖的行半透明，目标行上 / 下 2px 蓝线（这时不画左侧蓝条）。
+/** 侧栏子页面的树用到的状态和回调。打开着的笔记的祖先总是展开（网页 notes-sidebar 的 activeAncestors）。 */
+private class NoteTreeActions(
+    val state: NotesUiState,
+    val onOpen: (String) -> Unit,
+    val onMove: (NotePageSummary) -> Unit,
+    val onTrash: (NotePageSummary) -> Unit,
+    val onChangeIcon: (NotePageSummary, String?) -> Unit,
+    val onToggle: (String) -> Unit,
+    val onCreateInside: (NotePageSummary) -> Unit,
+) {
+    val openAncestors: Set<String> = state.open?.let { open -> state.ancestors(open.id).mapTo(HashSet()) { it.id } } ?: emptySet()
+    fun isOpen(id: String, hasChildren: Boolean) = id in state.expanded || (hasChildren && id in openAncestors)
+}
+
+// 子页面（网页 .notes-subpages = .notes-group-members）：展开时在父页面下，左距 12、1px 竖线、内左距 4；
+// 没有子页面时是"No pages inside"（13 浅灰，内边距 6×8）。
+@Composable
+private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag, tree: NoteTreeActions) {
+    val kids = tree.state.children(page.id)
+    val open = tree.isOpen(page.id, kids.isNotEmpty())
+    NoteRow(page, tree.state.open?.id == page.id, busy, rowDrag, tree.onOpen, tree.onMove, tree.onTrash, tree.onChangeIcon,
+        open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { tree.onCreateInside(page) })
+    if (open) {
+        Column(
+            Modifier.padding(start = 12.dp).fillMaxWidth()
+                .drawBehind { drawRect(Sm.Border, size = Size(1.dp.toPx(), size.height)) }
+                .padding(start = 5.dp),
+        ) {
+            if (kids.isEmpty()) {
+                Text(stringResource(R.string.pg_no_pages_inside), color = Faint, fontSize = 13.sp, lineHeight = 19.5.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp))
+            }
+            kids.forEach { child -> key(child.id) { NoteTree(child, busy, rowDrag, tree) } }
+        }
+    }
+}
+
+// Favorites 的行（网页 notes-sidebar 的收藏行）：高 44；图标区 28（左距 4，表情 / 文件图标 15 灰，不能点）；标题 14；
+// 右侧"从收藏中移除"25.6 的小按钮（StarOff 14）。当前打开的行浅蓝底。
+@Composable
+private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, onOpen: (String) -> Unit, onUnfavorite: (NotePageSummary) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
+            .background(if (active) Sm.AccentSoft else Color.Transparent)
+            .clickable(enabled = !busy) { onOpen(page.id) },
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+        Text(page.title, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp), color = if (active) Sm.Ink else Sm.Text,
+            fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight(550) else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        RowAction(Lucide.StarOff, 14.dp, stringResource(R.string.pg_remove_title_from_favorites, page.title), enabled = !busy) { onUnfavorite(page) }
+    }
+}
+
 @Composable
 private fun NoteRow(
     page: NotePageSummary,
@@ -318,6 +385,9 @@ private fun NoteRow(
     onMove: (NotePageSummary) -> Unit,
     onTrash: (NotePageSummary) -> Unit,
     onChangeIcon: (NotePageSummary, String?) -> Unit,
+    open: Boolean = false,
+    onToggle: () -> Unit = {},
+    onCreateInside: () -> Unit = {},
 ) {
     val drag = rowDrag.drag
     val target = drag.target as? DropTarget.Row
@@ -343,20 +413,28 @@ private fun NoteRow(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
+            // 展开箭头（.notes-row-toggle）：20×28、左距 2、圆角 4，Chevron 14 浅灰。
+            val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
+            Box(
+                Modifier.padding(start = 2.dp).size(20.dp, 28.dp).clip(RoundedCornerShape(4.dp)).clickable(onClick = onToggle)
+                    .semantics { contentDescription = toggleLabel; role = Role.Button },
+                Alignment.Center,
+            ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 14.dp, Faint) }
             Row(
                 Modifier.weight(1f).heightIn(min = 44.dp).clickable(enabled = !busy) { onOpen(page.id) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (active) {
+                if (active || page.locked) {
                     // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
-                    Box(Modifier.padding(start = 2.dp).size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+                    // 锁定的页面也不能在这里改图标（网页 disabled={page.locked}）。
+                    Box(Modifier.size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
                 } else {
                     // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
                     EmojiTriggerButton(
                         current = page.icon,
                         onChange = { icon -> onChangeIcon(page, icon) },
                         description = stringResource(R.string.em_change_icon_of, page.title),
-                        modifier = Modifier.padding(start = 2.dp).size(40.dp),
+                        modifier = Modifier.size(40.dp),
                         enabled = !busy,
                     ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
                 }
@@ -370,6 +448,7 @@ private fun NoteRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
+                RowAction(Lucide.Plus, 14.dp, stringResource(R.string.pg_add_page_inside_title, page.title), enabled = !busy) { onCreateInside() }
                 RowAction(Lucide.FolderInput, 14.dp, stringResource(R.string.move_title_to_project, page.title), enabled = !busy) { onMove(page) }
                 RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.move_title_to_trash, page.title), enabled = !busy) { onTrash(page) }
             }
@@ -377,6 +456,12 @@ private fun NoteRow(
         if (reorderError != null) ReorderErrorPopup(reorderFailureText(reorderError), rowDrag.reorder.onDismissError)
     }
 }
+
+@Composable
+private fun collapseLabel(title: String) = stringResource(R.string.pg_collapse_title, title)
+
+@Composable
+private fun expandLabel(title: String) = stringResource(R.string.pg_expand_title, title)
 
 /** 笔记行的拖动把手（网页 ReorderHandle，disabled={busy}；正在移动的这一篇也不能拖）。 */
 @Composable
@@ -448,6 +533,7 @@ fun NotesHome(
     onNewGroup: () -> Unit,
     onRetry: () -> Unit,
     reorder: NoteReorder = NoteReorder.None,
+    onToggleExpanded: (String) -> Unit = {},
 ) {
     val busy = state.busy || state.loading
     val scroll = rememberScrollState()
@@ -464,7 +550,7 @@ fun NotesHome(
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 96.dp, bottom = 16.dp))
             state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(busy, onCreate)
-            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup)
+            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded)
         }
     }
 }
@@ -478,8 +564,20 @@ private fun NotesHomeList(
     onCreate: () -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
+    onToggleExpanded: (String) -> Unit,
 ) {
     val drag = rowDrag.drag
+    // 子页面的树（网页 notes-home）：最上层的页面按项目分组，子页面在展开的父页面下缩进 24。
+    @Composable
+    fun Tree(page: NotePageSummary) {
+        val kids = state.children(page.id)
+        val open = page.id in state.expanded
+        HomeItem(page, busy, rowDrag, onOpen, onMove, open = open, onToggle = { onToggleExpanded(page.id) })
+        if (open) {
+            if (kids.isEmpty()) Text(stringResource(R.string.pg_no_pages_inside), color = Faint, fontSize = 14.sp, modifier = Modifier.padding(start = 28.dp, top = 4.dp, bottom = 4.dp, end = 4.dp))
+            else Column(Modifier.padding(start = 24.dp)) { kids.forEach { key(it.id) { Tree(it) } } }
+        }
+    }
     // 标题 "Notes" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
     fun Modifier.zone(key: String): Modifier =
         dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
@@ -491,22 +589,28 @@ private fun NotesHomeList(
         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
         color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = (-1.28).sp,
     )
+    // Favorites（网页 notes-home 的收藏）：小标题 + 平铺的行（不能拖，没有日期和移动键）。
+    val favorites = state.favorites
+    if (favorites.isNotEmpty()) {
+        GroupHeading(stringResource(R.string.pg_favorites), favorites.size)
+        Column(Modifier.padding(bottom = 16.dp)) { favorites.forEach { page -> key("fav-" + page.id) { FavoriteHomeItem(page, busy, onOpen) } } }
+    }
     state.groups.forEach { group ->
         val members = state.members(group.id)
         key(group.id) {
             DisposableEffect(group.id) { onDispose { drag.zones.remove(group.id) } }
-            GroupHeading(group.name, members.size, Modifier.zone(group.id))
+            GroupHeading(group.name, state.memberCount(group.id), Modifier.zone(group.id))
         }
         if (members.isEmpty()) {
             Text(stringResource(R.string.no_notes_in_project), color = Faint, fontSize = 14.sp, modifier = Modifier.padding(4.dp))
         } else {
-            Column(Modifier.padding(bottom = 16.dp)) { members.forEach { key(it.id) { HomeItem(it, busy, rowDrag, onOpen, onMove) } } }
+            Column(Modifier.padding(bottom = 16.dp)) { members.forEach { key(it.id) { Tree(it) } } }
         }
     }
     val loose = state.loosePages
     // "No project" 小标题的键是 " "（空白键都表示无项目），和标题 "Notes" 的 "" 分开登记、分开高亮。
-    if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), loose.size, Modifier.zone(" "))
-    if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { key(it.id) { HomeItem(it, busy, rowDrag, onOpen, onMove) } } }
+    if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), state.looseCount, Modifier.zone(" "))
+    if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { key(it.id) { Tree(it) } } }
     Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         InkButton(stringResource(R.string.new_note), 40.dp, enabled = !busy, onClick = onCreate)
         Row(
@@ -531,8 +635,27 @@ private fun GroupHeading(name: String, count: Int, modifier: Modifier = Modifier
     }
 }
 
+// 收藏的行（网页 .notes-home-item > .notes-home-row）：最小高 56、下边 1px 线；图标区 28、间距 13.6、标题 17/500。
 @Composable
-private fun HomeItem(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag, onOpen: (String) -> Unit, onMove: (NotePageSummary) -> Unit) {
+private fun FavoriteHomeItem(page: NotePageSummary, busy: Boolean, onOpen: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 57.dp)
+            .drawBehind { drawRect(Sm.Border, topLeft = Offset(0f, size.height - 1.dp.toPx()), size = Size(size.width, 1.dp.toPx())) }
+            .clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint) }
+        Spacer(Modifier.width(13.6.dp))
+        Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 17.sp, lineHeight = 25.5.sp,
+            fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    }
+}
+
+@Composable
+private fun HomeItem(
+    page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag, onOpen: (String) -> Unit, onMove: (NotePageSummary) -> Unit,
+    open: Boolean = false, onToggle: () -> Unit = {},
+) {
     val moveLabel = stringResource(R.string.move_title_to_project, page.title)
     val drag = rowDrag.drag
     val target = drag.target as? DropTarget.Row
@@ -550,6 +673,13 @@ private fun HomeItem(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     ) {
         // .notes-home-item .list-reorder-handle：宽 28、最小高 44。
         NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
+        // 展开箭头（.notes-home-toggle）：28×48，Chevron 18 浅灰。
+        val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
+        Box(
+            Modifier.size(28.dp, 48.dp).clickable(onClick = onToggle)
+                .semantics { contentDescription = toggleLabel; role = Role.Button },
+            Alignment.Center,
+        ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 18.dp, Faint) }
         Row(
             Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -721,13 +851,14 @@ private fun DialogError(error: NotesError?) {
 
 // .notes-dialog-input：上距 12、1px 深描边、圆角 6、内边距 8.8×11.2、16 字；聚焦时 2px 蓝框。
 @Composable
-private fun DialogInput(value: String, onChange: (String) -> Unit, placeholder: String, onDone: () -> Unit) {
+private fun DialogInput(value: String, onChange: (String) -> Unit, placeholder: String, onDone: () -> Unit, autoFocus: Boolean = true, maxLength: Int = 60) {
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    // 页面筛选框不自动聚焦（网页的输入框没有 autoFocus），名字输入框照旧。
+    LaunchedEffect(Unit) { if (autoFocus) focus.requestFocus() }
     BasicTextField(
         value = value,
-        onValueChange = { onChange(it.take(60)) },
+        onValueChange = { onChange(it.take(maxLength)) },
         singleLine = true,
         textStyle = TextStyle(color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp),
         cursorBrush = SolidColor(Sm.Text),
@@ -828,8 +959,12 @@ fun MoveNoteDialog(
     onMove: suspend (String, String?) -> Boolean,
     onCreateGroup: suspend (String) -> NoteGroupSummary?,
     onClose: () -> Unit,
+    /** 页面树（网页 Move to 的 Pages）：移到另一页面之下。自己和自己的子孙不列出。 */
+    state: NotesUiState? = null,
+    onMoveToPage: (suspend (String, String) -> Boolean)? = null,
 ) {
     var creating by remember { mutableStateOf(false) }
+    var filter by remember { mutableStateOf("") }
     var name by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var tried by remember { mutableStateOf(false) }
@@ -857,7 +992,8 @@ fun MoveNoteDialog(
         DialogTitle(stringResource(R.string.move_note_to, page.title))
         Column(Modifier.padding(top = 12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             val options = listOf<Pair<String?, String>>(null to stringResource(R.string.no_project)) + groups.map { it.id to it.name }
-            options.forEach { (id, label) -> DialogOption(label, checked = page.groupId == id, enabled = !busy) { move(id) } }
+            // 子页面不在任何项目的最上层，所以项目都不打勾（网页 !page.parentId）。
+            options.forEach { (id, label) -> DialogOption(label, checked = page.parentId == null && page.groupId == id, enabled = !busy) { move(id) } }
         }
         if (creating) {
             DialogInput(name, { name = it }, stringResource(R.string.new_project_name), ::createAndMove)
@@ -872,6 +1008,59 @@ fun MoveNoteDialog(
                 LucideIcon(Lucide.FolderPlus, 16.dp, Sm.Text)
                 Spacer(Modifier.width(8.dp))
                 Text(stringResource(R.string.new_project_ellipsis), color = Sm.Text, fontSize = 15.sp)
+            }
+        }
+        if (state != null && onMoveToPage != null) {
+            // 按树的顺序（父页面后紧跟子页面）；筛选时只平铺列出匹配的页面。
+            val blocked = state.descendants(page.id) + page.id
+            val targets = ArrayList<Pair<NotePageSummary, Int>>()
+            fun walk(list: List<NotePageSummary>, depth: Int) {
+                for (entry in list) {
+                    if (entry.id in blocked) continue
+                    targets += entry to depth
+                    walk(state.children(entry.id), depth + 1)
+                }
+            }
+            walk(state.roots, 0)
+            if (targets.isNotEmpty()) {
+                // .notes-dialog-subtitle：上 16、13/600 灰。
+                Text(stringResource(R.string.pg_pages), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 16.dp))
+                DialogInput(filter, { filter = it }, stringResource(R.string.pg_search_pages), {}, autoFocus = false, maxLength = 200)
+                val query = filter.trim().lowercase()
+                val shown = if (query.isEmpty()) targets else targets.filter { it.first.title.lowercase().contains(query) }.map { it.first to 0 }
+                // .notes-move-pages：最高 40dvh（412×915 上约 366）。
+                Column(Modifier.padding(top = 8.dp).heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.4f).dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    shown.forEach { (target, depth) ->
+                        key(target.id) {
+                            val checked = page.parentId == target.id
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(6.dp))
+                                    .background(if (checked) Sm.Hover else Color.Transparent)
+                                    .clickable(enabled = !busy) {
+                                        busy = true
+                                        tried = true
+                                        scope.launch {
+                                            val ok = onMoveToPage(page.id, target.id)
+                                            busy = false
+                                            if (ok) onClose()
+                                        }
+                                    }
+                                    .padding(start = (12 + depth * 16).dp, end = 9.6.dp)
+                                    .semantics { role = Role.RadioButton },
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Box(Modifier.width(20.dp), Alignment.Center) { NoteIcon(target.icon, 15.sp, 15.dp, Sm.Muted) }
+                                Spacer(Modifier.width(8.dp))
+                                Text(target.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp,
+                                    fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                if (checked) LucideIcon(Lucide.Check, 16.dp, Sm.Text)
+                            }
+                        }
+                    }
+                    if (shown.isEmpty()) Text(stringResource(R.string.pg_no_matching_pages), color = Sm.Muted, fontSize = 14.sp,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp))
+                }
             }
         }
         if (tried) DialogError(error)

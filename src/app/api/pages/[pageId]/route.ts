@@ -8,6 +8,7 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
 import { tryPurgeExpiredNotes } from "@/lib/note-trash";
+import { descendantIds, lockNoteOrder } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -51,14 +52,21 @@ export async function PATCH(request: Request, context: Context) {
 }
 
 // ノートをゴミ箱へ移す（deletedAt を付けるだけで、位置・グループ・本文はそのまま）。復元は /api/pages/trash/:id。
+// サブページも同じ時刻で一緒にゴミ箱へ入る（復元するとまとめて戻る）。応答の ids はゴミ箱へ入れたすべてのページ。
 export async function DELETE(_request: Request, context: Context) {
   try {
     const user = await getOrCreateUser();
     const { pageId } = await context.params;
-    const result = await prisma.notePage.updateMany({ where: { id: pageId, userId: user.id, deletedAt: null }, data: { deletedAt: new Date() } });
-    if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    const ids = await prisma.$transaction(async (tx) => {
+      // 同時に別のページをこのページの下へ移されても、取り残さない。
+      await lockNoteOrder(tx, user.id);
+      const subtree = [pageId, ...await descendantIds(tx, user.id, pageId)];
+      const result = await tx.notePage.updateMany({ where: { id: { in: subtree }, userId: user.id, deletedAt: null }, data: { deletedAt: new Date() } });
+      return result.count && subtree;
+    });
+    if (!ids) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     // 期限切れのゴミ箱の掃除は、この操作の成否に影響させない。
     await tryPurgeExpiredNotes(user.id);
-    return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true, ids });
   } catch (error) { return noteApiError(error); }
 }

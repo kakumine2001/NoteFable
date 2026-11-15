@@ -114,11 +114,24 @@ model NotePage {
   groupId       String?
   // ゴミ箱に入れた時刻。null は通常のノート。30 日たつと復元できず、完全に削除される。
   deletedAt     DateTime?
+  // 親ページ（Notion のサブページ）。null は最上位。子の groupId は最上位の祖先と同じにそろえる。
+  parentId      String?
+  // お気に入りに入れた時刻。null はお気に入りではない。サイドバーの Favorites はこの順。
+  favoritedAt   DateTime?
+  // ページの表示設定（Notion の「…」メニュー）。本文の版とは別に保存する。
+  fullWidth     Boolean   @default(false)
+  smallText     Boolean   @default(false)
+  // "default" / "serif" / "mono"
+  font          String    @default("default")
+  // ロック中は画面での編集を止める（権限ではなく、うっかり編集の防止）。
+  locked        Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  group NoteGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group    NoteGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  parent   NotePage?  @relation("NotePageTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children NotePage[] @relation("NotePageTree")
 
   assistantSessions Session[]
   revisions         NoteRevision[]
@@ -128,6 +141,7 @@ model NotePage {
   @@index([userId, updatedAt])
   @@index([userId, groupId])
   @@index([userId, deletedAt])
+  @@index([parentId])
 }
 
 // ノートの過去の保存状態。復元の元になる。タイトル・アイコン・本文だけを残し、カバーは現在のものを使う。

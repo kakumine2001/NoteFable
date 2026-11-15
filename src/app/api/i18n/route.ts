@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { LEGACY_LOCALE_COOKIE, LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
+import { LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 
 // 言語を切り替えたとき、画面はページを読み直さずにこの辞書へ差し替える（ワークスペースの入力中の状態を残すため）。
@@ -7,7 +7,7 @@ import { messagesFor } from "@/lib/i18n/messages";
 export function GET(request: NextRequest) {
   const locale = resolveLocale({
     // 切替前に辞書を取得し、成功したときだけブラウザで Cookie を保存する。
-    preference: parsePreference(request.nextUrl.searchParams.get("preference") ?? request.cookies.get(LOCALE_COOKIE)?.value ?? request.cookies.get(LEGACY_LOCALE_COOKIE)?.value),
+    preference: parsePreference(request.nextUrl.searchParams.get("preference") ?? request.cookies.get(LOCALE_COOKIE)?.value),
     acceptLanguage: request.headers.get("accept-language"),
     country: request.headers.get("x-vercel-ip-country"),
   });

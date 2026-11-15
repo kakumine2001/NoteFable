@@ -3,7 +3,7 @@ import { termMatcher } from "@/lib/search-fold";
 
 const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { $queryRaw: mocks.queryRaw } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { $queryRaw: mocks.queryRaw } }));
 import { GET } from "./route";
 
 const updatedAt = new Date("2026-10-01T00:00:00Z");

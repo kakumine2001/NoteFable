@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { termMatcher } from "./search-fold";
 
 const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { $queryRaw: mocks.queryRaw } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { $queryRaw: mocks.queryRaw } }));
 import { findMatchingBlock, parseSearchTerms, searchChats, searchNotes } from "./search";
 
 const text = (value: string, styles = {}) => ({ type: "text", text: value, styles });
@@ -110,7 +110,7 @@ describe("searchNotes", () => {
     mocks.queryRaw.mockResolvedValue([]);
     await searchNotes("mine", ["100%", "a_b"]);
     const { sql, values } = lastSql();
-    expect(sql).toContain('FROM "studymate"."NotePage" p');
+    expect(sql).toContain('FROM "notefable"."NotePage" p');
     expect(sql).toContain('p."userId" = ');
     expect(sql).toContain('p."deletedAt" IS NULL');
     expect(sql).toContain("jsonb_array_elements_text");
@@ -200,10 +200,10 @@ describe("searchChats", () => {
     mocks.queryRaw.mockResolvedValue([]);
     await searchChats("mine", ["100%", "a_b"]);
     const { sql, values } = lastSql();
-    expect(sql).toContain('FROM "studymate"."Session" s');
-    expect(sql).toContain('FROM "studymate"."Message" m');
-    expect(sql).toContain('FROM "studymate"."Attachment" a');
-    expect(sql).toContain('JOIN "studymate"."Session" ms ON ms."id" = m."sessionId"');
+    expect(sql).toContain('FROM "notefable"."Session" s');
+    expect(sql).toContain('FROM "notefable"."Message" m');
+    expect(sql).toContain('FROM "notefable"."Attachment" a');
+    expect(sql).toContain('JOIN "notefable"."Session" ms ON ms."id" = m."sessionId"');
     expect(sql).toContain("m.\"role\" IN ('USER', 'ASSISTANT')");
     // 利用者の絞り込みと noteId IS NULL は、メッセージ側・添付側・会話側のすべてにある。
     expect(count(sql, 'ms."userId" = ')).toBe(2);
@@ -277,7 +277,7 @@ describe("searchChats", () => {
     const { sql, values } = lastSql();
     expect(sql).toContain('strpos(c."text", substring(c."text" FROM ?))');
     expect(values).toContain(`(?:${regexOf("alpha")})|(?:${regexOf("beta")})`);
-    expect(sql).toContain('FROM "studymate"."Attachment" a JOIN "studymate"."Message" m ON m."id" = a."messageId"');
+    expect(sql).toContain('FROM "notefable"."Attachment" a JOIN "notefable"."Message" m ON m."id" = a."messageId"');
     expect(sql).toContain('a."filename"');
   });
 
