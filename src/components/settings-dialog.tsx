@@ -29,8 +29,8 @@ function LanguageSettings({ user }: { user: AccountUser }) {
   return (
     <section className="project-settings-section">
       <h3 id={labelId} className="project-settings-label">{t("Language")}</h3>
-      <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>
-      <div role="radiogroup" aria-labelledby={labelId} aria-describedby={helpId} aria-busy={switching} className="settings-language-list">
+      {!user.locale && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
+      <div role="radiogroup" aria-labelledby={labelId} aria-describedby={user.locale ? undefined : helpId} aria-busy={switching} className="settings-language-list">
         {LOCALES.map((option) => (
           <label key={option} className={`project-settings-option${selected === option ? " is-selected" : ""}${switching ? " is-disabled" : ""}`}>
             <input type="radio" name={labelId} value={option} checked={selected === option} disabled={switching}
@@ -48,7 +48,7 @@ function LanguageSettings({ user }: { user: AccountUser }) {
 
 // ログインした利用者の設定。プロフィール（顔・名前）・表示言語・カスタム指示・ログアウトを 1 か所にまとめる。
 // プロフィールと言語は変えたその場で保存し、カスタム指示だけ「保存」で送る。見た目はプロジェクト設定のダイアログと同じ部品を使う。
-export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser; onSignOut: () => void; onClose: () => void }) {
+export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser; onSignOut: () => Promise<void>; onClose: () => void }) {
   const { t } = useI18n();
   const { saveError } = useAccount();
   const ref = useRef<HTMLDialogElement>(null);
@@ -63,6 +63,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const [instructions, setInstructions] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [signingOut, setSigningOut] = useState(false);
   // 保存中は閉じない（Esc・戻る・外側のクリック）。閉じると、保存に失敗しても知らせる場所がなくなる。
   // 写真・絵文字の編集中は、まずその編集だけを閉じる。false を返すと useBackToClose は「戻る」の登録を保つ。
   const close = () => { if (locked.current || !profileGuard.current()) return false; onClose(); };
@@ -108,7 +109,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
       </div>
       <div className="project-settings-body">
         <section className="project-settings-section" aria-label={t("Profile")}>
-          <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuard={profileGuard} />
+          <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} />
         </section>
         {saveError && <p role="alert" className="project-settings-error">{localizeSystemText(saveError, t)}</p>}
 
@@ -135,7 +136,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
 
         <section className="project-settings-section settings-account">
-          <button type="button" className="settings-inline-action" disabled={busy} onClick={onSignOut}><LogOut size={14} />{t("Sign out")}</button>
+          <button type="button" className="settings-inline-action" disabled={busy || signingOut}
+            onClick={async () => { setSigningOut(true); try { await onSignOut(); } finally { setSigningOut(false); } }}><LogOut size={14} />{t("Sign out")}</button>
         </section>
       </div>
       <div className="project-settings-footer">

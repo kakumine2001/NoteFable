@@ -20,12 +20,12 @@ export type ProfileCloseGuard = RefObject<() => boolean>;
 
 // 設定画面の「プロフィール」。顔（写真をアップロード・絵文字を選ぶ）・名前・メール・Google の表示に戻すボタン。
 // 名前・写真・絵文字は変えたその場で保存する（account-store が順番に送る）。
-export function ProfileSettings({ user, onSave, onUpload, closeGuard }: {
+export function ProfileSettings({ user, onSave, onUpload, closeGuardRef }: {
   user: AccountUser;
   onSave: (patch: ProfileEdit) => void;
   // 切り抜いた写真を保存する。失敗したときはその理由の文を返し、成功したら空文字を返す。
   onUpload: (photo: Blob) => Promise<string>;
-  closeGuard: ProfileCloseGuard;
+  closeGuardRef: ProfileCloseGuard;
 }) {
   const t = useT();
   // 入力中だけ持つ下書き（null は入力していない）。入力欄には、下書きがなければ今の名前を出す。
@@ -93,7 +93,7 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuard }: {
   }
 
   useEffect(() => {
-    closeGuard.current = () => {
+    closeGuardRef.current = () => {
       if (filePickerOpen.current || uploading) return false;
       if (editor !== "closed") { switchEditor("closed"); return false; }
       return true;
