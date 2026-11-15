@@ -389,17 +389,27 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
   } : entry));
 
-  const setFavorite = (id: string, favorite: boolean) => groupAction(async () => {
+  // 1 ページのお気に入り・表示設定は 1 つずつ送る（続けて切り替えたとき、古い応答が後から届いて新しい設定を戻さないように）。
+  const metaQueue = useRef(new Map<string, Promise<unknown>>());
+  function serialMeta<T>(id: string, run: () => Promise<T>): Promise<T> {
+    const previous = metaQueue.current.get(id) ?? Promise.resolve();
+    const next = previous.catch(() => undefined).then(run);
+    metaQueue.current.set(id, next);
+    void next.finally(() => { if (metaQueue.current.get(id) === next) metaQueue.current.delete(id); }).catch(() => undefined);
+    return next;
+  }
+
+  const setFavorite = (id: string, favorite: boolean) => serialMeta(id, () => groupAction(async () => {
     const { page } = await pageRequest(`/api/pages/${id}/favorite`, "PUT", { favorite });
     runTransition(() => applyMeta(page), "list");
     return true;
-  });
+  }));
 
-  const updateSettings = (id: string, settings: Partial<NotePageSettings>) => groupAction(async () => {
+  const updateSettings = (id: string, settings: Partial<NotePageSettings>) => serialMeta(id, () => groupAction(async () => {
     const { page } = await pageRequest(`/api/pages/${id}/settings`, "PUT", settings);
     applyMeta(page);
     return true;
-  });
+  }));
 
   // ページを（サブページも一緒に）複製して、複製を開く。サーバーは保存済みの本文を写すので、先に未保存の編集を保存する。
   async function duplicate(id: string) {

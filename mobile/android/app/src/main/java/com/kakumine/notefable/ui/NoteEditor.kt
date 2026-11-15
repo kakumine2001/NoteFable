@@ -1,5 +1,12 @@
 package com.kakumine.notefable.ui
 
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
+
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -135,10 +142,18 @@ class NoteEmbedBridge(private val onMessage: (EmbedMessage) -> Unit) {
         webView?.evaluateJavascript(pageUpdatedScript(pageJson), null)
     }
 
+    /** 原生"…"菜单改了字体、小字号、全宽、锁定或收藏：把服务端返回的一览项交给网页（window.notefableEmbed.pageSettings）。 */
+    fun pageSettings(pageJson: String) {
+        webView?.evaluateJavascript(pageSettingsScript(pageJson), null)
+    }
+
     companion object {
         /** 页面 JSON 作为字符串字面量传过去，网页里再 JSON.parse。 */
         fun pageUpdatedScript(pageJson: String) =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageUpdated==='function')e.pageUpdated(${JSONObject.quote(pageJson)})})()"
+
+        fun pageSettingsScript(pageJson: String) =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageSettings==='function')e.pageSettings(${JSONObject.quote(pageJson)})})()"
 
         private const val FLUSH_TIMEOUT_MS = 15_000L
     }
@@ -186,6 +201,9 @@ fun NoteEditorScreen(
     onSearch: () -> Unit = {},
     /** 笔记里指向本站聊天的链接（?chat=&message=）：在 App 里打开聊天。 */
     onChatLink: (ChatLink) -> Unit = {},
+    /** 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有"…"菜单。 */
+    page: com.kakumine.notefable.data.NotePageSummary? = null,
+    menu: NotePageMenuActions? = null,
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -242,6 +260,16 @@ fun NoteEditorScreen(
             Spacer(Modifier.width(8.dp))
             TopIconButton(Lucide.Search, stringResource(R.string.search_chats_and_notes), onSearch)
             Spacer(Modifier.width(8.dp))
+            // 锁定中（网页 .notes-locked-button，手机只有锁的图标）：高 32、左右 8、圆角 6、Lock 14 灰；点一下解锁。
+            if (page?.locked == true && menu != null) {
+                val unlock = stringResource(R.string.pg_unlock_page)
+                Box(
+                    Modifier.height(32.dp).clip(RoundedCornerShape(6.dp)).clickable { menu.onSettings(com.kakumine.notefable.data.NotePageSettings(locked = false)) }
+                        .padding(horizontal = 8.dp).semantics { contentDescription = unlock; role = Role.Button },
+                    Alignment.Center,
+                ) { LucideIcon(Lucide.Lock, 14.dp, Sm.Muted) }
+                Spacer(Modifier.width(8.dp))
+            }
             TopIconButton(Lucide.History, stringResource(R.string.version_history), bridge::openHistory)
             Spacer(Modifier.width(8.dp))
             val status = when (saveState) {
@@ -252,6 +280,10 @@ fun NoteEditorScreen(
                 else -> ""
             }
             Text(status, color = if (saveState == "error" || saveState == "conflict") Color(0xFFB45309) else Sm.Muted, fontSize = 14.sp, maxLines = 1)
+            if (page != null && menu != null) {
+                Spacer(Modifier.width(8.dp))
+                NotePageMenuButton(page, menu)
+            }
         }
         if (notice != null) {
             ErrorBar(notice, null, Modifier.padding(horizontal = 24.dp, vertical = 8.dp).clickable(onClick = onDismissNotice))

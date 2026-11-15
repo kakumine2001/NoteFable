@@ -11,13 +11,13 @@
 - 笔记编辑器是 BlockNote（自定义块、图片/文件块、拖拽、历史版本）。原生重写工作量大、很难和网页保持一致，收益远低于聊天，所以保留 WebView，只把列表、导航、顶栏做成原生（见路线图）。
 - 全部重写会让 Android 和网页两套界面长期各自维护，并且失去"网站更新后 App 不用重新打包"这一点。聊天界面稳定后再接受这个代价，笔记编辑器不接受。
 
-## 现状（0.4.0，阶段 3）
+## 现状（0.5.0，阶段 3）
 
 已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；个人资料菜单已接入自定义指令设置（`ui/SettingsDialog.kt`）。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
+另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；个人资料菜单已接入自定义指令设置（`ui/SettingsDialog.kt`）。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
 
 ## 与网页界面保持一致
 
@@ -53,7 +53,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 侧栏笔记部分 | "PROJECTS / NOTES"12 等宽大写灰字（上 14.4、下 4.8），"新项目"40 按钮（图标 15）；项目行高 44：箭头 14、文件夹 15、名称 14/500、数量 12 浅灰，右侧铅笔 13 / 垃圾桶 14 两个 25.6 小按钮；组内笔记左距 12 + 1px 竖线 + 内左距 4；笔记行高 44：图标区 40（表情 / 文件图标 15），标题 14，右侧"移到项目""移到回收站"25.6 小按钮（触屏常显）；最下方"回收站"行高 44、图标 16 + 8.8、16/500 | `NotesDrawerBody` |
 | 笔记首页 | 左右 24、下 96；"Notes"32/750、行高 48、字距 −0.04em、上 8 下 12；项目小标题 13/600 灰 + 数量 13 浅灰（外边距 20/4/4）；行最小高 56、下边 1px 线：图标区 28（表情 / 图标 20 浅灰）、间距 13.6、标题 17/500、日期 13 灰（`MMMd`）、右侧 44×48"移到项目"（图标 18 浅灰）；"新笔记"高 40 + "新项目"文字按钮 12.8/500 | `NotesHome` |
 | 笔记空状态 | 上距 120；文件图标 28（线宽 1.4、浅灰）；"Notes"40/750、行高 50、上 16；说明 15/24 灰（"/"等宽键帽）；"新笔记"高 32、上 24；存储说明 12/20 浅灰、上 40、最宽 384 | `NotesEmpty` |
-| 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`） | `NoteEditorScreen` |
+| 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`）、间距 8、“…”页面菜单 40（Ellipsis 20，菜单宽 248） | `NoteEditorScreen` |
 | 笔记对话框 | 宽 min(100% − 48, 400)、内边距 24、圆角 8、遮罩 `rgba(15,15,15,.2)`；标题 16/600、说明 14 灰；输入框 1px 深描边、圆角 6、内边距 8.8×11.2、聚焦 2px 蓝；选项行 ≥40、圆角 6、15 字，当前项灰底 600 + ✓；按钮 ≥32、圆角 4.8、12.8/500，危险操作红字 `#b91c1c` | `NotesDialog` 等 |
 | 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
@@ -189,6 +189,9 @@ mobile/android/
 列表、项目和回收站是原生界面，直接调用网页用的接口（`data/Notes.kt`、`NoteFableApi`）：`GET /api/pages`、新建 `POST /api/pages`（和网页一样发空白的 Untitled）、移到回收站 `DELETE /api/pages/:id`、移到项目 `PUT /api/pages/:id/group`、项目 `POST /api/pages/groups` 与 `PATCH / DELETE /api/pages/groups/:id`、回收站 `GET / DELETE /api/pages/trash`（清空时带 `before=` 最新一条的删除时间）、`POST / DELETE /api/pages/trash/:id`。项目折叠状态存在本机（网页存在 localStorage）。
 
 - 拖动排序（网页 `ReorderHandle`）：侧栏和首页的每篇笔记行首有把手（宽 28、最小高 44，GripVertical 13 灰），按住直接拖（与聊天侧栏相同，共用 `ui/ReorderDrag.kt`）。放到别的笔记前 / 后走 `POST /api/pages/reorder`（目标在别的项目里时服务端顺便把它移过去，返回新顺序，`NotesViewModel.applyOrder` 按网页 `byPosition` 重排）；放到项目行 / 项目小标题上移进该项目，放到侧栏的 NOTES 标签、首页的 "Notes" 标题或 "No project" 小标题上移出项目，走 `PUT /api/pages/:id/group`，侧栏里移进折叠着的项目时把它展开。排序请求同一时间只做一次，上一次没完时提示 "Wait for the previous move to finish."；新建 / 移到回收站进行中和正在移动的那一篇不能拖。失败时在那一行下面显示服务端原句（经词典翻译）或 "Could not move the item. Try again."，只显示在发起拖动的那个列表里（抽屉盖在首页上时两个列表同时在组合里）。网页的键盘上下移动在原生版没有。单元测试：`NotesViewModelTest`、`NotesApiTest`。
+
+- 子页面、收藏、页面菜单（网页 notes-sidebar / notes-home / note-page-menu，规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)）：`NotePageSummary` 带 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`。侧栏和首页只按项目列最上层的页面，子页面在展开的父页面下缩进（侧栏左距 12 + 1px 竖线，首页左距 24）；每行都有展开箭头（侧栏 20×28 Chevron 14，首页 28×48 Chevron 18，浅灰），没有子页面时展开显示 “No pages inside”；展开状态存在本机（`NotesPrefs.expandedPages`），打开着的笔记的祖先总是展开。侧栏行多一个 “+”（Add a page inside，`POST /api/pages` 带 `parentId`）；项目和 “No project” 后的数字含子页面。收藏在 Projects 上面（侧栏 FAVORITES 标签 + 平铺的行，右侧 StarOff 移除；首页 “Favorites” 小标题 + 行）。移到回收站时子页面一起移进去（`DELETE` 返回的 `ids`），恢复时一起回来，永久删除时回收站里的子页面一起删；确认框加一句 “Its sub-pages move to Trash with it.”。移动对话框在项目下面列页面树（可筛选；自己和子孙不列），走 `PUT /api/pages/:id/parent`；移进项目会脱离父页面。
+- 编辑页顶栏最右边是 “…”（`NotePageMenu.kt`，菜单外框与聊天的 `ActionsMenu` 相同，宽 248）：Style（Default / Serif / Mono）、Small text、Full width、Lock page 开关，Add to / Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置走 `PUT /api/pages/:id/settings`、收藏走 `/favorite`，成功后调 `window.notefableEmbed.pageSettings(<一览项 JSON>)` 让编辑器立即变宽、换字体、变成只读；锁定时顶栏多一个锁的按钮（高 32，Lock 14），点一下解锁。Duplicate 先 flush（打开的是它或它的子页面时），再 `POST /api/pages/:id/duplicate`，按返回的新顺序放进列表并打开复制件。单元测试见 `NotesViewModelTest` 里子页面、移动、设置、复制的几条。
 
 编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 

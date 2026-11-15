@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<!-- 子页面、收藏、页面菜单（网页 notes-sidebar / notes-home / note-page-menu）。文案与网页词典一致。 -->
+<resources>
+    <string name="pg_favorites">收藏</string>
+    <string name="pg_no_pages_inside">沒有子頁面</string>
+    <string name="pg_add_page_inside">新增子頁面</string>
+    <string name="pg_add_page_inside_title">在“%1$s”中新增頁面</string>
+    <string name="pg_collapse_title">收起“%1$s”</string>
+    <string name="pg_expand_title">展開“%1$s”</string>
+    <string name="pg_remove_title_from_favorites">將“%1$s”從收藏中移除</string>
+    <string name="pg_page_options">頁面選項</string>
+    <string name="pg_style">樣式</string>
+    <string name="pg_font_default">預設</string>
+    <string name="pg_font_serif">襯線</string>
+    <string name="pg_font_mono">等寬</string>
+    <string name="pg_small_text">小字號</string>
+    <string name="pg_full_width">全寬</string>
+    <string name="pg_lock_page">鎖定頁面</string>
+    <string name="pg_unlock_page">解鎖頁面</string>
+    <string name="pg_add_to_favorites">新增到收藏</string>
+    <string name="pg_remove_from_favorites">從收藏中移除</string>
+    <string name="pg_duplicate">建立副本</string>
+    <string name="pg_move_to">移動到</string>
+    <string name="pg_pages">頁面</string>
+    <string name="pg_search_pages">搜尋頁面</string>
+    <string name="pg_no_matching_pages">沒有匹配的頁面。</string>
+    <string name="pg_subpages_to_trash">其中的子頁面也會一起移入回收站。</string>
+</resources>

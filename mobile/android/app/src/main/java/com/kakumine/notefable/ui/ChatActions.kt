@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
@@ -136,7 +137,7 @@ fun ChatActions(
 // 位置：按钮下方 4，右边与按钮对齐，离窗口边至少 8（网页 Dialog 的 anchor 定位）。点外面或返回键关闭。
 
 @Composable
-private fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, content: @Composable () -> Unit) {
+internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, width: Dp = 228.dp, content: @Composable () -> Unit) {
     val density = LocalDensity.current
     val provider = remember(anchor, density) {
         object : PopupPositionProvider {
@@ -144,7 +145,7 @@ private fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, con
                 with(density) {
                     val edge = 8.dp.roundToPx()
                     val top = minOf(anchor.bottom + 4.dp.roundToPx(), windowSize.height - 250.dp.roundToPx()).coerceAtLeast(edge)
-                    val left = minOf(anchor.right - 228.dp.roundToPx(), windowSize.width - 236.dp.roundToPx()).coerceAtLeast(edge)
+                    val left = minOf(anchor.right - width.roundToPx(), windowSize.width - (width + 8.dp).roundToPx()).coerceAtLeast(edge)
                     return IntOffset(left, top)
                 }
             }
@@ -152,7 +153,7 @@ private fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, con
     }
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         Column(
-            Modifier.width(228.dp)
+            Modifier.width(width)
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = MenuShadow, spotColor = MenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp)).background(Color.White)
@@ -165,7 +166,7 @@ private fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, con
 
 // .chat-menu-item（手机）：最小高 44、内边距 9.6×12、圆角 6.4、图标 16 + 间距 12、14/21；危险项红字。
 @Composable
-private fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, onClick: () -> Unit) {
+internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, onClick: () -> Unit) {
     val color = if (danger) DangerRed else Sm.Text
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(onClick = onClick)

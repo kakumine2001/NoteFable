@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 子页面、收藏、页面菜单（网页 notes-sidebar / notes-home / note-page-menu）。文案与网页词典一致。 -->
+<resources>
+    <string name="pg_favorites">お気に入り</string>
+    <string name="pg_no_pages_inside">サブページはありません</string>
+    <string name="pg_add_page_inside">サブページを追加</string>
+    <string name="pg_add_page_inside_title">「%1$s」にページを追加</string>
+    <string name="pg_collapse_title">「%1$s」を閉じる</string>
+    <string name="pg_expand_title">「%1$s」を開く</string>
+    <string name="pg_remove_title_from_favorites">「%1$s」をお気に入りから削除</string>
+    <string name="pg_page_options">ページのオプション</string>
+    <string name="pg_style">スタイル</string>
+    <string name="pg_font_default">デフォルト</string>
+    <string name="pg_font_serif">明朝</string>
+    <string name="pg_font_mono">等幅</string>
+    <string name="pg_small_text">小さい文字</string>
+    <string name="pg_full_width">全幅</string>
+    <string name="pg_lock_page">ページをロック</string>
+    <string name="pg_unlock_page">ページのロックを解除</string>
+    <string name="pg_add_to_favorites">お気に入りに追加</string>
+    <string name="pg_remove_from_favorites">お気に入りから削除</string>
+    <string name="pg_duplicate">複製</string>
+    <string name="pg_move_to">移動先</string>
+    <string name="pg_pages">ページ</string>
+    <string name="pg_search_pages">ページを検索</string>
+    <string name="pg_no_matching_pages">一致するページはありません。</string>
+    <string name="pg_subpages_to_trash">中のサブページも一緒にゴミ箱へ移動します。</string>
+</resources>

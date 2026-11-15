@@ -183,18 +183,53 @@ class NoteFableApi(
     override suspend fun notes(): NotesList = getJson("/api/pages")
 
     // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
-    override suspend fun createNote(): NotePageSummary {
-        val body = """{"title":"Untitled","icon":null,"cover":null,"coverPosition":null,"blocks":[]}"""
+    override suspend fun createNote(parentId: String?): NotePageSummary {
+        val body = buildJsonObject {
+            put("title", "Untitled")
+            put("icon", null as String?)
+            put("cover", null as String?)
+            put("coverPosition", null as String?)
+            put("blocks", kotlinx.serialization.json.JsonArray(emptyList()))
+            if (parentId != null) put("parentId", parentId)
+        }.toString()
         return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages")).post(body.toRequestBody(JSON))).page
     }
 
-    override suspend fun trashNote(id: String) {
-        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}")).delete())
+    override suspend fun trashNote(id: String): List<String> =
+        send<IdsResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}")).delete()).ids.ifEmpty { listOf(id) }
+
+    override suspend fun moveNote(id: String, groupId: String?): List<String> {
+        val body = buildJsonObject { put("groupId", groupId) }.toString()
+        return send<IdsResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/group")).put(body.toRequestBody(JSON))).ids.ifEmpty { listOf(id) }
     }
 
-    override suspend fun moveNote(id: String, groupId: String?) {
-        val body = buildJsonObject { put("groupId", groupId) }.toString()
-        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/group")).put(body.toRequestBody(JSON)))
+    override suspend fun moveToPage(id: String, parentId: String?): List<NotePageSummary> {
+        val body = buildJsonObject { put("parentId", parentId) }.toString()
+        return send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/parent")).put(body.toRequestBody(JSON))).pages
+    }
+
+    override suspend fun setFavorite(id: String, favorite: Boolean): NotePageSummary {
+        val body = buildJsonObject { put("favorite", favorite) }.toString()
+        return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/favorite")).put(body.toRequestBody(JSON))).page
+    }
+
+    override suspend fun updateSettings(id: String, settings: NotePageSettings): NotePageSummary {
+        val body = buildJsonObject {
+            settings.fullWidth?.let { put("fullWidth", it) }
+            settings.smallText?.let { put("smallText", it) }
+            settings.font?.let { put("font", it) }
+            settings.locked?.let { put("locked", it) }
+        }.toString()
+        return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/settings")).put(body.toRequestBody(JSON))).page
+    }
+
+    override suspend fun duplicate(id: String): DuplicateResult {
+        val response = send<kotlinx.serialization.json.JsonObject>(
+            Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/duplicate")).post(ByteArray(0).toRequestBody(null)),
+        )
+        val pages = NoteFableJson.decodeFromJsonElement(kotlinx.serialization.builtins.ListSerializer(NotePageSummary.serializer()), response["pages"] ?: kotlinx.serialization.json.JsonArray(emptyList()))
+        val page = NoteFableJson.decodeFromJsonElement(NotePageSummary.serializer(), response["page"] ?: error("no page"))
+        return DuplicateResult(page, pages, NoteOrderUpdate.parse(kotlinx.serialization.json.JsonObject(mapOf("items" to (response["items"] ?: kotlinx.serialization.json.JsonArray(emptyList()))))))
     }
 
     override suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<NoteOrderUpdate> {
@@ -224,12 +259,15 @@ class NoteFableApi(
 
     override suspend fun trash(): List<NoteTrashItem> = getJson<TrashResponse>("/api/pages/trash").pages
 
-    override suspend fun restoreNote(id: String): NotePageSummary =
-        send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).post(ByteArray(0).toRequestBody(null))).page
-
-    override suspend fun deleteForever(id: String) {
-        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).delete())
+    override suspend fun restoreNote(id: String): List<NotePageSummary> {
+        val response = send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).post(ByteArray(0).toRequestBody(null)))
+        val page = response.page
+        // 旧服务端只回 page。这一篇放在最前面。
+        return listOfNotNull(page) + response.pages.filter { it.id != page?.id }
     }
+
+    override suspend fun deleteForever(id: String): List<String> =
+        send<IdsResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash/${segment(id)}")).delete()).ids.ifEmpty { listOf(id) }
 
     override suspend fun emptyTrash(before: String) {
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash?before=" + URLEncoder.encode(before, "UTF-8"))).delete())
