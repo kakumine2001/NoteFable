@@ -769,6 +769,51 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-home-icon { display: grid; width: 1.75rem; flex: none; place-items: center; font-size: 1.25rem; color: var(--notion-faint); }
 .notes-home-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 500; }
 .notes-home-date { flex: none; font-size: 0.8125rem; color: var(--notion-muted); }
+/* サブページの木（スマホのホーム）: 開閉の矢印と、字下げした子の一覧。 */
+.notes-home-toggle { display: grid; width: 1.75rem; height: 3rem; flex: none; place-items: center; color: var(--notion-faint); }
+.notes-home-sub { margin: 0 0 0 1.5rem; }
+
+/* サブページの木（サイドバー）: 開閉の矢印。子はプロジェクトの中と同じく字下げと細い線で示す。 */
+.notes-row-toggle { display: grid; width: 1.25rem; height: 1.75rem; flex-shrink: 0; place-items: center; margin-left: 0.125rem; border-radius: 4px; color: var(--notion-faint); }
+@media (hover: hover) { .notes-row-toggle:hover { background: var(--notion-hover); color: var(--notion-muted); } }
+.notes-row-toggle + .chat-row-icon-button { margin-left: 0; }
+.notes-subpages-empty { padding: 0.375rem 0.5rem; font-size: 0.8125rem; color: var(--notion-faint); }
+
+/* 移動先の選択（ページの一覧）。 */
+.notes-dialog-subtitle { margin: 1rem 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
+.notes-move-filter { margin-top: 0.5rem; }
+.notes-move-pages { display: grid; gap: 0.125rem; max-height: 40dvh; margin-top: 0.5rem; overflow-y: auto; }
+.notes-move-icon { display: grid; width: 1.25rem; flex: none; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
+
+/* 上部バーのパンくずとロック表示。 */
+.notes-breadcrumb { max-width: 12rem; }
+.notes-breadcrumb-link { display: flex; min-width: 0; align-items: center; gap: 0.375rem; border-radius: 4px; padding: 0.125rem 0.25rem; margin: -0.125rem -0.25rem; color: inherit; }
+@media (hover: hover) { .notes-breadcrumb-link:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.notes-locked-button { display: inline-flex; height: 2rem; align-items: center; gap: 0.375rem; border-radius: 6px; padding: 0 0.5rem; font-size: 0.8125rem; color: var(--notion-muted); }
+@media (hover: hover) { .notes-locked-button:hover:not(:disabled) { background: var(--notion-hover); color: var(--notion-text); } }
+
+/* ページメニュー（「…」）: 字体の 3 つのボタンと、切り替えのスイッチ。 */
+.notes-page-menu { width: 248px; }
+.notes-menu-label { padding: 0.35rem 0.75rem 0.15rem; font-size: 0.75rem; font-weight: 500; color: var(--notion-muted); }
+.notes-menu-fonts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; padding: 0.25rem 0.5rem 0.35rem; }
+.notes-menu-font { display: grid; justify-items: center; gap: 0.15rem; border-radius: 0.4rem; padding: 0.4rem 0.25rem; font-size: 0.75rem; color: var(--notion-muted); }
+.notes-menu-font:hover, .notes-menu-font:focus-visible { background: var(--notion-hover); outline: none; }
+.notes-menu-font[aria-checked="true"] { color: var(--notion-blue); }
+.notes-menu-font-sample { font-size: 1.375rem; line-height: 1.2; color: var(--notion-text); }
+.notes-menu-font[aria-checked="true"] .notes-menu-font-sample { color: var(--notion-blue); }
+.notes-menu-font.font-serif .notes-menu-font-sample { font-family: var(--notes-font-serif); }
+.notes-menu-font.font-mono .notes-menu-font-sample { font-family: var(--notes-font-mono); }
+.notes-menu-switch { position: relative; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(55, 53, 47, 0.2); transition: background-color 120ms ease; }
+.notes-menu-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 120ms ease; }
+.notes-menu-switch[data-on="true"] { background: var(--notion-blue); }
+.notes-menu-switch[data-on="true"]::after { transform: translateX(12px); }
+
+/* ページの表示設定（Notion の Full width / Small text / 字体）。BlockNote の CSS より後でも効くよう .bn-editor まで含める。 */
+:root { --notes-font-serif: Lyon-Text, Georgia, YuMincho, "Yu Mincho", "Hiragino Mincho ProN", "Songti SC", "Noto Serif CJK SC", serif; --notes-font-mono: iawriter-mono, Nitti, Menlo, Courier, monospace; }
+.notes-workspace.is-full-width .notes-column { width: 100%; }
+.notes-workspace.is-small-text .notes-block-editor .bn-editor { font-size: 14px; }
+.notes-workspace.font-serif .notes-title, .notes-workspace.font-serif .notes-block-editor .bn-editor { font-family: var(--notes-font-serif); }
+.notes-workspace.font-mono .notes-title, .notes-workspace.font-mono .notes-block-editor .bn-editor { font-family: var(--notes-font-mono); }
 .notes-home-new { margin-top: 0.25rem; }
 
 /* スマホのモデル・推論強度シート（画面下から出る）。 */

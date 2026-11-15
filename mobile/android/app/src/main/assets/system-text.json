@@ -24,6 +24,8 @@
   "messages": {
     "zh": {
       "A JSON object is required.": "请求内容必须是 JSON 对象。",
+      "A page cannot be moved into its own sub-page.": "页面不能移动到自己的子页面中。",
+      "A page cannot be moved into itself.": "页面不能移动到自身之中。",
       "A project can have at most {max} reference notes.": "一个项目最多只能有 {max} 篇参考笔记。",
       "A valid note version is required.": "需要有效的笔记版本。",
       "AI returned an incomplete tool response. Please retry.": "AI 返回的工具结果不完整，请重试。",
@@ -124,6 +126,7 @@
       "Note title must be at most {max} characters.": "笔记标题最多 {max} 个字符。",
       "Nothing to update.": "没有需要更新的内容。",
       "One or more of the selected notes could not be found.": "找不到所选的部分笔记。",
+      "Only pages with up to 99 sub-pages can be duplicated.": "只能复制子页面不超过 99 个的页面。",
       "OpenAI did not return image data.": "OpenAI 没有返回图片数据。",
       "OpenAI response did not include a stream body.": "OpenAI 的响应没有返回数据流。",
       "OpenAI stream ended before completion. Please retry.": "OpenAI 的回答在完成前中断了，请重试。",
@@ -211,6 +214,8 @@
     },
     "zh-Hant": {
       "A JSON object is required.": "請求內容必須是 JSON 物件。",
+      "A page cannot be moved into its own sub-page.": "頁面不能移動到自己的子頁面中。",
+      "A page cannot be moved into itself.": "頁面不能移動到自身之中。",
       "A project can have at most {max} reference notes.": "一個專案最多隻能有 {max} 篇參考筆記。",
       "A valid note version is required.": "需要有效的筆記版本。",
       "AI returned an incomplete tool response. Please retry.": "AI 返回的工具結果不完整，請重試。",
@@ -311,6 +316,7 @@
       "Note title must be at most {max} characters.": "筆記標題最多 {max} 個字元。",
       "Nothing to update.": "沒有需要更新的內容。",
       "One or more of the selected notes could not be found.": "找不到所選的部分筆記。",
+      "Only pages with up to 99 sub-pages can be duplicated.": "只能複製子頁面不超過 99 個的頁面。",
       "OpenAI did not return image data.": "OpenAI 沒有返回圖片資料。",
       "OpenAI response did not include a stream body.": "OpenAI 的響應沒有返回資料流。",
       "OpenAI stream ended before completion. Please retry.": "OpenAI 的回答在完成前中斷了，請重試。",
@@ -398,6 +404,8 @@
     },
     "ja": {
       "A JSON object is required.": "JSON オブジェクトが必要です。",
+      "A page cannot be moved into its own sub-page.": "ページを自分のサブページの中へは移動できません。",
+      "A page cannot be moved into itself.": "ページをそのページ自身の中へは移動できません。",
       "A project can have at most {max} reference notes.": "プロジェクトの参照ノートは {max} 件までです。",
       "A valid note version is required.": "有効なノートのバージョンが必要です。",
       "AI returned an incomplete tool response. Please retry.": "AI のツール応答が不完全でした。もう一度お試しください。",
@@ -498,6 +506,7 @@
       "Note title must be at most {max} characters.": "ノートのタイトルは {max} 文字までです。",
       "Nothing to update.": "更新する内容がありません。",
       "One or more of the selected notes could not be found.": "選んだノートの一部が見つかりません。",
+      "Only pages with up to 99 sub-pages can be duplicated.": "複製できるのはサブページが 99 個までのページです。",
       "OpenAI did not return image data.": "OpenAI から画像データが返されませんでした。",
       "OpenAI response did not include a stream body.": "OpenAI の応答にストリームがありません。",
       "OpenAI stream ended before completion. Please retry.": "OpenAI の回答が途中で止まりました。もう一度お試しください。",

@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   find: vi.fn(), update: vi.fn(), purge: vi.fn(), raw: vi.fn(), unsafe: vi.fn(), revisionFind: vi.fn(), revisionDelete: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
+// サブページの探索（再帰の SQL）は note-tree-server に任せる。ここでは子が 1 つあるものとして扱う。
+vi.mock("@/lib/note-tree-server", () => ({ lockNoteOrder: async () => {}, descendantIds: async () => ["c1"] }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.purge };
   const noteRevision = { findMany: mocks.revisionFind, deleteMany: mocks.revisionDelete };
@@ -25,7 +27,7 @@ describe("page ownership and save concurrency", () => {
     expect((await GET(request(), context)).status).toBe(404);
     expect((await DELETE(request(), context)).status).toBe(404);
     expect(mocks.find).toHaveBeenCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null } });
-    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, data: { deletedAt: expect.any(Date) } });
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: { in: ["p1", "c1"] }, userId: "mine", deletedAt: null }, data: { deletedAt: expect.any(Date) } });
     // 何も捨てていないなら、掃除もしない。
     expect(mocks.purge).not.toHaveBeenCalled();
   });
@@ -72,14 +74,14 @@ describe("page ownership and save concurrency", () => {
 describe("trashed notes", () => {
   beforeEach(() => { vi.clearAllMocks(); mocks.raw.mockResolvedValue(0); mocks.purge.mockResolvedValue({ count: 0 }); mocks.revisionFind.mockResolvedValue([]); });
 
-  it("moves a note to the trash by stamping deletedAt, leaving position and group alone, and then purges expired notes", async () => {
-    mocks.update.mockResolvedValue({ count: 1 });
+  it("moves a note and its sub-pages to the trash by stamping one deletedAt, leaving position and group alone, and then purges expired notes", async () => {
+    mocks.update.mockResolvedValue({ count: 2 });
     const before = Date.now();
     const response = await DELETE(request(), context);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true });
+    expect(await response.json()).toEqual({ ok: true, ids: ["p1", "c1"] });
     const { where, data } = mocks.update.mock.calls[0][0];
-    expect(where).toEqual({ id: "p1", userId: "mine", deletedAt: null });
+    expect(where).toEqual({ id: { in: ["p1", "c1"] }, userId: "mine", deletedAt: null });
     expect(Object.keys(data)).toEqual(["deletedAt"]);
     expect((data.deletedAt as Date).getTime()).toBeGreaterThanOrEqual(before);
     // 保持期間（30 日）より前に捨てた、自分のノートだけを消す。

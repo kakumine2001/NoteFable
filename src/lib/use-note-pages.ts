@@ -5,7 +5,8 @@ import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
-import type { NoteGroupSummary, NotePage, NotePageSummary } from "@/types/notes";
+import { descendantIdsOf } from "@/lib/note-tree";
+import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { msg } from "@/lib/i18n/translate";
 
 const DRAFT_PREFIX = "studymate:page-draft:v1:";
@@ -55,8 +56,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const existing = current.find((entry) => entry.id === page.id);
       if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
       if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
-      // 所属グループは移動の操作だけが決める。保存の応答や古い編集中データの値で上書きしない。
-      return current.map((entry) => entry.id === page.id ? { ...page, groupId: entry.groupId, position: entry.position } : entry);
+      // 所属グループ・親・お気に入り・表示設定はそれぞれの操作だけが決める。保存の応答や古い編集中データの値で上書きしない。
+      return current.map((entry) => entry.id === page.id ? {
+        ...page, groupId: entry.groupId, position: entry.position, parentId: entry.parentId, favoritedAt: entry.favoritedAt,
+        fullWidth: entry.fullWidth, smallText: entry.smallText, font: entry.font, locked: entry.locked,
+      } : entry);
     });
   }, []);
 
@@ -236,7 +240,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     };
   }, []);
 
-  async function create(copy = false) {
+  // parentId を渡すと、そのページの中にサブページを作る。
+  async function create(copy = false, parentId: string | null = null) {
     if (actionBusy.current) return;
     actionBusy.current = true;
     setBusy(true);
@@ -244,7 +249,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
-      const { page } = await pageRequest("/api/pages", "POST", content);
+      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(!copy && parentId ? { parentId } : {}) });
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);
         upsertSummary(current.page);
@@ -267,20 +272,28 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }
 
   // ノートをゴミ箱へ移す（サーバーの DELETE は deletedAt を付けるだけで、30 日間は復元できる）。名前は従来どおり remove。
-  async function remove(id: string) {
-    if (actionBusy.current) return;
+  async function remove(id: string): Promise<boolean> {
+    if (actionBusy.current) return false;
     actionBusy.current = true;
     setBusy(true);
     setError("");
     try {
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
-      await pageRequest(`/api/pages/${id}`, "DELETE");
-      queues.current.delete(id);
-      try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
-      const remaining = pages.filter((page) => page.id !== id);
+      // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
+      for (const childId of descendantIdsOf(pages, id)) {
+        const child = queues.current.get(childId);
+        if (child && !(await child.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
+      }
+      const data = await pageRequest(`/api/pages/${id}`, "DELETE");
+      const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
+      for (const removedId of removed) {
+        queues.current.delete(removedId);
+        try { localStorage.removeItem(DRAFT_PREFIX + removedId); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
+      }
+      const remaining = pages.filter((page) => !removed.has(page.id));
       runTransition(() => setPages(remaining), "list");
-      if (activeId === id) {
+      if (activeId && removed.has(activeId)) {
         displayedId.current = null;
         setActiveId(null);
         setActive(undefined);
@@ -289,7 +302,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         window.history.replaceState(null, "", url);
         if (remaining[0] && !isPhone()) await select(remaining[0].id, "replace");
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); }
+      return true;
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); return false; }
     finally { actionBusy.current = false; setBusy(false); }
   }
 
@@ -322,11 +336,67 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     return true;
   });
 
+  // グループへ移す。サブページだった場合は親から外れ、子孫も同じグループへ移る。
   const moveNote = (id: string, groupId: string | null) => groupAction(async () => {
-    await pageRequest(`/api/pages/${id}/group`, "PUT", { groupId });
-    runTransition(() => setPages((current) => current.map((page) => page.id === id ? { ...page, groupId } : page)), "list");
+    const data = await pageRequest(`/api/pages/${id}/group`, "PUT", { groupId });
+    const moved = new Set<string>(Array.isArray(data.ids) ? data.ids : [id]);
+    runTransition(() => setPages((current) => current.map((page) => page.id === id ? { ...page, groupId, parentId: null } : moved.has(page.id) ? { ...page, groupId } : page)), "list");
     return true;
   });
+
+  // 別のページの中へ移す（null で最上位へ）。子孫も一緒に動き、グループは新しい親にそろう。
+  const moveToPage = (id: string, parentId: string | null) => groupAction(async () => {
+    const { pages: moved } = await pageRequest(`/api/pages/${id}/parent`, "PUT", { parentId });
+    const byId = new Map((moved as NotePageSummary[]).map((page) => [page.id, page]));
+    runTransition(() => setPages((current) => current.map((page) => {
+      const next = byId.get(page.id);
+      return next ? { ...page, parentId: next.parentId ?? null, groupId: next.groupId } : page;
+    })), "list");
+    return true;
+  });
+
+  // 一覧の 1 件を、サーバーが返したメタデータ（お気に入り・表示設定）で置き換える。
+  const applyMeta = (page: NotePageSummary) => setPages((current) => current.map((entry) => entry.id === page.id ? {
+    ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
+  } : entry));
+
+  const setFavorite = (id: string, favorite: boolean) => groupAction(async () => {
+    const { page } = await pageRequest(`/api/pages/${id}/favorite`, "PUT", { favorite });
+    runTransition(() => applyMeta(page), "list");
+    return true;
+  });
+
+  const updateSettings = (id: string, settings: Partial<NotePageSettings>) => groupAction(async () => {
+    const { page } = await pageRequest(`/api/pages/${id}/settings`, "PUT", settings);
+    applyMeta(page);
+    return true;
+  });
+
+  // ページを（サブページも一緒に）複製して、複製を開く。サーバーは保存済みの本文を写すので、先に未保存の編集を保存する。
+  async function duplicate(id: string) {
+    if (actionBusy.current) return false;
+    actionBusy.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
+        const queue = queues.current.get(pageId);
+        if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));
+      }
+      const data = await pageRequest(`/api/pages/${id}/duplicate`, "POST");
+      const copies = data.pages as NotePageSummary[];
+      // サーバーは一覧全体の並びを書き直すので、全件の新しい位置を当てはめる（並べ替えと同じ）。
+      const items = (data.items ?? []) as { id: string; position: number }[];
+      orderSync.current.saved(items);
+      const positions = new Map(items.map((item) => [item.id, item.position]));
+      runTransition(() => setPages((current) => [...current.filter((page) => !copies.some((copy) => copy.id === page.id)), ...copies]
+        .map((page) => positions.has(page.id) ? { ...page, position: positions.get(page.id) } : page).sort(byPosition)), "list");
+      actionBusy.current = false;
+      await select(data.page.id);
+      return true;
+    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Could not duplicate the page.")); return false; }
+    finally { actionBusy.current = false; setBusy(false); }
+  }
 
   // サイドバーのアイコンから変える。開いているノートは編集と同じ経路（自動保存）に乗せ、開いていないノートは専用の API で書く。
   const changeIcon = (id: string, icon: string | null) => groupAction(async () => {
@@ -352,5 +422,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

@@ -64,7 +64,9 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
   const restore = (item: NoteTrashItem) => run(async () => {
     const data = await trashRequest(`/api/pages/trash/${item.id}`, "POST");
     // 一覧（サイドバー）へ加える。ここで外すのは、戻した 1 件だけ。
-    window.dispatchEvent(new CustomEvent<NotePageSummary>("studymate:page-created", { detail: data.page as NotePageSummary }));
+    // 一緒にゴミ箱へ入っていたサブページもまとめて戻るので、すべてを一覧へ加える。
+    const restored = (Array.isArray(data.pages) && data.pages.length ? data.pages : [data.page]) as NotePageSummary[];
+    for (const page of restored) window.dispatchEvent(new CustomEvent<NotePageSummary>("studymate:page-created", { detail: page }));
     setItems((current) => current?.filter((entry) => entry.id !== item.id) ?? current);
   });
 

@@ -1,15 +1,18 @@
-import { FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
 import { ReorderHandle } from "@/components/reorder-handle";
 import type { ReorderRequest } from "@/lib/list-order";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
+import { childrenByParent, rootPages } from "@/lib/note-tree";
+import { useExpandedPages } from "@/lib/use-expanded-pages";
 import { rowName } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useI18n } from "@/components/i18n-provider";
 
 // スマホの Notes ホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+  onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
   groups: NoteGroupSummary[];
@@ -25,10 +28,25 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   const known = new Set(groups.map((group) => group.id));
-  const loose = pages.filter((page) => !page.groupId || !known.has(page.groupId));
-  const item = (page: NotePageSummary) => (
-    <li key={page.id} className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
-      <ReorderHandle id={page.id} title={page.title} scope="note" ids={pages.filter(item=>item.groupId===page.groupId).map(item=>item.id)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)}/>
+  // サブページの木。最上位のページをグループごとに並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
+  const children = childrenByParent(pages);
+  const roots = rootPages(pages);
+  const loose = roots.filter((page) => !page.groupId || !known.has(page.groupId));
+  const favorites = pages.filter((page) => page.favoritedAt).sort((a, b) => (a.favoritedAt ?? "").localeCompare(b.favoritedAt ?? ""));
+  const [expanded, toggleExpanded] = useExpandedPages();
+  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && pages.some((item) => item.id === page.parentId) ? page.parentId : null) ?? [])
+    .filter((item) => item.groupId === page.groupId).map((item) => item.id);
+  const item = (page: NotePageSummary) => {
+    const kids = children.get(page.id) ?? [];
+    // サイドバーと同じく、どのページにも開閉の矢印を出す（サブページがなければ「No pages inside」）。
+    const open = !!expanded[page.id];
+    return <li key={page.id} className="notes-home-node">
+      <div className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
+      <ReorderHandle id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)}/>
+      <button type="button" className="notes-home-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
+        aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
+        {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+      </button>
       <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
         <span className="notes-home-name">{page.title}</span>
@@ -37,14 +55,25 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         </time>
       </button>
       <button type="button" className="notes-home-move" disabled={busy} onClick={() => setMoving(page)} aria-label={t("Move {title} to a project", { title: page.title })}><FolderInput size={18} /></button>
-    </li>
-  );
+      </div>
+      {open && (kids.length ? <ul className="notes-home-list notes-home-sub">{kids.map(item)}</ul> : <p className="notes-home-empty notes-home-sub">{t("No pages inside")}</p>)}
+    </li>;
+  };
   return (
     <div className="notes-column notes-home" data-reorder-list>
       <div className="notion-home-switch"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div>
       <h1 className="notes-home-title" data-note-group-drop="">{t("Notes")}</h1>
+      {favorites.length > 0 && <section>
+        <h2 className="notes-home-group">{t("Favorites")}<span>{favorites.length}</span></h2>
+        <ul className="notes-home-list">{favorites.map((page) => <li key={page.id} className="notes-home-node"><div className="notes-home-item">
+          <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
+            <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
+            <span className="notes-home-name">{page.title}</span>
+          </button>
+        </div></li>)}</ul>
+      </section>}
       {groups.map((group) => {
-        const members = pages.filter((page) => page.groupId === group.id);
+        const members = roots.filter((page) => page.groupId === group.id);
         return (
           <section key={group.id}>
             <h2 className="notes-home-group" data-note-group-drop={group.id}>{group.name}<span>{members.length}</span></h2>
@@ -59,7 +88,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />{t("New project")}</button>
       </div>
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
-        onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} />}
+        onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} pages={pages} onMoveToPage={onMoveToPage} />}
       {creatingGroup && <GroupNameDialog title={t("New project")} submitLabel={t("Create")} error={groupError} onClose={() => setCreatingGroup(false)}
         onSubmit={async (name) => Boolean(await onCreateGroup(name))} />}
     </div>
