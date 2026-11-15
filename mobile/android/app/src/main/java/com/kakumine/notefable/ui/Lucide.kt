@@ -45,7 +45,6 @@ object Lucide {
     )
     val RotateCcw = listOf("M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8", "M3 3v5h5")
     val LogOut = listOf("m16 17 5-5-5-5", "M21 12H9", "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4")
-    val ChevronsUpDown = listOf("m7 15 5 5 5-5", "m7 9 5-5 5 5")
     val Globe = listOf("M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0", "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20", "M2 12h20")
     val FileText = listOf(
         "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
@@ -53,6 +52,13 @@ object Lucide {
         "M10 9H8",
         "M16 13H8",
         "M16 17H8",
+    )
+    // 「整理成笔记」（网页 page.tsx / create-page-dialog.tsx 的 FilePlus）。
+    val FilePlus = listOf(
+        "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
+        "M14 2v5a1 1 0 0 0 1 1h5",
+        "M9 15h6",
+        "M12 18v-6",
     )
     private const val FolderOutline =
         "M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"

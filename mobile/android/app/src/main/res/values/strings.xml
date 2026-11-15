@@ -40,7 +40,6 @@
     <string name="reasoning_xhigh_desc">Very deep reasoning</string>
     <string name="reasoning_max_desc">Maximum reasoning depth</string>
     <string name="language">Language</string>
-    <string name="language_automatic">Automatic</string>
     <string name="account">Account</string>
     <string name="sign_in_failed">Sign-in failed. Try again</string>
     <string name="sign_out">Sign out</string>

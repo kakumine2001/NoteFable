@@ -794,6 +794,8 @@ fun NotionButton(
     danger: Boolean = false,
     primary: Boolean = false,
     large: Boolean = false,
+    /** 文字右边的图标（网页 inline-flex gap-1：间距 4，图标 15）。 */
+    trailingIcon: List<String>? = null,
 ) {
     val fade = if (enabled) 1f else if (primary) 0.45f else 0.6f
     Box(
@@ -808,13 +810,17 @@ fun NotionButton(
             danger -> DangerText
             else -> Sm.Text
         }
-        Text(
-            text,
-            color = if (primary) color else color.copy(alpha = color.alpha * fade),
-            fontSize = if (large) 15.sp else 12.8.sp,
-            fontWeight = FontWeight.Medium,
-            maxLines = 1,
-        )
+        val shown = if (primary) color else color.copy(alpha = color.alpha * fade)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                text,
+                color = shown,
+                fontSize = if (large) 15.sp else 12.8.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+            )
+            if (trailingIcon != null) LucideIcon(trailingIcon, 15.dp, shown)
+        }
     }
 }
 

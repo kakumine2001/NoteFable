@@ -55,6 +55,8 @@ data class MessageDto(
     // activity / proposals 保留原始 JSON，由 Activity.parseStored / parseStoredProposals 逐项校验后再用（坏的丢掉）。
     val activity: JsonElement? = null,
     val proposals: JsonElement? = null,
+    /** 用户给这条提问添加的笔记（网页 Message.pages）。标题和图标每次读历史都从笔记取；回收站里的不返回。 */
+    val pages: List<ChatProjectNote> = emptyList(),
 )
 
 @Serializable
@@ -113,7 +115,15 @@ data class AccountUser(
     val displayName: String? = null,
     val icon: String? = null,
     val avatarUrl: String? = null,
+    /**
+     * 设置里选的界面语言（en / zh / zh-Hant / ja）。JSON 里是 null＝没选过（按环境语言显示）；
+     * 没有这个字段＝服务端没读到用户行、不知道（[LOCALE_UNKNOWN]），这时不用本机的选择覆盖账号（网页 AccountUser.locale）。
+     */
+    val locale: String? = LOCALE_UNKNOWN,
 )
+
+/** [AccountUser.locale] 不知道（服务端没返回这个字段）。 */
+const val LOCALE_UNKNOWN = "?"
 
 @Serializable
 data class AccountResponse(
@@ -169,6 +179,9 @@ data class ChatProjectDetailResponse(val project: ChatProjectDetail)
 /** 与 src/types/chat.ts 相同的上限。 */
 const val MAX_PROJECT_INSTRUCTIONS = 4000
 const val MAX_PROJECT_NOTES = 5
+
+/** 一条消息最多能添加的笔记数（网页 MAX_MESSAGE_NOTES，服务端同一个值）。 */
+const val MAX_MESSAGE_NOTES = 5
 
 /** 用户的自定义指令（适用于所有聊天）的上限，与网页 MAX_CUSTOM_INSTRUCTIONS 相同。 */
 const val MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS

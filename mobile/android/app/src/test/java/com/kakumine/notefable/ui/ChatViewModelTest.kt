@@ -157,6 +157,67 @@ class ChatViewModelTest {
         assertFalse(state.messages.last().streaming)
     }
 
+    // ---- 添加页面（网页 attachedPages） ----
+
+    private val planNote = com.kakumine.notefable.data.ChatProjectNote("n1", "Plan", "📘")
+    private val todoNote = com.kakumine.notefable.data.ChatProjectNote("n2", "Todo", null)
+
+    @Test
+    fun `attached pages go out as ids, show on the question and clear from the composer`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        vm.setAttachedPages(listOf(planNote, todoNote))
+        vm.removeAttachedPage("n2")
+        assertEquals(listOf(planNote), vm.state.value.attachedPages)
+
+        vm.send("summarize")
+        settle()
+        assertEquals(listOf("n1"), backend.requests.single().pages)
+        assertEquals(listOf(planNote), vm.state.value.messages.first().pages)
+        assertTrue(vm.state.value.attachedPages.isEmpty())
+
+        // 历史里的页面（标题和图标由服务端从笔记取）。
+        backend.stored = listOf(MessageDto("db-1", "USER", "summarize", pages = listOf(planNote)), MessageDto("db-2", "ASSISTANT", "ok"))
+        backend.events.close()
+        advanceUntilIdle()
+        assertEquals(listOf(planNote), vm.state.value.messages.first().pages)
+    }
+
+    @Test
+    fun `pages are refused in image mode and over the limit instead of being dropped`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+        vm.setAttachedPages(listOf(planNote))
+        vm.setImageMode(true)
+        vm.send("draw it")
+        advanceUntilIdle()
+        assertEquals(ComposerNotice.PagesInImageMode, vm.state.value.notice)
+        assertTrue(backend.imageRequests.isEmpty())
+        assertEquals(listOf(planNote), vm.state.value.attachedPages)
+
+        vm.setImageMode(false)
+        vm.setAttachedPages((1..6).map { com.kakumine.notefable.data.ChatProjectNote("p$it", "P$it") })
+        vm.send("hi")
+        advanceUntilIdle()
+        assertEquals(ComposerNotice.TooManyPages, vm.state.value.notice)
+        assertTrue(backend.requests.isEmpty())
+        // 移除一篇就清掉提示。
+        vm.removeAttachedPage("p6")
+        assertNull(vm.state.value.notice)
+    }
+
+    @Test
+    fun `restored pages go first and pages picked meanwhile stay`() {
+        assertEquals(listOf(planNote, todoNote), ChatViewModel.mergeRestoredPages(listOf(planNote), listOf(todoNote, planNote)))
+        assertEquals(listOf(todoNote), ChatViewModel.mergeRestoredPages(emptyList(), listOf(todoNote)))
+    }
+
+    @Test
+    fun `the attach dialog keeps current titles and drops trashed pages`() {
+        val renamed = planNote.copy(title = "Plan v2")
+        assertEquals(listOf(renamed), refreshAttachedPages(listOf(planNote, todoNote), listOf(renamed)))
+    }
+
     @Test
     fun `a failed request records the reason on the assistant bubble`() = runTest(dispatcher) {
         val backend = FakeBackend()

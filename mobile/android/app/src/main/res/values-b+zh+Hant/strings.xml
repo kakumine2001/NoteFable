@@ -40,7 +40,6 @@
     <string name="reasoning_xhigh_desc">更深入地思考</string>
     <string name="reasoning_max_desc">最深入地思考</string>
     <string name="language">語言</string>
-    <string name="language_automatic">自動</string>
     <string name="account">賬號</string>
     <string name="sign_in_failed">登入失敗，請重試</string>
     <string name="sign_out">退出登入</string>

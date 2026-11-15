@@ -6,8 +6,6 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -21,21 +19,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -45,20 +38,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -71,15 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import coil3.compose.AsyncImage
 import com.kakumine.notefable.BuildConfig
 import com.kakumine.notefable.R
@@ -88,7 +69,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// 侧栏最下面（网页 SidebarFooter）：表示语言、账号、隐私政策 / 服务条款。上方 1px 分隔线。
+// 侧栏最下面（网页 SidebarFooter）：账号（登录，或打开设置的入口）、隐私政策 / 服务条款。上方 1px 分隔线。
+// 界面语言只在登录后的设置里选，侧栏不再放语言菜单（未登录时始终是系统语言）。
 @Composable
 fun SidebarFooter(
     account: AccountUiState,
@@ -97,7 +79,6 @@ fun SidebarFooter(
     profile: AccountViewModel,
 ) {
     Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
-        LanguageSelect()
         if (account.configured) {
             Box(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
                 val user = account.user
@@ -137,7 +118,7 @@ internal fun GoogleSignInButton(label: String, busy: Boolean, onClick: () -> Uni
 }
 
 /** 头像编辑区（网页 ProfileMenu 的 Editor）。 */
-private enum class AvatarEditor { Closed, Photo, Emoji }
+internal enum class AvatarEditor { Closed, Photo, Emoji }
 
 /**
  * 网页 `<input type=file accept="image/png,image/jpeg,image/webp,image/gif">`：系统的文件 / 照片选择器，只列这四种图片。
@@ -161,17 +142,16 @@ private fun pickedTypeAndSize(context: Context, uri: Uri): Pair<String?, Long?> 
     return resolver.getType(uri) to size
 }
 
-// 登录后的账号行（.notion-sidebar-action.profile-row）：头像 22、名字、右侧上下箭头；点开是个人资料弹层。
+// 登录后的账号行（.notion-sidebar-action.profile-row，手机）：高 44、左右 8、间距 8.8；头像 22、名字 16、右边齿轮 15（--notion-faint）。
+// 点了打开设置（网页 AccountButton → SettingsDialog）：个人资料、界面语言、自定义指令、退出登录都在里面，设置的入口只有这一个。
 @Composable
 private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit) {
-    var open by rememberSaveable { mutableStateOf(false) }
-    // 编辑区和选好的照片放在这里而不是弹层里：选择器回来时（哪怕 Activity 重建）弹层还没组合好，结果也接得住。
+    var settingsOpen by rememberSaveable { mutableStateOf(false) }
+    // 头像编辑区和选好的照片放在这里而不是设置窗口里：选择器回来时（哪怕 Activity 重建）窗口还没组合好，结果也接得住。
     var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    // 系统选择器开着时点外面 / 返回键不关弹层（网页 filePickerOpen）。
+    // 系统选择器开着时返回键 / 点外面不关设置（网页 filePickerOpen）。
     var pickerOpen by rememberSaveable { mutableStateOf(false) }
-    var settingsOpen by rememberSaveable { mutableStateOf(false) }
-    var anchorTop by remember { mutableFloatStateOf(0f) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(PickAvatarPhoto()) { uri ->
@@ -184,274 +164,194 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
             if (problem == null) picked = uri.toString()
         }
     }
-    val close = {
-        open = false
-        editor = AvatarEditor.Closed
-        picked = null
+    val name = user.name ?: user.email ?: stringResource(R.string.account)
+    val label = name + " · " + stringResource(R.string.acct_settings)
+    Row(
+        Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
+            .clickable {
+                // 网页 clearSaveError：上一次的失败提示不带进新打开的设置。
+                profile.clearProfileError()
+                settingsOpen = true
+            }
+            .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label }
+            .padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.8.dp),
+    ) {
+        UserAvatar(user, 22.dp)
+        Text(name, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        LucideIcon(Lucide.Settings, 15.dp, Sm.Faint)
     }
-    val accountLabel = stringResource(R.string.account)
-    Box {
-        Row(
-            Modifier.fillMaxWidth().height(44.dp).onGloballyPositioned { anchorTop = it.boundsInWindow().top }
-                .clip(RoundedCornerShape(4.8.dp))
-                .clickable {
-                    if (open) {
-                        close()
-                    } else {
-                        profile.clearProfileError()
-                        open = true
-                    }
-                }
-                .semantics { role = Role.Button }.padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.8.dp),
-        ) {
-            UserAvatar(user, 22.dp)
-            Text(
-                user.name ?: user.email ?: accountLabel,
-                modifier = Modifier.weight(1f),
-                color = Sm.Text,
-                fontSize = 16.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            LucideIcon(Lucide.ChevronsUpDown, 14.dp, Sm.Faint)
-        }
-        if (open) {
-            ProfileMenu(
-                user = user,
-                account = account,
-                profile = profile,
-                anchorTop = anchorTop,
-                editor = editor,
-                picked = picked,
-                onEditor = { next ->
-                    editor = next
-                    picked = null
-                    profile.showPhotoError(null)
-                },
-                onPickPhoto = {
-                    pickerOpen = true
-                    launcher.launch("image/*")
-                },
-                onCancelCrop = {
-                    picked = null
-                    profile.showPhotoError(null)
-                },
-                onPhotoSaved = {
-                    picked = null
-                    editor = AvatarEditor.Closed
-                },
-                canClose = { !pickerOpen && !account.uploading },
-                onDismiss = close,
-                onOpenSettings = { close(); settingsOpen = true },
-                onSignOut = { close(); onSignOut() },
-            )
-        }
-        if (settingsOpen) SettingsDialog(profile, onClose = { settingsOpen = false })
-    }
-}
-
-// 弹在账号行正上方 6 处、左边至少留 12（网页 menuPositionFor）。
-private class AboveAnchor(private val gap: Int, private val margin: Int) : PopupPositionProvider {
-    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
-        val x = anchorBounds.left.coerceIn(margin, (windowSize.width - popupContentSize.width - margin).coerceAtLeast(margin))
-        val y = (anchorBounds.top - gap - popupContentSize.height).coerceAtLeast(margin)
-        return IntOffset(x, y)
+    if (settingsOpen) {
+        SettingsDialog(
+            user = user,
+            account = account,
+            profile = profile,
+            editor = editor,
+            picked = picked,
+            pickerOpen = pickerOpen,
+            onEditor = { next ->
+                editor = next
+                picked = null
+                profile.showPhotoError(null)
+            },
+            onPickPhoto = {
+                pickerOpen = true
+                launcher.launch("image/*")
+            },
+            onCancelCrop = {
+                picked = null
+                profile.showPhotoError(null)
+            },
+            onPhotoSaved = {
+                picked = null
+                editor = AvatarEditor.Closed
+            },
+            // 网页退出后整页重新加载、设置随之消失；这里退出不会失败（见 AccountViewModel.signOut），所以先关设置再退出，
+            // 退出期间不会再有编辑或第二次点击。
+            onSignOut = {
+                settingsOpen = false
+                editor = AvatarEditor.Closed
+                picked = null
+                onSignOut()
+            },
+            onClose = {
+                settingsOpen = false
+                editor = AvatarEditor.Closed
+                picked = null
+                profile.showPhotoError(null)
+            },
+        )
     }
 }
 
 /*
- * 个人资料弹层（网页 ProfileMenu + globals.css 的 .profile-*，手机宽度 ≤639 的值）：
- * - 外框：宽 min(300, 屏宽 − 24)，最高 max(160, 账号行顶 − 18)，超出时内部纵向滚动；内边距 14，白底、圆角 8、--notion-shadow；
- *   打开时 motion-menu-enter 120ms。
+ * 设置里的个人资料（网页 ProfileSettings + globals.css 的 .profile-* / .settings-profile，手机宽度的值）：
  * - 头部：头像 52（按钮，右下 −2 处 20 的深色圆形角标，2px 白边，铅笔 11 白色）、间距 12、"名字"12 灰 + 输入框（高 40、16 字、
- *   左右 10、1px 深描边、圆角 6；聚焦时蓝边 + 2px rgba(35,131,226,.2) 外圈；最多 40 字）。
- * - 点头像打开编辑区（再点关上）：上 10、左右贴边（−14）、上边 1px 线；"照片 / 表情"两个标签（.notes-picker-tabs：左右 8、间距 4、
- *   下边 1px .09 线；标签 10/6/8 内边距、14 字 .65 灰，选中墨色 500 + 2px 下划线）。
- *   照片页（.profile-photo-pane）：内边距 12/14/14、间距 8；"上传照片"整行高 44、1px 深描边、圆角 6、15 字、ImagePlus 16 + 8；
- *   说明 12/18 灰；有照片时"移除我的照片"（Trash2 14 + 6、13 红字、内边距 4×6、圆角 4）；错误 12 红、上 10。
- *   选好照片后换成裁剪（AvatarCropper.kt）。表情页：EmojiPickerBody，高 min(320, 屏高 − 220)，去掉键写"使用 Google 头像"。
- * - 邮箱 12 灰（上 10）、保存错误 12 红（上 10）；操作区上 12、左右 −6、上边 1px 线、上内边距 6、间距 2：行高 ≥44、15 字、图标 14 + 8。
- *   操作依次是"使用我的 Google 名称和头像"（改过才有）、"设置"（打开 SettingsDialog）、"退出登录"。
+ *   左右 10、1px 深描边、圆角 6；聚焦时蓝边 + 2px rgba(35,131,226,.2) 外圈；最多 40 字）。邮箱 12 灰（上 10）。
+ * - 点头像打开编辑区（再点关上）：上 12、1px 描边、圆角 8 的框；"照片 / 表情"两个标签（.notes-picker-tabs），
+ *   照片页（.profile-photo-pane）或裁剪（AvatarCropper.kt），表情页（EmojiPickerBody，高 min(320, 屏高 − 220)）。
+ * - 改过名字或头像、且有 Google 资料时，"使用我的 Google 名称和头像"（.settings-inline-action：最小高 44、15 字、RotateCcw 14 + 8）。
+ * 名字和头像都是改了就存（排队保存）；输入中的名字在失焦、回车和关设置时存。
  */
 @Composable
-private fun ProfileMenu(
+internal fun ProfileSettings(
     user: AccountUser,
     account: AccountUiState,
     profile: AccountViewModel,
-    anchorTop: Float,
+    draft: String,
+    onDraft: (String) -> Unit,
+    editing: Boolean,
+    onEditing: (Boolean) -> Unit,
     editor: AvatarEditor,
     picked: String?,
     onEditor: (AvatarEditor) -> Unit,
     onPickPhoto: () -> Unit,
     onCancelCrop: () -> Unit,
     onPhotoSaved: () -> Unit,
-    canClose: () -> Boolean,
-    onDismiss: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onSignOut: () -> Unit,
 ) {
-    val density = LocalDensity.current
     val configuration = LocalConfiguration.current
-    val provider = remember(density) { with(density) { AboveAnchor(6.dp.roundToPx(), 12.dp.roundToPx()) } }
-    val savedName = user.displayName ?: user.googleName ?: ""
-    var draft by remember { mutableStateOf(savedName) }
-    var editing by remember { mutableStateOf(false) }
-    // 输入框没在编辑时才跟着保存后的名字走：保存失败回滚时不会盖掉用户接着输入、还没发出的文字。
-    LaunchedEffect(savedName) { if (!editing) draft = savedName }
-    val customized = user.displayName != null || user.icon != null || user.avatarUrl != null
-    val shape = RoundedCornerShape(8.dp)
-    val width = minOf(300.dp, configuration.screenWidthDp.dp - 24.dp)
-    val maxHeight = maxOf(160.dp, with(density) { anchorTop.toDp() } - 18.dp)
     val system = rememberSystemText()
-
-    // 网页：位置是打开时算的，屏幕宽度变了就关掉（只是键盘弹出、高度变化不关）。
-    val openedWidth = remember { configuration.screenWidthDp }
-    LaunchedEffect(configuration.screenWidthDp) {
-        if (configuration.screenWidthDp != openedWidth) {
-            onSaveNameAndClose(draft, profile, onDismiss)
+    val customized = user.displayName != null || user.icon != null || user.avatarUrl != null
+    // 邮箱登录的人没有 Google 的名字和照片：只有有 Google 资料时才出现"恢复成 Google 的"这类文字。
+    val hasGoogleProfile = user.googleName != null || user.image != null
+    Column(Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            AvatarButton(user, expanded = editor != AvatarEditor.Closed) {
+                onEditor(if (editor == AvatarEditor.Closed) AvatarEditor.Photo else AvatarEditor.Closed)
+            }
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.profile_name), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 2.dp))
+                val fieldShape = RoundedCornerShape(6.dp)
+                BasicTextField(
+                    value = draft,
+                    // 网页 maxLength = MAX_DISPLAY_NAME（40，按 UTF-16 计，和 String.take 相同）。
+                    onValueChange = { onDraft(it.take(MAX_DISPLAY_NAME)) },
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 16.sp, color = Sm.Text),
+                    cursorBrush = SolidColor(Sm.Ink),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { profile.saveName(draft) }),
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                        .onFocusChanged { if (editing && !it.isFocused) profile.saveName(draft); onEditing(it.isFocused) }
+                        .drawBehind {
+                            // :focus 的 outline 2px rgba(35,131,226,.2)，画在描边外侧。
+                            if (editing) {
+                                val ring = 2.dp.toPx()
+                                drawRoundRect(
+                                    FocusRing,
+                                    topLeft = Offset(-ring, -ring),
+                                    size = androidx.compose.ui.geometry.Size(size.width + ring * 2, size.height + ring * 2),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx() + ring),
+                                )
+                            }
+                        }
+                        .border(1.dp, if (editing) Sm.Blue else Sm.BorderStrong, fieldShape)
+                        .background(Color.White, fieldShape),
+                    decorationBox = { inner ->
+                        Box(Modifier.padding(horizontal = 10.dp), Alignment.CenterStart) {
+                            if (draft.isEmpty()) Text(user.googleName ?: stringResource(R.string.your_name), color = Sm.Faint, fontSize = 16.sp)
+                            inner()
+                        }
+                    },
+                )
+            }
         }
-    }
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(120, easing = CssEaseOut)) }
+        user.email?.let {
+            Text(it, color = Sm.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+        }
 
-    Popup(
-        popupPositionProvider = provider,
-        onDismissRequest = {
-            // 系统选择器开着、照片在上传时不关（网页 closeIfAllowed：失败的提示不能跟着消失）。
-            if (canClose()) onSaveNameAndClose(draft, profile, onDismiss)
-        },
-        properties = PopupProperties(focusable = true),
-    ) {
-        Column(
-            Modifier.graphicsLayer {
-                val t = enter.value
-                alpha = t
-                translationY = (1f - t) * 4.dp.toPx()
-                val scale = 0.98f + 0.02f * t
-                scaleX = scale
-                scaleY = scale
-            }.width(width).heightIn(max = maxHeight)
-                .shadow(14.dp, shape, ambientColor = Color(0x1F0F0F0F), spotColor = Color(0x1F0F0F0F))
-                .background(Color.White, shape).border(1.dp, Color(0x0D0F0F0F), shape).clip(shape)
-                .verticalScroll(rememberScrollState())
-                // 操作区的下外边距是 −6（.profile-actions margin），所以底部只留 14 − 6。
-                .padding(start = 14.dp, end = 14.dp, top = 14.dp, bottom = 8.dp),
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                AvatarButton(user, expanded = editor != AvatarEditor.Closed) {
-                    onEditor(if (editor == AvatarEditor.Closed) AvatarEditor.Photo else AvatarEditor.Closed)
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(stringResource(R.string.profile_name), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 2.dp))
-                    val fieldShape = RoundedCornerShape(6.dp)
-                    BasicTextField(
-                        value = draft,
-                        // 网页 maxLength = MAX_DISPLAY_NAME（40，按 UTF-16 计，和 String.take 相同）。
-                        onValueChange = { draft = it.take(MAX_DISPLAY_NAME) },
-                        singleLine = true,
-                        textStyle = TextStyle(fontSize = 16.sp, color = Sm.Text),
-                        cursorBrush = SolidColor(Sm.Ink),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { profile.saveName(draft) }),
-                        modifier = Modifier.fillMaxWidth().height(40.dp)
-                            .onFocusChanged { if (editing && !it.isFocused) profile.saveName(draft); editing = it.isFocused }
-                            .drawBehind {
-                                // :focus 的 outline 2px rgba(35,131,226,.2)，画在描边外侧。
-                                if (editing) {
-                                    val ring = 2.dp.toPx()
-                                    drawRoundRect(
-                                        FocusRing,
-                                        topLeft = Offset(-ring, -ring),
-                                        size = androidx.compose.ui.geometry.Size(size.width + ring * 2, size.height + ring * 2),
-                                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx() + ring),
-                                    )
-                                }
-                            }
-                            .border(1.dp, if (editing) Sm.Blue else Sm.BorderStrong, fieldShape)
-                            .background(Color.White, fieldShape),
-                        decorationBox = { inner ->
-                            Box(Modifier.padding(horizontal = 10.dp), Alignment.CenterStart) {
-                                if (draft.isEmpty()) Text(user.googleName ?: stringResource(R.string.your_name), color = Sm.Faint, fontSize = 16.sp)
-                                inner()
-                            }
-                        },
+        if (editor != AvatarEditor.Closed) {
+            val shape = RoundedCornerShape(8.dp)
+            Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
+                EditorTabs(editor, onEditor)
+                val photoErrorText = account.photoError?.let { photoErrorText(it, system) }
+                if (editor == AvatarEditor.Photo) {
+                    if (picked != null) {
+                        AvatarCropper(
+                            uri = picked,
+                            saving = account.uploading,
+                            error = photoErrorText,
+                            onCancel = onCancelCrop,
+                            onSave = { bytes -> profile.uploadPhoto(bytes, AVATAR_MIME_TYPE, onPhotoSaved) },
+                        )
+                    } else {
+                        PhotoPane(hasPhoto = user.avatarUrl != null, error = photoErrorText, onUpload = onPickPhoto, onRemove = { profile.setIcon(null) })
+                    }
+                } else {
+                    val pickerHeight = minOf(320.dp, maxOf(80.dp, configuration.screenHeightDp.dp - 220.dp))
+                    EmojiPickerBody(
+                        current = user.icon,
+                        onChange = { profile.setIcon(it) },
+                        onClose = { onEditor(AvatarEditor.Closed) },
+                        pickerHeight = pickerHeight,
+                        removeLabel = if (hasGoogleProfile) stringResource(R.string.acct_use_google_photo) else null,
                     )
                 }
             }
-            user.email?.let {
-                Text(it, color = Sm.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
-            }
+        }
 
-            if (editor != AvatarEditor.Closed) {
-                // .profile-editor：上 10、左右贴到弹层边（−14）、上边 1px 线。
-                Column(
-                    Modifier.padding(top = 10.dp).requiredWidth(width)
-                        .drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) },
-                ) {
-                    EditorTabs(editor, onEditor)
-                    val photoErrorText = account.photoError?.let { photoErrorText(it, system) }
-                    if (editor == AvatarEditor.Photo) {
-                        if (picked != null) {
-                            AvatarCropper(
-                                uri = picked,
-                                saving = account.uploading,
-                                error = photoErrorText,
-                                onCancel = onCancelCrop,
-                                onSave = { bytes -> profile.uploadPhoto(bytes, AVATAR_MIME_TYPE, onPhotoSaved) },
-                            )
-                        } else {
-                            PhotoPane(hasPhoto = user.avatarUrl != null, error = photoErrorText, onUpload = onPickPhoto, onRemove = { profile.setIcon(null) })
-                        }
-                    } else {
-                        val pickerHeight = minOf(320.dp, maxOf(80.dp, configuration.screenHeightDp.dp - 220.dp))
-                        EmojiPickerBody(
-                            current = user.icon,
-                            onChange = { profile.setIcon(it) },
-                            onClose = { onEditor(AvatarEditor.Closed) },
-                            pickerHeight = pickerHeight,
-                            removeLabel = stringResource(R.string.acct_use_google_photo),
-                        )
-                    }
-                }
-            }
-
-            account.profileError?.let {
-                val text = when (it) {
-                    is ProfileError.Server -> system.localize(it.message)
-                    ProfileError.CouldNotSave -> stringResource(R.string.acct_could_not_save)
-                }
-                Text(text, color = Sm.Danger, fontSize = 12.sp, modifier = Modifier.padding(top = 10.dp))
-            }
-            // 操作区：上方 1px 分隔线，按钮行高 44、15sp，图标 14。
-            Column(
-                Modifier.padding(top = 12.dp).requiredWidth(width - 16.dp)
-                    .drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }
-                    .padding(top = 6.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp),
-            ) {
-                if (customized) {
-                    ProfileAction(Lucide.RotateCcw, stringResource(R.string.use_google_profile)) {
-                        draft = user.googleName ?: ""
-                        profile.resetToGoogle()
-                    }
-                }
-                // 设置（网页 onOpenSettings）：关掉弹层再开设置窗口；输入中的名字和关弹层时一样先存掉。
-                // 照片上传中不开（弹层一关，失败的提示就没地方显示，和 canClose 同一条规则）。
-                ProfileAction(Lucide.Settings, stringResource(R.string.acct_settings)) {
-                    if (canClose()) {
-                        profile.saveName(draft)
-                        onOpenSettings()
-                    }
-                }
-                // 网页靠 blur 先把输入中的名字存掉；这里点按钮不会抢焦点，所以先排进保存队列，signOut 会等它发完。
-                ProfileAction(Lucide.LogOut, stringResource(R.string.sign_out)) {
-                    profile.saveName(draft)
-                    onSignOut()
-                }
+        if (customized && hasGoogleProfile) {
+            SettingsInlineAction(Lucide.RotateCcw, stringResource(R.string.use_google_profile), enabled = true) {
+                onDraft(user.googleName ?: "")
+                profile.resetToGoogle()
             }
         }
+    }
+}
+
+// .settings-inline-action（手机）：最小高 44、上 10、左右 −8（内边距 8 抵掉）、圆角 6、15 字、图标 14 + 间距 8；不可用时 0.55。
+@Composable
+internal fun SettingsInlineAction(icon: List<String>, label: String, enabled: Boolean, onClick: () -> Unit) {
+    val alpha = if (enabled) 1f else 0.55f
+    Row(
+        Modifier.padding(top = 10.dp).offset(x = (-8).dp).heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LucideIcon(icon, 14.dp, Sm.Text.copy(alpha = alpha))
+        Text(label, color = Sm.Text.copy(alpha = alpha), fontSize = 15.sp)
     }
 }
 
@@ -459,12 +359,6 @@ private fun ProfileMenu(
 private const val MAX_DISPLAY_NAME = 40
 
 private val FocusRing = Color(0x332383E2)
-
-/** 关弹层前把输入中的名字存掉（网页卸载时的 flushRef）。 */
-private fun onSaveNameAndClose(draft: String, profile: AccountViewModel, onDismiss: () -> Unit) {
-    profile.saveName(draft)
-    onDismiss()
-}
 
 @Composable
 private fun photoErrorText(error: PhotoError, system: com.kakumine.notefable.data.SystemTextTranslator): String = when (error) {
@@ -564,18 +458,6 @@ private fun PhotoPane(hasPhoto: Boolean, error: String?, onUpload: () -> Unit, o
         error?.let {
             Text(it, color = Sm.Danger, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 10.dp))
         }
-    }
-}
-
-@Composable
-private fun ProfileAction(icon: List<String>, label: String, onClick: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onClick).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        LucideIcon(icon, 14.dp, Sm.Text)
-        Text(label, color = Sm.Text, fontSize = 15.sp)
     }
 }
 
