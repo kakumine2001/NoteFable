@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 /** 抽屉和首页在看聊天还是笔记（网页的 Chat / Note 切换）。 */
 enum class Workspace { Chat, Notes }
@@ -553,15 +554,25 @@ class NotesViewModel(
         if (_state.value.open?.id == page.id) pushPageSettings?.invoke(page)
     }
 
-    suspend fun setFavorite(pageId: String, favorite: Boolean): Boolean = groupAction {
-        val page = backend.setFavorite(pageId, favorite)
-        Pair({ applyMeta(page) }, true)
-    } ?: false
+    /** 每篇页面的收藏、设置一次只发一个请求：连点几个开关时，后发的请求后回来，旧的应答不会盖掉新的设置。 */
+    private val metaLocks = HashMap<String, kotlinx.coroutines.sync.Mutex>()
 
-    suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = groupAction {
-        val page = backend.updateSettings(pageId, settings)
-        Pair({ applyMeta(page) }, true)
-    } ?: false
+    private suspend fun <T> serialMeta(pageId: String, run: suspend () -> T): T =
+        metaLocks.getOrPut(pageId) { kotlinx.coroutines.sync.Mutex() }.withLock { run() }
+
+    suspend fun setFavorite(pageId: String, favorite: Boolean): Boolean = serialMeta(pageId) {
+        groupAction {
+            val page = backend.setFavorite(pageId, favorite)
+            Pair({ applyMeta(page) }, true)
+        } ?: false
+    }
+
+    suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = serialMeta(pageId) {
+        groupAction {
+            val page = backend.updateSettings(pageId, settings)
+            Pair({ applyMeta(page) }, true)
+        } ?: false
+    }
 
     /**
      * 复制这一篇和子页面（网页 Duplicate），复制完打开复制件。服务端复制的是已保存的内容，

@@ -94,7 +94,7 @@ class NotesViewModelTest {
             return pages.first { it.id == id }.copy(favoritedAt = if (favorite) "2026-11-16T00:00:00Z" else null)
         }
         override suspend fun updateSettings(id: String, settings: com.kakumine.notefable.data.NotePageSettings): NotePageSummary {
-            calls += "settings:$id"; maybeFail()
+            calls += "settings:$id"; maybeFail(); hold("settings:${settings.font ?: ""}")
             val page = pages.first { it.id == id }
             return page.copy(fullWidth = settings.fullWidth ?: page.fullWidth, smallText = settings.smallText ?: page.smallText,
                 font = settings.font ?: page.font, locked = settings.locked ?: page.locked)
@@ -740,5 +740,22 @@ class NotesViewModelTest {
         ))
         assertEquals(listOf("y", "x"), next.map { it.id })
         assertEquals("p", next[1].parentId)
+    }
+
+    @Test
+    fun `settings for one page are sent one at a time so a late answer cannot undo a newer choice`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val first = CompletableDeferred<Unit>()
+        backend.holds["settings:serif"] = first
+        val a = async { vm.updateSettings("a", com.kakumine.notefable.data.NotePageSettings(font = "serif")) }
+        val b = async { vm.updateSettings("a", com.kakumine.notefable.data.NotePageSettings(font = "mono")) }
+        runCurrent()
+        // 第二个请求要等第一个回来才发。
+        assertEquals(listOf("settings:a"), backend.calls.filter { it.startsWith("settings") })
+        first.complete(Unit)
+        a.await(); b.await()
+        assertEquals("mono", vm.state.value.pages.first { it.id == "a" }.font)
+        assertEquals(2, backend.calls.count { it == "settings:a" })
     }
 }
