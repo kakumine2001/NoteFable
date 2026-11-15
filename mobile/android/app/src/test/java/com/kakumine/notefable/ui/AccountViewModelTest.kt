@@ -66,6 +66,14 @@ class AccountViewModelTest {
             user = null
         }
 
+        var failDelete: Throwable? = null
+
+        override suspend fun deleteAccount() {
+            calls += "delete"
+            failDelete?.let { throw it }
+            user = null
+        }
+
         var emailEnabled = false
         var failEmail: Throwable? = null
 
@@ -292,6 +300,28 @@ class AccountViewModelTest {
         assertTrue(identityChanged)
         assertNull(vm.state.value.user)
         assertTrue(backend.calls.contains("signOut"))
+    }
+
+    @Test
+    fun `deleting the account signs out locally only after the server deleted it`() = runTest(dispatcher) {
+        val backend = FakeAccount().apply { user = AccountUser(name = "Ann", googleName = "Ann") }
+        val vm = model(backend, FakeProfile(backend))
+        advanceUntilIdle()
+
+        backend.failDelete = IOException("offline")
+        var cleared = false
+        val failure = vm.deleteAccount(clearDeviceChoice = { cleared = true })
+        advanceUntilIdle()
+        assertTrue(failure is IOException)
+        assertFalse("failed: still signed in", cleared)
+        assertEquals("Ann", vm.state.value.user?.name)
+
+        backend.failDelete = null
+        assertNull(vm.deleteAccount(clearDeviceChoice = { cleared = true }))
+        advanceUntilIdle()
+        assertTrue(cleared)
+        assertNull(vm.state.value.user)
+        assertEquals(2, backend.calls.count { it == "delete" })
     }
 
     @Test

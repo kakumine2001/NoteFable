@@ -2725,3 +2725,9 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 /* 共通指示・参照ノートを持つプロジェクトの行に付ける小さな目印。 */
 .chat-project-hint { flex: none; color: var(--notion-faint); }
+/* 設定の「アカウントを削除」。押すとその場に確認を出す（ダイアログを重ねない）。 */
+.settings-danger-action { display: flex; margin-top: 2px; color: #b91c1c; }
+.settings-delete-confirm { margin-top: 10px; padding: 12px; border: 1px solid rgba(185, 28, 28, 0.25); border-radius: 8px; background: rgba(185, 28, 28, 0.04); font-size: 14px; line-height: 1.5; }
+.settings-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+/* 回答の「報告」ダイアログの理由欄（.notes-dialog-input の複数行版）。 */
+.answer-report-dialog .answer-report-reason { min-height: 6rem; resize: vertical; line-height: 1.5; }

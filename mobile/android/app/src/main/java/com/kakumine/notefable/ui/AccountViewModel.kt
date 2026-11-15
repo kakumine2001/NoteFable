@@ -228,6 +228,21 @@ class AccountViewModel(
         SignInError.Offline
     }
 
+    /**
+     * 永久删除账号（网页设置的 DeleteAccount）。成功返回 null，之后和退出一样回到未登录；失败返回原因，账号不变。
+     * 先等资料的保存送完（和 signOut 一样），免得删除后还在发 PATCH。
+     */
+    suspend fun deleteAccount(clearDeviceChoice: suspend () -> Unit): Throwable? {
+        saves.withLock { }
+        val failure = runCatching { backend.deleteAccount() }.exceptionOrNull()
+        if (failure != null) return failure
+        runCatching { clearDeviceChoice() }
+        _state.update { it.copy(profileError = null, photoError = null, uploading = false) }
+        setConfirmed(null)
+        refresh()
+        return null
+    }
+
     fun signOut(clearDeviceChoice: suspend () -> Unit, onSignedOut: () -> Unit) {
         viewModelScope.launch {
             // 网页 settled()：刚改的名字 / 图标 / 照片先送完再退出（退出后再送会 401）。

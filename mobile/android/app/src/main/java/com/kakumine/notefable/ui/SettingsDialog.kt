@@ -65,7 +65,7 @@ fun customInstructionsChanged(initial: String, draft: String): Boolean = draft.t
  * 头部 16/16/8（标题 16/600，没有副标题）；正文左右 16、下 16；底部 1px 线 + 取消 / 保存靠右。返回键和点遮罩关闭，保存中不关。
  */
 @Composable
-fun SettingsDialog(profile: AccountViewModel, onClose: () -> Unit) {
+fun SettingsDialog(profile: AccountViewModel, deleteAccount: suspend () -> Throwable?, onClose: () -> Unit) {
     var attempt by remember { mutableIntStateOf(0) }
     // 读到的指令；null 是还没读到。
     var initial by remember { mutableStateOf<String?>(null) }
@@ -73,6 +73,8 @@ fun SettingsDialog(profile: AccountViewModel, onClose: () -> Unit) {
     var instructions by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<Throwable?>(null) }
+    // 正在删除账号：和保存中一样不关对话框、不让按按钮。
+    var deleting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
 
@@ -101,7 +103,7 @@ fun SettingsDialog(profile: AccountViewModel, onClose: () -> Unit) {
         }
     }
 
-    Dialog(onDismissRequest = { if (!busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    Dialog(onDismissRequest = { if (!busy && !deleting) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
         LaunchedEffect(window) { window?.setDimAmount(0.2f) }
         Column(
@@ -146,16 +148,17 @@ fun SettingsDialog(profile: AccountViewModel, onClose: () -> Unit) {
                         color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 12.dp),
                     )
                 }
+                DeleteAccountSection(enabled = !busy, onBusyChange = { deleting = it }, deleteAccount = deleteAccount, onDeleted = onClose)
             }
             Box(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(Sm.Border))
             Row(
                 Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
             ) {
-                NotionButton(stringResource(R.string.cancel), onClick = onClose, enabled = !busy)
+                NotionButton(stringResource(R.string.cancel), onClick = onClose, enabled = !busy && !deleting)
                 NotionButton(
                     stringResource(if (busy) R.string.sb_saving else R.string.save), onClick = save,
-                    enabled = !busy && initial != null, primary = true,
+                    enabled = !busy && !deleting && initial != null, primary = true,
                 )
             }
         }

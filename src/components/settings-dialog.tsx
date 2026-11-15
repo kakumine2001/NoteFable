@@ -1,10 +1,10 @@
 "use client";
 
-import { LoaderCircle, LogOut } from "lucide-react";
+import { LoaderCircle, LogOut, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
-import { useI18n } from "@/components/i18n-provider";
+import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { saveProfile, uploadPhoto, useAccount } from "@/lib/account-store";
 import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/locale";
@@ -68,6 +68,48 @@ function LanguageSettings({ user }: { user: AccountUser }) {
         {saved && <button type="button" className="notion-button mt-2" onClick={() => setPreference(saved)}>{t("Try again")}</button>}
       </>}
     </section>
+  );
+}
+
+// アカウントの完全削除（Google Play のアカウント削除要件）。押すとその場で確認を出し、もう一度押したら消す。
+// 消えたらログインと端末の Cookie もサーバーが消すので、言語の選択を忘れてトップページから読み直す。
+function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyChange: (busy: boolean) => void }) {
+  const { t } = useI18n();
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [error, setError] = useState("");
+  const warningId = useId();
+
+  async function remove() {
+    setDeleting(true); setError(""); onBusyChange(true);
+    try {
+      const response = await fetch("/api/account", { method: "DELETE" });
+      const data = await readJson(response);
+      if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));
+      forgetLocaleChoice();
+      window.location.replace("/");
+    } catch (reason) {
+      setError(reason instanceof Error && reason.message ? reason.message : msg("Could not delete your account. Please try again."));
+      setDeleting(false); onBusyChange(false);
+    }
+  }
+
+  if (!confirming) {
+    return <button type="button" className="settings-inline-action settings-danger-action" disabled={disabled} onClick={() => setConfirming(true)}>
+      <Trash2 size={14} />{t("Delete account")}
+    </button>;
+  }
+  return (
+    <div className="settings-delete-confirm" role="group" aria-labelledby={warningId}>
+      <p id={warningId}>{t("Permanently delete your account and everything in it: chats, notes, files and settings. This can’t be undone.")}</p>
+      {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
+      <div className="settings-delete-actions">
+        <button type="button" autoFocus className="notion-button" disabled={deleting} onClick={() => { setConfirming(false); setError(""); }}>{t("Cancel")}</button>
+        <button type="button" className="notion-button notes-delete" disabled={deleting} onClick={() => void remove()}>
+          {deleting ? t("Deleting…") : t("Delete permanently")}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -175,6 +217,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
               setSigningOut(false); setSignOutError(failure);
             }}><LogOut size={14} />{t("Sign out")}</button>
           {signOutError && <p role="alert" className="project-settings-error">{localizeSystemText(signOutError, t)}</p>}
+          <DeleteAccount disabled={busy || signingOut || photoBusy} onBusyChange={(value) => { locked.current = value; }} />
         </section>
       </div>
       <div className="project-settings-footer">

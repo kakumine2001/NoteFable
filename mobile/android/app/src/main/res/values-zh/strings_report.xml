@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 报告 AI 回答（网页 answer-actions.tsx 的 ReportAnswerDialog）。 -->
+<resources>
+    <string name="report_answer">报告回答</string>
+    <string name="report_title">报告这条回答</string>
+    <string name="report_help">告诉我们这条回答有什么问题。报告会连同你的提问一起发给 NoteFable 团队。</string>
+    <string name="report_reason_placeholder">有什么问题？（选填）</string>
+    <string name="report_send">发送报告</string>
+    <string name="report_sending">正在发送…</string>
+    <string name="report_sent">报告已发送，谢谢。</string>
+    <string name="report_failed">无法发送报告。</string>
+</resources>

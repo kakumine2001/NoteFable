@@ -1,5 +1,7 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
+import { deleteAccount } from "@/lib/account-deletion";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
+import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
@@ -76,4 +78,37 @@ export async function PATCH(request: Request) {
     updated = await prisma.user.update({ where: { id: row.id }, data: parsed.data });
   }
   return NextResponse.json({ user: toAccountUser(updated, google) });
+}
+
+// アカウントを完全に削除する（設定の「アカウントを削除」、Google Play のアカウント削除要件）。ログインしている本人だけ。
+// 消した後はログインと端末の Cookie も消す。残すと、次のリクエストで同じ Google / メールの空のアカウントがすぐ作り直される。
+// 原生アプリの要求は Origin を付けないので通す（isSameOrigin）。
+export async function DELETE(request: NextRequest) {
+  if (!isAccountLoginConfigured()) {
+    return NextResponse.json({ error: msg("Sign-in is not enabled.") }, { status: 404 });
+  }
+  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
+    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  }
+
+  const google = await currentAccountProfile().catch(() => null);
+  if (!google) {
+    return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
+  }
+  const row = await getOrCreateUser();
+  if (!isAccountUser(row)) {
+    return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
+  }
+
+  const { failed } = await deleteAccount(row);
+  if (failed.length) console.error(`Account ${row.id} deleted; ${failed.length} stored file(s) could not be removed.`);
+
+  const response = NextResponse.json({ deleted: true });
+  const secure = isSecureRequest(request);
+  for (const { name } of request.cookies.getAll()) {
+    if (/^(__Secure-|__Host-)?authjs\./.test(name) || name === "notefable_device") {
+      response.cookies.set(name, "", { httpOnly: true, secure: secure || name.startsWith("__"), path: "/", maxAge: 0 });
+    }
+  }
+  return response;
 }

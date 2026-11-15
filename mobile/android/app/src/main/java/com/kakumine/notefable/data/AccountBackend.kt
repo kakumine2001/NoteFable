@@ -17,4 +17,7 @@ interface AccountBackend {
     suspend fun emailSignInVerify(email: String, code: String)
 
     suspend fun signOut()
+
+    /** `DELETE /api/account`：永久删除登录中的账号和其中全部数据（网页设置的"删除账号"）。成功后本地的登录和设备 Cookie 也删掉。 */
+    suspend fun deleteAccount()
 }

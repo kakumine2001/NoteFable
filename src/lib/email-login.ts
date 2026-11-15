@@ -170,12 +170,20 @@ export class EmailSendError extends Error {}
 // Resend の API で送る。鍵が無い開発環境では送らず、サーバーのログにコードを出す。
 export async function sendLoginEmail(to: string, code: string, locale: Locale, fetcher: typeof fetch = fetch) {
   const content = loginEmailContent(code, locale);
+  const sent = await sendEmail({ to, subject: content.subject, text: content.text, html: content.html }, fetcher);
+  if (!sent) console.info(`[email-login] code for ${to}: ${code}`);
+}
+
+// Resend でメールを 1 通送る。送ったら true、鍵が無い開発環境では送らずに false（本番で鍵が無いのはエラー）。
+export async function sendEmail(
+  message: { to: string; subject: string; text: string; html?: string; replyTo?: string },
+  fetcher: typeof fetch = fetch,
+) {
   const apiKey = optionalEnv("RESEND_API_KEY");
   const from = optionalEnv("EMAIL_FROM");
   if (!apiKey || !from) {
     if (process.env.NODE_ENV === "production") throw new EmailSendError("Email sending is not configured.");
-    console.info(`[email-login] code for ${to}: ${code}`);
-    return;
+    return false;
   }
 
   let response: Response;
@@ -183,10 +191,15 @@ export async function sendLoginEmail(to: string, code: string, locale: Locale, f
     response = await fetcher("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from, to: [to], subject: content.subject, text: content.text, html: content.html }),
+      body: JSON.stringify({
+        from, to: [message.to], subject: message.subject, text: message.text,
+        ...(message.html ? { html: message.html } : {}),
+        ...(message.replyTo ? { reply_to: message.replyTo } : {}),
+      }),
     });
   } catch (error) {
     throw new EmailSendError("Could not reach the email service.", { cause: error });
   }
   if (!response.ok) throw new EmailSendError(`The email service answered ${response.status}.`);
+  return true;
 }

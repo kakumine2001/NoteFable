@@ -266,6 +266,8 @@ User 1 -> N Session
 
 删除用户会级联删除 Session。
 
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行和 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件删失败只记日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话和 `notefable_device`，否则下一次请求会用同一个 Google / 邮箱身份立刻建出一个空账号；其他设备上仍有效的会话 Cookie 下次请求时也会这样建出新的空账号（不会恢复数据）。公开说明页是 `/delete-account`。
+
 ### UsageCounter
 
 每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
@@ -276,7 +278,7 @@ User 1 -> N Session
 | member | 已登录（Google 或邮箱） | 100 | 20 |
 | pro | `plan = PRO` | 1000 | 200 |
 
-未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。
+未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。`kind = report` 的行是“报告回答”的每日次数（每个用户 10 次，`src/lib/answer-report.ts`），不属于用量档位。
 
 ### EmailLoginCode
 

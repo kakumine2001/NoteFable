@@ -95,6 +95,7 @@ fun SidebarFooter(
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
     profile: AccountViewModel,
+    deleteAccount: suspend () -> Throwable? = { null },
 ) {
     Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
         LanguageSelect()
@@ -105,7 +106,7 @@ fun SidebarFooter(
                     // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
                     SignInButton(onClick = onSignIn)
                 } else {
-                    ProfileRow(user, account, profile, onSignOut)
+                    ProfileRow(user, account, profile, onSignOut, deleteAccount)
                 }
             }
         }
@@ -163,7 +164,7 @@ private fun pickedTypeAndSize(context: Context, uri: Uri): Pair<String?, Long?> 
 
 // 登录后的账号行（.notion-sidebar-action.profile-row）：头像 22、名字、右侧上下箭头；点开是个人资料弹层。
 @Composable
-private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit) {
+private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: AccountViewModel, onSignOut: () -> Unit, deleteAccount: suspend () -> Throwable?) {
     var open by rememberSaveable { mutableStateOf(false) }
     // 编辑区和选好的照片放在这里而不是弹层里：选择器回来时（哪怕 Activity 重建）弹层还没组合好，结果也接得住。
     var editor by rememberSaveable { mutableStateOf(AvatarEditor.Closed) }
@@ -248,7 +249,7 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
                 onSignOut = { close(); onSignOut() },
             )
         }
-        if (settingsOpen) SettingsDialog(profile, onClose = { settingsOpen = false })
+        if (settingsOpen) SettingsDialog(profile, deleteAccount = deleteAccount, onClose = { settingsOpen = false })
     }
 }
 

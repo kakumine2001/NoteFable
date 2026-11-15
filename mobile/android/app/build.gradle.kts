@@ -10,12 +10,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Google 登录用 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + 这台电脑的 debug 签名）。
+        // Google 登录用 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + 各签名的 SHA-1，见 docs/architecture/android.md）。
         applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 8
-        versionName = "0.5.0"
+        versionCode = 9
+        versionName = "1.0.0"
 
         val baseUrl = (project.findProperty("notefable.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
@@ -24,11 +24,21 @@ android {
         manifestPlaceholders["notefableHost"] = baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')
     }
 
+    // Google Play 的上传密钥。密钥库和密码不进仓库：写在本机的 ~/.gradle/gradle.properties（notefable.upload.*），
+    // 所有 worktree 共用。没有配置的电脑上 release 包退回 debug 签名，只能自己侧载试用，不能上传 Play。
+    val uploadStore = providers.gradleProperty("notefable.upload.storeFile").orNull
+    if (uploadStore != null) {
+        signingConfigs.create("upload") {
+            storeFile = file(uploadStore)
+            storePassword = providers.gradleProperty("notefable.upload.storePassword").get()
+            keyAlias = providers.gradleProperty("notefable.upload.keyAlias").get()
+            keyPassword = providers.gradleProperty("notefable.upload.keyPassword").get()
+        }
+    }
+
     buildTypes {
         release {
-            // 过渡方案：用 debug 密钥签名，才能直接安装到手机侧载试用（和现有 Capacitor 外壳一致）。
-            // 上架 Google Play 或给别人用之前，换成自己的正式密钥（密钥和密码不进仓库）。
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("upload") ?: signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")

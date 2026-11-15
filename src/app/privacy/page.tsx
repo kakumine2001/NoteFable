@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
 
 export const metadata: Metadata = {
@@ -33,6 +34,20 @@ export default function PrivacyPage() {
             account so your chats and Notes follow you to other devices, and to show your name in the sidebar. If you choose your own display name, emoji icon or
             profile photo, we store those too and show them instead.
             We do not request access to your Gmail, Drive, Calendar, contacts or any other Google data.
+          </li>
+          <li>
+            <strong>Email sign-in (optional).</strong> If you sign in with an email code, we store your email address with your account and send the
+            six-digit code to it. We keep only a hash of the code, delete it once it is used or expires, and keep a hash of the requesting network address
+            for a short time to limit abuse.
+          </li>
+          <li>
+            <strong>Reports.</strong> If you report an AI answer, the reason you give, that answer, the message before it and your internal account ID are
+            emailed to us so we can review it. We keep the email only as long as we need it for the review.
+          </li>
+          <li>
+            <strong>The Android app.</strong> The app stores the same cookies on your phone and sends the same data as the website. It reads only the photos
+            and files you pick, and photos you take with your camera app; it does not read your contacts, location or advertising ID, and it contains no ads
+            or third-party analytics. Images you save go to your photo gallery.
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
@@ -84,6 +99,9 @@ export default function PrivacyPage() {
             <strong>Google</strong>, only for signing in, if you choose to.
           </li>
           <li>
+            <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in with email.
+          </li>
+          <li>
             Authorities, if we are legally required to disclose data.
           </li>
         </ul>
@@ -102,8 +120,15 @@ export default function PrivacyPage() {
         <p>
           We keep your data until you delete it. You can delete a chat or a note in NoteFable. That removes it from your account in our database, including the
           messages and note edit proposals tied to that chat. Copies of uploaded images, generated images, note files and cover images can remain in file storage
-          until we remove them. There is no delete-account button, and signing out does not delete anything. To delete your account, email
-          {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> and within 30 days we will delete your account record, its database rows and the stored files we can still link to you.
+          until we remove them. Signing out does not delete anything.
+        </p>
+        <p>
+          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Delete account</em> on the website or in the Android app. This immediately and
+          permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
+          and settings. Database backups that may still contain it are overwritten within 30 days. If you cannot sign in, email
+          {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
+          Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
+          {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.
         </p>
       </LegalSection>
 
