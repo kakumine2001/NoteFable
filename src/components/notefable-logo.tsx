@@ -1,3 +1,5 @@
+import { AppIcon } from "@/components/app-icon";
+
 // NoteFable のロゴマーク（ノートとしおり）。紹介ページ・ワークスペース・アプリアイコンで同じ形を使う。
 export function BrandMark({ size = 26 }: { size?: number }) {
   return (
@@ -8,10 +10,11 @@ export function BrandMark({ size = 26 }: { size?: number }) {
   );
 }
 
+// ワークスペースのサイドバーに出すロゴ。設定でアイコンを替えていれば、その絵文字・画像になる。
 export function NoteFableLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="nf-logo" role="img" aria-label="NoteFable">
-      <BrandMark size={20} />
+      <AppIcon size={20} />
       {!compact && <span aria-hidden="true">NoteFable</span>}
     </div>
   );

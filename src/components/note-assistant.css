@@ -4,6 +4,10 @@
   border-radius: 999px; border: 1px solid var(--notion-border-strong); background: var(--notion-bg); color: var(--notion-text);
   box-shadow: var(--notion-shadow); transition: transform 120ms ease, background-color 120ms ease;
 }
+/* 好きな場所へドラッグできる。指で動かしてもページがスクロールしないようにする。 */
+.note-ai-fab { touch-action: none; user-select: none; -webkit-user-select: none; }
+.note-ai-fab.is-dragging { cursor: grabbing; transition: none; }
+.note-ai-fab.is-dragging:active { transform: none; }
 .note-ai-fab:hover { background: var(--notion-hover); }
 .note-ai-fab:active { transform: scale(0.95); }
 .note-ai-fab.is-open { background: var(--notion-blue); border-color: var(--notion-blue); color: #fff; }

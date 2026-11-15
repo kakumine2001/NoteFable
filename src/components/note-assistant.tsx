@@ -1,8 +1,9 @@
 "use client";
 
-import { ArrowUp, Sparkles, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type UIEvent } from "react";
+import { ArrowUp, X } from "lucide-react";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
+import { AppIcon } from "@/components/app-icon";
 import { ChatMessage } from "@/components/chat-message";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
@@ -16,6 +17,7 @@ import type { Message } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
+import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { UsageLimitError, usageLimitErrorFrom } from "@/lib/usage-plans";
 
 // よく使う頼み事。押すとそのまま送る。
@@ -67,7 +69,7 @@ async function streamChat(
   }
 }
 
-// ノートを開いたまま使う AI アシスタント。右下の丸いボタンで開き、頼んだ内容は「編集案」として出る。
+// ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
 // ノートは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。
 export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   noteId: string;
@@ -101,6 +103,63 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const listRef = useRef<HTMLDivElement>(null);
   const phone = useMediaQuery("(max-width: 639px)");
   const close = () => setOpen(false);
+
+  // 丸いボタンの位置。null は動かしていない（CSS の既定位置＝右下）。
+  const [fabPosition, setFabPosition] = useState<FabPosition | null>(() => (typeof window === "undefined" ? null : loadFabPosition()));
+  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0 } : { width: window.innerWidth, height: window.innerHeight }));
+  const [dragging, setDragging] = useState(false);
+  const drag = useRef<{ pointerId: number; startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
+  // ドラッグを終えた直後のクリックでは開閉しない。
+  const skipClick = useRef(false);
+  const fabSize = phone ? 52 : 48;
+  // 画面が小さくなっても、ボタンは必ず画面の中に置く。
+  const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
+
+  useEffect(() => {
+    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+
+  function onFabPointerDown(event: PointerEvent<HTMLButtonElement>) {
+    skipClick.current = false;
+    if (event.button !== 0) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.bottom, moved: false };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  // 押した位置からの動きを、そのままボタンの位置にする。小さな動きは「押した」とみなして動かさない。
+  function draggedPosition(event: PointerEvent<HTMLButtonElement>) {
+    const state = drag.current;
+    if (!state || state.pointerId !== event.pointerId) return null;
+    const dx = event.clientX - state.startX;
+    const dy = event.clientY - state.startY;
+    if (!state.moved && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD) return null;
+    state.moved = true;
+    return clampFabPosition({ right: state.right - dx, bottom: state.bottom - dy }, event.currentTarget.offsetWidth, window.innerWidth, window.innerHeight);
+  }
+
+  function onFabPointerMove(event: PointerEvent<HTMLButtonElement>) {
+    const next = draggedPosition(event);
+    if (!next) return;
+    setDragging(true);
+    setFabPosition(next);
+  }
+
+  function onFabPointerEnd(event: PointerEvent<HTMLButtonElement>) {
+    const state = drag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const next = draggedPosition(event);
+    drag.current = null;
+    setDragging(false);
+    if (!state.moved) return;
+    skipClick.current = true;
+    if (next) { setFabPosition(next); saveFabPosition(next); }
+  }
+
+  // PC では、動かしたボタンのそばにパネルを開く。動かしていなければ CSS の既定位置（右下）のまま。
+  const panelStyle = fab && !phone ? panelPlacement(fab, fabSize, Math.min(416, viewport.width - 40), viewport.width, viewport.height) : undefined;
 
   // スマホではシートとして開き、端末の「戻る」で閉じられるようにする。
   useBackToClose(open && phone, close);
@@ -221,10 +280,10 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
 
   const panel = (
-    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} role="dialog" aria-label={t("Ask AI about this note")}>
+    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-label={t("Ask AI about this note")}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
-        <Sparkles size={16} aria-hidden="true" />
+        <AppIcon size={16} />
         <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
@@ -256,9 +315,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
 
   return (
     <>
-      <button type="button" className={`note-ai-fab ${open ? "is-open" : ""}`} onClick={() => setOpen((current) => !current)}
+      <button type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""}`}
+        style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
+        onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
+        onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
         aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
-        <Sparkles size={20} />
+        <AppIcon size={24} />
       </button>
       {open && (phone
         ? createPortal(
