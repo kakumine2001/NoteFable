@@ -35,6 +35,14 @@ describe("parseProfilePatch", () => {
     expect(parseProfilePatch({ icon: null, displayName: "" })).toEqual({ ok: true, data: { avatarIcon: null, displayName: null } });
   });
 
+  it("accepts a supported display language but not automatic or unknown ones", () => {
+    expect(parseProfilePatch({ locale: "ja" })).toEqual({ ok: true, data: { locale: "ja" } });
+    expect(parseProfilePatch({ locale: "zh-Hant" })).toEqual({ ok: true, data: { locale: "zh-Hant" } });
+    for (const locale of [null, "auto", "fr", "", 5]) {
+      expect(parseProfilePatch({ locale })).toEqual({ ok: false, error: "Choose one of the listed languages." });
+    }
+  });
+
   it.each([[null], ["x"], [[]], [{}], [{ other: 1 }], [{ icon: "abc" }], [{ icon: "📚📚" }], [{ icon: 5 }], [{ displayName: 5 }]])(
     "rejects %j",
     (body) => {
@@ -60,6 +68,13 @@ describe("toAccountUser", () => {
     expect(toAccountUser({ displayName: "Kaku", avatarIcon: "🦊", avatarImage: null }, google)).toMatchObject({
       name: "Kaku", googleName: "Mine Kaku", image: "https://example.com/p.png", displayName: "Kaku", icon: "🦊",
     });
+  });
+
+  it("returns the chosen display language and drops unknown stored values", () => {
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "zh-Hant" }, google).locale).toBe("zh-Hant");
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "fr" }, google).locale).toBeNull();
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: null }, google).locale).toBeNull();
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null }, google).locale).toBeUndefined();
   });
 });
 

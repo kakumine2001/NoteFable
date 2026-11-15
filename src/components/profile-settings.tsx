@@ -1,48 +1,34 @@
 "use client";
 
-import { ImagePlus, LogOut, Pencil, RotateCcw, Settings, Trash2 } from "lucide-react";
-import { createPortal } from "react-dom";
-import { useEffect, useRef, useState, type ChangeEvent } from "react";
+import { ImagePlus, Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState, type ChangeEvent, type RefObject } from "react";
 import { AvatarCropper } from "@/components/avatar-cropper";
-import { EmojiPickerBody, Popover } from "@/components/emoji-picker";
+import { EmojiPickerBody } from "@/components/emoji-picker";
 import { UserAvatar } from "@/components/user-avatar";
-import { MAX_DISPLAY_NAME, type AccountUser, type ProfilePatch } from "@/lib/user-profile";
+import { MAX_DISPLAY_NAME, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
 import { useT } from "@/components/i18n-provider";
-import { localizeSystemText, msg } from "@/lib/i18n/translate";
-
-export type MenuPosition = { left: number; bottom: number; width: number; maxHeight: number };
+import { msg } from "@/lib/i18n/translate";
 
 // 選んだ写真の上限（切り抜く前の元の写真）。送るのは 512px に切り抜いた画像。
 const MAX_PICKED_BYTES = 10 * 1024 * 1024;
 
-// 押した行の真上に出す位置。サイドバーは画面の下端にあるので、行の上へ向けて開く。
-export function menuPositionFor(anchor: DOMRect): MenuPosition {
-  const margin = 12;
-  const width = Math.min(300, window.innerWidth - margin * 2);
-  const left = Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
-  // 行の上に使える高さに収める。背の低い画面（横向きなど）では、メニューの中を縦にスクロールできる。
-  return { left, bottom: window.innerHeight - anchor.top + 6, width, maxHeight: Math.max(160, anchor.top - 6 - margin) };
-}
-
-type ProfileMenuProps = {
-  user: AccountUser;
-  position: MenuPosition;
-  trigger: { current: HTMLElement | null };
-  error: string;
-  onSave: (patch: { displayName?: string | null; icon?: string | null }) => void;
-  // 切り抜いた写真を保存する。失敗したときはその理由の文を返し、成功したら空文字を返す。
-  onUpload: (photo: Blob) => Promise<string>;
-  // 設定ダイアログ（カスタム指示）を開く。メニューは呼び出し側が閉じる。
-  onOpenSettings: () => void;
-  onSignOut: () => void;
-  onClose: () => void;
-};
-
 type Editor = "closed" | "photo" | "emoji";
 
-// プロフィール。顔（写真をアップロード・絵文字を選ぶ）・名前（書き換えられる）・メール・Google の表示に戻すボタン・設定・ログアウト。
-// スクロールする一覧の外（body）に固定位置で出すので、サイドバーに裁ち切られない。
-export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, onOpenSettings, onSignOut, onClose }: ProfileMenuProps) {
+// 設定画面が閉じてよいかを尋ねる。写真・絵文字の編集中は、まずその編集だけを閉じて false を返す。
+// ファイル選択中と写真の送信中も false（閉じると失敗の知らせを出す場所がなくなる）。
+export type ProfileCloseGuard = RefObject<() => boolean>;
+
+// 設定画面の「プロフィール」。顔（写真をアップロード・絵文字を選ぶ）・名前・メール・Google の表示に戻すボタン。
+// 名前・写真・絵文字は変えたその場で保存する（account-store が順番に送る）。
+export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhotoBusyChange }: {
+  user: AccountUser;
+  onSave: (patch: ProfileEdit) => void;
+  // 切り抜いた写真を保存する。失敗したときはその理由の文を返し、成功したら空文字を返す。
+  onUpload: (photo: Blob) => Promise<string>;
+  closeGuardRef: ProfileCloseGuard;
+  // 写真を切り抜いている間（まだ保存していない）と送っている間は true。
+  onPhotoBusyChange: (busy: boolean) => void;
+}) {
   const t = useT();
   // 入力中だけ持つ下書き（null は入力していない）。入力欄には、下書きがなければ今の名前を出す。
   const [draft, setDraft] = useState<string | null>(null);
@@ -51,10 +37,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
-  // OS のファイル選択画面が開いている間は、メニューの外のタップや Esc で閉じない（選択画面を閉じたときの操作がページへ届く環境があるため）。
+  // OS のファイル選択画面が開いている間は、Esc や外側のクリックで設定を閉じない（選択画面を閉じたときの操作がページへ届く環境があるため）。
   const filePickerOpen = useRef(false);
-  const closeRef = useRef(onClose);
-  useEffect(() => { closeRef.current = onClose; });
   useEffect(() => {
     const input = fileInput.current;
     const release = () => { filePickerOpen.current = false; };
@@ -62,14 +46,8 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
     return () => input?.removeEventListener("cancel", release);
   }, [editor, picked]);
 
-  // 位置は開いた時点で決めているので、画面の幅が変わったら閉じる。キーボードやアドレスバーによる高さだけの変化では閉じない
-  // （名前を入力しようとしてキーボードが出ただけでメニューが消えないように）。
-  useEffect(() => {
-    const width = window.innerWidth;
-    const close = () => { if (window.innerWidth !== width) closeRef.current(); };
-    window.addEventListener("resize", close);
-    return () => window.removeEventListener("resize", close);
-  }, []);
+  const photoBusy = Boolean(picked) || uploading;
+  useEffect(() => { onPhotoBusyChange(photoBusy); }, [photoBusy, onPhotoBusyChange]);
 
   const shownName = user.displayName ?? user.googleName ?? "";
 
@@ -82,7 +60,7 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
     if (value !== user.displayName) onSave({ displayName: value });
   }
 
-  // 入力途中の名前は、どんな閉じ方（外をタップ・Esc・戻るキー）でも保存する。閉じると入力欄ごと消えて blur が起きないため、閉じる時に確定する。
+  // 入力途中の名前は、どんな閉じ方（Esc・戻るキー・ボタン）でも保存する。閉じると入力欄ごと消えて blur が起きないため、閉じる時に確定する。
   const flushRef = useRef(commitName);
   useEffect(() => { flushRef.current = commitName; });
   useEffect(() => () => flushRef.current(), []);
@@ -119,18 +97,20 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
     setUploadError("");
   }
 
-  // 閉じてよいときだけ閉じる。ファイル選択中と、写真を送っている最中は閉じない（失敗の知らせが消えないように）。
-  function closeIfAllowed() {
-    if (filePickerOpen.current || uploading) return;
-    onClose();
-  }
+  useEffect(() => {
+    closeGuardRef.current = () => {
+      if (filePickerOpen.current || uploading) return false;
+      if (editor !== "closed") { switchEditor("closed"); return false; }
+      return true;
+    };
+  });
 
   const customized = Boolean(user.displayName || user.icon || user.avatarUrl);
   // メールでログインした人には Google の名前・写真が無い。「Google に戻す」系の文言は Google のプロフィールがあるときだけ。
   const hasGoogleProfile = Boolean(user.googleName || user.image);
 
-  return createPortal(
-    <Popover className="profile-menu" label={t("Profile")} trigger={trigger} onClose={closeIfAllowed} style={position}>
+  return (
+    <div className="settings-profile">
       <div className="profile-menu-head">
         <button type="button" className="profile-avatar-button" aria-label={t("Change photo or icon")} aria-expanded={editor !== "closed"}
           onClick={() => (editor === "closed" ? switchEditor("photo") : switchEditor("closed"))}>
@@ -184,21 +164,11 @@ export function ProfileMenu({ user, position, trigger, error, onSave, onUpload, 
         </div>
       )}
 
-      {error && <div className="profile-error" role="alert">{localizeSystemText(error, t)}</div>}
-
-      <div className="profile-actions">
-        {customized && hasGoogleProfile && (
-          <button type="button" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
-            <RotateCcw size={14} />{t("Use my Google name and photo")}
-          </button>
-        )}
-        {/* 写真を送っている最中は開かない（メニューが閉じると、失敗の知らせが消える）。 */}
-        <button type="button" aria-haspopup="dialog" disabled={uploading} onClick={onOpenSettings}><Settings size={14} />{t("Settings")}</button>
-        <button type="button" onClick={onSignOut}><LogOut size={14} />{t("Sign out")}</button>
-      </div>
-    </Popover>,
-    document.body,
+      {customized && hasGoogleProfile && (
+        <button type="button" className="settings-inline-action" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
+          <RotateCcw size={14} />{t("Use my Google name and photo")}
+        </button>
+      )}
+    </div>
   );
 }
-
-export type { ProfilePatch };

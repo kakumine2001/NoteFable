@@ -4,7 +4,7 @@ import { applyProfileEdit, profileEditChanges, type AccountUser } from "./user-p
 
 const base: AccountUser = {
   name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png",
-  displayName: null, icon: null, avatarUrl: null,
+  displayName: null, icon: null, avatarUrl: null, locale: null,
 };
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -50,6 +50,10 @@ describe("profile edits (pure rules)", () => {
     expect(applyProfileEdit(withPhoto, { icon: "🦊" })).toMatchObject({ icon: "🦊", avatarUrl: null });
     expect(applyProfileEdit(withPhoto, { icon: null })).toMatchObject({ icon: null, avatarUrl: null });
     expect(applyProfileEdit(withPhoto, { displayName: "Kaku" })).toMatchObject({ name: "Kaku", avatarUrl: "/api/account/avatar?v=x" });
+    // 表示言語を変えても、名前・写真はそのまま。
+    expect(applyProfileEdit(withPhoto, { locale: "ja" })).toMatchObject({ locale: "ja", avatarUrl: "/api/account/avatar?v=x" });
+    expect(profileEditChanges(base, { locale: "ja" })).toBe(true);
+    expect(profileEditChanges({ ...base, locale: "ja" }, { locale: "ja" })).toBe(false);
   });
 
   it("does not resend an edit that changes nothing", () => {

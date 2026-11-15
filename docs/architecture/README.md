@@ -76,7 +76,7 @@ flowchart LR
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx` | Trash 对话框与编辑历史/恢复对话框 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
-| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx` | 已登录用户的自定义指令（适用于所有聊天）：校验、写入系统指令，及设置对话框 |
+| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx` | 已登录用户的自定义指令（适用于所有聊天）：校验、写入系统指令；设置对话框还集中了个人资料（`profile-settings.tsx`）、界面语言和退出登录 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
 | `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/?chat=&message=` 会话链接（根页面重定向后，由 `src/app/[locale]/app/page.tsx` 打开会话） |

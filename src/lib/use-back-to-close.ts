@@ -45,6 +45,8 @@ function onKeyDown(event: KeyboardEvent) {
   const top = openSheets[openSheets.length - 1];
   if (!top) return;
   event.stopPropagation();
+  // 既定の動作も止める。<dialog> は Esc を「閉じる要求」（cancel）にもするので、止めないと close が 2 回呼ばれる。
+  event.preventDefault();
   top.close();
 }
 

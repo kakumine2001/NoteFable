@@ -23,6 +23,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
@@ -1631,6 +1632,8 @@ export default function Home() {
 
   return (
     <main className="notion-workspace flex h-dvh">
+      {/* 表示言語をアカウントに合わせる（ワークスペースに 1 つだけ）。 */}
+      <AccountLocaleSync />
       {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (

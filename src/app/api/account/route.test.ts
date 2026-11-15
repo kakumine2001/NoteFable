@@ -31,7 +31,7 @@ vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
 import { GET, PATCH } from "./route";
 
 const google = { id: "sub-1", name: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png" };
-const row = { id: "u1", googleSub: "sub-1", displayName: null, avatarIcon: null, avatarImage: null };
+const row = { id: "u1", googleSub: "sub-1", displayName: null, avatarIcon: null, avatarImage: null, locale: null };
 const photoId = "11111111-1111-4111-8111-111111111111";
 const patch = (body: unknown) => new Request("http://localhost/api/account", { method: "PATCH", body: typeof body === "string" ? body : JSON.stringify(body) });
 
@@ -61,7 +61,7 @@ describe("account profile", () => {
   it("shows the Google name and photo by default", async () => {
     const body = await (await GET()).json();
     expect(body.user).toEqual({
-      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null,
+      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null, locale: null,
     });
   });
 
@@ -72,7 +72,10 @@ describe("account profile", () => {
 
   it("still shows the Google profile when the database cannot be read", async () => {
     mocks.currentUser.mockRejectedValue(new Error("db down"));
-    expect((await (await GET()).json()).user).toMatchObject({ name: "Mine Kaku", icon: null });
+    const user = (await (await GET()).json()).user;
+    expect(user).toMatchObject({ name: "Mine Kaku", icon: null });
+    // 表示言語は分からないので返さない（「未選択」の null と区別する）。
+    expect("locale" in user).toBe(false);
   });
 
   it("saves only what was sent, on the signed-in user's own row", async () => {
@@ -119,6 +122,20 @@ describe("account profile", () => {
     await PATCH(patch({ displayName: "Kaku" }));
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { displayName: "Kaku" } });
     expect(mocks.del).not.toHaveBeenCalled();
+  });
+
+  it("saves and returns the chosen display language", async () => {
+    const response = await PATCH(patch({ locale: "ja" }));
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { locale: "ja" } });
+    expect((await response.json()).user.locale).toBe("ja");
+    mocks.currentUser.mockResolvedValue({ ...row, locale: "zh" });
+    expect((await (await GET()).json()).user.locale).toBe("zh");
+  });
+
+  it("rejects automatic or unknown display languages", async () => {
+    for (const locale of ["auto", null, "fr"]) expect((await PATCH(patch({ locale }))).status).toBe(400);
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("shows the uploaded photo's URL", async () => {

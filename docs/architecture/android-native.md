@@ -55,7 +55,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 笔记空状态 | 上距 120；文件图标 28（线宽 1.4、浅灰）；"Notes"40/750、行高 50、上 16；说明 15/24 灰（"/"等宽键帽）；"新笔记"高 32、上 24；存储说明 12/20 浅灰、上 40、最宽 384 | `NotesEmpty` |
 | 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`）、间距 8、“…”页面菜单 40（Ellipsis 20，菜单宽 248） | `NoteEditorScreen` |
 | 笔记对话框 | 宽 min(100% − 48, 400)、内边距 24、圆角 8、遮罩 `rgba(15,15,15,.2)`；标题 16/600、说明 14 灰；输入框 1px 深描边、圆角 6、内边距 8.8×11.2、聚焦 2px 蓝；选项行 ≥40、圆角 6、15 字，当前项灰底 600 + ✓；按钮 ≥32、圆角 4.8、12.8/500，危险操作红字 `#b91c1c` | `NotesDialog` 等 |
-| 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect` |
+| 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect`（网页已删除此菜单，语言改到登录后的设置里；原生尚未跟进） |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
 **有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
@@ -114,7 +114,7 @@ mobile/android/
 
 - **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
 - **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
-- **语言菜单**（`ui/LanguageUi.kt` 的 `LanguageSelect`，复刻网页 `LanguageSelect`）：选择用 `AppCompatDelegate.setApplicationLocales` 保存成"应用语言"（Android 13+ 由系统保存、也能在系统设置里改，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。"自动"＝清空，跟系统语言。语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；菜单打开时有网页 `motion-menu-enter` 的 120ms 淡入上移，各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化；切换中显示转圈，失败时显示网页的"无法切换语言"。
+- **语言菜单**（`ui/LanguageUi.kt` 的 `LanguageSelect`，复刻旧网页 `LanguageSelect`；网页已改成只在登录后的设置里选、没有“自动”、保存到账号，见 [i18n.md](i18n.md)，原生尚未跟进）：选择用 `AppCompatDelegate.setApplicationLocales` 保存成"应用语言"（Android 13+ 由系统保存、也能在系统设置里改，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。"自动"＝清空，跟系统语言。语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；菜单打开时有网页 `motion-menu-enter` 的 120ms 淡入上移，各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化；切换中显示转圈，失败时显示网页的"无法切换语言"。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -223,7 +223,7 @@ mobile/android/
 
 ## 账号头像（Batch 7b）
 
-和网页 `profile-menu.tsx` / `avatar-cropper.tsx` / `user-avatar.tsx` 一致（数值取自 `globals.css` 的 `.profile-*` / `.avatar-*` 手机宽度规则，写在 `ui/AccountUi.kt`、`ui/AvatarCropper.kt` 开头的注释里；文案在 `strings_account.xml`）。个人资料弹层要 Google 登录才出现，本机开发服务器登不进去，所以这次没有在浏览器里实测，按 CSS 源码照写。
+和当时的网页 `profile-menu.tsx`（现已并入设置对话框 `settings-dialog.tsx` / `profile-settings.tsx`，原生尚未跟进）/ `avatar-cropper.tsx` / `user-avatar.tsx` 一致（数值取自 `globals.css` 的 `.profile-*` / `.avatar-*` 手机宽度规则，写在 `ui/AccountUi.kt`、`ui/AvatarCropper.kt` 开头的注释里；文案在 `strings_account.xml`）。个人资料弹层要 Google 登录才出现，本机开发服务器登不进去，所以这次没有在浏览器里实测，按 CSS 源码照写。
 
 - 个人资料弹层：头像 52 右下角有铅笔角标，点一下打开 / 收起"照片 / 表情"编辑区。弹层宽 min(300, 屏宽 − 24)，最高 max(160, 账号行顶 − 18)，超出时内部滚动；名字最多 40 字（`MAX_DISPLAY_NAME`），聚焦时蓝边加 2px 浅蓝外圈；屏幕宽度变了就关（只是键盘弹出不关）。
 - 照片：系统选择器只列 PNG / JPEG / WebP / GIF；不是图片提示"请选择图片文件。"，超过 10 MB 提示"请选择小于 10 MB 的照片。"（`checkPickedPhoto`）。裁剪（`AvatarCropper`）：直径 200 的圆里拖动、滑块 1–3 倍缩放，规则是网页 `layoutFor` 的移植（`cropLayout`）；按 EXIF 摆正（Android 9+ 用 `ImageDecoder`，更早的用 `BitmapFactory` + `ExifInterface`），短边小于 200 拒绝，原图按 2 的幂缩小到短边仍 ≥ 1536（`avatarSampleSize`）以免 10 MB 原图整个进内存；保存时画成 512×512 的 WebP（质量 90），`POST /api/account/avatar`（multipart，唯一字段 `file`，文件名 `avatar`）。有上传的照片时显示"移除我的照片"（`PATCH {icon: null}`）。系统选择器开着和上传中，点外面 / 返回键不关弹层；选择器的结果在账号行里接（`rememberSaveable`），弹层重组也不丢。
