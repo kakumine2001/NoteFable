@@ -31,7 +31,7 @@ vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
 import { GET, PATCH } from "./route";
 
 const google = { id: "sub-1", name: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png" };
-const row = { id: "u1", googleSub: "sub-1", displayName: null, avatarIcon: null, avatarImage: null };
+const row = { id: "u1", googleSub: "sub-1", displayName: null, avatarIcon: null, avatarImage: null, locale: null };
 const photoId = "11111111-1111-4111-8111-111111111111";
 const patch = (body: unknown) => new Request("http://localhost/api/account", { method: "PATCH", body: typeof body === "string" ? body : JSON.stringify(body) });
 
@@ -72,7 +72,10 @@ describe("account profile", () => {
 
   it("still shows the Google profile when the database cannot be read", async () => {
     mocks.currentUser.mockRejectedValue(new Error("db down"));
-    expect((await (await GET()).json()).user).toMatchObject({ name: "Mine Kaku", icon: null });
+    const user = (await (await GET()).json()).user;
+    expect(user).toMatchObject({ name: "Mine Kaku", icon: null });
+    // 表示言語は分からないので返さない（「未選択」の null と区別する）。
+    expect("locale" in user).toBe(false);
   });
 
   it("saves only what was sent, on the signed-in user's own row", async () => {

@@ -18,7 +18,8 @@ export type AccountUser = {
   // 自分でアップロードした写真の URL（自分だけが読める）。あれば icon・Google の写真より優先して表示する。
   avatarUrl: string | null;
   // 設定画面で選んだ表示言語。null は選んでいない（環境の言語に従う）。
-  locale: Locale | null;
+  // 無い（undefined）のは、アカウントの行を読めず分からないとき。分からない間は Cookie の選択で上書きしない。
+  locale?: Locale | null;
 };
 
 export type ProfilePatch = { displayName?: string | null; avatarIcon?: string | null; locale?: Locale };
@@ -70,6 +71,7 @@ export function avatarVersion(storagePath: string | null) {
 }
 
 export function toAccountUser(
+  // locale が undefined なら、返す locale も undefined（分からない）にする。
   row: { displayName: string | null; avatarIcon: string | null; avatarImage: string | null; locale?: string | null },
   google: { name?: string | null; email?: string | null; image?: string | null },
 ): AccountUser {
@@ -82,7 +84,7 @@ export function toAccountUser(
     displayName: row.displayName,
     icon: row.avatarIcon,
     avatarUrl: version ? `/api/account/avatar?v=${version}` : null,
-    locale: isLocale(row.locale) ? row.locale : null,
+    locale: row.locale === undefined ? undefined : isLocale(row.locale) ? row.locale : null,
   };
 }
 

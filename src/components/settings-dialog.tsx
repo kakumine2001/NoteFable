@@ -1,7 +1,7 @@
 "use client";
 
 import { LoaderCircle, LogOut } from "lucide-react";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
 import { useI18n } from "@/components/i18n-provider";
@@ -20,35 +20,58 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data.error === "string" && data.error ? data.error : fallback;
 
 // 表示言語。「自動」は置かない。選ぶまでは環境の言語（ブラウザの言語・地域）のまま表示し、選んだらアカウントに保存する。
-// 実際の切り替えは AccountButton の同期（保存された言語に合わせる）が行うので、ここでは保存だけをする。
+// 実際の切り替えはワークスペースの AccountLocaleSync（保存された言語に合わせる）が行うので、ここでは保存だけをする。
+// 選ぶまでは、どの項目にも印を付けない（いま表示している言語を選んでアカウントに固定することもできるように）。
+// 矢印キーはフォーカスを動かすだけで、Enter / Space / クリックで選ぶ（1 つ動くたびに保存と切り替えが走らないように）。
 function LanguageSettings({ user }: { user: AccountUser }) {
-  const { t, locale, switching, changeError } = useI18n();
+  const { t, locale, switching, changeError, setPreference } = useI18n();
   const labelId = useId();
   const helpId = useId();
-  const selected = user.locale ?? locale;
+  const listRef = useRef<HTMLDivElement>(null);
+  const saved = user.locale ?? null;
+  // Tab で入ったときにフォーカスする項目: 選んだ言語、なければいま表示している言語。
+  const focusable = saved ?? locale;
+
+  function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const items = Array.from(listRef.current?.querySelectorAll<HTMLButtonElement>("[role=radio]") ?? []);
+    const current = items.indexOf(document.activeElement as HTMLButtonElement);
+    const forward = event.key === "ArrowDown" || event.key === "ArrowRight";
+    const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : (current + (forward ? 1 : -1) + items.length) % items.length;
+    items[next]?.focus();
+  }
+
   return (
     <section className="project-settings-section">
       <h3 id={labelId} className="project-settings-label">{t("Language")}</h3>
-      {!user.locale && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
-      <div role="radiogroup" aria-labelledby={labelId} aria-describedby={user.locale ? undefined : helpId} aria-busy={switching} className="settings-language-list">
+      {!saved && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
+      <div ref={listRef} role="radiogroup" aria-labelledby={labelId} aria-describedby={saved ? undefined : helpId} aria-busy={switching}
+        className="settings-language-list" onKeyDown={onKeyDown}>
         {LOCALES.map((option) => (
-          <label key={option} className={`project-settings-option${selected === option ? " is-selected" : ""}${switching ? " is-disabled" : ""}`}>
-            <input type="radio" name={labelId} value={option} checked={selected === option} disabled={switching}
-              onChange={() => saveProfile({ locale: option })} />
-            <span lang={option} className="flex-1">{LOCALE_NAMES[option]}</span>
-            {switching && selected === option && <LoaderCircle size={14} className="animate-spin text-[var(--notion-muted)]" aria-hidden="true" />}
-          </label>
+          <button key={option} type="button" role="radio" aria-checked={saved === option} tabIndex={option === focusable ? 0 : -1}
+            className={`project-settings-option settings-language-option${saved === option ? " is-selected" : ""}`}
+            onClick={() => { if (option !== saved) saveProfile({ locale: option }); }}>
+            <span className="settings-language-radio" aria-hidden="true" />
+            <span lang={option} className="flex-1 text-left">{LOCALE_NAMES[option]}</span>
+            {switching && saved === option && <LoaderCircle size={14} className="animate-spin text-[var(--notion-muted)]" aria-hidden="true" />}
+          </button>
         ))}
       </div>
       <span className="sr-only" role="status">{switching ? t("Changing language…") : ""}</span>
-      {changeError && <p role="alert" className="project-settings-error">{t(changeError)}</p>}
+      {changeError && <>
+        <p role="alert" className="project-settings-error">{t(changeError)}</p>
+        {saved && <button type="button" className="notion-button mt-2" onClick={() => setPreference(saved)}>{t("Try again")}</button>}
+      </>}
     </section>
   );
 }
 
 // ログインした利用者の設定。プロフィール（顔・名前）・表示言語・カスタム指示・ログアウトを 1 か所にまとめる。
 // プロフィールと言語は変えたその場で保存し、カスタム指示だけ「保存」で送る。見た目はプロジェクト設定のダイアログと同じ部品を使う。
-export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser; onSignOut: () => Promise<void>; onClose: () => void }) {
+// onSignOut は失敗したときに理由の文を返す（成功したらページが読み直される）。
+export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser; onSignOut: () => Promise<string>; onClose: () => void }) {
   const { t } = useI18n();
   const { saveError } = useAccount();
   const ref = useRef<HTMLDialogElement>(null);
@@ -64,6 +87,9 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [signingOut, setSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState("");
+  // 写真を切り抜き中・送信中。その間は「保存」「キャンセル」で閉じない（切り抜いた写真や失敗の知らせが消えないように）。
+  const [photoBusy, setPhotoBusy] = useState(false);
   // 保存中は閉じない（Esc・戻る・外側のクリック）。閉じると、保存に失敗しても知らせる場所がなくなる。
   // 写真・絵文字の編集中は、まずその編集だけを閉じる。false を返すと useBackToClose は「戻る」の登録を保つ。
   const close = () => { if (locked.current || !profileGuard.current()) return false; onClose(); };
@@ -85,7 +111,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   }, [attempt]);
 
   async function save() {
-    if (locked.current) return;
+    if (locked.current || photoBusy) return;
     const text = instructions.trim();
     if (initial === null || text === initial) { onClose(); return; }
     locked.current = true; setBusy(true); setError("");
@@ -101,7 +127,10 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
 
   // サイドバーは幅によって隠れる（デスクトップ用と抽屉用の 2 つがある）ので、その外（body）に出す。
   return createPortal(<dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings settings-dialog"
-    onCancel={(event) => { event.preventDefault(); close(); }}
+    // Esc は useBackToClose が先に受けて close() を呼ぶので、ここでは既定の閉じ方を止めるだけ（2 回呼ぶと、編集を閉じた直後に設定まで閉じる）。
+    // それでもブラウザが閉じてしまった場合（続けて Esc を押したときなど）は、開いている状態を合わせる。
+    onCancel={(event) => event.preventDefault()}
+    onClose={() => onClose()}
     onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
     <form className="project-settings-shell" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <div className="project-settings-header">
@@ -109,7 +138,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
       </div>
       <div className="project-settings-body">
         <section className="project-settings-section" aria-label={t("Profile")}>
-          <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} />
+          <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} onPhotoBusyChange={setPhotoBusy} />
         </section>
         {saveError && <p role="alert" className="project-settings-error">{localizeSystemText(saveError, t)}</p>}
 
@@ -136,13 +165,18 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
 
         <section className="project-settings-section settings-account">
-          <button type="button" className="settings-inline-action" disabled={busy || signingOut}
-            onClick={async () => { setSigningOut(true); try { await onSignOut(); } finally { setSigningOut(false); } }}><LogOut size={14} />{t("Sign out")}</button>
+          <button type="button" className="settings-inline-action" disabled={busy || signingOut || photoBusy}
+            onClick={async () => {
+              setSigningOut(true); setSignOutError("");
+              const failure = await onSignOut();
+              setSigningOut(false); setSignOutError(failure);
+            }}><LogOut size={14} />{t("Sign out")}</button>
+          {signOutError && <p role="alert" className="project-settings-error">{localizeSystemText(signOutError, t)}</p>}
         </section>
       </div>
       <div className="project-settings-footer">
-        <button type="button" disabled={busy} className="notion-button" onClick={() => close()}>{t("Cancel")}</button>
-        <button type="submit" disabled={busy || initial === null} className="notion-button notion-button-primary">{busy ? t("Saving…") : t("Save")}</button>
+        <button type="button" disabled={busy || photoBusy} className="notion-button" onClick={() => close()}>{t("Cancel")}</button>
+        <button type="submit" disabled={busy || photoBusy || initial === null} className="notion-button notion-button-primary">{busy ? t("Saving…") : t("Save")}</button>
       </div>
     </form>
   </dialog>, document.body);

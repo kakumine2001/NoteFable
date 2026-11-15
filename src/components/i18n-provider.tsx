@@ -34,12 +34,23 @@ const subscribePreference = (listener: () => void) => {
 };
 const serverPreference = (): LocalePreference => "auto";
 
-// ブラウザに残した言語の選択を消す（ログアウトの直前に呼ぶ）。次に開いたページは環境の言語で表示される。
-export function forgetLocaleChoice() {
+// 言語の選択を Cookie に書く（"auto" は消す）。改名前の Cookie はいつも消す。読んでいる画面へ知らせる。
+function writeLocaleCookie(next: LocalePreference) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
-  document.cookie = `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
+  document.cookie = next === "auto"
+    ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
+    : `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
   document.cookie = `${LEGACY_LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
   preferenceListeners.forEach((listener) => listener());
+}
+
+// 進行中の言語の切り替え（辞書の取得）。新しい切り替えやログアウトが来たら中止する（後から Cookie を書き戻さないように）。
+let activeSwitch: AbortController | null = null;
+
+// ブラウザに残した言語の選択を消す（ログアウトの直前に呼ぶ）。次に開いたページは環境の言語で表示される。
+export function forgetLocaleChoice() {
+  activeSwitch?.abort();
+  writeLocaleCookie("auto");
 }
 
 // 最初は静的ページの言語だけを受け取る。切替時は辞書だけを取得し、入力や送信中の状態を保つ。
@@ -51,12 +62,13 @@ export function I18nProvider({ locale, messages, children }: {
 }) {
   const [switching, setSwitching] = useState(false);
   const [changeError, setChangeError] = useState("");
-  const switchRequest = useRef<AbortController | null>(null);
   const preference = useSyncExternalStore(subscribePreference, readPreference, serverPreference);
   // 同じ言語の間は同じ t を使い、t に依存する処理を不要に読み込み直さない。
   const [translator, setTranslator] = useState(() => ({ locale, t: createTranslator(messages) }));
   const { locale: activeLocale, t } = translator;
-  useEffect(() => () => { switchRequest.current?.abort(); }, []);
+  const activeLocaleRef = useRef(activeLocale);
+  useEffect(() => { activeLocaleRef.current = activeLocale; }, [activeLocale]);
+  useEffect(() => () => { activeSwitch?.abort(); }, []);
   // ルートのレイアウトは静的に保つため <html lang="en"> を出す。表示言語に合わせて書き換える。
   useEffect(() => {
     const root = document.documentElement;
@@ -64,12 +76,20 @@ export function I18nProvider({ locale, messages, children }: {
     root.lang = LOCALE_TAGS[activeLocale];
     return () => { root.lang = previous; };
   }, [activeLocale]);
+  // 後から来た切り替えが勝つ（進行中のものは中止する）。
   const setPreference = useCallback((next: LocalePreference) => {
-    if (switchRequest.current) return;
-    const controller = new AbortController();
-    switchRequest.current = controller;
-    setSwitching(true);
+    activeSwitch?.abort();
+    activeSwitch = null;
     setChangeError("");
+    // いま表示している言語に固定するだけなら、辞書を取り直さずに Cookie だけを書く。
+    if (next !== "auto" && next === activeLocaleRef.current) {
+      setSwitching(false);
+      writeLocaleCookie(next);
+      return;
+    }
+    const controller = new AbortController();
+    activeSwitch = controller;
+    setSwitching(true);
     void (async () => {
       try {
         const response = await fetch(`/api/i18n?preference=${encodeURIComponent(next)}`, { cache: "no-store", signal: controller.signal });
@@ -78,20 +98,14 @@ export function I18nProvider({ locale, messages, children }: {
         if (!isLocale(data.locale) || !data.messages || typeof data.messages !== "object" || Array.isArray(data.messages)
           || Object.values(data.messages).some((message) => typeof message !== "string")) throw new Error("Invalid language response");
         if (controller.signal.aborted) return;
-        const secure = window.location.protocol === "https:" ? "; Secure" : "";
-        document.cookie = next === "auto"
-          ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
-          : `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
-        document.cookie = `${LEGACY_LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
-        preferenceListeners.forEach((listener) => listener());
+        writeLocaleCookie(next);
         setTranslator((current) => current.locale === data.locale ? current : { locale: data.locale, t: createTranslator(data.messages) });
       } catch {
         if (!controller.signal.aborted) setChangeError(msg("Could not change language. Please try again."));
       } finally {
-        if (!controller.signal.aborted) {
-          switchRequest.current = null;
-          setSwitching(false);
-        }
+        if (activeSwitch === controller) activeSwitch = null;
+        // 中止されたものは、次の切り替えが状態を引き継ぐ。ログアウトで中止されたときもページは読み直されるので、そのままでよい。
+        if (!controller.signal.aborted) setSwitching(false);
       }
     })();
   }, []);

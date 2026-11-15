@@ -169,6 +169,7 @@ export const zhHant: Record<string, string> = {
   "Could not save.": "無法儲存。",
   "Could not save. Try again.": "無法儲存，請重試。",
   "Could not send the email. Try again.": "郵件傳送失敗，請重試。",
+  "Could not sign out. Please try again.": "無法退出登入，請重試。",
   "Could not upload that photo. Check your connection and try again.": "無法上傳這張照片，請檢查網路連線後重試。",
   "Could not upload that photo. Try again.": "無法上傳這張照片，請重試。",
   "Cover images must be 4 MB or smaller.": "封面圖片不能超過 4 MB。",

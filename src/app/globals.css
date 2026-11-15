@@ -379,6 +379,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .settings-inline-action:hover:not(:disabled) { background: var(--notion-hover); }
 .settings-inline-action:disabled { opacity: 0.55; }
 .settings-language-list { display: grid; gap: 2px; margin-top: 0.4rem; }
+/* ラジオボタンの見た目（.project-settings-option の input と同じ 1rem・青）。キーボードで選ぶまで切り替えないため button で作る。 */
+.settings-language-option { width: 100%; color: var(--notion-text); }
+.settings-language-option:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+.settings-language-radio { display: grid; width: 1rem; height: 1rem; flex: none; place-items: center; border: 1px solid var(--notion-border-strong); border-radius: 999px; background: #fff; }
+.settings-language-option[aria-checked="true"] .settings-language-radio { border-color: var(--notion-blue); background: radial-gradient(circle, var(--notion-blue) 0 0.25rem, #fff 0.27rem); }
 .settings-account { padding-top: 0.5rem; border-top: 1px solid var(--notion-border); }
 @media (max-width: 639px) {
   .settings-inline-action { min-height: 44px; font-size: 15px; }

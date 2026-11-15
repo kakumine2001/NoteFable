@@ -60,7 +60,7 @@ describe("toAccountUser", () => {
 
   it("uses the Google name and photo by default", () => {
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null }, google)).toEqual({
-      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null, locale: null,
+      name: "Mine Kaku", googleName: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png", displayName: null, icon: null, avatarUrl: null,
     });
   });
 
@@ -73,6 +73,8 @@ describe("toAccountUser", () => {
   it("returns the chosen display language and drops unknown stored values", () => {
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "zh-Hant" }, google).locale).toBe("zh-Hant");
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "fr" }, google).locale).toBeNull();
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: null }, google).locale).toBeNull();
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null }, google).locale).toBeUndefined();
   });
 });
 

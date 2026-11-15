@@ -53,6 +53,7 @@ export const zh: Record<string, string> = {
   "Language": "语言",
   "Automatic": "自动",
   "Until you choose a language, NoteFable uses your browser’s language.": "在你选择语言之前，NoteFable 使用浏览器的语言。",
+  "Could not sign out. Please try again.": "无法退出登录，请重试。",
   "Changing language…": "正在切换语言…",
   "None": "关闭",
   "Low": "低",
