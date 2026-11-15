@@ -21,7 +21,6 @@ import { restoreCompaction, serializeCompaction } from "@/lib/chat-compaction";
 import { createResponsesToolStream, toResponsesTools } from "@/lib/responses-tool-loop";
 import {
   getModelOption,
-  type ModelOption,
   normalizeModel,
   normalizeReasoning,
   toDbReasoning,
@@ -45,7 +44,7 @@ import {
   type WebSearchMode,
 } from "@/lib/web-search";
 import { msg, fmt } from "@/lib/i18n/translate";
-import { getModelRegistry } from "@/lib/model-registry";
+import { getModelRegistry, upstreamModelFor } from "@/lib/model-registry";
 
 export const runtime = "nodejs";
 
@@ -255,26 +254,6 @@ async function saveGeneratedTitle({
   }
 }
 
-function getUpstreamModel(model: string, options: readonly ModelOption[]) {
-  // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。NOTEFABLE_MODELS の upstreamModel が最優先、
-  // 次に組み込みモデルの従来の環境変数、なければ ID のまま。
-  const configured = options.find((option) => option.id === model)?.upstreamModel;
-  if (configured) return configured;
-  if (model === "gpt-6-luna") {
-    return optionalEnv("OPENAI_TEXT_MODEL") || model;
-  }
-
-  if (model === "deepseek-flash") {
-    return optionalEnv("DEEPSEEK_FLASH_MODEL") || model;
-  }
-
-  if (model === "claude-haiku-5-5") {
-    return optionalEnv("ANTHROPIC_HAIKU_MODEL") || model;
-  }
-
-  return model;
-}
-
 async function requestDeepSeekResponses(body: object, signal: AbortSignal) {
   // DeepSeek-V4.1-Flash は Responses API の input_image パートを受け取れるため、
   // OpenAI と同じ入力構造をそのまま渡す。画像をテキストへ潰すと視覚入力が失われる。
@@ -354,7 +333,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   const registry = getModelRegistry();
   const model = normalizeModel(formData.get("model"), registry);
   // 実際に上流 API へ渡すモデル名。環境変数で別名に差し替え可能。
-  const upstreamModel = getUpstreamModel(model, registry.options);
+  const upstreamModel = upstreamModelFor(model, registry.options);
   // 対応プロバイダーや画像入力可否など、モデルの機能情報。
   const modelOption = getModelOption(model, registry.options);
   // 推論強度。モデルごとの対応値から外れていればデフォルトへ戻す。
