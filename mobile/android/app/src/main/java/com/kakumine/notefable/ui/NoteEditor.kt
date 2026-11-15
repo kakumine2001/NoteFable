@@ -80,11 +80,24 @@ import kotlin.coroutines.resume
  * 原生和网页编辑器（/note-embed）之间的 JS 桥。约定见 src/lib/native-bridge.ts：
  * 网页 → 原生：`window.NoteFableNative.postMessage(json)`；原生 → 网页：`window.notefableEmbed.flush(id)` / `openHistory()` / `pageUpdated(pageJson)`。
  */
-class NoteEmbedBridge(private val onMessage: (EmbedMessage) -> Unit) {
+class NoteEmbedBridge(
+    /** 设置里现在选的图标（null 是默认标志）。会在 WebView 的 JS 线程上调用，所以要能在任何线程读。 */
+    private val currentIcon: () -> String? = { null },
+    private val onMessage: (EmbedMessage) -> Unit,
+) {
     private val main = Handler(Looper.getMainLooper())
     private val pending = ConcurrentHashMap<String, CompletableDeferred<FlushResult>>()
     private val mounting = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
     var webView: WebView? = null
+
+    /** 网页打开时读图标（`window.NoteFableNative.appIcon()`）：表情或图片的 data URL，默认标志是空字符串。在 WebView 的 JS 线程上调用。 */
+    @JavascriptInterface
+    fun appIcon(): String = currentIcon().orEmpty()
+
+    /** 编辑器开着时在设置里换了图标：交给网页（`window.notefableEmbed.appIcon`），AI 按钮马上跟着变。 */
+    fun pushAppIcon(icon: String?) {
+        webView?.evaluateJavascript(appIconScript(icon), null)
+    }
 
     // 在 WebView 的 JS 线程上调用，转到主线程处理。
     @JavascriptInterface
@@ -155,6 +168,10 @@ class NoteEmbedBridge(private val onMessage: (EmbedMessage) -> Unit) {
         fun pageSettingsScript(pageJson: String) =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageSettings==='function')e.pageSettings(${JSONObject.quote(pageJson)})})()"
 
+        /** 图标作为字符串字面量传过去；默认标志传 null。 */
+        fun appIconScript(icon: String?) =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.appIcon==='function')e.appIcon(${icon?.let(JSONObject::quote) ?: "null"})})()"
+
         private const val FLUSH_TIMEOUT_MS = 15_000L
     }
 }
@@ -211,7 +228,13 @@ fun NoteEditorScreen(
     val currentOnDownload by rememberUpdatedState(onDownload)
     val currentOnChatLink by rememberUpdatedState(onChatLink)
     // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
-    val bridge: NoteEmbedBridge = remember(open.editor) { NoteEmbedBridge { message -> currentOnMessage(open.editor, message) } }
+    // 网页里的 AI 按钮用设置里选的图标：网页打开时经桥读现在的值，开着的时候换了再推过去。
+    val iconStore = appIconStore()
+    val bridge: NoteEmbedBridge = remember(open.editor) {
+        NoteEmbedBridge(currentIcon = { iconStore?.icon?.value }) { message -> currentOnMessage(open.editor, message) }
+    }
+    val appIcon = currentAppIcon()
+    LaunchedEffect(bridge, appIcon) { bridge.pushAppIcon(appIcon) }
     // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
     var generation by remember(open.editor) { mutableIntStateOf(0) }
     val fileCallback = remember(open.editor) { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }

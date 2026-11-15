@@ -5,7 +5,8 @@ import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, toEmbedSaveState } from "@/lib/native-bridge";
+import { saveAppIcon } from "@/lib/app-icon";
+import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, toEmbedSaveState } from "@/lib/native-bridge";
 import { useNotePages } from "@/lib/use-note-pages";
 
 const noop = () => {};
@@ -43,6 +44,13 @@ export function NoteEmbed() {
     if (!id) { postToNative({ type: "missing" }); return; }
     void select(id, "none").then((opened) => { if (!opened) postToNative({ type: "missing" }); });
   }, [select, options]);
+
+  // AI ボタンのアイコンは、アプリの設定で選んだものに合わせる（アプリが渡さないときは変えない）。開いている間の変更は
+  // window.notefableEmbed.appIcon で届く。
+  useEffect(() => {
+    const icon = readNativeAppIcon();
+    if (icon !== undefined) saveAppIcon(icon);
+  }, []);
 
   // アプリから呼ぶ window.notefableEmbed。flush は開いているノートの未保存の編集を送り切る。
   // pageUpdated（アプリのチャットで編集案を適用した）は既定のまま notefable:page-updated を出し、useNotePages が /app と同じく扱う。

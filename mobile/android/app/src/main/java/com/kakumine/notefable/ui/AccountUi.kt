@@ -49,6 +49,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
@@ -128,7 +129,7 @@ internal enum class AvatarEditor { Closed, Photo, Emoji }
 /**
  * 网页 `<input type=file accept="image/png,image/jpeg,image/webp,image/gif">`：系统的文件 / 照片选择器，只列这四种图片。
  */
-private class PickAvatarPhoto : ActivityResultContracts.GetContent() {
+internal class PickAvatarPhoto : ActivityResultContracts.GetContent() {
     override fun createIntent(context: Context, input: String): Intent =
         super.createIntent(context, "image/*").putExtra(Intent.EXTRA_MIME_TYPES, AVATAR_PICK_TYPES)
 }
@@ -169,6 +170,9 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
             if (problem == null) picked = uri.toString()
         }
     }
+    // 设置里的"图标"：选表情的框开没开、出错提示；选图片的结果和头像一样在这里接。
+    val appIcon = rememberAppIconEditor()
+    val pickAppIconImage = rememberAppIconImagePicker(appIcon) { pickerOpen = it }
     val name = user.name ?: user.email ?: stringResource(R.string.account)
     val label = name + " · " + stringResource(R.string.acct_settings)
     Row(
@@ -176,6 +180,7 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
             .clickable {
                 // 网页 clearSaveError：上一次的失败提示不带进新打开的设置。
                 profile.clearProfileError()
+                appIcon.reset()
                 settingsOpen = true
             }
             .semantics(mergeDescendants = true) { role = Role.Button; contentDescription = label }
@@ -195,6 +200,8 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
             editor = editor,
             picked = picked,
             pickerOpen = pickerOpen,
+            appIcon = appIcon,
+            onPickAppIconImage = pickAppIconImage,
             onEditor = { next ->
                 editor = next
                 picked = null
@@ -347,11 +354,22 @@ internal fun ProfileSettings(
 }
 
 // .settings-inline-action（手机）：最小高 44、上 10、左右 −8（内边距 8 抵掉）、圆角 6、15 字、图标 14 + 间距 8；不可用时 0.55。
+// inRow：并排放的几个（.settings-app-icon-actions 里的）：上距 0；左右 −8 的外边距让它只占文字那么宽，所以排版时少算 16。
 @Composable
-internal fun SettingsInlineAction(icon: List<String>, label: String, enabled: Boolean, onClick: () -> Unit) {
+internal fun SettingsInlineAction(icon: List<String>, label: String, enabled: Boolean, inRow: Boolean = false, onClick: () -> Unit) {
     val alpha = if (enabled) 1f else 0.55f
+    val margin = if (inRow) {
+        Modifier.layout { measurable, constraints ->
+            val bleed = 8.dp.roundToPx()
+            val max = if (constraints.hasBoundedWidth) constraints.maxWidth + bleed * 2 else constraints.maxWidth
+            val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = max))
+            layout((placeable.width - bleed * 2).coerceAtLeast(0), placeable.height) { placeable.place(-bleed, 0) }
+        }
+    } else {
+        Modifier.padding(top = 10.dp).offset(x = (-8).dp)
+    }
     Row(
-        Modifier.padding(top = 10.dp).offset(x = (-8).dp).heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+        margin.heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),

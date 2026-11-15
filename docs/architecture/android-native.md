@@ -36,7 +36,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 顶栏 | 高 56，左右 10.4；图标按钮 40×40、图标 20、圆角 4.8；标题 14 灰 | `TopBar` |
 | 空白首页 | 左右 24；图标框 41.6 + 标题 32 粗体、字距 −0.04em、行高 36.8；说明 17 / 27.2 灰，上距 8.8；整体垂直居中 | `EmptyState` |
 | 提问气泡 | 标签"あなた / You"12 等宽灰；气泡圆角 14、`#F3F5F9`、内边距 12×16、字 **15 / 行高 28**；图片缩略图 128、圆角 4，在文字上方；非图片附件是块下方的文件标签 | `UserTurn` |
-| 回答 | 标签 = 品牌标志 12 + "NOTEFABLE · 模型名"；正文 16 / 行高 27.52；标题 650 字重；链接蓝色加粗下划线；回合间距 36；复制按钮 36×36，距正文 6.4 | `AssistantTurn`、`AnswerMarkdown` |
+| 回答 | 标签 = 图标 12（设置里换过就是那个表情 / 图片，否则品牌标志）+ "NOTEFABLE · 模型名"；正文 16 / 行高 27.52；标题 650 字重；链接蓝色加粗下划线；回合间距 36；复制按钮 36×36，距正文 6.4 | `AssistantTurn`、`AnswerMarkdown` |
 | 输入栏 | 外边距 10.4、上 12、下 max(16, 安全区)；白底、1px `rgba(55,53,47,.18)`、圆角 16、内边距 10、浮起阴影；聚焦时描边变蓝并带 3px 浅蓝光圈；输入框最小高 40，字 16/24 | `Composer` |
 | 输入栏的 ＋ | 40×40 图标按钮、圆角 4.8、图标 18（描边 1.8）灰色；右边 6 处接模型按钮 | `Composer` |
 | ＋ 抽屉 | 与模型抽屉同款外框；行高 ≥60、圆角 11.2、内边距 6.4×13.6、图标 22、间距 14.4；标题 17 半粗、说明 14 灰；打开「生成图片」时该行灰底加 ✓ | `AttachSheet` |
@@ -59,7 +59,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 设置 | 项目设置的对话框外观；栏间距 20：个人资料（头像 52 + 名字输入框 40 高、邮箱 12 灰、编辑区 1px 描边圆角 8）、语言（单选行最小高 44、圆角 6、左右 8、单选圆 16）、自定义指令、退出登录（上方 1px 线，行最小高 44、15 字、图标 14） | `SettingsDialog`、`LanguageSettings` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
-**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。设置里的“图标”一栏（网页可以把标志换成 emoji 或图片，存在浏览器里）原生版还没有：原生界面始终用 NoteFable 标志，WebView 编辑器里的 AI 按钮也是（它有自己的存储，没有设置入口）；AI 按钮的拖动在 WebView 里可用。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
+**有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
 改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `NOTEFABLE_MODELS` 决定。
 
@@ -206,6 +206,7 @@ mobile/android/
 
 - 网页 → App：`window.NoteFableNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
 - App → 网页：`window.notefableEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `notefable:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
+- 设置里选的图标（见“账号头像”一节的“图标”）：网页打开时调 `window.NoteFableNative.appIcon()` 读（表情或图片的 data URL，默认标志是空字符串），写进这个 WebView 的 `localStorage`（`notefable:app-icon`），右下角的 AI 按钮和面板标题就用它；编辑器开着时在设置里换了，App 调 `window.notefableEmbed.appIcon(<值或 null>)`，按钮马上跟着变（`NoteEmbedBridge.pushAppIcon`）。
 - 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`notefableEmbed` 不存在）时没有可保存的编辑，直接离开。
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。
@@ -239,7 +240,8 @@ mobile/android/
 - 表情：`EmojiPickerBody`（高 min(320, 屏高 − 220)），选中走 `PATCH /api/account {icon}`，去掉键写"使用 Google 头像"。
 - 保存（`AccountViewModel`，网页 `account-store.ts` 的移植）：编辑马上显示（服务端确认的资料 + 待确认的编辑），名字、图标、照片按顺序一个一个发（`Mutex`）；失败只撤掉那一次，显示服务端原句（经系统文词典翻译）或"无法保存。"（字符串资源 `acct_could_not_save`：这句来自客户端的 `account-store.ts`，不在系统文词典里）；照片失败显示服务端原句、"无法上传这张照片，请重试。"或网络错误的那句。退出登录时先把输入中的名字排进队列（网页靠输入框 blur），再等这些发完。头像照片读不出来时和网页一样退到表情 / Google 照片 / 首字母。
 - 接口：`data/AccountApi.kt`（`ProfileEdit`、`applyProfileEdit`、`profileEditChanges`、`AccountProfileBackend`）；`AccountBackend` 只剩登录、读取和退出。单元测试：`AccountViewModelTest`、`AccountApiTest`、`AvatarCropTest`。
-- 设置（`ui/SettingsDialog.kt`，网页 `settings-dialog.tsx`）：点侧栏的账号行打开，从上到下是个人资料、保存错误、语言（见“界面语言”）、自定义指令、退出登录。外观复用项目设置的手机尺寸（`SettingsSectionLabel`、`SettingsHelpText`、`InstructionsField`）。自定义指令（计数 n/4000）打开时 `GET /api/custom-instructions`，“保存”时文字没变就直接关，变了就 `PUT`（`AccountProfileBackend.customInstructions` / `saveCustomInstructions`）。失败显示服务端原句或 `acct_err_load_custom_instructions` / `acct_err_save_custom_instructions`；保存中不能关。输入超过上限时用 `clipInstructions` 截断（不把表情的代理对切开），项目设置的指示栏也用它。退出登录不会失败（`signOut` 忽略网络错误、照常换成匿名身份），所以没有网页的“无法退出登录”提示。
+- 设置（`ui/SettingsDialog.kt`，网页 `settings-dialog.tsx`）：点侧栏的账号行打开，从上到下是个人资料、保存错误、语言（见“界面语言”）、图标、自定义指令、退出登录。外观复用项目设置的手机尺寸（`SettingsSectionLabel`、`SettingsHelpText`、`InstructionsField`）。自定义指令（计数 n/4000）打开时 `GET /api/custom-instructions`，“保存”时文字没变就直接关，变了就 `PUT`（`AccountProfileBackend.customInstructions` / `saveCustomInstructions`）。失败显示服务端原句或 `acct_err_load_custom_instructions` / `acct_err_save_custom_instructions`；保存中不能关。输入超过上限时用 `clipInstructions` 截断（不把表情的代理对切开），项目设置的指示栏也用它。退出登录不会失败（`signOut` 忽略网络错误、照常换成匿名身份），所以没有网页的“无法退出登录”提示。
+- 图标（`ui/AppIconSettings.kt`，网页 `app-icon-settings.tsx` / `app-icon.tsx`；值和存法在 `data/AppIcon.kt`，网页 `src/lib/app-icon.ts`）：把侧栏的标志、回答标签上的标志和笔记里 AI 按钮上的图标换成表情或图片，默认是 NoteFable 标志。一栏的样子照 `.settings-app-icon-*` 的手机宽度规则：48 的圆形预览（白底、1px 深描边、阴影，里面 26 的图标），右边是可换行的“选择表情”“上传图片”，换过以后多一个“使用 NoteFable 标志”（`.settings-inline-action`，最小高 44、15 字）；“选择表情”打开 / 收起下面的 `EmojiPickerBody`（1px 描边、圆角 8 的框，高 min(320, 屏高 − 220)，去掉键写“使用 NoteFable 标志”）。“上传图片”用头像的系统选择器（PNG / JPEG / WebP / GIF），按 EXIF 摆正后居中裁成正方形、缩到 96×96、存成 PNG 的 data URL（网页 `imageFileToIcon`）；不是图片或读不出来提示“请选择图片文件。”，存不进去提示“无法在这台设备上保存图标。”。选了就存、不用按“保存”，只存在这台设备上（`SharedPreferences` `app_icon`，`AppIconStore`；值和网页 `localStorage` 的 `notefable:app-icon` 相同：一个表情或图片的 data URL），不随账号同步，退出登录也留着。显示用 `AppIcon`（表情：格子里居中、字号 = 边长 × 0.9；图片：圆角 22%；读不出来的图片退回标志）：侧栏头部 20、回答标签 12、设置预览 26；WebView 编辑器里的 AI 按钮经 JS 桥拿到同一个值（见“笔记”一节）。和网页一样，设置要登录才打开，所以没登录时换不了图标。单元测试：`AppIconTest`。
 - 已知差异：缩放滑块是 Material3 `Slider`（蓝色），没有对照网页 Chrome 的 range 外观逐像素量；裁剪预览的读屏说明沿用网页原句（提到方向键，原生只能拖）。
 ## 构建与测试
 

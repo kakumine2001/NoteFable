@@ -458,7 +458,8 @@ private fun AppDrawer(
     ) {
         Column(Modifier.fillMaxSize()) {
             Row(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                BrandMark(20.dp, Sm.Ink)
+                // 网页 NoteFableLogo：设置里换过图标就画那个表情 / 图片。
+                AppIcon(20.dp, Sm.Ink)
                 Spacer(Modifier.width(7.2.dp))
                 Text(stringResource(R.string.app_title), color = Sm.Ink, fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))

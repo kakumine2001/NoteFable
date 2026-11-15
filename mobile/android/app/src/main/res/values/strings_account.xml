@@ -24,4 +24,10 @@
     <string name="acct_custom_instructions_placeholder">Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.</string>
     <string name="acct_err_load_custom_instructions">Could not load your custom instructions.</string>
     <string name="acct_err_save_custom_instructions">Could not save your custom instructions. Please try again.</string>
+    <string name="app_icon_title">Icon</string>
+    <string name="app_icon_help">Shown in the sidebar, on AI replies and on the AI button in notes. Saved on this device only.</string>
+    <string name="app_icon_choose_emoji">Choose an emoji</string>
+    <string name="app_icon_upload_image">Upload an image</string>
+    <string name="app_icon_use_logo">Use NoteFable logo</string>
+    <string name="app_icon_could_not_save">Could not save the icon on this device.</string>
 </resources>

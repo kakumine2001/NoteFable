@@ -1,6 +1,27 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NotePage } from "@/types/notes";
-import { createEmbedApi, installEmbedApi, pageMeta, parsePageSettings, parseUpdatedPage, postToNative, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSettings, parseUpdatedPage, postToNative, readNativeAppIcon, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+
+describe("readNativeAppIcon", () => {
+  const postMessage = () => {};
+
+  it("reads the icon chosen in the app", () => {
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "🦊" } })).toBe("🦊");
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "data:image/png;base64,AAAA" } })).toBe("data:image/png;base64,AAAA");
+  });
+
+  it("returns the default logo for an empty or unreadable value", () => {
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "" } })).toBeNull();
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "not an icon" } })).toBeNull();
+  });
+
+  it("leaves the stored icon alone outside the app and in apps that do not pass one", () => {
+    expect(readNativeAppIcon(undefined)).toBeUndefined();
+    expect(readNativeAppIcon({})).toBeUndefined();
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage } })).toBeUndefined();
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => { throw new Error("gone"); } } })).toBeUndefined();
+  });
+});
 
 describe("postToNative", () => {
   it("sends the message as a JSON string to the app", () => {
@@ -104,6 +125,25 @@ describe("embed api", () => {
     expect(api.pageSettings({ font: "mono" })).toBe(false);
     expect(api.pageSettings("{bad")).toBe(false);
     expect(parsePageSettings(null)).toBeNull();
+  });
+
+  it("forwards the icon chosen in the app, rejecting anything that is not an emoji or an image", () => {
+    const appIcon = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, appIcon, post: () => {} });
+    expect(api.appIcon("🦊")).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith("🦊");
+    expect(api.appIcon("data:image/png;base64,AAAA")).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith("data:image/png;base64,AAAA");
+    expect(api.appIcon(null)).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith(null);
+    expect(api.appIcon("")).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith(null);
+    expect(api.appIcon("logo")).toBe(false);
+    expect(api.appIcon("🦊🦊")).toBe(false);
+    expect(api.appIcon(3)).toBe(false);
+    expect(api.appIcon(undefined)).toBe(false);
+    expect(appIcon).toHaveBeenCalledTimes(4);
+    expect(parseAppIcon("https://example.com/a.png")).toBeUndefined();
   });
 
   it("ignores malformed pages from the app", () => {

@@ -94,9 +94,9 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
     val proposals = remember(message.proposals, message.activity) { mergeProposals(message.proposals, message.activity) }
 
     Column(Modifier.fillMaxWidth()) {
-        // "NoteFable · 模型名"：品牌标志 12，间距 5.6；模型名不转大写，字距 .02em。
+        // "NoteFable · 模型名"：图标 12（设置里换过就是那个表情 / 图片，否则品牌标志），间距 5.6；模型名不转大写，字距 .02em。
         Row(Modifier.padding(bottom = 7.2.dp), verticalAlignment = Alignment.CenterVertically) {
-            BrandMark(12.dp, Sm.Ink)
+            AppIcon(12.dp, Sm.Ink)
             Spacer(Modifier.width(5.6.dp))
             Text("NOTEFABLE", style = RoleLabelBase)
             if (modelLabel != null) {
