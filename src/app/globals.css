@@ -371,7 +371,17 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--nf-ink-hover); }
 .avatar-crop-actions button:disabled { opacity: 0.55; }
 /* 設定画面のプロフィール。メニューだった頃の負の余白をやめ、編集欄は枠で囲む。 */
-.settings-profile .profile-editor { margin: 12px 0 0; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 8px; }
+.settings-profile .profile-editor, .settings-app-icon .profile-editor { margin: 12px 0 0; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 8px; }
+/* 設定で替えられるワークスペースのアイコン（絵文字・画像）と、設定画面のその欄。 */
+.app-icon-emoji { display: inline-grid; flex: none; place-items: center; line-height: 1; }
+.app-icon-image { display: block; flex: none; border-radius: 22%; object-fit: cover; }
+.settings-app-icon-row { display: flex; align-items: center; gap: 14px; margin-top: 0.4rem; }
+.settings-app-icon-preview {
+  display: grid; width: 48px; height: 48px; flex: none; place-items: center; border: 1px solid var(--notion-border-strong);
+  border-radius: 999px; background: var(--notion-bg); color: var(--nf-ink); box-shadow: var(--notion-shadow);
+}
+.settings-app-icon-actions { display: flex; min-width: 0; flex-wrap: wrap; gap: 0 14px; }
+.settings-app-icon-actions .settings-inline-action { margin-top: 0; }
 .settings-inline-action {
   display: inline-flex; min-height: 34px; align-items: center; gap: 8px; margin: 10px -8px 0; padding: 0 8px; border-radius: 6px;
   font-size: 14px; color: var(--notion-text); text-align: left;
