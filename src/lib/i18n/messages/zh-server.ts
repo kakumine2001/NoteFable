@@ -180,4 +180,6 @@ export const zhServer: Record<string, string> = {
   "Your NoteFable sign-in code: {code}": "你的 NoteFable 登录验证码：{code}",
   "Your sign-in code is {code}.": "你的登录验证码是 {code}。",
   "It expires in 10 minutes. If you didn't ask for it, you can ignore this email.": "验证码 10 分钟内有效。如果不是你本人操作，请忽略这封邮件。",
+  "Attached pages must be a list of page IDs.": "附加的页面必须是页面 ID 列表。",
+  "You can attach up to 5 pages to a message.": "每条消息最多可以添加 5 个页面。",
 };

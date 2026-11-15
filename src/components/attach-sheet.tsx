@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, ImagePlus, Paperclip } from "lucide-react";
+import { Check, FileText, ImagePlus, Paperclip } from "lucide-react";
 import { type ChangeEvent } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -8,7 +8,7 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { ATTACHMENT_ACCEPT } from "@/lib/client-files";
 import { useT } from "@/components/i18n-provider";
 
-// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
+// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、自分のノートを添付するか、画像を作るモードに切り替えるかを選ぶ。
 // 画像作成の行は、選んでいるチャットモデルに関係なく常に出す（画像生成は OpenAI の画像 API を直接呼ぶ）。
 export function AttachSheet({
   open,
@@ -16,12 +16,15 @@ export function AttachSheet({
   onFilesChange,
   imageMode,
   onToggleImageMode,
+  onAttachPages,
 }: {
   open: boolean;
   onClose: () => void;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
   imageMode: boolean;
   onToggleImageMode: () => void;
+  // ノートを選ぶダイアログを開く。シートは先に閉じる。
+  onAttachPages: () => void;
 }) {
   const t = useT();
   useBackToClose(open, onClose);
@@ -53,6 +56,22 @@ export function AttachSheet({
             }}
           />
         </label>
+
+        <button
+          type="button"
+          className="attach-row"
+          aria-haspopup="dialog"
+          onClick={() => {
+            onClose();
+            onAttachPages();
+          }}
+        >
+          <FileText size={22} />
+          <span>
+            <strong>{t("Attach pages")}</strong>
+            <small>{t("Let the AI read your notes")}</small>
+          </span>
+        </button>
 
         <button
           type="button"

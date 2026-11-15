@@ -811,9 +811,10 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .attach-row strong { font-size: 1.0625rem; font-weight: 600; }
 .attach-row small { font-size: 0.875rem; color: var(--notion-muted); }
 .attach-row[aria-pressed="true"] { background: var(--notion-hover); }
-/* スマホでは画像作成の切替は「＋」シートに移したので、入力欄の下の段からは外す。 */
+/* スマホでは画像作成の切替とノートの添付は「＋」シートに移したので、入力欄の下の段からは外す。 */
 @media (max-width: 639px) {
-  .notion-composer .composer-image-toggle { display: none; }
+  .notion-composer .composer-image-toggle,
+  .notion-composer .composer-page-button { display: none; }
 }
 /* 画像作成モードの目印はスマホ専用（パソコンでは入力欄の下の段のボタンが同じ役目）。 */
 @media (min-width: 640px) {
