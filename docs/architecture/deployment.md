@@ -105,13 +105,9 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 ## Database Schema Boundary
 
-生产连接字符串必须把 NoteFable 指向：
+NoteFable 的表固定放在 `notefable` schema：`src/lib/database-url.ts` 的 `DATABASE_SCHEMA` 会覆盖 `DATABASE_URL` 里的 `?schema=`（运行时 `src/lib/prisma.ts` 和迁移 `prisma.config.ts` 都是），运行时再显式把它传给 Prisma adapter。连接字符串里写什么 schema 都不影响。
 
-```text
-?schema=notefable
-```
-
-并且运行时 `src/lib/prisma.ts` 会再次显式把这个 schema 传给 Prisma adapter。
+`scripts/prisma-migrate-retry.mjs` 在迁移前检查：数据库里别的 schema 已有 NoteFable 的表、`notefable` 却没有迁移记录时直接失败（否则 `prisma migrate deploy` 会新建一个空的 `notefable` schema，上线后看起来数据全没了）。
 
 这是必要的，因为同一个 Neon database 里还有：
 

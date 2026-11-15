@@ -91,7 +91,7 @@ fun GuestLimitPrompt(
             .clip(shape)
             .background(Color.White)
             .drawBehind {
-                // linear-gradient(135deg, --sm-accent-soft, rgba(255,226,122,.16))：按 CSS 的角度算渐变线的起止点。
+                // linear-gradient(135deg, --nf-accent-soft, rgba(255,226,122,.16))：按 CSS 的角度算渐变线的起止点。
                 val d = 0.70710677f
                 val half = (size.width + size.height) * d / 2f
                 val c = Offset(size.width / 2f, size.height / 2f)
@@ -152,7 +152,7 @@ fun GuestLimitPrompt(
     }
 }
 
-// .signin-open-button.guest-limit-signin（手机）：高 44、全圆角、--sm-ink 底、左右 16、白字 15/600；
+// .signin-open-button.guest-limit-signin（手机）：高 44、全圆角、--nf-ink 底、左右 16、白字 15/600；
 // 出现后一道浅蓝高光扫过一次，再向外扩两圈光晕。
 @Composable
 private fun GuestLimitSignInButton(motion: GuestLimitMotion, onClick: () -> Unit) {

@@ -52,7 +52,7 @@ import com.kakumine.notefable.data.ProposalState
 //    改前：红 .1 底、删除线（红 .45）；改后：绿 .14 底；都圆角 4、内边距 4.8×8、下距 3.2；警告 #cb912f 12、上距 2.4；
 //  - 错误：#e03e3e，左右 12、下 8；
 //  - 按钮行：上边线 --notion-border、内边距 8×12、间距 8；按钮圆角 6、内边距 4×11.2、13.12 / 500、图标 13、间距 4.8；
-//    应用键 --sm-ink 底白字；放弃键 1px --notion-border-strong 边框；忙时 .6 透明；链接 --notion-blue 带下划线。
+//    应用键 --nf-ink 底白字；放弃键 1px --notion-border-strong 边框；忙时 .6 透明；链接 --notion-blue 带下划线。
 
 private val CardText = TextStyle(fontSize = 13.6.sp, lineHeight = 21.08.sp, color = Sm.Text, letterSpacing = 0.sp)
 private val OpText = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, color = Sm.Muted, letterSpacing = 0.sp)

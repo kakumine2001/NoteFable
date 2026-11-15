@@ -9,13 +9,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.sp
 
 /**
- * 设计令牌，逐项取自网页端 `src/app/globals.css`（:root 里的 --sm-* / --notion-*）。
+ * 设计令牌，逐项取自网页端 `src/app/globals.css`（:root 里的 --nf-* / --notion-*）。
  * 网页只有浅色主题（没有 prefers-color-scheme），所以原生版也只做浅色，保持和网页一致。
  * 改这里之前先改网页；对照表见 docs/architecture/android-native.md。
  */
 object Sm {
-    val Ink = Color(0xFF0C1730)          // --sm-ink：标题、主按钮
-    val InkHover = Color(0xFF1D2A47)     // --sm-ink-hover
+    val Ink = Color(0xFF0C1730)          // --nf-ink：标题、主按钮
+    val InkHover = Color(0xFF1D2A47)     // --nf-ink-hover
     val Text = Color(0xFF37352F)         // --notion-text：正文
     val Muted = Color(0x9E37352F)        // --notion-muted rgba(55,53,47,.62)
     val Faint = Color(0x5C37352F)        // --notion-faint .36：占位符、禁用
@@ -24,15 +24,15 @@ object Sm {
     val Border = Color(0x1737352F)       // --notion-border .09
     val BorderStrong = Color(0x2E37352F) // --notion-border-strong .18
     val Sidebar = Color(0xFFF7F7F5)      // --notion-sidebar
-    val Blue = Color(0xFF2383E2)         // --notion-blue / --sm-accent
-    val AccentSoft = Color(0x1A2383E2)   // --sm-accent-soft .10
-    val AccentLine = Color(0x732383E2)   // --sm-accent-line .45
-    val UserBubble = Color(0xFFF3F5F9)   // --sm-user-bubble
+    val Blue = Color(0xFF2383E2)         // --notion-blue / --nf-accent
+    val AccentSoft = Color(0x1A2383E2)   // --nf-accent-soft .10
+    val AccentLine = Color(0x732383E2)   // --nf-accent-line .45
+    val UserBubble = Color(0xFFF3F5F9)   // --nf-user-bubble
     val ModelPill = Color(0xFFF1F1EF)    // .codex-model-trigger 背景
     val SheetGrab = Color(0x3337352F)    // .model-sheet-grab
     val CodeBackground = Color(0xFFF7F6F3) // --notes-code-bg
     val Danger = Color(0xFFB91C1C)       // .is-danger
-    val ComposerShadow = Color(0x120C1730) // --sm-composer-shadow 的主阴影 .07
+    val ComposerShadow = Color(0x120C1730) // --nf-composer-shadow 的主阴影 .07
 }
 
 private val Colors = lightColorScheme(

@@ -75,7 +75,7 @@ private val SignInShadow = Color(0x1F0F0F0F) // --notion-shadow
 private val SignInRing = Color(0x0D0F0F0F)
 
 /**
- * "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44、圆角 6、--sm-ink 底、白字 15/600。
+ * "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44、圆角 6、--nf-ink 底、白字 15/600。
  * 侧栏底部和上限提示都只放这一个按钮，点了打开 [SignInDialog]。
  */
 @Composable
@@ -97,7 +97,7 @@ private enum class SignInStep { Choose, Code }
  *   内边距 32 / 28 / 24，白底、圆角 8、--notion-shadow。右上 12 处 32 的关闭键（✕ 18 灰，圆角 6）。
  * - 第一屏：标题 22/700 居中、字距 −0.01em；副标题 14 / 行高 1.5 灰，上 6.4 下 24；"使用 Google 继续"（高 44、圆角 8、15 字）；
  *   两种方式都有时中间是"或"分隔线（上下 16、间距 12、13 浅灰、两侧 1px 线）；邮箱输入框（高 44、圆角 8、16 字）+ "使用邮箱继续"
- *   （整行、高 ≥44、上 12、圆角 8、15/600、--sm-ink 底，禁用 .45）+ 说明（上 12、13 浅灰居中）。服务端没开的方式不出现。
+ *   （整行、高 ≥44、上 12、圆角 8、15/600、--nf-ink 底，禁用 .45）+ 说明（上 12、13 浅灰居中）。服务端没开的方式不出现。
  * - 第二屏：返回（上 −12、左 −4、下 12，内边距 4，箭头 16 + 4.8 + 14 灰）、标题、副标题（发到哪个邮箱）、6 位验证码输入框
  *   （居中、24 字、字距 0.45em）、"登录"、说明里的"重新发送验证码"（蓝色，禁用时浅灰）。
  * - 错误 14 红、提示 14 灰，都在输入框下 8。发送 / 核对期间不能关（网页 close() 的 busy 判断）。
@@ -297,7 +297,7 @@ private fun SignInField(
     )
 }
 
-// .notion-button.notion-button-primary.signin-submit：整行、高 ≥44、上 12、圆角 8、15/600、--sm-ink 底白字；禁用 .45。
+// .notion-button.notion-button-primary.signin-submit：整行、高 ≥44、上 12、圆角 8、15/600、--nf-ink 底白字；禁用 .45。
 @Composable
 private fun SignInSubmit(text: String, enabled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(8.dp)

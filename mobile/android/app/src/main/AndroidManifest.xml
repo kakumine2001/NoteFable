@@ -29,12 +29,12 @@
             android:launchMode="singleTask"
             android:windowSoftInputMode="adjustResize"
             android:configChanges="orientation|screenSize|smallestScreenSize|screenLayout|keyboardHidden|keyboard|locale|layoutDirection|density">
-            <!-- 本站的聊天链接（/?chat=…&amp;message=…）。autoVerify="false"：不做 App Links 验证，不需要 assetlinks.json；
-                 Android 12+ 默认仍由浏览器打开，用户在系统的"打开支持的链接"里把本站加给 App 后才进 App。 -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- 本站的聊天链接（/?chat=…&amp;message=…）。autoVerify="false"：不做 App Links 验证，不需要 assetlinks.json；
+                 Android 12+ 默认仍由浏览器打开，用户在系统的"打开支持的链接"里把本站加给 App 后才进 App。 -->
             <intent-filter android:autoVerify="false">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

@@ -36,7 +36,7 @@ kaku_log
 ```text
 DATABASE_URL
     ↓
-读取 ?schema=...
+schema 固定为 notefable（覆盖 URL 里的 ?schema=）
     ↓
 PrismaPg(databaseUrl, { schema })
     ↓
@@ -51,7 +51,7 @@ Node 运行时在创建 adapter 前，通过 `src/lib/database-url.ts` 把 `sslm
 
 ## Local Database
 
-本地开发使用独立的 Docker PostgreSQL 18.4 容器 `notefable-pg18-dev`，主机端口 5432，数据库 `notefable`，schema `notefable`。它与生产 Neon 的 `neondb/studymate` 分离；不要为了统一名称移动已有表或重置数据。
+本地开发使用独立的 Docker PostgreSQL 18.4 容器 `notefable-pg18-dev`，主机端口 5432，数据库 `notefable`，schema `notefable`。它与生产 Neon 的 `neondb/notefable` 分离。
 
 启动与连接排查见 [README 的本地启动](../../README.md#本地启动)。Docker Desktop 和容器必须运行；数据库不可用时，静态页面仍可能显示，但会话 API 会返回 503。
 
