@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
+  FilePlus,
   FileText,
   History,
   ImagePlus,
@@ -21,6 +22,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { AttachSheet } from "@/components/attach-sheet";
@@ -164,6 +166,8 @@ export default function Home() {
   // 検索の小窓（Ctrl/Cmd+K）。履歴の小窓は、開いた時点のノート ID を持ち、別のノートに移ったら出さない。
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+  // 「Create page」の窓を開いている会話。
+  const [createPageSessionId, setCreatePageSessionId] = useState<string | null>(null);
   useSearchShortcut(() => setSearchOpen(true));
   // 検索結果から開いたブロック・メッセージまで動かす予約と、待っている動かす処理の中止用。
   const revealRef = useRef<RevealRequest | null>(null);
@@ -1650,6 +1654,13 @@ export default function Home() {
                 <Plus size={20} />
               </button>
             )}
+            {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
+            {workspaceView === "chat" && !emptyState && activeSession && (
+              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionStreaming} onClick={() => setCreatePageSessionId(activeSession.id)}
+                aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
+                <FilePlus size={20} />
+              </button>
+            )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
                 aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
@@ -1906,6 +1917,9 @@ export default function Home() {
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} view={workspaceView}
         onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink}
         projects={chatProjects} currentProjectId={activeSession?.projectId ?? null} />
+      {createPageSessionId && (
+        <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model} onClose={() => setCreatePageSessionId(null)} />
+      )}
       {historyQueue && historyNoteId && (
         <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />

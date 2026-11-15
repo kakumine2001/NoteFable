@@ -180,4 +180,6 @@ export const zhServer: Record<string, string> = {
   "Your NoteFable sign-in code: {code}": "你的 NoteFable 登录验证码：{code}",
   "Your sign-in code is {code}.": "你的登录验证码是 {code}。",
   "It expires in 10 minutes. If you didn't ask for it, you can ignore this email.": "验证码 10 分钟内有效。如果不是你本人操作，请忽略这封邮件。",
+  "Could not create a page from this chat. Try again.": "无法把这段聊天整理成笔记，请重试。",
+  "This chat has nothing to turn into a page yet.": "这段聊天还没有可以整理成笔记的内容。",
 };
