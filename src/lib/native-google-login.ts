@@ -5,6 +5,7 @@ import { encode } from "next-auth/jwt";
 import type { NextRequest, NextResponse } from "next/server";
 import { isAuthoritativeGoogleEmail } from "@/lib/email-address";
 import { optionalEnv } from "@/lib/env";
+import { SESSION_COOKIE } from "@/lib/cookie-names";
 import { msg } from "@/lib/i18n/translate";
 
 // Android アプリ（WebView）は Google の Web ログイン画面を開けないので、端末側で取得した ID トークンを
@@ -110,7 +111,7 @@ export async function verifyGoogleIdToken(
 }
 
 export function sessionCookieName(secure: boolean) {
-  return `${secure ? "__Secure-" : ""}authjs.session-token`;
+  return `${secure ? "__Secure-" : ""}${SESSION_COOKIE}`;
 }
 
 // Auth.js が読むセッション Cookie の値を作る。salt は Cookie 名、payload は google-auth.ts の callbacks と対応させる。

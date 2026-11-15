@@ -5,9 +5,10 @@ import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigur
 import { normalizeEmail } from "@/lib/email-address";
 import { isDeletedLogin } from "@/lib/deleted-accounts";
 import { prisma } from "@/lib/prisma";
+import { DEVICE_COOKIE } from "@/lib/cookie-names";
 
 // 匿名利用者を識別するための Cookie 名。
-const COOKIE_NAME = "notefable_device";
+const COOKIE_NAME = DEVICE_COOKIE;
 // Cookie の有効期限。秒単位で 1 年。
 const MAX_AGE = 60 * 60 * 24 * 365;
 

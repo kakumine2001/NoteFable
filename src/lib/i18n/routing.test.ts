@@ -24,7 +24,7 @@ describe("localized routing", () => {
     expect(target(route("/?utm_source=bookmark", { language: "en" }))).toBe("rewrite /en?utm_source=bookmark");
   });
 
-  it.each(["notefable_device", "authjs.session-token", "__Secure-authjs.session-token"])("sends a returning %s visitor from / to the workspace", (name) => {
+  it.each(["notefable_device", "authjs.session-token", "__Secure-authjs.session-token", "__Secure-authjs.session-token.0"])("sends a returning %s visitor from / to the workspace", (name) => {
     expect(target(route("/", { cookies: { [name]: "x" } }))).toBe("redirect /app");
     expect(target(route("/?utm_source=bookmark", { cookies: { [name]: "x" } }))).toBe("redirect /app?utm_source=bookmark");
   });

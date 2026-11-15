@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
+import { INTRO_HREF } from "@/lib/i18n/routing";
 import { useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。
@@ -248,7 +249,7 @@ export function ThreadLanding() {
       <a className="tl-skip" href="#tl-main">{t("Skip to content")}</a>
 
       <header className="tl-nav tl-wrap">
-        <Link className="tl-brand" href="/?intro" aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
+        <Link className="tl-brand" href={INTRO_HREF} aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
         <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 
