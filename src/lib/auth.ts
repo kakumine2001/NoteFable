@@ -7,7 +7,7 @@ import { prisma } from "@/lib/prisma";
 
 // 匿名利用者を識別するための Cookie 名。
 const COOKIE_NAME = "notefable_device";
-// 改名前の Cookie 名。署名は同じなので、残っていればその ID をそのまま新しい名前へ移す（匿名のデータを失わない）。
+// 改名前の Cookie 名。署名は同じなので、残っていればその ID を新しい名前でも保存する（匿名のデータを失わない）。
 const LEGACY_COOKIE_NAME = "studymate_device";
 // Cookie の有効期限。秒単位で 1 年。
 const MAX_AGE = 60 * 60 * 24 * 365;
@@ -79,8 +79,8 @@ export async function ensureAnonymousDeviceId() {
 
   const legacyDeviceId = unpack(cookieStore.get(LEGACY_COOKIE_NAME)?.value);
   if (legacyDeviceId) {
+    // 古い Cookie は消さずに残す。改名前のデプロイへ戻したときも同じ利用者として読めるように。
     await issueDeviceId(legacyDeviceId);
-    cookieStore.delete(LEGACY_COOKIE_NAME);
     return legacyDeviceId;
   }
   return issueDeviceId();

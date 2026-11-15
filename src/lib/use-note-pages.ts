@@ -10,6 +10,8 @@ import { msg } from "@/lib/i18n/translate";
 import { adoptLegacyKey } from "@/lib/legacy-storage";
 
 const DRAFT_PREFIX = "notefable:page-draft:v1:";
+// 改名前の下書きキー（adoptLegacyKey が読むときに移す）。ゴミ箱へ移すときはこちらも消す。
+const LEGACY_DRAFT_PREFIX = "studymate:page-draft:v1:";
 
 async function pageRequest(url: string, method = "GET", body?: unknown) {
   const response = await fetch(url, {
@@ -279,7 +281,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       await pageRequest(`/api/pages/${id}`, "DELETE");
       queues.current.delete(id);
-      try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
+      try {
+        localStorage.removeItem(DRAFT_PREFIX + id);
+        localStorage.removeItem(LEGACY_DRAFT_PREFIX + id);
+      } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
       const remaining = pages.filter((page) => page.id !== id);
       runTransition(() => setPages(remaining), "list");
       if (activeId === id) {

@@ -238,7 +238,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 点 Apply 请求 `POST /api/proposals/[id]/apply`，点 Discard 请求 `POST /api/proposals/[id]/discard`（`src/lib/note-proposals.ts`）。适用在一个事务里先把状态从 `PENDING` 抢占为 `APPLIED`，只有抢到的那一次才写笔记：编辑只在笔记仍然存在（不在 Trash）且版本等于提案的基准版本时才写（和手动保存一样的版本检查，写入前对内容重新跑 `validateNoteContent`）：满足条件时，先把覆盖前的标题、图标和正文存成一份 `AI_EDIT` 的编辑历史（`NoteRevision`，同一事务，之后失败则一起回滚），再写笔记，之后可以在笔记的历史里恢复到适用之前；版本不符返回 409、笔记已不存在或在 Trash 则返回 404，两者都整体回滚，提案保持待确认；新建在同一事务里创建笔记并记录 `appliedPageId`。因此重复点击、请求重发或网络断开后重试，都不会重复创建笔记或把同一处修改应用两次，已应用的提案再次请求会直接返回当时的结果。已放弃的提案不能再应用，已应用的提案不能再放弃。所有操作都按当前用户的 `userId` 限定。
 
-成功后卡片会派发浏览器事件 `notefable:page-updated`（编辑）或 `notefable:page-created`（新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `studymate.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
+成功后卡片会派发浏览器事件 `notefable:page-updated`（编辑）或 `notefable:page-created`（新建），`src/lib/use-note-pages.ts` 据此把已加载的笔记编辑队列更新到新版本，或把新笔记加入列表；队列里有未保存的编辑时不会覆盖，而是标记为冲突让用户选择。卡片在页面内的操作状态（适用中、错误）按提案 ID 保存在组件外的小型 store 里，回答结束后重新拉取历史导致卡片重新挂载时不会回到"未应用"。服务端把上游流里 `notefable.` 开头的事件全部丢弃，这类事件只能由本进程的工具执行产生。
 
 模型始终不能直接改动笔记，批准动作只存在于浏览器里的点击。笔记正文只有三条写入路径：手动保存（`/api/pages`）、适用提案（`/api/proposals/[id]/apply`）和用户在历史对话框里点击的恢复（`/api/pages/[id]/revisions/[revisionId]/restore`），三者都经过 `validateNoteContent` 和版本检查，并在覆盖前留下编辑历史（手动保存按间隔留 `AUTO`）。目前支持修改已有笔记和新建笔记，不包含删除笔记（AI 工具不能把笔记移入 Trash 或永久删除）。
 

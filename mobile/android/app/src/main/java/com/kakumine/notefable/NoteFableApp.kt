@@ -20,7 +20,7 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
         PersistentCookieJar(this).also { jar ->
             // 旧版连的是 studymate-lab-ai.vercel.app，Cookie 存在那个主机名下：搬到现在的服务器地址，身份不变。
             val host = Uri.parse(BuildConfig.BASE_URL).host
-            if (host != null) LEGACY_HOSTS.forEach { jar.moveHost(it, host) }
+            if (host == PRODUCTION_HOST) LEGACY_HOSTS.forEach { jar.moveHost(it, host) }
         }
     }
     val api: NoteFableApi by lazy {
@@ -42,8 +42,9 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
     }
 
     companion object {
-        /** 以前的服务器地址。只在正式域名下搬（本机联调的 localhost 不动）。 */
+        /** 以前的服务器地址。只在连正式域名时搬：连本机开发服务器的 debug 包不动，否则线上身份会被搬到 localhost 下丢掉。 */
         private val LEGACY_HOSTS = listOf("studymate-lab-ai.vercel.app")
+        private const val PRODUCTION_HOST = "notefable.com"
     }
 
     // 附件图片要带登录 Cookie 才能读（服务端校验归属），所以让 Coil 复用同一个 OkHttp 客户端。
