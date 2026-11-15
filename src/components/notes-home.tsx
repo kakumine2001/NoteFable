@@ -34,7 +34,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const loose = roots.filter((page) => !page.groupId || !known.has(page.groupId));
   const favorites = pages.filter((page) => page.favoritedAt).sort((a, b) => (a.favoritedAt ?? "").localeCompare(b.favoritedAt ?? ""));
   const [expanded, toggleExpanded] = useExpandedPages();
-  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && pages.some((item) => item.id === page.parentId) ? page.parentId : null) ?? [])
+  const ids = new Set(pages.map((page) => page.id));
+  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && ids.has(page.parentId) ? page.parentId : null) ?? [])
     .filter((item) => item.groupId === page.groupId).map((item) => item.id);
   const item = (page: NotePageSummary) => {
     const kids = children.get(page.id) ?? [];
@@ -74,14 +75,15 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       </section>}
       {groups.map((group) => {
         const members = roots.filter((page) => page.groupId === group.id);
+        const total = pages.filter((page) => page.groupId === group.id).length;
         return (
           <section key={group.id}>
-            <h2 className="notes-home-group" data-note-group-drop={group.id}>{group.name}<span>{members.length}</span></h2>
+            <h2 className="notes-home-group" data-note-group-drop={group.id}>{group.name}<span>{total}</span></h2>
             {members.length ? <ul className="notes-home-list">{members.map(item)}</ul> : <p className="notes-home-empty">{t("No notes in this project.")}</p>}
           </section>
         );
       })}
-      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">{t("No project")}<span>{loose.length}</span></h2>}
+      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">{t("No project")}<span>{pages.filter((page) => !page.groupId || !known.has(page.groupId)).length}</span></h2>}
       {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
       <div className="notes-home-actions">
         <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />{t("New note")}</button>

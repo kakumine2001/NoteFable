@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
-import { canMoveInto, childrenByParent } from "@/lib/note-tree";
+import { childrenByParent, descendantIdsOf } from "@/lib/note-tree";
 
 // 開いた瞬間にモーダルとして表示する <dialog>。Esc で閉じる。
 function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
@@ -91,10 +91,12 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
   }
   // 木の順（親の直後に子）で、深さ付きの候補を作る。絞り込み中は一致したページだけを平らに出す。
   const children = childrenByParent(pages);
+  // 自分と自分の子孫の中へは移せない。子孫は 1 回だけ数える（自分の下は辿らないので、子孫は自然に候補から外れる）。
+  const blocked = new Set([page.id, ...descendantIdsOf(pages, page.id)]);
   const targets: { page: NotePageSummary; depth: number }[] = [];
   const walk = (parent: string | null, depth: number) => {
     for (const entry of children.get(parent) ?? []) {
-      if (!canMoveInto(pages, page.id, entry.id)) continue;
+      if (blocked.has(entry.id)) continue;
       targets.push({ page: entry, depth });
       walk(entry.id, depth + 1);
     }

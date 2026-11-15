@@ -801,8 +801,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-menu-font[aria-checked="true"] { color: var(--notion-blue); }
 .notes-menu-font-sample { font-size: 1.375rem; line-height: 1.2; color: var(--notion-text); }
 .notes-menu-font[aria-checked="true"] .notes-menu-font-sample { color: var(--notion-blue); }
-.notes-menu-font.font-serif .notes-menu-font-sample { font-family: var(--notes-font-serif); }
-.notes-menu-font.font-mono .notes-menu-font-sample { font-family: var(--notes-font-mono); }
+.notes-menu-font.notes-font-serif .notes-menu-font-sample { font-family: var(--notes-font-serif); }
+.notes-menu-font.notes-font-mono .notes-menu-font-sample { font-family: var(--notes-font-mono); }
 .notes-menu-switch { position: relative; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(55, 53, 47, 0.2); transition: background-color 120ms ease; }
 .notes-menu-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 120ms ease; }
 .notes-menu-switch[data-on="true"] { background: var(--notion-blue); }
@@ -812,8 +812,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 :root { --notes-font-serif: Lyon-Text, Georgia, YuMincho, "Yu Mincho", "Hiragino Mincho ProN", "Songti SC", "Noto Serif CJK SC", serif; --notes-font-mono: iawriter-mono, Nitti, Menlo, Courier, monospace; }
 .notes-workspace.is-full-width .notes-column { width: 100%; }
 .notes-workspace.is-small-text .notes-block-editor .bn-editor { font-size: 14px; }
-.notes-workspace.font-serif .notes-title, .notes-workspace.font-serif .notes-block-editor .bn-editor { font-family: var(--notes-font-serif); }
-.notes-workspace.font-mono .notes-title, .notes-workspace.font-mono .notes-block-editor .bn-editor { font-family: var(--notes-font-mono); }
+.notes-workspace.notes-font-serif .notes-title, .notes-workspace.notes-font-serif .notes-block-editor .bn-editor { font-family: var(--notes-font-serif); }
+.notes-workspace.notes-font-mono .notes-title, .notes-workspace.notes-font-mono .notes-block-editor .bn-editor { font-family: var(--notes-font-mono); }
 .notes-home-new { margin-top: 0.25rem; }
 
 /* スマホのモデル・推論強度シート（画面下から出る）。 */

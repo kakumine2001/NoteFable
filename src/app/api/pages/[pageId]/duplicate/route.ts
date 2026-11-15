@@ -47,10 +47,9 @@ export async function POST(_request: Request, context: Context) {
           created.push(copy.id);
         }
       }
-      // 複製は元のページ（とその子孫）のすぐ後ろへ。
-      const last = sources.reduce((max, source) => Math.max(max, order.indexOf(source.id)), order.indexOf(root.id));
-      const next = order.filter((id) => !created.includes(id));
-      next.splice(last + 1, 0, ...sources.map((source) => copies.get(source.id)!).filter(Boolean));
+      // 複製は元のページのすぐ後ろへ（子の複製は複製の親の下に並ぶので、全体の中の位置は親の後ろでよい）。
+      const next = [...order];
+      next.splice(order.indexOf(root.id) + 1, 0, ...sources.map((source) => copies.get(source.id)!).filter(Boolean));
       await writeOrder(tx, user.id, next);
       const page = await tx.notePage.findFirst({ where: { id: copies.get(root.id)!, userId: user.id } });
       const pages = await tx.notePage.findMany({ where: { id: { in: created }, userId: user.id }, select: PAGE_SUMMARY_SELECT });

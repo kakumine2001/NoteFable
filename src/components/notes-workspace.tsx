@@ -64,7 +64,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   const settings = pageSettingsOf(activeId ? notes.pages.find((page) => page.id === activeId) : undefined);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
-    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}`
+    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}`
     : "";
   useLayoutEffect(() => {
     if (!titleRef.current) return;

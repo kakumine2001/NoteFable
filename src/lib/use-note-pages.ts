@@ -5,7 +5,7 @@ import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
-import { descendantIdsOf } from "@/lib/note-tree";
+import { descendantIdsOf, rootPages } from "@/lib/note-tree";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { msg } from "@/lib/i18n/translate";
 
@@ -50,17 +50,20 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const displayedId = useRef<string | null>(null);
   const pendingId = useRef<string | null>(null);
 
-  const upsertSummary = useCallback((page: NotePageSummary) => {
+  // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
+  // それ以外（サーバーから読んだ・保存した行）は、お気に入り・表示設定をサーバーの値にそろえる（別タブ・アプリでの変更を拾う）。
+  const upsertSummary = useCallback((page: NotePageSummary, { local = false }: { local?: boolean } = {}) => {
     // 保存のたびに行が動かないよう、作成順を保つ。
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
       if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
-      if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt) return current;
-      // 所属グループ・親・お気に入り・表示設定はそれぞれの操作だけが決める。保存の応答や古い編集中データの値で上書きしない。
-      return current.map((entry) => entry.id === page.id ? {
-        ...page, groupId: entry.groupId, position: entry.position, parentId: entry.parentId, favoritedAt: entry.favoritedAt,
-        fullWidth: entry.fullWidth, smallText: entry.smallText, font: entry.font, locked: entry.locked,
-      } : entry);
+      const meta = local || page.locked === undefined
+        ? { favoritedAt: existing.favoritedAt, fullWidth: existing.fullWidth, smallText: existing.smallText, font: existing.font, locked: existing.locked }
+        : { favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked };
+      if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt
+        && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked) return current;
+      // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
+      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
     });
   }, []);
 
@@ -79,7 +82,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       upsertSummary(data.page);
       return data.page;
     }, () => {
-      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon });
+      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
       try {
         if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
         else localStorage.removeItem(DRAFT_PREFIX + page.id);
@@ -249,7 +252,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
       const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
-      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(!copy && parentId ? { parentId } : {}) });
+      // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
+      const copyParent = copy && activeId ? pages.find((entry) => entry.id === activeId)?.parentId ?? null : null;
+      const parent = copy ? copyParent : parentId;
+      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(parent ? { parentId: parent } : {}) });
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);
         upsertSummary(current.page);
@@ -300,7 +306,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         const url = new URL(window.location.href);
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
-        if (remaining[0] && !isPhone()) await select(remaining[0].id, "replace");
+        // サイドバーの一番上に見えている最上位のページを開く。
+        const next = rootPages(remaining)[0];
+        if (next && !isPhone()) await select(next.id, "replace");
       }
       return true;
     } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); return false; }

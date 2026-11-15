@@ -76,7 +76,8 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
   // 開いているページの祖先は、閉じていても開いて見せる。
   const activeAncestors = new Set(activeId ? ancestorsOf(pages, activeId).map((page) => page.id) : []);
   // キーボードでの並べ替えは、同じ親・同じグループの兄弟の中で動かす。
-  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && pages.some((item) => item.id === page.parentId) ? page.parentId : null) ?? [])
+  const known = new Set(pages.map((page) => page.id));
+  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && known.has(page.parentId) ? page.parentId : null) ?? [])
     .filter((item) => item.groupId === page.groupId).map((item) => item.id);
   const tree = (page: NotePageSummary): ReactNode => {
     const kids = children.get(page.id) ?? [];
@@ -104,7 +105,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
-      <button type="button" disabled={busy} className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: page.title })} title={t("Change icon")}
+      <button type="button" disabled={busy || page.locked === true} className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: page.title })} title={t("Change icon")}
         aria-haspopup="dialog" aria-expanded={picker?.id === page.id}
         onClick={(event) => {
           triggerRef.current = event.currentTarget;
@@ -152,6 +153,8 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
         </div>
         {groups.map((group) => {
           const members = roots.filter((page) => page.groupId === group.id);
+          // 数はサブページも含めた、この項目のページ数。
+          const total = pages.filter((page) => page.groupId === group.id).length;
           const open = !collapsed[group.id];
           return (
             <div key={group.id}>
@@ -160,7 +163,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
                   {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                   <Folder size={15}/>
                   <span className="truncate text-sm font-medium">{group.name}</span>
-                  <span className="text-xs text-[var(--notion-faint)]">{members.length}</span>
+                  <span className="text-xs text-[var(--notion-faint)]">{total}</span>
                 </button>
                 <button type="button" onClick={() => setNaming({ mode: "rename", group })} className="notion-row-action" aria-label={t("Rename {name}", { name: group.name })}><Pencil size={13} /></button>
                 <button type="button" onClick={() => setDeletingGroup(group)} className="notion-row-action" aria-label={t("Delete project {name}", { name: group.name })}><Trash2 size={14} /></button>

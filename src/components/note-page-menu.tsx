@@ -52,7 +52,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
       <div className="notes-menu-label">{t("Style")}</div>
       <div className="notes-menu-fonts">
         {FONTS.map((font) => <button key={font.key} type="button" role="menuitemradio" aria-checked={settings.font === font.key}
-          className={`notes-menu-font font-${font.key}`} onClick={() => onSettings({ font: font.key })}>
+          className={`notes-menu-font notes-font-${font.key}`} onClick={() => onSettings({ font: font.key })}>
           <span className="notes-menu-font-sample" aria-hidden="true">Ag</span>{t(font.label)}
         </button>)}
       </div>
