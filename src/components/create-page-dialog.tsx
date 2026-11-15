@@ -12,7 +12,8 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 
 export type CreatePageJob =
   | { status: "working" }
-  | { status: "done"; page: { id: string; title: string } }
+  // partial: 長い会話で、古い発言を使わずに作った。
+  | { status: "done"; page: { id: string; title: string }; partial: boolean }
   | { status: "error"; message: string };
 
 const FAILED = msg("Could not create a page from this chat. Try again.");
@@ -35,7 +36,7 @@ function today() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
-// サーバーの理由をそのまま見せるのは、上限（429）と検証（400 / 413）と空の会話だけ。他は共通の文。
+// サーバーの理由をそのまま見せるのは、上限（429）と検証（400 / 413）と空の会話だけ。会話が無い（404）はその旨、他は共通の文。
 export function createPageErrorMessage(status: number, data: Record<string, unknown>) {
   if ([400, 413, 429].includes(status) && typeof data.error === "string" && data.error) return data.error;
   if (status === 404) return msg("Session not found.");
@@ -59,13 +60,14 @@ export async function createPageFromChat(sessionId: string, model: string) {
       return;
     }
     window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: page }));
-    setJob(sessionId, { status: "done", page: { id: page.id, title: typeof page.title === "string" ? page.title : "" } });
+    setJob(sessionId, { status: "done", page: { id: page.id, title: typeof page.title === "string" ? page.title : "" }, partial: body.partial === true });
   } catch {
     setJob(sessionId, { status: "error", message: FAILED });
   }
 }
 
-export function CreatePageDialog({ sessionId, model, onClose }: { sessionId: string; model: string; onClose: () => void }) {
+// busy: この会話で送信・アップロード・返答が進行中。最後の回答がまだ保存されていないので作らない。
+export function CreatePageDialog({ sessionId, model, busy, onClose }: { sessionId: string; model: string; busy: boolean; onClose: () => void }) {
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   const job = useSyncExternalStore(subscribe, () => jobs.get(sessionId) ?? null, () => null);
@@ -94,9 +96,12 @@ export function CreatePageDialog({ sessionId, model, onClose }: { sessionId: str
         <span>{t("Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.")}</span>
       </p>
     ) : job?.status === "done" ? (
-      <p role="status" className="mt-3 text-sm text-[var(--notion-muted)]">{t("Created “{title}” in Notes.", { title: job.page.title })}</p>
+      <p role="status" className="mt-3 text-sm text-[var(--notion-muted)]">
+        {t("Created “{title}” in Notes.", { title: job.page.title })}
+        {job.partial && <> {t("This chat is long, so only the most recent messages were used.")}</>}
+      </p>
     ) : (
-      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this whole conversation into an organized note in Notes, using the selected model. It counts as one message toward today’s limit.")}</p>
+      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this conversation into an organized note in Notes, using the selected model. In a very long chat, only the most recent messages are used. It counts as one message toward today’s limit.")}</p>
     )}
     {job?.status === "error" && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(job.message, t)}</p>}
     <div className="mt-5 flex justify-end gap-2">
@@ -106,7 +111,7 @@ export function CreatePageDialog({ sessionId, model, onClose }: { sessionId: str
           {t("Open page")}<ArrowUpRight size={15} aria-hidden="true" />
         </button>
       ) : (
-        <button type="button" autoFocus disabled={job?.status === "working"} className="notion-button notion-button-primary"
+        <button type="button" autoFocus disabled={job?.status === "working" || busy} className="notion-button notion-button-primary"
           onClick={() => void createPageFromChat(sessionId, model)}>
           {job?.status === "error" ? t("Try again") : t("Create page")}
         </button>

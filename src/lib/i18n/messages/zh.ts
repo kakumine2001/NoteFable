@@ -597,7 +597,9 @@ export const zh: Record<string, string> = {
   "Didn't get it?": "没收到？",
   "Create page": "整理成笔记",
   "Create a page from this chat": "把这段聊天整理成笔记",
-  "NoteFable rewrites this whole conversation into an organized note in Notes, using the selected model. It counts as one message toward today’s limit.": "NoteFable 会用当前选择的模型，把整段对话改写成一篇条理清晰的笔记并保存到笔记中。这会计入今天的消息次数（1 次）。",
+  "NoteFable rewrites this conversation into an organized note in Notes, using the selected model. In a very long chat, only the most recent messages are used. It counts as one message toward today’s limit.": "NoteFable 会用当前选择的模型，把这段对话改写成一篇条理清晰的笔记并保存到笔记中。对话很长时只使用最近的消息。这会计入今天的消息次数（1 次）。",
+
+  "This chat is long, so only the most recent messages were used.": "对话较长，只使用了最近的消息。",
   "Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.": "正在撰写笔记……可能需要一分钟左右。你可以关闭这个窗口，完成后笔记会出现在笔记列表里。",
   "Created “{title}” in Notes.": "已在笔记中创建“{title}”。",
   "Open page": "打开笔记",

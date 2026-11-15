@@ -589,7 +589,9 @@ export const ja: Record<string, string> = {
   "Didn't get it?": "届きませんか？",
   "Create page": "ノートにまとめる",
   "Create a page from this chat": "このチャットをノートにまとめる",
-  "NoteFable rewrites this whole conversation into an organized note in Notes, using the selected model. It counts as one message toward today’s limit.": "選択中のモデルで、この会話全体を整理されたノートに書き直してノートに保存します。今日の送信回数に 1 回として数えられます。",
+  "NoteFable rewrites this conversation into an organized note in Notes, using the selected model. In a very long chat, only the most recent messages are used. It counts as one message toward today’s limit.": "選択中のモデルで、この会話を整理されたノートに書き直してノートに保存します。とても長い会話では、新しいメッセージだけを使います。今日の送信回数に 1 回として数えられます。",
+
+  "This chat is long, so only the most recent messages were used.": "長い会話なので、新しいメッセージだけを使いました。",
   "Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.": "ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとノートに追加されます。",
   "Created “{title}” in Notes.": "ノートに「{title}」を作成しました。",
   "Open page": "ノートを開く",

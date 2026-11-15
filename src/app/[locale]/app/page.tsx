@@ -477,6 +477,8 @@ export default function Home() {
   const activeSessionKey = getMessagesKey(activeSessionId);
   const activeStreamStartedAt = streamingSessions[activeSessionKey] ?? null;
   const isActiveSessionStreaming = activeStreamStartedAt !== null;
+  // 送信の途中（アップロード中を含む）か返答中。Create page は最後の回答が保存されるまで待つ。
+  const isActiveSessionBusy = isActiveSessionStreaming || uploadProgress !== null;
   const selectedModel = getModelOption(model);
   // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
   const uploadOptions = {
@@ -1681,7 +1683,7 @@ export default function Home() {
             )}
             {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
             {workspaceView === "chat" && !emptyState && activeSession && (
-              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionStreaming} onClick={() => setCreatePageSessionId(activeSession.id)}
+              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionBusy} onClick={() => setCreatePageSessionId(activeSession.id)}
                 aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
                 <FilePlus size={20} />
               </button>
@@ -1958,7 +1960,8 @@ export default function Home() {
         onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink}
         projects={chatProjects} currentProjectId={activeSession?.projectId ?? null} />
       {createPageSessionId && (
-        <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model} onClose={() => setCreatePageSessionId(null)} />
+        <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model}
+          busy={createPageSessionId === activeSession?.id && isActiveSessionBusy} onClose={() => setCreatePageSessionId(null)} />
       )}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}

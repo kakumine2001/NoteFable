@@ -16,6 +16,7 @@ vi.mock("@/lib/usage-limits", () => ({
 }));
 vi.mock("@/lib/chat-page", async (importOriginal) => ({ ...(await importOriginal<object>()), generatePageMarkdown: mocks.generate }));
 import { POST } from "./route";
+import { MAX_TRANSCRIPT_MESSAGES } from "@/lib/chat-page";
 
 const sessionId = "chat12345678901234567890";
 const ticket = { kind: "chat", day: "2026-11-15", keys: ["user:mine"] };
@@ -28,12 +29,13 @@ describe("POST /api/sessions/:id/page", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.session.mockResolvedValue({ title: "Kanji study" });
+    // 新しい順に返る。
     mocks.messages.mockResolvedValue([
-      { role: "USER", content: "Explain 漢字", attachments: [] },
       { role: "ASSISTANT", content: "They are characters.", attachments: [] },
+      { role: "USER", content: "Explain 漢字", attachments: [] },
     ]);
     mocks.consume.mockResolvedValue({ ok: true, ticket });
-    mocks.generate.mockResolvedValue("# Kanji basics\n\n- one\n- two");
+    mocks.generate.mockResolvedValue({ markdown: "# Kanji basics\n\n- one\n- two", cutOff: false });
     mocks.create.mockImplementation(async ({ data }) => ({ id: "page1", ...data }));
     mocks.transaction.mockImplementation(async (run: (tx: unknown) => unknown) => run({ notePage: { create: mocks.create } }));
   });
@@ -41,18 +43,36 @@ describe("POST /api/sessions/:id/page", () => {
   it("writes the page with the selected model's default effort and saves it for the owner", async () => {
     const response = await post();
     expect(response.status).toBe(201);
-    expect((await response.json()).page.id).toBe("page1");
+    expect(await response.json()).toMatchObject({ page: { id: "page1" }, partial: false });
     expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine", noteId: null }, select: { title: true } });
-    expect(mocks.messages.mock.calls[0][0].where).toEqual({ sessionId, role: { in: ["USER", "ASSISTANT"] } });
+    expect(mocks.messages.mock.calls[0][0]).toMatchObject({ where: { sessionId, role: { in: ["USER", "ASSISTANT"] } }, take: MAX_TRANSCRIPT_MESSAGES + 1 });
     expect(mocks.messages.mock.calls[0][0].select).not.toHaveProperty("providerContext");
     const call = mocks.generate.mock.calls[0][0];
     expect(call).toMatchObject({ provider: "anthropic", effort: "medium", userId: "mine" });
-    expect(call.transcript).toContain("Explain 漢字");
+    expect(call.transcript.indexOf("Explain 漢字")).toBeLessThan(call.transcript.indexOf("They are characters."));
+    expect(call.maxOutputTokens).toBe(128_000);
     const data = mocks.create.mock.calls[0][0].data;
     expect(data).toMatchObject({ userId: "mine", title: "Kanji basics", cover: null });
     const last = data.blocks.at(-1);
     expect(last.content[1]).toMatchObject({ type: "link", href: `https://notefable.example/?chat=${sessionId}` });
     expect(mocks.refund).not.toHaveBeenCalled();
+  });
+
+  it("saves a page the model cut off, with a notice, and reports a chat too long to read in full", async () => {
+    mocks.generate.mockResolvedValue({ markdown: "# Kanji basics\n\nPart one", cutOff: true });
+    mocks.messages.mockResolvedValue(Array.from({ length: MAX_TRANSCRIPT_MESSAGES + 1 }, (_, index) => ({ role: index % 2 ? "USER" : "ASSISTANT", content: `m${index}`, attachments: [] })));
+    const response = await post();
+    expect(response.status).toBe(201);
+    expect((await response.json()).partial).toBe(true);
+    expect(mocks.generate.mock.calls[0][0].transcript).toContain("Earlier messages were left out");
+    expect(mocks.generate.mock.calls[0][0].transcript).not.toContain(`m${MAX_TRANSCRIPT_MESSAGES}\n`);
+    const last = mocks.create.mock.calls[0][0].data.blocks.at(-1);
+    expect(last.content.at(-1).text).toContain("The page was too long to save in full");
+  });
+
+  it("rejects a request body over 1 MiB", async () => {
+    expect((await post(JSON.stringify({ model: "x".repeat(1_100_000) }))).status).toBe(413);
+    expect(mocks.session).not.toHaveBeenCalled();
   });
 
   it("falls back to the default model for an unknown model", async () => {

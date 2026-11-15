@@ -57,7 +57,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | --- | --- |
 | `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列。只含不在 Trash 里的笔记 |
 | `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面），也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
-| `POST /api/sessions/:id/page` | 聊天顶栏的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
+| `POST /api/sessions/:id/page` | 聊天顶栏的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page, partial }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
 | `POST /api/pages/from-answer` | Android App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404） |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404 |
