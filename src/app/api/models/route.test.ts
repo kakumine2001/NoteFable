@@ -5,9 +5,9 @@ import { GET } from "./route";
 describe("GET /api/models", () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it("offers only the models the server enables through STUDYMATE_MODELS, in that order", async () => {
+  it("offers only the models the server enables through NOTEFABLE_MODELS, in that order", async () => {
     const [first, second] = MODEL_OPTIONS;
-    vi.stubEnv("STUDYMATE_MODELS", JSON.stringify([{ id: second.id, label: "Renamed", upstreamModel: "secret-upstream" }, { id: first.id, enabled: false }]));
+    vi.stubEnv("NOTEFABLE_MODELS", JSON.stringify([{ id: second.id, label: "Renamed", upstreamModel: "secret-upstream" }, { id: first.id, enabled: false }]));
     const body = await GET().json();
 
     expect(body.defaultModel).toBe(second.id);

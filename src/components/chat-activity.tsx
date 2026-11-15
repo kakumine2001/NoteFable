@@ -136,7 +136,7 @@ function StepRow({ step }: { step: ProgressStep }) {
                   type="button"
                   className="chat-activity-chip chat-context-chip"
                   title={note.truncated ? t("{title} (only the beginning was shared)", { title: note.title }) : note.title}
-                  onClick={() => window.dispatchEvent(new CustomEvent("studymate:open-note", { detail: { id: note.id } }))}
+                  onClick={() => window.dispatchEvent(new CustomEvent("notefable:open-note", { detail: { id: note.id } }))}
                 >
                   <NotebookText size={11} strokeWidth={2} aria-hidden="true" />
                   <span>{note.title}</span>

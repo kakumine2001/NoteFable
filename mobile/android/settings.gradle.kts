@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "StudyMateNative"
+rootProject.name = "NoteFableNative"
 include(":app")

@@ -7,10 +7,10 @@ import {
   type ModelRegistry,
 } from "@/lib/models";
 
-// 「今どのモデルが使えるか」を決めるのはサーバーだけ。ここで環境変数 STUDYMATE_MODELS を読み、画面（Web・Android）へは
+// 「今どのモデルが使えるか」を決めるのはサーバーだけ。ここで環境変数 NOTEFABLE_MODELS を読み、画面（Web・Android）へは
 // その結果を渡す。環境変数が無ければ src/lib/models.ts の組み込み一覧をそのまま使う。
 //
-// STUDYMATE_MODELS は JSON の配列で、書いたモデルだけが使える（書かなかった組み込みモデルは無効）。順番がそのまま選択肢の順。
+// NOTEFABLE_MODELS は JSON の配列で、書いたモデルだけが使える（書かなかった組み込みモデルは無効）。順番がそのまま選択肢の順。
 //   組み込みと同じ id → 組み込みの設定を土台に、書いた項目だけ上書き。例: {"id":"gpt-6-luna","label":"GPT-6","upstreamModel":"gpt-6-2026-11"}
 //   新しい id        → 全項目を書く（provider は openai / anthropic / deepseek のどれか。接続先のコードは provider ごとに決まっている）。
 //   "enabled": false で一時的に外せる。先頭の有効なモデルが既定。
@@ -100,7 +100,7 @@ export function parseModelRegistry(raw: string | undefined): ModelRegistry {
     if (!options.length) throw new Error("no enabled model");
     return { options, defaultModel: options[0].id };
   } catch (error) {
-    console.error("STUDYMATE_MODELS ignored, using the built-in model list:", error instanceof Error ? error.message : error);
+    console.error("NOTEFABLE_MODELS ignored, using the built-in model list:", error instanceof Error ? error.message : error);
     return BUILTIN_REGISTRY;
   }
 }
@@ -109,7 +109,8 @@ let cached: { raw: string | undefined; registry: ModelRegistry } | null = null;
 
 // サーバー側の唯一の入口。環境変数が変わらない間は同じ結果を返す。
 export function getModelRegistry(): ModelRegistry {
-  const raw = process.env.STUDYMATE_MODELS;
+  // 改名前の STUDYMATE_MODELS もまだ読む（Vercel の環境変数を新しい名前へ移すまでの間）。
+  const raw = process.env.NOTEFABLE_MODELS ?? process.env.STUDYMATE_MODELS;
   if (!cached || cached.raw !== raw) cached = { raw, registry: parseModelRegistry(raw) };
   return cached.registry;
 }

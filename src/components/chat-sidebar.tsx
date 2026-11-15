@@ -7,7 +7,7 @@ import { ReorderHandle } from "@/components/reorder-handle";
 import type { ReorderRequest } from "@/lib/list-order";
 import { ChatActions, type ChatAction, type ChatProject } from "@/components/chat-actions";
 import { SidebarFooter } from "@/components/sidebar-footer";
-import { StudyMateLogo } from "@/components/studymate-logo";
+import { NoteFableLogo } from "@/components/notefable-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
 import type { Session } from "@/types/chat";
@@ -97,7 +97,7 @@ export function ChatSidebar({
   return (
     <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
-        <StudyMateLogo />
+        <NoteFableLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}>
           <PanelLeftClose size={17} />
         </button>

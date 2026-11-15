@@ -4,7 +4,7 @@ import { routeLocalizedRequest } from "./routing";
 function route(path: string, { cookie, language, country }: { cookie?: string; language?: string; country?: string } = {}) {
   return routeLocalizedRequest({
     url: `https://example.test${path}`,
-    cookie: (name) => (name === "studymate-locale" ? cookie : undefined),
+    cookie: (name) => (name === "notefable-locale" ? cookie : undefined),
     header: (name) => (name === "accept-language" ? language ?? null : name === "x-vercel-ip-country" ? country ?? null : null),
   });
 }

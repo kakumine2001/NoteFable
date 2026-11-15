@@ -39,9 +39,9 @@ describe("model preference", () => {
   });
 
   it("ignores malformed stored values and missing storage", () => {
-    stubStorage({ "studymate:model-preference": "{not json" });
+    stubStorage({ "notefable:model-preference": "{not json" });
     expect(readModelPreference()).toBeNull();
-    stubStorage({ "studymate:model-preference": JSON.stringify({ model: 1 }) });
+    stubStorage({ "notefable:model-preference": JSON.stringify({ model: 1 }) });
     expect(readModelPreference()).toBeNull();
     vi.stubGlobal("window", {});
     expect(readModelPreference()).toBeNull();

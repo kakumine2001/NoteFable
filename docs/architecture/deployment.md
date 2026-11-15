@@ -26,7 +26,7 @@ Production aliases：
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）
 www.notefable.com             # 308 跳转到 notefable.com
-studymate-lab-ai.vercel.app   # 旧网址，继续可用（匿名用户的数据跟着各自域名的 Cookie）
+studymate-lab-ai.vercel.app   # 旧网址，继续可用（网页的匿名数据跟着各自域名的 Cookie；Android App 已改连 notefable.com 并搬了 Cookie）
 notefable-kaku10.vercel.app   # Vercel 项目 2026-11-15 由 studymate 改名为 notefable
 ```
 
@@ -186,14 +186,14 @@ ANTHROPIC_HAIKU_MODEL
 
 启用 Claude 必须配置服务端密钥。默认接入点 `https://api.anthropic.com/v1`，模型 `claude-haiku-5-5`，调用 Messages API；后两项可省略。API 独立计费。修改 Vercel 环境变量后重新部署生效，密钥不得进入客户端或 Git。
 
-### 可用模型（`STUDYMATE_MODELS`，可选）
+### 可用模型（`NOTEFABLE_MODELS`，可选）
 
-`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `STUDYMATE_MODELS` 决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
+`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS`（改名前的 `STUDYMATE_MODELS` 也还认，新名字优先）决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
 
 值是一个 JSON 数组。只有写在里面的模型可用，顺序就是选择器里的顺序，第一个是默认模型：
 
 ```text
-STUDYMATE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude","upstreamModel":"claude-haiku-5-5"}]
+NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude","upstreamModel":"claude-haiku-5-5"}]
 ```
 
 - 内置 id：以内置设置为底，只覆盖写出的字段（`label`、`upstreamModel`、能力开关、推理档位、`tokenLimits`）。
@@ -214,7 +214,7 @@ Vercel Function
   -> PostgreSQL 保存 imageStoragePath
 ```
 
-Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`。本地开发未配置该 token 时，Storage Layer 回退到 `STUDYMATE_STORAGE_DIR`；Vercel 环境缺少 token 会直接报错。
+Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`；Vercel 环境缺少 token 会直接报错。
 
 ## Production Debug Checklist
 

@@ -142,12 +142,12 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
         setOutdated(true);
         setRestoreError(msg("This note was changed in another tab, so nothing was restored. Close this window and reopen the history to see the latest versions."));
         // 開いているノートを最新の版にそろえる（そうしないと次の保存も 409 になる）。
-        if (data.page) window.dispatchEvent(new CustomEvent("studymate:page-updated", { detail: data.page }));
+        if (data.page) window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: data.page }));
         return;
       }
       if (!response.ok) { setRestoreError(failure(data, msg("Could not restore this version. Please try again."))); return; }
       const page = data.page as NotePage;
-      window.dispatchEvent(new CustomEvent("studymate:page-updated", { detail: page }));
+      window.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: page }));
       onRestored(page);
       onClose();
     } catch { setRestoreError(msg("Could not restore this version. Check your connection and try again.")); }

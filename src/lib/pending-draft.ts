@@ -1,8 +1,9 @@
 import { useEffect, useRef } from "react";
+import { adoptLegacyKey } from "@/lib/legacy-storage";
 
 // 上限でログインを勧めたとき、送れなかった本文をログインの往復（ページ遷移・再読み込み）の間だけ預かる。
 // 同じタブの sessionStorage に置き、次に読み込んだ入力欄が 1 回だけ取り出す。添付ファイルは預からない。
-const PREFIX = "studymate-pending-draft:";
+const PREFIX = "notefable-pending-draft:";
 
 export function savePendingDraft(scope: string, text: string) {
   try {
@@ -15,6 +16,7 @@ export function savePendingDraft(scope: string, text: string) {
 
 export function takePendingDraft(scope: string) {
   try {
+    adoptLegacyKey(window.sessionStorage, PREFIX + scope);
     const text = window.sessionStorage.getItem(PREFIX + scope);
     window.sessionStorage.removeItem(PREFIX + scope);
     return text ?? "";

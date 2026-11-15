@@ -105,7 +105,7 @@ Vercel Function
   -> PostgreSQL 保存 blob pathname / storage key
 ```
 
-本地开发在未配置 `BLOB_READ_WRITE_TOKEN` 时回退到 `STUDYMATE_STORAGE_DIR`，但 Vercel 环境缺少 Blob token 会直接报错，不会把临时文件系统当成持久存储。
+本地开发在未配置 `BLOB_READ_WRITE_TOKEN` 时回退到 `NOTEFABLE_STORAGE_DIR`，但 Vercel 环境缺少 Blob token 会直接报错，不会把临时文件系统当成持久存储。
 
 ## 文档更新时间
 

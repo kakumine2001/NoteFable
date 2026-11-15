@@ -18,7 +18,7 @@ function isFunctionCall(item: Item | undefined) {
 // OpenAI / DeepSeek の Responses ストリームを読み、function_call があれば実行して続きを要求する。
 // 呼び出し側（chat route）には、従来どおり 1 本の SSE に見えるよう次の形で流す。
 // - 途中ラウンドの response.completed は流さず、最後のラウンドのものだけを流す
-// - function_call の項目イベントは流さず、studymate.tool の途中経過イベントに置き換える
+// - function_call の項目イベントは流さず、notefable.tool の途中経過イベントに置き換える
 // - ツール前後の本文が続かないよう、間に空行を入れる
 // store: false のため、各ラウンドの出力項目（暗号化済み推論を含む）と function_call_output を input に積んで送り直す。
 export async function createResponsesToolStream({
@@ -64,8 +64,8 @@ export async function createResponsesToolStream({
                 if (Array.isArray(event.response?.output)) output = event.response.output;
                 continue;
               }
-              // studymate.* は自前のツール実行からだけ出す。上流からの同名イベントは通さない。
-              if (event.type?.startsWith("studymate.")) continue;
+              // notefable.* は自前のツール実行からだけ出す。上流からの同名イベントは通さない。
+              if (event.type?.startsWith("notefable.")) continue;
               if (isFunctionCall(event.item) || event.type?.startsWith("response.function_call_arguments.")) continue;
               if (event.type === "response.output_text.delta" && event.delta) {
                 if (separateNextText) send({ type: "response.output_text.delta", delta: "\n\n" });

@@ -43,7 +43,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 仿 Notion 的页面层级和页面菜单（`src/lib/note-tree.ts` 是前端用的纯函数，`src/lib/note-tree-server.ts` 是服务端的递归查询和元数据写入）。
 
 - **子页面。** `NotePage.parentId` 指向父页面（null 为最上位），层数不限。子页面的 `groupId` 始终与最上位的祖先相同：移入页面、移入/移出项目、拖动重排、从 Trash 复原时，整棵子树的 `groupId` 一起改。不能把页面移到自己或自己的子孙之下（400 `A page cannot be moved into its own sub-page.`）。父页面不在列表里（例如在 Trash）时，子页面当作最上位显示。
-- **侧栏与手机首页。** 每个项目和 Notes 区只列最上位的页面，子页面缩进在父页面下（与项目内的缩进和细线相同）。每行都有展开箭头，没有子页面时展开显示 “No pages inside”；展开状态存在本机（`studymate:note-pages-expanded:v1`，侧栏与手机首页共用），打开的页面的祖先总会展开。侧栏行在悬停时多一个 “+”（Add a page inside），在该页面里新建子页面并打开。拖动重排时，放下的页面成为目标页面的兄弟（同一父页面、同一项目）。
+- **侧栏与手机首页。** 每个项目和 Notes 区只列最上位的页面，子页面缩进在父页面下（与项目内的缩进和细线相同）。每行都有展开箭头，没有子页面时展开显示 “No pages inside”；展开状态存在本机（`notefable:note-pages-expanded:v1`，侧栏与手机首页共用），打开的页面的祖先总会展开。侧栏行在悬停时多一个 “+”（Add a page inside），在该页面里新建子页面并打开。拖动重排时，放下的页面成为目标页面的兄弟（同一父页面、同一项目）。
 - **收藏。** `favoritedAt` 非空即为收藏，侧栏和手机首页最上方的 Favorites 按收藏时间列出；从页面菜单或 Favorites 行的按钮移除。
 - **页面菜单（上部栏的 “…”）。** 字体（Default / Serif / Mono）、Small text、Full width、Lock page，以及 Add to/Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置存在 `fullWidth`、`smallText`、`font`、`locked` 列，由 `PUT /api/pages/:id/settings` 单独保存，不增加 `version`，不会和自动保存冲突；`NotesWorkspace` 根据一览里这篇的设置给 `.notes-workspace` 加 `is-full-width`、`is-small-text`、`font-serif`/`font-mono`，`/note-embed` 同样生效。
 - **锁定。** 锁定后编辑器、标题、图标和封面在界面上不可编辑，上部栏显示 “Locked” 按钮，点击即解锁。这是防止误改的界面保护，不是权限：服务端的保存接口、AI 编辑案的适用都不检查它。
@@ -88,10 +88,10 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 删除笔记不再永久删除：`DELETE /api/pages/:id` 只给 `NotePage.deletedAt` 写入当前时间，位置、分组、封面、正文和 `version` 都不动，笔记助手的对话（`Session.noteId`）和编辑历史也原样保留。放进 Trash 的笔记从其他所有地方消失：侧栏和 Notes 首页的列表、`GET/PATCH /api/pages/:id`、移动分组、拖动排序、`/api/search`、AI 的 `search_notes` / `read_note` / `propose_note_edit`、适用 AI 提案、笔记里 AI 助手的 `noteId` 校验、项目参考笔记，全部带 `deletedAt: null`（新增读取笔记的代码必须遵守，见 [database.md](database.md)）。
 
 - **入口与保留期。** Notes 侧栏的 Trash 按钮打开 `NoteTrashDialog`；删除笔记的确认框写明“移入 Trash，30 天内可复原”。保留期 30 天（`TRASH_RETENTION_DAYS`，`src/types/notes.ts`）；列表里每项带 `purgeAt = deletedAt + 30 天`，对话框显示“Deleted N days ago · M days left”。
-- **复原**（`POST /api/pages/trash/:id`）把 `deletedAt` 清空，笔记保留原来的 `position` 值和分组（分组在此期间被删，则回到“无项目”；列表顺序见“页面排序”）。只在保留期内才允许，边界与清理共用 `trashCutoff()`。对话框随后派发 `studymate:page-created`（detail 是返回的摘要），`useNotePages` 据此把它加进侧栏列表，不需要重新拉取列表。复原不弹确认，因为它可逆。
+- **复原**（`POST /api/pages/trash/:id`）把 `deletedAt` 清空，笔记保留原来的 `position` 值和分组（分组在此期间被删，则回到“无项目”；列表顺序见“页面排序”）。只在保留期内才允许，边界与清理共用 `trashCutoff()`。对话框随后派发 `notefable:page-created`（detail 是返回的摘要），`useNotePages` 据此把它加进侧栏列表，不需要重新拉取列表。复原不弹确认，因为它可逆。
 - **永久删除**有三条路径：单篇“Delete forever”、“Empty trash”（两者都有行内二次确认）和超期清理。永久删除会级联删除这篇笔记的编辑历史、项目参考关联和笔记助手的对话，不可恢复。
 - **没有定时清理。** 超期笔记在三个时机被删：打开 Trash 列表时、把另一篇笔记放进 Trash 时（尽力而为，失败只记日志、不影响删除本身）、清空 Trash 时。超期笔记在被真正删除之前也不会在任何接口里出现，复原会被拒绝。
-- 放进 Trash 前，`remove()` 先把该笔记的未保存编辑 flush；flush 失败则不删除，并提示先处理未保存草稿。成功后丢弃该页的本地队列和 `studymate:page-draft:v1:<pageId>` 草稿缓存，所以复原后看到的是服务端保存的正文，不会被旧草稿覆盖。
+- 放进 Trash 前，`remove()` 先把该笔记的未保存编辑 flush；flush 失败则不删除，并提示先处理未保存草稿。成功后丢弃该页的本地队列和 `notefable:page-draft:v1:<pageId>` 草稿缓存，所以复原后看到的是服务端保存的正文，不会被旧草稿覆盖。
 - Trash 里的笔记仍引用它的上传封面，因此保留期内封面图片不会被回收（见 [database.md](database.md) 的 `NotePage`）。
 
 ## 编辑历史与恢复
@@ -106,7 +106,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 **恢复流程**（`POST /api/pages/:id/revisions/:revisionId/restore`，body `{ version }`）：客户端先 flush 未保存的编辑，flush 失败就不恢复；然后带着当前的笔记版本发请求。服务端在一个事务里重读笔记，版本不一致则 409；用保存时同一套 `validateNoteContent` 和 `assertNoteFilesOwner` 重新校验历史内容（失败 400，消息以 “This version cannot be restored.” 开头）；把当前状态写成 `RESTORE` 历史；再按版本条件写入历史的标题、图标和正文，`version` +1。读完到写入之间被别的标签页抢先保存时，条件更新不命中，事务回滚（连同刚写的 `RESTORE` 历史），同样返回 409 和最新的页面。封面、封面位置、分组和位置不变。因为恢复前的状态已被保存，恢复本身也可以再恢复回去。
 
-**打开着的编辑器如何刷新**：恢复成功后，历史对话框派发 `studymate:page-updated`（detail 是返回的完整页面），`useNotePages` 收到后调用该页队列的 `loadLatest()` 并递增编辑器的 `editorEpoch`，编辑器以新正文重新挂载，本地版本号同步为新版本，下一次自动保存不会 409。收到 409 时对话框同样派发 `studymate:page-updated` 带上最新页面，打开的编辑器与版本号随之同步，并提示关闭后重新打开历史。若队列里恰有未保存的编辑，则不覆盖，而是标记为冲突（正常流程里恢复前已 flush，不会发生）。
+**打开着的编辑器如何刷新**：恢复成功后，历史对话框派发 `notefable:page-updated`（detail 是返回的完整页面），`useNotePages` 收到后调用该页队列的 `loadLatest()` 并递增编辑器的 `editorEpoch`，编辑器以新正文重新挂载，本地版本号同步为新版本，下一次自动保存不会 409。收到 409 时对话框同样派发 `notefable:page-updated` 带上最新页面，打开的编辑器与版本号随之同步，并提示关闭后重新打开历史。若队列里恰有未保存的编辑，则不覆盖，而是标记为冲突（正常流程里恢复前已 flush，不会发生）。
 
 对话框预览用 `blocksToMarkdown` 转成 Markdown，经 `AssistantMarkdown` 渲染（不使用 `dangerouslySetInnerHTML`），电脑上左右两栏、手机上先选版本再看预览。
 
@@ -116,13 +116,13 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 面板直接调用 `/api/chat`，额外带上 `noteId`（并固定 `webSearch=off`），使用聊天里当前选的模型和推理强度。服务端确认该笔记属于当前用户（否则 404），新建的会话写入 `Session.noteId`，并在共享的 `buildInstructions()` 里加一行说明“用户正在这篇笔记里提问”，要求先 `read_note` 再 `propose_note_edit`。带 `noteId` 的请求只能续用 `noteId` 相同的会话，普通聊天也不能续用笔记会话（否则 404）；这些会话不会出现在 Chats 列表里，也不会被跨 Chats/Notes 搜索命中。笔记放进 Trash 时这些会话保留（`Session.noteId` 不动），只有笔记被永久删除时才随笔记一起级联删除；笔记在 Trash 期间不能再向它发送助手请求（`/api/chat` 的笔记校验带 `deletedAt: null`，返回 404）。面板只在页面打开期间保留这段对话，刷新后重新开始。
 
-AI 的修改仍然只是“编辑案”：面板里显示同样的提案卡片，点 Apply 才会写入，写入走 `/api/proposals/:id/apply`，打开的编辑器通过 `studymate:page-updated` 事件更新到最新内容；AI 在读完之后笔记又被改过（或笔记已进 Trash），则应用时返回 409（或 404），需要重新要求。适用前会把被覆盖的状态存成一份 `AI_EDIT` 历史，所以 AI 改坏了可以从“编辑历史”里一键回到适用之前的版本。
+AI 的修改仍然只是“编辑案”：面板里显示同样的提案卡片，点 Apply 才会写入，写入走 `/api/proposals/:id/apply`，打开的编辑器通过 `notefable:page-updated` 事件更新到最新内容；AI 在读完之后笔记又被改过（或笔记已进 Trash），则应用时返回 409（或 404），需要重新要求。适用前会把被覆盖的状态存成一份 `AI_EDIT` 历史，所以 AI 改坏了可以从“编辑历史”里一键回到适用之前的版本。
 
 ## 保存与恢复
 
 `NoteSaveQueue` 在停止输入一秒后保存。同一页面最多一个保存请求进行中，输入期间的新版本等前一个完成后再提交。只有最后一次修改获得服务端确认后才显示 Saved。
 
-失败草稿在内存中保留，并以 `studymate:page-draft:v1:<pageId>` 临时缓存到 localStorage。保存成功后移除缓存，切换到聊天或隐藏标签页时尝试立即保存，仍有未保存内容时关闭页面会触发浏览器提示。localStorage 不可用或容量不足时显示备份不可用提示，正文仍留在当前标签页。
+失败草稿在内存中保留，并以 `notefable:page-draft:v1:<pageId>` 临时缓存到 localStorage。保存成功后移除缓存，切换到聊天或隐藏标签页时尝试立即保存，仍有未保存内容时关闭页面会触发浏览器提示。localStorage 不可用或容量不足时显示备份不可用提示，正文仍留在当前标签页。
 
 重新打开页面先从服务端验证归属，再检查本机草稿：基准版本一致时恢复并继续保存，版本不一致时保留草稿并显示冲突。冲突停止自动提交，可以保存为新页面或在确认丢弃草稿后载入最新版本。副本创建成功才释放原页面的冲突草稿。把页面移入 Trash 有确认对话框；存在未解决草稿时先处理草稿再移入（见上文“Trash”）。
 
@@ -130,7 +130,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中；`20261014120000_note_groups` 新增 `NoteGroup` 表和可空的 `NotePage.groupId`；`20261015100000_note_trash_and_revisions` 新增可空的 `NotePage.deletedAt`（及 `(userId, deletedAt)` 索引）、枚举 `NoteRevisionReason` 和 `NoteRevision` 表（均为追加，不改动已有数据）；`20261116000000_note_page_tree_settings` 追加 `NotePage.parentId`（自引用外键，`SetNull`）、`favoritedAt` 和带默认值的 `fullWidth`、`smallText`、`font`、`locked`，同样只追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（本地 `public`，Neon `studymate`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `STUDYMATE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中；`20261014120000_note_groups` 新增 `NoteGroup` 表和可空的 `NotePage.groupId`；`20261015100000_note_trash_and_revisions` 新增可空的 `NotePage.deletedAt`（及 `(userId, deletedAt)` 索引）、枚举 `NoteRevisionReason` 和 `NoteRevision` 表（均为追加，不改动已有数据）；`20261116000000_note_page_tree_settings` 追加 `NotePage.parentId`（自引用外键，`SetNull`）、`favoritedAt` 和带默认值的 `fullWidth`、`smallText`、`font`、`locked`，同样只追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（本地 `public`，Neon `studymate`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
@@ -141,11 +141,11 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 原生 Android 应用（`mobile/android`）自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=en|zh|zh-Hant|ja`，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，由 `src/proxy.ts` 像 `/app` 一样 rewrite；要打开的页面 ID 在浏览器端从 URL 读取。
 
 - **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、版本历史和保存状态由应用的原生顶栏负责（与网页手机顶栏一样没有“更多”菜单）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
-- **保存与恢复照旧。** 一秒防抖自动保存、`studymate:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
-- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `studymate_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
+- **保存与恢复照旧。** 一秒防抖自动保存、`notefable:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
+- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
 - **AI 模型。** 右下角 AI 助手用 URL 里的 `model` / `reasoning`（`readEmbedModelPreference`，再用 `resolveModelPreference` 按服务端模型列表核对：没有的模型不用，选不了的强度换成默认）；没带或无效时用这个 WebView 里最后一次的选择（localStorage），再没有就用服务端默认。
 
-**网页 → 应用**：存在 `window.StudyMateNative`（`@JavascriptInterface`）时，调用 `window.StudyMateNative.postMessage(JSON.stringify(msg))`，`msg` 为：
+**网页 → 应用**：存在 `window.NoteFableNative`（`@JavascriptInterface`）时，调用 `window.NoteFableNative.postMessage(JSON.stringify(msg))`，`msg` 为：
 
 | 消息 | 时机 |
 | --- | --- |
@@ -156,10 +156,10 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
 | `{type:"trashed"}` | 预留：内嵌页目前不提供移入 Trash 的入口，Trash 由应用在 flush 成功后调用 `DELETE /api/pages/:id` |
 
-**应用 → 网页**：`window.studymateEmbed`。
+**应用 → 网页**：`window.notefableEmbed`。
 
 - `flush(requestId)`：立即保存未保存的编辑，返回 `Promise<boolean>`，并回复 `{type:"flushed", requestId, ok}`。`ok` 为 true 表示没有未保存内容；冲突或保存失败时为 false（草稿仍在本地）。`kept` 为 true 表示失败不是冲突、草稿已存进 localStorage（下次打开会恢复并重试），应用可以在提示后允许离开，和 `/app` 切走时只 `void flush()` 一样。离开编辑页、移入 Trash、切换页面、登录或退出前先调用。
 - `openHistory()`：打开该笔记的 `NoteHistoryDialog`（与网页相同，恢复前先 flush）。
-- `pageUpdated(page)`：应用在聊天里应用了编辑案、而被改的笔记正开在编辑器里时，把 `POST /api/proposals/:id/apply` 返回的 `page`（JSON 字符串或对象）传进来。网页校验后发出与编辑案卡片相同的 `studymate:page-updated`，由 `useNotePages` 处理：没有未保存的编辑就 `loadLatest` 并换掉编辑器，有就标成冲突。不传的话编辑器仍是旧版本，下次保存会 409。格式不对时返回 false、什么也不做。
+- `pageUpdated(page)`：应用在聊天里应用了编辑案、而被改的笔记正开在编辑器里时，把 `POST /api/proposals/:id/apply` 返回的 `page`（JSON 字符串或对象）传进来。网页校验后发出与编辑案卡片相同的 `notefable:page-updated`，由 `useNotePages` 处理：没有未保存的编辑就 `loadLatest` 并换掉编辑器，有就标成冲突。不传的话编辑器仍是旧版本，下次保存会 409。格式不对时返回 false、什么也不做。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。

@@ -1,6 +1,6 @@
 # 原生 Android 界面（Kotlin / Compose）
 
-> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个包名（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
+> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个应用 ID（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
 
 ## 为什么是"混合原生"，不是全部重写
 
@@ -13,7 +13,7 @@
 
 ## 现状（0.4.0，阶段 3）
 
-已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `STUDYMATE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
+已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
@@ -60,35 +60,35 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 
 **有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
 
-改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `STUDYMATE_MODELS` 决定。
+改动模型定义后运行 `npx tsx scripts/gen-native-models.ts` 更新打包资源；`src/lib/native-models-asset.test.ts` 检查资源与内置列表是否一致。App 里不写死模型：开放哪些由服务器的 `NOTEFABLE_MODELS` 决定。
 
 ## 目录
 
 ```
 mobile/android/
-  app/src/main/java/com/kakumine/studymate/
-    data/   StudyMateApi（各接口）、StudyMateHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
+  app/src/main/java/com/kakumine/notefable/
+    data/   NoteFableApi（各接口）、NoteFableHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
             ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
             IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、AccountApi（改资料、上传头像）
-    ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、拖动排序、回收站、离开前保存）、StudyMateRoot（抽屉、模式切换）、
+    ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、拖动排序、回收站、离开前保存）、NoteFableRoot（抽屉、模式切换）、
             ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
             NotesUi（侧栏笔记部分、首页、对话框、回收站）、AccountUi / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、SettingsDialog（自定义指令）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
   app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 包名 `com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`。包名和 Kotlin 包 `com.kakumine.studymate` 改名后仍保留：改包名等于换成另一个 App，旧版无法覆盖安装。服务器地址（`gradle.properties` 的 `studymate.baseUrl`）暂时仍是 `https://studymate-lab-ai.vercel.app`：设备身份 Cookie 按主机名保存，直接换成 `notefable.com` 会让已安装的 App 变成新的匿名用户；要先做 Cookie 迁移再换。聊天链接（`ChatLink`）把 `notefable.com` 和旧网址当成同一个站。
+- 应用 ID（`applicationId`）`com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`（按应用 ID + 签名登记）。应用 ID 改名后仍保留：改了等于换成另一个 App，旧版无法覆盖安装。Kotlin 包和 `namespace` 已改成 `com.kakumine.notefable`（只影响源码，不影响安装和数据）。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`；以前是 `https://studymate-lab-ai.vercel.app`，App 启动时把旧主机名下存的 Cookie（设备身份、登录会话）搬到新主机名（`PersistentCookieJar.moveHost`，旧主机名列在 `NoteFableApp.LEGACY_HOSTS`），所以更新后还是同一个用户（只在连 `notefable.com` 时搬，连本机开发服务器的 debug 包不动）。编辑器 WebView 的 localStorage 按网址分开，旧网址下没存上的笔记草稿不会跟过来；离开笔记前 App 会先 flush，正常不会留下。启动入口是 `activity-alias` `com.kakumine.studymate.MainActivity`（改包名前的组件名），桌面上已有的图标和快捷方式不失效。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com`、`www.notefable.com` 和旧网址当成同一个站。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
 
-- 身份：和网页一样靠 `studymate_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
+- 身份：和网页一样靠 `notefable_device` Cookie（改名前叫 `studymate_device`，服务端读到旧名字会换成新名字；`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
 - 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。连不上服务器（断网、域名解析失败、连接被拒或超时、TLS 握手失败）时，回答下方的失败原因不用 OkHttp 的英文原句（还带着主机地址），换成网页字典里的 "Check your connection and try again."（`chatFailureDetail`，显示为"请求失败：请检查网络连接后重试。"；网页这里接的是浏览器自己的英文 "Failed to fetch"）；服务端返回的错误照旧显示原句。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿和登录提示见“输入栏与使用上限”；笔记工具的完成标签在过程面板里同样经词典翻译。
   - 词典由 `npx tsx scripts/gen-native-system-text.ts` 生成：从 `src/app/api` 的路由沿 import 收集 `msg()` / `fmt()` 的句子，加上 `zh-server.ts` 的全部键和 `SYSTEM_TEXT_TEMPLATES`，译文取自网页的中 / 日字典（缺译文时生成失败）。改了服务端的句子或字典后重新生成；`src/lib/native-system-text-asset.test.ts` 在资源过期时失败。
-  - 错误响应解析成 `ApiException`（`data/StudyMateHttp.kt`）：`message` 是服务端原句（读不到时 "HTTP <状态码>"），429 使用上限另有 `code`（`usage_limit`）、`tier`、`kind`（`src/lib/usage-limits.ts`），`isUsageLimit` 判断是否是上限。
-- 首次启动、登录、退出后：设备 Cookie 由第一个到达服务端的请求签发（退出后设备 Cookie 指向已绑定 Google 的用户，服务端会重新签发匿名身份）。几个请求同时发出的话会各签发一个身份，后到的 Cookie 覆盖先到的，前面那个身份下建的聊天 / 笔记就读不回来。所以 `StudyMateHttp` 的 OkHttp 客户端装了 `IdentityGate`（`data/IdentityGate.kt`，聊天、笔记、账号、附件图片、笔记文件下载共用）：身份未确定时第一个本站请求单独走，其它请求等它拿到响应（Set-Cookie 已存进 Cookie jar）再走；之后并行。登录成功和退出时 `reset()`，下一个请求又单独走；网络错误不算确定；`/api/models` 不读也不签发身份，不排队也不算确定（否则启动时它先回来就把闸门打开了）。聊天发送前另外还会等会话列表请求结束（`awaitSessionsRequest`）。
+  - 错误响应解析成 `ApiException`（`data/NoteFableHttp.kt`）：`message` 是服务端原句（读不到时 "HTTP <状态码>"），429 使用上限另有 `code`（`usage_limit`）、`tier`、`kind`（`src/lib/usage-limits.ts`），`isUsageLimit` 判断是否是上限。
+- 首次启动、登录、退出后：设备 Cookie 由第一个到达服务端的请求签发（退出后设备 Cookie 指向已绑定 Google 的用户，服务端会重新签发匿名身份）。几个请求同时发出的话会各签发一个身份，后到的 Cookie 覆盖先到的，前面那个身份下建的聊天 / 笔记就读不回来。所以 `NoteFableHttp` 的 OkHttp 客户端装了 `IdentityGate`（`data/IdentityGate.kt`，聊天、笔记、账号、附件图片、笔记文件下载共用）：身份未确定时第一个本站请求单独走，其它请求等它拿到响应（Set-Cookie 已存进 Cookie jar）再走；之后并行。登录成功和退出时 `reset()`，下一个请求又单独走；网络错误不算确定；`/api/models` 不读也不签发身份，不排队也不算确定（否则启动时它先回来就把闸门打开了）。聊天发送前另外还会等会话列表请求结束（`awaitSessionsRequest`）。
 - 同一时刻只认最新一次会话列表刷新和历史读取，被取消的在途请求结果会被丢弃；历史加载中不能发送。
 - 流式请求不设读超时，思考型模型可能很久没有输出。停止生成会取消底层网络请求（只停当前聊天）；切换聊天不停回答，见下文“后台生成”。停止后不用服务器版本覆盖屏幕，只有正常结束才对账。
 
@@ -145,7 +145,7 @@ mobile/android/
 流程和网页相同（`src/lib/client-chat-upload.ts`）：点发送后先上传附件，全部成功才把这条消息放进对话；上传失败时文字和附件都留在输入栏，并删掉已经传上去的文件。
 
 1. `POST /api/uploads`（文件名、类型、大小）换回每个文件的存放路径和凭证（ticket），以及 `mode`。
-2. `mode` 是 `blob`（线上，或本机配置了 `BLOB_READ_WRITE_TOKEN`）时：再向 `/api/uploads` 发 `blob.generate-client-token` 事件换一个只能写这一个文件的令牌，然后把字节直接 `PUT` 到 Vercel Blob（`https://vercel.com/api/blob/?pathname=…`，请求头 `authorization`、`x-api-version`、`x-vercel-blob-store-id`、`x-vercel-blob-access: private`、`x-content-type`、`x-content-length`）。这是网页用的 `@vercel/blob` 客户端的单次上传协议，App 里照着实现在 `StudyMateApi.uploadFile`；**升级 `@vercel/blob` 时要核对协议版本（现在是 12）**。`mode` 是 `local` 时直接 `PUT /api/uploads/local?ticket=…`。
+2. `mode` 是 `blob`（线上，或本机配置了 `BLOB_READ_WRITE_TOKEN`）时：再向 `/api/uploads` 发 `blob.generate-client-token` 事件换一个只能写这一个文件的令牌，然后把字节直接 `PUT` 到 Vercel Blob（`https://vercel.com/api/blob/?pathname=…`，请求头 `authorization`、`x-api-version`、`x-vercel-blob-store-id`、`x-vercel-blob-access: private`、`x-content-type`、`x-content-length`）。这是网页用的 `@vercel/blob` 客户端的单次上传协议，App 里照着实现在 `NoteFableApi.uploadFile`；**升级 `@vercel/blob` 时要核对协议版本（现在是 12）**。`mode` 是 `local` 时直接 `PUT /api/uploads/local?ticket=…`。
 3. 发送时把凭证放进表单的 `uploads` 字段（JSON 数组）：聊天走 `/api/chat`，「生成图片」模式走 `/api/images`（完成后一次返回图片，没有流）。
 
 限制和提示文字与网页一致（`data/Attachments.kt` 对应 `src/lib/client-files.ts`、`upload-limits.ts`）：每条消息最多 10 个文件、单个 20 MiB、合计 100 MiB；图片只收 PNG / JPEG / WEBP，当前模型不能读图时不能附图（打开「生成图片」时可以）。一次选的文件有问题就整批不加。
@@ -167,34 +167,34 @@ mobile/android/
 
 - **过程数据**（`data/Activity.kt`）：移植 `src/lib/chat-activity.ts` 的 `applyActivityEvent`（按 id 合并：推理增量拼接，其它同 id 替换）、`parseStoredActivity` 的校验（不安全的地址、没完成的搜索、坏的项目上下文都丢掉）、`splitThought`、`hostOf`，`ActivityTest` 与 `chat-activity.test.ts` 逐条对应，两边一起改。流里的 `{activity}` 事件在 `ChatViewModel.runStream` 里和正文一起攒着，每次刷新合并一次；历史里的 `activity` / `proposals` 在 `toUiMessage` 里解析。正文开始出现前的时长记为 `thinkingMs`。
 - **过程面板**（`ui/ChatActivity.kt`，网页 `chat-activity.tsx`）：等待中（还没有正文和图片，包括生成图片时）标题行是"当前一步 · N s"并带流动高光、步骤列表自动展开并跟到最新一步；正文来了收起，标题变成"已思考 N s · N 次搜索 · N 个来源 · N 次查阅笔记 · 项目笔记 / 项目指示"。步骤：推理（标题 + 正文）、搜索（搜索词 + 来源标签，先显示 6 个、其余收进"+N"）、读取 / 在页面里查找（地址链接）、笔记工具（进行中转圈，完成后显示服务端的标签，经系统文词典翻译）、项目上下文（笔记标签可点，`partial` 徽标）。来源和链接用系统浏览器打开（`LocalUriHandler`）。
-- **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `StudyMateApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`StudyMateRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
+- **提案卡片**（`ui/ProposalCard.kt`、`data/ProposalApi.kt`，网页 `page-edit-proposal.tsx`）：编辑提案（改名前后、每处改动的"替换 / 插入 / 删除 · 第 N 块 / 笔记开头"、改前改后、丢失图片 / 格式的警告）和新建提案（预览或"空白笔记"）。应用 / 放弃走 `POST /api/proposals/:id/apply|discard`；状态按提案 ID 存在 `NoteFableApp.proposals`（`ProposalStore`）里，回答结束后重读历史不会退回"未处理"，服务端保存的已应用 / 已放弃优先；失败回到未处理并显示服务端原句（经词典翻译）或"无法应用 / 放弃修改建议。"。已处理的卡片默认最小化。应用成功后刷新笔记列表，被改的笔记正开在编辑器里时经 JS 桥 `pageUpdated` 把新版本交给网页编辑器（见下文“笔记”）；"打开笔记"经 `LocalOpenNote`（`NoteFableRoot` 提供）走 `NotesViewModel.openNoteFromLink`（网页 `openNoteFromLink`）：马上切到笔记列表，刷新列表后笔记在就打开，不在（已删除、在回收站、读取失败）就留在列表上。笔记标签（项目上下文）走同一个入口。
 - **代码块**（`ui/CodeBlock.kt`，网页 `MarkdownCodeBlock` + `.markdown-code-*`）：头部 Code2 + 语言名（围栏语言含别名 → `guessLanguage` 的 Python 规则 → 自动识别，识别不出显示"代码"）+ 复制键（✓ 停 1.2 秒）；代码不折行、横向滚动。网页用 highlight.js，原生是自带的小词法高亮器，覆盖同样 17 种语言、用同一套颜色类别；逐个记号和自动识别结果是近似，不保证与 highlight.js 完全一致。行内代码按 `.markdown-inline-code`（#e2e8f0 底、13.6）。
 - **表格**（`AnswerMarkdown` 的 `AnswerTable`）：渲染库自带的表格是固定列宽、只有分隔线，和网页不同，所以自己排：1px 边框、内边距 7.2×11.2、表头浅蓝灰底 + 600，左上对齐；列宽按浏览器自动表格布局分配（每列最窄 88 或最长的词，放得下用自然宽度，否则按比例分，最窄都放不下时横向滚动）。
 - **操作行**：只给完成、没有失败、有正文的回答显示（生成中、只有图片、失败时不显示）。复制后图标换成 ✓ 停 2 秒；复制失败在下面显示"无法复制，请选中文字后手动复制。"。复制键后面是"…"菜单，见下文“回答导出”。
-- **生成图片的下载**：每张图片右下角 44 的圆形下载键（`.generated-image-download`）。存进相册的 Pictures（`data/ImageSaver.kt`，文件名 `studymate-<id>.<扩展名>`，扩展名按图片的 MIME 类型（jpg / webp / gif，默认 png；网页总是 `.png`），id 里不安全的字符换成 `_`；下载在 App 级作用域（`StudyMateApp.scope`）里跑，回合滚出屏幕也不中断；Android 8–9 媒体库没扫到时只存不打开；Android 10+ 用 MediaStore 不需要权限，8–9 先申请 `WRITE_EXTERNAL_STORAGE`，清单里 `maxSdkVersion=28`），提示和成功后打开的方式与笔记文件下载相同。
+- **生成图片的下载**：每张图片右下角 44 的圆形下载键（`.generated-image-download`）。存进相册的 Pictures（`data/ImageSaver.kt`，文件名 `notefable-<id>.<扩展名>`，扩展名按图片的 MIME 类型（jpg / webp / gif，默认 png；网页总是 `.png`），id 里不安全的字符换成 `_`；下载在 App 级作用域（`NoteFableApp.scope`）里跑，回合滚出屏幕也不中断；Android 8–9 媒体库没扫到时只存不打开；Android 10+ 用 MediaStore 不需要权限，8–9 先申请 `WRITE_EXTERNAL_STORAGE`，清单里 `maxSdkVersion=28`），提示和成功后打开的方式与笔记文件下载相同。
 - 和网页的差别：删除线颜色（网页是半透明红）用文字色；代码高亮是近似（见上）。
 
 ### 回答导出（"…"菜单）
 
 `ui/AnswerActions.kt`、`data/ExportApi.kt`，对应网页 `answer-actions.tsx` + `answer-actions.css`（412 宽实测）。复制键后面是 36×36 的"…"（Ellipsis 18、线宽 1.9、Muted），点开的菜单与侧栏菜单同一外观（宽 228、内边距 5.6、圆角 12、细线、阴影 0 8 32 #0002；项最小高 44、内边距 9.6×12、图标 16 + 间距 12、14/21），左边与按钮对齐、在按钮下 4，下方放不下就放到按钮上方，离窗口边至少 8（`answerMenuPosition`）。点外面或返回键关闭。
 
-- **存到笔记**：网页在浏览器里用 `answerToNoteContent` 生成块；原生不移植这段转换，改由服务端 `POST /api/pages/from-answer`（body `{ markdown, sessionId, messageId, savedOn }`）用同一个函数生成，再走与 `POST /api/pages` 相同的 `validateNoteContent` + `createNotePage`（`src/lib/note-create.ts`）。会话只用来取标题和回到会话的链接：必须属于当前用户且不是笔记助手的会话（`noteId: null`），否则 404；正文是 App 显示的回答原文（和 `POST /api/pages` 一样，只是把自己的文字存进自己的笔记），请求体上限 1 MiB（413）。链接的 origin 取请求地址；`savedOn` 是本机日期，出处里的日期与网页一样按用户所在时区。菜单项：保存中转圈 + "正在保存…"，成功变 ✓"已保存到笔记"并多出"打开已保存的笔记"（关菜单，经 `LocalOpenNote` 打开）；保存中 / 已保存的项变 Muted、不能再点。状态按 `会话ID\n消息ID` 存在 App 级的 `AnswerExportStore`（网页模块级 Map），重新绘制、切换对话都不会重复新建；回答刚结束时还是本地 ID（`local-N`），对账换成服务端 ID 时列表项沿用原来的 key（`UiMessage.key`，`carryLocalKeys`：先按服务端 ID 沿用之前回合已有的 key，再把刚发送回合的本地 key 交给服务端的那几条），菜单状态不丢；保存状态由 `ChatViewModel` 在对账时搬到新 ID 下（`onMessageIdChanged` → `AnswerExportStore.rename`，不管那条回答在不在屏幕上；在途的保存完成后记在新 ID 下）；保存成功后 `AnswerExportStore.created` 发出新笔记 ID，`StudyMateRoot` 刷新笔记列表（网页 `studymate:page-created`，离开对话后在后台完成也一样）；重开 App 就忘了（服务端不去重，与网页刷新后相同）。失败时项变"重新保存到笔记"，菜单里显示原因：413 太长、400 服务端原句（经系统文词典翻译）、其余"无法保存到笔记，请重试。"。
-- **下载对话**：`GET /api/sessions/:id/export?date=` 返回 `{ fileName, markdown }`，服务端用网页同一组 `conversationToMarkdownFile` / `answerFileName` 生成（同样的所有权检查；只读 USER / ASSISTANT 的正文和附件，不读 SYSTEM 消息和 providerContext；附件图片是本站绝对地址）。读取中菜单项转圈 + "正在下载…" 并阻止重复点击；读取失败菜单保持打开并显示"无法下载聊天，请重试。"；成功后关菜单，用系统的保存位置选择（SAF `CreateDocument`，`text/markdown`，建议文件名即 `fileName`）写入，写完 Toast "聊天已下载"（网页这里只有读屏通知），取消选择就什么也不做，写入失败在操作行下方显示同一句错误，并删掉选择器已建好的空文件。保存位置选择器注册在 `StudyMateRoot`（`rememberConversationDownloader`，经 `LocalConversationDownloader` 交给回答行），不在回答行里：要写的会话 ID 和文件名存在 `rememberSaveable`，选择器开着时进程被杀、回来后那条回答没有重新组合，结果也能接住。等写入的 Markdown 按会话放在 `AnswerExportStore`（Activity 重建也还在）；进程被杀后没了就重新读一次再写，写入在 App 级作用域里跑；发起的回答行已不在时，写入失败改用 Toast 提示。读取时离开这条回答（滚出屏幕）就不再弹出保存位置选择。
+- **存到笔记**：网页在浏览器里用 `answerToNoteContent` 生成块；原生不移植这段转换，改由服务端 `POST /api/pages/from-answer`（body `{ markdown, sessionId, messageId, savedOn }`）用同一个函数生成，再走与 `POST /api/pages` 相同的 `validateNoteContent` + `createNotePage`（`src/lib/note-create.ts`）。会话只用来取标题和回到会话的链接：必须属于当前用户且不是笔记助手的会话（`noteId: null`），否则 404；正文是 App 显示的回答原文（和 `POST /api/pages` 一样，只是把自己的文字存进自己的笔记），请求体上限 1 MiB（413）。链接的 origin 取请求地址；`savedOn` 是本机日期，出处里的日期与网页一样按用户所在时区。菜单项：保存中转圈 + "正在保存…"，成功变 ✓"已保存到笔记"并多出"打开已保存的笔记"（关菜单，经 `LocalOpenNote` 打开）；保存中 / 已保存的项变 Muted、不能再点。状态按 `会话ID\n消息ID` 存在 App 级的 `AnswerExportStore`（网页模块级 Map），重新绘制、切换对话都不会重复新建；回答刚结束时还是本地 ID（`local-N`），对账换成服务端 ID 时列表项沿用原来的 key（`UiMessage.key`，`carryLocalKeys`：先按服务端 ID 沿用之前回合已有的 key，再把刚发送回合的本地 key 交给服务端的那几条），菜单状态不丢；保存状态由 `ChatViewModel` 在对账时搬到新 ID 下（`onMessageIdChanged` → `AnswerExportStore.rename`，不管那条回答在不在屏幕上；在途的保存完成后记在新 ID 下）；保存成功后 `AnswerExportStore.created` 发出新笔记 ID，`NoteFableRoot` 刷新笔记列表（网页 `notefable:page-created`，离开对话后在后台完成也一样）；重开 App 就忘了（服务端不去重，与网页刷新后相同）。失败时项变"重新保存到笔记"，菜单里显示原因：413 太长、400 服务端原句（经系统文词典翻译）、其余"无法保存到笔记，请重试。"。
+- **下载对话**：`GET /api/sessions/:id/export?date=` 返回 `{ fileName, markdown }`，服务端用网页同一组 `conversationToMarkdownFile` / `answerFileName` 生成（同样的所有权检查；只读 USER / ASSISTANT 的正文和附件，不读 SYSTEM 消息和 providerContext；附件图片是本站绝对地址）。读取中菜单项转圈 + "正在下载…" 并阻止重复点击；读取失败菜单保持打开并显示"无法下载聊天，请重试。"；成功后关菜单，用系统的保存位置选择（SAF `CreateDocument`，`text/markdown`，建议文件名即 `fileName`）写入，写完 Toast "聊天已下载"（网页这里只有读屏通知），取消选择就什么也不做，写入失败在操作行下方显示同一句错误，并删掉选择器已建好的空文件。保存位置选择器注册在 `NoteFableRoot`（`rememberConversationDownloader`，经 `LocalConversationDownloader` 交给回答行），不在回答行里：要写的会话 ID 和文件名存在 `rememberSaveable`，选择器开着时进程被杀、回来后那条回答没有重新组合，结果也能接住。等写入的 Markdown 按会话放在 `AnswerExportStore`（Activity 重建也还在）；进程被杀后没了就重新读一次再写，写入在 App 级作用域里跑；发起的回答行已不在时，写入失败改用 Toast 提示。读取时离开这条回答（滚出屏幕）就不再弹出保存位置选择。
 - **错误**：与网页一样只有一处：复制、保存、下载开始时都清掉上一条，菜单开着时显示在菜单里，关着时显示在操作行下方（复制失败也在这里，`MenuError.Copy`）。
 - 和网页的差别：菜单不随页面滚动关闭；没有键盘方向键导航。
 - 服务端测试：`src/app/api/pages/from-answer/route.test.ts`、`src/app/api/sessions/[sessionId]/export/route.test.ts`（与浏览器端转换结果逐项比对）；原生：`ExportApiTest`（MockWebServer、假后端、新建通知、定位）、`ChatViewModelTest`（对账的 key 沿用与 ID 替换通知）。
 
 ## 笔记
 
-列表、项目和回收站是原生界面，直接调用网页用的接口（`data/Notes.kt`、`StudyMateApi`）：`GET /api/pages`、新建 `POST /api/pages`（和网页一样发空白的 Untitled）、移到回收站 `DELETE /api/pages/:id`、移到项目 `PUT /api/pages/:id/group`、项目 `POST /api/pages/groups` 与 `PATCH / DELETE /api/pages/groups/:id`、回收站 `GET / DELETE /api/pages/trash`（清空时带 `before=` 最新一条的删除时间）、`POST / DELETE /api/pages/trash/:id`。项目折叠状态存在本机（网页存在 localStorage）。
+列表、项目和回收站是原生界面，直接调用网页用的接口（`data/Notes.kt`、`NoteFableApi`）：`GET /api/pages`、新建 `POST /api/pages`（和网页一样发空白的 Untitled）、移到回收站 `DELETE /api/pages/:id`、移到项目 `PUT /api/pages/:id/group`、项目 `POST /api/pages/groups` 与 `PATCH / DELETE /api/pages/groups/:id`、回收站 `GET / DELETE /api/pages/trash`（清空时带 `before=` 最新一条的删除时间）、`POST / DELETE /api/pages/trash/:id`。项目折叠状态存在本机（网页存在 localStorage）。
 
 - 拖动排序（网页 `ReorderHandle`）：侧栏和首页的每篇笔记行首有把手（宽 28、最小高 44，GripVertical 13 灰），按住直接拖（与聊天侧栏相同，共用 `ui/ReorderDrag.kt`）。放到别的笔记前 / 后走 `POST /api/pages/reorder`（目标在别的项目里时服务端顺便把它移过去，返回新顺序，`NotesViewModel.applyOrder` 按网页 `byPosition` 重排）；放到项目行 / 项目小标题上移进该项目，放到侧栏的 NOTES 标签、首页的 "Notes" 标题或 "No project" 小标题上移出项目，走 `PUT /api/pages/:id/group`，侧栏里移进折叠着的项目时把它展开。排序请求同一时间只做一次，上一次没完时提示 "Wait for the previous move to finish."；新建 / 移到回收站进行中和正在移动的那一篇不能拖。失败时在那一行下面显示服务端原句（经词典翻译）或 "Could not move the item. Try again."，只显示在发起拖动的那个列表里（抽屉盖在首页上时两个列表同时在组合里）。网页的键盘上下移动在原生版没有。单元测试：`NotesViewModelTest`、`NotesApiTest`。
 
-编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`studymate_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
+编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 
-- 网页 → App：`window.StudyMateNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
-- App → 网页：`window.studymateEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `studymate:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
-- 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`studymateEmbed` 不存在）时没有可保存的编辑，直接离开。
+- 网页 → App：`window.NoteFableNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
+- App → 网页：`window.notefableEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `notefable:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
+- 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`notefableEmbed` 不存在）时没有可保存的编辑，直接离开。
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。
 - 聊天输入栏的草稿放在 `ChatViewModel.draft`（Compose 状态），切到笔记再切回来还在；消息真正发出去后才清空。
@@ -204,7 +204,7 @@ mobile/android/
 - WebView：开 JS 和 DOM Storage、禁止混合内容、不允许 file/content 访问；只有本站的 `/note-embed` 在 WebView 里打开，其它链接交给系统浏览器；图片 / 文件块用系统文件选择器（`onShowFileChooser`）；只有 debug 包能用 Chrome 调试 WebView。
 - 笔记里的文件（本站 `/api/pages/files?key=…`）只给主人，系统浏览器没有 App 的 Cookie。`shouldOverrideUrlLoading` 和 `DownloadListener` 拦下这种地址，由 App 用 OkHttp（同一个 Cookie jar）下载：Android 10 及以上存进"下载"（MediaStore，不需要权限），更老的系统先让用户选保存位置（SAF `CreateDocument`），存好后用系统的"打开方式"打开。提示用网页的"正在下载…"，失败时显示"请求失败：<服务端原因>"。
 
-本机验证时注意：Next 开发服务器默认拒绝来自 `10.0.2.2` 的开发资源请求（`allowedDevOrigins`），编辑器会停在"正在加载笔记…"。模拟器里用 `adb reverse tcp:3000 tcp:3000` 并用 `-Pstudymate.baseUrl=http://localhost:3000` 构建即可。
+本机验证时注意：Next 开发服务器默认拒绝来自 `10.0.2.2` 的开发资源请求（`allowedDevOrigins`），编辑器会停在"正在加载笔记…"。模拟器里用 `adb reverse tcp:3000 tcp:3000` 并用 `-Pnotefable.baseUrl=http://localhost:3000` 构建即可。
 
 ## 搜索与跳转（Batch 4）
 
@@ -215,7 +215,7 @@ mobile/android/
 - 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
 - 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题和图标打开原生笔记编辑页（列表还没读过也能开）。网页会滚到命中的笔记块（blockId），原生版的 `/note-embed` 还没有对应参数，只打开笔记开头。
 - 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。
-- 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 写 `autoVerify="false"`，不需要 `assetlinks.json`：Android 12+ 默认仍由浏览器打开，用户在系统设置的"打开支持的链接"里把站点加给 App 后才会进 App。外部链接经 `ChatViewModel.linkRequests` 交给 `StudyMateRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
+- 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 写 `autoVerify="false"`，不需要 `assetlinks.json`：Android 12+ 默认仍由浏览器打开，用户在系统设置的"打开支持的链接"里把站点加给 App 后才会进 App。外部链接经 `ChatViewModel.linkRequests` 交给 `NoteFableRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
 - 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`、`ChatRevealLayoutTest`。
 
 ## 账号头像（Batch 7b）
@@ -238,7 +238,7 @@ cd mobile/android
 ```
 
 - 交付用 release 包：`./gradlew assembleRelease`（R8 压缩后约 2 MB，产物 `app/build/outputs/apk/release/app-release.apk`）。它暂时用 debug 密钥签名，能直接侧载安装；Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。文件名和上传规则见 [android.md](android.md#安装包交付)。
-- 默认连线上 `https://studymate-lab-ai.vercel.app`（`mobile/android/gradle.properties`）。产品主域名是 `notefable.com`，App 暂时保留旧主机名，避免已有 Cookie 失效后看不到原来的聊天和笔记；迁移身份前不要直接替换默认地址。连电脑上的开发服务器：`./gradlew assembleDebug -Pstudymate.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
+- 默认连线上 `https://notefable.com`（`mobile/android/gradle.properties`；旧版连的 `https://studymate-lab-ai.vercel.app` 的 Cookie 在启动时搬过来）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 
 ## 路线图

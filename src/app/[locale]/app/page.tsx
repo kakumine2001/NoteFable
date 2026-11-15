@@ -238,7 +238,7 @@ export default function Home() {
       if (view === "pages") setNotesList(list);
     }, "fade");
     // モバイルのドロワーが履歴に積んだ目印がある場合は、その履歴を置き換えて、戻る操作で空振りする履歴を残さない。
-    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     restoreSheetMarker();
     if (view === "chat") void notes.active?.flush();
@@ -255,7 +255,7 @@ export default function Home() {
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
       url.searchParams.set("page", id);
-      if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+      if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
       else window.history.pushState(null, "", url);
       restoreSheetMarker();
     }
@@ -300,7 +300,7 @@ export default function Home() {
     url.searchParams.set("view", "pages");
     url.searchParams.set("page", id);
     // 小窓（検索・ドロワー）が積んだ目印があれば置き換え、無ければ URL が変わるときだけ積む。戻る操作で空振りする履歴を残さない。
-    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
     else if (url.href !== window.location.href) window.history.pushState(null, "", url);
     restoreSheetMarker();
     // ドロワーは動きの外で閉じる（changeWorkspace と同じ理由）。
@@ -349,7 +349,7 @@ export default function Home() {
     const url = new URL(window.location.href);
     url.searchParams.delete("page");
     // シートが積んだ目印が一番上にあるときは置き換えて、戻る操作で空振りする履歴を残さない。
-    if (window.history.state?.studymateSheet) window.history.replaceState(null, "", url);
+    if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     restoreSheetMarker();
     // ノートから一覧へは、左へ戻る動き。
@@ -1482,7 +1482,7 @@ export default function Home() {
     });
   }, [revealTick, workspaceView, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
 
-  // プロジェクトの参照ノートのチップなどが投げる "studymate:open-note" / "studymate:open-chat" を、検索結果と同じ開き方に流す。
+  // プロジェクトの参照ノートのチップなどが投げる "notefable:open-note" / "notefable:open-chat" を、検索結果と同じ開き方に流す。
   const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects });
   useEffect(() => {
     linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects };
@@ -1504,13 +1504,13 @@ export default function Home() {
     function onPageCreated() {
       linkOpenersRef.current.projects();
     }
-    window.addEventListener("studymate:open-note", onOpenNote);
-    window.addEventListener("studymate:open-chat", onOpenChat);
-    window.addEventListener("studymate:page-created", onPageCreated);
+    window.addEventListener("notefable:open-note", onOpenNote);
+    window.addEventListener("notefable:open-chat", onOpenChat);
+    window.addEventListener("notefable:page-created", onPageCreated);
     return () => {
-      window.removeEventListener("studymate:open-note", onOpenNote);
-      window.removeEventListener("studymate:open-chat", onOpenChat);
-      window.removeEventListener("studymate:page-created", onPageCreated);
+      window.removeEventListener("notefable:open-note", onOpenNote);
+      window.removeEventListener("notefable:open-chat", onOpenChat);
+      window.removeEventListener("notefable:page-created", onPageCreated);
       revealAbortRef.current?.abort();
     };
   }, []);

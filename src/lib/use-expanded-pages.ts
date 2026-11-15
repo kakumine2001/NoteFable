@@ -3,7 +3,7 @@
 import { useCallback, useState } from "react";
 
 // サイドバーとスマホのホームで、開いているサブページの木（ページ ID → true）。端末に覚えておき、両方の画面で共有する。
-const EXPANDED_KEY = "studymate:note-pages-expanded:v1";
+const EXPANDED_KEY = "notefable:note-pages-expanded:v1";
 
 function read(): Record<string, boolean> {
   try { return JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "{}"); } catch { return {}; }

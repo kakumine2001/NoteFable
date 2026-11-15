@@ -8,7 +8,7 @@ import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NoteTrashDialog } from "@/components/note-trash-dialog";
-import { StudyMateLogo } from "@/components/studymate-logo";
+import { NoteFableLogo } from "@/components/notefable-logo";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { ancestorsOf, childrenByParent, rootPages } from "@/lib/note-tree";
 import { useExpandedPages } from "@/lib/use-expanded-pages";
@@ -16,8 +16,9 @@ import { rowName } from "@/lib/view-transition";
 import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
+import { adoptLegacyKey } from "@/lib/legacy-storage";
 
-const COLLAPSED_KEY = "studymate:note-groups-collapsed:v1";
+const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
 
 type GroupActions = {
   groups: NoteGroupSummary[]; groupError: string;
@@ -39,14 +40,17 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
 } & GroupActions) {
   const t = useT();
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
-  // ゴミ箱の小窓。復元したノートは "studymate:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
+  // ゴミ箱の小窓。復元したノートは "notefable:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
   const [trashOpen, setTrashOpen] = useState(false);
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [naming, setNaming] = useState<{ mode: "create" } | { mode: "rename"; group: NoteGroupSummary } | null>(null);
   const [deletingGroup, setDeletingGroup] = useState<NoteGroupSummary | null>(null);
   // 折りたたみの状態は端末に覚えておく。この側のパネルは Notes に切り替えた後にだけ作られるので、初期値で読んでもサーバー描画とずれない。
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
-    try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}"); } catch { return {}; }
+    try {
+      adoptLegacyKey(localStorage, COLLAPSED_KEY);
+      return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}");
+    } catch { return {}; }
   });
   // アイコン選択を開いているノートと、その位置（スクロールしても固定位置で出すため開いた時点で決める）。チャットの行と同じ作り。
   const [picker, setPicker] = useState<{ id: string; position: FloatingPosition } | null>(null);
@@ -126,7 +130,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
   return (
     <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
-        <StudyMateLogo />
+        <NoteFableLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")}><PanelLeftClose size={17} /></button>
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />

@@ -16,8 +16,8 @@ const IMAGE_EXTENSIONS: Record<string, string> = {
 const DEFAULT_STORAGE_ROOT = path.join("data", "storage");
 
 function getStorageRoot() {
-  // STUDYMATE_STORAGE_DIR があれば、画像保存先としてそれを使う。
-  const configuredRoot = optionalEnv("STUDYMATE_STORAGE_DIR");
+  // NOTEFABLE_STORAGE_DIR があれば、画像保存先としてそれを使う。
+  const configuredRoot = optionalEnv("NOTEFABLE_STORAGE_DIR") ?? optionalEnv("STUDYMATE_STORAGE_DIR");
 
   if (!configuredRoot) {
     return DEFAULT_STORAGE_ROOT;

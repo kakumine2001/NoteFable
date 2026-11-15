@@ -21,10 +21,10 @@ const { GoogleVerificationUnavailableError, NONCE_COOKIE, createNonce } = await 
 const { POST } = await import("@/app/api/native-auth/google/route");
 const { POST: POST_NONCE } = await import("@/app/api/native-auth/nonce/route");
 
-function post(body: unknown, headers: Record<string, string> = {}, url = "https://studymate.example/api/native-auth/google") {
+function post(body: unknown, headers: Record<string, string> = {}, url = "https://notefable.example/api/native-auth/google") {
   return new NextRequest(url, {
     method: "POST",
-    headers: { "content-type": "application/json", host: "studymate.example", ...headers },
+    headers: { "content-type": "application/json", host: "notefable.example", ...headers },
     body: typeof body === "string" ? body : JSON.stringify(body),
   });
 }
@@ -36,7 +36,7 @@ describe("POST /api/native-auth/nonce", () => {
   });
 
   it("returns a nonce and stores a signed copy in an httpOnly cookie scoped to the native auth routes", async () => {
-    const response = await POST_NONCE(post("", {}, "https://studymate.example/api/native-auth/nonce"));
+    const response = await POST_NONCE(post("", {}, "https://notefable.example/api/native-auth/nonce"));
     const { nonce } = await response.json();
     const cookie = response.headers.get("set-cookie") ?? "";
 
@@ -70,7 +70,7 @@ describe("POST /api/native-auth/google", () => {
 
   it("verifies the token against this device's nonce and sets a secure httpOnly session cookie", async () => {
     verifyGoogleIdToken.mockResolvedValue({ sub: "1", email: null, name: null, image: null });
-    const { nonce, headers } = withNonce({ origin: "https://studymate.example" });
+    const { nonce, headers } = withNonce({ origin: "https://notefable.example" });
 
     const response = await POST(post({ idToken: "token" }, headers));
 

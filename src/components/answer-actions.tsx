@@ -42,7 +42,7 @@ function saveErrorMessage(status: number, data: Record<string, unknown>) {
   return SAVE_FAILED;
 }
 
-// 回答から新しいノートを 1 つ作る。サーバーが本文を検証し直す。成功したら一覧に加わるよう "studymate:page-created" を投げる。
+// 回答から新しいノートを 1 つ作る。サーバーが本文を検証し直す。成功したら一覧に加わるよう "notefable:page-created" を投げる。
 async function saveAnswer(key: string, content: string, source: AnswerSource): Promise<{ ok: true | "pending" } | { ok: false; message: string }> {
   // 同じ回答の保存がすでに進行中なら、何もしない（成功とは扱わない）。
   if (saves.has(key)) return { ok: "pending" };
@@ -63,7 +63,7 @@ async function saveAnswer(key: string, content: string, source: AnswerSource): P
       return { ok: false, message: saveErrorMessage(response.status, data) };
     }
     setSave(key, { status: "saved", pageId: page.id });
-    window.dispatchEvent(new CustomEvent("studymate:page-created", { detail: page }));
+    window.dispatchEvent(new CustomEvent("notefable:page-created", { detail: page }));
     return { ok: true };
   } catch {
     setSave(key, null);
@@ -232,7 +232,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
     // 修飾キー付きや中ボタンは、リンクとして新しいタブで開かせる。
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     event.preventDefault();
-    window.dispatchEvent(new CustomEvent("studymate:open-note", { detail: { id: pageId } }));
+    window.dispatchEvent(new CustomEvent("notefable:open-note", { detail: { id: pageId } }));
   }
 
   return (
