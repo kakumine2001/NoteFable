@@ -38,17 +38,22 @@ export function previewMarkdown(blocks: unknown) {
   const out: string[] = [];
   let fence: string | null = null;
   let previousItem = false;
+  // 表の行（| で始まる行）は詰めたままにする。空行が入ると表として描かれない。表と表の間の空行は元のまま残る。
+  let previousRow = false;
   for (const line of blocksToMarkdown(blocks).split("\n")) {
     if (fence) {
       out.push(line);
       if (line.trim() === fence) fence = null;
       continue;
     }
+    if (!line.trim()) { previousItem = previousRow = false; continue; }
     const opening = /^\s*(`{3,})/.exec(line);
     const item = !opening && LIST_ITEM.test(line);
-    if (out.length && !(item && previousItem)) out.push("");
+    const row = !opening && !item && line.trimStart().startsWith("|");
+    if (out.length && !(item && previousItem) && !(row && previousRow)) out.push("");
     out.push(item ? line : line.trimStart());
     previousItem = item;
+    previousRow = row;
     if (opening) fence = opening[1];
   }
   return out.join("\n");

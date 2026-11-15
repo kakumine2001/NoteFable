@@ -6,19 +6,31 @@ Notes 是 NoteFable 内部的文字笔记模式。切换模式保留聊天输入
 
 Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选择器，打开时才加载，支持英文搜索、分类、最近使用和肤色。表情以单个 Unicode 字素保存，包含旗帜、键帽和组合表情；原生显示受设备字体支持范围限制。头像照片与封面的现有上传流程保留，不提供独立的图标素材库。
 
-`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 只包含段落、H1–H3、项目/编号/待办列表、引用、代码和分隔线；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放表格、视频/音频块、外部链接嵌入、折叠标题或子页面。
+`src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 包含段落、H1–H3（可设为折叠标题，`isToggleable`）、项目/编号/待办列表、折叠列表（`toggleListItem`）、引用、Callout（`callout`，自定义块，见下）、代码、分隔线和表格（`table`）；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放视频/音频块、外部链接嵌入或子页面。
+
+### 仿 Notion 的块与操作
+
+- **折叠。** 折叠列表和折叠标题用 BlockNote 自带的实现：子块缩进在其下，点三角展开/收起；展开状态只存在本机（BlockNote 用 localStorage 记），不进文档 JSON。
+- **Callout。** `src/components/note-callout.tsx`：props 为 `emoji`（单个 emoji，默认 💡）、`backgroundColor`（默认 `gray`）和 `textColor`，正文是行内内容。点 emoji 打开与页面图标相同的表情选择器；背景色用手柄菜单的 Color 修改，选 Default 时只剩边框。
+- **表格。** BlockNote 的 `table`：`content` 是 `tableContent`（`rows[].cells[]`，单元格带颜色、对齐和合并）。编辑器以 `tables: { headers, splitCells, cellBackgroundColor, cellTextColor }` 全部开启：手柄菜单里有 Header row / Header column，行列手柄可以增删行列和给单元格上色，选中多个单元格时工具栏出现合并按钮。`headerRows` / `headerCols` 是“整行/整列都是表头”的数量，可能大于 1（例如粘贴带两行表头的表）。行列数不设上限，大小只受整篇笔记 1 MiB 的限制（约几千个单元格，超过时保存返回 413 `Note content exceeds 1 MiB.`）；表格没有子块。未设置的列宽在编辑器里是 `undefined`、存进 JSON 后是 `null`，`notes-workspace.tsx` 的 `sameJson` 把两者视为相同，避免把没改过的表格当成编辑。
+- **输入规则与快捷键**与 Notion 一致：行首 `> ` 生成折叠列表，`" ` 或 `| ` 生成引用（BlockNote 默认的 `> ` 引用被替换）；`Ctrl+Shift+0–8`（macOS 是 `⌘+⌥+0–8`）转换块类型（7 是折叠列表），`Ctrl/⌘+Shift+↑/↓` 上下移动块，`Ctrl/⌘+D` 复制块。把 Callout 转成其他类型时去掉它默认的灰色背景，反过来把没有背景色的块转成 Callout 时补上灰色。
+- **斜杠命令。** 除了插入块和 `/turn…` 转换，输入文字后还会匹配作用于当前块的命令：文字颜色（`/red`）、背景色（`/blue background`）、`/duplicate`、`/delete`。这些只在输入了查询时出现，空菜单不列出。
+
+AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：折叠列表是 `▸ 文字`，折叠标题是 `# ▸ 文字`，子块缩进两格；Callout 是 `> [!💡] 文字`；表格是 GFM 表格，整张表算一个块（`read_note` 只给表格一个编号，第一行当表头）。表格里单元格的颜色、对齐、合并无法用 Markdown 表达，AI 替换这样的表格时提案会带 `dropsFormatting` 警告；表头行/列的设置和列宽（列数不变时）在“表格替换成一张表格”时从原表继承（`carryTableLayout`，`src/lib/page-edit.ts`）。单元格里的 `|` 写成 `\|`，行的切分（`splitTableRow`）不在代码片段里切，也不被转义的反引号打断；正文里其他位置的 `\|` 保持原样。从 Markdown 生成表格时，每行会补空单元格到最大列数；补完超过 20,000 个单元格（`MAX_PARSED_TABLE_CELLS`）的不当作表格、按普通行读入，防止很短的输入膨胀成巨大的表。不带编号的输出里，相邻的两张表之间空一行，否则读回来会并成一张；编辑历史的预览（`previewMarkdown`）保持表格各行相连。搜索命中折叠块里的内容时，`revealNoteBlock` 先点开外层的折叠再滚动高亮。聊天回答 “Save to Notes” 时，回答里的 GFM 表格会保存成表格块。站内搜索会搜到表格单元格里的文字。
 
 ## 图片与文件
 
-图片块和文件块的 `props.url` 只能是 `/api/pages/files?key=…&name=…`（`parseNoteFileUrl`，`src/lib/note-file-keys.ts`），不接受任意外部 URL；上传前的空块 `url` 为空字符串。文件保存在 `note-files/<匿名用户ID>/<uuid>.<扩展名>`，与封面、聊天图片共用 `src/lib/storage.ts`。保存页面时 `assertNoteFilesOwner` 检查所有被引用的键都在当前用户目录下，否则返回 400。
+笔记附件和封面的单文件上限均为 4 MiB（4,194,304 字节）；界面和接口错误文案沿用 “4 MB” 标签。以下容量按实际字节上限描述。
 
-`POST /api/pages/files` 只收一个 `file` 字段，最大 4 MB（Vercel 请求体上限 4.5 MB），按实际接收字节数限制。图片按文件头判断（JPEG/PNG/WebP/GIF）；其他文件按扩展名白名单（pdf、txt、md、csv、json、doc/docx、xls/xlsx、ppt/pptx、zip、mp3、wav、mp4），可执行文件、HTML 等被拒绝（400）。`GET /api/pages/files?key=&name=` 只返回当前用户自己的文件：图片内联显示，其他类型以 `attachment` 下载，并带 `nosniff` 和 `Content-Security-Policy: sandbox`。
+图片块和文件块的 `props.url` 只能是 `/api/pages/files?key=…&name=…`（`parseNoteFileUrl`，`src/lib/note-file-keys.ts`），不接受任意外部 URL；上传前的空块 `url` 为空字符串。文件保存在 `note-files/<用户ID>/<uuid>.<扩展名>`，与封面、聊天图片共用 `src/lib/storage.ts`。保存页面时 `assertNoteFilesOwner` 检查所有被引用的键都在当前用户目录下，否则返回 400。
 
-AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]` 占位文字。`propose_note_edit` 可以像其他块一样替换或删除这些块；替换或删除到上传内容时，提案里该处会带 `dropsMedia`，提案卡片提示“上传的图片或文件会从笔记中移除”，用户批准后才会生效。AI 也可以把用户在当前聊天里发送的图片放进笔记：先用 `list_chat_attachments` 取得附件 ID，再在提案的 Markdown 中单独写一行 `![说明](attachment:ID)`。服务端（`src/lib/note-attachments.ts`）确认该附件属于本会话和本人、是 PNG/JPEG/WebP/GIF 且不超过 4 MB，把图片复制到 `note-files/<用户>/`，替换成指向它的图片块；每个提案最多 5 张，同一张只复制一次。聊天里的 PDF / 文本附件只保存了抽出的文字，没有原文件，所以不能作为文件块放进笔记。模型直接写 `![说明](/api/pages/files?...)` 时只接受本人目录下的图片，生成提案和适用提案时都会检查（`assertNoteFilesOwner`）。已上传但不再被引用的文件不会被清理（清理任务已移除）。
+`POST /api/pages/files` 只收一个 `file` 字段，最大 4 MiB（Vercel 请求体上限 4.5 MB），按实际接收字节数限制。图片按文件头判断（JPEG/PNG/WebP/GIF）；其他文件按扩展名白名单（pdf、txt、md、csv、json、doc/docx、xls/xlsx、ppt/pptx、zip、mp3、wav、mp4），可执行文件、HTML 等被拒绝（400）。`GET /api/pages/files?key=&name=` 只返回当前用户自己的文件：图片内联显示，其他类型以 `attachment` 下载，并带 `nosniff` 和 `Content-Security-Policy: sandbox`。
+
+AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]` 占位文字。`propose_note_edit` 可以像其他块一样替换或删除这些块；替换或删除到上传内容时，提案里该处会带 `dropsMedia`，提案卡片提示“上传的图片或文件会从笔记中移除”，用户批准后才会生效。AI 也可以把当前聊天里的图片放进笔记（含用户上传和助手生成的图片）：先用 `list_chat_attachments` 取得附件 ID，再在提案的 Markdown 中单独写一行 `![说明](attachment:ID)`。服务端（`src/lib/note-attachments.ts`）确认该附件属于本会话和本人（不按消息角色排除生成图）、是 PNG/JPEG/WebP/GIF 且不超过 4 MiB，把图片复制到 `note-files/<用户>/`，替换成指向它的图片块；每个提案最多 5 张，同一张只复制一次。聊天里的 PDF / 文本附件只保存了抽出的文字，没有原文件，所以不能作为文件块放进笔记。模型直接写 `![说明](/api/pages/files?...)` 时只接受本人目录下的图片，生成提案和适用提案时都会检查（`assertNoteFilesOwner`）。已上传但不再被引用的文件不会被清理（清理任务已移除）。
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹），界面统一称为 Projects。`NoteGroup` 属于匿名用户（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。通过六点手柄可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。通过六点手柄可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
@@ -43,8 +55,8 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `GET /api/pages/:id/revisions` | 返回 `{ revisions }`（`id`、`reason`、`title`、`version`、`createdAt`，不含正文），最新在前，最多 50 条 |
 | `GET /api/pages/:id/revisions/:revisionId` | 返回 `{ revision }`，含 `icon` 和 `blocks`，用于预览 |
 | `POST /api/pages/:id/revisions/:revisionId/restore` | 把笔记恢复为该历史的标题、图标和正文。body `{ version }` 是客户端当前的笔记版本；成功返回完整的 `{ page }`，版本过期返回 409（带最新的 `page`） |
-| `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
-| `GET /api/pages/covers?key=` | 只返回当前匿名用户目录下的封面图片 |
+| `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MiB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
+| `GET /api/pages/covers?key=` | 只返回当前用户目录下的封面图片 |
 | `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件” |
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
@@ -52,7 +64,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/group` | 把页面移入自己的分组，或用 `{ groupId: null }` 移出 |
 | `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji 或 null> }`，返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
 
-所有操作沿用签名设备 Cookie 和 `getOrCreateUser()`；页面不存在、属于其他设备或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
+所有操作通过 `getOrCreateUser()` 识别当前用户（签名设备 Cookie 或 Google / 邮箱登录会话）；页面不存在、属于其他用户或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
 
 ## Trash（回收站）
 

@@ -1,5 +1,5 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
-import { markdownToBlocks } from "@/lib/note-markdown";
+import { TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
 // 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
@@ -269,33 +269,6 @@ function rewriteLine(line: string) {
   return line.split(/(`[^`]*`)/).map((part, index) => (index % 2 ? part : rewriteLinks(part))).join("");
 }
 
-// 表の 1 行をセルに分ける。\| とコードの中の | では区切らない。
-function splitRow(line: string) {
-  const cells: string[] = [];
-  let cell = "";
-  let inCode = false;
-  for (let index = 0; index < line.length; index++) {
-    const char = line[index];
-    if (char === "\\" && line[index + 1] === "|") {
-      cell += "|";
-      index++;
-    } else if (char === "`") {
-      inCode = !inCode;
-      cell += char;
-    } else if (char === "|" && !inCode) {
-      cells.push(cell);
-      cell = "";
-    } else cell += char;
-  }
-  cells.push(cell);
-  const text = line.trim();
-  if (text.startsWith("|")) cells.shift();
-  if (text.endsWith("|") && !text.endsWith("\\|")) cells.pop();
-  return cells.map((value) => value.trim());
-}
-
-const TABLE_SEPARATOR = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
-
 function startsTable(lines: string[], index: number) {
   const header = lines[index];
   const separator = lines[index + 1];
@@ -303,15 +276,9 @@ function startsTable(lines: string[], index: number) {
     && splitRow(header).length === splitRow(separator).length;
 }
 
-// 行頭が箇条書きや見出しの記号に見える行は、段落のままになるよう記号を退避する（**太字** で始まる行はそのまま）。
-function escapeLineStart(text: string) {
-  if (/^\d+[.)](\s|$)/.test(text)) return text.replace(/^(\d+)([.)])/, "$1\\$2");
-  return /^(#{1,6}(\s|$)|[-+*](\s|$)|>|`{3}|(-{3,}|\*{3,}|_{3,})$)/.test(text) ? `\\${text}` : text;
-}
-
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
 // - 出典などのリンクを通常の形へ
-// - 表は読める行へ（区切り行は捨て、セルは " | " でつなぐ。表のブロックは無い）
+// - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
 function prepareMarkdown(markdown: string) {
   const lines = normalizeNewlines(markdown).split("\n");
@@ -330,11 +297,12 @@ function prepareMarkdown(markdown: string) {
       continue;
     }
     if (startsTable(lines, index)) {
-      out.push(escapeLineStart(splitRow(line).map(rewriteLine).join(" | ")));
+      const rows = [splitRow(line)];
       index++;
-      while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) {
-        out.push(escapeLineStart(splitRow(lines[++index]).map(rewriteLine).join(" | ")));
-      }
+      while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) rows.push(splitRow(lines[++index]));
+      const columns = rows[0].length;
+      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => rewriteLine(cells[column] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`;
+      out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
       continue;
     }
     out.push(rewriteLine(line));

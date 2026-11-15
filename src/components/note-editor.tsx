@@ -1,16 +1,17 @@
 "use client";
 
-import { BlockNoteSchema, createCodeBlockSpec, createHeadingBlockSpec, defaultBlockSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, createHeadingBlockSpec, defaultBlockSpecs, type BlockNoteEditor, type PartialBlock } from "@blocknote/core";
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
-import { SideMenuExtension, SuggestionMenu, filterSuggestionItems } from "@blocknote/core/extensions";
+import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { en, ja as blockNoteJa, zh as blockNoteZh, zhTW as blockNoteZhTW } from "@blocknote/core/locales";
-import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { Check, CheckSquare, Code2, Copy, Heading1, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Text, Type, Upload } from "lucide-react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
+import { Check, CheckSquare, ChevronRight, Code2, Copy, Heading1, Lightbulb, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
-import { NOTE_TEXT_BLOCKS, codeBlockText, copyNoteBlocks, selectedRootBlocks, type NoteBlockTarget } from "@/lib/note-block-actions";
+import { createCalloutBlockSpec } from "@/components/note-callout";
+import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
@@ -30,16 +31,30 @@ function normalizeCodeLanguages<T extends { type: string; props?: Record<string,
   }));
 }
 
+// 入力ルールは Notion に合わせる: 「> 」はトグル、「" 」と「| 」が引用（BlockNote の既定は「> 」が引用）。
+const toggleSpec: typeof defaultBlockSpecs.toggleListItem = { ...defaultBlockSpecs.toggleListItem, extensions: [...(defaultBlockSpecs.toggleListItem.extensions ?? []), createExtension({
+  key: "notes-toggle-input-rule",
+  inputRules: [{ find: /^>\s$/, replace: () => ({ type: "toggleListItem", props: {} }) }],
+})] };
+const quoteSpec: typeof defaultBlockSpecs.quote = { ...defaultBlockSpecs.quote, extensions: [createExtension({
+  key: "notes-quote-input-rule",
+  inputRules: [{ find: /^["“”|｜]\s$/, replace: () => ({ type: "quote", props: {} }) }],
+})] };
+
 const schema = BlockNoteSchema.create({ blockSpecs: {
   paragraph: defaultBlockSpecs.paragraph,
-  heading: createHeadingBlockSpec({ levels: [1, 2, 3], allowToggleHeadings: false }),
+  // 見出しは Notion と同じく折りたたみ（トグル見出し）にもできる。
+  heading: createHeadingBlockSpec({ levels: [1, 2, 3], allowToggleHeadings: true }),
   bulletListItem: defaultBlockSpecs.bulletListItem,
   numberedListItem: defaultBlockSpecs.numberedListItem,
   checkListItem: defaultBlockSpecs.checkListItem,
-  quote: defaultBlockSpecs.quote,
+  toggleListItem: toggleSpec,
+  quote: quoteSpec,
+  callout: createCalloutBlockSpec(),
   // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
   codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
   divider: defaultBlockSpecs.divider,
+  table: defaultBlockSpecs.table,
   // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
   image: defaultBlockSpecs.image,
   file: defaultBlockSpecs.file,
@@ -52,9 +67,17 @@ function convertBlocks(editor: Editor, target: NoteBlockTarget, blocks = editor.
   editor.focus();
   editor.transact(() => {
     for (const block of blocks) {
+      // 表・画像・区切り線など、文字のブロックでないものは変換しない。
+      if (!Array.isArray(block.content)) continue;
+      // 種類を変えても共通の props は引き継がれる。コールアウトの既定の灰色だけは「色なし」と対応させる:
+      // 色のないブロック → コールアウトは灰色に、灰色のコールアウト → 他の種類は色なしに。
+      const background = "backgroundColor" in block.props ? block.props.backgroundColor : undefined;
+      const recolor = block.type === target.type ? {}
+        : target.type === "callout" && background === "default" ? { backgroundColor: "gray" }
+          : block.type === "callout" && background === "gray" ? { backgroundColor: "default" } : {};
       const update = target.type === "codeBlock"
         ? { type: "codeBlock", content: [{ type: "text", text: codeBlockText(block), styles: {} }] }
-        : { type: target.type, props: target.type === "heading" ? { level: target.level } : {} };
+        : { type: target.type, props: { ...targetProps(target), ...recolor } };
       editor.updateBlock(block, update as PartialBlock<typeof schema.blockSchema>);
     }
   });
@@ -91,11 +114,17 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
   heading: { icon: <Heading1 size={18} />, hint: "#" },
   heading_2: { icon: <Heading2 size={18} />, hint: "##" },
   heading_3: { icon: <Heading3 size={18} />, hint: "###" },
+  toggle_heading: { icon: <Heading1 size={18} /> },
+  toggle_heading_2: { icon: <Heading2 size={18} /> },
+  toggle_heading_3: { icon: <Heading3 size={18} /> },
+  toggle_list: { icon: <ChevronRight size={18} />, hint: ">" },
+  callout: { icon: <Lightbulb size={18} /> },
+  table: { icon: <Table size={18} /> },
   check_list: { icon: <CheckSquare size={18} />, hint: "[]" },
   bullet_list: { icon: <List size={18} />, hint: "-" },
   numbered_list: { icon: <ListOrdered size={18} />, hint: "1." },
   code_block: { icon: <Code2 size={18} />, hint: "```" },
-  quote: { icon: <Quote size={18} />, hint: ">" },
+  quote: { icon: <Quote size={18} />, hint: '"' },
   divider: { icon: <Minus size={18} />, hint: "---" },
 };
 
@@ -122,6 +151,33 @@ function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<Sl
   </div>;
 }
 
+const BLOCK_COLORS = [
+  { key: "default", title: msg("Default") }, { key: "gray", title: msg("Gray") }, { key: "brown", title: msg("Brown") },
+  { key: "orange", title: msg("Orange") }, { key: "yellow", title: msg("Yellow") }, { key: "green", title: msg("Green") },
+  { key: "blue", title: msg("Blue") }, { key: "purple", title: msg("Purple") }, { key: "pink", title: msg("Pink") }, { key: "red", title: msg("Red") },
+] as const;
+
+// スラッシュメニューから、キャレットのあるブロックに対して行う操作。
+function commandItems(editor: Editor, t: ReturnType<typeof useT>): SlashItem[] {
+  const current = () => editor.getTextCursorPosition().block;
+  const paint = (prop: "textColor" | "backgroundColor", color: string) => () => {
+    const block = current();
+    // 区切り線など、その色を持てないブロックには何もしない。
+    if (prop in editor.schema.blockSchema[block.type].propSchema) editor.updateBlock(block, { props: { [prop]: color } } as PartialBlock<typeof schema.blockSchema>);
+  };
+  const swatch = (prop: "textColor" | "backgroundColor", color: (typeof BLOCK_COLORS)[number]["key"]) => {
+    const value = color === "default" ? undefined : COLORS_DEFAULT[color][prop === "textColor" ? "text" : "background"];
+    return <span className="notes-slash-swatch" style={prop === "textColor" ? { color: value } : { background: value }}>A</span>;
+  };
+  return [
+    ...BLOCK_COLORS.map((color) => ({ title: t(color.title), group: t("Color"), aliases: [color.key, "color"], icon: swatch("textColor", color.key), onItemClick: paint("textColor", color.key) })),
+    ...BLOCK_COLORS.map((color) => ({ title: t("{color} background", { color: t(color.title) }), group: t("Background color"), aliases: [`${color.key} background`, "background"],
+      icon: swatch("backgroundColor", color.key), onItemClick: paint("backgroundColor", color.key) })),
+    { title: t("Duplicate"), group: t("Actions"), aliases: ["duplicate", "copy"], icon: <Copy size={18} />, onItemClick: () => duplicateBlocks(editor, [current()]) },
+    { title: t("Delete"), group: t("Actions"), aliases: ["delete", "remove"], icon: <Trash2 size={18} />, onItemClick: () => editor.removeBlocks([current()]) },
+  ];
+}
+
 // ハンドルのブロックが選択範囲に含まれていれば選択全体を、そうでなければそのブロックだけを対象にする。
 function menuTargets(editor: Editor, block: Editor["document"][number]) {
   const selected = editor.getSelection()?.blocks ?? [];
@@ -137,17 +193,21 @@ function BlockMenu() {
   const block = hovered && editor.getBlock(hovered.id);
   if (!block) return null;
   return <DragHandleMenu>
-    <Components.Generic.Menu.Root sub position="right" portalElement={portalElement}>
+    {/* 「Turn into」は文字のブロックだけ（表・画像・区切り線は変換できない）。 */}
+    {Array.isArray(block.content) && <Components.Generic.Menu.Root sub position="right" portalElement={portalElement}>
       <Components.Generic.Menu.Trigger sub>
         <Components.Generic.Menu.Item className="bn-menu-item" subTrigger icon={<Text size={16} />}>{t("Turn into")}</Components.Generic.Menu.Item>
       </Components.Generic.Menu.Trigger>
       <Components.Generic.Menu.Dropdown sub className="bn-menu-dropdown">
         {NOTE_TEXT_BLOCKS.map((target) => <Components.Generic.Menu.Item key={target.key} className="bn-menu-item"
-          checked={block.type === target.type && (target.type !== "heading" || (block.type === "heading" && block.props.level === target.level))}
+          checked={blockMatchesTarget(block, target)}
           onClick={() => convertBlocks(editor, target, [block])}>{t(target.title)}</Components.Generic.Menu.Item>)}
       </Components.Generic.Menu.Dropdown>
-    </Components.Generic.Menu.Root>
+    </Components.Generic.Menu.Root>}
     <BlockColorsItem>{t("Color")}</BlockColorsItem>
+    {/* 表のときだけ出る（BlockNote 側で判定）。Notion の「Header row / Header column」。 */}
+    <TableRowHeaderItem>{t("Header row")}</TableRowHeaderItem>
+    <TableColumnHeaderItem>{t("Header column")}</TableColumnHeaderItem>
     <Components.Generic.Menu.Divider />
     <Components.Generic.Menu.Item className="bn-menu-item" icon={<Copy size={16} />} onClick={() => duplicateBlocks(editor, menuTargets(editor, block))}>
       {t("Duplicate")}<span className="notes-menu-shortcut">{MOD}+D</span>
@@ -237,7 +297,7 @@ function NoteFormattingToolbar() {
     text: t(target.title), icon: <Text size={16} />,
     // 種類の違うブロックをまとめて選択すると一致する項目がなくなり、BlockNote の Select が落ちる。
     // Notion と同じく先頭ブロックの種類を表示する。
-    isSelected: !!selected[0] && selected[0].type === target.type && (target.type !== "heading" || (selected[0].type === "heading" && selected[0].props.level === target.level)),
+    isSelected: !!selected[0] && blockMatchesTarget(selected[0], target),
     onClick: () => convertBlocks(editor, target, selected),
   }));
   if (media) return <FormattingToolbar>
@@ -264,6 +324,8 @@ function NoteFormattingToolbar() {
     <BasicTextStyleButton basicTextStyle="code" />
     <span className="notes-toolbar-sep" />
     <ColorStyleButton />
+    {/* 表で複数のセルを選んだ時だけ出る。 */}
+    <TableCellMergeButton />
   </FormattingToolbar>;
 }
 
@@ -277,6 +339,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
     schema,
     extensions: [syntaxHighlighter],
     tabBehavior: "prefer-indent",
+    // 表: 見出しの行・列、セルの結合と分割、セルごとの文字色・背景色（いずれも BlockNote の既定では無効）。
+    tables: { headers: true, splitCells: true, cellBackgroundColor: true, cellTextColor: true },
     uploadFile: uploadNoteFile,
     // ウェブページからコピーした画像は外部 URL の画像ブロックになり、保存が拒否される。画像だけ含む HTML は文字だけ貼り付ける（スクリーンショットなどのファイルは uploadFile に回る）。
     pasteHandler: ({ event, editor: target, defaultPasteHandler }) => {
@@ -374,7 +438,8 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
       });
       visit(editor.document);
       if (unknown.length) { editor.transact(() => unknown.forEach((id) => editor.updateBlock(id, { props: { language: "text" } }))); return; }
-      onChange(editor.document);
+      // 型の上の Block は BlockNote 既定のスキーマ。コールアウトを含むこのエディターの文書も、保存する JSON としては同じ形。
+      onChange(editor.document as unknown as NoteContent["blocks"]);
     }}>
       <FormattingToolbarController formattingToolbar={NoteFormattingToolbar} />
       <FilePanelController filePanel={NoteFilePanel} />
@@ -384,12 +449,18 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
         const defaults = (getDefaultReactSlashMenuItems(editor) as (DefaultReactSuggestionItem & { key: string })[]).filter((item) => item.key !== "emoji");
         const turning = /^turn(?:\s|$)/i.test(query);
         const textItems = NOTE_TEXT_BLOCKS.map((target) => {
-          const item = defaults.find((item) => item.key === target.key)!;
-          return { ...item, title: t(target.title), group: t("Basic blocks"), aliases: [...(item.aliases ?? []), ...target.aliases, target.title.toLowerCase()],
-            badge: undefined,
-            onItemClick: turning ? () => convertBlocks(editor, target) : item.onItemClick };
+          // コールアウトは BlockNote の既定の項目にないので、ここで作る。
+          const item = defaults.find((item) => item.key === target.key);
+          return { ...item, key: target.key, title: t(target.title), group: t("Basic blocks"), aliases: [...(item?.aliases ?? []), ...target.aliases, target.title.toLowerCase()],
+            badge: undefined, subtext: undefined,
+            onItemClick: turning ? () => convertBlocks(editor, target)
+              // 空の段落を置き換える時は元の背景色（default）が残るので、コールアウトの既定の灰色を明示する。
+              : item?.onItemClick ?? (() => { insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { backgroundColor: "gray" } }); }) };
         });
-        return filterSuggestionItems(turning ? textItems : [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))], turning ? query.replace(/^turn\s*/i, "") : query);
+        if (turning) return filterSuggestionItems(textItems, query.replace(/^turn\s*/i, ""));
+        const blockItems = [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
+        // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
+        return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />
     </BlockNoteView>
     {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
