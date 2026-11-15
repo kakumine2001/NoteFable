@@ -82,9 +82,9 @@ fun filterProjectNotes(pages: List<ChatProjectNote>, filter: String, untitled: S
 }
 
 /** 勾选 / 取消：已选的去掉；没满就加到最后；满了不变（网页 toggle）。 */
-fun toggleProjectNote(selected: List<ChatProjectNote>, note: ChatProjectNote): List<ChatProjectNote> = when {
+fun toggleProjectNote(selected: List<ChatProjectNote>, note: ChatProjectNote, max: Int = MAX_PROJECT_NOTES): List<ChatProjectNote> = when {
     selected.any { it.id == note.id } -> selected.filterNot { it.id == note.id }
-    selected.size >= MAX_PROJECT_NOTES -> selected
+    selected.size >= max -> selected
     else -> selected + note
 }
 
@@ -95,7 +95,7 @@ fun clipInstructions(text: String, max: Int): String {
     return text.substring(0, end)
 }
 
-private val SettingsDanger = Color(0xFFB91C1C) // .project-settings-error
+internal val SettingsDanger = Color(0xFFB91C1C) // .project-settings-error
 private val CountFull = Color(0xFFB45309)      // .project-settings-count.is-full
 private val SettingsShadow = Color(0x1F0F0F0F) // --notion-shadow
 private val SettingsRing = Color(0x0D0F0F0F)
@@ -258,7 +258,7 @@ internal fun SettingsHelpText(text: String) =
 
 // .project-settings-empty：13 灰，上距 9.6。
 @Composable
-private fun EmptyText(text: String) =
+internal fun EmptyText(text: String) =
     Text(text, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 9.6.dp))
 
 // .project-settings-textarea（手机）：最小高 144、上距 8、1px 深描边、圆角 6、内边距 8.8×11.2、16 / 行高 1.55；聚焦 2px 蓝框。
@@ -287,7 +287,7 @@ internal fun InstructionsField(value: String, onChange: (String) -> Unit, enable
 
 // .project-settings-search：上距 9.6、1px 深描边、圆角 6、左右 9.6、放大镜 14 + 7.2；输入 16、上下 8；聚焦 2px 蓝框。
 @Composable
-private fun FilterField(value: String, onChange: (String) -> Unit, placeholder: String) {
+internal fun FilterField(value: String, onChange: (String) -> Unit, placeholder: String) {
     var focused by remember { mutableStateOf(false) }
     BasicTextField(
         value = value,
@@ -318,7 +318,7 @@ private fun FilterField(value: String, onChange: (String) -> Unit, placeholder: 
 
 // .project-settings-chip：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4/3.2/2.4/8.8；文件图标 13 + 4.8；移除键 28 圆（✕ 12 灰）。
 @Composable
-private fun NoteChip(title: String, enabled: Boolean, onRemove: () -> Unit) {
+internal fun NoteChip(title: String, enabled: Boolean, onRemove: () -> Unit) {
     val remove = stringResource(R.string.sb_remove_title, title)
     Row(
         Modifier.border(1.dp, Sm.BorderStrong, CircleShape).clip(CircleShape).background(Sm.Sidebar)
@@ -340,7 +340,7 @@ private fun NoteChip(title: String, enabled: Boolean, onRemove: () -> Unit) {
 // .project-settings-option（手机）：最小高 44、圆角 6、左右 8、间距 8.8、15 字；勾选框 16（蓝）；图标区 20（表情或文件图标 14 灰）；
 // 选中灰底；满了以后没选的变浅灰且不能点。
 @Composable
-private fun NoteOption(page: ChatProjectNote, untitled: String, checked: Boolean, blocked: Boolean, busy: Boolean, onToggle: () -> Unit) {
+internal fun NoteOption(page: ChatProjectNote, untitled: String, checked: Boolean, blocked: Boolean, busy: Boolean, onToggle: () -> Unit) {
     val title = page.title.ifEmpty { untitled }
     Row(
         Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))

@@ -1,223 +1,172 @@
 package com.kakumine.notefable.ui
 
 import androidx.appcompat.app.AppCompatDelegate
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.CubicBezierEasing
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.intl.LocaleList
-import androidx.compose.ui.unit.IntOffset
-import androidx.compose.ui.unit.IntRect
-import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupPositionProvider
-import androidx.compose.ui.window.PopupProperties
 import androidx.core.os.LocaleListCompat
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.AccountUser
 import com.kakumine.notefable.data.AppLanguage
-import kotlinx.coroutines.delay
+import com.kakumine.notefable.data.LOCALE_UNKNOWN
+import com.kakumine.notefable.data.LocaleSyncAction
+import com.kakumine.notefable.data.localeSyncAction
 
-// 侧栏底部的表示语言（网页 LanguageSelect，src/components/language-select.tsx + globals.css 的 .language-select*，手机尺寸）：
-// 触发行高 44、左右 8、圆角 4.8、间距 8.8；地球 16 灰、"语言" 15、当前值 13 灰、右侧下箭头 13（切换中换成转圈）；切换中半透明 0.6、不可点。
-// 菜单（.language-menu）在触发行正上方 4、和触发行同宽（至少 176）、内边距 5.6、圆角 12、1px rgba(55,53,47,.09)、白底、--notion-shadow；
-// 选项（.chat-menu-item.language-menu-item）高 44、左右 12、圆角 6.4、14sp，选中的加粗 600 并在右侧打勾 15；
-// 各语言名用它自己的语言排版（网页 lang={option}，汉字字形随语言）。打开时 .notes-popover 的 motion-menu-enter：
-// 120ms ease-out，从透明、下移 0.25rem（4）、缩小到 .98 开始。
-// 选项：自动 / English / 简体中文 / 繁體中文 / 日本語。选择存在系统的"应用语言"里（AppCompatDelegate），出错时在下面显示红字。
-@Composable
-fun LanguageSelect() {
-    val configuration = LocalConfiguration.current
-    var preference by remember { mutableStateOf(currentPreference()) }
-    var open by rememberSaveable { mutableStateOf(false) }
-    var switching by remember { mutableStateOf(false) }
-    var failed by remember { mutableStateOf(false) }
-    var triggerWidth by remember { mutableIntStateOf(0) }
-    // 语言生效时 Activity 收到配置变化：重新读选择、结束"切换中"。
-    LaunchedEffect(configuration) {
-        preference = currentPreference()
-        switching = false
-    }
-    // 选的语言和现在的界面语言一样时不会有配置变化，过一会儿也结束"切换中"。
-    LaunchedEffect(switching) {
-        if (switching) {
-            delay(3000)
-            switching = false
-        }
-    }
-    val automatic = stringResource(R.string.language_automatic)
-    val label = { option: AppLanguage.Preference -> AppLanguage.nativeName(option) ?: automatic }
-    val changing = stringResource(R.string.language_changing)
-
-    fun choose(option: AppLanguage.Preference) {
-        open = false
-        if (option == preference) return
-        failed = false
-        switching = true
-        try {
-            AppCompatDelegate.setApplicationLocales(
-                option.tag?.let(LocaleListCompat::forLanguageTags) ?: LocaleListCompat.getEmptyLocaleList(),
-            )
-            preference = option
-        } catch (e: RuntimeException) {
-            switching = false
-            failed = true
-        }
-    }
-
-    Column(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp).fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().height(44.dp).onSizeChanged { triggerWidth = it.width }
-                .clip(RoundedCornerShape(4.8.dp))
-                .clickable(enabled = !switching, role = Role.Button) { open = !open }
-                .semantics { if (switching) stateDescription = changing }
-                .alpha(if (switching) 0.6f else 1f)
-                .padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.8.dp),
-        ) {
-            LucideIcon(Lucide.Globe, 16.dp, Sm.Muted)
-            Text(stringResource(R.string.language), modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp, maxLines = 1)
-            Text(label(preference), color = Sm.Muted, fontSize = 13.sp, maxLines = 1)
-            if (switching) Spinner(13) else LucideIcon(Lucide.ChevronDown, 13.dp, Sm.Muted)
-        }
-        if (open) {
-            LanguageMenu(
-                preference = preference,
-                width = with(LocalDensity.current) { triggerWidth.toDp() }.coerceAtLeast(176.dp),
-                label = label,
-                onChoose = ::choose,
-                onDismiss = { open = false },
-            )
-        }
-        if (failed) {
-            Text(
-                stringResource(R.string.language_change_failed),
-                color = Color(0xFFDC2626), // text-red-600
-                fontSize = 12.sp,
-                lineHeight = 16.sp,
-                modifier = Modifier.padding(top = 4.dp).semantics { liveRegion = LiveRegionMode.Assertive },
-            )
-        }
-    }
-}
-
-private fun currentPreference(): AppLanguage.Preference =
-    AppLanguage.preferenceOf(AppCompatDelegate.getApplicationLocales()[0])
-
-// 网页 Loader2 + animate-spin（1 秒转一圈，匀速）。
-@Composable
-private fun Spinner(size: Int) {
-    val angle by rememberInfiniteTransition(label = "spin").animateFloat(
-        0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing)), label = "angle",
-    )
-    LucideIcon(Lucide.Loader2, size.dp, Sm.Muted, Modifier.rotate(angle))
-}
+// 界面语言（网页 src/lib/i18n 与 settings-dialog.tsx 的 LanguageSettings、account-button.tsx 的 AccountLocaleSync）：
+// 只有登录用户能在设置里选，没有"自动"；选的语言存在账号上（User.locale），App 的语言设置
+// （AppCompatDelegate.setApplicationLocales，相当于网页的 Cookie）由 [AccountLocaleSync] 跟着账号走。
+// 未登录时没有语言选项，始终是系统语言。
 
 // CSS 的 ease-out。
 internal val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
 
-// 菜单贴在触发行上方 [gap] 处、左边对齐（.language-menu：bottom: calc(100% + 4px); left: 0）。
-private class AboveTrigger(private val gap: Int) : PopupPositionProvider {
-    override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
-        IntOffset(anchorBounds.left, (anchorBounds.top - gap - popupContentSize.height).coerceAtLeast(0))
+/** App 当前的语言设置（空＝自动，跟系统语言）。 */
+private fun currentPreference(): AppLanguage.Preference =
+    AppLanguage.preferenceOf(AppCompatDelegate.getApplicationLocales()[0])
+
+/** 这次运行里的同步状态（网页 account-button.tsx 模块级的 firstRunDone / migrated）。只在主线程读写。 */
+private object LocaleSyncMemory {
+    var firstRunDone = false
+    var migrated: AppLanguage.Preference? = null
+    /** 上一次切换失败（网页 changeError）：设置里显示"无法切换语言"和"重试"。 */
+    var failed by mutableStateOf(false)
 }
 
+/** 换 App 的语言设置。语言变化由 MainActivity 的 configChanges 接住，界面就地重组，输入中的内容不丢。 */
+private fun applyLanguage(preference: AppLanguage.Preference) {
+    try {
+        AppCompatDelegate.setApplicationLocales(
+            preference.tag?.let(LocaleListCompat::forLanguageTags) ?: LocaleListCompat.getEmptyLocaleList(),
+        )
+        LocaleSyncMemory.failed = false
+    } catch (e: RuntimeException) {
+        LocaleSyncMemory.failed = true
+    }
+}
+
+/**
+ * 让界面语言跟着账号走（网页 AccountLocaleSync，App 里只放一个）。只在账号状态（读到没有、是否登录、账号上的语言）变化时判断，
+ * 规则见 [localeSyncAction]。[onSave] 把本机以前选的语言存到账号上（只在打开 App 后第一次判断时试一次）。
+ */
 @Composable
-private fun LanguageMenu(
-    preference: AppLanguage.Preference,
-    width: androidx.compose.ui.unit.Dp,
-    label: (AppLanguage.Preference) -> String,
-    onChoose: (AppLanguage.Preference) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val density = LocalDensity.current
-    // 锚点是包着触发行和错误文的 Column，它的顶边就是触发行的顶边。
-    val provider = remember(density) { AboveTrigger(with(density) { 4.dp.roundToPx() }) }
-    val shape = RoundedCornerShape(12.dp)
-    val enter = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { enter.animateTo(1f, tween(120, easing = CssEaseOut)) }
-    Popup(popupPositionProvider = provider, onDismissRequest = onDismiss, properties = PopupProperties(focusable = true)) {
-        Column(
-            Modifier.graphicsLayer {
-                val t = enter.value
-                alpha = t
-                translationY = (1f - t) * 4.dp.toPx()
-                val scale = 0.98f + 0.02f * t
-                scaleX = scale
-                scaleY = scale
-            }.width(width)
-                .shadow(14.dp, shape, ambientColor = Color(0x330F0F0F), spotColor = Color(0x330F0F0F))
-                .background(Color.White, shape).border(1.dp, Sm.Border, shape).padding(5.6.dp),
-        ) {
-            AppLanguage.Preference.entries.forEach { option ->
-                val selected = option == preference
+fun AccountLocaleSync(account: AccountUiState, onSave: (String) -> Unit) {
+    val signedIn = account.user != null
+    val saved = account.user?.locale
+    LaunchedEffect(account.loaded, account.configured, signedIn, saved, account.signingOut) {
+        // 退出登录期间不同步（网页 signingOut）：不在即将离开的身份上切换或保存；退出完成后再判断一次（这时已是未登录）。
+        if (account.signingOut) return@LaunchedEffect
+        val known = account.loaded && account.configured && signedIn && saved != LOCALE_UNKNOWN
+        val action = localeSyncAction(
+            loaded = account.loaded,
+            configured = account.configured,
+            signedIn = signedIn,
+            saved = saved,
+            preference = currentPreference(),
+            active = AppLanguage.preferenceOfCode(AppLanguage.uiLocale) ?: AppLanguage.Preference.English,
+            // 原生版的切换是同步的（没有取字典这一步），不存在"切换中"。
+            target = null,
+            firstRun = known && !LocaleSyncMemory.firstRunDone,
+            migrated = LocaleSyncMemory.migrated,
+        )
+        if (known) LocaleSyncMemory.firstRunDone = true
+        when (action) {
+            is LocaleSyncAction.Switch -> applyLanguage(action.to)
+            is LocaleSyncAction.Save -> {
+                LocaleSyncMemory.migrated = action.locale
+                onSave(action.locale.code)
+            }
+            null -> Unit
+        }
+    }
+}
+
+/**
+ * 设置里的"语言"（网页 LanguageSettings + .settings-language-*，手机尺寸）：标题 14/600；账号上还没选过时下面一行说明（13 灰）；
+ * 列表上 6.4、间距 2，每项是 .project-settings-option（最小高 44、圆角 6、左右 8、间距 8.8、15 字），左边 16 的圆形单选
+ * （1px 深描边白底；选中时蓝边 + 中间 8 的蓝点），选中的整行灰底。各语言名按它自己的语言排版。
+ * 选之前哪一项都不标（也能把正在显示的语言固定到账号上）；点已选的那项什么也不做。只保存，切换交给 [AccountLocaleSync]。
+ */
+@Composable
+fun LanguageSettings(user: AccountUser, onChoose: (String) -> Unit) {
+    val saved = AppLanguage.preferenceOfCode(user.locale)
+    Column(Modifier.fillMaxWidth()) {
+        Text(stringResource(R.string.language), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+        // 不知道账号上的语言（读不到）时不说"没选过"。
+        if (user.locale == null) SettingsHelpText(stringResource(R.string.settings_language_help))
+        Column(Modifier.padding(top = 6.4.dp).selectableGroup(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            AppLanguage.Preference.entries.filter { it != AppLanguage.Preference.Auto }.forEach { option ->
+                val selected = option == saved
                 Row(
-                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
-                        .selectable(selected = selected, role = Role.RadioButton) { onChoose(option) }
-                        .padding(horizontal = 12.dp, vertical = 9.6.dp),
+                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+                        .background(if (selected) Sm.Hover else Color.Transparent)
+                        .selectable(selected = selected, role = Role.RadioButton) { if (!selected) onChoose(option.code) }
+                        .padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
+                    Radio16(selected)
+                    Spacer(Modifier.width(8.8.dp))
                     Text(
-                        label(option),
+                        AppLanguage.nativeName(option).orEmpty(),
                         modifier = Modifier.weight(1f),
                         color = Sm.Text,
-                        fontSize = 14.sp,
-                        lineHeight = 21.sp,
-                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                        style = if (option == AppLanguage.Preference.Auto) LocalTextStyle.current
-                        else LocalTextStyle.current.copy(localeList = LocaleList(option.code)),
+                        fontSize = 15.sp,
+                        style = LocalTextStyle.current.copy(localeList = LocaleList(option.code)),
                     )
-                    if (selected) LucideIcon(Lucide.Check, 15.dp, Sm.Text)
                 }
             }
         }
+        if (LocaleSyncMemory.failed) {
+            Text(
+                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp,
+                modifier = Modifier.padding(top = 12.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+            )
+            if (saved != null) NotionButton(stringResource(R.string.try_again), onClick = { applyLanguage(saved) }, modifier = Modifier.padding(top = 8.dp))
+        }
+    }
+}
+
+// .settings-language-radio：16 的圆，1px 深描边、白底；选中时蓝边，中间半径 4 的蓝点。
+@Composable
+private fun Radio16(checked: Boolean) {
+    Box(
+        Modifier.size(16.dp).clip(CircleShape).background(Color.White)
+            .border(1.dp, if (checked) Sm.Blue else Sm.BorderStrong, CircleShape),
+        Alignment.Center,
+    ) {
+        if (checked) Box(Modifier.size(8.dp).clip(CircleShape).background(Sm.Blue))
     }
 }

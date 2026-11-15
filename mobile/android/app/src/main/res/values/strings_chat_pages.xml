@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 聊天里的笔记：添加页面（网页 attach-page-dialog.tsx）、整理成笔记（create-page-dialog.tsx），以及设置里的语言说明。
+     英文原句和中 / 日译文取自网页字典 src/lib/i18n/messages/{zh,ja}.ts。 -->
+<resources>
+    <string name="attach_pages">Attach pages</string>
+    <string name="attach_pages_desc">Let the AI read your notes</string>
+    <string name="attached_pages">Attached pages</string>
+    <string name="attach_pages_help">The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.</string>
+    <string name="attach_pages_submit">Attach</string>
+    <string name="err_pages_image_mode">Pages can’t be attached when creating an image. Remove them or turn off image creation.</string>
+    <string name="create_page">Create page</string>
+    <string name="create_page_title">Create a page from this chat</string>
+    <string name="create_page_body">NoteFable rewrites this conversation into an organized note in Notes, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.</string>
+    <string name="create_page_working">Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.</string>
+    <string name="create_page_done">Created “%1$s” in Notes.</string>
+    <string name="create_page_partial">This chat is long, so some of it was left out.</string>
+    <string name="open_page">Open page</string>
+    <!-- 网页这句说的是"浏览器的语言"；App 里是系统语言，所以把"浏览器"换成"设备"，其余照网页。 -->
+    <string name="settings_language_help">Until you choose a language, NoteFable uses your device’s language.</string>
+</resources>

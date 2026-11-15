@@ -19,6 +19,8 @@ import com.kakumine.notefable.data.attachmentError
 import com.kakumine.notefable.data.selectionError
 import com.kakumine.notefable.data.ChatBackend
 import com.kakumine.notefable.data.ChatLink
+import com.kakumine.notefable.data.ChatProjectNote
+import com.kakumine.notefable.data.MAX_MESSAGE_NOTES
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.ChatStreamEvent
 import com.kakumine.notefable.data.Activity
@@ -55,6 +57,8 @@ data class UiMessage(
     val content: String,
     val attachments: List<AttachmentDto> = emptyList(),
     val images: List<GeneratedImageDto> = emptyList(),
+    /** 提问时添加的笔记（网页 Message.pages），点一下打开那篇笔记。 */
+    val pages: List<ChatProjectNote> = emptyList(),
     val streaming: Boolean = false,
     /** 生成这条回答的模型 ID，用来在回答上方显示"NoteFable · 模型名"。 */
     val modelId: String? = null,
@@ -100,6 +104,10 @@ sealed interface ComposerNotice {
     data object IconFailed : ComposerNotice
     /** 链接（?chat=）里的 ID 不对：网页在输入栏上方显示 "Failed to load conversation."。 */
     data object LinkFailed : ComposerNotice
+    /** 生成图片时不能带笔记（网页 sendMessage 的同名检查）：不悄悄丢掉，让用户自己移除。 */
+    data object PagesInImageMode : ComposerNotice
+    /** 放回被拒的提问后笔记超过上限（网页同样不悄悄删减）。 */
+    data object TooManyPages : ComposerNotice
 }
 
 /** 打开聊天后要滚到并闪一下的消息（检索结果、?chat=&message= 链接）。[token] 区分同一条消息的多次请求。 */
@@ -122,6 +130,8 @@ data class ChatUiState(
     val sending: Boolean = false,
     /** 选好、还没发送的附件。 */
     val files: List<LocalFile> = emptyList(),
+    /** 下一条消息要添加的笔记（ID、标题、图标）。正文由服务端每次发送时重新读取（网页 attachedPages）。 */
+    val attachedPages: List<ChatProjectNote> = emptyList(),
     /** 「生成图片」模式：下一条消息交给图片接口。 */
     val imageMode: Boolean = false,
     val upload: UploadProgress? = null,
@@ -379,7 +389,7 @@ class ChatViewModel(
     fun onIdentityChanged() {
         epoch++
         // 等着放回的提问：文字留着，附件和待发送附件一样不跨登录保留。
-        pendingRestores.replaceAll { Restore(it.text, emptyList()) }
+        pendingRestores.replaceAll { Restore(it.text, emptyList(), emptyList()) }
         streams.values.flatten().forEach { it.cancel() }
         streams.clear()
         // 取消可能同步触发完成回调、从 map 里删掉自己：先拷一份再取消。
@@ -395,7 +405,8 @@ class ChatViewModel(
             it.copy(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
-                files = if (it.upload == null) emptyList() else it.files, notice = null, guestLimit = null, reveal = null,
+                files = if (it.upload == null) emptyList() else it.files, attachedPages = emptyList(),
+                notice = null, guestLimit = null, reveal = null,
                 draftIcon = null,
             )
         }
@@ -624,12 +635,26 @@ class ChatViewModel(
         }
     }
 
+    /** 添加笔记窗口点了「添加」：换成选好的这组（网页 setAttachedPages），清掉输入栏上方的提示。上传中不改。 */
+    fun setAttachedPages(pages: List<ChatProjectNote>) {
+        _state.update { if (it.upload != null) it else it.copy(attachedPages = pages, notice = null) }
+    }
+
+    /** 点掉输入栏上方的一篇笔记。 */
+    fun removeAttachedPage(id: String) {
+        _state.update { state ->
+            if (state.upload != null) state
+            else state.copy(attachedPages = state.attachedPages.filterNot { it.id == id }, notice = null)
+        }
+    }
+
     fun dismissGuestLimit() {
         _state.update { it.copy(guestLimit = null) }
     }
 
     fun setImageMode(on: Boolean) {
-        _state.update { it.copy(imageMode = on) }
+        // 关掉「生成图片」正是"带着笔记不能生成图片"提示要用户做的事：提示随之消失。
+        _state.update { it.copy(imageMode = on, notice = if (!on && it.notice == ComposerNotice.PagesInImageMode) null else it.notice) }
     }
 
     // ---- 发送 ----
@@ -645,12 +670,23 @@ class ChatViewModel(
         // 历史还在加载、或加载失败时发送，新消息会插进空列表（失败页还会盖住它们）；而回答结束后的对账又会换掉整个列表。读到历史再发。
         if (prompt.isEmpty() || current.sending || current.messagesLoading || current.messagesFailed) return
         if (current.upload != null || current.filesError != null || current.importing > 0) return
+        // 图片接口只收文字和参考图，不读笔记：不悄悄丢掉，提示用户（网页同样）。
+        if (current.imageMode && current.attachedPages.isNotEmpty()) {
+            _state.update { it.copy(notice = ComposerNotice.PagesInImageMode) }
+            return
+        }
+        // 放回被拒的提问时可能超过上限：不悄悄删减，让用户自己移除。
+        if (current.attachedPages.size > MAX_MESSAGE_NOTES) {
+            _state.update { it.copy(notice = ComposerNotice.TooManyPages) }
+            return
+        }
         val key = keyOf(current)
         // 正在进行的静默对账返回的是发送前的快照，会抹掉刚加进去的消息，所以先取消。
         loadJob?.cancel()
         reconcileJobs.remove(key)?.cancel()
 
         val files = current.files
+        val pages = current.attachedPages
         val imageMode = current.imageMode
         val modelId = current.selectedModel?.id
         val request = ChatRequest(
@@ -659,12 +695,13 @@ class ChatViewModel(
             model = modelId,
             reasoning = current.selectedReasoning,
             webSearch = if (current.selectedModel?.supportsWebSearch == false) "off" else "auto",
+            pages = pages.map { it.id },
         )
 
         if (files.isEmpty()) {
             // 提问立即出现在对话里（不等任务被调度）。
             val run = TurnRun(key, epoch)
-            val turn = beginTurn(run, prompt, text, files, imageMode, modelId)
+            val turn = beginTurn(run, prompt, text, files, pages, imageMode, modelId)
             launchTurn(run) { runTurn(run, turn, request, imageMode) }
             return
         }
@@ -686,7 +723,8 @@ class ChatViewModel(
                 withContext(NonCancellable) { backend.discardUploads(tickets) }
                 return@launchTurn null
             }
-            val turn = beginTurn(run, prompt, text, files, imageMode, modelId)
+            // 上传期间笔记不能改（按钮不可用），所以发的还是开始上传时的这组。
+            val turn = beginTurn(run, prompt, text, files, pages, imageMode, modelId)
             runTurn(run, turn, request.copy(uploads = tickets), imageMode)
         }
     }
@@ -759,17 +797,32 @@ class ChatViewModel(
         syncBusy()
     }
 
-    /** 一次发送：两个气泡的本地 ID，以及被上限拒绝时要放回输入栏的原文和附件。 */
-    private class Turn(val assistantId: String, val userId: String, val rawText: String, val files: List<LocalFile>)
+    /** 一次发送：两个气泡的本地 ID，以及被上限拒绝时要放回输入栏的原文、附件和笔记。 */
+    private class Turn(
+        val assistantId: String,
+        val userId: String,
+        val rawText: String,
+        val files: List<LocalFile>,
+        val pages: List<ChatProjectNote>,
+    )
 
-    /** 把提问和等待中的回答放进对话，并清空输入栏里的附件。 */
-    private fun beginTurn(run: TurnRun, prompt: String, rawText: String, files: List<LocalFile>, imageMode: Boolean, modelId: String?): Turn {
+    /** 把提问和等待中的回答放进对话，并清空输入栏里的附件和笔记。 */
+    private fun beginTurn(
+        run: TurnRun,
+        prompt: String,
+        rawText: String,
+        files: List<LocalFile>,
+        pages: List<ChatProjectNote>,
+        imageMode: Boolean,
+        modelId: String?,
+    ): Turn {
         val assistantId = "$LOCAL_ID_PREFIX${++localIds}"
         val userId = "$LOCAL_ID_PREFIX${++localIds}"
         val userMessage = UiMessage(
             userId, MessageRole.User, prompt,
             // 发送后先用本机文件显示缩略图，回答结束后换成服务器保存的版本。
             attachments = files.map { AttachmentDto(it.uri, it.name, it.mimeType, it.size, it.uri.takeIf { _ -> it.isImage }) },
+            pages = pages,
         )
         val assistantMessage = UiMessage(
             assistantId, MessageRole.Assistant, "", streaming = true,
@@ -777,12 +830,12 @@ class ChatViewModel(
             modelId = modelId.takeIf { !imageMode }, generatingImage = imageMode,
         )
         updateCached(run.key) { it + userMessage + assistantMessage }
-        _state.update { it.copy(files = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1) }
+        _state.update { it.copy(files = emptyList(), attachedPages = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1) }
         // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
         updateDraft("")
         // 上传期间别的聊天退回来的提问，等这里清空输入栏后再放回去。
         flushRestores()
-        return Turn(assistantId, userId, rawText, files)
+        return Turn(assistantId, userId, rawText, files, pages)
     }
 
     /** 逐个上传附件，返回凭证；失败或被取消时清掉已上传的文件并返回 null（被取消时向上抛出）。 */
@@ -889,8 +942,8 @@ class ChatViewModel(
         if (error.tier == "guest") _state.update { it.copy(guestLimit = if (error.kind == "image") "image" else "chat") }
     }
 
-    /** 要放回输入栏的原文和附件。 */
-    private class Restore(val text: String, val files: List<LocalFile>)
+    /** 要放回输入栏的原文、附件和笔记。 */
+    private class Restore(val text: String, val files: List<LocalFile>, val pages: List<ChatProjectNote>)
 
     /**
      * 当前聊天正在上传附件时退回来的提问：上传成功后 [beginTurn] 会清空输入栏，现在放回去会被一起清掉，
@@ -898,7 +951,7 @@ class ChatViewModel(
      */
     private val pendingRestores = mutableListOf<Restore>()
 
-    private fun restoreDraft(turn: Turn) = restoreDraft(Restore(turn.rawText, turn.files))
+    private fun restoreDraft(turn: Turn) = restoreDraft(Restore(turn.rawText, turn.files, turn.pages))
 
     /** 没发出去的原文和附件放回输入栏，排在等待期间新写的字和新加的附件前面。 */
     private fun restoreDraft(restore: Restore) {
@@ -911,6 +964,8 @@ class ChatViewModel(
             state.copy(
                 files = if (restore.files.isEmpty()) state.files
                 else restore.files + state.files.filterNot { current -> restore.files.any { it.uri == current.uri } },
+                // 笔记也排在前面；合起来超过上限也不删减（发送前提示用户移除，网页同样）。
+                attachedPages = mergeRestoredPages(restore.pages, state.attachedPages),
             )
         }
     }
@@ -1032,6 +1087,7 @@ class ChatViewModel(
         content = dto.content,
         attachments = dto.attachments.map { it.copy(dataUrl = it.dataUrl?.let(backend::absoluteUrl)) },
         images = dto.generatedImages.map { it.copy(dataUrl = backend.absoluteUrl(it.dataUrl)) },
+        pages = dto.pages,
         thinkingMs = dto.thinkingMs,
         modelId = dto.model,
         failure = FailureInfo.fromActivity(dto.activity),
@@ -1047,6 +1103,10 @@ class ChatViewModel(
 
         /** 本机先放进对话的消息的 ID 前缀（服务端的 ID 不会这样开头）。 */
         private const val LOCAL_ID_PREFIX = "local-"
+
+        /** 被拒的提问的笔记排在前面，等待期间新选的笔记接在后面（同一篇只留一份；网页 setAttachedPages 的合并）。 */
+        internal fun mergeRestoredPages(restored: List<ChatProjectNote>, current: List<ChatProjectNote>): List<ChatProjectNote> =
+            if (restored.isEmpty()) current else restored + current.filterNot { page -> restored.any { it.id == page.id } }
 
         /** 被拒的原文 + 等待期间写的字（网页 page.tsx 的 restored）。 */
         internal fun mergeRejectedDraft(rejected: String, typedMeanwhile: String): String =

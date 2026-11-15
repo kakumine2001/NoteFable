@@ -17,10 +17,13 @@ data class ProfileEdit(
     val displayName: String? = null,
     val setIcon: Boolean = false,
     val icon: String? = null,
+    /** 界面语言（en / zh / zh-Hant / ja）；null 是不改。没有"自动"，所以不能改回 null（网页 ProfileEdit.locale）。 */
+    val locale: String? = null,
 ) {
     companion object {
         fun name(value: String?) = ProfileEdit(setDisplayName = true, displayName = value)
         fun icon(value: String?) = ProfileEdit(setIcon = true, icon = value)
+        fun locale(value: String) = ProfileEdit(locale = value)
         val ResetToGoogle = ProfileEdit(setDisplayName = true, displayName = null, setIcon = true, icon = null)
     }
 }
@@ -30,7 +33,8 @@ fun applyProfileEdit(user: AccountUser, edit: ProfileEdit): AccountUser {
     val displayName = if (edit.setDisplayName) edit.displayName else user.displayName
     val icon = if (edit.setIcon) edit.icon else user.icon
     val avatarUrl = if (edit.setIcon) null else user.avatarUrl
-    return user.copy(displayName = displayName, icon = icon, avatarUrl = avatarUrl, name = displayName ?: user.googleName)
+    val locale = edit.locale ?: user.locale
+    return user.copy(displayName = displayName, icon = icon, avatarUrl = avatarUrl, locale = locale, name = displayName ?: user.googleName)
 }
 
 /** 已经是这个状态就不发（网页 profileEditChanges，例如回车后又失焦的重复保存）。 */
@@ -59,6 +63,7 @@ class AccountApi internal constructor(private val http: NoteFableHttp) : Account
         val body = buildJsonObject {
             if (edit.setDisplayName) put("displayName", edit.displayName?.let(::JsonPrimitive) ?: JsonNull)
             if (edit.setIcon) put("icon", edit.icon?.let(::JsonPrimitive) ?: JsonNull)
+            edit.locale?.let { put("locale", JsonPrimitive(it)) }
         }.toString()
         val response = http.send<ProfileResponse>(
             Request.Builder().url(http.absoluteUrl("/api/account")).patch(body.toRequestBody(NoteFableHttp.JSON)),

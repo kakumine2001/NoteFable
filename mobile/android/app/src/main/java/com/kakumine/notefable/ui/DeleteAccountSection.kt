@@ -4,11 +4,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -39,8 +39,8 @@ private val DangerBorder = Color(0x40B91C1C) // rgba(185, 28, 28, 0.25)
 private val DangerFill = Color(0x0AB91C1C) // rgba(185, 28, 28, 0.04)
 
 /**
- * 设置底部的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount，Google Play 的账号删除要求）。
- * 外观照网页手机宽度：上面一条 1px 线（.settings-account），红字的行内按钮 44 高 / 15sp、图标 14（.settings-inline-action）；
+ * 设置底部、"退出登录"下面的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount，Google Play 的账号删除要求）。
+ * 外观照网页手机宽度：红字的行内按钮，和"退出登录"一样 44 高 / 15sp、图标 14、左移 8，上距 2（.settings-danger-action）；
  * 点了在原地展开确认框（边框 25% 红、底 4% 红、圆角 8、内边距 12、14sp / 1.5），右下角"取消"和红色的"永久删除"。
  */
 @Composable
@@ -56,11 +56,10 @@ fun DeleteAccountSection(
     val scope = rememberCoroutineScope()
     val system = rememberSystemText()
 
-    Column(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Box(Modifier.fillMaxWidth().heightIn(min = 1.dp).background(Sm.Border))
+    Column(Modifier.fillMaxWidth()) {
         if (!confirming) {
             Row(
-                Modifier.padding(top = 10.dp).heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
+                Modifier.padding(top = 2.dp).offset(x = (-8).dp).heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
                     .clickable(enabled = enabled) { confirming = true }
                     .semantics { role = Role.Button }
                     .alpha(if (enabled) 1f else 0.55f)

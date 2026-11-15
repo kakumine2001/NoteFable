@@ -79,7 +79,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 1. 创建应用：名称 NoteFable，默认语言 English (United States)，类型"应用"，免费。
 2. Play 应用签名：选"使用 Google 生成的应用签名密钥"，上传 `bundleRelease` 生成的 AAB（用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。
-3. 把 Play Console → 应用完整性 → 应用签名密钥证书的 **SHA-1** 加到 Google Cloud 的 Android OAuth 客户端（否则从 Play 安装的 App 不能用 Google 登录）。
+3. 在 Google Cloud 新建一个 Android OAuth 客户端（包名 `com.kakumine.notefable`，SHA-1 填 Play Console → 应用完整性 → 应用签名密钥证书的 SHA-1），否则从 Play 安装的 App 不能用 Google 登录。上传密钥的客户端 `NoteFable-Android-Upload` 已经建好。
 4. 按本文件填写应用内容的各项声明，按 [listing.md](listing.md) 填写商店信息并上传 `mobile/android/play-store/` 的图片。
 5. 新的个人开发者账号要先做"封闭测试"：至少 12 名测试人员连续参与 14 天，之后才能申请正式版（以 Console 当时的要求为准）。
 6. 正式版：国家 / 地区选全部或指定，提交审核。

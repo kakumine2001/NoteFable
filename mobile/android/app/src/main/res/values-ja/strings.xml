@@ -39,7 +39,6 @@
     <string name="reasoning_xhigh_desc">非常に深く考える</string>
     <string name="reasoning_max_desc">最大限に深く考える</string>
     <string name="language">表示言語</string>
-    <string name="language_automatic">自動</string>
     <string name="account">アカウント</string>
     <string name="sign_in_failed">ログインできませんでした。もう一度お試しください</string>
     <string name="sign_out">ログアウト</string>

@@ -40,6 +40,8 @@ data class ChatRequest(
     val webSearch: String = "auto",
     /** 已上传附件的凭证（`uploads` 字段，JSON 数组）。 */
     val uploads: List<String> = emptyList(),
+    /** 添加的笔记 ID（`pages` 字段，JSON 数组；没有时不发）。正文由服务端每次发送时重新读取。 */
+    val pages: List<String> = emptyList(),
 )
 
 class NoteFableApi(
@@ -79,6 +81,7 @@ class NoteFableApi(
             .addFormDataPart("webSearch", request.webSearch)
             .apply { request.sessionId?.let { addFormDataPart("sessionId", it) } }
             .addFormDataPart("uploads", uploadsJson(request.uploads))
+            .apply { if (request.pages.isNotEmpty()) addFormDataPart("pages", uploadsJson(request.pages)) }
             .build()
         val call = streamClient.newCall(
             Request.Builder().url(absoluteUrl("/api/chat")).post(body)

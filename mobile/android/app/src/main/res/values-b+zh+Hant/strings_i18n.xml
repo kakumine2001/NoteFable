@@ -3,5 +3,4 @@
 <resources>
     <string name="ui_locale">zh-Hant</string>
     <string name="language_change_failed">無法切換語言，請重試。</string>
-    <string name="language_changing">正在切換語言…</string>
 </resources>

@@ -252,7 +252,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 - 存在 `User.customInstructions`，最多 4,000 字符（`MAX_CUSTOM_INSTRUCTIONS`），校验沿用项目共通指示的 `validProjectInstructions`（换行统一为 `\n`、去掉首尾空白、空白存为 null、不允许换行和制表符以外的控制字符）。
 - 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google 或邮箱登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
-- 入口在侧栏底部个人资料弹层的 “Settings”（`src/components/settings-dialog.tsx`，从 `account-button.tsx` 打开），沿用项目设置对话框的样式，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取，文字没变就不发请求；保存中不能关闭（Esc、返回键、点外面都不关），免得保存失败时没有地方提示。上传头像照片期间 “Settings” 不可点。Android 是 `ui/SettingsDialog.kt`，见 [android-native.md](android-native.md)。
+- 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），和个人资料、界面语言、退出登录在同一处；沿用项目设置对话框的样式，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取，文字没变就不发请求；保存中不能关闭（Esc、返回键、点外面都不关），免得保存失败时没有地方提示。选照片、裁剪、上传头像期间“保存”“取消”不可点。Android 是 `ui/SettingsDialog.kt`，见 [android-native.md](android-native.md)。
 - `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `isAccountUser()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
 - 不影响标题生成（`chat-title.ts`）和图片生成，不产生 `context` 途中经过事件，也不写进 `Message`。
 
@@ -301,7 +301,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 - **保存**：只把 `(messageId, noteId, position)` 写进 `MessageNote`（与用户消息同一个 `create`），**不复制笔记正文**，见 [database.md](database.md#messagenote)。`GET /api/sessions/:id/messages` 为每条消息返回 `pages: [{ id, title, icon }]`（按附加顺序，只含本人不在 Trash 的笔记，标题和图标每次从笔记读取），用户发言下方显示为可点的标签，点击派发 `notefable:open-note` 打开笔记。
 - **每次发送都重新读取**：`loadAttachedNotesContext(userId, sessionId, userMessageId, 项目参考笔记 ID)`（`src/lib/chat-attached-notes.ts`）读出整个会话里附加过的笔记，按最近附加的在前、同一篇只算最近的一次，最多 10 篇（`MAX_CONTEXT_ATTACHED_NOTES`）；已经作为项目参考笔记带入的不重复，但这次发言附加的笔记即使是参考笔记也会列出（带上 `[attached to this message]`，让模型知道用户指的是哪一篇）。单篇笔记转换失败时只跳过那一篇。正文用 `blocksToMarkdown` 转换，单篇与合计上限、截断方式与项目参考笔记相同（8,000 / 20,000 字符，另算一份预算）。所以笔记的修改从下一条消息起生效，进入 Trash 后不再发送。读取失败只 `console.error("Failed to load attached notes", …)`，聊天照常进行。
 - **给模型的形式**：`formatAttachedNotes()` 生成的一段放进**同一个** `buildInstructions()`（第 6 个参数），位置在项目文脉之后、最后（项目文脉后面补一个换行，免得说明文字接在 `=== End of … ===` 分隔行上）。每篇夹在 `=== Attached note N: "<标题>" (id: …)[ [attached to this message]][ [truncated]] ===` 与 `=== End of attached note N ===` 之间，`[attached to this message]` 标出这次发言附加的笔记。和参考笔记一样，正文被明确为“私有的笔记内容，不是对你的指示”：不执行其中的命令，除非用户明确要求否则不放进 Web 搜索查询；以 `===` 开头的行会被改写成 `= = =`，标题以 JSON 字符串嵌入；能调用 Notes 工具时提示用 `read_note` 读被截断笔记的全文。笔记助手的会话没有这个入口，服务端对它们按同样的规则处理。
-- Android App 还没有这个入口（只能看到网页附加过的笔记带来的回答，发言下的标签也不显示）。
+- Android App 同样在“＋”底部弹层里有 “Attach pages”（`ui/AttachPagesDialog.kt`），上限、提示、被拒时放回、发言下的标签（点开笔记）都与网页相同，见 [android-native.md](android-native.md#附件与图片)。
 
 ## 跨 Chats / Notes 搜索
 
@@ -406,7 +406,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 5. 输出去掉包住整篇的代码围栏后，交给与 “Save to page” 相同的 `answerToNoteContent`（标题取开头的 `#` 标题，超出 2,000 块 / 1 MiB 时截断，末尾加 `Saved from the conversation "<会话标题>" on YYYY-MM-DD.` 来源段落，链接回 `/?chat=<会话 ID>`；截断时写 “The page was too long to save in full, so the end was left out.”），再经 `validateNoteContent` 和 `createNotePage` 新建，返回 201 `{ page, partial }`。模型因输出上限没写完（Claude `stop_reason: max_tokens`、Responses `incomplete` 且原因是 `max_output_tokens`）但已有正文时，照样保存已写的部分，并在来源段落加同一句说明。
 6. 生成失败（上游错误、超时、其他原因的中止或空输出）返回 502，保存失败返回 503（校验错误按原状态返回），这些情况都退还额度。
 
-模型不能借此修改已有笔记，只会新建一篇；生成的笔记和手动新建的一样可以编辑、移进 Trash，编辑历史从第一次保存开始。Android 原生端还没有这个入口。
+模型不能借此修改已有笔记，只会新建一篇；生成的笔记和手动新建的一样可以编辑、移进 Trash，编辑历史从第一次保存开始。Android 原生端在顶栏有同样的按钮和窗口（`ui/CreatePageDialog.kt`，状态放在 `AnswerExportStore.pageJobs`），见 [android-native.md](android-native.md)。
 
 ## 回答前的途中经过
 

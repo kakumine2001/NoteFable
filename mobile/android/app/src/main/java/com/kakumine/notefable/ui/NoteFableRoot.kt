@@ -93,10 +93,15 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     // 回答"…"的"下载对话"的保存位置选择器：在根上注册，选择器开着时进程被杀后结果也有人接。
     val conversationDownloader = rememberConversationDownloader()
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
+    // 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
+    var createPageSessionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
     val onIdentityChanged = {
         viewModel.onIdentityChanged()
         notesViewModel.onIdentityChanged()
         sidebarViewModel.onIdentityChanged()
+        // 旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
+        createPageSessionId = null
+        app.answerExports().clearPageJobs()
     }
 
     // 返回键：先关抽屉；笔记编辑页自己处理（先交给网页关面板，再保存后回列表）；笔记列表回到聊天；最后退出 App。
@@ -128,6 +133,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             openChatLink(link, viewModel, notesViewModel)
         }
     }
+
+    // 界面语言跟着账号上的语言走（网页 /app 里唯一的 AccountLocaleSync）。
+    AccountLocaleSync(account, onSave = accountViewModel::setLocale)
 
     // 侧栏底部和上限登录提示（GuestLimitPrompt）的"登录"都只打开登录窗口（网页 SignInButton → SignInDialog）。
     var signInOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
@@ -269,6 +277,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 account = account,
                 onSignIn = openSignIn,
                 onDismissGuestLimit = viewModel::dismissGuestLimit,
+                loadNotes = { app.api.notes().pages.map { com.kakumine.notefable.data.ChatProjectNote(it.id, it.title, it.icon) } },
+                onAttachPages = viewModel::setAttachedPages,
+                onRemovePage = viewModel::removeAttachedPage,
+                onCreatePage = { id -> createPageSessionId = id },
             ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
@@ -340,6 +352,19 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     }
 
     NotesDialogs(dialog, notes, notesViewModel) { dialog = null }
+
+    createPageSessionId?.let { sessionId ->
+        androidx.compose.runtime.key(sessionId) {
+            CreatePageDialog(
+                sessionId = sessionId,
+                model = state.selectedModel?.id,
+                busy = sessionId == state.activeSessionId && (state.sending || state.upload != null),
+                store = app.answerExports(),
+                onOpenPage = { id, title -> notesViewModel.openNote(id, title) },
+                onClose = { createPageSessionId = null },
+            )
+        }
+    }
 
     if (searchOpen) {
         val side by sidebarViewModel.state.collectAsStateWithLifecycle()

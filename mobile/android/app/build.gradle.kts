@@ -10,11 +10,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Google 登录用 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + 各签名的 SHA-1，见 docs/architecture/android.md）。
+        // Google 登录要求每种签名在 Google Cloud 各有一个 Android 客户端（应用 ID + SHA-1）：NoteFable-Android（debug）、
+        // NoteFable-Android-Upload（上传密钥）、Play 的应用签名密钥（见 docs/architecture/android.md）。
         applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
+        versionCode = 10
         versionName = "1.0.0"
 
         val baseUrl = (project.findProperty("notefable.baseUrl") as String).trimEnd('/')

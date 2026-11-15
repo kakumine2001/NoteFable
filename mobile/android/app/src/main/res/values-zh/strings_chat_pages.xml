@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="attach_pages">添加页面</string>
+    <string name="attach_pages_desc">让 AI 参考你的笔记</string>
+    <string name="attached_pages">已添加的页面</string>
+    <string name="attach_pages_help">AI 会把你添加的页面作为这段对话的参考内容。每次发送都会重新读取，所以总是使用最新的内容。</string>
+    <string name="attach_pages_submit">添加</string>
+    <string name="err_pages_image_mode">生成图片时不能添加页面。请移除页面或关闭图片生成。</string>
+    <string name="create_page">整理成笔记</string>
+    <string name="create_page_title">把这段聊天整理成笔记</string>
+    <string name="create_page_body">NoteFable 会用当前选择的模型，把这段对话改写成一篇条理清晰的笔记并保存到笔记中。很长的对话会被缩短，优先保留最近的消息。这会计入今天的消息次数（1 次）。</string>
+    <string name="create_page_working">正在撰写笔记……可能需要一分钟左右。你可以关闭这个窗口，完成后笔记会出现在笔记列表里。</string>
+    <string name="create_page_done">已在笔记中创建“%1$s”。</string>
+    <string name="create_page_partial">对话较长，省略了一部分内容。</string>
+    <string name="open_page">打开笔记</string>
+    <string name="settings_language_help">在你选择语言之前，NoteFable 使用设备的语言。</string>
+</resources>
