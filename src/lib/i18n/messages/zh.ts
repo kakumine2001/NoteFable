@@ -626,4 +626,9 @@ export const zh: Record<string, string> = {
   "Upload an image": "上传图片",
   "Use NoteFable logo": "使用 NoteFable 标志",
   "Could not save the icon on this device.": "无法在这台设备上保存图标。",
+  "Good morning": "早上好",
+  "Good afternoon": "下午好",
+  "Good evening": "晚上好",
+  "Recently edited": "最近编辑",
+  "Home": "主页",
 };

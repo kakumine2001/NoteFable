@@ -618,4 +618,9 @@ export const ja: Record<string, string> = {
   "Upload an image": "画像をアップロード",
   "Use NoteFable logo": "NoteFableのロゴを使う",
   "Could not save the icon on this device.": "この端末にアイコンを保存できませんでした。",
+  "Good morning": "おはようございます",
+  "Good afternoon": "こんにちは",
+  "Good evening": "こんばんは",
+  "Recently edited": "最近の編集",
+  "Home": "ホーム",
 };

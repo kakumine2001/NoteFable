@@ -5,7 +5,7 @@ import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
-import { descendantIdsOf, rootPages } from "@/lib/note-tree";
+import { descendantIdsOf } from "@/lib/note-tree";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { msg } from "@/lib/i18n/translate";
 
@@ -21,10 +21,6 @@ async function pageRequest(url: string, method = "GET", body?: unknown) {
   return data;
 }
 
-// スマホ（640px 未満）では Notes を開いたときにノート一覧を出すので、URL にノートの指定がなければ自動では開かない。
-function isPhone() {
-  return typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
-}
 
 // embedded: Android アプリの WebView に載せる /note-embed（1 ページだけを開き、一覧は読まない）。
 export function useNotePages(enabled: boolean, { embedded = false }: { embedded?: boolean } = {}) {
@@ -167,12 +163,12 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       setPages(extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages);
       setGroups(data.groups ?? []);
       const requested = new URL(window.location.href).searchParams.get("page");
-      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id ?? (isPhone() ? undefined : data.pages[0]?.id);
+      const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id;
       if (id) await select(id, "replace");
       else {
         displayedId.current = null; setActiveId(null); setActive(undefined);
-        if (requested && isPhone()) {
-          // スマホで、存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して一覧に戻す。
+        if (requested) {
+          // 存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して Notes のホームに戻す。
           const url = new URL(window.location.href);
           url.searchParams.delete("page");
           window.history.replaceState(null, "", url);
@@ -326,9 +322,6 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         const url = new URL(window.location.href);
         url.searchParams.delete("page");
         window.history.replaceState(null, "", url);
-        // サイドバーの一番上に見えている最上位のページを開く。
-        const next = rootPages(remaining)[0];
-        if (next && !isPhone()) await select(next.id, "replace");
       }
       return true;
     } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to move the note to Trash.")); return false; }
