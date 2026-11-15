@@ -71,9 +71,11 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
   });
 
   const deleteForever = (item: NoteTrashItem) => run(async () => {
-    await trashRequest(`/api/pages/trash/${item.id}`, "DELETE");
+    const data = await trashRequest(`/api/pages/trash/${item.id}`, "DELETE");
     setConfirm(null);
-    setItems((current) => current?.filter((entry) => entry.id !== item.id) ?? current);
+    // ゴミ箱にあったサブページも一緒に消える（別の時刻に捨てた子は一覧に別に出ている）。
+    const removed = new Set<string>([item.id, ...(Array.isArray(data?.ids) ? data.ids as string[] : [])]);
+    setItems((current) => current?.filter((entry) => !removed.has(entry.id)) ?? current);
   });
 
   const emptyTrash = () => run(async () => {

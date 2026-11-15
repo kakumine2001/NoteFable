@@ -55,12 +55,20 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
   // それ以外（サーバーから読んだ・保存した行）は、お気に入り・表示設定をサーバーの値にそろえる（別タブ・アプリでの変更を拾う）。
-  const upsertSummary = useCallback((page: NotePageSummary, { local = false }: { local?: boolean } = {}) => {
+  // この画面で表示設定・お気に入りを変えるたびに進める番号。ページごとに最後に変えた番号を覚える（保存の応答が古い値で戻さないため）。
+  const metaSequence = useRef(0);
+  const metaChanged = useRef(new Map<string, number>());
+  const markMeta = useCallback((id: string) => { metaChanged.current.set(id, ++metaSequence.current); }, []);
+
+  // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
+  // since: 保存を始めた時点の番号。その後にこの画面で設定を変えていたら一覧の値を残し、変えていなければサーバーの値（別のタブ・アプリでの変更）を使う。
+  const upsertSummary = useCallback((page: NotePageSummary, { local = false, since }: { local?: boolean; since?: number } = {}) => {
     // 保存のたびに行が動かないよう、作成順を保つ。
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
       if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
-      const meta = local || page.locked === undefined
+      const changedLocally = since !== undefined && (metaChanged.current.get(page.id) ?? 0) > since;
+      const meta = local || changedLocally || page.locked === undefined
         ? { favoritedAt: existing.favoritedAt, fullWidth: existing.fullWidth, smallText: existing.smallText, font: existing.font, locked: existing.locked }
         : { favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked };
       if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt
@@ -82,8 +90,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       }
     } catch { /* 壊れた端末キャッシュは DB の本文に影響させない。 */ }
     const queue = new NoteSaveQueue(page, async (content, version) => {
+      const started = metaSequence.current;
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
-      upsertSummary(data.page);
+      // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
+      upsertSummary(data.page, { since: started });
       return data.page;
     }, () => {
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
@@ -215,6 +225,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     // アプリ（/note-embed）や別の画面から届いた表示設定・お気に入り。一覧を読んでいない埋め込みでも、開いたページの 1 件に効く。
     function onPageMeta(event: Event) {
       const page = (event as CustomEvent<NotePageSummary | undefined>).detail;
+      if (page) markMeta(page.id);
       if (page) setPages((current) => current.map((entry) => entry.id === page.id ? {
         ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
       } : entry));
@@ -227,7 +238,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
     };
-  }, [upsertSummary]);
+  }, [upsertSummary, markMeta]);
 
   useEffect(() => {
     function onPopState() {
@@ -380,7 +391,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   });
 
   // 一覧の 1 件を、サーバーが返したメタデータ（お気に入り・表示設定）で置き換える。
-  const applyMeta = (page: NotePageSummary) => setPages((current) => current.map((entry) => entry.id === page.id ? {
+  const applyMeta = (page: NotePageSummary) => { markMeta(page.id); applyMetaRows(page); };
+  const applyMetaRows = (page: NotePageSummary) => setPages((current) => current.map((entry) => entry.id === page.id ? {
     ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
   } : entry));
 

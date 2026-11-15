@@ -141,9 +141,10 @@ describe("DELETE /api/pages/trash/:pageId (delete forever)", () => {
 
   it("deletes one trashed note of this user and its trashed sub-pages permanently", async () => {
     mocks.findFirst.mockResolvedValue({ id: "n1" });
+    mocks.findMany.mockResolvedValue([{ id: "n1" }, { id: "c1" }]);
     mocks.deleteMany.mockResolvedValue({ count: 2 });
     const response = await deleteForever(call("DELETE"), context);
-    expect(await response.json()).toEqual({ ok: true });
+    expect(await response.json()).toEqual({ ok: true, ids: ["n1", "c1"] });
     expect(mocks.findFirst).toHaveBeenCalledWith({ where: { id: "n1", userId: "mine", deletedAt: { not: null } }, select: { id: true } });
     expect(mocks.descendants).toHaveBeenCalledWith(expect.anything(), "mine", "n1", { live: false });
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["n1", "c1"] }, userId: "mine", deletedAt: { not: null } } });
