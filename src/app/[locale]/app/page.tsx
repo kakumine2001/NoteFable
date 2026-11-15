@@ -1789,7 +1789,7 @@ export default function Home() {
             </button>
           </div>
           {guestLimit && (
-            <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0}
+            <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
               onBeforeSignIn={() => savePendingDraft("chat", inputRef.current?.value ?? input)} />
           )}
           {(uploadError || sendError) && (

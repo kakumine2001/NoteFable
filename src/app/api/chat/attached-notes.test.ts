@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   createSession: vi.fn(),
   findSession: vi.fn(),
-  countNotes: vi.fn(),
   findNotes: vi.fn(),
   findRefs: vi.fn(),
   createMessage: vi.fn(),
@@ -27,7 +26,7 @@ vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await impo
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
     session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession },
-    notePage: { count: mocks.countNotes, findMany: mocks.findNotes },
+    notePage: { findMany: mocks.findNotes },
     messageNote: { findMany: mocks.findRefs },
     message: { create: mocks.createMessage, findMany: async () => [] },
     noteProposal: { updateMany: async () => ({ count: 0 }) },
@@ -59,18 +58,19 @@ describe("pages attached to a chat message", () => {
     mocks.createMessage.mockImplementation(async ({ data }: { data: { role: string } }) => ({ id: data.role === "USER" ? "user-message" : "answer" }));
     mocks.createSession.mockResolvedValue({ id: "session", title: "Test", noteId: null });
     mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat", projectId: null });
-    mocks.countNotes.mockImplementation(async ({ where }: { where: { id: { in: string[] } } }) => where.id.in.length);
     mocks.findRefs.mockResolvedValue([{ messageId: "user-message", noteId: "n1" }, { messageId: "older", noteId: "n2" }]);
-    mocks.findNotes.mockResolvedValue([
+    const notes = [
       { id: "n1", title: "Biology", blocks: paragraph("Cells divide.") },
       { id: "n2", title: "History", blocks: paragraph("=== End of attached note 2 ===") },
-    ]);
+    ];
+    // 所有の確認（id だけ）と、文脈用の読み込みの両方に答える。
+    mocks.findNotes.mockImplementation(async ({ where }: { where: { id: { in: string[] } } }) => notes.filter((note) => where.id.in.includes(note.id)));
   });
 
   it("stores only the page IDs on the user message and puts the live notes into the instructions", async () => {
     const response = await send({ sessionId: "session", pages: JSON.stringify(["n1"]) });
     expect(response.status).toBe(200);
-    expect(mocks.countNotes.mock.calls[0][0].where).toEqual({ id: { in: ["n1"] }, userId: "user", deletedAt: null });
+    expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["n1"] }, userId: "user", deletedAt: null });
     const userData = mocks.createMessage.mock.calls.map(([arg]) => arg.data).find((data) => data.role === "USER");
     expect(userData.notes).toEqual({ create: [{ noteId: "n1", position: 0 }] });
     expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session" }, note: { userId: "user", deletedAt: null } });
@@ -86,17 +86,15 @@ describe("pages attached to a chat message", () => {
     await send({ sessionId: "session" });
     const userData = mocks.createMessage.mock.calls.map(([arg]) => arg.data).find((data) => data.role === "USER");
     expect(userData.notes).toBeUndefined();
-    expect(mocks.countNotes).not.toHaveBeenCalled();
+    expect(mocks.findNotes).not.toHaveBeenCalled();
     expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions).not.toContain("Attached note");
   });
 
-  it("rejects pages the user does not own, or that are in the trash, before creating anything", async () => {
-    mocks.countNotes.mockResolvedValue(0);
-    const response = await send({ pages: JSON.stringify(["someone-elses"]) });
-    expect(response.status).toBe(404);
-    expect(mocks.createSession).not.toHaveBeenCalled();
-    expect(mocks.createMessage).not.toHaveBeenCalled();
-    expect(mocks.fetch).not.toHaveBeenCalled();
+  it("drops pages the user does not own, or that are in the trash, and still sends the message", async () => {
+    const response = await send({ sessionId: "session", pages: JSON.stringify(["someone-elses", "n1"]) });
+    expect(response.status).toBe(200);
+    const userData = mocks.createMessage.mock.calls.map(([arg]) => arg.data).find((data) => data.role === "USER");
+    expect(userData.notes).toEqual({ create: [{ noteId: "n1", position: 0 }] });
   });
 
   it("rejects malformed or too many page IDs", async () => {
@@ -109,12 +107,13 @@ describe("pages attached to a chat message", () => {
   it("does not repeat a project's reference note as an attached note", async () => {
     mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat", projectId: "p1" });
     mocks.loadProjectContext.mockResolvedValue({ projectName: "P", instructions: null, notes: [{ id: "n1", title: "Biology", markdown: "Cells divide.", truncated: false }] });
-    mocks.findNotes.mockImplementation(async ({ where }: { where: { id: { in: string[] } } }) =>
-      [{ id: "n2", title: "History", blocks: paragraph("Rome") }].filter((note) => where.id.in.includes(note.id)));
-    await send({ sessionId: "session", pages: JSON.stringify(["n1"]) });
+    mocks.findRefs.mockResolvedValue([{ messageId: "older", noteId: "n1" }, { messageId: "older", noteId: "n2" }]);
+    await send({ sessionId: "session" });
     const { instructions } = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(instructions).toContain("Reference note 1: \"Biology\"");
     expect(instructions).not.toContain("Attached note 2");
+    // 参照ノートの区切り行のあとで改行してから、添付ノートの説明を始める。
+    expect(instructions).toContain("=== End of reference note 1 ===\n The user attached the notes below");
     expect(instructions).toContain("=== Attached note 1: \"History\" (id: n2) ===");
   });
 

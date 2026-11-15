@@ -9,6 +9,8 @@ import { MAX_MESSAGE_NOTES } from "@/types/chat";
 
 // 1 回の送信で文脈に入れるノートの数。会話のどこかで添付したノートを、新しく添付した順に数える。
 export const MAX_CONTEXT_ATTACHED_NOTES = 10;
+// 添付の記録を読む上限。重複を除いて MAX_CONTEXT_ATTACHED_NOTES 件そろえば足りるので、長い会話でも全部は読まない。
+const MAX_REFS_READ = 200;
 // ID として受け付ける最大長（cuid は 25 文字前後）。
 const MAX_NOTE_ID_LENGTH = 64;
 
@@ -32,17 +34,20 @@ export function parseAttachedNoteIds(raw: FormDataEntryValue | null): string[] {
   return ids;
 }
 
-// 添付しようとしたノートがすべて自分の生きたノートか。ゴミ箱のノートや他人のノートは添付させない。
-export async function ownsLiveNotes(userId: string, ids: string[]) {
-  if (!ids.length) return true;
-  const found = await prisma.notePage.count({ where: { id: { in: ids }, userId, deletedAt: null } });
-  return found === ids.length;
+// 添付するノートを、自分の生きたノートだけに絞る（順序は保つ）。他人のノートや存在しない ID は使わせない。
+// 入力欄で選んだあとにゴミ箱へ入れたノートは、送信ごと断らずに外す（下書きを失わせないため）。
+export async function liveOwnedNoteIds(userId: string, ids: string[]) {
+  if (!ids.length) return [];
+  const found = await prisma.notePage.findMany({ where: { id: { in: ids }, userId, deletedAt: null }, select: { id: true } });
+  const owned = new Set(found.map((note) => note.id));
+  return ids.filter((id) => owned.has(id));
 }
 
 export type AttachedContextNote = { id: string; title: string; markdown: string; truncated: boolean; latest: boolean };
 
 // この会話で添付されたノートを、新しく添付した順に読み直す（同じノートは最新の添付だけ数える）。
 // latestMessageId の発言に添付したものには latest を付ける。excludeIds（プロジェクトの参照ノート）は重ねて渡さない。
+// ただし今回の発言で添付したものは、「この発言で示したノート」だと分かるよう参照ノートでも載せる。
 export async function loadAttachedNotesContext(
   userId: string,
   sessionId: string,
@@ -53,14 +58,17 @@ export async function loadAttachedNotesContext(
     // ゴミ箱のノートは使わない。他人のノートは添付時に断っているが、読む側でも本人のものに限る。
     where: { message: { sessionId }, note: { userId, deletedAt: null } },
     orderBy: [{ message: { createdAt: "desc" } }, { position: "asc" }],
+    take: MAX_REFS_READ,
     select: { messageId: true, noteId: true },
   });
-  const skip = new Set(excludeIds);
+  const excluded = new Set(excludeIds);
+  const seen = new Set<string>();
   const order: { id: string; latest: boolean }[] = [];
   for (const ref of refs) {
-    if (skip.has(ref.noteId)) continue;
-    skip.add(ref.noteId);
-    order.push({ id: ref.noteId, latest: ref.messageId === latestMessageId });
+    const latest = ref.messageId === latestMessageId;
+    if (seen.has(ref.noteId) || (excluded.has(ref.noteId) && !latest)) continue;
+    seen.add(ref.noteId);
+    order.push({ id: ref.noteId, latest });
     if (order.length >= MAX_CONTEXT_ATTACHED_NOTES) break;
   }
   if (!order.length) return [];
@@ -74,7 +82,15 @@ export async function loadAttachedNotesContext(
   for (const { id, latest } of order) {
     const note = byId.get(id);
     if (!note) continue;
-    const { text, truncated } = clip(blocksToMarkdown(note.blocks).trim(), Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
+    let markdown: string;
+    try {
+      markdown = blocksToMarkdown(note.blocks).trim();
+    } catch (error) {
+      // 1 つのノートが読めなくても、ほかのノートは渡す。
+      console.error("Failed to read an attached note", error instanceof Error ? error.message : error);
+      continue;
+    }
+    const { text, truncated } = clip(markdown, Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
     remaining -= text.length;
     result.push({ id, title: note.title.trim() || "Untitled", markdown: text, truncated, latest });
   }

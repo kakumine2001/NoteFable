@@ -31,7 +31,7 @@ import { prisma } from "@/lib/prisma";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { applyActivityEvent, contextActivityEvent, parseActivityEvent, serializeActivity, type ActivityEvent, type ActivityStep } from "@/lib/chat-activity";
 import { formatProjectContext, loadProjectContext, type ProjectContext } from "@/lib/chat-project-context";
-import { AttachedNotesError, formatAttachedNotes, loadAttachedNotesContext, ownsLiveNotes, parseAttachedNoteIds, type AttachedContextNote } from "@/lib/chat-attached-notes";
+import { AttachedNotesError, formatAttachedNotes, liveOwnedNoteIds, loadAttachedNotesContext, parseAttachedNoteIds, type AttachedContextNote } from "@/lib/chat-attached-notes";
 import { formatCustomInstructions } from "@/lib/custom-instructions";
 import { consumeSseData } from "@/lib/sse";
 import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
@@ -96,7 +96,8 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     // 利用者のカスタム指示（すべてのチャット共通）。既定の言語・書式より優先し、プロジェクトの共通指示には譲る。
     ...(custom ? [custom] : []),
     // プロジェクトの共通指示（ユーザー自身の指示）と参照ノート（私的なデータ）。既定の言語・書式より優先する。
-    ...(project ? [formatProjectContext(project, pageTools)] : []),
+    // 後ろに添付ノートが続くときは改行で区切り、区切り行（=== End of … ===）に次の文がつながらないようにする。
+    ...(project ? [formatProjectContext(project, pageTools) + (attached ? "\n" : "")] : []),
     // 利用者がこの会話の発言に添付したノート（私的なデータ）。送信のたびに読み直すので、最後に置く。
     ...(attached ? [attached] : []),
   ].join(" ");
@@ -375,7 +376,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   try {
     pageIds = parseAttachedNoteIds(formData.get("pages"));
   } catch (error) {
-    return NextResponse.json({ error: error instanceof AttachedNotesError ? error.message : msg("Attached pages must be a list of page IDs.") }, { status: 400 });
+    if (!(error instanceof AttachedNotesError)) throw error;
+    return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
   // FormData 内の files フィールドから、実際の File オブジェクトだけを取り出す。
@@ -422,10 +424,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   if (noteId && !note) {
     return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   }
-  // 添付するノートも自分の生きたノートに限る。送信回数を数える前に断る。
-  if (!(await ownsLiveNotes(user.id, pageIds))) {
-    return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
-  }
+  // 添付するノートは自分の生きたノートだけを残す。ほかの ID は記録も文脈にも使わない。
+  pageIds = await liveOwnedNoteIds(user.id, pageIds);
 
   // 1 日の送信回数を数える。上限なら会話を作る前に断る。このあとの検証で断るとき、何も返せずに失敗したときは戻す。
   const usage = await consumeUsage(user, "chat", clientNetworkKey(request));

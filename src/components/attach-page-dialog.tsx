@@ -120,7 +120,7 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
       </div>
       <div className="project-settings-footer">
         <button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button>
-        <button type="submit" disabled={!pages && !selected.length} className="notion-button notion-button-primary">{t("Attach")}</button>
+        <button type="submit" className="notion-button notion-button-primary">{t("Attach")}</button>
       </div>
     </form>
   </dialog>, document.body);

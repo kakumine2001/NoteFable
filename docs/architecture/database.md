@@ -386,7 +386,7 @@ Session 1 -> N Message
 
 ### MessageNote
 
-聊天发言附加的笔记（`20261115120000_message_notes` 新增），只存引用不存正文。主键 `(messageId, noteId)`，`position` 是附加顺序，索引 `(noteId)`。每条发言最多 5 篇（`MAX_MESSAGE_NOTES`），发送时 `/api/chat` 先确认这些笔记都属于当前用户且不在 Trash（`deletedAt: null`），与用户消息在同一个 `create` 里写入。两个外键都是 `ON DELETE CASCADE`：消息（会话）被删除或笔记被**永久**删除时关联行消失；笔记放进 Trash 时关联行保留，但聊天的上下文加载和 `GET /api/sessions/:id/messages` 都带 `note.userId` 与 `note.deletedAt: null`，Trash 里的笔记既不发给模型也不显示，复原后自动回来。用法见 [chat-flow.md](chat-flow.md#发言附加的笔记)。
+聊天发言附加的笔记（`20261116100000_message_notes` 新增），只存引用不存正文。主键 `(messageId, noteId)`，`position` 是附加顺序，索引 `(noteId)`。每条发言最多 5 篇（`MAX_MESSAGE_NOTES`），发送时 `/api/chat` 只保留属于当前用户且不在 Trash（`deletedAt: null`）的笔记，与用户消息在同一个 `create` 里写入。两个外键都是 `ON DELETE CASCADE`：消息（会话）被删除或笔记被**永久**删除时关联行消失；笔记放进 Trash 时关联行保留，但聊天的上下文加载和 `GET /api/sessions/:id/messages` 都带 `note.userId` 与 `note.deletedAt: null`，Trash 里的笔记既不发给模型也不显示，复原后自动回来。用法见 [chat-flow.md](chat-flow.md#发言附加的笔记)。
 
 ### Attachment
 
@@ -482,7 +482,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261115120000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。
 
 聊天行右侧固定显示三点按钮（左）和图钉按钮（右）。图钉负责置顶/取消置顶；三点菜单只提供重命名、移动项目和删除确认。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

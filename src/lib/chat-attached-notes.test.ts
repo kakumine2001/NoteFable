@@ -1,9 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findRefs: vi.fn(), findNotes: vi.fn(), countNotes: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ prisma: { messageNote: { findMany: mocks.findRefs }, notePage: { findMany: mocks.findNotes, count: mocks.countNotes } } }));
+const mocks = vi.hoisted(() => ({ findRefs: vi.fn(), findNotes: vi.fn() }));
+vi.mock("@/lib/prisma", () => ({ prisma: { messageNote: { findMany: mocks.findRefs }, notePage: { findMany: mocks.findNotes } } }));
 import { MAX_CONTEXT_NOTE_CHARS, MAX_CONTEXT_TOTAL_CHARS } from "./chat-project-context";
-import { AttachedNotesError, formatAttachedNotes, loadAttachedNotesContext, MAX_CONTEXT_ATTACHED_NOTES, ownsLiveNotes, parseAttachedNoteIds } from "./chat-attached-notes";
+import { AttachedNotesError, formatAttachedNotes, liveOwnedNoteIds, loadAttachedNotesContext, MAX_CONTEXT_ATTACHED_NOTES, parseAttachedNoteIds } from "./chat-attached-notes";
 import { MAX_MESSAGE_NOTES } from "@/types/chat";
 
 const paragraph = (text: string) => [{ id: `b-${text.length}`, type: "paragraph", props: {}, content: [{ type: "text", text, styles: {} }], children: [] }];
@@ -31,20 +31,18 @@ describe("parseAttachedNoteIds", () => {
   });
 });
 
-describe("ownsLiveNotes", () => {
+describe("liveOwnedNoteIds", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("counts only the user's notes outside the trash", async () => {
-    mocks.countNotes.mockResolvedValue(2);
-    expect(await ownsLiveNotes("user", ["a", "b"])).toBe(true);
-    expect(mocks.countNotes.mock.calls[0][0].where).toEqual({ id: { in: ["a", "b"] }, userId: "user", deletedAt: null });
-    mocks.countNotes.mockResolvedValue(1);
-    expect(await ownsLiveNotes("user", ["a", "b"])).toBe(false);
+  it("keeps only the user's notes outside the trash, in the order they were attached", async () => {
+    mocks.findNotes.mockResolvedValue([{ id: "c" }, { id: "a" }]);
+    expect(await liveOwnedNoteIds("user", ["a", "b", "c"])).toEqual(["a", "c"]);
+    expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["a", "b", "c"] }, userId: "user", deletedAt: null });
   });
 
   it("does not query when nothing is attached", async () => {
-    expect(await ownsLiveNotes("user", [])).toBe(true);
-    expect(mocks.countNotes).not.toHaveBeenCalled();
+    expect(await liveOwnedNoteIds("user", [])).toEqual([]);
+    expect(mocks.findNotes).not.toHaveBeenCalled();
   });
 });
 
@@ -73,6 +71,21 @@ describe("loadAttachedNotesContext", () => {
     // 本人の、ゴミ箱に入っていないノートだけを読む。
     expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session" }, note: { userId: "user", deletedAt: null } });
     expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["b", "a", "c"] }, userId: "user", deletedAt: null });
+  });
+
+  it("still lists a project note when this message attached it, so the model knows the user pointed at it", async () => {
+    mocks.findRefs.mockResolvedValue([{ messageId: "m2", noteId: "project-note" }, { messageId: "m1", noteId: "other-project-note" }]);
+    mocks.findNotes.mockResolvedValue([{ id: "project-note", title: "P", blocks: paragraph("p") }]);
+    const notes = await loadAttachedNotesContext("user", "session", "m2", ["project-note", "other-project-note"]);
+    expect(notes.map((note) => [note.id, note.latest])).toEqual([["project-note", true]]);
+  });
+
+  it("skips a note it cannot convert and passes the others", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.findRefs.mockResolvedValue([{ messageId: "m", noteId: "bad" }, { messageId: "m", noteId: "good" }]);
+    mocks.findNotes.mockResolvedValue([{ id: "bad", title: "Bad", blocks: { broken: true } }, { id: "good", title: "Good", blocks: paragraph("ok") }]);
+    const notes = await loadAttachedNotesContext("user", "session", "m");
+    expect(notes.map((note) => note.id)).toContain("good");
   });
 
   it("returns nothing without querying notes when none are attached", async () => {
