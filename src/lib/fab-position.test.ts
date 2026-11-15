@@ -1,0 +1,35 @@
+import { describe, expect, it } from "vitest";
+import { clampFabPosition, FAB_MARGIN, panelPlacement } from "@/lib/fab-position";
+
+describe("clampFabPosition", () => {
+  it("keeps a position that is already inside the viewport", () => {
+    expect(clampFabPosition({ right: 100, bottom: 200 }, 48, 1000, 800)).toEqual({ right: 100, bottom: 200 });
+  });
+
+  it("pulls the button back inside every edge", () => {
+    expect(clampFabPosition({ right: -50, bottom: -50 }, 48, 1000, 800)).toEqual({ right: FAB_MARGIN, bottom: FAB_MARGIN });
+    expect(clampFabPosition({ right: 5000, bottom: 5000 }, 48, 1000, 800)).toEqual({ right: 1000 - 48 - FAB_MARGIN, bottom: 800 - 48 - FAB_MARGIN });
+  });
+
+  it("stays at the margin when the viewport is smaller than the button", () => {
+    expect(clampFabPosition({ right: 300, bottom: 300 }, 48, 40, 40)).toEqual({ right: FAB_MARGIN, bottom: FAB_MARGIN });
+  });
+});
+
+describe("panelPlacement", () => {
+  it("opens above a button in the lower half", () => {
+    const placement = panelPlacement({ right: 20, bottom: 20 }, 48, 416, 1200, 800);
+    expect(placement).toMatchObject({ right: 20, bottom: 76, top: "auto" });
+    expect(placement.maxHeight).toBe(800 - 20 - 48 - 8 - 20);
+  });
+
+  it("opens below a button in the upper half", () => {
+    const placement = panelPlacement({ right: 20, bottom: 700 }, 48, 416, 1200, 800);
+    expect(placement).toMatchObject({ right: 20, top: 108, bottom: "auto" });
+    expect(placement.maxHeight).toBe(700 - 8 - 20);
+  });
+
+  it("keeps the panel on screen when the button is at the left edge", () => {
+    expect(panelPlacement({ right: 1144, bottom: 20 }, 48, 416, 1200, 800).right).toBe(1200 - 416 - 20);
+  });
+});

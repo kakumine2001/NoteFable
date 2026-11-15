@@ -7,7 +7,7 @@ import { ReorderHandle } from "@/components/reorder-handle";
 import type { ReorderRequest } from "@/lib/list-order";
 import { ChatActions, type ChatAction, type ChatProject } from "@/components/chat-actions";
 import { SidebarFooter } from "@/components/sidebar-footer";
-import { NoteFableLogo } from "@/components/notefable-logo";
+import { NoteFableLogo } from "@/components/app-icon";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { rowName } from "@/lib/view-transition";
 import type { Session } from "@/types/chat";

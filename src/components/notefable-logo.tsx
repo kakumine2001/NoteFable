@@ -7,12 +7,3 @@ export function BrandMark({ size = 26 }: { size?: number }) {
     </svg>
   );
 }
-
-export function NoteFableLogo({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="nf-logo" role="img" aria-label="NoteFable">
-      <BrandMark size={20} />
-      {!compact && <span aria-hidden="true">NoteFable</span>}
-    </div>
-  );
-}

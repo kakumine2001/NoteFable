@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderHandle } from "@/components/reorder-handle";
@@ -8,7 +8,7 @@ import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NoteTrashDialog } from "@/components/note-trash-dialog";
-import { NoteFableLogo } from "@/components/notefable-logo";
+import { NoteFableLogo } from "@/components/app-icon";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { ancestorsOf, childrenByParent, rootPages } from "@/lib/note-tree";
 import { useExpandedPages } from "@/lib/use-expanded-pages";
@@ -32,8 +32,10 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
+  // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
+  home: boolean; onHome: () => void;
   // parentId を渡すと、そのページの中にサブページを作る。
   onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
@@ -132,6 +134,9 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
         <button type="button" className="sidebar-primary-action" disabled={busy} onClick={() => onCreate()}><Plus size={16} /><span>{t("New note")}</span></button>
+        <button type="button" className={`notion-sidebar-action notes-sidebar-home ${home ? "is-active" : ""}`} aria-current={home ? "page" : undefined} onClick={onHome}>
+          <House size={16} /><span>{t("Home")}</span>
+        </button>
         <button type="button" className="notion-sidebar-action" onClick={onSearch} aria-keyshortcuts="Control+K Meta+K">
           <Search size={16} /><span>{t("Search")}</span><kbd className="sidebar-search-hint" aria-hidden="true">{t("Ctrl K")}</kbd>
         </button>

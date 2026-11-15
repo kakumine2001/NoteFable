@@ -4,6 +4,7 @@ import { LoaderCircle, LogOut, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
+import { AppIconSettings } from "@/components/app-icon-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
@@ -11,6 +12,7 @@ import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { AccountUser } from "@/lib/user-profile";
+import { INTRO_HREF } from "@/lib/i18n/routing";
 import { MAX_CUSTOM_INSTRUCTIONS } from "@/types/chat";
 
 async function readJson(response: Response): Promise<Record<string, unknown>> {
@@ -89,7 +91,7 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));
       forgetLocaleChoice();
-      window.location.replace("/");
+      window.location.replace(INTRO_HREF);
     } catch (reason) {
       setError(reason instanceof Error && reason.message ? reason.message : msg("Could not delete your account. Please try again."));
       setDeleting(false); onBusyChange(false);
@@ -190,6 +192,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         {saveError && <p role="alert" className="project-settings-error">{localizeSystemText(saveError, t)}</p>}
 
         <LanguageSettings user={user} />
+
+        <AppIconSettings />
 
         <section className="project-settings-section">
           <label htmlFor={`${titleId}-instructions`} className="project-settings-label">
