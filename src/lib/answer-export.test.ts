@@ -231,7 +231,7 @@ describe("answerToNoteContent", () => {
     expect(textOf(result.blocks[2])).toBe("[code](<https://keep.test>)");
   });
 
-  it("turns GFM tables into readable lines", () => {
+  it("turns GFM tables into table blocks", () => {
     const result = build([
       "Before",
       "",
@@ -244,11 +244,20 @@ describe("answerToNoteContent", () => {
       "After",
     ].join("\n"));
     expectValid(result);
-    const lines = result.blocks.slice(0, 6);
-    expect(lines.map((block) => block.type)).toEqual(Array(6).fill("paragraph"));
-    expect(lines.map(textOf)).toEqual(["Before", "Name | Age", "Alice | 30", "Bob | B | a|b", "Bold | 1. one", "After"]);
-    // 太字で始まる行は太字のまま、数字で始まる行は段落のまま。
-    expect(inline(lines[4])[0]).toMatchObject({ text: "Bold", styles: { bold: true } });
+    expect(result.blocks.slice(0, 3).map((block) => block.type)).toEqual(["paragraph", "table", "paragraph"]);
+    const table = result.blocks[1].content as unknown as { headerRows?: number; rows: { cells: { content: Inline[] }[] }[] };
+    expect(table.headerRows).toBe(1);
+    const cells = table.rows.map((row) => row.cells.map((cell) => cell.content.map((entry) => entry.text).join("")));
+    // \| とコードの中の | はセルの文字として残る。
+    expect(cells).toEqual([["Name", "Age"], ["Alice", "30"], ["Bob | B", "a|b"], ["Bold", "1. one"]]);
+    expect(table.rows[3].cells[0].content[0]).toMatchObject({ text: "Bold", styles: { bold: true } });
+  });
+
+  it("keeps a very wide table as a table", () => {
+    const wide = Array.from({ length: 60 }, (_, index) => `c${index}`);
+    const result = build([`| ${wide.join(" | ")} |`, `| ${wide.map(() => "---").join(" | ")} |`, `| ${wide.join(" | ")} |`].join("\n"));
+    expectValid(result);
+    expect(result.blocks[0].type).toBe("table");
   });
 
   it("does not treat a lone pipe line as a table", () => {

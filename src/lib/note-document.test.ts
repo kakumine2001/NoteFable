@@ -9,8 +9,38 @@ describe("page document boundary", () => {
     expect(validateNoteContent({ title: " 学习笔记 ", blocks })).toEqual({ title: "学习笔记", icon: null, cover: null, coverPosition: null, blocks });
   });
 
-  it.each(["image", "file", "table", "toggleListItem", "html"])("rejects unsupported %s blocks", (type) => {
+  it.each(["image", "file", "table", "video", "html"])("rejects unsupported or malformed %s blocks", (type) => {
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, type }] })).toThrow("unsupported");
+  });
+
+  it("accepts toggles, toggle headings and callouts", () => {
+    const blocks = [
+      { ...paragraph, id: "t1", type: "toggleListItem", children: [{ ...paragraph, id: "t2" }] },
+      { ...paragraph, id: "t3", type: "heading", props: { level: 2, isToggleable: true } },
+      { ...paragraph, id: "t4", type: "callout", props: { emoji: "💡", backgroundColor: "gray", textColor: "default" } },
+    ];
+    expect(() => validateNoteContent({ title: "Test", blocks })).not.toThrow();
+    expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, type: "callout", props: { emoji: "abc" } }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, props: { emoji: "💡" } }] })).toThrow("unsupported");
+  });
+
+  it("validates table content", () => {
+    const cell = (text: string, props: Record<string, unknown> = {}) => ({ type: "tableCell", props: { backgroundColor: "default", textColor: "default", textAlignment: "left", colspan: 1, rowspan: 1, ...props }, content: [{ type: "text", text, styles: {} }] });
+    const table = (content: Record<string, unknown>, extra: Record<string, unknown> = {}) => ({ id: "tb", type: "table", props: { textColor: "default" }, content: { type: "tableContent", columnWidths: [null, 120], headerRows: 1, ...content }, children: [], ...extra });
+    const valid = (block: unknown) => () => validateNoteContent({ title: "Test", blocks: [block] });
+    expect(valid(table({ rows: [{ cells: [cell("a"), cell("b", { colspan: 2 })] }, { cells: [[{ type: "text", text: "plain", styles: {} }], cell("d")] }] }))).not.toThrow();
+    // BlockNote は見出しだけの行・列をすべて数えるので 1 を超えることがあり、行数・列数にも上限は置かない（大きさは 1 MiB で抑える）。
+    expect(valid(table({ rows: [{ cells: [cell("a")] }, { cells: [cell("b")] }], headerRows: 2, headerCols: 1 }))).not.toThrow();
+    expect(valid(table({ columnWidths: undefined, rows: Array.from({ length: 600 }, () => ({ cells: [cell("x"), cell("y")] })) }))).not.toThrow();
+    expect(valid(table({ columnWidths: undefined, rows: [{ cells: Array.from({ length: 60 }, () => cell("x")) }] }))).not.toThrow();
+    expect(valid(table({ rows: [] }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [] }] }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [cell("a")] }], headerRows: -1 }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [cell("a")] }], headerCols: "1" }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [cell("a", { colspan: 0 })] }] }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [cell("a", { backgroundColor: "url(x)" })] }] }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [{ ...cell("a"), content: [{ type: "link", href: "javascript:alert(1)", content: [] }] }] }] }))).toThrow("unsupported");
+    expect(valid(table({ rows: [{ cells: [cell("a")] }] }, { children: [{ ...paragraph, id: "child" }] }))).toThrow("unsupported");
   });
 
   it("rejects script links, duplicate IDs and unsupported heading levels", () => {
