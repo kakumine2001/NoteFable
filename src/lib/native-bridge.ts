@@ -1,3 +1,5 @@
+import { isImageIcon, saveAppIcon } from "@/lib/app-icon";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -14,7 +16,8 @@ export type NativeMessage =
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 
-export type NativeHost = { postMessage: (json: string) => void };
+// appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
+export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
@@ -23,6 +26,8 @@ export type EmbedApi = {
   pageUpdated: (page: unknown) => boolean;
   // アプリの「…」メニューで表示設定・ロック・お気に入りを変えたとき、PUT が返した一覧の 1 件（JSON 文字列かオブジェクト）を渡す。
   pageSettings: (page: unknown) => boolean;
+  // アプリの設定でアイコンを替えたとき、その値（絵文字 1 つか画像の data URL。null か空文字は既定のロゴ）を渡す。
+  appIcon: (icon: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -44,6 +49,24 @@ export function postToNative(message: NativeMessage, target: BridgeWindow | unde
     return true;
   } catch {
     return false;
+  }
+}
+
+// アプリから渡されたアイコンを確かめる。null・空文字は既定のロゴ（null）、絵文字 1 つか画像の data URL はそのまま、それ以外は undefined。
+export function parseAppIcon(value: unknown): string | null | undefined {
+  if (value === null || value === "") return null;
+  return typeof value === "string" && (isImageIcon(value) || isEmojiIcon(value)) ? value : undefined;
+}
+
+// アプリの設定で選んだアイコンを読む。アプリの外や、アイコンを渡さない古いアプリでは undefined（WebView に覚えている値を変えない）。
+// 読めない値は既定のロゴ（null）にする。
+export function readNativeAppIcon(target: BridgeWindow | undefined = browserWindow()): string | null | undefined {
+  const native = host(target);
+  if (!native || typeof native.appIcon !== "function") return undefined;
+  try {
+    return parseAppIcon(native.appIcon()) ?? null;
+  } catch {
+    return undefined;
   }
 }
 
@@ -104,12 +127,14 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, post }: {
   flush: () => Promise<boolean>;
   draftKept?: () => boolean;
   openHistory: () => void;
   pageUpdated?: (page: NotePage) => void;
   pageSettings?: (page: PageMetaUpdate) => void;
+  // 既定では web の設定と同じ場所（この WebView の localStorage）に書き、表示中のアイコンをその場で替える。
+  appIcon?: (icon: string | null) => unknown;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -133,6 +158,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const page = parsePageSettings(value);
       if (!page) return false;
       pageSettings(page);
+      return true;
+    },
+    appIcon(value) {
+      const icon = parseAppIcon(value);
+      if (icon === undefined) return false;
+      appIcon(icon);
       return true;
     },
   };

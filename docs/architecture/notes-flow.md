@@ -144,6 +144,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、版本历史和保存状态由应用的原生顶栏负责（与网页手机顶栏一样没有“更多”菜单）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
 - **保存与恢复照旧。** 一秒防抖自动保存、`notefable:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
 - **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
+- **AI 按钮的图标。** 页面打开时，`window.NoteFableNative.appIcon` 存在就调用它，拿到应用设置里选的图标（一个表情或图片的 data URL，默认标志是空字符串；`readNativeAppIcon`），用 `saveAppIcon` 写进这个 WebView 的 `localStorage`（`notefable:app-icon`），AI 按钮和面板标题随之显示它。读到的值不是表情也不是图片时按默认标志处理；没有这个方法的旧版应用不改已有的值。
 - **AI 模型。** 右下角 AI 助手用 URL 里的 `model` / `reasoning`（`readEmbedModelPreference`，再用 `resolveModelPreference` 按服务端模型列表核对：没有的模型不用，选不了的强度换成默认）；没带或无效时用这个 WebView 里最后一次的选择（localStorage），再没有就用服务端默认。
 
 **网页 → 应用**：存在 `window.NoteFableNative`（`@JavascriptInterface`）时，调用 `window.NoteFableNative.postMessage(JSON.stringify(msg))`，`msg` 为：
@@ -163,5 +164,6 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `openHistory()`：打开该笔记的 `NoteHistoryDialog`（与网页相同，恢复前先 flush）。
 - `pageUpdated(page)`：应用在聊天里应用了编辑案、而被改的笔记正开在编辑器里时，把 `POST /api/proposals/:id/apply` 返回的 `page`（JSON 字符串或对象）传进来。网页校验后发出与编辑案卡片相同的 `notefable:page-updated`，由 `useNotePages` 处理：没有未保存的编辑就 `loadLatest` 并换掉编辑器，有就标成冲突。不传的话编辑器仍是旧版本，下次保存会 409。格式不对时返回 false、什么也不做。
 - `pageSettings(page)`：应用在原生的 “…” 菜单里改了字体、Small text、Full width、锁定或收藏后，把 `PUT /api/pages/:id/settings` / `favorite` 返回的 `page`（一览的摘要，JSON 字符串或对象）传进来。网页校验 `id`、把未知的设置值换成默认值，发出 `notefable:page-meta`，`useNotePages` 用它替换这篇的设置，编辑器随即变宽、换字体或变为只读。没有 `id` 时返回 false。
+- `appIcon(icon)`：编辑器开着时应用在设置里换了图标，把新值（一个表情或图片的 data URL；`null` 或空字符串是默认标志）传进来，网页用 `saveAppIcon` 存下并立刻换掉 AI 按钮上的图标。不是表情也不是图片时返回 false、什么也不做。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。

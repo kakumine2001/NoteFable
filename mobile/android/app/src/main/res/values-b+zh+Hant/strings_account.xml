@@ -24,4 +24,10 @@
     <string name="acct_custom_instructions_placeholder">例如：我正在備考 JLPT N1。請用簡短的例句講解語法，回答儘量簡潔。</string>
     <string name="acct_err_load_custom_instructions">無法載入你的自定義指令。</string>
     <string name="acct_err_save_custom_instructions">無法儲存你的自定義指令，請重試。</string>
+    <string name="app_icon_title">圖示</string>
+    <string name="app_icon_help">顯示在側欄、AI 回覆和筆記裡的 AI 按鈕上。只儲存在這臺裝置上。</string>
+    <string name="app_icon_choose_emoji">選擇表情</string>
+    <string name="app_icon_upload_image">上傳圖片</string>
+    <string name="app_icon_use_logo">使用 NoteFable 標誌</string>
+    <string name="app_icon_could_not_save">無法在這臺裝置上儲存圖示。</string>
 </resources>

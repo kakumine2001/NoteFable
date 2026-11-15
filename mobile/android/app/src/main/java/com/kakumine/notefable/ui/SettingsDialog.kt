@@ -62,8 +62,8 @@ private val SettingsRing = Color(0x0D0F0F0F)
 fun customInstructionsChanged(initial: String, draft: String): Boolean = draft.trim() != initial
 
 /**
- * 设置（网页 SettingsDialog，从侧栏的账号行打开；登录后才有）：个人资料、界面语言、自定义指令、退出登录都在这一处。
- * 资料和语言改了就存，只有自定义指令要按"保存"。
+ * 设置（网页 SettingsDialog，从侧栏的账号行打开；登录后才有）：个人资料、界面语言、图标、自定义指令、退出登录都在这一处。
+ * 资料、语言和图标改了就存，只有自定义指令要按"保存"。
  * 外观和项目设置用同一套 dialog.chat-project-settings 的手机尺寸（见 ProjectSettings.kt）：宽 374（412 屏宽时）、圆角 8；
  * 头部 16/16/8（标题 16/600）；正文左右 16、下 16，各栏间距 20；最后一栏上方 1px 线、上内边距 8，是"退出登录"；
  * 底部 1px 线 + 取消 / 保存靠右。
@@ -78,6 +78,8 @@ internal fun SettingsDialog(
     editor: AvatarEditor,
     picked: String?,
     pickerOpen: Boolean,
+    appIcon: AppIconEditor,
+    onPickAppIconImage: () -> Unit,
     onEditor: (AvatarEditor) -> Unit,
     onPickPhoto: () -> Unit,
     onCancelCrop: () -> Unit,
@@ -186,6 +188,9 @@ internal fun SettingsDialog(
 
                 Spacer(Modifier.size(20.dp))
                 LanguageSettings(user, onChoose = profile::setLocale)
+
+                Spacer(Modifier.size(20.dp))
+                AppIconSettings(appIcon, onPickImage = onPickAppIconImage)
 
                 Spacer(Modifier.size(20.dp))
                 CustomInstructionsSection(

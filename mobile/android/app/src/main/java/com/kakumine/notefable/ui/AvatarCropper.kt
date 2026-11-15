@@ -123,10 +123,19 @@ sealed interface AvatarSource {
     data object Unreadable : AvatarSource
 }
 
-/** 读照片并按 EXIF 摆正（网页 imageOrientation: "from-image"）。GIF 只取第一帧，和网页相同。 */
-suspend fun decodeAvatarSource(resolver: ContentResolver, uri: Uri): AvatarSource = withContext(Dispatchers.IO) {
+/**
+ * 读照片并按 EXIF 摆正（网页 imageOrientation: "from-image"）。GIF 只取第一帧，和网页相同。
+ * 默认是头像的规则；设置里的"图标"（AppIconSettings.kt）用同一条路，只是不限最小边、缩得更小。
+ */
+suspend fun decodeAvatarSource(
+    resolver: ContentResolver,
+    uri: Uri,
+    minSide: Int = AVATAR_MIN_SIDE,
+    sampleSize: (width: Int, height: Int) -> Int = ::avatarSampleSize,
+): AvatarSource = withContext(Dispatchers.IO) {
     try {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) decodeWithImageDecoder(resolver, uri) else decodeWithBitmapFactory(resolver, uri)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) decodeWithImageDecoder(resolver, uri, minSide, sampleSize)
+        else decodeWithBitmapFactory(resolver, uri, minSide, sampleSize)
     } catch (_: OutOfMemoryError) {
         AvatarSource.Unreadable
     } catch (_: Exception) {
@@ -135,16 +144,16 @@ suspend fun decodeAvatarSource(resolver: ContentResolver, uri: Uri): AvatarSourc
 }
 
 @androidx.annotation.RequiresApi(Build.VERSION_CODES.P)
-private fun decodeWithImageDecoder(resolver: ContentResolver, uri: Uri): AvatarSource {
+private fun decodeWithImageDecoder(resolver: ContentResolver, uri: Uri, minSide: Int, sampleSize: (Int, Int) -> Int): AvatarSource {
     var tooSmall = false
     val bitmap = try {
         ImageDecoder.decodeBitmap(ImageDecoder.createSource(resolver, uri)) { decoder, info, _ ->
             val (w, h) = info.size.width to info.size.height
-            if (min(w, h) < AVATAR_MIN_SIDE) {
+            if (min(w, h) < minSide) {
                 tooSmall = true
                 throw IllegalStateException("too small")
             }
-            decoder.setTargetSampleSize(avatarSampleSize(w, h))
+            decoder.setTargetSampleSize(sampleSize(w, h))
             // 要在普通 Canvas 上重画成 512 图，不能是硬件位图。
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
         }
@@ -155,14 +164,14 @@ private fun decodeWithImageDecoder(resolver: ContentResolver, uri: Uri): AvatarS
     return AvatarSource.Ready(bitmap)
 }
 
-private fun decodeWithBitmapFactory(resolver: ContentResolver, uri: Uri): AvatarSource {
+private fun decodeWithBitmapFactory(resolver: ContentResolver, uri: Uri, minSide: Int, sampleSize: (Int, Int) -> Int): AvatarSource {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
     // 只读尺寸时 decodeStream 本来就返回 null（Android 8.x 走这里）：只看流能不能打开，尺寸看 bounds。
     val stream = resolver.openInputStream(uri) ?: return AvatarSource.Unreadable
     stream.use { BitmapFactory.decodeStream(it, null, bounds) }
     if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return AvatarSource.Unreadable
-    if (min(bounds.outWidth, bounds.outHeight) < AVATAR_MIN_SIDE) return AvatarSource.TooSmall
-    val options = BitmapFactory.Options().apply { inSampleSize = avatarSampleSize(bounds.outWidth, bounds.outHeight) }
+    if (min(bounds.outWidth, bounds.outHeight) < minSide) return AvatarSource.TooSmall
+    val options = BitmapFactory.Options().apply { inSampleSize = sampleSize(bounds.outWidth, bounds.outHeight) }
     val decoded = resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, options) } ?: return AvatarSource.Unreadable
     val orientation = runCatching {
         resolver.openInputStream(uri)?.use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) }
