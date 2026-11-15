@@ -26,7 +26,7 @@ Production aliases：
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）
 www.notefable.com             # 308 跳转到 notefable.com
-studymate-lab-ai.vercel.app   # 旧网址，继续可用（匿名用户的数据跟着各自域名的 Cookie）
+studymate-lab-ai.vercel.app   # 旧网址，继续可用（网页的匿名数据跟着各自域名的 Cookie；Android App 已改连 notefable.com 并搬了 Cookie）
 notefable-kaku10.vercel.app   # Vercel 项目 2026-11-15 由 studymate 改名为 notefable
 ```
 
@@ -188,7 +188,7 @@ ANTHROPIC_HAIKU_MODEL
 
 ### 可用模型（`NOTEFABLE_MODELS`，可选）
 
-`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS` 决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
+`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS`（改名前的 `STUDYMATE_MODELS` 也还认，新名字优先）决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
 
 值是一个 JSON 数组。只有写在里面的模型可用，顺序就是选择器里的顺序，第一个是默认模型：
 
