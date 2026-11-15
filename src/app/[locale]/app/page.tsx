@@ -235,7 +235,15 @@ export default function Home() {
 
   function openNote(id: string) {
     cancelReveal();
-    // ホームから開くとき、戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから読み込む。
+    // パソコン幅：読み込めてから URL（page= の履歴を 1 件積む）と表示を切り替える。読み込めなかったら、いまの画面と URL のまま。
+    if (!window.matchMedia("(max-width: 639px)").matches && notes.activeId !== id) {
+      void notes.select(id).then((opened) => {
+        if (opened) runTransition(syncNotesList, "forward");
+        else forgetMissingNote(id);
+      });
+      return;
+    }
+    // スマホ、または前に開いていたノートへ戻るとき：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
     // ドロワーや底部シートが積んだ履歴の上なら、新しく積まずその履歴を置き換える（空の戻り先を残さない）。
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
