@@ -9,24 +9,7 @@ import { useExpandedPages } from "@/lib/use-expanded-pages";
 import { rowName } from "@/lib/view-transition";
 import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useI18n } from "@/components/i18n-provider";
-import { msg } from "@/lib/i18n/translate";
-
-// 「最近編集したノート」に出す件数。
-const RECENT_COUNT = 8;
-
-// 時刻に合わせたあいさつ（5〜11 時は朝、12〜17 時は昼、それ以外は夜）。
-function greetingFor(hour: number) {
-  return hour >= 5 && hour < 12 ? msg("Good morning") : hour >= 12 && hour < 18 ? msg("Good afternoon") : msg("Good evening");
-}
-
-// 「3 時間前」のような相対時刻。1 分未満は「今」に当たる表現になる。
-function relativeTime(iso: string, now: number, tag: string) {
-  const seconds = Math.round((new Date(iso).getTime() - now) / 1000);
-  const format = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
-  const steps: [Intl.RelativeTimeFormatUnit, number][] = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];
-  for (const [unit, size] of steps) if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
-  return format.format(0, "minute");
-}
+import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 
 // Notes のホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつと「最近編集したノート」のカードを出す（スマホ幅は一覧だけ）。
@@ -48,7 +31,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const [creatingGroup, setCreatingGroup] = useState(false);
   // ホームを開いた時刻。あいさつと相対時刻の基準にする。
   const [openedAt] = useState(() => Date.now());
-  const recent = [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, RECENT_COUNT);
+  const recent = recentPages(pages);
+  const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
   const known = new Set(groups.map((group) => group.id));
   // サブページの木。最上位のページをグループごとに並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
   const children = childrenByParent(pages);
@@ -95,7 +79,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
                 <span className="notes-recent-cover" aria-hidden="true" />
                 <span className="notes-recent-icon" aria-hidden="true">{page.icon ?? <FileText size={24} strokeWidth={1.6} />}</span>
                 <span className="notes-recent-name">{page.title}</span>
-                <time className="notes-recent-date" dateTime={page.updatedAt}>{relativeTime(page.updatedAt, openedAt, tag)}</time>
+                <time className="notes-recent-date" dateTime={page.updatedAt}>{relativeTime(page.updatedAt, openedAt, relative)}</time>
               </button>
             </li>)}
           </ul>

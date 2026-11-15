@@ -152,7 +152,7 @@ function readErrorMessage(data: Record<string, unknown>, fallback: string) {
   return typeof data.error === "string" && data.error ? data.error : fallback;
 }
 
-// 一覧を出すのは「スマホ幅・Notes・URL に page= が無い」とき。
+// Notes のホームを出すのは「Notes・URL に page= が無い」とき。
 function computeNotesList() {
   const params = new URL(window.location.href).searchParams;
   return params.get("view") === "pages" && !params.get("page");
@@ -246,7 +246,18 @@ export default function Home() {
     }
     // 一覧からノートへは、右から入ってくる動き。
     runTransition(() => setNotesList(false), "forward");
-    if (notes.activeId !== id) void notes.select(id, "none");
+    if (notes.activeId !== id) void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+  }
+
+  // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
+  function forgetMissingNote(id: string) {
+    cancelReveal();
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("page") === id) {
+      url.searchParams.delete("page");
+      window.history.replaceState(null, "", url);
+    }
+    syncNotesList();
   }
 
   async function deleteNote(id: string) {
@@ -264,7 +275,8 @@ export default function Home() {
     cancelReveal();
     runTransition(() => setNotesList(false), "forward");
     // ボタンの onClick に直接渡された場合のクリックイベントは親 ID にしない。
-    void notes.create(false, typeof parentId === "string" ? parentId : null);
+    // 作れなかったとき（URL に page= が付かない）は、ホームに戻す。
+    void notes.create(false, typeof parentId === "string" ? parentId : null).then(syncNotesList);
   }
 
   // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
@@ -300,17 +312,7 @@ export default function Home() {
     else show();
     // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
     if (notes.activeId !== id) {
-      void notes.select(id, "none").then((opened) => {
-        if (opened) return;
-        // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は、URL に残さない。
-        cancelReveal();
-        const next = new URL(window.location.href);
-        if (next.searchParams.get("page") === id) {
-          next.searchParams.delete("page");
-          window.history.replaceState(null, "", next);
-        }
-        syncNotesList();
-      });
+      void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
@@ -333,7 +335,8 @@ export default function Home() {
 
   function openNotesList() {
     const url = new URL(window.location.href);
-    if (!url.searchParams.get("page")) return;
+    // すでに URL がホームを指しているなら、履歴は積まずに表示だけ合わせる。
+    if (!url.searchParams.get("page")) { setNotesList(true); return; }
     url.searchParams.delete("page");
     // シートが積んだ目印が一番上にあるときは置き換えて、戻る操作で空振りする履歴を残さない。
     if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
