@@ -12,6 +12,12 @@
         <intent>
             <action android:name="android.media.action.IMAGE_CAPTURE" />
         </intent>
+        <!-- 介绍页等要用浏览器打开的链接：找出能打开普通网址的浏览器（AccountUi.kt 的 openInBrowser）。 -->
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <category android:name="android.intent.category.BROWSABLE" />
+            <data android:scheme="https" />
+        </intent>
     </queries>
 
     <application

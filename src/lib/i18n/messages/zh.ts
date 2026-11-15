@@ -344,6 +344,7 @@ export const zh: Record<string, string> = {
   "Polarised sunglasses": "偏光太阳镜",
   "Preparing attachments…": "正在准备附件…",
   "Press '/' for commands…": "输入“/”使用命令…",
+  "About": "关于",
   "Privacy": "隐私政策",
   "Profile": "个人资料",
   "Project": "项目",
