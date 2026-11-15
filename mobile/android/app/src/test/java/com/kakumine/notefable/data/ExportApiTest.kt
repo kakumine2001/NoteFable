@@ -147,6 +147,20 @@ class ExportApiTest {
     }
 
     @Test
+    fun `changing identity keeps a running page job so it is not sent twice, then drops its result`() = runTest {
+        val backend = FakeBackend().apply { pageGate = CompletableDeferred() }
+        val store = AnswerExportStore(backend, this)
+        store.createPage("s1", null, "2026-11-15")
+        store.clearPageJobs()
+        assertEquals(CreatePageJob.Working, store.pageJobs.value["s1"])
+        store.createPage("s1", null, "2026-11-15")
+        backend.pageGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(1, backend.pages.size)
+        assertEquals(null, store.pageJobs.value["s1"])
+    }
+
+    @Test
     fun `create page errors follow the web - limit and validation text, 404, the rest generic`() {
         assertEquals("Daily limit reached.", createPageErrorMessage(ApiException.from(429, """{"error":"Daily limit reached."}""")))
         assertEquals("This chat has nothing to turn into a page yet.",

@@ -14,5 +14,5 @@
     <string name="create_page_done">已在筆記中建立“%1$s”。</string>
     <string name="create_page_partial">對話較長，省略了一部分內容。</string>
     <string name="open_page">開啟筆記</string>
-    <string name="settings_language_help">在你選擇語言之前，NoteFable 使用瀏覽器的語言。</string>
+    <string name="settings_language_help">在你選擇語言之前，NoteFable 使用裝置的語言。</string>
 </resources>

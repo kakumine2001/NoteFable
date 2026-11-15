@@ -66,11 +66,8 @@ fun CreatePageDialog(
                 Modifier.padding(top = 12.dp).semantics { liveRegion = LiveRegionMode.Polite },
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                val spin by rememberInfiniteTransition(label = "create-page").animateFloat(
-                    0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin",
-                )
                 // mt-0.5：和第一行文字对齐。
-                Box(Modifier.padding(top = 2.dp).rotate(spin)) { LucideIcon(Lucide.LoaderCircle, 16.dp, Sm.Muted) }
+                SpinningLoader(16.dp, Modifier.padding(top = 2.dp))
                 Text(stringResource(R.string.create_page_working), color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp)
             }
             is CreatePageJob.Done -> {

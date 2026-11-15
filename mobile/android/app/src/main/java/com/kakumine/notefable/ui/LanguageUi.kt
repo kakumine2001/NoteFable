@@ -86,7 +86,9 @@ private fun applyLanguage(preference: AppLanguage.Preference) {
 fun AccountLocaleSync(account: AccountUiState, onSave: (String) -> Unit) {
     val signedIn = account.user != null
     val saved = account.user?.locale
-    LaunchedEffect(account.loaded, account.configured, signedIn, saved) {
+    LaunchedEffect(account.loaded, account.configured, signedIn, saved, account.signingOut) {
+        // 退出登录期间不同步（网页 signingOut）：不在即将离开的身份上切换或保存；退出完成后再判断一次（这时已是未登录）。
+        if (account.signingOut) return@LaunchedEffect
         val known = account.loaded && account.configured && signedIn && saved != LOCALE_UNKNOWN
         val action = localeSyncAction(
             loaded = account.loaded,

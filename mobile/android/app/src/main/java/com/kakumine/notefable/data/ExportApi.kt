@@ -209,6 +209,7 @@ class AnswerExportStore(private val backend: ExportBackend, private val scope: C
     fun createPage(sessionId: String, model: String?, savedOn: String) {
         if (_pageJobs.value[sessionId] is CreatePageJob.Working) return
         _pageJobs.update { it + (sessionId to CreatePageJob.Working) }
+        val generation = pageGeneration
         scope.launch {
             val next = try {
                 val page = backend.createPageFromChat(sessionId, model, savedOn)
@@ -220,18 +221,26 @@ class AnswerExportStore(private val backend: ExportBackend, private val scope: C
             } catch (e: Throwable) {
                 CreatePageJob.Failed(createPageErrorMessage(e))
             }
-            _pageJobs.update { it + (sessionId to next) }
+            // 期间换过身份：结果不留（那篇笔记可能打不开），只把"进行中"去掉。
+            _pageJobs.update { if (generation == pageGeneration) it + (sessionId to next) else it - sessionId }
         }
     }
+
+    // 换身份的次数。进行中的整理按开始时的值判断结果还要不要。
+    private var pageGeneration = 0
 
     /** 关窗口时忘掉已结束的结果（下次打开能从继续写的对话重新整理）；进行中的留着。 */
     fun forgetFinishedPage(sessionId: String) {
         _pageJobs.update { jobs -> if (jobs[sessionId] is CreatePageJob.Working) jobs else jobs - sessionId }
     }
 
-    /** 换身份（登录 / 退出）时清掉结果：别的身份的笔记打不开。进行中的请求跑完会再写回，网页刷新页面后也一样看不到。 */
+    /**
+     * 换身份（登录 / 退出）时清掉已结束的结果（别的身份的笔记打不开）。进行中的留着、直到它结束：
+     * 这期间又登回同一个账号时，同一个聊天不会再发一次（重复建笔记、多扣一次额度）。
+     */
     fun clearPageJobs() {
-        _pageJobs.value = emptyMap()
+        pageGeneration++
+        _pageJobs.update { jobs -> jobs.filterValues { it is CreatePageJob.Working } }
     }
 
     companion object {

@@ -206,7 +206,7 @@ internal fun SettingsDialog(
                         .drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }
                         .padding(top = 8.dp),
                 ) {
-                    SettingsInlineAction(Lucide.LogOut, stringResource(R.string.sign_out), enabled = !busy && !photoBusy) {
+                    SettingsInlineAction(Lucide.LogOut, stringResource(R.string.sign_out), enabled = !busy && !photoBusy && !account.signingOut) {
                         // 输入中的名字先排进保存队列，signOut 会等它发完。
                         profile.saveName(nameDraft)
                         onSignOut()
@@ -246,10 +246,7 @@ private fun CustomInstructionsSection(
             NotionButton(stringResource(R.string.try_again), onClick = onRetry, modifier = Modifier.padding(top = 8.dp))
         }
         initial == null -> Row(Modifier.padding(top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
-            val spin by rememberInfiniteTransition(label = "settings-loading").animateFloat(
-                0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin",
-            )
-            Box(Modifier.rotate(spin)) { LucideIcon(Lucide.LoaderCircle, 14.dp, Sm.Muted) }
+            SpinningLoader(14.dp)
             Spacer(Modifier.width(4.dp))
             Text(stringResource(R.string.sb_loading), color = Sm.Muted, fontSize = 13.sp)
         }

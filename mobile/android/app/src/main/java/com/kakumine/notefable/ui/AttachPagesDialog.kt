@@ -133,10 +133,7 @@ fun AttachPagesDialog(
                         NotionButton(stringResource(R.string.try_again), onClick = { loadError = null; attempt++ }, modifier = Modifier.padding(top = 8.dp))
                     }
                     list == null -> Row(Modifier.padding(top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
-                        val spin by rememberInfiniteTransition(label = "attach-loading").animateFloat(
-                            0f, 360f, infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Restart), label = "spin",
-                        )
-                        Box(Modifier.rotate(spin)) { LucideIcon(Lucide.LoaderCircle, 14.dp, Sm.Muted) }
+                        SpinningLoader(14.dp)
                         Spacer(Modifier.width(4.dp))
                         Text(stringResource(R.string.sb_loading), color = Sm.Muted, fontSize = 13.sp)
                     }

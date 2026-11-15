@@ -2,5 +2,4 @@
 <resources>
     <string name="ui_locale">zh</string>
     <string name="language_change_failed">无法切换语言，请重试。</string>
-    <string name="language_changing">正在切换语言…</string>
 </resources>

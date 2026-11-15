@@ -653,7 +653,8 @@ class ChatViewModel(
     }
 
     fun setImageMode(on: Boolean) {
-        _state.update { it.copy(imageMode = on) }
+        // 关掉「生成图片」正是"带着笔记不能生成图片"提示要用户做的事：提示随之消失。
+        _state.update { it.copy(imageMode = on, notice = if (!on && it.notice == ComposerNotice.PagesInImageMode) null else it.notice) }
     }
 
     // ---- 发送 ----

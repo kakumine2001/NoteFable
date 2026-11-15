@@ -38,6 +38,8 @@ data class AccountUiState(
     val googleEnabled: Boolean = true,
     val emailEnabled: Boolean = false,
     val signingIn: Boolean = false,
+    /** 正在退出登录（网页 account-button.tsx 的 signingOut）：期间不再发起退出，界面语言也不跟着账号同步。 */
+    val signingOut: Boolean = false,
     /** 上一次登录失败：按钮文字换成"登录失败，请重试"。 */
     val signInFailed: Boolean = false,
     /** 资料保存失败时的提示：服务端的英文原句（经系统文词典翻译），没有时是网页兜底的 "Could not save."（字符串资源）。 */
@@ -232,15 +234,21 @@ class AccountViewModel(
     }
 
     fun signOut(clearDeviceChoice: suspend () -> Unit, onSignedOut: () -> Unit) {
+        if (_state.value.signingOut) return
+        _state.update { it.copy(signingOut = true) }
         viewModelScope.launch {
-            // 网页 settled()：刚改的名字 / 图标 / 照片先送完再退出（退出后再送会 401）。
-            saves.withLock { }
-            runCatching { clearDeviceChoice() }
-            runCatching { backend.signOut() }
-            _state.update { it.copy(profileError = null, photoError = null, uploading = false) }
-            setConfirmed(null)
-            onSignedOut()
-            refresh()
+            try {
+                // 网页 settled()：刚改的名字 / 图标 / 照片先送完再退出（退出后再送会 401）。
+                saves.withLock { }
+                runCatching { clearDeviceChoice() }
+                runCatching { backend.signOut() }
+                _state.update { it.copy(profileError = null, photoError = null, uploading = false) }
+                setConfirmed(null)
+                onSignedOut()
+                refresh()
+            } finally {
+                _state.update { it.copy(signingOut = false) }
+            }
         }
     }
 

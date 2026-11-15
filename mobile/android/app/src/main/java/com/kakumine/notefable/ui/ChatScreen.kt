@@ -603,29 +603,13 @@ private fun UserTurn(message: UiMessage) {
             // 添加的笔记（网页 chat-message.tsx）：上 8、间距 6；标签 12 灰字、浅底 + 1px 描边、圆角 4、内边距 8×4、间距 4，
             // 图标是表情或 FileText 12。点一下打开那篇笔记。
             val label = stringResource(R.string.attached_pages)
-            val untitled = stringResource(R.string.sb_untitled)
             val openNote = LocalOpenNote.current
             FlowRow(
                 Modifier.padding(top = 8.dp).semantics { contentDescription = label },
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                message.pages.forEach { page ->
-                    val shape = RoundedCornerShape(4.dp)
-                    Row(
-                        Modifier.clip(shape).background(Sm.Sidebar).border(1.dp, Sm.Border, shape)
-                            .clickable(role = Role.Button) { openNote(page.id) }
-                            .padding(horizontal = 8.dp, vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        if (page.icon != null) Text(page.icon, fontSize = 12.sp, lineHeight = 16.sp) else LucideIcon(Lucide.FileText, 12.dp, Sm.Muted)
-                        Text(
-                            page.title.ifEmpty { untitled }, Modifier.weight(1f, fill = false),
-                            color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+                message.pages.forEach { page -> PageChip(page, removable = false) { openNote(page.id) } }
             }
         }
     }
