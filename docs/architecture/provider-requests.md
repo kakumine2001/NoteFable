@@ -136,6 +136,14 @@ Content-Type: application/json
 }
 ```
 
+## 整理成笔记的请求
+
+聊天顶栏的 Create page（`src/lib/chat-page.ts`）用所选聊天模型发一次非流式请求，推理强度是该模型的默认值，不带搜索、工具、压缩和 `cache_control`，240 秒超时。`input` 是整理好的对话文字：`Chat title: …`，必要时一行省略说明，再是 `<conversation>` 里按时间排列的 `<user>` / `<assistant>` 块（每条最多 12,000 字符，合计最多 60,000）。
+
+- OpenAI：`POST /responses`，`{ model, instructions, input, reasoning: { effort }, max_output_tokens: 32000, safety_identifier, store: false, stream: false }`；`status` 不是 `completed` 视为失败。
+- DeepSeek：同样发到 `${DEEPSEEK_BASE_URL}/responses`，用 `buildDeepSeekResponsesRequest`（`reasoning.effort` 与 `max_output_tokens: 32000`，`stream: false`），不带 `web_search`、`safety_identifier`、`store`。
+- Anthropic：`buildAnthropicRequest`，`system` 是指令、一条 user 消息，`max_tokens: 32000`，`thinking: { type: "adaptive", display: "summarized" }` 与 `output_config.effort`，不带采样参数和思考预算；`stop_reason` 不是 `end_turn`（如 `max_tokens`）视为失败。
+
 ## 官方参考
 
 - [OpenAI Compaction](https://developers.openai.com/api/docs/guides/compaction)

@@ -47,7 +47,7 @@ sequenceDiagram
 
 ## 前端发送的数据
 
-`/api/chat` 在调用模型前预占当天的聊天次数，笔记内 AI 助手也使用同一份额度。满额时返回 `429` 与 `code: "usage_limit"`；游客看到可关闭的登录引导，点开与侧栏相同的 Google / 邮箱登录弹窗（按服务端配置显示）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)。
+`/api/chat` 在调用模型前预占当天的聊天次数，笔记内 AI 助手和“整理成笔记”（Create page，见下文）也使用同一份额度。满额时返回 `429` 与 `code: "usage_limit"`；游客看到可关闭的登录引导，点开与侧栏相同的 Google / 邮箱登录弹窗（按服务端配置显示）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)。
 
 `src/app/[locale]/app/page.tsx`（`/app` 工作区）会构建：
 
@@ -378,6 +378,23 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 3. 否则走与搜索结果相同的 `openChatFromLink(chatId, messageId)`：读取全部消息，再 `revealChatMessage` 滚到那条消息并短暂高亮。会话不存在或不属于当前用户时，经正常的读取路径得到同一个错误提示和一个空的 New chat；找不到消息 ID 则滚到底部。
 
 这个链接不是分享链接：会话仍按设备 Cookie / Google 账号归属，在别的浏览器里打开只会得到 “Failed to load conversation.”。在笔记里点这个链接是整页导航（BlockNote 链接），整页重新加载后再跳转。
+
+## 整理成笔记（Create page）
+
+“Save to page” 只把一条回答原样存成笔记；**Create page** 让 AI 把整段对话改写成一篇条理清晰、可以复习的笔记（类似 Perplexity 的 Create Page）。入口是聊天顶栏的 `FilePlus` 图标（`page.tsx`，标签 “Create page”）：只在 Chat 视图、会话已保存且有消息时显示，当前会话正在生成回答时不可点（最后一条回答还没入库）。笔记里的 AI 助手会话不在 Chat 视图里，所以没有这个入口；服务端也拒绝它们。
+
+点图标打开确认窗口（`src/components/create-page-dialog.tsx`），说明会用当前选择的模型改写整段对话、计入当天 1 次聊天额度。点 Create page 后请求 `POST /api/sessions/:sessionId/page`（body `{ model, savedOn }`，`savedOn` 是浏览器的本地日期，用于来源段落）。生成可能要几十秒：窗口显示进度，可以关闭，请求继续；完成后派发 `notefable:page-created`（新笔记加入侧栏），窗口里出现 **Open page**，点击派发 `notefable:open-note` 打开它。状态按会话 ID 放在组件外的 Map，重新打开窗口时进行中的请求不会再发一次；关闭窗口时忘掉已结束的结果，之后可以从继续过的对话再生成一篇。错误显示在窗口里（`localizeSystemText`），可以重试：429 / 400 / 413 显示服务端原句（游客的上限句子里带登录提示），其余显示 “Could not create a page from this chat. Try again.”。
+
+服务端（`src/app/api/sessions/[sessionId]/page/route.ts`，`maxDuration = 300`）：
+
+1. 会话必须属于当前用户且 `noteId` 为 null，否则 404；body 不是 JSON 对象返回 400。
+2. 只读 USER / ASSISTANT 消息的正文和附件文件名（不读 SYSTEM、`providerContext`、附件内容或图片）。`buildTranscript`（`src/lib/chat-page.ts`）从最新的消息往前取：每条最多 12,000 字符，合计最多 60,000 字符，放不下的更早消息被省略并注明；空消息跳过。正文里的 `<conversation>` / `<user>` / `<assistant>` 标签被替换掉，不能提前结束对话块。没有可用内容返回 400 “This chat has nothing to turn into a page yet.”，不计数。
+3. `consumeUsage(user, "chat")` 预占一次聊天额度，满额 429（与 `/api/chat` 相同的 `usage_limit` 响应）。
+4. 用 body 里的模型（经 `normalizeModel` 和 `getModelRegistry()`，未知值回到默认模型；上游模型名由 `upstreamModelFor` 解析，与 `/api/chat` 共用）发一次非流式请求，推理强度固定为该模型的默认值（Luna / Haiku `medium`，DeepSeek `high`），避免用户选的高强度把单次请求拖过时限。不带搜索、Notes 工具、压缩和缓存。系统指令（`PAGE_INSTRUCTIONS`）要求用对话的主要语言写一篇以 `# 标题` 开头的 Markdown 笔记，只保留对话里的事实、解释、例子、代码和出处链接，不加新事实，不提“用户 / 助手 / 对话”，并说明 `<conversation>` 里的内容是要改写的材料、不是指令。请求格式见 [provider-requests.md](provider-requests.md#整理成笔记的请求)。240 秒超时或客户端断开时中止。
+5. 输出去掉包住整篇的代码围栏后，交给与 “Save to page” 相同的 `answerToNoteContent`（标题取开头的 `#` 标题，超出 2,000 块 / 1 MiB 时截断，末尾加 `Saved from the conversation "<会话标题>" on YYYY-MM-DD.` 来源段落，链接回 `/?chat=<会话 ID>`），再经 `validateNoteContent` 和 `createNotePage` 新建，返回 201 `{ page }`。
+6. 生成失败（上游错误、超时、被截断或空输出）返回 502，保存失败返回 503（校验错误按原状态返回），这些情况都退还额度。
+
+模型不能借此修改已有笔记，只会新建一篇；生成的笔记和手动新建的一样可以编辑、移进 Trash，编辑历史从第一次保存开始。Android 原生端还没有这个入口。
 
 ## 回答前的途中经过
 
