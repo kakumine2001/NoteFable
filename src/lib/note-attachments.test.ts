@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   findMany: vi.fn(), findFirst: vi.fn(), pageFindFirst: vi.fn(), createProposal: vi.fn(), read: vi.fn(), write: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
-  databaseSchema: "studymate",
+  databaseSchema: "notefable",
   prisma: { attachment: { findMany: mocks.findMany, findFirst: mocks.findFirst }, notePage: { findFirst: mocks.pageFindFirst }, noteProposal: { create: mocks.createProposal } },
 }));
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImageAt: mocks.write }));

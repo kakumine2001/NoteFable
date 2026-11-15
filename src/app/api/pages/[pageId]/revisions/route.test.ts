@@ -8,7 +8,7 @@ vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.pageFind, updateMany: mocks.pageUpdate };
   const noteRevision = { findMany: mocks.revFindMany, findFirst: mocks.revFind, create: mocks.revCreate, deleteMany: mocks.revDelete };
   const tx = { notePage, noteRevision, $executeRaw: mocks.raw, $executeRawUnsafe: vi.fn() };
-  return { databaseSchema: "studymate", prisma: { notePage, noteRevision, $transaction: async (fn: (tx: unknown) => unknown) => fn(tx) } };
+  return { databaseSchema: "notefable", prisma: { notePage, noteRevision, $transaction: async (fn: (tx: unknown) => unknown) => fn(tx) } };
 });
 import { GET as listRevisions } from "./route";
 import { GET as readRevision } from "./[revisionId]/route";

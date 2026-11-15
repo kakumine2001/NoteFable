@@ -154,7 +154,7 @@ src/lib/storage.ts
     ↓
 @vercel/blob.put(..., { access: "private" })
     ↓
-Vercel Blob（studymate-images）
+Vercel Blob（notefable-images）
 ```
 
 本地开发在未配置 `BLOB_READ_WRITE_TOKEN` 时使用 `NOTEFABLE_STORAGE_DIR`：
@@ -204,7 +204,7 @@ Neon PostgreSQL
 
 ### 当前完成度
 
-- Vercel Blob Store：已启用（`studymate-images`）
+- Vercel Blob Store：已启用（`notefable-images`）
 - NoteFable production 代码：通过 `put()` / `get()` 读写私有 Blob
 - `@vercel/blob`：已加入 `package.json`
 - Storage Layer 接线：已完成

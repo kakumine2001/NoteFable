@@ -54,7 +54,7 @@ vi.mock("@/lib/prisma", () => {
       }
     },
   };
-  return { prisma, databaseSchema: "studymate" };
+  return { prisma, databaseSchema: "notefable" };
 });
 import { applyProposal, attachProposals, discardProposal, proposalsByMessage, saveProposal } from "./note-proposals";
 

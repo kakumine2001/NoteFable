@@ -1,6 +1,6 @@
 # 原生 Android 界面（Kotlin / Compose）
 
-> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版用同一个应用 ID（`com.kakumine.studymate`）覆盖安装它。开发环境与 APK 交付规则见 [android.md](android.md)。
+> 目录：`mobile/android/`。这是唯一的 Android 客户端；原来的 Capacitor 外壳已删除，原生版的应用 ID 是 `com.kakumine.notefable`。开发环境与 APK 交付规则见 [android.md](android.md)。
 
 ## 为什么是"混合原生"，不是全部重写
 
@@ -77,12 +77,12 @@ mobile/android/
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 应用 ID（`applicationId`）`com.kakumine.studymate`（和已删除的 Capacitor 外壳相同，装上就覆盖旧版），名称 "NoteFable"。Google 登录用已登记的 Android 客户端 `NoteFable-Android`（按应用 ID + 签名登记）。应用 ID 改名后仍保留：改了等于换成另一个 App，旧版无法覆盖安装。Kotlin 包和 `namespace` 已改成 `com.kakumine.notefable`（只影响源码，不影响安装和数据）。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`；以前是 `https://studymate-lab-ai.vercel.app`，App 启动时把旧主机名下存的 Cookie（设备身份、登录会话）搬到新主机名（`PersistentCookieJar.moveHost`，旧主机名列在 `NoteFableApp.LEGACY_HOSTS`），所以更新后还是同一个用户（只在连 `notefable.com` 时搬，连本机开发服务器的 debug 包不动）。编辑器 WebView 的 localStorage 按网址分开，旧网址下没存上的笔记草稿不会跟过来；离开笔记前 App 会先 flush，正常不会留下。启动入口是 `activity-alias` `com.kakumine.studymate.MainActivity`（改包名前的组件名），桌面上已有的图标和快捷方式不失效。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com`、`www.notefable.com` 和旧网址当成同一个站。
+- 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android`（按应用 ID + 签名登记）。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com` 和 `www.notefable.com` 当成同一个站。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
 
-- 身份：和网页一样靠 `notefable_device` Cookie（改名前叫 `studymate_device`，服务端读到旧名字会换成新名字；`PersistentCookieJar` 存在应用私有目录）。这个 App 的 Cookie 和旧外壳的 WebView 互不相通；匿名数据不自动迁移，登录同一个 Google 账号后由服务端关联记录。清除应用数据等于换一个新匿名用户。
+- 身份：和网页一样靠 `notefable_device` Cookie（`PersistentCookieJar` 存在应用私有目录）。清除应用数据等于换一个新匿名用户。
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
 - 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。连不上服务器（断网、域名解析失败、连接被拒或超时、TLS 握手失败）时，回答下方的失败原因不用 OkHttp 的英文原句（还带着主机地址），换成网页字典里的 "Check your connection and try again."（`chatFailureDetail`，显示为"请求失败：请检查网络连接后重试。"；网页这里接的是浏览器自己的英文 "Failed to fetch"）；服务端返回的错误照旧显示原句。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿和登录提示见“输入栏与使用上限”；笔记工具的完成标签在过程面板里同样经词典翻译。
@@ -238,7 +238,7 @@ cd mobile/android
 ```
 
 - 交付用 release 包：`./gradlew assembleRelease`（R8 压缩后约 2 MB，产物 `app/build/outputs/apk/release/app-release.apk`）。它暂时用 debug 密钥签名，能直接侧载安装；Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。文件名和上传规则见 [android.md](android.md#安装包交付)。
-- 默认连线上 `https://notefable.com`（`mobile/android/gradle.properties`；旧版连的 `https://studymate-lab-ai.vercel.app` 的 Cookie 在启动时搬过来）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
+- 默认连线上 `https://notefable.com`（`mobile/android/gradle.properties`）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 
 ## 路线图

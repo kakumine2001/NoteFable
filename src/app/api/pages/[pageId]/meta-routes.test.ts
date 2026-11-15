@@ -9,7 +9,7 @@ vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }))
 vi.mock("@/lib/note-covers", () => ({ claimCover: mocks.claim }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, findMany: mocks.findMany, create: mocks.create };
-  return { databaseSchema: "studymate", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
 });
 vi.mock("@/lib/note-tree-server", async (original) => ({
   ...(await original<typeof import("@/lib/note-tree-server")>()),

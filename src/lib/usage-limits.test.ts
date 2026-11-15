@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ query: vi.fn(), execute: vi.fn(), deleteMany: vi.fn() }));
 vi.mock("@/lib/env", () => ({ getCookieSecret: () => "secret" }));
 vi.mock("@/lib/prisma", () => ({
-  databaseSchema: "studymate",
+  databaseSchema: "notefable",
   prisma: {
     $transaction: async (work: (tx: unknown) => unknown) => work({ $queryRaw: mocks.query }),
     $executeRaw: mocks.execute,

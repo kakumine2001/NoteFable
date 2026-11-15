@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ findMany: vi.fn(), findFirst: vi.fn(), updateM
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findMany: mocks.findMany, findFirst: mocks.findFirst, updateMany: mocks.updateMany, deleteMany: mocks.deleteMany };
-  return { databaseSchema: "studymate", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
 });
 // サブページの探索（再帰の SQL）とグループの書き込みは note-tree-server に任せる。
 vi.mock("@/lib/note-tree-server", async (original) => ({
