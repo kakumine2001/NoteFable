@@ -70,7 +70,6 @@ export const zhHant: Record<string, string> = {
   "Attachments aren't kept when you sign in. Add them again afterward.": "登入時不會保留附件，登入後請重新新增。",
   "Attachments exceed {size} in total. Remove a file or choose smaller files.": "附件總大小超過 {size}。請移除檔案或選擇更小的檔案。",
   "Auto-saved": "已自動儲存",
-  "Automatic": "自動",
   "Available models": "可用模型",
   "Back": "返回",
   "Background color": "背景色",

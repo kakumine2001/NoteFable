@@ -46,7 +46,6 @@ export const ja: Record<string, string> = {
   "Ask it.": "聞いてみる。",
   "Attachment upload failed. Please try again.": "添付ファイルをアップロードできませんでした。もう一度お試しください。",
   "Auto-saved": "自動保存",
-  "Automatic": "自動",
   "Until you choose a language, NoteFable uses your browser’s language.": "言語を選ぶまでは、ブラウザの言語で表示されます。",
   "Could not sign out. Please try again.": "ログアウトできませんでした。もう一度お試しください。",
   "Changing language…": "表示言語を変更中…",

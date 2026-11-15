@@ -7,7 +7,7 @@ import "@/components/chat-project-settings.css";
 import { useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { saveProfile, uploadPhoto, useAccount } from "@/lib/account-store";
-import { LOCALES, LOCALE_NAMES } from "@/lib/i18n/locale";
+import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { AccountUser } from "@/lib/user-profile";
@@ -29,8 +29,10 @@ function LanguageSettings({ user }: { user: AccountUser }) {
   const helpId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const saved = user.locale ?? null;
-  // Tab で入ったときにフォーカスする項目: 選んだ言語、なければいま表示している言語。
-  const focusable = saved ?? locale;
+  // 矢印キーで最後にフォーカスした項目。
+  const [focused, setFocused] = useState<Locale | null>(null);
+  // Tab で入ったときにフォーカスする項目: 最後にフォーカスした項目、選んだ言語、いま表示している言語の順。
+  const focusable = focused ?? saved ?? locale;
 
   function onKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "ArrowRight", "ArrowLeft", "Home", "End"].includes(event.key)) return;
@@ -46,11 +48,12 @@ function LanguageSettings({ user }: { user: AccountUser }) {
   return (
     <section className="project-settings-section">
       <h3 id={labelId} className="project-settings-label">{t("Language")}</h3>
-      {!saved && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
-      <div ref={listRef} role="radiogroup" aria-labelledby={labelId} aria-describedby={saved ? undefined : helpId} aria-busy={switching}
+      {/* アカウントの言語が分からない（読めなかった）ときは「未選択」と言わない。 */}
+      {user.locale === null && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
+      <div ref={listRef} role="radiogroup" aria-labelledby={labelId} aria-describedby={user.locale === null ? helpId : undefined} aria-busy={switching}
         className="settings-language-list" onKeyDown={onKeyDown}>
         {LOCALES.map((option) => (
-          <button key={option} type="button" role="radio" aria-checked={saved === option} tabIndex={option === focusable ? 0 : -1}
+          <button key={option} type="button" role="radio" aria-checked={saved === option} tabIndex={option === focusable ? 0 : -1} onFocus={() => setFocused(option)}
             className={`project-settings-option settings-language-option${saved === option ? " is-selected" : ""}`}
             onClick={() => { if (option !== saved) saveProfile({ locale: option }); }}>
             <span className="settings-language-radio" aria-hidden="true" />
@@ -127,9 +130,9 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
 
   // サイドバーは幅によって隠れる（デスクトップ用と抽屉用の 2 つがある）ので、その外（body）に出す。
   return createPortal(<dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings settings-dialog"
-    // Esc は useBackToClose が先に受けて close() を呼ぶので、ここでは既定の閉じ方を止めるだけ（2 回呼ぶと、編集を閉じた直後に設定まで閉じる）。
-    // それでもブラウザが閉じてしまった場合（続けて Esc を押したときなど）は、開いている状態を合わせる。
-    onCancel={(event) => event.preventDefault()}
+    // Esc は useBackToClose が受けて既定の動作を止めるので、ここに来るのはそれ以外の閉じる要求（Android Chrome の「戻る」など）。
+    // それでもブラウザが閉じてしまった場合（続けて「戻る」を押したときなど）は、開いている状態を合わせる。
+    onCancel={(event) => { event.preventDefault(); close(); }}
     onClose={() => onClose()}
     onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
     <form className="project-settings-shell" onSubmit={(event) => { event.preventDefault(); void save(); }}>
@@ -175,7 +178,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         </section>
       </div>
       <div className="project-settings-footer">
-        <button type="button" disabled={busy || photoBusy} className="notion-button" onClick={() => close()}>{t("Cancel")}</button>
+        {/* 「キャンセル」は編集中の写真・絵文字の欄ごと閉じる（Esc・戻るのように 1 段ずつにはしない）。 */}
+        <button type="button" disabled={busy || photoBusy} className="notion-button" onClick={() => { if (!locked.current) onClose(); }}>{t("Cancel")}</button>
         <button type="submit" disabled={busy || photoBusy || initial === null} className="notion-button notion-button-primary">{busy ? t("Saving…") : t("Save")}</button>
       </div>
     </form>

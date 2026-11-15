@@ -8,32 +8,39 @@ import { SignInButton } from "@/components/sign-in-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, saveProfile, settled, useAccount } from "@/lib/account-store";
+import type { Locale } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 import { localeSyncAction } from "@/lib/locale-sync";
 
 // ログアウトを始めたら、消した言語の選択をアカウントの言語で書き戻さないように同期を止める（ページはこの後読み直される）。
 let signingOut = false;
-// この端末で以前選んだ言語をアカウントへ保存するのは、ページを開いている間に 1 回だけ（失敗しても繰り返し送らない）。
-let migrationTried = false;
+// ページを開いてから、アカウントの言語が分かった最初の判断を済ませたか。この端末で以前選んだ言語をアカウントへ
+// 保存するのはその 1 回だけ（失敗しても繰り返し送らない）。migrated はそのとき保存しようとした言語。
+let firstRunDone = false;
+let migrated: Locale | null = null;
 
 // 表示言語をアカウントに合わせる（規則は localeSyncAction）。ワークスペースに 1 つだけ置く。
 // アカウントの状態が変わったときだけ動く。Cookie は他のタブとも共有なので、Cookie の変化では動かない
 // （古い状態のままのタブが、他のタブでの選択やログアウトを書き戻さないように）。
 export function AccountLocaleSync() {
   const { account } = useAccount();
-  const { preference, setPreference } = useI18n();
-  const preferenceRef = useRef(preference);
-  useEffect(() => { preferenceRef.current = preference; }, [preference]);
+  const { preference, locale, target, setPreference } = useI18n();
+  // 判断のときに読む今の値（これらの変化では同期を動かさない）。
+  const current = useRef({ preference, locale, target });
+  useEffect(() => { current.current = { preference, locale, target }; }, [preference, locale, target]);
   const loaded = account !== null;
   const configured = account?.configured ?? false;
   const signedIn = Boolean(account?.user);
   const saved = account?.user ? account.user.locale : null;
   useEffect(() => {
     if (signingOut) return;
-    const action = localeSyncAction({ loaded, configured, signedIn, saved, preference: preferenceRef.current });
+    const { preference, locale: active, target } = current.current;
+    const known = loaded && configured && signedIn && saved !== undefined;
+    const action = localeSyncAction({ loaded, configured, signedIn, saved, preference, active, target, firstRun: known && !firstRunDone, migrated });
+    if (known) firstRunDone = true;
     if (action?.kind === "switch") setPreference(action.to);
-    else if (action?.kind === "save" && !migrationTried) {
-      migrationTried = true;
+    else if (action?.kind === "save") {
+      migrated = action.locale;
       void saveProfile({ locale: action.locale });
     }
   }, [loaded, configured, signedIn, saved, setPreference]);

@@ -12,11 +12,13 @@ type I18nValue = {
   t: Translate;
   setPreference: (next: LocalePreference) => void;
   switching: boolean;
+  // 切り替え中の行き先（切り替えていなければ null）。表示がアカウントの言語に向かっているかを同期が確かめる。
+  target: LocalePreference | null;
   changeError: string;
 };
 
 const fallback: I18nValue = {
-  locale: "en", tag: "en", preference: "auto", t: createTranslator({}), setPreference: () => {}, switching: false, changeError: "",
+  locale: "en", tag: "en", preference: "auto", t: createTranslator({}), setPreference: () => {}, switching: false, target: null, changeError: "",
 };
 
 const I18nContext = createContext<I18nValue>(fallback);
@@ -58,7 +60,7 @@ export function I18nProvider({ locale, messages, children }: {
   messages: Messages;
   children: ReactNode;
 }) {
-  const [switching, setSwitching] = useState(false);
+  const [target, setTarget] = useState<LocalePreference | null>(null);
   const [changeError, setChangeError] = useState("");
   const preference = useSyncExternalStore(subscribePreference, readPreference, serverPreference);
   // 同じ言語の間は同じ t を使い、t に依存する処理を不要に読み込み直さない。
@@ -81,13 +83,13 @@ export function I18nProvider({ locale, messages, children }: {
     setChangeError("");
     // いま表示している言語に固定するだけなら、辞書を取り直さずに Cookie だけを書く。
     if (next !== "auto" && next === activeLocaleRef.current) {
-      setSwitching(false);
+      setTarget(null);
       writeLocaleCookie(next);
       return;
     }
     const controller = new AbortController();
     activeSwitch = controller;
-    setSwitching(true);
+    setTarget(next);
     void (async () => {
       try {
         const response = await fetch(`/api/i18n?preference=${encodeURIComponent(next)}`, { cache: "no-store", signal: controller.signal });
@@ -101,14 +103,17 @@ export function I18nProvider({ locale, messages, children }: {
       } catch {
         if (!controller.signal.aborted) setChangeError(msg("Could not change language. Please try again."));
       } finally {
-        if (activeSwitch === controller) activeSwitch = null;
-        // 中止されたものは、次の切り替えが状態を引き継ぐ。ログアウトで中止されたときもページは読み直されるので、そのままでよい。
-        if (!controller.signal.aborted) setSwitching(false);
+        // 次の切り替えに中止されたときは、その切り替えが状態を引き継ぐ。それ以外（完了・失敗・ログアウトでの中止）はここで終える。
+        if (activeSwitch === controller) {
+          activeSwitch = null;
+          setTarget(null);
+        }
       }
     })();
   }, []);
-  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], preference, t, setPreference, switching, changeError }),
-    [activeLocale, preference, t, setPreference, switching, changeError]);
+  const switching = target !== null;
+  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], preference, t, setPreference, switching, target, changeError }),
+    [activeLocale, preference, t, setPreference, switching, target, changeError]);
   return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} className="contents">{children}</div></I18nContext.Provider>;
 }
 
