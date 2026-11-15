@@ -205,6 +205,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         modifier = Modifier.weight(1f),
                         onSearch = openSearch,
                         reorder = noteReorder,
+                        onToggleExpanded = notesViewModel::toggleExpanded,
+                        onCreateInside = { page -> closeDrawer(); notesViewModel.createNote(page.id) },
+                        onUnfavorite = { page -> scope.launch { notesViewModel.setFavorite(page.id, false) } },
                     )
                 } else {
                     ChatDrawerBody(
@@ -290,9 +293,23 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     registerFlush = { bridge ->
                         editorBridge = bridge
                         notesViewModel.flushEditor = bridge?.let { b -> { b.flush() } }
+                        notesViewModel.pushPageSettings = bridge?.let { b ->
+                            { page -> b.pageSettings(com.kakumine.notefable.data.NoteFableJson.encodeToString(com.kakumine.notefable.data.NotePageSummary.serializer(), page)) }
+                        }
                     },
                     onSearch = openSearch,
                     onChatLink = { link -> openChatLink(link, viewModel, notesViewModel) },
+                    page = notes.pages.firstOrNull { it.id == open.id },
+                    menu = NotePageMenuActions(
+                        error = notes.groupError,
+                        busy = notes.busy,
+                        onSettings = { settings -> scope.launch { notesViewModel.updateSettings(open.id, settings) } },
+                        onFavorite = { favorite -> scope.launch { notesViewModel.setFavorite(open.id, favorite) } },
+                        onDuplicate = { notesViewModel.duplicate(open.id) },
+                        onAddInside = { notesViewModel.createNote(open.id) },
+                        onMove = { dialog = NotesDialogState.Move(open.id) },
+                        onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
+                    ),
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -311,6 +328,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onNewGroup = { dialog = NotesDialogState.NewGroup },
                     onRetry = notesViewModel::refresh,
                     reorder = noteReorder,
+                    onToggleExpanded = notesViewModel::toggleExpanded,
                 )
             }
         }
@@ -362,7 +380,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
         null -> Unit
         is NotesDialogState.Move -> {
             val page = notes.pages.firstOrNull { it.id == dialog.pageId }
-            if (page == null) close() else MoveNoteDialog(page, notes.groups, notes.groupError, vm::moveNote, vm::createGroup, close)
+            if (page == null) close() else MoveNoteDialog(page, notes.groups, notes.groupError, vm::moveNote, vm::createGroup, close, notes, vm::moveToPage)
         }
         NotesDialogState.NewGroup -> GroupNameDialog(
             stringResource(R.string.new_project), "", stringResource(R.string.create), notes.groupError,
@@ -382,7 +400,8 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
         )
         is NotesDialogState.TrashNote -> ConfirmDialog(
             stringResource(R.string.trash_note_title),
-            stringResource(R.string.trash_note_body, dialog.page.title, TRASH_RETENTION_DAYS),
+            stringResource(R.string.trash_note_body, dialog.page.title, TRASH_RETENTION_DAYS) +
+                (if (notes.children(dialog.page.id).isNotEmpty()) " " + stringResource(R.string.pg_subpages_to_trash) else ""),
             stringResource(R.string.move_to_trash),
             notes.error,
             onConfirm = { vm.trashNote(dialog.page.id) },
