@@ -6,6 +6,7 @@ import {
   type ModelProvider,
   type ModelRegistry,
 } from "@/lib/models";
+import { optionalEnv } from "@/lib/env";
 
 // 「今どのモデルが使えるか」を決めるのはサーバーだけ。ここで環境変数 NOTEFABLE_MODELS を読み、画面（Web・Android）へは
 // その結果を渡す。環境変数が無ければ src/lib/models.ts の組み込み一覧をそのまま使う。
@@ -131,3 +132,14 @@ export function publicModels(registry: ModelRegistry = getModelRegistry()) {
 }
 
 export type PublicModels = ReturnType<typeof publicModels>;
+
+// UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。NOTEFABLE_MODELS の upstreamModel が最優先、
+// 次に組み込みモデルの従来の環境変数、なければ ID のまま。
+export function upstreamModelFor(model: string, options: readonly ModelOption[]) {
+  const configured = options.find((option) => option.id === model)?.upstreamModel;
+  if (configured) return configured;
+  if (model === "gpt-6-luna") return optionalEnv("OPENAI_TEXT_MODEL") || model;
+  if (model === "deepseek-flash") return optionalEnv("DEEPSEEK_FLASH_MODEL") || model;
+  if (model === "claude-haiku-5-5") return optionalEnv("ANTHROPIC_HAIKU_MODEL") || model;
+  return model;
+}

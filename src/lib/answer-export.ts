@@ -9,6 +9,10 @@ export type AnswerSource = {
   conversationTitle: string;
   conversationUrl: string;
   savedAt: Date;
+  // 出典の段落で、切り詰めたものを何と呼ぶか（既定は回答。Create page は会話から書いたページ）。
+  subject?: "answer" | "page";
+  // モデルが出力の上限で書き終える前に止まった。ノートの上限で切り詰めたときと同じ断り書きを付ける。
+  cutOff?: boolean;
 };
 
 const TITLE_CHARS = 80;
@@ -341,7 +345,7 @@ function takeBlocks(blocks: NoteBlockNode[], count: number): NoteBlockNode[] {
 const muted = { textColor: "gray" };
 
 // 区切り線と、どの会話から保存したかを書いた段落。切り詰めたときは、その旨も書く。
-function sourceBlocks({ conversationTitle, conversationUrl, savedAt }: AnswerSource, truncated: boolean): NoteBlockNode[] {
+function sourceBlocks({ conversationTitle, conversationUrl, savedAt, subject = "answer", cutOff = false }: AnswerSource, truncated: boolean): NoteBlockNode[] {
   const label = conversationLabel(conversationTitle);
   const content: unknown[] = [{ type: "text", text: 'Saved from the conversation "', styles: muted }];
   content.push(isHttpUrl(conversationUrl)
@@ -349,7 +353,7 @@ function sourceBlocks({ conversationTitle, conversationUrl, savedAt }: AnswerSou
     : { type: "text", text: label, styles: muted });
   content.push({
     type: "text",
-    text: `" on ${formatDate(savedAt)}.${truncated ? " The answer was too long to save in full, so the end was left out." : ""}`,
+    text: `" on ${formatDate(savedAt)}.${truncated || cutOff ? ` The ${subject} was too long to save in full, so the end was left out.` : ""}`,
     styles: muted,
   });
   return [

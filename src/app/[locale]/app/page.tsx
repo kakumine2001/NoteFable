@@ -4,6 +4,7 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
+  FilePlus,
   FileText,
   History,
   ImagePlus,
@@ -22,6 +23,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { AttachSheet } from "@/components/attach-sheet";
@@ -170,6 +172,8 @@ export default function Home() {
   // 検索の小窓（Ctrl/Cmd+K）。履歴の小窓は、開いた時点のノート ID を持ち、別のノートに移ったら出さない。
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+  // 「Create page」の窓を開いている会話。
+  const [createPageSessionId, setCreatePageSessionId] = useState<string | null>(null);
   // 上部バーの「…」メニューから開く「移動」と「ゴミ箱へ」の確認。
   const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
   const [trashingNoteId, setTrashingNoteId] = useState<string | null>(null);
@@ -477,6 +481,8 @@ export default function Home() {
   const activeSessionKey = getMessagesKey(activeSessionId);
   const activeStreamStartedAt = streamingSessions[activeSessionKey] ?? null;
   const isActiveSessionStreaming = activeStreamStartedAt !== null;
+  // 送信の途中（アップロード中を含む）か返答中。Create page は最後の回答が保存されるまで待つ。
+  const isActiveSessionBusy = isActiveSessionStreaming || uploadProgress !== null;
   const selectedModel = getModelOption(model);
   // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
   const uploadOptions = {
@@ -1695,6 +1701,13 @@ export default function Home() {
                 <Plus size={20} />
               </button>
             )}
+            {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
+            {workspaceView === "chat" && !emptyState && activeSession && (
+              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionBusy} onClick={() => setCreatePageSessionId(activeSession.id)}
+                aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
+                <FilePlus size={20} />
+              </button>
+            )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
@@ -2004,6 +2017,10 @@ export default function Home() {
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} view={workspaceView}
         onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink}
         projects={chatProjects} currentProjectId={activeSession?.projectId ?? null} />
+      {createPageSessionId && (
+        <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model}
+          busy={createPageSessionId === activeSession?.id && isActiveSessionBusy} onClose={() => setCreatePageSessionId(null)} />
+      )}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
       {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.error} onClose={() => setTrashingNoteId(null)}

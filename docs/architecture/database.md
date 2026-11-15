@@ -266,7 +266,7 @@ User 1 -> N Session
 
 ### UsageCounter
 
-每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
+每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
 
 | 档位 | 条件 | 聊天 / 天 | 图片 / 天 |
 | --- | --- | --- | --- |
@@ -274,7 +274,7 @@ User 1 -> N Session
 | member | 已登录（Google 或邮箱） | 100 | 20 |
 | pro | `plan = PRO` | 1000 | 200 |
 
-未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat` 和 `/api/images` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。
+未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。
 
 ### EmailLoginCode
 
