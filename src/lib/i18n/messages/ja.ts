@@ -614,8 +614,8 @@ export const ja: Record<string, string> = {
   "Report sent. Thank you.": "報告を送信しました。ありがとうございます。",
   "Could not send the report.": "報告を送信できませんでした。",
   "Icon": "アイコン",
-  "Shown in the sidebar, on AI replies and on the AI button in notes. Saved on this device only.": "サイドバー、AIの返答、ノートのAIボタンに表示。この端末にだけ保存されるよ。",
+  "Shown in the sidebar, on AI replies and on the AI button in notes. Saved on this device only.": "サイドバー、AIの返答、ノートのAIボタンに表示されます。この端末にだけ保存されます。",
   "Upload an image": "画像をアップロード",
   "Use NoteFable logo": "NoteFableのロゴを使う",
-  "Could not save the icon on this device.": "この端末にアイコンを保存できなかった。",
+  "Could not save the icon on this device.": "この端末にアイコンを保存できませんでした。",
 };

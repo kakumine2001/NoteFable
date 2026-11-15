@@ -16,3 +16,13 @@ export function AppIcon({ size = 20, icon }: { size?: number; icon?: string | nu
   }
   return <span className="app-icon-emoji" style={{ width: size, height: size, fontSize: size * 0.9 }} aria-hidden="true">{value}</span>;
 }
+
+// ワークスペースのサイドバーに出すロゴ。設定でアイコンを替えていれば、その絵文字・画像になる。
+export function NoteFableLogo({ compact = false }: { compact?: boolean }) {
+  return (
+    <div className="nf-logo" role="img" aria-label="NoteFable">
+      <AppIcon size={20} />
+      {!compact && <span aria-hidden="true">NoteFable</span>}
+    </div>
+  );
+}

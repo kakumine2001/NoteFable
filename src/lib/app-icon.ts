@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 
 // ワークスペースに出すアイコン（サイドバーのロゴ、AI の返答の印、ノートの AI ボタン）を、利用者が好きな絵文字や画像に替えられる。
 // 選んだアイコンはこのブラウザにだけ覚える（アカウントには保存しない）。null は既定の NoteFable ロゴ。
@@ -12,7 +13,9 @@ export const isImageIcon = (icon: string) => icon.startsWith("data:image/");
 
 function read(): string | null {
   try {
-    return window.localStorage.getItem(KEY) || null;
+    // 絵文字 1 つか画像だけを使う（壊れた値や古い値はロゴに戻す）。
+    const value = window.localStorage.getItem(KEY);
+    return value && (isImageIcon(value) || isEmojiIcon(value)) ? value : null;
   } catch {
     return null;
   }

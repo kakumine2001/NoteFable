@@ -8,7 +8,7 @@ import type { ReorderRequest } from "@/lib/list-order";
 import { SidebarFooter } from "@/components/sidebar-footer";
 import { ConfirmDialog, GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NoteTrashDialog } from "@/components/note-trash-dialog";
-import { NoteFableLogo } from "@/components/notefable-logo";
+import { NoteFableLogo } from "@/components/app-icon";
 import { WorkspaceNav, type WorkspaceView } from "@/components/workspace-nav";
 import { ancestorsOf, childrenByParent, rootPages } from "@/lib/note-tree";
 import { useExpandedPages } from "@/lib/use-expanded-pages";

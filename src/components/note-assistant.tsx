@@ -29,6 +29,9 @@ const QUICK_ACTIONS = [
   { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
 
+// 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。
+const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight });
+
 // /api/chat に送り、届いた本文の差分と途中経過を順に渡す。セッション ID はレスポンスヘッダーから受け取る。
 async function streamChat(
   body: FormData,
@@ -106,9 +109,10 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
 
   // 丸いボタンの位置。null は動かしていない（CSS の既定位置＝右下）。
   const [fabPosition, setFabPosition] = useState<FabPosition | null>(() => (typeof window === "undefined" ? null : loadFabPosition()));
-  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0 } : { width: window.innerWidth, height: window.innerHeight }));
+  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0 } : viewportSize()));
   const [dragging, setDragging] = useState(false);
-  const drag = useRef<{ pointerId: number; startX: number; startY: number; right: number; bottom: number; moved: boolean } | null>(null);
+  // last は、このドラッグで最後に置いた位置（まだ動かしていなければ null）。
+  const drag = useRef<{ pointerId: number; startX: number; startY: number; right: number; bottom: number; last: FabPosition | null } | null>(null);
   // ドラッグを終えた直後のクリックでは開閉しない。
   const skipClick = useRef(false);
   const fabSize = phone ? 52 : 48;
@@ -116,7 +120,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
 
   useEffect(() => {
-    const onResize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
+    const onResize = () => setViewport(viewportSize());
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
@@ -125,37 +129,35 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
     skipClick.current = false;
     if (event.button !== 0) return;
     const rect = event.currentTarget.getBoundingClientRect();
-    drag.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, right: window.innerWidth - rect.right, bottom: window.innerHeight - rect.bottom, moved: false };
+    const { width, height } = viewportSize();
+    drag.current = { pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, right: width - rect.right, bottom: height - rect.bottom, last: null };
     event.currentTarget.setPointerCapture(event.pointerId);
   }
 
   // 押した位置からの動きを、そのままボタンの位置にする。小さな動きは「押した」とみなして動かさない。
-  function draggedPosition(event: PointerEvent<HTMLButtonElement>) {
+  function onFabPointerMove(event: PointerEvent<HTMLButtonElement>) {
     const state = drag.current;
-    if (!state || state.pointerId !== event.pointerId) return null;
+    if (!state || state.pointerId !== event.pointerId) return;
     const dx = event.clientX - state.startX;
     const dy = event.clientY - state.startY;
-    if (!state.moved && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD) return null;
-    state.moved = true;
-    return clampFabPosition({ right: state.right - dx, bottom: state.bottom - dy }, event.currentTarget.offsetWidth, window.innerWidth, window.innerHeight);
-  }
-
-  function onFabPointerMove(event: PointerEvent<HTMLButtonElement>) {
-    const next = draggedPosition(event);
-    if (!next) return;
+    if (!state.last && Math.hypot(dx, dy) < FAB_DRAG_THRESHOLD) return;
+    const { width, height } = viewportSize();
+    state.last = clampFabPosition({ right: state.right - dx, bottom: state.bottom - dy }, event.currentTarget.offsetWidth, width, height);
     setDragging(true);
-    setFabPosition(next);
+    setFabPosition(state.last);
   }
 
+  // 指を離したとき、またはブラウザーが操作を取り消したとき。取り消しのイベントは座標を持たないことがあるので、最後に置いた位置を覚える。
   function onFabPointerEnd(event: PointerEvent<HTMLButtonElement>) {
     const state = drag.current;
     if (!state || state.pointerId !== event.pointerId) return;
-    const next = draggedPosition(event);
     drag.current = null;
     setDragging(false);
-    if (!state.moved) return;
+    if (!state.last) return;
+    saveFabPosition(state.last);
+    // 直後に届くクリックだけを無視する（タッチではクリックが届かないので、次の操作まで残さない）。
     skipClick.current = true;
-    if (next) { setFabPosition(next); saveFabPosition(next); }
+    window.setTimeout(() => { skipClick.current = false; });
   }
 
   // PC では、動かしたボタンのそばにパネルを開く。動かしていなければ CSS の既定位置（右下）のまま。
