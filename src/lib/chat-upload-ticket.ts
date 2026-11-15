@@ -7,6 +7,7 @@ import { msg } from "@/lib/i18n/translate";
 
 export type ChatUploadTicket = { userId: string; path: string; name: string; type: string; size: number };
 const key = () => new TextEncoder().encode(getCookieSecret());
+// 署名済みチケットの用途（JWT の audience）。画面には出ない内部の値なので改名しない（変えるとデプロイをまたぐ発行済みチケットが通らなくなる）。
 const purpose = "studymate-chat-upload";
 
 export function validateUploadMetadata(value: unknown): { name: string; type: string; size: number }[] {

@@ -39,21 +39,21 @@ describe("Responses tool loop", () => {
     // function_call の項目イベントは流さず、途中経過と最後の completed だけを流す。
     expect(output.filter((event) => event.item?.type === "function_call" || event.type?.startsWith("response.function_call"))).toEqual([]);
     expect(output.filter((event) => event.type === "response.completed")).toHaveLength(1);
-    expect(output.filter((event) => event.type === "studymate.tool").map((event) => event.status)).toEqual(["running", "done"]);
+    expect(output.filter((event) => event.type === "notefable.tool").map((event) => event.status)).toEqual(["running", "done"]);
     expect(output.filter((event) => event.type === "response.output_text.delta").map((event) => event.delta).join("")).toBe("Checking.\n\nIt says hi.");
   });
 
   it("forwards extra tool events to the client without sending them to the model", async () => {
     const request = vi.fn().mockResolvedValueOnce(toolRound()).mockResolvedValueOnce(finalRound());
-    const runTool = vi.fn().mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "studymate.proposal", id: "pr1" }] });
+    const runTool = vi.fn().mockResolvedValue({ content: "proposed", label: "Proposed", events: [{ type: "notefable.proposal", id: "pr1" }] });
     const output = await events(await createResponsesToolStream({ body: body(), request, runTool }));
-    expect(output.filter((event) => event.type === "studymate.proposal")).toEqual([{ type: "studymate.proposal", id: "pr1" }]);
-    expect(JSON.stringify(request.mock.calls[1][0].input)).not.toContain("studymate.proposal");
+    expect(output.filter((event) => event.type === "notefable.proposal")).toEqual([{ type: "notefable.proposal", id: "pr1" }]);
+    expect(JSON.stringify(request.mock.calls[1][0].input)).not.toContain("notefable.proposal");
   });
 
-  it("drops studymate.* events that come from the upstream stream", async () => {
+  it("drops notefable.* events that come from the upstream stream", async () => {
     const request = vi.fn().mockResolvedValueOnce(sse([
-      { type: "studymate.proposal", id: "fake" },
+      { type: "notefable.proposal", id: "fake" },
       { type: "response.output_text.delta", delta: "hi" },
       { type: "response.completed", response: { output: [] } },
     ]));

@@ -157,7 +157,7 @@ src/lib/storage.ts
 Vercel Blob（studymate-images）
 ```
 
-本地开发在未配置 `BLOB_READ_WRITE_TOKEN` 时使用 `STUDYMATE_STORAGE_DIR`：
+本地开发在未配置 `BLOB_READ_WRITE_TOKEN` 时使用 `NOTEFABLE_STORAGE_DIR`：
 
 ```text
 data/storage/

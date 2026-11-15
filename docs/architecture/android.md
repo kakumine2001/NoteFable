@@ -2,7 +2,7 @@
 
 > 目录：`mobile/android/`（Kotlin / Compose）。客户端结构、与网页界面对齐的规则和路线图见 [android-native.md](android-native.md)。本文是开发环境、安装包交付、App 内 Google 登录，以及手机浏览器里的网页排版约定。
 
-原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/` 和 `ios/`（原生 iOS，尚未开始，见 [mobile/ios/README.md](../../mobile/ios/README.md)）；不再使用 Capacitor 等跨平台方案。原生客户端用同一个包名 `com.kakumine.studymate` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端（开发阶段不做迁移）。
+原来的 Capacitor 外壳（全屏 WebView 打开线上网站）已经删除，`mobile/android/` 现在是原生客户端（曾在 `mobile/native/`）。`mobile/` 下只放原生客户端：`android/` 和 `ios/`（原生 iOS，尚未开始，见 [mobile/ios/README.md](../../mobile/ios/README.md)）；不再使用 Capacitor 等跨平台方案。原生客户端用同一个包名 `com.kakumine.notefable` 和同一个 debug 签名，直接覆盖安装旧外壳。外壳里的匿名数据存在 WebView 的 Cookie 里，不会转到原生客户端（开发阶段不做迁移）。
 
 ## 开发环境
 
@@ -40,7 +40,7 @@ App 里点"登录"打开和网页相同的登录窗口（`ui/SignInDialog.kt`，
 
 Google 不允许在内嵌 WebView 里走网页登录，App 用安卓系统的账号选择框（Credential Manager）拿 ID 令牌，再交给服务端换成和网页相同的会话 Cookie。
 
-1. App 先 `POST /api/native-auth/nonce` 拿一个使用一次的 nonce（服务端同时把签名后的副本写进 `studymate_native_nonce` Cookie，路径限定 `/api/native-auth`，5 分钟有效）。
+1. App 先 `POST /api/native-auth/nonce` 拿一个使用一次的 nonce（服务端同时把签名后的副本写进 `notefable_native_nonce` Cookie，路径限定 `/api/native-auth`，5 分钟有效）。
 2. 把 nonce 交给 Credential Manager 弹出账号选择框，得到 Google ID 令牌（令牌里带 `nonce`）。Web 客户端 ID 从 `GET /api/account` 的 `googleClientId` 取。
 3. `POST /api/native-auth/google`（`src/lib/native-google-login.ts`）：同源且 JSON；用 `jose` 对 Google 公开密钥做本地签名校验，检查发行者、受众（= 网站已有的 Web 客户端 ID `AUTH_GOOGLE_ID`）、有效期、邮箱已验证、`nonce` 与 Cookie 一致；然后签发和 Auth.js 相同格式的会话 Cookie（`authjs.session-token`，`salt` 是 Cookie 名，`googleSub` 对应现有账号绑定逻辑）。无效令牌返回 401；取不到 Google 密钥这类服务端问题返回 503。
 4. 之后的账号绑定、匿名数据迁移与网页登录完全相同（`src/lib/auth.ts`）。

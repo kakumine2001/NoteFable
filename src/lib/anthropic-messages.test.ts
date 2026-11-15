@@ -109,7 +109,7 @@ describe("Claude Messages boundary", () => {
     const runTool = vi.fn().mockResolvedValue({ content: "# Notes\n\nhi", label: "Read “Notes”" });
     const output = await new Response(await createAnthropicStream(request(), undefined, runTool)).text();
     expect(runTool).toHaveBeenCalledWith("read_note", { noteId: "p1" });
-    expect(output).toContain('"type":"studymate.tool","id":"call1","name":"read_note","status":"running"');
+    expect(output).toContain('"type":"notefable.tool","id":"call1","name":"read_note","status":"running"');
     expect(output).toContain('"status":"done","label":"Read “Notes”"');
     expect(output).toContain('"delta":"\\n\\n"');
     const second = JSON.parse(fetchMock.mock.calls[1][1].body);

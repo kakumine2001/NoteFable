@@ -251,7 +251,7 @@ async function saveGeneratedTitle({
 }
 
 function getUpstreamModel(model: string, options: readonly ModelOption[]) {
-  // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。STUDYMATE_MODELS の upstreamModel が最優先、
+  // UI 上のモデル ID と、実際に上流 API へ投げるモデル名を分離する。NOTEFABLE_MODELS の upstreamModel が最優先、
   // 次に組み込みモデルの従来の環境変数、なければ ID のまま。
   const configured = options.find((option) => option.id === model)?.upstreamModel;
   if (configured) return configured;

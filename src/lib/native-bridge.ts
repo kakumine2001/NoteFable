@@ -3,7 +3,7 @@ import type { NotePage, NoteSaveStatus } from "@/types/notes";
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
 // 取り決めは docs/architecture/notes-flow.md の「Android アプリへの埋め込み」。ここを変えたらアプリ側も合わせる。
 
-// web → アプリ。アプリは @JavascriptInterface の window.StudyMateNative.postMessage(JSON 文字列) で受け取る。
+// web → アプリ。アプリは @JavascriptInterface の window.NoteFableNative.postMessage(JSON 文字列) で受け取る。
 export type EmbedSaveState = "saved" | "saving" | "unsaved" | "error" | "conflict";
 export type NativeMessage =
   | { type: "ready"; page: { id: string; title: string; icon: string | null } }
@@ -15,7 +15,7 @@ export type NativeMessage =
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 
 export type NativeHost = { postMessage: (json: string) => void };
-// アプリ → web。アプリは evaluateJavascript で window.studymateEmbed.flush("<requestId>") などを呼ぶ。
+// アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
   flush: (requestId?: unknown) => Promise<boolean>;
@@ -23,10 +23,11 @@ export type EmbedApi = {
   pageUpdated: (page: unknown) => boolean;
 };
 
-type BridgeWindow = { StudyMateNative?: unknown; studymateEmbed?: EmbedApi };
+// 改名前の APK は StudyMateNative / studymateEmbed を使う。入れ替わるまで両方の名前で受け付ける。
+type BridgeWindow = { NoteFableNative?: unknown; StudyMateNative?: unknown; notefableEmbed?: EmbedApi; studymateEmbed?: EmbedApi };
 
 function host(target: BridgeWindow | undefined): NativeHost | null {
-  const candidate = target?.StudyMateNative as Partial<NativeHost> | undefined;
+  const candidate = (target?.NoteFableNative ?? target?.StudyMateNative) as Partial<NativeHost> | undefined;
   // @JavascriptInterface のメソッドは typeof で "function" になる。
   return candidate && typeof candidate.postMessage === "function" ? (candidate as NativeHost) : null;
 }
@@ -75,13 +76,13 @@ export function parseUpdatedPage(value: unknown): NotePage | null {
   return candidate as NotePage;
 }
 
-// web の編集案カードと同じ studymate:page-updated を出す。useNotePages が受け取り、未保存の編集がなければ最新版に替え、
+// web の編集案カードと同じ notefable:page-updated を出す。useNotePages が受け取り、未保存の編集がなければ最新版に替え、
 // あれば衝突として知らせる（docs/architecture/notes-flow.md）。
 export function dispatchPageUpdated(page: NotePage) {
-  window.dispatchEvent(new CustomEvent<NotePage>("studymate:page-updated", { detail: page }));
+  window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
 }
 
-// window.studymateEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
+// window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
 export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, post }: {
   flush: () => Promise<boolean>;
@@ -110,9 +111,13 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   };
 }
 
-// window.studymateEmbed を置く。戻り値で外す（別の API に置き換わっていたら触らない）。
+// window.notefableEmbed を置く。戻り値で外す（別の API に置き換わっていたら触らない）。
 export function installEmbedApi(api: EmbedApi, target: BridgeWindow | undefined = browserWindow()) {
   if (!target) return () => {};
+  target.notefableEmbed = api;
   target.studymateEmbed = api;
-  return () => { if (target.studymateEmbed === api) delete target.studymateEmbed; };
+  return () => {
+    if (target.notefableEmbed === api) delete target.notefableEmbed;
+    if (target.studymateEmbed === api) delete target.studymateEmbed;
+  };
 }

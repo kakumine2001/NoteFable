@@ -146,7 +146,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
   }
 
   // サーバー側で実行した Notes ツールの開始と完了（anthropic-messages.ts が出す内部イベント）。
-  if (event.type === "studymate.tool") {
+  if (event.type === "notefable.tool") {
     if (typeof event.id !== "string" || typeof event.name !== "string") return null;
     const status = event.status === "done" ? "done" : "running";
     const label = text(event.label);
@@ -154,7 +154,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
   }
 
   // 編集案（propose_note_edit）。承認カードに必要な項目がそろっているものだけ通す。
-  if (event.type === "studymate.proposal") {
+  if (event.type === "notefable.proposal") {
     const proposal = event as unknown as PageEditProposal;
     const valid = typeof proposal.id === "string" && typeof proposal.pageId === "string" && typeof proposal.pageTitle === "string"
       && Number.isSafeInteger(proposal.baseVersion) && Array.isArray(proposal.changes)
@@ -163,7 +163,7 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
   }
 
   // 新規ページ案（propose_note_create）。
-  if (event.type === "studymate.create_proposal") {
+  if (event.type === "notefable.create_proposal") {
     const proposal = event as unknown as PageCreateProposal;
     const valid = typeof proposal.id === "string" && typeof proposal.title === "string" && typeof proposal.content === "string"
       && typeof proposal.proposed?.title === "string" && Array.isArray(proposal.proposed.blocks);

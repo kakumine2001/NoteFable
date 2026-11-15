@@ -59,11 +59,11 @@ describe("model registry", () => {
   });
 
   it("re-reads the variable when it changes and never exposes server-only fields", () => {
-    vi.stubEnv("STUDYMATE_MODELS", '[{"id":"gpt-6-luna","upstreamModel":"secret-upstream"}]');
+    vi.stubEnv("NOTEFABLE_MODELS", '[{"id":"gpt-6-luna","upstreamModel":"secret-upstream"}]');
     expect(getModelRegistry().options).toHaveLength(1);
     expect(JSON.stringify(publicModels())).not.toContain("secret-upstream");
     expect(JSON.stringify(publicModels())).not.toContain("tokenLimits");
-    vi.stubEnv("STUDYMATE_MODELS", "");
+    vi.stubEnv("NOTEFABLE_MODELS", "");
     expect(getModelRegistry().options).toHaveLength(3);
   });
 });

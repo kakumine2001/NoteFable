@@ -14,7 +14,7 @@ const ISSUERS = ["accounts.google.com", "https://accounts.google.com"];
 // Auth.js は 4096 バイトを超えるセッション Cookie を分割して保存する。この経路は分割せず、収まらなければ失敗させる。
 const MAX_COOKIE_VALUE_LENGTH = 3800;
 
-export const NONCE_COOKIE = "studymate_native_nonce";
+export const NONCE_COOKIE = "notefable_native_nonce";
 export const NONCE_MAX_AGE = 300;
 
 // emailAuthoritative: Gmail / Workspace の確認済みアドレス（メールログインの利用者とまとめてよい）。

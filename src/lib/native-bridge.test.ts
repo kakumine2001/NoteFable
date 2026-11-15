@@ -5,7 +5,7 @@ import { createEmbedApi, installEmbedApi, pageMeta, parseUpdatedPage, postToNati
 describe("postToNative", () => {
   it("sends the message as a JSON string to the app", () => {
     const postMessage = vi.fn();
-    const sent = postToNative({ type: "ready", page: { id: "p1", title: "Plan", icon: "📘" } }, { StudyMateNative: { postMessage } });
+    const sent = postToNative({ type: "ready", page: { id: "p1", title: "Plan", icon: "📘" } }, { NoteFableNative: { postMessage } });
     expect(sent).toBe(true);
     expect(postMessage).toHaveBeenCalledTimes(1);
     expect(JSON.parse(postMessage.mock.calls[0][0])).toEqual({ type: "ready", page: { id: "p1", title: "Plan", icon: "📘" } });
@@ -13,13 +13,13 @@ describe("postToNative", () => {
 
   it("does nothing outside the app", () => {
     expect(postToNative({ type: "missing" }, {})).toBe(false);
-    expect(postToNative({ type: "missing" }, { StudyMateNative: {} })).toBe(false);
+    expect(postToNative({ type: "missing" }, { NoteFableNative: {} })).toBe(false);
     expect(postToNative({ type: "missing" }, undefined)).toBe(false);
   });
 
   it("swallows errors thrown by the app interface", () => {
     const postMessage = vi.fn(() => { throw new Error("gone"); });
-    expect(postToNative({ type: "trashed" }, { StudyMateNative: { postMessage } })).toBe(false);
+    expect(postToNative({ type: "trashed" }, { NoteFableNative: { postMessage } })).toBe(false);
   });
 });
 
@@ -105,12 +105,12 @@ describe("embed api", () => {
     expect(parseUpdatedPage(page)).toEqual(page);
   });
 
-  it("dispatches studymate:page-updated by default", () => {
+  it("dispatches notefable:page-updated by default", () => {
     const listener = vi.fn();
     const target = new EventTarget();
     vi.stubGlobal("window", target);
     try {
-      target.addEventListener("studymate:page-updated", listener);
+      target.addEventListener("notefable:page-updated", listener);
       const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} });
       expect(api.pageUpdated(JSON.stringify(page))).toBe(true);
       expect(listener).toHaveBeenCalledTimes(1);
@@ -121,15 +121,15 @@ describe("embed api", () => {
   });
 
   it("installs on the window and removes only its own api", () => {
-    const target: { studymateEmbed?: ReturnType<typeof createEmbedApi> } = {};
+    const target: { notefableEmbed?: ReturnType<typeof createEmbedApi> } = {};
     const first = setup(async () => true).api;
     const removeFirst = installEmbedApi(first, target);
-    expect(target.studymateEmbed).toBe(first);
+    expect(target.notefableEmbed).toBe(first);
     const second = setup(async () => true).api;
     const removeSecond = installEmbedApi(second, target);
     removeFirst();
-    expect(target.studymateEmbed).toBe(second);
+    expect(target.notefableEmbed).toBe(second);
     removeSecond();
-    expect(target.studymateEmbed).toBeUndefined();
+    expect(target.notefableEmbed).toBeUndefined();
   });
 });

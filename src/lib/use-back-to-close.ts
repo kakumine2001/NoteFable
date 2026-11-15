@@ -6,14 +6,14 @@ type Sheet = { close: () => boolean | void; closedByBack: boolean };
 // 開いているシートを開いた順に持つ。重なっているときは一番上のシートだけを閉じる。
 const openSheets: Sheet[] = [];
 // シートが 1 枚でも開いている間、履歴の一番上に積んでおく目印（枚数に関わらず 1 件）。
-const MARKER = { studymateSheet: true };
+const MARKER = { notefableSheet: true };
 // 最後のシートが閉じたあとの history.back() の予約。すぐ別のシートが開くなら取り消して目印を使い回す。
 let pendingBack: ReturnType<typeof setTimeout> | null = null;
 // 自分で呼んだ history.back() が起こす popstate を、端末の「戻る」と区別して無視するための印。
 let ownBack = false;
 let listening = false;
 
-const hasMarker = () => !!window.history.state?.studymateSheet;
+const hasMarker = () => !!window.history.state?.notefableSheet;
 
 function onPopState(event: PopStateEvent) {
   // 履歴を置き換えたあとにアプリが自分で投げる合成イベントは「戻る」ではない。

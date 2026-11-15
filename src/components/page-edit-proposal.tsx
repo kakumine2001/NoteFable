@@ -42,7 +42,7 @@ async function apply(proposal: Proposal) {
     const pageId = proposal.kind === "proposal" ? proposal.pageId : (data.page?.id as string | undefined);
     setState(proposal.id, { status: "applied", error: "", pageId });
     // 開いているノート編集の状態（版と本文）や一覧を最新にそろえる。
-    window.dispatchEvent(new CustomEvent(proposal.kind === "proposal" ? "studymate:page-updated" : "studymate:page-created", { detail: data.page }));
+    window.dispatchEvent(new CustomEvent(proposal.kind === "proposal" ? "notefable:page-updated" : "notefable:page-created", { detail: data.page }));
   } catch (caught) {
     setState(proposal.id, { status: "idle", error: caught instanceof Error ? caught.message : msg("Could not apply the proposal.") });
   }

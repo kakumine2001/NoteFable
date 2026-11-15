@@ -10,7 +10,7 @@ import type { ProgressStep } from "@/lib/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
 import { useModels } from "@/components/models-provider";
-import { BrandMark } from "@/components/studymate-logo";
+import { BrandMark } from "@/components/notefable-logo";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeFailureText } from "@/lib/failure-text";
@@ -137,7 +137,7 @@ export const ChatMessage = memo(function ChatMessage({
                     />
                     <a
                       href={image.dataUrl}
-                      download={`studymate-${image.id}.png`}
+                      download={`notefable-${image.id}.png`}
                       className="generated-image-download"
                       aria-label={t("Download image")}
                       title={t("Download")}

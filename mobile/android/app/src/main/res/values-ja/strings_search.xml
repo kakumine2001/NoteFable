@@ -18,6 +18,6 @@
     <string name="search_no_results_body">語を減らしてお試しください。大文字・小文字、全角・半角、ひらがな・カタカナは同じものとして検索しますが、類義語や異なる綴りには対応していません。</string>
     <string name="search_results">検索結果</string>
     <string name="search_speaker_you">あなた：</string>
-    <string name="search_speaker_studymate">NoteFable：</string>
+    <string name="search_speaker_notefable">NoteFable：</string>
     <string name="search_in_file">%1$s内</string>
 </resources>

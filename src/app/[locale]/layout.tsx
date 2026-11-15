@@ -19,7 +19,7 @@ export default async function LocalizedLayout({ children, params }: Readonly<{ c
   if (!isLocale(locale)) notFound();
   return (
     <I18nProvider locale={locale} messages={messagesFor(locale)}>
-      {/* 使えるモデルはサーバーが決める。このページは静的なので、一覧はビルド時の STUDYMATE_MODELS で決まる。 */}
+      {/* 使えるモデルはサーバーが決める。このページは静的なので、一覧はビルド時の NOTEFABLE_MODELS で決まる。 */}
       <ModelsProvider models={publicModels()}>{children}</ModelsProvider>
     </I18nProvider>
   );

@@ -5,7 +5,7 @@ import { BUILTIN_REGISTRY, getModelOption as pickModelOption, type ModelOption, 
 import type { PublicModels } from "@/lib/model-registry";
 
 // 画面は「どのモデルが使えるか」を自分では持たず、サーバーが決めた一覧をここで受け取る
-// （サーバーのレイアウトが getModelRegistry() の結果を渡す。環境変数 STUDYMATE_MODELS で増減できる）。
+// （サーバーのレイアウトが getModelRegistry() の結果を渡す。環境変数 NOTEFABLE_MODELS で増減できる）。
 // Provider の外（テストなど）では組み込みの一覧にフォールバックする。
 const ModelsContext = createContext<ModelRegistry>(BUILTIN_REGISTRY);
 

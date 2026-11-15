@@ -208,14 +208,14 @@ describe("createSessionCookie", () => {
 
 describe("isSameOrigin", () => {
   it("allows requests without an Origin header and from the same host", () => {
-    expect(isSameOrigin(null, "studymate.example")).toBe(true);
-    expect(isSameOrigin("https://studymate.example", "studymate.example")).toBe(true);
+    expect(isSameOrigin(null, "notefable.example")).toBe(true);
+    expect(isSameOrigin("https://notefable.example", "notefable.example")).toBe(true);
   });
 
   it("rejects other hosts, the opaque 'null' origin and malformed values", () => {
-    expect(isSameOrigin("https://evil.example", "studymate.example")).toBe(false);
-    expect(isSameOrigin("null", "studymate.example")).toBe(false);
-    expect(isSameOrigin("%%%", "studymate.example")).toBe(false);
-    expect(isSameOrigin("https://studymate.example", null)).toBe(false);
+    expect(isSameOrigin("https://evil.example", "notefable.example")).toBe(false);
+    expect(isSameOrigin("null", "notefable.example")).toBe(false);
+    expect(isSameOrigin("%%%", "notefable.example")).toBe(false);
+    expect(isSameOrigin("https://notefable.example", null)).toBe(false);
   });
 });

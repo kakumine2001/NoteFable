@@ -28,7 +28,7 @@ async function trashRequest(url: string, method = "GET") {
 
 type Confirm = { kind: "one"; id: string } | { kind: "all" };
 
-// ゴミ箱の一覧。戻す・完全に削除・ゴミ箱を空にする。復元したノートは "studymate:page-created" で Notes の一覧へ加わる。
+// ゴミ箱の一覧。戻す・完全に削除・ゴミ箱を空にする。復元したノートは "notefable:page-created" で Notes の一覧へ加わる。
 export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
   const t = useT();
   const now = useNow();
@@ -64,7 +64,7 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
   const restore = (item: NoteTrashItem) => run(async () => {
     const data = await trashRequest(`/api/pages/trash/${item.id}`, "POST");
     // 一覧（サイドバー）へ加える。ここで外すのは、戻した 1 件だけ。
-    window.dispatchEvent(new CustomEvent<NotePageSummary>("studymate:page-created", { detail: data.page as NotePageSummary }));
+    window.dispatchEvent(new CustomEvent<NotePageSummary>("notefable:page-created", { detail: data.page as NotePageSummary }));
     setItems((current) => current?.filter((entry) => entry.id !== item.id) ?? current);
   });
 
