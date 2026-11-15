@@ -588,4 +588,10 @@ export const ja: Record<string, string> = {
   "Back": "戻る",
   "Check your email": "メールを確認してください",
   "Didn't get it?": "届きませんか？",
+  "Attach pages": "ページを添付",
+  "Let the AI read your notes": "ノートの内容を AI に読ませる",
+  "Attached pages": "添付したページ",
+  "The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.": "添付したページは、このチャットで AI が参考にします。送信のたびに読み直すので、常に最新の内容が使われます。",
+  "Attach": "添付",
+  "Pages can’t be attached when creating an image. Remove them or turn off image creation.": "画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。",
 };

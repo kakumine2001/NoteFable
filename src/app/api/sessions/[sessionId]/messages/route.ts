@@ -68,6 +68,12 @@ export async function GET(_request: Request, context: RouteContext) {
           imageStoragePath: true,
         },
       },
+      // 発言に添付したノート。タイトルとアイコンはノートから取り直す。ゴミ箱のノートと他人のノートは出さない。
+      notes: {
+        where: { note: { userId: user.id, deletedAt: null } },
+        orderBy: { position: "asc" },
+        select: { note: { select: { id: true, title: true, icon: true } } },
+      },
     },
   });
 
@@ -89,8 +95,10 @@ export async function GET(_request: Request, context: RouteContext) {
               }))
           : [];
 
+      const { notes, ...rest } = message;
       return {
-        ...message,
+        ...rest,
+        pages: notes.map(({ note }) => note),
         // 保存済みの推論要約・検索・ツールの途中経過。壊れていたら捨てて、時間だけ返す。
         activity: parseStoredActivity(message.activity),
         thinkingMs: message.thinkingMs ?? undefined,

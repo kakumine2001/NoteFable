@@ -26,6 +26,7 @@ import { AccountLocaleSync } from "@/components/account-button";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { AttachSheet } from "@/components/attach-sheet";
+import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
@@ -55,7 +56,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
-import type { ImageGenerationResult, Message, Session, UploadFile } from "@/types/chat";
+import { MAX_MESSAGE_NOTES, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
@@ -417,6 +418,9 @@ export default function Home() {
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
+  // 次の発言に添付する自分のノート（ID とタイトル・アイコン）。本文はサーバーが送信のたびに読み直す。
+  const [attachedPages, setAttachedPages] = useState<AttachedPage[]>([]);
+  const [pageDialogOpen, setPageDialogOpen] = useState(false);
   // 会話ごとのストリーム開始時刻。複数会話を並行生成できるよう、会話キー別に持つ。
   const [streamingSessions, setStreamingSessions] = useState<Record<string, number>>({});
   // 経過秒数を再計算するための現在時刻。ストリーミング中だけ interval で更新する。
@@ -945,6 +949,7 @@ export default function Home() {
     const submittedInputValue = inputRef.current?.value ?? input;
     const userContent = submittedInputValue.trim();
     const submittedFiles = files;
+    const submittedPages = attachedPages;
     let requestSessionId = activeSessionIdRef.current;
     let requestSessionKey = getMessagesKey(requestSessionId);
     const initialRequestSessionKey = requestSessionKey;
@@ -961,6 +966,16 @@ export default function Home() {
       imageGenerationMode,
       fileMimeTypes: submittedFiles.map((item) => item.file.type),
     });
+    // 画像の作成はノートを読まない（画像 API は文章のプロンプトと参照画像だけを受け取る）。黙って捨てずに知らせる。
+    if (imageGenerationMode && submittedPages.length) {
+      setSendError(msg("Pages can’t be attached when creating an image. Remove them or turn off image creation."));
+      return;
+    }
+    // 断られた送信のページを戻したときなどに上限を超えることがある。黙って減らさず、外してもらう。
+    if (submittedPages.length > MAX_MESSAGE_NOTES) {
+      setSendError(msg("You can attach up to 5 pages to a message."));
+      return;
+    }
     if (validationError) {
       const submitted = submittedFiles.map(({ file }) => file);
       setSendError(() => (translate: Translate) => getUploadValidationError(submitted, uploadOptions, translate) || getUploadRequestError(submitted, userContent, translate) || translate(validationError));
@@ -1041,6 +1056,7 @@ export default function Home() {
         size: file.size,
         previewUrl,
       })),
+      ...(submittedPages.length ? { pages: submittedPages } : {}),
     };
     // ストリームで本文や画像を流し込む対象の、空のアシスタントメッセージ ID。
     const assistantMessageId = crypto.randomUUID();
@@ -1068,6 +1084,7 @@ export default function Home() {
       inputRef.current.value = "";
     }
     setFiles([]);
+    setAttachedPages([]);
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1079,6 +1096,7 @@ export default function Home() {
     body.append("reasoning", reasoning);
     if (requestSessionId) body.append("sessionId", requestSessionId);
     body.append("uploads", JSON.stringify(uploadedTickets));
+    if (submittedPages.length) body.append("pages", JSON.stringify(submittedPages.map((page) => page.id)));
 
     // 送信完了後にサーバー履歴へ差し替えられた時だけ、楽観表示用 previewUrl を解放する。
     let shouldCleanupSubmittedPreviews = false;
@@ -1245,6 +1263,8 @@ export default function Home() {
         setInput(restored);
         if (inputRef.current) inputRef.current.value = restored;
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
+        // 合わせて上限を超えても切り捨てない（送る前に知らせて、利用者に外してもらう）。
+        if (submittedPages.length) setAttachedPages((current) => [...submittedPages, ...current.filter((item) => !submittedPages.some((sent) => sent.id === item.id))]);
       }
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
@@ -1778,7 +1798,7 @@ export default function Home() {
             </button>
           </div>
           {guestLimit && (
-            <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0}
+            <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
               onBeforeSignIn={() => savePendingDraft("chat", inputRef.current?.value ?? input)} />
           )}
           {(uploadError || sendError) && (
@@ -1790,6 +1810,26 @@ export default function Home() {
             </div>
           )}
           <form onSubmit={sendMessage} className="notion-page-column">
+            {!!attachedPages.length && (
+              // 添付したノート。押すと外れる（ファイルのチップと同じ）。
+              <ul className="mb-3 flex flex-wrap gap-2" aria-label={t("Attached pages")}>
+                {attachedPages.map((page) => (
+                  <li key={page.id} className="min-w-0 max-w-full">
+                    <button
+                      type="button"
+                      onClick={() => { setSendError(""); setAttachedPages((current) => current.filter((item) => item.id !== page.id)); }}
+                      disabled={Boolean(uploadProgress)}
+                      aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
+                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
+                    >
+                      {page.icon ? <span aria-hidden="true">{page.icon}</span> : <FileText size={13} aria-hidden="true" />}
+                      <span className="truncate">{page.title || t("Untitled")}</span>
+                      <X size={13} aria-hidden="true" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             {!!files.length && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {files.map(({ id, file, previewUrl }) =>
@@ -1920,6 +1960,19 @@ export default function Home() {
                   <ImagePlus size={15} />
                   <span className="hidden sm:inline">{t("Create an image")}</span>
                 </button>
+                {/* スマホでは「＋」シートの行から開く。 */}
+                <button
+                  type="button"
+                  onClick={() => setPageDialogOpen(true)}
+                  disabled={Boolean(uploadProgress)}
+                  className={`notion-composer-control composer-page-button shrink-0 ${attachedPages.length ? "is-active" : ""}`}
+                  aria-haspopup="dialog"
+                  title={t("Attach pages")}
+                  aria-label={t("Attach pages")}
+                >
+                  <FileText size={15} />
+                  {!!attachedPages.length && <span>{attachedPages.length}</span>}
+                </button>
               </div>
               <button
                 type="submit"
@@ -1941,7 +1994,12 @@ export default function Home() {
             onFilesChange={handleFileSelect}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
+            onAttachPages={() => setPageDialogOpen(true)}
           />
+          {pageDialogOpen && (
+            <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)}
+              onAttach={(pages) => { setSendError(""); setAttachedPages(pages); }} />
+          )}
         </div>
         </div>
       </section>

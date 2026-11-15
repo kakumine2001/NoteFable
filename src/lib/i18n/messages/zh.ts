@@ -596,4 +596,10 @@ export const zh: Record<string, string> = {
   "Back": "返回",
   "Check your email": "查看你的邮箱",
   "Didn't get it?": "没收到？",
+  "Attach pages": "添加页面",
+  "Let the AI read your notes": "让 AI 参考你的笔记",
+  "Attached pages": "已添加的页面",
+  "The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.": "AI 会把你添加的页面作为这段对话的参考内容。每次发送都会重新读取，所以总是使用最新的内容。",
+  "Attach": "添加",
+  "Pages can’t be attached when creating an image. Remove them or turn off image creation.": "生成图片时不能添加页面。请移除页面或关闭图片生成。",
 };

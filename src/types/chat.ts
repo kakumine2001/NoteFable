@@ -8,6 +8,10 @@ export const MAX_PROJECT_INSTRUCTIONS = 4000;
 export const MAX_PROJECT_NOTES = 5;
 // 利用者のカスタム指示（すべてのチャット共通）の最大文字数。検証はプロジェクトの共通指示と同じものを使うので、同じ値にする。
 export const MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS;
+// チャットの 1 回の発言に添付できるノートの数。クライアントとサーバーで同じ値を使う。
+export const MAX_MESSAGE_NOTES = 5;
+// 発言に添付したノート。表示用のタイトルとアイコンは、履歴を読むたびにノートから取り直す。
+export type AttachedPage = { id: string; title: string; icon: string | null };
 
 // サイドバー用の一覧と PATCH / POST の応答。noteCount はゴミ箱に入っていないノートだけを数える。
 export type ChatProjectSummary = { id: string; name: string; noteCount: number; hasInstructions: boolean };
@@ -67,6 +71,8 @@ export type Message = {
   proposals?: StoredProposal[];
   // 送信から本文の最初の差分が届くまでの時間。「Thought for Ns」の表示に使う。
   thinkingMs?: number;
+  // 利用者がこの発言に添付したノート。ゴミ箱に入ったノートは返らない。
+  pages?: AttachedPage[];
   // ユーザー添付、または生成画像以外のアシスタント添付。
   attachments?: {
     // 添付 ID。送信前はローカル ID、保存後は DB ID。
