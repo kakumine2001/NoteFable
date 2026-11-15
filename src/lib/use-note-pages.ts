@@ -212,9 +212,18 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (loaded.current) upsertSummary(page);
       else createdWhileLoading.current.push(page);
     }
+    // アプリ（/note-embed）や別の画面から届いた表示設定・お気に入り。一覧を読んでいない埋め込みでも、開いたページの 1 件に効く。
+    function onPageMeta(event: Event) {
+      const page = (event as CustomEvent<NotePageSummary | undefined>).detail;
+      if (page) setPages((current) => current.map((entry) => entry.id === page.id ? {
+        ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
+      } : entry));
+    }
+    window.addEventListener("notefable:page-meta", onPageMeta);
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
     return () => {
+      window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
     };
