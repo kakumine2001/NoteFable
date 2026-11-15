@@ -1029,7 +1029,8 @@ fun MoveNoteDialog(
                 DialogInput(filter, { filter = it }, stringResource(R.string.pg_search_pages), {}, autoFocus = false, maxLength = 200)
                 val query = filter.trim().lowercase()
                 val shown = if (query.isEmpty()) targets else targets.filter { it.first.title.lowercase().contains(query) }.map { it.first to 0 }
-                Column(Modifier.padding(top = 8.dp).heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                // .notes-move-pages：最高 40dvh（412×915 上约 366）。
+                Column(Modifier.padding(top = 8.dp).heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.4f).dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     shown.forEach { (target, depth) ->
                         key(target.id) {
                             val checked = page.parentId == target.id

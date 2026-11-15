@@ -98,13 +98,18 @@ data class NotesUiState(
     /** 项目里的页面数（含子页面），项目标题后的数字。 */
     fun memberCount(groupId: String) = pages.count { it.groupId == groupId }
 
-    private val pageIds: Set<String> get() = pages.mapTo(HashSet()) { it.id }
+    /**
+     * 父页面 → 子页面（列表顺序）。父页面不在列表里（回收站等）的子页面当最上层，键是 null（网页 note-tree.ts 的 childrenByParent）。
+     * 每个状态只算一次：侧栏和首页按项目、按节点反复读。
+     */
+    private val tree: Map<String?, List<NotePageSummary>> by lazy {
+        val ids = pages.mapTo(HashSet()) { it.id }
+        pages.groupBy { page -> page.parentId?.takeIf { it in ids && it != page.id } }
+    }
 
-    /** 父页面不在列表里（回收站等）的子页面当最上层（网页 note-tree.ts 的 childrenByParent）。 */
-    val roots: List<NotePageSummary>
-        get() { val ids = pageIds; return pages.filter { it.parentId == null || it.parentId !in ids || it.parentId == it.id } }
+    val roots: List<NotePageSummary> get() = tree[null].orEmpty()
 
-    fun children(parentId: String): List<NotePageSummary> = pages.filter { it.parentId == parentId && it.id != parentId }
+    fun children(parentId: String): List<NotePageSummary> = tree[parentId].orEmpty()
 
     /** 祖先（从上往下，不含自己）。数据坏了成环时也会停。 */
     fun ancestors(id: String): List<NotePageSummary> {
@@ -363,13 +368,13 @@ class NotesViewModel(
     /** [parentId] 指定时，在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面。 */
     fun createNote(parentId: String? = null) {
         if (_state.value.busy) return
-        if (parentId != null) expand(parentId)
         leaveThen {
             _state.update { it.copy(busy = true, error = null) }
             try {
                 val page = backend.createNote(parentId)
                 // 换身份会取消这个任务，走到这里一定还是同一个身份。
                 mutations++
+                if (parentId != null) expand(parentId)
                 _state.update {
                     it.copy(
                         workspace = Workspace.Notes,
