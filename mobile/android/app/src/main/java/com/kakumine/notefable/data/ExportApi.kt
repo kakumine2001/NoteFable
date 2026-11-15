@@ -36,15 +36,44 @@ interface ExportBackend {
     suspend fun saveAnswer(markdown: String, sessionId: String, messageId: String, savedOn: String): String
 
     suspend fun exportConversation(sessionId: String, date: String): ConversationExport
+
+    /**
+     * 「整理成笔记」（网页 createPageFromChat）：`POST /api/sessions/:id/page` `{ model, savedOn }` → 201 `{ page, partial }`。
+     * 失败抛 [ApiException]（status 和服务端原句）。
+     */
+    suspend fun createPageFromChat(sessionId: String, model: String?, savedOn: String): CreatedPage
 }
 
 @Serializable
 data class ConversationExport(val fileName: String, val markdown: String)
 
+/** 整理好的笔记。[partial]：对话太长，旧的消息或长消息的后半没用上。 */
+data class CreatedPage(val id: String, val title: String, val partial: Boolean)
+
 class ExportApi(
     private val client: OkHttpClient,
     private val absoluteUrl: (String) -> String,
 ) : ExportBackend {
+    // 整理一段长对话要等一次完整的生成（服务端最多 300 秒）：不按普通请求的 30 / 60 秒超时断开。
+    private val pageClient: OkHttpClient by lazy {
+        client.newBuilder().readTimeout(0, java.util.concurrent.TimeUnit.MILLISECONDS)
+            .callTimeout(320, java.util.concurrent.TimeUnit.SECONDS).build()
+    }
+
+    override suspend fun createPageFromChat(sessionId: String, model: String?, savedOn: String): CreatedPage {
+        val body = buildJsonObject {
+            model?.let { put("model", it) }
+            put("savedOn", savedOn)
+        }.toString().toRequestBody(NoteFableHttp.JSON)
+        val text = call(Request.Builder().url(absoluteUrl("/api/sessions/${encode(sessionId)}/page")).post(body), pageClient)
+        // 网页：没有 page.id 也算失败（通用的"无法整理"）。
+        val data = runCatching { NoteFableJson.parseToJsonElement(text) as? JsonObject }.getOrNull() ?: throw ApiException(500, "HTTP 500")
+        val page = data["page"] as? JsonObject ?: throw ApiException(500, "HTTP 500")
+        val id = (page["id"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: throw ApiException(500, "HTTP 500")
+        val title = (page["title"] as? JsonPrimitive)?.takeIf { it.isString }?.content ?: ""
+        val partial = (data["partial"] as? JsonPrimitive)?.content == "true"
+        return CreatedPage(id, title, partial)
+    }
     override suspend fun saveAnswer(markdown: String, sessionId: String, messageId: String, savedOn: String): String {
         val body = buildJsonObject {
             put("markdown", markdown)
@@ -66,8 +95,8 @@ class ExportApi(
         return export
     }
 
-    private suspend fun call(builder: Request.Builder): String {
-        val response = client.newCall(builder.header("Accept", "application/json").build()).await()
+    private suspend fun call(builder: Request.Builder, with: OkHttpClient = client): String {
+        val response = with.newCall(builder.header("Accept", "application/json").build()).await()
         return response.use {
             val text = withContext(Dispatchers.IO) { runCatching { it.body.string() }.getOrDefault("") }
             if (!it.isSuccessful) throw ApiException.from(it.code, text)
@@ -170,7 +199,65 @@ class AnswerExportStore(private val backend: ExportBackend, private val scope: C
         return result
     }
 
+    // ---- 整理成笔记（网页 create-page-dialog.tsx 模块级的 jobs） ----
+
+    private val _pageJobs = MutableStateFlow<Map<String, CreatePageJob>>(emptyMap())
+    /** 每个聊天的「整理成笔记」状态。窗口关掉也继续生成；重开窗口时进行中的还是同样的显示，同一聊天不会重复建。 */
+    val pageJobs: StateFlow<Map<String, CreatePageJob>> = _pageJobs.asStateFlow()
+
+    /** 开始整理（进行中就什么也不做）。完成后在 [created] 里发出新笔记的 ID，笔记列表据此刷新。 */
+    fun createPage(sessionId: String, model: String?, savedOn: String) {
+        if (_pageJobs.value[sessionId] is CreatePageJob.Working) return
+        _pageJobs.update { it + (sessionId to CreatePageJob.Working) }
+        scope.launch {
+            val next = try {
+                val page = backend.createPageFromChat(sessionId, model, savedOn)
+                _created.tryEmit(page.id)
+                CreatePageJob.Done(page.id, page.title, page.partial)
+            } catch (e: CancellationException) {
+                _pageJobs.update { it - sessionId }
+                throw e
+            } catch (e: Throwable) {
+                CreatePageJob.Failed(createPageErrorMessage(e))
+            }
+            _pageJobs.update { it + (sessionId to next) }
+        }
+    }
+
+    /** 关窗口时忘掉已结束的结果（下次打开能从继续写的对话重新整理）；进行中的留着。 */
+    fun forgetFinishedPage(sessionId: String) {
+        _pageJobs.update { jobs -> if (jobs[sessionId] is CreatePageJob.Working) jobs else jobs - sessionId }
+    }
+
+    /** 换身份（登录 / 退出）时清掉结果：别的身份的笔记打不开。进行中的请求跑完会再写回，网页刷新页面后也一样看不到。 */
+    fun clearPageJobs() {
+        _pageJobs.value = emptyMap()
+    }
+
     companion object {
         fun key(sessionId: String, messageId: String) = "$sessionId\n$messageId"
     }
+}
+
+/** 「整理成笔记」的状态（网页 CreatePageJob）。 */
+sealed interface CreatePageJob {
+    data object Working : CreatePageJob
+    data class Done(val pageId: String, val title: String, val partial: Boolean) : CreatePageJob
+    /** [message] 是英文原句（服务端的，或网页的兜底句），界面经系统文词典翻译。 */
+    data class Failed(val message: String) : CreatePageJob
+}
+
+/** 网页 createPageErrorMessage 的兜底句。 */
+const val CREATE_PAGE_FAILED = "Could not create a page from this chat. Try again."
+
+/**
+ * 网页 createPageErrorMessage：只有上限（429）、校验（400 / 413）的服务端原句照样显示；会话不存在（404）是 "Session not found."；
+ * 其余（5xx、网络错误、回复不对）都是通用的兜底句。
+ */
+fun createPageErrorMessage(error: Throwable): String {
+    val api = error as? ApiException ?: return CREATE_PAGE_FAILED
+    val message = api.serverMessage()
+    if (api.status in setOf(400, 413, 429) && message != null) return message
+    if (api.status == 404) return "Session not found."
+    return CREATE_PAGE_FAILED
 }

@@ -11,13 +11,13 @@
 - 笔记编辑器是 BlockNote（自定义块、图片/文件块、拖拽、历史版本）。原生重写工作量大、很难和网页保持一致，收益远低于聊天，所以保留 WebView，只把列表、导航、顶栏做成原生（见路线图）。
 - 全部重写会让 Android 和网页两套界面长期各自维护，并且失去"网站更新后 App 不用重新打包"这一点。聊天界面稳定后再接受这个代价，笔记编辑器不接受。
 
-## 现状（0.5.0，阶段 3）
+## 现状（0.6.0，阶段 3）
 
 已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；个人资料菜单已接入自定义指令设置（`ui/SettingsDialog.kt`）。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
+另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；登录后点侧栏的账号行打开设置（`ui/SettingsDialog.kt`：个人资料、界面语言、自定义指令、退出登录）。发言可以添加自己的笔记（“添加页面”），顶栏可以把聊天整理成笔记（“整理成笔记”），见下文“附件与图片”和“整理成笔记”。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
 
 ## 与网页界面保持一致
 
@@ -55,7 +55,8 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 | 笔记空状态 | 上距 120；文件图标 28（线宽 1.4、浅灰）；"Notes"40/750、行高 50、上 16；说明 15/24 灰（"/"等宽键帽）；"新笔记"高 32、上 24；存储说明 12/20 浅灰、上 40、最宽 384 | `NotesEmpty` |
 | 笔记编辑页顶栏 | 高 56、左右 10.4：菜单 40、间距 12、"<"40（图标 22）、间距 12、图标 15 + 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、版本历史 40（图标 20）、间距 8、保存状态 14 灰（出错 / 冲突 `#b45309`）、间距 8、“…”页面菜单 40（Ellipsis 20，菜单宽 248） | `NoteEditorScreen` |
 | 笔记对话框 | 宽 min(100% − 48, 400)、内边距 24、圆角 8、遮罩 `rgba(15,15,15,.2)`；标题 16/600、说明 14 灰；输入框 1px 深描边、圆角 6、内边距 8.8×11.2、聚焦 2px 蓝；选项行 ≥40、圆角 6、15 字，当前项灰底 600 + ✓；按钮 ≥32、圆角 4.8、12.8/500，危险操作红字 `#b91c1c` | `NotesDialog` 等 |
-| 表示语言 | 侧栏底部，左右 8、上 8；触发行高 44、左右 8、圆角 4.8、间距 8.8：地球 16 灰、"语言" 15、当前值 13 灰、⌄ 13（切换中换成转圈、整行 0.6 不可点）；菜单在上方 4、与触发行同宽（≥176）、内边距 5.6、圆角 12、1px `.09` 描边、`--notion-shadow`；选项高 44、左右 12、圆角 6.4、14 字，选中 600 + ✓ 15；失败时下方 4 处 12 红字 `#dc2626` | `LanguageSelect`（网页已删除此菜单，语言改到登录后的设置里；原生尚未跟进） |
+| 账号行（登录后） | 侧栏底部，左右 8、上 8；高 44、左右 8、圆角 4.8、间距 8.8：头像 22、名字 16、齿轮 15（`--notion-faint`）；点了打开设置 | `ProfileRow`（`AccountUi.kt`） |
+| 设置 | 项目设置的对话框外观；栏间距 20：个人资料（头像 52 + 名字输入框 40 高、邮箱 12 灰、编辑区 1px 描边圆角 8）、语言（单选行最小高 44、圆角 6、左右 8、单选圆 16）、自定义指令、退出登录（上方 1px 线，行最小高 44、15 字、图标 14） | `SettingsDialog`、`LanguageSettings` |
 | 回收站 | 底部全宽面板、顶部圆角 16；头部内边距 12/12/12/16 + 下边 1px 线；"清空回收站"红字、关闭 40；说明 13/18.85 灰；行内边距 6.4×8：图标 24（表情 17）、标题 15/500、时间 12 灰；按钮高 44、15/500、左右 16，在下一行靠右 | `TrashSheet` |
 
 **有意不放的网页控件**（原生版还没有对应功能，不放不能用的入口）：笔记侧栏里正打开着的那篇笔记的图标按钮（网页点它也弹选择器，经编辑器自动保存；原生版要先给 WebView 编辑器加改图标的桥接口，现在只显示图标，在编辑器里改）。笔记编辑页没有网页以外的"更多"菜单：移到回收站和网页一样在侧栏的笔记行上。做到对应功能时再按网页补上。**原生版额外有**：生成中发送键变成停止键（网页没有停止键）。`/api/models` 不可用时使用安装包里的 `assets/models.json`；接口返回服务器开放的模型，资源是 `src/lib/models.ts` 的内置列表；两者都不可用时才隐藏模型按钮。
@@ -110,11 +111,13 @@ mobile/android/
 
 ## 界面语言
 
-和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`），外加"自动"。
+和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`）。只有登录用户能选，在设置里，没有“自动”；没选过、或没登录时按系统语言显示（网页规则见 [i18n.md](i18n.md)）。
 
 - **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
 - **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
-- **语言菜单**（`ui/LanguageUi.kt` 的 `LanguageSelect`，复刻旧网页 `LanguageSelect`；网页已改成只在登录后的设置里选、没有“自动”、保存到账号，见 [i18n.md](i18n.md)，原生尚未跟进）：选择用 `AppCompatDelegate.setApplicationLocales` 保存成"应用语言"（Android 13+ 由系统保存、也能在系统设置里改，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。"自动"＝清空，跟系统语言。语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；菜单打开时有网页 `motion-menu-enter` 的 120ms 淡入上移，各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化；切换中显示转圈，失败时显示网页的"无法切换语言"。
+- **设置里的语言**（`ui/LanguageUi.kt` 的 `LanguageSettings`，网页 `settings-dialog.tsx` 的 `LanguageSettings`）：选了就存到账号（`PATCH /api/account {locale}`，和名字、头像同一个保存队列，先显示后确认），选之前哪一项都不标，账号上还没选过时显示网页的那句说明（文案照搬网页，所以说的是“浏览器的语言”）。设置只保存，不直接切换。
+- **跟着账号切换**（`AccountLocaleSync`，根上只放一个）：判断规则是 `data/AppLanguage.kt` 的 `localeSyncAction`，逐条移植网页 `src/lib/locale-sync.ts`（单元测试是同样的情况）。网页的 Cookie 在原生里是系统的“应用语言”（`AppCompatDelegate.setApplicationLocales`；Android 13+ 由系统保存，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。只在账号状态（读到没有、是否登录、账号上的语言）变化时判断：账号上有语言就切过去（保存失败退回原值时切回去）；没登录就清空成系统语言；登录了但没选过、本机留着以前（旧版侧栏语言菜单）选的语言时，打开 App 后第一次判断时存到账号，只试一次；`GET /api/account` 没返回 `locale` 字段（`AccountUser.locale == LOCALE_UNKNOWN`）时不动。原生的切换是同步的，没有网页取字典那一步，所以没有“切换中”；切换抛错时设置里显示网页的“无法切换语言”和“重试”。
+- 语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容和开着的设置窗口都不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -151,6 +154,12 @@ mobile/android/
 限制和提示文字与网页一致（`data/Attachments.kt` 对应 `src/lib/client-files.ts`、`upload-limits.ts`）：每条消息最多 10 个文件、单个 20 MiB、合计 100 MiB；图片只收 PNG / JPEG / WEBP，当前模型不能读图时不能附图（打开「生成图片」时可以）。一次选的文件有问题就整批不加。
 
 和网页的差别：生成的图片右下角有下载键，见下文“回答体验”。
+
+**添加页面**（网页 `attach-page-dialog.tsx`，规则见 [chat-flow.md](chat-flow.md#发言附加的笔记)）：“＋”抽屉里在“添加文件或照片”下面多一行“添加页面”，先关抽屉再开 `ui/AttachPagesDialog.kt`。窗口复用项目设置参考笔记那一栏的部件（计数 n/5、已选标签、筛选、最多列 100 篇），打开时读 `GET /api/pages`，之前选的换成现在的标题、进了回收站的去掉（`refreshAttachedPages`）。选好的笔记在输入栏上方、附件上面（`PendingPages`，和文件标签同样式），点一下移除，上传附件期间不能改。发送时表单多一个 `pages`（ID 的 JSON 数组）；生成图片模式下带着笔记、或放回后超过 5 篇时不发送，输入栏上方提示（`ComposerNotice.PagesInImageMode` / `TooManyPages`）。上限拒绝时笔记和文字、附件一起放回，排在等待期间新选的前面（`mergeRestoredPages`）。发言下面是可点的笔记标签（`MessageDto.pages`），点了打开那篇笔记；登录 / 退出时清掉待发送的笔记。
+
+## 整理成笔记
+
+网页 `create-page-dialog.tsx`（规则见 [chat-flow.md](chat-flow.md)）：顶栏“新建聊天”右边的 FilePlus 按钮，已保存且有消息的聊天才有；当前聊天在发送（含上传附件）时不能点。窗口是 `ui/CreatePageDialog.kt`（`.notes-dialog`）：说明 → 进行中（转圈 + 可以关掉的说明）→ 完成（“已在笔记中创建…”，省略了一部分时多一句）+“打开笔记”；失败显示服务端原句（429 / 400 / 413）、“Session not found.”（404）或通用句，经系统文词典翻译，可以重试。请求是 `ExportApi.createPageFromChat`（`POST /api/sessions/:id/page {model, savedOn}`，单独的客户端不设读超时、总时限 320 秒）。状态按聊天放在 App 级的 `AnswerExportStore.pageJobs`：关掉窗口照常生成，重开时进行中的照样显示、不会重复建；关窗口时忘掉已结束的结果；完成后通过 `created` 刷新笔记列表；登录 / 退出时清空。
 
 ## 输入栏与使用上限
 
@@ -223,14 +232,14 @@ mobile/android/
 
 ## 账号头像（Batch 7b）
 
-和当时的网页 `profile-menu.tsx`（现已并入设置对话框 `settings-dialog.tsx` / `profile-settings.tsx`，原生尚未跟进）/ `avatar-cropper.tsx` / `user-avatar.tsx` 一致（数值取自 `globals.css` 的 `.profile-*` / `.avatar-*` 手机宽度规则，写在 `ui/AccountUi.kt`、`ui/AvatarCropper.kt` 开头的注释里；文案在 `strings_account.xml`）。个人资料弹层要 Google 登录才出现，本机开发服务器登不进去，所以这次没有在浏览器里实测，按 CSS 源码照写。
+和网页设置对话框里的个人资料（`settings-dialog.tsx` / `profile-settings.tsx`）、`avatar-cropper.tsx`、`user-avatar.tsx` 一致（数值取自 `globals.css` 的 `.profile-*` / `.settings-*` / `.avatar-*` 手机宽度规则，写在 `ui/AccountUi.kt`、`ui/AvatarCropper.kt` 开头的注释里；文案在 `strings_account.xml`）。设置要登录才出现，本机开发服务器登不进去，所以没有在浏览器里实测，按 CSS 源码照写。
 
-- 个人资料弹层：头像 52 右下角有铅笔角标，点一下打开 / 收起"照片 / 表情"编辑区。弹层宽 min(300, 屏宽 − 24)，最高 max(160, 账号行顶 − 18)，超出时内部滚动；名字最多 40 字（`MAX_DISPLAY_NAME`），聚焦时蓝边加 2px 浅蓝外圈；屏幕宽度变了就关（只是键盘弹出不关）。
+- 个人资料（设置窗口的第一栏，`ProfileSettings`）：头像 52 右下角有铅笔角标，点一下打开 / 收起"照片 / 表情"编辑区（1px 描边、圆角 8 的框）；名字最多 40 字（`MAX_DISPLAY_NAME`），聚焦时蓝边加 2px 浅蓝外圈，失焦、回车和关设置时保存。改过名字或头像、且有 Google 资料时才有“使用我的 Google 名称和头像”（邮箱登录的人没有 Google 资料）。编辑区开着时返回键 / 点遮罩先只收起编辑区；系统选择器开着、上传中不关；选了照片还没存或在上传时，“取消”“保存”“退出登录”不可点。
 - 照片：系统选择器只列 PNG / JPEG / WebP / GIF；不是图片提示"请选择图片文件。"，超过 10 MB 提示"请选择小于 10 MB 的照片。"（`checkPickedPhoto`）。裁剪（`AvatarCropper`）：直径 200 的圆里拖动、滑块 1–3 倍缩放，规则是网页 `layoutFor` 的移植（`cropLayout`）；按 EXIF 摆正（Android 9+ 用 `ImageDecoder`，更早的用 `BitmapFactory` + `ExifInterface`），短边小于 200 拒绝，原图按 2 的幂缩小到短边仍 ≥ 1536（`avatarSampleSize`）以免 10 MB 原图整个进内存；保存时画成 512×512 的 WebP（质量 90），`POST /api/account/avatar`（multipart，唯一字段 `file`，文件名 `avatar`）。有上传的照片时显示"移除我的照片"（`PATCH {icon: null}`）。系统选择器开着和上传中，点外面 / 返回键不关弹层；选择器的结果在账号行里接（`rememberSaveable`），弹层重组也不丢。
 - 表情：`EmojiPickerBody`（高 min(320, 屏高 − 220)），选中走 `PATCH /api/account {icon}`，去掉键写"使用 Google 头像"。
 - 保存（`AccountViewModel`，网页 `account-store.ts` 的移植）：编辑马上显示（服务端确认的资料 + 待确认的编辑），名字、图标、照片按顺序一个一个发（`Mutex`）；失败只撤掉那一次，显示服务端原句（经系统文词典翻译）或"无法保存。"（字符串资源 `acct_could_not_save`：这句来自客户端的 `account-store.ts`，不在系统文词典里）；照片失败显示服务端原句、"无法上传这张照片，请重试。"或网络错误的那句。退出登录时先把输入中的名字排进队列（网页靠输入框 blur），再等这些发完。头像照片读不出来时和网页一样退到表情 / Google 照片 / 首字母。
 - 接口：`data/AccountApi.kt`（`ProfileEdit`、`applyProfileEdit`、`profileEditChanges`、`AccountProfileBackend`）；`AccountBackend` 只剩登录、读取和退出。单元测试：`AccountViewModelTest`、`AccountApiTest`、`AvatarCropTest`。
-- 设置（自定义指令）：个人资料弹层的操作区多一行"设置"（齿轮图标，在"退出登录"上面），关掉弹层后打开 `ui/SettingsDialog.kt`（网页 `settings-dialog.tsx`）。外观复用项目设置的手机尺寸（`SettingsSectionLabel`、`SettingsHelpText`、`InstructionsField`），只有一栏"自定义指令"（计数 n/4000）；打开时 `GET /api/custom-instructions`，保存时文字没变就直接关，变了就 `PUT`（`AccountProfileBackend.customInstructions` / `saveCustomInstructions`）。失败显示服务端原句或 `acct_err_load_custom_instructions` / `acct_err_save_custom_instructions`；保存中不能关，照片上传中"设置"不响应。输入超过上限时用 `clipInstructions` 截断（不把表情的代理对切开），项目设置的指示栏也用它。
+- 设置（`ui/SettingsDialog.kt`，网页 `settings-dialog.tsx`）：点侧栏的账号行打开，从上到下是个人资料、保存错误、语言（见“界面语言”）、自定义指令、退出登录。外观复用项目设置的手机尺寸（`SettingsSectionLabel`、`SettingsHelpText`、`InstructionsField`）。自定义指令（计数 n/4000）打开时 `GET /api/custom-instructions`，“保存”时文字没变就直接关，变了就 `PUT`（`AccountProfileBackend.customInstructions` / `saveCustomInstructions`）。失败显示服务端原句或 `acct_err_load_custom_instructions` / `acct_err_save_custom_instructions`；保存中不能关。输入超过上限时用 `clipInstructions` 截断（不把表情的代理对切开），项目设置的指示栏也用它。退出登录不会失败（`signOut` 忽略网络错误、照常换成匿名身份），所以没有网页的“无法退出登录”提示。
 - 已知差异：缩放滑块是 Material3 `Slider`（蓝色），没有对照网页 Chrome 的 range 外观逐像素量；裁剪预览的读屏说明沿用网页原句（提到方向键，原生只能拖）。
 ## 构建与测试
 
@@ -249,5 +258,5 @@ cd mobile/android
 1. ✅ 聊天（本阶段）。
 2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
 3. ✅ 笔记：原生笔记列表、项目（分组）、回收站、拖动排序（0.4.0）；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：侧栏里给正打开着的笔记改图标（要先给编辑器加桥接口）。（搜索见“搜索与跳转”。）
-4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出、修改显示名和头像（照片 / 表情），以及自定义指令设置。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 使用 `NoteFable-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
+4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出，以及设置（显示名和头像（照片 / 表情）、存到账号的界面语言、自定义指令）。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 使用 `NoteFable-Android`（包名 + debug 签名）；换电脑或正式密钥后需登记新指纹。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除。

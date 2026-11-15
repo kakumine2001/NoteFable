@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="attach_pages">ページを添付</string>
+    <string name="attach_pages_desc">ノートの内容を AI に読ませる</string>
+    <string name="attached_pages">添付したページ</string>
+    <string name="attach_pages_help">添付したページは、このチャットで AI が参考にします。送信のたびに読み直すので、常に最新の内容が使われます。</string>
+    <string name="attach_pages_submit">添付</string>
+    <string name="err_pages_image_mode">画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。</string>
+    <string name="create_page">ノートにまとめる</string>
+    <string name="create_page_title">このチャットをノートにまとめる</string>
+    <string name="create_page_body">選択中のモデルで、この会話を整理されたノートに書き直してノートに保存します。とても長い会話は、新しいメッセージを優先して短くします。今日の送信回数に 1 回として数えられます。</string>
+    <string name="create_page_working">ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとノートに追加されます。</string>
+    <string name="create_page_done">ノートに「%1$s」を作成しました。</string>
+    <string name="create_page_partial">長い会話なので、一部を省きました。</string>
+    <string name="open_page">ノートを開く</string>
+    <string name="settings_language_help">言語を選ぶまでは、ブラウザの言語で表示されます。</string>
+</resources>

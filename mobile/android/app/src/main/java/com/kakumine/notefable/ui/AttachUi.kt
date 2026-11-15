@@ -81,6 +81,7 @@ import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.ATTACHMENT_PICKER_TYPES
 import com.kakumine.notefable.data.AttachError
+import com.kakumine.notefable.data.ChatProjectNote
 import com.kakumine.notefable.data.LocalFile
 import com.kakumine.notefable.data.MAX_UPLOAD_FILES
 import com.kakumine.notefable.data.MAX_UPLOAD_FILE_BYTES
@@ -371,10 +372,53 @@ fun ImageModeChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
     }
 }
 
-/** 点「＋」后从底部出来的抽屉：添加文件，或切换「生成图片」。外观与模型抽屉相同。 */
+/**
+ * 输入栏上方已添加的笔记（网页 page.tsx 的 Attached pages 列表，在附件上面）：间距 8、下距 12；
+ * 每篇是可点掉的标签（和文件标签相同：圆角 4、1px 描边、浅底、内边距 10×6、12 灰字、间距 8），左边是笔记图标（表情或 FileText 13），右边 ✕ 13。
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun PendingPages(pages: List<ChatProjectNote>, enabled: Boolean, onRemove: (String) -> Unit, modifier: Modifier = Modifier) {
+    val label = stringResource(R.string.attached_pages)
+    val untitled = stringResource(R.string.sb_untitled)
+    FlowRow(
+        modifier.fillMaxWidth().padding(bottom = 12.dp).semantics { contentDescription = label },
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        pages.forEach { page ->
+            val title = page.title.ifEmpty { untitled }
+            val remove = stringResource(R.string.sb_remove_title, title)
+            val shape = RoundedCornerShape(4.dp)
+            Row(
+                Modifier.clip(shape).background(Sm.Sidebar).border(1.dp, Sm.Border, shape)
+                    .clickable(enabled) { onRemove(page.id) }
+                    .semantics(mergeDescendants = true) { contentDescription = remove; role = Role.Button }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                if (page.icon != null) Text(page.icon, fontSize = 12.sp, lineHeight = 16.sp) else LucideIcon(Lucide.FileText, 13.dp, Sm.Muted)
+                Text(
+                    title, Modifier.weight(1f, fill = false),
+                    color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                )
+                LucideIcon(Lucide.X, 13.dp, Sm.Muted)
+            }
+        }
+    }
+}
+
+/** 点「＋」后从底部出来的抽屉：添加文件、添加笔记，或切换「生成图片」。外观与模型抽屉相同。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AttachSheet(imageMode: Boolean, onPickFiles: () -> Unit, onToggleImageMode: () -> Unit, onDismiss: () -> Unit) {
+fun AttachSheet(
+    imageMode: Boolean,
+    onPickFiles: () -> Unit,
+    onAttachPages: () -> Unit,
+    onToggleImageMode: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val scope = rememberCoroutineScope()
     fun closeThen(action: () -> Unit) {
@@ -398,6 +442,10 @@ fun AttachSheet(imageMode: Boolean, onPickFiles: () -> Unit, onToggleImageMode: 
         Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).windowInsetsPadding(WindowInsets.navigationBars)) {
             AttachRow(Lucide.Paperclip, stringResource(R.string.attach_files), null, pressed = false, checked = false) {
                 closeThen(onPickFiles)
+            }
+            // 网页：先关抽屉，再开选笔记的窗口。
+            AttachRow(Lucide.FileText, stringResource(R.string.attach_pages), stringResource(R.string.attach_pages_desc), pressed = false, checked = false) {
+                closeThen(onAttachPages)
             }
             AttachRow(
                 Lucide.ImagePlus,

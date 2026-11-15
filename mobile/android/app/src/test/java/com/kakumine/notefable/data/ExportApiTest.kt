@@ -103,6 +103,94 @@ class ExportApiTest {
         }
 
         override suspend fun exportConversation(sessionId: String, date: String) = ConversationExport("a.md", "x")
+
+        val pages = mutableListOf<String>()
+        var pageGate: CompletableDeferred<Unit>? = null
+        var pageFail: Throwable? = null
+
+        override suspend fun createPageFromChat(sessionId: String, model: String?, savedOn: String): CreatedPage {
+            pages += "$sessionId/$model/$savedOn"
+            pageGate?.await()
+            pageFail?.let { throw it }
+            return CreatedPage("note-${pages.size}", "Plan", partial = false)
+        }
+    }
+
+    // ---- 整理成笔记（网页 create-page-dialog.tsx） ----
+
+    @Test
+    fun `create page posts the model and the device date, and reads the page and partial`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(201).setBody("""{"page":{"id":"n1","title":"Plan"},"partial":true}"""))
+            assertEquals(CreatedPage("n1", "Plan", true), server.api().createPageFromChat("a b", "luna", "2026-11-15"))
+            val request = server.next()
+            assertEquals("POST", request.method)
+            assertEquals("/api/sessions/a%20b/page", request.path)
+            val body = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+            assertEquals(JsonPrimitive("luna"), body["model"])
+            assertEquals(JsonPrimitive("2026-11-15"), body["savedOn"])
+        }
+    }
+
+    @Test
+    fun `create page without a page id fails, and a missing model is left out`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(201).setBody("""{"ok":true}"""))
+            try {
+                server.api().createPageFromChat("s1", null, "2026-11-15")
+                fail("expected failure")
+            } catch (e: ApiException) {
+                assertEquals(CREATE_PAGE_FAILED, createPageErrorMessage(e))
+            }
+            assertEquals(null, Json.parseToJsonElement(server.next().body.readUtf8()).jsonObject["model"])
+        }
+    }
+
+    @Test
+    fun `create page errors follow the web - limit and validation text, 404, the rest generic`() {
+        assertEquals("Daily limit reached.", createPageErrorMessage(ApiException.from(429, """{"error":"Daily limit reached."}""")))
+        assertEquals("This chat has nothing to turn into a page yet.",
+            createPageErrorMessage(ApiException.from(400, """{"error":"This chat has nothing to turn into a page yet."}""")))
+        assertEquals("Note content exceeds 1 MiB.", createPageErrorMessage(ApiException.from(413, """{"error":"Note content exceeds 1 MiB."}""")))
+        assertEquals("Session not found.", createPageErrorMessage(ApiException.from(404, """{"error":"whatever"}""")))
+        assertEquals(CREATE_PAGE_FAILED, createPageErrorMessage(ApiException.from(502, """{"error":"Upstream down"}""")))
+        assertEquals(CREATE_PAGE_FAILED, createPageErrorMessage(ApiException.from(400, "not json")))
+        assertEquals(CREATE_PAGE_FAILED, createPageErrorMessage(IOException("offline")))
+    }
+
+    @Test
+    fun `create page runs once per chat, announces the page, and closing forgets only finished results`() = runTest {
+        val backend = FakeBackend().apply { pageGate = CompletableDeferred() }
+        val store = AnswerExportStore(backend, this)
+        val created = mutableListOf<String>()
+        val collector = launch(kotlinx.coroutines.test.UnconfinedTestDispatcher(testScheduler)) { store.created.collect { created += it } }
+        store.createPage("s1", "luna", "2026-11-15")
+        assertEquals(CreatePageJob.Working, store.pageJobs.value["s1"])
+        // 进行中再点、关窗口：不重复建，也不忘掉。
+        store.createPage("s1", "luna", "2026-11-15")
+        store.forgetFinishedPage("s1")
+        assertEquals(CreatePageJob.Working, store.pageJobs.value["s1"])
+        backend.pageGate!!.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf("s1/luna/2026-11-15"), backend.pages)
+        assertEquals(CreatePageJob.Done("note-1", "Plan", false), store.pageJobs.value["s1"])
+        assertEquals(listOf("note-1"), created)
+        // 关窗口后忘掉，下次能重新整理。
+        store.forgetFinishedPage("s1")
+        assertEquals(null, store.pageJobs.value["s1"])
+        // 失败：显示原因，可以重试；不发新笔记。
+        backend.pageFail = ApiException.from(429, """{"error":"Daily limit reached."}""")
+        store.createPage("s1", "luna", "2026-11-15")
+        advanceUntilIdle()
+        assertEquals(CreatePageJob.Failed("Daily limit reached."), store.pageJobs.value["s1"])
+        assertEquals(listOf("note-1"), created)
+        backend.pageFail = null
+        store.createPage("s1", "luna", "2026-11-15")
+        advanceUntilIdle()
+        assertEquals(CreatePageJob.Done("note-3", "Plan", false), store.pageJobs.value["s1"])
+        store.clearPageJobs()
+        assertTrue(store.pageJobs.value.isEmpty())
+        collector.cancel()
     }
 
     @Test

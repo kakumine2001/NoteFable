@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="attach_pages">新增頁面</string>
+    <string name="attach_pages_desc">讓 AI 參考你的筆記</string>
+    <string name="attached_pages">已新增的頁面</string>
+    <string name="attach_pages_help">AI 會把你新增的頁面作為這段對話的參考內容。每次傳送都會重新讀取，所以總是使用最新的內容。</string>
+    <string name="attach_pages_submit">新增</string>
+    <string name="err_pages_image_mode">生成圖片時不能新增頁面。請移除頁面或關閉圖片生成。</string>
+    <string name="create_page">整理成筆記</string>
+    <string name="create_page_title">把這段聊天整理成筆記</string>
+    <string name="create_page_body">NoteFable 會用當前選擇的模型，把這段對話改寫成一篇條理清晰的筆記並儲存到筆記中。很長的對話會被縮短，優先保留最近的訊息。這會計入今天的訊息次數（1 次）。</string>
+    <string name="create_page_working">正在撰寫筆記……可能需要一分鐘左右。你可以關閉這個視窗，完成後筆記會出現在筆記列表裡。</string>
+    <string name="create_page_done">已在筆記中建立“%1$s”。</string>
+    <string name="create_page_partial">對話較長，省略了一部分內容。</string>
+    <string name="open_page">開啟筆記</string>
+    <string name="settings_language_help">在你選擇語言之前，NoteFable 使用瀏覽器的語言。</string>
+</resources>

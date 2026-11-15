@@ -112,6 +112,25 @@ class ChatViewModelUsageLimitTest {
     }
 
     @Test
+    fun `rejected pages come back first without dropping pages picked meanwhile`() = runTest(dispatcher) {
+        val backend = LimitedBackend(limit("member"))
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)
+        advanceUntilIdle()
+        val plan = com.kakumine.notefable.data.ChatProjectNote("n1", "Plan")
+        val todo = com.kakumine.notefable.data.ChatProjectNote("n2", "Todo")
+
+        vm.setAttachedPages(listOf(plan))
+        vm.send("summarize")
+        settle()
+        assertTrue(vm.state.value.attachedPages.isEmpty())
+        vm.setAttachedPages(listOf(todo))
+        backend.release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals(listOf(plan, todo), vm.state.value.attachedPages)
+    }
+
+    @Test
     fun `rejected attachments are restored first and the sent bubble drops its local image preview`() = runTest(dispatcher) {
         val backend = LimitedBackend(limit("member"))
         val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)

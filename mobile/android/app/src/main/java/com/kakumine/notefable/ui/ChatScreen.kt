@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.ChatProjectNote
 import com.kakumine.notefable.data.LocalFile
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
@@ -143,9 +144,16 @@ fun ChatScreen(
     onDismissGuestLimit: () -> Unit = {},
     onSearch: () -> Unit = {},
     onRevealDone: (Long) -> Unit = {},
+    /** 添加笔记窗口打开时读自己的笔记列表（GET /api/pages）。 */
+    loadNotes: suspend () -> List<ChatProjectNote> = { emptyList() },
+    onAttachPages: (List<ChatProjectNote>) -> Unit = {},
+    onRemovePage: (String) -> Unit = {},
+    /** 顶栏「整理成笔记」：打开那个聊天的窗口。 */
+    onCreatePage: (String) -> Unit = {},
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
+    var pagesOpen by rememberSaveable { mutableStateOf(false) }
     val pickFiles = rememberFilePicker(onImportFiles)
     val context = LocalContext.current
     val pasteImages: (List<android.net.Uri>, TransferableContent) -> Unit = { uris, content ->
@@ -176,6 +184,9 @@ fun ChatScreen(
                 onNewChat = onNewChat,
                 onChangeIcon = onChangeIcon,
                 onSearch = onSearch,
+                // 网页：有消息的已保存聊天才有；当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。
+                onCreatePage = state.activeSessionId?.takeIf { !isEmptyChat }?.let { id -> { onCreatePage(id) } },
+                createPageEnabled = !state.sending && state.upload == null,
             )
         },
     ) { inner ->
@@ -190,7 +201,7 @@ fun ChatScreen(
                     {
                         GuestLimitPrompt(
                             kind = guestLimit,
-                            attachmentsLost = state.files.isNotEmpty(),
+                            attachmentsLost = state.files.isNotEmpty() || state.attachedPages.isNotEmpty(),
                             onSignIn = onSignIn,
                             onClose = onDismissGuestLimit,
                         )
@@ -204,6 +215,7 @@ fun ChatScreen(
                 modelLabel = state.selectedModel?.label,
                 effortLabel = state.selectedReasoning?.let { reasoningLabel(it) },
                 files = state.files,
+                pages = state.attachedPages,
                 upload = state.upload,
                 imageMode = state.imageMode,
                 error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
@@ -212,6 +224,9 @@ fun ChatScreen(
                     ComposerNotice.LoadFailed -> stringResource(R.string.messages_load_failed)
                     ComposerNotice.IconFailed -> stringResource(R.string.em_chat_icon_failed)
                     ComposerNotice.LinkFailed -> stringResource(R.string.messages_load_failed)
+                    ComposerNotice.PagesInImageMode -> stringResource(R.string.err_pages_image_mode)
+                    // 网页 msg("You can attach up to 5 pages to a message.")，译文在系统文词典里（服务端也用这句）。
+                    ComposerNotice.TooManyPages -> rememberSystemText().localize(TOO_MANY_PAGES)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -219,6 +234,7 @@ fun ChatScreen(
                 onModelClick = { sheetOpen = true },
                 onAddClick = { attachOpen = true },
                 onRemoveFile = onRemoveFile,
+                onRemovePage = onRemovePage,
                 onImageModeOff = { onImageMode(false) },
                 onPasteImages = pasteImages,
             )
@@ -232,11 +248,23 @@ fun ChatScreen(
         AttachSheet(
             imageMode = state.imageMode,
             onPickFiles = pickFiles,
+            onAttachPages = { pagesOpen = true },
             onToggleImageMode = { onImageMode(!state.imageMode) },
             onDismiss = { attachOpen = false },
         )
     }
+    if (pagesOpen) {
+        AttachPagesDialog(
+            initial = state.attachedPages,
+            loadNotes = loadNotes,
+            onClose = { pagesOpen = false },
+            onAttach = onAttachPages,
+        )
+    }
 }
+
+/** 网页 msg("You can attach up to 5 pages to a message.")：英文原句，界面经系统文词典翻译。 */
+private const val TOO_MANY_PAGES = "You can attach up to 5 pages to a message."
 
 // ---------------------------------------------------------------------------------------------
 // 顶栏：高 56，左右内边距 10.4，图标按钮 40x40（图标 20，圆角 4.8），标题 14sp 灰。
@@ -250,6 +278,8 @@ private fun TopBar(
     onNewChat: () -> Unit,
     onChangeIcon: (String?) -> Unit,
     onSearch: () -> Unit,
+    onCreatePage: (() -> Unit)? = null,
+    createPageEnabled: Boolean = true,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -280,13 +310,24 @@ private fun TopBar(
             Spacer(Modifier.width(8.dp))
             TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
         }
+        // 网页：新建聊天右边的「整理成笔记」（FilePlus 20）。回答进行中不可点，外观不变（网页的 disabled 没有单独样式）。
+        if (onCreatePage != null) {
+            Spacer(Modifier.width(8.dp))
+            TopIconButton(Lucide.FilePlus, stringResource(R.string.create_page), onCreatePage, enabled = createPageEnabled)
+        }
     }
 }
 
 @Composable
-internal fun TopIconButton(paths: List<String>, description: String, onClick: () -> Unit, iconSize: androidx.compose.ui.unit.Dp = 20.dp) {
+internal fun TopIconButton(
+    paths: List<String>,
+    description: String,
+    onClick: () -> Unit,
+    iconSize: androidx.compose.ui.unit.Dp = 20.dp,
+    enabled: Boolean = true,
+) {
     Box(
-        Modifier.size(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(onClick = onClick)
+        Modifier.size(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(enabled = enabled, onClick = onClick)
             .semantics { contentDescription = description; role = Role.Button },
         Alignment.Center,
     ) {
@@ -558,6 +599,35 @@ private fun UserTurn(message: UiMessage) {
                 files.forEach { file -> FileChip(file.filename) }
             }
         }
+        if (message.pages.isNotEmpty()) {
+            // 添加的笔记（网页 chat-message.tsx）：上 8、间距 6；标签 12 灰字、浅底 + 1px 描边、圆角 4、内边距 8×4、间距 4，
+            // 图标是表情或 FileText 12。点一下打开那篇笔记。
+            val label = stringResource(R.string.attached_pages)
+            val untitled = stringResource(R.string.sb_untitled)
+            val openNote = LocalOpenNote.current
+            FlowRow(
+                Modifier.padding(top = 8.dp).semantics { contentDescription = label },
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                message.pages.forEach { page ->
+                    val shape = RoundedCornerShape(4.dp)
+                    Row(
+                        Modifier.clip(shape).background(Sm.Sidebar).border(1.dp, Sm.Border, shape)
+                            .clickable(role = Role.Button) { openNote(page.id) }
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        if (page.icon != null) Text(page.icon, fontSize = 12.sp, lineHeight = 16.sp) else LucideIcon(Lucide.FileText, 12.dp, Sm.Muted)
+                        Text(
+                            page.title.ifEmpty { untitled }, Modifier.weight(1f, fill = false),
+                            color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -588,6 +658,7 @@ private fun Composer(
     modelLabel: String?,
     effortLabel: String?,
     files: List<LocalFile>,
+    pages: List<ChatProjectNote>,
     upload: UploadProgress?,
     imageMode: Boolean,
     error: String?,
@@ -596,6 +667,7 @@ private fun Composer(
     onModelClick: () -> Unit,
     onAddClick: () -> Unit,
     onRemoveFile: (String) -> Unit,
+    onRemovePage: (String) -> Unit,
     onImageModeOff: () -> Unit,
     onPasteImages: (List<android.net.Uri>, TransferableContent) -> Unit,
 ) {
@@ -632,6 +704,8 @@ private fun Composer(
     ) {
         prompt?.invoke()
         if (error != null) ComposerError(error)
+        // 网页：笔记在附件上面；上传附件时不能移除。
+        if (pages.isNotEmpty()) PendingPages(pages, enabled = upload == null, onRemove = onRemovePage)
         if (files.isNotEmpty()) PendingFiles(files, enabled = upload == null, onRemove = onRemoveFile)
         Column(
             Modifier.fillMaxWidth()

@@ -27,6 +27,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
 data class AccountUiState(
+    /** 账号读到过（网页 account !== null）。读失败时保持原样：语言同步在读到之前什么都不做。 */
+    val loaded: Boolean = false,
     /** 服务端开了 Google 登录才显示登录入口（和网页 AccountButton 一样，未配置时什么都不显示）。 */
     val configured: Boolean = false,
     /** 显示用的资料：服务端确认过的 + 还没确认的编辑（网页 account-store 的 view()）。 */
@@ -115,6 +117,7 @@ class AccountViewModel(
     private fun applyAccount(response: AccountResponse) {
         _state.update {
             it.copy(
+                loaded = true,
                 configured = response.configured,
                 googleClientId = response.googleClientId,
                 // 网页 SignInDialog：showGoogle = account.google !== false，showEmail = Boolean(account.email)。
@@ -254,6 +257,12 @@ class AccountViewModel(
     fun setIcon(icon: String?) = save(ProfileEdit.icon(icon))
 
     fun resetToGoogle() = save(ProfileEdit.ResetToGoogle)
+
+    /**
+     * 设置里选界面语言（en / zh / zh-Hant / ja）：和名字一样先显示、排队保存。真正的切换由语言同步（AccountLocaleSync）
+     * 跟着账号上的语言做；保存失败时账号的语言退回原值，同步再把界面切回去（网页 saveProfile({ locale })）。
+     */
+    fun setLocale(code: String) = save(ProfileEdit.locale(code))
 
     /** 网页 saveProfile：马上显示，排队发送；已经是这个状态就什么也不做。 */
     private fun save(edit: ProfileEdit) {
