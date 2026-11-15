@@ -295,7 +295,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ## 发言附加的笔记
 
-用户可以把自己已有的笔记附加到一条发言上，让 AI 把它们当作这段对话的参考内容。入口在附加菜单：手机的“＋”底部弹层（`src/components/attach-sheet.tsx`）里 “Attach pages” 一行（与 “Add files or photos”、“Create an image” 并列），桌面在输入框下方工具栏的笔记图标按钮（窄屏用 `@media` 隐藏，改走弹层）。两者打开同一个选择对话框（`src/components/attach-page-dialog.tsx`，沿用项目设置里参考笔记的列表、筛选和样式），读取 `GET /api/pages`，每条发言最多选 5 篇（`MAX_MESSAGE_NOTES`）。选中的笔记显示为输入框上方的标签，点一下移除；打开对话框时，已选但已进入 Trash 的笔记会被去掉，标题按最新的显示。图片生成模式不读笔记，带着笔记发送时提示先移除或关闭图片生成，不静默丢弃。因使用上限被拒绝时，笔记和文本、附件一起回到输入框。
+用户可以把自己已有的笔记附加到一条发言上，让 AI 把它们当作这段对话的参考内容。入口在附加菜单：手机的“＋”底部弹层（`src/components/attach-sheet.tsx`）里 “Attach pages” 一行（与 “Add files or photos”、“Create an image” 并列），桌面在输入框下方工具栏带文字的 “Attach pages” 按钮（窄屏用 `@media` 隐藏，改走弹层）。桌面的“＋”在其上方弹出小菜单（同一文件里的 `AttachMenu`），只有 “Add files or photos” 和 “Create an image” 两行；图片模式开启后，手机和桌面都在输入框上方显示可取消的标签。两者打开同一个选择对话框（`src/components/attach-page-dialog.tsx`，沿用项目设置里参考笔记的列表、筛选和样式），读取 `GET /api/pages`，每条发言最多选 5 篇（`MAX_MESSAGE_NOTES`）。选中的笔记显示为输入框上方的标签，点一下移除；打开对话框时，已选但已进入 Trash 的笔记会被去掉，标题按最新的显示。图片生成模式不读笔记，带着笔记发送时提示先移除或关闭图片生成，不静默丢弃。因使用上限被拒绝时，笔记和文本、附件一起回到输入框。
 
 - **请求**：`/api/chat` 的表单字段 `pages` 是笔记 ID 的 JSON 数组（缺省或空表示没有）。格式不对、ID 为空或超过 64 字符时 400 `Attached pages must be a list of page IDs.`，去重后超过 5 篇时 400 `You can attach up to 5 pages to a message.`。随后在计数使用量之前只保留属于当前用户、不在 Trash 的笔记（`liveOwnedNoteIds`，保持顺序）；其他 ID（他人的、不存在的、选好后才放进 Trash 的）直接丢掉，不记录也不发送，发言照常发出，不会因此丢掉草稿。
 - **保存**：只把 `(messageId, noteId, position)` 写进 `MessageNote`（与用户消息同一个 `create`），**不复制笔记正文**，见 [database.md](database.md#messagenote)。`GET /api/sessions/:id/messages` 为每条消息返回 `pages: [{ id, title, icon }]`（按附加顺序，只含本人不在 Trash 的笔记，标题和图标每次从笔记读取），用户发言下方显示为可点的标签，点击派发 `notefable:open-note` 打开笔记。
