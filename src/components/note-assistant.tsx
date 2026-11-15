@@ -29,8 +29,8 @@ const QUICK_ACTIONS = [
   { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
 
-// 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。
-const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight });
+// 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。rem は 1rem の px（ボタンとパネルの大きさは CSS で rem 指定なので、ブラウザーの文字サイズ設定に合わせる）。
+const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16 });
 
 // /api/chat に送り、届いた本文の差分と途中経過を順に渡す。セッション ID はレスポンスヘッダーから受け取る。
 async function streamChat(
@@ -109,13 +109,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
 
   // 丸いボタンの位置。null は動かしていない（CSS の既定位置＝右下）。
   const [fabPosition, setFabPosition] = useState<FabPosition | null>(() => (typeof window === "undefined" ? null : loadFabPosition()));
-  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0 } : viewportSize()));
+  const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0, rem: 16 } : viewportSize()));
   const [dragging, setDragging] = useState(false);
   // last は、このドラッグで最後に置いた位置（まだ動かしていなければ null）。
   const drag = useRef<{ pointerId: number; startX: number; startY: number; right: number; bottom: number; last: FabPosition | null } | null>(null);
   // ドラッグを終えた直後のクリックでは開閉しない。
   const skipClick = useRef(false);
-  const fabSize = phone ? 52 : 48;
+  // CSS の .note-ai-fab と同じ大きさ（3rem、スマホは 3.25rem）。
+  const fabSize = (phone ? 3.25 : 3) * viewport.rem;
   // 画面が小さくなっても、ボタンは必ず画面の中に置く。
   const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
 
@@ -161,7 +162,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, flush }: {
   }
 
   // PC では、動かしたボタンのそばにパネルを開く。動かしていなければ CSS の既定位置（右下）のまま。
-  const panelStyle = fab && !phone ? panelPlacement(fab, fabSize, Math.min(416, viewport.width - 40), viewport.width, viewport.height) : undefined;
+  const panelStyle = fab && !phone ? panelPlacement(fab, fabSize, Math.min(26 * viewport.rem, viewport.width - 2.5 * viewport.rem), viewport.width, viewport.height) : undefined;
 
   // スマホではシートとして開き、端末の「戻る」で閉じられるようにする。
   useBackToClose(open && phone, close);
