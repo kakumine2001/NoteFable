@@ -89,7 +89,7 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));
       forgetLocaleChoice();
-      window.location.replace("/");
+      window.location.replace("/?intro");
     } catch (reason) {
       setError(reason instanceof Error && reason.message ? reason.message : msg("Could not delete your account. Please try again."));
       setDeleting(false); onBusyChange(false);

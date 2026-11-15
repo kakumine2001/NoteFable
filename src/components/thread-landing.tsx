@@ -248,7 +248,7 @@ export function ThreadLanding() {
       <a className="tl-skip" href="#tl-main">{t("Skip to content")}</a>
 
       <header className="tl-nav tl-wrap">
-        <Link className="tl-brand" href="/" aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
+        <Link className="tl-brand" href="/?intro" aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
         <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 

@@ -8,6 +8,7 @@ export function LegalLinks() {
   const t = useT();
   return (
     <div className="flex shrink-0 gap-4 px-4 py-2.5 text-xs text-[var(--notion-muted)]">
+      <Link href="/?intro" className="hover:text-[var(--notion-muted)] hover:underline">{t("About")}</Link>
       <Link href="/privacy" className="hover:text-[var(--notion-muted)] hover:underline">{t("Privacy")}</Link>
       <Link href="/terms" className="hover:text-[var(--notion-muted)] hover:underline">{t("Terms")}</Link>
     </div>

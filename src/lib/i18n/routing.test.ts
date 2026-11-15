@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { routeLocalizedRequest } from "./routing";
 
-function route(path: string, { cookie, language, country }: { cookie?: string; language?: string; country?: string } = {}) {
+function route(path: string, { cookie, language, country, cookies = {} }: { cookie?: string; language?: string; country?: string; cookies?: Record<string, string> } = {}) {
   return routeLocalizedRequest({
     url: `https://example.test${path}`,
-    cookie: (name) => (name === "notefable-locale" ? cookie : undefined),
+    cookie: (name) => (name === "notefable-locale" ? cookie : cookies[name]),
     header: (name) => (name === "accept-language" ? language ?? null : name === "x-vercel-ip-country" ? country ?? null : null),
   });
 }
@@ -22,6 +22,19 @@ describe("localized routing", () => {
 
   it("keeps campaign links on the introduction", () => {
     expect(target(route("/?utm_source=bookmark", { language: "en" }))).toBe("rewrite /en?utm_source=bookmark");
+  });
+
+  it.each(["notefable_device", "authjs.session-token", "__Secure-authjs.session-token"])("sends a returning %s visitor from / to the workspace", (name) => {
+    expect(target(route("/", { cookies: { [name]: "x" } }))).toBe("redirect /app");
+    expect(target(route("/?utm_source=bookmark", { cookies: { [name]: "x" } }))).toBe("redirect /app?utm_source=bookmark");
+  });
+
+  it("shows the introduction to returning visitors who ask for it", () => {
+    expect(target(route("/?intro", { language: "ja", cookies: { notefable_device: "x" } }))).toBe("rewrite /ja?intro");
+  });
+
+  it("serves /app to returning visitors without redirecting", () => {
+    expect(target(route("/app", { language: "ja", cookies: { notefable_device: "x" } }))).toBe("rewrite /ja/app");
   });
 
   it.each(["chat", "message", "view", "page"])("sends legacy %s links to the workspace", (key) => {
