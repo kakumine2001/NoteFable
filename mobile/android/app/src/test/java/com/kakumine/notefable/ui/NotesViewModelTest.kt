@@ -38,6 +38,7 @@ class NotesViewModelTest {
 
     private class MemoryPrefs : NotesPrefs {
         override var collapsedGroups: Set<String> = emptySet()
+        override var expandedPages: Set<String> = emptySet()
     }
 
     private class FakeNotes : NotesBackend {
@@ -65,12 +66,46 @@ class NotesViewModelTest {
             hold("notes")
             return snapshot
         }
-        override suspend fun createNote(): NotePageSummary {
-            calls += "create"; maybeFail()
-            return NotePageSummary("new", "Untitled", null, createdAt = "2026-11-15T00:00:00Z").also { pages.add(0, it) }
+        override suspend fun createNote(parentId: String?): NotePageSummary {
+            calls += if (parentId == null) "create" else "create:$parentId"; maybeFail()
+            val group = parentId?.let { id -> pages.firstOrNull { it.id == id }?.groupId }
+            return NotePageSummary("new", "Untitled", null, createdAt = "2026-11-15T00:00:00Z", parentId = parentId, groupId = group).also { pages.add(0, it) }
         }
-        override suspend fun trashNote(id: String) { calls += "trash:$id"; maybeFail(); pages.removeAll { it.id == id } }
-        override suspend fun moveNote(id: String, groupId: String?) { calls += "move:$id:$groupId"; maybeFail() }
+        /** 子页面一起移进回收站（服务端的 ids）。 */
+        override suspend fun trashNote(id: String): List<String> {
+            calls += "trash:$id"; maybeFail()
+            val ids = mutableListOf(id)
+            var index = 0
+            while (index < ids.size) { val parent = ids[index++]; ids += pages.filter { it.parentId == parent }.map { it.id } }
+            pages.removeAll { it.id in ids }
+            return ids
+        }
+        override suspend fun moveNote(id: String, groupId: String?): List<String> {
+            calls += "move:$id:$groupId"; maybeFail()
+            return listOf(id) + pages.filter { it.parentId == id }.map { it.id }
+        }
+        override suspend fun moveToPage(id: String, parentId: String?): List<NotePageSummary> {
+            calls += "parent:$id:$parentId"; maybeFail()
+            val group = pages.firstOrNull { it.id == parentId }?.groupId
+            return pages.filter { it.id == id || it.parentId == id }.map { if (it.id == id) it.copy(parentId = parentId, groupId = group) else it.copy(groupId = group) }
+        }
+        override suspend fun setFavorite(id: String, favorite: Boolean): NotePageSummary {
+            calls += "favorite:$id:$favorite"; maybeFail()
+            return pages.first { it.id == id }.copy(favoritedAt = if (favorite) "2026-11-16T00:00:00Z" else null)
+        }
+        override suspend fun updateSettings(id: String, settings: com.kakumine.notefable.data.NotePageSettings): NotePageSummary {
+            calls += "settings:$id"; maybeFail()
+            val page = pages.first { it.id == id }
+            return page.copy(fullWidth = settings.fullWidth ?: page.fullWidth, smallText = settings.smallText ?: page.smallText,
+                font = settings.font ?: page.font, locked = settings.locked ?: page.locked)
+        }
+        override suspend fun duplicate(id: String): com.kakumine.notefable.data.DuplicateResult {
+            calls += "duplicate:$id"; maybeFail()
+            val copy = pages.first { it.id == id }.copy(id = "copy", title = "Copy (1)")
+            return com.kakumine.notefable.data.DuplicateResult(copy, listOf(copy), listOf(
+                com.kakumine.notefable.data.NoteOrderUpdate("a", 1), com.kakumine.notefable.data.NoteOrderUpdate("copy", 2), com.kakumine.notefable.data.NoteOrderUpdate("b", 3),
+            ))
+        }
         /** 模拟服务端：b 放到 a 前面，b 跟着 a 进 g1。 */
         override suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<com.kakumine.notefable.data.NoteOrderUpdate> {
             calls += "reorder:$id:$targetId:$after"; maybeFail(); hold("reorder")
@@ -83,11 +118,11 @@ class NotesViewModelTest {
         override suspend fun renameGroup(id: String, name: String): NoteGroupSummary { calls += "rename:$id:$name"; maybeFail(); return NoteGroupSummary(id, name) }
         override suspend fun deleteGroup(id: String) { calls += "deleteGroup:$id"; maybeFail() }
         override suspend fun trash(): List<NoteTrashItem> { calls += "trashList"; maybeFail(); return trashed.toList() }
-        override suspend fun restoreNote(id: String): NotePageSummary {
+        override suspend fun restoreNote(id: String): List<NotePageSummary> {
             calls += "restore:$id"; maybeFail(); hold("restore")
-            return NotePageSummary(id, "Old draft", null, position = 5, createdAt = "2026-11-13T00:00:00Z")
+            return listOf(NotePageSummary(id, "Old draft", null, position = 5, createdAt = "2026-11-13T00:00:00Z"))
         }
-        override suspend fun deleteForever(id: String) { calls += "forever:$id"; maybeFail() }
+        override suspend fun deleteForever(id: String): List<String> { calls += "forever:$id"; maybeFail(); return listOf(id) }
         override suspend fun emptyTrash(before: String) { calls += "empty:$before"; maybeFail() }
         override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
     }
@@ -605,5 +640,105 @@ class NotesViewModelTest {
         assertEquals(listOf("z", "x", "y"), sorted.map { it.id })
         assertNull(sorted[0].groupId)
         assertEquals("g", sorted[1].groupId)
+    }
+
+    @Test
+    fun `sub-pages show under their parent, count in the project and go to the trash with it`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        backend.pages.add(NotePageSummary("c", "Mitosis", null, groupId = "g1", parentId = "a", createdAt = "2026-11-14T00:00:02Z"))
+        val vm = notesVm(backend)
+        val state = vm.state.value
+        assertEquals(listOf("a"), state.members("g1").map { it.id })
+        assertEquals(2, state.memberCount("g1"))
+        assertEquals(listOf("c"), state.children("a").map { it.id })
+        assertEquals(listOf("a"), state.ancestors("c").map { it.id })
+        assertEquals(setOf("c"), state.descendants("a"))
+        vm.flushEditor = { FlushResult(true) }
+        assertTrue(vm.trashNote("a"))
+        assertEquals(listOf("b"), vm.state.value.pages.map { it.id })
+    }
+
+    @Test
+    fun `a page inside another is created under it and the parent is expanded and remembered`() = runTest(dispatcher) {
+        val prefs = MemoryPrefs()
+        val vm = notesVm(prefs = prefs)
+        vm.createNote("a")
+        advanceUntilIdle()
+        val page = vm.state.value.pages.first { it.id == "new" }
+        assertEquals("a", page.parentId)
+        assertEquals("g1", page.groupId)
+        assertEquals("new", vm.state.value.open?.id)
+        assertTrue("a" in vm.state.value.expanded)
+        assertEquals(setOf("a"), prefs.expandedPages)
+    }
+
+    @Test
+    fun `moving into a project detaches the page and moves its sub-pages`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        backend.pages.add(NotePageSummary("c", "Mitosis", null, groupId = "g1", parentId = "a"))
+        backend.pages.add(NotePageSummary("d", "Meiosis", null, groupId = "g1", parentId = "c"))
+        val vm = notesVm(backend)
+        assertTrue(vm.moveNote("c", null))
+        val pages = vm.state.value.pages.associateBy { it.id }
+        assertNull(pages.getValue("c").parentId)
+        assertNull(pages.getValue("c").groupId)
+        assertNull(pages.getValue("d").groupId)
+        assertEquals("c", pages.getValue("d").parentId)
+    }
+
+    @Test
+    fun `moving into a page follows the parent's project`() = runTest(dispatcher) {
+        val vm = notesVm()
+        assertTrue(vm.moveToPage("b", "a"))
+        val b = vm.state.value.pages.first { it.id == "b" }
+        assertEquals("a", b.parentId)
+        assertEquals("g1", b.groupId)
+        assertTrue("a" in vm.state.value.expanded)
+    }
+
+    @Test
+    fun `settings and favorites update the list and reach the open editor`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openNote("a")
+        advanceUntilIdle()
+        val pushed = mutableListOf<NotePageSummary>()
+        vm.pushPageSettings = { pushed += it }
+        assertTrue(vm.updateSettings("a", com.kakumine.notefable.data.NotePageSettings(fullWidth = true, font = "mono", locked = true)))
+        assertTrue(vm.setFavorite("b", true))
+        val pages = vm.state.value.pages.associateBy { it.id }
+        assertTrue(pages.getValue("a").fullWidth)
+        assertEquals("mono", pages.getValue("a").font)
+        assertTrue(pages.getValue("a").locked)
+        assertEquals(listOf("b"), vm.state.value.favorites.map { it.id })
+        // 只把打开着的那篇交给编辑器。
+        assertEquals(listOf("a"), pushed.map { it.id })
+    }
+
+    @Test
+    fun `duplicating saves the open page first, adds the copy in the server's order and opens it`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.flushEditor = { FlushResult(false) }
+        vm.duplicate("a")
+        advanceUntilIdle()
+        assertFalse("duplicate:a" in backend.calls)
+        vm.flushEditor = { FlushResult(true) }
+        vm.duplicate("a")
+        advanceUntilIdle()
+        assertEquals(listOf("a", "copy", "b"), vm.state.value.pages.map { it.id })
+        assertEquals("copy", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `reorder results can move a page under another parent`() {
+        val pages = listOf(NotePageSummary("x", "X", null, position = 1), NotePageSummary("y", "Y", null, position = 2, parentId = "p"))
+        val next = NotesViewModel.applyOrder(pages, listOf(
+            com.kakumine.notefable.data.NoteOrderUpdate("x", 2, groupId = null, movedGroup = true, parentId = "p", movedParent = true),
+            com.kakumine.notefable.data.NoteOrderUpdate("y", 1),
+        ))
+        assertEquals(listOf("y", "x"), next.map { it.id })
+        assertEquals("p", next[1].parentId)
     }
 }

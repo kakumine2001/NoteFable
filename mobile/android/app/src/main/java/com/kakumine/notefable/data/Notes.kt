@@ -16,12 +16,29 @@ data class NotePageSummary(
     val title: String = "",
     val icon: String? = null,
     val version: Int = 0,
-    /** 所属项目；null 是"未分组"。 */
+    /** 所属项目；null 是"未分组"。子页面和最上层的祖先在同一个项目。 */
     val groupId: String? = null,
     val position: Int = 0,
     val createdAt: String = "",
     val updatedAt: String = "",
+    /** 父页面（Notion 的子页面）；null 是最上层。父页面不在列表里（回收站等）时当最上层显示。 */
+    val parentId: String? = null,
+    /** 加入收藏的时刻（ISO）；null 是没收藏。 */
+    val favoritedAt: String? = null,
+    /** 页面的显示设置（网页上部栏的"…"）。和正文的 version 分开保存。 */
+    val fullWidth: Boolean = false,
+    val smallText: Boolean = false,
+    /** "default" / "serif" / "mono" */
+    val font: String = "default",
+    /** 锁定：编辑器只读（界面上的防误改，不是权限）。 */
+    val locked: Boolean = false,
 )
+
+/** 页面设置的改动（PUT /api/pages/:id/settings 只改送去的项）。 */
+data class NotePageSettings(val fullWidth: Boolean? = null, val smallText: Boolean? = null, val font: String? = null, val locked: Boolean? = null)
+
+/** POST /api/pages/:id/duplicate：复制后的最上层页面、所有复制件、全部笔记的新 position。 */
+data class DuplicateResult(val page: NotePageSummary, val pages: List<NotePageSummary>, val order: List<NoteOrderUpdate>)
 
 @Serializable
 data class NoteGroupSummary(val id: String, val name: String, val position: Int = 0)
@@ -37,7 +54,11 @@ data class NoteTrashItem(val id: String, val title: String = "", val icon: Strin
  * `POST /api/pages/reorder` 返回的新顺序（`{items:[{id, position, groupId?}]}`）。只有被移动的那一篇带 groupId
  * （跨项目拖动时服务端顺便改它的项目），null 也是有效值（移出项目），所以用 [movedGroup] 记字段在不在。
  */
-data class NoteOrderUpdate(val id: String, val position: Int, val groupId: String? = null, val movedGroup: Boolean = false) {
+data class NoteOrderUpdate(
+    val id: String, val position: Int, val groupId: String? = null, val movedGroup: Boolean = false,
+    /** 被拖的那一篇变成目标的兄弟，也带回新的 parentId（null 也是有效值：最上层）。 */
+    val parentId: String? = null, val movedParent: Boolean = false,
+) {
     companion object {
         fun parse(response: JsonObject): List<NoteOrderUpdate> {
             val items = response["items"] as? kotlinx.serialization.json.JsonArray ?: return emptyList()
@@ -48,7 +69,9 @@ data class NoteOrderUpdate(val id: String, val position: Int, val groupId: Strin
                     ?.content?.toIntOrNull() ?: return@mapNotNull null
                 val moved = "groupId" in item
                 val groupId = if (moved) (item["groupId"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull else null
-                NoteOrderUpdate(id, position, groupId, moved)
+                val reparented = "parentId" in item
+                val parentId = if (reparented) (item["parentId"] as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull else null
+                NoteOrderUpdate(id, position, groupId, moved, parentId, reparented)
             }
         }
     }
@@ -56,6 +79,14 @@ data class NoteOrderUpdate(val id: String, val position: Int, val groupId: Strin
 
 @Serializable
 internal data class PageResponse(val page: NotePageSummary)
+
+/** 复原（一起移进回收站的子页面也回来）、移到别的页面之下：page 是这一篇，pages 是全部受影响的页面。 */
+@Serializable
+internal data class PagesResponse(val page: NotePageSummary? = null, val pages: List<NotePageSummary> = emptyList())
+
+/** 移进回收站、移进项目：ids 是一起被移动的页面（含子页面）。 */
+@Serializable
+internal data class IdsResponse(val ids: List<String> = emptyList())
 
 @Serializable
 internal data class GroupResponse(val group: NoteGroupSummary)
@@ -67,13 +98,23 @@ internal data class TrashResponse(val pages: List<NoteTrashItem> = emptyList())
 interface NotesBackend {
     suspend fun notes(): NotesList
 
-    /** 和网页的"New note"一样，建一篇空白的 Untitled 笔记。 */
-    suspend fun createNote(): NotePageSummary
+    /** 和网页的"New note"一样，建一篇空白的 Untitled 笔记。[parentId] 指定时建在那一篇里面（子页面）。 */
+    suspend fun createNote(parentId: String? = null): NotePageSummary
 
-    /** 移到回收站（服务端只记 deletedAt，30 天内可恢复）。 */
-    suspend fun trashNote(id: String)
+    /** 移到回收站（服务端只记 deletedAt，30 天内可恢复），子页面一起移进去。返回所有被移进去的 id（含这一篇）。 */
+    suspend fun trashNote(id: String): List<String>
 
-    suspend fun moveNote(id: String, groupId: String?)
+    /** 移进项目（null 是移出），同时脱离父页面；返回一起移动的 id（含子页面）。 */
+    suspend fun moveNote(id: String, groupId: String?): List<String>
+
+    /** 移到另一页面之下（null 回到最上层）；返回被移动的页面（含子页面）的新状态。 */
+    suspend fun moveToPage(id: String, parentId: String?): List<NotePageSummary>
+
+    suspend fun setFavorite(id: String, favorite: Boolean): NotePageSummary
+    suspend fun updateSettings(id: String, settings: NotePageSettings): NotePageSummary
+
+    /** 复制这一篇和子页面（网页"Duplicate"）。 */
+    suspend fun duplicate(id: String): DuplicateResult
 
     /** 拖动排序：把 [id] 放到 [targetId] 的前 / 后（网页 ReorderRequest）。目标在别的项目里时也一起移过去。 */
     suspend fun reorderNote(id: String, targetId: String, after: Boolean): List<NoteOrderUpdate>
@@ -82,8 +123,10 @@ interface NotesBackend {
     suspend fun deleteGroup(id: String)
 
     suspend fun trash(): List<NoteTrashItem>
-    suspend fun restoreNote(id: String): NotePageSummary
-    suspend fun deleteForever(id: String)
+    /** 复原；一起移进回收站的子页面也回来。返回所有复原的页面（第一篇是这一篇）。 */
+    suspend fun restoreNote(id: String): List<NotePageSummary>
+    /** 永久删除；回收站里它的子页面也一起删。返回删掉的 id（另一时刻移进去、单独列着的子页面也在里面）。 */
+    suspend fun deleteForever(id: String): List<String>
 
     /** 清空回收站；[before] 是确认时看到的最新一条的 deletedAt，确认后别处新扔的不会被删。 */
     suspend fun emptyTrash(before: String)

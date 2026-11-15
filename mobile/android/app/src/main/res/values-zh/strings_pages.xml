@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 子页面、收藏、页面菜单（网页 notes-sidebar / notes-home / note-page-menu）。文案与网页词典一致。 -->
+<resources>
+    <string name="pg_favorites">收藏</string>
+    <string name="pg_no_pages_inside">没有子页面</string>
+    <string name="pg_add_page_inside">添加子页面</string>
+    <string name="pg_add_page_inside_title">在“%1$s”中添加页面</string>
+    <string name="pg_collapse_title">收起“%1$s”</string>
+    <string name="pg_expand_title">展开“%1$s”</string>
+    <string name="pg_remove_title_from_favorites">将“%1$s”从收藏中移除</string>
+    <string name="pg_page_options">页面选项</string>
+    <string name="pg_style">样式</string>
+    <string name="pg_font_default">默认</string>
+    <string name="pg_font_serif">衬线</string>
+    <string name="pg_font_mono">等宽</string>
+    <string name="pg_small_text">小字号</string>
+    <string name="pg_full_width">全宽</string>
+    <string name="pg_lock_page">锁定页面</string>
+    <string name="pg_unlock_page">解锁页面</string>
+    <string name="pg_add_to_favorites">添加到收藏</string>
+    <string name="pg_remove_from_favorites">从收藏中移除</string>
+    <string name="pg_duplicate">创建副本</string>
+    <string name="pg_move_to">移动到</string>
+    <string name="pg_pages">页面</string>
+    <string name="pg_search_pages">搜索页面</string>
+    <string name="pg_no_matching_pages">没有匹配的页面。</string>
+    <string name="pg_subpages_to_trash">其中的子页面也会一起移入回收站。</string>
+</resources>
