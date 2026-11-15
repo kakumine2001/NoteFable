@@ -2,6 +2,7 @@
 // npm install --save-dev prisma dotenv
 import "dotenv/config";
 import { defineConfig } from "prisma/config";
+import { withDatabaseSchema } from "./src/lib/database-url";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -9,6 +10,7 @@ export default defineConfig({
     path: "prisma/migrations",
   },
   datasource: {
-    url: process.env["DATABASE_URL"],
+    // マイグレーションもアプリと同じ schema（notefable）へ。
+    url: process.env["DATABASE_URL"] ? withDatabaseSchema(process.env["DATABASE_URL"]) : undefined,
   },
 });

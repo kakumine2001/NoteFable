@@ -26,8 +26,7 @@ Production aliases：
 ```text
 notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）
 www.notefable.com             # 308 跳转到 notefable.com
-studymate-lab-ai.vercel.app   # 旧网址，继续可用（网页的匿名数据跟着各自域名的 Cookie；Android App 已改连 notefable.com 并搬了 Cookie）
-notefable-kaku10.vercel.app   # Vercel 项目 2026-11-15 由 studymate 改名为 notefable
+notefable-kaku10.vercel.app
 ```
 
 生产部署应始终核对 Vercel deployment 的 `gitSource.sha` 是否等于 GitHub `main` 当前提交；不要仅凭域名判断线上代码版本。
@@ -54,7 +53,7 @@ Region: aws-us-east-1
 PostgreSQL: 18
 Branch: production
 Database: neondb
-Schema: studymate
+Schema: notefable
 ```
 
 当前 Vercel `iad1` 与 Neon `aws-us-east-1` 都位于美国东部。
@@ -106,13 +105,9 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 ## Database Schema Boundary
 
-生产连接字符串必须把 NoteFable 指向：
+NoteFable 的表固定放在 `notefable` schema：`src/lib/database-url.ts` 的 `DATABASE_SCHEMA` 会覆盖 `DATABASE_URL` 里的 `?schema=`（运行时 `src/lib/prisma.ts` 和迁移 `prisma.config.ts` 都是），运行时再显式把它传给 Prisma adapter。连接字符串里写什么 schema 都不影响。
 
-```text
-?schema=studymate
-```
-
-并且运行时 `src/lib/prisma.ts` 会再次显式把这个 schema 传给 Prisma adapter。
+`scripts/prisma-migrate-retry.mjs` 在迁移前检查：数据库里别的 schema 已有 NoteFable 的表、`notefable` 却没有迁移记录时直接失败（否则 `prisma migrate deploy` 会新建一个空的 `notefable` schema，上线后看起来数据全没了）。
 
 这是必要的，因为同一个 Neon database 里还有：
 
@@ -120,7 +115,7 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 kaku_log
 ```
 
-本地使用独立数据库 `studymate` 的 `public` schema，不共享生产库。启动与迁移步骤见 [README](../../README.md#本地启动)。
+本地使用独立数据库 `notefable`（schema 同样是 `notefable`），不共享生产库。启动与迁移步骤见 [README](../../README.md#本地启动)。
 
 生产 `DATABASE_URL` 当前使用 Neon pooled endpoint。Node 运行时会将旧的 SSL 别名明确为 `verify-full`，保持证书与主机名验证；详见 [数据库连接说明](database.md#runtime-connection)。
 
@@ -143,7 +138,7 @@ AUTH_GOOGLE_SECRET
 
 三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
-**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期在 `src/components/legal-page.tsx`；两个链接也放在聊天 / 笔记侧栏底部。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记了 `notefable.com` 和旧的 `studymate-lab-ai.vercel.app`，OAuth 客户端的重定向 URI 也两个都登记了（加上本地 `http://localhost:3000`），所以从这两个域名都能 Google 登录（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面。
+**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期在 `src/components/legal-page.tsx`；两个链接也放在聊天 / 笔记侧栏底部。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记了 `https://notefable.com/api/auth/callback/google` 和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面。
 
 ### 邮箱验证码登录（可选）
 
@@ -188,7 +183,7 @@ ANTHROPIC_HAIKU_MODEL
 
 ### 可用模型（`NOTEFABLE_MODELS`，可选）
 
-`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS`（改名前的 `STUDYMATE_MODELS` 也还认，新名字优先）决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
+`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS` 决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
 
 值是一个 JSON 数组。只有写在里面的模型可用，顺序就是选择器里的顺序，第一个是默认模型：
 
@@ -210,7 +205,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 ```text
 Vercel Function
   -> @vercel/blob.put / get
-  -> Private Vercel Blob (studymate-images)
+  -> Private Vercel Blob (notefable-images)
   -> PostgreSQL 保存 imageStoragePath
 ```
 
@@ -250,7 +245,7 @@ READY / ERROR
 
 - production branch 是否 ready
 - `neondb` 是否存在
-- `studymate` schema 是否存在
+- `notefable` schema 是否存在
 - migration 是否完成
 
 ### 5. 再查外部 API

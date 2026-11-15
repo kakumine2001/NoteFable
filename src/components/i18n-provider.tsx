@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { isLocale, LEGACY_LOCALE_COOKIE, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference } from "@/lib/i18n/locale";
+import { isLocale, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { createTranslator, msg, type Messages, type Translate } from "@/lib/i18n/translate";
 
 type I18nValue = {
@@ -24,9 +24,8 @@ const I18nContext = createContext<I18nValue>(fallback);
 // 利用者の選択（Cookie）。ページは言語ごとの静的なページなのでサーバーでは読まず、ブラウザで読む。
 const preferenceListeners = new Set<() => void>();
 const readPreference = () => {
-  const parts = document.cookie.split("; ");
-  const read = (name: string) => parts.find((part) => part.startsWith(`${name}=`))?.slice(name.length + 1);
-  return parsePreference(read(LOCALE_COOKIE) ?? read(LEGACY_LOCALE_COOKIE));
+  const match = document.cookie.split("; ").find((part) => part.startsWith(`${LOCALE_COOKIE}=`));
+  return parsePreference(match?.slice(LOCALE_COOKIE.length + 1));
 };
 const subscribePreference = (listener: () => void) => {
   preferenceListeners.add(listener);
@@ -74,7 +73,6 @@ export function I18nProvider({ locale, messages, children }: {
         document.cookie = next === "auto"
           ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
           : `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
-        document.cookie = `${LEGACY_LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`;
         preferenceListeners.forEach((listener) => listener());
         setTranslator((current) => current.locale === data.locale ? current : { locale: data.locale, t: createTranslator(data.messages) });
       } catch {

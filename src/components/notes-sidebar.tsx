@@ -16,7 +16,6 @@ import { rowName } from "@/lib/view-transition";
 import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
-import { adoptLegacyKey } from "@/lib/legacy-storage";
 
 const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
 
@@ -47,10 +46,7 @@ export function NotesSidebar({ pages, activeId, busy, onCreate, onSearch, onSele
   const [deletingGroup, setDeletingGroup] = useState<NoteGroupSummary | null>(null);
   // 折りたたみの状態は端末に覚えておく。この側のパネルは Notes に切り替えた後にだけ作られるので、初期値で読んでもサーバー描画とずれない。
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
-    try {
-      adoptLegacyKey(localStorage, COLLAPSED_KEY);
-      return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}");
-    } catch { return {}; }
+    try { return JSON.parse(localStorage.getItem(COLLAPSED_KEY) ?? "{}"); } catch { return {}; }
   });
   // アイコン選択を開いているノートと、その位置（スクロールしても固定位置で出すため開いた時点で決める）。チャットの行と同じ作り。
   const [picker, setPicker] = useState<{ id: string; position: FloatingPosition } | null>(null);

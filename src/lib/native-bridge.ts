@@ -25,11 +25,10 @@ export type EmbedApi = {
   pageSettings: (page: unknown) => boolean;
 };
 
-// 改名前の APK は StudyMateNative / studymateEmbed を使う。入れ替わるまで両方の名前で受け付ける。
-type BridgeWindow = { NoteFableNative?: unknown; StudyMateNative?: unknown; notefableEmbed?: EmbedApi; studymateEmbed?: EmbedApi };
+type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
 
 function host(target: BridgeWindow | undefined): NativeHost | null {
-  const candidate = (target?.NoteFableNative ?? target?.StudyMateNative) as Partial<NativeHost> | undefined;
+  const candidate = target?.NoteFableNative as Partial<NativeHost> | undefined;
   // @JavascriptInterface のメソッドは typeof で "function" になる。
   return candidate && typeof candidate.postMessage === "function" ? (candidate as NativeHost) : null;
 }
@@ -143,9 +142,5 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
 export function installEmbedApi(api: EmbedApi, target: BridgeWindow | undefined = browserWindow()) {
   if (!target) return () => {};
   target.notefableEmbed = api;
-  target.studymateEmbed = api;
-  return () => {
-    if (target.notefableEmbed === api) delete target.notefableEmbed;
-    if (target.studymateEmbed === api) delete target.studymateEmbed;
-  };
+  return () => { if (target.notefableEmbed === api) delete target.notefableEmbed; };
 }

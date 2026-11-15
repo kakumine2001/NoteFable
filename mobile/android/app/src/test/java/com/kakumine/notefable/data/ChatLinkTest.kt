@@ -34,10 +34,9 @@ class ChatLinkTest {
     }
 
     @Test
-    fun `treats the new domain and the old vercel address as the same site`() {
-        val old = "https://studymate-lab-ai.vercel.app"
-        assertEquals(ChatLink.Open("c1", "m1"), ChatLink.parse("https://notefable.com/?chat=c1&message=m1", old))
-        assertEquals(ChatLink.Open("c1", null), ChatLink.parse("https://studymate-lab-ai.vercel.app/?chat=c1", "https://notefable.com"))
-        assertNull(ChatLink.parse("https://notefable.com.evil.example/?chat=c1", old))
+    fun `treats notefable_com and www as the same site`() {
+        val base = "https://notefable.com"
+        assertEquals(ChatLink.Open("c1", "m1"), ChatLink.parse("https://www.notefable.com/?chat=c1&message=m1", base))
+        assertNull(ChatLink.parse("https://notefable.com.evil.example/?chat=c1", base))
     }
 }

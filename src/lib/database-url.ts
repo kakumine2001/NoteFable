@@ -15,3 +15,12 @@ export function normalizeDatabaseSslMode(connectionString: string) {
 
   return connectionString;
 }
+
+// NoteFable のテーブルを置く PostgreSQL の schema。接続文字列（DATABASE_URL）の schema 指定は使わず、常にこれにする。
+export const DATABASE_SCHEMA = "notefable";
+
+export function withDatabaseSchema(connectionString: string, schema = DATABASE_SCHEMA) {
+  const url = new URL(connectionString);
+  url.searchParams.set("schema", schema);
+  return url.toString();
+}

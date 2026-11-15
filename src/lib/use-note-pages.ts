@@ -8,11 +8,8 @@ import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf, rootPages } from "@/lib/note-tree";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { msg } from "@/lib/i18n/translate";
-import { adoptLegacyKey } from "@/lib/legacy-storage";
 
 const DRAFT_PREFIX = "notefable:page-draft:v1:";
-// 改名前の下書きキー（adoptLegacyKey が読むときに移す）。ゴミ箱へ移すときはこちらも消す。
-const LEGACY_DRAFT_PREFIX = "studymate:page-draft:v1:";
 
 async function pageRequest(url: string, method = "GET", body?: unknown) {
   const response = await fetch(url, {
@@ -81,7 +78,6 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const install = useCallback((page: NotePage) => {
     let draft: NoteDraft | undefined;
     try {
-      adoptLegacyKey(localStorage, DRAFT_PREFIX + page.id);
       const cached = localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -319,10 +315,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
       for (const removedId of removed) {
         queues.current.delete(removedId);
-        try {
-          localStorage.removeItem(DRAFT_PREFIX + removedId);
-          localStorage.removeItem(LEGACY_DRAFT_PREFIX + removedId);
-        } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
+        try { localStorage.removeItem(DRAFT_PREFIX + removedId); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
       }
       const remaining = pages.filter((page) => !removed.has(page.id));
       runTransition(() => setPages(remaining), "list");

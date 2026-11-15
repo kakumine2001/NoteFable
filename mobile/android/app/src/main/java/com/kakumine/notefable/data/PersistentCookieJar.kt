@@ -9,7 +9,7 @@ import okhttp3.HttpUrl
 /**
  * 把服务端下发的 Cookie 存在 SharedPreferences。
  *
- * 匿名身份就是 `notefable_device` Cookie（旧版是 `studymate_device`，服务端读到后换成新名字），清除应用数据等于换一个新用户，
+ * 匿名身份就是 `notefable_device` Cookie，清除应用数据等于换一个新用户，
  * 与网页端的语义一致。Google / 邮箱登录后的会话 Cookie 也走这里。
  */
 class PersistentCookieJar(context: Context) : CookieJar {
@@ -62,41 +62,9 @@ class PersistentCookieJar(context: Context) : CookieJar {
         prefs.edit().apply { keys.forEach { remove(it) } }.apply()
     }
 
-    /**
-     * 把 [from] 主机名下存的 Cookie 搬到 [to]。服务器地址从旧网址换成 notefable.com 时调用，
-     * 匿名身份和登录会话跟着走（服务端的签名和 Auth.js 会话都不绑主机名）。[to] 下已有同名 Cookie 时留新的。
-     */
-    fun moveHost(from: String, to: String) = synchronized(lock) {
-        if (from.equals(to, ignoreCase = true)) return@synchronized
-        val old = cookies.filterValues { it.domain.equals(from, ignoreCase = true) }
-        if (old.isEmpty()) return@synchronized
-        val editor = prefs.edit()
-        for ((key, cookie) in old) {
-            cookies.remove(key)
-            editor.remove(key)
-            val moved = rehost(cookie, to)
-            val newKey = keyOf(moved)
-            if (newKey in cookies) continue
-            cookies[newKey] = moved
-            editor.putString(newKey, encode(moved))
-        }
-        editor.apply()
-    }
-
     fun clear() = synchronized(lock) {
         cookies.clear()
         prefs.edit().clear().apply()
-    }
-
-    companion object {
-        /** 同一个 Cookie 换到主机名 [host] 下，其它属性不变。 */
-        fun rehost(c: Cookie, host: String): Cookie = Cookie.Builder().name(c.name).value(c.value).expiresAt(c.expiresAt).apply {
-            if (c.hostOnly) hostOnlyDomain(host) else domain(host)
-            path(c.path)
-            if (c.secure) secure()
-            if (c.httpOnly) httpOnly()
-            c.sameSite?.let { sameSite(it) }
-        }.build()
     }
 
     private fun keyOf(cookie: Cookie) = "${cookie.domain}|${cookie.path}|${cookie.name}"

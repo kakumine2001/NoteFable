@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.find, updateMany: mocks.update, deleteMany: mocks.purge };
   const noteRevision = { findMany: mocks.revisionFind, deleteMany: mocks.revisionDelete };
   const tx = { notePage, noteRevision, $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe };
-  return { databaseSchema: "studymate", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn(tx) } };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn(tx) } };
 });
 import { DELETE, GET, PATCH } from "./route";
 
@@ -119,7 +119,7 @@ describe("edit history snapshot on save", () => {
     expect((await PATCH(request(1), context)).status).toBe(200);
     expect(mocks.raw).toHaveBeenCalledTimes(1);
     const sql = mocks.raw.mock.calls[0][0] as { sql: string; values: unknown[] };
-    expect(sql.sql).toContain('INSERT INTO "studymate"."NoteRevision"');
+    expect(sql.sql).toContain('INSERT INTO "notefable"."NoteRevision"');
     expect(sql.values).toEqual(expect.arrayContaining(["p1", "mine", 1]));
     expect(mocks.raw.mock.invocationCallOrder[0]).toBeLessThan(mocks.update.mock.invocationCallOrder[0]);
   });

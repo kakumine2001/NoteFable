@@ -52,7 +52,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 ## Database
 
-- Production: Neon, db `neondb`, schema `studymate`. Schema changes only via `npm run prisma:migrate` / `prisma migrate deploy` (Vercel runs it before build).
+- Production: Neon, db `neondb`, schema `notefable`. Schema changes only via `npm run prisma:migrate` / `prisma migrate deploy` (Vercel runs it before build).
 - Never run `prisma db push` (any flags) or `prisma migrate reset` against production.
 - Don't point Preview deployments at the production database.
 

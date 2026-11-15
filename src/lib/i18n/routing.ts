@@ -1,4 +1,4 @@
-import { isLocale, LEGACY_LOCALE_COOKIE, LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
+import { isLocale, LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
 
 // 紹介ページ（/）とワークスペース（/app）、Android アプリが WebView に載せるノートのエディター（/note-embed）は、
 // 言語ごとに作り置いた静的なページ（/[locale]、/[locale]/app、/[locale]/note-embed）で配る。
@@ -26,7 +26,7 @@ export function routeLocalizedRequest(request: {
   if (!(LOCALIZED_PATHS as readonly string[]).includes(url.pathname)) return { kind: "none" };
   const requested = url.pathname === EMBED_PATH ? url.searchParams.get("lang") : null;
   const locale = isLocale(requested) ? requested : resolveLocale({
-    preference: parsePreference(request.cookie(LOCALE_COOKIE) ?? request.cookie(LEGACY_LOCALE_COOKIE)),
+    preference: parsePreference(request.cookie(LOCALE_COOKIE)),
     acceptLanguage: request.header("accept-language"),
     country: request.header("x-vercel-ip-country"),
   });

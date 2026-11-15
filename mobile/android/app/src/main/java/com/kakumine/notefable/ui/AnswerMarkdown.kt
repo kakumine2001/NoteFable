@@ -54,13 +54,13 @@ import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
 
 // 回答正文，对照网页 .markdown-body（src/app/globals.css）：
-//  - 正文 16 / 行高 1.72；标题 24.8 / 20.8 / 17.28，字重 650、颜色 --sm-ink、行高 1.3、字距 -0.015em；
+//  - 正文 16 / 行高 1.72；标题 24.8 / 20.8 / 17.28，字重 650、颜色 --nf-ink、行高 1.3、字距 -0.015em；
 //  - 相邻块之间 11.2（0.7rem）；列表缩进 24（21.6 + 2.4），实心圆点，列表项间距 1.28；
 //  - 引用：左侧 3px 浅灰条，文字灰色，左内边距 14.4；链接蓝色、加粗、下划线；
 //  - 行内代码（.markdown-inline-code）：#e2e8f0 底、#0f172a、等宽 0.85em（13.6）；
 //  - 代码块：带语言名和复制键的外框与高亮，见 CodeBlock.kt；
 //  - 表格：单元格 1px --notion-border-strong 边框、内边距 7.2×11.2、左上对齐、最窄 88（手机），
-//    表头 --sm-user-bubble 底、--sm-ink、600；列宽按内容自动分配，放不下时横向滚动（见 [AnswerTable]）。
+//    表头 --nf-user-bubble 底、--nf-ink、600；列宽按内容自动分配，放不下时横向滚动（见 [AnswerTable]）。
 private val Body = TextStyle(fontSize = 16.sp, lineHeight = 27.52.sp, color = Sm.Text, letterSpacing = 0.sp)
 
 private fun heading(size: Float) = TextStyle(

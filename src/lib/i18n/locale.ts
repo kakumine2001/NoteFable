@@ -6,8 +6,6 @@ export type LocalePreference = Locale | "auto";
 
 export const DEFAULT_LOCALE: Locale = "en";
 export const LOCALE_COOKIE = "notefable-locale";
-// 改名前の Cookie 名。新しい名前が無いときだけ読み、言語を選び直したときに消す。
-export const LEGACY_LOCALE_COOKIE = "studymate-locale";
 export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 // 設定画面で、その言語自身の書き方で出す名前。

@@ -638,7 +638,7 @@ private fun Composer(
                 .shadow(8.dp, shape, ambientColor = Sm.ComposerShadow, spotColor = Sm.ComposerShadow)
                 .background(Color.White, shape)
                 .drawBehind {
-                    // 聚焦：3px 的浅蓝光圈（--sm-accent-soft）。
+                    // 聚焦：3px 的浅蓝光圈（--nf-accent-soft）。
                     if (focused) {
                         val ring = 3.dp.toPx()
                         drawRoundRect(

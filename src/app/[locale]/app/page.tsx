@@ -1723,7 +1723,7 @@ export default function Home() {
             ) : (
               <>
                 <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
-                  <h1 aria-labelledby="chat-heading-text" className="break-words text-[2rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">
+                  <h1 aria-labelledby="chat-heading-text" className="break-words text-[2rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">
                     {activeSession && <ChatTitleIcon key={activeSession.id} icon={activeSession.icon ?? null} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />}
                     <span id="chat-heading-text">{activeTitle}</span>
                   </h1>

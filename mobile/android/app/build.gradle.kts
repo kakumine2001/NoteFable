@@ -10,8 +10,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // 和 Capacitor 外壳同一个包名：直接覆盖安装旧版，Google 登录沿用已登记的 Android 客户端（包名 + 这台电脑的 debug 签名）。
-        applicationId = "com.kakumine.studymate"
+        // Google 登录用 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + 这台电脑的 debug 签名）。
+        applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
         versionCode = 8
