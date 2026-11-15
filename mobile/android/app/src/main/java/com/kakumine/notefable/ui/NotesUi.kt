@@ -851,13 +851,14 @@ private fun DialogError(error: NotesError?) {
 
 // .notes-dialog-input：上距 12、1px 深描边、圆角 6、内边距 8.8×11.2、16 字；聚焦时 2px 蓝框。
 @Composable
-private fun DialogInput(value: String, onChange: (String) -> Unit, placeholder: String, onDone: () -> Unit) {
+private fun DialogInput(value: String, onChange: (String) -> Unit, placeholder: String, onDone: () -> Unit, autoFocus: Boolean = true, maxLength: Int = 60) {
     var focused by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    // 页面筛选框不自动聚焦（网页的输入框没有 autoFocus），名字输入框照旧。
+    LaunchedEffect(Unit) { if (autoFocus) focus.requestFocus() }
     BasicTextField(
         value = value,
-        onValueChange = { onChange(it.take(60)) },
+        onValueChange = { onChange(it.take(maxLength)) },
         singleLine = true,
         textStyle = TextStyle(color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp),
         cursorBrush = SolidColor(Sm.Text),
@@ -1025,7 +1026,7 @@ fun MoveNoteDialog(
                 // .notes-dialog-subtitle：上 16、13/600 灰。
                 Text(stringResource(R.string.pg_pages), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.padding(top = 16.dp))
-                DialogInput(filter, { filter = it }, stringResource(R.string.pg_search_pages), {})
+                DialogInput(filter, { filter = it }, stringResource(R.string.pg_search_pages), {}, autoFocus = false, maxLength = 200)
                 val query = filter.trim().lowercase()
                 val shown = if (query.isEmpty()) targets else targets.filter { it.first.title.lowercase().contains(query) }.map { it.first to 0 }
                 Column(Modifier.padding(top = 8.dp).heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
