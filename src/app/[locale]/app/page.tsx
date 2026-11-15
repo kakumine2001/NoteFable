@@ -970,6 +970,11 @@ export default function Home() {
       setSendError(msg("Pages can’t be attached when creating an image. Remove them or turn off image creation."));
       return;
     }
+    // 断られた送信のページを戻したときなどに上限を超えることがある。黙って減らさず、外してもらう。
+    if (submittedPages.length > MAX_MESSAGE_NOTES) {
+      setSendError(msg("You can attach up to 5 pages to a message."));
+      return;
+    }
     if (validationError) {
       const submitted = submittedFiles.map(({ file }) => file);
       setSendError(() => (translate: Translate) => getUploadValidationError(submitted, uploadOptions, translate) || getUploadRequestError(submitted, userContent, translate) || translate(validationError));
@@ -1257,7 +1262,8 @@ export default function Home() {
         setInput(restored);
         if (inputRef.current) inputRef.current.value = restored;
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
-        if (submittedPages.length) setAttachedPages((current) => [...submittedPages, ...current.filter((item) => !submittedPages.some((sent) => sent.id === item.id))].slice(0, MAX_MESSAGE_NOTES));
+        // 合わせて上限を超えても切り捨てない（送る前に知らせて、利用者に外してもらう）。
+        if (submittedPages.length) setAttachedPages((current) => [...submittedPages, ...current.filter((item) => !submittedPages.some((sent) => sent.id === item.id))]);
       }
       updateCachedMessages(requestSessionKey, (current) =>
         current.map((message) =>
