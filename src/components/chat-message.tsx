@@ -10,7 +10,7 @@ import type { ProgressStep } from "@/lib/chat-activity";
 import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
 import { isImageMimeType } from "@/lib/client-files";
 import { useModels } from "@/components/models-provider";
-import { BrandMark } from "@/components/notefable-logo";
+import { AppIcon } from "@/components/app-icon";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeFailureText } from "@/lib/failure-text";
@@ -122,7 +122,7 @@ export const ChatMessage = memo(function ChatMessage({
         {message.role === "USER"
           ? <div className="notion-role-label">{t("You")}</div>
           : <div className="notion-role-label is-assistant">
-              <BrandMark size={12} /><span>NoteFable</span>
+              <AppIcon size={12} /><span>NoteFable</span>
               {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
             </div>}
         {shouldShowActivity && (

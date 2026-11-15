@@ -4,6 +4,7 @@ import { LoaderCircle, LogOut, Trash2 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
+import { AppIconSettings } from "@/components/app-icon-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
@@ -190,6 +191,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
         {saveError && <p role="alert" className="project-settings-error">{localizeSystemText(saveError, t)}</p>}
 
         <LanguageSettings user={user} />
+
+        <AppIconSettings />
 
         <section className="project-settings-section">
           <label htmlFor={`${titleId}-instructions`} className="project-settings-label">

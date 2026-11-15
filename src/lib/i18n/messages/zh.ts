@@ -621,4 +621,9 @@ export const zh: Record<string, string> = {
   "Send report": "发送报告",
   "Report sent. Thank you.": "报告已发送，谢谢。",
   "Could not send the report.": "无法发送报告。",
+  "Icon": "图标",
+  "Shown in the sidebar, on AI replies and on the AI button in notes. Saved on this device only.": "显示在侧栏、AI 回复和笔记里的 AI 按钮上。只保存在这台设备上。",
+  "Upload an image": "上传图片",
+  "Use NoteFable logo": "使用 NoteFable 标志",
+  "Could not save the icon on this device.": "无法在这台设备上保存图标。",
 };
