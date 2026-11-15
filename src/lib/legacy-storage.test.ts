@@ -26,6 +26,17 @@ describe("adoptLegacyKey", () => {
     expect(Object.fromEntries(data)).toEqual({ "notefable-pending-draft:chat": "new" });
   });
 
+  it("still moves the value when storage has no room for two copies", () => {
+    const { data, storage } = memoryStorage({ "studymate:page-draft:v1:p1": "draft" });
+    const setItem = storage.setItem.bind(storage);
+    storage.setItem = (key: string, value: string) => {
+      if (data.size >= 1) throw new DOMException("full", "QuotaExceededError");
+      setItem(key, value);
+    };
+    adoptLegacyKey(storage, "notefable:page-draft:v1:p1");
+    expect(Object.fromEntries(data)).toEqual({ "notefable:page-draft:v1:p1": "draft" });
+  });
+
   it("does nothing without an old value", () => {
     const { data, storage } = memoryStorage({ other: "x" });
     adoptLegacyKey(storage, "notefable:model-preference");

@@ -9,7 +9,20 @@ export function adoptLegacyKey(storage: Storage, key: string) {
   try {
     const old = storage.getItem(legacy);
     if (old === null) return;
-    if (storage.getItem(key) === null) storage.setItem(key, old);
+    if (storage.getItem(key) === null) {
+      try {
+        storage.setItem(key, old);
+      } catch {
+        // 二つ目の写しを置く空きがない（容量いっぱい）。古い方を外して場所を空けてから入れ直し、それも駄目なら元に戻す。
+        storage.removeItem(legacy);
+        try {
+          storage.setItem(key, old);
+        } catch {
+          storage.setItem(legacy, old);
+        }
+        return;
+      }
+    }
     storage.removeItem(legacy);
   } catch {
     // 使えないストレージ（プライベートモードなど）では何もしない。
