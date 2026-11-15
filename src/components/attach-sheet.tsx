@@ -1,7 +1,7 @@
 "use client";
 
-import { Check, FileText, ImagePlus, Paperclip } from "lucide-react";
-import { type ChangeEvent } from "react";
+import { Check, FileText, ImagePlus, Paperclip, Plus } from "lucide-react";
+import { type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
@@ -92,5 +92,140 @@ export function AttachSheet({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// パソコンで「＋」を押したときに、その上へ開く小さなメニュー。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
+// ノートの添付は入力欄の下の段にボタンとして出ているので、ここには入れない。
+export function AttachMenu({
+  disabled,
+  onFilesChange,
+  imageMode,
+  onToggleImageMode,
+}: {
+  disabled: boolean;
+  onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  imageMode: boolean;
+  onToggleImageMode: () => void;
+}) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  // アップロード中は「＋」が押せないので、開いていたメニューも出さない。
+  const shown = open && !disabled;
+  // 隠している間に開いたままの状態を残すと、アップロードが終わったときに勝手に開き直してしまう。
+  if (open && disabled) setOpen(false);
+
+  useEffect(() => {
+    if (!shown) return;
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+    // キーボードで開いた人がそのまま矢印キーで選べるよう、最初の行へフォーカスを移す。
+    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+
+    return () => {
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [shown]);
+
+  function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
+    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+    const index = rows.indexOf(document.activeElement as HTMLButtonElement);
+    let next: number;
+    if (event.key === "ArrowDown") next = (index + 1) % rows.length;
+    else if (event.key === "ArrowUp") next = (index - 1 + rows.length) % rows.length;
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = rows.length - 1;
+    else if (event.key === "Tab") {
+      // 行が消える前に「＋」へフォーカスを戻し、Tab はそこから次へ進ませる。
+      triggerRef.current?.focus();
+      setOpen(false);
+      return;
+    } else return;
+    event.preventDefault();
+    rows[next]?.focus();
+  }
+
+  return (
+    <div ref={rootRef} className="relative col-start-1 row-start-2">
+      <button
+        ref={triggerRef}
+        type="button"
+        className="notion-icon-button grid"
+        onClick={() => setOpen((current) => !current)}
+        aria-haspopup="menu"
+        aria-expanded={shown}
+        aria-label={t("Add")}
+        title={t("Add")}
+        disabled={disabled}
+      >
+        <Plus size={18} strokeWidth={1.8} />
+      </button>
+      {/* メニューを閉じても選択結果を受け取れるよう、ファイル入力はメニューの外に置いたままにする。 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        disabled={disabled}
+        accept={ATTACHMENT_ACCEPT}
+        className="sr-only"
+        tabIndex={-1}
+        aria-hidden="true"
+        onChange={onFilesChange}
+      />
+      {shown && (
+        <div ref={menuRef} className="codex-model-menu attach-menu" role="menu" aria-label={t("Add")} onKeyDown={moveFocus}>
+          <button
+            type="button"
+            role="menuitem"
+            className="attach-row"
+            onClick={() => {
+              setOpen(false);
+              triggerRef.current?.focus();
+              fileInputRef.current?.click();
+            }}
+          >
+            <Paperclip size={18} />
+            <span>
+              <strong>{t("Add files or photos")}</strong>
+            </span>
+          </button>
+          <button
+            type="button"
+            role="menuitemcheckbox"
+            aria-checked={imageMode}
+            className="attach-row"
+            onClick={() => {
+              // 切り替えたあとのフォーカスは呼び出し側が入力欄へ移す。
+              onToggleImageMode();
+              setOpen(false);
+            }}
+          >
+            <ImagePlus size={18} />
+            <span>
+              <strong>{t("Create an image")}</strong>
+              <small>{imageMode ? t("On — your next message creates an image") : t("Describe it and it is drawn for you")}</small>
+            </span>
+            {imageMode && <Check size={16} />}
+          </button>
+        </div>
+      )}
+    </div>
   );
 }

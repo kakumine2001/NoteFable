@@ -847,14 +847,24 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .attach-row strong { font-size: 1.0625rem; font-weight: 600; }
 .attach-row small { font-size: 0.875rem; color: var(--notion-muted); }
 .attach-row[aria-pressed="true"] { background: var(--notion-hover); }
-/* スマホでは画像作成の切替とノートの添付は「＋」シートに移したので、入力欄の下の段からは外す。 */
-@media (max-width: 639px) {
-  .notion-composer .composer-image-toggle,
-  .notion-composer .composer-page-button { display: none; }
+/* パソコンで「＋」の上に開くメニュー。外枠はモデル選択のメニューと同じで、行はシートより小さくする。 */
+.attach-menu {
+  position: absolute; bottom: 100%; left: 0; z-index: 30; display: grid; gap: 2px;
+  width: min(17rem, calc(100vw - 1rem)); margin-bottom: 0.5rem; padding: 0.4rem;
 }
-/* 画像作成モードの目印はスマホ専用（パソコンでは入力欄の下の段のボタンが同じ役目）。 */
-@media (min-width: 640px) {
-  .image-mode-chip { display: none; }
+.attach-menu .attach-row { min-height: 2.5rem; gap: 0.65rem; border-radius: 0.55rem; padding: 0.4rem 0.6rem; }
+.attach-menu .attach-row > svg { flex: none; color: var(--notion-muted); }
+.attach-menu .attach-row strong { font-size: 0.8125rem; font-weight: 550; }
+.attach-menu .attach-row small { font-size: 0.75rem; }
+.attach-menu .attach-row:focus-visible { background: var(--notion-hover); outline: none; }
+.attach-menu .attach-row[aria-checked="true"] { background: var(--notion-hover); }
+.attach-menu .attach-row[aria-checked="true"] > svg { color: var(--notion-blue); }
+@media (hover: hover) {
+  .attach-menu .attach-row:hover { background: var(--notion-hover); }
+}
+/* スマホではノートの添付は「＋」シートに移したので、入力欄の下の段からは外す。 */
+@media (max-width: 639px) {
+  .notion-composer .composer-page-button { display: none; }
 }
 /* 画像作成モードが入っているときに、入力欄の上へ出す外せる目印。 */
 .image-mode-chip {

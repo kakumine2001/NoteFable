@@ -27,7 +27,7 @@ import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
 import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
-import { AttachSheet } from "@/components/attach-sheet";
+import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
@@ -41,7 +41,7 @@ import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
-import { ATTACHMENT_ACCEPT, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
+import { formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
 import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import type { ReorderRequest } from "@/lib/list-order";
@@ -1891,16 +1891,22 @@ export default function Home() {
                   <Plus size={18} strokeWidth={1.8} />
                 </button>
               ) : (
-                <label className="notion-icon-button col-start-1 row-start-2 grid cursor-pointer" title={t("Add files or photos")}>
-                  <Plus size={18} strokeWidth={1.8} />
-                  <input type="file" multiple disabled={Boolean(uploadProgress)} accept={ATTACHMENT_ACCEPT} aria-label={t("Add files or photos")} className="sr-only" onChange={handleFileSelect} />
-                </label>
+                <AttachMenu
+                  disabled={Boolean(uploadProgress)}
+                  onFilesChange={handleFileSelect}
+                  imageMode={imageGenerationMode}
+                  onToggleImageMode={() => {
+                    setImageGenerationMode((current) => !current);
+                    // 続けて絵の説明を打てるよう、入力欄へフォーカスを移す。
+                    inputRef.current?.focus();
+                  }}
+                />
               )}
               <div className="col-span-3 row-start-1 min-w-0">
                 {imageGenerationMode && (
                   <button
                     type="button"
-                    className="image-mode-chip sm:hidden"
+                    className="image-mode-chip"
                     onClick={() => setImageGenerationMode(false)}
                     aria-label={t("Turn off image creation")}
                   >
@@ -1953,29 +1959,16 @@ export default function Home() {
                   onModelChange={changeModel}
                   onReasoningChange={changeReasoning}
                 />
-                <button
-                  type="button"
-                  onClick={() => setImageGenerationMode((current) => !current)}
-                  className={`notion-composer-control composer-image-toggle shrink-0 ${
-                    imageGenerationMode ? "is-active" : ""
-                  }`}
-                  aria-pressed={imageGenerationMode}
-                  aria-label={imageGenerationMode ? t("Disable image generation") : t("Enable image generation")}
-                >
-                  <ImagePlus size={15} />
-                  <span className="hidden sm:inline">{t("Create an image")}</span>
-                </button>
-                {/* スマホでは「＋」シートの行から開く。 */}
+                {/* 画像作成の切替は「＋」メニューにある。ノートの添付はパソコンではここに出し、スマホでは「＋」シートの行から開く。 */}
                 <button
                   type="button"
                   onClick={() => setPageDialogOpen(true)}
                   disabled={Boolean(uploadProgress)}
                   className={`notion-composer-control composer-page-button shrink-0 ${attachedPages.length ? "is-active" : ""}`}
                   aria-haspopup="dialog"
-                  title={t("Attach pages")}
-                  aria-label={t("Attach pages")}
                 >
                   <FileText size={15} />
+                  <span>{t("Attach pages")}</span>
                   {!!attachedPages.length && <span>{attachedPages.length}</span>}
                 </button>
               </div>
