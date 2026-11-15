@@ -8,6 +8,7 @@ import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.NoteGroupSummary
+import com.kakumine.notefable.data.NotePageSettings
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.NotesBackend
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 
 /** 抽屉和首页在看聊天还是笔记（网页的 Chat / Note 切换）。 */
 enum class Workspace { Chat, Notes }
@@ -65,6 +67,8 @@ data class NotesUiState(
     val busy: Boolean = false,
     val groupError: NotesError? = null,
     val collapsed: Set<String> = emptySet(),
+    /** 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。 */
+    val expanded: Set<String> = emptySet(),
     val open: OpenNote? = null,
     /** 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。 */
     val saveState: String? = null,
@@ -81,11 +85,66 @@ data class NotesUiState(
     /** 拖动失败的行和原因（网页 ReorderHandle 的 list-reorder-error）。 */
     val reorderError: ReorderFailure? = null,
 ) {
-    /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。 */
+    /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。只列最上层的页面，子页面缩进在父页面下。 */
     val loosePages: List<NotePageSummary>
-        get() = pages.filter { page -> page.groupId == null || groups.none { it.id == page.groupId } }
+        get() = roots.filter { page -> page.groupId == null || groups.none { it.id == page.groupId } }
 
-    fun members(groupId: String) = pages.filter { it.groupId == groupId }
+    /** 未分组的页面数（含子页面），"No project" 标题后的数字。 */
+    val looseCount: Int
+        get() = pages.count { page -> page.groupId == null || groups.none { it.id == page.groupId } }
+
+    /** 项目里最上层的页面（列表用）。 */
+    fun members(groupId: String) = roots.filter { it.groupId == groupId }
+
+    /** 项目里的页面数（含子页面），项目标题后的数字。 */
+    fun memberCount(groupId: String) = pages.count { it.groupId == groupId }
+
+    /**
+     * 父页面 → 子页面（列表顺序）。父页面不在列表里（回收站等）的子页面当最上层，键是 null（网页 note-tree.ts 的 childrenByParent）。
+     * 每个状态只算一次：侧栏和首页按项目、按节点反复读。
+     */
+    private val tree: Map<String?, List<NotePageSummary>> by lazy {
+        val ids = pages.mapTo(HashSet()) { it.id }
+        pages.groupBy { page -> page.parentId?.takeIf { it in ids && it != page.id } }
+    }
+
+    val roots: List<NotePageSummary> get() = tree[null].orEmpty()
+
+    fun children(parentId: String): List<NotePageSummary> = tree[parentId].orEmpty()
+
+    /** 祖先（从上往下，不含自己）。数据坏了成环时也会停。 */
+    fun ancestors(id: String): List<NotePageSummary> {
+        val byId = pages.associateBy { it.id }
+        val chain = ArrayList<NotePageSummary>()
+        val seen = hashSetOf(id)
+        var parent = byId[id]?.parentId
+        while (parent != null && parent !in seen) {
+            val page = byId[parent] ?: break
+            seen += parent
+            chain.add(0, page)
+            parent = page.parentId
+        }
+        return chain
+    }
+
+    /** 子孙的 id（不含自己）。 */
+    fun descendants(id: String): Set<String> {
+        val result = LinkedHashSet<String>()
+        val stack = ArrayDeque(children(id))
+        while (stack.isNotEmpty()) {
+            val page = stack.removeLast()
+            if (page.id == id || !result.add(page.id)) continue
+            stack.addAll(children(page.id))
+        }
+        return result
+    }
+
+    /** 收藏（按收藏的先后）。 */
+    val favorites: List<NotePageSummary>
+        get() = pages.filter { it.favoritedAt != null }.sortedBy { it.favoritedAt }
+
+    /** 展开着：自己展开了，或者是打开着的笔记的祖先（网页侧栏同样会展开）。 */
+    fun isExpanded(id: String): Boolean = id in expanded || (open != null && children(id).isNotEmpty() && ancestors(open.id).any { it.id == id })
 }
 
 /**
@@ -97,6 +156,7 @@ data class ReorderFailure(val id: String, val detail: String? = null, val wait: 
 /** 折叠了哪些项目，重开 App 后保留（网页存在 localStorage）。 */
 interface NotesPrefs {
     var collapsedGroups: Set<String>
+    var expandedPages: Set<String>
 }
 
 class PrefsNotesPrefs(context: Context) : NotesPrefs {
@@ -104,6 +164,9 @@ class PrefsNotesPrefs(context: Context) : NotesPrefs {
     override var collapsedGroups: Set<String>
         get() = prefs.getStringSet("collapsed", emptySet())?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet("collapsed", value).apply()
+    override var expandedPages: Set<String>
+        get() = prefs.getStringSet("expanded", emptySet())?.toSet() ?: emptySet()
+        set(value) = prefs.edit().putStringSet("expanded", value).apply()
 }
 
 class NotesViewModel(
@@ -112,7 +175,7 @@ class NotesViewModel(
     /** 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。 */
     private val noteIcons: com.kakumine.notefable.data.NoteIconBackend = com.kakumine.notefable.data.NoteIconBackend { _, _ -> error("no icon backend") },
 ) : ViewModel() {
-    private val _state = MutableStateFlow(NotesUiState(collapsed = prefs.collapsedGroups))
+    private val _state = MutableStateFlow(NotesUiState(collapsed = prefs.collapsedGroups, expanded = prefs.expandedPages))
     val state: StateFlow<NotesUiState> = _state.asStateFlow()
 
     /**
@@ -120,6 +183,12 @@ class NotesViewModel(
      * 离开、切换笔记、切到聊天之前都先调用；没有编辑器（还没加载完）时视为已保存。
      */
     var flushEditor: (suspend () -> FlushResult)? = null
+
+    /**
+     * 打开着的笔记的显示设置、锁定、收藏变了：交给网页编辑器（window.notefableEmbed.pageSettings），
+     * 编辑器随即变宽、换字体或变成只读。由界面在编辑器打开时设置。
+     */
+    var pushPageSettings: ((NotePageSummary) -> Unit)? = null
 
     private var loadJob: Job? = null
     private var navigationJob: Job? = null
@@ -176,7 +245,7 @@ class NotesViewModel(
         linkJob?.cancel()
         trashJob?.cancel()
         trashActionJobs.toList().forEach { it.cancel() }
-        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed) }
+        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded) }
         if (_state.value.workspace == Workspace.Notes) refresh()
     }
 
@@ -297,14 +366,16 @@ class NotesViewModel(
         }
     }
 
-    fun createNote() {
+    /** [parentId] 指定时，在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面。 */
+    fun createNote(parentId: String? = null) {
         if (_state.value.busy) return
         leaveThen {
             _state.update { it.copy(busy = true, error = null) }
             try {
-                val page = backend.createNote()
+                val page = backend.createNote(parentId)
                 // 换身份会取消这个任务，走到这里一定还是同一个身份。
                 mutations++
+                if (parentId != null) expand(parentId)
                 _state.update {
                     it.copy(
                         workspace = Workspace.Notes,
@@ -385,20 +456,23 @@ class NotesViewModel(
         val owner = identity
         _state.update { it.copy(busy = true, error = null) }
         try {
-            if (_state.value.open?.id == id) {
+            // 子页面也一起移进回收站：打开着的是它或它的子页面时，先保存。
+            val subtree = _state.value.descendants(id) + id
+            if (_state.value.open?.id in subtree) {
                 if (!flushOpen().ok) {
                     if (owner == identity) _state.update { it.copy(busy = false, error = NotesError(NotesError.Kind.TrashUnsaved)) }
                     return false
                 }
             }
-            backend.trashNote(id)
+            val removed = backend.trashNote(id).toSet() + id
             return commit(owner) {
                 _state.update { state ->
+                    val closing = state.open?.id in removed
                     state.copy(
                         busy = false,
-                        pages = state.pages.filterNot { it.id == id },
-                        open = state.open?.takeIf { it.id != id },
-                        saveState = if (state.open?.id == id) null else state.saveState,
+                        pages = state.pages.filterNot { it.id in removed },
+                        open = state.open?.takeIf { !closing },
+                        saveState = if (closing) null else state.saveState,
                     )
                 }
             }
@@ -453,10 +527,101 @@ class NotesViewModel(
         }, true)
     } ?: false
 
+    /** 移进项目（null 是移出）。子页面会脱离父页面，成为项目的最上层，子孙一起移过去。 */
     suspend fun moveNote(pageId: String, groupId: String?): Boolean = groupAction {
-        backend.moveNote(pageId, groupId)
-        Pair({ _state.update { s -> s.copy(pages = s.pages.map { if (it.id == pageId) it.copy(groupId = groupId) else it }) } }, true)
+        val moved = backend.moveNote(pageId, groupId).toSet() + pageId
+        Pair({ _state.update { s -> s.copy(pages = movedToGroup(s.pages, pageId, moved, groupId)) } }, true)
     } ?: false
+
+    /** 移到另一页面之下（网页 Move to 的页面）；子孙一起移动，项目跟随新的父页面。成功后展开新的父页面。 */
+    suspend fun moveToPage(pageId: String, parentId: String): Boolean = groupAction {
+        val moved = backend.moveToPage(pageId, parentId).associateBy { it.id }
+        Pair({
+            _state.update { s ->
+                s.copy(pages = s.pages.map { page -> moved[page.id]?.let { page.copy(parentId = it.parentId, groupId = it.groupId) } ?: page })
+            }
+            expand(parentId)
+        }, true)
+    } ?: false
+
+    /** 收藏、显示设置：服务端回来的这一篇的元数据写进列表；打开着的笔记还要交给编辑器。 */
+    private fun applyMeta(page: NotePageSummary) {
+        _state.update { s ->
+            s.copy(pages = s.pages.map {
+                if (it.id == page.id) it.copy(favoritedAt = page.favoritedAt, fullWidth = page.fullWidth, smallText = page.smallText, font = page.font, locked = page.locked) else it
+            })
+        }
+        if (_state.value.open?.id == page.id) pushPageSettings?.invoke(page)
+    }
+
+    /** 每篇页面的收藏、设置一次只发一个请求：连点几个开关时，后发的请求后回来，旧的应答不会盖掉新的设置。 */
+    private val metaLocks = HashMap<String, kotlinx.coroutines.sync.Mutex>()
+
+    private suspend fun <T> serialMeta(pageId: String, run: suspend () -> T): T =
+        metaLocks.getOrPut(pageId) { kotlinx.coroutines.sync.Mutex() }.withLock { run() }
+
+    suspend fun setFavorite(pageId: String, favorite: Boolean): Boolean = serialMeta(pageId) {
+        groupAction {
+            val page = backend.setFavorite(pageId, favorite)
+            Pair({ applyMeta(page) }, true)
+        } ?: false
+    }
+
+    suspend fun updateSettings(pageId: String, settings: NotePageSettings): Boolean = serialMeta(pageId) {
+        groupAction {
+            val page = backend.updateSettings(pageId, settings)
+            Pair({ applyMeta(page) }, true)
+        } ?: false
+    }
+
+    /**
+     * 复制这一篇和子页面（网页 Duplicate），复制完打开复制件。服务端复制的是已保存的内容，
+     * 所以打开着的是它或它的子页面时先保存，保存不了就不复制。
+     */
+    fun duplicate(pageId: String) {
+        if (_state.value.busy) return
+        val owner = identity
+        viewModelScope.launch {
+            _state.update { it.copy(busy = true, groupError = null) }
+            try {
+                val subtree = _state.value.descendants(pageId) + pageId
+                if (_state.value.open?.id in subtree && !flushOpen().ok) {
+                    if (owner == identity) _state.update { it.copy(busy = false, notice = NotesError(NotesError.Kind.UnsavedDraft)) }
+                    return@launch
+                }
+                val result = backend.duplicate(pageId)
+                val applied = commit(owner) {
+                    _state.update { s ->
+                        val merged = s.pages.filterNot { page -> result.pages.any { it.id == page.id } } + result.pages
+                        s.copy(busy = false, pages = applyOrder(merged, result.order))
+                    }
+                }
+                if (applied) {
+                    _state.update { it.copy(busy = false) }
+                    openNote(result.page.id, result.page.title, result.page.icon)
+                }
+            } catch (e: CancellationException) {
+                if (owner == identity) _state.update { it.copy(busy = false) }
+                throw e
+            } catch (e: Throwable) {
+                if (owner == identity) _state.update { it.copy(busy = false, groupError = errorOf(NotesError.Kind.Group, e)) }
+            }
+        }
+    }
+
+    fun toggleExpanded(id: String) {
+        val open = _state.value.isExpanded(id)
+        val next = if (open) _state.value.expanded - id else _state.value.expanded + id
+        prefs.expandedPages = next
+        _state.update { it.copy(expanded = next) }
+    }
+
+    private fun expand(id: String) {
+        if (id in _state.value.expanded) return
+        val next = _state.value.expanded + id
+        prefs.expandedPages = next
+        _state.update { it.copy(expanded = next) }
+    }
 
     /** 一篇笔记正在写的图标（[changeIcon]）。[desired] 是最后选的值，[dirty] 表示还有没发出去的选择。 */
     private class IconWrite(var desired: String?) {
@@ -546,12 +711,14 @@ class NotesViewModel(
      */
     fun dropIntoGroup(id: String, groupId: String?) {
         if (id in _state.value.moveBusy) return
-        if (_state.value.pages.firstOrNull { it.id == id }?.groupId == groupId) return
+        val current = _state.value.pages.firstOrNull { it.id == id }
+        if (current != null && current.groupId == groupId && current.parentId == null) return
         val owner = identity
         _state.update { it.copy(moveBusy = it.moveBusy + id, reorderError = null) }
         viewModelScope.launch {
+            var moved: Set<String> = setOf(id)
             val error = try {
-                backend.moveNote(id, groupId)
+                moved = backend.moveNote(id, groupId).toSet() + id
                 null
             } catch (e: CancellationException) {
                 throw e
@@ -560,7 +727,7 @@ class NotesViewModel(
             }
             if (owner != identity) return@launch
             if (error == null) {
-                commit(owner) { _state.update { s -> s.copy(pages = s.pages.map { if (it.id == id) it.copy(groupId = groupId) else it }) } }
+                commit(owner) { _state.update { s -> s.copy(pages = movedToGroup(s.pages, id, moved, groupId)) } }
                 if (groupId != null && groupId in _state.value.collapsed) toggleGroup(groupId)
             }
             _state.update {
@@ -605,11 +772,12 @@ class NotesViewModel(
     fun confirmDeleteForever(id: String?) = updateTrash { it.copy(confirmId = id) }
 
     fun restore(id: String) = trashAction {
-        val page = backend.restoreNote(id)
+        // 一起移进回收站的子页面也回来。
+        val restored = backend.restoreNote(id)
         val apply: () -> Unit = {
             _state.update { s ->
                 s.copy(
-                    pages = upsert(s.pages, page),
+                    pages = restored.fold(s.pages) { pages, page -> upsert(pages, page) },
                     trash = s.trash?.copy(items = s.trash.items?.filterNot { it.id == id }),
                 )
             }
@@ -618,8 +786,8 @@ class NotesViewModel(
     }
 
     fun deleteForever(id: String) = trashAction {
-        backend.deleteForever(id)
-        val apply: () -> Unit = { updateTrash { t -> t.copy(confirmId = null, items = t.items?.filterNot { it.id == id }) } }
+        val removed = backend.deleteForever(id).toSet() + id
+        val apply: () -> Unit = { updateTrash { t -> t.copy(confirmId = null, items = t.items?.filterNot { it.id in removed }) } }
         apply
     }
 
@@ -676,9 +844,22 @@ class NotesViewModel(
             val byId = updates.associateBy { it.id }
             return pages.map { page ->
                 val update = byId[page.id] ?: return@map page
-                if (update.movedGroup) page.copy(position = update.position, groupId = update.groupId) else page.copy(position = update.position)
+                var next = page.copy(position = update.position)
+                if (update.movedGroup) next = next.copy(groupId = update.groupId)
+                if (update.movedParent) next = next.copy(parentId = update.parentId)
+                next
             }.sortedWith(compareBy<NotePageSummary> { it.position }.thenByDescending { it.createdAt }.thenByDescending { it.id })
         }
+
+        /** 移进项目：这一篇脱离父页面，它和子孙都换成新的项目。 */
+        internal fun movedToGroup(pages: List<NotePageSummary>, id: String, moved: Set<String>, groupId: String?): List<NotePageSummary> =
+            pages.map { page ->
+                when {
+                    page.id == id -> page.copy(groupId = groupId, parentId = null)
+                    page.id in moved -> page.copy(groupId = groupId)
+                    else -> page
+                }
+            }
 
         val Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")

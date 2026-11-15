@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NotePage } from "@/types/notes";
-import { createEmbedApi, installEmbedApi, pageMeta, parseUpdatedPage, postToNative, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, parsePageSettings, parseUpdatedPage, postToNative, toEmbedSaveState, type NativeMessage } from "./native-bridge";
 
 describe("postToNative", () => {
   it("sends the message as a JSON string to the app", () => {
@@ -92,6 +92,18 @@ describe("embed api", () => {
     expect(api.pageUpdated(page)).toBe(true);
     expect(pageUpdated).toHaveBeenNthCalledWith(1, page);
     expect(pageUpdated).toHaveBeenNthCalledWith(2, page);
+  });
+
+  it("forwards page settings changed in the app, normalizing unknown values", () => {
+    const pageSettings = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, pageSettings, post: () => {} });
+    expect(api.pageSettings(JSON.stringify({ id: "p1", fullWidth: true, font: "mono", locked: true, favoritedAt: "2026-11-16T00:00:00.000Z" }))).toBe(true);
+    expect(pageSettings).toHaveBeenLastCalledWith({ id: "p1", fullWidth: true, smallText: false, font: "mono", locked: true, favoritedAt: "2026-11-16T00:00:00.000Z" });
+    expect(api.pageSettings({ id: "p1", font: "comic", smallText: "yes" })).toBe(true);
+    expect(pageSettings).toHaveBeenLastCalledWith({ id: "p1", fullWidth: false, smallText: false, font: "default", locked: false, favoritedAt: null });
+    expect(api.pageSettings({ font: "mono" })).toBe(false);
+    expect(api.pageSettings("{bad")).toBe(false);
+    expect(parsePageSettings(null)).toBeNull();
   });
 
   it("ignores malformed pages from the app", () => {

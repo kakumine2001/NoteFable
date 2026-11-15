@@ -30,7 +30,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹），界面统一称为 Projects。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。通过六点手柄可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。通过六点手柄可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
@@ -38,21 +38,34 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 `src/lib/note-block-actions.ts` 维护现有文字区块的转换名称与快捷键、复制 ID 规则和代码转换的文字提取。手柄、斜杠菜单和快捷键使用同一份转换定义。复制时递归生成新 ID；转成代码时保留链接显示文字并移除链接和装饰，保持服务器校验兼容。页面列表按可拖动保存的 `position` 顺序排列（同序时按创建时间倒序），修改正文不会改变顺序，标题立即更新；切换页面和模式写入浏览器历史，后退/前进恢复对应页面。
 
+## 子页面、收藏与页面设置
+
+仿 Notion 的页面层级和页面菜单（`src/lib/note-tree.ts` 是前端用的纯函数，`src/lib/note-tree-server.ts` 是服务端的递归查询和元数据写入）。
+
+- **子页面。** `NotePage.parentId` 指向父页面（null 为最上位），层数不限。子页面的 `groupId` 始终与最上位的祖先相同：移入页面、移入/移出项目、拖动重排、从 Trash 复原时，整棵子树的 `groupId` 一起改。不能把页面移到自己或自己的子孙之下（400 `A page cannot be moved into its own sub-page.`）。父页面不在列表里（例如在 Trash）时，子页面当作最上位显示。
+- **侧栏与手机首页。** 每个项目和 Notes 区只列最上位的页面，子页面缩进在父页面下（与项目内的缩进和细线相同）。每行都有展开箭头，没有子页面时展开显示 “No pages inside”；展开状态存在本机（`notefable:note-pages-expanded:v1`，侧栏与手机首页共用），打开的页面的祖先总会展开。侧栏行在悬停时多一个 “+”（Add a page inside），在该页面里新建子页面并打开。拖动重排时，放下的页面成为目标页面的兄弟（同一父页面、同一项目）。
+- **收藏。** `favoritedAt` 非空即为收藏，侧栏和手机首页最上方的 Favorites 按收藏时间列出；从页面菜单或 Favorites 行的按钮移除。
+- **页面菜单（上部栏的 “…”）。** 字体（Default / Serif / Mono）、Small text、Full width、Lock page，以及 Add to/Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置存在 `fullWidth`、`smallText`、`font`、`locked` 列，由 `PUT /api/pages/:id/settings` 单独保存，不增加 `version`，不会和自动保存冲突；`NotesWorkspace` 根据一览里这篇的设置给 `.notes-workspace` 加 `is-full-width`、`is-small-text`、`font-serif`/`font-mono`，`/note-embed` 同样生效。
+- **锁定。** 锁定后编辑器、标题、图标和封面在界面上不可编辑，上部栏显示 “Locked” 按钮，点击即解锁。这是防止误改的界面保护，不是权限：服务端的保存接口、AI 编辑案的适用都不检查它。
+- **移动（Move to）。** 移动对话框列出项目（移到该项目的最上层，并脱离父页面）和页面树（移到该页面之下；自己和自己的子孙不列出，可按标题筛选）。
+- **复制（Duplicate）。** 先保存这篇及其子页面未保存的编辑，再由 `POST /api/pages/:id/duplicate` 在一个事务里复制整棵子树（最多 100 篇，超过返回 400）：标题、图标、封面、正文、页面设置和项目照抄，最上位的标题加 “ (1)”，收藏、历史和 AI 对话不复制；复制件排在原页面的后面，响应带回全部页面的新 `position`。
+- **Trash。** 移入 Trash 时整棵子树用同一个 `deletedAt` 一起移入（响应的 `ids` 是全部被移入的页面）。Trash 列表只显示每批的最上位页面；复原时把同一时刻一起移入的子孙一起复原（中间隔着另一时刻移入的页面时，那之下的不复原），父页面仍在 Trash 或已被删除时复原到最上位，父页面还在时跟随父页面当前的项目。永久删除一篇时，Trash 里它的子孙一起删除。
+
 ## 接口
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`position`），分组按 `position` 排列。只含不在 Trash 里的笔记 |
-| `POST /api/pages` | 新建 `{ title, icon, cover, blocks }` 页面，也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
+| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列。只含不在 Trash 里的笔记 |
+| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面），也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
 | `POST /api/sessions/:id/page` | 聊天顶栏的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
 | `POST /api/pages/from-answer` | Android App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404） |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404 |
-| `DELETE /api/pages/:id` | **移入 Trash**（软删除）：只写 `deletedAt`，响应 `{ ok: true }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
+| `DELETE /api/pages/:id` | **移入 Trash**（软删除）：给这篇和全部子页面写同一个 `deletedAt`，响应 `{ ok: true, ids }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
 | `GET /api/pages/trash` | 返回 `{ pages: NoteTrashItem[] }`（`id`、`title`、`icon`、`deletedAt`、`purgeAt`），最近放入的在前。先清理本人超期的笔记再列出；`Cache-Control: no-store` |
 | `DELETE /api/pages/trash[?before=<ISO 时间>]` | 清空 Trash：永久删除本人 Trash 里的笔记，返回 `{ ok: true, count }`。带 `before` 时只删除不晚于该时间放进 Trash 的笔记（界面用确认时看到的最新一条的时间，避免删掉确认期间别的标签页刚丢进来、用户没看到的笔记）；时间无法解析返回 400 |
-| `POST /api/pages/trash/:id` | 复原一篇笔记（保留期内才行），返回与 `GET /api/pages` 单项同形的 `{ page }`；不在 Trash、不是本人的、已过期的返回 404 `Note not found in the trash.` |
-| `DELETE /api/pages/trash/:id` | 永久删除 Trash 里的这一篇；正常笔记不能用它删除（404） |
+| `POST /api/pages/trash/:id` | 复原一篇笔记及一起移入的子页面（保留期内才行），返回与 `GET /api/pages` 单项同形的 `{ page }` 和全部复原页面的 `pages`；不在 Trash、不是本人的、已过期的返回 404 `Note not found in the trash.` |
+| `DELETE /api/pages/trash/:id` | 永久删除 Trash 里的这一篇及 Trash 里它的子孙；正常笔记不能用它删除（404） |
 | `GET /api/pages/:id/revisions` | 返回 `{ revisions }`（`id`、`reason`、`title`、`version`、`createdAt`，不含正文），最新在前，最多 50 条 |
 | `GET /api/pages/:id/revisions/:revisionId` | 返回 `{ revision }`，含 `icon` 和 `blocks`，用于预览 |
 | `POST /api/pages/:id/revisions/:revisionId/restore` | 把笔记恢复为该历史的标题、图标和正文。body `{ version }` 是客户端当前的笔记版本；成功返回完整的 `{ page }`，版本过期返回 409（带最新的 `page`） |
@@ -62,7 +75,11 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
 | `PATCH` / `DELETE /api/pages/groups/:groupId` | 重命名 / 删除自己的分组 |
-| `PUT /api/pages/:id/group` | 把页面移入自己的分组，或用 `{ groupId: null }` 移出 |
+| `PUT /api/pages/:id/group` | 把页面（连同子页面）移入自己的分组，或用 `{ groupId: null }` 移出；页面同时脱离父页面成为最上位。响应 `{ id, groupId, parentId: null, ids }` |
+| `PUT /api/pages/:id/parent` | `{ parentId }`：移到另一页面之下（`null` 回到最上位、项目不变），子页面一起移动、项目随新父页面；成环返回 400。响应 `{ pages }`（被移动的页面的摘要） |
+| `PUT /api/pages/:id/favorite` | `{ favorite: boolean }`：加入/移出收藏，返回 `{ page }`（摘要）。不增加 `version` |
+| `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version` |
+| `POST /api/pages/:id/duplicate` | 复制这篇及子页面，201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
 | `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji 或 null> }`，返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
 
 所有操作通过 `getOrCreateUser()` 识别当前用户（签名设备 Cookie 或 Google / 邮箱登录会话）；页面不存在、属于其他用户或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
@@ -114,7 +131,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中；`20261014120000_note_groups` 新增 `NoteGroup` 表和可空的 `NotePage.groupId`；`20261015100000_note_trash_and_revisions` 新增可空的 `NotePage.deletedAt`（及 `(userId, deletedAt)` 索引）、枚举 `NoteRevisionReason` 和 `NoteRevision` 表（均为追加，不改动已有数据）。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（本地 `public`，Neon `studymate`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中；`20261014120000_note_groups` 新增 `NoteGroup` 表和可空的 `NotePage.groupId`；`20261015100000_note_trash_and_revisions` 新增可空的 `NotePage.deletedAt`（及 `(userId, deletedAt)` 索引）、枚举 `NoteRevisionReason` 和 `NoteRevision` 表（均为追加，不改动已有数据）；`20261116000000_note_page_tree_settings` 追加 `NotePage.parentId`（自引用外键，`SetNull`）、`favoritedAt` 和带默认值的 `fullWidth`、`smallText`、`font`、`locked`，同样只追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
@@ -145,5 +162,6 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `flush(requestId)`：立即保存未保存的编辑，返回 `Promise<boolean>`，并回复 `{type:"flushed", requestId, ok}`。`ok` 为 true 表示没有未保存内容；冲突或保存失败时为 false（草稿仍在本地）。`kept` 为 true 表示失败不是冲突、草稿已存进 localStorage（下次打开会恢复并重试），应用可以在提示后允许离开，和 `/app` 切走时只 `void flush()` 一样。离开编辑页、移入 Trash、切换页面、登录或退出前先调用。
 - `openHistory()`：打开该笔记的 `NoteHistoryDialog`（与网页相同，恢复前先 flush）。
 - `pageUpdated(page)`：应用在聊天里应用了编辑案、而被改的笔记正开在编辑器里时，把 `POST /api/proposals/:id/apply` 返回的 `page`（JSON 字符串或对象）传进来。网页校验后发出与编辑案卡片相同的 `notefable:page-updated`，由 `useNotePages` 处理：没有未保存的编辑就 `loadLatest` 并换掉编辑器，有就标成冲突。不传的话编辑器仍是旧版本，下次保存会 409。格式不对时返回 false、什么也不做。
+- `pageSettings(page)`：应用在原生的 “…” 菜单里改了字体、Small text、Full width、锁定或收藏后，把 `PUT /api/pages/:id/settings` / `favorite` 返回的 `page`（一览的摘要，JSON 字符串或对象）传进来。网页校验 `id`、把未知的设置值换成默认值，发出 `notefable:page-meta`，`useNotePages` 用它替换这篇的设置，编辑器随即变宽、换字体或变为只读。没有 `id` 时返回 false。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。

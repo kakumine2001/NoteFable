@@ -10,7 +10,7 @@ export function BrandMark({ size = 26 }: { size?: number }) {
 
 export function NoteFableLogo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="sm-logo" role="img" aria-label="NoteFable">
+    <div className="nf-logo" role="img" aria-label="NoteFable">
       <BrandMark size={20} />
       {!compact && <span aria-hidden="true">NoteFable</span>}
     </div>

@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: { notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst } } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst } } }));
 import { PUT } from "./route";
 
 const context = { params: Promise.resolve({ pageId: "n1" }) };

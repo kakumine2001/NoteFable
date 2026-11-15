@@ -12,6 +12,7 @@ import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav"
 import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { pageSettingsOf } from "@/types/notes";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <EditorLoading />,
@@ -59,22 +60,28 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
+  // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
+  const settings = pageSettingsOf(activeId ? notes.pages.find((page) => page.id === activeId) : undefined);
+  const editable = !busy && !settings.locked;
+  const pageClass = active && activeId && !listMode
+    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}`
+    : "";
   useLayoutEffect(() => {
     if (!titleRef.current) return;
     titleRef.current.style.height = "auto";
     titleRef.current.style.height = `${titleRef.current.scrollHeight}px`;
   }, [active?.content.title, activeId, loading]);
   useLayoutEffect(() => {
-    if (!loading && emptyPage) titleRef.current?.focus();
-  }, [activeId, loading, emptyPage]);
+    if (!loading && emptyPage && !settings.locked) titleRef.current?.focus();
+  }, [activeId, loading, emptyPage, settings.locked]);
 
-  return <div className="notes-workspace flex-1 overflow-y-auto">
+  return <div className={`notes-workspace flex-1 overflow-y-auto${pageClass}`}>
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
-        onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} />
+        onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div> : active && activeId && !listMode ? <>
-      <NotePageHeader content={active.content} editable={!busy} titleRef={titleRef}
+      <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
@@ -93,7 +100,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
             </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
           </div>
         </div>}
-        <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={!busy}
+        <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();
             const end = titleRef.current?.value.length ?? 0;
@@ -106,7 +113,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
-      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">{t("Notes")}</h1>
+      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Notes")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <button type="button" disabled={busy} className="notes-empty-new" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
       <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.")}</p>

@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { createNotePage } from "@/lib/note-create";
-import { readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -11,7 +12,7 @@ export async function GET() {
     const [pages, groups] = await Promise.all([
       prisma.notePage.findMany({
         where: { userId: user.id, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
-        select: { id: true, position: true, title: true, icon: true, version: true, groupId: true, createdAt: true, updatedAt: true },
+        select: PAGE_SUMMARY_SELECT,
       }),
       prisma.noteGroup.findMany({ where: { userId: user.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, name: true, position: true } }),
     ]);
@@ -19,11 +20,15 @@ export async function GET() {
   } catch (error) { return noteApiError(error); }
 }
 
+// 本文に加えて parentId（省略・null は最上位）を受け取る。親を指定するとそのページのサブページになる。
 export async function POST(request: Request) {
   try {
-    const content = validateNoteContent(await readNoteRequest(request));
+    const body = await readNoteRequest(request);
+    const content = validateNoteContent(body);
+    const parentId = (body as { parentId?: unknown }).parentId ?? null;
+    if (parentId !== null && (typeof parentId !== "string" || !parentId || parentId.length > 64)) throw new NoteValidationError("parentId must be a note ID or null.");
     const user = await getOrCreateUser();
-    const page = await createNotePage(user.id, content);
+    const page = await createNotePage(user.id, content, { parentId });
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

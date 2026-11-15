@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ raw: vi.fn(), unsafe: vi.fn(), create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "studymate", prisma: {} }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: {} }));
 import {
   AUTO_REVISION_INTERVAL_MS, AUTO_REVISION_MAX_AGE_MS, createRevision, MAX_AUTO_REVISIONS_PER_NOTE, MAX_MARKED_REVISIONS_PER_NOTE, MAX_REVISIONS_PER_NOTE, snapshotBeforeSave, snapshotSql, toRevisionDetail, toRevisionSummary,
 } from "./note-revisions";
@@ -14,10 +14,10 @@ describe("auto-save snapshot SQL", () => {
   it("is one INSERT ... SELECT from the live note, qualified with the database schema", () => {
     const { sql, values } = snapshotSql(input);
     const text = flat(sql);
-    expect(text).toContain('INSERT INTO "studymate"."NoteRevision" ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "version", "createdAt")');
-    expect(text).toContain('FROM "studymate"."NotePage" p');
+    expect(text).toContain('INSERT INTO "notefable"."NoteRevision" ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "version", "createdAt")');
+    expect(text).toContain('FROM "notefable"."NotePage" p');
     expect(text).toContain("gen_random_uuid()::text");
-    expect(text).toContain(`'AUTO'::"studymate"."NoteRevisionReason"`);
+    expect(text).toContain(`'AUTO'::"notefable"."NoteRevisionReason"`);
     expect(text).toContain('p."title", p."icon", p."blocks", p."version"');
     expect(values).toEqual(["n1", "mine", 7]);
   });
@@ -36,7 +36,7 @@ describe("auto-save snapshot SQL", () => {
   it("skips the copy when an auto revision of the note is newer than 10 minutes, comparing in UTC", () => {
     expect(AUTO_REVISION_INTERVAL_MS).toBe(10 * 60 * 1000);
     const text = flat(snapshotSql(input).sql);
-    expect(text).toContain(`NOT EXISTS ( SELECT 1 FROM "studymate"."NoteRevision" r WHERE r."noteId" = p."id" AND r."reason" = 'AUTO'::"studymate"."NoteRevisionReason" AND r."createdAt" > (now() AT TIME ZONE 'UTC') - interval '600 seconds' )`);
+    expect(text).toContain(`NOT EXISTS ( SELECT 1 FROM "notefable"."NoteRevision" r WHERE r."noteId" = p."id" AND r."reason" = 'AUTO'::"notefable"."NoteRevisionReason" AND r."createdAt" > (now() AT TIME ZONE 'UTC') - interval '600 seconds' )`);
     expect(text).toContain(`(now() AT TIME ZONE 'UTC')`);
   });
 

@@ -9,19 +9,21 @@ export function reorderedIds(ids: string[], move: ReorderRequest) {
 }
 export class OrderRefreshSync {
   private sequence=0;
-  private edits=new Map<string,{position:{value:number;sequence:number};group?:{value:string|null;sequence:number}}>();
+  private edits=new Map<string,{position:{value:number;sequence:number};group?:{value:string|null;sequence:number};parent?:{value:string|null;sequence:number}}>();
   mark(){return this.sequence;}
-  saved(items:Array<{id:string;position:number;groupId?:string|null}>){
+  saved(items:Array<{id:string;position:number;groupId?:string|null;parentId?:string|null}>){
     const sequence=++this.sequence;
     for(const item of items)this.edits.set(item.id,{
       position:{value:item.position,sequence},
       group:item.groupId!==undefined ? {value:item.groupId,sequence} : this.edits.get(item.id)?.group,
+      parent:item.parentId!==undefined ? {value:item.parentId,sequence} : this.edits.get(item.id)?.parent,
     });
   }
-  reconcile<T extends {id:string;position?:number;groupId:string|null}>(items:T[],started:number):T[]{
+  reconcile<T extends {id:string;position?:number;groupId:string|null;parentId?:string|null}>(items:T[],started:number):T[]{
     return items.map(item=>{
       const edit=this.edits.get(item.id);if(!edit)return item;
-      return {...item,...(edit.position.sequence>started ? {position:edit.position.value}:{}),...(edit.group && edit.group.sequence>started ? {groupId:edit.group.value}: {})};
+      return {...item,...(edit.position.sequence>started ? {position:edit.position.value}:{}),...(edit.group && edit.group.sequence>started ? {groupId:edit.group.value}: {}),
+        ...(edit.parent && edit.parent.sequence>started ? {parentId:edit.parent.value}: {})};
     });
   }
 }

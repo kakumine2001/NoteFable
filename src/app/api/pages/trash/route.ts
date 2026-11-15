@@ -13,9 +13,11 @@ export async function GET() {
     const rows = await prisma.notePage.findMany({
       where: { userId: user.id, deletedAt: { gte: trashCutoff() } },
       orderBy: [{ deletedAt: "desc" }, { id: "desc" }],
-      select: { id: true, title: true, icon: true, deletedAt: true },
+      select: { id: true, title: true, icon: true, deletedAt: true, parent: { select: { deletedAt: true } } },
     });
-    return NextResponse.json({ pages: rows.map((row) => toTrashItem({ ...row, deletedAt: row.deletedAt! })) }, { headers: { "Cache-Control": "no-store" } });
+    // 親と一緒にゴミ箱へ入ったサブページは出さない（親を戻すと一緒に戻る）。
+    const roots = rows.filter((row) => row.parent?.deletedAt?.getTime() !== row.deletedAt!.getTime());
+    return NextResponse.json({ pages: roots.map((row) => toTrashItem({ id: row.id, title: row.title, icon: row.icon, deletedAt: row.deletedAt! })) }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return noteApiError(error); }
 }
 

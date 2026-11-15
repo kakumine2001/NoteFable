@@ -24,15 +24,14 @@ NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，
 - Production aliases：
   - `notefable.com`
   - `www.notefable.com`（跳转到主域名）
-  - `studymate-lab-ai.vercel.app`（保留给旧链接与 Android 客户端）
-  - `notefable-kaku10.vercel.app`（Vercel 项目 2026-11-15 由 studymate 改名为 notefable）
+  - `notefable-kaku10.vercel.app`
 - 数据库：Neon PostgreSQL
   - Neon project：`neon_db`
   - Region：`aws-us-east-1`
   - PostgreSQL：18
   - Branch：`production`
   - Database：`neondb`
-  - Schema：`studymate`
+  - Schema：`notefable`
 
 Vercel 的 `iad1` 与 Neon 的 `aws-us-east-1` 都在美国东部，当前部署在网络位置上是合理组合。
 
@@ -94,19 +93,19 @@ flowchart LR
 
 使用 Node.js 24.x（与 Vercel 一致）。先创建下节的 `.env` 并准备 PostgreSQL，再启动应用。
 
-当前开发环境使用 Docker Desktop 中的 `studymate-pg18-dev` 容器（PostgreSQL 18.4，端口 5432）。先打开 Docker Desktop，再启动已有容器：
+当前开发环境使用 Docker Desktop 中的 `notefable-pg18-dev` 容器（PostgreSQL 18.4，端口 5432）。先打开 Docker Desktop，再启动已有容器：
 
 ```bash
-docker start studymate-pg18-dev
-docker exec studymate-pg18-dev pg_isready
+docker start notefable-pg18-dev
+docker exec notefable-pg18-dev pg_isready
 ```
 
-当前本地连接使用独立的 `studymate` 数据库与 `public` schema；生产使用 Neon 的 `neondb` 与 `studymate` schema。这个差异是配置边界，不需要移动已有本地表。新机器需先准备独立的 PostgreSQL 数据库和账户；上述命令只启动已有容器，不会创建数据库。
+本地使用独立的 `notefable` 数据库；生产使用 Neon 的 `neondb`。两边的表都在 `notefable` schema（代码固定，见下）。新机器需先准备独立的 PostgreSQL 数据库和账户；上述命令只启动已有容器，不会创建数据库。
 
 本地 `.env` 的连接示例（替换为本地账户）：
 
 ```bash
-DATABASE_URL="postgresql://user:password@localhost:5432/studymate?schema=public"
+DATABASE_URL="postgresql://user:password@localhost:5432/notefable"
 ```
 
 确认 `DATABASE_URL` 指向本地数据库后执行：
@@ -133,7 +132,7 @@ http://localhost:3000
 创建 `.env`。应用启动和匿名身份需要：
 
 ```bash
-DATABASE_URL="postgresql://user:password@host:5432/neondb?schema=studymate"
+DATABASE_URL="postgresql://user:password@host:5432/neondb?schema=notefable"
 COOKIE_SECRET="replace-with-a-long-random-secret"
 ```
 
@@ -200,13 +199,13 @@ npm run prisma:generate
 npm run prisma:migrate
 ```
 
-生产数据库使用 Neon 的 `neondb` 数据库与 `studymate` schema。运行时 `src/lib/prisma.ts` 会读取 `DATABASE_URL` 的 `schema` 参数，并显式传给 Prisma PostgreSQL adapter。
+生产数据库使用 Neon 的 `neondb` 数据库与 `notefable` schema。schema 名由代码固定（`src/lib/database-url.ts` 的 `DATABASE_SCHEMA`）：运行时 `src/lib/prisma.ts` 和迁移（`prisma.config.ts`）都会把 `DATABASE_URL` 的 `schema` 参数换成 `notefable`，并显式传给 Prisma PostgreSQL adapter。
 
 当前生产连接使用 Neon pooled endpoint。Node 运行时通过 `src/lib/database-url.ts` 将旧的 `sslmode=prefer/require/verify-ca` 别名明确为 `verify-full`，保持 pg 8 原有的证书和主机名验证行为；显式的 `uselibpqcompat=true` 配置与本地非 TLS 连接保持不变。
 
 生产只运行 `prisma migrate deploy` 路线，不要运行 `prisma db push`、`prisma migrate reset` 或其他 schema 重置命令。
 
-注意：当前同一个 Neon database 中还存在 `kaku_log` schema。NoteFable 的数据库操作应限定在 `studymate` schema，不要把另一个 schema 当成 NoteFable 的表。
+注意：当前同一个 Neon database 中还存在 `kaku_log` schema。NoteFable 的数据库操作应限定在 `notefable` schema，不要把另一个 schema 当成 NoteFable 的表。
 
 ## 上传限制
 
@@ -292,7 +291,7 @@ Chat / Note 切换、手机笔记列表进入和返回，以及列表增删移�
 
 ## Android 应用
 
-Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App：聊天、侧栏、搜索、附件、图片生成、笔记列表与项目、回收站使用原生界面；笔记编辑器通过 WebView 加载同一套 `/note-embed`。代码已接入 Google / 邮箱验证码登录、个人资料和自定义指令设置，真实账号登录流程的验证状态与网页尚未对齐的细节见 [android-native.md](docs/architecture/android-native.md)。默认仍连接旧域名 `studymate-lab-ai.vercel.app`，保留已安装 App 的 Cookie 身份。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)；`mobile/ios/` 目前只有原生 iOS 的目录说明，尚未开发。
+Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App：聊天、侧栏、搜索、附件、图片生成、笔记列表与项目、回收站使用原生界面；笔记编辑器通过 WebView 加载同一套 `/note-embed`。代码已接入 Google / 邮箱验证码登录、个人资料和自定义指令设置，真实账号登录流程的验证状态与网页尚未对齐的细节见 [android-native.md](docs/architecture/android-native.md)。默认连接 `https://notefable.com`。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)；`mobile/ios/` 目前只有原生 iOS 的目录说明，尚未开发。
 
 ## API 保护
 

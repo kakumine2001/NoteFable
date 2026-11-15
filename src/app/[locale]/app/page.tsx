@@ -8,6 +8,7 @@ import {
   FileText,
   History,
   ImagePlus,
+  Lock,
   Menu,
   Paperclip,
   PanelLeft,
@@ -28,6 +29,10 @@ import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
 import { AttachSheet } from "@/components/attach-sheet";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
+import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
+import { NotePageMenu } from "@/components/note-page-menu";
+import { ancestorsOf, descendantIdsOf } from "@/lib/note-tree";
+import { pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
@@ -168,6 +173,9 @@ export default function Home() {
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
   // 「Create page」の窓を開いている会話。
   const [createPageSessionId, setCreatePageSessionId] = useState<string | null>(null);
+  // 上部バーの「…」メニューから開く「移動」と「ゴミ箱へ」の確認。
+  const [movingNoteId, setMovingNoteId] = useState<string | null>(null);
+  const [trashingNoteId, setTrashingNoteId] = useState<string | null>(null);
   useSearchShortcut(() => setSearchOpen(true));
   // 検索結果から開いたブロック・メッセージまで動かす予約と、待っている動かす処理の中止用。
   const revealRef = useRef<RevealRequest | null>(null);
@@ -261,17 +269,21 @@ export default function Home() {
   }
 
   async function deleteNote(id: string) {
-    await notes.remove(id);
+    const removed = await notes.remove(id);
+    if (!removed) return false;
     // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
     refreshChatProjects();
     // スマホで開いていたノートを消したら、URL から page= が外れているので一覧に戻る。
     runTransition(syncNotesList, "back");
+    return true;
   }
 
-  function createNote() {
+  // parentId を渡すと、そのページの中にサブページを作って開く。
+  function createNote(parentId?: string) {
     cancelReveal();
     runTransition(() => setNotesList(false), "forward");
-    void notes.create();
+    // ボタンの onClick に直接渡された場合のクリックイベントは親 ID にしない。
+    void notes.create(false, typeof parentId === "string" ? parentId : null);
   }
 
   // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
@@ -1556,10 +1568,10 @@ export default function Home() {
   };
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notes.activeId} busy={notes.busy || notes.loading}
-      onCreate={() => { setSidebarOpen(false); createNote(); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onCreate={(parentId) => { setSidebarOpen(false); createNote(parentId); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
-      onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} />
+      onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
   ) : (
     <ChatSidebar
       sessions={sessions}
@@ -1580,6 +1592,12 @@ export default function Home() {
       onWorkspaceChange={changeWorkspace}
     />
   );
+
+  // 開いているノートの一覧の 1 件（お気に入り・表示設定・親）と、パンくずに出す祖先。
+  const activeSummary = workspaceView === "pages" && notes.activeId ? notes.pages.find((page) => page.id === notes.activeId) : undefined;
+  const activeAncestors = activeSummary ? ancestorsOf(notes.pages, activeSummary.id) : [];
+  const movingNote = movingNoteId ? notes.pages.find((page) => page.id === movingNoteId) : undefined;
+  const trashingNote = trashingNoteId ? notes.pages.find((page) => page.id === trashingNoteId) : undefined;
 
   // 履歴の小窓は、開いたノートが今も表示中のときだけ出す。復元は、このノートの保存キュー（版を持つ）を通して行う。
   const historyQueue = workspaceView === "pages" && historyNoteId === notes.activeId ? notes.active : undefined;
@@ -1633,6 +1651,13 @@ export default function Home() {
             )}
             <div className={`min-w-0 sm:block ${showPhoneTitle ? "" : "hidden"}`}>
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
+                {/* パンくず（Notion と同じく祖先のページを左から）。スマホは幅がないので今のページだけ。 */}
+                {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1.5 sm:flex">
+                  <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)} title={page.title}>
+                    {page.icon && <span className="shrink-0 text-[15px] leading-none">{page.icon}</span>}<span className="truncate">{page.title}</span>
+                  </button>
+                  <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
+                </span>)}
                 {workspaceView === "pages" && (notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
@@ -1661,6 +1686,12 @@ export default function Home() {
                 <FilePlus size={20} />
               </button>
             )}
+            {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
+              <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
+                aria-label={t("Unlock page")} title={t("Unlock page")}>
+                <Lock size={14} /><span className="hidden sm:inline">{t("Locked")}</span>
+              </button>
+            )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
                 aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
@@ -1672,11 +1703,20 @@ export default function Home() {
                 {notes.active ? ({ saved: t("Saved"), pending: t("Saving…"), saving: t("Saving…"), error: t("Not saved"), conflict: t("Conflict") })[notes.active.status] : ""}
               </span>
             ) : null}
+            {workspaceView === "pages" && !notesList && activeSummary && (
+              <NotePageMenu page={activeSummary} busy={notes.busy} error={notes.groupError}
+                onSettings={(settings) => void notes.updateSettings(activeSummary.id, settings)}
+                onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
+                onDuplicate={() => void notes.duplicate(activeSummary.id)}
+                onAddSubpage={() => createNote(activeSummary.id)}
+                onMove={() => setMovingNoteId(activeSummary.id)}
+                onTrash={() => setTrashingNoteId(activeSummary.id)} />
+            )}
           </div>
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
+          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}>
@@ -1694,7 +1734,7 @@ export default function Home() {
             ) : (
               <>
                 <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
-                  <h1 aria-labelledby="chat-heading-text" className="break-words text-[2rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--sm-ink)]">
+                  <h1 aria-labelledby="chat-heading-text" className="break-words text-[2rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">
                     {activeSession && <ChatTitleIcon key={activeSession.id} icon={activeSession.icon ?? null} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />}
                     <span id="chat-heading-text">{activeTitle}</span>
                   </h1>
@@ -1920,6 +1960,11 @@ export default function Home() {
       {createPageSessionId && (
         <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model} onClose={() => setCreatePageSessionId(null)} />
       )}
+      {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
+        onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
+      {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.error} onClose={() => setTrashingNoteId(null)}
+        body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
+        onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (
         <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />

@@ -69,7 +69,7 @@ import kotlin.math.roundToInt
  * - 预览圆（.avatar-crop-view）：直径 200，--notion-active 底，外侧 1px --notion-border-strong 细环；拖动换位置。
  * - 缩放（.avatar-zoom）：整行，"Zoom" 12 灰字 + 间距 10 + 滑块（1–3，蓝色 accent）。
  * - 提示（.avatar-crop-hint）12 灰字；错误（.profile-error）12 #b91c1c、上距 10。
- * - 按钮行（.avatar-crop-actions）：靠右、间距 8；按钮高 42、左右 14、圆角 6、15 字；"保存"是 --sm-ink 底白字；禁用时 .55。
+ * - 按钮行（.avatar-crop-actions）：靠右、间距 8；按钮高 42、左右 14、圆角 6、15 字；"保存"是 --nf-ink 底白字；禁用时 .55。
  * 保存时把圆里看到的部分画成 512×512 的正方形，WebP（质量 .9）上传。
  */
 
