@@ -41,7 +41,7 @@ import type { WorkspaceView } from "@/components/workspace-nav";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
-import { formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, isImageMimeType } from "@/lib/client-files";
+import { createUploadFile, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { MAX_UPLOAD_FILES } from "@/lib/upload-limits";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import type { ReorderRequest } from "@/lib/list-order";
@@ -80,29 +80,6 @@ function getMessagesKey(sessionId: string | null) {
   return sessionId ?? NEW_SESSION_MESSAGES_KEY;
 }
 
-function createUploadFile(file: File): UploadFile {
-  // ブラウザが MIME type を返さないファイルもあるため、未設定時は汎用バイナリとして扱う。
-  const mimeType = file.type || "application/octet-stream";
-
-  return {
-    // React の key や削除対象の識別に使う、画面内だけの一時 ID。
-    id: crypto.randomUUID(),
-    // 送信時に FormData へ詰める元の File オブジェクト。
-    file,
-    // 画像だけは送信前にサムネイル表示できるよう object URL を作る。
-    previewUrl: isImageMimeType(mimeType) ? URL.createObjectURL(file) : undefined,
-  };
-}
-
-function revokeUploadPreviews(files: UploadFile[]) {
-  // 画像プレビュー用の object URL はブラウザのメモリを保持する。
-  // 送信完了・削除・画面破棄のタイミングで明示的に解放し、長時間利用時のメモリ増加を抑える。
-  for (const file of files) {
-    if (file.previewUrl) {
-      URL.revokeObjectURL(file.previewUrl);
-    }
-  }
-}
 
 function stripAttachmentPreviewUrls(message: Message): Message {
   // previewUrl は送信直後の楽観表示だけで使うローカル URL。
@@ -1733,7 +1710,7 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
+          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}>

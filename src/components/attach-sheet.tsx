@@ -95,18 +95,26 @@ export function AttachSheet({
   );
 }
 
-// パソコンで「＋」を押したときに、その上へ開く小さなメニュー。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
-// ノートの添付は入力欄の下の段にボタンとして出ているので、ここには入れない。
+// 「＋」を押したときに、その上へ開く小さなメニュー。ファイルを足すか、画像を作るモードに切り替えるかを選ぶ。
+// チャットではノートの添付は入力欄の下の段にボタンとして出ているので、ここには入れない。
+// ノートの AI パネルは幅が狭いので、ノートの添付をこのメニューに入れ（onAttachPages）、画像作成の行は出さない（onToggleImageMode なし）。
 export function AttachMenu({
   disabled,
   onFilesChange,
-  imageMode,
+  imageMode = false,
   onToggleImageMode,
+  onAttachPages,
+  className = "relative col-start-1 row-start-2",
+  backToClose = false,
 }: {
   disabled: boolean;
   onFilesChange: (event: ChangeEvent<HTMLInputElement>) => void;
-  imageMode: boolean;
-  onToggleImageMode: () => void;
+  imageMode?: boolean;
+  onToggleImageMode?: () => void;
+  onAttachPages?: () => void;
+  className?: string;
+  // スマホのシートの中で使うとき：端末の「戻る」と Esc で、下のシートより先にこのメニューだけを閉じる。
+  backToClose?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -118,6 +126,7 @@ export function AttachMenu({
   const shown = open && !disabled;
   // 隠している間に開いたままの状態を残すと、アップロードが終わったときに勝手に開き直してしまう。
   if (open && disabled) setOpen(false);
+  useBackToClose(shown && backToClose, () => setOpen(false));
 
   useEffect(() => {
     if (!shown) return;
@@ -163,7 +172,7 @@ export function AttachMenu({
   }
 
   return (
-    <div ref={rootRef} className="relative col-start-1 row-start-2">
+    <div ref={rootRef} className={className}>
       <button
         ref={triggerRef}
         type="button"
@@ -206,24 +215,44 @@ export function AttachMenu({
               <strong>{t("Add files or photos")}</strong>
             </span>
           </button>
-          <button
-            type="button"
-            role="menuitemcheckbox"
-            aria-checked={imageMode}
-            className="attach-row"
-            onClick={() => {
-              // 切り替えたあとのフォーカスは呼び出し側が入力欄へ移す。
-              onToggleImageMode();
-              setOpen(false);
-            }}
-          >
-            <ImagePlus size={18} />
-            <span>
-              <strong>{t("Create an image")}</strong>
-              <small>{imageMode ? t("On — your next message creates an image") : t("Describe it and it is drawn for you")}</small>
-            </span>
-            {imageMode && <Check size={16} />}
-          </button>
+          {onAttachPages && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-haspopup="dialog"
+              className="attach-row"
+              onClick={() => {
+                setOpen(false);
+                onAttachPages();
+              }}
+            >
+              <FileText size={18} />
+              <span>
+                <strong>{t("Attach pages")}</strong>
+                <small>{t("Let the AI read your notes")}</small>
+              </span>
+            </button>
+          )}
+          {onToggleImageMode && (
+            <button
+              type="button"
+              role="menuitemcheckbox"
+              aria-checked={imageMode}
+              className="attach-row"
+              onClick={() => {
+                // 切り替えたあとのフォーカスは呼び出し側が入力欄へ移す。
+                onToggleImageMode();
+                setOpen(false);
+              }}
+            >
+              <ImagePlus size={18} />
+              <span>
+                <strong>{t("Create an image")}</strong>
+                <small>{imageMode ? t("On — your next message creates an image") : t("Describe it and it is drawn for you")}</small>
+              </span>
+              {imageMode && <Check size={16} />}
+            </button>
+          )}
         </div>
       )}
     </div>

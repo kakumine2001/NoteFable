@@ -43,12 +43,15 @@ function isUnchanged(next: Block[], current: Block[]) {
   return current.length === 0 && next.length === 1 && only.type === "paragraph" && Array.isArray(only.content) && only.content.length === 0 && only.children.length === 0;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCreate, onWorkspaceChange, embedded = false }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onWorkspaceChange, embedded = false }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
   model: string;
   reasoning: string;
+  // AI アシスタントの入力欄からモデルと推論強度を変える。/note-embed では渡さない（アプリ側で選ぶ）。
+  onModelChange?: (model: string) => void;
+  onReasoningChange?: (reasoning: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
@@ -109,7 +112,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onOpen, onCr
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
-      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} flush={() => active.flush()} />
+      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <><div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div><div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
