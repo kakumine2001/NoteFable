@@ -1,3 +1,4 @@
+import { loginTimestamp } from "@/lib/login-time";
 import { createHmac, randomInt, timingSafeEqual } from "crypto";
 import { optionalEnv } from "@/lib/env";
 import { isLocale, type Locale } from "@/lib/i18n/locale";
@@ -140,7 +141,7 @@ export async function verifyLoginCode(email: string, code: string, now = new Dat
 
 // Auth.js が読むセッション Cookie を、メールでのログインとして作る（google-auth.ts の session callback と対応）。
 export async function createEmailSessionCookie(email: string, secure: boolean) {
-  return encodeSessionCookie({ sub: `email:${email}`, loginEmail: email, email }, secure);
+  return encodeSessionCookie({ sub: `email:${email}`, loginEmail: email, email, signedInAt: loginTimestamp() }, secure);
 }
 
 export function emailLocale(value: unknown): Locale {

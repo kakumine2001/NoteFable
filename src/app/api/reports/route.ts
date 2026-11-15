@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
-import { consumeReport, findReportedAnswer, parseReport, reportEmail, sendReport } from "@/lib/answer-report";
+import { findReportedAnswer, parseReport, reportEmail, sendReport } from "@/lib/answer-report";
 import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { EmailSendError } from "@/lib/email-login";
 import { msg } from "@/lib/i18n/translate";
 import { isSameOrigin } from "@/lib/native-google-login";
+import { clientNetworkKey, consumeReportQuota, refundUsage } from "@/lib/usage-limits";
 
 // AI の回答を開発者に通報する（回答の「…」メニューの「回答を報告」）。未ログインでも、自分のチャットの回答なら送れる。
-// 原生アプリの要求は Origin を付けないので通す。
+// ネイティブアプリの要求は Origin を付けないので通す。
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
@@ -18,7 +19,8 @@ export async function POST(request: NextRequest) {
   const answer = await findReportedAnswer(user.id, parsed.data.messageId);
   if (!answer) return NextResponse.json({ error: msg("This answer is no longer available.") }, { status: 404 });
 
-  if (!(await consumeReport(user.id))) {
+  const ticket = await consumeReportQuota(user, clientNetworkKey(request));
+  if (!ticket) {
     return NextResponse.json({ error: msg("You’ve sent many reports today. Try again tomorrow.") }, { status: 429 });
   }
 
@@ -28,6 +30,7 @@ export async function POST(request: NextRequest) {
       model: answer.model, createdAt: answer.createdAt, answer: answer.content, prompt: answer.prompt, reason: parsed.data.reason,
     }));
   } catch (error) {
+    await refundUsage(ticket);
     if (error instanceof EmailSendError) return NextResponse.json({ error: msg("Could not send the report.") }, { status: 502 });
     throw error;
   }

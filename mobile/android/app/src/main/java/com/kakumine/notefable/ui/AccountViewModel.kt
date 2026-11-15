@@ -230,11 +230,11 @@ class AccountViewModel(
 
     /**
      * 永久删除账号（网页设置的 DeleteAccount）。成功返回 null，之后和退出一样回到未登录；失败返回原因，账号不变。
-     * 先等资料的保存送完（和 signOut 一样），免得删除后还在发 PATCH。
+     * 删除期间占住保存队列（[saves]），资料的保存不会和删除同时进行，也不会在删除后发出。
      */
     suspend fun deleteAccount(clearDeviceChoice: suspend () -> Unit): Throwable? {
-        saves.withLock { }
-        val failure = runCatching { backend.deleteAccount() }.exceptionOrNull()
+        // 保存の列が空くのを待ち、削除が終わるまで列を持ったままにする（削除の後に PATCH が届くと空のアカウントができる）。
+        val failure = saves.withLock { runCatching { backend.deleteAccount() }.exceptionOrNull() }
         if (failure != null) return failure
         runCatching { clearDeviceChoice() }
         _state.update { it.copy(profileError = null, photoError = null, uploading = false) }

@@ -125,7 +125,7 @@ export default function PrivacyPage() {
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Delete account</em> on the website or in the Android app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
-          and settings. Database backups that may still contain it are overwritten within 30 days. If you cannot sign in, email
+          and settings. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
           Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.

@@ -1,14 +1,10 @@
-import { Prisma } from "@/generated/prisma/client";
 import { LEGAL_CONTACT_EMAIL } from "@/components/legal-page";
 import { sendEmail } from "@/lib/email-login";
-import { databaseSchema, prisma } from "@/lib/prisma";
-import { usageDay } from "@/lib/usage-limits";
+import { prisma } from "@/lib/prisma";
 
 // AI の回答の通報（Google Play の AI 生成コンテンツのポリシー：アプリ内で不快な AI 出力を開発者に知らせられること）。
 // 通報は開発者のメールに送るだけで、データベースには残さない。
 export const MAX_REPORT_REASON = 1000;
-// 1 人の利用者が 1 日に送れる通報の数（日付は使用量と同じ日本時間）。メールを大量に送らせないため。
-export const DAILY_REPORT_LIMIT = 10;
 const MAX_ANSWER_CHARS = 20_000;
 const MAX_PROMPT_CHARS = 4_000;
 
@@ -47,19 +43,6 @@ export function reportEmail(report: {
     clip(report.answer, MAX_ANSWER_CHARS),
   ];
   return { subject: `[NoteFable] Reported answer ${report.messageId}`, text: lines.join("\n") };
-}
-
-// その日の通報を 1 つ数える。上限に達していたら false（数えない）。
-export async function consumeReport(userId: string) {
-  const table = Prisma.raw(`"${databaseSchema}"."UsageCounter"`);
-  const rows = await prisma.$queryRaw<{ count: number }[]>(Prisma.sql`
-    INSERT INTO ${table} AS c ("key", "kind", "day", "count", "updatedAt")
-    VALUES (${`user:${userId}`}, 'report', ${usageDay()}::date, 1, now())
-    ON CONFLICT ("key", "kind", "day") DO UPDATE SET "count" = c."count" + 1, "updatedAt" = now()
-    WHERE c."count" < ${DAILY_REPORT_LIMIT}
-    RETURNING c."count"
-  `);
-  return rows.length > 0;
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

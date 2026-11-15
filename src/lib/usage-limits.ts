@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { getCookieSecret } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { GUEST_NETWORK_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, type UsageKind, type UsageTier } from "@/lib/usage-plans";
+import { GUEST_NETWORK_LIMITS, REPORT_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, type UsageKind, type UsageTier } from "@/lib/usage-plans";
 
 export { GUEST_NETWORK_LIMITS, USAGE_LIMITS, type UsageKind, type UsageTier };
 
@@ -43,7 +43,8 @@ export function limitReachedMessage(tier: UsageTier, kind: UsageKind) {
 }
 
 type Bucket = { key: string; limit: number };
-export type UsageTicket = { kind: UsageKind; day: string; keys: string[] };
+// kind は UsageCounter.kind（chat / image と、用量の段階に入らない report）。
+export type UsageTicket = { kind: UsageKind | "report"; day: string; keys: string[] };
 export type UsageResult = { ok: true; ticket: UsageTicket } | { ok: false; tier: UsageTier; message: string };
 
 // 上限に達したときの 429 応答。画面は code と tier を見て、未ログインならログインを勧める。
@@ -61,10 +62,24 @@ export async function consumeUsage(
   networkKey: string | null,
 ): Promise<UsageResult> {
   const tier = usageTier(user);
-  const day = usageDay();
   const buckets: Bucket[] = [{ key: `user:${user.id}`, limit: USAGE_LIMITS[tier][kind] }];
   if (tier === "guest" && networkKey) buckets.push({ key: networkKey, limit: GUEST_NETWORK_LIMITS[kind] });
+  const ticket = await consumeBuckets(kind, buckets);
+  return ticket ? { ok: true, ticket: { ...ticket, kind } } : { ok: false, tier, message: limitReachedMessage(tier, kind) };
+}
 
+// 「回答を報告」を 1 回数える（REPORT_LIMITS）。上限なら null。メールを送れなかったら refundUsage で戻す。
+export async function consumeReportQuota(
+  user: { id: string; googleSub: string | null; verifiedEmail?: string | null; plan?: string | null },
+  networkKey: string | null,
+): Promise<UsageTicket | null> {
+  const buckets: Bucket[] = [{ key: `user:${user.id}`, limit: REPORT_LIMITS.user }];
+  if (usageTier(user) === "guest" && networkKey) buckets.push({ key: networkKey, limit: REPORT_LIMITS.guestNetwork });
+  return consumeBuckets("report", buckets);
+}
+
+async function consumeBuckets(kind: UsageTicket["kind"], buckets: Bucket[]): Promise<UsageTicket | null> {
+  const day = usageDay();
   try {
     // 全部の枠に空きがあるときだけ数える。どれかが上限ならトランザクションごと戻す。
     // 条件付きの UPSERT にして、同時に送られても上限を超えて数えないようにしている。
@@ -81,12 +96,12 @@ export async function consumeUsage(
       }
     });
   } catch (error) {
-    if (error instanceof LimitReached) return { ok: false, tier, message: limitReachedMessage(tier, kind) };
+    if (error instanceof LimitReached) return null;
     throw error;
   }
 
   if (Math.random() < 0.01) void purgeOldUsage().catch(() => {});
-  return { ok: true, ticket: { kind, day, keys: buckets.map((bucket) => bucket.key) } };
+  return { kind, day, keys: buckets.map((bucket) => bucket.key) };
 }
 
 // 何も返せずに失敗した送信は数えない。失敗しても利用者への応答は止めない。

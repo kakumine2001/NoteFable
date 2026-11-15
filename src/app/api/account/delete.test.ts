@@ -1,7 +1,9 @@
 import { NextRequest } from "next/server";
+import type * as NextServer from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn() }));
+const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn(), cleanup: vi.fn(), after: [] as (() => unknown)[] }));
+vi.mock("next/server", async (load) => ({ ...(await load<typeof NextServer>()), after: (task: () => unknown) => { mocks.after.push(task); } }));
 vi.mock("@/lib/google-auth", () => ({
   isGoogleLoginConfigured: mocks.configured,
   isAccountLoginConfigured: mocks.configured,
@@ -31,16 +33,23 @@ describe("DELETE /api/account", () => {
     mocks.configured.mockReturnValue(true);
     mocks.profile.mockResolvedValue({ name: "Mine", email: "a@example.com", image: null });
     mocks.currentUser.mockResolvedValue(row);
-    mocks.deleteAccount.mockResolvedValue({ failed: [] });
+    mocks.cleanup.mockResolvedValue([]);
+    mocks.deleteAccount.mockResolvedValue({ cleanup: mocks.cleanup });
+    mocks.after.length = 0;
   });
 
-  it("deletes the signed-in account and clears the sign-in and device cookies", async () => {
+  it("deletes the signed-in account, clears the sign-in cookies and removes files after responding", async () => {
     const response = await DELETE(request());
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ deleted: true });
     expect(mocks.deleteAccount).toHaveBeenCalledWith(row);
     const cleared = response.cookies.getAll().filter((cookie) => cookie.maxAge === 0).map((cookie) => cookie.name).sort();
-    expect(cleared).toEqual(["__Secure-authjs.session-token", "__Secure-authjs.session-token.0", "notefable_device"]);
+    // 端末の Cookie は残す（別の匿名の行を指していることがある）。
+    expect(cleared).toEqual(["__Secure-authjs.session-token", "__Secure-authjs.session-token.0"]);
+    expect(mocks.cleanup).not.toHaveBeenCalled();
+    expect(mocks.after).toHaveLength(1);
+    await mocks.after[0]();
+    expect(mocks.cleanup).toHaveBeenCalledTimes(1);
   });
 
   it("accepts the native app, which sends no Origin, but rejects other sites", async () => {

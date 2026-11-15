@@ -6,7 +6,7 @@ import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
-import { saveProfile, uploadPhoto, useAccount } from "@/lib/account-store";
+import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
 import { LOCALES, LOCALE_NAMES, type Locale } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -83,6 +83,8 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
   async function remove() {
     setDeleting(true); setError(""); onBusyChange(true);
     try {
+      // 送信中・待ち行列の名前や言語の保存を先に終わらせる（削除の後に届くと、空のアカウントを作り直してしまう）。
+      await settled();
       const response = await fetch("/api/account", { method: "DELETE" });
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));

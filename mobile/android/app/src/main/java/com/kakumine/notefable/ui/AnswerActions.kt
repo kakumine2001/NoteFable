@@ -313,9 +313,12 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
                 disabled = state.downloading,
                 onClick = onDownload,
             )
-            MenuEntry(stringResource(R.string.report_answer), FlagIcon) {
-                close()
-                state.reporting = true
+            // 还没换成服务端 ID 的回答（local-N）不能报告（网页 isSavedMessageId）。
+            if (!state.messageId.startsWith("local-")) {
+                MenuEntry(stringResource(R.string.report_answer), FlagIcon) {
+                    close()
+                    state.reporting = true
+                }
             }
             // .answer-menu-error：上下 5.6、左右 12、13/1.4、#933b34。
             state.error?.let { Text(menuErrorText(it), style = ErrorText, modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.6.dp)) }

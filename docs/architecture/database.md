@@ -266,7 +266,11 @@ User 1 -> N Session
 
 删除用户会级联删除 Session。
 
-**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行和 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件删失败只记日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话和 `notefable_device`，否则下一次请求会用同一个 Google / 邮箱身份立刻建出一个空账号；其他设备上仍有效的会话 Cookie 下次请求时也会这样建出新的空账号（不会恢复数据）。公开说明页是 `/delete-account`。
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
+
+### DeletedAccount
+
+删除账号的印记，`key`（主键）是登录 ID 的 HMAC（`google:<sub>` 或 `email:<地址>`，用 Cookie 签名密钥），不存 ID 本身；`deletedAt` 有索引（`20261116300000_deleted_account`）。登录 Cookie 是 JWT、服务端没有记录，删除后其他设备或还在路上的请求仍带着有效 Cookie；`getOrCreateUser` 在找不到这个 Google / 邮箱的用户、正要新建或认领时查这张表，Cookie 的 `signedInAt`（登录时写入，Auth.js 更新 Cookie 时保留；旧 Cookie 没有，按 0 处理）早于 `deletedAt` 就当作未登录，不重建账号（`src/lib/deleted-accounts.ts`）。删除后重新登录得到的新 Cookie 照常建新账号。`GET /api/account` 遇到这种 Cookie 返回 `user: null`。超过 400 天的行在下一次删除账号时顺带删掉。
 
 ### UsageCounter
 
@@ -278,7 +282,7 @@ User 1 -> N Session
 | member | 已登录（Google 或邮箱） | 100 | 20 |
 | pro | `plan = PRO` | 1000 | 200 |
 
-未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。`kind = report` 的行是“报告回答”的每日次数（每个用户 10 次，`src/lib/answer-report.ts`），不属于用量档位。
+未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
 
 ### EmailLoginCode
 

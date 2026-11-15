@@ -5,21 +5,26 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   codes: vi.fn(),
   usage: vi.fn(),
+  upsert: vi.fn(),
+  purge: vi.fn(),
   userDelete: vi.fn(),
   delImage: vi.fn(),
   delPrefix: vi.fn(),
 }));
+vi.mock("@/lib/env", () => ({ getCookieSecret: () => "secret" }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     attachment: { findMany: mocks.findMany },
     emailLoginCode: { deleteMany: mocks.codes },
     usageCounter: { deleteMany: mocks.usage },
+    deletedAccount: { upsert: mocks.upsert, deleteMany: mocks.purge },
     user: { delete: mocks.userDelete },
     $transaction: mocks.transaction,
   },
 }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.delImage, deleteStoredPrefix: mocks.delPrefix }));
 import { deleteAccount, userStoragePrefixes } from "./account-deletion";
+import { deletedAccountKey } from "./deleted-accounts";
 
 describe("deleteAccount", () => {
   beforeEach(() => {
@@ -28,38 +33,45 @@ describe("deleteAccount", () => {
     mocks.transaction.mockResolvedValue([]);
     mocks.codes.mockReturnValue("codes");
     mocks.usage.mockReturnValue("usage");
+    mocks.upsert.mockImplementation(({ where }: { where: { key: string } }) => `mark:${where.key}`);
+    mocks.purge.mockReturnValue("purge");
     mocks.userDelete.mockReturnValue("user");
     mocks.delImage.mockResolvedValue(undefined);
     mocks.delPrefix.mockResolvedValue(undefined);
   });
 
-  it("deletes the user row, then the user's chat images, photo and folders", async () => {
-    const result = await deleteAccount({ id: "u1", verifiedEmail: "a@example.com", avatarImage: "avatars/u1/p.png" });
+  it("deletes the row with deletion marks for each login, and leaves the files to cleanup", async () => {
+    const { cleanup } = await deleteAccount({ id: "u1", googleSub: "g1", verifiedEmail: "a@example.com" });
     expect(mocks.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ message: { session: { userId: "u1" } } }) }));
-    expect(mocks.transaction).toHaveBeenCalledWith(["codes", "usage", "user"]);
-    expect(mocks.codes).toHaveBeenCalledWith({ where: { email: "a@example.com" } });
+    const google = deletedAccountKey({ kind: "google", sub: "g1" });
+    const email = deletedAccountKey({ kind: "email", email: "a@example.com" });
+    expect(mocks.transaction).toHaveBeenCalledWith(["codes", "usage", `mark:${google}`, `mark:${email}`, "purge", "user"]);
     expect(mocks.usage).toHaveBeenCalledWith({ where: { key: "user:u1" } });
     expect(mocks.userDelete).toHaveBeenCalledWith({ where: { id: "u1" } });
-    expect(mocks.delImage.mock.calls.map(([path]) => path).sort()).toEqual(["avatars/u1/p.png", "images/2026/11/15/a.png"]);
+    expect(mocks.delImage).not.toHaveBeenCalled();
+
+    expect(await cleanup()).toEqual([]);
+    expect(mocks.delImage.mock.calls.map(([path]) => path)).toEqual(["images/2026/11/15/a.png"]);
     expect(mocks.delPrefix.mock.calls.map(([path]) => path)).toEqual(userStoragePrefixes("u1"));
-    expect(result.failed).toEqual([]);
   });
 
-  it("keeps the deletion when file removal fails and reports the leftovers", async () => {
+  it("reports leftovers when file removal fails", async () => {
     mocks.delPrefix.mockRejectedValueOnce(new Error("blob down"));
-    const result = await deleteAccount({ id: "u2", verifiedEmail: null, avatarImage: null });
-    expect(mocks.transaction).toHaveBeenCalledWith(["usage", "user"]);
-    expect(result.failed).toEqual(["note-files/u2/"]);
+    const { cleanup } = await deleteAccount({ id: "u2", googleSub: null, verifiedEmail: null });
+    expect(mocks.transaction).toHaveBeenCalledWith(["usage", "purge", "user"]);
+    expect(await cleanup()).toEqual(["note-files/u2/"]);
   });
 
-  it("does not touch files when the row deletion fails", async () => {
+  it("does not return a cleanup when the row deletion fails", async () => {
     mocks.transaction.mockRejectedValueOnce(new Error("db down"));
-    await expect(deleteAccount({ id: "u3", verifiedEmail: null, avatarImage: null })).rejects.toThrow("db down");
+    await expect(deleteAccount({ id: "u3", googleSub: "g3", verifiedEmail: null })).rejects.toThrow("db down");
     expect(mocks.delImage).not.toHaveBeenCalled();
     expect(mocks.delPrefix).not.toHaveBeenCalled();
   });
 
-  it("only uses per-user folders that end with a slash", () => {
-    for (const prefix of userStoragePrefixes("u9")) expect(prefix).toMatch(/\/u9\/$/);
+  it("only uses per-user folders that end with a slash, including chat uploads", () => {
+    const prefixes = userStoragePrefixes("u9");
+    for (const prefix of prefixes) expect(prefix).toMatch(/\/u9\/$/);
+    expect(prefixes).toContain("chat-uploads/u9/");
   });
 });

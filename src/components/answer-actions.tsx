@@ -143,7 +143,6 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
   </dialog>;
 }
 
-// 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
 // AI の回答を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
 function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
   const t = useT();
@@ -194,6 +193,12 @@ function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose
   </dialog>;
 }
 
+// サーバーに保存済みの回答の ID（cuid）か。表示中だけの回答は crypto.randomUUID() の仮の ID で、報告できない。
+function isSavedMessageId(id: string) {
+  return /^c[a-z0-9]{20,}$/.test(id);
+}
+
+// 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
 export function AnswerActions({ messageId, content, sessionId, conversationTitle }: Props) {
   const t = useT();
   const key = `${sessionId}\n${messageId}`;
@@ -317,9 +322,9 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
           {downloading ? <LoaderCircle size={16} className="animate-spin" aria-hidden="true" /> : <Download size={16} aria-hidden="true" />}
           {downloading ? t("Downloading…") : t("Download conversation")}
         </button>
-        <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); setReporting(true); }}>
+        {isSavedMessageId(messageId) && <button type="button" role="menuitem" className="chat-menu-item" onClick={() => { closeMenu(); setReporting(true); }}>
           <Flag size={16} aria-hidden="true" />{t("Report answer")}
-        </button>
+        </button>}
         <span role="status" aria-live="polite" className="sr-only">{status}</span>
         {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error.message, t)}</p>}
       </AnswerMenu>}

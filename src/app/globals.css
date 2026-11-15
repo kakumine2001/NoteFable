@@ -2731,3 +2731,5 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .settings-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 /* 回答の「報告」ダイアログの理由欄（.notes-dialog-input の複数行版）。 */
 .answer-report-dialog .answer-report-reason { min-height: 6rem; resize: vertical; line-height: 1.5; }
+/* .notion-button が後ろで文字色を上書きするので、確認の「完全に削除」を赤に戻す。 */
+.settings-delete-actions .notion-button.notes-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.2); }

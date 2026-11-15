@@ -95,7 +95,7 @@ fun SidebarFooter(
     onSignIn: () -> Unit,
     onSignOut: () -> Unit,
     profile: AccountViewModel,
-    deleteAccount: suspend () -> Throwable? = { null },
+    deleteAccount: suspend () -> Throwable?,
 ) {
     Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
         LanguageSelect()

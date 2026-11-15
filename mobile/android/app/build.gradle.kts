@@ -25,14 +25,24 @@ android {
     }
 
     // Google Play 的上传密钥。密钥库和密码不进仓库：写在本机的 ~/.gradle/gradle.properties（notefable.upload.*），
-    // 所有 worktree 共用。没有配置的电脑上 release 包退回 debug 签名，只能自己侧载试用，不能上传 Play。
-    val uploadStore = providers.gradleProperty("notefable.upload.storeFile").orNull
-    if (uploadStore != null) {
+    // 所有 worktree 共用。没有配置时构建 release 包会直接失败（免得交出 debug 签名的包）；
+    // 只想在别的电脑上侧载试用时加 -Pnotefable.release.debugSigning=true。
+    val uploadProps = listOf("storeFile", "storePassword", "keyAlias", "keyPassword")
+        .associateWith { providers.gradleProperty("notefable.upload.$it").orNull }
+    val debugSignedRelease = providers.gradleProperty("notefable.release.debugSigning").orNull == "true"
+    if (uploadProps.values.all { it != null }) {
         signingConfigs.create("upload") {
-            storeFile = file(uploadStore)
-            storePassword = providers.gradleProperty("notefable.upload.storePassword").get()
-            keyAlias = providers.gradleProperty("notefable.upload.keyAlias").get()
-            keyPassword = providers.gradleProperty("notefable.upload.keyPassword").get()
+            storeFile = file(uploadProps.getValue("storeFile")!!)
+            storePassword = uploadProps.getValue("storePassword")
+            keyAlias = uploadProps.getValue("keyAlias")
+            keyPassword = uploadProps.getValue("keyPassword")
+        }
+    } else if (!debugSignedRelease) {
+        val missing = uploadProps.filterValues { it == null }.keys.joinToString { "notefable.upload.$it" }
+        gradle.taskGraph.whenReady {
+            if (allTasks.any { it.name.endsWith("Release") && (it.name.startsWith("bundle") || it.name.startsWith("assemble")) }) {
+                throw GradleException("Release signing is not configured: missing $missing (see docs/architecture/android.md).")
+            }
         }
     }
 

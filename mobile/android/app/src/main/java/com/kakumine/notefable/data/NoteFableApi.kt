@@ -326,8 +326,8 @@ class NoteFableApi(
 
     override suspend fun deleteAccount() {
         send<ApiError>(Request.Builder().url(absoluteUrl("/api/account")).delete())
-        // 服务端已经用过期的 Set-Cookie 删掉了，这里再删一次本地的，确保下一个请求拿到新的匿名身份。
-        (cookieJar as? PersistentCookieJar)?.removeWhere { it.name.contains("authjs.") || it.name == "notefable_device" }
+        // 服务端已经用过期的 Set-Cookie 删掉了登录 Cookie，这里再删一次本地的。设备 Cookie 留着（和网页一样，见 DELETE /api/account）。
+        (cookieJar as? PersistentCookieJar)?.removeWhere { it.name.contains("authjs.") }
         identityGate.reset()
     }
 

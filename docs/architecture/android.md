@@ -24,7 +24,7 @@
 
 ## 正式签名与 Google Play
 
-- **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包，没有时退回 debug 签名（只能自己侧载）。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
+- **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包；缺任何一个时 `bundleRelease` / `assembleRelease` 直接失败，只有加 `-Pnotefable.release.debugSigning=true` 才用 debug 签名（只能自己侧载）。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
 - **构建**：`./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`（上传 Play）；`assembleRelease` → APK（侧载、Drive 交付）。每次上传 Play 前 `versionCode` 加 1。
 - **Play 应用签名**：Play 用自己保管的应用签名密钥重新签名后分发。所以 Google Cloud 的 Android OAuth 客户端要登记三个 SHA-1：debug 签名、上传密钥（侧载的 release 包）、Play Console → 应用完整性里的应用签名密钥（从 Play 安装的包）。缺哪个，那种安装方式下“使用 Google 继续”就失败（邮箱登录不受影响）。
 - **商店资料**：文字和 Console 表单答案在 [docs/play-store/](../play-store/listing.md)，图片在 `mobile/android/play-store/`。

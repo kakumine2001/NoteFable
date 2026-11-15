@@ -17,7 +17,7 @@ export default function DeleteAccountPage() {
           <li>Tap your name at the bottom of the sidebar, then <strong>Settings</strong>.</li>
           <li>Tap <strong>Delete account</strong>, read the warning, then <strong>Delete permanently</strong>.</li>
         </ol>
-        <p>The account is deleted right away and you are signed out.</p>
+        <p>The account is deleted right away and you are signed out on every device.</p>
       </LegalSection>
 
       <LegalSection title="What is deleted">
@@ -28,7 +28,9 @@ export default function DeleteAccountPage() {
           <li>Your daily usage counters and any pending email sign-in codes.</li>
         </ul>
         <p>
-          Nothing is kept. Copies in database backups are overwritten within 30 days. Aggregated, cookie-free page-view statistics contain no personal data and are not affected.
+          Copies in database backups are overwritten within 30 days. We keep only a one-way hash of the Google account ID and email address for 400 days, so that
+          devices that were still signed in cannot re-create the account; you can sign up again at any time. Images from chats you had already deleted are no longer
+          linked to your account and are not shown anywhere. Aggregated, cookie-free page-view statistics contain no personal data and are not affected.
         </p>
       </LegalSection>
 

@@ -339,3 +339,13 @@ model UsageCounter {
   @@id([key, kind, day])
   @@index([day])
 }
+
+// 削除したアカウントの印（deleted-accounts.ts）。key はログイン ID（Google のアカウント ID か確認済みメール）の HMAC で、
+// ID そのものは持たない。削除より前に発行されたログイン Cookie が、同じ ID の空のアカウントを作り直さないように使う。
+// 400 日たった行は次のアカウント削除のときに消す。
+model DeletedAccount {
+  key       String   @id
+  deletedAt DateTime
+
+  @@index([deletedAt])
+}
