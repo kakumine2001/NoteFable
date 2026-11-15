@@ -60,13 +60,15 @@ export async function DELETE(_request: Request, context: Context) {
   try {
     const user = await getOrCreateUser();
     const { pageId } = await context.params;
-    const count = await prisma.$transaction(async (tx) => {
+    const ids = await prisma.$transaction(async (tx) => {
       const page = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: { not: null } }, select: { id: true } });
-      if (!page) return 0;
+      if (!page) return null;
       const trashed = await descendantIds(tx, user.id, pageId, { live: false });
-      const result = await tx.notePage.deleteMany({ where: { id: { in: [pageId, ...trashed] }, userId: user.id, deletedAt: { not: null } } });
-      return result.count;
+      // 消すのはゴミ箱にあるものだけ。応答の ids で、ゴミ箱の一覧に別に出ていた子も画面から外せる。
+      const doomed = (await tx.notePage.findMany({ where: { id: { in: [pageId, ...trashed] }, userId: user.id, deletedAt: { not: null } }, select: { id: true } })).map((row) => row.id);
+      await tx.notePage.deleteMany({ where: { id: { in: doomed }, userId: user.id, deletedAt: { not: null } } });
+      return doomed;
     });
-    return count ? NextResponse.json({ ok: true }) : notFound();
+    return ids?.length ? NextResponse.json({ ok: true, ids }) : notFound();
   } catch (error) { return noteApiError(error); }
 }

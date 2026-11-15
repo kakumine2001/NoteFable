@@ -83,7 +83,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     } catch { /* 壊れた端末キャッシュは DB の本文に影響させない。 */ }
     const queue = new NoteSaveQueue(page, async (content, version) => {
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
-      upsertSummary(data.page);
+      // 保存の応答は、保存を始めた時点の表示設定を持つ（その間に変えたロックなどを戻さない）。設定は専用の操作と読み直しで更新する。
+      upsertSummary(data.page, { local: true });
       return data.page;
     }, () => {
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });

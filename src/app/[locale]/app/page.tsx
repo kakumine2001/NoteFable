@@ -278,7 +278,8 @@ export default function Home() {
   function createNote(parentId?: string) {
     cancelReveal();
     runTransition(() => setNotesList(false), "forward");
-    void notes.create(false, parentId ?? null);
+    // ボタンの onClick に直接渡された場合のクリックイベントは親 ID にしない。
+    void notes.create(false, typeof parentId === "string" ? parentId : null);
   }
 
   // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
@@ -1704,7 +1705,7 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={createNote} onWorkspaceChange={changeWorkspace} />
+          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}>

@@ -1,25 +1,40 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 
-// サイドバーとスマホのホームで、開いているサブページの木（ページ ID → true）。端末に覚えておき、両方の画面で共有する。
+// サイドバーとスマホのホームで、開いているサブページの木（ページ ID → true）。端末に覚えておき、
+// 同時に表示されている両方の画面（スマホの抽屉とホーム）が同じ値を見るよう、1 つの小さな store にまとめる。
 const EXPANDED_KEY = "notefable:note-pages-expanded:v1";
+const EMPTY: Record<string, boolean> = {};
+
+let current: Record<string, boolean> | null = null;
+const listeners = new Set<() => void>();
 
 function read(): Record<string, boolean> {
-  try { return JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "{}"); } catch { return {}; }
+  if (current) return current;
+  try { current = JSON.parse(localStorage.getItem(EXPANDED_KEY) ?? "{}") as Record<string, boolean>; } catch { current = {}; }
+  return current;
+}
+
+function write(next: Record<string, boolean>) {
+  current = next;
+  try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(next)); } catch { /* 保存できなくても動作は変えない。 */ }
+  for (const listener of listeners) listener();
+}
+
+function subscribe(listener: () => void) {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
 }
 
 export function useExpandedPages() {
-  // この部品は Notes に切り替えた後にだけ作られるので、初期値で読んでもサーバー描画とずれない。
-  const [expanded, setExpanded] = useState<Record<string, boolean>>(() => typeof window === "undefined" ? {} : read());
+  // サーバー描画では空（Notes に切り替えた後にだけ使われるので、表示はずれない）。
+  const expanded = useSyncExternalStore(subscribe, read, () => EMPTY);
   const toggle = useCallback((id: string, open: boolean) => {
-    setExpanded((current) => {
-      const next = { ...current };
-      if (open) next[id] = true; else delete next[id];
-      try { localStorage.setItem(EXPANDED_KEY, JSON.stringify(next)); } catch { /* 保存できなくても動作は変えない。 */ }
-      return next;
-    });
+    const next = { ...read() };
+    if (open) next[id] = true; else delete next[id];
+    write(next);
   }, []);
-  const expand = useCallback((id: string) => toggle(id, true), [toggle]);
+  const expand = useCallback((id: string) => { if (!read()[id]) toggle(id, true); }, [toggle]);
   return [expanded, toggle, expand] as const;
 }
