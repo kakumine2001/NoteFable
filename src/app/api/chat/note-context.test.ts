@@ -31,7 +31,9 @@ vi.mock("@/lib/prisma", () => {
     noteProposal: { updateMany: async () => ({ count: 0 }) },
   };
   prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
-  return { prisma };
+  // 会話の行を押さえる問い合わせ（FOR UPDATE）。
+  prisma.$queryRaw = async () => [{ id: "session" }];
+  return { prisma, databaseSchema: "notefable" };
 });
 
 import { POST } from "./route";

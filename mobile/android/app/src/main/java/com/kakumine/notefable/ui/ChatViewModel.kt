@@ -808,6 +808,8 @@ class ChatViewModel(
         val stopped: Boolean = false,
         val hasAnswer: Boolean = false,
         val resync: Boolean = false,
+        /** 编辑 / 重新生成开始前就已经保存在服务端的消息 ID：对账时不能把它们当成"新存下的回答"。 */
+        val knownBefore: Set<String> = emptySet(),
     )
 
     /** 登记这个聊天的发送任务再启动，结束（完成、失败、停止）后注销并对账。 */
@@ -822,7 +824,7 @@ class ChatViewModel(
                 syncBusy()
             }
             if (run.epoch == epoch) outcome?.let {
-                if (it.stopped) reconcileStopped(it.sessionId, it.hasAnswer) else reconcile(it.sessionId, it.completed || it.resync)
+                if (it.stopped) reconcileStopped(it.sessionId, it.hasAnswer, it.knownBefore) else reconcile(it.sessionId, it.completed || it.resync)
             }
         }
         addStream(run.key, run.job)
@@ -1079,12 +1081,13 @@ class ChatViewModel(
      * 免得屏幕上的半截文字消失；一直没等到就保留本机这份。什么都没收到时不知道服务端的状态，不动画面。
      * 期间又在这个聊天里发送就作废。
      */
-    private fun reconcileStopped(sessionId: String?, hasAnswer: Boolean) {
+    private fun reconcileStopped(sessionId: String?, hasAnswer: Boolean, knownBefore: Set<String>) {
         val finished = sessionId ?: return
         refreshSessions()
         if (!hasAnswer) return
         reconcileJobs.remove(finished)?.cancel()
-        val known = cache[finished].orEmpty().mapTo(mutableSetOf()) { it.id }
+        // 重新生成时原来的回答已经从画面上拿掉，但服务端还显示着它：它不是新存下的回答。
+        val known = cache[finished].orEmpty().mapTo(knownBefore.toMutableSet()) { it.id }
         val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             for (wait in STOP_SYNC_WAITS) {
                 delay(wait)
@@ -1164,12 +1167,14 @@ class ChatViewModel(
         loadJob?.cancel()
         reconcileJobs.remove(sessionId)?.cancel()
         _state.update { it.copy(notice = null, reveal = null) }
+        val identity = epoch
         versionJob = viewModelScope.launch {
             val result = runCatching {
                 backend.showVersion(sessionId, messageId)
                 backend.messages(sessionId)
             }
             ensureActive()
+            if (identity != epoch) return@launch
             result
                 .onSuccess { list -> if (sessionId !in streams) applyLoaded(sessionId, list) }
                 .onFailure { error ->
@@ -1187,9 +1192,12 @@ class ChatViewModel(
         if (branchJob?.isActive == true) return
         _state.update { it.copy(notice = null) }
         val navigation = navigationCount
+        val identity = epoch
         branchJob = viewModelScope.launch {
             val result = runCatching { backend.branchSession(sessionId, messageId, title) }
             ensureActive()
+            // 等待期间登录 / 退出了：那是之前身份的聊天，不放进现在的列表。
+            if (identity != epoch) return@launch
             result
                 .onSuccess { session ->
                     // 等待期间去了别的聊天：只加进列表，不把用户拉走。
@@ -1304,7 +1312,10 @@ class ChatViewModel(
         val hasAnswer = stopped && cache[run.key]?.any { it.id == assistantId && (it.content.isNotBlank() || it.proposals.isNotEmpty() || it.activity.any { step -> step is ActivityStep.ProposalStep }) } == true
         // 编辑 / 重新生成没开始就失败：finishAssistant 已经退回原样，再核对一次服务端的状态。
         val resync = failure != null && turn.before != null && cache[run.key]?.none { it.id == assistantId } == true
-        return TurnOutcome(sessionId, completed, stopped = stopped, hasAnswer = hasAnswer, resync = resync)
+        return TurnOutcome(
+            sessionId, completed, stopped = stopped, hasAnswer = hasAnswer, resync = resync,
+            knownBefore = turn.before.orEmpty().mapTo(mutableSetOf()) { it.id },
+        )
     }
 
     private fun updateAssistant(run: TurnRun, id: String, transform: (UiMessage) -> UiMessage) {

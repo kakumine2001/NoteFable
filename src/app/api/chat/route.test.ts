@@ -335,7 +335,7 @@ describe("Pages tools across providers", () => {
     form.set("sessionId", "existing");
     form.set("webSearch", "off");
     const raw = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
-    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user", "session");
+    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user", "session", []);
     expect(raw).toContain('"activity":{"type":"tool","id"');
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("It says hi.");
     expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_notes");
@@ -851,6 +851,38 @@ describe("editing a message and regenerating an answer", () => {
     expect(mocks.createMessage).not.toHaveBeenCalled();
     expect(mocks.updateManyMessage).not.toHaveBeenCalled();
     expect(mocks.refundUsage).toHaveBeenCalledOnce();
+  });
+
+  it("keeps one displayed answer when the same answer is regenerated twice at once", async () => {
+    // もう一方の作り直しが先に保存を終えている：元の a1 は隠れ、u1 の下で a1x が表示中になっている。
+    const afterRival = [
+      tree[0], { ...tree[1], active: false }, { ...tree[2], active: false }, { ...tree[3], active: false },
+      { id: "a1x", parentId: "u1", active: true, role: "ASSISTANT", createdAt: at(5) },
+    ];
+    mocks.findMessages.mockImplementation(async (args) => ("parentId" in (args as { select: object }).select
+      ? (mocks.fetch.mock.calls.length ? afterRival : tree)
+      : []) as never[]);
+    await post({ regenerate: "a1" });
+    expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["a1x"] } }, data: { active: false } });
+    expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "ASSISTANT", parentId: "u1" });
+    expect(mocks.createMessage.mock.calls[0][0].data).not.toHaveProperty("active");
+  });
+
+  it("keeps the turns being replaced out of the note tools while an answer is regenerated", async () => {
+    mocks.fetch.mockReset();
+    mocks.fetch
+      .mockResolvedValueOnce(new Response([
+        { type: "response.output_item.done", item: { type: "function_call", call_id: "c1", name: "list_chat_attachments", arguments: "{}" } },
+        { type: "response.completed", response: { output: [{ type: "function_call", call_id: "c1", name: "list_chat_attachments", arguments: "{}" }] } },
+      ].map((e) => `data: ${JSON.stringify(e)}
+
+`).join("")))
+      .mockResolvedValue(new Response(answer.map((e) => `data: ${JSON.stringify(e)}
+
+`).join("")));
+    mocks.runPageTool.mockResolvedValue({ content: "[]", label: "Listed attachments" });
+    await post({ regenerate: "a1" });
+    expect(mocks.runPageTool).toHaveBeenCalledWith("list_chat_attachments", {}, "user", "session", ["a1", "u2", "a2"]);
   });
 
   it("saves an answer as hidden when its message was switched away while it was being written", async () => {

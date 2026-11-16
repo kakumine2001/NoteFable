@@ -241,20 +241,18 @@ class ChatTurnActionsTest {
         val vm = openChat(backend)
 
         vm.regenerate("a2")
-        // 服务端一开始重新生成就把原来的回答隐藏了。
-        backend.stored = backend.stored.dropLast(1)
         backend.events.send(ChatStreamEvent.Started("s1"))
         backend.events.send(ChatStreamEvent.Delta("half an"))
         settle()
         vm.stop()
         runCurrent()
-        // 服务端还没存好：先留着本机这半截。
-        advanceTimeBy(300)
+        // 服务端还没存好，原来的回答（a2）还显示着：它不是新存下的回答，本机这半截留着。
+        advanceTimeBy(700)
         runCurrent()
         assertEquals("half an", vm.state.value.messages.last().content)
         assertTrue(vm.state.value.messages.last().id.startsWith("local-"))
 
-        backend.stored = backend.stored + MessageDto("a3", "ASSISTANT", "half an", versions = MessageVersions(2, 2, prevId = "a2"))
+        backend.stored = backend.stored.dropLast(1) + MessageDto("a3", "ASSISTANT", "half an", versions = MessageVersions(2, 2, prevId = "a2"))
         advanceUntilIdle()
         assertEquals("a3", vm.state.value.messages.last().id)
         assertEquals(MessageVersions(2, 2, prevId = "a2"), vm.state.value.messages.last().versions)

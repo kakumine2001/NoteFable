@@ -17,9 +17,10 @@ const URL_BUDGET = 560;
 const REFERENCE = /^([ \t]*)!\[([^\]\n]*)\]\(attachment:([A-Za-z0-9_-]{1,64})\)[ \t]*$/;
 const FENCE = /^\s*(`{3,})/;
 
-export async function listChatAttachments(userId: string, sessionId: string) {
+// excludeMessageIds は、再生成で置き換えられる発言（保存するまでは表示中のまま残っている）。その添付は見せない。
+export async function listChatAttachments(userId: string, sessionId: string, excludeMessageIds: string[] = []) {
   const rows = await prisma.attachment.findMany({
-    where: { message: { active: true, session: { id: sessionId, userId } } },
+    where: { message: { active: true, ...(excludeMessageIds.length ? { id: { notIn: excludeMessageIds } } : {}), session: { id: sessionId, userId } } },
     orderBy: { createdAt: "desc" },
     take: LIST_LIMIT,
     select: { id: true, filename: true, mimeType: true, size: true, imageStoragePath: true },
@@ -63,7 +64,7 @@ function fitName(path: string, name: string, extension: string) {
 // 複数の markdown（編集案ならすべての edit）をまとめて処理する。
 // 1) 参照を全部集めて検証し（画像を書く前に失敗できる）、2) まとめてコピーし、3) 参照を URL に置き換える。
 // 同じ添付は 1 回だけコピーし、1 回の提案で使える画像は MAX_ATTACHMENT_IMAGES_PER_PROPOSAL 枚まで。
-export function createAttachmentResolver(userId: string, sessionId: string) {
+export function createAttachmentResolver(userId: string, sessionId: string, excludeMessageIds: string[] = []) {
   return async function resolve(markdowns: string[]): Promise<string[]> {
     const split = markdowns.map((markdown) => markdown.replace(/\r\n?/g, "\n").split("\n"));
     const references = split.map(findReferences);
@@ -76,7 +77,7 @@ export function createAttachmentResolver(userId: string, sessionId: string) {
     const prepared: { id: string; filename: string; buffer: Buffer; mime: string }[] = [];
     for (const id of ids) {
       const attachment = await prisma.attachment.findFirst({
-        where: { id, imageStoragePath: { not: null }, message: { active: true, session: { id: sessionId, userId } } },
+        where: { id, imageStoragePath: { not: null }, message: { active: true, ...(excludeMessageIds.length ? { id: { notIn: excludeMessageIds } } : {}), session: { id: sessionId, userId } } },
         select: { filename: true, size: true, imageStoragePath: true },
       });
       if (!attachment?.imageStoragePath) {

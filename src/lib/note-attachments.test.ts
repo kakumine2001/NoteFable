@@ -29,6 +29,16 @@ describe("chat attachments in the note tools", () => {
     mocks.write.mockResolvedValue(undefined);
   });
 
+  it("leaves out the turns a regeneration is replacing", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    const { listChatAttachments, createAttachmentResolver } = await import("./note-attachments");
+    await listChatAttachments("mine", "s1", ["m9"]);
+    expect(mocks.findMany.mock.calls.at(-1)?.[0].where).toEqual({ message: { active: true, id: { notIn: ["m9"] }, session: { id: "s1", userId: "mine" } } });
+    mocks.findFirst.mockResolvedValue(null);
+    await expect(createAttachmentResolver("mine", "s1", ["m9"])(["![x](attachment:att1)"])).rejects.toThrow();
+    expect(mocks.findFirst.mock.calls.at(-1)?.[0].where).toMatchObject({ id: "att1", message: { active: true, id: { notIn: ["m9"] } } });
+  });
+
   it("lists only this chat's attachments and says which can go into a note", async () => {
     mocks.findMany.mockResolvedValue([
       { id: "att1", filename: "a.png", mimeType: "image/png", size: 1000, imageStoragePath: "images/x.png" },

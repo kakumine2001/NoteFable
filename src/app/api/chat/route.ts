@@ -537,25 +537,29 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     replacedIds = prepared.replaced;
   } else {
     // 通常の送信：表示中の枝の末尾に続ける。この発言はこのあと currentUserContent として渡す。
-    userMessage = await prisma.message.create({
-      data: {
-        sessionId: session.id,
-        role: "USER",
-        content: message,
-        model,
-        reasoningEffort: toDbReasoning(reasoning),
-        parentId: await loadActiveLeafId(session.id),
-        attachments: {
-          create: attachments.map((attachment) => ({
-            filename: attachment.filename,
-            mimeType: attachment.mimeType,
-            size: attachment.size,
-            extractedText: attachment.extractedText,
-            imageStoragePath: attachment.imageStoragePath,
-          })),
+    // 末尾を読んで発言を足す間、会話の行を押さえる（同時に送った 2 つの発言が同じ親の下に並んで「別の版」にならないように）。
+    userMessage = await prisma.$transaction(async (tx) => {
+      await lockSession(tx, session.id);
+      return tx.message.create({
+        data: {
+          sessionId: session.id,
+          role: "USER",
+          content: message,
+          model,
+          reasoningEffort: toDbReasoning(reasoning),
+          parentId: await loadActiveLeafId(session.id, tx),
+          attachments: {
+            create: attachments.map((attachment) => ({
+              filename: attachment.filename,
+              mimeType: attachment.mimeType,
+              size: attachment.size,
+              extractedText: attachment.extractedText,
+              imageStoragePath: attachment.imageStoragePath,
+            })),
+          },
+          ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
         },
-        ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
-      },
+      });
     });
   }
 
@@ -700,21 +704,19 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   let userStopped = false;
   const stopBaseline = session.stopRequestedAt?.getTime() ?? 0;
 
-  // 回答を保存する。再生成では、置き換えられる版とその先を同じトランザクションで隠す（保存できたときにだけ入れ替わる）。
-  // 回答は、答えた発言が表示中のときだけ表示中にする（生成中に別の版へ切り替えられていたら、隠れた枝の回答として残す）。
+  // 回答を保存する。会話の行を押さえたうえで、いまの木を見て決める（版の切り替えや、同じ発言への別の作り直しと重ならない）。
+  // ・答えた発言が表示中なら、その下に表示中のまま残っている回答とその先を隠してから保存する。再生成で置き換える版は
+  //   ここで初めて隠れる（保存できたときにだけ入れ替わる）。同じ回答を同時に 2 つ作り直しても、表示中の版は 1 つだけになる。
+  // ・生成中に別の版へ切り替えられて、答えた発言が隠れていたら、回答も隠れた枝のものとして保存する。
   const saveAssistant = async (content: string, options: { providerContext?: string; strictProposals?: boolean } = {}) => {
     const saved = await prisma.$transaction(async (tx) => {
-      let active = true;
-      if (regenerateId) {
-        await lockSession(tx, session.id);
-        const tree = await loadBranchTree(session.id, tx);
-        const shown = new Set(tree.order.filter((node) => node.active).map((node) => node.id));
-        const replaced = subtreeIds(tree, regenerateId).filter((id) => shown.has(id));
+      await lockSession(tx, session.id);
+      const tree = await loadBranchTree(session.id, tx);
+      const shown = new Set(tree.order.filter((node) => node.active).map((node) => node.id));
+      const active = tree.order.find((node) => node.id === userMessage.id)?.active ?? true;
+      if (active) {
+        const replaced = (tree.children.get(userMessage.id) ?? []).flatMap((id) => subtreeIds(tree, id)).filter((id) => shown.has(id));
         if (replaced.length) await tx.message.updateMany({ where: { sessionId: session.id, id: { in: replaced } }, data: { active: false } });
-        active = shown.has(userMessage.id);
-      } else {
-        const prompt = await tx.message.findUnique({ where: { id: userMessage.id }, select: { active: true } });
-        active = prompt?.active ?? true;
       }
       const row = await tx.message.create({
         data: {
@@ -786,7 +788,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         // ツールは常にこのリクエストの所有者として実行する。モデルは userId を指定できない。
         const runTool = modelOption.supportsPageTools
           ? async (name: string, args: unknown) => {
-              const run = await runPageTool(name, args, user.id, session.id);
+              const run = await runPageTool(name, args, user.id, session.id, replacedIds);
               for (const event of run.events ?? []) {
                 const id = (event as { id?: unknown }).id;
                 if (typeof id === "string") proposalIds.push(id);

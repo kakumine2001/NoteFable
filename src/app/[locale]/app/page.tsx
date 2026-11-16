@@ -381,7 +381,11 @@ export default function Home() {
   const guestLimitHitRef = useRef(false);
   // 入力欄の要素は画面から外れると先に null になるので、最後の入力値も state 側から持っておく。
   const composerTextRef = useRef("");
-  const composerMountedRef = useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current ? inputRef.current?.value ?? composerTextRef.current : null));
+  // 断られた発言の書き直し（下の rejectedEdit）。ページを離れるときに入力欄が空なら、これを預ける。
+  const rejectedEditRef = useRef<{ messageId: string; text: string } | null>(null);
+  const composerMountedRef = useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current
+    ? (inputRef.current?.value ?? composerTextRef.current) || rejectedEditRef.current?.text || ""
+    : null));
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
   const [model, setModel] = useState(defaultModel);
@@ -701,7 +705,9 @@ export default function Home() {
   // こちらから接続を切って止めたあとの片付け（サーバーに停止を伝えられなかったときの予備の経路）。
   // 届いた分は残し、空のままの枠は消す。サーバーが回答を保存していれば、それに合わせる。合わせられたら true。
   // 何も届いていないときは、サーバーの状態が分からないので画面は書き換えない（再生成なら、呼び出し側が元の表示に戻す）。
-  async function finishStoppedStream(sessionKey: string, assistantMessageId: string) {
+  // knownBefore は、作り直しを始める前に表示していた発言。作り直しでは置き換える回答を画面から外しているので、
+  // それを「新しく保存された回答」と取り違えないように渡す。
+  async function finishStoppedStream(sessionKey: string, assistantMessageId: string, knownBefore: Message[] = []) {
     const partial = (sessionMessagesRef.current[sessionKey] ?? []).find((message) => message.id === assistantMessageId);
     const hasAnswer = !!partial && (partial.content.trim().length > 0
       || !!partial.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal"));
@@ -709,7 +715,7 @@ export default function Home() {
     if (sessionKey === NEW_SESSION_MESSAGES_KEY) return false;
     void loadSessions();
     if (!hasAnswer) return false;
-    const known = new Set((sessionMessagesRef.current[sessionKey] ?? []).map((message) => message.id));
+    const known = new Set([...(sessionMessagesRef.current[sessionKey] ?? []), ...knownBefore].map((message) => message.id));
     for (const delay of [500, 1000, 2000]) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       const fetched = await fetchSessionMessages(sessionKey);
@@ -1418,7 +1424,7 @@ export default function Home() {
       await refreshSessionMessages(sessionId);
     } catch (error) {
       if (controller.signal.aborted) {
-        const synced = await finishStoppedStream(sessionId, assistantMessageId);
+        const synced = await finishStoppedStream(sessionId, assistantMessageId, before);
         // 何も届く前に切った再生成は、サーバーでは元の回答が表示のまま残っている。画面も元に戻す。
         if (!synced && kind === "regenerate" && !(sessionMessagesRef.current[sessionId] ?? []).some((message) => message.id === assistantMessageId)) {
           replaceCachedMessages(sessionId, before);
@@ -1518,6 +1524,9 @@ export default function Home() {
     branch: (messageId) => void turnHandlersRef.current.branchChat(messageId),
     dismissEditDraft: () => setRejectedEdit(null),
   }), []);
+  useEffect(() => {
+    rejectedEditRef.current = rejectedEdit;
+  }, [rejectedEdit]);
 
   useEffect(() => {
     // 上限の案内からログインして戻ってきたら、送れなかった本文を入力欄へ戻す。
