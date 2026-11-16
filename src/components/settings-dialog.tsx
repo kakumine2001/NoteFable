@@ -23,7 +23,7 @@ const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data
 
 // 表示言語。「自動」は置かない。選ぶまでは環境の言語（ブラウザの言語・地域）のまま表示し、選んだらアカウントに保存する。
 // 実際の切り替えはワークスペースの AccountLocaleSync（保存された言語に合わせる）が行うので、ここでは保存だけをする。
-// 選ぶまでは、どの項目にも印を付けない（いま表示している言語を選んでアカウントに固定することもできるように）。
+// 選ぶまでは、いま表示している言語に印を付ける。押せばその言語をアカウントに固定する。
 // 矢印キーはフォーカスを動かすだけで、Enter / Space / クリックで選ぶ（1 つ動くたびに保存と切り替えが走らないように）。
 function LanguageSettings({ user }: { user: AccountUser }) {
   const { t, locale, switching, changeError, setPreference } = useI18n();

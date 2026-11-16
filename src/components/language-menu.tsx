@@ -9,22 +9,46 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 // 表示言語のメニュー（ログインしていない人のサイドバー下部と、紹介ページのフッター）。ボタンとメニューの印は今の表示言語。
 // 選んでいなければ環境の言語（src/lib/i18n/locale.ts の順）で表示していて、それに印が付く。
 // 選ぶとその場で切り替わり、このブラウザ（Cookie）に残る。ログインした人の言語はアカウントに保存し、設定画面で選ぶ。
-// onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。
+// onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。切り替えが済んでから 1 回だけ呼ぶ。
 export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
-  const { t, locale, target, setPreference } = useI18n();
+  const { t, locale, target, changeError, setPreference } = useI18n();
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  // このメニューで最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
+  const [chosen, setChosen] = useState<Locale | null>(null);
+  const notified = useRef<Locale | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  // 閉じたあとにボタンへフォーカスを戻す（開いている間はモーダルの外が操作できず、focus() が効かない）。
+  const refocus = useRef(false);
   // 切り替え中ならその行き先に印を付ける。
   const current = target && target !== "auto" ? target : locale;
 
-  function choose(next: Locale) {
-    setAnchor(null);
+  useEffect(() => {
+    if (anchor || !refocus.current) return;
+    refocus.current = false;
     triggerRef.current?.focus();
-    if (next === current) return;
-    setPreference(next);
-    onChoose?.(next);
+  }, [anchor]);
+
+  useEffect(() => {
+    if (!chosen || locale !== chosen || notified.current === chosen) return;
+    notified.current = chosen;
+    onChoose?.(chosen);
+  }, [chosen, locale, onChoose]);
+
+  function close() {
+    refocus.current = true;
+    setAnchor(null);
   }
 
+  function choose(next: Locale) {
+    close();
+    if (next === current) return;
+    notified.current = null;
+    setChosen(next);
+    setPreference(next);
+  }
+
+  // 切り替えに失敗した（辞書を取れなかった）: 表示は元の言語のまま。もう一度選べば再試行。
+  const failed = chosen !== null && locale !== chosen && target === null && changeError;
   return (
     <>
       <button ref={triggerRef} type="button" className={className} aria-haspopup="menu" aria-expanded={anchor !== null}
@@ -33,8 +57,8 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
         <Languages size={14} aria-hidden="true" />
         <span lang={locale}>{LOCALE_NAMES[locale]}</span>
       </button>
-      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={choose}
-        onClose={() => { setAnchor(null); triggerRef.current?.focus(); }} />}
+      {failed && <span role="alert" className="language-menu-error">{t(changeError)}</span>}
+      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={choose} onClose={close} />}
     </>
   );
 }
@@ -51,7 +75,8 @@ function LanguageMenuPanel({ anchor, current, onChoose, onClose }: {
   }, []);
 
   // ボタンは画面の下の方にあるので、下に入らなければ上に開く。横はボタンの左端に揃え、画面からはみ出さない。
-  const height = LOCALES.length * 40 + 12;
+  // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）で見積もる。
+  const height = LOCALES.length * 44 + 12;
   const below = anchor.bottom + 4 + height <= window.innerHeight - 8;
   const style = {
     left: Math.max(8, Math.min(anchor.left, window.innerWidth - 236)),

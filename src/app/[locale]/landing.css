@@ -178,8 +178,13 @@
 .tl-footer-end { display: flex; align-items: center; gap: 24px; }
 .tl-language { display: inline-flex; min-height: 44px; align-items: center; gap: 6px; color: inherit; font: inherit; }
 .tl-language:hover { color: var(--tl-ink); }
-/* スマホの幅では、ブランド・言語・2 つのリンクが 1 行に収まるよう間隔を詰める。 */
-@media (max-width: 520px) { .tl-footer-end, .tl-footer nav { gap: 16px; } }
+.tl-footer-end .language-menu-error { color: #b91c1c; }
+/* スマホの幅では、ブランドの下に言語とリンクの行を回す（言語名や訳の長さで 1 行に収まらないことがある）。 */
+@media (max-width: 520px) {
+  .tl-footer { height: auto; flex-wrap: wrap; gap: 4px 16px; padding: 20px 0; }
+  .tl-footer-end, .tl-footer nav { gap: 16px; }
+  .tl-footer-end { flex-wrap: wrap; }
+}
 
 @keyframes tl-rise { from { opacity: 0; transform: translateY(0.35em); filter: blur(6px); } }
 @keyframes tl-rise-s { from { opacity: 0; transform: translateY(8px); } }

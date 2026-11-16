@@ -21,6 +21,12 @@ export function landingPath(locale: Locale) {
   return `/${locale}`;
 }
 
+// 検索エンジン向けの絶対 URL（sitemap.xml・robots.txt）の土台。本番の URL は Vercel が渡す（手元のビルドでは localhost）。
+export function siteOrigin() {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return host ? `https://${host}` : "http://localhost:3000";
+}
+
 // 保存済みの会話・ノートへの古いリンク（/?chat=… など）は、指定を保ったままワークスペースへ送る。
 const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];
 

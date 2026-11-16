@@ -15,6 +15,24 @@ let listening = false;
 
 const hasMarker = () => !!window.history.state?.notefableSheet;
 
+// 目印を外す history.back() を待っている処理（afterSheetHistory）。
+let afterBack: (() => void)[] = [];
+function flushAfterBack() {
+  const callbacks = afterBack;
+  afterBack = [];
+  callbacks.forEach((callback) => callback());
+}
+
+// シートを閉じたあとに今の履歴（URL）を書き換えたいとき用。閉じたシートの目印を外す history.back() が予約中・進行中なら、
+// それが終わって元の履歴に戻ってから呼ぶ（先に書き換えると、戻った先は書き換える前の URL のまま）。なければすぐ呼ぶ。
+export function afterSheetHistory(callback: () => void) {
+  if (pendingBack === null && !ownBack) {
+    callback();
+    return;
+  }
+  afterBack.push(callback);
+}
+
 function onPopState(event: PopStateEvent) {
   // 履歴を置き換えたあとにアプリが自分で投げる合成イベントは「戻る」ではない。
   if (!event.isTrusted) return;
@@ -22,6 +40,8 @@ function onPopState(event: PopStateEvent) {
     ownBack = false;
     // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）場合は積み直す。
     restoreSheetMarker();
+    // 元の履歴に戻った。Next.js がこの popstate を処理し終えてから、待っていた書き換えをする。
+    setTimeout(flushAfterBack);
     return;
   }
   // 端末の「戻る」: 目印が外れたので、一番上のシートを閉じる。
@@ -101,7 +121,13 @@ export function useBackToClose(open: boolean, onClose: () => boolean | void) {
           ownBack = true;
           window.history.back();
           // popstate が来なかったときに次の本物の「戻る」を飲み込まないよう、一定時間後に解除する。
-          setTimeout(() => { ownBack = false; }, 1000);
+          setTimeout(() => {
+            if (!ownBack) return;
+            ownBack = false;
+            flushAfterBack();
+          }, 1000);
+        } else {
+          flushAfterBack();
         }
       });
     };

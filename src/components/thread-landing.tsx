@@ -10,8 +10,10 @@ import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
 import { LOCALES, type Locale } from "@/lib/i18n/locale";
+import { landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
-import { useT } from "@/components/i18n-provider";
+import { afterSheetHistory } from "@/lib/use-back-to-close";
+import { useI18n, useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。
 const QUESTIONS = [
@@ -199,17 +201,17 @@ function useFacts() {
 function onLandingLocale(locale: Locale) {
   const path = window.location.pathname;
   if (path !== "/" && LOCALES.some((option) => path === landingPath(option))) {
-    const apply = () => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash);
-    // メニューは開いている間、戻るキーで閉じるための履歴を 1 件積んでいる（use-back-to-close.ts）。閉じるとその履歴を戻すので、
-    // 今の履歴を書き換えても戻った先は元の URL になる。戻り終えて（popstate）から、元の履歴の URL を書き換える。
-    if (window.history.state?.notefableSheet) window.addEventListener("popstate", () => setTimeout(apply), { once: true });
-    else apply();
+    // メニューは閉じるときに、戻るキー用に積んだ履歴を戻す。戻り終えてから元の履歴の URL を書き換える。
+    afterSheetHistory(() => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash));
   }
   void fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) }).catch(() => {});
 }
 
 export function ThreadLanding() {
   const t = useT();
+  const { locale } = useI18n();
+  // メニューで言語を切り替えたら、タブのタイトルもその言語にする（最初はメタデータと同じもの）。
+  useEffect(() => { document.title = landingTitle(t, locale); }, [t, locale]);
   const { options: modelOptions, defaultModel } = useModels();
   const defaultModelLabel = modelOptions.find((model) => model.id === defaultModel)?.label ?? modelOptions[0].label;
   const STATIONS = useStations();

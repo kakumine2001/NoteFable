@@ -93,8 +93,13 @@ private fun applyLanguage(preference: AppLanguage.Preference) {
     }
 }
 
-/** 退出登录、删除账号后忘掉本机的语言选择，回到系统语言（网页 forgetLocaleChoice）。 */
+/**
+ * 退出登录、删除账号后忘掉本机的语言选择，回到系统语言（网页 forgetLocaleChoice）。
+ * 同步状态也回到"刚打开 App"：网页退出后会重新载入页面，App 不会，不清的话下次登录时不会把未登录时选的语言存到账号上。
+ */
 fun forgetLanguageChoice() {
+    LocaleSyncMemory.firstRunDone = false
+    LocaleSyncMemory.migrated = null
     if (currentPreference() != AppLanguage.Preference.Auto) applyLanguage(AppLanguage.Preference.Auto)
 }
 
@@ -206,19 +211,28 @@ fun LanguageMenuButton(modifier: Modifier = Modifier) {
     val showing = showingLanguage()
     val name = AppLanguage.nativeName(showing).orEmpty()
     val label = stringResource(R.string.language_current, name)
-    Row(
-        modifier
-            .onGloballyPositioned { coordinates ->
-                val box = coordinates.boundsInWindow()
-                bounds = IntRect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
-            }
-            .clickable(role = Role.Button) { anchor = bounds }
-            .semantics(mergeDescendants = true) { contentDescription = label },
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.8.dp),
-    ) {
-        LucideIcon(Lucide.Languages, 14.dp, Sm.Muted)
-        Text(name, color = Sm.Muted, fontSize = 12.sp, style = LocalTextStyle.current.copy(localeList = LocaleList(showing.code)))
+    // 切换失败（网页 .language-menu-error）：按钮下面一行红字。
+    Column(modifier, horizontalAlignment = Alignment.End) {
+        Row(
+            Modifier
+                .onGloballyPositioned { coordinates ->
+                    val box = coordinates.boundsInWindow()
+                    bounds = IntRect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
+                }
+                .clickable(role = Role.Button) { anchor = bounds }
+                .semantics(mergeDescendants = true) { contentDescription = label },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.8.dp),
+        ) {
+            LucideIcon(Lucide.Languages, 14.dp, Sm.Muted)
+            Text(name, color = Sm.Muted, fontSize = 12.sp, style = LocalTextStyle.current.copy(localeList = LocaleList(showing.code)))
+        }
+        if (LocaleSyncMemory.failed) {
+            Text(
+                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 12.sp,
+                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+            )
+        }
     }
     anchor?.let { rect ->
         LanguageMenu(rect, current = showing, onClose = { anchor = null }) { choice ->
