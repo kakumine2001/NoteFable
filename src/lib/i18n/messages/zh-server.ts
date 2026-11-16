@@ -192,4 +192,7 @@ export const zhServer: Record<string, string> = {
   "Could not send the report.": "无法发送报告。",
   "This answer is no longer available.": "这条回答已经不存在。",
   "You’ve sent many reports today. Try again tomorrow.": "你今天发送的报告太多了，请明天再试。",
+  "Message not found.": "找不到这条消息。",
+  "Could not branch this chat. Try again.": "无法创建分支，请重试。",
+  "Could not switch versions. Try again.": "无法切换版本，请重试。",
 };

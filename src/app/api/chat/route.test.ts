@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   findSession: vi.fn(),
   loadProjectContext: vi.fn(),
   createMessage: vi.fn(),
+  updateManyMessage: vi.fn().mockResolvedValue({ count: 0 }),
+  findMessage: vi.fn(),
   updateManySession: vi.fn(),
   fetch: vi.fn(),
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
@@ -43,13 +45,18 @@ vi.mock("@/lib/prisma", () => { const prisma: Record<string, unknown> = {
     updateMany: mocks.updateManySession,
     findFirst: mocks.findSession,
   },
-  message: { create: mocks.createMessage, findMany: mocks.findMessages },
+  message: { create: mocks.createMessage, findMany: mocks.findMessages, updateMany: mocks.updateManyMessage, findFirst: mocks.findMessage },
   noteProposal: { updateMany: mocks.attachProposals },
 };
 prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
 return { prisma }; });
 
 import { POST } from "./route";
+
+// 履歴の読み込み（本文を選ぶ問い合わせ）。会話の木の読み込み（parentId を選ぶ）とは別。
+function historyQuery() {
+  return mocks.findMessages.mock.calls.map(([args]) => args as { where: Record<string, unknown>; select: Record<string, unknown> }).find((args) => "content" in args.select)!;
+}
 
 async function send(events: unknown[]) {
   mocks.fetch.mockResolvedValue(new Response(events.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")));
@@ -85,7 +92,7 @@ describe("DeepSeek chat response boundary", () => {
     expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("Web search is unavailable");
-    expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
+    expect(historyQuery()).not.toHaveProperty("take");
   });
 
   it("never forwards or persists leaked tool text split across deltas", async () => {
@@ -110,7 +117,7 @@ describe("DeepSeek chat response boundary", () => {
     ]);
     expect(saved.thinkingMs).toEqual(expect.any(Number));
     // 推論はモデルへ戻さない: 履歴取得は activity / thinkingMs を select しない。
-    const select = (mocks.findMessages.mock.calls[0][0] as { select: object }).select;
+    const select = (historyQuery() as { select: object }).select;
     expect(select).not.toHaveProperty("activity");
     expect(select).not.toHaveProperty("thinkingMs");
   });
@@ -375,7 +382,41 @@ describe("Claude chat response boundary", () => {
     abort.abort();
     await response.text();
     expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
-    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toContain("Request failed:");
+    // 止めたのは失敗ではない：届いた本文が無ければ、回答は何も保存しない。
+    expect(mocks.createMessage.mock.calls.map(([arg]) => arg.data.role)).toEqual(["USER"]);
+  });
+
+  it("keeps the part that arrived when the user stops the answer", async () => {
+    const abort = new AbortController();
+    const encoder = new TextEncoder();
+    mocks.fetch.mockImplementationOnce(async (_url, options) => {
+      const body = new ReadableStream<Uint8Array>({ start(controller) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}
+
+`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Half an ans" } })}
+
+`));
+        options.signal.addEventListener("abort", () => controller.close(), { once: true });
+      } });
+      return new Response(body);
+    });
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "claude-haiku-5-5");
+    form.set("sessionId", "existing");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form, signal: abort.signal }));
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let received = "";
+    while (!received.includes("Half an ans")) received += decoder.decode((await reader.read()).value, { stream: true });
+    abort.abort();
+    while (!(await reader.read()).done) { /* 閉じるまで読む */ }
+    expect(mocks.refundUsage).not.toHaveBeenCalled();
+    const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
+    expect(saved).toMatchObject({ role: "ASSISTANT", content: "Half an ans", parentId: "message" });
+    expect(saved.content).not.toContain("Request failed");
+    expect(saved).not.toHaveProperty("providerContext");
   });
 
   it("routes to Messages and saves visible text plus real-shaped search citations", async () => {
@@ -396,7 +437,7 @@ describe("Claude chat response boundary", () => {
     const raw = await response.text();
     expect(mocks.fetch.mock.calls[0][0]).toBe("https://api.anthropic.com/v1/messages");
     expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toMatchObject({ max_tokens: 128000, output_config: { effort: "medium" }, tool_choice: { type: "auto" }, cache_control: { type: "ephemeral" } });
-    expect(mocks.findMessages.mock.calls[0][0]).not.toHaveProperty("take");
+    expect(historyQuery()).not.toHaveProperty("take");
     expect(raw).not.toContain("hidden-signature");
     expect(raw).not.toContain("hidden-index");
     const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
@@ -669,5 +710,109 @@ describe("chats inside a project", () => {
       expect(prompt).not.toContain("custom instructions");
       expect(prompt).not.toContain("Call me Mine.");
     });
+  });
+});
+
+describe("editing a message and regenerating an answer", () => {
+  const at = (seconds: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, seconds));
+  // u1 → a1 → u2 → a2（すべて表示中、親の記録なし＝作成順）。
+  const tree = [
+    { id: "u1", parentId: null, active: true, role: "USER", createdAt: at(1) },
+    { id: "a1", parentId: null, active: true, role: "ASSISTANT", createdAt: at(2) },
+    { id: "u2", parentId: null, active: true, role: "USER", createdAt: at(3) },
+    { id: "a2", parentId: null, active: true, role: "ASSISTANT", createdAt: at(4) },
+  ];
+  const answer = [{ type: "response.output_text.delta", delta: "新しい回答" }, { type: "response.completed" }];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.stubGlobal("fetch", mocks.fetch);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mocks.findSession.mockResolvedValue(defaultSession);
+    mocks.createMessage.mockResolvedValue({ id: "created" });
+    mocks.findMessages.mockImplementation(async (args) => ("parentId" in (args as { select: object }).select ? tree : []) as never[]);
+    mocks.fetch.mockImplementation(async () => new Response(answer.map((e) => `data: ${JSON.stringify(e)}
+
+`).join("")));
+  });
+  afterEach(() => { mocks.findMessages.mockReset().mockResolvedValue([]); });
+
+  async function post(fields: Record<string, string>) {
+    const form = new FormData();
+    form.set("model", "deepseek-flash");
+    form.set("sessionId", "session");
+    for (const [key, value] of Object.entries(fields)) form.set(key, value);
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
+    return { response, text: await response.text() };
+  }
+
+  it("puts a normal message under the last displayed message", async () => {
+    await post({ message: "続き" });
+    expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "USER", parentId: "a2" });
+    expect(mocks.createMessage.mock.calls[1][0].data).toMatchObject({ role: "ASSISTANT", parentId: "created" });
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true, id: { not: "created" } });
+    expect(mocks.updateManyMessage).not.toHaveBeenCalled();
+  });
+
+  it("regenerates an answer as a new version under the same message, without a new user message", async () => {
+    const { text } = await post({ regenerate: "a1" });
+    expect(text).toContain("新しい回答");
+    // 元の回答と、その先に続いていた発言を隠す。
+    expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["a1", "u2", "a2"] } }, data: { active: false } });
+    expect(mocks.createMessage).toHaveBeenCalledOnce();
+    expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "ASSISTANT", content: "新しい回答", parentId: "u1" });
+    // 自分の発言も履歴から組み立てる（除外しない）。
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true });
+    expect(mocks.consumeUsage).toHaveBeenCalledOnce();
+  });
+
+  it("edits a message as a new version that keeps the attachments and pages of the original", async () => {
+    const attachment = { filename: "a.png", mimeType: "image/png", size: 3, extractedText: null, imageStoragePath: "images/a.png" };
+    mocks.findMessage.mockResolvedValue({ attachments: [attachment], notes: [] });
+    await post({ edit: "u2", message: "書き直した質問" });
+    expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["u2", "a2"] } }, data: { active: false } });
+    expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "USER", content: "書き直した質問", parentId: "a1", attachments: { create: [attachment] } });
+    expect(mocks.createMessage.mock.calls[1][0].data).toMatchObject({ role: "ASSISTANT", parentId: "created" });
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true });
+  });
+
+  it("refuses a target that is not a displayed message of the right kind, and gives the send back", async () => {
+    for (const fields of [{ regenerate: "u1" }, { regenerate: "missing" }, { edit: "a1", message: "x" }] as Record<string, string>[]) {
+      mocks.refundUsage.mockClear();
+      const { response } = await post(fields);
+      expect(response.status).toBe(404);
+      expect(mocks.refundUsage).toHaveBeenCalledOnce();
+    }
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+    expect(mocks.updateManyMessage).not.toHaveBeenCalled();
+  });
+
+  it("rejects edit and regenerate together, without a chat, or from a note assistant", async () => {
+    for (const fields of [{ edit: "u2", regenerate: "a2", message: "x" }, { regenerate: "a2", noteId: "note" }, { regenerate: "a2", sessionId: "" }, { edit: "u2" }] as Record<string, string>[]) {
+      expect((await post(fields)).response.status).toBe(400);
+    }
+    expect(mocks.consumeUsage).not.toHaveBeenCalled();
+  });
+
+  it("brings the old answer back when a regeneration is stopped before anything arrives", async () => {
+    const abort = new AbortController();
+    let started!: () => void;
+    const upstreamStarted = new Promise<void>((resolve) => { started = resolve; });
+    mocks.fetch.mockImplementationOnce(async (_url, options) => new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      options.signal.addEventListener("abort", () => controller.close(), { once: true });
+      started();
+    } })));
+    const form = new FormData();
+    form.set("model", "deepseek-flash");
+    form.set("sessionId", "session");
+    form.set("regenerate", "a2");
+    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form, signal: abort.signal }));
+    await upstreamStarted;
+    abort.abort();
+    await response.text();
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+    expect(mocks.updateManyMessage.mock.calls.map(([args]) => args.data)).toEqual([{ active: false }, { active: true }]);
+    expect(mocks.updateManyMessage.mock.calls[1][0].where).toEqual({ sessionId: "session", id: { in: ["a2"] } });
+    expect(mocks.refundUsage).toHaveBeenCalledOnce();
   });
 });

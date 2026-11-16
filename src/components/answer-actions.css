@@ -106,3 +106,62 @@
     height: 2.25rem;
   }
 }
+
+/* 版の切り替え「‹ 2/3 ›」と、自分の発言の下の操作。 */
+.answer-actions .version-nav {
+  display: inline-flex;
+  align-items: center;
+}
+
+.answer-actions .version-nav-count {
+  min-width: 1.75rem;
+  text-align: center;
+  font-size: 0.8125rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--notion-muted);
+}
+
+.answer-actions .answer-action:disabled {
+  color: var(--notion-faint);
+  cursor: default;
+}
+
+/* マウスのある端末では、コピーと編集は発言に乗せたとき（またはキーボードで来たとき）だけ見せる。触る端末では常に出す。 */
+@media (hover: hover) {
+  /* 行の高さ（0.25rem + 2rem）を次の発言との間隔（2.25rem）に重ね、ふだん見えない操作のぶんだけ間が広がらないようにする。 */
+  .answer-actions.user-turn-actions {
+    position: relative;
+    margin-top: 0.25rem;
+    margin-bottom: -2.25rem;
+  }
+
+  .user-turn-actions .answer-action.is-on-hover {
+    opacity: 0;
+    transition: opacity 100ms ease, background 100ms ease, color 100ms ease;
+  }
+
+  .notion-turn:hover .user-turn-actions .answer-action.is-on-hover,
+  .user-turn-actions:focus-within .answer-action.is-on-hover {
+    opacity: 1;
+  }
+}
+
+/* 発言の編集欄。発言の面（淡い背景）の中に、入力欄とボタンを置く。 */
+.user-message-editor textarea {
+  display: block;
+  width: 100%;
+  max-height: 40vh;
+  resize: none;
+  background: transparent;
+  font-size: 15px;
+  line-height: 1.75rem;
+  color: var(--notion-text);
+  outline: none;
+}
+
+.user-message-editor-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}

@@ -46,7 +46,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
     // 使うのは新しい方の発言だけなので、新しい順に上限 + 1 件まで読み、時系列に戻す（1 件多ければ、もっと古い発言がある）。
     const newest = await prisma.message.findMany({
-      where: { sessionId, role: { in: ["USER", "ASSISTANT"] } },
+      where: { sessionId, active: true, role: { in: ["USER", "ASSISTANT"] } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: MAX_TRANSCRIPT_MESSAGES + 1,
       select: { role: true, content: true, attachments: { select: { filename: true } } },

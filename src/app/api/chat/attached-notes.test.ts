@@ -73,7 +73,7 @@ describe("pages attached to a chat message", () => {
     expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["n1"] }, userId: "user", deletedAt: null });
     const userData = mocks.createMessage.mock.calls.map(([arg]) => arg.data).find((data) => data.role === "USER");
     expect(userData.notes).toEqual({ create: [{ noteId: "n1", position: 0 }] });
-    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session" }, note: { userId: "user", deletedAt: null } });
+    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session", active: true }, note: { userId: "user", deletedAt: null } });
     const { instructions } = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(instructions).toContain("=== Attached note 1: \"Biology\" (id: n1) [attached to this message] ===\nCells divide.");
     // 前の発言で添付したノートも、読み直して渡す。区切りに見える行は崩す。

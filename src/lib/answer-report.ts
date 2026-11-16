@@ -58,7 +58,7 @@ export async function findReportedAnswer(userId: string, messageId: string) {
   });
   if (!answer) return null;
   const prompt = await prisma.message.findFirst({
-    where: { sessionId: answer.sessionId, role: "USER", createdAt: { lte: answer.createdAt } },
+    where: { sessionId: answer.sessionId, role: "USER", active: true, createdAt: { lte: answer.createdAt } },
     orderBy: { createdAt: "desc" },
     select: { content: true },
   });

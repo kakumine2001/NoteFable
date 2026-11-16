@@ -15,6 +15,13 @@ const request = (sessionId?: string) => new Request("http://localhost/api/images
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "これを画像にして", sessionId }),
 });
 
+// 履歴の読み込み（本文を選ぶ）には rows を、会話の木の読み込み（parentId を選ぶ）には表示中の発言 1 件を返す。
+function setHistory(rows: object[]) {
+  mocks.history.mockImplementation(async (args: { select: object }) => "parentId" in args.select
+    ? [{ id: "last", parentId: null, active: true, role: "ASSISTANT", createdAt: new Date(0) }]
+    : rows);
+}
+
 describe("image generation conversation wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -22,7 +29,7 @@ describe("image generation conversation wiring", () => {
     mocks.consumeUsage.mockResolvedValue({ ok: true, ticket: { kind: "image", day: "2026-01-01", keys: ["user:owner"] } });
     mocks.refundUsage.mockResolvedValue(undefined);
     mocks.findSession.mockResolvedValue({ id: "owned", title: "Chat" });
-    mocks.history.mockResolvedValue([{ role: "USER", content: "富士山と桜", attachments: [] }]);
+    setHistory([{ role: "USER", content: "富士山と桜", attachments: [] }]);
     mocks.read.mockResolvedValue(Buffer.from("reference"));
     mocks.write.mockResolvedValue("saved.png");
     mocks.createMessage.mockResolvedValue({ id: "saved" });
@@ -52,7 +59,10 @@ describe("image generation conversation wiring", () => {
   it("loads only the owned conversation and sends context upstream while saving only the user's input", async () => {
     expect((await POST(request("owned"))).status).toBe(200);
     expect(mocks.findSession).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "owned", userId: "owner" } }));
-    expect(mocks.history).toHaveBeenCalledWith(expect.objectContaining({ where: { sessionId: "owned", session: { userId: "owner" }, role: { in: ["USER", "ASSISTANT"] } }, take: 24 }));
+    expect(mocks.history).toHaveBeenCalledWith(expect.objectContaining({ where: { sessionId: "owned", active: true, session: { userId: "owner" }, role: { in: ["USER", "ASSISTANT"] } }, take: 24 }));
+    // 表示中の枝の末尾に続け、生成した画像の回答はその発言の下に置く。
+    expect(mocks.createMessage.mock.calls[0][0].data.parentId).toBe("last");
+    expect(mocks.createMessage.mock.calls[1][0].data.parentId).toBe("saved");
     const upstream = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     // Proxy JSON escapes non-ASCII characters, so inspect its decoded request.
     expect(upstream.prompt).toContain("富士山と桜");
@@ -69,7 +79,7 @@ describe("image generation conversation wiring", () => {
   });
 
   it("sends the previous assistant image as an edit reference and does not duplicate it in storage", async () => {
-    mocks.history.mockResolvedValue([{ role: "ASSISTANT", content: "", attachments: [{ filename: "generated-image.png", mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: "old.png" }] }]);
+    setHistory([{ role: "ASSISTANT", content: "", attachments: [{ filename: "generated-image.png", mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: "old.png" }] }]);
     expect((await POST(request("owned"))).status).toBe(200);
     expect(mocks.fetch.mock.calls[0][0]).toMatch(/\/images\/edits$/);
     const form = mocks.fetch.mock.calls[0][1].body as FormData;
@@ -88,7 +98,7 @@ describe("image generation conversation wiring", () => {
   });
 
   it("sends both the previous poster and the new logo, storing only the newly uploaded reference", async () => {
-    mocks.history.mockResolvedValue([{ role: "ASSISTANT", content: "", attachments: [{ filename: "poster.png", mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: "poster.png" }] }]);
+    setHistory([{ role: "ASSISTANT", content: "", attachments: [{ filename: "poster.png", mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: "poster.png" }] }]);
     const body = new FormData();
     body.set("sessionId", "owned");
     body.set("prompt", "このロゴをさっきのポスターに追加して");
@@ -108,7 +118,7 @@ describe("image generation conversation wiring", () => {
 
   it("makes the original upload available alongside the generated edit", async () => {
     const image = (filename: string) => ({ filename, mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: filename });
-    mocks.history.mockResolvedValue([
+    setHistory([
       { role: "ASSISTANT", content: "", attachments: [image("edited.png")] },
       { role: "USER", content: "元の写真", attachments: [image("original.png")] },
     ]);

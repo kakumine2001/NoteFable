@@ -19,7 +19,7 @@ const FENCE = /^\s*(`{3,})/;
 
 export async function listChatAttachments(userId: string, sessionId: string) {
   const rows = await prisma.attachment.findMany({
-    where: { message: { session: { id: sessionId, userId } } },
+    where: { message: { active: true, session: { id: sessionId, userId } } },
     orderBy: { createdAt: "desc" },
     take: LIST_LIMIT,
     select: { id: true, filename: true, mimeType: true, size: true, imageStoragePath: true },
@@ -76,7 +76,7 @@ export function createAttachmentResolver(userId: string, sessionId: string) {
     const prepared: { id: string; filename: string; buffer: Buffer; mime: string }[] = [];
     for (const id of ids) {
       const attachment = await prisma.attachment.findFirst({
-        where: { id, imageStoragePath: { not: null }, message: { session: { id: sessionId, userId } } },
+        where: { id, imageStoragePath: { not: null }, message: { active: true, session: { id: sessionId, userId } } },
         select: { filename: true, size: true, imageStoragePath: true },
       });
       if (!attachment?.imageStoragePath) {

@@ -56,7 +56,7 @@ export async function loadAttachedNotesContext(
 ): Promise<AttachedContextNote[]> {
   const refs = await prisma.messageNote.findMany({
     // ゴミ箱のノートは使わない。他人のノートは添付時に断っているが、読む側でも本人のものに限る。
-    where: { message: { sessionId }, note: { userId, deletedAt: null } },
+    where: { message: { sessionId, active: true }, note: { userId, deletedAt: null } },
     orderBy: [{ message: { createdAt: "desc" } }, { position: "asc" }],
     take: MAX_REFS_READ,
     select: { messageId: true, noteId: true },

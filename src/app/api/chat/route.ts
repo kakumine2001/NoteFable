@@ -45,6 +45,8 @@ import {
 } from "@/lib/web-search";
 import { msg, fmt } from "@/lib/i18n/translate";
 import { getModelRegistry, upstreamModelFor } from "@/lib/model-registry";
+import { activeLeafId, subtreeIds } from "@/lib/chat-branches";
+import { loadBranchTree } from "@/lib/chat-branch-store";
 
 export const runtime = "nodejs";
 
@@ -292,16 +294,21 @@ async function requestDeepSeekResponses(body: object, signal: AbortSignal) {
 
 export async function POST(request: Request) {
   // 回数を数えたあと、ストリームを返す前に例外で失敗したときも回数を戻す（ストリーム中の失敗は中で戻す）。
-  const usage: { ticket?: UsageTicket } = {};
+  const usage: ChatUndo = {};
   try {
     return await handleChat(request, usage);
   } catch (error) {
     await refundUsage(usage.ticket);
+    // 再生成のために隠した元の回答も、何も作れなかったなら表示に戻す。
+    await usage.restoreVersion?.();
     throw error;
   }
 }
 
-async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) {
+// ストリームを返す前に失敗したときに元へ戻すもの。
+type ChatUndo = { ticket?: UsageTicket; restoreVersion?: () => Promise<void> };
+
+async function handleChat(request: Request, usageRef: ChatUndo) {
   // チャット送信の中心 API。
   // ここで添付検証、セッション所有者確認、履歴保存、上流 AI ストリームの中継をまとめて行う。
   try {
@@ -346,7 +353,17 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     modelOption.supportsWebSearch,
   );
 
-  if (!message) {
+  // 発言の編集（edit = 書き直す自分の発言の ID）と回答の再生成（regenerate = 作り直す回答の ID）。
+  // どちらも元の版を消さずに隠し、同じ位置に新しい版を作る。
+  const editId = String(formData.get("edit") ?? "").trim();
+  const regenerateId = String(formData.get("regenerate") ?? "").trim();
+  const rerun = Boolean(editId || regenerateId);
+  if (rerun && ((editId && regenerateId) || !sessionId || noteId || (editId || regenerateId).length > 64)) {
+    return NextResponse.json({ error: msg("Invalid request.") }, { status: 400 });
+  }
+
+  // 再生成は元の発言をそのまま使うので、本文は要らない。
+  if (!message && !regenerateId) {
     return NextResponse.json({ error: msg("Message is required.") }, { status: 400 });
   }
 
@@ -360,11 +377,12 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   }
 
   // FormData 内の files フィールドから、実際の File オブジェクトだけを取り出す。
-  let files = formData
+  // 編集・再生成は元の発言の添付を引き継ぐので、新しい添付は受け取らない。
+  let files = rerun ? [] : formData
     .getAll("files")
     .filter((value): value is File => value instanceof File);
 
-  const uploadRefs = formData.get("uploads");
+  const uploadRefs = rerun ? null : formData.get("uploads");
   let uploadUser: Awaited<ReturnType<typeof getOrCreateUser>> | undefined;
   if (uploadRefs) {
     try {
@@ -460,27 +478,87 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。
   const attachmentPrompt = buildAttachmentPrompt(attachments);
 
+  // 会話の木。次の発言の親（表示中の枝の末尾）と、編集・再生成の対象を決める。
+  const tree = await loadBranchTree(session.id);
+  const shown = new Set(tree.order.filter((node) => node.active).map((node) => node.id));
+  const target = rerun
+    ? tree.order.find((node) => node.id === (editId || regenerateId) && node.active && node.role === (editId ? "USER" : "ASSISTANT"))
+    : undefined;
+  // 再生成する回答の元になった自分の発言。
+  const promptNode = regenerateId && target
+    ? tree.order.find((node) => node.id === tree.parent.get(target.id) && node.active && node.role === "USER")
+    : undefined;
+  if (rerun && (!target || (regenerateId && !promptNode))) {
+    await refundUsage(usageTicket);
+    return NextResponse.json({ error: msg("Message not found.") }, { status: 404 });
+  }
+  // 置き換えられる版と、その先に続いていた発言。消さずに隠し、版の切り替えで戻せるようにする。
+  const replacedIds = target ? subtreeIds(tree, target.id).filter((id) => shown.has(id)) : [];
+  const hideReplaced = { where: { sessionId: session.id, id: { in: replacedIds } }, data: { active: false } };
+  // 再生成で何も保存できなかったとき（すぐ止めた・ストリームの前に失敗した）に、隠した元の回答を表示へ戻す。
+  const restoreVersion = async () => {
+    if (!regenerateId) return;
+    await prisma.message.updateMany({ where: { sessionId: session.id, id: { in: replacedIds } }, data: { active: true } }).catch(() => {});
+  };
+
   // ユーザー発言は上流 API 呼び出し前に保存する。
-  // ただしこの発言はこのあと currentUserContent として渡すため、履歴取得では id を除外して二重送信を避ける。
-  const userMessage = await prisma.message.create({
-    data: {
-      sessionId: session.id,
-      role: "USER",
-      content: message,
-      model,
-      reasoningEffort: toDbReasoning(reasoning),
-      attachments: {
-        create: attachments.map((attachment) => ({
-          filename: attachment.filename,
-          mimeType: attachment.mimeType,
-          size: attachment.size,
-          extractedText: attachment.extractedText,
-          imageStoragePath: attachment.imageStoragePath,
-        })),
+  // 通常の送信ではこの発言を currentUserContent として渡すため、履歴取得では id を除外して二重送信を避ける。
+  let userMessage: { id: string };
+  if (editId && target) {
+    // 編集：元の発言の添付とノートを引き継いだ新しい版を、同じ親の下に作る。
+    const original = await prisma.message.findFirst({
+      where: { id: target.id, sessionId: session.id },
+      select: {
+        attachments: {
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true },
+        },
+        notes: { orderBy: { position: "asc" }, select: { noteId: true } },
       },
-      ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
-    },
-  });
+    });
+    const keptPages = await liveOwnedNoteIds(user.id, original?.notes.map((item) => item.noteId) ?? []);
+    userMessage = await prisma.$transaction(async (tx) => {
+      await tx.message.updateMany(hideReplaced);
+      return tx.message.create({
+        data: {
+          sessionId: session.id,
+          role: "USER",
+          content: message,
+          model,
+          reasoningEffort: toDbReasoning(reasoning),
+          parentId: tree.parent.get(target.id),
+          ...(original?.attachments.length ? { attachments: { create: original.attachments } } : {}),
+          ...(keptPages.length ? { notes: { create: keptPages.map((noteId, position) => ({ noteId, position })) } } : {}),
+        },
+      });
+    });
+  } else if (promptNode) {
+    // 再生成：自分の発言はそのまま使い、回答だけを新しい版にする。
+    await prisma.message.updateMany(hideReplaced);
+    usageRef.restoreVersion = restoreVersion;
+    userMessage = { id: promptNode.id };
+  } else {
+    userMessage = await prisma.message.create({
+      data: {
+        sessionId: session.id,
+        role: "USER",
+        content: message,
+        model,
+        reasoningEffort: toDbReasoning(reasoning),
+        parentId: activeLeafId(tree),
+        attachments: {
+          create: attachments.map((attachment) => ({
+            filename: attachment.filename,
+            mimeType: attachment.mimeType,
+            size: attachment.size,
+            extractedText: attachment.extractedText,
+            imageStoragePath: attachment.imageStoragePath,
+          })),
+        },
+        ...(pageIds.length ? { notes: { create: pageIds.map((noteId, position) => ({ noteId, position })) } } : {}),
+      },
+    });
+  }
 
   // この会話で添付されたノートを読み直す（プロジェクトの参照ノートと重なる分は除く）。失敗してもチャットは止めない。
   let attachedNotes: AttachedContextNote[] = [];
@@ -491,21 +569,23 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   }
 
   // 新規作成、または空の "New chat" に最初の発言が来たときだけ AI タイトルを作る。
-  const isFirstMessage = !sessionId || (session.title === "New chat" && !session.titleManual);
+  const isFirstMessage = !rerun && (!sessionId || (session.title === "New chat" && !session.titleManual));
   const placeholderTitle = makeTitle(message);
 
-  if ((session.title === "New chat" && !session.titleManual)) {
+  if (!rerun && session.title === "New chat" && !session.titleManual) {
     await prisma.session.updateMany({
       where: { id: session.id, userId: user.id, title: "New chat", titleManual: false },
       data: { title: placeholderTitle },
     });
   }
 
-  // 全モデルとも会話の全メッセージを読む。圧縮に対応するモデルはプロバイダーが要約するまで履歴を保持する。
+  // 全モデルとも会話の（表示中の枝の）全メッセージを読む。圧縮に対応するモデルはプロバイダーが要約するまで履歴を保持する。
+  // 編集・再生成では、自分の発言も添付ごと履歴から組み立てる。
   const history = await prisma.message.findMany({
     where: {
       sessionId: session.id,
-      id: { not: userMessage.id },
+      active: true,
+      ...(rerun ? {} : { id: { not: userMessage.id } }),
     },
     orderBy: { createdAt: "desc" },
     select: {
@@ -564,7 +644,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
     isClaude ? Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - attachments.reduce((sum, item) => sum + (item.imageInputBytes ?? 0), 0)) : undefined,
     isClaude,
   );
-  const input: { role: string; content: unknown }[] = [
+  const input: { role: string; content: unknown }[] = rerun ? historyInput : [
     ...historyInput,
     {
       role: "user",
@@ -591,10 +671,24 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   let thinkingMs: number | undefined;
   // この回答の中で出た編集案・新規ノート案。回答を保存したあとで、その回答に紐付ける。
   const proposalIds: string[] = [];
+  // 利用者が止めた（停止ボタン・切断）ときに、上流への要求と以後の処理を止める。
+  const stop = new AbortController();
+  if (request.signal.aborted) stop.abort();
+  else request.signal.addEventListener("abort", () => stop.abort(), { once: true });
 
   const stream = new ReadableStream({
+    cancel() {
+      stop.abort();
+    },
     async start(controller) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      // 読み手がいなくなったあとの書き込みは捨てる（閉じたストリームへの書き込みで保存処理まで止まらないように）。
+      const emit = (chunk: string) => {
+        try { controller.enqueue(encoder.encode(chunk)); } catch { /* 読み手がいない */ }
+      };
+      const close = () => {
+        try { controller.close(); } catch { /* すでに閉じている */ }
+      };
       try {
         // 使ったプロジェクトの指示とノートを、最初の途中経過として流す。回答と一緒に保存され、再読み込み後も出典を見られる。
         const contextEvent = projectContext
@@ -606,7 +700,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           : null;
         if (contextEvent) {
           activitySteps = applyActivityEvent(activitySteps, contextEvent);
-          controller.enqueue(encoder.encode(encodeActivityStreamEvent(contextEvent)));
+          emit(encodeActivityStreamEvent(contextEvent));
         }
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
@@ -640,7 +734,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 customTools: pageTools,
                 cache: true,
               }), (items) => { providerContext = serializeCompaction("anthropic", upstreamModel, items, coveredMessageIds); },
-              runTool, request.signal)
+              runTool, stop.signal)
             : modelOption.provider === "deepseek"
             ? await createResponsesToolStream({
                 body: {
@@ -650,7 +744,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 },
                 request: requestDeepSeekResponses,
                 runTool,
-                signal: request.signal,
+                signal: stop.signal,
               })
             : await createResponsesToolStream({
                 body: {
@@ -680,7 +774,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 request: (body, signal) => requestOpenAIResponses(body as ResponsesStreamRequest, signal),
                 runTool,
                 onContext: (items) => { providerContext = serializeCompaction("openai", upstreamModel, items, coveredMessageIds); },
-                signal: request.signal,
+                signal: stop.signal,
               });
         if (isFirstMessage) {
           titleTask = saveGeneratedTitle({
@@ -702,7 +796,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           if (!delta) return;
           thinkingMs ??= Date.now() - streamStartedAt;
           assistantText += delta;
-          controller.enqueue(encoder.encode(encodeTextStreamEvent(delta)));
+          emit(encodeTextStreamEvent(delta));
           if (delta.trim()) delivered = true;
         };
 
@@ -712,7 +806,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
             const activity = parseActivityEvent(JSON.parse(payload));
             if (activity) {
               activitySteps = applyActivityEvent(activitySteps, activity);
-              controller.enqueue(encoder.encode(encodeActivityStreamEvent(activity)));
+              emit(encodeActivityStreamEvent(activity));
               if (activity.type === "proposal" || activity.type === "create_proposal") delivered = true;
             }
             if (modelOption.provider !== "deepseek") {
@@ -731,6 +825,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
 
         while (true) {
           const { done, value } = await reader.read();
+          // 止められたあとに届いた分は、本文に足さない。
+          if (stop.signal.aborted) throw new Error("Stopped.");
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -772,6 +868,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
               thinkingMs,
               model,
               reasoningEffort: toDbReasoning(reasoning),
+              parentId: userMessage.id,
             },
           });
           await attachProposals(user.id, proposalIds, saved.id, tx);
@@ -785,10 +882,36 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         });
 
         await titleTask;
-        controller.close();
+        close();
       } catch (error) {
         // 異常出力を検出したら上流の読み取りも止める。
         await reader?.cancel().catch(() => {});
+        if (stop.signal.aborted) {
+          // 利用者が止めた：届いた分だけを回答として残す。失敗ではないので、エラー文は足さない。
+          if (!delivered) await refundUsage(usageTicket);
+          if (assistantText.trim() || proposalIds.length) {
+            const saved = await prisma.message.create({
+              data: {
+                sessionId: session.id,
+                role: "ASSISTANT",
+                content: assistantText,
+                activity: serializeActivity(activitySteps),
+                thinkingMs: thinkingMs ?? Date.now() - streamStartedAt,
+                model,
+                reasoningEffort: toDbReasoning(reasoning),
+                parentId: userMessage.id,
+              },
+            });
+            await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
+            await prisma.session.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
+          } else {
+            // 何も届く前に止めた再生成は、元の回答を表示に戻す。
+            await restoreVersion();
+          }
+          await titleTask;
+          close();
+          return;
+        }
         // 上流 API が途中で失敗しても、すでにユーザーへ返した本文は失わない。
         // 途中本文があれば末尾にエラー文を追記し、画面表示と DB 履歴が同じ内容になるよう保存する。
         const errorText = fmt("Request failed: {detail}", { detail: getErrorMessage(error) });
@@ -802,10 +925,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         const failure: ActivityEvent = { type: "failure", id: "request-failure", offset: persistedText.length - errorText.length, detail: getErrorMessage(error) };
         activitySteps = applyActivityEvent(activitySteps, failure);
 
-        controller.enqueue(
-          encoder.encode(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText)),
-        );
-        controller.enqueue(encoder.encode(encodeActivityStreamEvent(failure)));
+        emit(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText));
+        emit(encodeActivityStreamEvent(failure));
 
         const saved = await prisma.message.create({
           data: {
@@ -816,6 +937,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
             thinkingMs,
             model,
             reasoningEffort: toDbReasoning(reasoning),
+            parentId: userMessage.id,
           },
         });
         await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
@@ -826,7 +948,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         });
 
         await titleTask;
-        controller.close();
+        close();
       } finally {
         reader?.releaseLock();
       }

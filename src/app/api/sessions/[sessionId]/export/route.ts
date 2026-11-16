@@ -20,7 +20,7 @@ export async function GET(request: Request, context: RouteContext) {
   });
   if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
   const messages = await prisma.message.findMany({
-    where: { sessionId, role: { in: ["USER", "ASSISTANT"] } },
+    where: { sessionId, active: true, role: { in: ["USER", "ASSISTANT"] } },
     orderBy: { createdAt: "asc" },
     select: { role: true, content: true, attachments: { select: { id: true, filename: true, imageStoragePath: true } } },
   });

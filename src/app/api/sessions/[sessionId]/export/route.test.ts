@@ -40,7 +40,8 @@ describe("GET /api/sessions/:id/export", () => {
     await GET(get(), context);
     expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine", noteId: null }, select: { title: true } });
     const query = mocks.messages.mock.calls[0][0];
-    expect(query.where).toEqual({ sessionId, role: { in: ["USER", "ASSISTANT"] } });
+    // 表示中の枝だけを書き出す（編集・再生成で置き換えられた版は含めない）。
+    expect(query.where).toEqual({ sessionId, active: true, role: { in: ["USER", "ASSISTANT"] } });
     expect(Object.keys(query.select).sort()).toEqual(["attachments", "content", "role"]);
   });
 

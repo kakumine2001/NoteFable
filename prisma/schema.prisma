@@ -246,6 +246,12 @@ model Message {
   // 回答前の推論要約・検索・ツールの途中経過（ActivityStep[] の JSON）と、本文が届くまでの時間。表示専用でモデルには渡さない。
   activity        String?
   thinkingMs      Int?
+  // 会話の枝分かれ（発言の編集・回答の再生成）。parentId は直前の発言の ID、"root" は会話の先頭。
+  // null はこの列より前に作られた行と、会話を複製した行で、作成順で直前の発言が親になる。
+  parentId        String?
+  // 表示中の枝にあるか。編集・再生成で置き換えられた版は false にして残し、版の切り替えで戻せる。
+  // 会話の内容を読む処理（履歴・検索・書き出し・ツール）は active の行だけを使う。
+  active          Boolean          @default(true)
   createdAt       DateTime         @default(now())
 
   session     Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)

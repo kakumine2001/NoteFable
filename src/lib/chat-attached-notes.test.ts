@@ -69,7 +69,7 @@ describe("loadAttachedNotesContext", () => {
       { id: "c", title: "Gamma", markdown: "gamma", truncated: false, latest: false },
     ]);
     // 本人の、ゴミ箱に入っていないノートだけを読む。
-    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session" }, note: { userId: "user", deletedAt: null } });
+    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session", active: true }, note: { userId: "user", deletedAt: null } });
     expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["b", "a", "c"] }, userId: "user", deletedAt: null });
   });
 

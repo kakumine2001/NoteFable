@@ -14,15 +14,17 @@ import {
   PanelLeft,
   Plus,
   Search,
+  Square,
   X,
 } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import type { TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
@@ -441,6 +443,10 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement | null>(null);
   // state 更新前に連続 submit が入っても、同じ会話へ二重送信しない。
   const submittingSessionKeysRef = useRef<Set<string>>(new Set());
+  // 会話ごとの、返答を止めるための AbortController（チャットの返答だけ。画像の作成は止められない）。
+  const streamAbortsRef = useRef<Record<string, AbortController>>({});
+  // 停止ボタンの状態。ready は止められる、stopping は止めてサーバーの保存を待っている。
+  const [stopStates, setStopStates] = useState<Record<string, "ready" | "stopping">>({});
   // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
   const submittedInputRestoreGuardRef = useRef<{
     value: string;
@@ -452,6 +458,8 @@ export default function Home() {
   const isActiveSessionStreaming = activeStreamStartedAt !== null;
   // 送信の途中（アップロード中を含む）か返答中。Create page は最後の回答が保存されるまで待つ。
   const isActiveSessionBusy = isActiveSessionStreaming || uploadProgress !== null;
+  // 表示中の会話の返答を止められるか（チャットの返答中だけ）。
+  const activeStopState = isActiveSessionStreaming ? stopStates[activeSessionKey] ?? null : null;
   const selectedModel = getModelOption(model);
   // 送信可能条件。空文字と現在会話のストリーミング中は送信ボタンを無効にする。
   const uploadOptions = {
@@ -562,6 +570,135 @@ export default function Home() {
 
     replaceCachedMessages(sessionId, fetchedMessages);
     return true;
+  }
+
+  function registerStop(sessionKey: string, controller: AbortController | null) {
+    if (controller) streamAbortsRef.current[sessionKey] = controller;
+    else delete streamAbortsRef.current[sessionKey];
+    setStopStates((current) => {
+      const next = { ...current };
+      if (controller) next[sessionKey] = "ready";
+      else delete next[sessionKey];
+      return next;
+    });
+  }
+
+  function stopGenerating() {
+    const sessionKey = getMessagesKey(activeSessionIdRef.current);
+    const controller = streamAbortsRef.current[sessionKey];
+    if (!controller || controller.signal.aborted) return;
+    setStopStates((current) => ({ ...current, [sessionKey]: "stopping" }));
+    controller.abort();
+  }
+
+  // チャット API へ送り、返ってくる SSE を空のアシスタント枠へ流し込む。終わったら、保存先の会話 ID を返す。
+  async function streamChatInto(options: {
+    body: FormData;
+    sessionKey: string;
+    sessionId: string | null;
+    assistantMessageId: string;
+    startedAt: number;
+    controller: AbortController;
+    // 新規チャットで会話 ID が決まり、表示のキーが変わったときに呼ぶ。
+    onSessionKey?: (sessionKey: string) => void;
+  }) {
+    const { assistantMessageId, startedAt, controller } = options;
+    let { sessionKey } = options;
+    registerStop(sessionKey, controller);
+    const response = await fetch("/api/chat", {
+      method: "POST",
+      body: options.body,
+      signal: controller.signal,
+    });
+
+    if (!response.ok || !response.body) {
+      const data = await response.json().catch(() => ({}));
+      throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to send message."));
+    }
+
+    // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
+    const nextSessionId = response.headers.get("X-Session-Id");
+    const resolvedSessionId = nextSessionId ?? options.sessionId;
+    if (nextSessionId && sessionKey !== nextSessionId) {
+      migrateCachedMessages(sessionKey, nextSessionId);
+      registerStop(sessionKey, null);
+      registerStop(nextSessionId, controller);
+      sessionKey = nextSessionId;
+      options.onSessionKey?.(nextSessionId);
+      void loadSessions();
+    }
+
+    // SSE ストリームをバイト列から文字列へ変換しながら読む。
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let streamBuffer = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      streamBuffer += decoder.decode(value, { stream: true });
+      // SSE は空行区切り。最後の要素は途中イベントの可能性があるので次回へ持ち越す。
+      const events = streamBuffer.split(/\r?\n\r?\n/);
+      streamBuffer = events.pop() ?? "";
+
+      // 推論要約は細かい差分で大量に届くため、1 回の read 分をまとめて 1 回だけ再描画する。
+      let chunk = "";
+      const activityEvents: ActivityEvent[] = [];
+      for (const eventText of events) {
+        for (const item of eventText.split(/\r?\n/).map(parseChatStreamLine)) {
+          if (typeof item === "string") chunk += item;
+          else if (item) activityEvents.push(item);
+        }
+      }
+
+      if (!chunk && !activityEvents.length) continue;
+
+      const receivedAt = Date.now();
+      updateCachedMessages(sessionKey, (current) =>
+        current.map((message) => {
+          if (message.id !== assistantMessageId) return message;
+          // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
+          return {
+            ...message,
+            content: message.content + chunk,
+            activity: activityEvents.length
+              ? activityEvents.reduce(applyActivityEvent, message.activity ?? [])
+              : message.activity,
+            // 本文が届き始めた時点までを「考えていた時間」として残す。
+            thinkingMs:
+              message.thinkingMs ?? (chunk ? receivedAt - startedAt : undefined),
+          };
+        }),
+      );
+    }
+
+    return resolvedSessionId;
+  }
+
+  // 利用者が返答を止めたあとの片付け。届いた分は残し、空のままの枠は消す。
+  // サーバーは止められた時点までの回答を保存するので、それを待って履歴（保存済みの ID）に合わせる。合わせられたら true。
+  async function finishStoppedStream(sessionKey: string, assistantMessageId: string) {
+    const partial = (sessionMessagesRef.current[sessionKey] ?? []).find((message) => message.id === assistantMessageId);
+    const hasAnswer = !!partial && (partial.content.trim().length > 0
+      || !!partial.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal"));
+    if (!hasAnswer) updateCachedMessages(sessionKey, (current) => current.filter((message) => message.id !== assistantMessageId));
+    if (sessionKey === NEW_SESSION_MESSAGES_KEY) return false;
+    void loadSessions();
+    const known = new Set((sessionMessagesRef.current[sessionKey] ?? []).map((message) => message.id));
+    let synced = false;
+    // 回答が届いていたら、その回答が保存されるまで待つ。届いていなければ、保存されるものは無い（再生成なら元の回答が戻る）。
+    for (const delay of hasAnswer ? [250, 500, 1000, 2000] : [400, 1200]) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      const fetched = await fetchSessionMessages(sessionKey);
+      if (!fetched || fetched === "missing") continue;
+      const last = fetched.at(-1);
+      if (hasAnswer && !(last?.role === "ASSISTANT" && !known.has(last.id))) continue;
+      replaceCachedMessages(sessionKey, fetched);
+      synced = true;
+      if (hasAnswer) break;
+    }
+    return synced;
   }
 
   function addUploadFiles(incoming: File[]) {
@@ -1074,6 +1211,8 @@ export default function Home() {
 
     // 送信完了後にサーバー履歴へ差し替えられた時だけ、楽観表示用 previewUrl を解放する。
     let shouldCleanupSubmittedPreviews = false;
+    // チャットの返答を止めるためのもの（画像の作成では使わない）。
+    let chatController: AbortController | null = null;
 
     try {
       if (imageGenerationMode) {
@@ -1144,79 +1283,29 @@ export default function Home() {
         return;
       }
 
-      // 通常チャットは text/plain のストリームを受け取り、到着した chunk を本文末尾に追記する。
+      // 通常チャットは SSE のストリームを受け取り、到着した chunk を本文末尾に追記する。
       // 最後に履歴を再取得して、DB 側で採番された添付 ID や保存画像 URL とローカル表示を同期する。
-      // チャット API へ送信し、返ってくる text/plain ストリームをそのまま表示に反映する。
-      const response = await fetch("/api/chat", {
-        method: "POST",
+      chatController = new AbortController();
+      const resolvedSessionId = await streamChatInto({
         body,
+        sessionKey: requestSessionKey,
+        sessionId: requestSessionId,
+        assistantMessageId,
+        startedAt: streamStartedAt,
+        controller: chatController,
+        onSessionKey: (sessionKey) => { requestSessionKey = sessionKey; },
       });
-
-      if (!response.ok || !response.body) {
-        const data = await response.json().catch(() => ({}));
-        throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to send message."));
-      }
-
-      // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
-      const nextSessionId = response.headers.get("X-Session-Id");
-      // 既存セッションなら activeSessionId、新規ならヘッダー値を使って最後に履歴を再取得する。
-      const resolvedSessionId = nextSessionId ?? requestSessionId;
-      if (nextSessionId && requestSessionKey !== nextSessionId) {
-        migrateCachedMessages(requestSessionKey, nextSessionId);
-        requestSessionKey = nextSessionId;
-        void loadSessions();
-      }
-
-      // SSE ストリームをバイト列から文字列へ変換しながら読む。
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let streamBuffer = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        streamBuffer += decoder.decode(value, { stream: true });
-        // SSE は空行区切り。最後の要素は途中イベントの可能性があるので次回へ持ち越す。
-        const events = streamBuffer.split(/\r?\n\r?\n/);
-        streamBuffer = events.pop() ?? "";
-
-        // 推論要約は細かい差分で大量に届くため、1 回の read 分をまとめて 1 回だけ再描画する。
-        let chunk = "";
-        const activityEvents: ActivityEvent[] = [];
-        for (const eventText of events) {
-          for (const item of eventText.split(/\r?\n/).map(parseChatStreamLine)) {
-            if (typeof item === "string") chunk += item;
-            else if (item) activityEvents.push(item);
-          }
-        }
-
-        if (!chunk && !activityEvents.length) continue;
-
-        const receivedAt = Date.now();
-        updateCachedMessages(requestSessionKey, (current) =>
-          current.map((message) => {
-            if (message.id !== assistantMessageId) return message;
-            // chunk は AI が追加で生成した本文の差分。既存 content の末尾へ連結する。
-            return {
-              ...message,
-              content: message.content + chunk,
-              activity: activityEvents.length
-                ? activityEvents.reduce(applyActivityEvent, message.activity ?? [])
-                : message.activity,
-              // 本文が届き始めた時点までを「考えていた時間」として残す。
-              thinkingMs:
-                message.thinkingMs ?? (chunk ? receivedAt - streamStartedAt : undefined),
-            };
-          }),
-        );
-      }
 
       await loadSessions();
       if (resolvedSessionId) {
         shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
       }
     } catch (error) {
+      if (chatController?.signal.aborted) {
+        // 利用者が止めた。失敗ではないので、届いた分をそのまま残す。
+        shouldCleanupSubmittedPreviews = await finishStoppedStream(requestSessionKey, assistantMessageId);
+        return;
+      }
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
       // 原文を保持し、明示した失敗・上限の文だけを表示時に訳す。
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
@@ -1261,11 +1350,132 @@ export default function Home() {
         );
       }
       await cleanupClientUploads(uploadedTickets);
+      registerStop(requestSessionKey, null);
       finishStreamingSession(requestSessionKey);
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       submittingSessionKeysRef.current.delete(requestSessionKey);
     }
   }
+
+  // 回答の再生成と、自分の発言の編集。どちらも元の版はサーバーに残り、「‹ 2/3 ›」で戻せる。
+  // いま選んでいるモデルと推論強度で作り直す（別のモデルで試すときは、先にモデルを選び直す）。
+  async function rerunTurn(kind: "regenerate" | "edit", messageId: string, text = "") {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId || uploadProgress || streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) return;
+    const before = sessionMessagesRef.current[sessionId] ?? [];
+    const index = before.findIndex((message) => message.id === messageId);
+    const target = before[index];
+    const content = text.trim();
+    if (!target || target.role !== (kind === "edit" ? "USER" : "ASSISTANT") || (kind === "edit" && !content)) return;
+
+    setSendError("");
+    cancelReveal();
+    submittingSessionKeysRef.current.add(sessionId);
+    // 対象から先を画面から外し、新しい版が入る枠を置く。サーバー側では消えず、隠れるだけ。
+    const assistantMessageId = crypto.randomUUID();
+    followBottomRef.current = true;
+    replaceCachedMessages(sessionId, [
+      ...before.slice(0, index),
+      ...(kind === "edit" ? [{ ...target, id: crypto.randomUUID(), content, versions: undefined }] : []),
+      { id: assistantMessageId, role: "ASSISTANT", content: "", model, reasoningEffort: reasoning.toUpperCase() },
+    ]);
+    const startedAt = Date.now();
+    const controller = new AbortController();
+    startStreamingSession(sessionId, startedAt);
+
+    const body = new FormData();
+    body.append("sessionId", sessionId);
+    body.append("model", model);
+    body.append("reasoning", reasoning);
+    body.append(kind, messageId);
+    if (kind === "edit") body.append("message", content);
+
+    try {
+      await streamChatInto({ body, sessionKey: sessionId, sessionId, assistantMessageId, startedAt, controller });
+      await loadSessions();
+      await refreshSessionMessages(sessionId);
+    } catch (error) {
+      if (controller.signal.aborted) {
+        await finishStoppedStream(sessionId, assistantMessageId);
+        return;
+      }
+      const detail = error instanceof Error ? error.message : msg("Unknown error.");
+      if (error instanceof UsageLimitError && error.tier === "guest") setGuestLimit(error.kind);
+      const partial = (sessionMessagesRef.current[sessionId] ?? []).find((message) => message.id === assistantMessageId);
+      if (partial?.content) {
+        // 途中まで届いていた回答は消さず、その後ろに失敗の文を足す（通常の送信と同じ）。
+        updateCachedMessages(sessionId, (current) => current.map((message) => message.id === assistantMessageId
+          ? { ...message, content: `${message.content}\n\n${failureText(detail)}`, failed: true,
+            activity: applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: message.content.length + 2, detail }) }
+          : message));
+      } else {
+        // 何も届く前に断られた（上限・通信の失敗など）。サーバーの状態に合わせ直し、読めなければ元の表示に戻す。
+        if (!await refreshSessionMessages(sessionId)) replaceCachedMessages(sessionId, before);
+        setSendError(detail);
+      }
+    } finally {
+      registerStop(sessionId, null);
+      finishStreamingSession(sessionId);
+      submittingSessionKeysRef.current.delete(sessionId);
+    }
+  }
+
+  // 別の版（編集前の発言・前の回答）を表示する。その版から先の会話も一緒に切り替わる。
+  async function showVersion(messageId: string) {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId || streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) return;
+    submittingSessionKeysRef.current.add(sessionId);
+    setSendError("");
+    try {
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/versions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId }),
+      });
+      if (!response.ok) throw new Error(readErrorMessage(await readJsonObject(response), msg("Could not switch versions. Try again.")));
+      cancelReveal();
+      if (!await refreshSessionMessages(sessionId)) throw new Error(msg("Failed to load conversation."));
+    } catch (error) {
+      setSendError(error instanceof Error && error.message ? error.message : msg("Could not switch versions. Try again."));
+    } finally {
+      submittingSessionKeysRef.current.delete(sessionId);
+    }
+  }
+
+  // ここまでの会話を新しいチャットに複製して開く。元の会話は変わらない。
+  async function branchChat(messageId: string) {
+    const sessionId = activeSessionIdRef.current;
+    if (!sessionId) return;
+    setSendError("");
+    try {
+      const sourceTitle = sessions.find((session) => session.id === sessionId)?.title ?? t("New chat");
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}/branch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messageId, title: t("Branch · {title}", { title: sourceTitle }) }),
+      });
+      const data = await readJsonObject(response);
+      const session = data.session as Session | undefined;
+      if (!response.ok || !session?.id) throw new Error(readErrorMessage(data, msg("Could not branch this chat. Try again.")));
+      setSessions((current) => (current.some((item) => item.id === session.id) ? current : [session, ...current]));
+      void loadSessions();
+      await loadMessages(session.id);
+    } catch (error) {
+      setSendError(error instanceof Error && error.message ? error.message : msg("Could not branch this chat. Try again."));
+    }
+  }
+
+  // メッセージへ渡す操作。メッセージは memo 化しているので、同じオブジェクトのまま最新の関数を呼ぶ。
+  const turnHandlersRef = useRef({ rerunTurn, showVersion, branchChat });
+  useEffect(() => {
+    turnHandlersRef.current = { rerunTurn, showVersion, branchChat };
+  });
+  const turnActions = useMemo<TurnActions>(() => ({
+    regenerate: (messageId) => void turnHandlersRef.current.rerunTurn("regenerate", messageId),
+    edit: (messageId, text) => void turnHandlersRef.current.rerunTurn("edit", messageId, text),
+    showVersion: (messageId) => void turnHandlersRef.current.showVersion(messageId),
+    branch: (messageId) => void turnHandlersRef.current.branchChat(messageId),
+  }), []);
 
   useEffect(() => {
     // 上限の案内からログインして戻ってきたら、送れなかった本文を入力欄へ戻す。
@@ -1740,6 +1950,10 @@ export default function Home() {
                       !message.content &&
                       !message.generatedImages?.length &&
                       index === messages.length - 1;
+                    // 画像を作った発言は書き直させない（書き直すと、文章の回答として作り直されるため）。
+                    const reply = messages[index + 1];
+                    const canEdit = message.role === "USER"
+                      && !(reply?.role === "ASSISTANT" && (!!reply.generatedImages?.length || !!reply.isGeneratingImage));
 
                     return (
                       <ChatMessage
@@ -1752,6 +1966,9 @@ export default function Home() {
                         isGenerating={isActiveSessionStreaming && index === messages.length - 1}
                         sessionId={activeSessionId}
                         conversationTitle={activeTitle}
+                        actions={turnActions}
+                        busy={isActiveSessionBusy}
+                        canEdit={canEdit}
                       />
                     );
                   })}
@@ -1952,14 +2169,28 @@ export default function Home() {
                   {!!attachedPages.length && <span>{attachedPages.length}</span>}
                 </button>
               </div>
-              <button
-                type="submit"
-                disabled={!canSend}
-                className="notion-send col-start-3 row-start-2"
-                aria-label={t("Send message")}
-              >
-                <ArrowUp size={24} strokeWidth={2.1} />
-              </button>
+              {activeStopState ? (
+                // 返答中は送信の代わりに停止を出す。止めると、そこまでの回答が残る。
+                <button
+                  type="button"
+                  onClick={stopGenerating}
+                  disabled={activeStopState === "stopping"}
+                  className="notion-send col-start-3 row-start-2"
+                  aria-label={t("Stop generating")}
+                  title={t("Stop generating")}
+                >
+                  <Square size={13} strokeWidth={0} fill="currentColor" />
+                </button>
+              ) : (
+                <button
+                  type="submit"
+                  disabled={!canSend}
+                  className="notion-send col-start-3 row-start-2"
+                  aria-label={t("Send message")}
+                >
+                  <ArrowUp size={24} strokeWidth={2.1} />
+                </button>
+              )}
             </div>
             {!!files.length && <div id="attachment-limits" className="mt-2 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-[var(--notion-muted)]">
               {!!files.length && <span role="status">{t("{count}/{max} attached", { count: files.length, max: MAX_UPLOAD_FILES })} · {formatUploadSize(files.reduce((sum, { file }) => sum + file.size, 0))}</span>}
