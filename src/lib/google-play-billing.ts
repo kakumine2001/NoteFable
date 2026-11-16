@@ -1,4 +1,5 @@
 import { createSign } from "crypto";
+import { createRemoteJWKSet, jwtVerify, type JWTVerifyGetKey } from "jose";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
@@ -20,9 +21,31 @@ export function googlePlayProduct() {
   return optionalEnv("GOOGLE_PLAY_PRODUCT_ID") ?? DEFAULT_PRODUCT;
 }
 
-// サービスアカウントの鍵と RTDN の合言葉が揃っているときだけ、アプリで購入を受け付ける。
+// サービスアカウントの鍵と、RTDN を届ける Pub/Sub の送信元（push の認証に使うサービスアカウント）が揃っているときだけ、
+// アプリで購入を受け付ける。
 export function isGooglePlayConfigured() {
-  return Boolean(optionalEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON") && optionalEnv("GOOGLE_PLAY_RTDN_TOKEN"));
+  return Boolean(optionalEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON") && optionalEnv("GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT"));
+}
+
+// Pub/Sub の push は、送信元のサービスアカウントで署名した Google の ID トークン（OIDC）を Authorization ヘッダーに付けてくる。
+// 署名（Google の公開鍵）、発行元、宛先（audience）、送信元のメールアドレスを確かめる。合言葉を URL に載せない。
+const GOOGLE_ID_TOKEN_KEYS = createRemoteJWKSet(new URL("https://www.googleapis.com/oauth2/v3/certs"));
+
+export async function verifyPushToken(token: string, audience: string, keys: JWTVerifyGetKey = GOOGLE_ID_TOKEN_KEYS) {
+  const expected = optionalEnv("GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT");
+  if (!expected) return false;
+  try {
+    const { payload } = await jwtVerify(token, keys, { issuer: ["https://accounts.google.com", "accounts.google.com"], audience });
+    return payload.email === expected && payload.email_verified === true;
+  } catch {
+    return false;
+  }
+}
+
+// push の宛先（audience）。登録した URL と同じ。既定は要求の URL（Vercel では公開の URL）。
+export function pushAudience(request: Request) {
+  const url = new URL(request.url);
+  return optionalEnv("GOOGLE_PLAY_PUSH_AUDIENCE") ?? `${url.origin}${url.pathname}`;
 }
 
 // Google Play のストアの購読管理画面（この商品）。

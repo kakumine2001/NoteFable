@@ -1,24 +1,17 @@
-import { timingSafeEqual } from "crypto";
 import { NextResponse } from "next/server";
-import { isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
-import { requireEnv } from "@/lib/env";
+import { isGooglePlayConfigured, pushAudience, syncPlayPurchase, verifyPushToken } from "@/lib/google-play-billing";
 
 // Google Play の Real-time developer notifications（Pub/Sub の push 購読の送り先）。
-// 送り先の URL に ?token=<GOOGLE_PLAY_RTDN_TOKEN> を付けて登録し、合言葉が合うものだけ受ける。
+// Pub/Sub が付けてくる Google の ID トークンを確かめ（verifyPushToken）、送信元が設定したサービスアカウントのものだけ受ける。
 // 通知の中身は購入トークンを知るためだけに使い、状態は毎回 Google から取り直す。写せなかったら 500 を返し、Pub/Sub に再送させる。
-function tokenMatches(given: string | null) {
-  if (!given) return false;
-  const expected = Buffer.from(requireEnv("GOOGLE_PLAY_RTDN_TOKEN"));
-  const actual = Buffer.from(given);
-  return expected.length === actual.length && timingSafeEqual(expected, actual);
-}
-
 type PushBody = { message?: { data?: string } };
 type DeveloperNotification = { packageName?: string; subscriptionNotification?: { purchaseToken?: string } };
 
 export async function POST(request: Request) {
   if (!isGooglePlayConfigured()) return NextResponse.json({ error: "Google Play billing is not configured." }, { status: 404 });
-  if (!tokenMatches(new URL(request.url).searchParams.get("token"))) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+  const authorization = request.headers.get("authorization") ?? "";
+  const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
+  if (!token || !await verifyPushToken(token, pushAudience(request))) return NextResponse.json({ error: "Forbidden." }, { status: 403 });
 
   const body = await request.json().catch(() => null) as PushBody | null;
   let notification: DeveloperNotification | null = null;

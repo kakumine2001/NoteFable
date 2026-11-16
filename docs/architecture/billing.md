@@ -64,7 +64,7 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
-3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify?token=<GOOGLE_PLAY_RTDN_TOKEN>`。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
+3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify`。Pub/Sub 在 `Authorization` 里带一个用推送服务账号签名的 Google ID 令牌（OIDC），服务端校验签名、发行者、audience（这个地址）和发送者邮箱（`GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT`），不在地址里放口令（`verifyPushToken`）。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
 4. **状态对应**：`ACTIVE` → active；`CANCELED`（已取消续费）到期前仍是 active，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → past_due（仍是 Pro）；`ON_HOLD` → unpaid、`PAUSED` → paused、`PENDING` → incomplete、`EXPIRED` → canceled（都不是 Pro）。Play 不返回账期开始日：第一次按到期前一个月计，之后同一份订阅只在真正续费（状态为 ACTIVE 且到期时间往后推了一天以上）时把上一期的到期时间作为新的开始日；宽限期里 Google 每天延长到期时间，这时开始日不变（否则月上限的计数会被重置）。
 5. **管理**：Play 买的 Pro 在网页和 App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 App 里没有管理入口。
 6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
@@ -75,18 +75,19 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 
 ### 配置（Google Play）
 
-环境变量（`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` 和 `GOOGLE_PLAY_RTDN_TOKEN` 都设置才开放 App 内购买）：
+环境变量（`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` 和 `GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT` 都设置才开放 App 内购买）：
 
 ```text
-GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  # 服务账号的 JSON 密钥（整段），需要 Play Console 的“查看财务数据、管理订单和订阅”权限
-GOOGLE_PLAY_RTDN_TOKEN            # 随机字符串，写进 Pub/Sub push 的地址
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  # 机密：服务账号 play-billing 的 JSON 密钥（整段）
+GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT  # pubsub-push@studymate-511413.iam.gserviceaccount.com（Pub/Sub push 签名用的服务账号）
+GOOGLE_PLAY_PUSH_AUDIENCE         # https://notefable.com/api/billing/google/notify（不设时用请求的地址）
 GOOGLE_PLAY_PACKAGE_NAME          # 可选，默认 com.kakumine.notefable
 GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 ```
 
-Play Console / Google Cloud 要做的事：
+已经建好的（2026-11-17）：
 
-- Play Console → 创收 → 订阅：新建订阅 `notefable_pro`，基础方案按月自动续订，日本 ¥300（其他国家按需要定价）。
-- Google Cloud：开启 Google Play Android Developer API，建服务账号和 JSON 密钥；在 Play Console → 用户和权限里邀请这个服务账号并给上面的权限。
-- Pub/Sub：建主题，给 `google-play-developer-notifications@system.gserviceaccount.com` 发布权限；建 push 订阅，端点 `https://notefable.com/api/billing/google/notify?token=<GOOGLE_PLAY_RTDN_TOKEN>`。Play Console → 创收设置里填这个主题，发一条测试通知确认。
+- Play Console：App `NoteFable`（`com.kakumine.notefable`），内部测试有 1.0.6（versionCode 16）的草稿；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），尚未启用；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
+- Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
+- Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

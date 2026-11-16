@@ -18,7 +18,8 @@ vi.mock("@/lib/prisma", () => {
     },
   };
 });
-import { cancelPlayRenewal, claimPlayPurchase, playStatus, syncPlayPurchase } from "./google-play-billing";
+import { exportJWK, generateKeyPair, SignJWT, createLocalJWKSet } from "jose";
+import { cancelPlayRenewal, claimPlayPurchase, playStatus, syncPlayPurchase, verifyPushToken } from "./google-play-billing";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
 const future = "2099-01-01T00:00:00Z";
@@ -62,9 +63,24 @@ describe("google play billing", () => {
     vi.clearAllMocks();
     mocks.findUnique.mockReset();
     vi.stubEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", JSON.stringify({ client_email: "sa@example.iam.gserviceaccount.com", private_key: privateKey }));
-    vi.stubEnv("GOOGLE_PLAY_RTDN_TOKEN", "rtdn");
+    vi.stubEnv("GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT", "pubsub-push@example.iam.gserviceaccount.com");
     mocks.update.mockResolvedValue({});
     rows({ u1: owner });
+  });
+
+  it("accepts only Pub/Sub tokens signed by Google for this URL and the configured sender", async () => {
+    const { publicKey, privateKey: signing } = await generateKeyPair("RS256");
+    const jwk = { ...await exportJWK(publicKey), kid: "k1", alg: "RS256" };
+    const keys = createLocalJWKSet({ keys: [jwk] });
+    const audience = "https://notefable.com/api/billing/google/notify";
+    const sign = (claims: Record<string, unknown>, aud = audience) => new SignJWT(claims).setProtectedHeader({ alg: "RS256", kid: "k1" })
+      .setIssuer("https://accounts.google.com").setAudience(aud).setIssuedAt().setExpirationTime("5m").sign(signing);
+    const good = { email: "pubsub-push@example.iam.gserviceaccount.com", email_verified: true };
+    await expect(verifyPushToken(await sign(good), audience, keys)).resolves.toBe(true);
+    await expect(verifyPushToken(await sign(good, "https://evil.example/hook"), audience, keys)).resolves.toBe(false);
+    await expect(verifyPushToken(await sign({ ...good, email: "someone@example.com" }), audience, keys)).resolves.toBe(false);
+    await expect(verifyPushToken(await sign({ ...good, email_verified: false }), audience, keys)).resolves.toBe(false);
+    await expect(verifyPushToken("not-a-jwt", audience, keys)).resolves.toBe(false);
   });
 
   it("maps Play states to subscription statuses and keeps Pro until a cancelled plan expires", () => {
