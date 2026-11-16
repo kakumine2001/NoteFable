@@ -85,11 +85,17 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
   };
 }
 
+// Messages API の URL。ANTHROPIC_BASE_URL は公式 SDK と同じく /v1 なし（https://api.anthropic.com）でも、
+// /v1 付きでも受け付ける。末尾が /v1 でなければ補う。
+export function anthropicMessagesUrl(base = optionalEnv("ANTHROPIC_BASE_URL")) {
+  const root = (base || "https://api.anthropic.com").trim().replace(/\/+$/, "");
+  return `${/\/v1$/.test(root) ? root : `${root}/v1`}/messages`;
+}
+
 export async function requestAnthropic(body: object, signal?: AbortSignal) {
   const serialized = JSON.stringify(body);
   if (Buffer.byteLength(serialized, "utf8") > 32_000_000) throw new Error(msg("Claude's request is too large. Remove images or start a new chat."));
-  const base = optionalEnv("ANTHROPIC_BASE_URL") || "https://api.anthropic.com/v1";
-  const response = await fetch(`${base.replace(/\/$/, "")}/messages`, {
+  const response = await fetch(anthropicMessagesUrl(), {
     method: "POST",
     headers: {
       "x-api-key": requireEnv("ANTHROPIC_API_KEY"),
