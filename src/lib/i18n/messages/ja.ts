@@ -471,7 +471,6 @@ export const ja: Record<string, string> = {
   "Write notes with blocks — type {key} for headings, lists, to-dos and code.": "ブロックでノートを書けます。{key}を入力すると、見出し、リスト、チェックリスト、コードを追加できます。",
   "Yellow": "黄",
   "Yesterday": "昨日",
-  "You": "あなた",
   "You can choose up to {count} notes. Remove one to pick another.": "ノートは{count}件まで選べます。他のノートを選ぶには、選択をひとつ解除してください。",
   "You don’t have any notes yet.": "ノートはまだありません。",
   "You: ": "あなた：",

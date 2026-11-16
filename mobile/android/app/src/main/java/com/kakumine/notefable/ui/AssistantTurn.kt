@@ -141,8 +141,14 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
         }
         // 只给本文完整、没有失败的回答显示操作行（网页 shouldShowAnswerActions：生成中、只有图片、失败时都不显示）。
         val failed = message.errorDetail != null || message.usageLimit
+        val turnActions = LocalTurnActions.current
         if (!message.streaming && !failed && !message.generatingImage && message.content.isNotBlank()) {
-            AnswerActions(message.key, message.id, message.content)
+            AnswerActions(message.key, message.id, message.content, message.versions)
+        } else if (!message.streaming && message.versions != null && turnActions != null && message.images.isEmpty()) {
+            // 没有操作行的回答（没有正文）也要能切换版本（网页 chat-message.tsx 的同一分支）。
+            Box(Modifier.padding(top = 6.4.dp).offset(x = (-10.4).dp)) {
+                VersionNav(message.versions, turnActions.busy, turnActions.showVersion)
+            }
         } else if (!message.streaming && !failed && !message.generatingImage && message.images.isNotEmpty()) {
             // 只有图片的回答没有复制 / "…"，但要能报告（网页 ReportAnswerButton，Google Play 的 AI 生成内容政策）。
             ReportOnlyAction(message.id)
@@ -171,8 +177,9 @@ private fun ProposalCards(proposals: List<com.kakumine.notefable.data.Proposal>,
 // 错误和网页一样只有一处（error）：有"…"时复制失败也放进它的 error，任何一个操作开始时都清掉上一条。
 // key 是列表项的 key（对账换 ID 时不变），菜单状态跟着它，不跟着 ID。
 @Composable
-private fun AnswerActions(key: String, messageId: String, content: String) {
+private fun AnswerActions(key: String, messageId: String, content: String, versions: com.kakumine.notefable.data.MessageVersions?) {
     val more = rememberAnswerMoreState(key, messageId, content)
+    val turnActions = LocalTurnActions.current
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     var copiedTick by remember { mutableIntStateOf(0) }
@@ -187,7 +194,9 @@ private fun AnswerActions(key: String, messageId: String, content: String) {
     // 网页复制后有一段读屏才读的"Copied"：复制成功的 2 秒内把按钮的说明换成它。
     val copiedLabel = stringResource(R.string.answer_copied)
     Column(Modifier.padding(top = 6.4.dp).offset(x = (-10.4).dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.CenterVertically) {
+            // 重新生成过的回答：最前面是「‹ 2/3 ›」。
+            if (versions != null && turnActions != null) VersionNav(versions, turnActions.busy, turnActions.showVersion)
             Box(
                 Modifier.size(36.dp).clip(RoundedCornerShape(4.8.dp)).clickable {
                     failed = false

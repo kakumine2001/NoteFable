@@ -331,7 +331,7 @@ class ChatViewModelTest {
     }
 
     @Test
-    fun `stopping keeps an answer that so far holds only activity`() = runTest(dispatcher) {
+    fun `stopping while the answer is still only thinking leaves what the server kept`() = runTest(dispatcher) {
         val backend = FakeBackend()
         val vm = newViewModel(backend)
 
@@ -340,11 +340,16 @@ class ChatViewModelTest {
         backend.events.send(ChatStreamEvent.Activity(Json.parseToJsonElement("""{"type":"thought","id":"rs:0","delta":"Plan"}""").jsonObject))
         settle()
         vm.stop()
-        advanceUntilIdle()
-
+        runCurrent()
+        // 停下的那一刻，已有的过程还在，只是不再转圈。
         val answer = vm.state.value.messages.last()
         assertEquals(listOf(ActivityStep.Thought("rs:0", "Plan")), answer.activity)
         assertFalse(answer.streaming)
+
+        // 没有正文的回答服务端不保存：对账后只剩提问。
+        backend.stored = listOf(MessageDto("db-1", "USER", "q"))
+        advanceUntilIdle()
+        assertEquals(listOf("db-1"), vm.state.value.messages.map { it.id })
     }
 
     @Test

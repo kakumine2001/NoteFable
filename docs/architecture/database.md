@@ -214,6 +214,8 @@ erDiagram
         int thinkingMs
         string model
         string reasoningEffort
+        string parentId
+        boolean active
         datetime createdAt
     }
 
@@ -375,6 +377,10 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `thinkingMs`（可空，本文开始前的毫秒数）
 - `model`
 - `reasoningEffort`
+- `parentId`（可空 TEXT，没有外键）：上一条消息的 ID，会话的第一条是 `"root"`。`null` 是这一列之前的行和分支复制出来的行，按创建顺序的前一条当父节点
+- `active`（BOOLEAN，默认 true）：在不在当前显示的这一枝上。编辑发言、重新生成回答时，被替换的版本和它后面的消息设为 false 留在表里，切换版本时再设回 true
+
+读取对话内容的查询（发给模型的历史、消息接口、搜索、导出、Create page、附加的笔记、AI 工具的附件列表、图片生成的上下文）都必须带 `active: true`；只有计算版本的 `loadBranchTree` 读全部行。规则与流程见 [chat-flow.md](chat-flow.md#停止编辑重新生成与分支)。
 
 关系：
 
@@ -490,7 +496,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。
 
 聊天行右侧固定显示三点按钮（左）和图钉按钮（右）。图钉负责置顶/取消置顶；三点菜单只提供重命名、移动项目和删除确认。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

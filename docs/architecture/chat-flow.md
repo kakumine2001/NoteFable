@@ -58,7 +58,10 @@ FormData
 ├── reasoning
 ├── sessionId       optional
 ├── webSearch       mode
-└── uploads[]       optional signed references (JSON string)
+├── uploads[]       optional signed references (JSON string)
+├── pages           optional attached note IDs (JSON string)
+├── edit            optional：要改写的自己那条发言的 ID（见“停止、编辑、重新生成与分支”）
+└── regenerate      optional：要重做的那条回答的 ID（此时不带 message）
 ```
 
 然后：
@@ -74,6 +77,59 @@ POST /api/chat
 - Enter 发送、Shift+Enter 换行。触摸为主的设备（`(hover: none) and (pointer: coarse)`）没有 Shift+Enter，所以 Enter 换行，用发送按钮发送；外接键盘可用 Ctrl/Cmd+Enter 发送。IME 确定用的 Enter 不发送。
 - 发送后滚到最下面，回答流式到达期间跟随最下面（`followBottomRef`）。用户向上滚（滚轮向上、手指拖动，或离底部超过 48px）就停止跟随，回到底部后恢复。从搜索结果跳到某条消息时不跟随。
 - 请求中途失败时，已经收到的回答正文保留，失败文字接在后面（`failure` 的 `offset` 指向失败文字的开头）。
+
+## 停止、编辑、重新生成与分支
+
+四个操作都建立在同一件事上：**会话里的消息是一棵树，`Message.active` 标出当前显示的那一枝**。被替换的版本不删除，只是隐藏。纯函数在 `src/lib/chat-branches.ts`（不碰数据库，有单元测试），读写在 `src/lib/chat-branch-store.ts`。
+
+### 消息树
+
+- `Message.parentId`：上一条消息的 ID；会话的第一条是字符串 `"root"`（`ROOT_PARENT`）。`null` 表示“没有记录”，按创建顺序的前一条当父节点——这一列之前的旧数据和分支复制出来的行都是这样，所以迁移不改写已有数据。写着不存在的 ID、或比自己晚创建的 ID 时，同样按创建顺序处理（不会成环）。
+- `Message.active`（默认 `true`）：在不在当前显示的这一枝上。**所有读取对话内容的地方都只读 `active: true`**：发给模型的历史与原生压缩状态、`GET /api/sessions/:id/messages`、搜索、导出、Create page、发言附加的笔记、`list_chat_attachments`、图片生成的上下文、Report answer 取的上一条提问。新增读取 `Message` 的代码必须带这个条件（和笔记的 `deletedAt: null` 是同一类规则）。
+- 新消息的父节点：普通发送和图片生成是“当前显示的最后一条”（`activeLeafId`），回答是它所回答的那条提问。
+- “同一位置的别的版本”= 同一个父节点下的兄弟。`GET /api/sessions/:id/messages` 给有兄弟的消息加 `versions: { index, total, prevId, nextId }`（从 1 数起，按创建顺序），界面据此显示 `‹ 2/3 ›`。
+
+### 停止生成
+
+输入栏在聊天回答进行中把发送键换成停止键（图片生成没有流，不能停）。点了以后浏览器中止 `/api/chat` 的请求，服务端用自己的 `AbortController`（请求的 `signal` 中止或响应流被取消时触发）停掉上游请求和后续的工具轮次，然后：
+
+- 已经有正文或提案：把停下时的正文**原样存成一条回答**（不加 “Request failed”，不存 `providerContext`），提案照常绑定。这次发送计数。
+- 什么都还没送达：不保存回答，退还次数。如果这是一次重新生成，把刚隐藏的原回答恢复显示。
+
+停止不是失败，所以没有 `failure` 元数据。浏览器这边：正文留在屏幕上，空的回答框去掉；随后读几次 `GET /api/sessions/:id/messages`（有正文时等到那条新回答出现，间隔 250 / 500 / 1000 / 2000 ms；没有正文时读两次），换成服务端保存的版本，这样停下的回答马上就有保存后的 ID，可以继续重新生成或分支。一直没等到就保留本机这份。等待期间停止键是禁用状态。网络断开和点停止走的是同一条路。
+
+### 重新生成（`regenerate=<回答的 ID>`）
+
+回答的“…”菜单里的 **Regenerate**。请求不带 `message`，只带 `sessionId`、`model`、`reasoning`，所以想换个模型重试时先在输入栏选好模型再点。服务端：
+
+1. 目标必须是这个会话里正显示着的 ASSISTANT 消息，它的父节点必须是正显示着的 USER 消息；否则 404 `Message not found.` 并退还次数。
+2. 把目标和它下面正显示的所有消息设为 `active: false`，不新建提问。
+3. 历史 = 仍然显示的消息（到那条提问为止，提问连同它的附件由 `buildHistoryInput` 重新组装），其余和普通发送相同。新回答的 `parentId` 是那条提问。
+4. 流开始之前就失败、或没有任何内容就被停止时，把第 2 步隐藏的消息恢复显示；上游中途失败时，带 “Request failed” 的回答作为新版本保存，原回答可以用 `‹ 1/2 ›` 切回去。
+
+### 编辑发言（`edit=<自己发言的 ID>` + `message`）
+
+提问下面的铅笔按钮把气泡换成输入框（Enter 发送、Esc 取消，规则与输入栏相同）。服务端：
+
+1. 目标必须是正显示着的 USER 消息，否则 404。
+2. 在一个事务里隐藏目标和它下面的消息，并在**同一个父节点下**新建一条提问：正文是新文字，附件行（文件名、抽取的文字、图片的存储路径）和附加的笔记（只留本人、不在 Trash 的）从原提问复制过来。不接受新的上传。
+3. 历史与回答的保存同重新生成。
+
+生成图片的那一轮不能编辑（改写后会按文字回答重做），界面不显示铅笔。编辑和重新生成都按一次聊天计数；笔记助手的会话（带 `noteId`）不支持，同时带 `edit` 和 `regenerate`、或没有 `sessionId` 时 400。
+
+### 切换版本
+
+`POST /api/sessions/:id/versions`，body `{ messageId }`：要显示的那个版本。事务里先锁住会话行（`FOR UPDATE`），再计算“从根到这条消息，加上它下面每一层最新的那个子节点”，把这些设为显示、其余设为隐藏（`activationFor`）。所以切回旧提问时，它当时的回答和后续对话一起回来。成功返回 `{ ok: true }`，界面再读一次消息；会话或消息不存在返回 404。回答进行中不能切换。
+
+### 在新聊天中分支
+
+回答“…”菜单里的 **Branch in new chat**：`POST /api/sessions/:id/branch`，body `{ messageId, title }`。把当前显示的这一枝、到这条消息为止的全部消息复制成一个新会话（同一个项目、同一个图标，`titleManual` 为 true；`title` 由界面按语言拼成“Branch · 原标题”，超过 120 字符时截断），返回 201 `{ session }`，界面打开它。复制的内容：正文、模型、途中经过、思考时长、原来的创建时间、附件行和附加的笔记。图片的存储路径是共用的（删除会话不删除图片文件，所以删掉其中一个不影响另一个）。不复制的：别的版本、提案（`NoteProposal`）、`providerContext`——压缩状态记着原消息的 ID，新会话从正文历史重新开始。复制出的行不记 `parentId`，按创建时间连成一条线。
+
+### 界面
+
+- 提问下面：`‹ 2/3 ›`（有别的版本时）、复制、编辑。有鼠标的设备上复制和编辑只在指针移到这一轮上或键盘聚焦时显示，并叠在与下一轮的间距里，不增加高度；触屏上一直显示。提问上方不再有“You”标签。
+- 回答下面：`‹ 2/3 ›`、复制、“…”。菜单最上面是 Regenerate 和 Branch in new chat，只对已保存（cuid）的回答显示。
+- 当前会话正在发送或生成时，这些操作都不可点。
 
 ## Session 创建
 
@@ -362,7 +418,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 ## 回答的复制、保存到 Notes 与 Markdown 导出
 
-每条已完成、有正文的 AI 回答下面只保留 **Copy** 和三个点 **More options** 两个图标（`src/components/answer-actions.tsx`）。三个点菜单使用现有的菜单样式，里面提供 **Save to page**、保存成功后的 **Open saved page** 和 **Download conversation**；保存时菜单保留进度及错误提示。菜单支持方向键、Home/End、Esc、点外侧及 Android 返回键关闭，并避免超出屏幕。目的是不必再请 AI 重述，就能把好的回答直接用到工作里：复制、存成笔记、导出文件可直接操作。复制和保存页面只处理点选的回答；下载会包含这个聊天从头到尾的全部已保存提问和回答。都使用保存的正文原文（Markdown），不读取渲染后的 HTML。
+每条已完成、有正文的 AI 回答下面只保留 **Copy** 和三个点 **More options** 两个图标（`src/components/answer-actions.tsx`；重新生成过的回答前面另有版本切换，菜单最上面的 Regenerate / Branch in new chat 见“停止、编辑、重新生成与分支”）。三个点菜单使用现有的菜单样式，里面提供 **Save to page**、保存成功后的 **Open saved page** 和 **Download conversation**；保存时菜单保留进度及错误提示。菜单支持方向键、Home/End、Esc、点外侧及 Android 返回键关闭，并避免超出屏幕。目的是不必再请 AI 重述，就能把好的回答直接用到工作里：复制、存成笔记、导出文件可直接操作。复制和保存页面只处理点选的回答；下载会包含这个聊天从头到尾的全部已保存提问和回答。都使用保存的正文原文（Markdown），不读取渲染后的 HTML。
 
 显示条件在 `src/components/chat-message.tsx`：角色是 ASSISTANT、有 `sessionId`、不在生成中（`isGenerating`：当前会话正在流式输出，且这是最后一条）、不是失败消息、不是正在生成图片、`content.trim()` 非空。请求失败时 `page.tsx` 把那条 “Request failed: …” 标成 `Message.failed`；这个字段只存在于浏览器当前页面的内存里，不入库，刷新后不再区分。笔记里的 AI 助手面板（`note-assistant.tsx`）不传 `sessionId`，所以没有这一行。行内的状态通过 `role=status` 通知读屏器，错误显示在行内的 `role=alert` 文字里；手机和桌面都只在回答下显示复制与三个点图标，名称保留给读屏器；保存和打开页面等文字只出现在菜单内。
 
@@ -434,5 +490,7 @@ ASSISTANT Message
 ```
 
 在 stream 完成后保存。
+
+用户点了停止（或连接断开）时，已经流出的正文原样保存、不加错误信息，见上文“停止生成”。
 
 如果上游中途失败，已经向用户流出的文本会连同英文错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。服务端在现有 `Message.activity` JSON 和 SSE 里另加 `failure` 元数据（错误文的 `offset` 与 `detail`）；客户端只据此翻译系统追加的错误后缀，不改写正常 AI 正文。该元数据不进入可视时间线，不回传给模型；没有元数据的旧记录显示原文，复制与导出也保留原文。

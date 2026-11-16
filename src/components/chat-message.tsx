@@ -131,12 +131,13 @@ export const ChatMessage = memo(function ChatMessage({
   return (
     <article className="notion-turn motion-page-enter" data-message-id={message.id}>
       <div className="w-full min-w-0">
-        {message.role === "USER"
-          ? <div className="notion-role-label">{t("You")}</div>
-          : <div className="notion-role-label is-assistant">
-              <AppIcon size={12} /><span>NoteFable</span>
-              {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
-            </div>}
+        {/* 自分の発言にはラベルを付けない（淡い面で見分けられる）。回答にだけ名前とモデルを出す。 */}
+        {message.role === "ASSISTANT" && (
+          <div className="notion-role-label is-assistant">
+            <AppIcon size={12} /><span>NoteFable</span>
+            {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
+          </div>
+        )}
         {shouldShowActivity && (
           <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
         )}

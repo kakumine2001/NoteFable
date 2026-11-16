@@ -13,9 +13,8 @@
 
     <string name="empty_hint">Ask a question, work through your notes, or bring in a file.</string>
     <string name="message_hint">Ask anything...</string>
-    <string name="you">You</string>
     <string name="send">Send message</string>
-    <string name="stop">Stop</string>
+    <string name="stop">Stop generating</string>
     <string name="copy">Copy answer</string>
     <string name="downloading">Downloading…</string>
     <string name="request_failed">Request failed: %1$s</string>

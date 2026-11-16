@@ -771,7 +771,6 @@ export const zhHant: Record<string, string> = {
   "XHigh": "很高",
   "Yellow": "黃色",
   "Yesterday": "昨天",
-  "You": "你",
   "You can add 1 more file ({max} per message). None of these {count} files were added. Choose fewer files.": "還能再新增 1 個檔案（每條訊息最多 {max} 個）。這 {count} 個檔案都沒有新增，請少選一些。",
   "You can add {remaining} more files ({max} per message). None of these {count} files were added. Choose fewer files.": "還能再新增 {remaining} 個檔案（每條訊息最多 {max} 個）。這 {count} 個檔案都沒有新增，請少選一些。",
   "You can attach up to 5 pages to a message.": "每條訊息最多可以新增 5 個頁面。",

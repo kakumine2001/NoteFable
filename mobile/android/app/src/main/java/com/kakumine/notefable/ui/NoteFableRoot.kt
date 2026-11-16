@@ -255,6 +255,18 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 }
             }
         }
+        // 消息上的编辑、重新生成、版本切换、分支。分支出的新聊天叫「分支 · 原标题」（网页 branchChat）。
+        val branchTitle = stringResource(R.string.branch_title, state.activeTitle ?: stringResource(R.string.new_chat))
+        val turnBusy = state.sending || state.upload != null || state.messagesLoading
+        val turnActions = remember(viewModel, turnBusy, branchTitle) {
+            TurnActions(
+                regenerate = viewModel::regenerate,
+                edit = viewModel::editMessage,
+                showVersion = viewModel::showVersion,
+                branch = { id -> viewModel.branch(id, branchTitle) },
+                busy = turnBusy,
+            )
+        }
         when {
             notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink, LocalAnswerSessionId provides state.activeSessionId, LocalConversationDownloader provides conversationDownloader) { ChatScreen(
                 state = state,
@@ -282,6 +294,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onAttachPages = viewModel::setAttachedPages,
                 onRemovePage = viewModel::removeAttachedPage,
                 onCreatePage = { id -> createPageSessionId = id },
+                turnActions = turnActions,
             ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {

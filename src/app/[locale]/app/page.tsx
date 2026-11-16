@@ -2179,7 +2179,7 @@ export default function Home() {
                   aria-label={t("Stop generating")}
                   title={t("Stop generating")}
                 >
-                  <Square size={13} strokeWidth={0} fill="currentColor" />
+                  <Square size={16} strokeWidth={0} fill="currentColor" />
                 </button>
               ) : (
                 <button

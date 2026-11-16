@@ -534,7 +534,6 @@ export const zh: Record<string, string> = {
   "Write notes with blocks — type {key} for headings, lists, to-dos and code.": "用块组织笔记，输入 {key} 即可添加标题、列表、待办和代码。",
   "Yellow": "黄色",
   "Yesterday": "昨天",
-  "You": "你",
   "You can choose up to {count} notes. Remove one to pick another.": "最多可选择 {count} 篇笔记，移除一篇后才能继续添加。",
   "You don’t have any notes yet.": "你还没有笔记。",
   "You: ": "你：",
