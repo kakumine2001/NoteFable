@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { applyProfileEdit, profileEditChanges, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
+import type { Locale } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 
 export type Account = {
@@ -62,6 +63,17 @@ export function loadAccount(attempt = 0) {
       publish();
     })
     .catch(retry);
+}
+
+// 紹介ページの言語メニューで選んだ言語を、ログインしていればアカウントにも保存する（紹介ページは AccountLocaleSync を置かない）。
+// このページで利用者の情報を読み終えていれば（/app から来た）、いつもの保存の列に入れて手元の状態も合わせる
+// （直接送ると、/app に戻ったときに古い言語に切り戻される）。読んでいなければ直接送る（未ログインなら 401 で何もしない）。
+export function saveLocaleIfSignedIn(locale: Locale) {
+  if (confirmed) {
+    if (confirmed.user) void saveProfile({ locale });
+    return;
+  }
+  void fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) }).catch(() => {});
 }
 
 // テスト用: 今の見え方（確定済みの状態 + 送信待ちの編集）。

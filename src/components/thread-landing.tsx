@@ -12,6 +12,7 @@ import { BrandMark } from "@/components/notefable-logo";
 import { LOCALES, type Locale } from "@/lib/i18n/locale";
 import { landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
+import { saveLocaleIfSignedIn } from "@/lib/account-store";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
 import { useI18n, useT } from "@/components/i18n-provider";
 
@@ -204,7 +205,7 @@ function onLandingLocale(locale: Locale) {
     // メニューは閉じるときに、戻るキー用に積んだ履歴を戻す。戻り終えてから元の履歴の URL を書き換える。
     afterSheetHistory(() => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash));
   }
-  void fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) }).catch(() => {});
+  saveLocaleIfSignedIn(locale);
 }
 
 export function ThreadLanding() {

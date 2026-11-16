@@ -237,7 +237,8 @@ fun LanguageMenuButton(modifier: Modifier = Modifier) {
     anchor?.let { rect ->
         LanguageMenu(rect, current = showing, onClose = { anchor = null }) { choice ->
             anchor = null
-            if (choice != showing) applyLanguage(choice)
+            // 按系统语言显示中选了同一种语言，也当作选择存下来（App 的语言设置），和网页一样。
+            if (choice != currentPreference()) applyLanguage(choice)
         }
     }
 }

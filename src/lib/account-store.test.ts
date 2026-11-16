@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { clearSaveError, getAccountSnapshot, loadAccount, resetAccountStore, saveProfile, settled, uploadPhoto } from "./account-store";
+import { clearSaveError, getAccountSnapshot, loadAccount, resetAccountStore, saveLocaleIfSignedIn, saveProfile, settled, uploadPhoto } from "./account-store";
 import { applyProfileEdit, profileEditChanges, type AccountUser } from "./user-profile";
 
 const base: AccountUser = {
@@ -187,5 +187,24 @@ describe("account store", () => {
 
   it("clearSaveError is safe to call when nothing failed", () => {
     expect(() => clearSaveError()).not.toThrow();
+  });
+
+  it("saves the landing page's language through the store once the account is loaded", async () => {
+    const fake = fakeServer();
+    await ready(fake);
+    saveLocaleIfSignedIn("ja");
+    // 返事を待たずに手元の状態が変わる（/app に戻っても古い言語に切り戻されない）。
+    expect(getAccountSnapshot().account?.user?.locale).toBe("ja");
+    await fake.release();
+    await settled();
+    expect(fake.calls).toEqual([{ method: "PATCH", body: { locale: "ja" } }]);
+  });
+
+  it("sends the landing page's language directly when the account was not read on this page", async () => {
+    const fake = fakeServer();
+    vi.stubGlobal("fetch", fake.fetchMock);
+    saveLocaleIfSignedIn("zh");
+    await tick();
+    expect(fake.calls).toEqual([{ method: "PATCH", body: { locale: "zh" } }]);
   });
 });

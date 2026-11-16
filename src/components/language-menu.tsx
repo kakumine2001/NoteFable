@@ -11,7 +11,7 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 // 選ぶとその場で切り替わり、このブラウザ（Cookie）に残る。ログインした人の言語はアカウントに保存し、設定画面で選ぶ。
 // onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。切り替えが済んでから 1 回だけ呼ぶ。
 export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
-  const { t, locale, target, changeError, setPreference } = useI18n();
+  const { t, locale, preference, target, changeError, setPreference } = useI18n();
   const [anchor, setAnchor] = useState<DOMRect | null>(null);
   // このメニューで最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
   const [chosen, setChosen] = useState<Locale | null>(null);
@@ -41,7 +41,8 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
 
   function choose(next: Locale) {
     close();
-    if (next === current) return;
+    // 環境の言語で表示中に同じ言語を選んだときも、選択として残す（Cookie に書く。辞書は取り直さない）。
+    if (next === current && preference === next) return;
     notified.current = null;
     setChosen(next);
     setPreference(next);
