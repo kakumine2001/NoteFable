@@ -2,8 +2,9 @@
 
 import Image from "next/image";
 import { Download, FileText, ImagePlus, Paperclip } from "lucide-react";
-import { memo } from "react";
-import { AnswerActions, ReportAnswerButton } from "@/components/answer-actions";
+import { memo, useState } from "react";
+import { AnswerActions, ReportAnswerButton, isSavedMessageId } from "@/components/answer-actions";
+import { UserMessageEditor, UserTurnActions, VersionNav, type TurnActions } from "@/components/turn-actions";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import type { ProgressStep } from "@/lib/chat-activity";
@@ -56,6 +57,12 @@ type ChatMessageProps = {
   // 回答の操作（コピー・ノートに保存・Markdown）が元の会話を指すための情報。sessionId が無ければ操作は出さない。
   sessionId?: string | null;
   conversationTitle?: string;
+  // 編集・再生成・版の切り替え・分岐。渡さなければ（ノートの AI アシスタントなど）その操作は出さない。
+  actions?: TurnActions;
+  // 自分の発言を書き直せるか（画像を作った発言は、作り直すと文章の回答になるので書き直させない）。
+  canEdit?: boolean;
+  // 送ったが断られた書き直し（上限・通信の失敗など）。この発言の編集欄を、その文のまま開き直す。
+  editDraft?: string;
 };
 
 export const ChatMessage = memo(function ChatMessage({
@@ -65,8 +72,13 @@ export const ChatMessage = memo(function ChatMessage({
   isGenerating = false,
   sessionId = null,
   conversationTitle = "",
+  actions,
+  canEdit = false,
+  editDraft,
 }: ChatMessageProps) {
   const t = useT();
+  // 自分の発言をその場で書き直している間。断られた書き直しが戻ってきたときは、開いた状態から始める。
+  const [editing, setEditing] = useState(editDraft !== undefined);
   const { options: modelOptions } = useModels();
   // メッセージの役割ごとに表示密度を変える。
   // ユーザー発言は短い吹き出し、アシスタント発言は Markdown・コード・生成画像を扱うため横幅を広く取る。
@@ -119,12 +131,13 @@ export const ChatMessage = memo(function ChatMessage({
   return (
     <article className="notion-turn motion-page-enter" data-message-id={message.id}>
       <div className="w-full min-w-0">
-        {message.role === "USER"
-          ? <div className="notion-role-label">{t("You")}</div>
-          : <div className="notion-role-label is-assistant">
-              <AppIcon size={12} /><span>NoteFable</span>
-              {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
-            </div>}
+        {/* 自分の発言にはラベルを付けない（淡い面で見分けられる）。回答にだけ名前とモデルを出す。 */}
+        {message.role === "ASSISTANT" && (
+          <div className="notion-role-label is-assistant">
+            <AppIcon size={12} /><span>NoteFable</span>
+            {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
+          </div>
+        )}
         {shouldShowActivity && (
           <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
         )}
@@ -162,6 +175,12 @@ export const ChatMessage = memo(function ChatMessage({
               ? <PageEditProposal key={proposal.id} proposal={proposal} />
               : <PageCreateProposal key={proposal.id} proposal={proposal} />)}
           </div>
+        ) : editing && actions ? (
+          <div className="notion-user-block">
+            <UserMessageEditor initial={editDraft ?? message.content}
+              onCancel={() => { setEditing(false); if (editDraft !== undefined) actions.dismissEditDraft(); }}
+              onSubmit={(text) => { setEditing(false); actions.edit(message.id, text); }} />
+          </div>
         ) : (
           <div className="notion-user-block">
             {!!message.attachments?.some((attachment) =>
@@ -197,7 +216,12 @@ export const ChatMessage = memo(function ChatMessage({
           </div>
         )}
         {shouldShowAnswerActions && sessionId && (
-          <AnswerActions messageId={message.id} content={message.content} sessionId={sessionId} conversationTitle={conversationTitle} />
+          <AnswerActions messageId={message.id} content={message.content} sessionId={sessionId} conversationTitle={conversationTitle}
+            versions={message.versions} actions={actions} />
+        )}
+        {/* 操作行の出ない回答（本文の無い回答）にも、別の版があれば切り替えだけは出す。 */}
+        {message.role === "ASSISTANT" && !shouldShowAnswerActions && !isGenerating && message.versions && actions && (
+          <div className="answer-actions"><VersionNav versions={message.versions} onShow={actions.showVersion} /></div>
         )}
         {shouldShowReportOnly && <ReportAnswerButton messageId={message.id} />}
         {!!message.attachments?.some(
@@ -240,6 +264,10 @@ export const ChatMessage = memo(function ChatMessage({
             ))}
           </ul>
         )}
+        {message.role === "USER" && actions && !editing && isSavedMessageId(message.id) && (
+          <UserTurnActions content={message.content} versions={message.versions} canEdit={canEdit}
+            onEdit={() => setEditing(true)} onShowVersion={actions.showVersion} />
+        )}
       </div>
     </article>
   );
@@ -253,7 +281,10 @@ function areChatMessagePropsEqual(previous: ChatMessageProps, next: ChatMessageP
     previous.isStreaming !== next.isStreaming ||
     previous.isGenerating !== next.isGenerating ||
     previous.sessionId !== next.sessionId ||
-    previous.conversationTitle !== next.conversationTitle
+    previous.conversationTitle !== next.conversationTitle ||
+    previous.actions !== next.actions ||
+    previous.canEdit !== next.canEdit ||
+    previous.editDraft !== next.editDraft
   ) {
     return false;
   }

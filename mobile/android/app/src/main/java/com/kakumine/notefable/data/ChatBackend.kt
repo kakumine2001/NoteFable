@@ -23,4 +23,22 @@ interface ChatBackend {
 
     /** 相对路径（如附件图片 `/api/attachments/..`）补成完整地址。 */
     fun absoluteUrl(path: String): String
+
+    /**
+     * 告诉服务端停止这个聊天正在生成的回答：`POST /api/sessions/:id/stop`。服务端把已生成的部分存好再结束流，
+     * 所以这边不取消请求，等流自己结束（断开连接不一定能传到服务端）。
+     */
+    suspend fun stopSession(sessionId: String) {
+        throw UnsupportedOperationException()
+    }
+
+    /** 显示另一个版本（编辑前的提问、之前的回答），它后面的对话一起换：`POST /api/sessions/:id/versions`。之后重读消息。 */
+    suspend fun showVersion(sessionId: String, messageId: String) {
+        throw UnsupportedOperationException()
+    }
+
+    /** 把到这条消息为止的对话复制成一个新聊天：`POST /api/sessions/:id/branch`。[title] 是新聊天的名字。 */
+    suspend fun branchSession(sessionId: String, messageId: String, title: String): SessionSummary {
+        throw UnsupportedOperationException()
+    }
 }

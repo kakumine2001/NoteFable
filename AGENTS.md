@@ -38,6 +38,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Image generation is an explicit UI mode, independent of the chat model, always OpenAI `/images/generations` (text only) or `/images/edits` (with references). Don't switch it to Responses API unless asked.
 - Claude images: shrink only the model copy (`src/lib/claude-image.ts`); keep original bytes and metadata.
 - Compaction (Luna, Claude): `Message.providerContext` stays server-side, replayed unmodified, reused only for the same provider and upstream model.
+- Messages form a tree (`parentId`, `active`): edit and regenerate hide the replaced version, never delete it. Every query that reads conversation content (history, search, export, tools, raw SQL) must filter `active: true`; code that creates a message sets `parentId` (`docs/architecture/chat-flow.md`).
 
 ## Notes and Storage
 

@@ -23,6 +23,8 @@ import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import { msg } from "@/lib/i18n/translate";
 import { getModelRegistry } from "@/lib/model-registry";
+import { ROOT_PARENT } from "@/lib/chat-branches";
+import { loadActiveLeafId } from "@/lib/chat-branch-store";
 
 export const runtime = "nodejs";
 
@@ -378,7 +380,7 @@ export async function POST(request: Request) {
     usageTicket = usage.ticket;
 
     const history = existingSession ? await prisma.message.findMany({
-      where: { sessionId: existingSession.id, session: { userId: user.id }, role: { in: ["USER", "ASSISTANT"] } },
+      where: { sessionId: existingSession.id, active: true, session: { userId: user.id }, role: { in: ["USER", "ASSISTANT"] } },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: 24,
       select: {
@@ -463,14 +465,16 @@ export async function POST(request: Request) {
       })),
     );
 
-    // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。
-    await prisma.message.create({
+    // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。表示中の枝の末尾に続ける。
+    const promptMessage = await prisma.message.create({
       data: {
         sessionId: session.id,
         role: "USER",
         content: prompt,
         model,
         reasoningEffort: toDbReasoning(reasoning),
+        // 新しく作ったチャットにはまだ発言が無い。
+        parentId: existingSession ? await loadActiveLeafId(session.id) : ROOT_PARENT,
         attachments: inputAttachmentCreates.length
           ? {
               create: inputAttachmentCreates,
@@ -487,6 +491,7 @@ export async function POST(request: Request) {
         content: "",
         model,
         reasoningEffort: toDbReasoning(reasoning),
+        parentId: promptMessage.id,
         attachments: {
           create: {
             filename: "generated-image.png",

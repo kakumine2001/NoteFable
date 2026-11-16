@@ -192,6 +192,9 @@ model Session {
   userId      String
   // ノートを開いたまま使う AI アシスタントの会話は、そのノートに結びつけて Chats の一覧から外す。ノートを消すと一緒に消える。
   noteId      String?
+  // 利用者が「停止」を押した時刻。生成中の応答はこの値が変わったのを見て止まり、そこまでの回答を保存する
+  // （接続の切断はサーバーに伝わるとは限らないので、明示の要求で止める）。
+  stopRequestedAt DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -246,6 +249,14 @@ model Message {
   // 回答前の推論要約・検索・ツールの途中経過（ActivityStep[] の JSON）と、本文が届くまでの時間。表示専用でモデルには渡さない。
   activity        String?
   thinkingMs      Int?
+  // 会話の枝分かれ（発言の編集・回答の再生成）。parentId は直前の発言の ID、"root" は会話の先頭。
+  // null はこの列より前に作られた行で、作成順で直前の発言が親になる。
+  parentId        String?
+  // 版の切り替えでこの版を選んだ時刻。上の版へ切り替え直したとき、その下では最後に選んでいた版（無ければいちばん新しい版）を表示する。
+  selectedAt      DateTime?
+  // 表示中の枝にあるか。編集・再生成で置き換えられた版は false にして残し、版の切り替えで戻せる。
+  // 会話の内容を読む処理（履歴・検索・書き出し・ツール）は active の行だけを使う。
+  active          Boolean          @default(true)
   createdAt       DateTime         @default(now())
 
   session     Session      @relation(fields: [sessionId], references: [id], onDelete: Cascade)

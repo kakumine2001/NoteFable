@@ -339,6 +339,7 @@ class ChatViewModelTest {
         backend.events.send(ChatStreamEvent.Started("s1"))
         backend.events.send(ChatStreamEvent.Activity(Json.parseToJsonElement("""{"type":"thought","id":"rs:0","delta":"Plan"}""").jsonObject))
         settle()
+        // 这个假后端不认识"停止"的请求：走自己取消的后备路径，不知道服务端存了什么，本机这份留着。
         vm.stop()
         advanceUntilIdle()
 

@@ -1,13 +1,15 @@
 "use client";
 
-import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, LoaderCircle } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, GitBranch, LoaderCircle, RefreshCw } from "lucide-react";
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
+import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
+import type { MessageVersions } from "@/lib/chat-branches";
 
 type Props = {
   messageId: string;
@@ -15,6 +17,10 @@ type Props = {
   content: string;
   sessionId: string;
   conversationTitle: string;
+  // 再生成でできた別の版。あれば「‹ 2/3 ›」を出す。
+  versions?: MessageVersions;
+  // 再生成・分岐・版の切り替え。会話が返答中（TurnBusyContext）の間は押せない。
+  actions?: TurnActions;
 };
 
 // ノートへの保存の状態。保存中や保存済みの回答がまた描画されても（会話を行き来しても）「Save」に戻って二重に作らないよう、画面の外で持つ。
@@ -193,8 +199,8 @@ export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; 
   </dialog>;
 }
 
-// サーバーに保存済みの回答の ID（cuid）か。表示中だけの回答は crypto.randomUUID() の仮の ID で、報告できない。
-function isSavedMessageId(id: string) {
+// サーバーに保存済みの発言の ID（cuid）か。表示中だけの発言は crypto.randomUUID() の仮の ID で、報告・編集・再生成はできない。
+export function isSavedMessageId(id: string) {
   return /^c[a-z0-9]{20,}$/.test(id);
 }
 
@@ -214,8 +220,9 @@ export function ReportAnswerButton({ messageId }: { messageId: string }) {
 }
 
 // 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
-export function AnswerActions({ messageId, content, sessionId, conversationTitle }: Props) {
+export function AnswerActions({ messageId, content, sessionId, conversationTitle, versions, actions }: Props) {
   const t = useT();
+  const busy = useContext(TurnBusyContext);
   const key = `${sessionId}\n${messageId}`;
   const save = useSyncExternalStore(subscribe, () => saves.get(key), () => undefined);
   // 押した直後だけアイコンを ✓ にする操作と、スクリーンリーダー向けの通知。
@@ -308,6 +315,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
 
   return (
     <div className="answer-actions" role="group" aria-label={t("Answer actions")}>
+      {versions && actions && <VersionNav versions={versions} onShow={actions.showVersion} />}
       <button type="button" className="answer-action" onClick={() => void copy()} aria-label={t("Copy answer")} title={t("Copy answer")}>
         {done === "copy" ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.9} />}
       </button>
@@ -322,6 +330,17 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
         <Ellipsis size={18} strokeWidth={1.9} />
       </button>
       {menu && <AnswerMenu id={menuId} anchor={menu.anchor} trigger={menu.trigger} focusLast={menu.focusLast} onClose={closeMenu}>
+        {/* 作り直しと分岐は、保存済みの回答にだけ出す。会話が返答中の間は押せない。 */}
+        {actions && isSavedMessageId(messageId) && <>
+          <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={busy}
+            onClick={() => { if (busy) return; closeMenu(); actions.regenerate(messageId); }}>
+            <RefreshCw size={16} aria-hidden="true" />{t("Regenerate")}
+          </button>
+          <button type="button" role="menuitem" className="chat-menu-item" aria-disabled={busy}
+            onClick={() => { if (busy) return; closeMenu(); actions.branch(messageId); }}>
+            <GitBranch size={16} aria-hidden="true" />{t("Branch in new chat")}
+          </button>
+        </>}
         {/* 保存中もメニューを保ち、同じ項目で進捗と成功を表示する。 */}
         <button type="button" role="menuitem" className="chat-menu-item" onClick={() => void saveToNotes()}
           aria-disabled={!!save} aria-busy={save?.status === "saving"}>

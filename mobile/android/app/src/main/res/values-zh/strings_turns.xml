@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 消息上的操作：重新生成、编辑、版本切换、分支（网页 turn-actions.tsx / answer-actions.tsx 的文案）。 -->
+<resources>
+    <string name="regenerate">重新生成</string>
+    <string name="branch_in_new_chat">在新聊天中分支</string>
+    <string name="previous_version">上一个版本</string>
+    <string name="next_version">下一个版本</string>
+    <string name="copy_message">复制消息</string>
+    <string name="edit_message">编辑消息</string>
+    <string name="turn_send">发送</string>
+    <string name="branch_title">分支 · %1$s</string>
+</resources>

@@ -287,6 +287,18 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
                 .padding(5.6.dp)
                 .semantics { contentDescription = menuLabel },
         ) {
+            // 重新生成、在新聊天中分支：已经保存到服务端的回答才有；这个聊天在发送或生成时不能点。
+            val turn = LocalTurnActions.current
+            if (turn != null && !state.messageId.startsWith("local-")) {
+                MenuEntry(stringResource(R.string.regenerate), Lucide.RefreshCw, disabled = turn.busy) {
+                    close()
+                    turn.regenerate(state.messageId)
+                }
+                MenuEntry(stringResource(R.string.branch_in_new_chat), Lucide.GitBranch, disabled = turn.busy) {
+                    close()
+                    turn.branch(state.messageId)
+                }
+            }
             // 保存中也保持菜单打开，在同一项里显示进度和结果。
             MenuEntry(
                 text = when {

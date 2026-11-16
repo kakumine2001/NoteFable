@@ -32,6 +32,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -150,6 +151,8 @@ fun ChatScreen(
     onRemovePage: (String) -> Unit = {},
     /** 顶栏「整理成笔记」：打开那个聊天的窗口。 */
     onCreatePage: (String) -> Unit = {},
+    /** 消息上的编辑、重新生成、版本切换、分支；为空时不显示。 */
+    turnActions: TurnActions? = null,
 ) {
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
@@ -192,7 +195,9 @@ fun ChatScreen(
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
+                androidx.compose.runtime.CompositionLocalProvider(LocalTurnActions provides turnActions) {
+                    MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
+                }
             }
             val guestLimit = state.guestLimit
             Composer(
@@ -210,6 +215,7 @@ fun ChatScreen(
                 input = input,
                 onInputChange = onInputChange,
                 sending = state.sending,
+                stopping = state.stopping,
                 canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null &&
                     state.importing == 0,
                 modelLabel = state.selectedModel?.label,
@@ -227,6 +233,9 @@ fun ChatScreen(
                     ComposerNotice.PagesInImageMode -> stringResource(R.string.err_pages_image_mode)
                     // 网页 msg("You can attach up to 5 pages to a message.")，译文在系统文词典里（服务端也用这句）。
                     ComposerNotice.TooManyPages -> rememberSystemText().localize(TOO_MANY_PAGES)
+                    // 编辑、重新生成、切换版本、分支没成功：服务端或字典里的原句，按语言显示。
+                    is ComposerNotice.Failed ->
+                        if (notice.detail == CONNECTION_FAILED) stringResource(R.string.check_connection) else rememberSystemText().localize(notice.detail)
                     null -> null
                 },
                 onSend = { onSend(input) },
@@ -426,12 +435,17 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                 contentPadding = PaddingValues(start = PageGutter, end = PageGutter, top = 4.dp, bottom = ListBottomPadding),
                 verticalArrangement = Arrangement.spacedBy(TurnGap),
             ) {
-                items(state.messages, key = { it.key }) { message ->
+                itemsIndexed(state.messages, key = { _, it -> it.key }) { index, message ->
                     val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
                     // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
                     val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
+                    // 生成图片的提问不能编辑（改写后会按文字回答重做；网页 page.tsx 的 canEdit）。
+                    val reply = state.messages.getOrNull(index + 1)
+                    val canEdit = !(reply != null && reply.role == MessageRole.Assistant && (reply.generatingImage || reply.images.isNotEmpty()))
                     Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
-                        if (message.role == MessageRole.User) UserTurn(message) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                        if (message.role == MessageRole.User) {
+                            UserTurn(message, canEdit, state.rejectedEdit?.takeIf { it.messageId == message.id }?.text)
+                        } else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
                     }
                 }
             }
@@ -553,13 +567,33 @@ internal fun roleLabelStyle(text: String): TextStyle =
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserTurn(message: UiMessage) {
+private fun UserTurn(message: UiMessage, canEdit: Boolean, editDraft: String?) {
+    // 提问上方没有标签（网页只给回答显示"NoteFable · 模型名"）。
+    val actions = LocalTurnActions.current
+    // 正在这条提问里直接改写（网页 chat-message.tsx 的 editing）。
+    // 被拒绝的改写（editDraft）回来时，编辑框带着那段文字重新打开。
+    var editing by rememberSaveable(message.key, editDraft) { mutableStateOf(editDraft != null) }
     Column(Modifier.fillMaxWidth()) {
-        val you = stringResource(R.string.you).uppercase()
-        Text(you, style = roleLabelStyle(you), modifier = Modifier.padding(bottom = 7.2.dp))
         val images = message.attachments.filter { it.dataUrl != null && it.mimeType.startsWith("image/") }
         val files = message.attachments.filterNot { it in images }
-        if (images.isNotEmpty() || message.content.isNotEmpty()) {
+        if (editing && actions != null) {
+            Box(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Sm.UserBubble)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                UserMessageEditor(
+                    editDraft ?: message.content,
+                    busy = actions.busy,
+                    onCancel = {
+                        editing = false
+                        if (editDraft != null) actions.dismissEditDraft()
+                    },
+                ) { text ->
+                    editing = false
+                    actions.edit(message.id, text)
+                }
+            }
+        } else if (images.isNotEmpty() || message.content.isNotEmpty()) {
             // 提问块（.notion-user-block）：圆角 14、内边距 12×16；图片缩略图 128、圆角 4，在文字上方，间距 8，下距 12。
             Column(
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Sm.UserBubble)
@@ -612,6 +646,10 @@ private fun UserTurn(message: UiMessage) {
                 message.pages.forEach { page -> PageChip(page, removable = false) { openNote(page.id) } }
             }
         }
+        // 复制、编辑、版本切换：已经保存到服务端的提问才有（网页 isSavedMessageId）。
+        if (actions != null && !editing && !message.id.startsWith("local-")) {
+            UserTurnActions(message, actions, canEdit, onEdit = { editing = true })
+        }
     }
 }
 
@@ -638,6 +676,7 @@ private fun Composer(
     input: String,
     onInputChange: (String) -> Unit,
     sending: Boolean,
+    stopping: Boolean,
     canSend: Boolean,
     modelLabel: String?,
     effortLabel: String?,
@@ -761,7 +800,8 @@ private fun Composer(
                 }
                 SendButton(
                     sending,
-                    enabled = sending || (canSend && input.isNotBlank()),
+                    // 已经按了停止、在等回答结束时不能再点。
+                    enabled = if (sending) !stopping else canSend && input.isNotBlank(),
                     onClick = if (sending) onStop else onSend,
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )
@@ -794,7 +834,7 @@ private fun ModelPill(label: String, effort: String?, onClick: () -> Unit, modif
 }
 
 // 发送键：40 的圆；可发送时深色底白箭头（箭头 24、描边 2.1），不可发送时 .08 灰底、.36 灰箭头。
-// 生成中显示深色底的白色方块（网页没有停止键，这是原生版额外加的，替代发送键）。
+// 生成中换成停止键：深色底的白色实心方块（网页 lucide Square 16、填充：边长 12、圆角 1.3）。
 @Composable
 private fun SendButton(sending: Boolean, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(if (sending) R.string.stop else R.string.send)
@@ -805,7 +845,7 @@ private fun SendButton(sending: Boolean, enabled: Boolean, onClick: () -> Unit, 
         Alignment.Center,
     ) {
         if (sending) {
-            Box(Modifier.size(14.dp).background(Color.White, RoundedCornerShape(3.dp)))
+            Box(Modifier.size(12.dp).background(Color.White, RoundedCornerShape(1.3.dp)))
         } else {
             LucideIcon(Lucide.ArrowUp, 24.dp, if (enabled) Color.White else Sm.Faint, strokeWidth = 2.1f)
         }

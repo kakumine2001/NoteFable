@@ -12,9 +12,8 @@
 
     <string name="empty_hint">提出问题、整理笔记，或带入一份文件。</string>
     <string name="message_hint">尽管提问…</string>
-    <string name="you">你</string>
     <string name="send">发送消息</string>
-    <string name="stop">停止</string>
+    <string name="stop">停止生成</string>
     <string name="copy">复制回答</string>
     <string name="downloading">正在下载…</string>
     <string name="request_failed">请求失败：%1$s</string>

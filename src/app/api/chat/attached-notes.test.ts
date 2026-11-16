@@ -28,11 +28,14 @@ vi.mock("@/lib/prisma", () => {
     session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession },
     notePage: { findMany: mocks.findNotes },
     messageNote: { findMany: mocks.findRefs },
-    message: { create: mocks.createMessage, findMany: async () => [] },
+    // findFirst は表示中の枝の末尾（次の発言の親）、findUnique は回答を保存するときの「答えた発言が表示中か」。
+    message: { create: mocks.createMessage, findMany: async () => [], findFirst: async () => null, findUnique: async () => ({ active: true }) },
     noteProposal: { updateMany: async () => ({ count: 0 }) },
   };
   prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
-  return { prisma };
+  // 会話の行を押さえる問い合わせ（FOR UPDATE）。
+  prisma.$queryRaw = async () => [{ id: "session" }];
+  return { prisma, databaseSchema: "notefable" };
 });
 
 import { POST } from "./route";
@@ -73,7 +76,7 @@ describe("pages attached to a chat message", () => {
     expect(mocks.findNotes.mock.calls[0][0].where).toEqual({ id: { in: ["n1"] }, userId: "user", deletedAt: null });
     const userData = mocks.createMessage.mock.calls.map(([arg]) => arg.data).find((data) => data.role === "USER");
     expect(userData.notes).toEqual({ create: [{ noteId: "n1", position: 0 }] });
-    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session" }, note: { userId: "user", deletedAt: null } });
+    expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session", active: true }, note: { userId: "user", deletedAt: null } });
     const { instructions } = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     expect(instructions).toContain("=== Attached note 1: \"Biology\" (id: n1) [attached to this message] ===\nCells divide.");
     // 前の発言で添付したノートも、読み直して渡す。区切りに見える行は崩す。

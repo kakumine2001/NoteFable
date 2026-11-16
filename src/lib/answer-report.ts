@@ -52,13 +52,16 @@ export async function findReportedAnswer(userId: string, messageId: string) {
   const answer = await prisma.message.findFirst({
     where: { id: messageId, role: "ASSISTANT", session: { userId } },
     select: {
-      id: true, sessionId: true, content: true, model: true, createdAt: true,
+      id: true, sessionId: true, content: true, model: true, createdAt: true, parentId: true,
       attachments: { where: { imageStoragePath: { not: null } }, select: { id: true, filename: true, imageStoragePath: true } },
     },
   });
   if (!answer) return null;
+  // 回答が答えた発言。親の記録があればそれ、無い行（古い行）は作成順で直前の自分の発言。
   const prompt = await prisma.message.findFirst({
-    where: { sessionId: answer.sessionId, role: "USER", createdAt: { lte: answer.createdAt } },
+    where: answer.parentId
+      ? { id: answer.parentId, sessionId: answer.sessionId, role: "USER" }
+      : { sessionId: answer.sessionId, role: "USER", active: true, createdAt: { lte: answer.createdAt } },
     orderBy: { createdAt: "desc" },
     select: { content: true },
   });

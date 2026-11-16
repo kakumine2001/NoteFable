@@ -12,9 +12,8 @@
 
     <string name="empty_hint">質問したり、ノートを整理したり、ファイルを読み込んだりできます。</string>
     <string name="message_hint">なんでも聞いてください…</string>
-    <string name="you">あなた</string>
     <string name="send">メッセージを送信</string>
-    <string name="stop">停止</string>
+    <string name="stop">生成を停止</string>
     <string name="copy">回答をコピー</string>
     <string name="downloading">ダウンロード中…</string>
     <string name="request_failed">リクエストに失敗しました：%1$s</string>

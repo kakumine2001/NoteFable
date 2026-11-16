@@ -36,11 +36,16 @@ export async function buildHistoryInput(
   maxAttachmentTextChars = MAX_HISTORY_ATTACHMENT_TEXT_CHARS,
   maxTotalImageBytes = MAX_HISTORY_IMAGE_BYTES,
   optimizeClaudeImages = false,
+  // 編集・再生成で「今回の発言」を保存済みの添付から組み立て直すとき true。履歴用の枚数と合計の上限をかけない
+  // （送信時に受け付けた添付は、作り直すときも全部渡す）。
+  currentTurn = false,
 ): Promise<HistoryInput[]> {
   // 新しい添付から優先して、会話履歴全体の上限内に収める。
   let remainingTextChars = maxAttachmentTextChars;
-  let remainingImageFiles = supportsImageInput ? MAX_HISTORY_IMAGE_FILES : 0;
-  let remainingImageBytes = supportsImageInput ? Math.min(MAX_HISTORY_IMAGE_BYTES, maxTotalImageBytes) : 0;
+  let remainingImageFiles = !supportsImageInput ? 0
+    : currentTurn ? newestFirstMessages.reduce((count, message) => count + message.attachments.filter((item) => item.imageStoragePath).length, 0)
+    : MAX_HISTORY_IMAGE_FILES;
+  let remainingImageBytes = !supportsImageInput ? 0 : currentTurn ? maxTotalImageBytes : Math.min(MAX_HISTORY_IMAGE_BYTES, maxTotalImageBytes);
   const inputByMessageId = new Map<string, HistoryInput>();
 
   for (const message of newestFirstMessages) {

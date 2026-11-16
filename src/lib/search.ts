@@ -170,7 +170,7 @@ export async function searchChats(userId: string, terms: string[], options: Chat
         SELECT m."sessionId", m."id" AS "messageId", m."createdAt", ${termMask('m."content"', needles)} AS "mask"
         FROM ${table("Message")} m
         JOIN ${table("Session")} ms ON ms."id" = m."sessionId"
-        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT')
+        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active"
         OFFSET 0
       ) x WHERE x."mask" > 0
       UNION ALL
@@ -179,7 +179,7 @@ export async function searchChats(userId: string, terms: string[], options: Chat
         FROM ${table("Attachment")} a
         JOIN ${table("Message")} m ON m."id" = a."messageId"
         JOIN ${table("Session")} ms ON ms."id" = m."sessionId"
-        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND a."extractedText" IS NOT NULL
+        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active" AND a."extractedText" IS NOT NULL
         OFFSET 0
       ) y WHERE y."mask" > 0
     ), "msg" AS (

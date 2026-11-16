@@ -29,6 +29,16 @@ describe("chat attachments in the note tools", () => {
     mocks.write.mockResolvedValue(undefined);
   });
 
+  it("leaves out the turns a regeneration is replacing", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    const { listChatAttachments, createAttachmentResolver } = await import("./note-attachments");
+    await listChatAttachments("mine", "s1", ["m9"]);
+    expect(mocks.findMany.mock.calls.at(-1)?.[0].where).toEqual({ message: { active: true, id: { notIn: ["m9"] }, session: { id: "s1", userId: "mine" } } });
+    mocks.findFirst.mockResolvedValue(null);
+    await expect(createAttachmentResolver("mine", "s1", ["m9"])(["![x](attachment:att1)"])).rejects.toThrow();
+    expect(mocks.findFirst.mock.calls.at(-1)?.[0].where).toMatchObject({ id: "att1", message: { active: true, id: { notIn: ["m9"] } } });
+  });
+
   it("lists only this chat's attachments and says which can go into a note", async () => {
     mocks.findMany.mockResolvedValue([
       { id: "att1", filename: "a.png", mimeType: "image/png", size: 1000, imageStoragePath: "images/x.png" },
@@ -36,7 +46,7 @@ describe("chat attachments in the note tools", () => {
       { id: "att3", filename: "big.png", mimeType: "image/png", size: 9 * 1024 * 1024, imageStoragePath: "images/y.png" },
     ]);
     const result = await runPageTool("list_chat_attachments", {}, "mine", "s1");
-    expect(mocks.findMany.mock.calls[0][0].where).toEqual({ message: { session: { id: "s1", userId: "mine" } } });
+    expect(mocks.findMany.mock.calls[0][0].where).toEqual({ message: { active: true, session: { id: "s1", userId: "mine" } } });
     const { attachments } = JSON.parse(result.content);
     expect(attachments.map((a: { id: string; canInsertIntoNote: boolean }) => [a.id, a.canInsertIntoNote])).toEqual([["att1", true], ["att2", false], ["att3", false]]);
     expect(attachments[1].note).toContain("cannot be placed");
@@ -49,7 +59,7 @@ describe("chat attachments in the note tools", () => {
     const result = await runPageTool("propose_note_create", { title: "Diagram", markdown: "Look:\n![Cell diagram](attachment:att1)", icon: null }, "mine", "s1");
     expect(result.isError).toBeUndefined();
     // 同じ会話・同じ所有者の添付だけを探す。
-    expect(mocks.findFirst.mock.calls[0][0].where).toMatchObject({ id: "att1", message: { session: { id: "s1", userId: "mine" } } });
+    expect(mocks.findFirst.mock.calls[0][0].where).toMatchObject({ id: "att1", message: { active: true, session: { id: "s1", userId: "mine" } } });
     const [path, buffer, mime] = mocks.write.mock.calls[0];
     expect(path).toMatch(/^note-files\/mine\/[0-9a-f-]{36}\.png$/);
     expect(buffer).toBe(png);

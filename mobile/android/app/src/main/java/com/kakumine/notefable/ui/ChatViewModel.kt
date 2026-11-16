@@ -30,6 +30,7 @@ import com.kakumine.notefable.data.FailureInfo
 import com.kakumine.notefable.data.Proposal
 import com.kakumine.notefable.data.GeneratedImageDto
 import com.kakumine.notefable.data.MessageDto
+import com.kakumine.notefable.data.MessageVersions
 import com.kakumine.notefable.data.ModelInfo
 import com.kakumine.notefable.data.SessionSummary
 import kotlinx.coroutines.CancellationException
@@ -85,6 +86,8 @@ data class UiMessage(
      * 这一回合的界面状态（回答"…"菜单的保存、下载、保存位置选择）就不会因为换 ID 被丢掉（网页的临时 ID 留到切换对话为止）。
      */
     val key: String = id,
+    /** 这条消息还有别的版本（编辑过的提问、重新生成的回答）时的位置和前后版本；只有一个版本时为空。 */
+    val versions: MessageVersions? = null,
 )
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
@@ -108,6 +111,8 @@ sealed interface ComposerNotice {
     data object PagesInImageMode : ComposerNotice
     /** 放回被拒的提问后笔记超过上限（网页同样不悄悄删减）。 */
     data object TooManyPages : ComposerNotice
+    /** 编辑、重新生成、切换版本或分支没成功（网页 setSendError(detail)）：[detail] 是服务端或字典里的英文原句，界面翻译。 */
+    data class Failed(val detail: String) : ComposerNotice
 }
 
 /** 打开聊天后要滚到并闪一下的消息（检索结果、?chat=&message= 链接）。[token] 区分同一条消息的多次请求。 */
@@ -128,6 +133,10 @@ data class ChatUiState(
     val messagesFailed: Boolean = false,
     /** 当前看着的聊天正在发送（上传附件或等待 / 接收回答）；别的聊天在后台生成时不影响这里。 */
     val sending: Boolean = false,
+    /** 已经按了停止，正在等服务端把已生成的部分存好、结束回答：停止键这时不能再点（网页的 stopping）。 */
+    val stopping: Boolean = false,
+    /** 发出去但被拒绝的改写（上限、断网等）：那条提问的编辑框带着这段文字重新打开，写的字不丢（网页 rejectedEdit）。 */
+    val rejectedEdit: RejectedEdit? = null,
     /** 选好、还没发送的附件。 */
     val files: List<LocalFile> = emptyList(),
     /** 下一条消息要添加的笔记（ID、标题、图标）。正文由服务端每次发送时重新读取（网页 attachedPages）。 */
@@ -181,6 +190,9 @@ data class ChatUiState(
     val activeIcon: String?
         get() = if (activeSessionId == null) draftIcon else sessions.firstOrNull { it.id == activeSessionId }?.icon
 }
+
+/** 被拒绝的改写：哪条提问、写了什么。 */
+data class RejectedEdit(val messageId: String, val text: String)
 
 /** 模型和推理强度的选择要在重开 App 后保留。 */
 interface SettingsStore {
@@ -311,8 +323,15 @@ class ChatViewModel(
     /** [ChatUiState.sending] 只看当前聊天；[ChatUiState.generatingSessionIds] 是所有在发送的聊天。 */
     private fun syncBusy() {
         val generating = streams.keys.filterNot { it.startsWith(NEW_CHAT_PREFIX) }.toSet()
-        _state.update { it.copy(sending = keyOf(it) in streams, generatingSessionIds = generating) }
+        stopping.retainAll(streams.keys)
+        _state.update { it.copy(sending = keyOf(it) in streams, stopping = keyOf(it) in stopping, generatingSessionIds = generating) }
     }
+
+    /** 正在接收回答（不是上传附件、不是生成图片）的任务：只有它们能请服务端停止。 */
+    private val chatJobs = mutableSetOf<Job>()
+
+    /** 已经请服务端停止、在等回答结束的聊天。 */
+    private val stopping = mutableSetOf<String>()
 
     init {
         viewModelScope.launch { loadModels() }
@@ -390,6 +409,8 @@ class ChatViewModel(
         epoch++
         // 等着放回的提问：文字留着，附件和待发送附件一样不跨登录保留。
         pendingRestores.replaceAll { Restore(it.text, emptyList(), emptyList()) }
+        // 被拒的改写：输入栏空着时把那段文字放进输入栏，登录后还在（网页登录前把它预存为草稿）。
+        _state.value.rejectedEdit?.let { if (draft.isBlank()) updateDraft(it.text) }
         streams.values.flatten().forEach { it.cancel() }
         streams.clear()
         // 取消可能同步触发完成回调、从 map 里删掉自己：先拷一份再取消。
@@ -406,7 +427,7 @@ class ChatViewModel(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
                 files = if (it.upload == null) emptyList() else it.files, attachedPages = emptyList(),
-                notice = null, guestLimit = null, reveal = null,
+                notice = null, guestLimit = null, reveal = null, rejectedEdit = null,
                 draftIcon = null,
             )
         }
@@ -465,7 +486,7 @@ class ChatViewModel(
         _state.update {
             it.copy(
                 activeSessionId = sessionId, messages = cache[key] ?: emptyList(), messagesLoading = loading, messagesFailed = false,
-                notice = null, reveal = null,
+                notice = null, reveal = null, rejectedEdit = null,
             )
         }
         syncDraftIcon()
@@ -659,9 +680,44 @@ class ChatViewModel(
 
     // ---- 发送 ----
 
-    /** 停止键：只停当前看着的这个聊天（上传附件中或回答中），别的聊天照常生成。 */
+    /**
+     * 停止键：只停当前看着的这个聊天（上传附件中或回答中），别的聊天照常生成。
+     *
+     * 正在接收的回答：请服务端停止（`POST /api/sessions/:id/stop`），它把已生成的部分存好再结束流，这边像正常结束一样对账
+     * （断开连接不一定能传到服务端，回答可能照样生成完）。请求没成功、或等了一阵流还没结束，就自己取消。
+     * 还在上传附件、生成图片、或新聊天还没拿到会话 ID 时没有可停的回答，直接取消。
+     */
     fun stop() {
-        streams[keyOf(_state.value)]?.toList()?.forEach { it.cancel() }
+        val key = keyOf(_state.value)
+        val jobs = streams[key]?.toList().orEmpty()
+        if (jobs.isEmpty() || key in stopping) return
+        val (answering, others) = jobs.partition { it in chatJobs }
+        others.forEach { it.cancel() }
+        if (answering.isEmpty()) return
+        if (key.startsWith(NEW_CHAT_PREFIX)) {
+            answering.forEach { it.cancel() }
+            return
+        }
+        stopping += key
+        syncBusy()
+        viewModelScope.launch {
+            val acknowledged = runCatching { backend.stopSession(key) }.isSuccess
+            if (acknowledged) {
+                // 服务端每秒看一次停止的请求。等一阵还没结束就不等了。
+                val deadline = STOP_WAIT_MS / STOP_WAIT_STEP_MS
+                var waited = 0L
+                while (waited < deadline && answering.any { it.isActive }) {
+                    delay(STOP_WAIT_STEP_MS)
+                    waited++
+                }
+            }
+            answering.filter { it.isActive }.forEach { it.cancel() }
+        }
+    }
+
+    /** 关掉重新打开的编辑框（取消）：被拒的改写不再留着。 */
+    fun dismissRejectedEdit() {
+        _state.update { it.copy(rejectedEdit = null) }
     }
 
     fun send(text: String) {
@@ -741,8 +797,20 @@ class ChatViewModel(
         lateinit var job: Job
     }
 
-    /** 一次发送的结果：会话 ID 和是否正常结束（决定要不要对账）。 */
-    private class TurnOutcome(val sessionId: String?, val completed: Boolean)
+    /**
+     * 一次发送的结果：会话 ID 和是否正常结束（决定要不要对账）。
+     * [stopped]：用户点了停止，服务端会把已经生成的部分存下来；[hasAnswer] 是停止时本机已经收到正文或提案。
+     * [resync]：编辑 / 重新生成没开始就失败了，画面已经退回原样，再按服务端的状态核对一次。
+     */
+    private class TurnOutcome(
+        val sessionId: String?,
+        val completed: Boolean,
+        val stopped: Boolean = false,
+        val hasAnswer: Boolean = false,
+        val resync: Boolean = false,
+        /** 编辑 / 重新生成开始前就已经保存在服务端的消息 ID：对账时不能把它们当成"新存下的回答"。 */
+        val knownBefore: Set<String> = emptySet(),
+    )
 
     /** 登记这个聊天的发送任务再启动，结束（完成、失败、停止）后注销并对账。 */
     private fun launchTurn(run: TurnRun, body: suspend () -> TurnOutcome?) {
@@ -755,7 +823,9 @@ class ChatViewModel(
                 removeStream(run.key, run.job)
                 syncBusy()
             }
-            if (run.epoch == epoch) outcome?.let { reconcile(it.sessionId, it.completed) }
+            if (run.epoch == epoch) outcome?.let {
+                if (it.stopped) reconcileStopped(it.sessionId, it.hasAnswer, it.knownBefore) else reconcile(it.sessionId, it.completed || it.resync)
+            }
         }
         addStream(run.key, run.job)
         syncBusy()
@@ -804,6 +874,10 @@ class ChatViewModel(
         val rawText: String,
         val files: List<LocalFile>,
         val pages: List<ChatProjectNote>,
+        /** 编辑 / 重新生成：开始前这个聊天显示的消息。没开始就失败时退回它（提问不放回输入栏）。 */
+        val before: List<UiMessage>? = null,
+        /** 编辑：改写的是哪条提问、改成了什么。被拒绝时把这段文字放回那条提问的编辑框。 */
+        val edit: RejectedEdit? = null,
     )
 
     /** 把提问和等待中的回答放进对话，并清空输入栏里的附件和笔记。 */
@@ -911,6 +985,25 @@ class ChatViewModel(
             dropLeftNewChat(run.key)
             return
         }
+        // 编辑 / 重新生成在收到任何内容之前失败（上限、断网、消息已不存在）：服务端没有留下新版本，
+        // 退回开始前的画面，在输入栏上方说明原因（网页 rerunTurn 的同一分支）。
+        val before = turn.before
+        if (before != null && failed != null &&
+            cache[run.key]?.firstOrNull { it.id == assistantId }?.let { it.content.isEmpty() && it.activity.isEmpty() } != false
+        ) {
+            setCached(run.key, before)
+            val guest = limited && (failed as ApiException).tier == "guest"
+            _state.update {
+                val shown = keyOf(it) == run.key
+                it.copy(
+                    notice = if (shown) ComposerNotice.Failed(chatFailureDetail(failed)) else it.notice,
+                    guestLimit = if (guest) (if ((failed as ApiException).kind == "image") "image" else "chat") else it.guestLimit,
+                    // 改写的文字不丢：那条提问的编辑框带着它重新打开。
+                    rejectedEdit = if (shown && turn.edit != null) turn.edit else it.rejectedEdit,
+                )
+            }
+            return
+        }
         if (limited) restoreRejected(turn, failed as ApiException)
         updateCached(run.key) { list ->
             list.mapNotNull { message ->
@@ -929,6 +1022,10 @@ class ChatViewModel(
                     else -> done
                 }
             }
+        }
+        // 重新生成什么都没收到就停了：服务端的原回答还显示着（新回答存下时才换），画面也退回原样。
+        if (failed == null && before != null && turn.edit == null && cache[run.key]?.none { it.id == assistantId } == true) {
+            setCached(run.key, before)
         }
     }
 
@@ -979,9 +1076,147 @@ class ChatViewModel(
     }
 
     /**
+     * 这边自己取消了回答（没能请服务端停止时的后备路径；请到了的话流正常结束，走 [reconcile]）。
+     * 服务端可能已经把生成的部分存下：本机收到过内容时，等那条新回答出现再换成服务器版本（网页 finishStoppedStream），
+     * 免得屏幕上的半截文字消失；一直没等到就保留本机这份。什么都没收到时不知道服务端的状态，不动画面。
+     * 期间又在这个聊天里发送就作废。
+     */
+    private fun reconcileStopped(sessionId: String?, hasAnswer: Boolean, knownBefore: Set<String>) {
+        val finished = sessionId ?: return
+        refreshSessions()
+        if (!hasAnswer) return
+        reconcileJobs.remove(finished)?.cancel()
+        // 重新生成时原来的回答已经从画面上拿掉，但服务端还显示着它：它不是新存下的回答。
+        val known = cache[finished].orEmpty().mapTo(knownBefore.toMutableSet()) { it.id }
+        val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
+            for (wait in STOP_SYNC_WAITS) {
+                delay(wait)
+                val list = runCatching { backend.messages(finished) }.getOrNull()
+                ensureActive()
+                if (finished in streams) return@launch
+                if (list == null) continue
+                val last = list.lastOrNull()
+                if (!(last != null && last.role.equals("ASSISTANT", ignoreCase = true) && last.id !in known)) continue
+                applyLoaded(finished, list)
+                break
+            }
+        }
+        reconcileJobs[finished] = job
+        job.invokeOnCompletion { if (reconcileJobs[finished] === job) reconcileJobs.remove(finished) }
+        job.start()
+    }
+
+    // ---- 重新生成、编辑、版本切换、分支（网页 page.tsx 的 rerunTurn / showVersion / branchChat） ----
+
+    /** 用现在选的模型和推理强度重做这条回答。原来的回答留在服务端，用「‹ 2/3 ›」切回去。 */
+    fun regenerate(messageId: String) = rerun(messageId, null)
+
+    /** 改写自己的提问并重新回答。原来的提问和它后面的对话留在服务端，用「‹ 2/3 ›」切回去。 */
+    fun editMessage(messageId: String, text: String) {
+        val content = text.trim()
+        if (content.isNotEmpty()) rerun(messageId, content)
+    }
+
+    private fun rerun(messageId: String, text: String?) {
+        val current = _state.value
+        val sessionId = current.activeSessionId ?: return
+        if (current.sending || current.messagesLoading || current.messagesFailed || current.upload != null) return
+        if (versionJob?.isActive == true) return
+        val before = cache[sessionId].orEmpty()
+        val index = before.indexOfFirst { it.id == messageId }
+        val target = before.getOrNull(index) ?: return
+        if (target.role != (if (text != null) MessageRole.User else MessageRole.Assistant)) return
+        loadJob?.cancel()
+        reconcileJobs.remove(sessionId)?.cancel()
+
+        // 从这条消息起先从画面上拿掉，放上新版本的位置；服务端只是把它们隐藏，不删除。
+        val modelId = current.selectedModel?.id
+        val assistantId = "$LOCAL_ID_PREFIX${++localIds}"
+        val userId = "$LOCAL_ID_PREFIX${++localIds}"
+        val edited = text?.let { target.copy(id = userId, key = userId, content = it, versions = null) }
+        setCached(
+            sessionId,
+            before.take(index) + listOfNotNull(edited) +
+                UiMessage(assistantId, MessageRole.Assistant, "", streaming = true, modelId = modelId),
+        )
+        _state.update { it.copy(notice = null, reveal = null, rejectedEdit = null) }
+        val request = ChatRequest(
+            message = text.orEmpty(),
+            sessionId = sessionId,
+            model = modelId,
+            reasoning = current.selectedReasoning,
+            webSearch = if (current.selectedModel?.supportsWebSearch == false) "off" else "auto",
+            edit = messageId.takeIf { text != null },
+            regenerate = messageId.takeIf { text == null },
+        )
+        val run = TurnRun(sessionId, epoch)
+        val turn = Turn(
+            assistantId, userId, rawText = "", files = emptyList(), pages = emptyList(), before = before,
+            edit = text?.let { RejectedEdit(messageId, it) },
+        )
+        launchTurn(run) { runStream(run, turn, request) }
+    }
+
+    private var versionJob: Job? = null
+
+    /** 显示另一个版本（编辑前的提问、之前的回答），它后面的对话一起换。 */
+    fun showVersion(messageId: String) {
+        val current = _state.value
+        val sessionId = current.activeSessionId ?: return
+        if (current.sending || current.messagesLoading || sessionId in streams || versionJob?.isActive == true) return
+        loadJob?.cancel()
+        reconcileJobs.remove(sessionId)?.cancel()
+        _state.update { it.copy(notice = null, reveal = null) }
+        val identity = epoch
+        versionJob = viewModelScope.launch {
+            val result = runCatching {
+                backend.showVersion(sessionId, messageId)
+                backend.messages(sessionId)
+            }
+            ensureActive()
+            if (identity != epoch) return@launch
+            result
+                .onSuccess { list -> if (sessionId !in streams) applyLoaded(sessionId, list) }
+                .onFailure { error ->
+                    val detail = (error as? ApiException)?.message ?: VERSION_SWITCH_FAILED
+                    _state.update { if (it.activeSessionId == sessionId) it.copy(notice = ComposerNotice.Failed(detail)) else it }
+                }
+        }
+    }
+
+    private var branchJob: Job? = null
+
+    /** 把到这条回答为止的对话复制成一个新聊天并打开它（[title] 是界面按语言拼好的「分支 · 原标题」）。原聊天不变。 */
+    fun branch(messageId: String, title: String) {
+        val sessionId = _state.value.activeSessionId ?: return
+        if (branchJob?.isActive == true) return
+        _state.update { it.copy(notice = null) }
+        val navigation = navigationCount
+        val identity = epoch
+        branchJob = viewModelScope.launch {
+            val result = runCatching { backend.branchSession(sessionId, messageId, title) }
+            ensureActive()
+            // 等待期间登录 / 退出了：那是之前身份的聊天，不放进现在的列表。
+            if (identity != epoch) return@launch
+            result
+                .onSuccess { session ->
+                    // 等待期间去了别的聊天：只加进列表，不把用户拉走。
+                    if (navigation != navigationCount) return@onSuccess addCreatedSession(session)
+                    _state.update { it.copy(sessions = listOf(session) + it.sessions.filterNot { s -> s.id == session.id }) }
+                    openSession(session.id)
+                    if (sessionsJob?.isActive == true) refreshSessions()
+                }
+                .onFailure { error ->
+                    val detail = (error as? ApiException)?.message ?: BRANCH_FAILED
+                    _state.update { if (it.activeSessionId == sessionId) it.copy(notice = ComposerNotice.Failed(detail)) else it }
+                }
+        }
+    }
+
+    /**
      * 正常结束时用服务器上保存的版本对账（拿到真实 ID、生成的图片、思考时长），只换这个聊天自己的缓存，
      * 不管用户现在看的是哪个聊天（网页 refreshSessionMessages）。
-     * 被停止时不对账：服务器不一定保存了已生成的半截回答，替换后屏幕上的文字可能凭空消失。
+     * 被停止时走 [reconcileStopped]：要等服务端把半截回答存好，换早了屏幕上的文字会凭空消失。
      */
     private fun reconcile(sessionId: String?, completed: Boolean) {
         val finished = sessionId ?: return
@@ -1007,6 +1242,7 @@ class ChatViewModel(
         var sessionId = request.sessionId
         var failure: Throwable? = null
         var completed = false
+        var stopped = false
         val startedAt = System.currentTimeMillis()
         updateAssistant(run, assistantId) { it.copy(startedAt = startedAt) }
 
@@ -1027,6 +1263,7 @@ class ChatViewModel(
             }
         }
 
+        chatJobs += run.job
         try {
             awaitSessionsRequest()
             coroutineScope {
@@ -1061,15 +1298,24 @@ class ChatViewModel(
             completed = true
         } catch (cancelled: CancellationException) {
             // 用户点了停止：保留已经收到的文字。
+            stopped = true
         } catch (error: Throwable) {
             failure = error
         } finally {
+            chatJobs -= run.job
             withContext(NonCancellable) {
                 flush()
                 finishAssistant(run, turn, failure)
             }
         }
-        return TurnOutcome(sessionId, completed)
+        // 停止时本机还留着这条回答（有正文或提案）：服务端也会把它存下来。
+        val hasAnswer = stopped && cache[run.key]?.any { it.id == assistantId && (it.content.isNotBlank() || it.proposals.isNotEmpty() || it.activity.any { step -> step is ActivityStep.ProposalStep }) } == true
+        // 编辑 / 重新生成没开始就失败：finishAssistant 已经退回原样，再核对一次服务端的状态。
+        val resync = failure != null && turn.before != null && cache[run.key]?.none { it.id == assistantId } == true
+        return TurnOutcome(
+            sessionId, completed, stopped = stopped, hasAnswer = hasAnswer, resync = resync,
+            knownBefore = turn.before.orEmpty().mapTo(mutableSetOf()) { it.id },
+        )
     }
 
     private fun updateAssistant(run: TurnRun, id: String, transform: (UiMessage) -> UiMessage) {
@@ -1093,6 +1339,7 @@ class ChatViewModel(
         failure = FailureInfo.fromActivity(dto.activity),
         activity = Activity.parseStored(dto.activity),
         proposals = Activity.parseStoredProposals(dto.proposals),
+        versions = dto.versions,
     )
 
     companion object {
@@ -1103,6 +1350,17 @@ class ChatViewModel(
 
         /** 本机先放进对话的消息的 ID 前缀（服务端的 ID 不会这样开头）。 */
         private const val LOCAL_ID_PREFIX = "local-"
+
+        /** 自己取消回答后，等服务端存好半截回答再对账：每次读取前等的毫秒数（网页 finishStoppedStream 的 500 / 1000 / 2000）。 */
+        private val STOP_SYNC_WAITS = listOf(500L, 1000L, 2000L)
+
+        /** 请服务端停止后，最多等这么久让回答自己结束（网页 8 秒），每隔一小段看一次。 */
+        private const val STOP_WAIT_MS = 8000L
+        private const val STOP_WAIT_STEP_MS = 200L
+
+        /** 网页字典里的原句（译文在 system-text.json），服务端没给出原因时用。 */
+        internal const val VERSION_SWITCH_FAILED = "Could not switch versions. Try again."
+        internal const val BRANCH_FAILED = "Could not branch this chat. Try again."
 
         /** 被拒的提问的笔记排在前面，等待期间新选的笔记接在后面（同一篇只留一份；网页 setAttachedPages 的合并）。 */
         internal fun mergeRestoredPages(restored: List<ChatProjectNote>, current: List<ChatProjectNote>): List<ChatProjectNote> =

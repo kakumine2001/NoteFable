@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 消息上的操作：重新生成、编辑、版本切换、分支（网页 turn-actions.tsx / answer-actions.tsx 的文案）。 -->
+<resources>
+    <string name="regenerate">回答を再生成</string>
+    <string name="branch_in_new_chat">新しいチャットで分岐</string>
+    <string name="previous_version">前のバージョン</string>
+    <string name="next_version">次のバージョン</string>
+    <string name="copy_message">メッセージをコピー</string>
+    <string name="edit_message">メッセージを編集</string>
+    <string name="turn_send">送信</string>
+    <string name="branch_title">分岐 · %1$s</string>
+</resources>

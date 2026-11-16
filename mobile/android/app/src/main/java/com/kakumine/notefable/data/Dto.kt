@@ -41,6 +41,10 @@ data class GeneratedImageDto(
     val mimeType: String = "image/png",
 )
 
+/** 同一位置的其它版本（编辑过的提问、重新生成的回答）里，这条是第几个，以及前后版本的消息 ID（网页 MessageVersions）。 */
+@Serializable
+data class MessageVersions(val index: Int, val total: Int, val prevId: String? = null, val nextId: String? = null)
+
 @Serializable
 data class MessageDto(
     val id: String,
@@ -57,6 +61,8 @@ data class MessageDto(
     val proposals: JsonElement? = null,
     /** 用户给这条提问添加的笔记（网页 Message.pages）。标题和图标每次读历史都从笔记取；回收站里的不返回。 */
     val pages: List<ChatProjectNote> = emptyList(),
+    /** 有别的版本时才有；只有一个版本时为空。 */
+    val versions: MessageVersions? = null,
 )
 
 @Serializable

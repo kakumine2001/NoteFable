@@ -42,7 +42,14 @@ data class ChatRequest(
     val uploads: List<String> = emptyList(),
     /** 添加的笔记 ID（`pages` 字段，JSON 数组；没有时不发）。正文由服务端每次发送时重新读取。 */
     val pages: List<String> = emptyList(),
+    /** 编辑自己的提问：要改写的那条提问的 ID（`edit` 字段），[message] 是新的文字。原来的版本留在服务端。 */
+    val edit: String? = null,
+    /** 重新生成回答：要重做的那条回答的 ID（`regenerate` 字段）。不发 `message`。 */
+    val regenerate: String? = null,
 )
+
+@kotlinx.serialization.Serializable
+private data class BranchedSession(val session: SessionSummary)
 
 class NoteFableApi(
     private val baseUrl: String,
@@ -74,14 +81,18 @@ class NoteFableApi(
      * 服务端出错（4xx/5xx）时以 [ApiException] 结束。取消收集会取消底层网络请求。
      */
     override fun streamChat(request: ChatRequest): Flow<ChatStreamEvent> = callbackFlow {
+        // 编辑和重新生成沿用原来那条提问的附件和笔记，不带新的（网页 rerunTurn）。
+        val rerun = request.edit != null || request.regenerate != null
         val body = MultipartBody.Builder().setType(MultipartBody.FORM)
-            .addFormDataPart("message", request.message)
+            .apply { if (request.regenerate == null) addFormDataPart("message", request.message) }
             .apply { request.model?.let { addFormDataPart("model", it) } }
             .apply { request.reasoning?.let { addFormDataPart("reasoning", it) } }
             .addFormDataPart("webSearch", request.webSearch)
             .apply { request.sessionId?.let { addFormDataPart("sessionId", it) } }
-            .addFormDataPart("uploads", uploadsJson(request.uploads))
-            .apply { if (request.pages.isNotEmpty()) addFormDataPart("pages", uploadsJson(request.pages)) }
+            .apply { if (!rerun) addFormDataPart("uploads", uploadsJson(request.uploads)) }
+            .apply { if (!rerun && request.pages.isNotEmpty()) addFormDataPart("pages", uploadsJson(request.pages)) }
+            .apply { request.edit?.let { addFormDataPart("edit", it) } }
+            .apply { request.regenerate?.let { addFormDataPart("regenerate", it) } }
             .build()
         val call = streamClient.newCall(
             Request.Builder().url(absoluteUrl("/api/chat")).post(body)
@@ -109,6 +120,20 @@ class NoteFableApi(
             reader.cancel()
         }
     }.buffer(Channel.UNLIMITED)
+
+    override suspend fun stopSession(sessionId: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/sessions/${segment(sessionId)}/stop")).post(ByteArray(0).toRequestBody(null)))
+    }
+
+    override suspend fun showVersion(sessionId: String, messageId: String) {
+        val body = buildJsonObject { put("messageId", messageId) }.toString()
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/sessions/${segment(sessionId)}/versions")).post(body.toRequestBody(JSON)))
+    }
+
+    override suspend fun branchSession(sessionId: String, messageId: String, title: String): SessionSummary {
+        val body = buildJsonObject { put("messageId", messageId); put("title", title) }.toString()
+        return send<BranchedSession>(Request.Builder().url(absoluteUrl("/api/sessions/${segment(sessionId)}/branch")).post(body.toRequestBody(JSON))).session
+    }
 
     // ---- 图片生成与附件 ----
 

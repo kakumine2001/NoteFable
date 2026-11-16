@@ -143,7 +143,7 @@ function toolError(content: string, label: string = msg("Edit proposal rejected"
 }
 
 // ノートは変更しない。編集案を検証して保存し画面に出す。ユーザーが適用するまでノートは動かない。
-async function proposePageEdit(args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
+async function proposePageEdit(args: unknown, userId: string, sessionId: string, excludeMessageIds: string[]): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const pageId = typeof value.noteId === "string" ? value.noteId.trim().slice(0, 200) : "";
   if (!pageId) return toolError("noteId must be a non-empty string.");
@@ -160,7 +160,7 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
     if (Array.isArray(value.edits)) {
       const entries = value.edits.map((edit: unknown) => edit && typeof edit === "object" ? edit as Record<string, unknown> : null);
       const markdowns = entries.map((entry) => entry && typeof entry.markdown === "string" ? entry.markdown : "");
-      const resolved = await createAttachmentResolver(userId, sessionId)(markdowns);
+      const resolved = await createAttachmentResolver(userId, sessionId, excludeMessageIds)(markdowns);
       edits = value.edits.map((edit: unknown, index: number) => entries[index] && typeof entries[index]!.markdown === "string" ? { ...entries[index], markdown: resolved[index] } : edit);
     }
     const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], edits);
@@ -185,13 +185,13 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string)
 }
 
 // 新規ノートも、ユーザーが適用するまでは作らない（提案だけを保存する）。
-async function proposePageCreate(args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
+async function proposePageCreate(args: unknown, userId: string, sessionId: string, excludeMessageIds: string[]): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const title = typeof value.title === "string" ? value.title.trim() : "";
   if (!title) return toolError("title must be a non-empty string.");
   if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") return toolError("icon must be a single emoji or null.");
   try {
-    const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await createAttachmentResolver(userId, sessionId)([value.markdown]))[0] : value.markdown);
+    const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await createAttachmentResolver(userId, sessionId, excludeMessageIds)([value.markdown]))[0] : value.markdown);
     const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
     const content = validateNoteContent({ title, icon, blocks });
     assertNoteFilesOwner(content.blocks, userId);
@@ -212,7 +212,8 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
 
 // モデルが求めたツールを実行する。userId はサーバーのセッションから渡し、モデルの入力からは決して取らない。
 // 失敗はエラー結果としてモデルへ返し、モデル自身に言い直しや説明をさせる。
-export async function runPageTool(name: string, args: unknown, userId: string, sessionId: string): Promise<ToolRun> {
+// excludeMessageIds：再生成で置き換えられる発言。まだ表示中のまま残っているので、チャットの添付を扱うツールからは外す。
+export async function runPageTool(name: string, args: unknown, userId: string, sessionId: string, excludeMessageIds: string[] = []): Promise<ToolRun> {
   if (name === "search_notes") {
     const query = input(args, "query");
     if (query === null) return { content: "query must be a string.", isError: true, label: msg("Invalid note search") };
@@ -234,10 +235,10 @@ export async function runPageTool(name: string, args: unknown, userId: string, s
     return { content: `noteId: ${page.id}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\n${content}`, label: fmt("Read “{title}”", { title: page.title }) };
   }
   if (name === "list_chat_attachments") {
-    const attachments = await listChatAttachments(userId, sessionId);
+    const attachments = await listChatAttachments(userId, sessionId, excludeMessageIds);
     return { content: JSON.stringify({ attachments, ...(attachments.length ? {} : { note: "The user has not attached anything in this chat." }) }), label: msg("Listed attached files") };
   }
-  if (name === "propose_note_edit") return proposePageEdit(args, userId, sessionId);
-  if (name === "propose_note_create") return proposePageCreate(args, userId, sessionId);
+  if (name === "propose_note_edit") return proposePageEdit(args, userId, sessionId, excludeMessageIds);
+  if (name === "propose_note_create") return proposePageCreate(args, userId, sessionId, excludeMessageIds);
   return { content: `Unknown tool: ${name}`, isError: true, label: msg("Unknown tool") };
 }

@@ -1,4 +1,5 @@
 import type { ActivityStep } from "@/lib/chat-activity";
+import type { MessageVersions } from "@/lib/chat-branches";
 
 // 回答に紐付いて保存された AI の提案（ノートの編集・新規作成）。
 export type StoredProposal = Extract<ActivityStep, { kind: "proposal" | "create_proposal" }>;
@@ -73,6 +74,8 @@ export type Message = {
   thinkingMs?: number;
   // 利用者がこの発言に添付したノート。ゴミ箱に入ったノートは返らない。
   pages?: AttachedPage[];
+  // 編集・再生成でできた別の版があるときの位置と、前後の版の ID。版が 1 つだけなら無い。
+  versions?: MessageVersions;
   // ユーザー添付、または生成画像以外のアシスタント添付。
   attachments?: {
     // 添付 ID。送信前はローカル ID、保存後は DB ID。

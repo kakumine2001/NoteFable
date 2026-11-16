@@ -53,10 +53,12 @@ export async function loadAttachedNotesContext(
   sessionId: string,
   latestMessageId: string,
   excludeIds: Iterable<string> = [],
+  // 再生成で置き換えられる発言（まだ隠していない）。そこに添付したノートは数えない。
+  excludeMessageIds: string[] = [],
 ): Promise<AttachedContextNote[]> {
   const refs = await prisma.messageNote.findMany({
     // ゴミ箱のノートは使わない。他人のノートは添付時に断っているが、読む側でも本人のものに限る。
-    where: { message: { sessionId }, note: { userId, deletedAt: null } },
+    where: { message: { sessionId, active: true, ...(excludeMessageIds.length ? { id: { notIn: excludeMessageIds } } : {}) }, note: { userId, deletedAt: null } },
     orderBy: [{ message: { createdAt: "desc" } }, { position: "asc" }],
     take: MAX_REFS_READ,
     select: { messageId: true, noteId: true },

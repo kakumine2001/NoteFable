@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { parseStoredActivity } from "@/lib/chat-activity";
 import { proposalsByMessage } from "@/lib/note-proposals";
+import { versionsOf } from "@/lib/chat-branches";
+import { loadBranchTree } from "@/lib/chat-branch-store";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -46,10 +48,10 @@ export async function GET(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
   }
 
-  // 画面表示に必要なメッセージと添付メタ情報を時系列順で取得する。
+  // 画面表示に必要なメッセージと添付メタ情報を時系列順で取得する。表示中の枝だけを返す（編集・再生成で置き換えられた版は出さない）。
   const messages = await prisma.message.findMany({
-    where: { sessionId },
-    orderBy: { createdAt: "asc" },
+    where: { sessionId, active: true },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: {
       id: true,
       role: true,
@@ -79,6 +81,8 @@ export async function GET(_request: Request, context: RouteContext) {
 
   // 回答に紐付いた AI の提案（編集・新規ノート）。再読み込み後も適用・破棄できるよう、状態つきで返す。
   const proposals = await proposalsByMessage(user.id, sessionId);
+  // 別の版がある発言には、何番目の版かと前後の版の ID を付ける（「‹ 2/3 ›」の切り替え用）。
+  const versions = versionsOf(await loadBranchTree(sessionId));
 
   return NextResponse.json({
     messages: messages.map((message) => {
@@ -104,6 +108,7 @@ export async function GET(_request: Request, context: RouteContext) {
         thinkingMs: message.thinkingMs ?? undefined,
         generatedImages,
         proposals: proposals.get(message.id) ?? [],
+        ...(versions.has(message.id) ? { versions: versions.get(message.id) } : {}),
         attachments: message.attachments
           .filter(
             (attachment) =>

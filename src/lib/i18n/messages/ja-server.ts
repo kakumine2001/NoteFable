@@ -192,4 +192,8 @@ export const jaServer: Record<string, string> = {
   "Could not send the report.": "報告を送信できませんでした。",
   "This answer is no longer available.": "この回答はもう存在しません。",
   "You’ve sent many reports today. Try again tomorrow.": "今日はたくさん報告を送りました。明日もう一度お試しください。",
+  "Message not found.": "メッセージが見つかりません。",
+  "Could not branch this chat. Try again.": "チャットを分岐できませんでした。もう一度お試しください。",
+  "Could not switch versions. Try again.": "バージョンを切り替えられませんでした。もう一度お試しください。",
+  "The connection was closed before the answer finished.": "回答が終わる前に接続が切れました。",
 };
