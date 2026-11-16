@@ -3,6 +3,7 @@ import type { ModelProvider } from "@/lib/models";
 import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { buildDeepSeekResponsesRequest } from "@/lib/deepseek-responses";
 import { buildAnthropicRequest, extractAnthropicText, requestAnthropic } from "@/lib/anthropic-messages";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 
 // タイトル生成は本文の返答より先に終わる想定。長引いても返答の完了を待たせすぎない。
 const TITLE_TIMEOUT_MS = 6000;
@@ -10,12 +11,16 @@ const TITLE_TIMEOUT_MS = 6000;
 const MAX_INPUT_CHARS = 2000;
 const MAX_TITLE_CHARS = 60;
 
+// 同じ 1 回の呼び出しで、一覧のアイコンにする絵文字も選ばせる（追加のリクエストはしない）。
 const TITLE_INSTRUCTIONS = [
   "Write a short title for a chat, based only on the user's first message.",
   "Use the same language as the message. Keep it under 6 words, or about 20 characters for Japanese and Chinese.",
-  "Output only the title: no quotes, no trailing punctuation, no explanation.",
+  "Start with one emoji that fits the topic, then a space, then the title.",
+  "Output only the emoji and the title: no quotes, no trailing punctuation, no explanation.",
   "Do not answer the message.",
 ].join(" ");
+
+const TITLE_PREFIX = /^(title|タイトル|标题)\s*[:：]\s*/i;
 
 type ResponsesOutput = {
   output_text?: string;
@@ -37,7 +42,7 @@ export function extractResponseText(data: ResponsesOutput) {
 export function cleanTitle(raw: string) {
   const firstLine = raw.trim().split(/\r?\n/)[0] ?? "";
   const title = firstLine
-    .replace(/^(title|タイトル|标题)\s*[:：]\s*/i, "")
+    .replace(TITLE_PREFIX, "")
     .replace(/^["'“”‘’「『]+|["'“”‘’」』]+$/g, "")
     .replace(/[。.!！?？]+$/, "")
     .replace(/\s+/g, " ")
@@ -46,7 +51,17 @@ export function cleanTitle(raw: string) {
   return title.length > MAX_TITLE_CHARS ? `${title.slice(0, MAX_TITLE_CHARS)}...` : title;
 }
 
-// 最初のメッセージから AI でタイトルを作る。失敗・空応答は null を返し、呼び出し側は仮タイトルを残す。
+export type ChatTitle = { title: string | null; icon: string | null };
+
+// 「🍳 パスタの作り方」を絵文字とタイトルに分ける。先頭が正しい絵文字 1 つでなければアイコンなし。
+export function parseTitleOutput(raw: string): ChatTitle {
+  const line = (raw.trim().split(/\r?\n/)[0] ?? "").trim().replace(TITLE_PREFIX, "").replace(/^["'“”‘’「『]+/, "");
+  const first = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)[Symbol.iterator]().next().value?.segment ?? "";
+  if (!isEmojiIcon(first)) return { title: cleanTitle(line), icon: null };
+  return { title: cleanTitle(line.slice(first.length)), icon: first };
+}
+
+// 最初のメッセージから AI でタイトルとアイコンを作る。失敗・空応答は null を返し、呼び出し側は仮タイトルを残す。
 export async function generateChatTitle({
   provider,
   model,
@@ -72,7 +87,7 @@ export async function generateChatTitle({
     }), signal);
     const data = await response.json();
     if (data.stop_reason !== "end_turn") return null;
-    return cleanTitle(extractAnthropicText(data));
+    return parseTitleOutput(extractAnthropicText(data));
   }
 
   const request =
@@ -116,5 +131,5 @@ export async function generateChatTitle({
   });
   if (!response.ok) throw new Error(`Title request failed with status ${response.status}.`);
 
-  return cleanTitle(extractResponseText((await response.json()) as ResponsesOutput));
+  return parseTitleOutput(extractResponseText((await response.json()) as ResponsesOutput));
 }

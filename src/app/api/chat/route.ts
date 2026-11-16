@@ -225,7 +225,7 @@ function encodeActivityStreamEvent(activity: ActivityEvent) {
   return `data: ${JSON.stringify({ activity })}\n\n`;
 }
 
-// 最初のメッセージから AI タイトルを作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
+// 最初のメッセージから AI タイトルとアイコン（絵文字）を作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
 // 仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
 async function saveGeneratedTitle({
   sessionId,
@@ -243,14 +243,16 @@ async function saveGeneratedTitle({
   message: string;
 }) {
   try {
-    const title = await generateChatTitle({ provider, model, message, userId });
-    if (!title) {
-      console.error("Chat title response had no text; keeping the placeholder.");
-      return;
-    }
-    await prisma.session.updateMany({
+    const generated = await generateChatTitle({ provider, model, message, userId });
+    if (!generated?.title) console.error("Chat title response had no text; keeping the placeholder.");
+    else await prisma.session.updateMany({
       where: { id: sessionId, userId, title: placeholder, titleManual: false },
-      data: { title },
+      data: { title: generated.title },
+    });
+    // アイコンはまだ無いときだけ付ける（その間にユーザーが選んだアイコンは上書きしない）。
+    if (generated?.icon) await prisma.session.updateMany({
+      where: { id: sessionId, userId, icon: null },
+      data: { icon: generated.icon },
     });
   } catch (error) {
     console.error("Failed to generate chat title", getErrorMessage(error));
