@@ -276,7 +276,8 @@ const WRAPPERS: { mark: string; styles: Styles }[] = [
   { mark: "*", styles: { italic: true } },
 ];
 // | は入れない: 段落の行頭の \| は markdownToBlocks が、表のセルの \| は splitTableRow が戻す（本文中の \| は書かれたまま残す）。
-const UNESCAPE = /[\\`*~[\]()#>.+_▸-]/;
+// $ は、回答の中で数式と紛れないよう \$ と書かれる金額の記号。ノートでは文字の $ に戻す。
+const UNESCAPE = /[\\`*~[\]()#>.+_$▸-]/;
 const MAX_INLINE_DEPTH = 6;
 
 // **太字** *斜体* ***両方*** ~~取り消し~~ `コード` [リンク](URL) だけを解釈する。それ以外は文字のまま残す。

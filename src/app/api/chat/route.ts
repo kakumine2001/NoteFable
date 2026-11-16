@@ -69,6 +69,8 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
     "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
     "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+    // 数式は画面で KaTeX が描く。区切りをそろえ、金額の「$」と紛れないようにする。
+    "Write math in LaTeX: $...$ inline, and $$...$$ on its own lines for displayed formulas. Write a literal dollar sign as \\$.",
     ...(pageTools
       ? [
           "You can search and read the user's own NoteFable Notes with the search_notes and read_note tools. Use them when the user refers to their notes, and never guess what a note says.",
