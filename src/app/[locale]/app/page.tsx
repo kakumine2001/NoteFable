@@ -1791,10 +1791,12 @@ export default function Home() {
               {uploadError || (typeof sendError === "function" ? sendError(t) : localizeSystemText(sendError, t))}
             </div>
           )}
-          <form onSubmit={sendMessage} className="notion-page-column">
+          {/* 入力欄はボタンの文字や添付のチップが状態でよく差し替わる。ページ翻訳や拡張がここの文字を書き換えると React の更新が失敗して画面が落ちるので、翻訳の対象から外す。 */}
+          <form onSubmit={sendMessage} className="notion-page-column" translate="no">
             {!!attachedPages.length && (
               // 添付したノート。押すと外れる（ファイルのチップと同じ）。
-              <ul className="mb-3 flex flex-wrap gap-2" aria-label={t("Attached pages")}>
+              // 文字の大きさは ul に付ける。globals.css の button { font: inherit } はレイヤー外で、button に付けた text-xs より強い。
+              <ul className="mb-3 flex flex-wrap gap-2 text-xs" aria-label={t("Attached pages")}>
                 {attachedPages.map((page) => (
                   <li key={page.id} className="min-w-0 max-w-full">
                     <button
@@ -1802,7 +1804,7 @@ export default function Home() {
                       onClick={() => { setSendError(""); setAttachedPages((current) => current.filter((item) => item.id !== page.id)); }}
                       disabled={Boolean(uploadProgress)}
                       aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
-                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
+                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                     >
                       {page.icon ? <span aria-hidden="true">{page.icon}</span> : <FileText size={13} aria-hidden="true" />}
                       <span className="truncate">{page.title || t("Untitled")}</span>
@@ -1813,7 +1815,8 @@ export default function Home() {
               </ul>
             )}
             {!!files.length && (
-              <div className="mb-3 flex flex-wrap gap-2">
+              // 文字の大きさはページのチップと同じ理由で親に付ける。
+              <div className="mb-3 flex flex-wrap gap-2 text-xs">
                 {files.map(({ id, file, previewUrl }) =>
                   previewUrl ? (
                     <div key={id} className="group motion-menu relative h-24 w-24 overflow-hidden rounded-md border border-[var(--notion-border)]">
@@ -1841,7 +1844,7 @@ export default function Home() {
                       type="button"
                       onClick={() => removeUploadFile(id)}
                       disabled={Boolean(uploadProgress)}
-                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
+                      className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                     >
                       <Paperclip size={13} />
                       <span className="truncate">{file.name}</span>

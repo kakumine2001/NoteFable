@@ -1583,6 +1583,14 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   opacity: 0.45;
 }
 
+/* 描画が例外で止まったときの画面（app-error-screen.tsx）。見た目はダイアログ（.notes-dialog）に揃える。 */
+/* body は overflow: hidden なので、カードが画面より高いとき（横向きのスマホ、大きな文字）はこの要素自身をスクロールさせる。 */
+.app-error-screen { display: grid; height: 100dvh; overflow-y: auto; place-items: center; padding: 1.5rem; background: var(--background); color: var(--notion-text); }
+.app-error-card { width: min(100%, 25rem); border-radius: 8px; padding: 1.5rem; background: white; box-shadow: var(--notion-shadow); }
+.app-error-card h1 { margin: 0; font-size: 1rem; font-weight: 600; }
+.app-error-card p { margin: 0.5rem 0 0; font-size: 0.875rem; line-height: 1.55; color: var(--notion-muted); }
+.app-error-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
+
 .notion-error,
 .notion-success {
   display: flex;

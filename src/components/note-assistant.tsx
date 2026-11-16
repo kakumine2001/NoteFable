@@ -393,7 +393,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
-      <form className="note-ai-form" onSubmit={submit}>
+      {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
+      <form className="note-ai-form" onSubmit={submit} translate="no">
         {(attachedPages.length > 0 || files.length > 0) && (
           // 添付したノートとファイル。押すと外れる（チャットの入力欄と同じ）。
           <ul className="note-ai-attachments" aria-label={t("Attached pages")}>

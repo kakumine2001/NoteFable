@@ -224,13 +224,14 @@ export const ChatMessage = memo(function ChatMessage({
         )}
         {message.role === "USER" && !!message.pages?.length && (
           // 発言に添付したノート。押すとそのノートを開く（ゴミ箱に入ったノートはサーバーが返さない）。
-          <ul className="mt-2 flex flex-wrap gap-1.5" aria-label={t("Attached pages")}>
+          // 文字の大きさは ul に付ける（globals.css の button { font: inherit } がレイヤー外で、button の text-xs より強いため）。
+          <ul className="mt-2 flex flex-wrap gap-1.5 text-xs" aria-label={t("Attached pages")}>
             {message.pages.map((page) => (
               <li key={page.id} className="min-w-0 max-w-full">
                 <button
                   type="button"
                   onClick={() => window.dispatchEvent(new CustomEvent("notefable:open-note", { detail: { id: page.id } }))}
-                  className="inline-flex max-w-full items-center gap-1 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2 py-1 text-xs text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
+                  className="inline-flex max-w-full items-center gap-1 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2 py-1 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                 >
                   {page.icon ? <span aria-hidden="true">{page.icon}</span> : <FileText size={12} aria-hidden="true" />}
                   <span className="truncate">{page.title || t("Untitled")}</span>
