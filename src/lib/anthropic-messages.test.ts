@@ -13,6 +13,7 @@ afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 describe("anthropicMessagesUrl", () => {
   it.each([
     ["", "https://api.anthropic.com/v1/messages"],
+    ["   ", "https://api.anthropic.com/v1/messages"],
     ["https://api.anthropic.com", "https://api.anthropic.com/v1/messages"],
     ["https://api.anthropic.com/", "https://api.anthropic.com/v1/messages"],
     ["https://api.anthropic.com/v1", "https://api.anthropic.com/v1/messages"],
@@ -23,8 +24,8 @@ describe("anthropicMessagesUrl", () => {
   });
 
   it("reads ANTHROPIC_BASE_URL when no base is given", () => {
-    vi.stubEnv("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
-    expect(anthropicMessagesUrl()).toBe("https://api.anthropic.com/v1/messages");
+    vi.stubEnv("ANTHROPIC_BASE_URL", "https://proxy.example.com/anthropic");
+    expect(anthropicMessagesUrl()).toBe("https://proxy.example.com/anthropic/v1/messages");
   });
 });
 

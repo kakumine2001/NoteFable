@@ -88,8 +88,7 @@ export function buildAnthropicRequest({ model, instructions, input, effort, webS
 // Messages API の URL。ANTHROPIC_BASE_URL は公式 SDK と同じく /v1 なし（https://api.anthropic.com）でも、
 // /v1 付きでも受け付ける。末尾が /v1 でなければ補う。
 export function anthropicMessagesUrl(base = optionalEnv("ANTHROPIC_BASE_URL")) {
-  const root = (base || "https://api.anthropic.com").trim().replace(/\/+$/, "");
-  return `${/\/v1$/.test(root) ? root : `${root}/v1`}/messages`;
+  return (base?.trim() || "https://api.anthropic.com").replace(/\/+$/, "").replace(/(?:\/v1)?$/, "/v1/messages");
 }
 
 export async function requestAnthropic(body: object, signal?: AbortSignal) {
