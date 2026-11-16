@@ -69,6 +69,8 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     "When speaking Japanese, do not use polite/formal Japanese; reply in a more casual style.",
     "Format answers as clean Markdown: use short headings, bullets or numbered lists for grouped points, and fenced code blocks for code, commands, or config.",
     "Do not use horizontal rules, repeated separator lines, or decorative dividers.",
+    // 数式は画面で KaTeX が描く。区切りをそろえ、金額の「$」と紛れないようにする。
+    "Write math in LaTeX: $...$ inline, and $$...$$ on its own lines for displayed formulas. Write a literal dollar sign as \\$.",
     ...(pageTools
       ? [
           "You can search and read the user's own NoteFable Notes with the search_notes and read_note tools. Use them when the user refers to their notes, and never guess what a note says.",
@@ -225,8 +227,8 @@ function encodeActivityStreamEvent(activity: ActivityEvent) {
   return `data: ${JSON.stringify({ activity })}\n\n`;
 }
 
-// 最初のメッセージから AI タイトルを作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
-// 仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
+// 最初のメッセージから AI タイトルとアイコン（絵文字）を作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
+// タイトルは仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
 async function saveGeneratedTitle({
   sessionId,
   userId,
@@ -243,17 +245,33 @@ async function saveGeneratedTitle({
   message: string;
 }) {
   try {
-    const title = await generateChatTitle({ provider, model, message, userId });
-    if (!title) {
+    const generated = await generateChatTitle({ provider, model, message, userId });
+    if (!generated?.title && !generated?.icon) {
       console.error("Chat title response had no text; keeping the placeholder.");
       return;
     }
-    await prisma.session.updateMany({
+    if (generated.title) await prisma.session.updateMany({
       where: { id: sessionId, userId, title: placeholder, titleManual: false },
-      data: { title },
+      data: { title: generated.title },
     });
+    // タイトルの保存で更新日時が進むので、アイコンはその後に書く。
+    if (generated.icon) await saveGeneratedIcon(sessionId, userId, generated.icon);
   } catch (error) {
     console.error("Failed to generate chat title", getErrorMessage(error));
+  }
+}
+
+// AI が選んだアイコンは、まだアイコンが無いときだけ付ける（ユーザーが選んだアイコンは上書きしない）。
+// 一覧の並びを動かさないよう、PATCH のアイコン変更と同じく更新日時を書き戻す。回答の保存と重なったら読み直す。
+async function saveGeneratedIcon(sessionId: string, userId: string, icon: string) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await prisma.session.findFirst({ where: { id: sessionId, userId, icon: null }, select: { updatedAt: true } });
+    if (!current) return;
+    const saved = await prisma.session.updateMany({
+      where: { id: sessionId, userId, icon: null, updatedAt: current.updatedAt },
+      data: { icon, updatedAt: current.updatedAt },
+    });
+    if (saved.count) return;
   }
 }
 

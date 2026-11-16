@@ -201,7 +201,7 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
           {detail?.status === "error" && <p role="alert" className="note-history-footer-error">{t(detail.message)}</p>}
           {revision && <>
             <h3 className="note-history-preview-title">{revision.icon && <span aria-hidden="true">{revision.icon}</span>}{revision.title}</h3>
-            <div className="markdown-body"><AssistantMarkdown content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
+            <div className="markdown-body"><AssistantMarkdown math={false} content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
           </>}
         </div>
         {revision && <div className="note-history-preview-footer">

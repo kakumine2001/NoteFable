@@ -4,6 +4,7 @@ import { ArrowUp, FileText, Paperclip, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
+import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { AttachMenu } from "@/components/attach-sheet";
 import { ChatMessage } from "@/components/chat-message";
@@ -208,6 +209,16 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const list = listRef.current;
     if (list && stick.current) list.scrollTop = list.scrollHeight;
   }, [messages, open]);
+
+  // 回答の高さが後から変わったとき（数式の表示が読み込まれて描き直されたとき）も、最下部を見ているなら付いていく。
+  useEffect(() => {
+    const onResized = () => {
+      const list = listRef.current;
+      if (list && stick.current) list.scrollTop = list.scrollHeight;
+    };
+    window.addEventListener(ANSWER_RESIZED_EVENT, onResized);
+    return () => window.removeEventListener(ANSWER_RESIZED_EVENT, onResized);
+  }, []);
 
   function onListScroll(event: UIEvent<HTMLDivElement>) {
     const list = event.currentTarget;

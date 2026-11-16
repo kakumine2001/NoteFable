@@ -1902,6 +1902,14 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   white-space: normal;
 }
 
+/* 数式（KaTeX）。長い式は式の中で横にスクロールさせ、ページ全体は横に動かさない。 */
+.markdown-body .katex-display {
+  margin: 0.9rem 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0;
+}
+
 .markdown-body > :first-child {
   margin-top: 0;
 }

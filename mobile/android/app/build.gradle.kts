@@ -97,6 +97,9 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.coil.network.okhttp)
     implementation(libs.markdown.renderer.m3)
+    // 回答里的数学公式（MIT，纯 Kotlin / Compose）。字体包是 KaTeX 的字体，和网页的公式用同一套。
+    implementation(libs.latex.renderer)
+    implementation(libs.latex.fonts.katex)
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play)
     implementation(libs.googleid)
