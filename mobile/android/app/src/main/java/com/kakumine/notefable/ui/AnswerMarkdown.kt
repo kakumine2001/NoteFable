@@ -46,12 +46,25 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.text.style.TextOverflow as Overflow
 import com.mikepenz.markdown.annotator.annotatorSettings
+import com.mikepenz.markdown.annotator.buildMarkdownAnnotatedString
+import com.mikepenz.markdown.compose.LocalMarkdownInlineContent
 import com.mikepenz.markdown.compose.elements.MarkdownCodeBlock
 import com.mikepenz.markdown.compose.elements.MarkdownCodeFence
 import com.mikepenz.markdown.compose.elements.MarkdownTableBasicText
 import org.intellij.markdown.ast.ASTNode
 import org.intellij.markdown.flavours.gfm.GFMElementTypes
 import org.intellij.markdown.flavours.gfm.GFMTokenTypes
+import androidx.compose.foundation.text.appendInlineContent
+import com.hrm.latex.renderer.Latex
+import com.hrm.latex.renderer.measure.rememberLatexMeasurer
+import com.hrm.latex.renderer.model.LatexConfig
+import com.hrm.latex.renderer.model.LatexTheme
+import com.kakumine.notefable.data.MathMarkdown
+import com.mikepenz.markdown.compose.elements.MarkdownParagraph
+import com.mikepenz.markdown.model.MarkdownAnnotator
+import com.mikepenz.markdown.model.markdownAnnotator
+import com.mikepenz.markdown.model.markdownInlineContent
+import org.intellij.markdown.MarkdownTokenTypes
 
 // 回答正文，对照网页 .markdown-body（src/app/globals.css）：
 //  - 正文 16 / 行高 1.72；标题 24.8 / 20.8 / 17.28，字重 650、颜色 --nf-ink、行高 1.3、字距 -0.015em；
@@ -79,6 +92,15 @@ private val ListIndent = 24.dp // ul/ol 的 padding-left 21.6 + li 的 padding-l
 
 @Composable
 fun AnswerMarkdown(content: String, muted: Boolean = false) {
+    // 数学公式（网页用 KaTeX，见 docs/architecture/chat-flow.md）：先把公式换成占位符，Markdown 照常排版，
+    // 再在占位符的位置放上排好版的公式。没有公式的回答和原来完全一样。
+    val math = remember(content) { MathMarkdown.prepare(content) }
+    AnswerBlocks(math.text, math.formulas, muted)
+}
+
+/** [text] 是换好占位符的 Markdown（[MathMarkdown.prepare]）；引用块用同一份 [formulas] 递归进来。 */
+@Composable
+private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, muted: Boolean) {
     // 文字样式里写了颜色，会盖过 markdownColor 的 text，所以灰色版本要把颜色直接放进样式。
     val body = if (muted) Body.copy(color = Sm.Muted) else Body
     val colors = markdownColor(
@@ -113,11 +135,20 @@ fun AnswerMarkdown(content: String, muted: Boolean = false) {
         listItemBottom = 0.64.dp,
         listIndent = ListIndent,
     )
-    val components = remember(muted) {
+    val components = remember(muted, formulas) {
         markdownComponents(
+            // 整段只有一个独立公式的，画成居中的公式；其余段落照常。
+            paragraph = { model ->
+                val formula = MathMarkdown.displayFormula(model.content.substring(model.node.startOffset, model.node.endOffset), formulas)
+                if (formula != null) DisplayMath(formula.latex, muted)
+                else MarkdownParagraph(model.content, model.node, style = model.typography.paragraph)
+            },
             // 围栏代码和缩进代码都用网页的代码块外框（网页 pre 统一换成 MarkdownCodeBlock）。
             codeFence = { model ->
-                MarkdownCodeFence(model.content, model.node, Code) { code, language, _ -> CodeBlock(code, language) }
+                // ```math 的代码块是独立公式（网页由 rehype-katex 画）。
+                MarkdownCodeFence(model.content, model.node, Code) { code, language, _ ->
+                    if (language == "math" && code.isNotBlank()) DisplayMath(code.trim(), muted) else CodeBlock(code, language)
+                }
             },
             codeBlock = { model ->
                 MarkdownCodeBlock(model.content, model.node, Code) { code, language, _ -> CodeBlock(code, language) }
@@ -169,7 +200,7 @@ fun AnswerMarkdown(content: String, muted: Boolean = false) {
                 Row(Modifier.height(IntrinsicSize.Min)) {
                     Box(Modifier.width(3.dp).fillMaxHeight().background(Sm.BorderStrong))
                     Spacer(Modifier.width(14.4.dp))
-                    AnswerMarkdown(quoted, muted = true)
+                    AnswerBlocks(quoted, formulas, muted = true)
                 }
             },
         )
@@ -177,10 +208,63 @@ fun AnswerMarkdown(content: String, muted: Boolean = false) {
 
     // 兜底：库里没显式带行高的文字（如列表项内容）也用正文的行高，否则列表会比网页紧。
     // 流式追加时保留上一帧的解析结果，避免每次异步解析都先显示空白加载态。
-    val markdownState = rememberMarkdownState(content, retainState = true)
-    ProvideTextStyle(body) {
-        Markdown(markdownState = markdownState, colors = colors, typography = typography, padding = padding, components = components)
+    val markdownState = rememberMarkdownState(text, retainState = true)
+    if (formulas.isEmpty()) {
+        ProvideTextStyle(body) {
+            Markdown(markdownState = markdownState, colors = colors, typography = typography, padding = padding, components = components)
+        }
+        return
     }
+    val config = mathConfig(muted)
+    val measurer = rememberLatexMeasurer(config)
+    // 行内公式：先量好大小，按基线嵌进文字。量不出来的（写错、还没写完）不放进表里，占位符的位置显示 LaTeX 源码。
+    val inline = remember(formulas, measurer, config) {
+        buildMap {
+            formulas.forEachIndexed { index, formula ->
+                runCatching { measurer.inlineContent(MathMarkdown.typeset(formula.latex), config, false) }.getOrNull()?.let { put(mathKey(index), it) }
+            }
+        }
+    }
+    val annotator = remember(formulas) { mathAnnotator(formulas) }
+    ProvideTextStyle(body) {
+        Markdown(
+            markdownState = markdownState, colors = colors, typography = typography, padding = padding, components = components,
+            annotator = annotator, inlineContent = markdownInlineContent(inline),
+        )
+    }
+}
+
+/** 网页的 .katex 是正文的 1.21 倍（16 → 19.36）。颜色跟正文（引用里是灰色）。 */
+@Composable
+private fun mathConfig(muted: Boolean) = remember(muted) {
+    LatexConfig(fontSize = 19.36.sp, theme = LatexTheme.light(color = if (muted) Sm.Muted else Sm.Text, backgroundColor = Color.Transparent))
+}
+
+/** 独立公式（网页 .katex-display）：单独一块，居中，上下 14.4；比屏幕宽时在公式里横向滚动。 */
+@Composable
+private fun DisplayMath(latex: String, muted: Boolean) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 8.8.dp).horizontalScroll(rememberScrollState()), Alignment.Center) {
+        Latex(remember(latex) { MathMarkdown.typeset(latex) }, Modifier, mathConfig(muted), false)
+    }
+}
+
+private fun mathKey(index: Int) = "math-$index"
+
+/** 文字里的公式占位符换成行内内容（没量出来的公式，Compose 会显示这里给的替代文字，也就是 LaTeX 源码）。 */
+private fun mathAnnotator(formulas: List<MathMarkdown.Formula>): MarkdownAnnotator = markdownAnnotator { content, child ->
+    if (child.type != MarkdownTokenTypes.TEXT) return@markdownAnnotator false
+    val text = content.substring(child.startOffset, child.endOffset)
+    if (MathMarkdown.OPEN !in text) return@markdownAnnotator false
+    var last = 0
+    for (match in MathMarkdown.PLACEHOLDER.findAll(text)) {
+        append(text, last, match.range.first)
+        val index = match.groupValues[1].toIntOrNull()
+        val formula = index?.let(formulas::getOrNull)
+        if (formula != null) appendInlineContent(mathKey(index), formula.latex) else append(match.value)
+        last = match.range.last + 1
+    }
+    append(text, last, text.length)
+    true
 }
 
 private val CellMinWidth = 88.dp // 手机上 th/td 的 min-width 5.5rem（含内边距和边框）
@@ -206,6 +290,7 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
     val columnCount = cells.maxOf { it.size }.coerceAtLeast(1)
     val headerStyle = body.copy(color = Sm.Ink, fontWeight = FontWeight.SemiBold)
     val settings = annotatorSettings()
+    val inline = LocalMarkdownInlineContent.current.inlineContent
     val geometry = remember { TableGeometry() }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
@@ -218,15 +303,20 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
                         repeat(columnCount) { column ->
                             Box(Modifier.padding(horizontal = CellPaddingH, vertical = CellPaddingV)) {
                                 val cell = row.getOrNull(column)
-                                if (cell != null) {
+                                val style = if (header) headerStyle else body
+                                if (cell != null && inline.isEmpty()) {
                                     MarkdownTableBasicText(
                                         content = content,
                                         cell = cell,
-                                        style = if (header) headerStyle else body,
+                                        style = style,
                                         maxLines = Int.MAX_VALUE,
                                         overflow = Overflow.Clip,
                                         annotatorSettings = settings,
                                     )
+                                } else if (cell != null) {
+                                    // 库的单元格文字不带行内内容，有公式的回答要自己排，公式才显示得出来。
+                                    val text = remember(content, cell, style, settings) { content.buildMarkdownAnnotatedString(cell, style, settings) }
+                                    Text(text, style = style, inlineContent = inline)
                                 }
                             }
                         }

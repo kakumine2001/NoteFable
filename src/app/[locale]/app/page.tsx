@@ -24,6 +24,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
@@ -1638,6 +1639,16 @@ export default function Home() {
     if (!scroller || !streaming || !followBottomRef.current) return;
     scroller.scrollTop = scroller.scrollHeight;
   }, [messages, isActiveSessionStreaming]);
+
+  // 回答の高さが後から変わったとき（数式の表示が読み込まれて描き直されたとき）も、最下部を見ているなら最下部に付いていく。
+  useEffect(() => {
+    const onResized = () => {
+      const scroller = chatScrollRef.current;
+      if (scroller && followBottomRef.current) scroller.scrollTop = scroller.scrollHeight;
+    };
+    window.addEventListener(ANSWER_RESIZED_EVENT, onResized);
+    return () => window.removeEventListener(ANSWER_RESIZED_EVENT, onResized);
+  }, []);
 
   // 入力欄は本文の行数に合わせて伸ばす（上限は CSS の max-height。超えたら欄の中でスクロールする）。
   // 測るために一度縮めると会話の表示域が広がってスクロール位置がずれるので、測ったあとで元の位置（最下部を見ていたなら最下部）へ戻す。

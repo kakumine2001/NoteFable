@@ -19,12 +19,12 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
-import { isValidElement, useEffect, useMemo, useState } from "react";
+import { isValidElement, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { hasMath, normalizeMath } from "@/lib/math-markdown";
+import { prepareMath } from "@/lib/math-markdown";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useT } from "@/components/i18n-provider";
 
@@ -269,46 +269,54 @@ const markdownComponents: Components = {
   },
 };
 
-// 数式（LaTeX）の表示。KaTeX は大きいので、数式らしい記号を含む回答が出たときに初めて読み込む（スタイルと字体も一緒）。
-// 読み込みが済むまでは数式を書かれたままの文字で出し、済んだら描き直す。
+// 数式（LaTeX）の表示。KaTeX は大きいので、数式を含む回答が出たときに初めて読み込む（スタイルと字体も一緒）。
+// 読み込みが済むまでは数式を書かれたままの文字で出し、済んだら、表示中のすべての回答を描き直す。
 type MathPlugins = { remark: NonNullable<Options["remarkPlugins"]>; rehype: NonNullable<Options["rehypePlugins"]> };
 let mathPlugins: MathPlugins | null = null;
-let mathLoading: Promise<MathPlugins | null> | null = null;
+let mathLoading: Promise<void> | null = null;
+const mathListeners = new Set<() => void>();
+
+function subscribeMath(listener: () => void) {
+  mathListeners.add(listener);
+  return () => { mathListeners.delete(listener); };
+}
 
 function loadMathPlugins() {
-  mathLoading ??= Promise.all([import("remark-math"), import("rehype-katex"), import("katex/dist/katex.min.css")])
+  if (mathPlugins || mathLoading) return;
+  mathLoading = Promise.all([import("remark-math"), import("rehype-katex"), import("katex/dist/katex.min.css")])
     .then(([remarkMath, rehypeKatex]) => {
       mathPlugins = {
         remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }]],
         // 書き間違いの数式は例外にせず、書かれたままの文字を出す（回答の残りは読めるように）。
         rehype: [[rehypeKatex.default, { throwOnError: false, strict: false, errorColor: "currentColor" }]],
       };
-      return mathPlugins;
+      mathListeners.forEach((listener) => listener());
     })
     .catch(() => {
-      // 読み込めなかったら、次に数式が出たときにもう一度試す。
+      // 読み込めなかったら、少し待ってもう一度試す（数式のある回答が表示されている間）。
       mathLoading = null;
-      return null;
+      if (mathListeners.size) window.setTimeout(() => { if (mathListeners.size) loadMathPlugins(); }, 5000);
     });
-  return mathLoading;
 }
 
 const plainRemarkPlugins = [remarkGfm];
 
-export function AssistantMarkdown({ content }: { content: string }) {
-  const needsMath = hasMath(content);
-  const [math, setMath] = useState(mathPlugins);
+// math を false にすると数式として読まない（ノートの履歴の表示用：ノートの Markdown は [ や ( を \[ \( と書き出すので、
+// 数式と紛れる。ノートの編集画面も数式を描かない）。
+export function AssistantMarkdown({ content, math: mathEnabled = true }: { content: string; math?: boolean }) {
+  // \( … \)・\[ … \] を $ … $ にそろえ、独立した数式を $$ の行で囲み、数式ではない「$」をエスケープする。
+  const prepared = useMemo(() => (mathEnabled ? prepareMath(content) : null), [content, mathEnabled]);
+  const needsMath = prepared?.hasMath ?? false;
+  // 数式のある回答だけが読み込みの完了を待つ（無い回答は、読み込まれても描き直さない）。
+  const math = useSyncExternalStore(needsMath ? subscribeMath : subscribeNothing, () => mathPlugins, () => null);
   useEffect(() => {
-    if (!needsMath || math) return;
-    let alive = true;
-    void loadMathPlugins().then((loaded) => {
-      if (alive && loaded) setMath(loaded);
-    });
-    return () => { alive = false; };
-  }, [needsMath, math]);
+    if (needsMath) loadMathPlugins();
+  }, [needsMath]);
   const useMath = needsMath && math !== null;
-  // \( … \)・\[ … \] を $ … $ にそろえ、数式ではない「$」をエスケープする。
-  const prepared = useMemo(() => (useMath ? normalizeMath(content) : content), [content, useMath]);
+  // 数式が後から描かれると回答の高さが変わる。最下部を見ている会話が、その分だけ上に取り残されないよう知らせる。
+  useLayoutEffect(() => {
+    if (useMath) window.dispatchEvent(new Event(ANSWER_RESIZED_EVENT));
+  }, [useMath]);
 
   return (
     <ReactMarkdown
@@ -317,7 +325,14 @@ export function AssistantMarkdown({ content }: { content: string }) {
       components={markdownComponents}
       skipHtml
     >
-      {prepared}
+      {useMath && prepared ? prepared.text : content}
     </ReactMarkdown>
   );
 }
+
+function subscribeNothing() {
+  return () => {};
+}
+
+// 回答の高さが、メッセージの追加以外の理由で変わったときに window へ投げるイベント。
+export const ANSWER_RESIZED_EVENT = "notefable:answer-resized";

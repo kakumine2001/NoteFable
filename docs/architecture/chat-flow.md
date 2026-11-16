@@ -459,13 +459,18 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 ## 回答里的数学公式
 
-回答的 Markdown 里的 LaTeX 公式由 KaTeX 渲染（`src/components/assistant-markdown.tsx`，所以聊天回答、笔记助手面板和笔记历史预览都生效）。
+回答的 Markdown 里的 LaTeX 公式在网页上由 KaTeX 渲染（`src/components/assistant-markdown.tsx`：聊天回答和笔记助手面板），Android 原生 App 用同一套规则认公式、用自带的排版库画（见下）。
 
-- **写法**：系统指令（`buildInstructions()`）要求模型行内用 `$…$`、独立公式用单独成行的 `$$…$$`、金额的美元符号写成 `\$`。模型仍可能写 `\( … \)`、`\[ … \]`，所以渲染前由 `normalizeMath`（`src/lib/math-markdown.ts`，有单元测试）统一：`\( … \)` 改成 `$…$`；独占一行的 `\[ … \]` 改成 `$$` 块（保留列表里的缩进）；`$…$` 按 Pandoc 的规则判断是不是公式（开头的 `$` 后面、结尾的 `$` 前面不是空白，结尾的 `$` 后面不是数字），不成对的 `$` 转义成普通字符，所以 “$5 和 $10” 不会被当成公式。代码块和行内代码里的内容不动。回答还在生成、公式没写完时保持原样显示。
-- **加载**：`remark-math`、`rehype-katex` 和 KaTeX 的样式、字体只在回答里出现 `$`、`\(` 或 `\[` 时才动态加载（`hasMath`），加载完成前公式按原文显示，之后重新渲染；加载失败时下次再试。没有公式的对话不加载这些文件。
+- **写法**：系统指令（`buildInstructions()`）要求模型行内用 `$…$`、独立公式用单独成行的 `$$…$$`、金额的美元符号写成 `\$`。模型仍可能写 `\( … \)`、`\[ … \]`，所以渲染前由 `prepareMath`（`src/lib/math-markdown.ts`，返回整理后的 Markdown 和 `hasMath`）统一：
+  - `\( … \)` 改成 `$…$`；`$…$` 按 Pandoc 的规则判断是不是公式（开头的 `$` 后面、结尾的 `$` 前面不是空白，结尾的 `$` 后面不是数字，不换行）。公式里有 `$`（`\$100`）的改用 `$$…$$` 包住，免得提前结束。
+  - 独立公式（`\[ … \]`、`$$ … $$`）：从行首（只有缩进和引用的 `>`）开始、到行尾结束的，改成“`$$` 各占一行”的块，并保留缩进和 `>`（列表、引用里的公式留在原处）——remark-math 关不上不是这个形状的 `$$` 块，会把后面的正文也吞进公式。夹在句子中间的当行内公式。
+  - 回答里有公式时，不成对的 `$` 转义成普通字符，所以 “$5 和 $10” 不会被当成公式；回答里没有公式时原文不动。
+  - 不动的内容：代码块（围栏按 CommonMark 判断，没写完的围栏一直算代码）和行内代码、链接地址 `](…)`、`<https://…>` 和裸网址。紧跟在英文字母、数字或 `[` 后面的 `\[`、`\(`（`arr\[i\]`、`f\(x\)`、`[\[1\]](…)`）以及 `\[ \]`、`\[x\]`（转义写法的任务方框）是 Markdown 的转义，不是公式。
+  - ```` ```math ```` 代码块是独立公式（由 rehype-katex 画）。回答还在生成、公式没写完时保持原样显示。
+- **加载**：`remark-math`、`rehype-katex` 和 KaTeX 的样式、字体只在某条回答里真的有公式时才动态加载（`hasMath`；只有金额的 `$` 不算）。加载完成前公式按原文显示，加载完所有回答一起重新渲染；加载失败 5 秒后可以再试。重新渲染改变了回答的高度，所以这时派发 `notefable:answer-resized`，聊天页在跟随最新内容时保持在底部。没有公式的对话不加载这些文件。
 - **出错的公式**不抛异常（`throwOnError: false`），按原文显示，回答其余部分照常。很长的独立公式在公式内部横向滚动（`.markdown-body .katex-display`）。
-- **不受影响的部分**：保存的仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 存进笔记的也是这段文字——笔记编辑器（BlockNote）没有公式块，在笔记里不渲染。
-- **Android 原生 App 还不渲染公式**，显示的是 LaTeX 源码，见 [android-native.md](android-native.md)。
+- **不受影响的部分**：保存的仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 存进笔记的也是这段文字——笔记编辑器（BlockNote）没有公式块，在笔记里不渲染，所以笔记历史的预览也不渲染公式（`<AssistantMarkdown math={false}>`）。回答里写成 `\$` 的金额符号，存进笔记（`src/lib/note-markdown.ts`）和导出成纯文字（`src/lib/answer-export.ts`）时还原成 `$`。
+- **Android 原生 App**：`data/MathMarkdown.kt` 是 `prepareMath` 的移植（同样的输入认出同样的公式，测试用例一一对应；改规则时两边一起改），排版见 [android-native.md](android-native.md#回答体验)。
 
 ## 整理成笔记（Create page）
 

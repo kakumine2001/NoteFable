@@ -10,7 +10,7 @@ NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，
 
 ## 聊天与项目
 
-回答里的数学公式（LaTeX）在网页上用 KaTeX 渲染，行内和独立公式都支持，金额里的 `$` 不会被误当成公式；Android 原生 App 暂时显示 LaTeX 源码。实现见 [chat-flow.md](docs/architecture/chat-flow.md#回答里的数学公式)。
+回答里的数学公式（LaTeX）会排版显示：网页用 KaTeX，Android 原生 App 用 KaTeX 字体的原生排版库；行内和独立公式都支持，金额里的 `$` 不会被误当成公式。实现见 [chat-flow.md](docs/architecture/chat-flow.md#回答里的数学公式)。
 
 回答进行中，发送键变成停止键：停下时已经生成的部分会保存下来。每条回答的“…”菜单里可以重新生成（用当前选的模型）或“在新聊天中分支”（把到这条回答为止的对话复制成一个新聊天）；自己的发言可以复制、直接改写后重新回答。改写和重新生成不会丢掉原来的内容：同一位置出现 `‹ 2/3 ›`，可以切回之前的版本和它后面的对话。实现见 [chat-flow.md](docs/architecture/chat-flow.md#停止编辑重新生成与分支)。
 
