@@ -1,6 +1,7 @@
 "use client";
 
 import { RotateCw } from "lucide-react";
+import { usePathname } from "next/navigation";
 import { useEffect } from "react";
 import { useT } from "@/components/i18n-provider";
 
@@ -9,12 +10,15 @@ import { useT } from "@/components/i18n-provider";
 // ブラウザの翻訳機能や拡張が DOM を書き換えて React の更新が失敗する場合もここに来る。
 export function AppErrorScreen({ error, retry }: { error: Error & { digest?: string }; retry: () => void }) {
   const t = useT();
+  // Android アプリの中のノート編集（/note-embed）には翻訳も拡張もないので、その案内は出さない。
+  const embedded = usePathname()?.includes("note-embed") ?? false;
   useEffect(() => { console.error(error); }, [error]);
   return (
     <main className="app-error-screen" translate="no">
       <div className="app-error-card" role="alert">
         <h1>{t("Something went wrong")}</h1>
-        <p>{t("This screen ran into a problem and stopped. Try again, or reload the page. If it keeps happening, try turning off page translation or browser extensions for this site.")}</p>
+        <p>{t("This screen ran into a problem and stopped. Try again, or reload the page.")}</p>
+        {!embedded && <p>{t("If it keeps happening, try turning off page translation or browser extensions for this site.")}</p>}
         <div className="app-error-actions">
           <button type="button" className="notion-button" onClick={() => window.location.reload()}>{t("Reload page")}</button>
           <button type="button" className="notion-button notion-button-primary" onClick={retry}>
