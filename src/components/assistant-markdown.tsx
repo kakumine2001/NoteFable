@@ -19,11 +19,12 @@ import sql from "highlight.js/lib/languages/sql";
 import typescript from "highlight.js/lib/languages/typescript";
 import xml from "highlight.js/lib/languages/xml";
 import yaml from "highlight.js/lib/languages/yaml";
-import { isValidElement, useState } from "react";
+import { isValidElement, useEffect, useMemo, useState } from "react";
 import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
-import ReactMarkdown, { type Components } from "react-markdown";
+import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { hasMath, normalizeMath } from "@/lib/math-markdown";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useT } from "@/components/i18n-provider";
 
@@ -268,14 +269,55 @@ const markdownComponents: Components = {
   },
 };
 
+// 数式（LaTeX）の表示。KaTeX は大きいので、数式らしい記号を含む回答が出たときに初めて読み込む（スタイルと字体も一緒）。
+// 読み込みが済むまでは数式を書かれたままの文字で出し、済んだら描き直す。
+type MathPlugins = { remark: NonNullable<Options["remarkPlugins"]>; rehype: NonNullable<Options["rehypePlugins"]> };
+let mathPlugins: MathPlugins | null = null;
+let mathLoading: Promise<MathPlugins | null> | null = null;
+
+function loadMathPlugins() {
+  mathLoading ??= Promise.all([import("remark-math"), import("rehype-katex"), import("katex/dist/katex.min.css")])
+    .then(([remarkMath, rehypeKatex]) => {
+      mathPlugins = {
+        remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }]],
+        // 書き間違いの数式は例外にせず、書かれたままの文字を出す（回答の残りは読めるように）。
+        rehype: [[rehypeKatex.default, { throwOnError: false, strict: false, errorColor: "currentColor" }]],
+      };
+      return mathPlugins;
+    })
+    .catch(() => {
+      // 読み込めなかったら、次に数式が出たときにもう一度試す。
+      mathLoading = null;
+      return null;
+    });
+  return mathLoading;
+}
+
+const plainRemarkPlugins = [remarkGfm];
+
 export function AssistantMarkdown({ content }: { content: string }) {
+  const needsMath = hasMath(content);
+  const [math, setMath] = useState(mathPlugins);
+  useEffect(() => {
+    if (!needsMath || math) return;
+    let alive = true;
+    void loadMathPlugins().then((loaded) => {
+      if (alive && loaded) setMath(loaded);
+    });
+    return () => { alive = false; };
+  }, [needsMath, math]);
+  const useMath = needsMath && math !== null;
+  // \( … \)・\[ … \] を $ … $ にそろえ、数式ではない「$」をエスケープする。
+  const prepared = useMemo(() => (useMath ? normalizeMath(content) : content), [content, useMath]);
+
   return (
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+      remarkPlugins={useMath ? math.remark : plainRemarkPlugins}
+      rehypePlugins={useMath ? math.rehype : undefined}
       components={markdownComponents}
       skipHtml
     >
-      {content}
+      {prepared}
     </ReactMarkdown>
   );
 }

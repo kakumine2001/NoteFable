@@ -457,6 +457,16 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 这个链接不是分享链接：会话仍按设备 Cookie / Google 账号归属，在别的浏览器里打开只会得到 “Failed to load conversation.”。在笔记里点这个链接是整页导航（BlockNote 链接），整页重新加载后再跳转。
 
+## 回答里的数学公式
+
+回答的 Markdown 里的 LaTeX 公式由 KaTeX 渲染（`src/components/assistant-markdown.tsx`，所以聊天回答、笔记助手面板和笔记历史预览都生效）。
+
+- **写法**：系统指令（`buildInstructions()`）要求模型行内用 `$…$`、独立公式用单独成行的 `$$…$$`、金额的美元符号写成 `\$`。模型仍可能写 `\( … \)`、`\[ … \]`，所以渲染前由 `normalizeMath`（`src/lib/math-markdown.ts`，有单元测试）统一：`\( … \)` 改成 `$…$`；独占一行的 `\[ … \]` 改成 `$$` 块（保留列表里的缩进）；`$…$` 按 Pandoc 的规则判断是不是公式（开头的 `$` 后面、结尾的 `$` 前面不是空白，结尾的 `$` 后面不是数字），不成对的 `$` 转义成普通字符，所以 “$5 和 $10” 不会被当成公式。代码块和行内代码里的内容不动。回答还在生成、公式没写完时保持原样显示。
+- **加载**：`remark-math`、`rehype-katex` 和 KaTeX 的样式、字体只在回答里出现 `$`、`\(` 或 `\[` 时才动态加载（`hasMath`），加载完成前公式按原文显示，之后重新渲染；加载失败时下次再试。没有公式的对话不加载这些文件。
+- **出错的公式**不抛异常（`throwOnError: false`），按原文显示，回答其余部分照常。很长的独立公式在公式内部横向滚动（`.markdown-body .katex-display`）。
+- **不受影响的部分**：保存的仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 存进笔记的也是这段文字——笔记编辑器（BlockNote）没有公式块，在笔记里不渲染。
+- **Android 原生 App 还不渲染公式**，显示的是 LaTeX 源码，见 [android-native.md](android-native.md)。
+
 ## 整理成笔记（Create page）
 
 “Save to page” 只把一条回答原样存成笔记；**Create page** 让 AI 把整段对话改写成一篇条理清晰、可以复习的笔记（类似 Perplexity 的 Create Page）。入口是聊天顶栏的 `FilePlus` 图标（`page.tsx`，标签 “Create page”）：只在 Chat 视图、会话已保存且有消息时显示，当前会话正在上传附件或生成回答时不可点（最后一条回答还没入库），窗口里的 Create page 按钮也一样。笔记里的 AI 助手会话不在 Chat 视图里，所以没有这个入口；服务端也拒绝它们。
