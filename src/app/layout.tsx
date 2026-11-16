@@ -4,6 +4,7 @@ import "./globals.css";
 import "./motion.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { siteOrigin } from "@/lib/i18n/routing";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
 const geistSans = Geist({
@@ -18,6 +19,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // canonical・hreflang などの URL を絶対 URL にする土台（Google は hreflang に絶対 URL を求める）。本番は Vercel が渡す URL。
+  metadataBase: new URL(siteOrigin()),
   // ブラウザタブや検索結果で使われるアプリ名。
   title: "NoteFable",
   // Next.js の Metadata API へ渡すページ説明。

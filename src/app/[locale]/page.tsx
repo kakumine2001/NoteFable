@@ -11,7 +11,7 @@ const DESCRIPTION = msg("AI chat and notes in one place: ask a question, keep th
 
 // 検索エンジンに言語ごとの版を知らせる（hreflang と canonical）。/ は proxy が言語を選んで /{locale} の中身を出すので、
 // その版の canonical（/{locale}）を指す重複として扱われる。x-default は付けない（canonical が別の URL を指す URL は無視されるため）。
-// 絶対 URL の土台（metadataBase）は、Vercel では Next.js が本番の URL を自動で使う。
+// 絶対 URL の土台（metadataBase）はルートのレイアウトで siteOrigin() に設定している。
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale: value } = await params;
   const locale: Locale = isLocale(value) ? value : "en";
