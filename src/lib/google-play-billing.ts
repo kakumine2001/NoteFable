@@ -90,6 +90,8 @@ export type PlaySubscription = {
   acknowledgementState?: string;
   linkedPurchaseToken?: string;
   externalAccountIdentifiers?: { obfuscatedExternalAccountId?: string };
+  // Play ストアで、期限切れの購読を買い直したとき（アプリの外）。元の購入トークンと、元の購入に付けた利用者 ID。
+  outOfAppPurchaseContext?: { expiredPurchaseToken?: string; expiredExternalAccountIdentifiers?: { obfuscatedExternalAccountId?: string } };
   lineItems?: { productId?: string; expiryTime?: string; autoRenewingPlan?: { autoRenewEnabled?: boolean } }[];
 };
 
@@ -99,6 +101,11 @@ export async function fetchPlaySubscription(purchaseToken: string) {
 
 async function acknowledge(purchaseToken: string, productId: string) {
   await call(`purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:acknowledge`, { method: "POST", body: "{}" });
+}
+
+// 返金して、すぐ終わらせる。
+async function revoke(purchaseToken: string, productId: string) {
+  await call(`purchases/subscriptions/${encodeURIComponent(productId)}/tokens/${encodeURIComponent(purchaseToken)}:revoke`, { method: "POST", body: "{}" });
 }
 
 async function cancel(purchaseToken: string, productId: string) {
@@ -144,30 +151,53 @@ function renews(subscription: PlaySubscription) {
   return RENEWABLE_STATES.has(subscription.subscriptionState ?? "") && item?.autoRenewingPlan?.autoRenewEnabled !== false;
 }
 
-function playUpdate(purchaseToken: string, subscription: PlaySubscription): SubscriptionUpdate {
+// 前の購入トークン: プランの変更（linkedPurchaseToken）か、期限切れの購読を Play ストアで買い直した（outOfAppPurchaseContext）。
+function previousToken(subscription: PlaySubscription) {
+  return subscription.linkedPurchaseToken ?? subscription.outOfAppPurchaseContext?.expiredPurchaseToken;
+}
+
+// 購入に付けた利用者 ID（Play ストアでの買い直しなら、元の購入に付けた ID）。
+function accountIdOf(subscription: PlaySubscription) {
+  return subscription.externalAccountIdentifiers?.obfuscatedExternalAccountId
+    ?? subscription.outOfAppPurchaseContext?.expiredExternalAccountIdentifiers?.obfuscatedExternalAccountId;
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// 行に写す内容。期間の初日は、同じ購読なら前の値を保つ（猶予期間中は Google が期限を毎日延ばすので、期限から逆算すると
+// 月の上限の区切りが動いて枠が増える）。本当に更新された（期限が前の期限より先に進み、状態が有効）ときだけ、前の期限を新しい初日にする。
+function playUpdate(owner: SubscriptionOwner, purchaseToken: string, subscription: PlaySubscription): SubscriptionUpdate {
   const state = playStatus(subscription);
+  let periodStart = state.periodStart;
+  const same = owner.subscriptionProvider === "google" && owner.googlePurchaseToken === purchaseToken;
+  const previousStart = owner.subscriptionPeriodStart ?? null;
+  const previousEnd = owner.subscriptionPeriodEnd ?? null;
+  if (same && previousStart && previousEnd && state.periodEnd) {
+    const renewed = subscription.subscriptionState === "SUBSCRIPTION_STATE_ACTIVE" && state.periodEnd.getTime() > previousEnd.getTime() + DAY_MS;
+    periodStart = renewed ? previousEnd : previousStart;
+  }
   return {
     provider: "google",
     googlePurchaseToken: purchaseToken,
     status: state.status,
-    periodStart: state.periodStart,
+    periodStart,
     periodEnd: state.periodEnd,
     cancelAt: state.cancelAt,
   };
 }
 
-// プランの変更・再購入で新しい購入トークンになった購読は、元のトークン（linkedPurchaseToken）の購読と同じものとして扱う。
+// 新しい購入トークンになった購読（previousToken）は、元のトークンの購読と同じものとして扱う。
 function asCurrentOwner(owner: SubscriptionOwner, purchaseToken: string, subscription: PlaySubscription): SubscriptionOwner {
-  const linked = subscription.linkedPurchaseToken;
-  return linked && owner.subscriptionProvider === "google" && owner.googlePurchaseToken === linked ? { ...owner, googlePurchaseToken: purchaseToken } : owner;
+  const previous = previousToken(subscription);
+  return previous && owner.subscriptionProvider === "google" && owner.googlePurchaseToken === previous ? { ...owner, googlePurchaseToken: purchaseToken } : owner;
 }
 
 const isPending = (subscription: PlaySubscription) => subscription.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING";
 
 // 別の購読（ウェブの Stripe）が PRO の間に、Play でも課金の続く購読ができた（二重課金）。Play の方を止める:
-// 未承認なら承認しない（Google が 3 日後に自動で返金する）、承認済み（保留から戻った等）なら自動更新を止める。
+// 未承認なら承認しない（Google が 3 日後に自動で返金する）、承認済み（保留から戻った等）なら返金して終わらせる。
 async function stopDuplicate(purchaseToken: string, subscription: PlaySubscription) {
-  if (!isPending(subscription) && renews(subscription)) await cancel(purchaseToken, playStatus(subscription).productId);
+  if (!isPending(subscription) && isProStatus(playStatus(subscription).status)) await revoke(purchaseToken, playStatus(subscription).productId);
 }
 
 export type ClaimResult = "subscribed" | "pending" | "already-subscribed" | "not-yours" | "not-active";
@@ -178,14 +208,18 @@ export async function claimPlayPurchase(userId: string, purchaseToken: string): 
     const owner = await readOwner(tx, { id: userId });
     if (!owner) return "not-yours";
     const subscription = await fetchPlaySubscription(purchaseToken);
-    const accountId = subscription.externalAccountIdentifiers?.obfuscatedExternalAccountId;
-    // アプリは購入に利用者 ID を付ける。別の利用者の購入トークンは受け付けない。
-    if (accountId && accountId !== userId) return "not-yours";
+    // この利用者のものと確かめられる購入だけを受け付ける: 購入に付けた利用者 ID が一致するか、
+    // このトークン（または前のトークン）がすでにこの利用者に記録されている。ID が無い購入を、ほかの利用者が名乗れないように。
+    const accountId = accountIdOf(subscription);
+    const previous = previousToken(subscription);
+    const recorded = owner.googlePurchaseToken === purchaseToken || Boolean(previous && owner.googlePurchaseToken === previous);
+    if (accountId ? accountId !== userId : !recorded) return "not-yours";
     const other = await tx.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: { id: true } });
     if (other && other.id !== userId) return "not-yours";
-    const update = playUpdate(purchaseToken, subscription);
+    const current = asCurrentOwner(owner, purchaseToken, subscription);
+    const update = playUpdate(current, purchaseToken, subscription);
     if (update.status === "incomplete") return "pending";
-    const action = subscriptionAction(asCurrentOwner(owner, purchaseToken, subscription), update);
+    const action = subscriptionAction(current, update);
     if (action === "duplicate") {
       await stopDuplicate(purchaseToken, subscription);
       return "already-subscribed";
@@ -201,14 +235,14 @@ export async function claimPlayPurchase(userId: string, purchaseToken: string): 
 }
 
 // RTDN: 通知の購入トークンを Google から読み、持ち主の行に写す。
-// 持ち主は購入トークン（プランの変更で新しいトークンになったときは linkedPurchaseToken）か、購入に付けた利用者 ID で探す。
+// 持ち主は購入トークン、前の購入トークン（previousToken）、購入に付けた利用者 ID の順で探す。
 // 持ち主の行が無い（アカウントを削除した）のに続いている購読は、更新を止める。
 export async function syncPlayPurchase(purchaseToken: string) {
   const first = await fetchPlaySubscription(purchaseToken);
-  const linked = first.linkedPurchaseToken;
-  const accountId = first.externalAccountIdentifiers?.obfuscatedExternalAccountId;
+  const previous = previousToken(first);
+  const accountId = accountIdOf(first);
   const owner = await prisma.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: { id: true } })
-    ?? (linked ? await prisma.user.findUnique({ where: { googlePurchaseToken: linked }, select: { id: true } }) : null)
+    ?? (previous ? await prisma.user.findUnique({ where: { googlePurchaseToken: previous }, select: { id: true } }) : null)
     ?? (accountId ? await prisma.user.findUnique({ where: { id: accountId }, select: { id: true } }) : null);
   if (!owner) {
     if (renews(first)) await cancel(purchaseToken, playStatus(first).productId);
@@ -219,8 +253,9 @@ export async function syncPlayPurchase(purchaseToken: string) {
     if (!current) return null;
     // ロックを取ってから読み直す（待っている間に状態が変わっていても、最新の状態を書く）。
     const subscription = await fetchPlaySubscription(purchaseToken);
-    const update = playUpdate(purchaseToken, subscription);
-    const action = subscriptionAction(asCurrentOwner(current, purchaseToken, subscription), update);
+    const view = asCurrentOwner(current, purchaseToken, subscription);
+    const update = playUpdate(view, purchaseToken, subscription);
+    const action = subscriptionAction(view, update);
     if (action === "duplicate") await stopDuplicate(purchaseToken, subscription);
     if (action !== "write") return current.id;
     // 承認されないまま 3 日経つと返金される。アプリからの報告が届かなかった購入も、ここで承認する。

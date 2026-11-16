@@ -83,17 +83,49 @@ describe("google play billing", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("leaves a new duplicate unacknowledged (refund) and stops renewal of an acknowledged one while the web plan is Pro", async () => {
+  it("leaves a new duplicate unacknowledged (refund) and refunds an acknowledged one while the web plan is Pro", async () => {
     rows({ u1: webPro });
     stubGoogle(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" }));
     await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("already-subscribed");
     expect(calls).toEqual(["GET purchases/subscriptionsv2/tokens/tok"]);
-    // 保留から戻った（承認済みの）Play の購読が RTDN で届いた: Stripe の状態は上書きせず、Play の自動更新を止める。
+    // 保留から戻った（承認済みの）Play の購読が RTDN で届いた: Stripe の状態は上書きせず、Play の方を返金して終わらせる。
     rows({ u1: webPro }, { tok: { id: "u1" } });
     stubGoogle(play("ACTIVE"));
     await syncPlayPurchase("tok");
-    expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:cancel");
+    expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:revoke");
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("accepts a receipt without an account id only when the token is already this user's", async () => {
+    stubGoogle(play("ACTIVE", { externalAccountIdentifiers: {} }));
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("not-yours");
+    rows({ u1: { ...owner, subscriptionProvider: "google", googlePurchaseToken: "tok", subscriptionStatus: "active" } });
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("subscribed");
+  });
+
+  it("finds the owner of a subscription bought again in the Play Store after it expired", async () => {
+    stubGoogle(play("ACTIVE", {
+      externalAccountIdentifiers: {},
+      acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING",
+      outOfAppPurchaseContext: { expiredPurchaseToken: "old", expiredExternalAccountIdentifiers: { obfuscatedExternalAccountId: "u1" } },
+    }));
+    rows({ u1: { ...owner, subscriptionProvider: "google", googlePurchaseToken: "old", subscriptionStatus: "canceled" } }, { old: { id: "u1" } });
+    await expect(syncPlayPurchase("new")).resolves.toBe("u1");
+    expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/new:acknowledge");
+    expect(calls.some((call) => call.endsWith(":cancel"))).toBe(false);
+    expect(mocks.update.mock.calls[0][0].data).toMatchObject({ googlePurchaseToken: "new", plan: "PRO" });
+  });
+
+  it("keeps the usage period start through a grace period and moves it only on a real renewal", async () => {
+    const start = new Date("2026-11-01T00:00:00Z");
+    const end = new Date("2026-12-01T00:00:00Z");
+    rows({ u1: { ...owner, subscriptionProvider: "google", googlePurchaseToken: "tok", subscriptionStatus: "active", subscriptionPeriodStart: start, subscriptionPeriodEnd: end } }, { tok: { id: "u1" } });
+    stubGoogle(play("IN_GRACE_PERIOD", { lineItems: [{ productId: "notefable_pro", expiryTime: "2026-12-05T00:00:00Z" }] }));
+    await syncPlayPurchase("tok");
+    expect(mocks.update.mock.lastCall![0].data.subscriptionPeriodStart).toEqual(start);
+    stubGoogle(play("ACTIVE", { lineItems: [{ productId: "notefable_pro", expiryTime: "2027-01-01T00:00:00Z", autoRenewingPlan: { autoRenewEnabled: true } }] }));
+    await syncPlayPurchase("tok");
+    expect(mocks.update.mock.lastCall![0].data.subscriptionPeriodStart).toEqual(end);
   });
 
   it("reports a pending payment without granting Pro", async () => {

@@ -63,15 +63,15 @@ Stripe 后台要做的事：
 Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
 
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
-2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId` 必须是当前用户、令牌没被别的用户用过；有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
+2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
 3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify?token=<GOOGLE_PLAY_RTDN_TOKEN>`。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
-4. **状态对应**：`ACTIVE` → active；`CANCELED`（已取消续费）到期前仍是 active，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → past_due（仍是 Pro）；`ON_HOLD` → unpaid、`PAUSED` → paused、`PENDING` → incomplete、`EXPIRED` → canceled（都不是 Pro）。Play 不返回账期开始日，按到期前一个月计（Pro 的月上限按它算）。
+4. **状态对应**：`ACTIVE` → active；`CANCELED`（已取消续费）到期前仍是 active，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → past_due（仍是 Pro）；`ON_HOLD` → unpaid、`PAUSED` → paused、`PENDING` → incomplete、`EXPIRED` → canceled（都不是 Pro）。Play 不返回账期开始日：第一次按到期前一个月计，之后同一份订阅只在真正续费（状态为 ACTIVE 且到期时间往后推了一天以上）时把上一期的到期时间作为新的开始日；宽限期里 Google 每天延长到期时间，这时开始日不变（否则月上限的计数会被重置）。
 5. **管理**：Play 买的 Pro 在网页和 App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 App 里没有管理入口。
 6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
 
 并发：同一个用户的所有计费处理（结账、Stripe / Play 的同步、购买报告、删除账号）都在按用户的 Postgres advisory lock 里一次只做一个（`withUserBillingLock`，锁里重新读用户行，库操作走同一个事务连接）。所以并发的通知不会用旧状态盖掉新状态；两个页面同时结账，后一个会先让前一个的页面过期再检查订阅；等着结账的请求在删号之后拿到锁时，读不到用户行就放弃。
 
-两个来源同时扣费时（例如 Play 订阅在保留期间用户又在网页买了，之后 Play 恢复），以用户行上记录的那份为准，另一份停掉：Stripe 的立即取消，Play 的未确认就不确认（Google 退款），已确认就停止续费（`subscriptionAction` 的 `duplicate`）。Play 换购后的新令牌（`linkedPurchaseToken` 指向记录的旧令牌）算同一份订阅。
+两个来源同时扣费时（例如 Play 订阅在保留期间用户又在网页买了，之后 Play 恢复），以用户行上记录的那份为准，另一份停掉：Stripe 的立即取消并把已付的账单退款（按支付加幂等键，只退一次），Play 的未确认就不确认（Google 退款），已确认就退款并终止（`revoke`）（`subscriptionAction` 的 `duplicate`）。Play 换购后的新令牌（`linkedPurchaseToken`），或过期后在 Play 商店重新购买（`outOfAppPurchaseContext.expiredPurchaseToken`）的新令牌，指向记录的旧令牌时算同一份订阅。
 
 ### 配置（Google Play）
 

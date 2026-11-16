@@ -30,10 +30,13 @@ export type SubscriptionOwner = {
   subscriptionStatus: string | null;
   stripeSubscriptionId: string | null;
   googlePurchaseToken: string | null;
+  subscriptionPeriodStart?: Date | null;
+  subscriptionPeriodEnd?: Date | null;
 };
 
 export const SUBSCRIPTION_OWNER_SELECT = {
   id: true, subscriptionProvider: true, subscriptionStatus: true, stripeSubscriptionId: true, googlePurchaseToken: true,
+  subscriptionPeriodStart: true, subscriptionPeriodEnd: true,
 } as const;
 
 export type SubscriptionUpdate = {

@@ -1,3 +1,4 @@
+import type { Prisma } from "@/generated/prisma/client";
 import { deletedAccountKeys, DELETED_ACCOUNT_RETENTION_DAYS } from "@/lib/deleted-accounts";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredImage, deleteStoredPrefix } from "@/lib/storage";
@@ -13,8 +14,10 @@ export function userStoragePrefixes(userId: string) {
 // 履歴・グループ・プロジェクト・提案・表紙の記録は外部キーの onDelete: Cascade でまとめて消える。
 // 同じトランザクションで削除の印（deleted-accounts.ts）を付ける。返す cleanup は保存したファイルを消す処理で、
 // 応答を返したあとに呼ぶ（失敗しても行は戻さず、残ったパスを返す。行が無いのでもう誰からも読めない）。
-export async function deleteAccount(user: { id: string; googleSub: string | null; verifiedEmail: string | null }) {
-  const attachments = await prisma.attachment.findMany({
+// tx を渡すと、その接続（呼び出し側のトランザクション）の中で消す（課金のロックの中で消すとき。接続を余分に取らない）。
+export async function deleteAccount(user: { id: string; googleSub: string | null; verifiedEmail: string | null }, tx?: Prisma.TransactionClient) {
+  const db = tx ?? prisma;
+  const attachments = await db.attachment.findMany({
     where: { message: { session: { userId: user.id } }, imageStoragePath: { not: null } },
     select: { imageStoragePath: true },
   });
@@ -22,14 +25,19 @@ export async function deleteAccount(user: { id: string; googleSub: string | null
   const now = new Date();
   const expired = new Date(now.getTime() - DELETED_ACCOUNT_RETENTION_DAYS * 24 * 60 * 60 * 1000);
 
-  await prisma.$transaction([
-    ...(user.verifiedEmail ? [prisma.emailLoginCode.deleteMany({ where: { email: user.verifiedEmail } })] : []),
-    prisma.usageCounter.deleteMany({ where: { key: `user:${user.id}` } }),
-    ...deletedAccountKeys(user).map((key) =>
-      prisma.deletedAccount.upsert({ where: { key }, create: { key, deletedAt: now }, update: { deletedAt: now } })),
-    prisma.deletedAccount.deleteMany({ where: { deletedAt: { lt: expired } } }),
-    prisma.user.delete({ where: { id: user.id } }),
-  ]);
+  const steps = (c: Prisma.TransactionClient | typeof prisma) => [
+    ...(user.verifiedEmail ? [() => c.emailLoginCode.deleteMany({ where: { email: user.verifiedEmail! } })] : []),
+    () => c.usageCounter.deleteMany({ where: { key: `user:${user.id}` } }),
+    ...deletedAccountKeys(user).map((key) => () =>
+      c.deletedAccount.upsert({ where: { key }, create: { key, deletedAt: now }, update: { deletedAt: now } })),
+    () => c.deletedAccount.deleteMany({ where: { deletedAt: { lt: expired } } }),
+    () => c.user.delete({ where: { id: user.id } }),
+  ];
+  if (tx) {
+    for (const step of steps(tx)) await step();
+  } else {
+    await prisma.$transaction(steps(prisma).map((step) => step()) as Prisma.PrismaPromise<unknown>[]);
+  }
 
   return {
     async cleanup() {

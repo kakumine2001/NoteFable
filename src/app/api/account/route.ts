@@ -123,7 +123,7 @@ export async function DELETE(request: NextRequest) {
           return null;
         }
       }
-      return deleteAccount(row);
+      return deleteAccount(row, tx);
     });
   } catch (error) {
     console.error("Failed to delete account", error instanceof Error ? error.message : error);

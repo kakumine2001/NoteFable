@@ -84,7 +84,7 @@ async function applySubscription(tx: BillingTx, userId: string, subscription: St
     cancelAt: scheduledEnd(subscription, period.end),
   };
   const action = subscriptionAction(owner, update);
-  if (action === "duplicate") await cancelSubscription(subscription.id);
+  if (action === "duplicate") await stopDuplicate(subscription);
   if (action === "write") await writeSubscription(tx, owner, update);
   return owner.id;
 }
@@ -137,19 +137,20 @@ async function expireOpenCheckouts(customer: string) {
 // 申し込み。ロックの中で行を読み直し、すでに PRO なら断る。前に開いた決済画面を先に閉じてから
 // Stripe の購読を確かめる（閉じる間に支払われた画面の購読も見つかる）。課金の続く購読がなければ新しい決済画面を 1 つだけ作る。
 export async function createCheckoutUrl(userId: string, origin: string) {
-  return withUserBillingLock(userId, async (tx) => {
+  // 断るときも、見つけた購読を写した書き込みはコミットしてから投げる（ロックの中で投げると巻き戻る）。
+  const result = await withUserBillingLock(userId, async (tx): Promise<{ url: string } | { conflict: true }> => {
     const row = await tx.user.findUnique({
       where: { id: userId },
       select: { id: true, stripeCustomerId: true, verifiedEmail: true, email: true, subscriptionStatus: true },
     });
     if (!row) throw new AccountGoneError();
-    if (isProStatus(row.subscriptionStatus)) throw new AlreadySubscribedError();
+    if (isProStatus(row.subscriptionStatus)) return { conflict: true };
     const customer = await ensureCustomer(tx, row);
     await expireOpenCheckouts(customer);
     const live = (await customerSubscriptions(customer)).filter((subscription) => !ENDED_STATUSES.has(subscription.status));
     if (live.length) {
       await applySubscription(tx, userId, preferred(live));
-      throw new AlreadySubscribedError();
+      return { conflict: true };
     }
     const session = await stripe().checkout.sessions.create({
       mode: "subscription",
@@ -163,13 +164,34 @@ export async function createCheckoutUrl(userId: string, origin: string) {
       cancel_url: `${origin}/app?billing=cancel`,
     });
     if (!session.url) throw new Error("Stripe did not return a checkout URL.");
-    return session.url;
+    return { url: session.url };
   });
+  if ("conflict" in result) throw new AlreadySubscribedError();
+  return result.url;
 }
 
 export async function createPortalUrl(customer: string, origin: string) {
   const session = await stripe().billingPortal.sessions.create({ customer, return_url: `${origin}/app?billing=portal` });
   return session.url;
+}
+
+// 別の購読が PRO の間にできた 2 つ目の Stripe の購読（例: 開いたままの決済画面が、Play で買ったあとに支払われた）。
+// 取り消して、支払われた請求を返金する（二重に払わせない）。返金は請求の支払いごとに冪等キーを付ける（知らせが重なっても 1 回）。
+async function stopDuplicate(subscription: Stripe.Subscription) {
+  await cancelSubscription(subscription.id);
+  const invoice = typeof subscription.latest_invoice === "string" ? subscription.latest_invoice : subscription.latest_invoice?.id;
+  if (!invoice) return;
+  const payments = await stripe().invoicePayments.list({ invoice, limit: 10 });
+  for (const payment of payments.data) {
+    if (payment.status !== "paid") continue;
+    const target = payment.payment.payment_intent
+      ? { payment_intent: typeof payment.payment.payment_intent === "string" ? payment.payment.payment_intent : payment.payment.payment_intent.id }
+      : payment.payment.charge
+        ? { charge: typeof payment.payment.charge === "string" ? payment.payment.charge : payment.payment.charge.id }
+        : null;
+    if (!target) continue;
+    await stripe().refunds.create({ ...target, reason: "duplicate", metadata: { subscription: subscription.id } }, { idempotencyKey: `notefable-duplicate-refund-${payment.id}` });
+  }
 }
 
 async function cancelSubscription(id: string) {

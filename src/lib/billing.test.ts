@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn(), list: vi.fn(), cancel: vi.fn(), customersCreate: vi.fn(),
-  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(),
+  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(), invoicePayments: vi.fn(), refund: vi.fn(),
   findUnique: vi.fn(), update: vi.fn(), locks: [] as string[],
 }));
 vi.mock("stripe", async (load) => {
@@ -10,6 +10,8 @@ vi.mock("stripe", async (load) => {
   class FakeStripe {
     subscriptions = { retrieve: mocks.retrieve, list: mocks.list, cancel: mocks.cancel };
     customers = { create: mocks.customersCreate };
+    invoicePayments = { list: mocks.invoicePayments };
+    refunds = { create: mocks.refund };
     checkout = { sessions: { list: mocks.sessionsList, expire: mocks.sessionsExpire, create: mocks.sessionsCreate, retrieve: mocks.sessionsRetrieve } };
     static errors = actual.default.errors;
   }
@@ -100,10 +102,19 @@ describe("billing", () => {
     await syncSubscription("sub_old");
     expect(mocks.update).not.toHaveBeenCalled();
     expect(mocks.cancel).not.toHaveBeenCalled();
-    mocks.retrieve.mockResolvedValue(subscription("sub_dup", "active"));
+    // 2 つ目の購読は取り消して、支払われた請求を返金する（冪等キー付き）。
+    mocks.retrieve.mockResolvedValue(subscription("sub_dup", "active", { latest_invoice: "in_1" }));
     mocks.cancel.mockResolvedValue({});
+    mocks.invoicePayments.mockResolvedValue({ data: [
+      { id: "inpay_1", status: "paid", payment: { type: "payment_intent", payment_intent: "pi_1" } },
+      { id: "inpay_2", status: "open", payment: { type: "payment_intent", payment_intent: "pi_2" } },
+    ] });
+    mocks.refund.mockResolvedValue({});
     await syncSubscription("sub_dup");
     expect(mocks.cancel).toHaveBeenCalledWith("sub_dup");
+    expect(mocks.invoicePayments).toHaveBeenCalledWith({ invoice: "in_1", limit: 10 });
+    expect(mocks.refund).toHaveBeenCalledExactlyOnceWith(
+      { payment_intent: "pi_1", reason: "duplicate", metadata: { subscription: "sub_dup" } }, { idempotencyKey: "notefable-duplicate-refund-inpay_1" });
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
@@ -132,6 +143,8 @@ describe("billing", () => {
     mocks.sessionsList.mockResolvedValue({ data: [{ id: "cs_old" }] });
     mocks.list.mockResolvedValueOnce({ data: [subscription("sub_1", "incomplete")] });
     await expect(createCheckoutUrl("u1", "https://notefable.com")).rejects.toBeInstanceOf(AlreadySubscribedError);
+    // 見つけた購読は、断る前に（ロックのトランザクションが終わる前に投げずに）行へ写している。
+    expect(mocks.update.mock.calls[0][0].data).toMatchObject({ stripeSubscriptionId: "sub_1", subscriptionStatus: "incomplete" });
     expect(mocks.sessionsExpire.mock.invocationCallOrder[0]).toBeLessThan(mocks.list.mock.invocationCallOrder[0]);
     expect(mocks.sessionsCreate).not.toHaveBeenCalled();
 

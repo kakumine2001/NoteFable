@@ -48,7 +48,7 @@ describe("DELETE /api/account", () => {
     expect(mocks.cancel).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ deleted: true });
-    expect(mocks.deleteAccount).toHaveBeenCalledWith(row);
+    expect(mocks.deleteAccount).toHaveBeenCalledWith(row, expect.anything());
     const cleared = response.cookies.getAll().filter((cookie) => cookie.maxAge === 0).map((cookie) => cookie.name).sort();
     // 端末の Cookie は残す（別の匿名の行を指していることがある）。
     expect(cleared).toEqual(["__Secure-authjs.session-token", "__Secure-authjs.session-token.0"]);
@@ -85,7 +85,7 @@ describe("DELETE /api/account", () => {
     expect((await DELETE(request())).status).toBe(200);
     expect(mocks.cancel).toHaveBeenLastCalledWith("cus_1");
     expect(mocks.cancelPlay).toHaveBeenLastCalledWith("tok");
-    expect(mocks.deleteAccount).toHaveBeenCalledWith(subscribed);
+    expect(mocks.deleteAccount).toHaveBeenCalledWith(subscribed, expect.anything());
   });
 
   it("is unavailable when sign-in is off", async () => {

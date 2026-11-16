@@ -62,6 +62,20 @@ describe("deleteAccount", () => {
     expect(await cleanup()).toEqual(["note-files/u2/"]);
   });
 
+  it("deletes step by step on the given transaction instead of opening another", async () => {
+    const tx = {
+      attachment: { findMany: mocks.findMany },
+      emailLoginCode: { deleteMany: mocks.codes },
+      usageCounter: { deleteMany: mocks.usage },
+      deletedAccount: { upsert: mocks.upsert, deleteMany: mocks.purge },
+      user: { delete: mocks.userDelete },
+    };
+    await deleteAccount({ id: "u4", googleSub: null, verifiedEmail: "b@example.com" }, tx as never);
+    expect(mocks.transaction).not.toHaveBeenCalled();
+    expect(mocks.codes).toHaveBeenCalledWith({ where: { email: "b@example.com" } });
+    expect(mocks.userDelete).toHaveBeenCalledWith({ where: { id: "u4" } });
+  });
+
   it("does not return a cleanup when the row deletion fails", async () => {
     mocks.transaction.mockRejectedValueOnce(new Error("db down"));
     await expect(deleteAccount({ id: "u3", googleSub: "g3", verifiedEmail: null })).rejects.toThrow("db down");
