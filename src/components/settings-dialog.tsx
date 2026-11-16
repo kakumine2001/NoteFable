@@ -5,6 +5,7 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
 import { AppIconSettings } from "@/components/app-icon-settings";
+import { PlanSettings } from "@/components/plan-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
@@ -191,6 +192,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
           <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} onPhotoBusyChange={setPhotoBusy} />
         </section>
         {saveError && <p role="alert" className="project-settings-error">{localizeSystemText(saveError, t)}</p>}
+
+        <PlanSettings />
 
         <LanguageSettings user={user} />
 

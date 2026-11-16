@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "user" }), isAccountUser: () => false }));
-vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: async () => ({ ok: true, ticket: { kind: "chat", day: "2026-01-01", keys: [] } }), refundUsage: async () => {}, clientNetworkKey: () => null }));
+vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: async () => ({ ok: true, ticket: { buckets: [] } }), refundUsage: async () => {}, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
 vi.mock("@/lib/files", () => ({
   AttachmentValidationError: class extends Error {},

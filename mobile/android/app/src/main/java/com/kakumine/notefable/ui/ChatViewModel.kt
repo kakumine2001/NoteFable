@@ -156,6 +156,8 @@ data class ChatUiState(
      * 输入栏上方显示登录提示（网页 GuestLimitPrompt）。关掉、登录或退出后清空。
      */
     val guestLimit: String? = null,
+    /** 免费用户撞到上限（tier = member）时是 "chat" 或 "image"：输入栏上方显示 Pro 的升级提示（网页 UpgradePrompt）。 */
+    val upgradeLimit: String? = null,
     /** 还在拷贝、校验的附件（粘贴的图片、刚选的文件）有几批；没处理完前不能发送，否则它们会漏掉、跑到下一条里。 */
     val importing: Int = 0,
     /**
@@ -427,7 +429,7 @@ class ChatViewModel(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
                 files = if (it.upload == null) emptyList() else it.files, attachedPages = emptyList(),
-                notice = null, guestLimit = null, reveal = null, rejectedEdit = null,
+                notice = null, guestLimit = null, upgradeLimit = null, reveal = null, rejectedEdit = null,
                 draftIcon = null,
             )
         }
@@ -671,6 +673,10 @@ class ChatViewModel(
 
     fun dismissGuestLimit() {
         _state.update { it.copy(guestLimit = null) }
+    }
+
+    fun dismissUpgradeLimit() {
+        _state.update { it.copy(upgradeLimit = null) }
     }
 
     fun setImageMode(on: Boolean) {
@@ -993,11 +999,13 @@ class ChatViewModel(
         ) {
             setCached(run.key, before)
             val guest = limited && (failed as ApiException).tier == "guest"
+            val member = limited && (failed as ApiException).tier == "member"
             _state.update {
                 val shown = keyOf(it) == run.key
                 it.copy(
                     notice = if (shown) ComposerNotice.Failed(chatFailureDetail(failed)) else it.notice,
                     guestLimit = if (guest) (if ((failed as ApiException).kind == "image") "image" else "chat") else it.guestLimit,
+                    upgradeLimit = if (member) (if ((failed as ApiException).kind == "image") "image" else "chat") else it.upgradeLimit,
                     // 改写的文字不丢：那条提问的编辑框带着它重新打开。
                     rejectedEdit = if (shown && turn.edit != null) turn.edit else it.rejectedEdit,
                 )
@@ -1032,11 +1040,13 @@ class ChatViewModel(
     /**
      * 上限拒绝的发送没有保存在任何地方：和网页一样把原文和附件放回输入栏。
      * 等待期间又写了字或加了附件的话不覆盖，被拒的原文放在前面（空一行），附件也排在前面。
-     * 未登录用户（tier = guest）另外显示登录提示。
+     * 未登录用户（tier = guest）另外显示登录提示，免费用户（tier = member）显示升级提示。
      */
     private fun restoreRejected(turn: Turn, error: ApiException) {
         restoreDraft(turn)
-        if (error.tier == "guest") _state.update { it.copy(guestLimit = if (error.kind == "image") "image" else "chat") }
+        val kind = if (error.kind == "image") "image" else "chat"
+        if (error.tier == "guest") _state.update { it.copy(guestLimit = kind) }
+        if (error.tier == "member") _state.update { it.copy(upgradeLimit = kind) }
     }
 
     /** 要放回输入栏的原文、附件和笔记。 */

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 设置里的“方案”（网页 src/components/plan-settings.tsx）。 -->
+<resources>
+    <string name="plan_title">Plan</string>
+    <string name="plan_pro" translatable="false">Pro</string>
+    <string name="plan_free">Free</string>
+    <string name="plan_messages_today">Messages today</string>
+    <string name="plan_messages_period">Messages this period</string>
+    <string name="plan_messages_month">Messages this month</string>
+    <string name="plan_images_today">Images today</string>
+    <string name="plan_images_period">Images this period</string>
+    <string name="plan_images_month">Images this month</string>
+    <string name="plan_renews">Renews on %1$s.</string>
+    <string name="plan_ends">Pro ends on %1$s.</string>
+    <string name="plan_past_due">Your last payment failed. Update your payment method to keep Pro.</string>
+    <string name="plan_load_failed">Could not load your plan.</string>
+    <string name="plan_offer_title">NoteFable Pro · %1$s/month</string>
+    <string name="plan_offer_body">%1$s messages and %2$d images a month. Cancel anytime.</string>
+    <string name="plan_upgrade">Upgrade to Pro</string>
+    <string name="plan_manage_play">Manage subscription on Google Play</string>
+    <string name="plan_welcome">Welcome to NoteFable Pro</string>
+    <string name="plan_pending">Your payment is being confirmed. Pro will turn on in a moment.</string>
+    <string name="plan_purchase_failed">Could not complete the purchase. Please try again.</string>
+    <string name="upgrade_title_image">You\'ve used this month\'s free images</string>
+    <string name="upgrade_body">Get %1$s messages and %2$d images a month with Pro for %3$s/month.</string>
+    <string name="plan_opening">Opening…</string>
+</resources>

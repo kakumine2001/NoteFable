@@ -3,14 +3,26 @@ import { Prisma } from "@/generated/prisma/client";
 import { getCookieSecret } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { GUEST_NETWORK_LIMITS, REPORT_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, type UsageKind, type UsageTier } from "@/lib/usage-plans";
+import { GUEST_NETWORK_LIMITS, REPORT_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsagePeriod, type UsageTier } from "@/lib/usage-plans";
 
-export { GUEST_NETWORK_LIMITS, USAGE_LIMITS, type UsageKind, type UsageTier };
+export { GUEST_NETWORK_LIMITS, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsageTier };
 
 // 日付の切り替えは日本時間の 0 時。
 const DAY_OFFSET_MS = 9 * 60 * 60 * 1000;
-// 古い集計行を残す日数。消すのは消費時にときどきだけ（cron はない）。
+const DAY_MS = 24 * 60 * 60 * 1000;
+// 古い集計行を残す日数。消すのは消費時にときどきだけ（cron はない）。月ごとの行は期間の初日を day に持つので長めに残す。
 const RETENTION_DAYS = 7;
+const MONTHLY_RETENTION_DAYS = 62;
+
+// 上限の計算に要る利用者の項目。PRO の月の上限は請求期間（subscriptionPeriodStart / End）ごとに数える。
+export type UsageUser = {
+  id: string;
+  googleSub: string | null;
+  verifiedEmail?: string | null;
+  plan?: string | null;
+  subscriptionPeriodStart?: Date | null;
+  subscriptionPeriodEnd?: Date | null;
+};
 
 export function usageDay(now = new Date()) {
   return new Date(now.getTime() + DAY_OFFSET_MS).toISOString().slice(0, 10);
@@ -20,6 +32,34 @@ export function usageTier(user: { googleSub: string | null; verifiedEmail?: stri
   if (user.plan === "PRO") return "pro";
   // Google でもメールでも、ログインしていれば会員。
   return user.googleSub || user.verifiedEmail ? "member" : "guest";
+}
+
+// 期間の初日（日本時間の日付）と、次に数え直す時刻。
+// 月の期間は、PRO でいまを含む請求期間があればその初日、それ以外は日本時間の暦月（無料、手動で PRO にした行、更新の知らせがまだ来ていないとき）。
+// 無料に戻った利用者には古い請求期間を使わない（PRO の間の数で無料の枠が埋まらないように）。
+export function usagePeriodWindow(period: UsagePeriod, tier: UsageTier, user: Pick<UsageUser, "subscriptionPeriodStart" | "subscriptionPeriodEnd">, now = new Date()) {
+  const local = new Date(now.getTime() + DAY_OFFSET_MS);
+  if (period === "day") {
+    const start = usageDay(now);
+    return { start, resetsAt: new Date(Date.parse(`${start}T00:00:00Z`) - DAY_OFFSET_MS + DAY_MS) };
+  }
+  const { subscriptionPeriodStart: from, subscriptionPeriodEnd: to } = user;
+  if (tier === "pro" && from && to && from.getTime() <= now.getTime() && now.getTime() < to.getTime()) {
+    return { start: usageDay(from), resetsAt: to };
+  }
+  const year = local.getUTCFullYear();
+  const month = local.getUTCMonth();
+  return {
+    start: new Date(Date.UTC(year, month, 1)).toISOString().slice(0, 10),
+    resetsAt: new Date(Date.UTC(year, month + 1, 1) - DAY_OFFSET_MS),
+  };
+}
+
+// UsageCounter.kind。月ごとの行は日ごとの行と別の名前にして、古い行の掃除で期間中の行を消さないようにする。
+// PRO の行（chat:pro / image:pro）と無料の月の行（image:month）も分ける。期間の初日が同じでも、無料の間の数を PRO に持ち込まない（逆も）。
+function counterKind(kind: UsageKind, period: UsagePeriod, tier: UsageTier) {
+  if (period === "day") return kind;
+  return tier === "pro" ? `${kind}:pro` : `${kind}:month`;
 }
 
 export function clientNetworkKey(request: Request) {
@@ -34,20 +74,25 @@ export function clientNetworkKey(request: Request) {
 export function limitReachedMessage(tier: UsageTier, kind: UsageKind) {
   if (tier === "guest") {
     return kind === "image"
-      ? msg("You've used today's free image generations. Sign in for more, or try again tomorrow.")
+      ? msg("Sign in to generate images.")
       : msg("You've used today's free messages. Sign in for more, or try again tomorrow.");
   }
+  if (tier === "member") {
+    return kind === "image"
+      ? msg("You've used this month's free image generations.")
+      : msg("You've used today's free messages. Try again tomorrow.");
+  }
   return kind === "image"
-    ? msg("You've reached today's image generation limit. Try again tomorrow.")
-    : msg("You've reached today's message limit. Try again tomorrow.");
+    ? msg("You've used this period's image generations. They reset when your plan renews.")
+    : msg("You've used this period's messages. They reset when your plan renews.");
 }
 
-type Bucket = { key: string; limit: number };
-// kind は UsageCounter.kind（chat / image と、用量の段階に入らない report）。
-export type UsageTicket = { kind: UsageKind | "report"; day: string; keys: string[] };
+type Bucket = { key: string; kind: string; day: string; limit: number };
+// 数えた行。kind は UsageCounter.kind（日ごとの chat / image、月ごとの image:month / chat:pro / image:pro と、用量の段階に入らない report）。
+export type UsageTicket = { buckets: { key: string; kind: string; day: string }[] };
 export type UsageResult = { ok: true; ticket: UsageTicket } | { ok: false; tier: UsageTier; message: string };
 
-// 上限に達したときの 429 応答。画面は code と tier を見て、未ログインならログインを勧める。
+// 上限に達したときの 429 応答。画面は code と tier を見て、未ログインならログイン、無料ならアップグレードを勧める。
 export function usageLimitResponse(result: Extract<UsageResult, { ok: false }>, kind: UsageKind) {
   return Response.json({ error: result.message, code: USAGE_LIMIT_CODE, tier: result.tier, kind }, { status: 429 });
 }
@@ -56,30 +101,28 @@ class LimitReached extends Error {}
 
 const table = () => Prisma.raw(`"${databaseSchema}"."UsageCounter"`);
 
-export async function consumeUsage(
-  user: { id: string; googleSub: string | null; verifiedEmail?: string | null; plan?: string | null },
-  kind: UsageKind,
-  networkKey: string | null,
-): Promise<UsageResult> {
+export async function consumeUsage(user: UsageUser, kind: UsageKind, networkKey: string | null): Promise<UsageResult> {
   const tier = usageTier(user);
-  const buckets: Bucket[] = [{ key: `user:${user.id}`, limit: USAGE_LIMITS[tier][kind] }];
-  if (tier === "guest" && networkKey) buckets.push({ key: networkKey, limit: GUEST_NETWORK_LIMITS[kind] });
-  const ticket = await consumeBuckets(kind, buckets);
-  return ticket ? { ok: true, ticket: { ...ticket, kind } } : { ok: false, tier, message: limitReachedMessage(tier, kind) };
+  const period = USAGE_PERIODS[tier][kind];
+  // 時刻は 1 回だけ取る（日付の変わり目で、利用者とネットワークの枠が別の日に数えられないように）。
+  const now = new Date();
+  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: counterKind(kind, period, tier), day: usagePeriodWindow(period, tier, user, now).start, limit: USAGE_LIMITS[tier][kind] }];
+  if (tier === "guest" && networkKey) buckets.push({ key: networkKey, kind, day: usageDay(now), limit: GUEST_NETWORK_LIMITS[kind] });
+  const ticket = await consumeBuckets(buckets);
+  return ticket ? { ok: true, ticket } : { ok: false, tier, message: limitReachedMessage(tier, kind) };
 }
 
 // 「回答を報告」を 1 回数える（REPORT_LIMITS）。上限なら null。メールを送れなかったら refundUsage で戻す。
-export async function consumeReportQuota(
-  user: { id: string; googleSub: string | null; verifiedEmail?: string | null; plan?: string | null },
-  networkKey: string | null,
-): Promise<UsageTicket | null> {
-  const buckets: Bucket[] = [{ key: `user:${user.id}`, limit: REPORT_LIMITS.user }];
-  if (usageTier(user) === "guest" && networkKey) buckets.push({ key: networkKey, limit: REPORT_LIMITS.guestNetwork });
-  return consumeBuckets("report", buckets);
+export async function consumeReportQuota(user: UsageUser, networkKey: string | null): Promise<UsageTicket | null> {
+  const day = usageDay();
+  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: "report", day, limit: REPORT_LIMITS.user }];
+  if (usageTier(user) === "guest" && networkKey) buckets.push({ key: networkKey, kind: "report", day, limit: REPORT_LIMITS.guestNetwork });
+  return consumeBuckets(buckets);
 }
 
-async function consumeBuckets(kind: UsageTicket["kind"], buckets: Bucket[]): Promise<UsageTicket | null> {
-  const day = usageDay();
+async function consumeBuckets(buckets: Bucket[]): Promise<UsageTicket | null> {
+  // 上限 0 は使えない機能（未ログインの画像など）。INSERT は条件なしで 1 を書くので、先に断る。
+  if (buckets.some((bucket) => bucket.limit <= 0)) return null;
   try {
     // 全部の枠に空きがあるときだけ数える。どれかが上限ならトランザクションごと戻す。
     // 条件付きの UPSERT にして、同時に送られても上限を超えて数えないようにしている。
@@ -87,7 +130,7 @@ async function consumeBuckets(kind: UsageTicket["kind"], buckets: Bucket[]): Pro
       for (const bucket of buckets) {
         const rows = await tx.$queryRaw<{ count: number }[]>(Prisma.sql`
           INSERT INTO ${table()} AS c ("key", "kind", "day", "count", "updatedAt")
-          VALUES (${bucket.key}, ${kind}, ${day}::date, 1, now())
+          VALUES (${bucket.key}, ${bucket.kind}, ${bucket.day}::date, 1, now())
           ON CONFLICT ("key", "kind", "day") DO UPDATE SET "count" = c."count" + 1, "updatedAt" = now()
           WHERE c."count" < ${bucket.limit}
           RETURNING c."count"
@@ -101,18 +144,43 @@ async function consumeBuckets(kind: UsageTicket["kind"], buckets: Bucket[]): Pro
   }
 
   if (Math.random() < 0.01) void purgeOldUsage().catch(() => {});
-  return { kind, day, keys: buckets.map((bucket) => bucket.key) };
+  return { buckets: buckets.map(({ key, kind, day }) => ({ key, kind, day })) };
+}
+
+export type UsageSummary = {
+  tier: UsageTier;
+  usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string }>;
+};
+
+// 設定の「プラン」に出す、いまの期間の使用量。
+export async function usageSummary(user: UsageUser, now = new Date()): Promise<UsageSummary> {
+  const tier = usageTier(user);
+  const windows = (["chat", "image"] as const).map((kind) => {
+    const period = USAGE_PERIODS[tier][kind];
+    return { kind, period, counterKind: counterKind(kind, period, tier), ...usagePeriodWindow(period, tier, user, now) };
+  });
+  const rows = await prisma.usageCounter.findMany({
+    where: { key: `user:${user.id}`, OR: windows.map((window) => ({ kind: window.counterKind, day: new Date(`${window.start}T00:00:00Z`) })) },
+    select: { kind: true, count: true },
+  });
+  const entry = (window: (typeof windows)[number]) => ({
+    used: Math.min(rows.find((row) => row.kind === window.counterKind)?.count ?? 0, USAGE_LIMITS[tier][window.kind]),
+    limit: USAGE_LIMITS[tier][window.kind],
+    period: window.period,
+    resetsAt: window.resetsAt.toISOString(),
+  });
+  return { tier, usage: { chat: entry(windows[0]), image: entry(windows[1]) } };
 }
 
 // 何も返せずに失敗した送信は数えない。失敗しても利用者への応答は止めない。
 export async function refundUsage(ticket: UsageTicket | null | undefined) {
   if (!ticket) return;
   // 1 行ずつ、数えたときと同じ順で戻す（複数行を一度に更新するとロックの順が逆になり、同時送信とデッドロックしうる）。
-  for (const key of ticket.keys) {
+  for (const bucket of ticket.buckets) {
     try {
       await prisma.$executeRaw(Prisma.sql`
         UPDATE ${table()} SET "count" = "count" - 1, "updatedAt" = now()
-        WHERE "key" = ${key} AND "kind" = ${ticket.kind} AND "day" = ${ticket.day}::date AND "count" > 0
+        WHERE "key" = ${bucket.key} AND "kind" = ${bucket.kind} AND "day" = ${bucket.day}::date AND "count" > 0
       `);
     } catch (error) {
       console.warn("Failed to refund usage", error instanceof Error ? error.message : error);
@@ -121,6 +189,13 @@ export async function refundUsage(ticket: UsageTicket | null | undefined) {
 }
 
 async function purgeOldUsage() {
-  const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000);
-  await prisma.usageCounter.deleteMany({ where: { day: { lt: cutoff } } });
+  const now = Date.now();
+  await prisma.usageCounter.deleteMany({
+    where: {
+      OR: [
+        { kind: { in: ["chat", "image", "report"] }, day: { lt: new Date(now - RETENTION_DAYS * DAY_MS) } },
+        { day: { lt: new Date(now - MONTHLY_RETENTION_DAYS * DAY_MS) } },
+      ],
+    },
+  });
 }

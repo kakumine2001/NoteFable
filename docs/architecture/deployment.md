@@ -128,6 +128,28 @@ DATABASE_URL
 COOKIE_SECRET
 ```
 
+### Stripe 订阅（可选）
+
+```text
+STRIPE_SECRET_KEY
+STRIPE_PRICE_ID
+STRIPE_WEBHOOK_SECRET
+```
+
+月额 Pro（¥300）的网页付款。三项都设置时才开放申请；缺任一项时没有升级入口，`/api/billing/checkout|portal` 返回 404（Webhook 只需要 `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。Stripe 后台的产品、价格、Webhook 端点（`/api/billing/webhook`）和 Customer Portal 设置见 [billing.md](billing.md#配置stripe)。
+
+### Google Play 结算（可选）
+
+```text
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON
+GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT
+GOOGLE_PLAY_PUSH_AUDIENCE
+GOOGLE_PLAY_PACKAGE_NAME   # 可选
+GOOGLE_PLAY_PRODUCT_ID     # 可选
+```
+
+Android App 内购买 Pro。前两项都设置时才开放；Play Console 的订阅商品、服务账号权限和 Pub/Sub（RTDN）设置见 [billing.md](billing.md#配置google-play)。
+
 ### Google 登录（可选）
 
 ```text

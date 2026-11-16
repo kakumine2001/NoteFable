@@ -7,10 +7,12 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import com.kakumine.notefable.data.AccountApi
 import com.kakumine.notefable.data.AppIconStore
 import com.kakumine.notefable.data.PersistentCookieJar
 import com.kakumine.notefable.data.ProposalApi
 import com.kakumine.notefable.data.ProposalStore
+import com.kakumine.notefable.data.PlayBilling
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.MainScope
 import com.kakumine.notefable.data.NoteFableApi
@@ -35,6 +37,9 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
             write = { icon -> prefs.edit().apply { if (icon != null) putString("icon", icon) else remove("icon") }.commit() },
         )
     }
+
+    /** Pro 的 Google Play 订阅（data/PlayBilling.kt）。购买结果回来时打开它的界面可能已经关了，所以放在 App 里。 */
+    val playBilling: PlayBilling by lazy { PlayBilling(this, scope) { token -> AccountApi(api.http).claimPlayPurchase(token) } }
 
     /** App 级的协程作用域（主线程）：不该随界面离开而取消的事（提案的应用 / 放弃、图片下载）。 */
     val scope: CoroutineScope = MainScope()

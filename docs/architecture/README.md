@@ -24,6 +24,7 @@
 8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [i18n.md](i18n.md) — 英/简中/繁中/日界面、语言选择 Cookie、浏览器和地区回退
+11. [billing.md](billing.md) — 月额 Pro（Stripe 订阅）、各档位的用量上限和定价依据
 
 ## 一张图先记住整个项目
 

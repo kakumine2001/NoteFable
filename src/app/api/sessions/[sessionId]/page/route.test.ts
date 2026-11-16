@@ -19,7 +19,7 @@ import { POST } from "./route";
 import { MAX_TRANSCRIPT_MESSAGES } from "@/lib/chat-page";
 
 const sessionId = "chat12345678901234567890";
-const ticket = { kind: "chat", day: "2026-11-15", keys: ["user:mine"] };
+const ticket = { buckets: [{ key: "user:mine", kind: "chat", day: "2026-11-15" }] };
 function post(body: unknown = { model: "claude-haiku-5-5", savedOn: "2026-11-15" }, id = sessionId) {
   return POST(new Request(`https://notefable.example/api/sessions/${id}/page`, { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) }),
     { params: Promise.resolve({ sessionId: id }) });

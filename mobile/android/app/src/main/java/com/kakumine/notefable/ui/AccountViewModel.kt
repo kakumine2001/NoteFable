@@ -10,6 +10,7 @@ import com.kakumine.notefable.data.AccountBackend
 import com.kakumine.notefable.data.AccountProfileBackend
 import com.kakumine.notefable.data.AccountResponse
 import com.kakumine.notefable.data.AccountUser
+import com.kakumine.notefable.data.PlanInfo
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.ProfileEdit
 import com.kakumine.notefable.data.applyProfileEdit
@@ -341,6 +342,15 @@ class AccountViewModel(
                 }
             }
         }
+    }
+
+    /** 设置窗口打开时读方案和本期用量（网页 PlanSettings 的 loadPlan）。 */
+    suspend fun loadPlan(): Result<PlanInfo> = try {
+        Result.success(profile.plan())
+    } catch (cancelled: CancellationException) {
+        throw cancelled
+    } catch (error: Throwable) {
+        Result.failure(error)
     }
 
     /** 设置窗口打开时读自定义指令（没有设置时是空字符串）。失败时把原因交给界面显示。 */

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="guest_limit_title_chat">今日の無料のメッセージ回数を使い切りました</string>
-    <string name="guest_limit_title_image">今日の無料の画像生成回数を使い切りました</string>
-    <string name="guest_limit_body">ログインすると、1 日 %1$d 件のメッセージと %2$d 枚の画像生成が使え、どの端末からでもチャットを開けます。</string>
+    <string name="guest_limit_title_image">画像を生成するにはログインしてください</string>
+    <string name="guest_limit_body">ログインすると、1 日 %1$d 件のメッセージと月 %2$d 枚の画像生成が使え、どの端末からでもチャットを開けます。</string>
     <string name="guest_limit_attachments_lost">ログインすると添付ファイルは残りません。ログイン後にもう一度追加してください。</string>
     <string name="not_now">今はしない</string>
     <string name="scroll_to_bottom">一番下へ移動</string>

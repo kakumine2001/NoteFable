@@ -10,6 +10,8 @@ export type Account = {
   email?: boolean;
   user: AccountUser | null;
   googleClientId?: string | null;
+  // 有料プランの申し込みが使えるか（サーバーで Stripe が設定済み）。古いサーバーの返事には無い。
+  billing?: boolean;
 };
 
 type Snapshot = { account: Account | null; saveError: string };

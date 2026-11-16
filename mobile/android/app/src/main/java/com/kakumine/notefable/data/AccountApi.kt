@@ -56,6 +56,12 @@ interface AccountProfileBackend {
 
     /** `PUT /api/custom-instructions`：整体替换（空字符串是清空），返回服务端保存后的文字。 */
     suspend fun saveCustomInstructions(instructions: String): String?
+
+    /** `GET /api/billing`：当前方案和本期用量（设置里的“方案”）。 */
+    suspend fun plan(): PlanInfo = throw UnsupportedOperationException()
+
+    /** `POST /api/billing/google`：报告 Play 的购买令牌，服务端核对后开通 Pro。 */
+    suspend fun claimPlayPurchase(purchaseToken: String): PlayClaim = throw UnsupportedOperationException()
 }
 
 class AccountApi internal constructor(private val http: NoteFableHttp) : AccountProfileBackend {
@@ -82,6 +88,16 @@ class AccountApi internal constructor(private val http: NoteFableHttp) : Account
             with = http.uploadClient,
         )
         return response.user ?: throw ApiException(201, "HTTP 201")
+    }
+
+    override suspend fun plan(): PlanInfo = http.getJson<PlanInfo>("/api/billing")
+
+    override suspend fun claimPlayPurchase(purchaseToken: String): PlayClaim {
+        val body = buildJsonObject { put("purchaseToken", JsonPrimitive(purchaseToken)) }.toString()
+        val response = http.send<PlayClaimResponse>(
+            Request.Builder().url(http.absoluteUrl("/api/billing/google")).post(body.toRequestBody(NoteFableHttp.JSON)),
+        )
+        return if (response.pending || response.plan != "pro") PlayClaim.Pending else PlayClaim.Subscribed
     }
 
     override suspend fun customInstructions(): String? =

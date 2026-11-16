@@ -60,6 +60,8 @@ import kotlin.math.sqrt
  * 左边 34 的蓝色圆角 10 图标框（Sparkles 18、描边 2.1、白）、间距 12；标题 15/600 行高 21 墨色；说明 13.5 / 20.925 灰，上距 2；
  * 按钮区上距 12、竖排、间距 8："登录"按钮高 44 全圆角、左右 16（点了打开登录窗口），"以后再说"13.5 灰居中；右上 8 处 28 的关闭键（✕ 16，浅灰，圆角 6）。
  * 和网页一样：只有服务端开了登录且还没登录时才显示（由调用方判断）；数值用 member 的上限。
+ * 免费用户的升级提示（网页 UpgradePrompt，同一组 .guest-limit-* 样式）也用这个外框：title / body / note / actionLabel 换掉文字，
+ * onSignIn 换成打开购买窗口。
  */
 @Composable
 fun GuestLimitPrompt(
@@ -68,6 +70,10 @@ fun GuestLimitPrompt(
     onSignIn: () -> Unit,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    title: String? = null,
+    body: String? = null,
+    note: String? = null,
+    actionLabel: String? = null,
 ) {
     val context = LocalContext.current
     val limits = remember {
@@ -118,21 +124,22 @@ fun GuestLimitPrompt(
             }
             Column(Modifier.weight(1f)) {
                 Text(
-                    stringResource(if (kind == "image") R.string.guest_limit_title_image else R.string.guest_limit_title_chat),
+                    title ?: stringResource(if (kind == "image") R.string.guest_limit_title_image else R.string.guest_limit_title_chat),
                     color = Sm.Ink, fontSize = 15.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
                 )
                 Text(
-                    stringResource(R.string.guest_limit_body, limits.chat, limits.image),
+                    body ?: stringResource(R.string.guest_limit_body, limits.chat, limits.image),
                     Modifier.padding(top = 2.dp), color = Sm.Muted, fontSize = 13.5.sp, lineHeight = 20.925.sp,
                 )
-                if (attachmentsLost) {
+                val noteText = note ?: if (attachmentsLost) stringResource(R.string.guest_limit_attachments_lost) else null
+                if (noteText != null) {
                     Text(
-                        stringResource(R.string.guest_limit_attachments_lost),
+                        noteText,
                         Modifier.padding(top = 2.dp), color = Sm.Muted, fontSize = 13.5.sp, lineHeight = 20.925.sp,
                     )
                 }
                 Column(Modifier.padding(top = 12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GuestLimitSignInButton(motion, onSignIn)
+                    GuestLimitSignInButton(motion, actionLabel ?: stringResource(R.string.sign_in), onSignIn)
                     Text(
                         stringResource(R.string.not_now),
                         Modifier.fillMaxWidth().clickable(onClick = onClose).semantics { role = Role.Button },
@@ -155,7 +162,7 @@ fun GuestLimitPrompt(
 // .signin-open-button.guest-limit-signin（手机）：高 44、全圆角、--nf-ink 底、左右 16、白字 15/600；
 // 出现后一道浅蓝高光扫过一次，再向外扩两圈光晕。
 @Composable
-private fun GuestLimitSignInButton(motion: GuestLimitMotion, onClick: () -> Unit) {
+private fun GuestLimitSignInButton(motion: GuestLimitMotion, label: String, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(44.dp)
             .drawBehind {
@@ -194,7 +201,7 @@ private fun GuestLimitSignInButton(motion: GuestLimitMotion, onClick: () -> Unit
         horizontalArrangement = Arrangement.Center,
     ) {
         Text(
-            stringResource(R.string.sign_in),
+            label,
             color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )

@@ -187,6 +187,9 @@ internal fun SettingsDialog(
                 }
 
                 Spacer(Modifier.size(20.dp))
+                PlanSettings(load = profile::loadPlan)
+
+                Spacer(Modifier.size(20.dp))
                 LanguageSettings(user, onChoose = profile::setLocale)
 
                 Spacer(Modifier.size(20.dp))
