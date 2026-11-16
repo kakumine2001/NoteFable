@@ -36,7 +36,7 @@ enum NoteRevisionReason {
   RESTORE
 }
 
-// 利用プラン。PRO は将来の有料プラン用（いまは手動で設定する）。日ごとの上限は src/lib/usage-plans.ts にある。
+// 利用プラン。PRO は月額の有料プラン（Stripe の購読が有効な間。手動で設定することもできる）。上限は src/lib/usage-plans.ts にある。
 enum UserPlan {
   FREE
   PRO
@@ -72,6 +72,16 @@ model User {
   // ログインした利用者が設定画面で選んだ表示言語（en / zh / zh-Hant / ja）。null は選んでいない（環境の言語に従う）。匿名の行では使わない。
   locale             String?
   plan               UserPlan @default(FREE)
+  // Stripe の顧客と購読（src/lib/billing.ts）。購読の状態は Webhook と決済後の確認で Stripe から写す。
+  stripeCustomerId              String?   @unique
+  stripeSubscriptionId          String?   @unique
+  // Stripe の購読の状態（active / past_due / canceled など）。null は購読したことがない。
+  subscriptionStatus            String?
+  // いまの請求期間。PRO の月の上限はこの期間ごとに数える。
+  subscriptionPeriodStart       DateTime?
+  subscriptionPeriodEnd         DateTime?
+  // 解約の予約日時（その日までは PRO のまま）。null は予約なし。
+  subscriptionCancelAt          DateTime?
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -341,7 +351,7 @@ model NoteProposal {
 // 利用者行への外部キーは持たない（IP 単位の行もあるため）。古い行は usage-limits.ts が時々消す。
 model UsageCounter {
   key       String
-  // "chat" または "image"
+  // "chat" / "image"（日ごと）、"chat:month" / "image:month"（月ごと。day は期間の初日）、"report"
   kind      String
   day       DateTime @db.Date
   count     Int      @default(0)

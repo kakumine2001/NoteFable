@@ -14,7 +14,7 @@ const mocks = vi.hoisted(() => ({
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
   runPageTool: vi.fn(),
   attachProposals: vi.fn().mockResolvedValue({ count: 0 }),
-  consumeUsage: vi.fn().mockResolvedValue({ ok: true, ticket: { kind: "chat", day: "2026-01-01", keys: ["user:user"] } }),
+  consumeUsage: vi.fn().mockResolvedValue({ ok: true, ticket: { buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] } }),
   refundUsage: vi.fn().mockResolvedValue(undefined),
   // 利用者の行に足す項目（googleSub・customInstructions）。既定は匿名の利用者。
   userRow: { extra: {} as { googleSub?: string | null; verifiedEmail?: string | null; customInstructions?: string | null } },
@@ -136,7 +136,7 @@ describe("DeepSeek chat response boundary", () => {
 
   it("does not count a send that failed before any answer text, but counts a partial answer", async () => {
     await send([{ type: "response.reasoning_text.delta", item_id: "r1", content_index: 0, delta: "考え中" }]);
-    expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    expect(mocks.refundUsage).toHaveBeenCalledWith({ buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] });
     mocks.refundUsage.mockClear();
     mocks.createMessage.mockClear();
     await send([{ type: "response.output_text.delta", delta: "途中" }]);
@@ -153,7 +153,7 @@ describe("DeepSeek chat response boundary", () => {
     form.set("model", "deepseek-flash");
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
     await response.body!.cancel();
-    await vi.waitFor(() => expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] }));
+    await vi.waitFor(() => expect(mocks.refundUsage).toHaveBeenCalledWith({ buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] }));
   });
 
   it("gives the send back when saving fails before the answer starts", async () => {
@@ -161,7 +161,7 @@ describe("DeepSeek chat response boundary", () => {
     const form = new FormData();
     form.set("message", "hi");
     await expect(POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).rejects.toThrow("db down");
-    expect(mocks.refundUsage).toHaveBeenCalledWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    expect(mocks.refundUsage).toHaveBeenCalledWith({ buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] });
   });
 
   it("refuses with 429 before creating a chat once the daily limit is reached", async () => {
@@ -207,7 +207,7 @@ describe("OpenAI web search", () => {
     form.set("sessionId", "existing");
     const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }));
     expect(await response.text()).toContain("Request failed:");
-    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] });
   });
 
   it("keeps the charge when OpenAI fails after delivering partial text", async () => {
@@ -393,7 +393,7 @@ describe("Claude chat response boundary", () => {
     await upstreamStarted;
     abort.abort();
     await response.text();
-    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ buckets: [{ key: "user:user", kind: "chat", day: "2026-01-01" }] });
     // 切断は「停止」ではない：途中で失敗した回答として残す。
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toContain("Request failed:");
   });

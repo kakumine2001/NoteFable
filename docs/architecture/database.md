@@ -259,7 +259,8 @@ erDiagram
 - `customInstructions`：可空，用户在“设置”里写的自定义指令（最多 4,000 字符，校验与项目的共通指示相同，空白存为 null）。只有已登录的用户能通过 `GET/PUT /api/custom-instructions` 读写，聊天时也只对已登录用户带入，见 [chat-flow.md](chat-flow.md) 的“自定义指令”。字段通过 `20261114130000_custom_instructions` migration 部署
 - `locale`：可空，已登录用户在“设置”里选的界面语言（`en` / `zh` / `zh-Hant` / `ja`，没有“自动”）。null 表示没选过，按浏览器语言和地区显示。`PATCH /api/account` 的 `locale` 只接受这四个值；读出时不认识的值当作 null。浏览器端把它同步到语言 Cookie，见 [i18n.md](i18n.md)。字段通过 `20261116200000_user_locale` migration 部署
 
-- `plan`：`FREE`（默认）或 `PRO`。决定每日用量上限的档位（见下方 `UsageCounter`）；`PRO` 为将来的付费方案预留，目前只能手动改库设置。字段通过 `20261113000000_usage_limits` migration 部署
+- `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe 订阅同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
+- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 是 Stripe 的订阅状态原文（`active`、`past_due`、`canceled` 等；null 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（null 为没有预约）。都由 `src/lib/billing.ts` 从 Stripe 取回后写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
 
 关系：
 
@@ -269,7 +270,7 @@ User 1 -> N Session
 
 删除用户会级联删除 Session。
 
-**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，有 Stripe 订阅时先立即取消（失败就 502、不删除，见 [billing.md](billing.md)），然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
 
 ### DeletedAccount
 
@@ -277,15 +278,15 @@ User 1 -> N Session
 
 ### UsageCounter
 
-每日用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成）；`day` 是日本时间的日期。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`：
+用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成），按月计的免费额度用 `image:month`，Pro 用 `chat:pro` / `image:pro`；`day` 是日本时间的日期，按月计时是这个周期的第一天（免费是自然月 1 日，Pro 是账期开始日）。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`，定价依据见 [billing.md](billing.md)：
 
-| 档位 | 条件 | 聊天 / 天 | 图片 / 天 |
+| 档位 | 条件 | 聊天 | 图片 |
 | --- | --- | --- | --- |
-| guest | 未登录 | 20 | 3 |
-| member | 已登录（Google 或邮箱） | 100 | 20 |
-| pro | `plan = PRO` | 1000 | 200 |
+| guest | 未登录 | 10 / 天 | 0（要登录） |
+| member | 已登录（Google 或邮箱） | 20 / 天 | 5 / 月 |
+| pro | `plan = PRO` | 1000 / 账期 | 40 / 账期 |
 
-未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100、图片 10）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。超过 7 天的行在计数时以 1% 的概率顺带删除（没有定时任务）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
+上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 50、图片 0）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。
 
 ### EmailLoginCode
 

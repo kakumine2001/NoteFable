@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import type * as NextServer from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn(), cleanup: vi.fn(), after: [] as (() => unknown)[] }));
+const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn(), cleanup: vi.fn(), after: [] as (() => unknown)[], cancel: vi.fn() }));
 vi.mock("next/server", async (load) => ({ ...(await load<typeof NextServer>()), after: (task: () => unknown) => { mocks.after.push(task); } }));
 vi.mock("@/lib/google-auth", () => ({
   isGoogleLoginConfigured: mocks.configured,
@@ -15,6 +15,7 @@ vi.mock("@/lib/auth", () => ({
   currentAccountProfile: mocks.profile,
 }));
 vi.mock("@/lib/account-deletion", () => ({ deleteAccount: mocks.deleteAccount }));
+vi.mock("@/lib/billing", () => ({ cancelCustomerBilling: mocks.cancel, isBillingConfigured: () => true }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: vi.fn() }));
 import { DELETE } from "./route";
@@ -40,6 +41,8 @@ describe("DELETE /api/account", () => {
 
   it("deletes the signed-in account, clears the sign-in cookies and removes files after responding", async () => {
     const response = await DELETE(request());
+    // Stripe の顧客がいなければ Stripe には触れない。
+    expect(mocks.cancel).not.toHaveBeenCalled();
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ deleted: true });
     expect(mocks.deleteAccount).toHaveBeenCalledWith(row);
@@ -64,6 +67,19 @@ describe("DELETE /api/account", () => {
     mocks.currentUser.mockResolvedValueOnce({ ...row, googleSub: null, verifiedEmail: null });
     expect((await DELETE(request())).status).toBe(401);
     expect(mocks.deleteAccount).not.toHaveBeenCalled();
+  });
+
+  it("stops Stripe billing first and keeps the account when that fails", async () => {
+    const subscribed = { ...row, stripeCustomerId: "cus_1", stripeSubscriptionId: null, subscriptionStatus: null };
+    mocks.currentUser.mockResolvedValue(subscribed);
+    mocks.cancel.mockRejectedValueOnce(new Error("stripe down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect((await DELETE(request())).status).toBe(502);
+    expect(mocks.deleteAccount).not.toHaveBeenCalled();
+    mocks.cancel.mockResolvedValueOnce(undefined);
+    expect((await DELETE(request())).status).toBe(200);
+    expect(mocks.cancel).toHaveBeenLastCalledWith(subscribed);
+    expect(mocks.deleteAccount).toHaveBeenCalledWith(subscribed);
   });
 
   it("is unavailable when sign-in is off", async () => {

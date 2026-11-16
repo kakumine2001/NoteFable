@@ -11,7 +11,7 @@ import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
-import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
+import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
@@ -101,6 +101,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [guestLimit, setGuestLimit] = useState(false);
+  const [upgradeLimit, setUpgradeLimit] = useState(false);
   // 次の発言に添付するファイルとノート。送信が受け付けられたら空にする。
   const [files, setFiles] = useState<UploadFile[]>([]);
   const [attachedPages, setAttachedPages] = useState<AttachedPage[]>([]);
@@ -334,6 +335,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       const limited = caught instanceof UsageLimitError;
       if (!accepted && tickets.length) void cleanupClientUploads(tickets);
       if (limited && caught.tier === "guest") { guestLimitHitRef.current = true; setGuestLimit(true); }
+      if (limited && caught.tier === "member") { guestLimitHitRef.current = true; setUpgradeLimit(true); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
       if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, text);
@@ -391,6 +393,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         ))}
       </div>
 
+      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, input)} />}
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}

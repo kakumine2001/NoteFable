@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plan_title">プラン</string>
+    <string name="plan_free">無料</string>
+    <string name="plan_messages_today">今日のメッセージ</string>
+    <string name="plan_messages_period">今期のメッセージ</string>
+    <string name="plan_messages_month">今月のメッセージ</string>
+    <string name="plan_images_today">今日の画像</string>
+    <string name="plan_images_period">今期の画像</string>
+    <string name="plan_images_month">今月の画像</string>
+    <string name="plan_renews">%1$s に自動更新されます。</string>
+    <string name="plan_ends">Pro は %1$s に終了します。</string>
+    <string name="plan_past_due">前回の支払いに失敗しました。Pro を続けるには支払い方法を更新してください。</string>
+    <string name="plan_load_failed">プランを読み込めませんでした。</string>
+</resources>

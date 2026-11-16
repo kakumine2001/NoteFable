@@ -1,5 +1,6 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { deleteAccount } from "@/lib/account-deletion";
+import { cancelCustomerBilling, isBillingConfigured } from "@/lib/billing";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
@@ -22,14 +23,16 @@ export async function GET() {
     // googleClientId は公開しても問題ない値（ログイン画面の URL にも含まれる）。Android アプリの端末側ログインが使う。
     const googleClientId = methods.google ? (optionalEnv("AUTH_GOOGLE_ID") ?? null) : null;
     if (!google) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
+    // billing: 有料プランの申し込みが使えるか（Stripe が設定済み）。
+    const billing = isBillingConfigured();
 
     // 自分で決めた表示名とアイコンは利用者の行に持つ。取れなくても Google の名前と写真で表示を続ける。
     const row = await getOrCreateUser().catch(() => null);
     // 削除したアカウントの古いログイン Cookie（deleted-accounts.ts）は匿名の行になる。ログインしていない表示にする。
-    if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId });
+    if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId, billing });
     // 行を読めなかったときは表示言語を返さない（null を返すと「未選択」と区別できず、ブラウザの選択で上書きされる）。
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row ? row.locale : undefined }, google);
-    return NextResponse.json({ configured: true, ...methods, user, googleClientId });
+    return NextResponse.json({ configured: true, ...methods, user, googleClientId, billing });
   } catch {
     return NextResponse.json({ configured: false, user: null });
   }
@@ -100,6 +103,16 @@ export async function DELETE(request: NextRequest) {
   const row = await getOrCreateUser();
   if (!isAccountUser(row)) {
     return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
+  }
+
+  // Stripe の顧客がいれば、続いている購読と開いたままの決済画面を先に止める。止められなければ削除しない（行が消えると課金だけが続く）。
+  if (row.stripeCustomerId) {
+    try {
+      await cancelCustomerBilling(row);
+    } catch (error) {
+      console.error("Failed to cancel subscription before deleting account", error instanceof Error ? error.message : error);
+      return NextResponse.json({ error: msg("Could not cancel your subscription. Please try again.") }, { status: 502 });
+    }
   }
 
   const { cleanup } = await deleteAccount(row);

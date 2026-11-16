@@ -24,7 +24,7 @@ describe("image generation conversation wiring", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.stubGlobal("fetch", mocks.fetch);
-    mocks.consumeUsage.mockResolvedValue({ ok: true, ticket: { kind: "image", day: "2026-01-01", keys: ["user:owner"] } });
+    mocks.consumeUsage.mockResolvedValue({ ok: true, ticket: { buckets: [{ key: "user:owner", kind: "image", day: "2026-01-01" }] } });
     mocks.refundUsage.mockResolvedValue(undefined);
     mocks.findSession.mockResolvedValue({ id: "owned", title: "Chat" });
     setHistory([{ role: "USER", content: "富士山と桜", attachments: [] }]);
@@ -51,7 +51,7 @@ describe("image generation conversation wiring", () => {
     if (failure === "storage") mocks.write.mockRejectedValueOnce(new Error("storage failed"));
     if (failure === "database") mocks.createMessage.mockRejectedValueOnce(new Error("database failed"));
     expect((await POST(request())).status).toBe(500);
-    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "image", day: "2026-01-01", keys: ["user:owner"] });
+    expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ buckets: [{ key: "user:owner", kind: "image", day: "2026-01-01" }] });
   });
 
   it("loads only the owned conversation and sends context upstream while saving only the user's input", async () => {

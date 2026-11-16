@@ -28,7 +28,7 @@ describe("POST /api/reports", () => {
     vi.clearAllMocks();
     mocks.currentUser.mockResolvedValue({ id: "u1", googleSub: null, verifiedEmail: null });
     mocks.find.mockResolvedValue(answer);
-    mocks.consume.mockResolvedValue({ kind: "report", day: "2026-11-15", keys: ["user:u1", "ip:net"] });
+    mocks.consume.mockResolvedValue({ buckets: [{ key: "user:u1", kind: "report", day: "2026-11-15" }, { key: "ip:net", kind: "report", day: "2026-11-15" }] });
     mocks.send.mockResolvedValue(undefined);
   });
 
@@ -72,6 +72,6 @@ describe("POST /api/reports", () => {
   it("reports a failed email as 502 and gives the report back", async () => {
     mocks.send.mockRejectedValueOnce(new EmailSendError("down"));
     expect((await POST(post({ messageId: "m2" }))).status).toBe(502);
-    expect(mocks.refund).toHaveBeenCalledWith({ kind: "report", day: "2026-11-15", keys: ["user:u1", "ip:net"] });
+    expect(mocks.refund).toHaveBeenCalledWith({ buckets: [{ key: "user:u1", kind: "report", day: "2026-11-15" }, { key: "ip:net", kind: "report", day: "2026-11-15" }] });
   });
 });

@@ -68,6 +68,7 @@ flowchart LR
 - [Android 应用](docs/architecture/android.md)
 - [图片上传与生成流程](docs/architecture/image-flow.md)
 - [部署与运行环境](docs/architecture/deployment.md)
+- [付费方案与用量上限](docs/architecture/billing.md)
 
 ## 当前边界
 

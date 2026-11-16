@@ -128,6 +128,16 @@ DATABASE_URL
 COOKIE_SECRET
 ```
 
+### Stripe 订阅（可选）
+
+```text
+STRIPE_SECRET_KEY
+STRIPE_PRICE_ID
+STRIPE_WEBHOOK_SECRET
+```
+
+月额 Pro（¥300）的付款。三项都设置时才开放申请；缺任一项时没有升级入口，`/api/billing/checkout|portal|webhook` 返回 404。Stripe 后台的产品、价格、Webhook 端点（`/api/billing/webhook`）和 Customer Portal 设置见 [billing.md](billing.md#配置stripe)。
+
 ### Google 登录（可选）
 
 ```text

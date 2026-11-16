@@ -56,6 +56,9 @@ interface AccountProfileBackend {
 
     /** `PUT /api/custom-instructions`：整体替换（空字符串是清空），返回服务端保存后的文字。 */
     suspend fun saveCustomInstructions(instructions: String): String?
+
+    /** `GET /api/billing`：当前方案和本期用量（设置里的“方案”）。 */
+    suspend fun plan(): PlanInfo = throw UnsupportedOperationException()
 }
 
 class AccountApi internal constructor(private val http: NoteFableHttp) : AccountProfileBackend {
@@ -83,6 +86,8 @@ class AccountApi internal constructor(private val http: NoteFableHttp) : Account
         )
         return response.user ?: throw ApiException(201, "HTTP 201")
     }
+
+    override suspend fun plan(): PlanInfo = http.getJson<PlanInfo>("/api/billing")
 
     override suspend fun customInstructions(): String? =
         http.getJson<CustomInstructionsResponse>("/api/custom-instructions").instructions

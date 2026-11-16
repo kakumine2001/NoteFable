@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="plan_title">方案</string>
+    <string name="plan_free">免费</string>
+    <string name="plan_messages_today">今天的消息</string>
+    <string name="plan_messages_period">本期消息</string>
+    <string name="plan_messages_month">本月消息</string>
+    <string name="plan_images_today">今天的图片</string>
+    <string name="plan_images_period">本期图片</string>
+    <string name="plan_images_month">本月图片</string>
+    <string name="plan_renews">将于 %1$s 自动续费。</string>
+    <string name="plan_ends">Pro 将于 %1$s 结束。</string>
+    <string name="plan_past_due">上次扣款失败。请更新付款方式以继续使用 Pro。</string>
+    <string name="plan_load_failed">无法加载你的方案。</string>
+</resources>

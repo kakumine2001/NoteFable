@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="plan_title">方案</string>
+    <string name="plan_free">免費</string>
+    <string name="plan_messages_today">今天的訊息</string>
+    <string name="plan_messages_period">本期訊息</string>
+    <string name="plan_messages_month">本月訊息</string>
+    <string name="plan_images_today">今天的圖片</string>
+    <string name="plan_images_period">本期圖片</string>
+    <string name="plan_images_month">本月圖片</string>
+    <string name="plan_renews">將於 %1$s 自動續費。</string>
+    <string name="plan_ends">Pro 將於 %1$s 結束。</string>
+    <string name="plan_past_due">上次扣款失敗。請更新付款方式以繼續使用 Pro。</string>
+    <string name="plan_load_failed">無法載入你的方案。</string>
+</resources>

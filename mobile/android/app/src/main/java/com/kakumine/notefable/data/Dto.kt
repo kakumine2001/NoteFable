@@ -192,6 +192,22 @@ const val MAX_MESSAGE_NOTES = 5
 /** 用户的自定义指令（适用于所有聊天）的上限，与网页 MAX_CUSTOM_INSTRUCTIONS 相同。 */
 const val MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS
 
+/** `GET /api/billing` 里一种用量（chat / image）：本期用了多少、上限、按天还是按月（day / month）、何时重新计算。 */
+@Serializable
+data class PlanUsage(val used: Int = 0, val limit: Int = 0, val period: String = "day", val resetsAt: String? = null)
+
+/** `GET /api/billing` 的订阅状态（网页 src/lib/billing-client.ts 的 PlanInfo.subscription）。 */
+@Serializable
+data class PlanSubscription(val status: String = "", val periodEnd: String? = null, val cancelAt: String? = null)
+
+/** `GET /api/billing`：当前方案（free / pro）、订阅和本期用量。原生端只显示，不提供购买（见 android-native.md）。 */
+@Serializable
+data class PlanInfo(
+    val plan: String = "free",
+    val subscription: PlanSubscription? = null,
+    val usage: Map<String, PlanUsage> = emptyMap(),
+)
+
 /** `GET / PUT /api/custom-instructions` 的回复；null 表示没有设置。 */
 @Serializable
 data class CustomInstructionsResponse(val instructions: String? = null)

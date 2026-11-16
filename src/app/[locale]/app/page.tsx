@@ -28,7 +28,7 @@ import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
-import { GuestLimitPrompt } from "@/components/guest-limit-prompt";
+import { BillingReturnNotice, GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
@@ -377,6 +377,8 @@ export default function Home() {
   const [sendError, setSendError] = useState<ErrorText>("");
   // 未ログインで上限に達したとき、入力欄の上に閉じられるログイン案内を出す。
   const [guestLimit, setGuestLimit] = useState<UsageKind | null>(null);
+  // 無料の利用者が上限に達したときの有料プランの案内。
+  const [upgradeLimit, setUpgradeLimit] = useState<UsageKind | null>(null);
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
   // 入力欄の要素は画面から外れると先に null になるので、最後の入力値も state 側から持っておく。
@@ -1341,6 +1343,9 @@ export default function Home() {
         if (error.tier === "guest") {
           guestLimitHitRef.current = true;
           setGuestLimit(error.kind);
+        } else if (error.tier === "member") {
+          guestLimitHitRef.current = true;
+          setUpgradeLimit(error.kind);
         }
         // 上限で断られた送信はどこにも保存されていない。本文と添付を入力欄に戻す。
         // 待っている間に書き足した本文や添付があれば消さず、断られた分を前に足す。
@@ -1432,10 +1437,11 @@ export default function Home() {
         return;
       }
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
-      if (error instanceof UsageLimitError && error.tier === "guest") {
-        // 入力欄に書きかけの文があれば、ログインして戻ってきても残るようにする（通常の送信と同じ）。
+      if (error instanceof UsageLimitError && error.tier !== "pro") {
+        // 入力欄に書きかけの文があれば、ログインや申し込みから戻ってきても残るようにする（通常の送信と同じ）。
         guestLimitHitRef.current = true;
-        setGuestLimit(error.kind);
+        if (error.tier === "guest") setGuestLimit(error.kind);
+        else setUpgradeLimit(error.kind);
       }
       const partial = (sessionMessagesRef.current[sessionId] ?? []).find((message) => message.id === assistantMessageId);
       if (partial?.content) {
@@ -2049,6 +2055,11 @@ export default function Home() {
               <ArrowDown size={20} strokeWidth={2.1} />
             </button>
           </div>
+          <BillingReturnNotice />
+          {upgradeLimit && (
+            <UpgradePrompt kind={upgradeLimit} onClose={() => setUpgradeLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
+              onBeforeUpgrade={() => savePendingDraft("chat", (inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
+          )}
           {guestLimit && (
             <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
               // 入力欄が空で、断られた書き直しがあるときは、その文を預ける（ログイン後に入力欄へ戻る）。
