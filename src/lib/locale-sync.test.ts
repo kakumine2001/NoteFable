@@ -11,8 +11,8 @@ describe("localeSyncAction", () => {
     expect(localeSyncAction({ ...base, configured: false, signedIn: false, preference: "ja" })).toBeNull();
   });
 
-  it("shows the environment language to signed-out visitors and drops an old choice", () => {
-    expect(localeSyncAction({ ...base, signedIn: false, preference: "ja" })).toEqual({ kind: "switch", to: "auto" });
+  it("keeps a signed-out visitor's own choice", () => {
+    expect(localeSyncAction({ ...base, signedIn: false, preference: "ja", active: "ja" })).toBeNull();
     expect(localeSyncAction({ ...base, signedIn: false, preference: "auto" })).toBeNull();
   });
 

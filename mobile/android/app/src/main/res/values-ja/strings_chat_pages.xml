@@ -13,5 +13,5 @@
     <string name="create_page_done">ノートに「%1$s」を作成しました。</string>
     <string name="create_page_partial">長い会話なので、一部を省きました。</string>
     <string name="open_page">ノートを開く</string>
-    <string name="settings_language_help">言語を選ぶまでは、端末の言語で表示されます。</string>
+    <string name="language_current">言語：%1$s</string>
 </resources>

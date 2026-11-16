@@ -6,9 +6,11 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
-import { INTRO_HREF } from "@/lib/i18n/routing";
+import { LOCALES, type Locale } from "@/lib/i18n/locale";
+import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
 import { useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。
@@ -191,6 +193,21 @@ function useFacts() {
   ];
 }
 
+// 紹介ページの言語メニューで選んだとき: 言語ごとの URL（/ja など）で見ているなら、アドレスもその言語の URL にする
+// （共有・再読み込みで選んだ言語が出るように。/ のままなら Cookie で選ばれる）。
+// ログインしていればアカウントにも保存する（していなければ 401 で何もしない。失敗は気にしない）。
+function onLandingLocale(locale: Locale) {
+  const path = window.location.pathname;
+  if (path !== "/" && LOCALES.some((option) => path === landingPath(option))) {
+    const apply = () => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash);
+    // メニューは開いている間、戻るキーで閉じるための履歴を 1 件積んでいる（use-back-to-close.ts）。閉じるとその履歴を戻すので、
+    // 今の履歴を書き換えても戻った先は元の URL になる。戻り終えて（popstate）から、元の履歴の URL を書き換える。
+    if (window.history.state?.notefableSheet) window.addEventListener("popstate", () => setTimeout(apply), { once: true });
+    else apply();
+  }
+  void fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) }).catch(() => {});
+}
+
 export function ThreadLanding() {
   const t = useT();
   const { options: modelOptions, defaultModel } = useModels();
@@ -326,7 +343,10 @@ export function ThreadLanding() {
 
       <footer className="tl-footer tl-wrap">
         <span className="tl-brand"><BrandMark size={20} /><span>NoteFable</span></span>
-        <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
+        <div className="tl-footer-end">
+          <LanguageMenu className="tl-language" onChoose={onLandingLocale} />
+          <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
+        </div>
       </footer>
     </div>
   );

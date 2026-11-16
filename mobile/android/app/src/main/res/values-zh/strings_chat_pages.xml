@@ -13,5 +13,5 @@
     <string name="create_page_done">已在笔记中创建“%1$s”。</string>
     <string name="create_page_partial">对话较长，省略了一部分内容。</string>
     <string name="open_page">打开笔记</string>
-    <string name="settings_language_help">在你选择语言之前，NoteFable 使用设备的语言。</string>
+    <string name="language_current">语言：%1$s</string>
 </resources>

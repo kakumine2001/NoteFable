@@ -967,6 +967,13 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-menu-item:hover, .chat-menu-item:focus-visible { background: var(--notion-hover); outline: none; }
 .chat-menu-item.is-danger { color: #b91c1c; }
 .chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
+/* 表示言語のメニュー（language-menu.tsx）。項目は .chat-menu-item、今の言語の右端にチェック。 */
+.language-menu-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.language-menu-check { flex: none; color: var(--notion-blue); }
+/* サイドバー下部のリンクの行（12px 灰）の右端に置くボタン。 */
+.language-trigger { display: inline-flex; margin-left: auto; align-items: center; gap: .3rem; color: var(--notion-muted); }
+.language-trigger:hover { color: var(--notion-text); }
+.language-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; border-radius: 4px; }
 .notion-empty-title #chat-heading-text { min-width: 0; overflow-wrap: anywhere; }
 .chat-project-options { margin-top: .75rem; max-height: 40dvh; overflow-y: auto; }
 @media (max-width: 639px) { .chat-more-button, .chat-pin-button { width: 2.5rem; height: 2.5rem; } .chat-menu-item { min-height: 44px; } }

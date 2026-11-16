@@ -74,10 +74,11 @@ class AppLanguageTest {
     }
 
     @Test
-    fun `signed-out users get the system language and lose an old choice`() {
-        assertEquals(LocaleSyncAction.Switch(auto), sync(signedIn = false, preference = ja))
+    fun `signed-out users keep their own choice`() {
+        assertEquals(null, sync(signedIn = false, preference = ja, active = ja))
         assertEquals(null, sync(signedIn = false, preference = auto))
     }
+
 
     @Test
     fun `follows the language saved on the account`() {

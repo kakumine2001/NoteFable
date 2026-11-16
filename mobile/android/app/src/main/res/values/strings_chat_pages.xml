@@ -16,5 +16,5 @@
     <string name="create_page_partial">This chat is long, so some of it was left out.</string>
     <string name="open_page">Open page</string>
     <!-- 网页这句说的是"浏览器的语言"；App 里是系统语言，所以把"浏览器"换成"设备"，其余照网页。 -->
-    <string name="settings_language_help">Until you choose a language, NoteFable uses your device’s language.</string>
+    <string name="language_current">Language: %1$s</string>
 </resources>
