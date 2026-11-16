@@ -23,14 +23,15 @@ const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data
 
 // 表示言語。「自動」は置かない。選ぶまでは環境の言語（ブラウザの言語・地域）のまま表示し、選んだらアカウントに保存する。
 // 実際の切り替えはワークスペースの AccountLocaleSync（保存された言語に合わせる）が行うので、ここでは保存だけをする。
-// 選ぶまでは、どの項目にも印を付けない（いま表示している言語を選んでアカウントに固定することもできるように）。
+// 選ぶまでは、いま表示している言語に印を付ける。押せばその言語をアカウントに固定する。
 // 矢印キーはフォーカスを動かすだけで、Enter / Space / クリックで選ぶ（1 つ動くたびに保存と切り替えが走らないように）。
 function LanguageSettings({ user }: { user: AccountUser }) {
   const { t, locale, switching, changeError, setPreference } = useI18n();
   const labelId = useId();
-  const helpId = useId();
   const listRef = useRef<HTMLDivElement>(null);
   const saved = user.locale ?? null;
+  // 印を付ける言語: 選んだ言語。選んでいなければ（null）いま表示している環境の言語。アカウントを読めなかった（undefined）ときはどれも付けない。
+  const checked = user.locale === undefined ? null : (saved ?? locale);
   // 矢印キーで最後にフォーカスした項目。
   const [focused, setFocused] = useState<Locale | null>(null);
   // Tab で入ったときにフォーカスする項目: 最後にフォーカスした項目、選んだ言語、いま表示している言語の順。
@@ -50,13 +51,13 @@ function LanguageSettings({ user }: { user: AccountUser }) {
   return (
     <section className="project-settings-section">
       <h3 id={labelId} className="project-settings-label">{t("Language")}</h3>
-      {/* アカウントの言語が分からない（読めなかった）ときは「未選択」と言わない。 */}
-      {user.locale === null && <p id={helpId} className="project-settings-help">{t("Until you choose a language, NoteFable uses your browser’s language.")}</p>}
-      <div ref={listRef} role="radiogroup" aria-labelledby={labelId} aria-describedby={user.locale === null ? helpId : undefined} aria-busy={switching}
+      <div ref={listRef} role="radiogroup" aria-labelledby={labelId} aria-busy={switching}
         className="settings-language-list" onKeyDown={onKeyDown}>
         {LOCALES.map((option) => (
-          <button key={option} type="button" role="radio" aria-checked={saved === option} tabIndex={option === focusable ? 0 : -1} onFocus={() => setFocused(option)}
-            className={`project-settings-option settings-language-option${saved === option ? " is-selected" : ""}`}
+          <button key={option} type="button" role="radio" aria-checked={checked === option} tabIndex={option === focusable ? 0 : -1} onFocus={() => setFocused(option)}
+            className={`project-settings-option settings-language-option${checked === option ? " is-selected" : ""}`}
+            // 保存だけ。表示の切り替えは AccountLocaleSync がアカウントの言語に合わせて行う。
+            // 選んでいないときは印の付いた今の言語を押しても保存する（環境の言語をアカウントに固定する）。
             onClick={() => { if (option !== saved) saveProfile({ locale: option }); }}>
             <span className="settings-language-radio" aria-hidden="true" />
             <span lang={option} className="flex-1 text-left">{LOCALE_NAMES[option]}</span>

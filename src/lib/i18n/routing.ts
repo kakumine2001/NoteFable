@@ -1,5 +1,5 @@
 import { DEVICE_COOKIE, SESSION_COOKIE } from "@/lib/cookie-names";
-import { isLocale, LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
+import { isLocale, LOCALE_COOKIE, parsePreference, resolveLocale, type Locale } from "@/lib/i18n/locale";
 
 // 紹介ページ（/）とワークスペース（/app）、Android アプリが WebView に載せるノートのエディター（/note-embed）は、
 // 言語ごとに作り置いた静的なページ（/[locale]、/[locale]/app、/[locale]/note-embed）で配る。
@@ -14,6 +14,18 @@ const RETURNING_COOKIES = [DEVICE_COOKIE, ...[SESSION_COOKIE, `__Secure-${SESSIO
 const INTRO_PARAM = "intro";
 // 紹介ページへのリンク（端末 Cookie があってもワークスペースへ送られない）。Android の AccountUi.kt も同じ URL。
 export const INTRO_HREF = `/?${INTRO_PARAM}`;
+
+// 紹介ページの言語ごとの URL（/en・/zh・/zh-Hant・/ja）。静的なページ /[locale] がそのまま出る（proxy は通らない）ので、
+// 検索エンジンが言語ごとに拾え、共有したリンクもその言語のまま開く。/ は proxy.ts が環境の言語を選ぶ入口。
+export function landingPath(locale: Locale) {
+  return `/${locale}`;
+}
+
+// 検索エンジン向けの絶対 URL（sitemap.xml・robots.txt）の土台。本番の URL は Vercel が渡す（手元のビルドでは localhost）。
+export function siteOrigin() {
+  const host = process.env.VERCEL_PROJECT_PRODUCTION_URL;
+  return host ? `https://${host}` : "http://localhost:3000";
+}
 
 // 保存済みの会話・ノートへの古いリンク（/?chat=… など）は、指定を保ったままワークスペースへ送る。
 const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];

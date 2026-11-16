@@ -6,10 +6,15 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
+import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
-import { INTRO_HREF } from "@/lib/i18n/routing";
-import { useT } from "@/components/i18n-provider";
+import { LOCALES, type Locale } from "@/lib/i18n/locale";
+import { landingTitle } from "@/lib/i18n/landing-meta";
+import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
+import { saveLocaleIfSignedIn } from "@/lib/account-store";
+import { afterSheetHistory } from "@/lib/use-back-to-close";
+import { useI18n, useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。
 const QUESTIONS = [
@@ -191,8 +196,23 @@ function useFacts() {
   ];
 }
 
+// 紹介ページの言語メニューで選んだとき: 言語ごとの URL（/ja など）で見ているなら、アドレスもその言語の URL にする
+// （共有・再読み込みで選んだ言語が出るように。/ のままなら Cookie で選ばれる）。
+// ログインしていればアカウントにも保存する（していなければ 401 で何もしない。失敗は気にしない）。
+function onLandingLocale(locale: Locale) {
+  const path = window.location.pathname;
+  if (path !== "/" && LOCALES.some((option) => path === landingPath(option))) {
+    // メニューは閉じるときに、戻るキー用に積んだ履歴を戻す。戻り終えてから元の履歴の URL を書き換える。
+    afterSheetHistory(() => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash));
+  }
+  saveLocaleIfSignedIn(locale);
+}
+
 export function ThreadLanding() {
   const t = useT();
+  const { locale } = useI18n();
+  // メニューで言語を切り替えたら、タブのタイトルもその言語にする（最初はメタデータと同じもの）。
+  useEffect(() => { document.title = landingTitle(t, locale); }, [t, locale]);
   const { options: modelOptions, defaultModel } = useModels();
   const defaultModelLabel = modelOptions.find((model) => model.id === defaultModel)?.label ?? modelOptions[0].label;
   const STATIONS = useStations();
@@ -326,7 +346,10 @@ export function ThreadLanding() {
 
       <footer className="tl-footer tl-wrap">
         <span className="tl-brand"><BrandMark size={20} /><span>NoteFable</span></span>
-        <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
+        <div className="tl-footer-end">
+          <LanguageMenu className="tl-language" onChoose={onLandingLocale} />
+          <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
+        </div>
       </footer>
     </div>
   );

@@ -25,6 +25,7 @@ object Lucide {
     val ArrowUp = listOf("m5 12 7-7 7 7", "M12 19V5")
     val ChevronDown = listOf("m6 9 6 6 6-6")
     val Check = listOf("M20 6 9 17l-5-5")
+    val Languages = listOf("m5 8 6 6", "m4 14 6-6 2-3", "M2 5h12", "M7 2h1", "m22 22-5-10-5 10", "M14 18h6")
     val X = listOf("M18 6 6 18", "m6 6 12 12")
     val ImagePlus = listOf(
         "M16 5h6",

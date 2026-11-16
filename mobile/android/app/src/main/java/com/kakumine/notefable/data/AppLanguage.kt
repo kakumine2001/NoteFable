@@ -74,7 +74,7 @@ sealed interface LocaleSyncAction {
 /**
  * 界面语言跟着账号走的判断（网页 src/lib/locale-sync.ts 的 localeSyncAction，规则相同）：
  * - [loaded] 账号读到过，[configured] 服务端开了登录；否则什么都不做。
- * - 没登录：环境语言。本机还留着以前选的语言就清掉。
+ * - 没登录：本机的选择不动（没登录也能在侧栏底部的语言菜单里选；退出登录时由调用方清掉）。
  * - 已登录、[saved]（账号上的语言，原样：null 是没选过，[LOCALE_UNKNOWN] 是不知道）不知道：不用本机的选择覆盖。
  * - 账号上有语言：本机的选择（[preference]）和正在显示的（[active]，或切换中的 [target]）都换成它。
  * - 没选过、本机有以前选的语言：打开 App 后第一次判断（[firstRun]）时存到账号，只试这一次（[migrated] 是当时存的语言）。
@@ -92,7 +92,7 @@ fun localeSyncAction(
     migrated: AppLanguage.Preference?,
 ): LocaleSyncAction? {
     if (!loaded || !configured) return null
-    if (!signedIn) return if (preference == AppLanguage.Preference.Auto) null else LocaleSyncAction.Switch(AppLanguage.Preference.Auto)
+    if (!signedIn) return null
     if (saved == LOCALE_UNKNOWN) return null
     val chosen = AppLanguage.preferenceOfCode(saved)
     if (chosen != null) return if (preference == chosen && (target ?: active) == chosen) null else LocaleSyncAction.Switch(chosen)

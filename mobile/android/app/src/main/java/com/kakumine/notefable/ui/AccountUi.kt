@@ -96,7 +96,8 @@ fun SidebarFooter(
                 }
             }
         }
-        LegalLinks()
+        // 未登录（或没开登录）时在链接这一行的右端放语言菜单（网页 SidebarFooter 的 guest）。账号读到之前不放，免得登录用户看到一下。
+        LegalLinks(guest = account.loaded && (!account.configured || account.user == null))
     }
 }
 
@@ -507,10 +508,10 @@ fun UserAvatar(user: AccountUser, size: Dp) {
     }
 }
 
-// 隐私政策 / 服务条款（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。
+// 隐私政策 / 服务条款（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。[guest] 时行的右端放语言按钮。
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
-private fun LegalLinks() {
+private fun LegalLinks(guest: Boolean) {
     val uri = LocalUriHandler.current
     val context = LocalContext.current
     // 和网页 legal-links.tsx 一样，放不下时换行（flex-wrap）。
@@ -519,6 +520,8 @@ private fun LegalLinks() {
         Text(stringResource(R.string.about), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { openInBrowser(context, BuildConfig.BASE_URL + "/?intro") })
         Text(stringResource(R.string.privacy), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/privacy") })
         Text(stringResource(R.string.terms), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/terms") })
+        // 网页 .language-trigger 的 margin-left: auto：占满这一行剩下的宽度，按钮靠右。
+        if (guest) Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { LanguageMenuButton() }
     }
 }
 

@@ -23,8 +23,8 @@ export type LocaleSyncAction = { kind: "switch"; to: LocalePreference } | { kind
 export function localeSyncAction({ loaded, configured, signedIn, saved, preference, active, target, firstRun, migrated }: LocaleSyncInput): LocaleSyncAction {
   // アカウントを読めていない、またはログインが未設定の環境では何もしない。
   if (!loaded || !configured) return null;
-  // ログインしていなければ環境の言語。以前この端末で選んだ言語が残っていれば消す。
-  if (!signedIn) return preference === "auto" ? null : { kind: "switch", to: "auto" };
+  // ログインしていなければ、このブラウザの選択（Cookie）のまま。未ログインでも言語は選べる（ログアウト時は呼び出し側が選択を消す）。
+  if (!signedIn) return null;
   // 保存された言語が分からないときは、Cookie で上書きしない。
   if (saved === undefined) return null;
   // 保存された言語に、Cookie とこのタブの表示の両方を合わせる（保存に失敗して元に戻ったときも、ここで表示が戻る）。

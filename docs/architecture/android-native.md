@@ -111,12 +111,12 @@ mobile/android/
 
 ## 界面语言
 
-和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`）。只有登录用户能选，在设置里，没有“自动”；没选过、或没登录时按系统语言显示（网页规则见 [i18n.md](i18n.md)）。
+和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`），没有单独的“自动”选项：没选过时按系统语言显示，列表里标的就是正在显示的语言。登录用户在设置里选，存到账号；未登录时在侧栏底部链接行右端的语言按钮（`LanguageMenuButton`，网页 `language-menu.tsx`）里选，只改本机（网页规则见 [i18n.md](i18n.md)）。
 
 - **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
 - **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
-- **设置里的语言**（`ui/LanguageUi.kt` 的 `LanguageSettings`，网页 `settings-dialog.tsx` 的 `LanguageSettings`）：选了就存到账号（`PATCH /api/account {locale}`，和名字、头像同一个保存队列，先显示后确认），选之前哪一项都不标，账号上还没选过时显示网页的那句说明（文案照搬网页，所以说的是“浏览器的语言”）。设置只保存，不直接切换。
-- **跟着账号切换**（`AccountLocaleSync`，根上只放一个）：判断规则是 `data/AppLanguage.kt` 的 `localeSyncAction`，逐条移植网页 `src/lib/locale-sync.ts`（单元测试是同样的情况）。网页的 Cookie 在原生里是系统的“应用语言”（`AppCompatDelegate.setApplicationLocales`；Android 13+ 由系统保存，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。只在账号状态（读到没有、是否登录、账号上的语言）变化时判断：账号上有语言就切过去（保存失败退回原值时切回去）；没登录就清空成系统语言；登录了但没选过、本机留着以前（旧版侧栏语言菜单）选的语言时，打开 App 后第一次判断时存到账号，只试一次；`GET /api/account` 没返回 `locale` 字段（`AccountUser.locale == LOCALE_UNKNOWN`）时不动。原生的切换是同步的，没有网页取字典那一步，所以没有“切换中”；切换抛错时设置里显示网页的“无法切换语言”和“重试”。
+- **设置里的语言**（`ui/LanguageUi.kt` 的 `LanguageSettings`，网页 `settings-dialog.tsx` 的 `LanguageSettings`）：选了就存到账号（`PATCH /api/account {locale}`，和名字、头像同一个保存队列，先显示后确认）；没选过时标出正在显示的语言，点它也会存，读不到账号的语言时哪一项都不标。设置只保存，不直接切换。
+- **跟着账号切换**（`AccountLocaleSync`，根上只放一个）：判断规则是 `data/AppLanguage.kt` 的 `localeSyncAction`，逐条移植网页 `src/lib/locale-sync.ts`（单元测试是同样的情况）。网页的 Cookie 在原生里是系统的“应用语言”（`AppCompatDelegate.setApplicationLocales`；Android 13+ 由系统保存，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。只在账号状态（读到没有、是否登录、账号上的语言）变化时判断：账号上有语言就切过去（保存失败退回原值时切回去）；没登录时不动本机的选择（退出登录、删除账号成功后由 `forgetLanguageChoice()` 清空成系统语言，网页 `forgetLocaleChoice`）；登录了但没选过、本机留着以前（未登录时在语言菜单里）选的语言时，打开 App 后第一次判断时存到账号，只试一次；`GET /api/account` 没返回 `locale` 字段（`AccountUser.locale == LOCALE_UNKNOWN`）时不动。原生的切换是同步的，没有网页取字典那一步，所以没有“切换中”；切换抛错时设置里显示网页的“无法切换语言”和“重试”。
 - 语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容和开着的设置窗口都不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化。
 
 ## 侧栏：置顶、聊天项目与整理
