@@ -55,12 +55,14 @@ function isCurrent(owner: SubscriptionOwner, update: SubscriptionUpdate) {
 }
 
 // 行の購読とこの知らせの関係。
-// - write: 行に写す（行の購読そのもの、または行に PRO の購読が無い）。
-// - stale: 別の購読が PRO の間に届いた、終わった購読の知らせ。何もしない。
-// - duplicate: 別の購読が PRO の間に、もう 1 つ課金の続く購読ができた（二重課金）。呼び出し側が新しい方を止める。
+// - write: 行に写す（行の購読そのもの、または行に PRO の購読が無いときの、PRO の購読）。
+// - stale: 行に記録した購読とは別の、PRO でない購読の知らせ（終わった古い購読など）。何もしない。
+//   行の購読が保留中・一時停止中（PRO でない）でも置き換えない。置き換えると、削除のときに本当の購読を止められなくなる。
+// - duplicate: 別の購読が PRO の間に、もう 1 つ PRO の購読ができた（二重課金）。呼び出し側が新しい方を止める。
 export function subscriptionAction(owner: SubscriptionOwner, update: SubscriptionUpdate): "write" | "stale" | "duplicate" {
-  if (isCurrent(owner, update) || !isProStatus(owner.subscriptionStatus)) return "write";
-  return isProStatus(update.status) ? "duplicate" : "stale";
+  if (isCurrent(owner, update)) return "write";
+  if (!isProStatus(update.status)) return "stale";
+  return isProStatus(owner.subscriptionStatus) ? "duplicate" : "write";
 }
 
 // 購読の状態を行に写す。必ず withUserBillingLock の中で、その tx と、ロックの中で読み直した owner を渡す。

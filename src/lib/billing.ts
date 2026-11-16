@@ -85,6 +85,8 @@ async function applySubscription(tx: BillingTx, userId: string, subscription: St
   };
   const action = subscriptionAction(owner, update);
   if (action === "duplicate") await stopDuplicate(subscription);
+  // 止めた 2 つ目の購読の返金が前回失敗していたら、ここでやり直す（取り消したあとは PRO でないので stale になる）。
+  if (action === "stale" && subscription.metadata?.[DUPLICATE_MARK] === "1") await refundDuplicate(subscription);
   if (action === "write") await writeSubscription(tx, owner, update);
   return owner.id;
 }
@@ -175,10 +177,18 @@ export async function createPortalUrl(customer: string, origin: string) {
   return session.url;
 }
 
+const DUPLICATE_MARK = "notefable_duplicate";
+
 // 別の購読が PRO の間にできた 2 つ目の Stripe の購読（例: 開いたままの決済画面が、Play で買ったあとに支払われた）。
-// 取り消して、支払われた請求を返金する（二重に払わせない）。返金は請求の支払いごとに冪等キーを付ける（知らせが重なっても 1 回）。
+// 印を付けてから取り消し、支払われた請求を返金する（二重に払わせない）。印があるので、返金に失敗しても Webhook の再送でやり直せる。
 async function stopDuplicate(subscription: Stripe.Subscription) {
+  await stripe().subscriptions.update(subscription.id, { metadata: { [DUPLICATE_MARK]: "1" } });
   await cancelSubscription(subscription.id);
+  await refundDuplicate(subscription);
+}
+
+// 返金は請求の支払いごとに冪等キーを付ける（知らせが重なっても 1 回）。
+async function refundDuplicate(subscription: Stripe.Subscription) {
   const invoice = typeof subscription.latest_invoice === "string" ? subscription.latest_invoice : subscription.latest_invoice?.id;
   if (!invoice) return;
   const payments = await stripe().invoicePayments.list({ invoice, limit: 10 });

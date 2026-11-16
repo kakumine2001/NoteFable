@@ -2,13 +2,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn(), list: vi.fn(), cancel: vi.fn(), customersCreate: vi.fn(),
-  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(), invoicePayments: vi.fn(), refund: vi.fn(),
+  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(), invoicePayments: vi.fn(), refund: vi.fn(), subUpdate: vi.fn(),
   findUnique: vi.fn(), update: vi.fn(), locks: [] as string[],
 }));
 vi.mock("stripe", async (load) => {
   const actual = await load<typeof import("stripe")>();
   class FakeStripe {
-    subscriptions = { retrieve: mocks.retrieve, list: mocks.list, cancel: mocks.cancel };
+    subscriptions = { retrieve: mocks.retrieve, list: mocks.list, cancel: mocks.cancel, update: mocks.subUpdate };
     customers = { create: mocks.customersCreate };
     invoicePayments = { list: mocks.invoicePayments };
     refunds = { create: mocks.refund };
@@ -112,10 +112,21 @@ describe("billing", () => {
     mocks.refund.mockResolvedValue({});
     await syncSubscription("sub_dup");
     expect(mocks.cancel).toHaveBeenCalledWith("sub_dup");
+    // 取り消す前に印を付ける（返金に失敗しても、再送で印を見てやり直せる）。
+    expect(mocks.subUpdate).toHaveBeenCalledWith("sub_dup", { metadata: { notefable_duplicate: "1" } });
+    expect(mocks.subUpdate.mock.invocationCallOrder[0]).toBeLessThan(mocks.cancel.mock.invocationCallOrder[0]);
     expect(mocks.invoicePayments).toHaveBeenCalledWith({ invoice: "in_1", limit: 10 });
     expect(mocks.refund).toHaveBeenCalledExactlyOnceWith(
       { payment_intent: "pi_1", reason: "duplicate", metadata: { subscription: "sub_dup" } }, { idempotencyKey: "notefable-duplicate-refund-inpay_1" });
     expect(mocks.update).not.toHaveBeenCalled();
+
+    // 返金が前回失敗していた（取り消し済み・印付き）: 再送で返金だけやり直す。
+    mocks.refund.mockClear();
+    mocks.cancel.mockClear();
+    mocks.retrieve.mockResolvedValue(subscription("sub_dup", "canceled", { latest_invoice: "in_1", metadata: { userId: "u1", notefable_duplicate: "1" } }));
+    await syncSubscription("sub_dup");
+    expect(mocks.cancel).not.toHaveBeenCalled();
+    expect(mocks.refund).toHaveBeenCalledOnce();
   });
 
   it("cancels a live NoteFable subscription whose account is gone, and leaves other customers alone", async () => {

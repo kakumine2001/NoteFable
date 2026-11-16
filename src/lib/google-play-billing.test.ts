@@ -128,6 +128,34 @@ describe("google play billing", () => {
     expect(mocks.update.mock.lastCall![0].data.subscriptionPeriodStart).toEqual(end);
   });
 
+  it("does not let an old expired token replace a current subscription that is on hold", async () => {
+    rows({ u1: { ...owner, subscriptionProvider: "google", googlePurchaseToken: "current", subscriptionStatus: "unpaid" } }, { old: { id: "u1" } });
+    stubGoogle(play("EXPIRED"));
+    await syncPlayPurchase("old");
+    expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("keeps the owner record when acknowledgement fails, and reports the failure afterwards", async () => {
+    stubGoogle(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" }));
+    const failing = vi.fn(async (input: string, init?: RequestInit) => {
+      const url = String(input);
+      if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "at" }), { status: 200 });
+      if (url.endsWith(":acknowledge")) return new Response("down", { status: 503 });
+      return new Response(JSON.stringify(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" })), { status: init?.method === "POST" ? 200 : 200 });
+    });
+    vi.stubGlobal("fetch", failing);
+    await expect(claimPlayPurchase("u1", "tok")).rejects.toThrow("503");
+    expect(mocks.update.mock.calls[0][0].data).toMatchObject({ googlePurchaseToken: "tok", plan: "PRO" });
+  });
+
+  it("starts a fresh usage period for a purchase made long after the last one expired", async () => {
+    rows({ u1: { ...owner, subscriptionProvider: "google", googlePurchaseToken: "tok", subscriptionStatus: "canceled",
+      subscriptionPeriodStart: new Date("2026-02-01T00:00:00Z"), subscriptionPeriodEnd: new Date("2026-03-01T00:00:00Z") } }, { tok: { id: "u1" } });
+    stubGoogle(play("ACTIVE", { lineItems: [{ productId: "notefable_pro", expiryTime: "2026-12-15T00:00:00Z", autoRenewingPlan: { autoRenewEnabled: true } }] }));
+    await syncPlayPurchase("tok");
+    expect(mocks.update.mock.lastCall![0].data.subscriptionPeriodStart.getTime()).toBeGreaterThan(new Date("2026-11-01T00:00:00Z").getTime());
+  });
+
   it("reports a pending payment without granting Pro", async () => {
     stubGoogle(play("PENDING"));
     await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("pending");
