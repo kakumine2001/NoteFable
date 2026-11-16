@@ -8,6 +8,14 @@ describe("parseTitleOutput", () => {
     ["Title: 🇯🇵 日本旅行のプラン", "🇯🇵", "日本旅行のプラン"],
     ["\"❤️ 情人节礼物\"", "❤️", "情人节礼物"],
     ["👩‍💻 Prisma の migrate 手順\n補足", "👩‍💻", "Prisma の migrate 手順"],
+    ["🍳\nパスタの作り方", "🍳", "パスタの作り方"],
+    ["\"Title: 🍳 パスタ\"", "🍳", "パスタ"],
+    ["🍳 - パスタ", "🍳", "パスタ"],
+    ["🍳: パスタ", "🍳", "パスタ"],
+    ["**🍳 パスタ**", "🍳", "パスタ"],
+    ["- 🍳 パスタ", "🍳", "パスタ"],
+    ["🍳🍝 パスタ", "🍳", "パスタ"],
+    ["⛩ 京都旅行", "⛩", "京都旅行"],
   ])("splits %j into icon and title", (raw, icon, title) => {
     expect(parseTitleOutput(raw)).toEqual({ icon, title });
   });
@@ -15,6 +23,7 @@ describe("parseTitleOutput", () => {
   it("keeps the title without an icon when the output has no leading emoji", () => {
     expect(parseTitleOutput("Rust lifetimes")).toEqual({ icon: null, title: "Rust lifetimes" });
     expect(parseTitleOutput("A 🍳 recipe")).toEqual({ icon: null, title: "A 🍳 recipe" });
+    expect(parseTitleOutput("© 2024 plan")).toEqual({ icon: null, title: "© 2024 plan" });
   });
 
   it("keeps the icon when only an emoji came back", () => {

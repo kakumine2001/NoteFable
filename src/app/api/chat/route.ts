@@ -226,7 +226,7 @@ function encodeActivityStreamEvent(activity: ActivityEvent) {
 }
 
 // 最初のメッセージから AI タイトルとアイコン（絵文字）を作って保存する。失敗しても仮タイトルのままにするため、例外は投げない。
-// 仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
+// タイトルは仮タイトルのままのときだけ更新し、その間に変わったタイトルは上書きしない。
 async function saveGeneratedTitle({
   sessionId,
   userId,
@@ -244,18 +244,32 @@ async function saveGeneratedTitle({
 }) {
   try {
     const generated = await generateChatTitle({ provider, model, message, userId });
-    if (!generated?.title) console.error("Chat title response had no text; keeping the placeholder.");
-    else await prisma.session.updateMany({
+    if (!generated?.title && !generated?.icon) {
+      console.error("Chat title response had no text; keeping the placeholder.");
+      return;
+    }
+    if (generated.title) await prisma.session.updateMany({
       where: { id: sessionId, userId, title: placeholder, titleManual: false },
       data: { title: generated.title },
     });
-    // アイコンはまだ無いときだけ付ける（その間にユーザーが選んだアイコンは上書きしない）。
-    if (generated?.icon) await prisma.session.updateMany({
-      where: { id: sessionId, userId, icon: null },
-      data: { icon: generated.icon },
-    });
+    // タイトルの保存で更新日時が進むので、アイコンはその後に書く。
+    if (generated.icon) await saveGeneratedIcon(sessionId, userId, generated.icon);
   } catch (error) {
     console.error("Failed to generate chat title", getErrorMessage(error));
+  }
+}
+
+// AI が選んだアイコンは、まだアイコンが無いときだけ付ける（ユーザーが選んだアイコンは上書きしない）。
+// 一覧の並びを動かさないよう、PATCH のアイコン変更と同じく更新日時を書き戻す。回答の保存と重なったら読み直す。
+async function saveGeneratedIcon(sessionId: string, userId: string, icon: string) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const current = await prisma.session.findFirst({ where: { id: sessionId, userId, icon: null }, select: { updatedAt: true } });
+    if (!current) return;
+    const saved = await prisma.session.updateMany({
+      where: { id: sessionId, userId, icon: null, updatedAt: current.updatedAt },
+      data: { icon, updatedAt: current.updatedAt },
+    });
+    if (saved.count) return;
   }
 }
 

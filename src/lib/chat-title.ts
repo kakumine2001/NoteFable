@@ -43,7 +43,7 @@ export function cleanTitle(raw: string) {
   const firstLine = raw.trim().split(/\r?\n/)[0] ?? "";
   const title = firstLine
     .replace(TITLE_PREFIX, "")
-    .replace(/^["'“”‘’「『]+|["'“”‘’」』]+$/g, "")
+    .replace(/^["'“”‘’「『]+|["'“”‘’」』*_`]+$/g, "")
     .replace(/[。.!！?？]+$/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -53,15 +53,32 @@ export function cleanTitle(raw: string) {
 
 export type ChatTitle = { title: string | null; icon: string | null };
 
-// 「🍳 パスタの作り方」を絵文字とタイトルに分ける。先頭が正しい絵文字 1 つでなければアイコンなし。
-export function parseTitleOutput(raw: string): ChatTitle {
-  const line = (raw.trim().split(/\r?\n/)[0] ?? "").trim().replace(TITLE_PREFIX, "").replace(/^["'“”‘’「『]+/, "");
-  const first = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(line)[Symbol.iterator]().next().value?.segment ?? "";
-  if (!isEmojiIcon(first)) return { title: cleanTitle(line), icon: null };
-  return { title: cleanTitle(line.slice(first.length)), icon: first };
+const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+// 行頭の飾り：空白・引用符・Markdown の強調や見出し・箇条書き・「Title:」。順番がどうでも落とせるよう繰り返しで外す。
+const LEADING_NOISE = /^(?:\s|["'“”‘’「『*_#>`]|[-•]\s|(?:title|タイトル|标题)\s*[:：])+/i;
+// 絵文字とタイトルの間に入りがちな区切り。
+const SEPARATOR = /^[\s\-–—:：|·・]+/;
+
+// 行頭の絵文字 1 つ。© ® ™ は絵文字扱いだが文字として書かれることが多いので、アイコンにはしない。
+function leadingEmoji(text: string) {
+  const first = graphemes.segment(text)[Symbol.iterator]().next().value?.segment ?? "";
+  return isEmojiIcon(first) && !/^[©®™]/.test(first) ? first : null;
 }
 
-// 最初のメッセージから AI でタイトルとアイコンを作る。失敗・空応答は null を返し、呼び出し側は仮タイトルを残す。
+// 「🍳 パスタの作り方」を絵文字とタイトルに分ける。先頭が絵文字でなければアイコンなし（タイトルだけ使う）。
+// 絵文字だけの行の次にタイトルが来た場合はその行を、絵文字が続いた場合は 2 つ目以降を捨てる。
+export function parseTitleOutput(raw: string): ChatTitle {
+  const lines = raw.split(/\r?\n/).map((line) => line.replace(LEADING_NOISE, "").trim()).filter(Boolean);
+  const line = lines[0] ?? "";
+  const icon = leadingEmoji(line);
+  if (!icon) return { title: cleanTitle(line), icon: null };
+  let rest = line.slice(icon.length).replace(SEPARATOR, "");
+  for (let more = leadingEmoji(rest); more; more = leadingEmoji(rest)) rest = rest.slice(more.length).replace(SEPARATOR, "");
+  return { title: cleanTitle(rest || (lines[1] ?? "")), icon };
+}
+
+// 最初のメッセージから AI でタイトルとアイコンを作る。リクエスト失敗は例外、途中で打ち切られた応答は null。
+// 返ってきたタイトルやアイコンが使えないときはその項目だけ null で、呼び出し側は仮タイトル・アイコンなしのままにする。
 export async function generateChatTitle({
   provider,
   model,
