@@ -2,9 +2,21 @@ import { generateKeyPairSync } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ findUnique: vi.fn(), update: vi.fn() }));
+// トランザクションの始まりと終わり、承認の呼び出しの順を記録する。
+const events: string[] = [];
 vi.mock("@/lib/prisma", () => {
   const user = { findUnique: mocks.findUnique, update: mocks.update };
-  return { prisma: { user, $transaction: async (work: (tx: unknown) => unknown) => work({ user, $executeRaw: async () => 0 }) } };
+  return {
+    prisma: {
+      user,
+      $transaction: async (work: (tx: unknown) => unknown) => {
+        events.push("lock:start");
+        const value = await work({ user, $executeRaw: async () => 0 });
+        events.push("lock:end");
+        return value;
+      },
+    },
+  };
 });
 import { cancelPlayRenewal, claimPlayPurchase, playStatus, syncPlayPurchase } from "./google-play-billing";
 
@@ -136,16 +148,18 @@ describe("google play billing", () => {
   });
 
   it("keeps the owner record when acknowledgement fails, and reports the failure afterwards", async () => {
-    stubGoogle(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" }));
+    events.length = 0;
     const failing = vi.fn(async (input: string, init?: RequestInit) => {
       const url = String(input);
       if (url.startsWith("https://oauth2.googleapis.com/token")) return new Response(JSON.stringify({ access_token: "at" }), { status: 200 });
-      if (url.endsWith(":acknowledge")) return new Response("down", { status: 503 });
+      if (url.endsWith(":acknowledge")) { events.push("acknowledge"); return new Response("down", { status: 503 }); }
       return new Response(JSON.stringify(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" })), { status: init?.method === "POST" ? 200 : 200 });
     });
     vi.stubGlobal("fetch", failing);
     await expect(claimPlayPurchase("u1", "tok")).rejects.toThrow("503");
     expect(mocks.update.mock.calls[0][0].data).toMatchObject({ googlePurchaseToken: "tok", plan: "PRO" });
+    // 承認は、記録を書いたトランザクションが終わってから（ロックの外で）行う。
+    expect(events).toEqual(["lock:start", "lock:end", "acknowledge"]);
   });
 
   it("starts a fresh usage period for a purchase made long after the last one expired", async () => {
