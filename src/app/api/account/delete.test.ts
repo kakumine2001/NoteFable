@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 import type * as NextServer from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn(), cleanup: vi.fn(), after: [] as (() => unknown)[], cancel: vi.fn() }));
+const mocks = vi.hoisted(() => ({ configured: vi.fn(), profile: vi.fn(), currentUser: vi.fn(), deleteAccount: vi.fn(), cleanup: vi.fn(), after: [] as (() => unknown)[], cancel: vi.fn(), cancelPlay: vi.fn(), billingRow: vi.fn() }));
 vi.mock("next/server", async (load) => ({ ...(await load<typeof NextServer>()), after: (task: () => unknown) => { mocks.after.push(task); } }));
 vi.mock("@/lib/google-auth", () => ({
   isGoogleLoginConfigured: mocks.configured,
@@ -16,6 +16,8 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/account-deletion", () => ({ deleteAccount: mocks.deleteAccount }));
 vi.mock("@/lib/billing", () => ({ cancelCustomerBilling: mocks.cancel, isBillingConfigured: () => true }));
+vi.mock("@/lib/google-play-billing", () => ({ cancelPlayRenewal: mocks.cancelPlay }));
+vi.mock("@/lib/subscription-state", () => ({ withUserBillingLock: (_id: string, work: (tx: unknown) => unknown) => work({ user: { findUnique: mocks.billingRow } }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: vi.fn() }));
 import { DELETE } from "./route";
@@ -37,6 +39,7 @@ describe("DELETE /api/account", () => {
     mocks.cleanup.mockResolvedValue([]);
     mocks.deleteAccount.mockResolvedValue({ cleanup: mocks.cleanup });
     mocks.after.length = 0;
+    mocks.billingRow.mockResolvedValue({ stripeCustomerId: null, googlePurchaseToken: null });
   });
 
   it("deletes the signed-in account, clears the sign-in cookies and removes files after responding", async () => {
@@ -72,13 +75,16 @@ describe("DELETE /api/account", () => {
   it("stops Stripe billing first and keeps the account when that fails", async () => {
     const subscribed = { ...row, stripeCustomerId: "cus_1", stripeSubscriptionId: null, subscriptionStatus: null };
     mocks.currentUser.mockResolvedValue(subscribed);
+    // 行はロックの中で読み直す。
+    mocks.billingRow.mockResolvedValue({ stripeCustomerId: "cus_1", googlePurchaseToken: "tok" });
     mocks.cancel.mockRejectedValueOnce(new Error("stripe down"));
     vi.spyOn(console, "error").mockImplementation(() => {});
     expect((await DELETE(request())).status).toBe(502);
     expect(mocks.deleteAccount).not.toHaveBeenCalled();
     mocks.cancel.mockResolvedValueOnce(undefined);
     expect((await DELETE(request())).status).toBe(200);
-    expect(mocks.cancel).toHaveBeenLastCalledWith(subscribed);
+    expect(mocks.cancel).toHaveBeenLastCalledWith("cus_1");
+    expect(mocks.cancelPlay).toHaveBeenLastCalledWith("tok");
     expect(mocks.deleteAccount).toHaveBeenCalledWith(subscribed);
   });
 

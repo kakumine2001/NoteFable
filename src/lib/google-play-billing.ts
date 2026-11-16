@@ -1,7 +1,7 @@
 import { createSign } from "crypto";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
-import { isProStatus, SUBSCRIPTION_OWNER_SELECT, withBillingLock, writeSubscription, type SubscriptionOwner } from "@/lib/subscription-state";
+import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type SubscriptionOwner, type SubscriptionUpdate } from "@/lib/subscription-state";
 
 // Android アプリの Google Play 購読（Play Billing）。アプリが購入トークンを POST /api/billing/google に送り、
 // サーバーが Google Play Developer API で確かめて、承認（acknowledge）し、行に写す。更新・解約などは
@@ -134,82 +134,110 @@ export function playStatus(subscription: PlaySubscription, now = new Date()) {
   };
 }
 
-async function writePlay(owner: SubscriptionOwner, purchaseToken: string, subscription: PlaySubscription) {
+// 自動更新が続く（この先も請求されうる）状態。保留（ON_HOLD）や一時停止（PAUSED）も、あとで請求が戻りうるので含める。
+const RENEWABLE_STATES = new Set([
+  "SUBSCRIPTION_STATE_ACTIVE", "SUBSCRIPTION_STATE_IN_GRACE_PERIOD", "SUBSCRIPTION_STATE_ON_HOLD", "SUBSCRIPTION_STATE_PAUSED",
+]);
+
+function renews(subscription: PlaySubscription) {
+  const item = subscription.lineItems?.find((line) => line.productId === googlePlayProduct()) ?? subscription.lineItems?.[0];
+  return RENEWABLE_STATES.has(subscription.subscriptionState ?? "") && item?.autoRenewingPlan?.autoRenewEnabled !== false;
+}
+
+function playUpdate(purchaseToken: string, subscription: PlaySubscription): SubscriptionUpdate {
   const state = playStatus(subscription);
-  await writeSubscription(owner, {
+  return {
     provider: "google",
     googlePurchaseToken: purchaseToken,
     status: state.status,
     periodStart: state.periodStart,
     periodEnd: state.periodEnd,
     cancelAt: state.cancelAt,
-  });
-  return state;
+  };
+}
+
+// プランの変更・再購入で新しい購入トークンになった購読は、元のトークン（linkedPurchaseToken）の購読と同じものとして扱う。
+function asCurrentOwner(owner: SubscriptionOwner, purchaseToken: string, subscription: PlaySubscription): SubscriptionOwner {
+  const linked = subscription.linkedPurchaseToken;
+  return linked && owner.subscriptionProvider === "google" && owner.googlePurchaseToken === linked ? { ...owner, googlePurchaseToken: purchaseToken } : owner;
+}
+
+const isPending = (subscription: PlaySubscription) => subscription.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING";
+
+// 別の購読（ウェブの Stripe）が PRO の間に、Play でも課金の続く購読ができた（二重課金）。Play の方を止める:
+// 未承認なら承認しない（Google が 3 日後に自動で返金する）、承認済み（保留から戻った等）なら自動更新を止める。
+async function stopDuplicate(purchaseToken: string, subscription: PlaySubscription) {
+  if (!isPending(subscription) && renews(subscription)) await cancel(purchaseToken, playStatus(subscription).productId);
 }
 
 export type ClaimResult = "subscribed" | "pending" | "already-subscribed" | "not-yours" | "not-active";
 
-// アプリからの報告: この利用者が買った購読を確かめて承認し、行に写す。
-// ウェブ（Stripe）で PRO のまま Play でも買った場合は承認しない（Google が 3 日後に自動で返金する）。
-export async function claimPlayPurchase(user: SubscriptionOwner, purchaseToken: string): Promise<ClaimResult> {
-  return withBillingLock(`play:${purchaseToken}`, () => claim(user, purchaseToken));
+// アプリからの報告: この利用者が買った購読を確かめて承認し、行に写す。利用者のロックの中で、行を読み直してから。
+export async function claimPlayPurchase(userId: string, purchaseToken: string): Promise<ClaimResult> {
+  return withUserBillingLock(userId, async (tx) => {
+    const owner = await readOwner(tx, { id: userId });
+    if (!owner) return "not-yours";
+    const subscription = await fetchPlaySubscription(purchaseToken);
+    const accountId = subscription.externalAccountIdentifiers?.obfuscatedExternalAccountId;
+    // アプリは購入に利用者 ID を付ける。別の利用者の購入トークンは受け付けない。
+    if (accountId && accountId !== userId) return "not-yours";
+    const other = await tx.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: { id: true } });
+    if (other && other.id !== userId) return "not-yours";
+    const update = playUpdate(purchaseToken, subscription);
+    if (update.status === "incomplete") return "pending";
+    const action = subscriptionAction(asCurrentOwner(owner, purchaseToken, subscription), update);
+    if (action === "duplicate") {
+      await stopDuplicate(purchaseToken, subscription);
+      return "already-subscribed";
+    }
+    if (!isProStatus(update.status)) {
+      if (action === "write" && owner.googlePurchaseToken === purchaseToken) await writeSubscription(tx, owner, update);
+      return "not-active";
+    }
+    if (isPending(subscription)) await acknowledge(purchaseToken, playStatus(subscription).productId);
+    await writeSubscription(tx, owner, update);
+    return "subscribed";
+  });
 }
 
-async function claim(user: SubscriptionOwner, purchaseToken: string): Promise<ClaimResult> {
-  const subscription = await fetchPlaySubscription(purchaseToken);
-  const accountId = subscription.externalAccountIdentifiers?.obfuscatedExternalAccountId;
-  // アプリは購入に利用者 ID を付ける。別の利用者の購入トークンは受け付けない。
-  if (accountId && accountId !== user.id) return "not-yours";
-  const other = await prisma.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: { id: true } });
-  if (other && other.id !== user.id) return "not-yours";
-  const state = playStatus(subscription);
-  if (state.status === "incomplete") return "pending";
-  if (!isProStatus(state.status)) {
-    if (user.googlePurchaseToken === purchaseToken) await writePlay(user, purchaseToken, subscription);
-    return "not-active";
-  }
-  if (isProStatus(user.subscriptionStatus) && user.subscriptionProvider === "stripe") return "already-subscribed";
-  if (subscription.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") await acknowledge(purchaseToken, state.productId);
-  await writePlay(user, purchaseToken, subscription);
-  return "subscribed";
-}
-
-// RTDN: 通知の購入トークンを Google から取り直して、持ち主の行に写す。
+// RTDN: 通知の購入トークンを Google から読み、持ち主の行に写す。
 // 持ち主は購入トークン（プランの変更で新しいトークンになったときは linkedPurchaseToken）か、購入に付けた利用者 ID で探す。
 // 持ち主の行が無い（アカウントを削除した）のに続いている購読は、更新を止める。
 export async function syncPlayPurchase(purchaseToken: string) {
-  return withBillingLock(`play:${purchaseToken}`, () => sync(purchaseToken));
-}
-
-async function sync(purchaseToken: string) {
-  const subscription = await fetchPlaySubscription(purchaseToken);
-  const linked = subscription.linkedPurchaseToken;
-  const accountId = subscription.externalAccountIdentifiers?.obfuscatedExternalAccountId;
-  const owner = await prisma.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: SUBSCRIPTION_OWNER_SELECT })
-    ?? (linked ? await prisma.user.findUnique({ where: { googlePurchaseToken: linked }, select: SUBSCRIPTION_OWNER_SELECT }) : null)
-    ?? (accountId ? await prisma.user.findUnique({ where: { id: accountId }, select: SUBSCRIPTION_OWNER_SELECT }) : null);
-  const state = playStatus(subscription);
+  const first = await fetchPlaySubscription(purchaseToken);
+  const linked = first.linkedPurchaseToken;
+  const accountId = first.externalAccountIdentifiers?.obfuscatedExternalAccountId;
+  const owner = await prisma.user.findUnique({ where: { googlePurchaseToken: purchaseToken }, select: { id: true } })
+    ?? (linked ? await prisma.user.findUnique({ where: { googlePurchaseToken: linked }, select: { id: true } }) : null)
+    ?? (accountId ? await prisma.user.findUnique({ where: { id: accountId }, select: { id: true } }) : null);
   if (!owner) {
-    if (isProStatus(state.status) && !state.cancelAt) await cancel(purchaseToken, state.productId);
+    if (renews(first)) await cancel(purchaseToken, playStatus(first).productId);
     return null;
   }
-  // 承認されないまま 3 日経つと返金される。アプリからの報告が届かなかった購入も、ここで承認する。
-  if (isProStatus(state.status) && subscription.acknowledgementState === "ACKNOWLEDGEMENT_STATE_PENDING") {
-    if (owner.subscriptionProvider === "stripe" && isProStatus(owner.subscriptionStatus)) return owner.id;
-    await acknowledge(purchaseToken, state.productId);
-  }
-  await writePlay(owner, purchaseToken, subscription);
-  return owner.id;
+  return withUserBillingLock(owner.id, async (tx) => {
+    const current = await readOwner(tx, { id: owner.id });
+    if (!current) return null;
+    // ロックを取ってから読み直す（待っている間に状態が変わっていても、最新の状態を書く）。
+    const subscription = await fetchPlaySubscription(purchaseToken);
+    const update = playUpdate(purchaseToken, subscription);
+    const action = subscriptionAction(asCurrentOwner(current, purchaseToken, subscription), update);
+    if (action === "duplicate") await stopDuplicate(purchaseToken, subscription);
+    if (action !== "write") return current.id;
+    // 承認されないまま 3 日経つと返金される。アプリからの報告が届かなかった購入も、ここで承認する。
+    if (isProStatus(update.status) && isPending(subscription)) await acknowledge(purchaseToken, playStatus(subscription).productId);
+    await writeSubscription(tx, current, update);
+    return current.id;
+  });
 }
 
-// アカウントを削除する前に、Google Play の購読の自動更新を止める（期限までは Google 側で有効なまま）。
-export async function cancelPlayRenewal(user: Pick<SubscriptionOwner, "googlePurchaseToken">) {
-  if (!user.googlePurchaseToken) return;
-  const subscription = await fetchPlaySubscription(user.googlePurchaseToken).catch((error: unknown) => {
+// アカウントを削除する前に、Google Play の購読の自動更新を止める（すでに払った期限までは Google 側で有効なまま）。
+// PRO でない保留中・一時停止中の購読も、あとで請求が戻りうるので止める。
+// 呼び出し側は、この利用者の withUserBillingLock の中で、止めてから行を消すまでを行う。
+export async function cancelPlayRenewal(purchaseToken: string | null) {
+  if (!purchaseToken) return;
+  const subscription = await fetchPlaySubscription(purchaseToken).catch((error: unknown) => {
     if (error instanceof GooglePlayError && (error.status === 404 || error.status === 410)) return null;
     throw error;
   });
-  if (!subscription) return;
-  const state = playStatus(subscription);
-  if (isProStatus(state.status) && !state.cancelAt) await cancel(user.googlePurchaseToken, state.productId);
+  if (subscription && renews(subscription)) await cancel(purchaseToken, playStatus(subscription).productId);
 }

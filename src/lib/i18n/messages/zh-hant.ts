@@ -815,7 +815,7 @@ export const zhHant: Record<string, string> = {
   "You don't have a subscription.": "你還沒有訂閱。",
   "You don’t have any notes yet.": "你還沒有筆記。",
   "You now have {chat} messages and {image} images a month.": "現在每月可發 {chat} 條訊息、生成 {image} 張圖片。",
-  "You're already subscribed to Pro on the web. This purchase will be refunded.": "你已經在網頁上訂閱了 Pro，這次購買會自動退款。",
+  "You're already subscribed to Pro on the web, so this Google Play purchase was stopped.": "你已經在網頁上訂閱了 Pro，所以這次 Google Play 的購買已停止。",
   "You're already subscribed to Pro.": "你已經訂閱了 Pro。",
   "You've used this month's free image generations.": "本月的免費圖片生成次數已用完。",
   "You've used this month's free images": "本月的免費圖片用完了",

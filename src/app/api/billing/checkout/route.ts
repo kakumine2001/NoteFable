@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requestOrigin, signedInUser } from "@/app/api/billing/account";
-import { AlreadySubscribedError, createCheckoutUrl, isBillingConfigured, isProStatus } from "@/lib/billing";
+import { AccountGoneError, AlreadySubscribedError, createCheckoutUrl, isBillingConfigured, isProStatus } from "@/lib/billing";
 import { msg } from "@/lib/i18n/translate";
 import { isSameOrigin } from "@/lib/native-google-login";
 
@@ -18,8 +18,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    return NextResponse.json({ url: await createCheckoutUrl(user, requestOrigin(request)) });
+    return NextResponse.json({ url: await createCheckoutUrl(user.id, requestOrigin(request)) });
   } catch (error) {
+    if (error instanceof AccountGoneError) return NextResponse.json({ error: msg("Sign in to upgrade.") }, { status: 401 });
     if (error instanceof AlreadySubscribedError) {
       return NextResponse.json({ error: msg("You're already subscribed to Pro.") }, { status: 409 });
     }

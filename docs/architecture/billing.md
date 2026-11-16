@@ -69,7 +69,9 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 5. **管理**：Play 买的 Pro 在网页和 App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 App 里没有管理入口。
 6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
 
-并发：同一个订阅的“向外部读取 → 写库”、同一个 Stripe 客户的结账和删除，都在 Postgres advisory lock 里一次只做一个（`withBillingLock`），并发的通知不会用旧状态盖掉新状态，两个页面同时结账也只有一个能付。
+并发：同一个用户的所有计费处理（结账、Stripe / Play 的同步、购买报告、删除账号）都在按用户的 Postgres advisory lock 里一次只做一个（`withUserBillingLock`，锁里重新读用户行，库操作走同一个事务连接）。所以并发的通知不会用旧状态盖掉新状态；两个页面同时结账，后一个会先让前一个的页面过期再检查订阅；等着结账的请求在删号之后拿到锁时，读不到用户行就放弃。
+
+两个来源同时扣费时（例如 Play 订阅在保留期间用户又在网页买了，之后 Play 恢复），以用户行上记录的那份为准，另一份停掉：Stripe 的立即取消，Play 的未确认就不确认（Google 退款），已确认就停止续费（`subscriptionAction` 的 `duplicate`）。Play 换购后的新令牌（`linkedPurchaseToken` 指向记录的旧令牌）算同一份订阅。
 
 ### 配置（Google Play）
 

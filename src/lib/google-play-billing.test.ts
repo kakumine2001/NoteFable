@@ -2,9 +2,10 @@ import { generateKeyPairSync } from "crypto";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ findUnique: vi.fn(), update: vi.fn() }));
-vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: mocks.findUnique, update: mocks.update }, $transaction: async (work: (tx: unknown) => unknown) => work({ $executeRaw: async () => 0 }) },
-}));
+vi.mock("@/lib/prisma", () => {
+  const user = { findUnique: mocks.findUnique, update: mocks.update };
+  return { prisma: { user, $transaction: async (work: (tx: unknown) => unknown) => work({ user, $executeRaw: async () => 0 }) } };
+});
 import { cancelPlayRenewal, claimPlayPurchase, playStatus, syncPlayPurchase } from "./google-play-billing";
 
 const { privateKey } = generateKeyPairSync("rsa", { modulusLength: 2048, privateKeyEncoding: { type: "pkcs8", format: "pem" }, publicKeyEncoding: { type: "spki", format: "pem" } });
@@ -36,20 +37,27 @@ function stubGoogle(subscription: unknown) {
 }
 
 const owner = { id: "u1", subscriptionProvider: null, subscriptionStatus: null, stripeSubscriptionId: null, googlePurchaseToken: null };
+const webPro = { ...owner, subscriptionProvider: "stripe", stripeSubscriptionId: "sub_1", subscriptionStatus: "active" };
+
+// 行の読み出し: id で読むと users[id]、購入トークンで読むと tokens[token]。
+function rows(users: Record<string, unknown>, tokens: Record<string, unknown> = {}) {
+  mocks.findUnique.mockImplementation(async ({ where }: { where: { id?: string; googlePurchaseToken?: string } }) =>
+    (where.id ? users[where.id] : where.googlePurchaseToken ? tokens[where.googlePurchaseToken] : null) ?? null);
+}
 
 describe("google play billing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.findUnique.mockReset();
     vi.stubEnv("GOOGLE_PLAY_SERVICE_ACCOUNT_JSON", JSON.stringify({ client_email: "sa@example.iam.gserviceaccount.com", private_key: privateKey }));
     vi.stubEnv("GOOGLE_PLAY_RTDN_TOKEN", "rtdn");
     mocks.update.mockResolvedValue({});
-    mocks.findUnique.mockResolvedValue(null);
+    rows({ u1: owner });
   });
 
   it("maps Play states to subscription statuses and keeps Pro until a cancelled plan expires", () => {
     expect(playStatus(play("ACTIVE"))).toMatchObject({ status: "active", cancelAt: null, periodEnd: new Date(future) });
-    const cancelled = playStatus(play("CANCELED"));
-    expect(cancelled).toMatchObject({ status: "active", cancelAt: new Date(future) });
+    expect(playStatus(play("CANCELED"))).toMatchObject({ status: "active", cancelAt: new Date(future) });
     expect(playStatus(play("CANCELED", { lineItems: [{ productId: "notefable_pro", expiryTime: past }] })).status).toBe("canceled");
     expect(playStatus(play("ACTIVE", { lineItems: [{ productId: "notefable_pro", expiryTime: future, autoRenewingPlan: { autoRenewEnabled: false } }] })).cancelAt).toEqual(new Date(future));
     expect(playStatus(play("IN_GRACE_PERIOD"))).toMatchObject({ status: "past_due", cancelAt: null });
@@ -61,53 +69,62 @@ describe("google play billing", () => {
 
   it("verifies, acknowledges and records a new purchase", async () => {
     stubGoogle(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" }));
-    await expect(claimPlayPurchase(owner, "tok")).resolves.toBe("subscribed");
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("subscribed");
     expect(calls).toEqual(["GET purchases/subscriptionsv2/tokens/tok", "POST purchases/subscriptions/notefable_pro/tokens/tok:acknowledge"]);
     expect(mocks.update.mock.calls[0][0].data).toMatchObject({ plan: "PRO", subscriptionProvider: "google", googlePurchaseToken: "tok", subscriptionStatus: "active" });
   });
 
   it("refuses purchases made for another account or already linked to one", async () => {
     stubGoogle(play("ACTIVE", { externalAccountIdentifiers: { obfuscatedExternalAccountId: "someone" } }));
-    await expect(claimPlayPurchase(owner, "tok")).resolves.toBe("not-yours");
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("not-yours");
     stubGoogle(play("ACTIVE"));
-    mocks.findUnique.mockResolvedValueOnce({ id: "u2" });
-    await expect(claimPlayPurchase(owner, "tok")).resolves.toBe("not-yours");
+    rows({ u1: owner }, { tok: { id: "u2" } });
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("not-yours");
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("leaves a duplicate purchase unacknowledged when the user already pays on the web", async () => {
+  it("leaves a new duplicate unacknowledged (refund) and stops renewal of an acknowledged one while the web plan is Pro", async () => {
+    rows({ u1: webPro });
     stubGoogle(play("ACTIVE", { acknowledgementState: "ACKNOWLEDGEMENT_STATE_PENDING" }));
-    await expect(claimPlayPurchase({ ...owner, subscriptionProvider: "stripe", subscriptionStatus: "active" }, "tok")).resolves.toBe("already-subscribed");
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("already-subscribed");
     expect(calls).toEqual(["GET purchases/subscriptionsv2/tokens/tok"]);
+    // 保留から戻った（承認済みの）Play の購読が RTDN で届いた: Stripe の状態は上書きせず、Play の自動更新を止める。
+    rows({ u1: webPro }, { tok: { id: "u1" } });
+    stubGoogle(play("ACTIVE"));
+    await syncPlayPurchase("tok");
+    expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:cancel");
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("reports a pending payment without granting Pro", async () => {
     stubGoogle(play("PENDING"));
-    await expect(claimPlayPurchase(owner, "tok")).resolves.toBe("pending");
+    await expect(claimPlayPurchase("u1", "tok")).resolves.toBe("pending");
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
   it("syncs notifications by token, by the replaced token, then by account id", async () => {
     stubGoogle(play("CANCELED", { linkedPurchaseToken: "old" }));
-    mocks.findUnique.mockResolvedValueOnce(null).mockResolvedValueOnce({ ...owner, subscriptionProvider: "google", subscriptionStatus: "active", googlePurchaseToken: "old" });
+    rows({ u1: { ...owner, subscriptionProvider: "google", subscriptionStatus: "active", googlePurchaseToken: "old" } }, { old: { id: "u1" } });
     await expect(syncPlayPurchase("new")).resolves.toBe("u1");
     expect(mocks.findUnique.mock.calls[1][0].where).toEqual({ googlePurchaseToken: "old" });
     expect(mocks.update.mock.calls[0][0].data).toMatchObject({ googlePurchaseToken: "new", plan: "PRO", subscriptionCancelAt: new Date(future) });
   });
 
-  it("stops renewal of a live subscription whose account is gone", async () => {
-    stubGoogle(play("ACTIVE"));
+  it("stops renewal of a subscription whose account is gone, including one on hold", async () => {
+    rows({});
+    stubGoogle(play("ON_HOLD", { externalAccountIdentifiers: {} }));
     await expect(syncPlayPurchase("tok")).resolves.toBeNull();
     expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:cancel");
   });
 
-  it("stops renewal before account deletion, and skips subscriptions already ending", async () => {
-    stubGoogle(play("ACTIVE"));
-    await cancelPlayRenewal({ googlePurchaseToken: "tok" });
-    expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:cancel");
+  it("stops renewal before account deletion, also when paused or on hold, and skips ones already ending", async () => {
+    for (const state of ["ACTIVE", "ON_HOLD", "PAUSED"]) {
+      stubGoogle(play(state));
+      await cancelPlayRenewal("tok");
+      expect(calls).toContain("POST purchases/subscriptions/notefable_pro/tokens/tok:cancel");
+    }
     stubGoogle(play("CANCELED"));
-    await cancelPlayRenewal({ googlePurchaseToken: "tok" });
+    await cancelPlayRenewal("tok");
     expect(calls).toEqual(["GET purchases/subscriptionsv2/tokens/tok"]);
   });
 });

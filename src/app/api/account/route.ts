@@ -2,6 +2,7 @@ import { after, NextResponse, type NextRequest } from "next/server";
 import { deleteAccount } from "@/lib/account-deletion";
 import { cancelCustomerBilling, isBillingConfigured } from "@/lib/billing";
 import { cancelPlayRenewal } from "@/lib/google-play-billing";
+import { withUserBillingLock } from "@/lib/subscription-state";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
@@ -106,19 +107,30 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: msg("Sign in to delete your account.") }, { status: 401 });
   }
 
-  // Stripe の顧客がいれば、続いている購読と開いたままの決済画面を先に止める。止められなければ削除しない（行が消えると課金だけが続く）。
-  // Google Play の購読は自動更新を止める（期限までは Google 側で有効なまま、それ以上は請求されない）。
-  if (row.stripeCustomerId || row.googlePurchaseToken) {
-    try {
-      await cancelCustomerBilling(row);
-      await cancelPlayRenewal(row);
-    } catch (error) {
-      console.error("Failed to cancel subscription before deleting account", error instanceof Error ? error.message : error);
-      return NextResponse.json({ error: msg("Could not cancel your subscription. Please try again.") }, { status: 502 });
-    }
+  // 課金を止めてから行を消す。止められなければ削除しない（行が消えると課金だけが続く）。
+  // Stripe は続いている購読と開いたままの決済画面、Google Play は自動更新（期限までは Google 側で有効なまま）。
+  // 利用者のロックの中で、行を読み直して止め、そのまま消す（待っていた申し込みが、消える前の行で決済画面を作らないように）。
+  let deleted;
+  try {
+    deleted = await withUserBillingLock(row.id, async (tx) => {
+      const billing = await tx.user.findUnique({ where: { id: row.id }, select: { stripeCustomerId: true, googlePurchaseToken: true } });
+      if (billing?.stripeCustomerId || billing?.googlePurchaseToken) {
+        try {
+          await cancelCustomerBilling(billing.stripeCustomerId);
+          await cancelPlayRenewal(billing.googlePurchaseToken);
+        } catch (error) {
+          console.error("Failed to cancel subscription before deleting account", error instanceof Error ? error.message : error);
+          return null;
+        }
+      }
+      return deleteAccount(row);
+    });
+  } catch (error) {
+    console.error("Failed to delete account", error instanceof Error ? error.message : error);
+    throw error;
   }
-
-  const { cleanup } = await deleteAccount(row);
+  if (!deleted) return NextResponse.json({ error: msg("Could not cancel your subscription. Please try again.") }, { status: 502 });
+  const { cleanup } = deleted;
   // ファイルは応答のあとに消す（多いと時間がかかり、行を消したのに応答が届かないと画面が失敗と表示するため）。
   after(async () => {
     const failed = await cleanup();

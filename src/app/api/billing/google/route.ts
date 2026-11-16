@@ -14,11 +14,11 @@ export async function POST(request: Request) {
   if (!purchaseToken || purchaseToken.length > 4096) return NextResponse.json({ error: "Invalid purchase." }, { status: 400 });
 
   try {
-    const result = await claimPlayPurchase(user, purchaseToken);
+    const result = await claimPlayPurchase(user.id, purchaseToken);
     switch (result) {
       case "subscribed": return NextResponse.json({ plan: "pro" });
       case "pending": return NextResponse.json({ plan: "free", pending: true }, { status: 202 });
-      case "already-subscribed": return NextResponse.json({ error: msg("You're already subscribed to Pro on the web. This purchase will be refunded.") }, { status: 409 });
+      case "already-subscribed": return NextResponse.json({ error: msg("You're already subscribed to Pro on the web, so this Google Play purchase was stopped.") }, { status: 409 });
       case "not-yours": return NextResponse.json({ error: msg("This purchase belongs to another account.") }, { status: 403 });
       case "not-active": return NextResponse.json({ error: msg("This purchase is no longer active.") }, { status: 409 });
     }
