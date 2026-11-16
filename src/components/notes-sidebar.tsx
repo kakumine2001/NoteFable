@@ -94,15 +94,6 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   };
   const row = (page: NotePageSummary, open = false) => (
     <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
-      <ReorderHandle id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={async groupId=>{
-        const ok=await onMoveNote(page.id,groupId);
-        if(ok && groupId)setCollapsed(current=>{
-          const next={...current,[groupId]:false};
-          try{localStorage.setItem(COLLAPSED_KEY,JSON.stringify(next));}catch{/* Keep the current view usable without storage. */}
-          return next;
-        });
-        return ok;
-      }}/>
       <button type="button" className="notes-row-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
         {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -116,9 +107,17 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         }}>
         <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span>
       </button>
-      <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" title={page.title}>
+      <ReorderHandle id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" onMoveGroup={async groupId=>{
+        const ok=await onMoveNote(page.id,groupId);
+        if(ok && groupId)setCollapsed(current=>{
+          const next={...current,[groupId]:false};
+          try{localStorage.setItem(COLLAPSED_KEY,JSON.stringify(next));}catch{/* Keep the current view usable without storage. */}
+          return next;
+        });
+        return ok;
+      }}>
         <span className="truncate text-sm">{page.title}</span>
-      </button>
+      </ReorderHandle>
       <button type="button" disabled={busy} onClick={() => { expand(page.id); onCreate(page.id); }} className="notion-row-action" aria-label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")}><Plus size={14} /></button>
       <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={14} /></button>
       <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={14} /></button>

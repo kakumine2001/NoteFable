@@ -54,7 +54,6 @@
     <string name="sb_err_load_project_settings">プロジェクト設定を読み込めませんでした。</string>
     <string name="sb_err_load_your_notes">ノートを読み込めませんでした。</string>
     <string name="sb_err_save_project_settings">プロジェクト設定を保存できませんでした。もう一度お試しください。</string>
-    <string name="sb_reorder_title">「%1$s」を並べ替え</string>
     <string name="sb_err_move_item">項目を移動できませんでした。もう一度お試しください。</string>
     <string name="sb_err_wait_move">前の移動が終わるまでお待ちください。</string>
     <string name="sb_err_move_chat">チャットを移動できませんでした。</string>

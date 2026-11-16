@@ -54,7 +54,6 @@
     <string name="sb_err_load_project_settings">无法加载项目设置。</string>
     <string name="sb_err_load_your_notes">无法加载笔记。</string>
     <string name="sb_err_save_project_settings">无法保存项目设置，请重试。</string>
-    <string name="sb_reorder_title">调整 %1$s 的顺序</string>
     <string name="sb_err_move_item">无法移动此项，请重试。</string>
     <string name="sb_err_wait_move">请等待上一次移动完成。</string>
     <string name="sb_err_move_chat">无法移动聊天。</string>
