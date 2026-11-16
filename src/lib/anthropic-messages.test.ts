@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { restoreCompaction, serializeCompaction } from "./chat-compaction";
-import { AnthropicStreamTurn, buildAnthropicRequest, createAnthropicStream, extractAnthropicText, toAnthropicMessages } from "./anthropic-messages";
+import { AnthropicStreamTurn, anthropicMessagesUrl, buildAnthropicRequest, createAnthropicStream, extractAnthropicText, toAnthropicMessages } from "./anthropic-messages";
 
 const request = (webSearchMode: "off" | "auto" | "force" = "off") => buildAnthropicRequest({
   model: "claude-haiku-5-5", instructions: "shared prompt", input: [{ role: "user", content: "hello" }], effort: "medium", webSearchMode,
@@ -9,6 +9,25 @@ const sse = (events: object[]) => new Response(events.map((event) => `data: ${JS
 const ending = (stop_reason = "end_turn") => [{ type: "message_delta", delta: { stop_reason } }, { type: "message_stop" }];
 
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+describe("anthropicMessagesUrl", () => {
+  it.each([
+    ["", "https://api.anthropic.com/v1/messages"],
+    ["   ", "https://api.anthropic.com/v1/messages"],
+    ["https://api.anthropic.com", "https://api.anthropic.com/v1/messages"],
+    ["https://api.anthropic.com/", "https://api.anthropic.com/v1/messages"],
+    ["https://api.anthropic.com/v1", "https://api.anthropic.com/v1/messages"],
+    ["https://api.anthropic.com/v1/", "https://api.anthropic.com/v1/messages"],
+    ["https://proxy.example.com/anthropic", "https://proxy.example.com/anthropic/v1/messages"],
+  ])("maps %j to %s", (base, url) => {
+    expect(anthropicMessagesUrl(base)).toBe(url);
+  });
+
+  it("reads ANTHROPIC_BASE_URL when no base is given", () => {
+    vi.stubEnv("ANTHROPIC_BASE_URL", "https://proxy.example.com/anthropic");
+    expect(anthropicMessagesUrl()).toBe("https://proxy.example.com/anthropic/v1/messages");
+  });
+});
 
 describe("Claude Messages boundary", () => {
   it("preserves history roles, attachment text and base64 images", () => {

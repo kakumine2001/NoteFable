@@ -166,7 +166,7 @@ OPENAI_BASE_URL="https://api.openai.com/v1"
 DEEPSEEK_API_KEY="sk-..."
 DEEPSEEK_BASE_URL="https://api.deepseek.com"
 ANTHROPIC_API_KEY="sk-ant-..."
-ANTHROPIC_BASE_URL="https://api.anthropic.com/v1"
+ANTHROPIC_BASE_URL="https://api.anthropic.com"
 ```
 
 可选覆盖项：

@@ -179,7 +179,7 @@ ANTHROPIC_BASE_URL
 ANTHROPIC_HAIKU_MODEL
 ```
 
-启用 Claude 必须配置服务端密钥。默认接入点 `https://api.anthropic.com/v1`，模型 `claude-haiku-5-5`，调用 Messages API；后两项可省略。API 独立计费。修改 Vercel 环境变量后重新部署生效，密钥不得进入客户端或 Git。
+启用 Claude 必须配置服务端密钥。默认接入点 `https://api.anthropic.com`；`ANTHROPIC_BASE_URL` 和官方 SDK 一样可以不带 `/v1`，带不带都行（末尾不是 `/v1` 时自动补上，见 `anthropicMessagesUrl`）；模型 `claude-haiku-5-5`，调用 Messages API；后两项可省略。API 独立计费。修改 Vercel 环境变量后重新部署生效，密钥不得进入客户端或 Git。
 
 ### 可用模型（`NOTEFABLE_MODELS`，可选）
 
