@@ -64,7 +64,8 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
   }
 
   // チャットの画面はサイドバーや入力欄の中に重なっているので、その外（body）に出す。
-  return createPortal(<dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings"
+  // body に出すので入力欄の translate="no" が届かない。ここでも翻訳の対象から外す。
+  return createPortal(<dialog ref={ref} aria-labelledby={titleId} className="notes-dialog chat-project-settings" translate="no"
     onCancel={(event) => { event.preventDefault(); onClose(); }}
     onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose(); } }}>
     <form className="project-settings-shell" onSubmit={(event) => { event.preventDefault(); onAttach(selected); onClose(); }}>
