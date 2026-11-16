@@ -1,14 +1,16 @@
 import Stripe from "stripe";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
+import { isProStatus, SUBSCRIPTION_OWNER_SELECT, withBillingLock, writeSubscription } from "@/lib/subscription-state";
+
+export { isProStatus };
 
 // 月額の有料プラン（PRO）の購読。Stripe Checkout で申し込み、Customer Portal で解約・支払い方法の変更をする。
 // 購読の状態は Webhook（/api/billing/webhook）と決済後の確認で Stripe から写す。Webhook の中身は使わず、毎回 Stripe から取り直す
 // （順番が入れ替わって届いても、最新の状態だけを書く）。詳しくは docs/architecture/billing.md。
 
-// この状態の購読は PRO として扱う。past_due は Stripe が支払いを再試行している間
+// PRO として扱う状態は subscription-state.ts。past_due は Stripe が支払いを再試行している間
 // （再試行が尽きたら購読を取り消す設定にしておく。docs/architecture/billing.md の「配置」）。
-const PRO_STATUSES = new Set(["active", "trialing", "past_due"]);
 // もう課金されない状態。これ以外（incomplete、unpaid、paused も含む）は、アカウント削除のときに止める。
 const ENDED_STATUSES = new Set(["canceled", "incomplete_expired"]);
 
@@ -28,10 +30,6 @@ export function stripe() {
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured.");
   client ??= new Stripe(key, { maxNetworkRetries: 2, timeout: 20_000 });
   return client;
-}
-
-export function isProStatus(status: string | null | undefined) {
-  return Boolean(status && PRO_STATUSES.has(status));
 }
 
 // 申し込みの前に、まだ課金の続く購読が Stripe にあったときに投げる（画面には「すでに Pro」と返す）。
@@ -78,39 +76,29 @@ function customerIdOf(subscription: Stripe.Subscription) {
   return typeof subscription.customer === "string" ? subscription.customer : subscription.customer.id;
 }
 
-// 購読を持ち主の行に写す。持ち主は顧客 ID で探す（顧客は ensureCustomer が行に書いてから作る）。
-// 別の購読が PRO の間は、終わった古い購読の知らせでその行を FREE に戻さない。
+// 購読を持ち主の行に写す（writeSubscription）。持ち主は顧客 ID で探す（顧客は ensureCustomer が行に書いてから作る）。
 // 持ち主の行が無い（アカウントを削除した）のに課金が続く NoteFable の購読は、その場で止める。
 async function applySubscription(subscription: Stripe.Subscription) {
-  const user = await prisma.user.findUnique({
-    where: { stripeCustomerId: customerIdOf(subscription) },
-    select: { id: true, stripeSubscriptionId: true, subscriptionStatus: true },
-  });
+  const user = await prisma.user.findUnique({ where: { stripeCustomerId: customerIdOf(subscription) }, select: SUBSCRIPTION_OWNER_SELECT });
   if (!user) {
     if (subscription.metadata?.userId && !ENDED_STATUSES.has(subscription.status)) await cancelSubscription(subscription.id);
     return null;
   }
-  const active = isProStatus(subscription.status);
-  const current = user.stripeSubscriptionId === subscription.id || !user.stripeSubscriptionId;
-  if (!active && !current && isProStatus(user.subscriptionStatus)) return user.id;
   const period = subscriptionPeriod(subscription);
-  await prisma.user.update({
-    where: { id: user.id },
-    data: {
-      stripeSubscriptionId: subscription.id,
-      subscriptionStatus: subscription.status,
-      subscriptionPeriodStart: period.start,
-      subscriptionPeriodEnd: period.end,
-      subscriptionCancelAt: scheduledEnd(subscription, period.end),
-      plan: active ? "PRO" : "FREE",
-    },
+  await writeSubscription(user, {
+    provider: "stripe",
+    stripeSubscriptionId: subscription.id,
+    status: subscription.status,
+    periodStart: period.start,
+    periodEnd: period.end,
+    cancelAt: scheduledEnd(subscription, period.end),
   });
   return user.id;
 }
 
-// Webhook から: Stripe の購読を取り直して写す。
+// Webhook から: Stripe の購読を取り直して写す。同じ購読の取り直しと書き込みは 1 つずつ（古い状態で上書きしない）。
 export async function syncSubscription(subscriptionId: string) {
-  return applySubscription(await stripe().subscriptions.retrieve(subscriptionId));
+  return withBillingLock(`stripe-subscription:${subscriptionId}`, async () => applySubscription(await stripe().subscriptions.retrieve(subscriptionId)));
 }
 
 async function customerSubscriptions(customer: string) {
@@ -125,26 +113,35 @@ function preferred(subscriptions: Stripe.Subscription[]) {
 export async function refreshCustomer(user: BillingUser) {
   if (!user.stripeCustomerId) return;
   const best = preferred(await customerSubscriptions(user.stripeCustomerId));
-  if (best) await applySubscription(best);
+  // 一覧の内容は古いかもしれないので、ロックの中で取り直して写す。
+  if (best) await syncSubscription(best.id);
 }
 
 // 開いたままの決済画面を閉じる（あとから支払われて、2 つ目の購読ができないように）。
+// 閉じられなかったら、その画面がもう開いていない（支払われた・期限切れ）ことを確かめ、まだ開いていれば失敗にする。
 async function expireOpenCheckouts(customer: string) {
   const sessions = await stripe().checkout.sessions.list({ customer, status: "open", limit: 20 });
   for (const session of sessions.data) {
-    await stripe().checkout.sessions.expire(session.id).catch((error: unknown) => {
-      // その間に支払われた・期限が切れた画面は閉じられない。支払われたなら購読は Webhook で写る。
-      console.warn("Failed to expire checkout session", error instanceof Error ? error.message : error);
-    });
+    try {
+      await stripe().checkout.sessions.expire(session.id);
+    } catch (error) {
+      const current = await stripe().checkout.sessions.retrieve(session.id).catch(() => null);
+      if (!current || current.status === "open") throw error;
+    }
   }
 }
 
 export async function createCheckoutUrl(user: BillingUser & { verifiedEmail?: string | null; email?: string | null }, origin: string) {
   const customer = await ensureCustomer(user);
+  // 同じ顧客の申し込みは 1 つずつ（2 つのタブから同時に押しても、支払える画面は 1 つだけ）。
+  return withBillingLock(`stripe-checkout:${customer}`, () => openCheckout(user, customer, origin));
+}
+
+async function openCheckout(user: BillingUser, customer: string, origin: string) {
   // 行の状態はまだ写っていないことがあるので、Stripe 側で課金の続く購読がないかを確かめる（二重に購読させない）。
   const live = (await customerSubscriptions(customer)).filter((subscription) => !ENDED_STATUSES.has(subscription.status));
   if (live.length) {
-    await applySubscription(preferred(live));
+    await syncSubscription(preferred(live).id);
     throw new AlreadySubscribedError();
   }
   // 前に開いた決済画面は閉じ、いま作る 1 つだけを支払えるようにする。
@@ -184,9 +181,13 @@ async function cancelSubscription(id: string) {
 // アカウントを削除する前に、顧客の課金をすべて止める: 課金の続く購読（行にまだ写っていないもの・重複も含む）を取り消し、
 // 開いたままの決済画面を閉じる。行が消えたあとは Webhook で持ち主を探せないため。
 export async function cancelCustomerBilling(user: Pick<BillingUser, "stripeCustomerId">) {
-  if (!user.stripeCustomerId) return;
-  await expireOpenCheckouts(user.stripeCustomerId);
-  for (const subscription of await customerSubscriptions(user.stripeCustomerId)) {
-    if (!ENDED_STATUSES.has(subscription.status)) await cancelSubscription(subscription.id);
-  }
+  const customer = user.stripeCustomerId;
+  if (!customer) return;
+  // 申し込みと同じロック: 削除の途中で新しい決済画面が開かれないように。
+  await withBillingLock(`stripe-checkout:${customer}`, async () => {
+    await expireOpenCheckouts(customer);
+    for (const subscription of await customerSubscriptions(customer)) {
+      if (!ENDED_STATUSES.has(subscription.status)) await cancelSubscription(subscription.id);
+    }
+  });
 }

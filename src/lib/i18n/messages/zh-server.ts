@@ -207,4 +207,8 @@ export const zhServer: Record<string, string> = {
   "You don't have a subscription.": "你还没有订阅。",
   "Could not open the subscription page. Please try again.": "无法打开订阅页面，请重试。",
   "Could not cancel your subscription. Please try again.": "无法取消你的订阅，请重试。",
+  "You're already subscribed to Pro on the web. This purchase will be refunded.": "你已经在网页上订阅了 Pro，这次购买会自动退款。",
+  "This purchase belongs to another account.": "这笔购买属于另一个账号。",
+  "This purchase is no longer active.": "这笔购买已经失效。",
+  "Could not confirm your purchase. Please try again.": "无法确认你的购买，请重试。",
 };

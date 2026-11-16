@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   retrieve: vi.fn(), list: vi.fn(), cancel: vi.fn(), customersCreate: vi.fn(),
-  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(),
+  sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(), locks: [] as string[],
   findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn(), updateMany: vi.fn(),
 }));
 vi.mock("stripe", async (load) => {
@@ -10,13 +10,17 @@ vi.mock("stripe", async (load) => {
   class FakeStripe {
     subscriptions = { retrieve: mocks.retrieve, list: mocks.list, cancel: mocks.cancel };
     customers = { create: mocks.customersCreate };
-    checkout = { sessions: { list: mocks.sessionsList, expire: mocks.sessionsExpire, create: mocks.sessionsCreate } };
+    checkout = { sessions: { list: mocks.sessionsList, expire: mocks.sessionsExpire, create: mocks.sessionsCreate, retrieve: mocks.sessionsRetrieve } };
     static errors = actual.default.errors;
   }
   return { default: FakeStripe };
 });
 vi.mock("@/lib/prisma", () => ({
-  prisma: { user: { findUnique: mocks.findUnique, findUniqueOrThrow: mocks.findUniqueOrThrow, update: mocks.update, updateMany: mocks.updateMany } },
+  prisma: {
+    user: { findUnique: mocks.findUnique, findUniqueOrThrow: mocks.findUniqueOrThrow, update: mocks.update, updateMany: mocks.updateMany },
+    // withBillingLock: ロックの鍵を記録して、そのまま実行する。
+    $transaction: async (work: (tx: unknown) => unknown) => work({ $executeRaw: (query: { values: unknown[] }) => { mocks.locks.push(String(query.values[0])); } }),
+  },
 }));
 import { AlreadySubscribedError, cancelCustomerBilling, createCheckoutUrl, ensureCustomer, isBillingConfigured, isWebhookConfigured, refreshCustomer, syncSubscription } from "./billing";
 
@@ -39,6 +43,7 @@ describe("billing", () => {
     mocks.update.mockResolvedValue({});
     mocks.sessionsList.mockResolvedValue({ data: [] });
     mocks.sessionsExpire.mockResolvedValue({});
+    mocks.locks.length = 0;
   });
 
   it("offers sign-ups only with a price, but keeps the webhook on without one", () => {
@@ -58,7 +63,7 @@ describe("billing", () => {
     expect(mocks.update).toHaveBeenCalledWith({
       where: { id: "u1" },
       data: {
-        stripeSubscriptionId: "sub_1", subscriptionStatus: "active", plan: "PRO", subscriptionCancelAt: null,
+        subscriptionProvider: "stripe", stripeSubscriptionId: "sub_1", subscriptionStatus: "active", plan: "PRO", subscriptionCancelAt: null,
         subscriptionPeriodStart: new Date(1_763_600_000_000), subscriptionPeriodEnd: new Date(1_766_200_000_000),
       },
     });
@@ -81,9 +86,12 @@ describe("billing", () => {
     expect(mocks.update.mock.calls[3][0].data).toMatchObject({ plan: "FREE", subscriptionStatus: "canceled" });
   });
 
-  it("does not let a late notice about an old subscription end a newer one", async () => {
-    mocks.findUnique.mockResolvedValue({ id: "u1", stripeSubscriptionId: "sub_new", subscriptionStatus: "active" });
+  it("does not let a late notice about an old subscription end a newer one, even one bought on Google Play", async () => {
+    mocks.findUnique.mockResolvedValue({ id: "u1", subscriptionProvider: "stripe", stripeSubscriptionId: "sub_new", subscriptionStatus: "active", googlePurchaseToken: null });
     mocks.retrieve.mockResolvedValue(subscription("sub_old", "canceled"));
+    await syncSubscription("sub_old");
+    expect(mocks.update).not.toHaveBeenCalled();
+    mocks.findUnique.mockResolvedValue({ id: "u1", subscriptionProvider: "google", stripeSubscriptionId: "sub_old", subscriptionStatus: "active", googlePurchaseToken: "tok" });
     await syncSubscription("sub_old");
     expect(mocks.update).not.toHaveBeenCalled();
   });
@@ -100,16 +108,19 @@ describe("billing", () => {
     expect(mocks.update).not.toHaveBeenCalled();
   });
 
-  it("prefers a live subscription when refreshing after checkout, without fetching it again", async () => {
+  it("prefers a live subscription when refreshing after checkout, and re-reads it under the lock", async () => {
     mocks.list.mockResolvedValue({ data: [subscription("sub_old", "canceled"), subscription("sub_new", "active")] });
+    mocks.retrieve.mockResolvedValue(subscription("sub_new", "active"));
     mocks.findUnique.mockResolvedValue({ id: "u1", stripeSubscriptionId: "sub_old", subscriptionStatus: "canceled" });
     await refreshCustomer({ ...owner, stripeSubscriptionId: "sub_old", subscriptionStatus: "canceled" });
-    expect(mocks.retrieve).not.toHaveBeenCalled();
+    expect(mocks.retrieve).toHaveBeenCalledWith("sub_new");
+    expect(mocks.locks).toEqual(["notefable-billing:stripe-subscription:sub_new"]);
     expect(mocks.update.mock.calls[0][0].data).toMatchObject({ stripeSubscriptionId: "sub_new", plan: "PRO" });
   });
 
   it("refuses a second subscription found on Stripe and closes old checkout pages before opening a new one", async () => {
     mocks.list.mockResolvedValueOnce({ data: [subscription("sub_1", "incomplete")] });
+    mocks.retrieve.mockResolvedValueOnce(subscription("sub_1", "incomplete"));
     mocks.findUnique.mockResolvedValue({ id: "u1", stripeSubscriptionId: null, subscriptionStatus: null });
     await expect(createCheckoutUrl(owner, "https://notefable.com")).rejects.toBeInstanceOf(AlreadySubscribedError);
     expect(mocks.sessionsCreate).not.toHaveBeenCalled();
@@ -120,6 +131,7 @@ describe("billing", () => {
     await expect(createCheckoutUrl(owner, "https://notefable.com")).resolves.toBe("https://checkout.stripe.com/x");
     expect(mocks.sessionsExpire).toHaveBeenCalledWith("cs_old");
     expect(mocks.sessionsExpire.mock.invocationCallOrder[0]).toBeLessThan(mocks.sessionsCreate.mock.invocationCallOrder[0]);
+    expect(mocks.locks).toContain("notefable-billing:stripe-checkout:cus_1");
     expect(mocks.sessionsCreate.mock.calls[0][0]).toMatchObject({
       mode: "subscription", customer: "cus_1", line_items: [{ price: "price_x", quantity: 1 }],
       success_url: "https://notefable.com/app?billing=success", subscription_data: { metadata: { userId: "u1" } },
@@ -161,5 +173,15 @@ describe("billing", () => {
     mocks.list.mockClear();
     await cancelCustomerBilling({ stripeCustomerId: null });
     expect(mocks.list).not.toHaveBeenCalled();
+  });
+
+  it("aborts when an open checkout page cannot be closed, but not when it was paid or expired meanwhile", async () => {
+    mocks.list.mockResolvedValue({ data: [] });
+    mocks.sessionsList.mockResolvedValue({ data: [{ id: "cs_1" }] });
+    mocks.sessionsExpire.mockRejectedValue(new Error("stripe down"));
+    mocks.sessionsRetrieve.mockResolvedValueOnce({ id: "cs_1", status: "open" });
+    await expect(cancelCustomerBilling(owner)).rejects.toThrow("stripe down");
+    mocks.sessionsRetrieve.mockResolvedValueOnce({ id: "cs_1", status: "complete" });
+    await expect(cancelCustomerBilling(owner)).resolves.toBeUndefined();
   });
 });

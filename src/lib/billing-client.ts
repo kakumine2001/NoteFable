@@ -9,6 +9,8 @@ export type PlanInfo = {
   plan: "free" | "pro";
   subscription: { status: string; periodEnd: string | null; cancelAt: string | null } | null;
   canManage: boolean;
+  manageUrl: string | null;
+  provider: "stripe" | "google" | null;
   usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string }>;
 };
 

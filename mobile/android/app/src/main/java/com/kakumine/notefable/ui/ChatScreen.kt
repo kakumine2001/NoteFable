@@ -143,6 +143,7 @@ fun ChatScreen(
     account: AccountUiState = AccountUiState(),
     onSignIn: () -> Unit = {},
     onDismissGuestLimit: () -> Unit = {},
+    onDismissUpgradeLimit: () -> Unit = {},
     onSearch: () -> Unit = {},
     onRevealDone: (Long) -> Unit = {},
     /** 添加笔记窗口打开时读自己的笔记列表（GET /api/pages）。 */
@@ -211,7 +212,14 @@ fun ChatScreen(
                             onClose = onDismissGuestLimit,
                         )
                     }
-                } else null,
+                } else state.upgradeLimit?.takeIf { account.user != null }?.let { upgradeLimit ->
+                    {
+                        UpgradeLimitPrompt(
+                            kind = upgradeLimit,
+                            onClose = onDismissUpgradeLimit,
+                        )
+                    }
+                },
                 input = input,
                 onInputChange = onInputChange,
                 sending = state.sending,

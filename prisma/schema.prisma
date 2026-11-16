@@ -72,9 +72,13 @@ model User {
   // ログインした利用者が設定画面で選んだ表示言語（en / zh / zh-Hant / ja）。null は選んでいない（環境の言語に従う）。匿名の行では使わない。
   locale             String?
   plan               UserPlan @default(FREE)
+  // いまの購読をどこで買ったか（stripe = ウェブ、google = Android の Google Play）。下の状態と期間はこの購読のもの。
+  subscriptionProvider          String?
   // Stripe の顧客と購読（src/lib/billing.ts）。購読の状態は Webhook と決済後の確認で Stripe から写す。
   stripeCustomerId              String?   @unique
   stripeSubscriptionId          String?   @unique
+  // Google Play の購読の購入トークン（src/lib/google-play-billing.ts）。状態はアプリからの報告と RTDN で Google から写す。
+  googlePurchaseToken           String?   @unique
   // Stripe の購読の状態（active / past_due / canceled など）。null は購読したことがない。
   subscriptionStatus            String?
   // いまの請求期間。PRO の月の上限はこの期間ごとに数える。

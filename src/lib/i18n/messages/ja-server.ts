@@ -207,4 +207,8 @@ export const jaServer: Record<string, string> = {
   "You don't have a subscription.": "サブスクリプションがありません。",
   "Could not open the subscription page. Please try again.": "サブスクリプションのページを開けませんでした。もう一度お試しください。",
   "Could not cancel your subscription. Please try again.": "サブスクリプションを解約できませんでした。もう一度お試しください。",
+  "You're already subscribed to Pro on the web. This purchase will be refunded.": "すでにウェブで Pro に登録しています。この購入は自動的に返金されます。",
+  "This purchase belongs to another account.": "この購入は別のアカウントのものです。",
+  "This purchase is no longer active.": "この購入はすでに無効です。",
+  "Could not confirm your purchase. Please try again.": "購入を確認できませんでした。もう一度お試しください。",
 };

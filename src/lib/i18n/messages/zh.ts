@@ -666,4 +666,5 @@ export const zh: Record<string, string> = {
   "Your payment is being confirmed. Pro will turn on in a moment.": "正在确认付款，Pro 稍后就会开通。",
   "Could not load your plan.": "无法加载你的方案。",
   "Attachments aren't kept when you go to the payment page. Add them again afterward.": "去付款页面时不会保留附件，回来后请重新添加。",
+  "Manage subscription on Google Play": "在 Google Play 上管理订阅",
 };

@@ -260,7 +260,8 @@ erDiagram
 - `locale`：可空，已登录用户在“设置”里选的界面语言（`en` / `zh` / `zh-Hant` / `ja`，没有“自动”）。null 表示没选过，按浏览器语言和地区显示。`PATCH /api/account` 的 `locale` 只接受这四个值；读出时不认识的值当作 null。浏览器端把它同步到语言 Cookie，见 [i18n.md](i18n.md)。字段通过 `20261116200000_user_locale` migration 部署
 
 - `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe 订阅同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
-- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 是 Stripe 的订阅状态原文（`active`、`past_due`、`canceled` 等；null 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（null 为没有预约）。都由 `src/lib/billing.ts` 从 Stripe 取回后写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
+- `subscriptionProvider`：可空，当前订阅在哪里买的（`stripe` = 网页、`google` = Android 的 Google Play）；下面的状态和账期都属于这份订阅。`googlePurchaseToken`：可空且唯一，Google Play 订阅的购买令牌。
+- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 是 Stripe 的订阅状态原文（`active`、`past_due`、`canceled` 等；null 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（null 为没有预约）。都由 `src/lib/billing.ts`（Stripe）或 `src/lib/google-play-billing.ts`（Google Play）从外部取回后经 `src/lib/subscription-state.ts` 写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
 
 关系：
 

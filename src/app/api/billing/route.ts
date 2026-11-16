@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { signedInUser } from "@/app/api/billing/account";
 import { isBillingConfigured, refreshCustomer } from "@/lib/billing";
+import { googlePlayManageUrl, googlePlayProduct, isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { usageSummary } from "@/lib/usage-limits";
@@ -14,9 +15,14 @@ export async function GET(request: Request) {
 
   let row = user;
   const configured = isBillingConfigured();
-  if (configured && new URL(request.url).searchParams.get("refresh") === "1" && user.stripeCustomerId) {
+  const googlePlay = isGooglePlayConfigured();
+  const refresh = new URL(request.url).searchParams.get("refresh") === "1";
+  const refreshStripe = refresh && configured && Boolean(user.stripeCustomerId);
+  const refreshPlay = refresh && googlePlay && Boolean(user.googlePurchaseToken);
+  if (refreshStripe || refreshPlay) {
     try {
-      await refreshCustomer(user);
+      if (refreshStripe) await refreshCustomer(user);
+      if (refreshPlay && user.googlePurchaseToken) await syncPlayPurchase(user.googlePurchaseToken);
       row = await prisma.user.findUniqueOrThrow({ where: { id: user.id } });
     } catch (error) {
       // 取り直せなくても、いま分かっている状態を返す（Webhook があとで追いつく）。
@@ -25,8 +31,14 @@ export async function GET(request: Request) {
   }
 
   const summary = await usageSummary(row);
+  const provider = row.subscriptionProvider === "google" ? "google" : row.subscriptionProvider === "stripe" ? "stripe" : null;
   return NextResponse.json({
     billing: configured,
+    // Android アプリの Play Billing（GOOGLE_PLAY_*）。アプリは購入に accountId を付け、productId の商品を買う。
+    googlePlay,
+    productId: googlePlayProduct(),
+    accountId: row.id,
+    provider,
     priceJpy: PRO_PRICE_JPY,
     plan: row.plan === "PRO" ? "pro" : "free",
     // 購読がある（解約済みも含む）ときだけ。Stripe の画面で管理できるのは顧客がいるとき。
@@ -35,7 +47,9 @@ export async function GET(request: Request) {
       periodEnd: row.subscriptionPeriodEnd?.toISOString() ?? null,
       cancelAt: row.subscriptionCancelAt?.toISOString() ?? null,
     } : null,
-    canManage: configured && Boolean(row.stripeCustomerId),
+    // Stripe の Customer Portal で管理できるか（ウェブで買った購読）。Google Play で買った購読は manageUrl（Play ストアの購読画面）で管理する。
+    canManage: configured && Boolean(row.stripeCustomerId) && provider !== "google",
+    manageUrl: provider === "google" ? googlePlayManageUrl() : null,
     usage: summary.usage,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

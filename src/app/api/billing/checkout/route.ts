@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
   const user = await signedInUser();
   if (!user) return NextResponse.json({ error: msg("Sign in to upgrade.") }, { status: 401 });
-  // 二重に購読させない。続いている購読の変更や解約は「購読を管理」（Customer Portal）で行う。
+  // 二重に購読させない（Android の Google Play で買った PRO も含む）。続いている購読の変更や解約は「購読を管理」で行う。
   if (isProStatus(user.subscriptionStatus)) {
     return NextResponse.json({ error: msg("You're already subscribed to Pro.") }, { status: 409 });
   }

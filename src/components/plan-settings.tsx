@@ -85,6 +85,11 @@ export function PlanSettings() {
             </button>
           </div>
         )}
+        {plan.manageUrl && (
+          <a className="settings-inline-action" href={plan.manageUrl} target="_blank" rel="noreferrer">
+            <CreditCard size={14} />{t("Manage subscription on Google Play")}
+          </a>
+        )}
         {plan.canManage && (pro || subscription) && (
           <button type="button" className="settings-inline-action" disabled={busy} onClick={() => void open("portal")}>
             <CreditCard size={14} />{busy && pro ? t("Opening…") : t("Manage subscription")}

@@ -12,4 +12,14 @@
     <string name="plan_ends">Pro は %1$s に終了します。</string>
     <string name="plan_past_due">前回の支払いに失敗しました。Pro を続けるには支払い方法を更新してください。</string>
     <string name="plan_load_failed">プランを読み込めませんでした。</string>
+    <string name="plan_offer_title">NoteFable Pro · 月額 %1$s</string>
+    <string name="plan_offer_body">毎月 %1$s 件のメッセージと %2$d 枚の画像。いつでも解約できます。</string>
+    <string name="plan_upgrade">Pro にアップグレード</string>
+    <string name="plan_manage_play">Google Play でサブスクリプションを管理</string>
+    <string name="plan_welcome">NoteFable Pro へようこそ</string>
+    <string name="plan_pending">支払いを確認しています。まもなく Pro が有効になります。</string>
+    <string name="plan_purchase_failed">購入を完了できませんでした。もう一度お試しください。</string>
+    <string name="upgrade_title_image">今月の無料の画像を使い切りました</string>
+    <string name="upgrade_body">Pro（月額 %3$s）なら、毎月 %1$s 件のメッセージと %2$d 枚の画像が使えます。</string>
+    <string name="plan_opening">開いています…</string>
 </resources>

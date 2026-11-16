@@ -1,6 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { deleteAccount } from "@/lib/account-deletion";
 import { cancelCustomerBilling, isBillingConfigured } from "@/lib/billing";
+import { cancelPlayRenewal } from "@/lib/google-play-billing";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
@@ -106,9 +107,11 @@ export async function DELETE(request: NextRequest) {
   }
 
   // Stripe の顧客がいれば、続いている購読と開いたままの決済画面を先に止める。止められなければ削除しない（行が消えると課金だけが続く）。
-  if (row.stripeCustomerId) {
+  // Google Play の購読は自動更新を止める（期限までは Google 側で有効なまま、それ以上は請求されない）。
+  if (row.stripeCustomerId || row.googlePurchaseToken) {
     try {
       await cancelCustomerBilling(row);
+      await cancelPlayRenewal(row);
     } catch (error) {
       console.error("Failed to cancel subscription before deleting account", error instanceof Error ? error.message : error);
       return NextResponse.json({ error: msg("Could not cancel your subscription. Please try again.") }, { status: 502 });

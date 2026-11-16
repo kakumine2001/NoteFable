@@ -658,4 +658,5 @@ export const ja: Record<string, string> = {
   "Your payment is being confirmed. Pro will turn on in a moment.": "支払いを確認しています。まもなく Pro が有効になります。",
   "Could not load your plan.": "プランを読み込めませんでした。",
   "Attachments aren't kept when you go to the payment page. Add them again afterward.": "支払いページに移ると添付は残りません。戻ってから追加し直してください。",
+  "Manage subscription on Google Play": "Google Play でサブスクリプションを管理",
 };

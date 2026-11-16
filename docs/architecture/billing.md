@@ -1,6 +1,6 @@
 # 付费方案（Pro）与用量上限
 
-NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込）。目标是用订阅费大致抵消 API 费用，不追求利润。付款、解约、更换支付方式和收据都交给 Stripe（Checkout 与 Customer Portal），服务端只保存 Stripe 的客户 ID、订阅 ID 和订阅状态，不接触卡号。
+NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
 
 ## 档位与上限
 
@@ -58,6 +58,33 @@ Stripe 后台要做的事：
 
 本地测试：用测试模式的密钥，`stripe listen --forward-to localhost:3000/api/billing/webhook` 拿到临时 `whsec_`，测试卡 `4242 4242 4242 4242`。
 
-## Android
+## Android（Google Play 结算）
 
-原生 App 的设置里显示方案和本期用量（`ui/PlanSettings.kt`，读 `GET /api/billing`），**没有购买和管理订阅的入口**：Google Play 要求 App 内的数字内容订阅走 Play 结算，不能引导到外部付款。服务端的上限提示句也因此不提“升级”，升级提示只在网页界面里。要在 App 内销售需要另接 Google Play Billing（未做，见 [android-native.md](android-native.md)）。
+Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款。所以 App 里用 Play Billing 卖同一个 Pro，网页用 Stripe；两边写进同一组 `User` 列（`subscriptionProvider` = `stripe` / `google`，`src/lib/subscription-state.ts`）。服务端的上限提示句不提“升级”，升级提示由各端界面自己显示；App 内嵌的笔记编辑页（`/note-embed`）不显示网页的 Stripe 升级提示。Play 收 15%，¥300 到手约 ¥255。
+
+1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
+2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId` 必须是当前用户、令牌没被别的用户用过；有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
+3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify?token=<GOOGLE_PLAY_RTDN_TOKEN>`。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
+4. **状态对应**：`ACTIVE` → active；`CANCELED`（已取消续费）到期前仍是 active，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → past_due（仍是 Pro）；`ON_HOLD` → unpaid、`PAUSED` → paused、`PENDING` → incomplete、`EXPIRED` → canceled（都不是 Pro）。Play 不返回账期开始日，按到期前一个月计（Pro 的月上限按它算）。
+5. **管理**：Play 买的 Pro 在网页和 App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 App 里没有管理入口。
+6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
+
+并发：同一个订阅的“向外部读取 → 写库”、同一个 Stripe 客户的结账和删除，都在 Postgres advisory lock 里一次只做一个（`withBillingLock`），并发的通知不会用旧状态盖掉新状态，两个页面同时结账也只有一个能付。
+
+### 配置（Google Play）
+
+环境变量（`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` 和 `GOOGLE_PLAY_RTDN_TOKEN` 都设置才开放 App 内购买）：
+
+```text
+GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  # 服务账号的 JSON 密钥（整段），需要 Play Console 的“查看财务数据、管理订单和订阅”权限
+GOOGLE_PLAY_RTDN_TOKEN            # 随机字符串，写进 Pub/Sub push 的地址
+GOOGLE_PLAY_PACKAGE_NAME          # 可选，默认 com.kakumine.notefable
+GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
+```
+
+Play Console / Google Cloud 要做的事：
+
+- Play Console → 创收 → 订阅：新建订阅 `notefable_pro`，基础方案按月自动续订，日本 ¥300（其他国家按需要定价）。
+- Google Cloud：开启 Google Play Android Developer API，建服务账号和 JSON 密钥；在 Play Console → 用户和权限里邀请这个服务账号并给上面的权限。
+- Pub/Sub：建主题，给 `google-play-developer-notifications@system.gserviceaccount.com` 发布权限；建 push 订阅，端点 `https://notefable.com/api/billing/google/notify?token=<GOOGLE_PLAY_RTDN_TOKEN>`。Play Console → 创收设置里填这个主题，发一条测试通知确认。
+- 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

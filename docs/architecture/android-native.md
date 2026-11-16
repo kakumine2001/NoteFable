@@ -173,7 +173,7 @@ mobile/android/
 - **粘贴图片**：输入框换成 `TextFieldState` 版的 `BasicTextField`（草稿仍在 ViewModel，两边同步），用 `contentReceiver` 收剪贴板 / 键盘里的 PNG、JPEG、WEBP（网页 `getClipboardImageFiles`），其它内容照常粘贴成文字。图片先拷进缓存目录（`image.png` 等，和网页粘贴的文件名一样），再走 `addFiles` 的校验。拷贝（以及文件选择器读文件名和大小）经 `ChatViewModel.importFiles` 在后台进行，期间 `importing` 大于 0、不能发送，免得图片漏掉、跑进下一条。键盘插入的图片，临时读取权限挂在 `TransferableContent` extras 里的 `InputContentInfo` 上：拷贝期间一直引用着它，拷完调 `releasePermission`。
 - **拍照**：没有新加一行，"添加文件或照片"打开的系统选择器里同时列出相机 App（`ACTION_GET_CONTENT` 选择器 + `EXTRA_INITIAL_INTENTS` 的拍照意图，和手机浏览器里网页的文件选择框一样）。照片写到缓存目录 `attachments/`，经 FileProvider（`${applicationId}.attachments`，`res/xml/file_paths.xml`）交给相机 App；不需要相机权限，Manifest 里用 `<queries>` 声明要查相机。缓存里超过一天的副本在下次新建副本（打开选择器或粘贴图片）时清掉；不再拍照或粘贴的话，旧副本留到系统清缓存为止。选择器返回后用哪些文件（选中的文件优先，否则看相机文件有没有内容）在 `pickedAttachmentSources`，有单元测试。
 
-- **方案**（`ui/PlanSettings.kt`，网页 `plan-settings.tsx`、`.settings-plan-*`）：设置里语言上面一栏，读 `GET /api/billing`，显示免费 / Pro 徽章、Pro 的续费 / 结束 / 扣款失败说明，以及本期的聊天和图片用量条。**没有“升级到 Pro”和“管理订阅”**：Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页付款，所以原生端也不显示无料用户的升级提示（服务端的上限提示句本身不提升级）。要在 App 内卖订阅需要另接 Google Play Billing，未做。见 [billing.md](billing.md#android)。
+- **方案与购买**（`ui/PlanSettings.kt`，网页 `plan-settings.tsx`、`.settings-plan-*`）：设置里语言上面一栏，读 `GET /api/billing`，显示免费 / Pro 徽章、Pro 的续费 / 结束 / 扣款失败说明、本期的聊天和图片用量条。免费用户在服务端开了 Play 结算、Play 商品读得到时，显示和网页一样的 Pro 介绍框和“升级到 Pro”，打开 **Google Play** 的购买窗口（`data/PlayBilling.kt`，网页是 Stripe）；Play 买的 Pro 显示“在 Google Play 上管理订阅”。免费用户撞到上限时，输入栏上方的升级提示（`UpgradeLimitPrompt`，网页 `UpgradePrompt`）沿用登录提示的外框和动画，按钮同样打开 Play。网页（Stripe）买的订阅在 App 里没有管理入口；App 内嵌的笔记编辑页不显示网页的升级提示。从 Drive 装的 APK 连不上 Play 结算，购买按钮不出现。流程见 [billing.md](billing.md#androidgoogle-play-结算)。
 
 ## 回答体验
 
