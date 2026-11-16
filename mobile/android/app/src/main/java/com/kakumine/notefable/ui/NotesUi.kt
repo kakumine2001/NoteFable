@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -420,7 +421,7 @@ private fun NoteRow(
                 Alignment.Center,
             ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 14.dp, Faint) }
             Row(
-                Modifier.weight(1f).heightIn(min = 44.dp).noteReorderDrag(page, rowDrag).clickable(enabled = !busy) { onOpen(page.id) },
+                Modifier.weight(1f).heightIn(min = 44.dp).clickable(enabled = !busy) { onOpen(page.id) },
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 if (active || page.locked) {
@@ -439,7 +440,9 @@ private fun NoteRow(
                 }
                 Text(
                     page.title,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    // 拖动处只是标题区（网页的拖动元是标题按钮，图标按钮在它外面），撑满行高；放在行的 clickable 里层，长按后原地松手不会打开。
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).noteReorderDrag(page, rowDrag).wrapContentHeight()
+                        .padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -462,7 +465,7 @@ private fun collapseLabel(title: String) = stringResource(R.string.pg_collapse_t
 @Composable
 private fun expandLabel(title: String) = stringResource(R.string.pg_expand_title, title)
 
-/** 笔记行主体的长按拖动（网页 ReorderHandle，disabled={busy}；正在移动的这一篇也不能拖）。 */
+/** 笔记行主体的长按拖动（网页 ReorderRowButton，disabled={busy}；正在移动的这一篇也不能拖）。 */
 private fun Modifier.noteReorderDrag(page: NotePageSummary, rowDrag: NoteRowDrag): Modifier = reorderDrag(
     id = page.id,
     drag = rowDrag.drag,
@@ -673,7 +676,7 @@ private fun HomeItem(
             Alignment.Center,
         ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 18.dp, Faint) }
         Row(
-            Modifier.weight(1f).heightIn(min = 56.dp).noteReorderDrag(page, rowDrag).clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
+            Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.noteReorderDrag(page, rowDrag).padding(horizontal = 4.dp, vertical = 6.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint) }

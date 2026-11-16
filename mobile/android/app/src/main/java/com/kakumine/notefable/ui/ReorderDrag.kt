@@ -4,7 +4,12 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
+import androidx.compose.foundation.gestures.drag
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.Text
@@ -40,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 
-// 列表拖动排序（网页 reorder-handle.tsx + globals.css 的 .list-reorder-*、[data-order-*]），聊天侧栏和笔记侧栏 / 首页共用：
+// 列表拖动排序（网页 reorder-row-button.tsx + globals.css 的 .list-reorder-*、[data-order-*]），聊天侧栏和笔记侧栏 / 首页共用：
 // - 没有专门的把手：长按行的主体（标题区）后拖动（与网页触屏一致），点按照常打开。
 // - 被拖的行半透明 .5；目标行上 / 下出现 2px 蓝线 #2383e2；拖到投放区（项目标题、Chats / Notes 标签）上整块
 //   rgba(35,131,226,.12) 底加 1px 蓝框、圆角 4。手指在列表上下边 30 内移动时每次移动滚 12（手指不动就不滚）。
@@ -123,9 +128,10 @@ internal fun Modifier.dropLine(before: Boolean, after: Boolean): Modifier = if (
 }
 
 /**
- * 整行拖动（网页 ReorderHandle 包住行的主体按钮，触屏长按后拖）：长按后拖，松手时调 [onDrop]（目标在 [DragState.target]）。
+ * 整行拖动（网页 ReorderRowButton 包住行的主体按钮，触屏长按后拖）：长按后拖，松手时调 [onDrop]（目标在 [DragState.target]）。
  * 点按仍交给同一行的 clickable；普通滑动照常滚动列表。[locked] 时不能拖（这一行正在移动）。
- * 手势协程被取消（行离开组合、key 变了）时 detectDragGesturesAfterLongPress 不会调 onDragCancel，这里自己收尾。
+ * 要放在 clickable 的里层（链上更靠后）：长按开始后的抬起由这里吃掉，原地松手也不会再打开这一行（网页 suppressClick）。
+ * 手势协程被取消（行离开组合、key 变了）时由 finally 收尾。
  */
 internal fun Modifier.reorderDrag(
     id: String,
@@ -143,21 +149,22 @@ internal fun Modifier.reorderDrag(
         .pointerInput(id, locked) {
             if (locked) return@pointerInput
             try {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = { offset ->
-                        val origin = coords?.localToWindow(offset) ?: return@detectDragGesturesAfterLongPress
-                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        start()
-                        drag.dragging = id
-                        drag.update(origin)
-                    },
-                    onDrag = { change, amount ->
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    val press = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                    val origin = coords?.localToWindow(press.position) ?: return@awaitEachGesture
+                    press.consume()
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    start()
+                    drag.dragging = id
+                    drag.update(origin)
+                    val released = this.drag(press.id) { change ->
+                        drag.move(drag.pointer + change.positionChange(), density)
                         change.consume()
-                        drag.move(drag.pointer + amount, density)
-                    },
-                    onDragEnd = { drop() },
-                    onDragCancel = { drag.clear() },
-                )
+                    }
+                    currentEvent.changes.forEach { if (it.changedToUp()) it.consume() }
+                    if (released) drop() else drag.clear()
+                }
             } finally {
                 if (drag.dragging == id) drag.clear()
             }

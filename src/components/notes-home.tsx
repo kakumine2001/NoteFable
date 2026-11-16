@@ -1,6 +1,6 @@
 import { ChevronDown, ChevronRight, Clock3, FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
 import { useState } from "react";
-import { ReorderHandle } from "@/components/reorder-handle";
+import { ReorderRowButton } from "@/components/reorder-row-button";
 import type { ReorderRequest } from "@/lib/list-order";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
@@ -53,13 +53,13 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
       </button>
-      <ReorderHandle id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)} className="notes-home-row">
+      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)} className="notes-home-row">
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>
         <span className="notes-home-name">{page.title}</span>
         <time className="notes-home-date" dateTime={page.updatedAt}>
           {new Date(page.updatedAt).toLocaleDateString(tag, { month: "short", day: "numeric" })}
         </time>
-      </ReorderHandle>
+      </ReorderRowButton>
       <button type="button" className="notes-home-move" disabled={busy} onClick={() => setMoving(page)} aria-label={t("Move {title} to a project", { title: page.title })}><FolderInput size={18} /></button>
       </div>
       {open && (kids.length ? <ul className="notes-home-list notes-home-sub">{kids.map(item)}</ul> : <p className="notes-home-empty notes-home-sub">{t("No pages inside")}</p>)}

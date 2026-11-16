@@ -68,8 +68,8 @@ import kotlinx.coroutines.launch
  *   右侧"在项目里新建聊天"＋ 和"更多"各 40（图标 16，右距 3.2）。项目里的聊天左缩进 12；没有时 12 灰字 "No chats" / "All chats pinned"。
  * - 聊天行高 44、圆角 6.4：没有拖动把手（长按标题区后拖）；图标区 40（左距 2，图标 15 / 表情）、标题 14/20（右距 8）、
  *   "更多" 40（图标 16）、置顶 40（Pin 14；已置顶时深色字加 .08 灰底）。当前行浅蓝底、字重 550、左侧 3px 蓝条（上下各缩 7.2）。
- * - 拖动：按住把手直接拖（网页触屏上把手也是立刻拖）。目标行上 / 下出现 2px 蓝线；拖到项目标题或 CHATS 标签上整块浅蓝底加 1px 蓝框，
- *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。把手吃掉了这次拖动，所以抽屉的横滑关闭和列表滚动不会同时触发。
+ * - 拖动：长按标题区后拖（网页触屏也是长按）。目标行上 / 下出现 2px 蓝线；拖到项目标题或 CHATS 标签上整块浅蓝底加 1px 蓝框，
+ *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。长按之前的滑动照常滚动列表；长按开始后拖动被吃掉，抽屉的横滑关闭和列表滚动不会同时触发。
  */
 
 private val ErrorRed = Color(0xFFB91C1C)
@@ -366,8 +366,9 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
             Row(
                 // 标题区就是拖动处：长按后拖（网页整行拖动）。和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
                 Modifier.weight(1f).height(44.dp)
-                    .reorderDrag(session.id, drag, locked = moveBusy, onStart = props.onDismissError, onDrop = { props.onDrop(session.id) })
-                    .clickable { props.onOpen(session.id) },
+                    // reorderDrag 放在 clickable 里层：先收到抬起并吃掉它，长按后原地松手不会再打开这一行。
+                    .clickable { props.onOpen(session.id) }
+                    .reorderDrag(session.id, drag, locked = moveBusy, onStart = props.onDismissError, onDrop = { props.onDrop(session.id) }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
