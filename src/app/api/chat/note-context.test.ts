@@ -24,9 +24,10 @@ vi.mock("@/lib/chat-history", () => ({ buildHistoryInput: async () => [] }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
-    session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession },
+    session: { create: mocks.createSession, update: async () => ({}), updateMany: async () => ({ count: 0 }), findFirst: mocks.findSession, findUnique: async () => ({ stopRequestedAt: null }) },
     notePage: { findFirst: mocks.findNote },
-    message: { create: mocks.createMessage, findMany: async () => [] },
+    // findFirst は表示中の枝の末尾（次の発言の親）、findUnique は回答を保存するときの「答えた発言が表示中か」。
+    message: { create: mocks.createMessage, findMany: async () => [], findFirst: async () => null, findUnique: async () => ({ active: true }) },
     noteProposal: { updateMany: async () => ({ count: 0 }) },
   };
   prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);

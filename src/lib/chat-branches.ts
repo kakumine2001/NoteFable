@@ -1,10 +1,11 @@
 // 会話の枝分かれ（発言の編集・回答の再生成）を扱う純粋な関数。DB には触らない。
 // 発言は木になっていて、Message.active が「いま表示している枝」を表す。置き換えられた版は消さずに残す。
 
-// 会話の先頭の発言の parentId。null（この機能より前の行・複製した行）とは区別する。
+// 会話の先頭の発言の parentId。null（この機能より前の行）とは区別する。
 export const ROOT_PARENT = "root";
 
-export type BranchNode = { id: string; parentId: string | null; active: boolean; role: string; createdAt: Date };
+// selectedAt は、版の切り替えでその版を選んだ時刻（選んだことが無ければ null）。
+export type BranchNode = { id: string; parentId: string | null; active: boolean; role: string; createdAt: Date; selectedAt?: Date | null };
 
 // 同じ位置にある別の版（同じ親を持つ発言）の中での位置。版が 1 つだけの発言には付けない。
 export type MessageVersions = { index: number; total: number; prevId: string | null; nextId: string | null };
@@ -28,7 +29,7 @@ export function buildTree(nodes: BranchNode[]): BranchTree {
     const explicit = node.parentId === ROOT_PARENT ? ROOT_PARENT
       : node.parentId !== null && (index.get(node.parentId) ?? Infinity) < position ? node.parentId
       : null;
-    // 親の記録が無い行（古い行・複製した行）は、作成順で直前の発言が親。
+    // 親の記録が無い行（古い行）は、作成順で直前の発言が親。
     const resolved = explicit ?? (position > 0 ? order[position - 1].id : ROOT_PARENT);
     parent.set(node.id, resolved);
     const siblings = children.get(resolved);
@@ -58,14 +59,22 @@ export function subtreeIds(tree: BranchTree, id: string): string[] {
   return ids;
 }
 
-// その版を表示するときに表示中にする発言の ID：先頭からその発言までと、その先は各段でいちばん新しい版。
+// その版を表示するときに表示中にする発言の ID：先頭からその発言までと、その先は各段で「最後に選んでいた版」。
+// 選んだ記録が無い段は、いちばん新しい版（作った時刻と選んだ時刻の遅いほうで比べる。再生成・編集した直後は新しい版が表示される）。
 export function activationFor(tree: BranchTree, id: string): Set<string> | null {
   if (!tree.parent.has(id)) return null;
+  const byId = new Map(tree.order.map((node) => [node.id, node]));
+  const shownAt = (nodeId: string) => {
+    const node = byId.get(nodeId)!;
+    return Math.max(node.createdAt.getTime(), node.selectedAt?.getTime() ?? 0);
+  };
   const ids = new Set<string>();
   for (let cursor: string | undefined = id; cursor && cursor !== ROOT_PARENT; cursor = tree.parent.get(cursor)) ids.add(cursor);
   for (let cursor = id; ;) {
-    const next = tree.children.get(cursor)?.at(-1);
-    if (!next) break;
+    const children = tree.children.get(cursor);
+    if (!children?.length) break;
+    // 同じ時刻なら作成順で後ろの版。
+    const next = children.reduce((best, child) => (shownAt(child) >= shownAt(best) ? child : best));
     ids.add(next);
     cursor = next;
   }

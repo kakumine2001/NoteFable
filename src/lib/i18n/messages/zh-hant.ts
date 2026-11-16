@@ -670,6 +670,7 @@ export const zhHant: Record<string, string> = {
   "The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.": "AI 會把你新增的頁面作為這段對話的參考內容。每次傳送都會重新讀取，所以總是使用最新的內容。",
   "The attachment filename is too long. Rename the file and try again.": "附件檔名太長。請重新命名後再試。",
   "The code has expired. Request a new one.": "驗證碼已過期，請重新獲取。",
+  "The connection was closed before the answer finished.": "回答還沒完成，連線就斷開了。",
   "The model requested an unavailable tool. Please retry.": "模型呼叫了不可用的工具，請重試。",
   "The model returned an empty response. Please retry.": "模型返回了空回答，請重試。",
   "The trash is empty.": "回收站是空的。",

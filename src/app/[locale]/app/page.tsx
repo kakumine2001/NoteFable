@@ -24,7 +24,7 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
-import type { TurnActions } from "@/components/turn-actions";
+import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation } from "@/components/empty-conversation";
@@ -447,6 +447,10 @@ export default function Home() {
   const streamAbortsRef = useRef<Record<string, AbortController>>({});
   // 停止ボタンの状態。ready は止められる、stopping は止めてサーバーの保存を待っている。
   const [stopStates, setStopStates] = useState<Record<string, "ready" | "stopping">>({});
+  // 送ったが断られた発言の書き直し（上限・通信の失敗など）。その発言の編集欄に戻して、書いた文を失わない。
+  const [rejectedEdit, setRejectedEdit] = useState<{ messageId: string; text: string } | null>(null);
+  // 「新しいチャットで分岐」の作成中（二重に作らない）。
+  const branchingRef = useRef(false);
   // 送信直後に遅れて届いた古い input/change イベントだけを捨てる。
   const submittedInputRestoreGuardRef = useRef<{
     value: string;
@@ -583,12 +587,30 @@ export default function Home() {
     });
   }
 
-  function stopGenerating() {
+  // 返答を止める。サーバーに「停止」を伝えると、応答の側がそこまでの回答を保存してストリームを閉じる（通常の完了と同じ経路で終わる）。
+  // 接続を切るだけではサーバーに伝わるとは限らないので、伝えられなかった・閉じてこないときだけ、こちらから切る。
+  async function stopGenerating() {
     const sessionKey = getMessagesKey(activeSessionIdRef.current);
     const controller = streamAbortsRef.current[sessionKey];
-    if (!controller || controller.signal.aborted) return;
+    if (!controller || controller.signal.aborted || stopStates[sessionKey] === "stopping") return;
     setStopStates((current) => ({ ...current, [sessionKey]: "stopping" }));
-    controller.abort();
+    let acknowledged = false;
+    if (sessionKey !== NEW_SESSION_MESSAGES_KEY) {
+      try {
+        const response = await fetch(`/api/sessions/${encodeURIComponent(sessionKey)}/stop`, { method: "POST", signal: AbortSignal.timeout(5000) });
+        acknowledged = response.ok;
+      } catch {
+        acknowledged = false;
+      }
+    }
+    if (!acknowledged) {
+      controller.abort();
+      return;
+    }
+    // 応答は 1 秒おきに停止を見に行く。しばらく待っても閉じなければ切る。
+    window.setTimeout(() => {
+      if (streamAbortsRef.current[sessionKey] === controller) controller.abort();
+    }, 8000);
   }
 
   // チャット API へ送り、返ってくる SSE を空のアシスタント枠へ流し込む。終わったら、保存先の会話 ID を返す。
@@ -676,8 +698,9 @@ export default function Home() {
     return resolvedSessionId;
   }
 
-  // 利用者が返答を止めたあとの片付け。届いた分は残し、空のままの枠は消す。
-  // サーバーは止められた時点までの回答を保存するので、それを待って履歴（保存済みの ID）に合わせる。合わせられたら true。
+  // こちらから接続を切って止めたあとの片付け（サーバーに停止を伝えられなかったときの予備の経路）。
+  // 届いた分は残し、空のままの枠は消す。サーバーが回答を保存していれば、それに合わせる。合わせられたら true。
+  // 何も届いていないときは、サーバーの状態が分からないので画面は書き換えない（再生成なら、呼び出し側が元の表示に戻す）。
   async function finishStoppedStream(sessionKey: string, assistantMessageId: string) {
     const partial = (sessionMessagesRef.current[sessionKey] ?? []).find((message) => message.id === assistantMessageId);
     const hasAnswer = !!partial && (partial.content.trim().length > 0
@@ -685,20 +708,18 @@ export default function Home() {
     if (!hasAnswer) updateCachedMessages(sessionKey, (current) => current.filter((message) => message.id !== assistantMessageId));
     if (sessionKey === NEW_SESSION_MESSAGES_KEY) return false;
     void loadSessions();
+    if (!hasAnswer) return false;
     const known = new Set((sessionMessagesRef.current[sessionKey] ?? []).map((message) => message.id));
-    let synced = false;
-    // 回答が届いていたら、その回答が保存されるまで待つ。届いていなければ、保存されるものは無い（再生成なら元の回答が戻る）。
-    for (const delay of hasAnswer ? [250, 500, 1000, 2000] : [400, 1200]) {
+    for (const delay of [500, 1000, 2000]) {
       await new Promise((resolve) => setTimeout(resolve, delay));
       const fetched = await fetchSessionMessages(sessionKey);
       if (!fetched || fetched === "missing") continue;
       const last = fetched.at(-1);
-      if (hasAnswer && !(last?.role === "ASSISTANT" && !known.has(last.id))) continue;
+      if (!(last?.role === "ASSISTANT" && !known.has(last.id))) continue;
       replaceCachedMessages(sessionKey, fetched);
-      synced = true;
-      if (hasAnswer) break;
+      return true;
     }
-    return synced;
+    return false;
   }
 
   function addUploadFiles(incoming: File[]) {
@@ -1369,6 +1390,7 @@ export default function Home() {
     if (!target || target.role !== (kind === "edit" ? "USER" : "ASSISTANT") || (kind === "edit" && !content)) return;
 
     setSendError("");
+    setRejectedEdit(null);
     cancelReveal();
     submittingSessionKeysRef.current.add(sessionId);
     // 対象から先を画面から外し、新しい版が入る枠を置く。サーバー側では消えず、隠れるだけ。
@@ -1396,11 +1418,19 @@ export default function Home() {
       await refreshSessionMessages(sessionId);
     } catch (error) {
       if (controller.signal.aborted) {
-        await finishStoppedStream(sessionId, assistantMessageId);
+        const synced = await finishStoppedStream(sessionId, assistantMessageId);
+        // 何も届く前に切った再生成は、サーバーでは元の回答が表示のまま残っている。画面も元に戻す。
+        if (!synced && kind === "regenerate" && !(sessionMessagesRef.current[sessionId] ?? []).some((message) => message.id === assistantMessageId)) {
+          replaceCachedMessages(sessionId, before);
+        }
         return;
       }
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
-      if (error instanceof UsageLimitError && error.tier === "guest") setGuestLimit(error.kind);
+      if (error instanceof UsageLimitError && error.tier === "guest") {
+        // 入力欄に書きかけの文があれば、ログインして戻ってきても残るようにする（通常の送信と同じ）。
+        guestLimitHitRef.current = true;
+        setGuestLimit(error.kind);
+      }
       const partial = (sessionMessagesRef.current[sessionId] ?? []).find((message) => message.id === assistantMessageId);
       if (partial?.content) {
         // 途中まで届いていた回答は消さず、その後ろに失敗の文を足す（通常の送信と同じ）。
@@ -1412,6 +1442,10 @@ export default function Home() {
         // 何も届く前に断られた（上限・通信の失敗など）。サーバーの状態に合わせ直し、読めなければ元の表示に戻す。
         if (!await refreshSessionMessages(sessionId)) replaceCachedMessages(sessionId, before);
         setSendError(detail);
+        // 書き直した文は捨てない：その発言がまだ表示されていれば、編集欄に戻す。
+        if (kind === "edit" && (sessionMessagesRef.current[sessionId] ?? []).some((message) => message.id === messageId)) {
+          setRejectedEdit({ messageId, text: content });
+        }
       }
     } finally {
       registerStop(sessionId, null);
@@ -1445,7 +1479,10 @@ export default function Home() {
   // ここまでの会話を新しいチャットに複製して開く。元の会話は変わらない。
   async function branchChat(messageId: string) {
     const sessionId = activeSessionIdRef.current;
-    if (!sessionId) return;
+    if (!sessionId || branchingRef.current) return;
+    branchingRef.current = true;
+    // 作っている間に別の会話へ移ったら、できた会話は一覧に足すだけにして、そこへ引き戻さない。
+    const navigationIntent = sessionNavigationIntentRef.current;
     setSendError("");
     try {
       const sourceTitle = sessions.find((session) => session.id === sessionId)?.title ?? t("New chat");
@@ -1459,9 +1496,13 @@ export default function Home() {
       if (!response.ok || !session?.id) throw new Error(readErrorMessage(data, msg("Could not branch this chat. Try again.")));
       setSessions((current) => (current.some((item) => item.id === session.id) ? current : [session, ...current]));
       void loadSessions();
-      await loadMessages(session.id);
+      if (navigationIntent === sessionNavigationIntentRef.current) await loadMessages(session.id);
     } catch (error) {
-      setSendError(error instanceof Error && error.message ? error.message : msg("Could not branch this chat. Try again."));
+      if (navigationIntent === sessionNavigationIntentRef.current) {
+        setSendError(error instanceof Error && error.message ? error.message : msg("Could not branch this chat. Try again."));
+      }
+    } finally {
+      branchingRef.current = false;
     }
   }
 
@@ -1475,6 +1516,7 @@ export default function Home() {
     edit: (messageId, text) => void turnHandlersRef.current.rerunTurn("edit", messageId, text),
     showVersion: (messageId) => void turnHandlersRef.current.showVersion(messageId),
     branch: (messageId) => void turnHandlersRef.current.branchChat(messageId),
+    dismissEditDraft: () => setRejectedEdit(null),
   }), []);
 
   useEffect(() => {
@@ -1943,6 +1985,7 @@ export default function Home() {
                     <span id="chat-heading-text">{activeTitle}</span>
                   </h1>
                 </header>
+                <TurnBusyContext.Provider value={isActiveSessionBusy}>
                 <div className="space-y-9">
                   {messages.map((message, index) => {
                     const isWaitingAssistant =
@@ -1967,12 +2010,13 @@ export default function Home() {
                         sessionId={activeSessionId}
                         conversationTitle={activeTitle}
                         actions={turnActions}
-                        busy={isActiveSessionBusy}
                         canEdit={canEdit}
+                        editDraft={rejectedEdit?.messageId === message.id ? rejectedEdit.text : undefined}
                       />
                     );
                   })}
                 </div>
+                </TurnBusyContext.Provider>
               </>
             )}
           </div>
@@ -1998,7 +2042,8 @@ export default function Home() {
           </div>
           {guestLimit && (
             <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
-              onBeforeSignIn={() => savePendingDraft("chat", inputRef.current?.value ?? input)} />
+              // 入力欄が空で、断られた書き直しがあるときは、その文を預ける（ログイン後に入力欄へ戻る）。
+              onBeforeSignIn={() => savePendingDraft("chat", (inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}
           {(uploadError || sendError) && (
             <div
@@ -2173,7 +2218,7 @@ export default function Home() {
                 // 返答中は送信の代わりに停止を出す。止めると、そこまでの回答が残る。
                 <button
                   type="button"
-                  onClick={stopGenerating}
+                  onClick={() => void stopGenerating()}
                   disabled={activeStopState === "stopping"}
                   className="notion-send col-start-3 row-start-2"
                   aria-label={t("Stop generating")}

@@ -55,6 +55,16 @@ describe("chat branches", () => {
     expect(activationFor(tree, "missing")).toBeNull();
   });
 
+  it("goes back to the version that was selected last below the chosen one, not just the newest", () => {
+    // u1 の下に a1 と作り直した a1b。a1b を作ったあとで a1 を選び直している。
+    const u1x = node("u1x", ROOT_PARENT);
+    const a1 = { ...node("a1", "u1x", false), selectedAt: null as Date | null };
+    const nodes = [u1x, a1, node("a1b", "u1x", false), node("u1y", ROOT_PARENT, false)];
+    expect([...activationFor(buildTree(nodes), "u1x")!].sort()).toEqual(["a1b", "u1x"]);
+    a1.selectedAt = new Date(clock + 1000);
+    expect([...activationFor(buildTree(nodes), "u1x")!].sort()).toEqual(["a1", "u1x"]);
+  });
+
   it("ignores a parent that is missing or was created later", () => {
     const tree = buildTree([node("u1", "gone"), node("a1", "u2"), node("u2", "a1")]);
     expect(tree.parent.get("u1")).toBe(ROOT_PARENT);

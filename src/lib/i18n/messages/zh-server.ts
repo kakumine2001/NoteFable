@@ -195,4 +195,5 @@ export const zhServer: Record<string, string> = {
   "Message not found.": "找不到这条消息。",
   "Could not branch this chat. Try again.": "无法创建分支，请重试。",
   "Could not switch versions. Try again.": "无法切换版本，请重试。",
+  "The connection was closed before the answer finished.": "回答还没完成，连接就断开了。",
 };

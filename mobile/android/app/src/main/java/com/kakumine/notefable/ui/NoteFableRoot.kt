@@ -264,6 +264,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 edit = viewModel::editMessage,
                 showVersion = viewModel::showVersion,
                 branch = { id -> viewModel.branch(id, branchTitle) },
+                dismissEditDraft = viewModel::dismissRejectedEdit,
                 busy = turnBusy,
             )
         }

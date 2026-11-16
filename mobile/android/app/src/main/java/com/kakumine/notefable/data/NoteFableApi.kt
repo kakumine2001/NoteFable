@@ -121,6 +121,10 @@ class NoteFableApi(
         }
     }.buffer(Channel.UNLIMITED)
 
+    override suspend fun stopSession(sessionId: String) {
+        send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/sessions/${segment(sessionId)}/stop")).post(ByteArray(0).toRequestBody(null)))
+    }
+
     override suspend fun showVersion(sessionId: String, messageId: String) {
         val body = buildJsonObject { put("messageId", messageId) }.toString()
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/sessions/${segment(sessionId)}/versions")).post(body.toRequestBody(JSON)))

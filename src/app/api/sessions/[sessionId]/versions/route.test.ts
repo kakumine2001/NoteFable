@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ switchVersion: vi.fn(), fork: vi.fn() }));
+const mocks = vi.hoisted(() => ({ switchVersion: vi.fn(), fork: vi.fn(), stop: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "user" }) }));
-vi.mock("@/lib/chat-branch-store", () => ({ switchMessageVersion: mocks.switchVersion, forkSession: mocks.fork }));
+vi.mock("@/lib/chat-branch-store", () => ({ switchMessageVersion: mocks.switchVersion, forkSession: mocks.fork, requestStop: mocks.stop }));
 
 import { POST as switchVersion } from "./route";
 import { POST as branch } from "../branch/route";
+import { POST as stop } from "../stop/route";
 
 const context = { params: Promise.resolve({ sessionId: "session" }) };
 const post = (body: unknown) => new Request("http://localhost/api", { method: "POST", body: typeof body === "string" ? body : JSON.stringify(body) });
@@ -61,5 +62,23 @@ describe("POST /api/sessions/:id/branch", () => {
     expect((await branch(post({ messageId: "a1", title: "x" }), context)).status).toBe(404);
     mocks.fork.mockRejectedValueOnce(new Error("db down"));
     expect((await branch(post({ messageId: "a1", title: "x" }), context)).status).toBe(503);
+  });
+});
+
+describe("POST /api/sessions/:id/stop", () => {
+  beforeEach(() => { vi.clearAllMocks(); vi.spyOn(console, "error").mockImplementation(() => {}); });
+
+  it("records the stop request on the user's own chat", async () => {
+    mocks.stop.mockResolvedValue(true);
+    const response = await stop(post({}), context);
+    expect(response.status).toBe(200);
+    expect(mocks.stop).toHaveBeenCalledExactlyOnceWith("user", "session");
+  });
+
+  it("answers 404 for someone else's chat and 503 when it cannot be saved", async () => {
+    mocks.stop.mockResolvedValueOnce(false);
+    expect((await stop(post({}), context)).status).toBe(404);
+    mocks.stop.mockRejectedValueOnce(new Error("db down"));
+    expect((await stop(post({}), context)).status).toBe(503);
   });
 });

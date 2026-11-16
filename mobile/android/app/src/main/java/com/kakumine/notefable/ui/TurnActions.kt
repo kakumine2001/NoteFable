@@ -62,6 +62,8 @@ class TurnActions(
     val edit: (messageId: String, text: String) -> Unit,
     val showVersion: (messageId: String) -> Unit,
     val branch: (messageId: String) -> Unit,
+    /** 关掉因为被拒绝而重新打开的编辑框（取消）。 */
+    val dismissEditDraft: () -> Unit,
     val busy: Boolean,
 )
 
@@ -141,10 +143,10 @@ internal fun UserTurnActions(message: UiMessage, actions: TurnActions, canEdit: 
 
 /**
  * 在提问块里直接改写（网页 UserMessageEditor）：文字 15 / 行高 28、透明底，最高 40% 屏高、超过就在里面滚动；
- * 下面一行靠右两个按钮（.notion-button：取消；.notion-button-primary：发送），上距 8、间距 8。空白时不能发送。返回键取消。
+ * 下面一行靠右两个按钮（.notion-button：取消；.notion-button-primary：发送），上距 8、间距 8。空白或聊天在生成时不能发送。返回键取消。
  */
 @Composable
-internal fun UserMessageEditor(initial: String, onCancel: () -> Unit, onSubmit: (String) -> Unit) {
+internal fun UserMessageEditor(initial: String, busy: Boolean, onCancel: () -> Unit, onSubmit: (String) -> Unit) {
     var value by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue(initial, TextRange(initial.length)))
     }
@@ -163,7 +165,8 @@ internal fun UserMessageEditor(initial: String, onCancel: () -> Unit, onSubmit: 
         )
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)) {
             NotionButton(stringResource(R.string.cancel), onClick = onCancel)
-            NotionButton(stringResource(R.string.turn_send), onClick = { onSubmit(value.text.trim()) }, enabled = value.text.isNotBlank(), primary = true)
+            // 这个聊天在生成时不能发送（文字留在编辑框里）。
+            NotionButton(stringResource(R.string.turn_send), onClick = { onSubmit(value.text.trim()) }, enabled = value.text.isNotBlank() && !busy, primary = true)
         }
     }
 }

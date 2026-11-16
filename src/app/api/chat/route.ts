@@ -10,7 +10,7 @@ import {
   validateMultipartRequestSize,
 } from "@/lib/files";
 import { optionalEnv, requireEnv } from "@/lib/env";
-import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES } from "@/lib/upload-limits";
+import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES, MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { attachProposals } from "@/lib/note-proposals";
 import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
@@ -45,8 +45,9 @@ import {
 } from "@/lib/web-search";
 import { msg, fmt } from "@/lib/i18n/translate";
 import { getModelRegistry, upstreamModelFor } from "@/lib/model-registry";
-import { activeLeafId, subtreeIds } from "@/lib/chat-branches";
-import { loadBranchTree } from "@/lib/chat-branch-store";
+import { subtreeIds } from "@/lib/chat-branches";
+import { loadActiveLeafId, loadBranchTree, lockSession } from "@/lib/chat-branch-store";
+import { isSupportedImageMimeType } from "@/lib/image-types";
 
 export const runtime = "nodejs";
 
@@ -294,21 +295,19 @@ async function requestDeepSeekResponses(body: object, signal: AbortSignal) {
 
 export async function POST(request: Request) {
   // 回数を数えたあと、ストリームを返す前に例外で失敗したときも回数を戻す（ストリーム中の失敗は中で戻す）。
-  const usage: ChatUndo = {};
+  const usage: { ticket?: UsageTicket } = {};
   try {
     return await handleChat(request, usage);
   } catch (error) {
     await refundUsage(usage.ticket);
-    // 再生成のために隠した元の回答も、何も作れなかったなら表示に戻す。
-    await usage.restoreVersion?.();
     throw error;
   }
 }
 
-// ストリームを返す前に失敗したときに元へ戻すもの。
-type ChatUndo = { ticket?: UsageTicket; restoreVersion?: () => Promise<void> };
+// 利用者が「停止」を押したかを見に行く間隔。停止は別のリクエスト（POST /api/sessions/:id/stop）で会話に書かれる。
+const STOP_POLL_MS = 1000;
 
-async function handleChat(request: Request, usageRef: ChatUndo) {
+async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) {
   // チャット送信の中心 API。
   // ここで添付検証、セッション所有者確認、履歴保存、上流 AI ストリームの中継をまとめて行う。
   try {
@@ -478,48 +477,43 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。
   const attachmentPrompt = buildAttachmentPrompt(attachments);
 
-  // 会話の木。次の発言の親（表示中の枝の末尾）と、編集・再生成の対象を決める。
-  const tree = await loadBranchTree(session.id);
-  const shown = new Set(tree.order.filter((node) => node.active).map((node) => node.id));
-  const target = rerun
-    ? tree.order.find((node) => node.id === (editId || regenerateId) && node.active && node.role === (editId ? "USER" : "ASSISTANT"))
-    : undefined;
-  // 再生成する回答の元になった自分の発言。
-  const promptNode = regenerateId && target
-    ? tree.order.find((node) => node.id === tree.parent.get(target.id) && node.active && node.role === "USER")
-    : undefined;
-  if (rerun && (!target || (regenerateId && !promptNode))) {
-    await refundUsage(usageTicket);
-    return NextResponse.json({ error: msg("Message not found.") }, { status: 404 });
-  }
-  // 置き換えられる版と、その先に続いていた発言。消さずに隠し、版の切り替えで戻せるようにする。
-  const replacedIds = target ? subtreeIds(tree, target.id).filter((id) => shown.has(id)) : [];
-  const hideReplaced = { where: { sessionId: session.id, id: { in: replacedIds } }, data: { active: false } };
-  // 再生成で何も保存できなかったとき（すぐ止めた・ストリームの前に失敗した）に、隠した元の回答を表示へ戻す。
-  const restoreVersion = async () => {
-    if (!regenerateId) return;
-    await prisma.message.updateMany({ where: { sessionId: session.id, id: { in: replacedIds } }, data: { active: true } }).catch(() => {});
+  const attachmentSelect = {
+    orderBy: [{ createdAt: "asc" as const }, { id: "asc" as const }],
+    select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true },
   };
+  const cannotReadImages = (items: { mimeType: string; imageStoragePath: string | null }[]) =>
+    !modelOption.supportsImageInput && items.some((item) => item.imageStoragePath && isSupportedImageMimeType(item.mimeType));
 
   // ユーザー発言は上流 API 呼び出し前に保存する。
-  // 通常の送信ではこの発言を currentUserContent として渡すため、履歴取得では id を除外して二重送信を避ける。
   let userMessage: { id: string };
-  if (editId && target) {
-    // 編集：元の発言の添付とノートを引き継いだ新しい版を、同じ親の下に作る。
-    const original = await prisma.message.findFirst({
-      where: { id: target.id, sessionId: session.id },
-      select: {
-        attachments: {
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: { filename: true, mimeType: true, size: true, extractedText: true, imageStoragePath: true },
-        },
-        notes: { orderBy: { position: "asc" }, select: { noteId: true } },
-      },
-    });
-    const keptPages = await liveOwnedNoteIds(user.id, original?.notes.map((item) => item.noteId) ?? []);
-    userMessage = await prisma.$transaction(async (tx) => {
-      await tx.message.updateMany(hideReplaced);
-      return tx.message.create({
+  // 再生成で置き換えられる回答と、その先に続いていた発言。新しい回答を保存するときに隠す（それまでは表示のまま残し、
+  // 途中で処理が落ちても元の会話が消えたように見えないようにする）。履歴とノートの文脈からは、ここで外す。
+  let replacedIds: string[] = [];
+  if (rerun) {
+    // 編集・再生成の対象を決めて書き換える間、会話の行を押さえる（版の切り替えや、同じ発言への別の作り直しと重ならないように）。
+    const prepared = await prisma.$transaction(async (tx) => {
+      await lockSession(tx, session.id);
+      const tree = await loadBranchTree(session.id, tx);
+      const target = tree.order.find((node) => node.id === (editId || regenerateId) && node.active && node.role === (editId ? "USER" : "ASSISTANT"));
+      if (!target) return { error: "missing" as const };
+      const below = subtreeIds(tree, target.id);
+      if (regenerateId) {
+        // 再生成：自分の発言はそのまま使い、回答だけを新しい版にする。
+        const promptNode = tree.order.find((node) => node.id === tree.parent.get(target.id) && node.active && node.role === "USER");
+        if (!promptNode) return { error: "missing" as const };
+        const prompt = await tx.message.findFirst({ where: { id: promptNode.id, sessionId: session.id }, select: { attachments: attachmentSelect } });
+        if (cannotReadImages(prompt?.attachments ?? [])) return { error: "images" as const };
+        return { userMessageId: promptNode.id, replaced: below };
+      }
+      // 編集：元の発言の添付とノートを引き継いだ新しい版を同じ親の下に作り、元の版とその先を隠す（消さない）。
+      const original = await tx.message.findFirst({
+        where: { id: target.id, sessionId: session.id },
+        select: { attachments: attachmentSelect, notes: { orderBy: { position: "asc" }, select: { noteId: true } } },
+      });
+      if (cannotReadImages(original?.attachments ?? [])) return { error: "images" as const };
+      const keptPages = await liveOwnedNoteIds(user.id, original?.notes.map((item) => item.noteId) ?? []);
+      await tx.message.updateMany({ where: { sessionId: session.id, id: { in: below }, active: true }, data: { active: false } });
+      const created = await tx.message.create({
         data: {
           sessionId: session.id,
           role: "USER",
@@ -531,13 +525,18 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
           ...(keptPages.length ? { notes: { create: keptPages.map((noteId, position) => ({ noteId, position })) } } : {}),
         },
       });
+      return { userMessageId: created.id, replaced: [] as string[] };
     });
-  } else if (promptNode) {
-    // 再生成：自分の発言はそのまま使い、回答だけを新しい版にする。
-    await prisma.message.updateMany(hideReplaced);
-    usageRef.restoreVersion = restoreVersion;
-    userMessage = { id: promptNode.id };
+    if ("error" in prepared) {
+      await refundUsage(usageTicket);
+      return prepared.error === "images"
+        ? NextResponse.json({ error: fmt("Model {model} does not support image uploads. Use GPT-6 Luna for images.", { model: modelOption.label }) }, { status: 400 })
+        : NextResponse.json({ error: msg("Message not found.") }, { status: 404 });
+    }
+    userMessage = { id: prepared.userMessageId };
+    replacedIds = prepared.replaced;
   } else {
+    // 通常の送信：表示中の枝の末尾に続ける。この発言はこのあと currentUserContent として渡す。
     userMessage = await prisma.message.create({
       data: {
         sessionId: session.id,
@@ -545,7 +544,7 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
         content: message,
         model,
         reasoningEffort: toDbReasoning(reasoning),
-        parentId: activeLeafId(tree),
+        parentId: await loadActiveLeafId(session.id),
         attachments: {
           create: attachments.map((attachment) => ({
             filename: attachment.filename,
@@ -563,7 +562,7 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
   // この会話で添付されたノートを読み直す（プロジェクトの参照ノートと重なる分は除く）。失敗してもチャットは止めない。
   let attachedNotes: AttachedContextNote[] = [];
   try {
-    attachedNotes = await loadAttachedNotesContext(user.id, session.id, userMessage.id, projectContext?.notes.map((item) => item.id));
+    attachedNotes = await loadAttachedNotesContext(user.id, session.id, userMessage.id, projectContext?.notes.map((item) => item.id), replacedIds);
   } catch (error) {
     console.error("Failed to load attached notes", getErrorMessage(error));
   }
@@ -580,12 +579,12 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
   }
 
   // 全モデルとも会話の（表示中の枝の）全メッセージを読む。圧縮に対応するモデルはプロバイダーが要約するまで履歴を保持する。
-  // 編集・再生成では、自分の発言も添付ごと履歴から組み立てる。
+  // 今回の発言（と、再生成で置き換えられる発言）は履歴から外す。
   const history = await prisma.message.findMany({
     where: {
       sessionId: session.id,
       active: true,
-      ...(rerun ? {} : { id: { not: userMessage.id } }),
+      id: { notIn: [userMessage.id, ...replacedIds] },
     },
     orderBy: { createdAt: "desc" },
     select: {
@@ -641,14 +640,36 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
     modelOption.supportsImageInput,
     modelOption.provider === "anthropic" ? MAX_CLAUDE_IMAGE_BYTES : undefined,
     modelOption.supportsCompaction ? Infinity : undefined,
-    isClaude ? Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - attachments.reduce((sum, item) => sum + (item.imageInputBytes ?? 0), 0)) : undefined,
+    // 編集・再生成では今回の発言の画像を保存済みの添付から読み直すので、履歴には半分を残す。
+    isClaude ? (rerun ? MAX_CLAUDE_IMAGE_TOTAL_BYTES / 2 : Math.max(0, MAX_CLAUDE_IMAGE_TOTAL_BYTES - attachments.reduce((sum, item) => sum + (item.imageInputBytes ?? 0), 0))) : undefined,
     isClaude,
   );
-  const input: { role: string; content: unknown }[] = rerun ? historyInput : [
+  // 編集・再生成では、今回の発言を保存済みの添付から組み立て直す。送信時と同じく、履歴用の枚数・合計の上限はかけない。
+  let rerunContent: unknown = null;
+  if (rerun) {
+    const prompt = await prisma.message.findFirst({
+      where: { id: userMessage.id, sessionId: session.id },
+      select: { id: true, role: true, content: true, attachments: attachmentSelect },
+    });
+    if (prompt) {
+      const promptImages = prompt.attachments.filter((item) => item.imageStoragePath).length;
+      const [rebuilt] = await buildHistoryInput(
+        [prompt],
+        modelOption.supportsImageInput,
+        isClaude ? Math.min(MAX_CLAUDE_IMAGE_BYTES, Math.floor((MAX_CLAUDE_IMAGE_TOTAL_BYTES / 2) / Math.max(1, promptImages))) : MAX_UPLOAD_FILE_BYTES,
+        Infinity,
+        isClaude ? MAX_CLAUDE_IMAGE_TOTAL_BYTES / 2 : Infinity,
+        isClaude,
+        true,
+      );
+      rerunContent = rebuilt?.content ?? prompt.content;
+    }
+  }
+  const input: { role: string; content: unknown }[] = [
     ...historyInput,
     {
       role: "user",
-      content: currentUserContent,
+      content: rerun ? rerunContent ?? message : currentUserContent,
     },
   ];
   // 上流 API の byte stream を文字列として読むためのデコーダー。
@@ -671,10 +692,53 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
   let thinkingMs: number | undefined;
   // この回答の中で出た編集案・新規ノート案。回答を保存したあとで、その回答に紐付ける。
   const proposalIds: string[] = [];
-  // 利用者が止めた（停止ボタン・切断）ときに、上流への要求と以後の処理を止める。
+  // 利用者が「停止」を押したとき、または読み手がいなくなった（切断）ときに、上流への要求と以後の処理を止める。
   const stop = new AbortController();
   if (request.signal.aborted) stop.abort();
   else request.signal.addEventListener("abort", () => stop.abort(), { once: true });
+  // 「停止」を押して止まったか。切断とは扱いが違う：停止は届いた分をそのまま回答として残し、切断は途中で失敗した回答として残す。
+  let userStopped = false;
+  const stopBaseline = session.stopRequestedAt?.getTime() ?? 0;
+
+  // 回答を保存する。再生成では、置き換えられる版とその先を同じトランザクションで隠す（保存できたときにだけ入れ替わる）。
+  // 回答は、答えた発言が表示中のときだけ表示中にする（生成中に別の版へ切り替えられていたら、隠れた枝の回答として残す）。
+  const saveAssistant = async (content: string, options: { providerContext?: string; strictProposals?: boolean } = {}) => {
+    const saved = await prisma.$transaction(async (tx) => {
+      let active = true;
+      if (regenerateId) {
+        await lockSession(tx, session.id);
+        const tree = await loadBranchTree(session.id, tx);
+        const shown = new Set(tree.order.filter((node) => node.active).map((node) => node.id));
+        const replaced = subtreeIds(tree, regenerateId).filter((id) => shown.has(id));
+        if (replaced.length) await tx.message.updateMany({ where: { sessionId: session.id, id: { in: replaced } }, data: { active: false } });
+        active = shown.has(userMessage.id);
+      } else {
+        const prompt = await tx.message.findUnique({ where: { id: userMessage.id }, select: { active: true } });
+        active = prompt?.active ?? true;
+      }
+      const row = await tx.message.create({
+        data: {
+          sessionId: session.id,
+          role: "ASSISTANT",
+          content,
+          ...(options.providerContext ? { providerContext: options.providerContext } : {}),
+          activity: serializeActivity(activitySteps),
+          thinkingMs,
+          model,
+          reasoningEffort: toDbReasoning(reasoning),
+          parentId: userMessage.id,
+          ...(active ? {} : { active: false }),
+        },
+      });
+      // 正常に終わった回答では、提案の紐付けも同じトランザクションで行う（片方だけ成功して提案が履歴から消えるのを防ぐ）。
+      if (options.strictProposals) await attachProposals(user.id, proposalIds, row.id, tx);
+      return row;
+    });
+    if (!options.strictProposals) await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
+    // 保存後に updatedAt を更新し、セッション一覧の並び順にも反映させる。
+    await prisma.session.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
+    return saved;
+  };
 
   const stream = new ReadableStream({
     cancel() {
@@ -682,6 +746,20 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
     },
     async start(controller) {
       let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+      // 「停止」は別のリクエストで会話に書かれる。値が変わったら止める。
+      let checkingStop = false;
+      const stopPoll = setInterval(() => {
+        if (checkingStop || stop.signal.aborted) return;
+        checkingStop = true;
+        prisma.session.findUnique({ where: { id: session.id }, select: { stopRequestedAt: true } })
+          .then((row) => {
+            if ((row?.stopRequestedAt?.getTime() ?? 0) === stopBaseline) return;
+            userStopped = true;
+            stop.abort();
+          })
+          .catch(() => { /* 見に行けなかったら次の回で見る */ })
+          .finally(() => { checkingStop = false; });
+      }, STOP_POLL_MS);
       // 読み手がいなくなったあとの書き込みは捨てる（閉じたストリームへの書き込みで保存処理まで止まらないように）。
       const emit = (chunk: string) => {
         try { controller.enqueue(encoder.encode(chunk)); } catch { /* 読み手がいない */ }
@@ -826,7 +904,7 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
         while (true) {
           const { done, value } = await reader.read();
           // 止められたあとに届いた分は、本文に足さない。
-          if (stop.signal.aborted) throw new Error("Stopped.");
+          if (stop.signal.aborted) throw new Error(msg("The connection was closed before the answer finished."));
           if (done) break;
 
           buffer += decoder.decode(value, { stream: true });
@@ -856,58 +934,20 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
           forwardText(formatWebCitations(webCitations));
         }
 
-        // 回答の保存と提案の紐付けは 1 つのトランザクションで行う（片方だけ成功して提案が履歴から消えるのを防ぐ）。
-        await prisma.$transaction(async (tx) => {
-          const saved = await tx.message.create({
-            data: {
-              sessionId: session.id,
-              role: "ASSISTANT",
-              content: assistantText,
-              ...(providerContext ? { providerContext } : {}),
-              activity: serializeActivity(activitySteps),
-              thinkingMs,
-              model,
-              reasoningEffort: toDbReasoning(reasoning),
-              parentId: userMessage.id,
-            },
-          });
-          await attachProposals(user.id, proposalIds, saved.id, tx);
-        });
-
         // ユーザーに実際に流した本文だけをアシスタント発言として保存する。
-        // 保存後に updatedAt を更新し、セッション一覧の並び順にも反映させる。
-        await prisma.session.update({
-          where: { id: session.id },
-          data: { updatedAt: new Date() },
-        });
+        await saveAssistant(assistantText, { providerContext, strictProposals: true });
 
         await titleTask;
         close();
       } catch (error) {
         // 異常出力を検出したら上流の読み取りも止める。
         await reader?.cancel().catch(() => {});
-        if (stop.signal.aborted) {
-          // 利用者が止めた：届いた分だけを回答として残す。失敗ではないので、エラー文は足さない。
+        if (userStopped) {
+          // 利用者が「停止」を押した：届いた分だけを回答として残す。失敗ではないので、エラー文は足さない。
+          // 何も届いていなければ何も保存せず、回数も戻す（再生成なら、元の回答が表示のまま残る）。
           if (!delivered) await refundUsage(usageTicket);
-          if (assistantText.trim() || proposalIds.length) {
-            const saved = await prisma.message.create({
-              data: {
-                sessionId: session.id,
-                role: "ASSISTANT",
-                content: assistantText,
-                activity: serializeActivity(activitySteps),
-                thinkingMs: thinkingMs ?? Date.now() - streamStartedAt,
-                model,
-                reasoningEffort: toDbReasoning(reasoning),
-                parentId: userMessage.id,
-              },
-            });
-            await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
-            await prisma.session.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
-          } else {
-            // 何も届く前に止めた再生成は、元の回答を表示に戻す。
-            await restoreVersion();
-          }
+          thinkingMs ??= Date.now() - streamStartedAt;
+          if (assistantText.trim() || proposalIds.length) await saveAssistant(assistantText);
           await titleTask;
           close();
           return;
@@ -928,28 +968,12 @@ async function handleChat(request: Request, usageRef: ChatUndo) {
         emit(encodeTextStreamEvent(assistantText ? `\n\n${errorText}` : errorText));
         emit(encodeActivityStreamEvent(failure));
 
-        const saved = await prisma.message.create({
-          data: {
-            sessionId: session.id,
-            role: "ASSISTANT",
-            content: persistedText,
-            activity: serializeActivity(activitySteps),
-            thinkingMs,
-            model,
-            reasoningEffort: toDbReasoning(reasoning),
-            parentId: userMessage.id,
-          },
-        });
-        await attachProposals(user.id, proposalIds, saved.id).catch(() => {});
-
-        await prisma.session.update({
-          where: { id: session.id },
-          data: { updatedAt: new Date() },
-        });
+        await saveAssistant(persistedText);
 
         await titleTask;
         close();
       } finally {
+        clearInterval(stopPoll);
         reader?.releaseLock();
       }
     },

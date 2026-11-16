@@ -215,6 +215,7 @@ fun ChatScreen(
                 input = input,
                 onInputChange = onInputChange,
                 sending = state.sending,
+                stopping = state.stopping,
                 canSend = !state.messagesLoading && !state.messagesFailed && state.filesError == null && state.upload == null &&
                     state.importing == 0,
                 modelLabel = state.selectedModel?.label,
@@ -442,7 +443,9 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
                     val reply = state.messages.getOrNull(index + 1)
                     val canEdit = !(reply != null && reply.role == MessageRole.Assistant && (reply.generatingImage || reply.images.isNotEmpty()))
                     Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
-                        if (message.role == MessageRole.User) UserTurn(message, canEdit) else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                        if (message.role == MessageRole.User) {
+                            UserTurn(message, canEdit, state.rejectedEdit?.takeIf { it.messageId == message.id }?.text)
+                        } else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
                     }
                 }
             }
@@ -564,11 +567,12 @@ internal fun roleLabelStyle(text: String): TextStyle =
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun UserTurn(message: UiMessage, canEdit: Boolean) {
+private fun UserTurn(message: UiMessage, canEdit: Boolean, editDraft: String?) {
     // 提问上方没有标签（网页只给回答显示"NoteFable · 模型名"）。
     val actions = LocalTurnActions.current
     // 正在这条提问里直接改写（网页 chat-message.tsx 的 editing）。
-    var editing by rememberSaveable(message.key) { mutableStateOf(false) }
+    // 被拒绝的改写（editDraft）回来时，编辑框带着那段文字重新打开。
+    var editing by rememberSaveable(message.key, editDraft) { mutableStateOf(editDraft != null) }
     Column(Modifier.fillMaxWidth()) {
         val images = message.attachments.filter { it.dataUrl != null && it.mimeType.startsWith("image/") }
         val files = message.attachments.filterNot { it in images }
@@ -577,7 +581,14 @@ private fun UserTurn(message: UiMessage, canEdit: Boolean) {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Sm.UserBubble)
                     .padding(horizontal = 16.dp, vertical = 12.dp),
             ) {
-                UserMessageEditor(message.content, onCancel = { editing = false }) { text ->
+                UserMessageEditor(
+                    editDraft ?: message.content,
+                    busy = actions.busy,
+                    onCancel = {
+                        editing = false
+                        if (editDraft != null) actions.dismissEditDraft()
+                    },
+                ) { text ->
                     editing = false
                     actions.edit(message.id, text)
                 }
@@ -665,6 +676,7 @@ private fun Composer(
     input: String,
     onInputChange: (String) -> Unit,
     sending: Boolean,
+    stopping: Boolean,
     canSend: Boolean,
     modelLabel: String?,
     effortLabel: String?,
@@ -788,7 +800,8 @@ private fun Composer(
                 }
                 SendButton(
                     sending,
-                    enabled = sending || (canSend && input.isNotBlank()),
+                    // 已经按了停止、在等回答结束时不能再点。
+                    enabled = if (sending) !stopping else canSend && input.isNotBlank(),
                     onClick = if (sending) onStop else onSend,
                     modifier = Modifier.align(Alignment.CenterEnd),
                 )

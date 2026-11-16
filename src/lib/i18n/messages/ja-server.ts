@@ -195,4 +195,5 @@ export const jaServer: Record<string, string> = {
   "Message not found.": "メッセージが見つかりません。",
   "Could not branch this chat. Try again.": "チャットを分岐できませんでした。もう一度お試しください。",
   "Could not switch versions. Try again.": "バージョンを切り替えられませんでした。もう一度お試しください。",
+  "The connection was closed before the answer finished.": "回答が終わる前に接続が切れました。",
 };

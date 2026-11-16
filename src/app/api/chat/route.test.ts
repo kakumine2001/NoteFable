@@ -5,7 +5,10 @@ const mocks = vi.hoisted(() => ({
   loadProjectContext: vi.fn(),
   createMessage: vi.fn(),
   updateManyMessage: vi.fn().mockResolvedValue({ count: 0 }),
+  // message.findFirst：表示中の枝の末尾（通常の送信）と、編集・再生成で読む元の発言。
   findMessage: vi.fn(),
+  // 生成中に見に行く「停止」の時刻。
+  findStop: vi.fn(),
   updateManySession: vi.fn(),
   fetch: vi.fn(),
   findMessages: vi.fn<(args: object) => Promise<never[]>>().mockResolvedValue([]),
@@ -19,6 +22,8 @@ const mocks = vi.hoisted(() => ({
 
 const defaultSession = { id: "session", title: "Existing chat" };
 mocks.findSession.mockResolvedValue(defaultSession);
+mocks.findStop.mockResolvedValue({ stopRequestedAt: null });
+mocks.findMessage.mockResolvedValue(null);
 
 vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
@@ -44,12 +49,19 @@ vi.mock("@/lib/prisma", () => { const prisma: Record<string, unknown> = {
     update: async () => ({}),
     updateMany: mocks.updateManySession,
     findFirst: mocks.findSession,
+    findUnique: mocks.findStop,
   },
-  message: { create: mocks.createMessage, findMany: mocks.findMessages, updateMany: mocks.updateManyMessage, findFirst: mocks.findMessage },
+  message: {
+    create: mocks.createMessage, findMany: mocks.findMessages, updateMany: mocks.updateManyMessage, findFirst: mocks.findMessage,
+    // 回答を保存するときに見る「答えた発言が表示中か」。
+    findUnique: async () => ({ active: true }),
+  },
+  // 会話の行を押さえる問い合わせ（FOR UPDATE）。
+  $queryRaw: async () => [{ id: "session" }],
   noteProposal: { updateMany: mocks.attachProposals },
 };
 prisma.$transaction = async (fn: (tx: unknown) => unknown) => fn(prisma);
-return { prisma }; });
+return { prisma, databaseSchema: "notefable" }; });
 
 import { POST } from "./route";
 
@@ -382,41 +394,49 @@ describe("Claude chat response boundary", () => {
     abort.abort();
     await response.text();
     expect(mocks.refundUsage).toHaveBeenCalledExactlyOnceWith({ kind: "chat", day: "2026-01-01", keys: ["user:user"] });
-    // 止めたのは失敗ではない：届いた本文が無ければ、回答は何も保存しない。
-    expect(mocks.createMessage.mock.calls.map(([arg]) => arg.data.role)).toEqual(["USER"]);
+    // 切断は「停止」ではない：途中で失敗した回答として残す。
+    expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toContain("Request failed:");
   });
 
-  it("keeps the part that arrived when the user stops the answer", async () => {
-    const abort = new AbortController();
+  // 「停止」は別のリクエストで会話に書かれ、応答の側が 1 秒おきに見に行く。
+  function streamUntilStopped(text?: string) {
     const encoder = new TextEncoder();
-    mocks.fetch.mockImplementationOnce(async (_url, options) => {
-      const body = new ReadableStream<Uint8Array>({ start(controller) {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}
+    mocks.fetch.mockImplementationOnce(async (_url, options) => new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      if (text) {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_start", index: 0, content_block: { type: "text", text: "" } })}\n\n`));
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text } })}\n\n`));
+      }
+      options.signal.addEventListener("abort", () => controller.close(), { once: true });
+    } })));
+    mocks.findStop.mockResolvedValue({ stopRequestedAt: new Date() });
+  }
 
-`));
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Half an ans" } })}
-
-`));
-        options.signal.addEventListener("abort", () => controller.close(), { once: true });
-      } });
-      return new Response(body);
-    });
+  it("keeps the part that arrived when the user presses stop, as an ordinary answer", async () => {
+    streamUntilStopped("Half an ans");
     const form = new FormData();
     form.set("message", "hi");
     form.set("model", "claude-haiku-5-5");
     form.set("sessionId", "existing");
-    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form, signal: abort.signal }));
-    const reader = response.body!.getReader();
-    const decoder = new TextDecoder();
-    let received = "";
-    while (!received.includes("Half an ans")) received += decoder.decode((await reader.read()).value, { stream: true });
-    abort.abort();
-    while (!(await reader.read()).done) { /* 閉じるまで読む */ }
+    await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+    mocks.findStop.mockResolvedValue({ stopRequestedAt: null });
     expect(mocks.refundUsage).not.toHaveBeenCalled();
     const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
     expect(saved).toMatchObject({ role: "ASSISTANT", content: "Half an ans", parentId: "message" });
     expect(saved.content).not.toContain("Request failed");
     expect(saved).not.toHaveProperty("providerContext");
+  });
+
+  it("saves nothing and gives the send back when stop is pressed before anything arrives", async () => {
+    streamUntilStopped();
+    const form = new FormData();
+    form.set("message", "hi");
+    form.set("model", "claude-haiku-5-5");
+    form.set("sessionId", "existing");
+    const text = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
+    mocks.findStop.mockResolvedValue({ stopRequestedAt: null });
+    expect(text).not.toContain("Request failed");
+    expect(mocks.createMessage.mock.calls.map(([arg]) => arg.data.role)).toEqual(["USER"]);
+    expect(mocks.refundUsage).toHaveBeenCalledOnce();
   });
 
   it("routes to Messages and saves visible text plus real-shaped search citations", async () => {
@@ -729,13 +749,16 @@ describe("editing a message and regenerating an answer", () => {
     vi.stubGlobal("fetch", mocks.fetch);
     vi.spyOn(console, "error").mockImplementation(() => {});
     mocks.findSession.mockResolvedValue(defaultSession);
+    mocks.findStop.mockResolvedValue({ stopRequestedAt: null });
     mocks.createMessage.mockResolvedValue({ id: "created" });
+    mocks.findMessage.mockResolvedValue({ id: "a2", attachments: [], notes: [] });
     mocks.findMessages.mockImplementation(async (args) => ("parentId" in (args as { select: object }).select ? tree : []) as never[]);
-    mocks.fetch.mockImplementation(async () => new Response(answer.map((e) => `data: ${JSON.stringify(e)}
-
-`).join("")));
+    mocks.fetch.mockImplementation(async () => new Response(answer.map((e) => `data: ${JSON.stringify(e)}\n\n`).join("")));
   });
-  afterEach(() => { mocks.findMessages.mockReset().mockResolvedValue([]); });
+  afterEach(() => {
+    mocks.findMessages.mockReset().mockResolvedValue([]);
+    mocks.findMessage.mockReset().mockResolvedValue(null);
+  });
 
   async function post(fields: Record<string, string>) {
     const form = new FormData();
@@ -746,34 +769,59 @@ describe("editing a message and regenerating an answer", () => {
     return { response, text: await response.text() };
   }
 
-  it("puts a normal message under the last displayed message", async () => {
+  it("puts a normal message under the last displayed message, without reading the whole tree", async () => {
     await post({ message: "続き" });
+    expect(mocks.findMessage.mock.calls[0][0]).toMatchObject({ where: { sessionId: "session", active: true }, select: { id: true } });
     expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "USER", parentId: "a2" });
     expect(mocks.createMessage.mock.calls[1][0].data).toMatchObject({ role: "ASSISTANT", parentId: "created" });
-    expect(historyQuery().where).toEqual({ sessionId: "session", active: true, id: { not: "created" } });
+    expect(mocks.createMessage.mock.calls[1][0].data).not.toHaveProperty("active");
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true, id: { notIn: ["created"] } });
     expect(mocks.updateManyMessage).not.toHaveBeenCalled();
   });
 
-  it("regenerates an answer as a new version under the same message, without a new user message", async () => {
+  it("regenerates an answer as a new version, and hides the old one only once the new one is saved", async () => {
+    let hiddenBeforeUpstream = true;
+    mocks.fetch.mockImplementation(async () => {
+      hiddenBeforeUpstream = mocks.updateManyMessage.mock.calls.length > 0;
+      return new Response(answer.map((e) => `data: ${JSON.stringify(e)}\n\n`).join(""));
+    });
     const { text } = await post({ regenerate: "a1" });
     expect(text).toContain("新しい回答");
+    // 生成している間は元の回答が表示のまま残る（途中で落ちても会話が欠けない）。
+    expect(hiddenBeforeUpstream).toBe(false);
     // 元の回答と、その先に続いていた発言を隠す。
     expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["a1", "u2", "a2"] } }, data: { active: false } });
     expect(mocks.createMessage).toHaveBeenCalledOnce();
     expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "ASSISTANT", content: "新しい回答", parentId: "u1" });
-    // 自分の発言も履歴から組み立てる（除外しない）。
-    expect(historyQuery().where).toEqual({ sessionId: "session", active: true });
+    // 自分の発言と、置き換えられる発言は履歴から外す（自分の発言は添付ごと組み立て直して最後に渡す）。
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true, id: { notIn: ["u1", "a1", "u2", "a2"] } });
     expect(mocks.consumeUsage).toHaveBeenCalledOnce();
   });
 
   it("edits a message as a new version that keeps the attachments and pages of the original", async () => {
-    const attachment = { filename: "a.png", mimeType: "image/png", size: 3, extractedText: null, imageStoragePath: "images/a.png" };
-    mocks.findMessage.mockResolvedValue({ attachments: [attachment], notes: [] });
+    const attachment = { filename: "a.txt", mimeType: "text/plain", size: 3, extractedText: "abc", imageStoragePath: null };
+    mocks.findMessage.mockResolvedValue({ id: "created", role: "USER", content: "書き直した質問", attachments: [attachment], notes: [] });
     await post({ edit: "u2", message: "書き直した質問" });
-    expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["u2", "a2"] } }, data: { active: false } });
+    expect(mocks.updateManyMessage).toHaveBeenCalledExactlyOnceWith({ where: { sessionId: "session", id: { in: ["u2", "a2"] }, active: true }, data: { active: false } });
     expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "USER", content: "書き直した質問", parentId: "a1", attachments: { create: [attachment] } });
     expect(mocks.createMessage.mock.calls[1][0].data).toMatchObject({ role: "ASSISTANT", parentId: "created" });
-    expect(historyQuery().where).toEqual({ sessionId: "session", active: true });
+    expect(historyQuery().where).toEqual({ sessionId: "session", active: true, id: { notIn: ["created"] } });
+  });
+
+  it("refuses to redo a message with images on a model that cannot read them, before changing anything", async () => {
+    mocks.findMessage.mockResolvedValue({ attachments: [{ filename: "a.png", mimeType: "image/png", size: 3, extractedText: null, imageStoragePath: "images/a.png" }], notes: [] });
+    const registry = await import("@/lib/model-registry");
+    const blind = { ...registry.getModelRegistry(), options: registry.getModelRegistry().options.map((option) => ({ ...option, supportsImageInput: false })) };
+    const spy = vi.spyOn(registry, "getModelRegistry").mockReturnValue(blind);
+    for (const fields of [{ regenerate: "a2" }, { edit: "u2", message: "x" }] as Record<string, string>[]) {
+      mocks.refundUsage.mockClear();
+      const { response } = await post(fields);
+      expect(response.status).toBe(400);
+      expect(mocks.refundUsage).toHaveBeenCalledOnce();
+    }
+    spy.mockRestore();
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+    expect(mocks.updateManyMessage).not.toHaveBeenCalled();
   });
 
   it("refuses a target that is not a displayed message of the right kind, and gives the send back", async () => {
@@ -794,25 +842,24 @@ describe("editing a message and regenerating an answer", () => {
     expect(mocks.consumeUsage).not.toHaveBeenCalled();
   });
 
-  it("brings the old answer back when a regeneration is stopped before anything arrives", async () => {
-    const abort = new AbortController();
-    let started!: () => void;
-    const upstreamStarted = new Promise<void>((resolve) => { started = resolve; });
+  it("leaves the old answer displayed when a regeneration is stopped before anything arrives", async () => {
     mocks.fetch.mockImplementationOnce(async (_url, options) => new Response(new ReadableStream<Uint8Array>({ start(controller) {
       options.signal.addEventListener("abort", () => controller.close(), { once: true });
-      started();
     } })));
-    const form = new FormData();
-    form.set("model", "deepseek-flash");
-    form.set("sessionId", "session");
-    form.set("regenerate", "a2");
-    const response = await POST(new Request("http://localhost/api/chat", { method: "POST", body: form, signal: abort.signal }));
-    await upstreamStarted;
-    abort.abort();
-    await response.text();
+    mocks.findStop.mockResolvedValue({ stopRequestedAt: new Date() });
+    await post({ regenerate: "a2" });
     expect(mocks.createMessage).not.toHaveBeenCalled();
-    expect(mocks.updateManyMessage.mock.calls.map(([args]) => args.data)).toEqual([{ active: false }, { active: true }]);
-    expect(mocks.updateManyMessage.mock.calls[1][0].where).toEqual({ sessionId: "session", id: { in: ["a2"] } });
+    expect(mocks.updateManyMessage).not.toHaveBeenCalled();
     expect(mocks.refundUsage).toHaveBeenCalledOnce();
+  });
+
+  it("saves an answer as hidden when its message was switched away while it was being written", async () => {
+    // 生成中に別の版へ切り替えられ、答えた発言（u1）が隠れている。
+    mocks.findMessages.mockImplementation(async (args) => ("parentId" in (args as { select: object }).select
+      ? (mocks.createMessage.mock.calls.length || mocks.fetch.mock.calls.length ? tree.map((node) => ({ ...node, active: false })) : tree)
+      : []) as never[]);
+    await post({ regenerate: "a1" });
+    expect(mocks.createMessage.mock.calls[0][0].data).toMatchObject({ role: "ASSISTANT", parentId: "u1", active: false });
+    expect(mocks.updateManyMessage).not.toHaveBeenCalled();
   });
 });

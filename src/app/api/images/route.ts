@@ -23,8 +23,8 @@ import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import { msg } from "@/lib/i18n/translate";
 import { getModelRegistry } from "@/lib/model-registry";
-import { ROOT_PARENT, activeLeafId } from "@/lib/chat-branches";
-import { loadBranchTree } from "@/lib/chat-branch-store";
+import { ROOT_PARENT } from "@/lib/chat-branches";
+import { loadActiveLeafId } from "@/lib/chat-branch-store";
 
 export const runtime = "nodejs";
 
@@ -474,7 +474,7 @@ export async function POST(request: Request) {
         model,
         reasoningEffort: toDbReasoning(reasoning),
         // 新しく作ったチャットにはまだ発言が無い。
-        parentId: existingSession ? activeLeafId(await loadBranchTree(session.id)) : ROOT_PARENT,
+        parentId: existingSession ? await loadActiveLeafId(session.id) : ROOT_PARENT,
         attachments: inputAttachmentCreates.length
           ? {
               create: inputAttachmentCreates,

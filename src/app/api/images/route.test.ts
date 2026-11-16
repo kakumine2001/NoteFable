@@ -7,7 +7,8 @@ vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "t
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImage: mocks.write }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   session: { findFirst: mocks.findSession, create: async () => ({ id: "new", title: "New" }), updateMany: async () => ({}), update: async () => ({}) },
-  message: { findMany: mocks.history, create: mocks.createMessage },
+  // findFirst は表示中の枝の末尾（次の発言の親）。
+  message: { findMany: mocks.history, create: mocks.createMessage, findFirst: async () => ({ id: "last" }) },
 } }));
 import { POST } from "./route";
 
@@ -15,11 +16,8 @@ const request = (sessionId?: string) => new Request("http://localhost/api/images
   method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: "これを画像にして", sessionId }),
 });
 
-// 履歴の読み込み（本文を選ぶ）には rows を、会話の木の読み込み（parentId を選ぶ）には表示中の発言 1 件を返す。
 function setHistory(rows: object[]) {
-  mocks.history.mockImplementation(async (args: { select: object }) => "parentId" in args.select
-    ? [{ id: "last", parentId: null, active: true, role: "ASSISTANT", createdAt: new Date(0) }]
-    : rows);
+  mocks.history.mockResolvedValue(rows);
 }
 
 describe("image generation conversation wiring", () => {

@@ -80,6 +80,15 @@ class ChatTurnActionsTest {
         override suspend fun uploadFile(slot: UploadSlot, mode: String, file: LocalFile, onProgress: (Int) -> Unit) = Unit
         override suspend fun discardUploads(tickets: List<String>) = Unit
 
+        /** 服务端认不认"停止"的请求。不认时 ViewModel 自己取消回答。 */
+        var stopAcknowledged = false
+        val stops = mutableListOf<String>()
+
+        override suspend fun stopSession(sessionId: String) {
+            if (!stopAcknowledged) throw IOException("offline")
+            stops += sessionId
+        }
+
         override suspend fun showVersion(sessionId: String, messageId: String) {
             showError?.let { throw it }
             shown += sessionId to messageId
@@ -186,7 +195,48 @@ class ChatTurnActionsTest {
     }
 
     @Test
-    fun `stopping waits for the server to save the partial answer, then adopts it`() = runTest(dispatcher) {
+    fun `stop asks the server, and the answer then ends like a finished one`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { stopAcknowledged = true }
+        val vm = openChat(backend)
+
+        vm.regenerate("a2")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("half an"))
+        settle()
+        vm.stop()
+        runCurrent()
+        // 不取消请求：等服务端存好、自己结束流。这期间停止键不能再点。
+        assertEquals(listOf("s1"), backend.stops)
+        assertTrue(vm.state.value.sending)
+        assertTrue(vm.state.value.stopping)
+        vm.stop()
+        runCurrent()
+        assertEquals(listOf("s1"), backend.stops)
+
+        backend.stored = backend.stored.dropLast(1) + MessageDto("a3", "ASSISTANT", "half an", versions = MessageVersions(2, 2, prevId = "a2"))
+        backend.events.close()
+        advanceUntilIdle()
+        assertEquals("a3", vm.state.value.messages.last().id)
+        assertFalse(vm.state.value.sending)
+        assertFalse(vm.state.value.stopping)
+    }
+
+    @Test
+    fun `a rejected edit reopens the editor with the rewritten text`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        backend.streamError = IOException("offline")
+        val vm = openChat(backend)
+
+        vm.editMessage("u2", "rewritten")
+        advanceUntilIdle()
+        assertEquals(listOf("question", "first answer", "follow-up", "second answer"), contents(vm))
+        assertEquals(RejectedEdit("u2", "rewritten"), vm.state.value.rejectedEdit)
+        vm.dismissRejectedEdit()
+        assertNull(vm.state.value.rejectedEdit)
+    }
+
+    @Test
+    fun `when the server cannot be asked to stop, the partial answer is adopted once it shows up`() = runTest(dispatcher) {
         val backend = FakeBackend()
         val vm = openChat(backend)
 

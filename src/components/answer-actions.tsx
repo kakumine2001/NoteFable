@@ -1,14 +1,14 @@
 "use client";
 
 import { ArrowUpRight, Check, Copy, Download, Ellipsis, FilePlus2, Flag, GitBranch, LoaderCircle, RefreshCw } from "lucide-react";
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
+import { useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, useSyncExternalStore, type KeyboardEvent, type MouseEvent, type ReactNode } from "react";
 import "@/components/answer-actions.css";
 import { answerConversationUrl, answerFileName, answerToNoteContent, conversationToMarkdownFile, type AnswerSource, type ConversationMessage } from "@/lib/answer-export";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
-import { VersionNav, type TurnActions } from "@/components/turn-actions";
+import { TurnBusyContext, VersionNav, type TurnActions } from "@/components/turn-actions";
 import type { MessageVersions } from "@/lib/chat-branches";
 
 type Props = {
@@ -19,9 +19,8 @@ type Props = {
   conversationTitle: string;
   // 再生成でできた別の版。あれば「‹ 2/3 ›」を出す。
   versions?: MessageVersions;
-  // 再生成・分岐・版の切り替え。会話が返答中（busy）の間は押せない。
+  // 再生成・分岐・版の切り替え。会話が返答中（TurnBusyContext）の間は押せない。
   actions?: TurnActions;
-  busy?: boolean;
 };
 
 // ノートへの保存の状態。保存中や保存済みの回答がまた描画されても（会話を行き来しても）「Save」に戻って二重に作らないよう、画面の外で持つ。
@@ -221,8 +220,9 @@ export function ReportAnswerButton({ messageId }: { messageId: string }) {
 }
 
 // 完了した回答の下はコピーと「…」だけにし、保存・ダウンロードはメニューにまとめる。
-export function AnswerActions({ messageId, content, sessionId, conversationTitle, versions, actions, busy = false }: Props) {
+export function AnswerActions({ messageId, content, sessionId, conversationTitle, versions, actions }: Props) {
   const t = useT();
+  const busy = useContext(TurnBusyContext);
   const key = `${sessionId}\n${messageId}`;
   const save = useSyncExternalStore(subscribe, () => saves.get(key), () => undefined);
   // 押した直後だけアイコンを ✓ にする操作と、スクリーンリーダー向けの通知。
@@ -315,7 +315,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
 
   return (
     <div className="answer-actions" role="group" aria-label={t("Answer actions")}>
-      {versions && actions && <VersionNav versions={versions} busy={busy} onShow={actions.showVersion} />}
+      {versions && actions && <VersionNav versions={versions} onShow={actions.showVersion} />}
       <button type="button" className="answer-action" onClick={() => void copy()} aria-label={t("Copy answer")} title={t("Copy answer")}>
         {done === "copy" ? <Check size={16} strokeWidth={2} /> : <Copy size={16} strokeWidth={1.9} />}
       </button>
