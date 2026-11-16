@@ -104,6 +104,24 @@ class MathMarkdownTest {
     }
 
     @Test
+    fun doesNotTouchIndentedCodeBlocks() {
+        assertEquals(
+            "Run:\n\n    echo \$HOME\n\n    echo \$x\$\n\nthen ${p(0)} and \\\$5",
+            MathMarkdown.prepare("Run:\n\n    echo \$HOME\n\n    echo \$x\$\n\nthen \$x\$ and \$5").text,
+        )
+        assertEquals("```\na\n```\n    echo \$1\n${p(0)}", MathMarkdown.prepare("```\na\n```\n    echo \$1\n\$x\$").text)
+        // 段落的续行和列表里更深的缩进不是代码。
+        assertEquals("text\n    still ${p(0)} and \\\$5", MathMarkdown.prepare("text\n    still \$x\$ and \$5").text)
+        assertEquals("- step\n\n    ${p(0)} costs \\\$5", MathMarkdown.prepare("- step\n\n    \$x\$ costs \$5").text)
+    }
+
+    @Test
+    fun keepsAGreaterThanSignAtTheStartOfALineOfAQuotedFormula() {
+        assertEquals(listOf(block("a\n> b")), MathMarkdown.prepare("> \$\$\n> a\n> > b\n> \$\$").formulas)
+        assertEquals(listOf(block("a\n> b")), MathMarkdown.prepare("\$\$\na\n> b\n\$\$").formulas)
+    }
+
+    @Test
     fun doesNotTouchLinkDestinationsAndUrls() {
         val rest = " [Mercury](https://en.wikipedia.org/wiki/Mercury_\\(planet\\)) and <https://example.com/?a=\$b> and https://example.com/pay?amount=\$5"
         assertEquals(Prepared(p(0) + rest, listOf(inline("a"))), MathMarkdown.prepare("\$a\$$rest"))

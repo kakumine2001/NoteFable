@@ -46,7 +46,9 @@ function displayMath(text: string, offset: number, length: number, rawBody: stri
   const lineStart = text.lastIndexOf("\n", offset - 1) + 1;
   const prefix = text.slice(lineStart, offset);
   const ownLines = /^[ \t>]*$/.test(prefix) && /^[ \t]*(?:\n|$)/.test(text.slice(offset + length));
-  const strip = prefix.includes(">") ? /^[ \t>]+/ : /^[ \t]+/;
+  // 数式の各行から取るのは、行頭の字下げと、囲んでいる引用の「>」（前置きにある数だけ）。数式の中の「>」（不等号）は残す。
+  const quotes = prefix.split(">").length - 1;
+  const strip = new RegExp(String.raw`^[ \t]*(?:>[ \t]*){0,${quotes}}`);
   const lines = rawBody.split("\n").map((line) => line.replace(strip, "").trimEnd()).filter((line) => line.length > 0);
   if (!lines.length) return null;
   return ownLines
@@ -91,6 +93,10 @@ function prepareText(text: string, found: { math: boolean }) {
 
 // コードブロックの囲み（CommonMark）：3 つ以上の ` か ~。` の囲みは、同じ行の後ろに ` があればインラインのコード。
 const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+// 字下げのコードブロック：空行（または文頭・コードブロック）の後の、4 つ以上の空白かタブで始まる行。
+// リストの中では、深い字下げは項目の続きや入れ子なので、コードとはみなさない。
+const INDENTED = /^(?: {4,}| {0,3}\t)\s*\S/;
+const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
 export function prepareMath(markdown: string): PreparedMath {
   if (!/\$|\\\(|\\\[|^ {0,3}(?:`{3,}|~{3,})\s*math\b/m.test(markdown)) return { text: markdown, hasMath: false };
@@ -102,12 +108,29 @@ export function prepareMath(markdown: string): PreparedMath {
     if (pending.length) output.push(prepareText(pending.join("\n"), found));
     pending = [];
   };
+  // 字下げのコードブロックを始められる位置か（直前が空行・文頭・コードブロックの終わり）。
+  let afterBreak = true;
+  let inList = false;
+  let indentedCode = false;
   for (const line of markdown.split("\n")) {
     if (fence) {
       output.push(line);
       const closing = line.trim();
-      if (closing.length >= fence.length && [...closing].every((char) => char === fence!.char)) fence = null;
+      if (closing.length >= fence.length && [...closing].every((char) => char === fence!.char)) {
+        fence = null;
+        afterBreak = true;
+      }
       continue;
+    }
+    const blank = line.trim() === "";
+    if (indentedCode) {
+      // 空行をはさんでも、字下げが続くかぎりコード。
+      if (blank || INDENTED.test(line)) {
+        output.push(line);
+        continue;
+      }
+      indentedCode = false;
+      afterBreak = true;
     }
     const open = FENCE_OPEN.exec(line);
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
@@ -118,6 +141,15 @@ export function prepareMath(markdown: string): PreparedMath {
       output.push(line);
       continue;
     }
+    if (afterBreak && !inList && INDENTED.test(line)) {
+      flush();
+      indentedCode = true;
+      output.push(line);
+      continue;
+    }
+    if (LIST_ITEM.test(line)) inList = true;
+    else if (/^ ?\S/.test(line)) inList = false;
+    afterBreak = blank;
     pending.push(line);
   }
   flush();

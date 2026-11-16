@@ -161,6 +161,12 @@ object MathMarkdown {
     private val FENCE_OPEN = Regex("""^ {0,3}(`{3,}|~{3,})(.*)$""")
     private val QUICK = Regex("""\$|\\\(|\\\[""")
 
+    // 缩进的代码块：空行（或开头、代码块）后面、以 4 个以上空格或制表符开头的行。
+    // 列表里更深的缩进是列表项的后续内容或嵌套，不算代码。
+    private val INDENTED = Regex("""^(?: {4,}| {0,3}\t)\s*\S""")
+    private val LIST_ITEM = Regex("""^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)""")
+    private val PARAGRAPH_START = Regex("""^ ?\S""")
+
     fun prepare(markdown: String): Prepared {
         if (!QUICK.containsMatchIn(markdown)) return Prepared(markdown, emptyList())
         val formulas = mutableListOf<Formula>()
@@ -172,12 +178,29 @@ object MathMarkdown {
             if (pending.isNotEmpty()) output += prepareText(pending.joinToString("\n"), formulas)
             pending.clear()
         }
+        // 这里能不能开始一个缩进的代码块（前一行是空行、开头或代码块的结尾）。
+        var afterBreak = true
+        var inList = false
+        var indentedCode = false
         for (line in markdown.split("\n")) {
             if (fenceLength > 0) {
                 output += line
                 val closing = line.trim()
-                if (closing.length >= fenceLength && closing.all { it == fenceChar }) fenceLength = 0
+                if (closing.length >= fenceLength && closing.all { it == fenceChar }) {
+                    fenceLength = 0
+                    afterBreak = true
+                }
                 continue
+            }
+            val blank = line.isBlank()
+            if (indentedCode) {
+                // 中间隔着空行，只要缩进还在就还是代码。
+                if (blank || INDENTED.containsMatchIn(line)) {
+                    output += line
+                    continue
+                }
+                indentedCode = false
+                afterBreak = true
             }
             val open = FENCE_OPEN.find(line)
             // ``` 后面同一行还有 ` 的是行内代码，不是代码块的开头。
@@ -188,6 +211,14 @@ object MathMarkdown {
                 output += line
                 continue
             }
+            if (afterBreak && !inList && INDENTED.containsMatchIn(line)) {
+                flush()
+                indentedCode = true
+                output += line
+                continue
+            }
+            if (LIST_ITEM.containsMatchIn(line)) inList = true else if (PARAGRAPH_START.containsMatchIn(line)) inList = false
+            afterBreak = blank
             pending += line
         }
         flush()
@@ -232,7 +263,8 @@ object MathMarkdown {
         val prefix = text.substring(lineStart, offset)
         val rest = text.substring(match.range.last + 1)
         val ownLines = prefix.all { it == ' ' || it == '\t' || it == '>' } && Regex("""^[ \t]*(?:\n|$)""").containsMatchIn(rest)
-        val strip = if ('>' in prefix) Regex("""^[ \t>]+""") else Regex("""^[ \t]+""")
+        // 每行去掉的是行首的缩进和外面引用的 >（前缀里有几个就去几个）；公式里的 >（大于号）留着。
+        val strip = Regex("""^[ \t]*(?:>[ \t]*){0,${prefix.count { it == '>' }}}""")
         val lines = rawBody.split("\n").map { it.replace(strip, "").trimEnd() }.filter { it.isNotEmpty() }
         if (lines.isEmpty()) return null
         formulas += Formula(lines.joinToString(if (ownLines) "\n" else " "), ownLines)

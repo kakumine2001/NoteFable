@@ -54,6 +54,20 @@ describe("normalizeMath", () => {
     expect(normalizeMath("a ` b\n\n$x$ and $7\n\nc ` d")).toBe("a ` b\n\n$x$ and \\$7\n\nc ` d");
   });
 
+  it("does not touch indented code blocks", () => {
+    expect(normalizeMath("Run:\n\n    echo $HOME\n\n    echo $x$\n\nthen $x$ and $5")).toBe("Run:\n\n    echo $HOME\n\n    echo $x$\n\nthen $x$ and \\$5");
+    expect(normalizeMath("```\na\n```\n    echo $1\n$x$")).toBe("```\na\n```\n    echo $1\n$x$");
+    // 段落の続きやリストの中の深い字下げは、コードではない。
+    expect(normalizeMath("text\n    still $x$ and $5")).toBe("text\n    still $x$ and \\$5");
+    expect(normalizeMath("- step\n\n    $x$ costs $5")).toBe("- step\n\n    $x$ costs \\$5");
+  });
+
+  it("keeps a greater-than sign at the start of a line of a quoted formula", () => {
+    const quoted = "> $$\n> a\n> > b\n> $$";
+    expect(normalizeMath(quoted)).toBe(quoted);
+    expect(normalizeMath("$$\na\n> b\n$$")).toBe("$$\na\n> b\n$$");
+  });
+
   it("does not touch link destinations and URLs", () => {
     const link = "$a$ [Mercury](https://en.wikipedia.org/wiki/Mercury_\\(planet\\)) and <https://example.com/?a=$b> and https://example.com/pay?amount=$5";
     expect(normalizeMath(link)).toBe(link);
