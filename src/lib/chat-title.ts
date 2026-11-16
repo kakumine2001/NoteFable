@@ -55,7 +55,8 @@ export type ChatTitle = { title: string | null; icon: string | null };
 
 const graphemes = new Intl.Segmenter(undefined, { granularity: "grapheme" });
 // 行頭の飾り：空白・引用符・Markdown の強調や見出し・箇条書き・「Title:」。順番がどうでも落とせるよう繰り返しで外す。
-const LEADING_NOISE = /^(?:\s|["'“”‘’「『*_#>`]|[-•]\s|(?:title|タイトル|标题)\s*[:：])+/i;
+// # と * はキーキャップ絵文字（#️⃣ *️⃣）の一部なら残す。
+const LEADING_NOISE = /^(?:\s|["'“”‘’「『_>`]|[#*](?!️?⃣)|[-•]\s|(?:title|タイトル|标题)\s*[:：])+/i;
 // 絵文字とタイトルの間に入りがちな区切り。
 const SEPARATOR = /^[\s\-–—:：|·・]+/;
 

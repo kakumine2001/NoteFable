@@ -16,6 +16,8 @@ describe("parseTitleOutput", () => {
     ["- 🍳 パスタ", "🍳", "パスタ"],
     ["🍳🍝 パスタ", "🍳", "パスタ"],
     ["⛩ 京都旅行", "⛩", "京都旅行"],
+    ["#️⃣ Math basics", "#️⃣", "Math basics"],
+    ["**#️⃣ Math basics**", "#️⃣", "Math basics"],
   ])("splits %j into icon and title", (raw, icon, title) => {
     expect(parseTitleOutput(raw)).toEqual({ icon, title });
   });
