@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -318,7 +319,7 @@ private fun GroupRow(
     }
 }
 
-// 笔记行：高 44、圆角 6.4；拖动把手 28×44（GripVertical 13）；图标按钮区 40（左距 2，内含 20 的图标：表情 15 或文件图标 15 灰）；标题 14；
+// 笔记行：高 44、圆角 6.4；没有拖动把手，长按行主体后拖；图标按钮区 40（左距 2，内含 20 的图标：表情 15 或文件图标 15 灰）；标题 14；
 // 右侧"移到项目"和"移到回收站"两个 25.6 的小按钮（图标 14 灰，右距 3.2）。当前打开的行浅蓝底加左侧蓝条。
 // 拖动中被拖的行半透明，目标行上 / 下 2px 蓝线（这时不画左侧蓝条）。
 /** 侧栏子页面的树用到的状态和回调。打开着的笔记的祖先总是展开（网页 notes-sidebar 的 activeAncestors）。 */
@@ -412,7 +413,6 @@ private fun NoteRow(
                 .dropLine(lineBefore, lineAfter),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
             // 展开箭头（.notes-row-toggle）：20×28、左距 2、圆角 4，Chevron 14 浅灰。
             val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
             Box(
@@ -440,7 +440,9 @@ private fun NoteRow(
                 }
                 Text(
                     page.title,
-                    modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    // 拖动处只是标题区（网页的拖动元是标题按钮，图标按钮在它外面），撑满行高；放在行的 clickable 里层，长按后原地松手不会打开。
+                    modifier = Modifier.weight(1f).heightIn(min = 44.dp).noteReorderDrag(page, rowDrag).wrapContentHeight()
+                        .padding(start = 4.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
                     color = if (active) Sm.Ink else Sm.Text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
@@ -463,22 +465,17 @@ private fun collapseLabel(title: String) = stringResource(R.string.pg_collapse_t
 @Composable
 private fun expandLabel(title: String) = stringResource(R.string.pg_expand_title, title)
 
-/** 笔记行的拖动把手（网页 ReorderHandle，disabled={busy}；正在移动的这一篇也不能拖）。 */
-@Composable
-private fun NoteGrip(page: NotePageSummary, rowDrag: NoteRowDrag, modifier: Modifier) {
-    ReorderGrip(
-        id = page.id,
-        label = stringResource(R.string.sb_reorder_title, page.title),
-        drag = rowDrag.drag,
-        locked = rowDrag.busy || page.id in rowDrag.state.moveBusy,
-        onStart = {
-            rowDrag.reorder.surface = rowDrag.surface
-            rowDrag.reorder.onDismissError()
-        },
-        onDrop = { rowDrag.drag.drop(page.id, rowDrag.reorder) },
-        modifier = modifier,
-    )
-}
+/** 笔记行主体的长按拖动（网页 ReorderRowButton，disabled={busy}；正在移动的这一篇也不能拖）。 */
+private fun Modifier.noteReorderDrag(page: NotePageSummary, rowDrag: NoteRowDrag): Modifier = reorderDrag(
+    id = page.id,
+    drag = rowDrag.drag,
+    locked = rowDrag.busy || page.id in rowDrag.state.moveBusy,
+    onStart = {
+        rowDrag.reorder.surface = rowDrag.surface
+        rowDrag.reorder.onDismissError()
+    },
+    onDrop = { rowDrag.drag.drop(page.id, rowDrag.reorder) },
+)
 
 @Composable
 private fun reorderFailureText(failure: ReorderFailure): String = when {
@@ -671,8 +668,6 @@ private fun HomeItem(
             .padding(bottom = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        // .notes-home-item .list-reorder-handle：宽 28、最小高 44。
-        NoteGrip(page, rowDrag, Modifier.size(28.dp, 44.dp))
         // 展开箭头（.notes-home-toggle）：28×48，Chevron 18 浅灰。
         val toggleLabel = if (open) collapseLabel(page.title) else expandLabel(page.title)
         Box(
@@ -681,7 +676,7 @@ private fun HomeItem(
             Alignment.Center,
         ) { LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 18.dp, Faint) }
         Row(
-            Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
+            Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.noteReorderDrag(page, rowDrag).padding(horizontal = 4.dp, vertical = 6.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint) }

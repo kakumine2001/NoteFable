@@ -53,9 +53,9 @@ data class SidebarUiState(
     val pinFailed: Set<String> = emptySet(),
     /** 有一次 POST /api/sessions/reorder 还没完（网页 reorderChatBusy）：这时再排序会提示等上一次完成。 */
     val reorderBusy: Boolean = false,
-    /** 正在移动的聊天：这些行的把手不能拖（网页每个 ReorderHandle 自己的 busy）。 */
+    /** 正在移动的聊天：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。 */
     val moveBusy: Set<String> = emptySet(),
-    /** 拖动失败的行和原因（网页 ReorderHandle 的 list-reorder-error）。 */
+    /** 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。 */
     val reorderError: Pair<String, SidebarError>? = null,
     /** 在项目里新建聊天失败（网页把它显示在输入栏上方；原生显示在侧栏 Projects 下面）。 */
     val createError: SidebarError? = null,

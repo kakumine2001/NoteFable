@@ -55,7 +55,6 @@
     <string name="sb_err_load_project_settings">無法載入專案設定。</string>
     <string name="sb_err_load_your_notes">無法載入筆記。</string>
     <string name="sb_err_save_project_settings">無法儲存專案設定，請重試。</string>
-    <string name="sb_reorder_title">調整 %1$s 的順序</string>
     <string name="sb_err_move_item">無法移動此項，請重試。</string>
     <string name="sb_err_wait_move">請等待上一次移動完成。</string>
     <string name="sb_err_move_chat">無法移動聊天。</string>

@@ -54,7 +54,6 @@
     <string name="sb_err_load_project_settings">Could not load the project settings.</string>
     <string name="sb_err_load_your_notes">Could not load your notes.</string>
     <string name="sb_err_save_project_settings">Could not save the project settings. Please try again.</string>
-    <string name="sb_reorder_title">Reorder %1$s</string>
     <string name="sb_err_move_item">Could not move the item. Try again.</string>
     <string name="sb_err_wait_move">Wait for the previous move to finish.</string>
     <string name="sb_err_move_chat">Could not move the chat.</string>

@@ -1,11 +1,12 @@
 "use client";
-import { GripVertical } from "lucide-react";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { ReorderRequest } from "@/lib/list-order";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 
-export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpen,onMoveProject,onMoveGroup}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children?:ReactNode;onOpen?:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>}) {
+// 行の本体ボタン（開く）がそのままドラッグ元。マウスは 6px 動いたらドラッグ、触屏は長押し、Alt+↑/↓ で並べ替え。
+// 移動中（busy）はドラッグとキー操作だけ止め、ボタン自体は無効にしない（フォーカスとクリックで開く操作を残す）。
+export function ReorderRowButton({id,title,scope,ids,disabled,onMove,children,className,onOpen,onMoveProject,onMoveGroup}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children:ReactNode;className:string;onOpen:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>}) {
   const t = useT();
   const dropAttribute=onMoveProject ? "data-chat-project-drop" : onMoveGroup ? "data-note-group-drop" : null;
   const onMoveContainer=onMoveProject ?? onMoveGroup;
@@ -38,7 +39,7 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     const target=current?.target;
     const active=current?.active;
     const after=current?.after ?? false;
-    suppressClick.current=!!active;
+    suppressClick.current=!!active;if(active)setTimeout(()=>{suppressClick.current=false;},0);
     clear();
     if(!active || !target)return;
     if(dropAttribute && target.hasAttribute(dropAttribute) && onMoveContainer) {
@@ -72,7 +73,7 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     else clear();
   });
   useEffect(()=>{
-    const button=buttonRef.current;if(!button?.classList.contains("chat-drag-title"))return;
+    const button=buttonRef.current;if(!button)return;
     const start=(event:TouchEvent)=>touchGesture("start",event);
     const moving=(event:TouchEvent)=>touchGesture("move",event);
     const end=(event:TouchEvent)=>touchGesture("end",event);
@@ -81,11 +82,12 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
     return ()=>{cancel();button.removeEventListener("touchstart",start);button.removeEventListener("touchmove",moving);button.removeEventListener("touchend",end);button.removeEventListener("touchcancel",cancel);};
   },[]);
   return <>
-    <button ref={buttonRef} type="button" aria-label={children ? undefined : t("Reorder {title}", { title })} title={children ? t("{title} · Drag to move · Hold to drag on touch · Arrow keys reorder", { title }) : t("Drag to reorder · Arrow keys move up/down")} className={children ? "chat-drag-title flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" : "list-reorder-handle"} disabled={busy || disabled}
-      onClick={()=>{if(suppressClick.current){suppressClick.current=false;return;}onOpen?.();}}
+    <button ref={buttonRef} type="button" title={title} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" className={`row-drag ${className}`} disabled={disabled}
+      onClick={()=>{if(suppressClick.current){suppressClick.current=false;return;}onOpen();}}
+      onContextMenu={event=>{if(drag.current)event.preventDefault();}}
       onPointerDown={event=>{
-        if(children && event.pointerType==="touch")return;
-        if(event.button!==0) return;
+        if(event.pointerType==="touch")return;
+        if(event.button!==0 || busy) return;
         const row=event.currentTarget.closest<HTMLElement>("[data-order-id]");
         if(!row) return;
         suppressClick.current=false;event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);
@@ -93,19 +95,19 @@ export function ReorderHandle({id,title,scope,ids,disabled,onMove,children,onOpe
       }}
       onPointerMove={event=>{
         const current=drag.current;if(!current) return;
-        if(children && event.pointerType==="touch")return;
+        if(event.pointerType==="touch")return;
         if(!current.active && Math.hypot(event.clientX-current.x,event.clientY-current.y)<6) return;
         current.active=true;updateTarget(event.clientX,event.clientY);
       }}
       onPointerUp={event=>{
-        if(children && event.pointerType==="touch")return;
+        if(event.pointerType==="touch")return;
         finish();if(event.currentTarget.hasPointerCapture(event.pointerId))event.currentTarget.releasePointerCapture(event.pointerId);
-      }} onPointerCancel={event=>{if(event.pointerType!=="touch" || !children)clear();}} onLostPointerCapture={event=>{if(event.pointerType!=="touch" || !children)clear();}}
+      }} onPointerCancel={event=>{if(event.pointerType!=="touch")clear();}} onLostPointerCapture={event=>{if(event.pointerType!=="touch")clear();}}
       onKeyDown={event=>{
-        if(event.key!=="ArrowUp" && event.key!=="ArrowDown")return;
+        if(busy || !event.altKey || (event.key!=="ArrowUp" && event.key!=="ArrowDown"))return;
         event.preventDefault();const index=ids.indexOf(id), targetId=ids[index+(event.key==="ArrowUp"?-1:1)];
         if(targetId)void move({id,targetId,after:event.key==="ArrowDown"});
-      }}>{children ?? <GripVertical size={13}/>}</button>
+      }}>{children}</button>
     {error && <span role="alert" className="list-reorder-error">{t(error)}</span>}
   </>;
 }

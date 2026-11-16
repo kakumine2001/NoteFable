@@ -3,7 +3,7 @@
 import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Pin, Plus, ScrollText, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
-import { ReorderHandle } from "@/components/reorder-handle";
+import { ReorderRowButton } from "@/components/reorder-row-button";
 import type { ReorderRequest } from "@/lib/list-order";
 import { ChatActions, type ChatAction, type ChatProject } from "@/components/chat-actions";
 import { SidebarFooter } from "@/components/sidebar-footer";
@@ -69,7 +69,6 @@ export function ChatSidebar({
     const active = activeSessionId === session.id;
     return (
                 <div key={session.id} className={`notion-session-row vt-row group ${active ? "is-active" : ""}`} style={rowName(`crow-${session.id}`)} data-order-id={session.id} data-order-scope="chat">
-                  <ReorderHandle id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}/>
                   <button type="button" className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: session.title })} title={t("Change icon")}
                     aria-haspopup="dialog" aria-expanded={picker?.id === session.id}
                     onClick={(event) => {
@@ -81,9 +80,9 @@ export function ChatSidebar({
                       ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                   </button>
-                  <button type="button" onClick={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" title={session.title}>
+                  <ReorderRowButton id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
                     <span className="truncate text-sm">{session.title}</span>
-                  </button>
+                  </ReorderRowButton>
                   <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for {title}", { title: session.title })} aria-haspopup="dialog"
                     onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
                     <MoreHorizontal size={16}/>

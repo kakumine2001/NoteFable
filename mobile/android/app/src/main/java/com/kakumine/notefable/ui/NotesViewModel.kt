@@ -80,9 +80,9 @@ data class NotesUiState(
     val iconError: Boolean = false,
     /** 有一次 POST /api/pages/reorder 还没完（网页 use-note-pages 的 reorderBusy）：这时再排序会提示等上一次完成。 */
     val reorderBusy: Boolean = false,
-    /** 正在移动（排序或拖进项目）的笔记：这些行的把手不能拖（网页每个 ReorderHandle 自己的 busy）。 */
+    /** 正在移动（排序或拖进项目）的笔记：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。 */
     val moveBusy: Set<String> = emptySet(),
-    /** 拖动失败的行和原因（网页 ReorderHandle 的 list-reorder-error）。 */
+    /** 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。 */
     val reorderError: ReorderFailure? = null,
 ) {
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。只列最上层的页面，子页面缩进在父页面下。 */
@@ -674,7 +674,7 @@ class NotesViewModel(
     /** 抽屉重新打开时清掉上次改图标失败的提示（网页侧栏关掉后组件卸载，iconError 跟着没了）。 */
     fun dismissIconError() = _state.update { it.copy(iconError = false) }
 
-    // ---- 拖动排序（网页 notes-sidebar / notes-home 的 ReorderHandle） ----
+    // ---- 拖动排序（网页 notes-sidebar / notes-home 的 ReorderRowButton） ----
 
     /** 拖到另一篇笔记前 / 后（POST /api/pages/reorder，目标在别的项目里时服务端也改项目）。同一时间只做一次，和网页一样上一次没完就报错。 */
     fun reorder(move: ReorderMove) {

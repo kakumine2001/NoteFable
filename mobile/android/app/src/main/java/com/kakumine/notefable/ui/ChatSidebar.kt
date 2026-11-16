@@ -66,10 +66,10 @@ import kotlinx.coroutines.launch
  * - 分区小标题 .chat-section-label：内边距 14.4/8/4.8，12 等宽大写灰字、字距 .06em。
  * - 项目行高 44：折叠箭头 13 + 文件夹 15 + 名称 14（间距 6.4，左右 3.2），有共通指示 / 参考笔记时名称后加 ScrollText 12 浅灰；
  *   右侧"在项目里新建聊天"＋ 和"更多"各 40（图标 16，右距 3.2）。项目里的聊天左缩进 12；没有时 12 灰字 "No chats" / "All chats pinned"。
- * - 聊天行高 44、圆角 6.4：拖动把手 28×44（GripVertical 13）、图标区 40（左距 2，图标 15 / 表情）、标题 14/20（右距 8）、
+ * - 聊天行高 44、圆角 6.4：没有拖动把手（长按标题区后拖）；图标区 40（左距 2，图标 15 / 表情）、标题 14/20（右距 8）、
  *   "更多" 40（图标 16）、置顶 40（Pin 14；已置顶时深色字加 .08 灰底）。当前行浅蓝底、字重 550、左侧 3px 蓝条（上下各缩 7.2）。
- * - 拖动：按住把手直接拖（网页触屏上把手也是立刻拖）。目标行上 / 下出现 2px 蓝线；拖到项目标题或 CHATS 标签上整块浅蓝底加 1px 蓝框，
- *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。把手吃掉了这次拖动，所以抽屉的横滑关闭和列表滚动不会同时触发。
+ * - 拖动：长按标题区后拖（网页触屏也是长按）。目标行上 / 下出现 2px 蓝线；拖到项目标题或 CHATS 标签上整块浅蓝底加 1px 蓝框，
+ *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。长按之前的滑动照常滚动列表；长按开始后拖动被吃掉，抽屉的横滑关闭和列表滚动不会同时触发。
  */
 
 private val ErrorRed = Color(0xFFB91C1C)
@@ -353,16 +353,7 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                 },
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            // 拖动把手 28×44（.list-reorder-handle，触屏尺寸），GripVertical 13 灰。
-            val reorderLabel = stringResource(R.string.sb_reorder_title, session.title)
             val moveBusy = session.id in props.side.moveBusy
-            // 和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
-            ReorderGrip(
-                id = session.id, label = reorderLabel, drag = drag, locked = moveBusy,
-                onStart = props.onDismissError, onDrop = { props.onDrop(session.id) },
-                modifier = Modifier.size(28.dp, 44.dp),
-            )
-
             // 图标按钮 40×40（左距 2、圆角 4）：表情（.notes-row-icon 15、行高 1）或 MessageSquareText 15 灰，点开表情选择器（aria-label "Change icon of {title}"）。
             EmojiTriggerButton(
                 current = session.icon,
@@ -373,7 +364,11 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                 if (session.icon != null) Text(session.icon, fontSize = 15.sp, lineHeight = 15.sp) else LucideIcon(Lucide.MessageSquareText, 15.dp, Sm.Muted)
             }
             Row(
-                Modifier.weight(1f).height(44.dp).clickable { props.onOpen(session.id) },
+                // 标题区就是拖动处：长按后拖（网页整行拖动）。和网页一样只锁正在移动的这一行；别的行照常能拖（排序还没完时由 reorder() 提示等待）。
+                Modifier.weight(1f).height(44.dp)
+                    // reorderDrag 放在 clickable 里层：先收到抬起并吃掉它，长按后原地松手不会再打开这一行。
+                    .clickable { props.onOpen(session.id) }
+                    .reorderDrag(session.id, drag, locked = moveBusy, onStart = props.onDismissError, onDrop = { props.onDrop(session.id) }),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
