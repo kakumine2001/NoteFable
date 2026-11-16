@@ -114,7 +114,8 @@ export function I18nProvider({ locale, messages, children }: {
   const switching = target !== null;
   const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], preference, t, setPreference, switching, target, changeError }),
     [activeLocale, preference, t, setPreference, switching, target, changeError]);
-  return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} className="contents">{children}</div></I18nContext.Provider>;
+  // data-locale-root: 静的 HTML の時点で表示言語を持つ目印。global-error.tsx が落ちる前の言語を知るのに使う。
+  return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} data-locale-root="" className="contents">{children}</div></I18nContext.Provider>;
 }
 
 export function useI18n() {
