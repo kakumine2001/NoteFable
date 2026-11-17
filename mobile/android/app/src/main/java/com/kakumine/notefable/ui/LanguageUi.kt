@@ -69,7 +69,7 @@ import com.kakumine.notefable.data.localeSyncAction
 // 界面语言（网页 src/lib/i18n 与 settings-dialog.tsx 的 LanguageSettings、language-menu.tsx、account-button.tsx 的 AccountLocaleSync）：
 // 选项是 4 种语言；没选过时按系统语言显示，菜单里标的就是正在显示的语言。App 的语言设置
 // （AppCompatDelegate.setApplicationLocales，相当于网页的 Cookie）就是本机的选择。登录用户在设置里选，存在账号上（User.locale），
-// [AccountLocaleSync] 让本机跟着账号走；未登录时在侧栏底部的语言菜单（[LanguageMenuButton]）里选，只改本机。
+// [AccountLocaleSync] 让本机跟着账号走；未登录时在侧栏底部帮助菜单（[HelpMenuButton]）的语言项里选，只改本机。
 
 // CSS 的 ease-out。
 internal val CssEaseOut = CubicBezierEasing(0f, 0f, 0.58f, 1f)
@@ -221,7 +221,7 @@ private val Languages = AppLanguage.Preference.entries.filter { it != AppLanguag
 
 /** 正在显示的语言（资源解析的结果 `ui_locale`）。 */
 @Composable
-private fun showingLanguage(): AppLanguage.Preference =
+internal fun showingLanguage(): AppLanguage.Preference =
     AppLanguage.preferenceOfCode(stringResource(R.string.ui_locale)) ?: AppLanguage.Preference.English
 
 /** 语言名：按它自己的语言排版（网页 lang=）。 */
@@ -234,47 +234,12 @@ private fun LanguageName(option: AppLanguage.Preference, modifier: Modifier, fon
     )
 }
 
-/**
- * 未登录时侧栏底部的语言按钮（网页 .language-trigger）：12 灰字，左边 14 的 Languages 图标、间距 4.8，写现在的界面语言。
- * 点了打开 [LanguageMenu]，选了马上换 App 的语言（只改本机）。
- */
-@Composable
-fun LanguageMenuButton(modifier: Modifier = Modifier) {
-    var anchor by remember { mutableStateOf<IntRect?>(null) }
-    var bounds by remember { mutableStateOf<IntRect?>(null) }
-    val showing = showingLanguage()
-    val name = AppLanguage.nativeName(showing).orEmpty()
-    val label = stringResource(R.string.language_current, name)
-    // 切换失败（网页 .language-menu-error）：按钮下面一行红字。
-    Column(modifier, horizontalAlignment = Alignment.End) {
-        Row(
-            Modifier
-                .onGloballyPositioned { coordinates ->
-                    val box = coordinates.boundsInWindow()
-                    bounds = IntRect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
-                }
-                .clickable(role = Role.Button) { anchor = bounds }
-                .semantics(mergeDescendants = true) { contentDescription = label },
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.8.dp),
-        ) {
-            LucideIcon(Lucide.Languages, 14.dp, Sm.Muted)
-            Text(name, color = Sm.Muted, fontSize = 12.sp, style = LocalTextStyle.current.copy(localeList = LocaleList(showing.code)))
-        }
-        if (LocaleSyncMemory.failed) {
-            Text(
-                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 12.sp,
-                modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
-            )
-        }
-    }
-    anchor?.let { rect ->
-        LanguageMenu(rect, current = showing, onClose = { anchor = null }) { choice ->
-            anchor = null
-            // 按系统语言显示中选了同一种语言，也当作选择存下来（App 的语言设置），和网页一样。
-            if (choice != currentPreference()) applyLanguage(choice)
-        }
-    }
+/** 上一次切换语言失败了（网页 changeError）。侧栏的帮助菜单按钮下面显示一行红字。 */
+internal val languageChangeFailed: Boolean get() = LocaleSyncMemory.failed
+
+/** 未登录时在帮助菜单里选了语言：马上换 App 的语言（只改本机）。按系统语言显示中选了同一种语言，也当作选择存下来，和网页一样。 */
+internal fun chooseLanguageOnDevice(choice: AppLanguage.Preference) {
+    if (choice != currentPreference()) applyLanguage(choice)
 }
 
 /**
@@ -284,7 +249,7 @@ fun LanguageMenuButton(modifier: Modifier = Modifier) {
  * 项是 .chat-menu-item（最小高 44、内边距 9.6×12、圆角 6.4、14 字），正在显示的语言右边 15 的蓝色对勾。
  */
 @Composable
-private fun LanguageMenu(
+internal fun LanguageMenu(
     anchor: IntRect, current: AppLanguage.Preference?, alignEnd: Boolean = false, onClose: () -> Unit, onChoose: (AppLanguage.Preference) -> Unit,
 ) {
     val density = LocalDensity.current
@@ -332,4 +297,4 @@ private fun LanguageMenu(
 }
 
 // .chat-actions-menu 的 box-shadow 0 8px 32px #0002。
-private val LanguageMenuShadow = Color(0x22000000)
+internal val LanguageMenuShadow = Color(0x22000000)

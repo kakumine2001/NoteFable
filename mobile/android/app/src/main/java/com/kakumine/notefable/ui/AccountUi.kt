@@ -15,8 +15,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -52,10 +50,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -74,8 +73,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-// 侧栏最下面（网页 SidebarFooter）：账号（登录，或打开设置的入口）、隐私政策 / 服务条款。上方 1px 分隔线。
-// 界面语言只在登录后的设置里选，侧栏不再放语言菜单（未登录时始终是系统语言）。
+// 侧栏最下面（网页 SidebarFooter）：上方 1px 分隔线，四周 8；左边账号（登录，或打开设置的入口，占满剩下的宽），
+// 右边"?"帮助菜单（关于、隐私政策、服务条款、特商法标示，未登录时还有界面语言）。登录用户的语言在设置里选。
 @Composable
 fun SidebarFooter(
     account: AccountUiState,
@@ -84,20 +83,29 @@ fun SidebarFooter(
     profile: AccountViewModel,
     deleteAccount: suspend () -> Throwable?,
 ) {
-    Column(Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }) {
-        if (account.configured) {
-            Box(Modifier.padding(start = 8.dp, end = 8.dp, top = 8.dp)) {
-                val user = account.user
-                if (user == null) {
+    Column(
+        Modifier.fillMaxWidth().drawBehind { drawRect(Sm.Border, size = androidx.compose.ui.geometry.Size(size.width, 1.dp.toPx())) }.padding(8.dp),
+    ) {
+        // 账号读到之前不放语言项，免得登录用户看到一下（网页 guest）。
+        val guest = account.loaded && (!account.configured || account.user == null)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Box(Modifier.weight(1f)) {
+                if (account.configured) {
+                    val user = account.user
                     // 网页 SignInButton：只放"登录"，点了打开登录窗口（SignInDialog）。
-                    SignInButton(onClick = onSignIn)
-                } else {
-                    ProfileRow(user, account, profile, onSignOut, deleteAccount)
+                    if (user == null) SignInButton(onClick = onSignIn)
+                    else ProfileRow(user, account, profile, onSignOut, deleteAccount)
                 }
             }
+            HelpMenuButton(guest = guest)
         }
-        // 未登录（或没开登录）时在链接这一行的右端放语言菜单（网页 SidebarFooter 的 guest）。账号读到之前不放，免得登录用户看到一下。
-        LegalLinks(guest = account.loaded && (!account.configured || account.user == null))
+        // 切换失败的红字只给未登录的人（登录用户的语言在设置里选，失败也显示在那里）。
+        if (guest && languageChangeFailed) {
+            Text(
+                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = LiveRegionMode.Assertive },
+            )
+        }
     }
 }
 
@@ -482,25 +490,7 @@ fun UserAvatar(user: AccountUser, size: Dp) {
     }
 }
 
-// 隐私政策 / 服务条款 / 特商法标示（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。[guest] 时行的右端放语言按钮。
-@Composable
-@OptIn(ExperimentalLayoutApi::class)
-private fun LegalLinks(guest: Boolean) {
-    val uri = LocalUriHandler.current
-    val context = LocalContext.current
-    // 和网页 legal-links.tsx 一样，放不下时换行（flex-wrap）。
-    FlowRow(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        // 介绍页（src/lib/i18n/routing.ts 的 INTRO_HREF）。指定用浏览器打开：用户把站点链接设为由本 App 打开时，不会又回到 App。
-        Text(stringResource(R.string.about), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { openInBrowser(context, BuildConfig.BASE_URL + "/?intro") })
-        Text(stringResource(R.string.privacy), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/privacy") })
-        Text(stringResource(R.string.terms), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/terms") })
-        Text(stringResource(R.string.commercial_disclosure), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/legal-notice") })
-        // 网页 .language-trigger 的 margin-left: auto：占满这一行剩下的宽度，按钮靠右。
-        if (guest) Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { LanguageMenuButton() }
-    }
-}
-
-private fun openInBrowser(context: Context, url: String) {
+internal fun openInBrowser(context: Context, url: String) {
     val view = { Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
     // 用一个与本站无关的网址找浏览器：默认浏览器优先，没设默认时取第一个不是本 App 的。
     val probe = Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")).addCategory(Intent.CATEGORY_BROWSABLE)

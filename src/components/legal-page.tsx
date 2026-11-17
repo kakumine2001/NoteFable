@@ -1,8 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-export { LegalLinks } from "@/components/legal-links";
-
 export const LEGAL_CONTACT_EMAIL = "kakumine0824@gmail.com";
 // 法的文書の最終更新日。どれかの本文を変えたらここを変える（英語の表記と特商法ページの日本語の表記はこれから作る）。
 export const LEGAL_UPDATED_ISO = "2026-11-17";
