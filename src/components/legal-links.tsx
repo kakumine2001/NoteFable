@@ -13,6 +13,7 @@ export function LegalLinks({ children }: { children?: ReactNode }) {
       <Link href={INTRO_HREF} className="hover:text-[var(--notion-muted)] hover:underline">{t("About")}</Link>
       <Link href="/privacy" className="hover:text-[var(--notion-muted)] hover:underline">{t("Privacy")}</Link>
       <Link href="/terms" className="hover:text-[var(--notion-muted)] hover:underline">{t("Terms")}</Link>
+      <Link href="/legal-notice" className="hover:text-[var(--notion-muted)] hover:underline">{t("Commercial disclosure")}</Link>
       {children}
     </div>
   );

@@ -15,18 +15,29 @@
 
 ## 安装包交付
 
+所有交给用户的包只用一种签名：Play 的应用签名密钥。所以 Google Cloud 里只需要一个 Android OAuth 客户端（`NoteFable-Android`），本机签名的包（debug 和本机 release）不能用 Google 登录，开发时用邮箱验证码登录，要测 Google 登录就装 Play 签名的包。
+
+交付流程：
+
+1. `mobile/android/app/build.gradle.kts` 里 `versionCode` 加 1、`versionName` 同步更新（Play 不接受重复的 `versionCode`，系统也可能不允许覆盖安装）。
+2. `./gradlew bundleRelease`（上传密钥签名）→ `app/build/outputs/bundle/release/app-release.aab`。
+3. 所有者把 AAB 上传到 Play Console 的**内部测试**轨道并发布（Agent 没有 Play 的发布权限）。
+4. Play Console → App bundle explorer（アプリバンドル エクスプローラ）→ 这个版本 → 下载**签名済みのユニバーサル APK**（Play 签名的通用 APK），改名后传到 Drive。
+5. 测试人员可以从内部测试轨道直接安装（能用 Play 结算），也可以装 Drive 上的 APK（同样是 Play 签名，Google 登录能用，但不是从 Play 安装的，不能购买）。
+
+Drive 规则：
+
 - 每次向用户交付 APK，都要上传到现有的 Google Drive [NoteFable 文件夹](https://drive.google.com/drive/folders/1z2T9eDI83TVK1eD3zUW0ctBMbmhuXv6r)，并提供该文件的 Drive 链接；只给本地路径不算交付完成。文件夹只保留一个最新 APK：先上传新包并核对，再把旧包移入回收站。
-- 交付用 R8 压缩后的 release 包（约 2.5 MB）。Drive 连接器单个文件上限 10 MB，20 MB 的 debug 包传不上去。
+- 交付的是 Play 签名的通用 APK（R8 压缩后约 2.5 MB）。Drive 连接器单个文件上限 10 MB；不交付本机构建的 APK（签名不同，Google 登录失败）。
 - 文件名 `NoteFable-v<版本>.apk`，版本取自 `mobile/android/app/build.gradle.kts` 的 `versionName`；仅供测试的包在文件名里注明 `dev`。保留文件夹的共享设置。
-- 交付新包前把 `versionCode` 加 1、`versionName` 同步更新，否则系统可能不允许覆盖安装，也分不清手机上装的是哪一版。
-- 上传实际通过构建、签名及运行验证的 APK，随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
-- 交付的 APK 和上传 Play 的 AAB 用同一个上传密钥签名。以前侧载的 debug 签名包签名不同，不能直接覆盖安装，要先卸载一次。
+- 上传前装到手机上跑过一遍（至少能打开、能登录），随后读取 Drive 文件元数据，确认文件名、大小和所属文件夹与本地交付物相符，再报告上传完成。
+- 以前侧载的本机签名包（debug 签名或上传密钥签名）和 Play 签名不同，不能直接覆盖安装，要先卸载一次。
 
 ## 正式签名与 Google Play
 
-- **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包；缺任何一个时 `bundleRelease` / `assembleRelease` 直接失败，只有加 `-Pnotefable.release.debugSigning=true` 才用 debug 签名（只能自己侧载）。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
-- **构建**：`./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`（上传 Play）；`assembleRelease` → APK（侧载、Drive 交付）。每次上传 Play 前 `versionCode` 加 1。
-- **Play 应用签名**：Play 用自己保管的应用签名密钥重新签名后分发。Google Cloud 的 Android OAuth 客户端一个只能填一个 SHA-1，所以每种签名各建一个（包名都是 `com.kakumine.notefable`）：`NoteFable-Android`（这台电脑的 debug 签名）、`NoteFable-Android-Upload`（上传密钥，侧载的 release 包）、以及 Play Console → 应用完整性里的应用签名密钥（从 Play 安装的包，开发者账号建好后再加）。缺哪个，那种安装方式下“使用 Google 继续”就失败（邮箱登录不受影响）。OAuth 同意屏幕已经是“正式版 / 外部”，任何 Google 账号都能登录。
+- **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包；缺任何一个时 `bundleRelease` / `assembleRelease` 直接失败，只有加 `-Pnotefable.release.debugSigning=true` 才用 debug 签名（只能自己侧载）。上传密钥只用来把 AAB 交给 Play，它签的包不交付给用户。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
+- **构建**：`./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`（上传 Play）；`assembleRelease` → 本机签名的 APK，只用于本机检查（没有 Google 登录），不交付。每次上传 Play 前 `versionCode` 加 1。
+- **Play 应用签名**：Play 用自己保管的应用签名密钥（Google 生成，私钥不给开发者）重新签名后分发。Google Cloud 的 Android OAuth 客户端一个只能填一个 SHA-1，所以只登记这一把：`NoteFable-Android`（包名 `com.kakumine.notefable`，SHA-1 取自 Play Console → 应用完整性 → アプリ署名鍵）。Google Cloud 里只有它和网页用的 `NoteFable-Web` 两个 OAuth 客户端；以前登记 debug 签名和上传密钥的客户端已删除。不用“鍵を変更”把应用签名密钥换成上传密钥：一把密钥兼任上传和签发，泄露后无法重置上传密钥。OAuth 同意屏幕已经是“正式版 / 外部”，任何 Google 账号都能登录。
 - **商店资料**：文字和 Console 表单答案在 [docs/play-store/](../play-store/listing.md)，图片在 `mobile/android/play-store/`。
 - Play 政策要求的两个应用内功能：设置里的“删除账号”（`DELETE /api/account`，网页 `/delete-account` 说明删除方法）和每条回答“…”菜单里的“报告回答”（`POST /api/reports`，发到开发者邮箱）。见 [chat-flow.md](chat-flow.md) 和 [database.md](database.md)。
 
@@ -55,5 +66,5 @@ Google 不允许在内嵌 WebView 里走网页登录，App 用安卓系统的账
 
 要点：
 - **受众是 Web 客户端 ID，不是 Android 客户端 ID。** Google Cloud 里建的 Android 类型客户端（包名 + 签名 SHA-1）只是用来登记"这个安装包有资格调用登录"，代码里不会用到它的 ID。
-- 不同签名的包要各自登记指纹：debug 签名、上传密钥和 Play 的应用签名密钥是三个指纹，一个 Android 客户端只能填一个，所以各建一个客户端（见“正式签名与 Google Play”）；换电脑后 debug 签名也会变。
+- 只登记 Play 应用签名密钥的指纹（`NoteFable-Android`）。本机签名的包（debug、本机 release）在 Credential Manager 这一步就失败，只能用邮箱验证码登录（见“正式签名与 Google Play”）。
 - OAuth 同意屏幕处于"测试"状态时，只有加入"测试用户"的账号能登录（现在是正式版）。

@@ -61,9 +61,9 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 - `mobile/android/` is the only Android client (Kotlin/Compose, see `docs/architecture/android-native.md`); the old Capacitor wrapper was removed. `mobile/` holds only native clients: `android/` and `ios/` (native iOS, not started); no cross-platform shells. Native UI must replicate the web UI: measure the web first (CSS, computed styles at 412x915, i18n dictionaries), never invent styling, dark mode or copy; leave out controls that have no working feature yet. Develop web and native in sync: a task that changes user-visible web behavior or UI makes the same change on native in the same task and PR, and delivers an APK when it merges. If native truly can't do a part yet, say so in the PR and the final report and list it in `docs/architecture/android-native.md`.
 - Don't commit APKs, build outputs or `local.properties` (use forward slashes for `sdk.dir`).
-- Every delivered APK goes to the Google Drive release folder in `docs/architecture/android.md`, and the folder holds exactly one APK: the latest. Upload the new one, verify size and folder, then move all older APKs to the trash and return the link.
+- Every delivered APK is the Play-signed universal APK of an AAB on the internal testing track (one signing key, one Android OAuth client; locally signed builds have no Google login), and goes to the Google Drive release folder in `docs/architecture/android.md`, which holds exactly one APK: the latest. Upload the new one, verify size and folder, then move all older APKs to the trash and return the link. Flow: `docs/architecture/android.md`.
 - `globals.css` rules are unlayered and beat Tailwind utilities: restyle at breakpoints with an equal-or-higher-specificity `@media` rule placed after, not `hidden` / `sm:hidden`. Panels needing the Back key push a history entry (`use-back-to-close.ts`).
-- Native Google login: token audience is the Web client ID.
+- Native Google login: token audience is the Web client ID; the only Android OAuth client is `NoteFable-Android` (Play app signing key SHA-1).
 
 ## Review and Validation
 

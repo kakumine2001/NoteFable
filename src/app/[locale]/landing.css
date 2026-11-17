@@ -182,8 +182,8 @@
 /* スマホの幅では、ブランドの下に言語とリンクの行を回す（言語名や訳の長さで 1 行に収まらないことがある）。 */
 @media (max-width: 520px) {
   .tl-footer { height: auto; flex-wrap: wrap; gap: 4px 16px; padding: 20px 0; }
-  .tl-footer-end, .tl-footer nav { gap: 16px; }
-  .tl-footer-end { flex-wrap: wrap; }
+  .tl-footer-end, .tl-footer nav { gap: 0 16px; }
+  .tl-footer-end, .tl-footer nav { flex-wrap: wrap; }
 }
 
 @keyframes tl-rise { from { opacity: 0; transform: translateY(0.35em); filter: blur(6px); } }
