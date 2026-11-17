@@ -1,10 +1,28 @@
 "use client";
 
 import { Check, Languages } from "lucide-react";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_NAMES, LOCALES, type Locale } from "@/lib/i18n/locale";
 import { useBackToClose } from "@/lib/use-back-to-close";
+
+// 言語の一覧を開くボタンの状態（一覧の位置と、閉じたあとのフォーカス）。このメニューと設定画面の「言語」の行が使う。
+export function useLanguageMenuAnchor() {
+  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  // 閉じたあとにボタンへフォーカスを戻す（開いている間はモーダルの外が操作できず、focus() が効かない）。
+  const refocus = useRef(false);
+  useEffect(() => {
+    if (anchor || !refocus.current) return;
+    refocus.current = false;
+    triggerRef.current?.focus();
+  }, [anchor]);
+  return {
+    anchor, triggerRef,
+    toggle: (event: MouseEvent<HTMLButtonElement>) => setAnchor(anchor ? null : event.currentTarget.getBoundingClientRect()),
+    close: () => { refocus.current = true; setAnchor(null); },
+  };
+}
 
 // 表示言語のメニュー（ログインしていない人のサイドバー下部と、紹介ページのフッター）。ボタンとメニューの印は今の表示言語。
 // 選んでいなければ環境の言語（src/lib/i18n/locale.ts の順）で表示していて、それに印が付く。
@@ -12,32 +30,18 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 // onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。切り替えが済んでから 1 回だけ呼ぶ。
 export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
   const { t, locale, preference, target, changeError, setPreference } = useI18n();
-  const [anchor, setAnchor] = useState<DOMRect | null>(null);
+  const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
   // このメニューで最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
   const [chosen, setChosen] = useState<Locale | null>(null);
   const notified = useRef<Locale | null>(null);
-  const triggerRef = useRef<HTMLButtonElement>(null);
-  // 閉じたあとにボタンへフォーカスを戻す（開いている間はモーダルの外が操作できず、focus() が効かない）。
-  const refocus = useRef(false);
   // 切り替え中ならその行き先に印を付ける。
   const current = target && target !== "auto" ? target : locale;
-
-  useEffect(() => {
-    if (anchor || !refocus.current) return;
-    refocus.current = false;
-    triggerRef.current?.focus();
-  }, [anchor]);
 
   useEffect(() => {
     if (!chosen || locale !== chosen || notified.current === chosen) return;
     notified.current = chosen;
     onChoose?.(chosen);
   }, [chosen, locale, onChoose]);
-
-  function close() {
-    refocus.current = true;
-    setAnchor(null);
-  }
 
   function choose(next: Locale) {
     close();
@@ -54,7 +58,7 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
     <>
       <button ref={triggerRef} type="button" className={className} aria-haspopup="menu" aria-expanded={anchor !== null}
         aria-label={t("Language: {language}", { language: LOCALE_NAMES[locale] })}
-        onClick={(event) => setAnchor(anchor ? null : event.currentTarget.getBoundingClientRect())}>
+        onClick={toggle}>
         <Languages size={14} aria-hidden="true" />
         <span lang={locale}>{LOCALE_NAMES[locale]}</span>
       </button>
@@ -64,23 +68,25 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
   );
 }
 
-function LanguageMenuPanel({ anchor, current, onChoose, onClose }: {
-  anchor: DOMRect; current: Locale; onChoose: (next: Locale) => void; onClose: () => void;
+// 言語の一覧（ボタンの下か上に開く）。設定画面の「言語」の行も同じものを使う。
+// current は印を付ける言語（null はどれにも付けない）。align="end" はボタンの右端に揃える（行の右端にあるボタン用）。
+export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, onClose }: {
+  anchor: DOMRect; current: Locale | null; align?: "start" | "end"; onChoose: (next: Locale) => void; onClose: () => void;
 }) {
   const { t } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   useBackToClose(true, onClose);
   useEffect(() => {
     ref.current?.showModal();
-    ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]')?.focus();
+    (ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? ref.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"]'))?.focus();
   }, []);
 
-  // ボタンは画面の下の方にあるので、下に入らなければ上に開く。横はボタンの左端に揃え、画面からはみ出さない。
+  // ボタンは画面の下の方にあるので、下に入らなければ上に開く。横はボタンの左端（align="end" は右端）に揃え、画面からはみ出さない。
   // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）で見積もる。
   const height = LOCALES.length * 44 + 12;
   const below = anchor.bottom + 4 + height <= window.innerHeight - 8;
   const style = {
-    left: Math.max(8, Math.min(anchor.left, window.innerWidth - 236)),
+    left: Math.max(8, Math.min(align === "end" ? anchor.right - 228 : anchor.left, window.innerWidth - 236)),
     // 上に開くときは top を外す（モーダルの <dialog> は既定で top: 0 を持っていて、bottom だけでは効かない）。
     ...(below ? { top: anchor.bottom + 4 } : { top: "auto", bottom: Math.max(8, window.innerHeight - anchor.top + 4) }),
   };

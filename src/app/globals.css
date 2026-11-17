@@ -371,56 +371,10 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .avatar-crop-actions .is-primary { background: var(--nf-ink); color: #fff; }
 .avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--nf-ink-hover); }
 .avatar-crop-actions button:disabled { opacity: 0.55; }
-/* 設定画面のプロフィール。メニューだった頃の負の余白をやめ、編集欄は枠で囲む。 */
-.settings-profile .profile-editor, .settings-app-icon .profile-editor { margin: 12px 0 0; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 8px; }
-/* 設定で替えられるワークスペースのアイコン（絵文字・画像）と、設定画面のその欄。 */
+/* 設定で替えられるワークスペースのアイコン（絵文字・画像）。設定画面の見た目は settings-dialog.css。 */
 .app-icon-emoji { display: inline-grid; flex: none; place-items: center; line-height: 1; }
 .app-icon-image { display: block; flex: none; border-radius: 22%; object-fit: cover; }
-.settings-app-icon-row { display: flex; align-items: center; gap: 14px; margin-top: 0.4rem; }
-.settings-app-icon-preview {
-  display: grid; width: 48px; height: 48px; flex: none; place-items: center; border: 1px solid var(--notion-border-strong);
-  border-radius: 999px; background: var(--notion-bg); color: var(--nf-ink); box-shadow: var(--notion-shadow);
-}
-.settings-app-icon-actions { display: flex; min-width: 0; flex-wrap: wrap; gap: 0 14px; }
-.settings-app-icon-actions .settings-inline-action { margin-top: 0; }
-.settings-inline-action {
-  display: inline-flex; min-height: 34px; align-items: center; gap: 8px; margin: 10px -8px 0; padding: 0 8px; border-radius: 6px;
-  font-size: 14px; color: var(--notion-text); text-align: left;
-}
-.settings-inline-action:hover:not(:disabled) { background: var(--notion-hover); }
-.settings-inline-action:disabled { opacity: 0.55; }
-.settings-language-list { display: grid; gap: 2px; margin-top: 0.4rem; }
-/* ラジオボタンの見た目（.project-settings-option の input と同じ 1rem・青）。キーボードで選ぶまで切り替えないため button で作る。 */
-.settings-language-option { width: 100%; color: var(--notion-text); }
-.settings-language-option:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
-.settings-language-radio { display: grid; width: 1rem; height: 1rem; flex: none; place-items: center; border: 1px solid var(--notion-border-strong); border-radius: 999px; background: #fff; }
-.settings-language-option[aria-checked="true"] .settings-language-radio { border-color: var(--notion-blue); background: radial-gradient(circle, var(--notion-blue) 0 0.25rem, #fff 0.27rem); }
-.settings-account { padding-top: 0.5rem; border-top: 1px solid var(--notion-border); }
-.settings-plan-badge {
-  margin-right: auto; margin-left: 2px; padding: 1px 8px; border-radius: 999px; background: var(--notion-hover);
-  color: var(--notion-muted); font-size: 0.75rem; font-weight: 600;
-}
-.settings-plan-badge.is-pro { background: var(--nf-accent-soft); color: var(--nf-accent); }
-.settings-plan-usage { display: grid; gap: 10px; margin: 0.6rem 0 0; }
-.settings-plan-meter { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 4px 12px; }
-.settings-plan-meter dt { font-size: 0.8125rem; color: var(--notion-text); }
-.settings-plan-meter dd { margin: 0; }
-.settings-plan-count { font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--notion-muted); }
-.settings-plan-bar { grid-column: 1 / -1; display: block; height: 4px; overflow: hidden; border-radius: 999px; background: var(--notion-hover); }
-.settings-plan-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--notion-blue); transition: width 300ms ease; }
-.settings-plan-bar.is-full > span { background: #b45309; }
-.settings-plan-offer {
-  margin-top: 0.85rem; padding: 12px 14px; border: 1px solid var(--nf-accent-line); border-radius: 10px;
-  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
-}
-.settings-plan-offer-title { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--nf-ink); font-size: 0.875rem; font-weight: 600; }
-.settings-plan-offer-title svg { color: var(--nf-accent); }
-.settings-plan-upgrade { width: auto; margin-top: 10px; padding: 0 16px; border-radius: 9999px; }
 @media (max-width: 639px) {
-  .settings-plan-upgrade { width: 100%; }
-}
-@media (max-width: 639px) {
-  .settings-inline-action { min-height: 44px; font-size: 15px; }
   .profile-upload-button { height: 44px; font-size: 15px; }
   .avatar-crop-actions button { height: 42px; font-size: 15px; }
   .profile-name-input { height: 40px; font-size: 16px; }
@@ -2790,14 +2744,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 /* 共通指示・参照ノートを持つプロジェクトの行に付ける小さな目印。 */
 .chat-project-hint { flex: none; color: var(--notion-faint); }
-/* 設定の「アカウントを削除」。押すとその場に確認を出す（ダイアログを重ねない）。 */
-.settings-danger-action { display: flex; margin-top: 2px; color: #b91c1c; }
-.settings-delete-confirm { margin-top: 10px; padding: 12px; border: 1px solid rgba(185, 28, 28, 0.25); border-radius: 8px; background: rgba(185, 28, 28, 0.04); font-size: 14px; line-height: 1.5; }
-.settings-delete-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 /* 回答の「報告」ダイアログの理由欄（.notes-dialog-input の複数行版）。 */
 .answer-report-dialog .answer-report-reason { min-height: 6rem; resize: vertical; line-height: 1.5; }
-/* .notion-button が後ろで文字色を上書きするので、確認の「完全に削除」を赤に戻す。 */
-.settings-delete-actions .notion-button.notes-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.2); }
 
 /* Notes のホーム（パソコン幅）: あいさつと「最近編集したノート」のカード。スマホ幅は一覧だけを出す。 */
 .notes-home-hero { display: none; }

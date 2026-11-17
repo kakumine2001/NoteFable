@@ -1,0 +1,190 @@
+/* 設定画面（settings-dialog.tsx）。デスクトップ幅は左にナビ・右に選んだ欄、スマホ幅は全画面で全部の欄をカードにして縦に並べる。
+   globals.css は layer 外なので、同じ詳細度では順序で負ける。ここでは dialog.settings-dialog を頭に付けて確実に勝たせる。 */
+
+dialog.settings-dialog {
+  width: min(calc(100% - 2rem), 50rem); height: min(38rem, calc(100dvh - 4rem)); max-width: none; max-height: none;
+  padding: 0; overflow: hidden; border-radius: 16px;
+  box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 24px 64px rgba(12, 23, 48, 0.22);
+  animation: settings-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+dialog.settings-dialog::backdrop { background: rgba(12, 23, 48, 0.32); backdrop-filter: blur(2px); animation: settings-fade 180ms ease-out both; }
+@keyframes settings-enter { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+@keyframes settings-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes settings-slide { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes settings-shake { 0%, 100% { transform: translateX(0); } 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+
+dialog.settings-dialog .settings-shell { display: flex; height: 100%; }
+
+/* 左のナビ（デスクトップ幅だけ）。 */
+dialog.settings-dialog .settings-nav {
+  display: flex; width: 13.5rem; flex: none; flex-direction: column; gap: 2px; padding: 0.75rem;
+  border-right: 1px solid var(--notion-border); background: var(--notion-sidebar);
+}
+dialog.settings-dialog .settings-nav-title { margin: 0; padding: 0.5rem 0.625rem 0.75rem; font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; color: var(--nf-ink); }
+dialog.settings-dialog .settings-nav-item {
+  display: flex; min-height: 2.25rem; align-items: center; gap: 0.625rem; padding: 0 0.625rem; border-radius: 8px;
+  font-size: 0.875rem; color: var(--notion-muted); text-align: left; transition: background-color 120ms ease, color 120ms ease;
+}
+dialog.settings-dialog .settings-nav-item[aria-current="page"] { background: var(--notion-active); color: var(--notion-text); font-weight: 550; }
+dialog.settings-dialog .settings-nav-item:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+@media (hover: hover) { dialog.settings-dialog .settings-nav-item:not([aria-current="page"]):hover { background: var(--notion-hover); color: var(--notion-text); } }
+
+dialog.settings-dialog .settings-main { position: relative; display: flex; min-width: 0; flex: 1; flex-direction: column; background: var(--notion-bg); }
+dialog.settings-dialog .settings-header { display: flex; min-height: 3.5rem; flex: none; align-items: center; gap: 0.5rem; padding: 0.75rem 0.75rem 0.25rem 1.5rem; }
+dialog.settings-dialog .settings-title { min-width: 0; flex: 1; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; color: var(--nf-ink); }
+dialog.settings-dialog .settings-title-mobile, dialog.settings-dialog .settings-back { display: none; }
+dialog.settings-dialog .settings-close { width: 2rem; height: 2rem; border-radius: 8px; }
+dialog.settings-dialog .settings-body { min-height: 0; flex: 1; overflow-y: auto; padding: 0.5rem 1.5rem 1.5rem; overscroll-behavior: contain; }
+/* 「未保存の変更」のバーが出ている間は、最後の欄がバーに隠れない分だけ下を空ける。 */
+dialog.settings-dialog .settings-body.has-unsaved { padding-bottom: 5.5rem; }
+
+/* 欄（グループ）。デスクトップ幅ではナビで選んだものだけを出す。 */
+dialog.settings-dialog .settings-group + .settings-group { margin-top: 1.25rem; }
+dialog.settings-dialog .settings-group-label { margin: 0 0 0.5rem 0.25rem; font-size: 0.8125rem; font-weight: 550; color: var(--notion-muted); }
+dialog.settings-dialog .settings-save-error { margin: 0 0 0.75rem; }
+@media (min-width: 640px) {
+  dialog.settings-dialog .settings-group:not(.is-active) { display: none; }
+  /* 見出しは右上に出ているので、欄ごとのラベルは出さない。余白は、出ている欄どうしの間だけに取る。 */
+  dialog.settings-dialog .settings-group-label { display: none; }
+  dialog.settings-dialog .settings-group + .settings-group { margin-top: 0; }
+  dialog.settings-dialog .settings-group.is-active ~ .settings-group.is-active { margin-top: 1.25rem; }
+}
+
+/* カードと行。 */
+dialog.settings-dialog .settings-card { overflow: hidden; border: 1px solid var(--notion-border-strong); border-radius: 12px; background: #fff; }
+dialog.settings-dialog .settings-card-padded { padding: 1rem; }
+dialog.settings-dialog .settings-card > * + * { border-top: 1px solid var(--notion-border); }
+dialog.settings-dialog .settings-card-padded > * + * { border-top: 0; }
+dialog.settings-dialog .settings-row { display: flex; width: 100%; min-height: 3.25rem; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.625rem 1rem; text-align: left; }
+dialog.settings-dialog .settings-row-text { display: flex; min-width: 0; flex-direction: column; gap: 0.125rem; }
+dialog.settings-dialog .settings-row-title { font-size: 0.9375rem; font-weight: 500; color: var(--notion-text); }
+dialog.settings-dialog .settings-row-help { font-size: 0.8125rem; line-height: 1.5; color: var(--notion-muted); }
+dialog.settings-dialog .settings-row-note { padding: 0 1rem 0.75rem; }
+dialog.settings-dialog .settings-row-note .project-settings-error { margin-top: 0; }
+dialog.settings-dialog .settings-row-button { justify-content: flex-start; gap: 0.75rem; color: var(--notion-text); transition: background-color 120ms ease; }
+dialog.settings-dialog .settings-row-button svg { flex: none; color: var(--notion-muted); }
+dialog.settings-dialog .settings-row-button.is-danger, dialog.settings-dialog .settings-row-button.is-danger svg, dialog.settings-dialog .settings-row-button.is-danger .settings-row-title { color: #b91c1c; }
+dialog.settings-dialog .settings-row-button:disabled { opacity: 0.55; }
+dialog.settings-dialog .settings-row-button:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+@media (hover: hover) { dialog.settings-dialog .settings-row-button:hover:not(:disabled) { background: var(--notion-hover); } }
+
+/* 行の右端の選択ボタン（言語）。押すと一覧が開く。 */
+dialog.settings-dialog .settings-select {
+  display: inline-flex; height: 2.25rem; max-width: 60%; flex: none; align-items: center; gap: 0.5rem; padding: 0 0.625rem 0 0.75rem;
+  border: 1px solid var(--notion-border-strong); border-radius: 8px; background: #fff; font-size: 0.875rem; color: var(--notion-text);
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+dialog.settings-dialog .settings-select > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dialog.settings-dialog .settings-select > svg { flex: none; color: var(--notion-faint); }
+dialog.settings-dialog .settings-select[aria-expanded="true"] { border-color: var(--notion-blue); box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16); }
+dialog.settings-dialog .settings-select:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+@media (hover: hover) { dialog.settings-dialog .settings-select:hover { background: var(--notion-sidebar); } }
+
+/* 小さな操作ボタン（絵文字を選ぶ・画像をアップロード・購読の管理など）。 */
+dialog.settings-dialog .settings-chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 1rem 0.875rem; }
+dialog.settings-dialog .settings-chip {
+  display: inline-flex; min-height: 2rem; align-items: center; gap: 0.4rem; padding: 0 0.75rem; border: 1px solid var(--notion-border-strong);
+  border-radius: 999px; background: #fff; font-size: 0.8125rem; font-weight: 500; color: var(--notion-text); transition: background-color 120ms ease;
+}
+dialog.settings-dialog .settings-chip svg { flex: none; color: var(--notion-muted); }
+dialog.settings-dialog .settings-chip:disabled { opacity: 0.55; }
+dialog.settings-dialog .settings-chip:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+@media (hover: hover) { dialog.settings-dialog .settings-chip:hover:not(:disabled) { background: var(--notion-hover); } }
+
+/* プロフィール。 */
+dialog.settings-dialog .settings-profile .profile-menu-head { gap: 1rem; }
+dialog.settings-dialog .settings-profile .profile-name-input { height: 2.375rem; border-radius: 8px; }
+dialog.settings-dialog .settings-profile .profile-email { margin-top: 0.375rem; font-size: 0.8125rem; }
+dialog.settings-dialog .settings-profile .profile-editor { margin: 0.875rem 0 0; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 10px; }
+dialog.settings-dialog .settings-profile-reset { margin-top: 0.875rem; }
+
+/* アイコン。編集欄（絵文字の一覧）はメニューだった頃の負の余白をやめ、行の中に枠で囲んで出す。 */
+dialog.settings-dialog .settings-app-icon-preview {
+  display: grid; width: 2.5rem; height: 2.5rem; flex: none; place-items: center; border: 1px solid var(--notion-border-strong);
+  border-radius: 999px; background: var(--notion-bg); color: var(--nf-ink);
+}
+dialog.settings-dialog .settings-app-icon .profile-editor { margin: 0 1rem 1rem; overflow: hidden; border: 1px solid var(--notion-border); border-radius: 10px; }
+
+/* プラン。 */
+dialog.settings-dialog .settings-plan-head { display: flex; align-items: center; gap: 0.5rem; margin: 0; }
+dialog.settings-dialog .settings-plan-name { font-size: 1.0625rem; font-weight: 650; letter-spacing: -0.01em; color: var(--nf-ink); }
+dialog.settings-dialog .settings-plan-badge { padding: 0.125rem 0.5rem; border-radius: 999px; background: var(--notion-hover); color: var(--notion-muted); font-size: 0.75rem; font-weight: 600; }
+dialog.settings-dialog .settings-plan-badge.is-pro { background: var(--nf-accent-soft); color: var(--nf-accent); }
+dialog.settings-dialog .settings-plan-usage { display: grid; gap: 0.875rem; margin: 1rem 0 0; }
+dialog.settings-dialog .settings-plan-meter { display: grid; grid-template-columns: 1fr auto; align-items: baseline; gap: 0.375rem 0.75rem; }
+dialog.settings-dialog .settings-plan-meter dt { font-size: 0.875rem; color: var(--notion-text); }
+dialog.settings-dialog .settings-plan-meter dd { margin: 0; }
+dialog.settings-dialog .settings-plan-count { font-size: 0.8125rem; font-variant-numeric: tabular-nums; color: var(--notion-muted); }
+dialog.settings-dialog .settings-plan-bar { grid-column: 1 / -1; display: block; height: 6px; overflow: hidden; border-radius: 999px; background: var(--notion-hover); }
+dialog.settings-dialog .settings-plan-bar > span { display: block; height: 100%; border-radius: inherit; background: var(--notion-blue); transition: width 300ms ease; }
+dialog.settings-dialog .settings-plan-bar.is-full > span { background: #b45309; }
+dialog.settings-dialog .settings-plan-offer {
+  margin-top: 1rem; padding: 0.875rem 1rem; border: 1px solid var(--nf-accent-line); border-radius: 12px;
+  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
+}
+dialog.settings-dialog .settings-plan-offer-title { display: flex; align-items: center; gap: 0.375rem; margin: 0; color: var(--nf-ink); font-size: 0.9375rem; font-weight: 600; }
+dialog.settings-dialog .settings-plan-offer-title svg { color: var(--nf-accent); }
+dialog.settings-dialog .settings-plan-upgrade { width: auto; margin-top: 0.75rem; padding: 0 1.125rem; border-radius: 9999px; }
+dialog.settings-dialog .settings-plan-manage { margin-top: 1rem; }
+
+/* カスタム指示。 */
+dialog.settings-dialog .project-settings-label { font-size: 0.9375rem; font-weight: 500; }
+dialog.settings-dialog textarea.settings-textarea {
+  display: block; width: 100%; min-height: 11rem; margin-top: 0.75rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 10px;
+  padding: 0.625rem 0.75rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: #fff;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+dialog.settings-dialog textarea.settings-textarea:focus { border-color: var(--notion-blue); outline: none; box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16); }
+dialog.settings-dialog .settings-saved { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #15803d; }
+
+/* アカウントの削除。押すとその場に確認を出す（ダイアログを重ねない）。 */
+dialog.settings-dialog .settings-delete-confirm { padding: 0.875rem 1rem; background: rgba(185, 28, 28, 0.04); font-size: 0.875rem; line-height: 1.5; }
+dialog.settings-dialog .settings-delete-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
+/* .notion-button が文字色を上書きするので、確認の「完全に削除」を赤に戻す。 */
+dialog.settings-dialog .settings-delete-actions .notion-button.notes-delete { color: #b91c1c; border: 1px solid rgba(185, 28, 28, 0.2); }
+
+/* 「未保存の変更」のバー。カスタム指示を書き換えた間だけ下に浮かぶ。 */
+dialog.settings-dialog .settings-unsaved {
+  position: absolute; right: 1rem; bottom: 1rem; left: 1rem; display: flex; min-height: 3.25rem; align-items: center; gap: 0.5rem; padding: 0.5rem 0.5rem 0.5rem 1rem;
+  border-radius: 14px; background: var(--nf-ink); color: #fff; box-shadow: 0 8px 28px rgba(12, 23, 48, 0.28);
+  animation: settings-slide 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+dialog.settings-dialog .settings-unsaved.is-attention { animation: settings-shake 360ms ease both; }
+dialog.settings-dialog .settings-unsaved-text { min-width: 0; flex: 1; font-size: 0.875rem; font-weight: 500; }
+dialog.settings-dialog .settings-unsaved button { min-height: 2.25rem; flex: none; padding: 0 0.875rem; border-radius: 10px; font-size: 0.875rem; font-weight: 550; transition: background-color 120ms ease; }
+dialog.settings-dialog .settings-unsaved button:disabled { opacity: 0.6; }
+dialog.settings-dialog .settings-unsaved button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+dialog.settings-dialog .settings-unsaved-discard { color: rgba(255, 255, 255, 0.82); }
+dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--nf-ink); }
+@media (hover: hover) {
+  dialog.settings-dialog .settings-unsaved-discard:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: #fff; }
+  dialog.settings-dialog .settings-unsaved-save:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
+}
+
+/* スマホ幅: 全画面。ナビは出さず、上に「戻る」と題、下に全部の欄をカードで並べる（地は灰色、カードは白）。 */
+@media (max-width: 639px) {
+  dialog.settings-dialog { width: 100%; height: 100dvh; margin: 0; border-radius: 0; box-shadow: none; animation-name: settings-slide; animation-duration: 220ms; }
+  dialog.settings-dialog .settings-nav, dialog.settings-dialog .settings-close, dialog.settings-dialog .settings-title-desktop { display: none; }
+  dialog.settings-dialog .settings-title-mobile { display: inline; }
+  dialog.settings-dialog .settings-back { display: grid; width: 2.5rem; height: 2.5rem; border-radius: 0.3rem; color: var(--notion-text); }
+  dialog.settings-dialog .settings-main { background: var(--notion-sidebar); }
+  dialog.settings-dialog .settings-header { min-height: 3.5rem; gap: 0.25rem; padding: 0 0.65rem; padding-top: env(safe-area-inset-top); }
+  dialog.settings-dialog .settings-body { padding: 0.5rem 1rem calc(2rem + env(safe-area-inset-bottom)); }
+  dialog.settings-dialog .settings-body.has-unsaved { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+  dialog.settings-dialog .settings-card { border-color: var(--notion-border); }
+  dialog.settings-dialog .settings-group + .settings-group { margin-top: 1.5rem; }
+  dialog.settings-dialog .settings-row { min-height: 3.5rem; }
+  dialog.settings-dialog .settings-row-title { font-size: 1rem; }
+  dialog.settings-dialog .settings-select { height: 2.5rem; font-size: 0.9375rem; }
+  dialog.settings-dialog .settings-chip { min-height: 2.5rem; padding: 0 0.875rem; font-size: 0.875rem; }
+  dialog.settings-dialog .settings-plan-upgrade { width: 100%; }
+  /* 16px 未満だと iOS が入力時に拡大するため、フォームは 16px にそろえる。 */
+  dialog.settings-dialog textarea.settings-textarea, dialog.settings-dialog .settings-profile .profile-name-input { font-size: 1rem; }
+  dialog.settings-dialog .settings-profile .profile-name-input { height: 2.75rem; }
+  dialog.settings-dialog .settings-unsaved { bottom: calc(1rem + env(safe-area-inset-bottom)); }
+  dialog.settings-dialog .settings-unsaved button { min-height: 2.5rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.settings-dialog, dialog.settings-dialog::backdrop, dialog.settings-dialog .settings-unsaved, dialog.settings-dialog .settings-unsaved.is-attention { animation: none; }
+}

@@ -18,6 +18,9 @@
     <string name="acct_photo_unreadable">画像を読み込めませんでした。別の写真をお試しください。</string>
     <string name="acct_could_not_save">保存できませんでした。</string>
     <string name="acct_settings">設定</string>
+    <string name="settings_general">一般</string>
+    <string name="settings_personalization">パーソナライズ</string>
+    <string name="settings_unsaved">未保存の変更があります</string>
     <string name="acct_custom_instructions">カスタム指示</string>
     <string name="acct_custom_instructions_help">次のメッセージから、すべてのチャットに適用されます。自分のことや、NoteFable にどう答えてほしいかを書いてください。プロジェクト内では、プロジェクトの指示が優先されます。</string>
     <string name="acct_custom_instructions_placeholder">例: JLPT N1 の勉強中です。文法は短い例文で説明して、回答は簡潔にしてください。</string>
