@@ -10,8 +10,8 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        // Google 登录要求每种签名在 Google Cloud 各有一个 Android 客户端（应用 ID + SHA-1）：NoteFable-Android（debug）、
-        // NoteFable-Android-Upload（上传密钥）、Play 的应用签名密钥（见 docs/architecture/android.md）。
+        // Google 登录只认 Google Cloud 里登记的 Android 客户端 NoteFable-Android（应用 ID + Play 应用签名的 SHA-1），
+        // 所以只有 Play 签名的包能用 Google 登录，本机签名的包用邮箱验证码（见 docs/architecture/android.md）。
         applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
