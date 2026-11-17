@@ -87,10 +87,12 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
   }, []);
   // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）と区切り線で見積もる。
   const height = items * 44 + 24;
+  // ボタンは画面の一番下にあるので上に開く。上に入りきらない低い画面では上端（8px）から出し、
+  // .chat-actions-menu の max-height（画面の高さ − 16px）を超える分はメニューの中でスクロールする。
   const above = anchor.top - 4 - height >= 8;
   const style = {
     left: Math.max(8, Math.min(anchor.right - 228, window.innerWidth - 236)),
-    ...(above ? { top: "auto", bottom: window.innerHeight - anchor.top + 4 } : { top: anchor.bottom + 4 }),
+    ...(above ? { top: "auto", bottom: window.innerHeight - anchor.top + 4 } : { top: 8 }),
   };
 
   function keyboard(event: KeyboardEvent<HTMLDivElement>) {
