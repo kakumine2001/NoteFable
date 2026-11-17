@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Pin, Plus, ScrollText, Search } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, MessageSquareText, MoreHorizontal, PanelLeftClose, Plus, ScrollText, Search } from "lucide-react";
 import { useRef, useState } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -87,7 +87,6 @@ export function ChatSidebar({
                     onClick={event=>{setPicker(null);setAction({kind:"menu",session,anchor:event.currentTarget.getBoundingClientRect()});}}>
                     <MoreHorizontal size={16}/>
                   </button>
-                  <ChatPinButton session={session} onUpdate={onUpdate}/>
                 </div>
               );
   }
@@ -157,15 +156,4 @@ function projectHint(project: ChatProject, t: Translate) {
   if (project.hasInstructions) parts.push(t("instructions"));
   if (project.noteCount) parts.push(project.noteCount === 1 ? t("1 reference note") : t("{count} reference notes", { count: project.noteCount }));
   return parts.join(" + ");
-}
-
-function ChatPinButton({session,onUpdate}:{session:Session;onUpdate:ChatSidebarProps["onUpdate"]}) {
-  const t = useT();
-  const [busy,setBusy]=useState(false);
-  const [failed,setFailed]=useState(false);
-  return <button type="button" disabled={busy} className={`notion-row-action chat-pin-button${session.pinned ? " is-pinned" : ""}`} aria-label={session.pinned ? t("Unpin {title}", { title: session.title }) : t("Pin {title}", { title: session.title })} aria-pressed={Boolean(session.pinned)}
-    title={failed ? t("Could not save. Try again.") : session.pinned ? t("Unpin chat") : t("Pin chat")}
-    onClick={async()=>{setBusy(true);try {setFailed(!await onUpdate(session.id,{pinned:!session.pinned}));}catch{setFailed(true);}finally{setBusy(false);}}}>
-    <Pin size={14}/>{failed && <span className="sr-only" role="alert">{t("Could not save pin. Try again.")}</span>}
-  </button>;
 }

@@ -3,12 +3,8 @@
 <resources>
     <string name="sb_pinned">已置顶</string>
     <string name="sb_close_sidebar">关闭侧边栏</string>
-    <string name="sb_pin_chat">置顶聊天</string>
-    <string name="sb_unpin_chat">取消置顶聊天</string>
-    <string name="sb_pin_title">置顶 %1$s</string>
-    <string name="sb_unpin_title">取消置顶 %1$s</string>
-    <string name="sb_pin_failed">无法保存置顶设置，请重试。</string>
-    <string name="sb_could_not_save_retry">无法保存，请重试。</string>
+    <string name="sb_pin">置顶</string>
+    <string name="sb_unpin">取消置顶</string>
     <string name="sb_actions_for_title">%1$s 的操作</string>
     <string name="sb_actions_for_name">%1$s 的操作</string>
     <string name="sb_actions_for_project">项目 %1$s 的操作</string>
