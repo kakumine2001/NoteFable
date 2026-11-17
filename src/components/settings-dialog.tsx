@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, ChevronsUpDown, CircleUser, CreditCard, LoaderCircle, LogOut, SlidersHorizontal, Sparkles, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Check, ChevronsUpDown, CircleUser, CreditCard, LoaderCircle, LogOut, PenLine, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
@@ -109,7 +109,7 @@ type Tab = "general" | "personalization" | "plan" | "account";
 // デスクトップ幅の左のナビに出す順。スマホ幅ではナビを出さず、全部の欄を 1 つの画面に縦に並べる（順番は下の JSX の順）。
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: msg("General"), icon: SlidersHorizontal },
-  { id: "personalization", label: msg("Personalization"), icon: Sparkles },
+  { id: "personalization", label: msg("Personalization"), icon: PenLine },
   { id: "plan", label: msg("Plan"), icon: CreditCard },
   { id: "account", label: msg("Account"), icon: CircleUser },
 ];
