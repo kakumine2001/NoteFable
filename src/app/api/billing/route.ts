@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { signedInUser } from "@/app/api/billing/account";
-import { isBillingConfigured, refreshCustomer } from "@/lib/billing";
+import { isBillingConfigured, isWebhookConfigured, refreshCustomer } from "@/lib/billing";
 import { googlePlayManageUrl, googlePlayProduct, isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
@@ -48,7 +48,8 @@ export async function GET(request: Request) {
       cancelAt: row.subscriptionCancelAt?.toISOString() ?? null,
     } : null,
     // Stripe の Customer Portal で管理できるか（ウェブで買った購読）。Google Play で買った購読は manageUrl（Play ストアの購読画面）で管理する。
-    canManage: configured && Boolean(row.stripeCustomerId) && provider !== "google",
+    // 新規の申し込みを止めている（価格を外した）間も、続いている購読は解約できるようにする。
+    canManage: isWebhookConfigured() && Boolean(row.stripeCustomerId) && provider !== "google",
     manageUrl: provider === "google" ? googlePlayManageUrl() : null,
     usage: summary.usage,
   }, { headers: { "Cache-Control": "private, no-store" } });

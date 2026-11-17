@@ -27,8 +27,8 @@ export default function DeleteAccountPage() {
           <li>All notes, note history, groups, covers, note files and images, chat projects and note edit proposals.</li>
           <li>Your daily usage counters and any pending email sign-in codes.</li>
           <li>
-            Your Pro subscription: one bought on the website ends immediately, and a Google Play subscription stops renewing (the period already paid is not
-            refunded). Stripe and Google keep their own payment records as the law requires.
+            Your Pro subscription: one bought on the website ends immediately and your customer record at Stripe is deleted; a Google Play subscription stops
+            renewing. The period already paid is not refunded. Stripe and Google keep their payment records (such as invoices and charges) as the law requires.
           </li>
         </ul>
         <p>

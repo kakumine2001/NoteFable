@@ -1,12 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { requestOrigin, signedInUser } from "@/app/api/billing/account";
-import { createPortalUrl, isBillingConfigured } from "@/lib/billing";
+import { createPortalUrl, isWebhookConfigured } from "@/lib/billing";
 import { msg } from "@/lib/i18n/translate";
 import { isSameOrigin } from "@/lib/native-google-login";
 
 // 購読の管理（解約、支払い方法、領収書）。Stripe の Customer Portal の URL を返す。
+// 新規の申し込みを止めている（STRIPE_PRICE_ID を外した）間も開ける。
 export async function POST(request: NextRequest) {
-  if (!isBillingConfigured()) return NextResponse.json({ error: msg("Subscriptions are not available yet.") }, { status: 404 });
+  if (!isWebhookConfigured()) return NextResponse.json({ error: msg("Subscriptions are not available yet.") }, { status: 404 });
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
     return NextResponse.json({ error: "Forbidden." }, { status: 403 });
   }

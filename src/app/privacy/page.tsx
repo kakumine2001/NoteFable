@@ -124,7 +124,8 @@ export default function PrivacyPage() {
           NoteFable’s use and transfer to any other app of information received from Google APIs will adhere to the
           {" "}<a href="https://developers.google.com/terms/api-services-user-data-policy">Google API Services User Data Policy</a>, including the Limited Use requirements.
           We use the Google profile information only to sign you in and to link your account. It is stored in our database and in the sign-in cookie.
-          We do not send it to the AI providers, use it for advertising, or transfer it to anyone else except the hosting and storage providers listed above as needed to run the service.
+          We do not send it to the AI providers, use it for advertising, or transfer it to anyone else except the hosting and storage providers listed above as needed to run the service,
+          and Stripe, which receives your email address only when you start a Pro purchase on the website so it can bill you and send receipts.
         </p>
       </LegalSection>
 
@@ -137,7 +138,7 @@ export default function PrivacyPage() {
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Delete account</em> on the website or in the Android app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
-          and settings. It also ends a Pro subscription bought on the website immediately and stops a Google Play subscription from renewing. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
+          and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing; Stripe and Google keep their payment records (such as invoices and charges) as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
           Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.

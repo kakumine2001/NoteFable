@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  retrieve: vi.fn(), list: vi.fn(), cancel: vi.fn(), customersCreate: vi.fn(),
+  retrieve: vi.fn(), list: vi.fn(), cancel: vi.fn(), customersCreate: vi.fn(), customersDel: vi.fn(),
   sessionsList: vi.fn(), sessionsExpire: vi.fn(), sessionsCreate: vi.fn(), sessionsRetrieve: vi.fn(), invoicePayments: vi.fn(), refund: vi.fn(), subUpdate: vi.fn(),
   findUnique: vi.fn(), update: vi.fn(), locks: [] as string[],
 }));
@@ -9,7 +9,7 @@ vi.mock("stripe", async (load) => {
   const actual = await load<typeof import("stripe")>();
   class FakeStripe {
     subscriptions = { retrieve: mocks.retrieve, list: mocks.list, cancel: mocks.cancel, update: mocks.subUpdate };
-    customers = { create: mocks.customersCreate };
+    customers = { create: mocks.customersCreate, del: mocks.customersDel };
     invoicePayments = { list: mocks.invoicePayments };
     refunds = { create: mocks.refund };
     checkout = { sessions: { list: mocks.sessionsList, expire: mocks.sessionsExpire, create: mocks.sessionsCreate, retrieve: mocks.sessionsRetrieve } };
@@ -52,6 +52,7 @@ describe("billing", () => {
     mocks.update.mockResolvedValue({});
     mocks.sessionsList.mockResolvedValue({ data: [] });
     mocks.sessionsExpire.mockResolvedValue({});
+    mocks.customersDel.mockResolvedValue({ id: "cus_1", deleted: true });
     mocks.locks.length = 0;
   });
 
@@ -193,6 +194,17 @@ describe("billing", () => {
     await cancelCustomerBilling("cus_1");
     expect(mocks.sessionsExpire).toHaveBeenCalledWith("cs_open");
     expect(mocks.cancel.mock.calls).toEqual([["sub_live"], ["sub_unpaid"]]);
+    expect(mocks.customersDel).toHaveBeenCalledWith("cus_1");
+    expect(mocks.customersDel.mock.invocationCallOrder[0]).toBeGreaterThan(mocks.cancel.mock.invocationCallOrder[1]);
+  });
+
+  it("deletes the Stripe customer last, accepts one that is already gone, and fails otherwise", async () => {
+    mocks.list.mockResolvedValue({ data: [] });
+    const { default: Stripe } = await import("stripe");
+    mocks.customersDel.mockRejectedValueOnce(new Stripe.errors.StripeInvalidRequestError({ type: "invalid_request_error", code: "resource_missing", message: "No such customer" }));
+    await expect(cancelCustomerBilling("cus_1")).resolves.toBeUndefined();
+    mocks.customersDel.mockRejectedValueOnce(new Error("stripe down"));
+    await expect(cancelCustomerBilling("cus_1")).rejects.toThrow("stripe down");
   });
 
   it("treats a subscription that ended meanwhile as cancelled, and fails when one is still live", async () => {
