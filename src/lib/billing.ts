@@ -174,8 +174,32 @@ export async function createCheckoutUrl(userId: string, origin: string) {
 }
 
 export async function createPortalUrl(customer: string, origin: string) {
+  await ensurePortalCancelsAtPeriodEnd();
   const session = await stripe().billingPortal.sessions.create({ customer, return_url: `${origin}/app?billing=portal` });
   return session.url;
+}
+
+// 解約は請求期間の終わり（利用規約 3 節と特商法表記で、支払い済みの期間は使えると約束している）。
+// Stripe のメールの「購読を管理」リンクもダッシュボードの既定の構成を使うので、自前の構成は作らず既定の構成を直す。
+// 直すのは解約の設定だけで、ほかの項目（規約のリンク、メールアドレスの変更など）はダッシュボードの設定のまま。
+export const PORTAL_CANCEL = { enabled: true, mode: "at_period_end" } as const;
+const PORTAL_CHECK_INTERVAL_MS = 10 * 60_000;
+let portalCheckedAt = 0;
+
+// インスタンスごとに 10 分に一度、既定の構成を確かめる。確かめられなくても管理画面は開く（解約の手段をなくさない）。
+async function ensurePortalCancelsAtPeriodEnd() {
+  if (Date.now() - portalCheckedAt < PORTAL_CHECK_INTERVAL_MS) return;
+  try {
+    const { data } = await stripe().billingPortal.configurations.list({ is_default: true, limit: 1 });
+    const config = data[0];
+    const cancel = config?.features.subscription_cancel;
+    if (config && (!cancel?.enabled || cancel.mode !== PORTAL_CANCEL.mode)) {
+      await stripe().billingPortal.configurations.update(config.id, { features: { subscription_cancel: PORTAL_CANCEL } });
+    }
+    portalCheckedAt = Date.now();
+  } catch (error) {
+    console.warn("Could not check the Customer Portal cancellation setting", error instanceof Error ? error.message : error);
+  }
 }
 
 const DUPLICATE_MARK = "notefable_duplicate";

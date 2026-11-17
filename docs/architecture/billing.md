@@ -33,7 +33,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 2. **回来**：Stripe 跳回 `/app?billing=success`。`BillingReturnNotice` 去掉地址里的参数，调 `GET /api/billing?refresh=1`：服务端直接向 Stripe 列出这个客户的订阅并同步，不等 Webhook；显示“欢迎使用 Pro”或“正在确认付款”。
 3. **Webhook**：`POST /api/billing/webhook` 校验 `stripe-signature` 后，对 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 和 `customer.subscription.created|updated|deleted|paused|resumed`，用事件里的订阅 ID **重新向 Stripe 取订阅**再写库（`syncSubscription`），所以事件乱序或重发都只会写最新状态。同步失败返回 500，让 Stripe 重试。
 4. **状态 → 方案**：`active`、`trialing`、`past_due` 视为 Pro（`past_due` 是 Stripe 在重试扣款；后台必须设成重试用尽后取消订阅，否则会一直停在 `past_due`、一直是 Pro）；其他状态回到 FREE。用户有另一份有效订阅时，旧订阅的结束通知不会把他降回 FREE。预约解约（`cancel_at`，或 `cancel_at_period_end` 时取账期结束）期间仍是 Pro，日期存在 `subscriptionCancelAt`，设置里显示“Pro 将于…结束”。收到持有者已删除（找不到行）但还在扣费的 NoteFable 订阅（`metadata.userId`）时，直接取消它。
-5. **管理**：Pro 用户（或有过订阅的用户）在设置里点“管理订阅” → `POST /api/billing/portal` → Stripe Customer Portal（解约、换卡、收据），返回 `/app?billing=portal`。
+5. **管理**：Pro 用户（或有过订阅的用户）在设置里点“管理订阅” → `POST /api/billing/portal` → Stripe Customer Portal（解约、换卡、收据），返回 `/app?billing=portal`。Portal 用后台的默认构成（Stripe 邮件里的“管理订阅”链接也用它），但解约方式由代码保证：打开 Portal 前（每个实例每 10 分钟最多一次）读默认构成，解约不是“在计费周期结束时取消”或被关掉时，用 API 改回（`ensurePortalCancelsAtPeriodEnd`，只改解约这一项，其他项目照后台设置）。读或改失败时照常打开 Portal，不让用户失去解约手段。这是服务条款第 3 节和特商法标示的承诺。
 6. **删除账号**：有 Stripe 客户时，`DELETE /api/account` 先让开着的 Checkout Session 过期，并立即取消这个客户所有还在扣费的订阅（`cancelCustomerBilling`，包括还没同步到库里的和重复的），最后删除 Stripe 的客户（邮箱和 `userId`；发票和支付记录留在 Stripe）。任何一步失败就返回 502、不删账号，避免行删掉后无人能找到订阅而继续扣费。已经不存在或已结束的订阅、已经不存在的客户视为成功。
 
 手动把 `plan` 改成 `PRO`（没有订阅）仍然有效，月上限按自然月计。
@@ -52,7 +52,7 @@ Stripe 后台要做的事：
 
 - 产品 “NoteFable Pro”，价格 ¥300 / 月（JPY、recurring、税込）。把 price ID 填进 `STRIPE_PRICE_ID`。
 - Webhook 端点 `https://notefable.com/api/billing/webhook`，订阅上面第 3 步列出的事件。
-- Customer Portal：允许取消订阅、更新支付方式、查看收据。取消方式必须选“在计费周期结束时取消”（不要选“立即取消”）：服务条款和特商法标示都承诺解约后用到已付期间结束。
+- Customer Portal：允许取消订阅、更新支付方式、查看收据；隐私政策和服务条款的链接填 notefable.com 的 `/privacy`、`/terms`。解约方式由代码改成“在计费周期结束时取消”（见上面第 5 步），后台不用手动改；用受限密钥（`rk_…`）时要给它 Customer Portal 构成的读写权限。
 - Billing → 订阅与邮件 → 重试用尽后：选“取消订阅”（不要选“保持逾期”，否则会一直是 Pro）。
 - 日本的“特定商取引法に基づく表記”在 `/legal-notice`（`src/app/legal-notice/page.tsx`）：姓名、住所、电话按法 11 条但书写成“请求时立即开示”。Stripe 后台“公开业务信息”里填这个网址。价格、上限、解约或退款规则变了，同时改这一页和服务条款第 3 节。
 
