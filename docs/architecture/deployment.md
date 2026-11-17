@@ -136,7 +136,7 @@ STRIPE_PRICE_ID
 STRIPE_WEBHOOK_SECRET
 ```
 
-月额 Pro（¥300）的网页付款。三项都设置时才开放申请；缺任一项时没有升级入口，`/api/billing/checkout|portal` 返回 404（Webhook 只需要 `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。Stripe 后台的产品、价格、Webhook 端点（`/api/billing/webhook`）和 Customer Portal 设置见 [billing.md](billing.md#配置stripe)。
+月额 Pro（¥300）的网页付款。三项都设置时才开放申请；缺任一项时没有升级入口，`/api/billing/checkout` 返回 404（Webhook 和“管理订阅”的 `/api/billing/portal` 只需要 `STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET`）。Customer Portal 的解约方式由代码保持为“在计费周期结束时取消”。Stripe 后台的产品、价格、Webhook 端点（`/api/billing/webhook`）和 Customer Portal 设置见 [billing.md](billing.md#配置stripe)。
 
 ### Google Play 结算（可选）
 
