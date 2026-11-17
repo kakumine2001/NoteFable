@@ -63,6 +63,7 @@ flowchart LR
 
 几个月没维护、需要重新理解项目时，从这里开始：
 
+- [项目全景图（入门版，用大白话讲整体结构、签名、发布和收费）](docs/project-map.md)
 - [详细架构入口：5 分钟恢复上下文](docs/architecture/README.md)
 - [数据库设计](docs/architecture/database.md)
 - [聊天请求流程](docs/architecture/chat-flow.md)
