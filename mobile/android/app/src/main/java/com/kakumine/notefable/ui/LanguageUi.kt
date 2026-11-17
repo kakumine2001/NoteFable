@@ -11,13 +11,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
@@ -30,7 +31,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -62,7 +67,7 @@ import com.kakumine.notefable.data.LocaleSyncAction
 import com.kakumine.notefable.data.localeSyncAction
 
 // 界面语言（网页 src/lib/i18n 与 settings-dialog.tsx 的 LanguageSettings、language-menu.tsx、account-button.tsx 的 AccountLocaleSync）：
-// 选项是 4 种语言；没选过时按系统语言显示，列表里标的就是正在显示的语言。App 的语言设置
+// 选项是 4 种语言；没选过时按系统语言显示，菜单里标的就是正在显示的语言。App 的语言设置
 // （AppCompatDelegate.setApplicationLocales，相当于网页的 Cookie）就是本机的选择。登录用户在设置里选，存在账号上（User.locale），
 // [AccountLocaleSync] 让本机跟着账号走；未登录时在侧栏底部的语言菜单（[LanguageMenuButton]）里选，只改本机。
 
@@ -140,11 +145,11 @@ fun AccountLocaleSync(account: AccountUiState, onSave: (String) -> Unit) {
 }
 
 /**
- * 设置里的"语言"（网页 LanguageSettings + .settings-language-*，手机尺寸）：标题 14/600；
- * 列表上 6.4、间距 2，每项是 .project-settings-option（最小高 44、圆角 6、左右 8、间距 8.8、15 字），左边 16 的圆形单选
- * （1px 深描边白底；选中时蓝边 + 中间 8 的蓝点），选中的整行灰底。各语言名按它自己的语言排版。
- * 标的是选过的语言；没选过（null）时标正在显示的语言，点它也会存（把系统语言固定到账号上）；读不到账号的语言时哪一项都不标。
- * 只保存，切换交给 [AccountLocaleSync]。
+ * 设置里的"语言"一行（网页 LanguageSettings + .settings-row / .settings-select，手机尺寸）：行最小高 56、内边距 10×16，
+ * 左边"语言"16/500，右边是选择按钮（高 40、左 12 右 10、1px 深描边、圆角 8、白底、15 字 + 间距 8 + 14 的 ChevronsUpDown 浅灰；
+ * 打开时蓝边 + 外侧 3px 的浅蓝光圈），写的是标着的语言。点了在按钮下方打开 [LanguageMenu]（右边和按钮对齐）。
+ * 标的是选过的语言；没选过（null）时标正在显示的语言，选它也会存（把系统语言固定到账号上）；读不到账号的语言时哪一项都不标
+ * （按钮上写正在显示的语言）。只保存，切换交给 [AccountLocaleSync]。
  */
 @Composable
 fun LanguageSettings(user: AccountUser, onChoose: (String) -> Unit) {
@@ -154,30 +159,59 @@ fun LanguageSettings(user: AccountUser, onChoose: (String) -> Unit) {
         null -> showingLanguage()
         else -> saved
     }
+    val shown = checked ?: showingLanguage()
+    var anchor by remember { mutableStateOf<IntRect?>(null) }
+    var bounds by remember { mutableStateOf<IntRect?>(null) }
+    val label = stringResource(R.string.language_current, AppLanguage.nativeName(shown).orEmpty())
+    val shape = RoundedCornerShape(8.dp)
     Column(Modifier.fillMaxWidth()) {
-        Text(stringResource(R.string.language), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
-        Column(Modifier.padding(top = 6.4.dp).selectableGroup(), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Languages.forEach { option ->
-                val selected = option == checked
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
-                        .background(if (selected) Sm.Hover else Color.Transparent)
-                        .selectable(selected = selected, role = Role.RadioButton) { if (option != saved) onChoose(option.code) }
-                        .padding(horizontal = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Radio16(selected)
-                    Spacer(Modifier.width(8.8.dp))
-                    LanguageName(option, Modifier.weight(1f), fontSize = 15)
-                }
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(stringResource(R.string.language), Modifier.weight(1f), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Spacer(Modifier.width(16.dp))
+            Row(
+                Modifier.widthIn(max = 200.dp)
+                    .onGloballyPositioned { coordinates ->
+                        val box = coordinates.boundsInWindow()
+                        bounds = IntRect(box.left.toInt(), box.top.toInt(), box.right.toInt(), box.bottom.toInt())
+                    }
+                    .drawBehind {
+                        if (anchor != null) {
+                            val ring = 3.dp.toPx()
+                            drawRoundRect(
+                                SettingsFocusRing, topLeft = Offset(-ring, -ring), size = Size(size.width + ring * 2, size.height + ring * 2),
+                                cornerRadius = CornerRadius(8.dp.toPx() + ring),
+                            )
+                        }
+                    }
+                    .height(40.dp).clip(shape).background(Color.White).border(1.dp, if (anchor != null) Sm.Blue else Sm.BorderStrong, shape)
+                    .clickable(role = Role.DropdownList) { anchor = bounds }
+                    .semantics(mergeDescendants = true) { contentDescription = label }
+                    .padding(start = 12.dp, end = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                LanguageName(shown, Modifier.weight(1f, fill = false), fontSize = 15)
+                LucideIcon(Lucide.ChevronsUpDown, 14.dp, Sm.Faint)
             }
         }
         if (LocaleSyncMemory.failed) {
-            Text(
-                stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp,
-                modifier = Modifier.padding(top = 12.dp).semantics { liveRegion = LiveRegionMode.Assertive },
-            )
-            if (saved != null) NotionButton(stringResource(R.string.try_again), onClick = { applyLanguage(saved) }, modifier = Modifier.padding(top = 8.dp))
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp)) {
+                Text(
+                    stringResource(R.string.language_change_failed), color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp,
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Assertive },
+                )
+                if (saved != null) NotionButton(stringResource(R.string.try_again), onClick = { applyLanguage(saved) }, modifier = Modifier.padding(top = 8.dp))
+            }
+        }
+    }
+    anchor?.let { rect ->
+        LanguageMenu(rect, current = checked, alignEnd = true, onClose = { anchor = null }) { choice ->
+            anchor = null
+            // 只保存。没选过时选标着的那种语言也存（把系统语言固定到账号上）。
+            if (choice != saved) onChoose(choice.code)
         }
     }
 }
@@ -245,13 +279,16 @@ fun LanguageMenuButton(modifier: Modifier = Modifier) {
 
 /**
  * 语言菜单（网页 language-menu.tsx 的 .chat-actions-menu.language-menu）：宽 228、内边距 5.6、圆角 12、1px 细线、白底、阴影。
- * 按钮在屏幕下方，所以下面放不下就开在按钮上方（间距 4），左边和按钮对齐，离窗口边至少 8。
+ * 按钮在屏幕下方，所以下面放不下就开在按钮上方（间距 4），左边和按钮对齐（alignEnd 时右边对齐，设置里的行用），离窗口边至少 8。
+ * current 是标对勾的语言（null 时哪一项都不标）。
  * 项是 .chat-menu-item（最小高 44、内边距 9.6×12、圆角 6.4、14 字），正在显示的语言右边 15 的蓝色对勾。
  */
 @Composable
-private fun LanguageMenu(anchor: IntRect, current: AppLanguage.Preference, onClose: () -> Unit, onChoose: (AppLanguage.Preference) -> Unit) {
+private fun LanguageMenu(
+    anchor: IntRect, current: AppLanguage.Preference?, alignEnd: Boolean = false, onClose: () -> Unit, onChoose: (AppLanguage.Preference) -> Unit,
+) {
     val density = LocalDensity.current
-    val provider = remember(anchor, density) {
+    val provider = remember(anchor, density, alignEnd) {
         object : PopupPositionProvider {
             override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
                 with(density) {
@@ -259,7 +296,8 @@ private fun LanguageMenu(anchor: IntRect, current: AppLanguage.Preference, onClo
                     val gap = 4.dp.roundToPx()
                     val below = anchor.bottom + gap + popupContentSize.height <= windowSize.height - edge
                     val top = if (below) anchor.bottom + gap else (anchor.top - gap - popupContentSize.height).coerceAtLeast(edge)
-                    val left = minOf(anchor.left, windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
+                    val start = if (alignEnd) anchor.right - popupContentSize.width else anchor.left
+                    val left = minOf(start, windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
                     return IntOffset(left, top)
                 }
             }
@@ -295,15 +333,3 @@ private fun LanguageMenu(anchor: IntRect, current: AppLanguage.Preference, onClo
 
 // .chat-actions-menu 的 box-shadow 0 8px 32px #0002。
 private val LanguageMenuShadow = Color(0x22000000)
-
-// .settings-language-radio：16 的圆，1px 深描边、白底；选中时蓝边，中间半径 4 的蓝点。
-@Composable
-private fun Radio16(checked: Boolean) {
-    Box(
-        Modifier.size(16.dp).clip(CircleShape).background(Color.White)
-            .border(1.dp, if (checked) Sm.Blue else Sm.BorderStrong, CircleShape),
-        Alignment.Center,
-    ) {
-        if (checked) Box(Modifier.size(8.dp).clip(CircleShape).background(Sm.Blue))
-    }
-}

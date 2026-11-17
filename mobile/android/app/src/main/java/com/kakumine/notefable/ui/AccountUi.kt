@@ -240,12 +240,12 @@ private fun ProfileRow(user: AccountUser, account: AccountUiState, profile: Acco
 }
 
 /*
- * 设置里的个人资料（网页 ProfileSettings + globals.css 的 .profile-* / .settings-profile，手机宽度的值）：
- * - 头部：头像 52（按钮，右下 −2 处 20 的深色圆形角标，2px 白边，铅笔 11 白色）、间距 12、"名字"12 灰 + 输入框（高 40、16 字、
- *   左右 10、1px 深描边、圆角 6；聚焦时蓝边 + 2px rgba(35,131,226,.2) 外圈；最多 40 字）。邮箱 12 灰（上 10）。
- * - 点头像打开编辑区（再点关上）：上 12、1px 描边、圆角 8 的框；"照片 / 表情"两个标签（.notes-picker-tabs），
+ * 设置里的个人资料（网页 ProfileSettings + globals.css 的 .profile-* / settings-dialog.css 的 .settings-profile，手机宽度的值）：
+ * - 头部：头像 56（按钮，右下 −2 处 20 的深色圆形角标，2px 白边，铅笔 11 白色）、间距 16、"名字"12 灰 + 输入框（高 44、16 字、
+ *   左右 10、1px 深描边、圆角 8；聚焦时蓝边 + 2px rgba(35,131,226,.2) 外圈；最多 40 字），输入框下面是邮箱 13 灰（上 6）。
+ * - 点头像打开编辑区（再点关上）：上 14、1px 描边、圆角 10 的框；"照片 / 表情"两个标签（.notes-picker-tabs），
  *   照片页（.profile-photo-pane）或裁剪（AvatarCropper.kt），表情页（EmojiPickerBody，高 min(320, 屏高 − 220)）。
- * - 改过名字或头像、且有 Google 资料时，"使用我的 Google 名称和头像"（.settings-inline-action：最小高 44、15 字、RotateCcw 14 + 8）。
+ * - 改过名字或头像、且有 Google 资料时，"使用我的 Google 名称和头像"（.settings-chip，上 14，RotateCcw）。
  * 名字和头像都是改了就存（排队保存）；输入中的名字在失焦、回车和关设置时存。
  */
 @Composable
@@ -270,13 +270,13 @@ internal fun ProfileSettings(
     // 邮箱登录的人没有 Google 的名字和照片：只有有 Google 资料时才出现"恢复成 Google 的"这类文字。
     val hasGoogleProfile = user.googleName != null || user.image != null
     Column(Modifier.fillMaxWidth()) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             AvatarButton(user, expanded = editor != AvatarEditor.Closed) {
                 onEditor(if (editor == AvatarEditor.Closed) AvatarEditor.Photo else AvatarEditor.Closed)
             }
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.profile_name), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.padding(bottom = 2.dp))
-                val fieldShape = RoundedCornerShape(6.dp)
+                val fieldShape = RoundedCornerShape(8.dp)
                 BasicTextField(
                     value = draft,
                     // 网页 maxLength = MAX_DISPLAY_NAME（40，按 UTF-16 计，和 String.take 相同）。
@@ -286,7 +286,7 @@ internal fun ProfileSettings(
                     cursorBrush = SolidColor(Sm.Ink),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { profile.saveName(draft) }),
-                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
                         .onFocusChanged { if (editing && !it.isFocused) profile.saveName(draft); onEditing(it.isFocused) }
                         .drawBehind {
                             // :focus 的 outline 2px rgba(35,131,226,.2)，画在描边外侧。
@@ -296,7 +296,7 @@ internal fun ProfileSettings(
                                     FocusRing,
                                     topLeft = Offset(-ring, -ring),
                                     size = androidx.compose.ui.geometry.Size(size.width + ring * 2, size.height + ring * 2),
-                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(6.dp.toPx() + ring),
+                                    cornerRadius = androidx.compose.ui.geometry.CornerRadius(8.dp.toPx() + ring),
                                 )
                             }
                         }
@@ -309,15 +309,15 @@ internal fun ProfileSettings(
                         }
                     },
                 )
+                user.email?.let {
+                    Text(it, color = Sm.Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                }
             }
-        }
-        user.email?.let {
-            Text(it, color = Sm.Muted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
         }
 
         if (editor != AvatarEditor.Closed) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
+            val shape = RoundedCornerShape(10.dp)
+            Column(Modifier.padding(top = 14.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
                 EditorTabs(editor, onEditor)
                 val photoErrorText = account.photoError?.let { photoErrorText(it, system) }
                 if (editor == AvatarEditor.Photo) {
@@ -346,37 +346,11 @@ internal fun ProfileSettings(
         }
 
         if (customized && hasGoogleProfile) {
-            SettingsInlineAction(Lucide.RotateCcw, stringResource(R.string.use_google_profile), enabled = true) {
+            SettingsChip(Lucide.RotateCcw, stringResource(R.string.use_google_profile), Modifier.padding(top = 14.dp)) {
                 onDraft(user.googleName ?: "")
                 profile.resetToGoogle()
             }
         }
-    }
-}
-
-// .settings-inline-action（手机）：最小高 44、上 10、左右 −8（内边距 8 抵掉）、圆角 6、15 字、图标 14 + 间距 8；不可用时 0.55。
-// inRow：并排放的几个（.settings-app-icon-actions 里的）：上距 0；左右 −8 的外边距让它只占文字那么宽，所以排版时少算 16。
-@Composable
-internal fun SettingsInlineAction(icon: List<String>, label: String, enabled: Boolean, inRow: Boolean = false, onClick: () -> Unit) {
-    val alpha = if (enabled) 1f else 0.55f
-    val margin = if (inRow) {
-        Modifier.layout { measurable, constraints ->
-            val bleed = 8.dp.roundToPx()
-            val max = if (constraints.hasBoundedWidth) constraints.maxWidth + bleed * 2 else constraints.maxWidth
-            val placeable = measurable.measure(constraints.copy(minWidth = 0, maxWidth = max))
-            layout((placeable.width - bleed * 2).coerceAtLeast(0), placeable.height) { placeable.place(-bleed, 0) }
-        }
-    } else {
-        Modifier.padding(top = 10.dp).offset(x = (-8).dp)
-    }
-    Row(
-        margin.heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
-            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        LucideIcon(icon, 14.dp, Sm.Text.copy(alpha = alpha))
-        Text(label, color = Sm.Text.copy(alpha = alpha), fontSize = 15.sp)
     }
 }
 
@@ -394,20 +368,20 @@ private fun photoErrorText(error: PhotoError, system: com.kakumine.notefable.dat
     is PhotoError.Server -> system.localize(error.message)
 }
 
-// 头像按钮（.profile-avatar-button）：头像 52，右下角 −2 处 20 的铅笔角标（2px 白边、--notion-text 底）。
+// 头像按钮（.profile-avatar-button）：头像 56，右下角 −2 处 20 的铅笔角标（2px 白边、--notion-text 底）。
 @Composable
 private fun AvatarButton(user: AccountUser, expanded: Boolean, onClick: () -> Unit) {
     val label = stringResource(R.string.acct_change_avatar)
-    Box(Modifier.size(52.dp)) {
+    Box(Modifier.size(56.dp)) {
         Box(
-            Modifier.size(52.dp).clip(CircleShape).clickable(onClick = onClick)
+            Modifier.size(56.dp).clip(CircleShape).clickable(onClick = onClick)
                 .semantics {
                     role = Role.Button
                     contentDescription = label
                     selected = expanded
                 },
         ) {
-            UserAvatar(user, 52.dp)
+            UserAvatar(user, 56.dp)
         }
         Box(
             Modifier.align(Alignment.BottomEnd).offset(2.dp, 2.dp).size(20.dp).clip(CircleShape)

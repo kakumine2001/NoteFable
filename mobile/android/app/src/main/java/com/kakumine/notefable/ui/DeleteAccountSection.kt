@@ -34,14 +34,14 @@ import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.serverMessage
 import kotlinx.coroutines.launch
 
-private val Danger = Color(0xFFB91C1C) // .notes-delete / .settings-danger-action
-private val DangerBorder = Color(0x40B91C1C) // rgba(185, 28, 28, 0.25)
+private val Danger = Color(0xFFB91C1C) // .notes-delete
+private val DangerBorder = Color(0x33B91C1C) // rgba(185, 28, 28, 0.2)
 private val DangerFill = Color(0x0AB91C1C) // rgba(185, 28, 28, 0.04)
 
 /**
- * 设置底部、"退出登录"下面的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount，Google Play 的账号删除要求）。
- * 外观照网页手机宽度：红字的行内按钮，和"退出登录"一样 44 高 / 15sp、图标 14、左移 8，上距 2（.settings-danger-action）；
- * 点了在原地展开确认框（边框 25% 红、底 4% 红、圆角 8、内边距 12、14sp / 1.5），右下角"取消"和红色的"永久删除"。
+ * 设置的"账号"卡片里、"退出登录"下面的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount，Google Play 的账号删除要求）。
+ * 外观照网页手机宽度：红色的一行（[SettingsRowButton]，Trash2）；点了在原地换成确认区（底 4% 红、内边距 14×16、14sp / 1.5），
+ * 右下角"取消"和红字、20% 红描边的"永久删除"（上距 12）。
  */
 @Composable
 fun DeleteAccountSection(
@@ -58,24 +58,10 @@ fun DeleteAccountSection(
 
     Column(Modifier.fillMaxWidth()) {
         if (!confirming) {
-            Row(
-                Modifier.padding(top = 2.dp).offset(x = (-8).dp).heightIn(min = 44.dp).clip(RoundedCornerShape(6.dp))
-                    .clickable(enabled = enabled) { confirming = true }
-                    .semantics { role = Role.Button }
-                    .alpha(if (enabled) 1f else 0.55f)
-                    .padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                LucideIcon(Lucide.Trash2, 14.dp, Danger)
-                Text(stringResource(R.string.acct_delete_account), color = Danger, fontSize = 15.sp)
-            }
+            SettingsRowButton(Lucide.Trash2, stringResource(R.string.acct_delete_account), enabled = enabled, danger = true) { confirming = true }
             return@Column
         }
-        Column(
-            Modifier.padding(top = 10.dp).fillMaxWidth().clip(RoundedCornerShape(8.dp))
-                .border(1.dp, DangerBorder, RoundedCornerShape(8.dp)).background(DangerFill).padding(12.dp),
-        ) {
+        Column(Modifier.fillMaxWidth().background(DangerFill).padding(horizontal = 16.dp, vertical = 14.dp)) {
             Text(stringResource(R.string.acct_delete_account_warning), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp)
             error?.let {
                 Text(
@@ -99,6 +85,7 @@ fun DeleteAccountSection(
                         }
                     },
                     enabled = !deleting, danger = true,
+                    modifier = Modifier.border(1.dp, DangerBorder, RoundedCornerShape(4.8.dp)),
                 )
             }
         }
