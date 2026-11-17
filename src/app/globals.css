@@ -1095,7 +1095,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 /* 空の会話のキャラクター（src/components/mascot.tsx）。SVG の中なので、transform の px は viewBox の単位。 */
-.nf-mascot-stage { display: flex; margin-bottom: 0.9rem; }
+.nf-mascot-stage { display: flex; height: 68px; margin-bottom: 0.9rem; }
 .nf-mascot { display: block; overflow: visible; color: var(--nf-ink); fill: currentColor; }
 .nf-mascot-shadow { opacity: 0.1; transform-box: fill-box; transform-origin: center; animation: nf-mascot-shadow 4.2s ease-in-out 700ms infinite; }
 .nf-mascot-enter { transform-box: fill-box; transform-origin: 50% 100%; animation: nf-mascot-enter 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms both; }

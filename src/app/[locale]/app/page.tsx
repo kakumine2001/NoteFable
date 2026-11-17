@@ -371,6 +371,8 @@ export default function Home() {
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   // 画面中央に表示する会話メッセージ。送信直後の楽観表示もここに入る。
   const [messages, setMessages] = useState<Message[]>([]);
+  // 履歴をまだ読んでいる会話の ID。そのあいだは空の会話の絵と書き出しの候補を出さない（読み終わると消えて、ちらつくため）。
+  const [historyPendingId, setHistoryPendingId] = useState<string | null>(null);
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
@@ -837,7 +839,8 @@ export default function Home() {
     pinToBottomRef.current = { key: getMessagesKey(sessionId), until: Date.now() + 2000 };
     followBottomRef.current = true;
     setActiveSessionId(sessionId);
-    setMessages(sessionMessagesRef.current[sessionId] ?? []);
+    const cachedMessages = sessionMessagesRef.current[sessionId];
+    setMessages(cachedMessages ?? []);
     setSidebarOpen(false);
     setSendError("");
 
@@ -846,7 +849,10 @@ export default function Home() {
       return;
     }
 
+    if (!cachedMessages) setHistoryPendingId(sessionId);
     const fetchedMessages = await fetchSessionMessages(sessionId, controller.signal);
+    // 別の会話へ移っていたら、その会話の読み込みが自分の ID を入れているので触らない。
+    setHistoryPendingId((current) => (current === sessionId ? null : current));
     if (
       fetchedMessages === "missing" &&
       !controller.signal.aborted &&
@@ -1874,6 +1880,9 @@ export default function Home() {
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
+  // 空の会話の絵と書き出しの候補は、履歴を読んでいるあいだは出さない。
+  const historyPending = historyPendingId !== null && historyPendingId === activeSessionId;
+  const hasDraft = Boolean(input.trim());
   // スマホでは、ホーム画面（空の会話・ノート未選択）では見出しを本文側に出すので、上部バーの標題は会話中・ノート編集中だけ出す。
   const showPhoneTitle = workspaceView === "chat" ? !emptyState : Boolean(notes.active) && !notesList;
 
@@ -1999,7 +2008,8 @@ export default function Home() {
             {emptyState ? (
               <EmptyConversation
                 title={activeTitle}
-                hasDraft={Boolean(input.trim())}
+                hasDraft={hasDraft}
+                loading={historyPending}
                 icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
                 onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
                 onWorkspaceChange={changeWorkspace}
@@ -2274,9 +2284,9 @@ export default function Home() {
             </div>}
             {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{typeof uploadProgress === "string" ? t(uploadProgress) : t(uploadProgress.key, uploadProgress.vars)}</div>}
           </form>
-          {emptyState && !imageGenerationMode && (
+          {emptyState && (
             <StarterPrompts
-              hidden={Boolean(input) || Boolean(uploadProgress)}
+              hidden={hasDraft || imageGenerationMode || historyPending || Boolean(uploadProgress)}
               onPick={(text) => {
                 const element = inputRef.current;
                 if (!element) return;

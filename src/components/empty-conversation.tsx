@@ -8,10 +8,12 @@ import { msg } from "@/lib/i18n/translate";
 // スマホのホーム画面では、上端に Chat / Notes の切替を出し、見出しは余白の中央に置く（会話を始めると空状態ごと消える）。
 // アイコンは見出しの左。まだ会話が保存されていない最初の画面でも選べる。
 // 見出しの上にキャラクターを置く。入力欄に文字があるあいだ（hasDraft）は入力欄のほうを見る。
-export function EmptyConversation({ icon, title, hasDraft, onIconChange, onWorkspaceChange }: {
+// loading（開いた会話の履歴を読んでいるあいだ）は絵を出さず、場所だけ空けておく。
+export function EmptyConversation({ icon, title, hasDraft, loading, onIconChange, onWorkspaceChange }: {
   icon: string | null;
   title?: string;
   hasDraft: boolean;
+  loading: boolean;
   onIconChange: (icon: string | null) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
 }) {
@@ -20,7 +22,7 @@ export function EmptyConversation({ icon, title, hasDraft, onIconChange, onWorks
     <>
       <div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="chat" onChange={onWorkspaceChange} /></div>
       <header className="notion-page-title notion-empty-title motion-page-enter">
-        <div className="nf-mascot-stage"><Mascot lookDown={hasDraft} /></div>
+        <div className="nf-mascot-stage">{!loading && <Mascot lookDown={hasDraft} />}</div>
         <h1 aria-labelledby="chat-heading-text"><ChatTitleIcon icon={icon} onChange={onIconChange} /><span id="chat-heading-text">{title ?? t("New chat")}</span></h1>
         <p>{t("Ask a question, work through your notes, or bring in a file.")}</p>
       </header>

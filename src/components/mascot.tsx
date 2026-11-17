@@ -21,6 +21,8 @@ export function Mascot({ size = 64, lookDown = false }: { size?: number; lookDow
     const update = () => {
       frame = 0;
       const rect = svg.getBoundingClientRect();
+      // ノートの画面に切り替えているあいだは表示されていない（大きさが 0）。
+      if (!rect.width) return;
       const dx = x - (rect.left + rect.width / 2);
       const dy = y - (rect.top + rect.height * 0.58);
       const distance = Math.hypot(dx, dy);
