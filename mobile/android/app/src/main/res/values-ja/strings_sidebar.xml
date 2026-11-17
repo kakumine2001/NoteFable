@@ -3,12 +3,8 @@
 <resources>
     <string name="sb_pinned">固定済み</string>
     <string name="sb_close_sidebar">サイドバーを閉じる</string>
-    <string name="sb_pin_chat">チャットを固定</string>
-    <string name="sb_unpin_chat">チャットの固定を解除</string>
-    <string name="sb_pin_title">「%1$s」を固定</string>
-    <string name="sb_unpin_title">「%1$s」の固定を解除</string>
-    <string name="sb_pin_failed">固定の状態を保存できませんでした。もう一度お試しください。</string>
-    <string name="sb_could_not_save_retry">保存できませんでした。もう一度お試しください。</string>
+    <string name="sb_pin">固定</string>
+    <string name="sb_unpin">固定を解除</string>
     <string name="sb_actions_for_title">「%1$s」の操作</string>
     <string name="sb_actions_for_name">「%1$s」の操作</string>
     <string name="sb_actions_for_project">プロジェクト「%1$s」の操作</string>

@@ -174,16 +174,13 @@ class SidebarViewModelTest {
     }
 
     @Test
-    fun `pin toggles locally after the server saves, and a failure is remembered`() = runTest(dispatcher) {
+    fun `pin changes locally after the server saves, and a failure is reported`() = runTest(dispatcher) {
         val (chat, sidebar, api) = setup(listOf(SessionSummary("a", "A")))
-        sidebar.togglePin(chat.state.value.sessions.single())
-        advanceUntilIdle()
+        assertEquals(null, sidebar.setPinned("a", true))
         assertTrue(chat.state.value.sessions.single().pinned)
         api.fail = true
-        sidebar.togglePin(chat.state.value.sessions.single())
-        advanceUntilIdle()
+        assertTrue(sidebar.setPinned("a", false) != null)
         assertTrue(chat.state.value.sessions.single().pinned)
-        assertTrue("a" in sidebar.state.value.pinFailed)
     }
 
     @Test

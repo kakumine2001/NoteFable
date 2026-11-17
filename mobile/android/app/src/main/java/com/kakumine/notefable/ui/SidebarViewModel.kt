@@ -48,9 +48,6 @@ data class SidebarUiState(
     val projectsFailed: Boolean = false,
     /** 折叠着的项目。和网页一样只记在内存里。 */
     val collapsed: Set<String> = emptySet(),
-    val pinBusy: Set<String> = emptySet(),
-    /** 置顶没保存成功的聊天（网页 ChatPinButton 的 failed）。 */
-    val pinFailed: Set<String> = emptySet(),
     /** 有一次 POST /api/sessions/reorder 还没完（网页 reorderChatBusy）：这时再排序会提示等上一次完成。 */
     val reorderBusy: Boolean = false,
     /** 正在移动的聊天：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。 */
@@ -163,22 +160,12 @@ class SidebarViewModel(
 
     // ---- 聊天 ----
 
-    fun togglePin(session: SessionSummary) {
-        if (session.id in _state.value.pinBusy) return
-        val gen = generation
-        _state.update { it.copy(pinBusy = it.pinBusy + session.id) }
-        viewModelScope.launch {
-            val pinned = !session.pinned
-            val ok = runCatching { sessions.updateSession(session.id, pinned = pinned) }.isSuccess
-            if (gen != generation) return@launch
-            if (ok) chat.patchSessions { list -> list.map { if (it.id == session.id) it.copy(pinned = pinned) else it } }
-            _state.update {
-                it.copy(pinBusy = it.pinBusy - session.id, pinFailed = if (ok) it.pinFailed - session.id else it.pinFailed + session.id)
-            }
-        }
+    /** 置顶 / 取消置顶（"…"菜单里的那一项，网页 onUpdate({pinned})）：服务端存好了才改本地列表。 */
+    suspend fun setPinned(id: String, pinned: Boolean): SidebarError? = guarded(R.string.sb_err_save_change) {
+        sessions.updateSession(id, pinned = pinned)
+        chat.patchSessions { list -> list.map { if (it.id == id) it.copy(pinned = pinned) else it } }
     }
 
-    /** 改名（1–120 字，服务端再校验一次）。成功返回 null。 */
     suspend fun rename(id: String, title: String): SidebarError? = guarded(R.string.sb_err_save_chat) {
         val trimmed = title.trim()
         sessions.updateSession(id, title = trimmed)

@@ -373,6 +373,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .avatar-crop-actions button:disabled { opacity: 0.55; }
 /* 設定で替えられるワークスペースのアイコン（絵文字・画像）。設定画面の見た目は settings-dialog.css。 */
 .app-icon-emoji { display: inline-grid; flex: none; place-items: center; line-height: 1; }
+.app-icon-emoji-image { display: block; flex: none; max-width: none; }
 .app-icon-image { display: block; flex: none; border-radius: 22%; object-fit: cover; }
 @media (max-width: 639px) {
   .profile-upload-button { height: 44px; font-size: 15px; }
@@ -916,7 +917,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   color: #d44c47;
 }
 
-.chat-more-button, .chat-pin-button { opacity: 1; }
+.chat-more-button { opacity: 1; }
 /* 行の本体ボタンがそのままドラッグ元（Notion と同じく専用の把手は出さない）。触屏は長押しで掴む。 */
 .row-drag { user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: auto; }
 [data-order-dragging] .row-drag { cursor: grabbing; }
@@ -928,8 +929,6 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 [data-order-drop="before"]::before { top: 0; }
 [data-order-drop="after"]::after { bottom: 0; }
 .list-reorder-error { position: absolute; z-index: 5; top: 100%; left: 0; width: min(220px, 90vw); padding: 6px; background: #fff; color: #b91c1c; border: 1px solid var(--notion-border); font-size: 12px; }
-.chat-pin-button:hover { color: var(--notion-text); }
-.chat-pin-button.is-pinned { color: var(--notion-text); background: var(--notion-hover); }
 .chat-more-button:hover { color: var(--notion-text); }
 .chat-section-label, .chat-project-heading { padding: .9rem .5rem .3rem; color: var(--notion-muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .chat-project-heading .notion-icon-button { margin-block: -.3rem; }
@@ -937,6 +936,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: .4rem; padding: .4rem .2rem; text-align: left; font-size: .875rem; }
 .chat-actions-menu { position: fixed; margin: 0; width: 228px; max-height: calc(100dvh - 16px); overflow-y: auto; padding: .35rem; border: 1px solid var(--notion-border); border-radius: .75rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; }
 .chat-actions-menu::backdrop { background: transparent; }
+/* 行の「…」メニューは、押したボタンの側（右上）から小さく広がって出る。 */
+.chat-row-menu[open] { transform-origin: top right; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
+@keyframes chat-row-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .chat-row-menu[open] { animation: none; } }
+.chat-menu-error { margin: .3rem .75rem .4rem; color: #b91c1c; font-size: .8125rem; line-height: 1.4; }
 .chat-menu-item { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 40px; padding: .6rem .75rem; border-radius: .4rem; text-align: left; font-size: .875rem; }
 .chat-menu-item:hover, .chat-menu-item:focus-visible { background: var(--notion-hover); outline: none; }
 .chat-menu-item.is-danger { color: #b91c1c; }
@@ -952,7 +956,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .language-menu-error { flex-basis: 100%; color: #b91c1c; }
 .notion-empty-title #chat-heading-text { min-width: 0; overflow-wrap: anywhere; }
 .chat-project-options { margin-top: .75rem; max-height: 40dvh; overflow-y: auto; }
-@media (max-width: 639px) { .chat-more-button, .chat-pin-button { width: 2.5rem; height: 2.5rem; } .chat-menu-item { min-height: 44px; } }
+@media (max-width: 639px) { .chat-more-button { width: 2.5rem; height: 2.5rem; } .chat-menu-item { min-height: 44px; } }
 
 .notion-page {
   position: relative;

@@ -1,5 +1,8 @@
 package com.kakumine.notefable.ui
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -36,6 +39,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -91,14 +97,28 @@ fun ChatActions(
     onClose: () -> Unit,
 ) {
     when (action) {
-        is ChatAction.Menu -> ActionsMenu(action.anchor, stringResource(R.string.sb_actions_for_title, action.session.title), onClose) {
-            MenuItem(stringResource(R.string.sb_rename), Lucide.Pencil) { onAction(ChatAction.Rename(action.session)) }
-            MenuItem(stringResource(R.string.move_to_project), Lucide.FolderInput) { onAction(ChatAction.Move(action.session)) }
+        is ChatAction.Menu -> {
+            // 置顶在菜单里直接保存（网页 run()）：成功就关菜单，失败留着、在下面显示原因；保存中不能关。
+            val (runner, run) = rememberRunner(onClose)
+            val pinned = action.session.pinned
+            ActionsMenu(action.anchor, stringResource(R.string.sb_actions_for_title, action.session.title), { if (!runner.busy) onClose() }, animated = true) {
+            // 保存中其他项也不能点（网页 disabled={busy}）：押すと菜单连同协程一起被撤掉，服务端改了而本地列表没跟上。
+            val idle = !runner.busy
+            MenuItem(stringResource(if (pinned) R.string.sb_unpin else R.string.sb_pin), if (pinned) Lucide.PinOff else Lucide.Pin, enabled = idle) {
+                run { sidebar.setPinned(action.session.id, !pinned) }
+            }
+            MenuItem(stringResource(R.string.sb_rename), Lucide.Pencil, enabled = idle) { onAction(ChatAction.Rename(action.session)) }
+            MenuItem(stringResource(R.string.move_to_project), Lucide.FolderInput, enabled = idle) { onAction(ChatAction.Move(action.session)) }
             // .chat-menu-divider：上下 4.8、左右 8、1px 线。
             Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
-            MenuItem(stringResource(R.string.sb_delete_), Lucide.Trash2, danger = true) { onAction(ChatAction.Delete(action.session)) }
+            MenuItem(stringResource(R.string.sb_delete_), Lucide.Trash2, danger = true, enabled = idle) { onAction(ChatAction.Delete(action.session)) }
+            // .chat-menu-error：13/18.2 红字，外边距 4.8 12 6.4。
+            runner.error?.let {
+                Text(sidebarErrorText(it), color = DangerRed, fontSize = 13.sp, lineHeight = 18.2.sp, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.8.dp, bottom = 6.4.dp))
+            }
+            }
         }
-        is ChatAction.ProjectMenu -> ActionsMenu(action.anchor, stringResource(R.string.sb_actions_for_name, action.project.name), onClose) {
+        is ChatAction.ProjectMenu -> ActionsMenu(action.anchor, stringResource(R.string.sb_actions_for_name, action.project.name), onClose, animated = true) {
             MenuItem(stringResource(R.string.sb_project_settings), Lucide.Settings2) { onAction(ChatAction.ProjectSettings(action.project)) }
             MenuItem(stringResource(R.string.rename_project), Lucide.Pencil) { onAction(ChatAction.RenameProject(action.project)) }
             MenuItem(stringResource(R.string.delete_project), Lucide.Trash2, danger = true) { onAction(ChatAction.DeleteProject(action.project)) }
@@ -135,10 +155,17 @@ fun ChatActions(
 // ---------------------------------------------------------------------------------------------
 // 行的"更多"菜单（.chat-actions-menu）：宽 228、内边距 5.6、圆角 12、1px 细线、白底、阴影 0 8 32 #0002；
 // 位置：按钮下方 4，右边与按钮对齐，离窗口边至少 8（网页 Dialog 的 anchor 定位）。点外面或返回键关闭。
+// [animated]（侧栏行的菜单，网页 .chat-row-menu）：从右上角 140ms 展开（透明度 0→1、上移 4→0、缩放 .96→1，cubic-bezier(.2,.8,.2,1)）；系统关掉动画时不动。
 
 @Composable
-internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, width: Dp = 228.dp, content: @Composable () -> Unit) {
+internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, width: Dp = 228.dp, animated: Boolean = false, content: @Composable () -> Unit) {
     val density = LocalDensity.current
+    val context = LocalContext.current
+    val still = !animated || remember(context) {
+        android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f) == 0f
+    }
+    val enter = remember { Animatable(if (still) 1f else 0f) }
+    LaunchedEffect(Unit) { if (!still) enter.animateTo(1f, tween(140, easing = CubicBezierEasing(.2f, .8f, .2f, 1f))) }
     val provider = remember(anchor, density) {
         object : PopupPositionProvider {
             override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
@@ -154,6 +181,14 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         Column(
             Modifier.width(width)
+                .graphicsLayer {
+                    val progress = enter.value
+                    alpha = progress
+                    scaleX = .96f + .04f * progress
+                    scaleY = .96f + .04f * progress
+                    translationY = -4.dp.toPx() * (1f - progress)
+                    transformOrigin = TransformOrigin(1f, 0f)
+                }
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = MenuShadow, spotColor = MenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
                 .clip(RoundedCornerShape(12.dp)).background(Color.White)
@@ -166,10 +201,10 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
 
 // .chat-menu-item（手机）：最小高 44、内边距 9.6×12、圆角 6.4、图标 16 + 间距 12、14/21；危险项红字。
 @Composable
-internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, onClick: () -> Unit) {
+internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val color = if (danger) DangerRed else Sm.Text
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(onClick = onClick)
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.6.dp).semantics { role = Role.Button },
         verticalAlignment = Alignment.CenterVertically,
     ) {

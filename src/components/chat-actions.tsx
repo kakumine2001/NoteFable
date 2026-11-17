@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FolderInput, Pencil, Settings2, Trash2 } from "lucide-react";
+import { Check, FolderInput, Pencil, Pin, PinOff, Settings2, Trash2 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { ChatProjectSettings } from "@/components/chat-project-settings";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -23,7 +23,7 @@ function Dialog({ title, onClose, anchor, children }: { title: string; onClose: 
     top: Math.max(8, Math.min(anchor.bottom + 4, window.innerHeight - 250)),
     left: Math.max(8, Math.min(anchor.right - 228, window.innerWidth - 236)),
   } : undefined;
-  return <dialog ref={ref} aria-label={title} className={anchor ? "chat-actions-menu" : "notes-dialog"} style={position}
+  return <dialog ref={ref} aria-label={title} className={anchor ? "chat-actions-menu chat-row-menu" : "notes-dialog"} style={position}
     onCancel={event => { event.preventDefault(); onClose(); }}
     onClick={event => { if (event.target === event.currentTarget) { const r=event.currentTarget.getBoundingClientRect(); if(event.clientX<r.left || event.clientX>r.right || event.clientY<r.top || event.clientY>r.bottom) onClose(); } }}>
     {children}
@@ -44,10 +44,14 @@ export function ChatActions({ action, projects, onClose, onAction, onUpdate, onD
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const locked = useRef(false);
+  // 保存の途中でこの画面が閉じられ、別のメニューやダイアログが開いていることがある。
+  // そのとき完了後の onClose を呼ぶと、開いたばかりの別の画面を閉じてしまうので、まだ出ているときだけ閉じる。
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function run(work: () => Promise<unknown>) {
     if (locked.current) return;
     locked.current = true; setBusy(true); setError("");
-    try { if (await work()) onClose(); else setError(msg("Could not save the change. Please try again.")); }
+    try { if (await work()) { if (mounted.current) onClose(); } else setError(msg("Could not save the change. Please try again.")); }
     catch (error) { setError(error instanceof Error ? error.message : msg("Could not save the change. Please try again.")); }
     finally { locked.current=false; setBusy(false); }
   }
@@ -67,11 +71,15 @@ export function ChatActions({ action, projects, onClose, onAction, onUpdate, onD
     const session=action.session;
     return <Dialog title={t("Actions for {title}", { title: session.title })} onClose={onClose} anchor={action.anchor}>
       <div role="menu" onKeyDown={keyboard}>
+        {/* 固定はここで保存する。成功したらメニューを閉じ、失敗したら開いたまま下に理由を出す。 */}
+        <button type="button" role="menuitem" disabled={busy} className="chat-menu-item" onClick={() => void run(() => onUpdate(session.id,{pinned:!session.pinned}))}>
+          {session.pinned ? <PinOff size={16}/> : <Pin size={16}/>}{session.pinned ? t("Unpin") : t("Pin")}
+        </button>
         {menuItem(t("Rename"), <Pencil size={16}/>, () => onAction({kind:"rename",session}))}
         {menuItem(t("Move to project"), <FolderInput size={16}/>, () => onAction({kind:"move",session}))}
         <hr className="chat-menu-divider"/>
         {menuItem(t("Delete"), <Trash2 size={16}/>, () => onAction({kind:"delete",session}), true)}
-      </div>{feedback}
+      </div>{error && <p role="alert" className="chat-menu-error">{localizeSystemText(error, t)}</p>}
     </Dialog>;
   }
   if (action.kind === "projectMenu" && "project" in action) return <Dialog title={t("Actions for {name}", { name: action.project.name })} onClose={onClose} anchor={action.anchor}>

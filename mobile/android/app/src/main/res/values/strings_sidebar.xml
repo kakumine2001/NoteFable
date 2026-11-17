@@ -3,12 +3,8 @@
 <resources>
     <string name="sb_pinned">Pinned</string>
     <string name="sb_close_sidebar">Close sidebar</string>
-    <string name="sb_pin_chat">Pin chat</string>
-    <string name="sb_unpin_chat">Unpin chat</string>
-    <string name="sb_pin_title">Pin %1$s</string>
-    <string name="sb_unpin_title">Unpin %1$s</string>
-    <string name="sb_pin_failed">Could not save pin. Try again.</string>
-    <string name="sb_could_not_save_retry">Could not save. Try again.</string>
+    <string name="sb_pin">Pin</string>
+    <string name="sb_unpin">Unpin</string>
     <string name="sb_actions_for_title">Actions for %1$s</string>
     <string name="sb_actions_for_name">Actions for %1$s</string>
     <string name="sb_actions_for_project">Actions for project %1$s</string>

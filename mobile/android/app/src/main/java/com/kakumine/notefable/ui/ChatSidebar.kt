@@ -122,7 +122,6 @@ internal fun ChatDrawerBody(
                 onOpen = onOpen,
                 onChangeIcon = onChangeIcon,
                 onMenu = { session, anchor -> action = ChatAction.Menu(session, anchor) },
-                onPin = sidebar::togglePin,
                 onDrop = { id ->
                     when (val target = drag.target) {
                         is DropTarget.Row -> sidebar.reorder(ReorderMove(id, target.id, target.after))
@@ -213,7 +212,6 @@ private class RowProps(
     val onOpen: (String) -> Unit,
     val onChangeIcon: (String, String?) -> Unit,
     val onMenu: (SessionSummary, IntRect) -> Unit,
-    val onPin: (SessionSummary) -> Unit,
     val onDrop: (String) -> Unit,
     val onDismissError: () -> Unit,
 )
@@ -387,17 +385,8 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
             RowAction(Lucide.MoreHorizontal, 16.dp, stringResource(R.string.sb_actions_for_title, session.title), onAnchor = { anchor = it }) {
                 props.onMenu(session, anchor)
             }
-            PinButton(session, busy = session.id in props.side.pinBusy, failed = session.id in props.side.pinFailed) { props.onPin(session) }
         }
         if (reorderError != null) ReorderErrorPopup(sidebarErrorText(reorderError), props.onDismissError)
     }
-}
-
-// 置顶按钮：aria-label "Pin / Unpin {title}"；保存失败时和网页一样只给读屏一句提示（网页是 sr-only 的 alert + 悬停提示）。
-@Composable
-private fun PinButton(session: SessionSummary, busy: Boolean, failed: Boolean, onClick: () -> Unit) {
-    val label = stringResource(if (session.pinned) R.string.sb_unpin_title else R.string.sb_pin_title, session.title)
-    val failure = stringResource(R.string.sb_pin_failed)
-    RowAction(Lucide.Pin, 14.dp, if (failed) "$label. $failure" else label, pressed = session.pinned, enabled = !busy, onClick = onClick)
 }
 
