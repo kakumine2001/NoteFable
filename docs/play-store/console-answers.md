@@ -87,7 +87,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 剩下的（都要在 Play Console / Google Cloud 上由所有者操作）：
 
 1. ~~Play 应用签名~~：已完成（Google 生成的应用签名密钥，使用中）。首次上传 AAB 时选"使用 Google 生成的应用签名密钥"（`bundleRelease`，用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。每次上传前 `versionCode` 加 1。
-2. ~~在 Google Cloud 新建 Android OAuth 客户端~~：2026-11-17 已建 `NoteFable-Android-Play`（Play 应用签名的 SHA-1）。它是唯一的 Android 客户端，旧的 `NoteFable-Android`、`NoteFable-Android-Upload` 删除（见 [android.md](../architecture/android.md#正式签名与-google-play)）。
+2. ~~在 Google Cloud 新建 Android OAuth 客户端~~：已完成：`NoteFable-Android`（Play 应用签名的 SHA-1）是唯一的 Android 客户端，登记 debug 签名和上传密钥的旧客户端已删除（见 [android.md](../architecture/android.md#正式签名与-google-play)）。
 3. 启用订阅 `notefable_pro` 的基础方案 `monthly`。
 4. 按本文件填写应用内容的各项声明（数据安全要包括"购买记录"，IARC 的"数字商品购买"选"是"），按 [listing.md](listing.md) 填写商店信息并上传 `mobile/android/play-store/` 的图片。
 5. 把测试账号加到"许可测试"，从测试轨道安装 App，真机走一遍：购买 → 报告（设置里变成 Pro）→ RTDN 到达 → 在 Play 里取消（到期前仍是 Pro）→ 删除账号停止续费。许可测试的订阅按几分钟一个周期续订，便于看续费和到期。

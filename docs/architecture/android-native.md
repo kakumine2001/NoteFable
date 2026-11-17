@@ -81,7 +81,7 @@ mobile/android/
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android-Play`（按应用 ID + Play 应用签名登记），所以只有 Play 签名的包能用 Google 登录。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com` 和 `www.notefable.com` 当成同一个站。
+- 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android`（按应用 ID + Play 应用签名登记），所以只有 Play 签名的包能用 Google 登录。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com` 和 `www.notefable.com` 当成同一个站。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
@@ -267,5 +267,5 @@ cd mobile/android
 1. ✅ 聊天（本阶段）。
 2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
 3. ✅ 笔记：原生笔记列表、项目（分组）、回收站、拖动排序（0.4.0）；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：侧栏里给正打开着的笔记改图标（要先给编辑器加桥接口）。（搜索见“搜索与跳转”。）
-4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出，以及设置（显示名和头像（照片 / 表情）、存到账号的界面语言、自定义指令）。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 只登记 `NoteFable-Android-Play`（包名 + Play 应用签名），本机签名的包没有 Google 登录。
+4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出，以及设置（显示名和头像（照片 / 表情）、存到账号的界面语言、自定义指令）。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 只登记 `NoteFable-Android`（包名 + Play 应用签名），本机签名的包没有 Google 登录。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除。
