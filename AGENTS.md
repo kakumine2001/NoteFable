@@ -65,6 +65,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Every delivered APK is the Play-signed universal APK of an AAB on the internal testing track (one signing key, one Android OAuth client; locally signed builds have no Google login), and goes to the Google Drive release folder in `docs/architecture/android.md`, which holds exactly one APK: the latest. Upload the new one, verify size and folder, then move all older APKs to the trash and return the link. Flow: `docs/architecture/android.md`.
 - `globals.css` rules are unlayered and beat Tailwind utilities: restyle at breakpoints with an equal-or-higher-specificity `@media` rule placed after, not `hidden` / `sm:hidden`. Panels needing the Back key push a history entry (`use-back-to-close.ts`).
 - Native Google login: token audience is the Web client ID; the only Android OAuth client is `NoteFable-Android` (Play app signing key SHA-1).
+- Keep the Play Console store listing in sync with the product. A task that changes user-visible features, UI or branding (logo, mascot, name, colors) also updates what it made outdated: listing text and Console form answers in `docs/play-store/`, images (icon, feature graphic, screenshots) in `mobile/android/play-store/`, in every listed language, in the same PR. After the merge, apply the same changes in Play Console; tell the user what will change before sending anything for review. If nothing on the listing is affected, say so in the final report.
 
 ## Review and Validation
 
