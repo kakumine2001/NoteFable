@@ -95,7 +95,7 @@ Google 登录时：Google 从 App 上的章算出编号，和 Google Cloud 里 N
 
 每次发新版：
 
-1. 打开 `mobile/android/app/build.gradle.kts`，`versionCode`（版本流水号，Play 不接受重复的）加 1，`versionName`（给人看的版本号，比如 1.0.7）改成新的。
+1. 打开 `mobile/android/app/build.gradle.kts`，`versionCode`（版本流水号，Play 不接受重复的）加 1，`versionName`（给人看的版本号，比如 1.0.8）改成新的。
 2. 电脑上运行 `./gradlew bundleRelease`，得到 AAB（用你的上传密钥盖章）。
 3. 在 Play Console 把 AAB 传到「内部测试」并发布。内部测试 = 只有你和少数人能从 Play 装的测试版。
 4. 自己的手机从 Play 测试链接安装，试一下。
