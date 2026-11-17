@@ -63,12 +63,12 @@ import java.util.Locale
 private val MeterFull = Color(0xFFB45309) // .settings-plan-bar.is-full
 
 /**
- * 设置里的“方案”（网页 src/components/plan-settings.tsx，样式 globals.css 的 .settings-plan-*）：
- * 标题 14/600 后接徽章（12/600、左右 8 上下 1、全圆角；免费是浅灰底灰字，Pro 是浅蓝底蓝字）；
- * Pro 时一行 13 灰的续费 / 结束 / 扣款失败说明；两条用量（13 正文标签 + 右侧 13 灰的 “用了 / 上限”，下面 4 高的全圆角进度条，
- * 底色 hover 灰、填充蓝，用满时橙），条目间距 10、上距 9.6。
+ * 设置里“方案”卡片的内容（网页 src/components/plan-settings.tsx，样式 settings-dialog.css 的 .settings-plan-*，手机宽度）：
+ * 第一行“NoteFable”17/650 墨色，后接徽章（12/600、左右 8 上下 2、全圆角；免费是浅灰底灰字，Pro 是浅蓝底蓝字）；
+ * Pro 时一行 13 灰的续费 / 结束 / 扣款失败说明；两条用量（14 正文标签 + 右侧 13 灰的 “用了 / 上限”，下面 6 高的全圆角进度条，
+ * 底色 hover 灰、填充蓝，用满时橙），条目间距 14、上距 16。
  * 免费用户：服务端开了 Play 结算（googlePlay）且 Play 商品读得到时，显示 Pro 的介绍框和“升级到 Pro”（Google Play 的购买窗口，
- * 网页是 Stripe）；Play 里买的 Pro 显示“在 Google Play 上管理订阅”。网页（Stripe）买的订阅在 App 里不提供管理入口。
+ * 网页是 Stripe）；Play 里买的 Pro 显示“在 Google Play 上管理订阅”（.settings-chip，上距 16）。网页（Stripe）买的订阅在 App 里不提供管理入口。
  */
 @Composable
 internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
@@ -107,13 +107,13 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
     val current = plan
     val pro = current?.plan == "pro"
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(stringResource(R.string.plan_title), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+        Text("NoteFable", color = Sm.Ink, fontSize = 17.sp, lineHeight = 25.5.sp, fontWeight = FontWeight(650))
         if (current != null) {
             Spacer(Modifier.width(8.dp))
             Text(
                 stringResource(if (pro) R.string.plan_pro else R.string.plan_free),
                 color = if (pro) Sm.Blue else Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp, fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (pro) Sm.AccentSoft else Sm.Hover).padding(horizontal = 8.dp, vertical = 1.dp),
+                modifier = Modifier.clip(RoundedCornerShape(999.dp)).background(if (pro) Sm.AccentSoft else Sm.Hover).padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
     }
@@ -151,7 +151,7 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
                     periodEnd != null -> SettingsHelpText(stringResource(R.string.plan_renews, planDate(periodEnd)))
                 }
             }
-            Column(Modifier.padding(top = 9.6.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(Modifier.padding(top = 16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 current.usage["chat"]?.let { usage ->
                     PlanMeter(
                         stringResource(
@@ -189,7 +189,7 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
                 }
             }
             current.manageUrl?.let { url ->
-                SettingsInlineAction(Lucide.CreditCard, stringResource(R.string.plan_manage_play), enabled = true) {
+                SettingsChip(Lucide.CreditCard, stringResource(R.string.plan_manage_play), Modifier.padding(top = 16.dp)) {
                     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
                 }
             }
@@ -202,42 +202,42 @@ private fun PlanMeter(label: String, usage: PlanUsage) {
     val ratio = if (usage.limit > 0) (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) else 1f
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-            Text(label, Modifier.weight(1f), color = Sm.Text, fontSize = 13.sp, lineHeight = 19.5.sp)
+            Text(label, Modifier.weight(1f), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp)
             Text(
                 "${usage.used} / ${usage.limit}", color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, textAlign = TextAlign.End,
                 style = TextStyle(fontFeatureSettings = "tnum"),
             )
         }
-        Box(Modifier.padding(top = 4.dp).fillMaxWidth().height(4.dp).clip(RoundedCornerShape(999.dp)).background(Sm.Hover)) {
+        Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp)).background(Sm.Hover)) {
             Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(999.dp)).background(if (ratio >= 1f) MeterFull else Sm.Blue))
         }
     }
 }
 
-// .settings-plan-offer（手机）：上距 13.6、内边距 12/14、1px 蓝描边、圆角 10、和上限提示一样的浅蓝到浅黄渐变；
-// 标题 14/600 墨色、前面 15 的蓝色 Sparkles（间距 6）；说明 13 灰；按钮上距 10、高 44、全圆角、墨色底白字 15/600、占满一行。
+// .settings-plan-offer（手机）：上距 16、内边距 14/16、1px 蓝描边、圆角 12、和上限提示一样的浅蓝到浅黄渐变；
+// 标题 15/600 墨色、前面 15 的蓝色 Sparkles（间距 6）；说明 13 灰；按钮上距 12、高 44、全圆角、墨色底白字 15/600、占满一行。
 @Composable
 private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit) {
-    val shape = RoundedCornerShape(10.dp)
+    val shape = RoundedCornerShape(12.dp)
     val limits = rememberProLimits()
     Column(
-        Modifier.padding(top = 13.6.dp).fillMaxWidth().clip(shape).background(Color.White)
+        Modifier.padding(top = 16.dp).fillMaxWidth().clip(shape).background(Color.White)
             .drawBehind {
                 val d = 0.70710677f
                 val half = (size.width + size.height) * d / 2f
                 val c = Offset(size.width / 2f, size.height / 2f)
                 drawRect(Brush.linearGradient(listOf(Sm.AccentSoft, Color(0x29FFE27A)), c - Offset(d, d) * half, c + Offset(d, d) * half))
             }
-            .border(1.dp, Sm.AccentLine, shape).padding(horizontal = 14.dp, vertical = 12.dp),
+            .border(1.dp, Sm.AccentLine, shape).padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             LucideIcon(Lucide.Sparkles, 15.dp, Sm.Blue)
             Spacer(Modifier.width(6.dp))
-            Text(stringResource(R.string.plan_offer_title, product.formattedPrice), color = Sm.Ink, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.plan_offer_title, product.formattedPrice), color = Sm.Ink, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.SemiBold)
         }
         SettingsHelpText(stringResource(R.string.plan_offer_body, "%,d".format(limits.chat), limits.image))
         Box(
-            Modifier.padding(top = 10.dp).fillMaxWidth().height(44.dp).clip(CircleShape).background(Sm.Ink)
+            Modifier.padding(top = 12.dp).fillMaxWidth().height(44.dp).clip(CircleShape).background(Sm.Ink)
                 .clickable(enabled = !busy, onClick = onUpgrade).semantics { role = Role.Button },
             Alignment.Center,
         ) {

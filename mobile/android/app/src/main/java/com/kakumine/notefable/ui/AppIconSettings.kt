@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
@@ -36,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -198,16 +199,14 @@ private fun renderAppIcon(bitmap: Bitmap): String {
     }
 }
 
-private val PreviewShadow = Color(0x1F0F0F0F) // --notion-shadow 0 4px 14px rgba(15,15,15,.12)
-
 /*
- * 设置里的"图标"一栏（网页 AppIconSettings + globals.css 的 .settings-app-icon-*，手机宽度的值）：
- * - 标题 14/600、说明 13 灰（上 4），和其它栏相同。
- * - 一行（上 6.4、间距 14、垂直居中）：左边 48 的圆形预览（白底、1px 深描边、--notion-shadow，里面是 26 的图标）；
- *   右边是可换行的按钮（横向间距 14、行间 0）："选择表情"（Smile）、"上传图片"（ImagePlus），换过以后多一个
- *   "使用 NoteFable 标志"（RotateCcw）。按钮是 .settings-inline-action（最小高 44、15 字、图标 14 + 8）。
- * - 出错提示 14 红（上 12）。
- * - "选择表情"打开 / 收起下面的表情选择器（上 12、1px 描边、圆角 8 的框，高 min(320, 屏高 − 220)），去掉键写"使用 NoteFable 标志"。
+ * 设置里"图标"一行（网页 AppIconSettings + settings-dialog.css 的 .settings-row / .settings-chip-row / .settings-app-icon-*，手机宽度的值）：
+ * - 行（最小高 56、内边距 10×16、垂直居中）：左边标题 16/500 + 说明 13 灰（上 2），右边间距 16 处是 40 的圆形预览
+ *   （白底、1px 深描边，里面是 22 的图标）。
+ * - 下面一排可换行的小按钮（.settings-chip，左右 16、下 14、间距 8）："选择表情"（Smile）、"上传图片"（ImagePlus），
+ *   换过以后多一个"使用 NoteFable 标志"（RotateCcw）。
+ * - 出错提示 14 红（左右 16、下 12）。
+ * - "选择表情"打开 / 收起下面的表情选择器（左右 16、下 16、1px 描边、圆角 10 的框，高 min(320, 屏高 − 220)），去掉键写"使用 NoteFable 标志"。
  * 选了就存在这台设备上（AppIconStore），不用按"保存"。
  */
 @OptIn(ExperimentalLayoutApi::class)
@@ -218,27 +217,28 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
     val apply = { next: String? -> editor.error = if (store?.save(next) == true) null else AppIconError.NotSaved }
 
     Column(Modifier.fillMaxWidth()) {
-        SettingsSectionLabel(stringResource(R.string.app_icon_title), "", full = false)
-        SettingsHelpText(stringResource(R.string.app_icon_help))
-        Row(Modifier.padding(top = 6.4.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Box(
-                Modifier.size(48.dp)
-                    .shadow(6.dp, CircleShape, ambientColor = PreviewShadow, spotColor = PreviewShadow)
-                    .clip(CircleShape).background(Color.White).border(1.dp, Sm.BorderStrong, CircleShape),
-                Alignment.Center,
-            ) {
-                AppIcon(26.dp, Sm.Ink, icon)
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.app_icon_title), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+                Text(stringResource(R.string.app_icon_help), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 2.dp))
             }
-            FlowRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                SettingsInlineAction(Lucide.Smile, stringResource(R.string.app_icon_choose_emoji), enabled = true, inRow = true) {
-                    editor.picking = !editor.picking
-                }
-                SettingsInlineAction(Lucide.ImagePlus, stringResource(R.string.app_icon_upload_image), enabled = true, inRow = true, onClick = onPickImage)
-                if (icon != null) {
-                    SettingsInlineAction(Lucide.RotateCcw, stringResource(R.string.app_icon_use_logo), enabled = true, inRow = true) {
-                        apply(null)
-                        editor.picking = false
-                    }
+            Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.BorderStrong, CircleShape), Alignment.Center) {
+                AppIcon(22.dp, Sm.Ink, icon)
+            }
+        }
+        FlowRow(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SettingsChip(Lucide.Smile, stringResource(R.string.app_icon_choose_emoji)) { editor.picking = !editor.picking }
+            SettingsChip(Lucide.ImagePlus, stringResource(R.string.app_icon_upload_image), onClick = onPickImage)
+            if (icon != null) {
+                SettingsChip(Lucide.RotateCcw, stringResource(R.string.app_icon_use_logo)) {
+                    apply(null)
+                    editor.picking = false
                 }
             }
         }
@@ -247,11 +247,11 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
                 AppIconError.NotSaved -> stringResource(R.string.app_icon_could_not_save)
                 AppIconError.NotImage -> stringResource(R.string.acct_choose_image)
             }
-            Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 12.dp))
+            Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
         }
         if (editor.picking) {
-            val shape = RoundedCornerShape(8.dp)
-            Column(Modifier.padding(top = 12.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
+            val shape = RoundedCornerShape(10.dp)
+            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
                 EmojiPickerBody(
                     current = icon?.takeUnless(::isImageIcon),
                     onChange = apply,

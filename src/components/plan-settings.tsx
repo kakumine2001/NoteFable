@@ -40,11 +40,11 @@ export function PlanSettings() {
   const subscription = plan?.subscription;
 
   return (
-    <section className="project-settings-section settings-plan" aria-labelledby={labelId}>
-      <h3 id={labelId} className="project-settings-label">
-        {t("Plan")}
+    <div className="settings-plan" role="group" aria-labelledby={labelId}>
+      <p id={labelId} className="settings-plan-head">
+        <span className="settings-plan-name">NoteFable</span>
         {plan && <span className={`settings-plan-badge${pro ? " is-pro" : ""}`}>{pro ? t("Pro") : t("Free")}</span>}
-      </h3>
+      </p>
       {!plan && !loadError && <p className="project-settings-empty" role="status"><LoaderCircle size={14} className="mr-1 inline animate-spin" aria-hidden="true" />{t("Loading…")}</p>}
       {loadError && <>
         <p role="alert" className="project-settings-error">{localizeSystemText(loadError, t)}</p>
@@ -86,17 +86,17 @@ export function PlanSettings() {
           </div>
         )}
         {plan.manageUrl && (
-          <a className="settings-inline-action" href={plan.manageUrl} target="_blank" rel="noreferrer">
-            <CreditCard size={14} />{t("Manage subscription on Google Play")}
+          <a className="settings-chip settings-plan-manage" href={plan.manageUrl} target="_blank" rel="noreferrer">
+            <CreditCard size={14} aria-hidden="true" />{t("Manage subscription on Google Play")}
           </a>
         )}
         {plan.canManage && (pro || subscription) && (
-          <button type="button" className="settings-inline-action" disabled={busy} onClick={() => void open("portal")}>
-            <CreditCard size={14} />{busy && pro ? t("Opening…") : t("Manage subscription")}
+          <button type="button" className="settings-chip settings-plan-manage" disabled={busy} onClick={() => void open("portal")}>
+            <CreditCard size={14} aria-hidden="true" />{busy && pro ? t("Opening…") : t("Manage subscription")}
           </button>
         )}
         {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
       </>}
-    </section>
+    </div>
   );
 }

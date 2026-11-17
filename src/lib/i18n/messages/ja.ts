@@ -659,4 +659,7 @@ export const ja: Record<string, string> = {
   "Could not load your plan.": "プランを読み込めませんでした。",
   "Attachments aren't kept when you go to the payment page. Add them again afterward.": "支払いページに移ると添付は残りません。戻ってから追加し直してください。",
   "Manage subscription on Google Play": "Google Play でサブスクリプションを管理",
+  "General": "一般",
+  "Personalization": "パーソナライズ",
+  "Unsaved changes": "未保存の変更があります",
 };

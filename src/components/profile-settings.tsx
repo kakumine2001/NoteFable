@@ -114,7 +114,7 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
       <div className="profile-menu-head">
         <button type="button" className="profile-avatar-button" aria-label={t("Change photo or icon")} aria-expanded={editor !== "closed"}
           onClick={() => (editor === "closed" ? switchEditor("photo") : switchEditor("closed"))}>
-          <UserAvatar user={user} size={52} />
+          <UserAvatar user={user} size={56} />
           <span className="profile-avatar-badge" aria-hidden="true"><Pencil size={11} /></span>
         </button>
         <div className="min-w-0 flex-1">
@@ -123,9 +123,9 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
             placeholder={user.googleName ?? t("Your name")} autoComplete="off"
             onChange={(event) => setDraft(event.target.value)} onBlur={commitName}
             onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); commitName(); event.currentTarget.blur(); } }} />
+          {user.email && <div className="profile-email" title={user.email}>{user.email}</div>}
         </div>
       </div>
-      {user.email && <div className="profile-email" title={user.email}>{user.email}</div>}
 
       {editor !== "closed" && (
         <div className="profile-editor">
@@ -165,8 +165,8 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
       )}
 
       {customized && hasGoogleProfile && (
-        <button type="button" className="settings-inline-action" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
-          <RotateCcw size={14} />{t("Use my Google name and photo")}
+        <button type="button" className="settings-chip settings-profile-reset" onClick={() => { setDraft(null); onSave({ displayName: null, icon: null }); }}>
+          <RotateCcw size={14} aria-hidden="true" />{t("Use my Google name and photo")}
         </button>
       )}
     </div>
