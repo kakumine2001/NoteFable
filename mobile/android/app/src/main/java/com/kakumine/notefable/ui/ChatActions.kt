@@ -102,14 +102,16 @@ fun ChatActions(
             val (runner, run) = rememberRunner(onClose)
             val pinned = action.session.pinned
             ActionsMenu(action.anchor, stringResource(R.string.sb_actions_for_title, action.session.title), { if (!runner.busy) onClose() }, animated = true) {
-            MenuItem(stringResource(if (pinned) R.string.sb_unpin else R.string.sb_pin), if (pinned) Lucide.PinOff else Lucide.Pin) {
+            // 保存中其他项也不能点（网页 disabled={busy}）：押すと菜单连同协程一起被撤掉，服务端改了而本地列表没跟上。
+            val idle = !runner.busy
+            MenuItem(stringResource(if (pinned) R.string.sb_unpin else R.string.sb_pin), if (pinned) Lucide.PinOff else Lucide.Pin, enabled = idle) {
                 run { sidebar.setPinned(action.session.id, !pinned) }
             }
-            MenuItem(stringResource(R.string.sb_rename), Lucide.Pencil) { onAction(ChatAction.Rename(action.session)) }
-            MenuItem(stringResource(R.string.move_to_project), Lucide.FolderInput) { onAction(ChatAction.Move(action.session)) }
+            MenuItem(stringResource(R.string.sb_rename), Lucide.Pencil, enabled = idle) { onAction(ChatAction.Rename(action.session)) }
+            MenuItem(stringResource(R.string.move_to_project), Lucide.FolderInput, enabled = idle) { onAction(ChatAction.Move(action.session)) }
             // .chat-menu-divider：上下 4.8、左右 8、1px 线。
             Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
-            MenuItem(stringResource(R.string.sb_delete_), Lucide.Trash2, danger = true) { onAction(ChatAction.Delete(action.session)) }
+            MenuItem(stringResource(R.string.sb_delete_), Lucide.Trash2, danger = true, enabled = idle) { onAction(ChatAction.Delete(action.session)) }
             // .chat-menu-error：13/18.2 红字，外边距 4.8 12 6.4。
             runner.error?.let {
                 Text(sidebarErrorText(it), color = DangerRed, fontSize = 13.sp, lineHeight = 18.2.sp, modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 4.8.dp, bottom = 6.4.dp))
@@ -199,10 +201,10 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
 
 // .chat-menu-item（手机）：最小高 44、内边距 9.6×12、圆角 6.4、图标 16 + 间距 12、14/21；危险项红字。
 @Composable
-internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, onClick: () -> Unit) {
+internal fun MenuItem(text: String, icon: List<String>, danger: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     val color = if (danger) DangerRed else Sm.Text
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(onClick = onClick)
+        Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp, vertical = 9.6.dp).semantics { role = Role.Button },
         verticalAlignment = Alignment.CenterVertically,
     ) {

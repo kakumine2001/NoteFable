@@ -44,10 +44,14 @@ export function ChatActions({ action, projects, onClose, onAction, onUpdate, onD
   const [error, setError] = useState("");
   const [creating, setCreating] = useState(false);
   const locked = useRef(false);
+  // 保存の途中でこの画面が閉じられ、別のメニューやダイアログが開いていることがある。
+  // そのとき完了後の onClose を呼ぶと、開いたばかりの別の画面を閉じてしまうので、まだ出ているときだけ閉じる。
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   async function run(work: () => Promise<unknown>) {
     if (locked.current) return;
     locked.current = true; setBusy(true); setError("");
-    try { if (await work()) onClose(); else setError(msg("Could not save the change. Please try again.")); }
+    try { if (await work()) { if (mounted.current) onClose(); } else setError(msg("Could not save the change. Please try again.")); }
     catch (error) { setError(error instanceof Error ? error.message : msg("Could not save the change. Please try again.")); }
     finally { locked.current=false; setBusy(false); }
   }
