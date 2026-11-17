@@ -4,21 +4,26 @@ import type { ReactNode } from "react";
 export { LegalLinks } from "@/components/legal-links";
 
 export const LEGAL_CONTACT_EMAIL = "kakumine0824@gmail.com";
-export const LEGAL_UPDATED = "November 15, 2026";
+// 法的文書の最終更新日。どれかの本文を変えたらここを変える（英語の表記と特商法ページの日本語の表記はこれから作る）。
+export const LEGAL_UPDATED_ISO = "2026-11-17";
+const legalUpdatedDate = new Date(`${LEGAL_UPDATED_ISO}T00:00:00Z`);
+export const LEGAL_UPDATED = legalUpdatedDate.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+export const LEGAL_UPDATED_JA = legalUpdatedDate.toLocaleDateString("ja-JP", { year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
 
-// プライバシーポリシーと利用規約で共通の見た目。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。
-export function LegalPage({ title, children }: { title: string; children: ReactNode }) {
+// プライバシーポリシー・利用規約・特商法表記で共通の見た目。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。
+export function LegalPage({ title, lang = "en", updatedLabel = `Last updated: ${LEGAL_UPDATED}`, children }: { title: string; lang?: string; updatedLabel?: string; children: ReactNode }) {
   return (
-    <main lang="en" className="h-dvh overflow-y-auto bg-white text-[var(--notion-text)]" style={{ fontFamily: "var(--font-ui)" }}>
+    <main lang={lang} className="h-dvh overflow-y-auto bg-white text-[var(--notion-text)]" style={{ fontFamily: "var(--font-ui)" }}>
       <article className="mx-auto w-full max-w-[44rem] px-6 pb-24 pt-12 text-[15px] leading-7">
         <Link href="/" className="text-sm text-[var(--notion-muted)] hover:underline">← NoteFable</Link>
         <h1 className="mt-6 text-[2rem] font-bold leading-tight tracking-[-0.02em]">{title}</h1>
-        <p className="mt-2 text-sm text-[var(--notion-muted)]">Last updated: {LEGAL_UPDATED}</p>
+        <p className="mt-2 text-sm text-[var(--notion-muted)]">{updatedLabel}</p>
         <div className="mt-8 space-y-8">{children}</div>
-        <nav className="mt-14 flex gap-5 border-t border-[var(--notion-border)] pt-5 text-sm text-[var(--notion-muted)]" aria-label="Legal">
+        <nav lang="en" className="mt-14 flex flex-wrap gap-x-5 gap-y-2 border-t border-[var(--notion-border)] pt-5 text-sm text-[var(--notion-muted)]" aria-label="Legal">
           <Link href="/privacy" className="hover:underline">Privacy Policy</Link>
           <Link href="/terms" className="hover:underline">Terms of Service</Link>
           <Link href="/delete-account" className="hover:underline">Delete your account</Link>
+          <Link href="/legal-notice" lang="ja" className="hover:underline">特定商取引法に基づく表記</Link>
         </nav>
       </article>
     </main>

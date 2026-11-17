@@ -19,7 +19,8 @@ export function isBillingConfigured() {
   return Boolean(optionalEnv("STRIPE_SECRET_KEY") && optionalEnv("STRIPE_PRICE_ID") && optionalEnv("STRIPE_WEBHOOK_SECRET"));
 }
 
-// Webhook を受けるか。新規の申し込みを止める（価格を外す）間も、続いている購読の知らせは受け続ける。
+// Webhook を受けるか、続いている購読を管理画面（Customer Portal）で扱えるか。新規の申し込みを止める（価格を外す）間も、
+// 続いている購読の知らせは受け続け、利用者は解約できる（利用規約で解約方法を約束している）。
 export function isWebhookConfigured() {
   return Boolean(optionalEnv("STRIPE_SECRET_KEY") && optionalEnv("STRIPE_WEBHOOK_SECRET"));
 }
@@ -218,11 +219,19 @@ async function cancelSubscription(id: string) {
 
 // アカウントを削除する前に、顧客の課金をすべて止める: 開いたままの決済画面を閉じ、課金の続く購読
 // （行にまだ写っていないもの・重複も含む）を取り消す。行が消えたあとは Webhook で持ち主を探せないため。
+// 最後に Stripe の顧客（メールアドレスと userId）も消す。請求書と支払いの記録は Stripe 側に残る（法定の保存）。
 // 呼び出し側は、この利用者の withUserBillingLock の中で、止めてから行を消すまでを行う（申し込みと重ならないように）。
 export async function cancelCustomerBilling(customer: string | null) {
   if (!customer) return;
   await expireOpenCheckouts(customer);
   for (const subscription of await customerSubscriptions(customer)) {
     if (!ENDED_STATUSES.has(subscription.status)) await cancelSubscription(subscription.id);
+  }
+  try {
+    await stripe().customers.del(customer);
+  } catch (error) {
+    // すでに消えている顧客はそれでよい。
+    if (error instanceof Stripe.errors.StripeInvalidRequestError && error.code === "resource_missing") return;
+    throw error;
   }
 }

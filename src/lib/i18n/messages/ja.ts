@@ -378,6 +378,7 @@ export const ja: Record<string, string> = {
   "Sunset: long path, blue removed, red remains": "夕方：光の道のりが長く、青い光が散乱して赤い光が残る",
   "Tell the AI how to change this note. You review its proposal before anything changes.": "ノートをどう変えたいかAIに伝えてください。提案を確認してから変更を適用できます。",
   "Terms": "利用規約",
+  "Commercial disclosure": "特定商取引法に基づく表記",
   "Text": "テキスト",
   "Text colors, underline or alignment in the replaced block will be lost.": "置き換えるブロックの文字色、下線、配置は引き継がれません。",
   "That file is larger than {size} MB.": "ファイルのサイズが{size} MBを超えています。",

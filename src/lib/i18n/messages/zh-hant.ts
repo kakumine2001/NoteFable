@@ -138,6 +138,7 @@ export const zhHant: Record<string, string> = {
   "Code": "程式碼",
   "Collapse {title}": "收起“{title}”",
   "Color": "顏色",
+  "Commercial disclosure": "特定商交易法標示",
   "Conflict": "儲存衝突",
   "Connect": "關聯",
   "Continue with Google": "使用 Google 繼續",
