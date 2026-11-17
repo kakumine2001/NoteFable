@@ -7,6 +7,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -268,24 +269,29 @@ fun LucideIcon(
     }
 }
 
-// 品牌标志（src/components/notefable-logo.tsx 的 BrandMark，viewBox 12 5 44 56）。
-private const val BrandOutline =
-    "M18 12.5 43 9c4-.6 7 2 7 5.7v34c0 3.1-2.2 5.8-5.2 6.2L26 57.2c-4.8.6-8.8-3.1-8.8-7.9V17.1c0-2.3 1.7-4.3 4-4.6Z"
-private const val BrandDetails =
-    "M20.2 18 45.5 14.4c2-.3 3.8.5 4.5 2.1M18 23.8 42 20.5c4.6-.6 8.3 3 8.3 7.6M30 29h14v9.5H30zM25.2 44v12.7l4.4-3 4.5 2V43.4M24 40.1h2.8"
+// 产品形象（src/components/notefable-logo.tsx）：折了角的便签 + 两只眼睛。品牌标志和空白首页的形象（Mascot.kt）用同一份路径。
+internal const val MascotBody =
+    "M21 9h13.5a1.5 1.5 0 0 1 1.5 1.5v12a4 4 0 0 0 4 4h11.5a1.5 1.5 0 0 1 1.5 1.5V46a9 9 0 0 1-9 9H20a9 9 0 0 1-9-9V19A10 10 0 0 1 21 9Z"
+internal const val MascotFlap =
+    "M39.5 12.4c0-1.3 1.6-2 2.6-1.1l9.6 9.6c.9 1 .3 2.6-1.1 2.6H42a2.5 2.5 0 0 1-2.5-2.5Z"
+private const val MascotEyeHoles =
+    "M22.5 35.5a2.5 2.5 0 0 1 5 0v4a2.5 2.5 0 0 1-5 0ZM36.5 35.5a2.5 2.5 0 0 1 5 0v4a2.5 2.5 0 0 1-5 0Z"
 
+// 品牌标志（网页 BrandMark，viewBox 8 6 48 52）：单色填充，眼睛从身体里镂空。
 @Composable
 fun BrandMark(size: Dp, tint: Color, modifier: Modifier = Modifier) {
-    val outline = remember { PathParser().parsePathString(BrandOutline).toPath() }
-    val details = remember { PathParser().parsePathString(BrandDetails).toPath() }
+    val body = remember {
+        PathParser().parsePathString(MascotBody + MascotEyeHoles).toPath().apply { fillType = PathFillType.EvenOdd }
+    }
+    val flap = remember { PathParser().parsePathString(MascotFlap).toPath() }
     Canvas(modifier.size(size)) {
-        // viewBox 44x56 按"保持比例、居中"放进正方形（preserveAspectRatio 默认值）。
-        val s = this.size.height / 56f
-        translate(left = (this.size.width - 44f * s) / 2f) {
+        // viewBox 48x52 按"保持比例、居中"放进正方形（preserveAspectRatio 默认值）。
+        val s = this.size.height / 52f
+        translate(left = (this.size.width - 48f * s) / 2f) {
             scale(s, pivot = Offset.Zero) {
-                translate(left = -12f, top = -5f) {
-                    drawPath(outline, tint, style = Stroke(3.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-                    drawPath(details, tint, style = Stroke(2.8f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                translate(left = -8f, top = -6f) {
+                    drawPath(body, tint)
+                    drawPath(flap, tint)
                 }
             }
         }

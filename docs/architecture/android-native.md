@@ -28,13 +28,13 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 - **文案文件按批次分开**：`strings.xml` 是已有界面的文案。之后每一批功能把新文案放进自己的 `res/values/strings_<批次>.xml`（例如 `strings_activity.xml`、`strings_search.xml`），`values-zh`、`values-ja` 里放同名文件，三份的键一一对应。这样几批并行开发时不会改同一个文件；同一个句子只放一处，后面的批次直接引用已有的键，不重复定义。
 - **服务端发来的文字**不进 `strings*.xml`，见下文“与服务端的约定”里的系统文词典。
 - **颜色**：`ui/Theme.kt` 的 `Sm` 对象，逐项对应 `--nf-*` / `--notion-*`。**网页只有浅色主题**，所以原生版也只做浅色，不跟随系统深色模式。
-- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制，品牌标志同理。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
+- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制，品牌标志同理（产品形象：折角便签 + 两只眼睛，路径来自 `src/components/notefable-logo.tsx`；启动图标和 `public/icon.svg` 也是这个图形）。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
 - **字体**：网页的字体栈在安卓上落到 Roboto（日文 / 中文用系统 Noto CJK），原生版用系统默认，所以一致。等宽的角色标签网页用 Geist Mono，原生版先用系统等宽，没有内置字体文件。
 
 | 位置 | 网页数值（CSS px） | 原生 |
 |---|---|---|
 | 顶栏 | 高 56，左右 10.4；图标按钮 40×40、图标 20、圆角 4.8；标题 14 灰 | `TopBar` |
-| 空白首页 | 左右 24；图标框 41.6 + 标题 32 粗体、字距 −0.04em、行高 36.8；说明 17 / 27.2 灰，上距 8.8；整体垂直居中 | `EmptyState` |
+| 空白首页 | 左右 24；产品形象 64 × 68、下距 14.4（出场弹起、浮动、眨眼、折角抖动，输入框有字时往下看；网页的"眼睛跟鼠标"触屏没有）；图标框 41.6 + 标题 32 粗体、字距 −0.04em、行高 36.8；说明 17 / 27.2 灰，上距 8.8；整体垂直居中。网页输入框下面的起手提示只在 ≥ 640 宽出现，手机宽度和原生都没有 | `EmptyState`、`Mascot` |
 | 提问气泡 | 上方没有标签；气泡圆角 14、`#F3F5F9`、内边距 12×16、字 **15 / 行高 28**；图片缩略图 128、圆角 4，在文字上方；非图片附件是块下方的文件标签 | `UserTurn` |
 | 提问的操作行 | 上距 6.4、整体左移 10.4；依次是版本切换、复制、编辑，按钮 36×36、圆角 4.8、间距 2、图标 16（线宽 1.9）灰色；只给已保存的提问显示，生成图片的那一轮没有编辑 | `UserTurnActions` |
 | 版本切换 | `‹ 2/3 ›`：两个 36 的箭头按钮（ChevronLeft / ChevronRight 16）夹着 13 号灰色数字（最小宽 28、居中）；到头或聊天在生成时箭头是 `.36` 灰、不能点 | `VersionNav` |

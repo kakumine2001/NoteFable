@@ -197,7 +197,7 @@ fun ChatScreen(
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalTurnActions provides turnActions) {
-                    MessageList(state, onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
+                    MessageList(state, input.isNotBlank(), onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
                 }
             }
             val guestLimit = state.guestLimit
@@ -356,7 +356,7 @@ internal fun TopIconButton(
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit, onRevealDone: (Long) -> Unit) {
+private fun MessageList(state: ChatUiState, hasDraft: Boolean, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit, onRevealDone: (Long) -> Unit) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -431,7 +431,7 @@ private fun MessageList(state: ChatUiState, onRetry: () -> Unit, onSwitchWorkspa
             WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 // 已保存但还没有消息的聊天显示它自己的标题和图标（网页 EmptyConversation 的 title = activeTitle）。
-                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, onChangeIcon)
+                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, hasDraft, onChangeIcon)
             }
         }
         else -> Box(Modifier.fillMaxSize()) {
@@ -527,11 +527,13 @@ private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier
 // 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"；手机宽度（< 640）下输入栏区顶部那一行"滚动到底部"
 // （40 + 8）在空白首页也只是透明、照样占位（只有 ≥ 640 才 display: none）。所以这里底部留 48 + 48，标题的位置才和网页一致。
 @Composable
-private fun EmptyState(title: String?, icon: String?, onChangeIcon: (String?) -> Unit) {
+private fun EmptyState(title: String?, icon: String?, hasDraft: Boolean, onChangeIcon: (String?) -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
         verticalArrangement = Arrangement.Center,
     ) {
+        // 标题上方的产品形象（网页 .nf-mascot-stage：64 × 68，下距 14.4）；输入框里有字时往下看。
+        Mascot(lookDown = hasDraft, modifier = Modifier.padding(bottom = 14.4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 网页 ChatTitleIcon：1.3em（41.6）、圆角 6；表情 0.85em（27.2），没有时 MessageSquareText 0.7em（22.4）描边 1.8。
             ChatIconButton(icon, onChangeIcon, Modifier.size(41.6.dp), RoundedCornerShape(6.dp)) {
