@@ -1,9 +1,17 @@
-// NoteFable のロゴマーク（ノートとしおり）。紹介ページ・ワークスペース・アプリアイコンで同じ形を使う。
+// NoteFable のキャラクター：角を折ったノートに目が二つ。ロゴ・アプリアイコン・空の会話の絵はすべてこの形を使う
+// （Android は ui/Lucide.kt の BrandMark、public/icon.svg も同じパス）。
+export const MASCOT_BODY = "M21 9h13.5a1.5 1.5 0 0 1 1.5 1.5v12a4 4 0 0 0 4 4h11.5a1.5 1.5 0 0 1 1.5 1.5V46a9 9 0 0 1-9 9H20a9 9 0 0 1-9-9V19A10 10 0 0 1 21 9Z";
+export const MASCOT_FLAP = "M39.5 12.4c0-1.3 1.6-2 2.6-1.1l9.6 9.6c.9 1 .3 2.6-1.1 2.6H42a2.5 2.5 0 0 1-2.5-2.5Z";
+// 目は幅 5・高さ 9 の丸い縦長。ロゴでは体からくり抜く。
+export const MASCOT_EYES = [22.5, 36.5] as const;
+const EYE_HOLES = MASCOT_EYES.map((x) => `M${x} 35.5a2.5 2.5 0 0 1 5 0v4a2.5 2.5 0 0 1-5 0Z`).join("");
+
+// ロゴマーク。一色（currentColor）で、紹介ページ・ワークスペース・回答のラベルに使う。
 export function BrandMark({ size = 26 }: { size?: number }) {
   return (
-    <svg width={size} height={size} viewBox="12 5 44 56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <path strokeWidth="3.2" d="M18 12.5 43 9c4-.6 7 2 7 5.7v34c0 3.1-2.2 5.8-5.2 6.2L26 57.2c-4.8.6-8.8-3.1-8.8-7.9V17.1c0-2.3 1.7-4.3 4-4.6Z" />
-      <path strokeWidth="2.8" d="M20.2 18 45.5 14.4c2-.3 3.8.5 4.5 2.1M18 23.8 42 20.5c4.6-.6 8.3 3 8.3 7.6M30 29h14v9.5H30zM25.2 44v12.7l4.4-3 4.5 2V43.4M24 40.1h2.8" />
+    <svg width={size} height={size} viewBox="8 6 48 52" fill="currentColor" aria-hidden="true">
+      <path fillRule="evenodd" d={MASCOT_BODY + EYE_HOLES} />
+      <path d={MASCOT_FLAP} />
     </svg>
   );
 }

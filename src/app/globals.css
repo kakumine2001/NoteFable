@@ -1104,6 +1104,76 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   }
 }
 
+/* 空の会話のキャラクター（src/components/mascot.tsx）。SVG の中なので、transform の px は viewBox の単位。 */
+.nf-mascot-stage { display: flex; height: 68px; margin-bottom: 0.9rem; }
+.nf-mascot { display: block; overflow: visible; color: var(--nf-ink); fill: currentColor; }
+.nf-mascot-shadow { opacity: 0.1; transform-box: fill-box; transform-origin: center; animation: nf-mascot-shadow 4.2s ease-in-out 700ms infinite; }
+.nf-mascot-enter { transform-box: fill-box; transform-origin: 50% 100%; animation: nf-mascot-enter 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms both; }
+.nf-mascot-float { animation: nf-mascot-float 4.2s ease-in-out 700ms infinite; }
+.nf-mascot-flap { transform-box: fill-box; transform-origin: 0% 100%; animation: nf-mascot-flap 6.5s ease-in-out 2s infinite; }
+.nf-mascot-eyes { fill: #fff; transform: translate(calc(var(--ex, 0) * 1px), calc(var(--ey, 0) * 1px)); transition: transform 140ms ease-out; }
+.nf-mascot[data-look="down"] .nf-mascot-eyes { transform: translate(0, 2.4px); }
+.nf-mascot-eye { transform-box: fill-box; transform-origin: center; animation: nf-mascot-blink 5.6s ease-in-out 1.6s infinite; }
+
+@keyframes nf-mascot-enter {
+  from { opacity: 0; transform: translateY(10px) scale(0.6); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes nf-mascot-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2.5px); }
+}
+@keyframes nf-mascot-shadow {
+  0%, 100% { opacity: 0.1; transform: scaleX(1); }
+  50% { opacity: 0.06; transform: scaleX(0.82); }
+}
+/* 折った角（耳）がときどきぴくっと動く。 */
+@keyframes nf-mascot-flap {
+  0%, 9%, 100% { transform: rotate(0); }
+  2.5% { transform: rotate(-10deg); }
+  5% { transform: rotate(3deg); }
+  7% { transform: rotate(-5deg); }
+}
+/* まばたき。1 周に 1 回と、続けて 2 回。 */
+@keyframes nf-mascot-blink {
+  0%, 3.6%, 52%, 55.6%, 59.2%, 100% { transform: scaleY(1); }
+  1.8%, 53.8%, 57.4% { transform: scaleY(0.1); }
+}
+
+/* 書き出しの候補（StarterPrompts）。パソコンの幅の空の会話だけ、入力欄の下に出す。 */
+.nf-starters { display: none; }
+
+@media (min-width: 640px) {
+  .notion-chat-workspace.is-empty .nf-mascot-stage { justify-content: center; }
+  .nf-starters { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.5rem; margin-top: 1rem; transition: opacity 160ms ease; }
+  .nf-starters[data-hidden] { opacity: 0; }
+  .nf-starters li { animation: nf-starter-enter 320ms ease-out both; animation-delay: calc(var(--i) * 50ms + 260ms); }
+  .nf-starters button {
+    display: inline-flex;
+    height: 2rem;
+    align-items: center;
+    gap: 0.4rem;
+    border: 1px solid var(--notion-border-strong);
+    border-radius: 999px;
+    background: #fff;
+    padding: 0 0.8rem;
+    color: var(--notion-muted);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+  }
+  .nf-starters button:focus-visible { outline: 2px solid var(--nf-accent); outline-offset: 2px; }
+}
+
+@media (min-width: 640px) and (hover: hover) {
+  .nf-starters button:hover { border-color: var(--nf-accent-line); background: var(--nf-accent-soft); color: var(--nf-ink); transform: translateY(-1px); }
+}
+
+@keyframes nf-starter-enter {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+
 /* 入力欄。紹介ページの入力カードと同じ丸みと浮き方。 */
 .notion-composer {
   overflow: visible;
@@ -1854,7 +1924,13 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .motion-sidebar-panel,
   .motion-desktop-sidebar,
   .motion-page-enter,
-  .motion-drawer-enter {
+  .motion-drawer-enter,
+  .nf-mascot-shadow,
+  .nf-mascot-enter,
+  .nf-mascot-float,
+  .nf-mascot-flap,
+  .nf-mascot-eye,
+  .nf-starters li {
     animation: none;
   }
 }
