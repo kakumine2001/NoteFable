@@ -62,13 +62,30 @@ function counterKind(kind: UsageKind, period: UsagePeriod, tier: UsageTier) {
   return tier === "pro" ? `${kind}:pro` : `${kind}:month`;
 }
 
+// 上限を数えるネットワークの単位。IPv4 はアドレスそのもの、IPv6 は先頭 64 ビット
+// （利用者には /64 以上が丸ごと割り当てられるので、アドレスを変えるだけで未ログインの上限を逃れられないように）。
+// IPv4 を包んだ IPv6（::ffff:1.2.3.4）は IPv4 として数える。読めない形はそのまま使う。
+export function networkAddress(ip: string) {
+  if (!ip.includes(":")) return ip;
+  const address = ip.split("%")[0].toLowerCase();
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped) return mapped[1];
+  const halves = address.split("::");
+  if (halves.length > 2) return ip;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves[1] ? halves[1].split(":") : [];
+  const groups = halves.length === 2 ? [...head, ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail] : head;
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return ip;
+  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(":")}::/64`;
+}
+
 export function clientNetworkKey(request: Request) {
   // Vercel は x-forwarded-for を受け取った接続元で上書きする。ローカルなど取れない環境では IP の上限を掛けない。
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const ip = forwarded || request.headers.get("x-real-ip")?.trim();
   if (!ip) return null;
   // IP そのものは保存しない。
-  return `ip:${createHmac("sha256", getCookieSecret()).update(`usage:${ip}`).digest("base64url")}`;
+  return `ip:${createHmac("sha256", getCookieSecret()).update(`usage:${networkAddress(ip)}`).digest("base64url")}`;
 }
 
 // period: 達した上限の期間（画像は 1 日と月の両方に上限がある）。

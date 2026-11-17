@@ -10,7 +10,7 @@ vi.mock("@/lib/prisma", () => ({
     usageCounter: { deleteMany: mocks.deleteMany, findMany: mocks.findMany },
   },
 }));
-import { clientNetworkKey, consumeUsage, GUEST_NETWORK_LIMITS, refundUsage, USAGE_DAILY_LIMITS, USAGE_LIMITS, usageDay, usagePeriodWindow, usageSummary, usageTier } from "./usage-limits";
+import { clientNetworkKey, consumeReportQuota, consumeUsage, GUEST_NETWORK_LIMITS, networkAddress, refundUsage, USAGE_DAILY_LIMITS, USAGE_LIMITS, usageDay, usagePeriodWindow, usageSummary, usageTier } from "./usage-limits";
 
 const guest = { id: "g1", googleSub: null, plan: "FREE" };
 const member = { id: "m1", googleSub: "sub", plan: "FREE" };
@@ -40,7 +40,8 @@ describe("usage limits", () => {
     expect(USAGE_LIMITS.member.chat * 31).toBeLessThan(USAGE_LIMITS.pro.chat);
     // 1 日の上限は月の上限より小さく、段階が上がっても減らない。
     for (const tier of ["guest", "member", "pro"] as const) expect(USAGE_DAILY_LIMITS[tier].image).toBeLessThan(USAGE_LIMITS[tier].image);
-    expect(USAGE_DAILY_LIMITS.guest.image).toBeLessThanOrEqual(USAGE_DAILY_LIMITS.member.image!);
+    // 未ログインの文は「ログインすると増える」と案内するので、ログイン後の 1 日の上限は必ず多い。
+    expect(USAGE_DAILY_LIMITS.guest.image).toBeLessThan(USAGE_DAILY_LIMITS.member.image!);
     expect(USAGE_DAILY_LIMITS.member.image).toBeLessThan(USAGE_DAILY_LIMITS.pro.image!);
     expect(USAGE_LIMITS.guest.image).toBeLessThanOrEqual(GUEST_NETWORK_LIMITS.image);
   });
@@ -67,6 +68,35 @@ describe("usage limits", () => {
     expect(key).not.toContain("1.2.3.4");
     expect(clientNetworkKey(new Request("http://x", { headers: { "x-real-ip": "1.2.3.4" } }))).toBe(key);
     expect(clientNetworkKey(new Request("http://x"))).toBeNull();
+  });
+
+  it("counts an IPv6 network by its /64 so rotating addresses does not escape the cap", () => {
+    const keyOf = (ip: string) => clientNetworkKey(new Request("http://x", { headers: { "x-forwarded-for": ip } }));
+    expect(networkAddress("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).toBe("2001:db8:1:2::/64");
+    expect(networkAddress("2001:DB8:1:2::1")).toBe("2001:db8:1:2::/64");
+    expect(networkAddress("2001:db8::1")).toBe("2001:db8:0:0::/64");
+    expect(networkAddress("::1")).toBe("0:0:0:0::/64");
+    expect(networkAddress("fe80::1%eth0")).toBe("fe80:0:0:0::/64");
+    expect(keyOf("2001:db8:1:2:aaaa:bbbb:cccc:dddd")).toBe(keyOf("2001:db8:1:2::1"));
+    expect(keyOf("2001:db8:1:3::1")).not.toBe(keyOf("2001:db8:1:2::1"));
+    // IPv4 を包んだ形は IPv4 と同じ枠。読めない形はそのまま。
+    expect(networkAddress("::ffff:1.2.3.4")).toBe("1.2.3.4");
+    expect(keyOf("::ffff:1.2.3.4")).toBe(keyOf("1.2.3.4"));
+    expect(networkAddress("1.2.3.4")).toBe("1.2.3.4");
+    expect(networkAddress("2001:db8:::1")).toBe("2001:db8:::1");
+    expect(networkAddress("64:ff9b::1.2.3.4")).toBe("64:ff9b::1.2.3.4");
+  });
+
+  it("refuses a bucket with a zero limit without writing a row", async () => {
+    const plans = await import("./usage-plans");
+    const original = plans.REPORT_LIMITS.user;
+    plans.REPORT_LIMITS.user = 0;
+    try {
+      await expect(consumeReportQuota(member, null)).resolves.toBeNull();
+      expect(mocks.query).not.toHaveBeenCalled();
+    } finally {
+      plans.REPORT_LIMITS.user = original;
+    }
   });
 
   it("counts guests per user and per network", async () => {

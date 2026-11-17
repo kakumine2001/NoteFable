@@ -279,12 +279,12 @@ User 1 -> N Session
 
 ### UsageCounter
 
-用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成；图片的每日上限用这一行），按月计的免费额度用 `image:month`（未登录的网络上限也用这个名字，`key` 不同），Pro 用 `chat:pro` / `image:pro`；`day` 是日本时间的日期，按月计时是这个周期的第一天（免费是自然月 1 日，Pro 是账期开始日）。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`，定价依据见 [billing.md](billing.md)：
+用量计数，`(key, kind, day)` 为主键。`key` 是 `user:<User.id>`，或未登录用户所在网络的 `ip:<HMAC>`（用 Cookie 签名密钥对 IP 做 HMAC，不存原始 IP；IPv6 取前 64 位）；`kind` 是 `chat`（每次发送，包括笔记内 AI 助手和每次“整理成笔记”）或 `image`（每次生成；图片的每日上限用这一行），按月计的免费额度用 `image:month`（未登录的网络上限也用这个名字，`key` 不同），Pro 用 `chat:pro` / `image:pro`；`day` 是日本时间的日期，按月计时是这个周期的第一天（免费是自然月 1 日，Pro 是账期开始日）。没有外键，删除用户不会级联。上限和档位写在 `src/lib/usage-plans.ts`，计数逻辑在 `src/lib/usage-limits.ts`，定价依据见 [billing.md](billing.md)：
 
 | 档位 | 条件 | 聊天 | 图片 |
 | --- | --- | --- | --- |
 | guest | 未登录 | 20 / 天 | 10 / 月，且 3 / 天 |
-| member | 已登录（Google 或邮箱） | 40 / 天 | 20 / 月，且 3 / 天 |
+| member | 已登录（Google 或邮箱） | 40 / 天 | 20 / 月，且 5 / 天 |
 | pro | `plan = PRO` | 2000 / 账期 | 60 / 账期，且 10 / 天 |
 
 上限为 0 时直接拒绝，不写行（`INSERT` 本身不受 `WHERE` 限制）。图片一次生成同时计月（账期）和当天两行（`USAGE_DAILY_LIMITS`）。未登录用户清 Cookie 就会变成新用户，所以同一 IP 的未登录用户还共享一个更大的上限（聊天 100 / 天、图片 30 / 月）；登录后不受这个限制。计数用带条件的 `INSERT … ON CONFLICT DO UPDATE … WHERE count < limit`，并发请求也不会超额；多个计数在同一事务里，任一满额就整体回滚。`/api/chat`、`/api/images` 和 `/api/sessions/:id/page` 满额时返回 429（`code: "usage_limit"`）。没能交付任何内容的失败（聊天在正文和提案出现前失败或取消、图片生成或保存失败、会话不存在、附件处理失败）会退还这一次。按天计的行超过 7 天、按月计的行超过 62 天，在计数时以 1% 的概率顺带删除（没有定时任务）。设置里的“方案”经 `GET /api/billing` 读本期用量（`usageSummary`）。`kind = report` 的行是“报告回答”的每日次数（`REPORT_LIMITS`：每个用户 10 次，未登录时同一网络 20 次，`consumeReportQuota`），不属于用量档位。

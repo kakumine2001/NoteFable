@@ -24,7 +24,7 @@ export const USAGE_PERIODS: Record<UsageTier, Record<UsageKind, UsagePeriod>> = 
 // どちらかに達したら断る。
 export const USAGE_DAILY_LIMITS: Record<UsageTier, Partial<Record<UsageKind, number>>> = {
   guest: { image: 3 },
-  member: { image: 3 },
+  member: { image: 5 },
   pro: { image: 10 },
 };
 

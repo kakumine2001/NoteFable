@@ -248,15 +248,19 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
             Alignment.Center,
         ) {
             Text(
-                when {
-                    busy -> stringResource(R.string.plan_opening)
-                    product.trialDays > 0 -> stringResource(R.string.plan_trial_start, product.trialDays)
-                    else -> stringResource(R.string.plan_upgrade)
-                },
+                upgradeLabel(busy, product),
                 color = Color.White.copy(alpha = if (busy) 0.6f else 1f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             )
         }
     }
+}
+
+/** 购买按钮的文字：打开中 / 还能试用时“开始 N 天免费试用” / “升级到 Pro”。 */
+@Composable
+private fun upgradeLabel(busy: Boolean, product: PlayProduct): String = when {
+    busy -> stringResource(R.string.plan_opening)
+    product.trialDays > 0 -> stringResource(R.string.plan_trial_start, product.trialDays)
+    else -> stringResource(R.string.plan_upgrade)
 }
 
 /** Pro 的上限（安装包里的 assets/usage-limits.json，和网页 USAGE_LIMITS.pro 同源）。 */
@@ -322,11 +326,7 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
         title = stringResource(if (kind == "image") R.string.upgrade_title_image else R.string.guest_limit_title_chat),
         body = stringResource(R.string.upgrade_body, "%,d".format(limits.chat), limits.image, product.formattedPrice),
         note = failure ?: if (product.trialDays > 0) stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice) else null,
-        actionLabel = when {
-            busy -> stringResource(R.string.plan_opening)
-            product.trialDays > 0 -> stringResource(R.string.plan_trial_start, product.trialDays)
-            else -> stringResource(R.string.plan_upgrade)
-        },
+        actionLabel = upgradeLabel(busy, product),
     )
 }
 
