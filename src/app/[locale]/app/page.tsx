@@ -28,7 +28,7 @@ import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
-import { EmptyConversation } from "@/components/empty-conversation";
+import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
@@ -1999,6 +1999,7 @@ export default function Home() {
             {emptyState ? (
               <EmptyConversation
                 title={activeTitle}
+                hasDraft={Boolean(input.trim())}
                 icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
                 onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
                 onWorkspaceChange={changeWorkspace}
@@ -2273,6 +2274,17 @@ export default function Home() {
             </div>}
             {uploadProgress && <div role="status" className="mt-2 px-1 text-xs text-[var(--notion-muted)]">{typeof uploadProgress === "string" ? t(uploadProgress) : t(uploadProgress.key, uploadProgress.vars)}</div>}
           </form>
+          {emptyState && !imageGenerationMode && (
+            <StarterPrompts
+              hidden={Boolean(input) || Boolean(uploadProgress)}
+              onPick={(text) => {
+                const element = inputRef.current;
+                if (!element) return;
+                changeInput(text, element);
+                element.focus();
+              }}
+            />
+          )}
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}
             onClose={() => setAttachSheetOpen(false)}
