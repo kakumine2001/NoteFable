@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 系统"应用语言"设置里可选的语言，和网页一样：英文、简体中文、繁体中文、日文（AppLanguage.Preference 的 tag）。 -->
+<!-- Enabled translations only, in AppLanguage order. The system supplies Follow system;
+     add each future BCP 47 tag here only alongside its native resources and Web dictionary. -->
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="en" />
     <locale android:name="zh-CN" />

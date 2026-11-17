@@ -44,3 +44,36 @@ describe("display language selection", () => {
     expect(parsePreference(value)).toBe("auto");
   });
 });
+
+describe("Phase 1 normalization and strict negotiation", () => {
+  it.each(["ko-KR", "es-MX", "pt-BR", "ar-SA", "in-ID", "id-ID"])("does not enable untranslated %s", (tag) => {
+    expect(localeFromAcceptLanguage(`${tag},ja;q=0.8`)).toBe("ja");
+    expect(resolveLocale({ preference: "auto", acceptLanguage: tag, country: "HK" })).toBe("zh-Hant");
+    expect(resolveLocale({ preference: "auto", acceptLanguage: tag })).toBe("en");
+  });
+  it.each(["en-!", "zh--HK", "ja-", "*", "en-US-INVALID-INVALID", "x-private", "unknown", "en-123456789"])("rejects invalid or unknown tag %s", (tag) => {
+    expect(localeFromAcceptLanguage(tag)).toBeNull();
+  });
+  it.each(["", " ", "NaN", "Infinity", "0x1", "1e0", "+1", "-1", "1.001", "0.1234", ".8", "2"])("ignores invalid weight %j", (weight) => {
+    expect(localeFromAcceptLanguage(`zh;q=${weight},ja;q=0.4`)).toBe("ja");
+  });
+  it("honors equal-weight order, case, whitespace and explicit exclusions", () => {
+    expect(localeFromAcceptLanguage("ja;Q=0.5, zh;q=0.500,en;q=0")).toBe("ja");
+    expect(localeFromAcceptLanguage("zh;q=0.500,ja;q=0.5")).toBe("zh");
+    expect(localeFromAcceptLanguage("en;q=0;q=1,ja;q=0.2")).toBe("ja");
+    expect(localeFromAcceptLanguage("en;q=0.8;other=x,zh-HK;q=0.2")).toBe("zh-Hant");
+  });
+  it("handles aliases, script precedence and valid extensions", () => {
+    expect(localeFromAcceptLanguage("cmn-Hant-HK")).toBe("zh-Hant");
+    expect(localeFromAcceptLanguage("eng-GB")).toBe("en");
+    expect(localeFromAcceptLanguage("jpn-JP")).toBe("ja");
+    expect(localeFromAcceptLanguage("zh_Hans_HK")).toBe("zh");
+    expect(localeFromAcceptLanguage("zh-Hant-CN-u-nu-hanidec")).toBe("zh-Hant");
+  });
+  it("restores environment detection only in Auto and never overrides manual choices", () => {
+    expect(resolveLocale({ preference: "ja", acceptLanguage: "en", country: "CN" })).toBe("ja");
+    expect(resolveLocale({ preference: "auto", acceptLanguage: "en", country: "CN" })).toBe("en");
+    expect(resolveLocale({ preference: "auto", acceptLanguage: "ko-KR", country: "CN" })).toBe("zh");
+    expect(localeFromCountry("constructor")).toBeNull();
+  });
+});

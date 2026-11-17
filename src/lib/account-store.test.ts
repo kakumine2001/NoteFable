@@ -54,6 +54,9 @@ describe("profile edits (pure rules)", () => {
     expect(applyProfileEdit(withPhoto, { locale: "ja" })).toMatchObject({ locale: "ja", avatarUrl: "/api/account/avatar?v=x" });
     expect(profileEditChanges(base, { locale: "ja" })).toBe(true);
     expect(profileEditChanges({ ...base, locale: "ja" }, { locale: "ja" })).toBe(false);
+    expect(applyProfileEdit({ ...base, locale: "ja" }, { locale: null }).locale).toBeNull();
+    expect(applyProfileEdit({ ...base, locale: "ja" }, { displayName: "New" }).locale).toBe("ja");
+    expect(profileEditChanges({ ...base, locale: "ja" }, { locale: null })).toBe(true);
   });
 
   it("does not resend an edit that changes nothing", () => {
@@ -206,5 +209,50 @@ describe("account store", () => {
     saveLocaleIfSignedIn("zh");
     await tick();
     expect(fake.calls).toEqual([{ method: "PATCH", body: { locale: "zh" } }]);
+  });
+});
+
+describe("Auto account preference", () => {
+  beforeEach(() => { resetAccountStore(); vi.unstubAllGlobals(); });
+  it("sends null when restoring Auto and rolls back a rejected save", async () => {
+    const fake = fakeServer();
+    await ready(fake);
+    const manual = saveProfile({ locale: "ja" });
+    await fake.release();
+    await manual;
+    fake.failNext(1);
+    const automatic = saveProfile({ locale: null });
+    expect(getAccountSnapshot().account?.user?.locale).toBeNull();
+    await fake.release();
+    await automatic;
+    expect(fake.calls.at(-1)?.body).toEqual({ locale: null });
+    expect(getAccountSnapshot().account?.user?.locale).toBe("ja");
+    expect(getAccountSnapshot().saveError).not.toBe("");
+  });
+  it("saves landing Auto as null", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 200 })));
+    await expect(saveLocaleIfSignedIn("auto")).resolves.toBe("");
+    expect(fetch).toHaveBeenCalledWith("/api/account", expect.objectContaining({ body: '{"locale":null}' }));
+  });
+  it("serializes direct landing changes so the last choice stays saved", async () => {
+    const fake = fakeServer();
+    vi.stubGlobal("fetch", fake.fetchMock);
+    const first = saveLocaleIfSignedIn("ja");
+    const second = saveLocaleIfSignedIn("auto");
+    await tick();
+    expect(fake.calls).toHaveLength(1);
+    await fake.release();
+    await first;
+    await tick();
+    expect(fake.calls).toHaveLength(2);
+    await fake.release();
+    await second;
+    expect(fake.calls.map((call) => call.body)).toEqual([{ locale: "ja" }, { locale: null }]);
+  });
+  it("returns a localized error key for landing save failures and allows signed-out visitors", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await expect(saveLocaleIfSignedIn("auto")).resolves.toBe("Could not save.");
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response("{}", { status: 401 })));
+    await expect(saveLocaleIfSignedIn("auto")).resolves.toBe("");
   });
 });

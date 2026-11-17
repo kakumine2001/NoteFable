@@ -27,6 +27,7 @@ vi.mock("@/lib/auth", () => ({
   },
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: mocks.update, updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
+vi.mock("@/lib/billing", () => ({ isBillingConfigured: () => false }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
 import { GET, PATCH } from "./route";
 
@@ -133,8 +134,19 @@ describe("account profile", () => {
     expect((await (await GET()).json()).user.locale).toBe("zh");
   });
 
-  it("rejects automatic or unknown display languages", async () => {
-    for (const locale of ["auto", null, "fr"]) expect((await PATCH(patch({ locale }))).status).toBe(400);
+  it("restores Auto with explicit null and preserves locale when omitted", async () => {
+    mocks.currentUser.mockResolvedValue({ ...row, locale: "ja" });
+    const response = await PATCH(patch({ locale: null }));
+    expect(response.status).toBe(200);
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { locale: null } });
+    expect((await response.json()).user.locale).toBeNull();
+    mocks.update.mockClear();
+    await PATCH(patch({ displayName: "Kaku" }));
+    expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { displayName: "Kaku" } });
+  });
+
+  it("rejects unknown display languages", async () => {
+    for (const locale of ["auto", "fr", "zh-CN", 42]) expect((await PATCH(patch({ locale }))).status).toBe(400);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 

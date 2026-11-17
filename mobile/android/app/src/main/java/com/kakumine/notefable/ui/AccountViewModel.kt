@@ -286,7 +286,7 @@ class AccountViewModel(
      * 设置里选界面语言（en / zh / zh-Hant / ja）：和名字一样先显示、排队保存。真正的切换由语言同步（AccountLocaleSync）
      * 跟着账号上的语言做；保存失败时账号的语言退回原值，同步再把界面切回去（网页 saveProfile({ locale })）。
      */
-    fun setLocale(code: String) = save(ProfileEdit.locale(code))
+    fun setLocale(code: String?) = save(ProfileEdit.locale(code))
 
     /** 网页 saveProfile：马上显示，排队发送；已经是这个状态就什么也不做。 */
     private fun save(edit: ProfileEdit) {

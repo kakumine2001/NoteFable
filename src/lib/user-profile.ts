@@ -17,12 +17,12 @@ export type AccountUser = {
   icon: string | null;
   // 自分でアップロードした写真の URL（自分だけが読める）。あれば icon・Google の写真より優先して表示する。
   avatarUrl: string | null;
-  // 設定画面で選んだ表示言語。null は選んでいない（環境の言語に従う）。
+  // 設定画面で選んだ表示言語。null は明示的な Auto（環境の言語に従う）。
   // 無い（undefined）のは、アカウントの行を読めず分からないとき。分からない間は Cookie の選択で上書きしない。
   locale?: Locale | null;
 };
 
-export type ProfilePatch = { displayName?: string | null; avatarIcon?: string | null; locale?: Locale };
+export type ProfilePatch = { displayName?: string | null; avatarIcon?: string | null; locale?: Locale | null };
 
 type NameResult = { ok: true; value: string | null } | { ok: false };
 
@@ -52,9 +52,9 @@ export function parseProfilePatch(body: unknown): { ok: true; data: ProfilePatch
     if (input.icon !== null && !isEmojiIcon(input.icon)) return { ok: false, error: msg("Icon must be a single emoji.") };
     data.avatarIcon = input.icon as string | null;
   }
-  // 表示言語。「自動」は選択肢にないので、null や対応外の値は受け付けない。
+  // null explicitly restores Auto; an omitted field leaves the preference unchanged.
   if ("locale" in input) {
-    if (!isLocale(input.locale)) return { ok: false, error: msg("Choose one of the listed languages.") };
+    if (input.locale !== null && !isLocale(input.locale)) return { ok: false, error: msg("Choose one of the listed languages.") };
     data.locale = input.locale;
   }
   if (!Object.keys(data).length) return { ok: false, error: msg("Nothing to update.") };
@@ -89,14 +89,14 @@ export function toAccountUser(
 }
 
 // 画面でする編集（サーバーの PATCH と同じ形）。displayName は表示名、icon は絵文字。どちらも null は Google の名前・写真に戻す。
-export type ProfileEdit = { displayName?: string | null; icon?: string | null; locale?: Locale };
+export type ProfileEdit = { displayName?: string | null; icon?: string | null; locale?: Locale | null };
 
 // 保存の返事を待たずに見せる、編集後の見え方。サーバーと同じ規則: アイコンを選ぶ・戻すと、アップロードした写真は外れる。
 export function applyProfileEdit(user: AccountUser, patch: ProfileEdit): AccountUser {
   const displayName = "displayName" in patch ? (patch.displayName ?? null) : user.displayName;
   const icon = "icon" in patch ? (patch.icon ?? null) : user.icon;
   const avatarUrl = "icon" in patch ? null : user.avatarUrl;
-  const locale = patch.locale ?? user.locale;
+  const locale = "locale" in patch ? patch.locale : user.locale;
   return { ...user, displayName, icon, avatarUrl, locale, name: displayName ?? user.googleName };
 }
 

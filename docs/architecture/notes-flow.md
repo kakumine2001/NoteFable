@@ -167,3 +167,5 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `appIcon(icon)`：编辑器开着时应用在设置里换了图标，把新值（一个表情或图片的 data URL；`null` 或空字符串是默认标志）传进来，网页用 `saveAppIcon` 存下并立刻换掉 AI 按钮上的图标。不是表情也不是图片时返回 false、什么也不做。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。
+
+语言切换也通过桥就地更新：`window.NoteFableNative.language()` 返回原生当前生效的内部语言代码，`window.notefableEmbed.language(code)` 返回 `Promise<boolean>`。网页校验已启用的代码，复用 `I18nProvider` 的取消、回滚与错误重试。Android 首次加载 / 渲染进程重建才调用 `loadUrl`，语言变化只推送 `language`；网页刚加载完时再发送当前语言，覆盖加载过程中发生的变化。此操作不 flush、不重载、不替换页面正文或编辑器，未保存编辑与笔记 AI 流保持原状。

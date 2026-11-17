@@ -670,4 +670,9 @@ export const ja: Record<string, string> = {
   "General": "一般",
   "Personalization": "パーソナライズ",
   "Unsaved changes": "未保存の変更があります",
+  "Auto detect": "自動検出",
+  "Auto (current: {language})": "自動検出（現在：{language}）",
+  "Search languages": "言語を検索",
+  "Current language": "現在の言語",
+  "No languages found.": "言語が見つかりません。",
 };

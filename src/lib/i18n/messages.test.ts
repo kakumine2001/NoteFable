@@ -4,6 +4,7 @@ import path from "node:path";
 import ts from "typescript";
 import { Converter } from "opencc-js";
 import { describe, expect, it } from "vitest";
+import { LOCALES } from "./locale";
 import { messagesFor } from "./messages";
 import { zh } from "./messages/zh";
 import { zhHant } from "./messages/zh-hant";
@@ -55,5 +56,17 @@ describe("Traditional Chinese dictionary", () => {
     const convert = Converter({ from: "cn", to: "twp" });
     const expected = Object.fromEntries(Object.entries({ ...zh, ...zhServer }).map(([key, value]) => [key, convert(value)]));
     expect(zhHant).toEqual(expected);
+  });
+});
+
+// Keep Phase 1 honest: no untranslated Phase 2/3 entry can slip into the menu.
+describe("enabled dictionaries", () => {
+  it("ships four languages and translates the Auto and search controls", () => {
+    expect(LOCALES).toEqual(["en", "zh", "zh-Hant", "ja"]);
+    for (const locale of LOCALES.filter((code) => code !== "en")) {
+      for (const key of ["Auto detect", "Auto (current: {language})", "Search languages", "Current language", "No languages found."]) {
+        expect(messagesFor(locale)[key], `${locale}: ${key}`).toBeTruthy();
+      }
+    }
   });
 });

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { localeSyncAction, type LocaleSyncInput } from "./locale-sync";
 
 const base: LocaleSyncInput = {
-  loaded: true, configured: true, signedIn: true, saved: null, preference: "auto", active: "en", target: null, firstRun: false, migrated: null,
+  loaded: true, configured: true, signedIn: true, saved: null, preference: "auto", active: "en", target: null,
 };
 
 describe("localeSyncAction", () => {
@@ -36,13 +36,14 @@ describe("localeSyncAction", () => {
     expect(localeSyncAction({ ...base, preference: "auto", target: "ja" })).toEqual({ kind: "switch", to: "auto" });
   });
 
-  it("saves this browser's earlier choice once, on the first run, and keeps it if that fails", () => {
-    expect(localeSyncAction({ ...base, firstRun: true, preference: "ja", active: "ja" })).toEqual({ kind: "save", locale: "ja" });
-    expect(localeSyncAction({ ...base, firstRun: true, preference: "auto" })).toBeNull();
-    expect(localeSyncAction({ ...base, preference: "ja", active: "ja", migrated: "ja" })).toBeNull();
+  it("treats account Auto as authoritative on every device, even with an old local choice", () => {
+    expect(localeSyncAction({ ...base, preference: "ja", active: "ja" })).toEqual({ kind: "switch", to: "auto" });
+    expect(localeSyncAction({ ...base, preference: "auto", active: "ja" })).toBeNull();
+    expect(localeSyncAction({ ...base, preference: "ja", target: "auto" })).toBeNull();
+    expect(localeSyncAction({ ...base, preference: "auto", target: "ja" })).toEqual({ kind: "switch", to: "auto" });
   });
 
   it("never overwrites the account when its saved language could not be read", () => {
-    expect(localeSyncAction({ ...base, saved: undefined, preference: "ja", firstRun: true })).toBeNull();
+    expect(localeSyncAction({ ...base, saved: undefined, preference: "ja" })).toBeNull();
   });
 });

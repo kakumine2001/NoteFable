@@ -3,4 +3,9 @@
     <!-- 界面实际用的语言（en / zh / zh-Hant / ja，与网页的 Locale 一致）：按资源解析的结果决定，系统文、笔记 WebView 和 Accept-Language 都跟它走。 -->
     <string name="ui_locale">en</string>
     <string name="language_change_failed">Could not change language. Please try again.</string>
+    <string name="language_auto">Auto detect</string>
+    <string name="language_auto_current">Auto (current: %1$s)</string>
+    <string name="language_search">Search languages</string>
+    <string name="language_effective">Current language</string>
+    <string name="language_no_results">No languages found.</string>
 </resources>

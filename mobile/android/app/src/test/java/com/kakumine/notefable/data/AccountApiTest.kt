@@ -48,6 +48,24 @@ class AccountApiTest {
     }
 
     @Test
+    fun `locale null explicitly restores Auto and omitted locale leaves it unchanged`() = runBlocking {
+        MockWebServer().use { server ->
+            repeat(2) { server.enqueue(MockResponse().setBody(userJson)) }
+            val api = server.api()
+            api.updateProfile(ProfileEdit.locale(null))
+            api.updateProfile(ProfileEdit.name("Ann"))
+            val automatic = Json.parseToJsonElement(server.next().body.readUtf8()).jsonObject
+            assertEquals(setOf("locale"), automatic.keys)
+            assertEquals(JsonNull, automatic["locale"])
+            val name = Json.parseToJsonElement(server.next().body.readUtf8()).jsonObject
+            assertFalse(name.containsKey("locale"))
+        }
+        val user = AccountUser(name = "Ann", locale = "ja")
+        assertNull(applyProfileEdit(user, ProfileEdit.locale(null)).locale)
+        assertEquals("ja", applyProfileEdit(user, ProfileEdit.name("Ann")).locale)
+    }
+
+    @Test
     fun `avatar upload is one multipart file field named avatar, and server errors keep their sentence`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(201).setBody("""{"user":{"name":"Ann","avatarUrl":"/api/account/avatar?v=x"}}"""))

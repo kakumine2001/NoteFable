@@ -74,7 +74,7 @@ fun HelpMenuButton(guest: Boolean) {
     val anchor = bounds ?: return
     when (open) {
         HelpOpen.Help -> HelpMenu(anchor, guest, onClose = { open = null }, onLanguage = { open = HelpOpen.Language })
-        HelpOpen.Language -> LanguageMenu(anchor, current = showingLanguage(), alignEnd = true, onClose = { open = null }) { choice ->
+        HelpOpen.Language -> LanguageMenu(anchor, current = currentPreference(), alignEnd = true, onClose = { open = null }) { choice ->
             open = null
             chooseLanguageOnDevice(choice)
         }
@@ -126,7 +126,7 @@ private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLan
                 Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
                 HelpItem(
                     Lucide.Languages, stringResource(R.string.language),
-                    value = AppLanguage.nativeName(showingLanguage()).orEmpty(), chevron = true, onClick = onLanguage,
+                    value = languageLabel(currentPreference()), chevron = true, onClick = onLanguage,
                 )
             }
         }

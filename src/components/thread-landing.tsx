@@ -9,7 +9,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
-import { LOCALES, type Locale } from "@/lib/i18n/locale";
+import { LOCALES, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
 import { saveLocaleIfSignedIn } from "@/lib/account-store";
@@ -198,14 +198,22 @@ function useFacts() {
 
 // 紹介ページの言語メニューで選んだとき: 言語ごとの URL（/ja など）で見ているなら、アドレスもその言語の URL にする
 // （共有・再読み込みで選んだ言語が出るように。/ のままなら Cookie で選ばれる）。
-// ログインしていればアカウントにも保存する（していなければ 401 で何もしない。失敗は気にしない）。
-function onLandingLocale(locale: Locale) {
+// Save to the account when signed in; report failures before changing the URL.
+async function onLandingLocale(preference: LocalePreference, locale: Locale, isCurrent: () => boolean) {
+  const error = await saveLocaleIfSignedIn(preference);
+  if (error || !isCurrent()) return error;
   const path = window.location.pathname;
   if (path !== "/" && LOCALES.some((option) => path === landingPath(option))) {
     // メニューは閉じるときに、戻るキー用に積んだ履歴を戻す。戻り終えてから元の履歴の URL を書き換える。
-    afterSheetHistory(() => window.history.replaceState(window.history.state, "", landingPath(locale) + window.location.search + window.location.hash));
+    afterSheetHistory(() => {
+      if (!isCurrent()) return;
+      const url = new URL(window.location.href);
+      url.pathname = preference === "auto" ? "/" : landingPath(locale);
+      if (preference === "auto") url.searchParams.set("intro", "");
+      window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    });
   }
-  saveLocaleIfSignedIn(locale);
+  return "";
 }
 
 export function ThreadLanding() {

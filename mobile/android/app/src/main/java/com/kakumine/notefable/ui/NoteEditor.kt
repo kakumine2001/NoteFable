@@ -63,6 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.kakumine.notefable.BuildConfig
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.AppLanguage
 import com.kakumine.notefable.data.ChatLink
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.NoteFileLinks
@@ -94,6 +95,14 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun appIcon(): String = currentIcon().orEmpty()
 
+    @JavascriptInterface
+    fun language(): String = AppLanguage.uiLocale
+
+    /** Swap the dictionary without reloading the note, its draft or AI stream. */
+    fun pushLanguage(code: String) {
+        webView?.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language(${JSONObject.quote(code)})})()", null)
+    }
+
     /** 编辑器开着时在设置里换了图标：交给网页（`window.notefableEmbed.appIcon`），AI 按钮马上跟着变。 */
     fun pushAppIcon(icon: String?) {
         webView?.evaluateJavascript(appIconScript(icon), null)
@@ -107,7 +116,10 @@ class NoteEmbedBridge(
             pending.remove(message.requestId)?.complete(FlushResult(message.ok, message.kept))
             return
         }
-        main.post { onMessage(message) }
+        main.post {
+            if (message is EmbedMessage.Ready) pushLanguage(AppLanguage.uiLocale)
+            onMessage(message)
+        }
     }
 
     /**
@@ -387,7 +399,8 @@ fun NoteEditorScreen(
                 view.destroy()
             },
         ) }
-        LaunchedEffect(bridge, lang, generation) {
+        LaunchedEffect(bridge, lang) { bridge.pushLanguage(lang) }
+        LaunchedEffect(bridge, generation) {
             syncCookies(baseUrl, cookieJar)
             bridge.webView?.loadUrl(currentEmbedUrl(lang))
         }

@@ -122,7 +122,7 @@ data class AccountUser(
     val icon: String? = null,
     val avatarUrl: String? = null,
     /**
-     * 设置里选的界面语言（en / zh / zh-Hant / ja）。JSON 里是 null＝没选过（按环境语言显示）；
+     * 设置里选的界面语言（en / zh / zh-Hant / ja）。JSON 里是 null＝自动检测（按环境语言显示）；
      * 没有这个字段＝服务端没读到用户行、不知道（[LOCALE_UNKNOWN]），这时不用本机的选择覆盖账号（网页 AccountUser.locale）。
      */
     val locale: String? = LOCALE_UNKNOWN,

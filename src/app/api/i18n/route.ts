@@ -11,5 +11,5 @@ export function GET(request: NextRequest) {
     acceptLanguage: request.headers.get("accept-language"),
     country: request.headers.get("x-vercel-ip-country"),
   });
-  return NextResponse.json({ locale, messages: messagesFor(locale) }, { headers: { "Cache-Control": "private, no-store" } });
+  return NextResponse.json(request.nextUrl.searchParams.get("format") === "locale" ? { locale } : { locale, messages: messagesFor(locale) }, { headers: { "Cache-Control": "private, no-store" } });
 }

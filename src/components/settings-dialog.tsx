@@ -24,38 +24,33 @@ async function readJson(response: Response): Promise<Record<string, unknown>> {
 }
 const errorOf = (data: Record<string, unknown>, fallback: string) => typeof data.error === "string" && data.error ? data.error : fallback;
 
-// 表示言語。1 行にいまの言語を出し、押すと一覧（LanguageMenuPanel）が開く。「自動」は置かない。
-// 選ぶまでは環境の言語（ブラウザの言語・地域）のまま表示し、選んだらアカウントに保存する。
-// 実際の切り替えはワークスペースの AccountLocaleSync（保存された言語に合わせる）が行うので、ここでは保存だけをする。
-// 選ぶまでは、いま表示している言語に印を付ける。それを選べばその言語をアカウントに固定する。
+// Save an explicit language or null (Auto); AccountLocaleSync applies it in place.
 function LanguageSettings({ user }: { user: AccountUser }) {
   const { t, locale, switching, changeError, setPreference } = useI18n();
   const labelId = useId();
   const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
-  const saved = user.locale ?? null;
-  // 印を付ける言語: 選んだ言語。選んでいなければ（null）いま表示している環境の言語。アカウントを読めなかった（undefined）ときはどれも付けない。
-  const checked = user.locale === undefined ? null : (saved ?? locale);
+  const saved = user.locale === undefined ? undefined : user.locale ?? "auto";
+  // Null selects Auto; an unknown account preference selects no radio.
+  const checked = saved ?? null;
 
   return (
     <div className="settings-row-block">
       <div className="settings-row">
         <span id={labelId} className="settings-row-title">{t("Language")}</span>
-        <button ref={triggerRef} type="button" className="settings-select" aria-haspopup="menu" aria-expanded={anchor !== null}
+        <button ref={triggerRef} type="button" className="settings-select language-setting" aria-haspopup="dialog" aria-expanded={anchor !== null}
           aria-labelledby={`${labelId} ${labelId}-value`} aria-busy={switching}
           onClick={toggle}>
           {switching && <LoaderCircle size={14} className="animate-spin text-[var(--notion-muted)]" aria-hidden="true" />}
-          <span id={`${labelId}-value`} lang={checked ?? locale}>{LOCALE_NAMES[checked ?? locale]}</span>
+          <span id={`${labelId}-value`}>{saved === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[saved ?? locale]}</span>
           <ChevronsUpDown size={14} aria-hidden="true" />
         </button>
       </div>
       {anchor && <LanguageMenuPanel anchor={anchor} current={checked} align="end" onClose={close}
-        // 保存だけ。表示の切り替えは AccountLocaleSync がアカウントの言語に合わせて行う。
-        // 選んでいないときは印の付いた今の言語を選んでも保存する（環境の言語をアカウントに固定する）。
-        onChoose={(option) => { close(); if (option !== saved) saveProfile({ locale: option }); }} />}
+        onChoose={(option) => { close(); if (option !== saved) void saveProfile({ locale: option === "auto" ? null : option }); }} />}
       <span className="sr-only" role="status">{switching ? t("Changing language…") : ""}</span>
       {changeError && <div className="settings-row-note">
         <p role="alert" className="project-settings-error">{t(changeError)}</p>
-        {saved && <button type="button" className="notion-button mt-2" onClick={() => setPreference(saved)}>{t("Try again")}</button>}
+        {saved !== undefined && <button type="button" className="notion-button mt-2" onClick={() => setPreference(saved)}>{t("Try again")}</button>}
       </div>}
     </div>
   );

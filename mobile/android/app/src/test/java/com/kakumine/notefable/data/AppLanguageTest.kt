@@ -48,6 +48,20 @@ class AppLanguageTest {
         )
     }
 
+    @Test
+    fun `normalizes BCP tags and applies manual system country English priority`() {
+        assertEquals(AppLanguage.Preference.Traditional, AppLanguage.localeFromTag("zh_HK"))
+        assertEquals(AppLanguage.Preference.Simplified, AppLanguage.localeFromTag("zh-Hans-HK"))
+        assertEquals(AppLanguage.Preference.Japanese, AppLanguage.localeFromTag("jpn-JP"))
+        listOf("ko-KR", "es-MX", "pt-BR", "ar-SA", "in-ID", "zh--HK", "en-!", "*").forEach {
+            assertEquals(null, AppLanguage.localeFromTag(it))
+        }
+        assertEquals(AppLanguage.Preference.Japanese, AppLanguage.resolveLocale(AppLanguage.Preference.Japanese, listOf("en"), "CN"))
+        assertEquals(AppLanguage.Preference.Traditional, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR", "zh-HK"), "JP"))
+        assertEquals(AppLanguage.Preference.Japanese, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR"), "JP"))
+        assertEquals(AppLanguage.Preference.English, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR")))
+    }
+
     // ---- 界面语言跟着账号走（和网页 src/lib/locale-sync.test.ts 同样的情况） ----
 
     private val en = AppLanguage.Preference.English
@@ -63,9 +77,7 @@ class AppLanguageTest {
         preference: AppLanguage.Preference = auto,
         active: AppLanguage.Preference = en,
         target: AppLanguage.Preference? = null,
-        firstRun: Boolean = false,
-        migrated: AppLanguage.Preference? = null,
-    ) = localeSyncAction(loaded, configured, signedIn, saved, preference, active, target, firstRun, migrated)
+    ) = localeSyncAction(loaded, configured, signedIn, saved, preference, active, target)
 
     @Test
     fun `locale sync does nothing until the account is known, or when sign-in is not set up`() {
@@ -98,15 +110,15 @@ class AppLanguageTest {
     }
 
     @Test
-    fun `saves the device's earlier choice once on the first run and keeps it if that fails`() {
-        assertEquals(LocaleSyncAction.Save(ja), sync(firstRun = true, preference = ja, active = ja))
-        assertEquals(null, sync(firstRun = true, preference = auto))
-        assertEquals(null, sync(preference = ja, active = ja, migrated = ja))
+    fun `account Auto wins over an earlier device choice on every launch`() {
+        assertEquals(LocaleSyncAction.Switch(auto), sync(preference = ja, active = ja))
+        assertEquals(null, sync(preference = auto))
+        assertEquals(null, sync(preference = ja, target = auto))
     }
 
     @Test
     fun `never overwrites the account when its saved language is unknown`() {
-        assertEquals(null, sync(saved = LOCALE_UNKNOWN, preference = ja, firstRun = true))
+        assertEquals(null, sync(saved = LOCALE_UNKNOWN, preference = ja))
     }
 
     @Test
@@ -118,7 +130,7 @@ class AppLanguageTest {
     }
 
     @Test
-    fun `account locale - missing is unknown, null is not chosen`() {
+    fun `account locale - missing is unknown, null is Auto`() {
         assertEquals(LOCALE_UNKNOWN, NoteFableJson.decodeFromString<AccountUser>("""{"name":"A"}""").locale)
         assertEquals(null, NoteFableJson.decodeFromString<AccountUser>("""{"name":"A","locale":null}""").locale)
         assertEquals("ja", NoteFableJson.decodeFromString<AccountUser>("""{"name":"A","locale":"ja"}""").locale)

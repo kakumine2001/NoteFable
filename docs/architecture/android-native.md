@@ -115,13 +115,15 @@ mobile/android/
 
 ## 界面语言
 
-和网页一样有四种：英文、简体中文、繁体中文、日文（`src/lib/i18n/locale.ts`），没有单独的“自动”选项：没选过时按系统语言显示，列表里标的就是正在显示的语言。登录用户在设置里选，存到账号；未登录时在侧栏底部“?”帮助菜单的语言项（`HelpMenuButton`，`ui/HelpMenuUi.kt`，网页 `help-menu.tsx`）里选，只改本机（网页规则见 [i18n.md](i18n.md)）。
+和网页一样启用四种语言 + 第一项“自动检测”（当前实际语言）。对勾表示明确偏好，当前语言单独标注；菜单搜索原生名 / 代码 / 标签、内部滚动，宽度 min(320dp, 屏宽 − 16dp)、最高 min(368dp, 屏高 − 16dp)。登录用户在设置里选，访客在侧栏帮助菜单里选。其他 13 种语言留到 #82 后续阶段，`locales_config.xml` 只登记已具备资源的语言，系统设置自行提供“跟随系统”。
 
-- **繁体资源是生成的**：`res/values-b+zh+Hant/*.xml` 由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 的同名文件生成，转换和网页 `zh-hant.ts` 相同（OpenCC cn → twp），只换标签之间的文字。`values-zh` 仍是简体（zh-CN），**改了 `values-zh` 下任何文件（包括新批次的 `strings_<批次>.xml`）都要重新生成**；`src/lib/native-zh-hant-asset.test.ts` 在资源过期时失败。系统文词典 `system-text.json` 也带 `zh-Hant`（来自网页的 `zh-hant.ts`）。
-- **界面实际用的语言**是资源解析的结果：`strings_i18n.xml` 的 `ui_locale`（en / zh / zh-Hant / ja）。系统文翻译（`rememberSystemText()`）、笔记 WebView 的 `lang=` 和每个 API 请求的 `Accept-Language`（`data/AppLanguage.kt`，取网页 `LOCALE_TAGS`：zh-CN / zh-TW / ja / en，由 `MainActivity` 在创建和配置变化时更新）都跟它走，不会和界面文字不一致。zh-TW / zh-HK / zh-Hant 的系统语言会解析到繁体资源。
-- **设置里的语言**（`ui/LanguageUi.kt` 的 `LanguageSettings`，网页 `settings-dialog.tsx` 的 `LanguageSettings`）：选了就存到账号（`PATCH /api/account {locale}`，和名字、头像同一个保存队列，先显示后确认）；“语言”是一行，右边的按钮写着现在的语言，点它打开和未登录时帮助菜单里相同的语言菜单（`LanguageMenu`，右边和按钮对齐）。没选过时标出正在显示的语言，选它也会存，读不到账号的语言时菜单里哪一项都不标。设置只保存，不直接切换。
-- **跟着账号切换**（`AccountLocaleSync`，根上只放一个）：判断规则是 `data/AppLanguage.kt` 的 `localeSyncAction`，逐条移植网页 `src/lib/locale-sync.ts`（单元测试是同样的情况）。网页的 Cookie 在原生里是系统的“应用语言”（`AppCompatDelegate.setApplicationLocales`；Android 13+ 由系统保存，`res/xml/locales_config.xml`；更早的版本由 AppCompat 的 `autoStoreLocales` 保存，所以 `MainActivity` 是 `AppCompatActivity`、主题继承 `Theme.AppCompat`）。只在账号状态（读到没有、是否登录、账号上的语言）变化时判断：账号上有语言就切过去（保存失败退回原值时切回去）；没登录时不动本机的选择（退出登录、删除账号成功后由 `forgetLanguageChoice()` 清空成系统语言，网页 `forgetLocaleChoice`）；登录了但没选过、本机留着以前（未登录时在语言菜单里）选的语言时，打开 App 后第一次判断时存到账号，只试一次；`GET /api/account` 没返回 `locale` 字段（`AccountUser.locale == LOCALE_UNKNOWN`）时不动。原生的切换是同步的，没有网页取字典那一步，所以没有“切换中”；切换抛错时设置里显示网页的“无法切换语言”和“重试”。
-- 语言变化由 `configChanges` 接住，不重建 Activity，输入中的内容和开着的设置窗口都不丢（Android 12 及以下 AppCompat 只就地更新 Resources、调用 `Activity.onConfigurationChanged`，不通知 View 树，所以 `MainActivity.onConfigurationChanged` 在 SDK < 33 时自己把新配置 `dispatchConfigurationChanged` 给 decorView，让 Compose 的 `LocalConfiguration` 更新、界面重组）；各语言名按它自己的语言排版（网页 `lang=`）；笔记列表的日期也按 `ui_locale` 的 LOCALE_TAGS 格式化。
+- `AppLanguage.localeFromTag` 与 Web 一样严格解析 BCP 47，兼容下划线、eng / jpn / chi / zho / cmn / in 等别名，中文脚本优先于地区。未知或未启用语言继续匹配系统列表下一项；无匹配再用 IP 国家，最后英文。`AppLanguage.resolveLocale` 是可测试的规则。
+- 本机明确选择仍由 `AppCompatDelegate.setApplicationLocales` 保存（Android 13+ 系统保存，旧版本 autoStoreLocales），Auto 清空该列表。`MainActivity` 在 Auto 时归一化系统语言并就地设置资源；系统列表没有匹配时请求 `/api/i18n?preference=auto&format=locale`（直接发送原始系统语言列表，不带账号 Cookie），由服务端做 IP 推断。网络不可用时保持英文，之后配置变化 / 重启可重试。推断结果只在当前 Activity 缓存，不写入明确偏好；手动选择或系统变化后忽略旧请求。
+- 资源实际语言仍取 `strings_i18n.xml` 的 `ui_locale`。API `Accept-Language`、系统文和笔记 WebView 的 `lang` 都跟它走。`MainActivity` 更新配置而不重建 Activity，保留草稿、附件、会话、流式回答及笔记编辑；Compose 接收配置变更。打开的笔记通过 `notefableEmbed.language(code)` 换字典，不再因语言变化 reload WebView；页面 ready 后补发当前语言，加载途中切换也不会漏。
+- `AccountLocaleSync` 只随账号状态变化；账号 null 是权威 Auto，不再把本机旧选择迁回账号；缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。`ProfileEdit.setLocale` 区分未传和明确 null，保存失败由已有队列回滚，并同步回原偏好。退出 / 删除账号后清空本机偏好。
+- `LanguageSettings` 选择 Auto 保存 `{locale: null}`；本机切换抛错显示本地化消息和重试，包括 Auto。未知账号偏好时无选中项。
+- 繁体资源由 `node --import tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；Web 字典由 `scripts/generate-zh-hant.ts` 生成。新增语言时同时提供资源、系统文和 `locales_config.xml` 项，不能用英文占位冒充支持。
+- 验证限制：受限环境无法下载 Gradle 分发包，Android 编译 / 单元测试及真机运行尚待可联网构建环境验证；本次未交付 APK。Web 本地服务的监听也被环境禁止，未完成浏览器实测。
 
 ## 侧栏：置顶、聊天项目与整理
 

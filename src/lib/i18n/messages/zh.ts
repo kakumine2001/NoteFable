@@ -678,4 +678,9 @@ export const zh: Record<string, string> = {
   "General": "通用",
   "Personalization": "个性化",
   "Unsaved changes": "有未保存的更改",
+  "Auto detect": "自动检测",
+  "Auto (current: {language})": "自动检测（当前：{language}）",
+  "Search languages": "搜索语言",
+  "Current language": "当前语言",
+  "No languages found.": "未找到语言。",
 };

@@ -1,12 +1,13 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useI18n } from "@/components/i18n-provider";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, toEmbedSaveState } from "@/lib/native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, toEmbedSaveState } from "@/lib/native-bridge";
 import { useNotePages } from "@/lib/use-note-pages";
 
 const noop = () => {};
@@ -15,6 +16,7 @@ const noop = () => {};
 // 中身は /app のスマホのノート画面の本文（封面・アイコン・題名・BlockNote・AI ボタン）と同じ部品で、上部バーとサイドバーはアプリ側が描く。
 // 保存・下書きの退避・衝突の扱いは useNotePages と NoteSaveQueue をそのまま使う。アプリとのやり取りは src/lib/native-bridge.ts。
 export function NoteEmbed() {
+  const { t, locale, setPreference, changeError } = useI18n();
   const notes = useNotePages(false, { embedded: true });
   const { active, activeId, loading } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
@@ -50,17 +52,20 @@ export function NoteEmbed() {
   useEffect(() => {
     const icon = readNativeAppIcon();
     if (icon !== undefined) saveAppIcon(icon);
-  }, []);
+    const nativeLocale = readNativeLanguage();
+    if (nativeLocale) void setPreference(nativeLocale);
+  }, [setPreference]);
 
   // アプリから呼ぶ window.notefableEmbed。flush は開いているノートの未保存の編集を送り切る。
   // pageUpdated（アプリのチャットで編集案を適用した）は既定のまま notefable:page-updated を出し、useNotePages が /app と同じく扱う。
   useEffect(() => installEmbedApi(createEmbedApi({
+    language: (next) => setPreference(next),
     flush: () => activeRef.current?.flush() ?? Promise.resolve(true),
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
     draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
     openHistory: () => { if (activeRef.current) setHistoryOpen(true); },
     post: (message) => { postToNative(message); },
-  })), []);
+  })), [setPreference]);
 
   const title = active?.content.title;
   const icon = active?.content.icon;
@@ -96,6 +101,9 @@ export function NoteEmbed() {
     <main className="notion-workspace flex h-dvh">
       <section className="notion-page">
         <div className="flex min-h-0 flex-1 flex-col">
+          {changeError && <div role="alert" className="language-menu-error">
+            {t(changeError)} <button type="button" className="notion-button" onClick={() => void setPreference(readNativeLanguage() ?? locale)}>{t("Try again")}</button>
+          </div>}
           <NotesWorkspace notes={{ ...notes, load: retry }} listMode={false} embedded model={model} reasoning={reasoning}
             onOpen={noop} onCreate={noop} onWorkspaceChange={noop} />
         </div>
