@@ -374,6 +374,7 @@ export const ja: Record<string, string> = {
   "Sunset colours": "夕焼けの色",
   "Sunset: long path, blue removed, red remains": "夕方：光の道のりが長く、青い光が散乱して赤い光が残る",
   "Tell the AI how to change this note. You review its proposal before anything changes.": "ノートをどう変えたいかAIに伝えてください。提案を確認してから変更を適用できます。",
+  "Help": "ヘルプ",
   "Terms": "利用規約",
   "Commercial disclosure": "特定商取引法に基づく表記",
   "Text": "テキスト",

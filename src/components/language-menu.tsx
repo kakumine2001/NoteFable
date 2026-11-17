@@ -24,17 +24,14 @@ export function useLanguageMenuAnchor() {
   };
 }
 
-// 表示言語のメニュー（ログインしていない人のサイドバー下部と、紹介ページのフッター）。ボタンとメニューの印は今の表示言語。
-// 選んでいなければ環境の言語（src/lib/i18n/locale.ts の順）で表示していて、それに印が付く。
-// 選ぶとその場で切り替わり、このブラウザ（Cookie）に残る。ログインした人の言語はアカウントに保存し、設定画面で選ぶ。
+// 表示言語を選んだときの処理（このブラウザの Cookie に残す）と、切り替えに失敗したときの理由。
+// 選んでいなければ環境の言語（src/lib/i18n/locale.ts の順）で表示していて、current はそれ（切り替え中なら行き先）。
 // onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。切り替えが済んでから 1 回だけ呼ぶ。
-export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
-  const { t, locale, preference, target, changeError, setPreference } = useI18n();
-  const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
-  // このメニューで最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
+export function useLanguageChoice(onChoose?: (next: Locale) => void) {
+  const { locale, preference, target, changeError, setPreference } = useI18n();
+  // 最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
   const [chosen, setChosen] = useState<Locale | null>(null);
   const notified = useRef<Locale | null>(null);
-  // 切り替え中ならその行き先に印を付ける。
   const current = target && target !== "auto" ? target : locale;
 
   useEffect(() => {
@@ -44,7 +41,6 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
   }, [chosen, locale, onChoose]);
 
   function choose(next: Locale) {
-    close();
     // 環境の言語で表示中に同じ言語を選んだときも、選択として残す（Cookie に書く。辞書は取り直さない）。
     if (next === current && preference === next) return;
     notified.current = null;
@@ -53,7 +49,16 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
   }
 
   // 切り替えに失敗した（辞書を取れなかった）: 表示は元の言語のまま。もう一度選べば再試行。
-  const failed = chosen !== null && locale !== chosen && target === null && changeError;
+  const failed = chosen !== null && locale !== chosen && target === null && changeError ? changeError : null;
+  return { current, choose, failed };
+}
+
+// 表示言語のメニュー（紹介ページのフッター）。ボタンとメニューの印は今の表示言語。
+// ログインした人の言語はアカウントに保存し、設定画面で選ぶ。サイドバーではヘルプメニュー（help-menu.tsx）の中に置く。
+export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
+  const { t, locale } = useI18n();
+  const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
+  const { current, choose, failed } = useLanguageChoice(onChoose);
   return (
     <>
       <button ref={triggerRef} type="button" className={className} aria-haspopup="menu" aria-expanded={anchor !== null}
@@ -62,8 +67,8 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
         <Languages size={14} aria-hidden="true" />
         <span lang={locale}>{LOCALE_NAMES[locale]}</span>
       </button>
-      {failed && <span role="alert" className="language-menu-error">{t(changeError)}</span>}
-      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={choose} onClose={close} />}
+      {failed && <span role="alert" className="language-menu-error">{t(failed)}</span>}
+      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={(next) => { close(); choose(next); }} onClose={close} />}
     </>
   );
 }

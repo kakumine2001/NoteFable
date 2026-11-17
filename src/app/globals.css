@@ -948,10 +948,20 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* 表示言語のメニュー（language-menu.tsx）。項目は .chat-menu-item、今の言語の右端にチェック。 */
 .language-menu-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .language-menu-check { flex: none; color: var(--notion-blue); }
-/* サイドバー下部のリンクの行（12px 灰）の右端に置くボタン。 */
-.language-trigger { display: inline-flex; margin-left: auto; align-items: center; gap: .3rem; color: var(--notion-muted); }
-.language-trigger:hover { color: var(--notion-text); }
-.language-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; border-radius: 4px; }
+/* サイドバー最下段: アカウント（左、伸びる）と「?」（右、32px 角）。アカウントがないときは「?」だけ右に寄る。 */
+.sidebar-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .5rem; border-top: 1px solid var(--notion-border); }
+.sidebar-footer-account { min-width: 0; flex: 1; }
+.sidebar-footer-account:empty { display: none; }
+.sidebar-help-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-left: auto; align-items: center; justify-content: center; border-radius: .4rem; color: var(--notion-faint); transition: background 100ms ease, color 100ms ease; }
+.sidebar-help-trigger:hover, .sidebar-help-trigger[aria-expanded="true"] { background: var(--notion-hover); color: var(--notion-text); }
+.sidebar-help-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+.sidebar-footer .language-menu-error { padding: 0 .5rem; font-size: .75rem; }
+@media (max-width: 639px) { .sidebar-help-trigger { width: 2.75rem; height: 2.75rem; } }
+/* ヘルプメニュー（help-menu.tsx）。項目は .chat-menu-item、左に灰色のアイコン、言語の行は右に今の言語。 */
+.help-menu[open] { transform-origin: bottom right; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
+@media (prefers-reduced-motion: reduce) { .help-menu[open] { animation: none; } }
+.help-menu-icon { flex: none; color: var(--notion-muted); }
+.help-menu-value { color: var(--notion-muted); font-size: .8125rem; }
 /* 切り替えに失敗したとき、ボタンの後ろに出す一言（行が足りなければ次の行へ回る）。 */
 .language-menu-error { flex-basis: 100%; color: #b91c1c; }
 .notion-empty-title #chat-heading-text { min-width: 0; overflow-wrap: anywhere; }

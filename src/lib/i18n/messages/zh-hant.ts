@@ -327,6 +327,7 @@ export const zhHant: Record<string, string> = {
   "Heading 1": "一級標題",
   "Heading 2": "二級標題",
   "Heading 3": "三級標題",
+  "Help": "幫助",
   "High": "高",
   "Home": "主頁",
   "How one question travels through NoteFable": "一個問題在 NoteFable 中的旅程",

@@ -437,6 +437,7 @@ export const zh: Record<string, string> = {
   "Sunset colours": "晚霞的颜色",
   "Sunset: long path, blue removed, red remains": "日落：光程长，蓝光散去，红光留下",
   "Tell the AI how to change this note. You review its proposal before anything changes.": "告诉 AI 如何修改这篇笔记。所有修改都会先以建议形式供你审阅。",
+  "Help": "帮助",
   "Terms": "服务条款",
   "Commercial disclosure": "特定商交易法标示",
   "Text": "正文",
