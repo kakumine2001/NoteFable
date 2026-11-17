@@ -19,7 +19,10 @@
     <string name="plan_welcome">NoteFable Pro へようこそ</string>
     <string name="plan_pending">支払いを確認しています。まもなく Pro が有効になります。</string>
     <string name="plan_purchase_failed">購入を完了できませんでした。もう一度お試しください。</string>
-    <string name="upgrade_title_image">今月の無料の画像を使い切りました</string>
+    <string name="upgrade_title_image">無料の画像を使い切りました</string>
     <string name="upgrade_body">Pro（月額 %3$s）なら、毎月 %1$s 件のメッセージと %2$d 枚の画像が使えます。</string>
     <string name="plan_opening">開いています…</string>
+    <string name="plan_trial_start">%1$d 日間の無料トライアルを始める</string>
+    <string name="plan_trial_note">最初の %1$d 日間は無料、その後は月額 %2$s。トライアル終了前に解約すれば料金はかかりません。</string>
+    <string name="plan_trial_ends">無料トライアルは %1$s に終了します。その後、Pro は月額 ¥%2$d です。</string>
 </resources>

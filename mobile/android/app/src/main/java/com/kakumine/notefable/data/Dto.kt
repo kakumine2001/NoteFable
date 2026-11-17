@@ -192,9 +192,15 @@ const val MAX_MESSAGE_NOTES = 5
 /** 用户的自定义指令（适用于所有聊天）的上限，与网页 MAX_CUSTOM_INSTRUCTIONS 相同。 */
 const val MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS
 
-/** `GET /api/billing` 里一种用量（chat / image）：本期用了多少、上限、按天还是按月（day / month）、何时重新计算。 */
+/**
+ * `GET /api/billing` 里一种用量（chat / image）：本期用了多少、上限、按天还是按月（day / month）、何时重新计算。
+ * daily：除了月上限还有每日上限的种类（图片）今天的用量。
+ */
 @Serializable
-data class PlanUsage(val used: Int = 0, val limit: Int = 0, val period: String = "day", val resetsAt: String? = null)
+data class PlanUsage(val used: Int = 0, val limit: Int = 0, val period: String = "day", val resetsAt: String? = null, val daily: PlanDailyUsage? = null)
+
+@Serializable
+data class PlanDailyUsage(val used: Int = 0, val limit: Int = 0, val resetsAt: String? = null)
 
 /** `GET /api/billing` 的订阅状态（网页 src/lib/billing-client.ts 的 PlanInfo.subscription）。 */
 @Serializable
@@ -204,6 +210,7 @@ data class PlanSubscription(val status: String = "", val periodEnd: String? = nu
  * `GET /api/billing`：当前方案（free / pro）、订阅和本期用量。
  * googlePlay：服务端能核对 Play 的购买（可以在 App 里买）；productId：Play 的订阅商品；accountId：购买时附上的用户 ID；
  * provider：现在的订阅在哪里买的（stripe = 网页、google = Play）；manageUrl：Play 订阅的管理页（Play 买的才有）。
+ * priceJpy：Pro 的月额（日元，显示用）；trialDays：这个用户还能用的免费试用天数（第一次订阅才有，否则 0）。
  */
 @Serializable
 data class PlanInfo(
@@ -215,6 +222,8 @@ data class PlanInfo(
     val accountId: String? = null,
     val provider: String? = null,
     val manageUrl: String? = null,
+    val priceJpy: Int = 0,
+    val trialDays: Int = 0,
 )
 
 /** `POST /api/billing/google` 的回复：开通了是 plan = pro；付款还在处理是 pending = true（202）。 */

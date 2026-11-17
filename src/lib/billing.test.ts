@@ -168,6 +168,8 @@ describe("billing", () => {
       mode: "subscription", customer: "cus_1", line_items: [{ price: "price_x", quantity: 1 }],
       success_url: "https://notefable.com/app?billing=success", subscription_data: { metadata: { userId: "u1" } },
     });
+    // 過去に購読があった利用者には、無料の試用を付けない。
+    expect(mocks.sessionsCreate.mock.calls[0][0].subscription_data).not.toHaveProperty("trial_period_days");
   });
 
   it("refuses checkout when the row is already Pro or was deleted meanwhile, and creates the customer once", async () => {
@@ -181,6 +183,10 @@ describe("billing", () => {
     mocks.list.mockResolvedValue({ data: [] });
     mocks.sessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/y" });
     await createCheckoutUrl("u1", "https://x");
+    // 初めての申し込みには無料の試用を付ける（支払い方法が無いまま終わったら取り消す）。
+    expect(mocks.sessionsCreate.mock.calls[0][0].subscription_data).toMatchObject({
+      trial_period_days: 30, trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+    });
     expect(mocks.customersCreate).toHaveBeenCalledWith({ email: "a@example.com", metadata: { userId: "u1" } }, { idempotencyKey: "notefable-customer-u1" });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { stripeCustomerId: "cus_new" } });
   });

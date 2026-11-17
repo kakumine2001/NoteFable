@@ -20,7 +20,10 @@
     <string name="plan_welcome">歡迎使用 NoteFable Pro</string>
     <string name="plan_pending">正在確認付款，Pro 稍後就會開通。</string>
     <string name="plan_purchase_failed">無法完成購買，請重試。</string>
-    <string name="upgrade_title_image">本月的免費圖片用完了</string>
+    <string name="upgrade_title_image">免費圖片用完了</string>
     <string name="upgrade_body">升級 Pro（每月 %3$s），每月可發 %1$s 條訊息、生成 %2$d 張圖片。</string>
     <string name="plan_opening">正在開啟…</string>
+    <string name="plan_trial_start">開始 %1$d 天免費試用</string>
+    <string name="plan_trial_note">前 %1$d 天免費，之後每月 %2$s。試用結束前取消就不會扣費。</string>
+    <string name="plan_trial_ends">免費試用將於 %1$s 結束，之後 Pro 每月 ¥%2$d。</string>
 </resources>

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LEGAL_CONTACT_EMAIL, LEGAL_UPDATED_JA, LegalPage } from "@/components/legal-page";
-import { PRO_PRICE_JPY, USAGE_LIMITS } from "@/lib/usage-plans";
+import { PRO_PRICE_JPY, PRO_TRIAL_DAYS, USAGE_DAILY_LIMITS, USAGE_LIMITS } from "@/lib/usage-plans";
 
 export const metadata: Metadata = {
   title: "特定商取引法に基づく表記 – NoteFable",
@@ -39,8 +39,17 @@ export default function LegalNoticePage() {
           ウェブ版（notefable.com）：クレジットカードなど、決済画面（Stripe）に表示される方法。
           <br />Android アプリ：Google Play に登録されたお支払い方法。
         </Row>
-        <Row term="支払時期">お申し込み時に初回の 1 か月分をお支払いいただき、以降は毎月の更新日に自動で請求されます。</Row>
-        <Row term="提供時期">決済の完了後、すぐにご利用いただけます。</Row>
+        <Row term="支払時期">
+          お申し込み時に初回の 1 か月分をお支払いいただき、以降は毎月の更新日に自動で請求されます。
+          <br />無料トライアルを利用する場合は、トライアル終了日に初回の 1 か月分が請求され、以降は毎月の更新日に自動で請求されます。
+        </Row>
+        <Row term="無料トライアル">
+          初めて Pro に申し込む方は、最初の {PRO_TRIAL_DAYS} 日間を無料でご利用いただけます（1 アカウントにつき 1 回）。開始時にお支払い方法の登録が必要です。
+          <br />トライアル終了日までに解約しない場合、自動的に有料（{PRICE}）へ移行し、終了日に初回の料金が請求されます。
+          <br />トライアル中に解約した場合、料金は発生せず、トライアル終了日まで Pro をご利用いただけます。
+          <br />Android アプリでは、Google Play の購入画面に表示される条件が適用されます。
+        </Row>
+        <Row term="提供時期">決済（無料トライアルの場合はお申し込み）の完了後、すぐにご利用いただけます。</Row>
         <Row term="契約期間・自動更新">1 か月ごとの自動更新です。解約しない限り、毎月同じ条件で更新されます。</Row>
         <Row term="解約方法">
           いつでも解約できます。
@@ -55,7 +64,7 @@ export default function LegalNoticePage() {
           <br />アカウントを削除すると、ウェブ版で購入したサブスクリプションはその時点で終了し、Google Play のサブスクリプションは次回以降の更新が停止されます。
         </Row>
         <Row term="Pro の内容">
-          AI メッセージを 1 請求期間あたり {count(pro.chat)} 件、画像生成を {count(pro.image)} 枚まで利用できます。無料プラン（ログイン時）では AI メッセージが 1 日 {count(member.chat)} 件、画像が 1 か月 {count(member.image)} 枚までです。
+          AI メッセージを 1 請求期間あたり {count(pro.chat)} 件、画像生成を {count(pro.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.pro.image ?? 0)} 枚）まで利用できます。無料プラン（ログイン時）では AI メッセージが 1 日 {count(member.chat)} 件、画像が 1 か月 {count(member.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.member.image ?? 0)} 枚）までです。
           上限や利用できる AI モデルは、サービスの運営上の理由で変更することがあります。
         </Row>
         <Row term="動作環境">

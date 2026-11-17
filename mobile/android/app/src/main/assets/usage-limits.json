@@ -1,14 +1,14 @@
 {
   "guest": {
-    "chat": 10,
-    "image": 0
+    "chat": 20,
+    "image": 10
   },
   "member": {
-    "chat": 20,
-    "image": 5
+    "chat": 40,
+    "image": 20
   },
   "pro": {
-    "chat": 1000,
-    "image": 40
+    "chat": 2000,
+    "image": 60
   }
 }

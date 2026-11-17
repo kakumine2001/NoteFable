@@ -57,31 +57,39 @@ export function PlanSettings() {
               ? t("Your last payment failed. Update your payment method to keep Pro.")
               : subscription.cancelAt
                 ? t("Pro ends on {date}.", { date: date(subscription.cancelAt) })
-                : t("Renews on {date}.", { date: date(subscription.periodEnd) })}
+                : subscription.status === "trialing"
+                  ? t("Your free trial ends on {date}. After that, Pro is ¥{price}/month.", { date: date(subscription.periodEnd), price: plan.priceJpy })
+                  : t("Renews on {date}.", { date: date(subscription.periodEnd) })}
           </p>
         )}
         <dl className="settings-plan-usage">
-          {(["chat", "image"] as const).map((kind) => {
+          {(["chat", "image"] as const).flatMap((kind) => {
             const entry = plan.usage[kind];
             const label = kind === "chat"
               ? (entry.period === "day" ? t("Messages today") : pro ? t("Messages this period") : t("Messages this month"))
               : (entry.period === "day" ? t("Images today") : pro ? t("Images this period") : t("Images this month"));
-            const ratio = entry.limit ? Math.min(1, entry.used / entry.limit) : 1;
-            return (
-              <div key={kind} className="settings-plan-meter">
-                <dt>{label}</dt>
-                <dd><span className="settings-plan-count">{entry.used} / {entry.limit}</span></dd>
-                <span className={`settings-plan-bar${ratio >= 1 ? " is-full" : ""}`} aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></span>
-              </div>
-            );
+            // 画像は月の上限に加えて 1 日の上限もあるので、今日の分も並べる。
+            const meters = [{ key: kind as string, label, used: entry.used, limit: entry.limit }];
+            if (entry.daily) meters.push({ key: `${kind}-day`, label: t("Images today"), used: entry.daily.used, limit: entry.daily.limit });
+            return meters.map((meter) => {
+              const ratio = meter.limit ? Math.min(1, meter.used / meter.limit) : 1;
+              return (
+                <div key={meter.key} className="settings-plan-meter">
+                  <dt>{meter.label}</dt>
+                  <dd><span className="settings-plan-count">{meter.used} / {meter.limit}</span></dd>
+                  <span className={`settings-plan-bar${ratio >= 1 ? " is-full" : ""}`} aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></span>
+                </div>
+              );
+            });
           })}
         </dl>
         {!pro && plan.billing && (
           <div className="settings-plan-offer">
             <p className="settings-plan-offer-title"><Sparkles size={15} aria-hidden="true" />{t("NoteFable Pro · ¥{price}/month", { price: plan.priceJpy })}</p>
             <p className="project-settings-help">{t("{chat} messages and {image} images a month. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image })}</p>
+            {plan.trialDays > 0 && <p className="project-settings-help">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: plan.trialDays, price: plan.priceJpy })}</p>}
             <button type="button" className="signin-open-button settings-plan-upgrade" disabled={busy} onClick={() => void open("checkout")}>
-              {busy ? t("Opening…") : t("Upgrade to Pro")}
+              {busy ? t("Opening…") : plan.trialDays > 0 ? t("Start {days}-day free trial", { days: plan.trialDays }) : t("Upgrade to Pro")}
             </button>
           </div>
         )}

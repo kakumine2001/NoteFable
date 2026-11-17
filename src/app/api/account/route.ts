@@ -1,6 +1,7 @@
 import { after, NextResponse, type NextRequest } from "next/server";
 import { deleteAccount } from "@/lib/account-deletion";
-import { cancelCustomerBilling, isBillingConfigured } from "@/lib/billing";
+import { cancelCustomerBilling, isBillingConfigured, isTrialEligible } from "@/lib/billing";
+import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
 import { cancelPlayRenewal } from "@/lib/google-play-billing";
 import { withUserBillingLock } from "@/lib/subscription-state";
 import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/auth";
@@ -34,7 +35,9 @@ export async function GET() {
     if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId, billing });
     // 行を読めなかったときは表示言語を返さない（null を返すと「未選択」と区別できず、ブラウザの選択で上書きされる）。
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row ? row.locale : undefined }, google);
-    return NextResponse.json({ configured: true, ...methods, user, googleClientId, billing });
+    // trialDays: 無料の試用を出せる日数（初めての申し込みだけ。出せない・行を読めなかったときは 0）。
+    const trialDays = billing && row && isTrialEligible(row) ? PRO_TRIAL_DAYS : 0;
+    return NextResponse.json({ configured: true, ...methods, user, googleClientId, billing, trialDays });
   } catch {
     return NextResponse.json({ configured: false, user: null });
   }

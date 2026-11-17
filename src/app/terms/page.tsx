@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
-import { PRO_PRICE_JPY, USAGE_LIMITS } from "@/lib/usage-plans";
+import { PRO_PRICE_JPY, PRO_TRIAL_DAYS, USAGE_DAILY_LIMITS, USAGE_LIMITS } from "@/lib/usage-plans";
 
 export const metadata: Metadata = {
   title: "Terms of Service – NoteFable",
@@ -29,13 +29,19 @@ export default function TermsPage() {
       <LegalSection title="3. Pro subscription">
         <ul>
           <li>
-            <strong>What you get.</strong> Pro raises your limits to {USAGE_LIMITS.pro.chat.toLocaleString("en-US")} AI messages and {USAGE_LIMITS.pro.image} generated images per billing period. Limits and the available
+            <strong>What you get.</strong> Pro raises your limits to {USAGE_LIMITS.pro.chat.toLocaleString("en-US")} AI messages and {USAGE_LIMITS.pro.image} generated images per billing period (up to {USAGE_DAILY_LIMITS.pro.image} images a day). Limits and the available
             AI models can change for operational reasons. Pro requires signing in.
           </li>
           <li>
             <strong>Price and billing.</strong> Pro costs ¥{PRO_PRICE_JPY.toLocaleString("en-US")} per month (tax included). On the website you pay through Stripe; in the Android app you pay through
             Google Play, at the price Google Play shows before you buy. You are charged when you subscribe and then automatically every month on the renewal date
             until you cancel.
+          </li>
+          <li>
+            <strong>Free trial.</strong> The first time you subscribe, Pro is free for {PRO_TRIAL_DAYS} days. You add a payment method to start the trial. Unless
+            you cancel before the trial ends, your first monthly payment is charged on the day it ends and the subscription then renews every month. If you
+            cancel during the trial you are not charged, and Pro stays active until the trial ends. The trial is offered once per account; in the Android app
+            it follows Google Play’s eligibility rules and the terms Google Play shows before you buy.
           </li>
           <li>
             <strong>Cancelling.</strong> You can cancel at any time: on the website in <em>Settings → Manage subscription</em>; for a Google Play purchase in
