@@ -17,6 +17,8 @@
 
 所有交给用户的包只用一种签名：Play 的应用签名密钥。所以 Google Cloud 里只需要一个 Android OAuth 客户端（`NoteFable-Android`），本机签名的包（debug 和本机 release）不能用 Google 登录，开发时用邮箱验证码登录，要测 Google 登录就装 Play 签名的包。
 
+**暂停：用户说恢复之前，不要下载 Play 签名的通用 APK，也不要往 Drive 上传任何 APK（下面第 4、5 步和“Drive 规则”整段暂时不执行）；也不要把它当作下一步提出来。** 用户解除暂停后，删掉这一段。
+
 交付流程：
 
 1. `mobile/android/app/build.gradle.kts` 里 `versionCode` 加 1、`versionName` 同步更新（Play 不接受重复的 `versionCode`，系统也可能不允许覆盖安装）。
