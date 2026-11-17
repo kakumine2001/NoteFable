@@ -182,22 +182,27 @@ export async function createPortalUrl(customer: string, origin: string) {
 // 解約は請求期間の終わり（利用規約 3 節と特商法表記で、支払い済みの期間は使えると約束している）。
 // Stripe のメールの「購読を管理」リンクもダッシュボードの既定の構成を使うので、自前の構成は作らず既定の構成を直す。
 // 直すのは解約の設定だけで、ほかの項目（規約のリンク、メールアドレスの変更など）はダッシュボードの設定のまま。
-export const PORTAL_CANCEL = { enabled: true, mode: "at_period_end" } as const;
+// proration_behavior は即時解約でしか使えない値（create_prorations）が残っていると mode の変更が拒まれるので、一緒に none にする。
+export const PORTAL_CANCEL = { enabled: true, mode: "at_period_end", proration_behavior: "none" } as const;
 const PORTAL_CHECK_INTERVAL_MS = 10 * 60_000;
+const PORTAL_RETRY_AFTER_MS = 60_000;
+// 確認はおまけの仕事なので、Stripe が遅いときに管理画面を待たせない。
+const PORTAL_CHECK_REQUEST = { timeout: 5_000, maxNetworkRetries: 0 };
 let portalCheckedAt = 0;
 
-// インスタンスごとに 10 分に一度、既定の構成を確かめる。確かめられなくても管理画面は開く（解約の手段をなくさない）。
+// インスタンスごとに 10 分に一度、既定の構成を確かめる。確かめられなくても管理画面は開き（解約の手段をなくさない）、1 分後にやり直す。
 async function ensurePortalCancelsAtPeriodEnd() {
   if (Date.now() - portalCheckedAt < PORTAL_CHECK_INTERVAL_MS) return;
   try {
-    const { data } = await stripe().billingPortal.configurations.list({ is_default: true, limit: 1 });
+    const { data } = await stripe().billingPortal.configurations.list({ is_default: true, limit: 1 }, PORTAL_CHECK_REQUEST);
     const config = data[0];
     const cancel = config?.features.subscription_cancel;
     if (config && (!cancel?.enabled || cancel.mode !== PORTAL_CANCEL.mode)) {
-      await stripe().billingPortal.configurations.update(config.id, { features: { subscription_cancel: PORTAL_CANCEL } });
+      await stripe().billingPortal.configurations.update(config.id, { features: { subscription_cancel: PORTAL_CANCEL } }, PORTAL_CHECK_REQUEST);
     }
     portalCheckedAt = Date.now();
   } catch (error) {
+    portalCheckedAt = Date.now() - PORTAL_CHECK_INTERVAL_MS + PORTAL_RETRY_AFTER_MS;
     console.warn("Could not check the Customer Portal cancellation setting", error instanceof Error ? error.message : error);
   }
 }

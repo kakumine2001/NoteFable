@@ -40,9 +40,10 @@ describe("createPortalUrl", () => {
 
     await expect(createPortalUrl("cus_1", "https://notefable.com")).resolves.toBe("https://billing.stripe.com/p/s");
 
-    expect(mocks.list).toHaveBeenCalledWith({ is_default: true, limit: 1 });
-    expect(mocks.update).toHaveBeenCalledWith("bpc_default", { features: { subscription_cancel: PORTAL_CANCEL } });
-    expect(PORTAL_CANCEL).toEqual({ enabled: true, mode: "at_period_end" });
+    const quick = { timeout: 5_000, maxNetworkRetries: 0 };
+    expect(mocks.list).toHaveBeenCalledWith({ is_default: true, limit: 1 }, quick);
+    expect(mocks.update).toHaveBeenCalledWith("bpc_default", { features: { subscription_cancel: PORTAL_CANCEL } }, quick);
+    expect(PORTAL_CANCEL).toEqual({ enabled: true, mode: "at_period_end", proration_behavior: "none" });
     expect(mocks.session).toHaveBeenCalledWith({ customer: "cus_1", return_url: "https://notefable.com/app?billing=portal" });
   });
 
@@ -63,15 +64,33 @@ describe("createPortalUrl", () => {
     expect(mocks.update).toHaveBeenCalledTimes(1);
   });
 
-  it("still opens the portal when the check fails, and retries the check next time", async () => {
+  it("still opens the portal when the check fails, and retries the check a minute later", async () => {
+    vi.useFakeTimers();
     const { createPortalUrl } = await load();
     vi.spyOn(console, "warn").mockImplementation(() => {});
     mocks.list.mockRejectedValueOnce(new Error("permission denied")).mockResolvedValueOnce(defaultConfig("immediately"));
 
     await expect(createPortalUrl("cus_1", "https://notefable.com")).resolves.toBe("https://billing.stripe.com/p/s");
+    await createPortalUrl("cus_1", "https://notefable.com");
+    expect(mocks.list).toHaveBeenCalledTimes(1);
     expect(mocks.update).not.toHaveBeenCalled();
 
+    vi.advanceTimersByTime(60_000);
     await createPortalUrl("cus_1", "https://notefable.com");
     expect(mocks.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens the portal when the setting cannot be changed or there is no default configuration", async () => {
+    const { createPortalUrl } = await load();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    mocks.list.mockResolvedValueOnce(defaultConfig("immediately"));
+    mocks.update.mockRejectedValueOnce(new Error("invalid request"));
+    await expect(createPortalUrl("cus_1", "https://notefable.com")).resolves.toBe("https://billing.stripe.com/p/s");
+
+    const fresh = await load();
+    mocks.list.mockResolvedValueOnce({ data: [] });
+    mocks.update.mockClear();
+    await expect(fresh.createPortalUrl("cus_1", "https://notefable.com")).resolves.toBe("https://billing.stripe.com/p/s");
+    expect(mocks.update).not.toHaveBeenCalled();
   });
 });
