@@ -33,7 +33,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 
 - **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（两种来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 和 `GET /api/account` 返回 `trialDays`（有资格是 30，否则 0），界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
 - **网页（Stripe）**：建 Checkout Session 时，有资格且这个 Stripe 客户没有任何过往订阅，就在 `subscription_data` 里加 `trial_period_days` 和 `trial_settings.end_behavior.missing_payment_method = cancel`。Checkout 默认要求登记付款方式，并在页面上显示“30 天免费，之后每月 ¥300”。试用中的订阅状态是 `trialing`（算 Pro），账期就是试用期，月上限按它计；设置里显示“免费试用将于…结束，之后 Pro 每月 ¥300”。
-- **Android（Google Play）**：试用是 Play Console 里基础方案 `monthly` 上的“免费试用”优惠（开发者指定的优惠或“新客户获取”资格，30 天）。App 读商品时，服务端说有资格（`trialDays > 0`）就优先选第一阶段价格为 0 的 offer，试用天数取自这个阶段的计费周期（`isoPeriodDays`）；没有这种 offer（Console 里没建，或 Play 判断这个 Google 账号没资格）就照常显示“升级到 Pro”。服务端说没资格时只用不带试用的基础方案。Play 的试用期间状态是 `ACTIVE`。
+- **Android（Google Play）**：试用是 Play Console 里基础方案 `monthly` 上的“免费试用”优惠（30 天）。资格必须选“新客户获取”（Play 保证每个 Google 账号只给一次）；不要选“开发者指定”：那种优惠 Play 不检查资格，服务端也不核对购买用的是哪个 offer，改过的客户端就能反复试用。App 读商品时，服务端说有资格（`trialDays > 0`）就优先选第一阶段价格为 0 的 offer，试用天数取自这个阶段的计费周期（`isoPeriodDays`）；没有这种 offer（Console 里没建，或 Play 判断这个 Google 账号没资格）就照常显示“升级到 Pro”。服务端说没资格时只用不带试用的基础方案。Play 的试用期间状态是 `ACTIVE`。
 - 已知的漏洞，暂时接受：删除账号后重新注册、或换一个邮箱注册，同一张卡可以再试用一次（不按卡去重）；试用结束时扣款失败的订阅在 Stripe 重试期间是 `past_due`，仍算 Pro 并拿到新一期的额度。后者靠 Stripe 后台把重试期设短（Billing → 订阅与邮件）来限制。用量出现这类滥用时再做按卡指纹去重。
 - 试用的条件写在服务条款第 3 节和特商法标示（“無料トライアル”“支払時期”）里，改天数或规则时一起改。
 
