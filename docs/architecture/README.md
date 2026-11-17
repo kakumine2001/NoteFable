@@ -70,7 +70,7 @@ flowchart LR
 | `src/app/[locale]/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
-| `src/app/privacy/page.tsx`、`src/app/terms/page.tsx` | 公开的隐私权政策与服务条款（Google 同意屏幕要填这两个链接） |
+| `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx` | 公开的隐私权政策、服务条款（Google 同意屏幕要填这两个链接）和特定商取引法に基づく表記（日文，Stripe / 日本法律要求） |
 | `src/app/api/sessions/*` | 会话列表、历史消息读取、会话图标 |
 | `src/app/api/pages/*` | 站内页面 CRUD、当前用户归属和版本检查；`trash/*` 是回收站，`[pageId]/revisions/*` 是编辑历史与恢复 |
 | `src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | Trash 保留期与惰性清理；编辑历史的快照 SQL、保留上限与裁剪 |

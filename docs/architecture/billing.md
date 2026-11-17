@@ -23,7 +23,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - Stripe 日本：卡支付 3.6% + Billing 0.7%，¥300 到手约 ¥287。
 - Pro 用满（1,000 条 + 40 张）最坏约 ¥400，平均用量远低于此；初期允许少量亏损。web search 的额外费用未计入。
 
-改上限只改 `usage-plans.ts`，然后重新生成 Android 的 `assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。
+改上限或价格只改 `usage-plans.ts`，然后重新生成 Android 的 `assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。服务条款第 3 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
 
 ## 订阅流程
 
@@ -52,9 +52,9 @@ Stripe 后台要做的事：
 
 - 产品 “NoteFable Pro”，价格 ¥300 / 月（JPY、recurring、税込）。把 price ID 填进 `STRIPE_PRICE_ID`。
 - Webhook 端点 `https://notefable.com/api/billing/webhook`，订阅上面第 3 步列出的事件。
-- Customer Portal：允许取消订阅、更新支付方式、查看收据。
+- Customer Portal：允许取消订阅、更新支付方式、查看收据。取消方式必须选“在计费周期结束时取消”（不要选“立即取消”）：服务条款和特商法标示都承诺解约后用到已付期间结束。
 - Billing → 订阅与邮件 → 重试用尽后：选“取消订阅”（不要选“保持逾期”，否则会一直是 Pro）。
-- 日本的“特定商取引法に基づく表記”页面（Stripe 审核和日本法律都要求）还没做。
+- 日本的“特定商取引法に基づく表記”在 `/legal-notice`（`src/app/legal-notice/page.tsx`）：姓名、住所、电话按法 11 条但书写成“请求时立即开示”。Stripe 后台“公开业务信息”里填这个网址。价格、上限、解约或退款规则变了，同时改这一页和服务条款第 3 节。
 
 本地测试：用测试模式的密钥，`stripe listen --forward-to localhost:3000/api/billing/webhook` 拿到临时 `whsec_`，测试卡 `4242 4242 4242 4242`。
 

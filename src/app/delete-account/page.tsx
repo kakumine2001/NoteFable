@@ -26,6 +26,10 @@ export default function DeleteAccountPage() {
           <li>All chats and messages, attached files and their extracted text, and generated images.</li>
           <li>All notes, note history, groups, covers, note files and images, chat projects and note edit proposals.</li>
           <li>Your daily usage counters and any pending email sign-in codes.</li>
+          <li>
+            Your Pro subscription: one bought on the website ends immediately, and a Google Play subscription stops renewing (the period already paid is not
+            refunded). Stripe and Google keep their own payment records as the law requires.
+          </li>
         </ul>
         <p>
           Copies in database backups are overwritten within 30 days. We keep only a one-way hash of the Google account ID and email address for 400 days, so that

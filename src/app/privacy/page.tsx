@@ -41,6 +41,12 @@ export default function PrivacyPage() {
             for a short time to limit abuse.
           </li>
           <li>
+            <strong>Purchases (Pro).</strong> When you start a Pro purchase on the website, we create a customer record at Stripe and store its ID, even if you
+            do not finish paying. If you subscribe, we also store the subscription’s status, plan, renewal and end dates, and the payment provider’s
+            identifiers for it: the Stripe customer and subscription IDs for a website purchase, or the Google Play purchase token for an Android purchase. Payments are handled by Stripe or Google Play; we never see or store your card number or other payment details. To match a Google Play
+            purchase to your account, the app passes your internal account ID to Google Play when you buy.
+          </li>
+          <li>
             <strong>Reports.</strong> If you report an AI answer, the reason you give, that answer, the message before it and your internal account ID are
             emailed to us so we can review it. We keep the email only as long as we need it for the review.
           </li>
@@ -73,7 +79,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="3. How we use it">
         <p>
-          To run the service: show your chats and Notes, generate AI replies, sign you in, and keep your data available across devices.
+          To run the service: show your chats and Notes, generate AI replies, sign you in, keep your data available across devices, and provide and bill the
+          Pro plan.
           We also use it to keep the service working and to fix problems. We do not sell your data, use it for advertising, or build advertising profiles.
         </p>
       </LegalSection>
@@ -97,6 +104,11 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Google</strong>, only for signing in, if you choose to.
+          </li>
+          <li>
+            <strong>Payment providers</strong>, if you buy Pro: <a href="https://stripe.com/privacy">Stripe</a> for website purchases (when you start a purchase we
+            send your email address and internal account ID, and we receive the subscription status; you enter your payment and billing details directly with Stripe) and Google Play for Android
+            purchases (under <a href="https://policies.google.com/privacy">Google’s Privacy Policy</a>). They keep their own payment records as the law requires.
           </li>
           <li>
             <a href="https://resend.com/legal/privacy-policy">Resend</a>, which delivers the sign-in code email (your email address and the code), if you sign in with email.
@@ -125,7 +137,7 @@ export default function PrivacyPage() {
         <p>
           <strong>Deleting your account.</strong> When signed in, open <em>Settings → Delete account</em> on the website or in the Android app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
-          and settings. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
+          and settings. It also ends a Pro subscription bought on the website immediately and stops a Google Play subscription from renewing. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.
           Data you used without signing in is tied only to your browser or app: delete its chats and notes in NoteFable, or clear the app’s data. See
           {" "}<Link href="/delete-account">notefable.com/delete-account</Link>.

@@ -1,6 +1,6 @@
 # Play Console 表单答案
 
-Play Console → 应用内容（App content）里各个声明的填写方式。依据是当前实现（[README.md](../../README.md)、[隐私政策](https://notefable.com/privacy)）；改了收集或发送的数据后，同时改隐私政策和这里，再到 Console 更新声明。
+Play Console → 应用内容（App content）里各个声明的填写方式。依据是当前实现（[README.md](../../README.md)、[隐私政策](https://notefable.com/privacy)、[billing.md](../architecture/billing.md)）；改了收集或发送的数据后，同时改隐私政策和这里，再到 Console 更新声明。
 
 ## 隐私权政策
 
@@ -8,7 +8,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 ## 应用访问权限（App access）
 
-"所有功能都无需特殊访问权限即可使用"：不登录也能使用聊天和笔记。登录只用于同步，审核员不需要测试账号。
+"所有功能都无需特殊访问权限即可使用"：不登录也能使用聊天和笔记。登录只用于同步和购买 Pro，审核员不需要测试账号。Pro 只提高使用上限，不解锁别的功能。
 
 ## 广告
 
@@ -20,7 +20,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 - 暴力、性、粗俗语言、受管制物品、赌博：全部"否"。
 - 用户之间互动 / 分享内容：否（没有公开分享、聊天室或协作）。
 - 分享用户位置：否。
-- 数字商品购买：否。
+- 数字商品购买：是（Pro 月额订阅，走 Google Play 结算）。
 - 应用含有 AI 生成内容：是。回答和图片由 OpenAI / Anthropic / DeepSeek 生成，经过各提供商的安全过滤；应用内可以举报回答（见下面"AI 生成内容"）。
 
 预计分级：IARC 3+ / Everyone 或 12+（以问卷结果为准）。
@@ -49,19 +49,26 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 | 是否提供让用户请求删除数据的方式 | 是：App 和网页的 设置 → 删除账号；网址 https://notefable.com/delete-account |
 | 账号创建方式 | 用户名和其他验证方式（邮箱验证码）＋ OAuth（Google）；可不建账号使用 |
 
-收集的数据（全部"收集"，都**不**"分享"：发给 AI 提供商、Vercel、Neon、Resend、Google 属于代表我们处理数据的服务提供商，按 Play 的定义不算分享）：
+收集的数据（全部"收集"，都**不**"分享"：发给 AI 提供商、Vercel、Neon、Resend、Stripe、Google 属于代表我们处理数据的服务提供商，按 Play 的定义不算分享）：
 
 | 数据类型 | 是否可选 | 是否只在设备上临时处理 | 用途 |
 | --- | --- | --- | --- |
 | 个人信息 → 姓名 | 可选（只在 Google 登录时） | 否 | 应用功能、账号管理 |
 | 个人信息 → 电子邮件地址 | 可选（只在登录时） | 否 | 应用功能、账号管理 |
 | 个人信息 → 用户 ID | 必需 | 否 | 应用功能、账号管理 |
+| 财务信息 → 购买记录（订阅状态、期间、Google Play 购买令牌） | 可选（只在购买 Pro 时） | 否 | 应用功能、账号管理 |
 | 照片和视频 → 照片 | 可选（用户自己添加的照片、头像） | 否 | 应用功能 |
 | 文件和文档 | 可选（用户添加的文件） | 否 | 应用功能 |
 | 应用活动 → 其他用户生成的内容（聊天消息、笔记、自定义指令） | 必需 | 否 | 应用功能 |
 | 设备或其他 ID（随机的设备 Cookie） | 必需 | 否 | 应用功能、反欺诈 / 安全（匿名使用的每日额度） |
 
-不收集：位置、通讯录、日历、健康、财务、短信、通话、音频、网页浏览记录、应用使用分析、崩溃日志、广告 ID。
+不收集：位置、通讯录、日历、健康、财务信息（购买记录以外：卡号等付款信息由 Google Play / Stripe 处理，服务端拿不到）、短信、通话、音频、网页浏览记录、应用使用分析、崩溃日志、广告 ID。
+
+## 应用内购买（订阅）
+
+- 商品：订阅 `notefable_pro`，基础方案 `monthly`（按月自动续订，宽限期 7 天，日本 ¥300，其他国家按汇率换算）。服务端配置和测试方法见 [billing.md](../architecture/billing.md#androidgoogle-play-结算)。
+- 订阅条款（价格、自动续订、解约、退款）写在 [服务条款](https://notefable.com/terms) 第 3 节和 [特定商取引法に基づく表記](https://notefable.com/legal-notice)；App 的购买窗口由 Play 显示价格和续订说明。
+- 改价格、额度或解约规则时，同时改 `usage-plans.ts`、服务条款、特商法页面、[listing.md](listing.md) 和 Play Console 的商品。
 
 ## AI 生成内容
 
@@ -75,11 +82,14 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 ## 发布前检查清单
 
-开发者账号（25 美元）由所有者本人注册和付款。账号建好后：
+已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、内部测试轨道的 1.0.6（versionCode 16）草稿、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-1. 创建应用：名称 NoteFable，默认语言 English (United States)，类型"应用"，免费。
-2. Play 应用签名：选"使用 Google 生成的应用签名密钥"，上传 `bundleRelease` 生成的 AAB（用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。
-3. 在 Google Cloud 新建一个 Android OAuth 客户端（包名 `com.kakumine.notefable`，SHA-1 填 Play Console → 应用完整性 → 应用签名密钥证书的 SHA-1），否则从 Play 安装的 App 不能用 Google 登录。上传密钥的客户端 `NoteFable-Android-Upload` 已经建好。
-4. 按本文件填写应用内容的各项声明，按 [listing.md](listing.md) 填写商店信息并上传 `mobile/android/play-store/` 的图片。
-5. 新的个人开发者账号要先做"封闭测试"：至少 12 名测试人员连续参与 14 天，之后才能申请正式版（以 Console 当时的要求为准）。
-6. 正式版：国家 / 地区选全部或指定，提交审核。
+剩下的（都要在 Play Console / Google Cloud 上由所有者操作）：
+
+1. Play 应用签名：首次上传 AAB 时选"使用 Google 生成的应用签名密钥"（`bundleRelease`，用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。每次上传前 `versionCode` 加 1。
+2. 在 Google Cloud 新建一个 Android OAuth 客户端（包名 `com.kakumine.notefable`，SHA-1 填 Play Console → 应用完整性 → 应用签名密钥证书的 SHA-1），否则从 Play 安装的 App 不能用 Google 登录。上传密钥的客户端 `NoteFable-Android-Upload` 已经建好。
+3. 启用订阅 `notefable_pro` 的基础方案 `monthly`。
+4. 按本文件填写应用内容的各项声明（数据安全要包括"购买记录"，IARC 的"数字商品购买"选"是"），按 [listing.md](listing.md) 填写商店信息并上传 `mobile/android/play-store/` 的图片。
+5. 把测试账号加到"许可测试"，从测试轨道安装 App，真机走一遍：购买 → 报告（设置里变成 Pro）→ RTDN 到达 → 在 Play 里取消（到期前仍是 Pro）→ 删除账号停止续费。许可测试的订阅按几分钟一个周期续订，便于看续费和到期。
+6. 新的个人开发者账号要先做"封闭测试"：至少 12 名测试人员连续参与 14 天，之后才能申请正式版（以 Console 当时的要求为准）。这一步最花时间，应尽早开始；第 3–5 步可以在这期间并行做。
+7. 正式版：国家 / 地区选全部或指定，提交审核。

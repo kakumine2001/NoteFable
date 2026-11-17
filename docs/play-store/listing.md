@@ -39,7 +39,7 @@ WORKS EVERYWHERE
 • Try it without an account. Sign in with Google or an email code to keep your chats and notes in sync between the app and notefable.com.
 • Available in English, 简体中文, 繁體中文 and 日本語.
 
-Free to use with a daily limit on AI messages and images. No ads.
+Free to use with daily and monthly limits on AI messages and images. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 1,000 messages and 40 images a month. No ads.
 
 Privacy policy: https://notefable.com/privacy
 
@@ -78,7 +78,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 • 不注册也能直接试用。用 Google 或邮箱验证码登录后，对话和笔记在 App 和 notefable.com 之间同步。
 • 支持 English、简体中文、繁體中文、日本語。
 
-免费使用，AI 消息和图片每天有使用上限。没有广告。
+免费使用，AI 消息和图片有每天、每月的使用上限。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 1,000 条消息和 40 张图片。没有广告。
 
 隐私政策：https://notefable.com/privacy
 
@@ -117,7 +117,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 • 不註冊也能直接試用。用 Google 或電子郵件驗證碼登入後，對話和筆記會在 App 和 notefable.com 之間同步。
 • 支援 English、简体中文、繁體中文、日本語。
 
-免費使用，AI 訊息和圖片每天有使用上限。沒有廣告。
+免費使用，AI 訊息和圖片有每天、每月的使用上限。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 1,000 則訊息和 40 張圖片。沒有廣告。
 
 隱私權政策：https://notefable.com/privacy
 
@@ -156,7 +156,7 @@ AI がノートを手伝う
 • アカウントなしですぐに試せます。Google またはメールの確認コードでログインすると、チャットとノートがアプリと notefable.com で同期されます。
 • English・简体中文・繁體中文・日本語に対応。
 
-無料で使えます（AI メッセージと画像には 1 日の上限があります）。広告はありません。
+無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 1,000 件・画像 40 枚まで使えます。広告はありません。
 
 プライバシーポリシー：https://notefable.com/privacy
 
@@ -170,4 +170,5 @@ AI がノートを手伝う
 | 网站 | https://notefable.com |
 | 隐私权政策 | https://notefable.com/privacy |
 | 账号删除网址 | https://notefable.com/delete-account |
-| 价格 | 免费；不含应用内购买；不含广告 |
+| 特定商取引法に基づく表記 | https://notefable.com/legal-notice |
+| 价格 | 免费；**含应用内购买**（Pro 月额订阅，日本 ¥300 / 月）；不含广告 |

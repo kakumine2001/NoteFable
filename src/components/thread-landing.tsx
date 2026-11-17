@@ -348,7 +348,7 @@ export function ThreadLanding() {
         <span className="tl-brand"><BrandMark size={20} /><span>NoteFable</span></span>
         <div className="tl-footer-end">
           <LanguageMenu className="tl-language" onChoose={onLandingLocale} />
-          <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link></nav>
+          <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link><Link href="/legal-notice">{t("Commercial disclosure")}</Link></nav>
         </div>
       </footer>
     </div>

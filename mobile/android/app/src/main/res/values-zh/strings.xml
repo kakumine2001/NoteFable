@@ -47,6 +47,7 @@
     <string name="about">关于</string>
     <string name="privacy">隐私政策</string>
     <string name="terms">服务条款</string>
+    <string name="commercial_disclosure">特定商交易法标示</string>
 
     <!-- 附件与「生成图片」模式（网页 attach-sheet.tsx、client-files.ts 的原句）。 -->
     <string name="attach_add">添加</string>

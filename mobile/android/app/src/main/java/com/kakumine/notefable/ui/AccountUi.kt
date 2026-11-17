@@ -508,7 +508,7 @@ fun UserAvatar(user: AccountUser, size: Dp) {
     }
 }
 
-// 隐私政策 / 服务条款（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。[guest] 时行的右端放语言按钮。
+// 隐私政策 / 服务条款 / 特商法标示（网页 LegalLinks）：左右 16、上下 10、间距 16、12sp 灰字，打开网站上的页面。[guest] 时行的右端放语言按钮。
 @Composable
 @OptIn(ExperimentalLayoutApi::class)
 private fun LegalLinks(guest: Boolean) {
@@ -520,6 +520,7 @@ private fun LegalLinks(guest: Boolean) {
         Text(stringResource(R.string.about), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { openInBrowser(context, BuildConfig.BASE_URL + "/?intro") })
         Text(stringResource(R.string.privacy), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/privacy") })
         Text(stringResource(R.string.terms), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/terms") })
+        Text(stringResource(R.string.commercial_disclosure), color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.clickable { uri.openUri(BuildConfig.BASE_URL + "/legal-notice") })
         // 网页 .language-trigger 的 margin-left: auto：占满这一行剩下的宽度，按钮靠右。
         if (guest) Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { LanguageMenuButton() }
     }
