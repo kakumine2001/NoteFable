@@ -27,7 +27,7 @@ vi.mock("@/lib/prisma", () => {
     },
   };
 });
-import { AccountGoneError, AlreadySubscribedError, cancelCustomerBilling, createCheckoutUrl, isBillingConfigured, isWebhookConfigured, refreshCustomer, syncSubscription } from "./billing";
+import { AccountGoneError, AlreadySubscribedError, cancelCustomerBilling, createCheckoutUrl, isBillingConfigured, isTrialEligible, isWebhookConfigured, refreshCustomer, syncSubscription } from "./billing";
 
 function subscription(id: string, status: string, extra: Record<string, unknown> = {}) {
   return {
@@ -168,6 +168,18 @@ describe("billing", () => {
       mode: "subscription", customer: "cus_1", line_items: [{ price: "price_x", quantity: 1 }],
       success_url: "https://notefable.com/app?billing=success", subscription_data: { metadata: { userId: "u1" } },
     });
+    // 過去に購読があった利用者には、無料の試用を付けない。
+    expect(mocks.sessionsCreate.mock.calls[0][0].subscription_data).not.toHaveProperty("trial_period_days");
+
+    // 行に購読の記録が無くても、Stripe に過去の購読があれば付けない。
+    mocks.sessionsCreate.mockClear();
+    mocks.findUnique.mockResolvedValue({ ...owner(), stripeCustomerId: "cus_1" });
+    mocks.list.mockResolvedValueOnce({ data: [subscription("sub_0", "canceled")] });
+    mocks.sessionsCreate.mockResolvedValueOnce({ url: "https://checkout.stripe.com/z" });
+    await createCheckoutUrl("u1", "https://notefable.com");
+    expect(mocks.sessionsCreate.mock.calls[0][0].subscription_data).not.toHaveProperty("trial_period_days");
+    expect(isTrialEligible({ subscriptionStatus: null })).toBe(true);
+    expect(isTrialEligible({ subscriptionStatus: "canceled" })).toBe(false);
   });
 
   it("refuses checkout when the row is already Pro or was deleted meanwhile, and creates the customer once", async () => {
@@ -181,6 +193,10 @@ describe("billing", () => {
     mocks.list.mockResolvedValue({ data: [] });
     mocks.sessionsCreate.mockResolvedValue({ url: "https://checkout.stripe.com/y" });
     await createCheckoutUrl("u1", "https://x");
+    // 初めての申し込みには無料の試用を付ける（支払い方法が無いまま終わったら取り消す）。
+    expect(mocks.sessionsCreate.mock.calls[0][0].subscription_data).toMatchObject({
+      trial_period_days: 30, trial_settings: { end_behavior: { missing_payment_method: "cancel" } },
+    });
     expect(mocks.customersCreate).toHaveBeenCalledWith({ email: "a@example.com", metadata: { userId: "u1" } }, { idempotencyKey: "notefable-customer-u1" });
     expect(mocks.update).toHaveBeenCalledWith({ where: { id: "u1" }, data: { stripeCustomerId: "cus_new" } });
   });

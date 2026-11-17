@@ -21,7 +21,10 @@
     <string name="plan_welcome">Welcome to NoteFable Pro</string>
     <string name="plan_pending">Your payment is being confirmed. Pro will turn on in a moment.</string>
     <string name="plan_purchase_failed">Could not complete the purchase. Please try again.</string>
-    <string name="upgrade_title_image">You\'ve used this month\'s free images</string>
+    <string name="upgrade_title_image">You\'ve used your free images</string>
     <string name="upgrade_body">Get %1$s messages and %2$d images a month with Pro for %3$s/month.</string>
     <string name="plan_opening">Opening…</string>
+    <string name="plan_trial_start">Start %1$d-day free trial</string>
+    <string name="plan_trial_note">Free for %1$d days, then %2$s/month. Cancel before the trial ends and you won\'t be charged.</string>
+    <string name="plan_trial_ends">Your free trial ends on %1$s. After that, Pro is ¥%2$d/month.</string>
 </resources>

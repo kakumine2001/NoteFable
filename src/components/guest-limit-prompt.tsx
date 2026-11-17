@@ -29,7 +29,7 @@ export function GuestLimitPrompt({ kind, onClose, onBeforeSignIn, attachmentsLos
       <span className="guest-limit-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.1} /></span>
       <div className="min-w-0 flex-1">
         <p className="guest-limit-title">
-          {kind === "image" ? t("Sign in to generate images") : t("You've used today's free messages")}
+          {kind === "image" ? t("You've used your free images") : t("You've used today's free messages")}
         </p>
         <p className="guest-limit-body">
           {t("Sign in to get {chat} messages a day and {image} images a month, and find your chats on any device.", { chat: limits.chat, image: limits.image })}
@@ -76,21 +76,23 @@ export function UpgradePrompt({ kind, onClose, onBeforeUpgrade, attachmentsLost 
   }
 
   const limits = USAGE_LIMITS.pro;
+  const trialDays = account.trialDays ?? 0;
   return (
     <section className="guest-limit-prompt notion-page-column mb-3" role="status" aria-live="polite">
       <span className="guest-limit-icon" aria-hidden="true"><Sparkles size={18} strokeWidth={2.1} /></span>
       <div className="min-w-0 flex-1">
         <p className="guest-limit-title">
-          {kind === "image" ? t("You've used this month's free images") : t("You've used today's free messages")}
+          {kind === "image" ? t("You've used your free images") : t("You've used today's free messages")}
         </p>
         <p className="guest-limit-body">
           {t("Get {chat} messages and {image} images a month with Pro for ¥{price}/month.", { chat: limits.chat.toLocaleString(tag), image: limits.image, price: PRO_PRICE_JPY })}
         </p>
+        {trialDays > 0 && <p className="guest-limit-body">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: trialDays, price: PRO_PRICE_JPY })}</p>}
         {attachmentsLost && <p className="guest-limit-body">{t("Attachments aren't kept when you go to the payment page. Add them again afterward.")}</p>}
         {error && <p role="alert" className="guest-limit-body guest-limit-error">{localizeSystemText(error, t)}</p>}
         <div className="guest-limit-actions">
           <button type="button" className="signin-open-button guest-limit-signin" disabled={busy} onClick={() => void upgrade()}>
-            {busy ? t("Opening…") : t("Upgrade to Pro")}
+            {busy ? t("Opening…") : trialDays > 0 ? t("Start {days}-day free trial", { days: trialDays }) : t("Upgrade to Pro")}
           </button>
           <button type="button" className="guest-limit-later" onClick={onClose}>{t("Not now")}</button>
         </div>

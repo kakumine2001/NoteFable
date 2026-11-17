@@ -6,12 +6,14 @@ import type { UsageKind, UsagePeriod } from "@/lib/usage-plans";
 export type PlanInfo = {
   billing: boolean;
   priceJpy: number;
+  // 無料の試用を出せる日数（出せなければ 0）。
+  trialDays: number;
   plan: "free" | "pro";
   subscription: { status: string; periodEnd: string | null; cancelAt: string | null } | null;
   canManage: boolean;
   manageUrl: string | null;
   provider: "stripe" | "google" | null;
-  usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string }>;
+  usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string; daily?: { used: number; limit: number; resetsAt: string } }>;
 };
 
 async function readError(response: Response, fallback: string) {

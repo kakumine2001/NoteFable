@@ -68,7 +68,7 @@ private val MeterFull = Color(0xFFB45309) // .settings-plan-bar.is-full
  * Pro 时一行 13 灰的续费 / 结束 / 扣款失败说明；两条用量（14 正文标签 + 右侧 13 灰的 “用了 / 上限”，下面 6 高的全圆角进度条，
  * 底色 hover 灰、填充蓝，用满时橙），条目间距 14、上距 16。
  * 免费用户：服务端开了 Play 结算（googlePlay）且 Play 商品读得到时，显示 Pro 的介绍框和“升级到 Pro”（Google Play 的购买窗口，
- * 网页是 Stripe）；Play 里买的 Pro 显示“在 Google Play 上管理订阅”（.settings-chip，上距 16）。网页（Stripe）买的订阅在 App 里不提供管理入口。
+ * 网页是 Stripe）；还能免费试用时（服务端 trialDays > 0 且 Play 给了带试用的 offer）多一行试用说明，按钮写“开始 N 天免费试用”；Play 里买的 Pro 显示“在 Google Play 上管理订阅”（.settings-chip，上距 16）。网页（Stripe）买的订阅在 App 里不提供管理入口。
  */
 @Composable
 internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
@@ -88,13 +88,14 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
     }
     // 免费且能在 App 里买：先把之前没报告成的购买补报（开通了就重读方案），再读 Play 的商品和价格。
     val productId = plan?.takeIf { it.plan != "pro" && it.googlePlay && it.accountId != null }?.productId
-    LaunchedEffect(productId) {
+    val allowTrial = (plan?.trialDays ?: 0) > 0
+    LaunchedEffect(productId, allowTrial) {
         if (productId == null) return@LaunchedEffect
         if (billing.recover(productId)) {
             attempt++
             return@LaunchedEffect
         }
-        product = billing.product(productId)
+        product = billing.product(productId, allowTrial)
     }
     LaunchedEffect(billing) {
         billing.events.collect { event ->
@@ -148,6 +149,8 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
                 when {
                     subscription.status == "past_due" -> SettingsHelpText(stringResource(R.string.plan_past_due))
                     cancelAt != null -> SettingsHelpText(stringResource(R.string.plan_ends, planDate(cancelAt)))
+                    subscription.status == "trialing" && periodEnd != null ->
+                        SettingsHelpText(stringResource(R.string.plan_trial_ends, planDate(periodEnd), current.priceJpy))
                     periodEnd != null -> SettingsHelpText(stringResource(R.string.plan_renews, planDate(periodEnd)))
                 }
             }
@@ -175,6 +178,8 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
                         ),
                         usage,
                     )
+                    // 图片除了月上限还有每日上限，今天的用量也列出来。
+                    usage.daily?.let { PlanMeter(stringResource(R.string.plan_images_today), PlanUsage(it.used, it.limit)) }
                 }
             }
             val offer = product
@@ -236,17 +241,26 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
             Text(stringResource(R.string.plan_offer_title, product.formattedPrice), color = Sm.Ink, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.SemiBold)
         }
         SettingsHelpText(stringResource(R.string.plan_offer_body, "%,d".format(limits.chat), limits.image))
+        if (product.trialDays > 0) SettingsHelpText(stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice))
         Box(
             Modifier.padding(top = 12.dp).fillMaxWidth().height(44.dp).clip(CircleShape).background(Sm.Ink)
                 .clickable(enabled = !busy, onClick = onUpgrade).semantics { role = Role.Button },
             Alignment.Center,
         ) {
             Text(
-                stringResource(if (busy) R.string.plan_opening else R.string.plan_upgrade),
+                upgradeLabel(busy, product),
                 color = Color.White.copy(alpha = if (busy) 0.6f else 1f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             )
         }
     }
+}
+
+/** 购买按钮的文字：打开中 / 还能试用时“开始 N 天免费试用” / “升级到 Pro”。 */
+@Composable
+private fun upgradeLabel(busy: Boolean, product: PlayProduct): String = when {
+    busy -> stringResource(R.string.plan_opening)
+    product.trialDays > 0 -> stringResource(R.string.plan_trial_start, product.trialDays)
+    else -> stringResource(R.string.plan_upgrade)
 }
 
 /** Pro 的上限（安装包里的 assets/usage-limits.json，和网页 USAGE_LIMITS.pro 同源）。 */
@@ -283,7 +297,7 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
         val productId = plan.productId
         val accountId = plan.accountId
         if (!plan.googlePlay || plan.plan == "pro" || productId == null || accountId == null) return@LaunchedEffect
-        offer = billing.product(productId)?.let { it to accountId }
+        offer = billing.product(productId, plan.trialDays > 0)?.let { it to accountId }
     }
     LaunchedEffect(billing) {
         billing.events.collect { event ->
@@ -311,8 +325,8 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
         onClose = onClose,
         title = stringResource(if (kind == "image") R.string.upgrade_title_image else R.string.guest_limit_title_chat),
         body = stringResource(R.string.upgrade_body, "%,d".format(limits.chat), limits.image, product.formattedPrice),
-        note = failure,
-        actionLabel = stringResource(if (busy) R.string.plan_opening else R.string.plan_upgrade),
+        note = failure ?: if (product.trialDays > 0) stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice) else null,
+        actionLabel = upgradeLabel(busy, product),
     )
 }
 

@@ -1,6 +1,7 @@
 import Stripe from "stripe";
 import { optionalEnv } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
+import { PRO_TRIAL_DAYS } from "@/lib/usage-plans";
 import { isProStatus, readOwner, subscriptionAction, withUserBillingLock, writeSubscription, type BillingTx } from "@/lib/subscription-state";
 
 export { isProStatus };
@@ -31,6 +32,12 @@ export function stripe() {
   if (!key) throw new Error("STRIPE_SECRET_KEY is not configured.");
   client ??= new Stripe(key, { maxNetworkRetries: 2, timeout: 20_000 });
   return client;
+}
+
+// 無料の試用を出せるか: どちらの購入元でも、購読したことが無い利用者だけ（subscriptionStatus は一度でも購読すると残る）。
+// Stripe の過去の購読は申し込みのときにもう一度確かめる。Google Play は Play 側でも 1 アカウント 1 回に限る。
+export function isTrialEligible(user: { subscriptionStatus: string | null }) {
+  return !user.subscriptionStatus;
 }
 
 // 申し込みの前に、まだ課金の続く購読（どちらの購入元でも）があったときに投げる（画面には「すでに Pro」と返す）。
@@ -150,17 +157,23 @@ export async function createCheckoutUrl(userId: string, origin: string) {
     if (isProStatus(row.subscriptionStatus)) return { conflict: true };
     const customer = await ensureCustomer(tx, row);
     await expireOpenCheckouts(customer);
-    const live = (await customerSubscriptions(customer)).filter((subscription) => !ENDED_STATUSES.has(subscription.status));
+    const past = await customerSubscriptions(customer);
+    const live = past.filter((subscription) => !ENDED_STATUSES.has(subscription.status));
     if (live.length) {
       await applySubscription(tx, userId, preferred(live));
       return { conflict: true };
     }
+    // 無料の試用は初めての申し込みだけ（行にも Stripe にも、過去の購読が無い）。支払い方法は決済画面で登録する。
+    const trial = isTrialEligible(row) && !past.length;
     const session = await stripe().checkout.sessions.create({
       mode: "subscription",
       customer,
       client_reference_id: userId,
       line_items: [{ price: optionalEnv("STRIPE_PRICE_ID"), quantity: 1 }],
-      subscription_data: { metadata: { userId } },
+      subscription_data: {
+        metadata: { userId },
+        ...(trial ? { trial_period_days: PRO_TRIAL_DAYS, trial_settings: { end_behavior: { missing_payment_method: "cancel" as const } } } : {}),
+      },
       allow_promotion_codes: true,
       locale: "auto",
       success_url: `${origin}/app?billing=success`,

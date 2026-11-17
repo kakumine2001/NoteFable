@@ -1,29 +1,41 @@
 # 付费方案（Pro）与用量上限
 
-NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
+NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込），第一次订阅先免费试用 30 天（见“免费试用”）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
 
 ## 档位与上限
 
-数值在 `src/lib/usage-plans.ts`（`USAGE_LIMITS` 次数、`USAGE_PERIODS` 计数周期），计数在 `src/lib/usage-limits.ts`，存储见 [database.md](database.md#usagecounter)。
+数值在 `src/lib/usage-plans.ts`（`USAGE_LIMITS` 次数、`USAGE_PERIODS` 计数周期、`USAGE_DAILY_LIMITS` 月上限之外的每日上限），计数在 `src/lib/usage-limits.ts`，存储见 [database.md](database.md#usagecounter)。
 
 | 档位 | 条件 | 聊天 | 图片 |
 | --- | --- | --- | --- |
-| guest | 未登录 | 10 / 天 | 不能生成（要登录） |
-| member | 已登录、免费 | 20 / 天 | 5 / 月 |
-| pro | `User.plan = PRO` | 1,000 / 账期 | 40 / 账期 |
+| guest | 未登录 | 20 / 天 | 10 / 月，且 3 / 天 |
+| member | 已登录、免费 | 40 / 天 | 20 / 月，且 5 / 天 |
+| pro | `User.plan = PRO` | 2,000 / 账期 | 60 / 账期，且 10 / 天 |
 
 - “天”是日本时间的一天；免费的“月”是日本时间的自然月；Pro 的“账期”是 Stripe 的当前计费周期（`subscriptionPeriodStart`〜`subscriptionPeriodEnd`），续费时重新计算。账期已过但续费通知还没到时，先按自然月计（不会被上一期用满的计数卡住）。Pro 和免费的月计数是不同的行（`chat:pro` / `image:pro` 与 `image:month`），所以升级时免费额度的用量不带进 Pro，回到免费时也不按旧账期算。
-- 同一网络（IP）的未登录用户另有共同上限：聊天 50 / 天，图片 0。
-- 免费的月用量（20 × 31 = 620 条）低于 Pro，测试会检查。
+- 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里图片显示两条用量（本月 / 今天）。
+- 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
+- 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
 
 ### 定价依据（2026-11 查价）
 
 - 聊天模型：GPT-6 Luna 与 Claude Haiku 5.5 都是输入 $0.10 / 输出 $0.50（每百万 token，第三方汇总与 Anthropic 官方价）。按每条约 3K 输入 + 800 输出估，短对话约 ¥0.1 / 条，带长历史时约 ¥0.5 / 条。
 - 图片：`gpt-image-2.6-sunburst` 1024² 约 $0.025–0.053 / 张（≈ ¥4–8，按 token 计费，第三方估算），和画质关系不大，所以按张数计。
 - Stripe 日本：卡支付 3.6% + Billing 0.7%，¥300 到手约 ¥287。
-- Pro 用满（1,000 条 + 40 张）最坏约 ¥400，平均用量远低于此；初期允许少量亏损。web search 的额外费用未计入。
+- Pro 用满（2,000 条 + 60 张）最坏约 ¥440–1,480（聊天 ¥200–1,000 + 图片 ¥240–480），高于到手的 ¥287；平均用量远低于此，初期允许亏损。web search 的额外费用未计入。
+- 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
 改上限或价格只改 `usage-plans.ts`，然后重新生成 Android 的 `assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。服务条款第 3 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+
+## 免费试用
+
+第一次订阅 Pro 的用户先免费用 30 天（`PRO_TRIAL_DAYS`），要先登记付款方式，到期自动开始按月扣费；试用期间解约不扣费，Pro 用到试用结束。每个账号一次。
+
+- **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（两种来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 和 `GET /api/account` 返回 `trialDays`（有资格是 30，否则 0），界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
+- **网页（Stripe）**：建 Checkout Session 时，有资格且这个 Stripe 客户没有任何过往订阅，就在 `subscription_data` 里加 `trial_period_days` 和 `trial_settings.end_behavior.missing_payment_method = cancel`。Checkout 默认要求登记付款方式，并在页面上显示“30 天免费，之后每月 ¥300”。试用中的订阅状态是 `trialing`（算 Pro），账期就是试用期，月上限按它计；设置里显示“免费试用将于…结束，之后 Pro 每月 ¥300”。
+- **Android（Google Play）**：试用是 Play Console 里基础方案 `monthly` 上的“免费试用”优惠（30 天）。资格必须选“新客户获取”（Play 保证每个 Google 账号只给一次）；不要选“开发者指定”：那种优惠 Play 不检查资格，服务端也不核对购买用的是哪个 offer，改过的客户端就能反复试用。App 读商品时，服务端说有资格（`trialDays > 0`）就优先选第一阶段价格为 0 的 offer，试用天数取自这个阶段的计费周期（`isoPeriodDays`）；没有这种 offer（Console 里没建，或 Play 判断这个 Google 账号没资格）就照常显示“升级到 Pro”。服务端说没资格时只用不带试用的基础方案。Play 的试用期间状态是 `ACTIVE`。
+- 已知的漏洞，暂时接受：删除账号后重新注册、或换一个邮箱注册，同一张卡可以再试用一次（不按卡去重）；试用结束时扣款失败的订阅在 Stripe 重试期间是 `past_due`，仍算 Pro 并拿到新一期的额度。后者靠 Stripe 后台把重试期设短（Billing → 订阅与邮件）来限制。用量出现这类滥用时再做按卡指纹去重。
+- 试用的条件写在服务条款第 3 节和特商法标示（“無料トライアル”“支払時期”）里，改天数或规则时一起改。
 
 ## 订阅流程
 

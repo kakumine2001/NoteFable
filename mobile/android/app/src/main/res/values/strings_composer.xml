@@ -2,7 +2,7 @@
 <!-- 输入栏与使用上限这一批的文案（网页字典 src/lib/i18n/messages/{zh,ja}.ts 的英文键）。 -->
 <resources>
     <string name="guest_limit_title_chat">You\'ve used today\'s free messages</string>
-    <string name="guest_limit_title_image">Sign in to generate images</string>
+    <string name="guest_limit_title_image">You\'ve used your free images</string>
     <string name="guest_limit_body">Sign in to get %1$d messages a day and %2$d images a month, and find your chats on any device.</string>
     <string name="guest_limit_attachments_lost">Attachments aren\'t kept when you sign in. Add them again afterward.</string>
     <string name="not_now">Not now</string>

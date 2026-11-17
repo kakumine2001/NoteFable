@@ -3,9 +3,9 @@ import { Prisma } from "@/generated/prisma/client";
 import { getCookieSecret } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { GUEST_NETWORK_LIMITS, REPORT_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsagePeriod, type UsageTier } from "@/lib/usage-plans";
+import { GUEST_NETWORK_LIMITS, REPORT_LIMITS, USAGE_DAILY_LIMITS, USAGE_LIMIT_CODE, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsagePeriod, type UsageTier } from "@/lib/usage-plans";
 
-export { GUEST_NETWORK_LIMITS, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsageTier };
+export { GUEST_NETWORK_LIMITS, USAGE_DAILY_LIMITS, USAGE_LIMITS, USAGE_PERIODS, type UsageKind, type UsageTier };
 
 // 日付の切り替えは日本時間の 0 時。
 const DAY_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -62,32 +62,53 @@ function counterKind(kind: UsageKind, period: UsagePeriod, tier: UsageTier) {
   return tier === "pro" ? `${kind}:pro` : `${kind}:month`;
 }
 
+// 上限を数えるネットワークの単位。IPv4 はアドレスそのもの、IPv6 は先頭 64 ビット
+// （利用者には /64 以上が丸ごと割り当てられるので、アドレスを変えるだけで未ログインの上限を逃れられないように）。
+// IPv4 を包んだ IPv6（::ffff:1.2.3.4）は IPv4 として数える。読めない形はそのまま使う。
+export function networkAddress(ip: string) {
+  if (!ip.includes(":")) return ip;
+  const address = ip.split("%")[0].toLowerCase();
+  const mapped = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/.exec(address);
+  if (mapped) return mapped[1];
+  const halves = address.split("::");
+  if (halves.length > 2) return ip;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves[1] ? halves[1].split(":") : [];
+  const groups = halves.length === 2 ? [...head, ...Array<string>(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail] : head;
+  if (groups.length !== 8 || groups.some((group) => !/^[0-9a-f]{1,4}$/.test(group))) return ip;
+  return `${groups.slice(0, 4).map((group) => parseInt(group, 16).toString(16)).join(":")}::/64`;
+}
+
 export function clientNetworkKey(request: Request) {
   // Vercel は x-forwarded-for を受け取った接続元で上書きする。ローカルなど取れない環境では IP の上限を掛けない。
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim();
   const ip = forwarded || request.headers.get("x-real-ip")?.trim();
   if (!ip) return null;
   // IP そのものは保存しない。
-  return `ip:${createHmac("sha256", getCookieSecret()).update(`usage:${ip}`).digest("base64url")}`;
+  return `ip:${createHmac("sha256", getCookieSecret()).update(`usage:${networkAddress(ip)}`).digest("base64url")}`;
 }
 
-export function limitReachedMessage(tier: UsageTier, kind: UsageKind) {
+// period: 達した上限の期間（画像は 1 日と月の両方に上限がある）。
+export function limitReachedMessage(tier: UsageTier, kind: UsageKind, period: UsagePeriod = USAGE_PERIODS[tier][kind]) {
   if (tier === "guest") {
-    return kind === "image"
-      ? msg("Sign in to generate images.")
-      : msg("You've used today's free messages. Sign in for more, or try again tomorrow.");
+    if (kind === "chat") return msg("You've used today's free messages. Sign in for more, or try again tomorrow.");
+    return period === "day"
+      ? msg("You've used today's free image generations. Sign in for more, or try again tomorrow.")
+      : msg("You've used this month's free image generations. Sign in for more.");
   }
   if (tier === "member") {
-    return kind === "image"
-      ? msg("You've used this month's free image generations.")
-      : msg("You've used today's free messages. Try again tomorrow.");
+    if (kind === "chat") return msg("You've used today's free messages. Try again tomorrow.");
+    return period === "day"
+      ? msg("You've used today's free image generations. Try again tomorrow.")
+      : msg("You've used this month's free image generations.");
   }
+  if (period === "day") return msg("You've used today's image generations. Try again tomorrow.");
   return kind === "image"
     ? msg("You've used this period's image generations. They reset when your plan renews.")
     : msg("You've used this period's messages. They reset when your plan renews.");
 }
 
-type Bucket = { key: string; kind: string; day: string; limit: number };
+type Bucket = { key: string; kind: string; day: string; limit: number; period: UsagePeriod };
 // 数えた行。kind は UsageCounter.kind（日ごとの chat / image、月ごとの image:month / chat:pro / image:pro と、用量の段階に入らない report）。
 export type UsageTicket = { buckets: { key: string; kind: string; day: string }[] };
 export type UsageResult = { ok: true; ticket: UsageTicket } | { ok: false; tier: UsageTier; message: string };
@@ -97,7 +118,9 @@ export function usageLimitResponse(result: Extract<UsageResult, { ok: false }>, 
   return Response.json({ error: result.message, code: USAGE_LIMIT_CODE, tier: result.tier, kind }, { status: 429 });
 }
 
-class LimitReached extends Error {}
+class LimitReached extends Error {
+  constructor(readonly bucket: Bucket) { super("limit reached"); }
+}
 
 const table = () => Prisma.raw(`"${databaseSchema}"."UsageCounter"`);
 
@@ -106,23 +129,31 @@ export async function consumeUsage(user: UsageUser, kind: UsageKind, networkKey:
   const period = USAGE_PERIODS[tier][kind];
   // 時刻は 1 回だけ取る（日付の変わり目で、利用者とネットワークの枠が別の日に数えられないように）。
   const now = new Date();
-  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: counterKind(kind, period, tier), day: usagePeriodWindow(period, tier, user, now).start, limit: USAGE_LIMITS[tier][kind] }];
-  if (tier === "guest" && networkKey) buckets.push({ key: networkKey, kind, day: usageDay(now), limit: GUEST_NETWORK_LIMITS[kind] });
-  const ticket = await consumeBuckets(buckets);
-  return ticket ? { ok: true, ticket } : { ok: false, tier, message: limitReachedMessage(tier, kind) };
+  const start = usagePeriodWindow(period, tier, user, now).start;
+  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: counterKind(kind, period, tier), day: start, limit: USAGE_LIMITS[tier][kind], period }];
+  // 月の上限に加えて 1 日の上限がある種類（画像）。日ごとの行は種類の名前そのまま。
+  const daily = period === "month" ? USAGE_DAILY_LIMITS[tier][kind] : undefined;
+  if (daily !== undefined) buckets.push({ key: `user:${user.id}`, kind, day: usageDay(now), limit: daily, period: "day" });
+  // ネットワークの枠は未ログインの期間で数える。月の行は無料の月の行と同じ名前（鍵が違う）で、暦月の初日に置く。
+  if (tier === "guest" && networkKey) buckets.push({ key: networkKey, kind: counterKind(kind, period, tier), day: start, limit: GUEST_NETWORK_LIMITS[kind], period });
+  const result = await consumeBuckets(buckets);
+  return "ticket" in result ? { ok: true, ticket: result.ticket } : { ok: false, tier, message: limitReachedMessage(tier, kind, result.full.period) };
 }
 
 // 「回答を報告」を 1 回数える（REPORT_LIMITS）。上限なら null。メールを送れなかったら refundUsage で戻す。
 export async function consumeReportQuota(user: UsageUser, networkKey: string | null): Promise<UsageTicket | null> {
   const day = usageDay();
-  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: "report", day, limit: REPORT_LIMITS.user }];
-  if (usageTier(user) === "guest" && networkKey) buckets.push({ key: networkKey, kind: "report", day, limit: REPORT_LIMITS.guestNetwork });
-  return consumeBuckets(buckets);
+  const buckets: Bucket[] = [{ key: `user:${user.id}`, kind: "report", day, limit: REPORT_LIMITS.user, period: "day" }];
+  if (usageTier(user) === "guest" && networkKey) buckets.push({ key: networkKey, kind: "report", day, limit: REPORT_LIMITS.guestNetwork, period: "day" });
+  const result = await consumeBuckets(buckets);
+  return "ticket" in result ? result.ticket : null;
 }
 
-async function consumeBuckets(buckets: Bucket[]): Promise<UsageTicket | null> {
-  // 上限 0 は使えない機能（未ログインの画像など）。INSERT は条件なしで 1 を書くので、先に断る。
-  if (buckets.some((bucket) => bucket.limit <= 0)) return null;
+// 全部の枠に空きがあれば数えて ticket を返す。どれかが上限なら、その枠を full で返す（何も数えない）。
+async function consumeBuckets(buckets: Bucket[]): Promise<{ ticket: UsageTicket } | { full: Bucket }> {
+  // 上限 0 は使えない機能。INSERT は条件なしで 1 を書くので、先に断る。
+  const closed = buckets.find((bucket) => bucket.limit <= 0);
+  if (closed) return { full: closed };
   try {
     // 全部の枠に空きがあるときだけ数える。どれかが上限ならトランザクションごと戻す。
     // 条件付きの UPSERT にして、同時に送られても上限を超えて数えないようにしている。
@@ -135,39 +166,49 @@ async function consumeBuckets(buckets: Bucket[]): Promise<UsageTicket | null> {
           WHERE c."count" < ${bucket.limit}
           RETURNING c."count"
         `);
-        if (!rows.length) throw new LimitReached();
+        if (!rows.length) throw new LimitReached(bucket);
       }
     });
   } catch (error) {
-    if (error instanceof LimitReached) return null;
+    if (error instanceof LimitReached) return { full: error.bucket };
     throw error;
   }
 
   if (Math.random() < 0.01) void purgeOldUsage().catch(() => {});
-  return { buckets: buckets.map(({ key, kind, day }) => ({ key, kind, day })) };
+  return { ticket: { buckets: buckets.map(({ key, kind, day }) => ({ key, kind, day })) } };
 }
 
+// daily: 月の上限に加えて 1 日の上限がある種類（画像）の、今日の分。
 export type UsageSummary = {
   tier: UsageTier;
-  usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string }>;
+  usage: Record<UsageKind, { used: number; limit: number; period: UsagePeriod; resetsAt: string; daily?: { used: number; limit: number; resetsAt: string } }>;
 };
 
 // 設定の「プラン」に出す、いまの期間の使用量。
 export async function usageSummary(user: UsageUser, now = new Date()): Promise<UsageSummary> {
   const tier = usageTier(user);
+  const today = usagePeriodWindow("day", tier, user, now);
   const windows = (["chat", "image"] as const).map((kind) => {
     const period = USAGE_PERIODS[tier][kind];
-    return { kind, period, counterKind: counterKind(kind, period, tier), ...usagePeriodWindow(period, tier, user, now) };
+    return { kind, period, counterKind: counterKind(kind, period, tier), daily: period === "month" ? USAGE_DAILY_LIMITS[tier][kind] : undefined, ...usagePeriodWindow(period, tier, user, now) };
   });
   const rows = await prisma.usageCounter.findMany({
-    where: { key: `user:${user.id}`, OR: windows.map((window) => ({ kind: window.counterKind, day: new Date(`${window.start}T00:00:00Z`) })) },
+    where: {
+      key: `user:${user.id}`,
+      OR: windows.flatMap((window) => [
+        { kind: window.counterKind, day: new Date(`${window.start}T00:00:00Z`) },
+        ...(window.daily !== undefined ? [{ kind: window.kind as string, day: new Date(`${today.start}T00:00:00Z`) }] : []),
+      ]),
+    },
     select: { kind: true, count: true },
   });
+  const count = (kind: string) => rows.find((row) => row.kind === kind)?.count ?? 0;
   const entry = (window: (typeof windows)[number]) => ({
-    used: Math.min(rows.find((row) => row.kind === window.counterKind)?.count ?? 0, USAGE_LIMITS[tier][window.kind]),
+    used: Math.min(count(window.counterKind), USAGE_LIMITS[tier][window.kind]),
     limit: USAGE_LIMITS[tier][window.kind],
     period: window.period,
     resetsAt: window.resetsAt.toISOString(),
+    ...(window.daily !== undefined ? { daily: { used: Math.min(count(window.kind), window.daily), limit: window.daily, resetsAt: today.resetsAt.toISOString() } } : {}),
   });
   return { tier, usage: { chat: entry(windows[0]), image: entry(windows[1]) } };
 }

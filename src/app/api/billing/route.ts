@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 import { signedInUser } from "@/app/api/billing/account";
-import { isBillingConfigured, isWebhookConfigured, refreshCustomer } from "@/lib/billing";
+import { isBillingConfigured, isTrialEligible, isWebhookConfigured, refreshCustomer } from "@/lib/billing";
 import { googlePlayManageUrl, googlePlayProduct, isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
 import { usageSummary } from "@/lib/usage-limits";
-import { PRO_PRICE_JPY } from "@/lib/usage-plans";
+import { PRO_PRICE_JPY, PRO_TRIAL_DAYS } from "@/lib/usage-plans";
 
 // 設定の「プラン」用。いまのプラン、購読の状態、この期間の使用量を返す。
 // ?refresh=1 は決済から戻ったときに使い、Webhook を待たずに Stripe から購読を取り直す。
@@ -40,6 +40,8 @@ export async function GET(request: Request) {
     accountId: row.id,
     provider,
     priceJpy: PRO_PRICE_JPY,
+    // 無料の試用を出せる日数（初めての申し込みだけ。出せなければ 0）。
+    trialDays: isTrialEligible(row) ? PRO_TRIAL_DAYS : 0,
     plan: row.plan === "PRO" ? "pro" : "free",
     // 購読がある（解約済みも含む）ときだけ。Stripe の画面で管理できるのは顧客がいるとき。
     subscription: row.subscriptionStatus ? {

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="guest_limit_title_chat">今天的免费消息次数用完了</string>
-    <string name="guest_limit_title_image">登录后才能生成图片</string>
+    <string name="guest_limit_title_image">免费图片用完了</string>
     <string name="guest_limit_body">登录后每天可发 %1$d 条消息、每月生成 %2$d 张图片，换设备也能找回聊天记录。</string>
     <string name="guest_limit_attachments_lost">登录时不会保留附件，登录后请重新添加。</string>
     <string name="not_now">以后再说</string>

@@ -23,8 +23,18 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.resume
 
-/** Play 商店里的 Pro 商品：月额的本地化价格（例 "¥300"）和购买时要用的 offer。 */
-class PlayProduct internal constructor(val details: ProductDetails, val offerToken: String, val formattedPrice: String)
+/**
+ * Play 商店里的 Pro 商品：月额的本地化价格（例 "¥300"）和购买时要用的 offer。
+ * trialDays：选中的 offer 带免费试用时的天数（Play Console 里基础方案上的免费试用优惠），没有是 0。
+ */
+class PlayProduct internal constructor(val details: ProductDetails, val offerToken: String, val formattedPrice: String, val trialDays: Int = 0)
+
+/** Play 的计费周期（ISO 8601，例 P30D、P1M、P4W2D）换成天数：月按 30 天、年按 365 天。读不懂是 0。 */
+internal fun isoPeriodDays(period: String): Int {
+    val match = Regex("^P(?:(\\d+)Y)?(?:(\\d+)M)?(?:(\\d+)W)?(?:(\\d+)D)?$").matchEntire(period) ?: return 0
+    val (years, months, weeks, days) = match.groupValues.drop(1).map { it.toIntOrNull() ?: 0 }
+    return years * 365 + months * 30 + weeks * 7 + days
+}
 
 /** 一次购买的结果，交给界面显示（[PlayBilling.events]）。 */
 sealed interface PlayPurchaseEvent {
@@ -72,8 +82,12 @@ class PlayBilling(context: Context, private val scope: CoroutineScope, private v
         }
     }
 
-    /** 读 Pro 商品。连不上 Play 或商品没上架时返回 null（界面不显示购买按钮）。 */
-    suspend fun product(productId: String): PlayProduct? {
+    /**
+     * 读 Pro 商品。连不上 Play 或商品没上架时返回 null（界面不显示购买按钮）。
+     * allowTrial：服务端说这个用户还能试用（`GET /api/billing` 的 trialDays > 0）时，优先选带免费试用的 offer
+     * （Play 只返回这个 Google 账号有资格的 offer）；否则只用不带试用的基础方案。
+     */
+    suspend fun product(productId: String, allowTrial: Boolean): PlayProduct? {
         if (!connect()) return null
         val params = QueryProductDetailsParams.newBuilder()
             .setProductList(listOf(QueryProductDetailsParams.Product.newBuilder().setProductId(productId).setProductType(BillingClient.ProductType.SUBS).build()))
@@ -81,9 +95,12 @@ class PlayBilling(context: Context, private val scope: CoroutineScope, private v
         val result = client.queryProductDetails(params)
         if (result.billingResult.responseCode != BillingClient.BillingResponseCode.OK) return null
         val details = result.productDetailsList?.firstOrNull() ?: return null
-        val offer = details.subscriptionOfferDetails?.firstOrNull() ?: return null
+        val offers = details.subscriptionOfferDetails.orEmpty()
+        fun freePhase(offer: ProductDetails.SubscriptionOfferDetails) = offer.pricingPhases.pricingPhaseList.firstOrNull()?.takeIf { it.priceAmountMicros == 0L }
+        val trial = if (allowTrial) offers.firstOrNull { freePhase(it) != null } else null
+        val offer = trial ?: offers.firstOrNull { it.offerId == null } ?: offers.firstOrNull { freePhase(it) == null } ?: return null
         val price = offer.pricingPhases.pricingPhaseList.lastOrNull()?.formattedPrice ?: return null
-        return PlayProduct(details, offer.offerToken, price)
+        return PlayProduct(details, offer.offerToken, price, trial?.let(::freePhase)?.billingPeriod?.let(::isoPeriodDays) ?: 0)
     }
 
     /** 打开 Play 的购买窗口。结果从 [events] 回来。 */

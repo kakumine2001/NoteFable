@@ -12,6 +12,8 @@ export type Account = {
   googleClientId?: string | null;
   // 有料プランの申し込みが使えるか（サーバーで Stripe が設定済み）。古いサーバーの返事には無い。
   billing?: boolean;
+  // 無料の試用を出せる日数（初めての申し込みだけ。出せなければ 0）。古いサーバーの返事には無い。
+  trialDays?: number;
 };
 
 type Snapshot = { account: Account | null; saveError: string };
