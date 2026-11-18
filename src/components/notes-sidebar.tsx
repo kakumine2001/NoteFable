@@ -96,7 +96,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     <div key={page.id} className={`notion-session-row vt-row group ${activeId === page.id ? "is-active" : ""}`} style={rowName(`nrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
       <button type="button" className="notes-row-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
-        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        {open ? <ChevronDown size={14} /> : <ChevronRight size={14} className="rtl-mirror" />}
       </button>
       <button type="button" disabled={busy || page.locked === true} className="chat-row-icon-button" aria-label={t("Change icon of {title}", { title: page.title })} title={t("Change icon")}
         aria-haspopup="dialog" aria-expanded={picker?.id === page.id}
@@ -107,7 +107,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         }}>
         <span className="notes-row-icon" aria-hidden="true">{page.icon ?? <FileText size={15} />}</span>
       </button>
-      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" onMoveGroup={async groupId=>{
+      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
         const ok=await onMoveNote(page.id,groupId);
         if(ok && groupId)setCollapsed(current=>{
           const next={...current,[groupId]:false};
@@ -128,7 +128,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
     <aside className="notion-sidebar" data-reorder-list>
       <div className="flex h-12 items-center justify-between px-3">
         <NoteFableLogo />
-        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")}><PanelLeftClose size={17} /></button>
+        <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")}><PanelLeftClose size={17} className="rtl-mirror" /></button>
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
@@ -145,7 +145,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           <div className="chat-section-label">{t("Favorites")}</div>
           {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
             <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon">{page.icon ?? <FileText size={15} />}</span></span>
-            <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 pl-1 pr-2 text-left" title={page.title}>
+            <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
               <span className="truncate text-sm">{page.title}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => void onFavorite(page.id, false)} className="notion-row-action" aria-label={t("Remove {title} from Favorites", { title: page.title })} title={t("Remove from Favorites")}><StarOff size={14} /></button>
@@ -164,7 +164,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
             <div key={group.id}>
               <div className="notion-session-row group" data-note-group-drop={group.id}>
                 <button type="button" onClick={() => toggle(group.id)} aria-expanded={open} className="chat-project-toggle" title={group.name}>
-                  {open ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  {open ? <ChevronDown size={14} /> : <ChevronRight size={14} className="rtl-mirror" />}
                   <Folder size={15}/>
                   <span className="truncate text-sm font-medium">{group.name}</span>
                   <span className="text-xs text-[var(--notion-faint)]">{total}</span>

@@ -4,7 +4,6 @@ import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, 
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
-import { en, ja as blockNoteJa, zh as blockNoteZh, zhTW as blockNoteZhTW } from "@blocknote/core/locales";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { Check, CheckSquare, ChevronRight, Code2, Copy, Heading1, Lightbulb, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { useEffect, useImperativeHandle, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
@@ -14,6 +13,7 @@ import { createCalloutBlockSpec } from "@/components/note-callout";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
 import { useI18n, useT } from "@/components/i18n-provider";
+import { blockNoteDictionaryFor } from "@/lib/i18n/blocknote-locales";
 import { msg } from "@/lib/i18n/translate";
 
 const CODE_LANGUAGES: Record<string, { name: string; aliases?: string[] }> = codeBlockOptions.supportedLanguages;
@@ -334,7 +334,7 @@ export default function NoteEditor({ blocks, onChange, editable, editorRef, onFo
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
 }) {
   const { t, locale } = useI18n();
-  const base = locale === "zh" ? blockNoteZh : locale === "zh-Hant" ? blockNoteZhTW : locale === "ja" ? blockNoteJa : en;
+  const base = blockNoteDictionaryFor(locale);
   const editor = useCreateBlockNote({
     schema,
     extensions: [syntaxHighlighter],

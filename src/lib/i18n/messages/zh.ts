@@ -683,4 +683,9 @@ export const zh: Record<string, string> = {
   "Search languages": "搜索语言",
   "Current language": "当前语言",
   "No languages found.": "未找到语言。",
+  "Could not complete the purchase. Please try again.": "无法完成购买，请重试。",
+  "Free for {days} days, then {price}/month. Cancel before the trial ends and you won't be charged.": "前 {days} 天免费，之后每月 {price}。试用结束前取消就不会扣费。",
+  "Get {chat} messages and {image} images a month with Pro for {price}/month.": "升级 Pro（每月 {price}），每月可发 {chat} 条消息、生成 {image} 张图片。",
+  "Minimal": "极低",
+  "NoteFable Pro · {price}/month": "NoteFable Pro · 每月 {price}",
 };

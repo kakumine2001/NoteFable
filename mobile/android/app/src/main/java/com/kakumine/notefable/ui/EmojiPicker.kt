@@ -151,9 +151,17 @@ data class EmojiPopoverSize(val width: Dp, val pickerHeight: Dp) {
  * 网页 floatingPositionFor：左边对齐按钮，离屏幕边至少 [margin]；按钮下方 6 放得下就放下面，否则放上面，再夹在屏幕里。
  * 全部用像素。
  */
-fun floatingEmojiPosition(anchor: IntRect, viewport: IntSize, popup: IntSize, margin: Int, gap: Int): IntOffset {
+fun floatingEmojiPosition(
+    anchor: IntRect,
+    viewport: IntSize,
+    popup: IntSize,
+    margin: Int,
+    gap: Int,
+    layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+): IntOffset {
     val height = minOf(popup.height, viewport.height - margin * 2)
-    val left = maxOf(margin, minOf(anchor.left, viewport.width - popup.width - margin))
+    val start = if (layoutDirection == LayoutDirection.Rtl) anchor.right - popup.width else anchor.left
+    val left = maxOf(margin, minOf(start, viewport.width - popup.width - margin))
     val below = anchor.bottom + gap
     val preferred = if (below + height <= viewport.height - margin) below else anchor.top - height - gap
     val top = maxOf(margin, minOf(preferred, viewport.height - height - margin))
@@ -162,7 +170,7 @@ fun floatingEmojiPosition(anchor: IntRect, viewport: IntSize, popup: IntSize, ma
 
 private class FloatingPosition(private val margin: Int, private val gap: Int) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize) =
-        floatingEmojiPosition(anchorBounds, windowSize, popupContentSize, margin, gap)
+        floatingEmojiPosition(anchorBounds, windowSize, popupContentSize, margin, gap, layoutDirection)
 }
 
 /**
@@ -559,14 +567,20 @@ private fun EmojiButton(unified: String, item: EmojiItem, showVariations: Boolea
             .semantics { contentDescription = item.label; role = Role.Button }
             .drawBehind {
                 if (!hasVariations) return@drawBehind
-                // 右下角的小三角（::after，4px 边框旋转 135°）。
+                // 右下角（RTL 为左下角）的小三角（::after，4px 边框旋转 135°）。
                 val leg = 5.6.dp.toPx()
-                val right = size.width
                 val bottom = size.height - 1.dp.toPx()
                 val path = Path().apply {
-                    moveTo(right, bottom - leg)
-                    lineTo(right, bottom)
-                    lineTo(right - leg, bottom)
+                    if (layoutDirection == LayoutDirection.Rtl) {
+                        moveTo(0f, bottom - leg)
+                        lineTo(0f, bottom)
+                        lineTo(leg, bottom)
+                    } else {
+                        val right = size.width
+                        moveTo(right, bottom - leg)
+                        lineTo(right, bottom)
+                        lineTo(right - leg, bottom)
+                    }
                     close()
                 }
                 drawPath(path, VariationIndicator)

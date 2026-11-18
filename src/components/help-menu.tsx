@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu";
 import { useI18n } from "@/components/i18n-provider";
-import { LOCALE_NAMES } from "@/lib/i18n/locale";
+import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
 import { INTRO_HREF } from "@/lib/i18n/routing";
 import { afterSheetHistory, useBackToClose } from "@/lib/use-back-to-close";
 
@@ -62,8 +62,8 @@ export function HelpMenu({ guest }: { guest: boolean }) {
               onClick={() => setOpen({ kind: "language", anchor: open.anchor })}>
               <Languages size={16} aria-hidden="true" className="help-menu-icon" />
               <span className="flex-1">{t("Language")}</span>
-              <span lang={locale} className="help-menu-value">{preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale]}</span>
-              <ChevronRight size={15} aria-hidden="true" className="help-menu-icon" />
+              <span lang={LOCALE_TAGS[locale]} dir={preference === "auto" ? undefined : LOCALE_DIRS[locale]} className="help-menu-value">{preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale]}</span>
+              <ChevronRight size={15} aria-hidden="true" className="help-menu-icon rtl-mirror" />
             </button>
           </>}
         </HelpPanel>
@@ -78,7 +78,7 @@ export function HelpMenu({ guest }: { guest: boolean }) {
 
 // ボタンの上（入らなければ下）に開く小さなメニュー。右端をボタンに揃える。
 function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; items: number; onClose: () => void; children: React.ReactNode }) {
-  const { t } = useI18n();
+  const { t, dir } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   useBackToClose(true, onClose);
   useEffect(() => {
@@ -91,7 +91,7 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
   // .chat-actions-menu の max-height（画面の高さ − 16px）を超える分はメニューの中でスクロールする。
   const above = anchor.top - 4 - height >= 8;
   const style = {
-    left: Math.max(8, Math.min(anchor.right - 228, window.innerWidth - 236)),
+    left: Math.max(8, Math.min(dir === "rtl" ? anchor.left : anchor.right - 228, window.innerWidth - 236)),
     ...(above ? { top: "auto", bottom: window.innerHeight - anchor.top + 4 } : { top: 8 }),
   };
 

@@ -4,8 +4,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 0.125rem;
-  /* ボタンの内側の余白ぶん左へ寄せ、アイコンを本文の左端にそろえる。 */
-  margin: 0.4rem 0 0 -0.5rem;
+  /* ボタンの内側の余白ぶん開始端へ寄せ、アイコンを本文の端にそろえる。 */
+  margin-block: 0.4rem 0;
+  margin-inline-start: -0.5rem;
 }
 
 .answer-actions .answer-action {
@@ -79,7 +80,8 @@
 
 .answer-actions .answer-actions-error {
   flex-basis: 100%;
-  margin: 0.15rem 0 0 0.5rem;
+  margin-block: 0.15rem 0;
+  margin-inline-start: 0.5rem;
   font-size: 0.8125rem;
   line-height: 1.4;
   color: #933b34;
@@ -88,8 +90,8 @@
 /* スマホでもコピーと「…」を押しやすい大きさにする。メニューの文字は省略しない。 */
 @media (max-width: 639px) {
   .answer-actions {
-    /* 押しやすい幅（36px）の中央にアイコンが来るので、そのぶん左へ寄せる。 */
-    margin-left: -0.65rem;
+    /* 押しやすい幅（36px）の中央にアイコンが来るので、そのぶん開始端へ寄せる。 */
+    margin-inline-start: -0.65rem;
   }
 
   .answer-actions .answer-action {

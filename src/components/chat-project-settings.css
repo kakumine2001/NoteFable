@@ -17,7 +17,7 @@ dialog.chat-project-settings { width: min(calc(100% - 1.5rem), 34rem); padding: 
 .project-settings-body textarea.project-settings-textarea:focus { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
 
 .project-settings-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
-.project-settings-chip { display: inline-flex; max-width: 100%; align-items: center; gap: 0.3rem; border: 1px solid var(--notion-border-strong); border-radius: 999px; padding: 0.15rem 0.2rem 0.15rem 0.55rem; background: var(--notion-sidebar); font-size: 0.8125rem; }
+.project-settings-chip { display: inline-flex; max-width: 100%; align-items: center; gap: 0.3rem; border: 1px solid var(--notion-border-strong); border-radius: 999px; padding-block: 0.15rem; padding-inline: 0.55rem 0.2rem; background: var(--notion-sidebar); font-size: 0.8125rem; }
 .project-settings-chip > .project-settings-chip-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-settings-chip button { display: grid; width: 1.35rem; height: 1.35rem; flex: none; place-items: center; border-radius: 999px; color: var(--notion-muted); }
 .project-settings-chip button:hover:not(:disabled) { background: var(--notion-hover); color: var(--notion-text); }

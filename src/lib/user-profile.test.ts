@@ -38,8 +38,11 @@ describe("parseProfilePatch", () => {
   it("accepts a supported display language and null for Auto, but not unknown ones", () => {
     expect(parseProfilePatch({ locale: "ja" })).toEqual({ ok: true, data: { locale: "ja" } });
     expect(parseProfilePatch({ locale: "zh-Hant" })).toEqual({ ok: true, data: { locale: "zh-Hant" } });
+    expect(parseProfilePatch({ locale: "fr" })).toEqual({ ok: true, data: { locale: "fr" } });
+    expect(parseProfilePatch({ locale: "pt-BR" })).toEqual({ ok: true, data: { locale: "pt-BR" } });
+    expect(parseProfilePatch({ locale: "ar" })).toEqual({ ok: true, data: { locale: "ar" } });
     expect(parseProfilePatch({ locale: null })).toEqual({ ok: true, data: { locale: null } });
-    for (const locale of ["auto", "fr", "", 5]) {
+    for (const locale of ["auto", "nl", "pt-br", "", 5]) {
       expect(parseProfilePatch({ locale })).toEqual({ ok: false, error: "Choose one of the listed languages." });
     }
   });
@@ -73,7 +76,9 @@ describe("toAccountUser", () => {
 
   it("returns the chosen display language and drops unknown stored values", () => {
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "zh-Hant" }, google).locale).toBe("zh-Hant");
-    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "fr" }, google).locale).toBeNull();
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "fr" }, google).locale).toBe("fr");
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "ar" }, google).locale).toBe("ar");
+    expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: "nl" }, google).locale).toBeNull();
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null, locale: null }, google).locale).toBeNull();
     expect(toAccountUser({ displayName: null, avatarIcon: null, avatarImage: null }, google).locale).toBeUndefined();
   });

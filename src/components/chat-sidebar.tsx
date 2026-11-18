@@ -80,7 +80,7 @@ export function ChatSidebar({
                       ? <span className="notes-row-icon" aria-hidden="true">{session.icon}</span>
                       : <MessageSquareText size={15} className="shrink-0 text-[var(--notion-muted)]" />}
                   </button>
-                  <ReorderRowButton id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pr-2 text-left" onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
+                  <ReorderRowButton id={session.id} title={session.title} scope="chat" ids={ordered.filter(item=>session.pinned ? item.pinned : !item.pinned && item.projectId===session.projectId).map(item=>item.id)} onMove={onReorder} onOpen={()=>onLoad(session.id)} className="flex min-w-0 flex-1 items-center py-1.5 pe-2 text-start" onMoveProject={async projectId=>{const ok=await onUpdate(session.id,{projectId,pinned:false});if(ok && projectId)setCollapsed(state=>({...state,[projectId]:false}));return ok;}}>
                     <span className="truncate text-sm">{session.title}</span>
                   </ReorderRowButton>
                   <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for {title}", { title: session.title })} aria-haspopup="dialog"
@@ -97,7 +97,7 @@ export function ChatSidebar({
       <div className="flex h-12 items-center justify-between px-3">
         <NoteFableLogo />
         <button type="button" className="notion-icon-button grid" onClick={onClose} aria-label={t("Close sidebar")} title={t("Toggle sidebar (Ctrl+B)")}>
-          <PanelLeftClose size={17} />
+          <PanelLeftClose size={17} className="rtl-mirror" />
         </button>
       </div>
 
@@ -125,14 +125,14 @@ export function ChatSidebar({
         {projects.map(project=><div key={project.id}>
           <div className="notion-session-row chat-project-row" data-chat-project-drop={project.id}>
             <button type="button" className="chat-project-toggle" aria-expanded={!collapsed[project.id]} title={projectHint(project, t) ? `${project.name} · ${projectHint(project, t)}` : project.name} onClick={()=>setCollapsed(state=>({...state,[project.id]:!state[project.id]}))}>
-              {collapsed[project.id] ? <ChevronRight size={13}/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
+              {collapsed[project.id] ? <ChevronRight size={13} className="rtl-mirror"/> : <ChevronDown size={13}/>}<Folder size={15}/><span className="truncate">{project.name}</span>
               {projectHint(project, t) && <><ScrollText size={12} className="chat-project-hint" aria-hidden="true"/><span className="sr-only">({projectHint(project, t)})</span></>}
             </button>
             <button type="button" className="notion-row-action chat-more-button" aria-label={t("New chat in {name}", { name: project.name })} title={t("New chat in this project")}
               onClick={()=>{setCollapsed(state=>({...state,[project.id]:false}));onCreateInProject(project.id);}}><Plus size={16}/></button>
             <button type="button" className="notion-row-action chat-more-button" aria-label={t("Actions for project {name}", { name: project.name })} onClick={event=>setAction({kind:"projectMenu",project,anchor:event.currentTarget.getBoundingClientRect()})}><MoreHorizontal size={16}/></button>
           </div>
-          {!collapsed[project.id] && <div className="pl-3">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
+          {!collapsed[project.id] && <div className="ps-3">{ordered.filter(session=>session.projectId===project.id && !session.pinned).map(renderRow)}
             {!ordered.some(session=>session.projectId===project.id && !session.pinned) && <p className="px-2 py-1 text-xs text-[var(--notion-muted)]">{ordered.some(session=>session.projectId===project.id) ? t("All chats pinned") : t("No chats")}</p>}
           </div>}
         </div>)}

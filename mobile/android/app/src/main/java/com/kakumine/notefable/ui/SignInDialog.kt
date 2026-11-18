@@ -23,6 +23,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -42,6 +43,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
@@ -55,6 +57,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
@@ -251,8 +254,19 @@ fun SignInDialog(
 
 // .signin-title：22/700、字距 −0.01em、居中。
 @Composable
-private fun SignInTitle(text: String) =
-    Text(text, Modifier.fillMaxWidth(), color = Sm.Text, fontSize = 22.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.01).em, textAlign = TextAlign.Center)
+private fun SignInTitle(text: String) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Text(
+        text,
+        Modifier.fillMaxWidth(),
+        color = Sm.Text,
+        fontSize = 22.sp,
+        lineHeight = 33.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = if (rtl) 0.sp else (-0.01).em,
+        textAlign = TextAlign.Center,
+    )
+}
 
 // .signin-subtitle：上 6.4、下 24，14 / 行高 1.5 灰、居中。
 @Composable
@@ -280,21 +294,24 @@ private fun SignInField(
     } else {
         TextStyle(color = Sm.Text, fontSize = 16.sp)
     }
-    BasicTextField(
-        value = value, onValueChange = onChange, readOnly = !enabled, singleLine = true, textStyle = style,
-        cursorBrush = SolidColor(Sm.Text), keyboardOptions = keyboard, keyboardActions = KeyboardActions(onGo = { onGo() }),
-        modifier = Modifier.fillMaxWidth().height(44.dp).focusRequester(focus).onFocusChanged { focused = it.isFocused }
-            .semantics { contentDescription = label },
-        decorationBox = { inner ->
-            Box(
-                Modifier.fillMaxWidth().border(if (focused) 2.dp else 1.dp, if (focused) Sm.Blue else Sm.BorderStrong, shape).padding(horizontal = 11.2.dp),
-                if (code) Alignment.Center else Alignment.CenterStart,
-            ) {
-                if (value.isEmpty()) Text(placeholder, Modifier.fillMaxWidth(), style = style.copy(color = Sm.Faint), maxLines = 1)
-                inner()
-            }
-        },
-    )
+    val field: @Composable () -> Unit = {
+        BasicTextField(
+            value = value, onValueChange = onChange, readOnly = !enabled, singleLine = true, textStyle = style,
+            cursorBrush = SolidColor(Sm.Text), keyboardOptions = keyboard, keyboardActions = KeyboardActions(onGo = { onGo() }),
+            modifier = Modifier.fillMaxWidth().height(44.dp).focusRequester(focus).onFocusChanged { focused = it.isFocused }
+                .semantics { contentDescription = label },
+            decorationBox = { inner ->
+                Box(
+                    Modifier.fillMaxWidth().border(if (focused) 2.dp else 1.dp, if (focused) Sm.Blue else Sm.BorderStrong, shape).padding(horizontal = 11.2.dp),
+                    if (code) Alignment.Center else Alignment.CenterStart,
+                ) {
+                    if (value.isEmpty()) Text(placeholder, Modifier.fillMaxWidth(), style = style.copy(color = Sm.Faint), maxLines = 1)
+                    inner()
+                }
+            },
+        )
+    }
+    if (code) CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) { field() } else field()
 }
 
 // .notion-button.notion-button-primary.signin-submit：整行、高 ≥44、上 12、圆角 8、15/600、--nf-ink 底白字；禁用 .45。

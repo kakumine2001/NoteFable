@@ -14,7 +14,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 
 /**
  * 网页用的是 lucide 图标（线条图标，24x24 画布，描边 2，圆头）。
@@ -255,6 +257,15 @@ object Lucide {
     )
     val MoreHorizontal = Ellipsis
     val Loader2 = LoaderCircle
+
+    internal val RtlMirrored = setOf(
+        ArrowLeft,
+        ChevronLeft,
+        ChevronRight,
+        PanelLeftClose,
+        LogOut,
+        FolderInput,
+    )
 }
 
 @Composable
@@ -264,12 +275,16 @@ fun LucideIcon(
     tint: Color,
     modifier: Modifier = Modifier,
     strokeWidth: Float = 2f,
+    mirrorInRtl: Boolean = paths in Lucide.RtlMirrored,
 ) {
     val parsed = remember(paths) { paths.map { PathParser().parsePathString(it).toPath() } }
+    val rtl = mirrorInRtl && LocalLayoutDirection.current == LayoutDirection.Rtl
     Canvas(modifier.size(size)) {
-        scale(this.size.width / 24f, pivot = Offset.Zero) {
-            val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            parsed.forEach { drawPath(it, tint, style = stroke) }
+        scale(scaleX = if (rtl) -1f else 1f, scaleY = 1f, pivot = center) {
+            scale(this.size.width / 24f, pivot = Offset.Zero) {
+                val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                parsed.forEach { drawPath(it, tint, style = stroke) }
+            }
         }
     }
 }

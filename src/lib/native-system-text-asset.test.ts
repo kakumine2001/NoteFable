@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { crawlServerModules, NATIVE_SYSTEM_TEXT_ASSET, nativeSystemText, nativeSystemTextJson } from "../../scripts/native-system-text";
+import { LOCALES } from "./i18n/locale";
 
 // 生成时要用 TypeScript 编译器沿 import 爬一遍服务端代码，机器忙时会超过默认的 5 秒。
 describe("native system text asset", { timeout: 60_000 }, () => {
@@ -10,8 +11,10 @@ describe("native system text asset", { timeout: 60_000 }, () => {
     expect(readFileSync(NATIVE_SYSTEM_TEXT_ASSET, "utf8").replace(/\r\n/g, "\n")).toBe(nativeSystemTextJson());
   });
 
-  it("covers server-emitted errors, usage-limit texts and the system templates", () => {
+  it("covers server-emitted errors, usage-limit texts and the system templates across all 16 non-English languages", () => {
     const { templates, messages } = nativeSystemText();
+    const translatedLocales = LOCALES.filter((l): l is Exclude<(typeof LOCALES)[number], "en"> => l !== "en");
+    expect(Object.keys(messages)).toEqual(translatedLocales);
     for (const key of [
       "Request failed: {detail}",
       "Note not found.",
@@ -19,8 +22,9 @@ describe("native system text asset", { timeout: 60_000 }, () => {
       "Searched notes for “{query}”",
       "Could not save the chat. Please try again.",
     ]) {
-      expect(messages.zh[key], key).toBeTruthy();
-      expect(messages.ja[key], key).toBeTruthy();
+      for (const locale of translatedLocales) {
+        expect(messages[locale][key], `${locale}: ${key}`).toBeTruthy();
+      }
     }
     expect(templates).toContain("Read “{title}”");
     expect(messages.zh["Request failed: {detail}"]).toBe("请求失败：{detail}");

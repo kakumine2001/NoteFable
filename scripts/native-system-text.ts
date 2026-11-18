@@ -8,18 +8,20 @@
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { LOCALES as ALL_LOCALES, type Locale } from "../src/lib/i18n/locale";
 import { messagesFor } from "../src/lib/i18n/messages";
 import { zhServer } from "../src/lib/i18n/messages/zh-server";
 import { SYSTEM_TEXT_TEMPLATES } from "../src/lib/i18n/translate";
 
 export const NATIVE_SYSTEM_TEXT_ASSET = "mobile/android/app/src/main/assets/system-text.json";
 
-// 原生端现有的界面语言（res/values-zh、values-b+zh+Hant、values-ja）。英文不需要词典。
-const LOCALES = ["zh", "zh-Hant", "ja"] as const;
+// 原生端全部非英文界面语言。英文不需要词典。
+type TranslatedLocale = Exclude<Locale, "en">;
+const LOCALES = ALL_LOCALES.filter((locale): locale is TranslatedLocale => locale !== "en");
 
 export type NativeSystemText = {
   templates: string[];
-  messages: Record<(typeof LOCALES)[number], Record<string, string>>;
+  messages: Record<TranslatedLocale, Record<string, string>>;
 };
 
 const root = path.resolve(import.meta.dirname, "..");

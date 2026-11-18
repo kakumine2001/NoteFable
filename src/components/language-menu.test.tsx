@@ -8,19 +8,21 @@ vi.mock("react", async (original) => ({
   useRef: vi.fn(() => ({ current: null })),
   useState: vi.fn(),
 }));
-vi.mock("@/components/i18n-provider", () => ({ useI18n: () => ({ locale: "en", t: (key: string) => key }) }));
+const mockDir = { current: "ltr" as "ltr" | "rtl" };
+vi.mock("@/components/i18n-provider", () => ({ useI18n: () => ({ locale: mockDir.current === "rtl" ? "ar" : "en", dir: mockDir.current, t: (key: string) => key }) }));
 vi.mock("@/lib/use-back-to-close", () => ({ useBackToClose: vi.fn() }));
 
 const matchMedia = vi.fn();
 
-function renderPanel(top: number, query = "", current: "ja" | null = "ja") {
+function renderPanel(top: number, query = "", current: "ja" | null = "ja", align: "start" | "end" = "start") {
   vi.mocked(useState).mockImplementation((initial?: unknown): ReturnType<typeof useState> => [
     typeof initial === "function" ? initial() : query,
     vi.fn(),
   ]);
   return LanguageMenuPanel({
-    anchor: { top, bottom: top + 28, left: 32, right: 128 } as DOMRect,
+    anchor: { top, bottom: top + 28, left: 32, right: 200 } as DOMRect,
     current,
+    align,
     onChoose: vi.fn(),
     onClose: vi.fn(),
   });
@@ -28,6 +30,7 @@ function renderPanel(top: number, query = "", current: "ja" | null = "ja") {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockDir.current = "ltr";
   vi.stubGlobal("window", { innerWidth: 412, innerHeight: 915, matchMedia });
 });
 
@@ -49,6 +52,15 @@ describe("language menu placement", () => {
     const { style } = renderPanel(32).props;
     expect(style).toMatchObject({ top: 64, maxHeight: 368 });
     expect(style).not.toHaveProperty("bottom");
+  });
+
+  it("mirrors start and end horizontal anchoring in RTL", () => {
+    expect(renderPanel(32, "", "ja", "start").props.style.left).toBe(32);
+    expect(renderPanel(32, "", "ja", "end").props.style.left).toBe(8);
+    mockDir.current = "rtl";
+    // In RTL, start aligns right edge with anchor.right (200 - 320 -> clamped to 8); end aligns left edge with anchor.left (32).
+    expect(renderPanel(32, "", "ja", "start").props.style.left).toBe(8);
+    expect(renderPanel(32, "", "ja", "end").props.style.left).toBe(32);
   });
 });
 

@@ -1,7 +1,7 @@
 import { loginTimestamp } from "@/lib/login-time";
 import { createHmac, randomInt, timingSafeEqual } from "crypto";
 import { optionalEnv } from "@/lib/env";
-import { isLocale, type Locale } from "@/lib/i18n/locale";
+import { isLocale, LOCALE_DIRS, LOCALE_TAGS, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 import { createTranslator, msg } from "@/lib/i18n/translate";
 import { normalizeEmail } from "@/lib/email-address";
@@ -155,9 +155,9 @@ export function loginEmailContent(code: string, locale: Locale) {
     t(msg("Your sign-in code is {code}."), { code }),
     t(msg("It expires in 10 minutes. If you didn't ask for it, you can ignore this email.")),
   ];
-  const html = `<div style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#37352f">`
+  const html = `<div lang="${LOCALE_TAGS[locale]}" dir="${LOCALE_DIRS[locale]}" style="font-family:system-ui,sans-serif;font-size:15px;line-height:1.6;color:#37352f">`
     + `<p>${escapeHtml(lines[0])}</p>`
-    + `<p style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</p>`
+    + `<p dir="ltr" style="font-size:28px;font-weight:700;letter-spacing:6px;margin:16px 0">${code}</p>`
     + `<p style="color:#787774">${escapeHtml(lines[1])}</p></div>`;
   return { subject, text: lines.join("\n\n"), html };
 }

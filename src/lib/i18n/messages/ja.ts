@@ -675,4 +675,9 @@ export const ja: Record<string, string> = {
   "Search languages": "言語を検索",
   "Current language": "現在の言語",
   "No languages found.": "言語が見つかりません。",
+  "Could not complete the purchase. Please try again.": "購入を完了できませんでした。もう一度お試しください。",
+  "Free for {days} days, then {price}/month. Cancel before the trial ends and you won't be charged.": "最初の {days} 日間は無料、その後は月額 {price}。トライアル終了前に解約すれば料金はかかりません。",
+  "Get {chat} messages and {image} images a month with Pro for {price}/month.": "Pro（月額 {price}）なら、毎月 {chat} 件のメッセージと {image} 枚の画像が使えます。",
+  "Minimal": "最小",
+  "NoteFable Pro · {price}/month": "NoteFable Pro · 月額 {price}",
 };

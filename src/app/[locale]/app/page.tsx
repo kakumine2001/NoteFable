@@ -62,7 +62,7 @@ import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usag
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import { MAX_MESSAGE_NOTES, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
-import { useT } from "@/components/i18n-provider";
+import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 
@@ -139,7 +139,7 @@ function computeNotesList() {
 }
 
 export default function Home() {
-  const t = useT();
+  const { t, dir } = useI18n();
   const { defaultModel, getModelOption, options: modelOptions } = useModels();
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
   const notes = useNotePages(workspaceView === "pages");
@@ -414,8 +414,8 @@ export default function Home() {
   // モバイルのドロワーを開いている間は履歴を 1 件積み、端末の「戻る」でアプリを閉じずにドロワーだけ閉じる。
   // ドロワーの上にアイコン選択などが重なっているときは、先にそちらが閉じる（共通のフックが一番上だけを閉じる）。
   useBackToClose(sidebarOpen, () => setSidebarOpen(false));
-  // ドロワーは、左へ指で引いて閉じられる。
-  const { attach: attachDrawer, bind: drawerBind } = useSwipeDismiss<HTMLDivElement>({ axis: "x", direction: -1, onDismiss: () => setSidebarOpen(false) });
+  // ドロワーは、開始端（LTR は左、RTL は右）へ指で引いて閉じられる。
+  const { attach: attachDrawer, bind: drawerBind } = useSwipeDismiss<HTMLDivElement>({ axis: "x", direction: dir === "rtl" ? 1 : -1, onDismiss: () => setSidebarOpen(false) });
   useEffect(() => {
     if (!sidebarOpen) return;
     // 画面を広げてデスクトップ表示になったら、見えなくなったドロワーの履歴が残らないよう閉じる。
@@ -1916,7 +1916,7 @@ export default function Home() {
             {workspaceView === "pages" && notes.active && !notesList && (
               <button type="button" className="notion-icon-button grid sm:hidden" onClick={openNotesList}
                 aria-label={t("All notes")} title={t("All notes")}>
-                <ChevronLeft size={22} />
+                <ChevronLeft size={22} className="rtl-mirror" />
               </button>
             )}
             {!sidebarVisible && (

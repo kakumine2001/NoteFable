@@ -263,7 +263,8 @@ internal fun LanguageMenu(
                     val gap = 4.dp.roundToPx()
                     val below = anchor.bottom + gap + popupContentSize.height <= windowSize.height - edge
                     val top = if (below) anchor.bottom + gap else (anchor.top - gap - popupContentSize.height).coerceAtLeast(edge)
-                    val start = if (alignEnd) anchor.right - popupContentSize.width else anchor.left
+                    val alignRight = if (layoutDirection == LayoutDirection.Rtl) !alignEnd else alignEnd
+                    val start = if (alignRight) anchor.right - popupContentSize.width else anchor.left
                     val left = minOf(start, windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
                     return IntOffset(left, top)
                 }

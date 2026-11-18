@@ -101,7 +101,8 @@ private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLan
                     val above = anchor.top - gap - popupContentSize.height >= edge
                     val top = if (above) anchor.top - gap - popupContentSize.height
                     else minOf(anchor.bottom + gap, windowSize.height - popupContentSize.height - edge).coerceAtLeast(edge)
-                    val left = minOf(anchor.right - popupContentSize.width, windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
+                    val start = if (layoutDirection == LayoutDirection.Rtl) anchor.left else anchor.right - popupContentSize.width
+                    val left = minOf(start, windowSize.width - popupContentSize.width - edge).coerceAtLeast(edge)
                     return IntOffset(left, top)
                 }
             }

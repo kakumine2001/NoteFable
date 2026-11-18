@@ -50,6 +50,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -63,6 +64,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -113,6 +115,7 @@ fun SidebarFooter(
 // 圆角默认 4，登录窗口里（.signin-option）是 8。
 @Composable
 internal fun GoogleSignInButton(label: String, busy: Boolean, onClick: () -> Unit, shape: androidx.compose.ui.graphics.Shape = RoundedCornerShape(4.dp)) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Row(
         Modifier.fillMaxWidth().height(44.dp).clip(shape).background(Color.White).border(1.dp, Color(0xFF747775), shape)
             .clickable(enabled = !busy, onClick = onClick).padding(horizontal = 12.dp),
@@ -125,7 +128,7 @@ internal fun GoogleSignInButton(label: String, busy: Boolean, onClick: () -> Uni
             color = Color(0xFF1F1F1F),
             fontSize = 15.sp,
             fontWeight = FontWeight.Medium,
-            letterSpacing = 0.25.sp,
+            letterSpacing = if (rtl) 0.sp else 0.25.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )

@@ -1,12 +1,26 @@
 // Enable a language only when its Web and native dictionaries are ready. Names,
-// tags, matching and country fallback all come from this registry.
+// tags, text direction, matching and country fallback all come from this registry.
 export const LOCALE_DEFINITIONS = [
-  { code: "en", name: "English", tag: "en", languages: ["en"], scripts: [], regions: [], countries: ["US", "GB", "AU", "NZ", "IE"] },
-  { code: "zh", name: "简体中文", tag: "zh-CN", languages: ["zh"], scripts: ["Hans"], regions: ["CN", "SG"], countries: ["CN", "SG"] },
-  { code: "zh-Hant", name: "繁體中文", tag: "zh-TW", languages: ["zh"], scripts: ["Hant"], regions: ["TW", "HK", "MO"], countries: ["TW", "HK", "MO"] },
-  { code: "ja", name: "日本語", tag: "ja", languages: ["ja"], scripts: [], regions: [], countries: ["JP"] },
+  { code: "en", name: "English", tag: "en", dir: "ltr", languages: ["en"], scripts: [], regions: [], countries: ["US", "GB", "AU", "NZ", "IE"] },
+  { code: "zh", name: "简体中文", tag: "zh-CN", dir: "ltr", languages: ["zh"], scripts: ["Hans"], regions: ["CN", "SG"], countries: ["CN", "SG"] },
+  { code: "zh-Hant", name: "繁體中文", tag: "zh-TW", dir: "ltr", languages: ["zh"], scripts: ["Hant"], regions: ["TW", "HK", "MO"], countries: ["TW", "HK", "MO"] },
+  { code: "ja", name: "日本語", tag: "ja", dir: "ltr", languages: ["ja"], scripts: [], regions: [], countries: ["JP"] },
+  { code: "ko", name: "한국어", tag: "ko", dir: "ltr", languages: ["ko"], scripts: [], regions: [], countries: ["KR"] },
+  { code: "es", name: "Español", tag: "es", dir: "ltr", languages: ["es"], scripts: [], regions: [], countries: ["ES", "MX", "AR", "CO", "CL", "PE"] },
+  { code: "fr", name: "Français", tag: "fr", dir: "ltr", languages: ["fr"], scripts: [], regions: [], countries: ["FR"] },
+  { code: "de", name: "Deutsch", tag: "de", dir: "ltr", languages: ["de"], scripts: [], regions: [], countries: ["DE", "AT"] },
+  { code: "pt-BR", name: "Português (Brasil)", tag: "pt-BR", dir: "ltr", languages: ["pt"], scripts: [], regions: ["BR"], countries: ["BR"] },
+  { code: "it", name: "Italiano", tag: "it", dir: "ltr", languages: ["it"], scripts: [], regions: [], countries: ["IT"] },
+  { code: "id", name: "Bahasa Indonesia", tag: "id", dir: "ltr", languages: ["id"], scripts: [], regions: [], countries: ["ID"] },
+  { code: "vi", name: "Tiếng Việt", tag: "vi", dir: "ltr", languages: ["vi"], scripts: [], regions: [], countries: ["VN"] },
+  { code: "th", name: "ไทย", tag: "th", dir: "ltr", languages: ["th"], scripts: [], regions: [], countries: ["TH"] },
+  { code: "hi", name: "हिन्दी", tag: "hi", dir: "ltr", languages: ["hi"], scripts: [], regions: [], countries: [] },
+  { code: "ar", name: "العربية", tag: "ar", dir: "rtl", languages: ["ar"], scripts: [], regions: [], countries: ["SA", "EG", "AE", "MA", "DZ", "JO", "KW", "QA"] },
+  { code: "tr", name: "Türkçe", tag: "tr", dir: "ltr", languages: ["tr"], scripts: [], regions: [], countries: ["TR"] },
+  { code: "ru", name: "Русский", tag: "ru", dir: "ltr", languages: ["ru"], scripts: [], regions: [], countries: ["RU"] },
 ] as const;
 export type Locale = (typeof LOCALE_DEFINITIONS)[number]["code"];
+export type TextDirection = "ltr" | "rtl";
 export const LOCALES: readonly Locale[] = LOCALE_DEFINITIONS.map(({ code }) => code);
 export type LocalePreference = Locale | "auto";
 export const DEFAULT_LOCALE: Locale = "en";
@@ -15,6 +29,11 @@ export const LOCALE_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 export const LOCALE_NAMES = Object.fromEntries(LOCALE_DEFINITIONS.map(({ code, name }) => [code, name])) as Record<Locale, string>;
 export const LOCALE_TAGS = Object.fromEntries(LOCALE_DEFINITIONS.map(({ code, tag }) => [code, tag])) as Record<Locale, string>;
+export const LOCALE_DIRS = Object.fromEntries(LOCALE_DEFINITIONS.map(({ code, dir }) => [code, dir])) as Record<Locale, TextDirection>;
+
+export function localeDir(locale: Locale): TextDirection {
+  return LOCALE_DIRS[locale];
+}
 
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
@@ -25,7 +44,11 @@ export function parsePreference(value: string | undefined | null): LocalePrefere
 
 // Legacy ISO tags and Android's historical Indonesian tag. These aliases never
 // enable an untranslated language; matching below only uses enabled definitions.
-const LANGUAGE_ALIASES: Readonly<Record<string, string>> = { eng: "en", jpn: "ja", chi: "zh", zho: "zh", cmn: "zh", in: "id" };
+const LANGUAGE_ALIASES: Readonly<Record<string, string>> = {
+  eng: "en", jpn: "ja", chi: "zh", zho: "zh", cmn: "zh",
+  kor: "ko", spa: "es", fra: "fr", fre: "fr", deu: "de", ger: "de", por: "pt", ita: "it",
+  ind: "id", in: "id", vie: "vi", tha: "th", hin: "hi", ara: "ar", tur: "tr", rus: "ru",
+};
 export function localeFromTag(tag: string | null | undefined): Locale | null {
   if (!tag) return null;
   const normalized = tag.trim().replaceAll("_", "-");

@@ -13,7 +13,7 @@
 
 ## 现状（0.6.0，阶段 3）
 
-已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、简体 / 繁体中文、日文、英文界面（`res/values-zh`、`values-b+zh+Hant`、`values-ja`，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
+已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、与网页一致的 17 种界面语言 + 自动检测（含阿拉伯语 RTL，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
@@ -24,8 +24,8 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 原生界面不是另起一套设计，而是网页手机视口（412×915）的复刻。规则：先在网页里量，再在原生里照着写，不凭感觉改。
 
 - **数值来源**：网页 `src/app/globals.css` 与组件，用浏览器在 412×915 下读取真实的位置和样式。原生里 1dp = 网页 1 CSS px。
-- **文案**：沿用网页字典（空列表、加载失败也用网页已有的句子，没有就不另写）（`src/lib/i18n/messages/{zh,ja}.ts`），英文原句就是 `res/values/strings.xml` 的内容，`values-zh`、`values-ja` 与字典逐条对应。网页新增或改写文案时，这里要同步。
-- **文案文件按批次分开**：`strings.xml` 是已有界面的文案。之后每一批功能把新文案放进自己的 `res/values/strings_<批次>.xml`（例如 `strings_activity.xml`、`strings_search.xml`），`values-zh`、`values-ja` 里放同名文件，三份的键一一对应。这样几批并行开发时不会改同一个文件；同一个句子只放一处，后面的批次直接引用已有的键，不重复定义。
+- **文案**：沿用网页字典（空列表、加载失败也用网页已有的句子，没有就不另写）（`src/lib/i18n/messages/*.ts`），英文原句就是 `res/values/strings*.xml` 的内容；`values-zh`、`values-ja` 手工维护，`values-b+zh+Hant` 由 `scripts/gen-native-zh-hant.ts` 生成，其余 13 种语言（`values-ko`、`values-es`、`values-fr`、`values-de`、`values-pt-rBR`、`values-it`、`values-in`、`values-vi`、`values-th`、`values-hi`、`values-ar`、`values-tr`、`values-ru`）由 `scripts/gen-native-strings.ts` 从 `res/values` 与网页字典生成。网页新增或改写文案时，修改 `res/values`、`values-zh`、`values-ja` 和网页字典后重新运行生成脚本，`src/lib/native-language.test.ts` 会校验全部 17 套 XML 的键、占位符和转义。
+- **文案文件按批次分开**：`strings.xml` 是早期界面的文案，之后每一批功能把新文案放进自己的 `res/values/strings_<批次>.xml`（例如 `strings_answers.xml`、`strings_search.xml`），各语言目录里放同名文件，键一一对应。同一个句子只放一处，后面的批次直接引用已有的键，不重复定义。
 - **服务端发来的文字**不进 `strings*.xml`，见下文“与服务端的约定”里的系统文词典。
 - **颜色**：`ui/Theme.kt` 的 `Sm` 对象，逐项对应 `--nf-*` / `--notion-*`。**网页只有浅色主题**，所以原生版也只做浅色，不跟随系统深色模式。
 - **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制，品牌标志同理（产品形象：折角便签 + 两只眼睛，路径来自 `src/components/notefable-logo.tsx`；启动图标和 `public/icon.svg` 也是这个图形）。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
@@ -115,15 +115,15 @@ mobile/android/
 
 ## 界面语言
 
-和网页一样启用四种语言 + 第一项“自动检测”（当前实际语言）。对勾表示明确偏好，当前语言单独标注；菜单搜索原生名 / 代码 / 标签、内部滚动，宽度 min(320dp, 屏宽 − 16dp)、最高 min(368dp, 屏高 − 16dp)。登录用户在设置里选，访客在侧栏帮助菜单里选。其他 13 种语言留到 #82 后续阶段，`locales_config.xml` 只登记已具备资源的语言，系统设置自行提供“跟随系统”。
+和网页一样启用全部 17 种界面语言（`en`、`zh`、`zh-Hant`、`ja`、`ko`、`es`、`fr`、`de`、`pt-BR`、`it`、`id`、`vi`、`th`、`hi`、`ar`、`tr`、`ru`）+ 第一项“自动检测”（显示当前实际语言）。对勾表示明确偏好，当前语言单独标注；菜单支持按原生名 / 代码 / 标签搜索与内部滚动，宽度 min(320dp, 屏宽 − 16dp)、最高 min(368dp, 屏高 − 16dp)。登录用户在设置里选，访客在侧栏帮助菜单里选。`res/xml/locales_config.xml` 按相同顺序登记全部 17 个标签，Android 13+ 系统应用语言设置自动提供“跟随系统”。
 
-- `AppLanguage.localeFromTag` 与 Web 一样严格解析 BCP 47，兼容下划线、eng / jpn / chi / zho / cmn / in 等别名，中文脚本优先于地区。未知或未启用语言继续匹配系统列表下一项；无匹配再用 IP 国家，最后英文。`AppLanguage.resolveLocale` 是可测试的规则。
-- 本机明确选择仍由 `AppCompatDelegate.setApplicationLocales` 保存（Android 13+ 系统保存，旧版本 autoStoreLocales），Auto 清空该列表。`MainActivity` 在 Auto 时归一化系统语言并就地设置资源；系统列表没有匹配时请求 `/api/i18n?preference=auto&format=locale`（直接发送原始系统语言列表，不带账号 Cookie），由服务端做 IP 推断。网络不可用时保持英文，之后配置变化 / 重启可重试。推断结果只在当前 Activity 缓存，不写入明确偏好；手动选择或系统变化后忽略旧请求。
-- 资源实际语言仍取 `strings_i18n.xml` 的 `ui_locale`。API `Accept-Language`、系统文和笔记 WebView 的 `lang` 都跟它走。`MainActivity` 更新配置而不重建 Activity，保留草稿、附件、会话、流式回答及笔记编辑；Compose 接收配置变更。打开的笔记通过 `notefableEmbed.language(code)` 换字典，不再因语言变化 reload WebView；页面 ready 后补发当前语言，加载途中切换也不会漏。
-- `AccountLocaleSync` 只随账号状态变化；账号 null 是权威 Auto，不再把本机旧选择迁回账号；缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。`ProfileEdit.setLocale` 区分未传和明确 null，保存失败由已有队列回滚，并同步回原偏好。退出 / 删除账号后清空本机偏好。
-- `LanguageSettings` 选择 Auto 保存 `{locale: null}`；本机切换抛错显示本地化消息和重试，包括 Auto。未知账号偏好时无选中项。
-- 繁体资源由 `node --import tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；Web 字典由 `scripts/generate-zh-hant.ts` 生成。新增语言时同时提供资源、系统文和 `locales_config.xml` 项，不能用英文占位冒充支持。
-- 验证限制：受限环境无法下载 Gradle 分发包，Android 编译 / 单元测试及真机运行尚待可联网构建环境验证；本次未交付 APK。Web 本地服务的监听也被环境禁止，未完成浏览器实测。
+- `AppLanguage.localeFromTag` 与 Web 一样严格解析 BCP 47，兼容下划线、`in`→`id`（兼容旧版 Android `Locale.language` 返回 `"in"`）及 ISO 639-2/3 别名，中文脚本优先于地区，`pt` 各地区归一到 `pt-BR`。未知或未启用语言继续匹配系统列表下一项；无匹配再用保守的 IP 国家回退，最后英文。`AppLanguage.resolveLocale` 是可测试的纯函数规则。
+- 本机明确选择由 `AppCompatDelegate.setApplicationLocales` 保存，Auto 清空该列表。`MainActivity` 在 Auto 时归一化系统语言并就地设置资源和布局方向（`Configuration.setLayoutDirection` + `window.decorView.layoutDirection`）；系统列表没有匹配时请求 `/api/i18n?preference=auto&format=locale`（发送原始系统语言列表，不带账号 Cookie），由服务端做 IP 推断，结果只缓存在当前 Activity，不写入明确偏好。
+- 资源实际语言取 `strings_i18n.xml` 的 `ui_locale`。API `Accept-Language`、`assets/system-text.json`（覆盖全部 16 种非英文语言）和笔记 WebView 的 `lang` 都跟它走。`MainActivity` 就地更新配置而不重建 Activity，保留草稿、附件、会话、流式回答及笔记编辑；打开的笔记通过 `notefableEmbed.language(code)` 就地换字典（同时在 WebView 内同步 `dir`）。
+- **阿拉伯语 RTL**：`AndroidManifest.xml` 开启 `android:supportsRtl="true"`；切到 `ar` 时 Compose `LocalLayoutDirection` 变为 `Rtl`，`ModalNavigationDrawer` 从右侧抽入；`Lucide.kt` 自动水平镜像方向性图标（返回、前进、折叠箭头、收起侧栏、移入文件夹、退出登录），过程面板与提案卡片展开箭头按方向旋转，侧栏激活蓝条、子页面竖线及浮动菜单位置随 `LayoutDirection` 镜像；阿拉伯脚本标题和标签设 `letterSpacing = 0.sp` 保护连写，代码块、独立数学公式和 6 位验证码输入框固定 `LayoutDirection.Ltr`。
+- `AccountLocaleSync` 只随账号状态变化；账号 `null` 是权威 Auto，缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。退出 / 删除账号后清空本机偏好。
+- 资源生成：繁体由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；新增的 13 种语言由 `npx tsx scripts/gen-native-strings.ts` 从 `res/values` 与 Web 字典生成（印尼语使用 Android 标准资源目录 `values-in`，巴西葡语使用 `values-pt-rBR`）；服务端系统文由 `npx tsx scripts/gen-native-system-text.ts` 生成。
+- 验证限制：沙盒受限环境无法下载 Gradle 分发包，已通过 `native-language.test.ts`（255 份 XML 格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试验证，Android Gradle 编译 / JUnit 运行与真机 RTL 手感待可联网构建环境验证。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -141,7 +141,7 @@ mobile/android/
 
 网页的选择器是 emoji-picker-react（`src/components/emoji-picker.tsx`、`full-emoji-picker.tsx`），原生版 `ui/EmojiPicker.kt` 照着它画（412×915 下量的值写在文件开头的注释里），文案在 `strings_emoji.xml`。
 
-- **数据**：`assets/emoji.json` 由 `npx tsx scripts/gen-native-emoji.ts` 从同一个 npm 包生成（表情、分类顺序、肤色变体、en / zh / zh-Hant / ja 四份搜索关键词，以及包里的分类图标、放大镜和清除图标的路径），不手改；升级 emoji-picker-react 后重新生成，`src/lib/native-emoji-asset.test.ts` 检查是否过期。读取和搜索在 `data/EmojiCatalog.kt`：关键词按界面语言（`ui_locale`）选；搜索是去空白、转小写后"任一关键词包含"（与包的 `normalizeQuery` + `includes` 相同）；本机字体画不出来的表情不显示（`Paint.hasGlyph`，网页同样隐藏浏览器不支持的表情）。
+- **数据**：`assets/emoji.json` 由 `npx tsx scripts/gen-native-emoji.ts` 从同一个 npm 包生成（表情、分类顺序、肤色变体、包内支持的全部 14 种界面语言的搜索关键词，以及分类图标、放大镜和清除图标的路径；包内无关键词文件的 `id`、`ar`、`tr` 自动回退到英文关键词），不手改；升级 emoji-picker-react 后重新生成，`src/lib/native-emoji-asset.test.ts` 检查是否过期。读取和搜索在 `data/EmojiCatalog.kt`：关键词按界面语言（`ui_locale`）选；搜索是去空白、转小写后"任一关键词包含"（与包的 `normalizeQuery` + `includes` 相同）；本机字体画不出来的表情不显示（`Paint.hasGlyph`，网页同样隐藏浏览器不支持的表情）。
 - **界面**：弹出框宽 min(408, 屏宽 − 24)、高 36 + min(380, 屏高 − 60)，位置照网页 `floatingPositionFor`（按钮下方 6，放不下就上方，离屏幕边至少 12），打开时和 `.notes-popover` 一样淡入上移（120ms）。顶部条是 Emoji + 当前表情（选中标记）、Random（换一个、不关）、Remove（去掉并关闭）；下面是搜索框、肤色（点开展开 6 个）、9 个分类图标（space-around；搜索框有字时变淡到 .3 且不能点）、吸顶分类标题和表情格（每格 34，一行放几个按宽度算：floor((宽 − 20) / 34)，与包的 grid auto-fill 相同，412 宽时 10 个）。表情数据读不出来时显示 "Could not load emoji." 和 "Try again"（包的 LoadError）。点表情选中并关闭；有肤色变体的表情长按 0.5 秒出变体条。"最近使用"存在本机（`SharedPreferences` 的 `emoji/recent`，最多 14 个、新的在前；网页存在 localStorage 的 `epr_suggested`），为空时这一类不显示。点外面或按返回键关闭。`EmojiPickerBody` 也能直接放进页面（账号头像的表情页用它）。
 - **聊天图标**：顶栏标题左边的图标（40×40）、空白页标题左边的图标（41.6，表情 27.2 / 默认 MessageSquareText 22.4、描边 1.8）和侧栏聊天行的图标（40×40）都能点开选择器。保存走 `PATCH /api/sessions/:id {icon}`（`SessionsApi.updateSessionIcon`），排队和对账在 `ui/SessionIconSync.kt`（网页 `session-icon-sync.ts` 的移植：先显示，连点只发最后一次，失败退回最后保存成功的值并在输入栏上方提示 "Failed to change the chat icon."（换到别的聊天或新聊天时清掉，网页 `setSendError("")`），刷新回来的旧列表不会冲掉刚选的图标）。
 - **还没保存的新聊天**：先选的图标是草稿（`ChatUiState.draftIcon`）。原生的会话由 `/api/chat`（或 `/api/images`）在发第一条消息时创建、不带图标，所以收到 `X-Session-Id`（图片模式是返回的 `sessionId`）后再 `PATCH` 上去；从新聊天点项目的 ＋ 建好聊天时也把草稿带过去：新行一放进列表就带着这个图标，再去保存。打开别的聊天时丢掉草稿（网页 `loadMessages` 同样清掉）。草稿按新聊天的本机键存（见“后台生成”）：已经发出、还在等会话 ID 的新聊天，用户离开后图标仍跟着这次发送迁到会话 ID 上并保存（网页 `send` 的 `sentIcon`），也不会被项目 ＋ 带走；附件还在上传时不算发出（离开后这条不发），项目 ＋ 照常把图标带走。

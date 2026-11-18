@@ -193,10 +193,14 @@ describe("native language changes", () => {
     const api = createEmbedApi({ language, flush, openHistory: vi.fn(), post: vi.fn() });
     await expect(api.language("zh-Hant")).resolves.toBe(true);
     expect(language).toHaveBeenCalledWith("zh-Hant");
+    await expect(api.language("ko")).resolves.toBe(true);
+    expect(language).toHaveBeenCalledWith("ko");
+    await expect(api.language("ar")).resolves.toBe(true);
+    expect(language).toHaveBeenCalledWith("ar");
     expect(flush).not.toHaveBeenCalled();
-    await expect(api.language("ko")).resolves.toBe(false);
+    await expect(api.language("nl")).resolves.toBe(false);
     await expect(api.language(null)).resolves.toBe(false);
-    expect(language).toHaveBeenCalledTimes(1);
+    expect(language).toHaveBeenCalledTimes(3);
   });
   it("reports a failed language change so the editor can retain its previous dictionary", async () => {
     const api = createEmbedApi({ language: vi.fn().mockRejectedValue(new Error("offline")), flush: vi.fn(), openHistory: vi.fn(), post: vi.fn() });
@@ -209,7 +213,9 @@ describe("readNativeLanguage", () => {
   it("reads enabled native languages and ignores absent, invalid or throwing bridges", () => {
     const postMessage = () => {};
     expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "zh-Hant" } })).toBe("zh-Hant");
-    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "ko" } })).toBeNull();
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "ko" } })).toBe("ko");
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "ar" } })).toBe("ar");
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "nl" } })).toBeNull();
     expect(readNativeLanguage({ NoteFableNative: { postMessage } })).toBeNull();
     expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => { throw new Error("gone"); } } })).toBeNull();
   });

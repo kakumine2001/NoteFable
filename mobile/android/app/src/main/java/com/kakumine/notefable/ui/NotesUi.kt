@@ -57,6 +57,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -73,6 +74,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -250,7 +252,11 @@ fun NotesDrawerBody(
                     // .notes-group-members：左距 12、1px 竖线、内左距 4。
                     Column(
                         Modifier.padding(start = 12.dp).fillMaxWidth()
-                            .drawBehind { drawRect(Sm.Border, size = Size(1.dp.toPx(), size.height)) }
+                            .drawBehind {
+                                val lineW = 1.dp.toPx()
+                                val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
+                                drawRect(Sm.Border, topLeft = Offset(lineX, 0f), size = Size(lineW, size.height))
+                            }
                             .padding(start = 5.dp),
                     ) {
                         if (members.isEmpty()) {
@@ -347,7 +353,11 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     if (open) {
         Column(
             Modifier.padding(start = 12.dp).fillMaxWidth()
-                .drawBehind { drawRect(Sm.Border, size = Size(1.dp.toPx(), size.height)) }
+                .drawBehind {
+                    val lineW = 1.dp.toPx()
+                    val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
+                    drawRect(Sm.Border, topLeft = Offset(lineX, 0f), size = Size(lineW, size.height))
+                }
                 .padding(start = 5.dp),
         ) {
             if (kids.isEmpty()) {
@@ -406,7 +416,9 @@ private fun NoteRow(
                 .drawBehind {
                     if (active && !lineBefore && !lineAfter) {
                         val inset = 7.2.dp.toPx()
-                        drawRoundRect(Sm.Blue, topLeft = Offset(0f, inset), size = Size(3.dp.toPx(), size.height - inset * 2),
+                        val barW = 3.dp.toPx()
+                        val barX = if (layoutDirection == LayoutDirection.Rtl) size.width - barW else 0f
+                        drawRoundRect(Sm.Blue, topLeft = Offset(barX, inset), size = Size(barW, size.height - inset * 2),
                             cornerRadius = CornerRadius(1.5.dp.toPx()))
                     }
                 }
@@ -581,10 +593,11 @@ private fun NotesHomeList(
     DisposableEffect(Unit) { onDispose { drag.zones.clear() } }
     val hasLooseHeading = state.groups.isNotEmpty() && state.loosePages.isNotEmpty()
     DisposableEffect(hasLooseHeading) { onDispose { drag.zones.remove(" ") } }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Text(
         stringResource(R.string.notes),
         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
-        color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = (-1.28).sp,
+        color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.28).sp,
     )
     // Favorites（网页 notes-home 的收藏）：小标题 + 平铺的行（不能拖，没有日期和移动键）。
     val favorites = state.favorites
@@ -716,10 +729,11 @@ private fun shortDate(iso: String): String {
 // "新笔记"高 32、圆角 8、上距 24；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
 @Composable
 private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(Modifier.padding(top = 120.dp)) {
         LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
         Text(stringResource(R.string.notes), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
-            lineHeight = 50.sp, fontWeight = FontWeight(750), letterSpacing = (-1.6).sp)
+            lineHeight = 50.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.6).sp)
         val intro = stringResource(R.string.notes_intro).split("%1\$s")
         Text(
             buildAnnotatedString {

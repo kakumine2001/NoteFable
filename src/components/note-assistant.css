@@ -1,6 +1,6 @@
 /* ノートを開いたまま使う AI アシスタント（右下の丸いボタンと、そこから開くパネル）。 */
 .note-ai-fab {
-  position: fixed; right: 1.25rem; bottom: 1.25rem; z-index: 40; display: grid; width: 3rem; height: 3rem; place-items: center;
+  position: fixed; inset-inline-end: 1.25rem; bottom: 1.25rem; z-index: 40; display: grid; width: 3rem; height: 3rem; place-items: center;
   border-radius: 999px; border: 1px solid var(--notion-border-strong); background: var(--notion-bg); color: var(--notion-text);
   box-shadow: var(--notion-shadow); transition: transform 120ms ease, background-color 120ms ease;
 }
@@ -12,21 +12,21 @@
 .note-ai-fab:active { transform: scale(0.95); }
 .note-ai-fab.is-open { background: var(--notion-blue); border-color: var(--notion-blue); color: #fff; }
 @media (max-width: 639px) {
-  .note-ai-fab { right: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); width: 3.25rem; height: 3.25rem; }
+  .note-ai-fab { inset-inline-end: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); width: 3.25rem; height: 3.25rem; }
   /* シートが開いている間は、ボタンはシートの後ろに隠れる。 */
   .note-ai-fab.is-open { z-index: 30; }
 }
 
 .note-ai-panel {
-  position: fixed; right: 1.25rem; bottom: 5rem; z-index: 40; display: flex; flex-direction: column; width: min(26rem, calc(100vw - 2.5rem));
+  position: fixed; inset-inline-end: 1.25rem; bottom: 5rem; z-index: 40; display: flex; flex-direction: column; width: min(26rem, calc(100vw - 2.5rem));
   height: min(36rem, calc(100dvh - 7rem)); border-radius: 0.9rem; border: 1px solid var(--notion-border-strong); background: var(--notion-bg);
   box-shadow: rgba(15, 15, 15, 0.16) 0 8px 28px, rgba(15, 15, 15, 0.06) 0 0 0 1px; overflow: hidden; animation: motion-fade-in 120ms ease-out both;
 }
 .note-ai-panel.is-sheet {
-  position: relative; right: auto; bottom: auto; width: 100%; height: min(34rem, 85dvh); border: 0; border-radius: 1.1rem 1.1rem 0 0;
+  position: relative; inset-inline-end: auto; bottom: auto; width: 100%; height: min(34rem, 85dvh); border: 0; border-radius: 1.1rem 1.1rem 0 0;
   padding-bottom: env(safe-area-inset-bottom); animation: model-sheet-up 200ms ease-out both;
 }
-.note-ai-header { display: flex; align-items: center; gap: 0.5rem; padding: 0.6rem 0.6rem 0.6rem 0.9rem; border-bottom: 1px solid var(--notion-border); color: var(--notion-muted); }
+.note-ai-header { display: flex; align-items: center; gap: 0.5rem; padding-block: 0.6rem; padding-inline: 0.9rem 0.6rem; border-bottom: 1px solid var(--notion-border); color: var(--notion-muted); }
 .note-ai-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 600; color: var(--notion-text); }
 .note-ai-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0.9rem 0.75rem; }
 .note-ai-list .notion-turn { padding-top: 0.6rem; padding-bottom: 0.2rem; }
@@ -54,7 +54,7 @@
   background: transparent; color: var(--notion-text); outline: none; field-sizing: content;
 }
 .note-ai-tools { display: flex; min-width: 0; align-items: center; gap: 0.15rem; }
-.note-ai-tools .note-ai-send { margin-left: auto; }
+.note-ai-tools .note-ai-send { margin-inline-start: auto; }
 .note-ai-attachments { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
 .note-ai-attachments li { min-width: 0; max-width: 100%; }
 .note-ai-attachment {

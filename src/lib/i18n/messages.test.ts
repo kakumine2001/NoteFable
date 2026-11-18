@@ -2,16 +2,20 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import ts from "typescript";
+import { en as blockNoteEn } from "@blocknote/core/locales";
 import { Converter } from "opencc-js";
 import { describe, expect, it } from "vitest";
-import { LOCALES } from "./locale";
+import { blockNoteDictionaryFor } from "./blocknote-locales";
+import { LOCALES, type Locale } from "./locale";
 import { messagesFor } from "./messages";
+import { loadMessages } from "./messages/load";
 import { zh } from "./messages/zh";
 import { zhHant } from "./messages/zh-hant";
 import { zhServer } from "./messages/zh-server";
+import { SYSTEM_TEXT_TEMPLATES } from "./translate";
 
 // Scan real call sites and marked constant tables so a new UI sentence cannot
-// silently fall back to English in either translated interface.
+// silently fall back to English in any translated interface.
 function sourceKeys(directory: string): Set<string> {
   const keys = new Set<string>();
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -33,21 +37,46 @@ function sourceKeys(directory: string): Set<string> {
   return keys;
 }
 
-const keys = sourceKeys(fileURLToPath(new URL("../../", import.meta.url)));
-const slots = (text: string) => [...new Set(text.match(/\{\w+\}/g) ?? [])].sort();
+const keys = new Set([...sourceKeys(fileURLToPath(new URL("../../", import.meta.url))), ...SYSTEM_TEXT_TEMPLATES]);
+const slotCounts = (text: string) => {
+  const counts: Record<string, number> = {};
+  for (const slot of text.match(/\{\w+\}/g) ?? []) counts[slot] = (counts[slot] ?? 0) + 1;
+  return Object.entries(counts).sort(([a], [b]) => a.localeCompare(b));
+};
 
-describe.each(["zh", "zh-Hant", "ja"] as const)("%s UI dictionary", (locale) => {
-  it("translates every marked UI sentence", () => {
+const TRANSLATED_LOCALES = LOCALES.filter((code): code is Exclude<Locale, "en"> => code !== "en");
+
+// Terms legitimately identical to English in some Latin-script languages.
+const IDENTICAL_SENTENCE_ALLOWLIST = new Set([
+  "NoteFable: ",
+  "Ctrl K",
+  "Use Google photo",
+]);
+
+describe.each(TRANSLATED_LOCALES)("%s UI and server dictionary", (locale) => {
+  it("translates every marked UI and server sentence without empty values", () => {
     const dictionary = messagesFor(locale);
-    expect(keys.size).toBeGreaterThan(400);
+    expect(keys.size).toBeGreaterThan(800);
     const missing = [...keys].filter((key) => !Object.hasOwn(dictionary, key) || !dictionary[key].trim());
     expect(missing).toEqual([]);
   });
 
-  it("preserves interpolation slots, including rich-text markers", () => {
+  it("preserves exact interpolation slot names and occurrence counts", () => {
     const mismatches = Object.entries(messagesFor(locale)).filter(([source, translated]) =>
-      JSON.stringify(slots(source)) !== JSON.stringify(slots(translated)));
+      JSON.stringify(slotCounts(source)) !== JSON.stringify(slotCounts(translated)));
     expect(mismatches).toEqual([]);
+  });
+
+  it("preserves markdown emphasis markers and leaves no untranslated multi-word English sentences", () => {
+    const dictionary = messagesFor(locale);
+    expect(dictionary["_This version has no text._"]).toMatch(/^_.+_$/);
+    const untranslated = Object.entries(dictionary)
+      .filter(([source, translated]) =>
+        source === translated &&
+        source.trim().split(/\s+/).length >= 3 &&
+        !IDENTICAL_SENTENCE_ALLOWLIST.has(source))
+      .map(([source]) => source);
+    expect(untranslated).toEqual([]);
   });
 });
 
@@ -59,14 +88,51 @@ describe("Traditional Chinese dictionary", () => {
   });
 });
 
-// Keep Phase 1 honest: no untranslated Phase 2/3 entry can slip into the menu.
-describe("enabled dictionaries", () => {
-  it("ships four languages and translates the Auto and search controls", () => {
-    expect(LOCALES).toEqual(["en", "zh", "zh-Hant", "ja"]);
-    for (const locale of LOCALES.filter((code) => code !== "en")) {
+describe("enabled dictionaries, lazy loader, and BlockNote locales", () => {
+  it("ships all 17 languages and translates the Auto and search controls", () => {
+    expect(LOCALES).toEqual([
+      "en", "zh", "zh-Hant", "ja",
+      "ko", "es", "fr", "de", "pt-BR", "it",
+      "id", "vi", "th", "hi", "ar", "tr", "ru",
+    ]);
+    for (const locale of TRANSLATED_LOCALES) {
       for (const key of ["Auto detect", "Auto (current: {language})", "Search languages", "Current language", "No languages found."]) {
         expect(messagesFor(locale)[key], `${locale}: ${key}`).toBeTruthy();
       }
+    }
+  });
+
+  it("lazy loadMessages returns the exact same dictionary as messagesFor for every locale", async () => {
+    for (const locale of LOCALES) {
+      expect(await loadMessages(locale), locale).toEqual(messagesFor(locale));
+    }
+  });
+
+  it("provides a complete BlockNote dictionary matching the English schema for all 17 locales", () => {
+    function checkShape(ref: unknown, candidate: unknown, pathLabel: string): string[] {
+      if (typeof ref === "string") {
+        return typeof candidate === "string" ? [] : [`${pathLabel}: expected string`];
+      }
+      if (typeof ref === "function") {
+        return typeof candidate === "function" ? [] : [`${pathLabel}: expected function`];
+      }
+      if (Array.isArray(ref)) {
+        return Array.isArray(candidate) && candidate.length > 0 ? [] : [`${pathLabel}: expected non-empty array`];
+      }
+      if (ref && typeof ref === "object") {
+        if (!candidate || typeof candidate !== "object") return [`${pathLabel}: expected object`];
+        const errors: string[] = [];
+        for (const [k, v] of Object.entries(ref)) {
+          errors.push(...checkShape(v, (candidate as Record<string, unknown>)[k], `${pathLabel}.${k}`));
+        }
+        return errors;
+      }
+      return [];
+    }
+
+    for (const locale of LOCALES) {
+      const dict = blockNoteDictionaryFor(locale);
+      expect(checkShape(blockNoteEn, dict, locale)).toEqual([]);
     }
   });
 });

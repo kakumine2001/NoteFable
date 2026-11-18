@@ -15,6 +15,9 @@ describe("localized routing", () => {
   it("serves / and /app from the static page for the chosen language", () => {
     expect(target(route("/", { language: "ja-JP" }))).toBe("rewrite /ja");
     expect(target(route("/app", { language: "zh-TW" }))).toBe("rewrite /zh-Hant/app");
+    expect(target(route("/", { language: "ar-SA" }))).toBe("rewrite /ar");
+    expect(target(route("/app", { language: "pt-PT" }))).toBe("rewrite /pt-BR/app");
+    expect(target(route("/", { language: "in-ID" }))).toBe("rewrite /id");
     expect(target(route("/app?view=pages&page=x", { cookie: "zh", language: "ja" }))).toBe("rewrite /zh/app?view=pages&page=x");
     expect(target(route("/", { country: "JP" }))).toBe("rewrite /ja");
     expect(target(route("/"))).toBe("rewrite /en");
@@ -57,8 +60,10 @@ describe("localized routing", () => {
     expect(target(route("/note-embed?page=p1&lang=ja", { cookie: "zh", language: "en" }))).toBe("rewrite /ja/note-embed?page=p1&lang=ja");
     expect(target(route("/note-embed?page=p1&lang=zh", { language: "ja" }))).toBe("rewrite /zh/note-embed?page=p1&lang=zh");
     expect(target(route("/note-embed?page=p1&lang=en", { cookie: "ja" }))).toBe("rewrite /en/note-embed?page=p1&lang=en");
+    expect(target(route("/note-embed?page=p1&lang=ar", { cookie: "en" }))).toBe("rewrite /ar/note-embed?page=p1&lang=ar");
+    expect(target(route("/note-embed?page=p1&lang=pt-BR", { language: "en" }))).toBe("rewrite /pt-BR/note-embed?page=p1&lang=pt-BR");
     // 対応していない値は無視して、いつもの決め方に戻る。
-    expect(target(route("/note-embed?page=p1&lang=fr", { language: "ja" }))).toBe("rewrite /ja/note-embed?page=p1&lang=fr");
+    expect(target(route("/note-embed?page=p1&lang=nl", { language: "ja" }))).toBe("rewrite /ja/note-embed?page=p1&lang=nl");
   });
 
   it("only honors ?lang= on the embed", () => {

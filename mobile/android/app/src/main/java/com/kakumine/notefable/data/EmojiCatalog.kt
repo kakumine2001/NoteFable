@@ -88,10 +88,12 @@ class EmojiCatalog(
     }
 
     companion object {
-        /** 网页 EMOJI_DATA 的键：en / zh / zh-Hant / ja（来自 res 里的 ui_locale）。没有的语言用英文。 */
+        private val EmojiLocales = setOf("en", "zh", "zh-Hant", "ja", "ko", "es", "fr", "de", "pt-BR", "it", "vi", "th", "hi", "ru")
+
+        /** 网页 EMOJI_DATA 的键（来自 res 里的 ui_locale）。emoji-picker-react 没有数据文件的语言（id / ar / tr）用英文关键词。 */
         fun parse(json: String, locale: String, supported: (String) -> Boolean = { true }): EmojiCatalog {
             val raw = Json { ignoreUnknownKeys = true }.decodeFromString(RawEmojiData.serializer(), json)
-            val key = locale.takeIf { it in setOf("en", "zh", "zh-Hant", "ja") } ?: "en"
+            val key = locale.takeIf { it in EmojiLocales } ?: "en"
             val emojis = raw.emojis.mapNotNull { emoji ->
                 val char = unifiedToEmoji(emoji.u)
                 if (!supported(char)) return@mapNotNull null

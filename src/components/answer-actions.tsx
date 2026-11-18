@@ -107,7 +107,8 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
     const position = () => {
       const bounds = dialog.getBoundingClientRect();
       const below = anchor.bottom + 4;
-      dialog.style.left = `${Math.max(8, Math.min(anchor.left, window.innerWidth - bounds.width - 8))}px`;
+      const rtl = document.documentElement.dir === "rtl";
+      dialog.style.left = `${Math.max(8, Math.min(rtl ? anchor.right - bounds.width : anchor.left, window.innerWidth - bounds.width - 8))}px`;
       dialog.style.top = `${Math.max(8, below + bounds.height <= window.innerHeight - 8 ? below : anchor.top - bounds.height - 4)}px`;
     };
     position();

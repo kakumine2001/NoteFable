@@ -106,7 +106,9 @@ export function floatingPositionFor(anchor: DOMRect): FloatingPosition {
   const viewportWidth = viewport?.width ?? window.innerWidth;
   const height = Math.min(416, viewportHeight - margin * 2);
   const width = Math.min(408, viewportWidth - margin * 2);
-  const left = Math.max(viewportLeft + margin, Math.min(anchor.left, viewportLeft + viewportWidth - width - margin));
+  const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
+  const preferredLeft = rtl ? anchor.right - width : anchor.left;
+  const left = Math.max(viewportLeft + margin, Math.min(preferredLeft, viewportLeft + viewportWidth - width - margin));
   const below = anchor.bottom + 6;
   const preferredTop = below + height <= viewportTop + viewportHeight - margin ? below : anchor.top - height - 6;
   const top = Math.max(viewportTop + margin, Math.min(preferredTop, viewportTop + viewportHeight - height - margin));

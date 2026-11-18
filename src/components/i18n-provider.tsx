@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference } from "@/lib/i18n/locale";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_DIRS, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference, type TextDirection } from "@/lib/i18n/locale";
 import { createTranslator, type Messages, type Translate } from "@/lib/i18n/translate";
 
 import { createLocaleSwitcher } from "@/lib/locale-switch";
@@ -10,6 +10,7 @@ type I18nValue = {
   locale: Locale;
   // BCP 47 タグ。日付の書式（toLocaleDateString）に渡す。
   tag: string;
+  dir: TextDirection;
   preference: LocalePreference;
   t: Translate;
   setPreference: (next: LocalePreference) => Promise<boolean>;
@@ -20,7 +21,7 @@ type I18nValue = {
 };
 
 const fallback: I18nValue = {
-  locale: "en", tag: "en", preference: "auto", t: createTranslator({}), setPreference: async () => false, switching: false, target: null, changeError: "",
+  locale: "en", tag: "en", dir: "ltr", preference: "auto", t: createTranslator({}), setPreference: async () => false, switching: false, target: null, changeError: "",
 };
 
 const I18nContext = createContext<I18nValue>(fallback);
@@ -69,12 +70,17 @@ export function I18nProvider({ locale, messages, children }: {
   const [translator, setTranslator] = useState(() => ({ locale, t: createTranslator(messages) }));
   const { locale: activeLocale, t } = translator;
 
-  // ルートのレイアウトは静的に保つため <html lang="en"> を出す。表示言語に合わせて書き換える。
+  // ルートのレイアウトは静的に保つため <html lang="en"> を出す。表示言語と文字方向に合わせて書き換える。
   useEffect(() => {
     const root = document.documentElement;
-    const previous = root.lang;
+    const previousLang = root.lang;
+    const previousDir = root.dir;
     root.lang = LOCALE_TAGS[activeLocale];
-    return () => { root.lang = previous; };
+    root.dir = LOCALE_DIRS[activeLocale];
+    return () => {
+      root.lang = previousLang;
+      root.dir = previousDir;
+    };
   }, [activeLocale]);
   const [switcher] = useState(() => createLocaleSwitcher({
     locale,
@@ -94,10 +100,11 @@ export function I18nProvider({ locale, messages, children }: {
     return switcher.choose(next);
   }, [switcher]);
   const switching = target !== null;
-  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], preference, t, setPreference, switching, target, changeError }),
-    [activeLocale, preference, t, setPreference, switching, target, changeError]);
-  // data-locale-root: 静的 HTML の時点で表示言語を持つ目印。global-error.tsx が落ちる前の言語を知るのに使う。
-  return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} data-locale-root="" className="contents">{children}</div></I18nContext.Provider>;
+  const dir = LOCALE_DIRS[activeLocale];
+  const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], dir, preference, t, setPreference, switching, target, changeError }),
+    [activeLocale, dir, preference, t, setPreference, switching, target, changeError]);
+  // data-locale-root: 静的 HTML の時点で表示言語と文字方向を持つ目印。global-error.tsx が落ちる前の言語を知るのに使う。
+  return <I18nContext.Provider value={value}><div lang={LOCALE_TAGS[activeLocale]} dir={dir} data-locale-root="" className="contents">{children}</div></I18nContext.Provider>;
 }
 
 export function useI18n() {
