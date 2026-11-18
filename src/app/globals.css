@@ -1004,6 +1004,16 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   margin-inline: auto;
 }
 
+@media (min-width: 1440px) {
+  .motion-desktop-sidebar .notion-sidebar {
+    width: clamp(17rem, 16vw, 20rem);
+  }
+
+  .notion-page-column {
+    width: min(100%, clamp(50rem, 48vw, 55rem));
+  }
+}
+
 .notion-page-title {
   padding-top: clamp(2.5rem, 8vh, 5.5rem);
 }
