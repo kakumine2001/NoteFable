@@ -214,4 +214,11 @@ export const jaServer: Record<string, string> = {
   "This purchase belongs to another account.": "この購入は別のアカウントのものです。",
   "This purchase is no longer active.": "この購入はすでに無効です。",
   "Could not confirm your purchase. Please try again.": "購入を確認できませんでした。もう一度お試しください。",
+  "Forbidden.": "この操作は許可されていません。",
+  "Invalid purchase.": "購入情報が正しくありません。",
+  "This note no longer exists.": "このノートはもう存在しません。",
+  "This proposal was discarded.": "この提案は破棄されています。",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "この提案はもう使えません。もう一度頼んで新しい提案を作ってください。",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "提案のあとでノートが変更されました。もう一度頼んで新しい提案を作ってください。",
+  "Upload up to {max} files at a time.": "一度にアップロードできるファイルは {max} 個までです。",
 };

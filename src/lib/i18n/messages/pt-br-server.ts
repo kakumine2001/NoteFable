@@ -214,4 +214,11 @@ export const ptBRServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” excede o limite de {size} por arquivo. Escolha um arquivo menor.",
   "“{name}” is empty. Choose a file with content.": "“{name}” está vazio. Escolha um arquivo com conteúdo.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” não é compatível. Escolha um arquivo PNG, JPEG, WEBP, PDF ou de texto.",
+  "Forbidden.": "Acesso negado.",
+  "Invalid purchase.": "Compra inválida.",
+  "This note no longer exists.": "Esta nota não existe mais.",
+  "This proposal was discarded.": "Esta proposta foi descartada.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Esta proposta não é mais válida. Peça novamente para receber uma nova proposta.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Esta nota mudou depois que a proposta foi criada. Peça novamente para receber uma nova proposta.",
+  "Upload up to {max} files at a time.": "Envie até {max} arquivos por vez.",
 };

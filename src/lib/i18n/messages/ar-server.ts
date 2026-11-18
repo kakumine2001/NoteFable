@@ -214,4 +214,11 @@ export const arServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "يتجاوز حجم «{name}» الحد الأقصى البالغ {size} للملف الواحد. اختر ملفاً أصغر حجماً.",
   "“{name}” is empty. Choose a file with content.": "الملف «{name}» فارغ. اختر ملفاً يحتوي على بيانات.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "الملف «{name}» غير مدعوم. اختر ملف PNG أو JPEG أو WEBP أو PDF أو ملفاً نصياً.",
+  "Forbidden.": "غير مسموح بهذا الإجراء.",
+  "Invalid purchase.": "عملية شراء غير صالحة.",
+  "This note no longer exists.": "لم تعد هذه الملاحظة موجودة.",
+  "This proposal was discarded.": "تم تجاهل هذا التعديل المقترح.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "لم يعد هذا التعديل المقترح صالحاً. اطلب مرة أخرى للحصول على اقتراح جديد.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "تغيّرت هذه الملاحظة بعد إنشاء الاقتراح. اطلب مرة أخرى للحصول على اقتراح جديد.",
+  "Upload up to {max} files at a time.": "ارفع ما يصل إلى {max} ملفات في المرة الواحدة.",
 };

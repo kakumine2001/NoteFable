@@ -29,6 +29,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "This version cannot be restored. {detail}",
   "Unsupported file type: {name}",
   "Upload failed: {name}. Please try again.",
+  "Upload up to {max} files at a time.",
   "You can have at most {max} groups.",
 ] as const;
 

@@ -7,7 +7,8 @@ import "@/components/search-dialog.css";
 import { findTermRanges } from "@/lib/search-fold";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { MAX_SEARCH_QUERY_CHARS, parseSearchTerms, type ChatSearchResult, type NoteSearchResult, type SearchResponse, type SearchScope } from "@/types/search";
-import { useI18n, useT } from "@/components/i18n-provider";
+import { useI18n } from "@/components/i18n-provider";
+import type { TextDirection } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 
 type Result = NoteSearchResult | ChatSearchResult;
@@ -17,6 +18,11 @@ export type SearchProject = { id: string; name: string };
 
 const DEBOUNCE_MS = 250;
 const TABS: { scope: SearchScope; label: string }[] = [{ scope: "all", label: msg("All") }, { scope: "chats", label: msg("Chats") }, { scope: "notes", label: msg("Notes") }];
+
+export function nextSearchTabScope(index: number, key: "ArrowLeft" | "ArrowRight", dir: TextDirection = "ltr"): SearchScope {
+  const step = (dir === "rtl" ? key === "ArrowLeft" : key === "ArrowRight") ? 1 : TABS.length - 1;
+  return TABS[(index + step) % TABS.length].scope;
+}
 
 // 一致した語を <mark> で囲むための分割。語は畳み込み済み（parseSearchTerms の結果）。大文字小文字・全角半角・ひらがなカタカナの違いを越えて
 // 一致し、囲む範囲は元の文字のまま（"api" は "ＡＰＩ" を、"データ" は "でーた" を囲む）。重なったときは左を、同じ位置では長い語を優先する。
@@ -118,7 +124,7 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
 }
 
 function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, onOpenNote }: Omit<SearchDialogProps, "open">) {
-  const t = useT();
+  const { t, dir } = useI18n();
   const [input, setInput] = useState("");
   const [scope, setScope] = useState<SearchScope>("all");
   // Chats タブの絞り込み。"" はすべてのプロジェクト。
@@ -242,8 +248,7 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    const next = TABS[(index + (event.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length];
-    changeScope(next.scope);
+    changeScope(nextSearchTabScope(index, event.key, dir));
   }
 
   let body: ReactNode;

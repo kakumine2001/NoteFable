@@ -214,4 +214,11 @@ export const trServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” dosya başına {size} sınırını aşıyor. Daha küçük bir dosya seçin.",
   "“{name}” is empty. Choose a file with content.": "“{name}” boş. İçeriği olan bir dosya seçin.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” desteklenmiyor. PNG, JPEG, WEBP, PDF veya bir metin dosyası seçin.",
+  "Forbidden.": "Bu işleme izin verilmiyor.",
+  "Invalid purchase.": "Geçersiz satın alma işlemi.",
+  "This note no longer exists.": "Bu not artık mevcut değil.",
+  "This proposal was discarded.": "Bu öneri yoksayıldı.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Bu öneri artık geçerli değil. Yeni bir öneri almak için tekrar isteyin.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Öneri oluşturulduktan sonra bu not değişti. Yeni bir öneri almak için tekrar isteyin.",
+  "Upload up to {max} files at a time.": "Tek seferde en fazla {max} dosya yükleyin.",
 };

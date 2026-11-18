@@ -2933,6 +2933,56 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 [dir="rtl"] .motion-sidebar-panel { animation-name: motion-sidebar-panel-enter-rtl; }
 [dir="rtl"] .motion-desktop-sidebar { animation-name: motion-desktop-sidebar-enter-rtl; }
+/* BlockNote loads its own physical left/right rules after globals.css; neutralize them in RTL with higher specificity so nesting, quotes, list markers, toggles, tables and menus only use inline-start. */
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block-group {
+  margin-left: 0;
+  margin-inline-start: 24px;
+  margin-inline-end: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block-group > .bn-block-outer:not([data-prev-depth-changed])::before,
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block:not(:has(.bn-toggle-wrapper)) .bn-block-group .bn-block-outer:not([data-prev-depth-changed])::before {
+  left: auto;
+  right: -20px;
+  border-left: 0;
+  border-right: 0;
+  border-inline-start: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-outer[data-prev-depth-change] {
+  margin-left: 0;
+  margin-inline-start: calc(10px * var(--x));
+}
+[dir="rtl"] .notes-block-editor .bn-block-outer[data-prev-depth-change] .bn-block-outer[data-prev-depth-change] {
+  margin-left: 0;
+  margin-inline-start: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="quote"] blockquote {
+  border-left: 0;
+  border-inline-end: 0;
+  border-inline-start: 3px solid currentColor;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="bulletListItem"]::before,
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="numberedListItem"]::before {
+  padding-right: 0;
+  padding-inline-end: 4px;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content .bn-toggle-add-block-button {
+  margin-left: 0;
+  margin-inline-start: 26px;
+}
+[dir="rtl"] .notes-block-editor .bn-editor .bn-block-content[data-content-type="table"] th {
+  text-align: start;
+}
+[dir="rtl"] .bn-ariakit .bn-extend-button-add-remove-columns {
+  margin-left: 0;
+  margin-inline-start: 4px;
+}
+[dir="rtl"] .bn-ariakit .bn-ak-label {
+  padding-left: 0;
+  padding-inline-start: 1rem;
+}
+[dir="rtl"] .bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child svg {
+  transform: scaleX(-1);
+}
 :lang(ar) :is(h1, h2, h3, h4, h5, h6, .notes-title, .signin-title, .chat-section-label, .chat-project-heading, .notion-role-label, .nf-logo span, .notes-home-title, .notes-home-greeting) {
   letter-spacing: 0;
 }

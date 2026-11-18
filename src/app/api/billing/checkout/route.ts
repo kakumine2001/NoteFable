@@ -8,7 +8,7 @@ import { isSameOrigin } from "@/lib/native-google-login";
 export async function POST(request: NextRequest) {
   if (!isBillingConfigured()) return NextResponse.json({ error: msg("Subscriptions are not available yet.") }, { status: 404 });
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return NextResponse.json({ error: msg("Forbidden.") }, { status: 403 });
   }
   const user = await signedInUser();
   if (!user) return NextResponse.json({ error: msg("Sign in to upgrade.") }, { status: 401 });

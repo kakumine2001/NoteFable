@@ -77,22 +77,22 @@ async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
   const payload = row.payload as EditPayload;
   const pageId = row.kind === "EDIT" ? payload.pageId : row.appliedPageId;
   const page = pageId ? await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null } }) : null;
-  if (!page) return fail(404, "This note no longer exists.");
+  if (!page) return fail(404, msg("This note no longer exists."));
   return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
 }
 
 export async function applyProposal(userId: string, id: string): Promise<ApplyResult> {
   const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { id: true, kind: true, status: true, payload: true, appliedPageId: true } });
-  if (!row) return fail(404, "Proposal not found.");
-  if (row.status === "DISCARDED") return fail(409, "This proposal was discarded.");
+  if (!row) return fail(404, msg("Proposal not found."));
+  if (row.status === "DISCARDED") return fail(409, msg("This proposal was discarded."));
   if (row.status === "APPLIED") return appliedResult(userId, row);
-  if (!(row.kind === "EDIT" ? validEdit(row.payload) : validCreate(row.payload))) return fail(409, "This proposal is no longer valid. Ask again to get a fresh proposal.");
+  if (!(row.kind === "EDIT" ? validEdit(row.payload) : validCreate(row.payload))) return fail(409, msg("This proposal is no longer valid. Ask again to get a fresh proposal."));
 
   // 適用の権利を取れなかった時は、取った相手（または破棄した相手）の結果をもう一度読んで返す。
   const afterLostClaim = async (): Promise<ApplyResult> => {
     const latest = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { id: true, kind: true, status: true, payload: true, appliedPageId: true } });
-    if (!latest) return fail(404, "Proposal not found.");
-    return latest.status === "APPLIED" ? appliedResult(userId, latest) : fail(409, "This proposal was discarded.");
+    if (!latest) return fail(404, msg("Proposal not found."));
+    return latest.status === "APPLIED" ? appliedResult(userId, latest) : fail(409, msg("This proposal was discarded."));
   };
 
   try {
@@ -141,7 +141,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
     if (error instanceof Conflict) {
       const payload = row.payload as EditPayload;
       const exists = await prisma.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null }, select: { id: true } });
-      return exists ? fail(409, "This note changed after the proposal was made. Ask again to get a fresh proposal.") : fail(404, "Note not found.");
+      return exists ? fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal.")) : fail(404, msg("Note not found."));
     }
     if (error instanceof NoteValidationError) return fail(error.status, error.message);
     throw error;

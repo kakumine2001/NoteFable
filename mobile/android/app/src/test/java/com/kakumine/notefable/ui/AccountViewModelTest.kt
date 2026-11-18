@@ -153,8 +153,15 @@ class AccountViewModelTest {
     }
 
     @Test
-    fun `the code field keeps only six digits`() {
+    fun `the code field normalizes Unicode decimal digits to ASCII and keeps only six digits`() {
         assertEquals("123456", cleanLoginCode("12 34-56 78"))
+        assertEquals("482910", cleanLoginCode("٤٨٢٩١٠"))
+        assertEquals("482910", cleanLoginCode("٤٨٢ ٩١٠"))
+        assertEquals("482910", cleanLoginCode("۴۸۲۹۱۰"))
+        assertEquals("482910", cleanLoginCode("४८२९१०"))
+        assertEquals("482910", cleanLoginCode("๔๘๒๙๑๐"))
+        assertEquals("482910", cleanLoginCode("４８２９１０"))
+        assertEquals("482910", cleanLoginCode("𝟒𝟖𝟐𝟗𝟏𝟎"))
         assertEquals("", cleanLoginCode("abc"))
     }
 

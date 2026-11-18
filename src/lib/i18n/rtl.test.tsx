@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
 import { I18nProvider, useI18n } from "@/components/i18n-provider";
+import { sideMenuPlacementFor, submenuPositionFor } from "@/components/note-editor";
 import { loginEmailContent } from "@/lib/email-login";
 import { landingTitle } from "./landing-meta";
 import { LOCALES } from "./locale";
@@ -56,5 +59,19 @@ describe("RTL and multi-script presentation", () => {
     const koEmail = loginEmailContent("482910", "ko");
     expect(koEmail.html).toContain('lang="ko" dir="ltr"');
     expect(koEmail.html).toContain('<p dir="ltr" style="font-size:28px');
+  });
+
+  it("places BlockNote side-menu controls and submenus according to text direction and neutralizes physical left-side styles in RTL", () => {
+    expect(sideMenuPlacementFor("ltr")).toBe("left-start");
+    expect(sideMenuPlacementFor("rtl")).toBe("right-start");
+    expect(submenuPositionFor("ltr")).toBe("right");
+    expect(submenuPositionFor("rtl")).toBe("left");
+
+    const css = readFileSync(fileURLToPath(new URL("../../app/globals.css", import.meta.url)), "utf8");
+    // RTL overrides neutralize BlockNote's physical left margin, quote border-left, list marker padding-right, and toggle add-block margin-left.
+    expect(css).toMatch(/\[dir="rtl"\]\s+\.notes-block-editor\s+\.bn-block-group\s+\.bn-block-group\s*\{[^}]*margin-left:\s*0;[^}]*margin-inline-start:\s*24px;/);
+    expect(css).toMatch(/\[dir="rtl"\]\s+\.notes-block-editor\s+\.bn-block-content\[data-content-type="quote"\]\s+blockquote\s*\{[^}]*border-left:\s*0;[^}]*border-inline-end:\s*0;[^}]*border-inline-start:\s*3px solid currentColor;/);
+    expect(css).toMatch(/\[dir="rtl"\]\s+\.notes-block-editor\s+\.bn-block-content\[data-content-type="bulletListItem"\]::before,[\s\S]*?padding-right:\s*0;[^}]*padding-inline-end:\s*4px;/);
+    expect(css).toMatch(/\[dir="rtl"\]\s+\.notes-block-editor\s+\.bn-block-content\s+\.bn-toggle-add-block-button\s*\{[^}]*margin-left:\s*0;[^}]*margin-inline-start:\s*26px;/);
   });
 });

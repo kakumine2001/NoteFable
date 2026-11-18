@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: msg("Sign-in is not enabled.") }, { status: 404 });
   }
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return NextResponse.json({ error: msg("Forbidden.") }, { status: 403 });
   }
 
   const google = await currentAccountProfile().catch(() => null);

@@ -11,7 +11,7 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: msg("Sign in to upgrade.") }, { status: 401 });
   const body = await request.json().catch(() => null) as { purchaseToken?: unknown } | null;
   const purchaseToken = typeof body?.purchaseToken === "string" ? body.purchaseToken.trim() : "";
-  if (!purchaseToken || purchaseToken.length > 4096) return NextResponse.json({ error: "Invalid purchase." }, { status: 400 });
+  if (!purchaseToken || purchaseToken.length > 4096) return NextResponse.json({ error: msg("Invalid purchase.") }, { status: 400 });
 
   try {
     const result = await claimPlayPurchase(user.id, purchaseToken);

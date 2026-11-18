@@ -214,4 +214,11 @@ export const itServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” supera il limite di {size} per file. Scegli un file più piccolo.",
   "“{name}” is empty. Choose a file with content.": "“{name}” è vuoto. Scegli un file con del contenuto.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” non è supportato. Scegli un file PNG, JPEG, WEBP, PDF o di testo.",
+  "Forbidden.": "Accesso negato.",
+  "Invalid purchase.": "Acquisto non valido.",
+  "This note no longer exists.": "Questa nota non esiste più.",
+  "This proposal was discarded.": "Questa proposta è stata scartata.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Questa proposta non è più valida. Chiedi di nuovo per ricevere una nuova proposta.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Questa nota è cambiata dopo la creazione della proposta. Chiedi di nuovo per ricevere una nuova proposta.",
+  "Upload up to {max} files at a time.": "Carica fino a {max} file alla volta.",
 };

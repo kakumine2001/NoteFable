@@ -71,8 +71,14 @@ import kotlinx.coroutines.launch
 /** 网页 `<input maxLength={254}>`。 */
 private const val MAX_EMAIL_LENGTH = 254
 
-/** 验证码输入：只留数字，最多 6 位（网页 `replace(/\D/g, "").slice(0, 6)`）。 */
-fun cleanLoginCode(input: String): String = input.filter { it in '0'..'9' }.take(6)
+/** 验证码输入：把任意 Unicode 十进制数字（如阿拉伯-印度数字 ٤٨٢٩١٠）归一为 ASCII 0-9，只留数字，最多 6 位。 */
+fun cleanLoginCode(input: String): String = buildString(6) {
+    val it = input.codePoints().iterator()
+    while (it.hasNext() && length < 6) {
+        val d = Character.digit(it.nextInt(), 10)
+        if (d in 0..9) append(('0'.code + d).toChar())
+    }
+}
 
 private val SignInShadow = Color(0x1F0F0F0F) // --notion-shadow
 private val SignInRing = Color(0x0D0F0F0F)

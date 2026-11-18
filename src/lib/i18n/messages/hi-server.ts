@@ -214,4 +214,11 @@ export const hiServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” प्रति फ़ाइल की सीमा {size} से बड़ी है। छोटी फ़ाइल चुनें।",
   "“{name}” is empty. Choose a file with content.": "“{name}” खाली है। सामग्री वाली फ़ाइल चुनें।",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” समर्थित नहीं है। PNG, JPEG, WEBP, PDF या टेक्स्ट फ़ाइल चुनें।",
+  "Forbidden.": "इसकी अनुमति नहीं है।",
+  "Invalid purchase.": "अमान्य खरीदारी।",
+  "This note no longer exists.": "यह नोट अब मौजूद नहीं है।",
+  "This proposal was discarded.": "यह सुझाव छोड़ दिया गया था।",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "यह सुझाव अब मान्य नहीं है। नया सुझाव पाने के लिए फिर से पूछें।",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "सुझाव बनने के बाद इस नोट में बदलाव हुआ है। नया सुझाव पाने के लिए फिर से पूछें।",
+  "Upload up to {max} files at a time.": "एक बार में अधिकतम {max} फ़ाइलें अपलोड करें।",
 };

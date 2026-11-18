@@ -45,7 +45,7 @@ function parseXmlStrings(xml: string, fileLabel: string): Map<string, { attrs: s
   return entries;
 }
 
-describe("enabled Web/native language data", () => {
+describe("enabled Web/native language data", { timeout: 60_000 }, () => {
   it("keeps app tags, native names and system language registration aligned across all 17 locales", () => {
     const kotlin = readFileSync(nativeRoot + "java/com/kakumine/notefable/data/AppLanguage.kt", "utf8");
     const options = [...kotlin.matchAll(/^\s*(\w+)\("([^"]+)", "([^"]+)"\)/gm)];

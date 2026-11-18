@@ -214,4 +214,11 @@ export const zhServer: Record<string, string> = {
   "This purchase belongs to another account.": "这笔购买属于另一个账号。",
   "This purchase is no longer active.": "这笔购买已经失效。",
   "Could not confirm your purchase. Please try again.": "无法确认你的购买，请重试。",
+  "Forbidden.": "无权执行此操作。",
+  "Invalid purchase.": "购买信息无效。",
+  "This note no longer exists.": "这篇笔记已经不存在。",
+  "This proposal was discarded.": "这条修改建议已被放弃。",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "这条修改建议已失效。请重新提问以获取新的建议。",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "提出修改建议后，这篇笔记已被修改。请重新提问以获取新的建议。",
+  "Upload up to {max} files at a time.": "一次最多只能上传 {max} 个文件。",
 };

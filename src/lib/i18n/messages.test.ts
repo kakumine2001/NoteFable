@@ -5,7 +5,8 @@ import ts from "typescript";
 import { en as blockNoteEn } from "@blocknote/core/locales";
 import { Converter } from "opencc-js";
 import { describe, expect, it } from "vitest";
-import { blockNoteDictionaryFor } from "./blocknote-locales";
+import { BLOCKNOTE_LOCALES_DIR, renderUpstreamBlockNoteLocale, UPSTREAM_BLOCKNOTE_LOCALES } from "../../../scripts/gen-blocknote-locales";
+import { cachedBlockNoteDictionary, loadBlockNoteDictionary } from "./blocknote-locales";
 import { LOCALES, type Locale } from "./locale";
 import { messagesFor } from "./messages";
 import { loadMessages } from "./messages/load";
@@ -108,7 +109,7 @@ describe("enabled dictionaries, lazy loader, and BlockNote locales", () => {
     }
   });
 
-  it("provides a complete BlockNote dictionary matching the English schema for all 17 locales", () => {
+  it("lazy-loads per-locale BlockNote dictionaries matching the English schema while keeping English synchronous", async () => {
     function checkShape(ref: unknown, candidate: unknown, pathLabel: string): string[] {
       if (typeof ref === "string") {
         return typeof candidate === "string" ? [] : [`${pathLabel}: expected string`];
@@ -130,9 +131,79 @@ describe("enabled dictionaries, lazy loader, and BlockNote locales", () => {
       return [];
     }
 
+    // English is ready synchronously for first render; non-English locales are not eagerly bundled.
+    expect(cachedBlockNoteDictionary("en")).toBe(blockNoteEn);
+    expect(cachedBlockNoteDictionary("ar")).toBeNull();
+
+    const staticSource = readFileSync(fileURLToPath(new URL("./blocknote-locales.ts", import.meta.url)), "utf8");
+    expect(staticSource).not.toMatch(/blocknote-custom-locales/);
+    expect(staticSource).toContain('await import("./blocknote-locales/ar")');
+
     for (const locale of LOCALES) {
-      const dict = blockNoteDictionaryFor(locale);
+      const dict = await loadBlockNoteDictionary(locale);
+      expect(cachedBlockNoteDictionary(locale)).toBe(dict);
       expect(checkShape(blockNoteEn, dict, locale)).toEqual([]);
     }
+  });
+
+  it("keeps generated upstream BlockNote locale modules in sync with @blocknote/core (npx tsx scripts/gen-blocknote-locales.ts)", () => {
+    for (const entry of UPSTREAM_BLOCKNOTE_LOCALES) {
+      const actual = readFileSync(path.join(BLOCKNOTE_LOCALES_DIR, entry.file), "utf8").replace(/\r\n/g, "\n");
+      expect(actual, entry.file).toBe(renderUpstreamBlockNoteLocale(entry.upstream, entry.exportName));
+    }
+  });
+});
+
+describe("API user-facing error marking", () => {
+  // Endpoints consumed only by server-to-server webhooks or internal native token plumbing whose error text is never shown to users.
+  const NON_USER_FACING_API_PATHS = [
+    "app/api/billing/webhook/",
+    "app/api/billing/google/notify/",
+    "app/api/native-auth/",
+    "app/api/uploads/local/",
+  ];
+
+  it("marks every literal error response in user-facing API routes and proposal handlers with msg() or fmt()", () => {
+    const srcRoot = fileURLToPath(new URL("../../", import.meta.url));
+    const listFiles = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const full = path.join(dir, entry.name);
+        return entry.isDirectory() ? listFiles(full) : [full];
+      });
+
+    const targets = [
+      ...listFiles(path.join(srcRoot, "app", "api")),
+      path.join(srcRoot, "lib", "note-proposals.ts"),
+    ].filter((file) => {
+      const rel = path.relative(srcRoot, file).replaceAll("\\", "/");
+      return /\.ts$/.test(rel) && !/\.(test|spec)\.ts$/.test(rel) && !NON_USER_FACING_API_PATHS.some((skip) => rel.startsWith(skip));
+    });
+
+    const unmarked: string[] = [];
+    const isBareString = (node: ts.Node) =>
+      ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateExpression(node);
+
+    for (const file of targets) {
+      const rel = path.relative(srcRoot, file).replaceAll("\\", "/");
+      const sf = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
+      const visit = (node: ts.Node) => {
+        if (ts.isPropertyAssignment(node) && ts.isIdentifier(node.name) && node.name.text === "error" && isBareString(node.initializer)) {
+          const line = sf.getLineAndCharacterOfPosition(node.getStart()).line + 1;
+          unmarked.push(`${rel}:${line} -> ${node.initializer.getText()}`);
+        }
+        if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "fail") {
+          for (const arg of node.arguments) {
+            if (isBareString(arg)) {
+              const line = sf.getLineAndCharacterOfPosition(arg.getStart()).line + 1;
+              unmarked.push(`${rel}:${line} -> ${arg.getText()}`);
+            }
+          }
+        }
+        ts.forEachChild(node, visit);
+      };
+      visit(sf);
+    }
+
+    expect(unmarked).toEqual([]);
   });
 });

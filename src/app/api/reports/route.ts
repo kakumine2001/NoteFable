@@ -10,7 +10,7 @@ import { clientNetworkKey, consumeReportQuota, refundUsage } from "@/lib/usage-l
 // ネイティブアプリの要求は Origin を付けないので通す。
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
-    return NextResponse.json({ error: "Forbidden." }, { status: 403 });
+    return NextResponse.json({ error: msg("Forbidden.") }, { status: 403 });
   }
   const parsed = parseReport(await request.json().catch(() => null));
   if (!parsed.ok) return NextResponse.json({ error: msg("Could not send the report.") }, { status: 400 });

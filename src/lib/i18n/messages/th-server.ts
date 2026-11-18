@@ -214,4 +214,11 @@ export const thServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” มีขนาดเกินขีดจำกัด {size} ต่อไฟล์ กรุณาเลือกไฟล์ที่มีขนาดเล็กลง",
   "“{name}” is empty. Choose a file with content.": "“{name}” เป็นไฟล์ว่าง กรุณาเลือกไฟล์ที่มีเนื้อหา",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "ไม่รองรับไฟล์ “{name}” กรุณาเลือกไฟล์ PNG, JPEG, WEBP, PDF หรือไฟล์ข้อความ",
+  "Forbidden.": "ไม่อนุญาตให้ดำเนินการนี้",
+  "Invalid purchase.": "รายการซื้อไม่ถูกต้อง",
+  "This note no longer exists.": "โน้ตนี้ไม่มีอยู่อีกต่อไป",
+  "This proposal was discarded.": "ข้อเสนอนี้ถูกละทิ้งแล้ว",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "ข้อเสนอนี้ใช้ไม่ได้แล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "โน้ตนี้ถูกแก้ไขหลังจากสร้างข้อเสนอแล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
+  "Upload up to {max} files at a time.": "อัปโหลดได้สูงสุดครั้งละ {max} ไฟล์",
 };

@@ -5,6 +5,7 @@ import { isLocale, LOCALE_DIRS, LOCALE_TAGS, type Locale } from "@/lib/i18n/loca
 import { messagesFor } from "@/lib/i18n/messages";
 import { createTranslator, msg } from "@/lib/i18n/translate";
 import { normalizeEmail } from "@/lib/email-address";
+import { normalizeDecimalDigits } from "@/lib/login-code";
 import { encodeSessionCookie } from "@/lib/native-google-login";
 import { prisma } from "@/lib/prisma";
 
@@ -32,7 +33,7 @@ export function parseEmail(value: unknown): string | null {
 
 export function parseCode(value: unknown): string | null {
   if (typeof value !== "string") return null;
-  const code = value.replace(/\s+/g, "");
+  const code = normalizeDecimalDigits(value).replace(/\s+/g, "");
   return /^\d{6}$/.test(code) ? code : null;
 }
 

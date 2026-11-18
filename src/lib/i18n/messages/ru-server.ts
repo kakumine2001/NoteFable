@@ -214,4 +214,11 @@ export const ruServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "Размер файла «{name}» превышает лимит ({size} на файл). Выберите файл меньшего размера.",
   "“{name}” is empty. Choose a file with content.": "Файл «{name}» пуст. Выберите файл с содержимым.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "Файл «{name}» не поддерживается. Выберите PNG, JPEG, WEBP, PDF или текстовый файл.",
+  "Forbidden.": "Доступ запрещён.",
+  "Invalid purchase.": "Недействительная покупка.",
+  "This note no longer exists.": "Этой заметки больше не существует.",
+  "This proposal was discarded.": "Это предложение было отклонено.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Это предложение больше недействительно. Повторите запрос, чтобы получить новое предложение.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Эта заметка изменилась после создания предложения. Повторите запрос, чтобы получить новое предложение.",
+  "Upload up to {max} files at a time.": "Можно загрузить не более {max} файлов за раз.",
 };

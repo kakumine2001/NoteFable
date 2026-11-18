@@ -214,4 +214,11 @@ export const deServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "„{name}“ überschreitet das Limit von {size} pro Datei. Wähle eine kleinere Datei aus.",
   "“{name}” is empty. Choose a file with content.": "„{name}“ ist leer. Wähle eine Datei mit Inhalt aus.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "„{name}“ wird nicht unterstützt. Wähle eine PNG-, JPEG-, WEBP-, PDF- oder Textdatei aus.",
+  "Forbidden.": "Zugriff verweigert.",
+  "Invalid purchase.": "Ungültiger Kauf.",
+  "This note no longer exists.": "Diese Notiz existiert nicht mehr.",
+  "This proposal was discarded.": "Dieser Vorschlag wurde verworfen.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Dieser Vorschlag ist nicht mehr gültig. Bitte frage erneut nach einem neuen Vorschlag.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Diese Notiz wurde nach dem Erstellen des Vorschlags geändert. Bitte frage erneut nach einem neuen Vorschlag.",
+  "Upload up to {max} files at a time.": "Lade höchstens {max} Dateien gleichzeitig hoch.",
 };

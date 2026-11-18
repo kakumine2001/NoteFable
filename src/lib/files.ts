@@ -61,7 +61,7 @@ export function validateAttachmentFiles(files: File[]) {
   // 重い PDF 解析や画像保存に入る前に弾くことで、API の負荷と想定外の入力を抑える。
   if (files.length > MAX_UPLOAD_FILES) {
     throw new AttachmentValidationError(
-      `Upload up to ${MAX_UPLOAD_FILES} files at a time.`,
+      fmt("Upload up to {max} files at a time.", { max: MAX_UPLOAD_FILES }),
       413,
     );
   }

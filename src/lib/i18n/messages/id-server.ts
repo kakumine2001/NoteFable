@@ -214,4 +214,11 @@ export const idServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” melebihi batas {size} per file. Pilih file yang lebih kecil.",
   "“{name}” is empty. Choose a file with content.": "“{name}” kosong. Pilih file yang memiliki isi.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” tidak didukung. Pilih file PNG, JPEG, WEBP, PDF, atau teks.",
+  "Forbidden.": "Akses ditolak.",
+  "Invalid purchase.": "Pembelian tidak valid.",
+  "This note no longer exists.": "Catatan ini sudah tidak ada.",
+  "This proposal was discarded.": "Usulan ini sudah dibuang.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Usulan ini sudah tidak berlaku. Minta lagi untuk mendapatkan usulan baru.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Catatan ini berubah setelah usulan dibuat. Minta lagi untuk mendapatkan usulan baru.",
+  "Upload up to {max} files at a time.": "Unggah maksimal {max} file sekaligus.",
 };

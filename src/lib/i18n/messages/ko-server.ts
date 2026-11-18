@@ -214,4 +214,11 @@ export const koServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” 파일이 파일당 제한 용량({size})을 초과해요. 더 작은 파일을 선택해 주세요.",
   "“{name}” is empty. Choose a file with content.": "“{name}” 파일이 비어 있어요. 내용이 있는 파일을 선택해 주세요.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” 파일은 지원하지 않아요. PNG, JPEG, WEBP, PDF 또는 텍스트 파일을 선택해 주세요.",
+  "Forbidden.": "권한이 없는 요청이에요.",
+  "Invalid purchase.": "유효하지 않은 결제예요.",
+  "This note no longer exists.": "이 노트는 더 이상 존재하지 않아요.",
+  "This proposal was discarded.": "이 제안은 이미 취소되었어요.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "이 제안은 더 이상 유효하지 않아요. 다시 요청해 새 제안을 받아 주세요.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "제안이 생성된 뒤 노트가 변경되었어요. 다시 요청해 새 제안을 받아 주세요.",
+  "Upload up to {max} files at a time.": "한 번에 최대 {max}개의 파일까지 업로드할 수 있어요.",
 };

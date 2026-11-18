@@ -214,4 +214,11 @@ export const viServer: Record<string, string> = {
   "“{name}” exceeds {size} per file. Choose a smaller file.": "“{name}” vượt quá giới hạn {size} mỗi tệp. Hãy chọn tệp nhỏ hơn.",
   "“{name}” is empty. Choose a file with content.": "“{name}” đang trống. Hãy chọn tệp có nội dung.",
   "“{name}” is not supported. Choose PNG, JPEG, WEBP, PDF or a text file.": "“{name}” không được hỗ trợ. Hãy chọn tệp PNG, JPEG, WEBP, PDF hoặc tệp văn bản.",
+  "Forbidden.": "Truy cập bị từ chối.",
+  "Invalid purchase.": "Giao dịch mua không hợp lệ.",
+  "This note no longer exists.": "Ghi chú này không còn tồn tại.",
+  "This proposal was discarded.": "Đề xuất này đã bị loại bỏ.",
+  "This proposal is no longer valid. Ask again to get a fresh proposal.": "Đề xuất này không còn hiệu lực. Hãy yêu cầu lại để nhận đề xuất mới.",
+  "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Ghi chú này đã thay đổi sau khi tạo đề xuất. Hãy yêu cầu lại để nhận đề xuất mới.",
+  "Upload up to {max} files at a time.": "Tải lên tối đa {max} tệp mỗi lần.",
 };
