@@ -84,16 +84,27 @@ export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, 
   }, []);
   useBackToClose(true, onClose);
   useEffect(() => {
-    ref.current?.showModal();
-    searchRef.current?.focus();
+    const dialog = ref.current;
+    if (!dialog) return;
+    const focusTarget = window.matchMedia("(pointer: coarse)").matches
+      ? dialog.querySelector('[role="radio"][aria-checked="true"]') ?? dialog.querySelector('[role="radio"]')
+      : searchRef.current;
+    // Set the target before showModal() runs its native focus step.
+    focusTarget?.setAttribute("autofocus", "");
+    dialog.showModal();
   }, []);
   const options: LocalePreference[] = ["auto", ...LOCALES];
   const filtered = options.filter((option) => option === "auto" || `${LOCALE_NAMES[option]} ${option} ${LOCALE_TAGS[option]}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
   const width = Math.min(320, viewport.width - 16);
   const height = Math.min(368, viewport.height - 16);
-  const top = anchor.bottom + 4 + height <= viewport.height - 8 ? anchor.bottom + 4
-    : Math.max(8, anchor.top - height - 4);
-  const style = { width, maxHeight: height, top, left: Math.max(8, Math.min(align === "end" ? anchor.right - width : anchor.left, viewport.width - width - 8)) };
+  const opensBelow = anchor.bottom + 4 + height <= viewport.height - 8;
+  const style = {
+    width,
+    left: Math.max(8, Math.min(align === "end" ? anchor.right - width : anchor.left, viewport.width - width - 8)),
+    ...(opensBelow
+      ? { top: anchor.bottom + 4, maxHeight: height }
+      : { top: "auto", bottom: window.innerHeight - anchor.top + 4, maxHeight: Math.max(0, Math.min(height, anchor.top - 12)) }),
+  };
   function keyboard(event: KeyboardEvent<HTMLDialogElement>) {
     if (event.nativeEvent.isComposing) return;
     const searching = event.target === searchRef.current;
