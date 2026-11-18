@@ -82,9 +82,9 @@ Every task that needs review goes through the same flow:
 
 1. Self-review: when the checks pass, review your own diff with your built-in reviewer (Claude Code: `/code-review <effort>`; Codex: `codex review --uncommitted`). Verify each finding, fix the valid ones, rerun the checks, commit.
 2. PR: bring `origin/main` in, push the branch, open a PR.
-3. Cross-review: the other agent reviews the PR read-only, with fresh context and only the requirements, the PR diff and these rules. Claude Code → `codex review -c review_model='"gpt-6.1-sol"' -c model_reasoning_effort='"<effort>"' --base origin/main`; Codex → `claude -p --model claude-sonnet-5-5 --effort <effort> "/code-review <effort> <PR number>"`. Verify the findings, fix the valid ones, push. Review again only when a fix changed behavior beyond what the finding asked for.
+3. Cross-review: the other agent reviews the PR read-only, with fresh context and only the requirements, the PR diff and these rules. Claude Code → `codex review -c review_model='"gpt-6.2-sol"' -c model_reasoning_effort='"<effort>"' --base origin/main`; Codex → `claude -p --model claude-sonnet-5-5 --effort <effort> "/code-review <effort> <PR number>"`. Verify the findings, fix the valid ones, push. Review again only when a fix changed behavior beyond what the finding asked for.
 4. Merge: once the cross-review has no open valid findings and the checks pass, merge the PR into `main` with a merge commit (`gh pr merge --merge`), then run `npm run git:cleanup`. Merging deploys production; this flow is the release approval, so don't push to `main` any other way.
-- Other cross-calls (questions, second opinions): Claude Code → Codex `codex exec -m gpt-6.1-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-sonnet-5-5 --effort high ...`.
+- Other cross-calls (questions, second opinions): Claude Code → Codex `codex exec -m gpt-6.2-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-sonnet-5-5 --effort high ...`.
 - Verify UI changes in a browser. No Playwright/E2E unless asked.
 
 ## Keep This File Small
