@@ -31,6 +31,7 @@ LET AI WORK ON YOUR NOTES
 • Ask the AI to rewrite or extend a note: it proposes the change, and you decide whether to apply it.
 • Projects keep related chats together with shared instructions and reference notes.
 • Custom instructions tell NoteFable about you and how you like your answers.
+• Pick an AI character companion—or upload your own icon—for chat and notes.
 
 FIND IT AGAIN
 • Search across all your chats and notes at once.
@@ -70,6 +71,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 • 让 AI 改写或扩充笔记：AI 先提出修改建议，由你决定是否应用。
 • 项目把相关的对话放在一起，共用指示和参考笔记。
 • 自定义指令：告诉 NoteFable 你是谁、希望它怎样回答。
+• 选择喜欢的 AI 角色形象（或上传自己的图标），陪伴你聊天和记笔记。
 
 随时找回
 • 一次搜索全部对话和笔记。
@@ -109,6 +111,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 • 讓 AI 改寫或擴充筆記：AI 先提出修改建議，由你決定是否套用。
 • 專案把相關的對話放在一起，共用指示和參考筆記。
 • 自訂指示：告訴 NoteFable 你是誰、希望它怎麼回答。
+• 選擇喜歡的 AI 角色形象（或上傳自己的圖示），陪伴你聊天與做筆記。
 
 隨時找回
 • 一次搜尋全部對話和筆記。
@@ -148,6 +151,7 @@ AI がノートを手伝う
 • ノートの書き直しや追記を頼むと、AI が変更を提案し、適用するかはあなたが決めます。
 • プロジェクトで関連するチャットをまとめ、共通の指示と参考ノートを設定できます。
 • カスタム指示で、自分のことや回答の好みを伝えられます。
+• 好みの AI キャラクターを選ぶか自分のアイコンをアップロードして、チャットやノートで使えます。
 
 すぐに見つかる
 • すべてのチャットとノートをまとめて検索。

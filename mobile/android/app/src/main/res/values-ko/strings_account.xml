@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">맞춤 지침을 불러오지 못했어요.</string>
     <string name="acct_err_save_custom_instructions">맞춤 지침을 저장하지 못했어요. 다시 시도해 주세요.</string>
     <string name="app_icon_title">아이콘</string>
-    <string name="app_icon_help">사이드바, AI 답변, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.</string>
-    <string name="app_icon_choose_emoji">이모지 선택</string>
+    <string name="app_icon_help">채팅, 사이드바, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.</string>
+    <string name="app_icon_choose_character">캐릭터 선택</string>
     <string name="app_icon_upload_image">이미지 업로드</string>
-    <string name="app_icon_use_logo">NoteFable 로고 사용</string>
     <string name="app_icon_could_not_save">이 기기에 아이콘을 저장하지 못했어요.</string>
 </resources>

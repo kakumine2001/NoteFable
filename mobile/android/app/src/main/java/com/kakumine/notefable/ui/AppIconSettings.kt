@@ -10,17 +10,18 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -42,12 +43,15 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -55,22 +59,26 @@ import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.APP_ICON_IMAGE_SIZE
 import com.kakumine.notefable.data.AppIconStore
+import com.kakumine.notefable.data.CharacterId
+import com.kakumine.notefable.data.CharacterState
+import com.kakumine.notefable.data.ResolvedAppIcon
 import com.kakumine.notefable.data.appIconCrop
 import com.kakumine.notefable.data.appIconDataUrl
 import com.kakumine.notefable.data.appIconImageBytes
 import com.kakumine.notefable.data.appIconSampleSize
-import com.kakumine.notefable.data.isImageIcon
+import com.kakumine.notefable.data.resolveAppIcon
+import com.kakumine.notefable.data.toCharacterIcon
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
 
-// 设置里可以换的图标（网页 src/components/app-icon.tsx、app-icon-settings.tsx，值和存法见 data/AppIcon.kt）。
+// 设置里可选的 AI 角色 / 自定义图标（网页 src/components/app-icon.tsx、app-icon-settings.tsx，存储规则见 data/AppIcon.kt）。
 
 @Composable
 internal fun appIconStore(): AppIconStore? = (LocalContext.current.applicationContext as? NoteFableApp)?.appIcon
 
-/** 现在的图标：null 是默认的 NoteFable 标志。换了以后用到的地方都跟着变。 */
+/** 现在的图标存储值：null 表示默认角色 Quill。 */
 @Composable
 internal fun currentAppIcon(): String? {
     val store = appIconStore() ?: return null
@@ -78,12 +86,12 @@ internal fun currentAppIcon(): String? {
     return icon
 }
 
-// 最近一次解出来的图片：侧栏和每条回答的标签用的是同一张，不必各解一遍。只在主线程（组合时）读写。
+// 最近一次解码的自定义上传图片缓存：多处复用同一张图，不必重复解码。只在主线程（组合时）读写。
 private var cachedIconKey: String? = null
 private var cachedIconImage: ImageBitmap? = null
 
 @Composable
-private fun rememberAppIconImage(icon: String): ImageBitmap? = remember(icon) {
+internal fun rememberAppIconImage(icon: String): ImageBitmap? = remember(icon) {
     if (cachedIconKey != icon) {
         cachedIconImage = appIconImageBytes(icon)?.let { bytes ->
             runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }.getOrNull()?.asImageBitmap()
@@ -94,24 +102,34 @@ private fun rememberAppIconImage(icon: String): ImageBitmap? = remember(icon) {
 }
 
 /**
- * 图标（网页 AppIcon）：设置里换过就画那个表情 / 图片，没换过画 NoteFable 标志。
- * 表情：size 见方的格子里居中，字号 size × 0.9（.app-icon-emoji）；图片：size 见方、圆角 22%、cover（.app-icon-image）。
- * 图片读不出来时画标志。
+ * 统一产品角色 / 图标组件（网页 AppIcon）：
+ * 未自定义时展示默认角色 Quill；选了其他官方角色展示对应角色（可带状态微动效）；上传了自定义图片则展示圆角缩略图。
  */
 @Composable
-internal fun AppIcon(size: Dp, tint: Color, icon: String? = currentAppIcon()) {
-    val image = if (icon != null && isImageIcon(icon)) rememberAppIconImage(icon) else null
-    when {
-        // 96 的图缩到 12–26 来画：用 Medium（带 mipmap），不然小尺寸下有锯齿。
-        image != null -> Image(
-            image, null, Modifier.size(size).clip(RoundedCornerShape(percent = 22)),
-            contentScale = ContentScale.Crop, filterQuality = FilterQuality.Medium,
-        )
-        icon == null || isImageIcon(icon) -> BrandMark(size, tint)
-        else -> Box(Modifier.size(size), Alignment.Center) {
-            // 网页是固定的 px，不跟系统字号放大：格子多大，表情就多大。装饰用，不念出来（网页 aria-hidden）。
-            val font = with(LocalDensity.current) { (size * 0.9f).toSp() }
-            Text(icon, Modifier.wrapContentSize(unbounded = true).clearAndSetSemantics { }, color = tint, fontSize = font, lineHeight = font, maxLines = 1, softWrap = false)
+internal fun AppIcon(
+    size: Dp,
+    @Suppress("UNUSED_PARAMETER") tint: Color = Sm.Ink,
+    icon: String? = currentAppIcon(),
+    state: CharacterState = CharacterState.Idle,
+    animated: Boolean = false,
+) {
+    when (val resolved = resolveAppIcon(icon)) {
+        is ResolvedAppIcon.Image -> {
+            val image = rememberAppIconImage(resolved.dataUrl)
+            if (image != null) {
+                Image(
+                    image,
+                    null,
+                    Modifier.size(size).clip(RoundedCornerShape(percent = 22)),
+                    contentScale = ContentScale.Crop,
+                    filterQuality = FilterQuality.Medium,
+                )
+            } else {
+                CharacterGraphic(CharacterId.Default, size, state = state, animated = animated)
+            }
+        }
+        is ResolvedAppIcon.Character -> {
+            CharacterGraphic(resolved.characterId, size, state = state, animated = animated)
         }
     }
 }
@@ -119,13 +137,12 @@ internal fun AppIcon(size: Dp, tint: Color, icon: String? = currentAppIcon()) {
 /** 设置里"图标"一栏的出错提示（网页 app-icon-settings.tsx 的 error）。 */
 internal enum class AppIconError { NotSaved, NotImage }
 
-/** "图标"一栏的界面状态：选表情的框开没开、出错提示。放在账号行里（和头像的一样），选图片回来时接得住。 */
+/** "图标"一栏的界面状态：角色选择网格是否展开、出错提示。 */
 @Stable
 internal class AppIconEditor(picking: Boolean, error: AppIconError?) {
     var picking by mutableStateOf(picking)
     var error by mutableStateOf(error)
 
-    /** 新打开设置时（网页那一栏重新挂载）。 */
     fun reset() {
         picking = false
         error = null
@@ -143,8 +160,7 @@ internal class AppIconEditor(picking: Boolean, error: AppIconError?) {
 internal fun rememberAppIconEditor(): AppIconEditor = rememberSaveable(saver = AppIconEditor.Saver) { AppIconEditor(false, null) }
 
 /**
- * "上传图片"：系统选择器（和头像同一个，只列 PNG / JPEG / WebP / GIF），选好后居中裁成正方形、缩到 96、存成 PNG 的 data URL
- * （网页 chooseImage + imageFileToIcon）。不是图片、读不出来提示"请选择图片文件。"。返回打开选择器的函数。
+ * "上传图片"：系统选择器（只列 PNG / JPEG / WebP / GIF），选好后居中裁成正方形、缩到 96、存成 PNG 的 data URL。
  */
 @Composable
 internal fun rememberAppIconImagePicker(editor: AppIconEditor, onPickerOpen: (Boolean) -> Unit): () -> Unit {
@@ -170,7 +186,6 @@ internal fun rememberAppIconImagePicker(editor: AppIconEditor, onPickerOpen: (Bo
     }
 }
 
-/** 选中的文件 → 存下来的值；不是图片或读不出来时为 null。按 EXIF 摆正，GIF 只取第一帧（和网页 createImageBitmap 相同）。 */
 private suspend fun readAppIconImage(resolver: ContentResolver, uri: Uri): String? {
     val type = withContext(Dispatchers.IO) { runCatching { resolver.getType(uri) }.getOrNull() }
     if (type?.startsWith("image/") != true) return null
@@ -200,47 +215,41 @@ private fun renderAppIcon(bitmap: Bitmap): String {
 }
 
 /*
- * 设置里"图标"一行（网页 AppIconSettings + settings-dialog.css 的 .settings-row / .settings-chip-row / .settings-app-icon-*，手机宽度的值）：
- * - 行（最小高 56、内边距 10×16、垂直居中）：左边标题 16/500 + 说明 13 灰（上 2），右边间距 16 处是 40 的圆形预览
- *   （白底、1px 深描边，里面是 22 的图标）。
- * - 下面一排可换行的小按钮（.settings-chip，左右 16、下 14、间距 8）："选择表情"（Smile）、"上传图片"（ImagePlus），
- *   换过以后多一个"使用 NoteFable 标志"（RotateCcw）。
- * - 出错提示 14 红（左右 16、下 12）。
- * - "选择表情"打开 / 收起下面的表情选择器（左右 16、下 16、1px 描边、圆角 10 的框，高 min(320, 屏高 − 220)），去掉键写"使用 NoteFable 标志"。
- * 选了就存在这台设备上（AppIconStore），不用按"保存"。
+ * 设置 → 通用 → 图标（网页 AppIconSettings + settings-dialog.css 手机宽度）：
+ * - 右侧 40dp 圆形预览（展示当前角色或自定义图片）；
+ * - 两个按钮：「选择角色」（展开 7 款官方预设角色网格）与「上传图片」（保留自定义图片上传）；
+ * - 已移除旧版「选择表情」与「使用 NoteFable 标志」按钮（选回默认角色 Quill 即可恢复默认）。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
     val store = appIconStore()
     val icon = currentAppIcon()
+    val resolved = resolveAppIcon(icon)
+    val selectedCharacterId = (resolved as? ResolvedAppIcon.Character)?.characterId
     val apply = { next: String? -> editor.error = if (store?.save(next) == true) null else AppIconError.NotSaved }
 
     Column(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp).padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.app_icon_title), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 Text(stringResource(R.string.app_icon_help), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 2.dp))
             }
             Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.BorderStrong, CircleShape), Alignment.Center) {
-                AppIcon(22.dp, Sm.Ink, icon)
+                AppIcon(24.dp, Sm.Ink, icon, animated = true)
             }
         }
         FlowRow(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 14.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            SettingsChip(Lucide.Smile, stringResource(R.string.app_icon_choose_emoji)) { editor.picking = !editor.picking }
+            SettingsChip(Lucide.Sparkles, stringResource(R.string.app_icon_choose_character)) { editor.picking = !editor.picking }
             SettingsChip(Lucide.ImagePlus, stringResource(R.string.app_icon_upload_image), onClick = onPickImage)
-            if (icon != null) {
-                SettingsChip(Lucide.RotateCcw, stringResource(R.string.app_icon_use_logo)) {
-                    apply(null)
-                    editor.picking = false
-                }
-            }
         }
         editor.error?.let {
             val text = when (it) {
@@ -250,15 +259,120 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
             Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
         }
         if (editor.picking) {
-            val shape = RoundedCornerShape(10.dp)
-            Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).fillMaxWidth().clip(shape).border(1.dp, Sm.Border, shape)) {
-                EmojiPickerBody(
-                    current = icon?.takeUnless(::isImageIcon),
-                    onChange = apply,
-                    onClose = { editor.picking = false },
-                    pickerHeight = minOf(320.dp, maxOf(80.dp, LocalConfiguration.current.screenHeightDp.dp - 220.dp)),
-                    removeLabel = stringResource(R.string.app_icon_use_logo),
-                )
+            CharacterPickerCard(
+                selectedId = selectedCharacterId,
+                onSelect = { id -> apply(toCharacterIcon(id)) },
+                onClose = { editor.picking = false },
+            )
+        }
+    }
+}
+
+@Composable
+private fun CharacterPickerCard(
+    selectedId: CharacterId?,
+    onSelect: (CharacterId) -> Unit,
+    onClose: () -> Unit,
+) {
+    val shape = RoundedCornerShape(10.dp)
+    val closeLabel = stringResource(R.string.close)
+    val defaultBadge = stringResource(R.string.pg_font_default)
+
+    Column(
+        Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Sm.Sidebar)
+            .border(1.dp, Sm.BorderStrong, shape),
+    ) {
+        Row(
+            Modifier.fillMaxWidth().background(Color.White).padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.app_icon_choose_character),
+                modifier = Modifier.weight(1f),
+                color = Sm.Muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Box(
+                Modifier.size(36.dp).clip(RoundedCornerShape(6.dp)).clickable(role = Role.Button, onClick = onClose)
+                    .semantics { contentDescription = closeLabel },
+                Alignment.Center,
+            ) {
+                LucideIcon(Lucide.X, 15.dp, Sm.Muted)
+            }
+        }
+        SettingsRowDivider()
+        Column(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            CharacterId.entries.chunked(3).forEach { rowItems ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    rowItems.forEach { character ->
+                        val isSelected = character == selectedId
+                        val cardShape = RoundedCornerShape(10.dp)
+                        val label = if (character.isDefault) "${character.displayName} ($defaultBadge)" else character.displayName
+                        Box(
+                            Modifier.weight(1f)
+                                .heightIn(min = 88.dp)
+                                .clip(cardShape)
+                                .background(Color.White)
+                                .border(
+                                    width = if (isSelected) 1.5.dp else 1.dp,
+                                    color = if (isSelected) Sm.Blue else Sm.BorderStrong,
+                                    shape = cardShape,
+                                )
+                                .clickable { onSelect(character) }
+                                .semantics(mergeDescendants = true) {
+                                    role = Role.RadioButton
+                                    selected = isSelected
+                                    contentDescription = label
+                                }
+                                .padding(horizontal = 6.dp, vertical = 10.dp),
+                        ) {
+                            if (isSelected) {
+                                Box(
+                                    Modifier.align(Alignment.TopEnd).size(18.dp).clip(CircleShape).background(Sm.Blue),
+                                    Alignment.Center,
+                                ) {
+                                    LucideIcon(Lucide.Check, 11.dp, Color.White, strokeWidth = 2.6f)
+                                }
+                            }
+                            Column(
+                                Modifier.fillMaxWidth().align(Alignment.Center),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                CharacterGraphic(
+                                    characterId = character,
+                                    size = 40.dp,
+                                    state = CharacterState.Idle,
+                                    animated = isSelected,
+                                )
+                                Text(
+                                    character.displayName,
+                                    color = Sm.Ink,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    textAlign = TextAlign.Center,
+                                    maxLines = 1,
+                                )
+                                if (character.isDefault) {
+                                    Box(
+                                        Modifier.clip(CircleShape).background(Sm.Hover).padding(horizontal = 6.dp, vertical = 1.dp),
+                                        Alignment.Center,
+                                    ) {
+                                        Text(defaultBadge, color = Sm.Muted, fontSize = 11.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    repeat(3 - rowItems.size) { Spacer(Modifier.weight(1f)) }
+                }
             }
         }
     }

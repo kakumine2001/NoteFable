@@ -16,8 +16,10 @@ import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
-import { parseChatStreamLine } from "@/lib/chat-stream";
+import { readChatEventStream } from "@/lib/chat-stream";
+import { deriveTurnCharacterState } from "@/lib/characters";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { MAX_MESSAGE_NOTES, type AttachedPage, type Message, type UploadFile } from "@/types/chat";
@@ -39,12 +41,54 @@ const QUICK_ACTIONS = [
 // 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。rem は 1rem の px（ボタンとパネルの大きさは CSS で rem 指定なので、ブラウザーの文字サイズ設定に合わせる）。
 const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16 });
 
+export function hasAssistantMessageOutput(message: Message | undefined): boolean {
+  return Boolean(
+    message && (
+      message.content.length > 0 ||
+      message.proposals?.length ||
+      message.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal")
+    ),
+  );
+}
+
+// 今回の送信（activeTurnAssistantId）だけから出力有無を判定し、保存・アップロード待ち中に前回の回答で responding に誤遷移させない。
+export function deriveNoteAssistantCharacterStates(input: {
+  messages: readonly Message[];
+  activeTurnAssistantId: string | null;
+  busy: boolean;
+  streaming: boolean;
+  outcome: "completed" | "error" | null;
+  isTyping: boolean;
+  hidden: boolean;
+}) {
+  const currentTurnAssistant = input.activeTurnAssistantId
+    ? input.messages.find((message) => message.id === input.activeTurnAssistantId)
+    : undefined;
+  const hasTurnOutput = hasAssistantMessageOutput(currentTurnAssistant);
+  return {
+    hasTurnOutput,
+    noteCharacterState: deriveTurnCharacterState({
+      isBusy: input.busy,
+      hasOutput: hasTurnOutput,
+      outcome: input.outcome,
+      isTyping: input.isTyping,
+      hidden: input.hidden,
+    }),
+    replyCharacterState: deriveTurnCharacterState({
+      isBusy: input.streaming,
+      hasOutput: hasTurnOutput,
+      outcome: input.outcome,
+      hidden: input.hidden,
+    }),
+  };
+}
+
 // /api/chat に送り、届いた本文の差分と途中経過を順に渡す。セッション ID はレスポンスヘッダーから受け取る。
 async function streamChat(
   body: FormData,
   onSession: (id: string) => void,
   onChunk: (chunk: string, activity: ActivityEvent[], elapsedMs: number) => void,
-) {
+): Promise<{ streamFailed: boolean }> {
   const startedAt = Date.now();
   const response = await fetch("/api/chat", { method: "POST", body });
   if (!response.ok || !response.body) {
@@ -54,29 +98,9 @@ async function streamChat(
   const id = response.headers.get("X-Session-Id");
   if (id) onSession(id);
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split(/\r?\n\r?\n/);
-    buffer = events.pop() ?? "";
-
-    let chunk = "";
-    const activity: ActivityEvent[] = [];
-    for (const eventText of events) {
-      for (const line of eventText.split(/\r?\n/)) {
-        try {
-          const item = parseChatStreamLine(line);
-          if (typeof item === "string") chunk += item;
-          else if (item) activity.push(item);
-        } catch { /* 壊れた 1 行は読み飛ばす。 */ }
-      }
-    }
-    if (chunk || activity.length) onChunk(chunk, activity, Date.now() - startedAt);
-  }
+  return readChatEventStream(response.body, (chunk, activity, receivedAt) => {
+    onChunk(chunk, activity, receivedAt - startedAt);
+  });
 }
 
 // ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
@@ -102,7 +126,21 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const [streaming, setStreaming] = useState(false);
   // 保存待ちから返答の終わりまで true。チャットのボタンを無効にするのに使う。
   const [busy, setBusy] = useState(false);
+  // 今回の送信に対応するアシスタント回答の ID（保存・アップロード待ちの間に前回の回答を出力済みと誤認しないため）。
+  const [activeTurnAssistantId, setActiveTurnAssistantId] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
+  const [outcome, setOutcome] = useState<"completed" | "error" | null>(null);
+  const outcomeTimer = useRef(0);
+  const docHidden = useDocumentHidden();
+  const flashOutcome = (kind: "completed" | "error" | null) => {
+    window.clearTimeout(outcomeTimer.current);
+    setOutcome(kind);
+    if (kind) {
+      outcomeTimer.current = window.setTimeout(() => setOutcome(null), kind === "completed" ? 650 : 950);
+    }
+  };
+  useEffect(() => () => window.clearTimeout(outcomeTimer.current), []);
   const [guestLimit, setGuestLimit] = useState(false);
   const [upgradeLimit, setUpgradeLimit] = useState(false);
   // 次の発言に添付するファイルとノート。送信が受け付けられたら空にする。
@@ -272,12 +310,17 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const rawFiles = sentFiles.map(({ file }) => file);
     const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
-    if (problem) { setError(problem); return; }
+    if (problem) { setError(problem); flashOutcome("error"); return; }
+    const assistantId = crypto.randomUUID();
     sending.current = true;
+    setActiveTurnAssistantId(assistantId);
     setBusy(true);
     setError("");
+    flashOutcome(null);
     if (!(await flush())) {
       setError(msg("Resolve the note's unsaved changes first, then ask again."));
+      setActiveTurnAssistantId(null);
+      flashOutcome("error");
       sending.current = false;
       setBusy(false);
       return;
@@ -291,6 +334,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
+      setActiveTurnAssistantId(null);
+      flashOutcome("error");
       sending.current = false;
       setBusy(false);
       return;
@@ -299,7 +344,6 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     }
     stick.current = true;
 
-    const assistantId = crypto.randomUUID();
     setMessages((current) => [
       ...current,
       {
@@ -326,7 +370,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     // サーバーが発言を受け付けたか。受け付ける前に断られたら、添付は入力欄に残し、上げたファイルは片付ける。
     let accepted = false;
     try {
-      await streamChat(
+      const { streamFailed } = await streamChat(
         body,
         (id) => {
           sessionId.current = id;
@@ -343,7 +387,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           thinkingMs: message.thinkingMs ?? (chunk ? elapsedMs : undefined),
         })),
       );
+      flashOutcome(streamFailed ? "error" : "completed");
     } catch (caught) {
+      flashOutcome("error");
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const limited = caught instanceof UsageLimitError;
       if (!accepted && tickets.length) void cleanupClientUploads(tickets);
@@ -380,13 +426,21 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (event.key === "Escape" && !phone) close();
   }
 
-  const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
+  const { noteCharacterState, replyCharacterState } = deriveNoteAssistantCharacterStates({
+    messages,
+    activeTurnAssistantId,
+    busy,
+    streaming,
+    outcome,
+    isTyping: open && (inputFocused || Boolean(input.trim())),
+    hidden: docHidden,
+  });
 
   const panel = (
     <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-label={t("Ask AI about this note")}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
-        <AppIcon size={16} />
+        <AppIcon size={18} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
         <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
@@ -402,7 +456,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             </div>
           </div>
         ) : messages.map((message) => (
-          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === lastAssistant?.id} thinkingSeconds={seconds} />
+          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
+            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} />
         ))}
       </div>
 
@@ -437,7 +492,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           </ul>
         )}
         <div className="note-ai-composer">
-          <textarea ref={inputRef} value={input} rows={1} readOnly={Boolean(uploadProgress)} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
+          <textarea ref={inputRef} value={input} rows={1} readOnly={Boolean(uploadProgress)}
+            onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
+            onChange={(event) => { setInput(event.target.value); if (outcome === "error") flashOutcome(null); }} onKeyDown={onKeyDown}
             onPaste={(event) => {
               const pasted = getClipboardImageFiles(event.clipboardData.items);
               if (!pasted.length) return;
@@ -466,7 +523,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
         aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
-        <AppIcon size={24} />
+        <AppIcon size={28} state={noteCharacterState} animated />
       </button>
       {open && (phone
         ? createPortal(

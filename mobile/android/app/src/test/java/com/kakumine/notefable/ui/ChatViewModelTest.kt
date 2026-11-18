@@ -2,6 +2,8 @@ package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.ChatBackend
+import com.kakumine.notefable.data.CharacterOutcome
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.AttachError
 import com.kakumine.notefable.data.ChatStreamEvent
@@ -109,6 +111,14 @@ class ChatViewModelTest {
 
         override suspend fun discardUploads(tickets: List<String>) {
             discarded += tickets
+        }
+
+        var stopAcknowledged = false
+        val stops = mutableListOf<String>()
+
+        override suspend fun stopSession(sessionId: String) {
+            if (!stopAcknowledged) throw IOException("offline")
+            stops += sessionId
         }
     }
 
@@ -734,8 +744,25 @@ class ChatViewModelTest {
 
         val answer = vm.state.value.messages.last()
         assertFalse(answer.generatingImage)
+        assertTrue(answer.images.isEmpty())
+        // Failed image turns keep imageTurn/isImageAnswer=true and omit the text-chat model ID.
+        assertTrue(answer.imageTurn)
+        assertTrue(answer.isImageAnswer)
+        assertNull(answer.modelId)
         assertEquals("No image today.", answer.errorDetail)
         assertFalse(vm.state.value.sending)
+
+        // Even if a message carried a modelId, imageTurn=true keeps isImageAnswer=true after generatingImage clears.
+        val syntheticFailedImage = UiMessage(
+            id = "img-fail",
+            role = MessageRole.Assistant,
+            content = "",
+            modelId = "a",
+            generatingImage = false,
+            imageTurn = true,
+            errorDetail = "No image today.",
+        )
+        assertTrue(syntheticFailedImage.isImageAnswer)
     }
 
     @Test
@@ -827,5 +854,196 @@ class ChatViewModelTest {
 
         assertEquals(listOf(Triple("s1", localIds[0], "db-1"), Triple("s1", localIds[1], "db-2")), renames)
         assertEquals(localIds, vm.state.value.messages.map { it.key })
+    }
+
+    @Test
+    fun `character state tracks real turn lifecycle and clears immediately on stop`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)
+        advanceUntilIdle()
+
+        assertEquals(CharacterState.Idle, vm.state.value.heroCharacterState())
+        assertEquals(CharacterState.Typing, vm.state.value.heroCharacterState(isTyping = true))
+
+        vm.send("hi")
+        runCurrent()
+        assertEquals(CharacterState.Thinking, vm.state.value.activeReplyCharacterState())
+
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Hello"))
+        settle()
+        assertEquals(CharacterState.Responding, vm.state.value.activeReplyCharacterState())
+
+        backend.stored = listOf(MessageDto("db-1", "USER", "hi"), MessageDto("db-2", "ASSISTANT", "Hello"))
+        backend.events.close()
+        runCurrent()
+        advanceTimeBy(100)
+        assertEquals(CharacterOutcome.Completed, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Completed, vm.state.value.activeReplyCharacterState())
+
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        // Stopping a turn clears Thinking/Responding without flashing Completed.
+        backend.events = Channel(Channel.UNLIMITED)
+        vm.send("stop me")
+        runCurrent()
+        assertEquals(CharacterState.Thinking, vm.state.value.activeReplyCharacterState())
+        vm.stop()
+        runCurrent()
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        // Failed turn flashes Error briefly, then returns to Idle.
+        backend.streamError = IOException("network down")
+        vm.send("fail me")
+        runCurrent()
+        advanceTimeBy(100)
+        assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Error, vm.state.value.activeReplyCharacterState())
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+    }
+
+    @Test
+    fun `streamed failure after partial output flashes Error instead of Completed and preserves partial answer`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = newViewModel(backend)
+
+        vm.send("explain photosynthesis")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Photosynthesis converts light"))
+        settle()
+        assertEquals(CharacterState.Responding, vm.state.value.activeReplyCharacterState())
+
+        val errorSuffix = "\n\nRequest failed: Provider connection reset."
+        backend.events.send(ChatStreamEvent.Delta(errorSuffix))
+        backend.events.send(
+            ChatStreamEvent.Activity(
+                Json.parseToJsonElement("""{"type":"failure","id":"request-failure","offset":31,"detail":"Provider connection reset."}""").jsonObject,
+            ),
+        )
+        backend.stored = listOf(
+            MessageDto("db-1", "USER", "explain photosynthesis"),
+            MessageDto(
+                "db-2",
+                "ASSISTANT",
+                "Photosynthesis converts light$errorSuffix",
+                activity = Json.parseToJsonElement("""[{"id":"request-failure","kind":"failure","offset":31,"detail":"Provider connection reset."}]"""),
+            ),
+        )
+        backend.events.close()
+        runCurrent()
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Error, vm.state.value.activeReplyCharacterState())
+        assertEquals("Photosynthesis converts light$errorSuffix", vm.state.value.messages.last().content)
+        assertEquals(FailureInfo(31, "Provider connection reset."), vm.state.value.messages.last().failure)
+
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+    }
+
+    @Test
+    fun `server-acknowledged stop after partial output ends idle and never flashes Completed`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply { stopAcknowledged = true }
+        val vm = newViewModel(backend)
+
+        vm.send("write an essay")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Partial essay"))
+        settle()
+        assertEquals(CharacterState.Responding, vm.state.value.activeReplyCharacterState())
+
+        vm.stop()
+        runCurrent()
+        assertEquals(listOf("s1"), backend.stops)
+        assertTrue(vm.state.value.stopping)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+        assertNull(vm.state.value.characterOutcome)
+
+        // Server saves partial answer and closes SSE stream normally.
+        backend.stored = listOf(
+            MessageDto("db-1", "USER", "write an essay"),
+            MessageDto("db-2", "ASSISTANT", "Partial essay"),
+        )
+        backend.events.close()
+        runCurrent()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        advanceTimeBy(100)
+        runCurrent()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        advanceUntilIdle()
+        assertFalse(vm.state.value.sending)
+        assertFalse(vm.state.value.stopping)
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+        assertEquals("Partial essay", vm.state.value.messages.last().content)
+    }
+
+    @Test
+    fun `outcome timers are scoped per session so sending in another chat never freezes an earlier chat error cue`() = runTest(dispatcher) {
+        val backend = FakeBackend().apply {
+            stored = listOf(MessageDto("u1", "USER", "earlier"))
+            messagesHandler = { id ->
+                if (id == "s2") listOf(MessageDto("o1", "USER", "other")) else stored
+            }
+        }
+        val vm = newViewModel(backend)
+        vm.openSession("s1")
+        advanceUntilIdle()
+
+        // Chat s1 fails -> 950ms error cue starts on s1.
+        backend.streamError = IOException("network down")
+        vm.send("fail in s1")
+        runCurrent()
+        assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+
+        // 200ms later user switches to s2 and starts a live turn (clearing s2's outcome).
+        advanceTimeBy(200)
+        runCurrent()
+        vm.openSession("s2")
+        runCurrent()
+        assertNull(vm.state.value.characterOutcome)
+
+        backend.streamError = null
+        backend.events = Channel(Channel.UNLIMITED)
+        try {
+            vm.send("work in s2")
+            backend.events.send(ChatStreamEvent.Started("s2"))
+            runCurrent()
+
+            // Return to s1 at 600ms elapsed for s1 (while s2 is still waiting in background): s1 still shows Error.
+            advanceTimeBy(400)
+            runCurrent()
+            vm.openSession("s1")
+            runCurrent()
+            assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+            assertEquals(CharacterState.Error, vm.state.value.activeReplyCharacterState())
+
+            // At 950ms total for s1 (350ms more), s1's own timer expires even while s2 is still waiting.
+            advanceTimeBy(350)
+            runCurrent()
+            assertNull(vm.state.value.characterOutcome)
+            assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+        } finally {
+            // Clean up the running background stream on s2 even when an assertion above fails,
+            // so its ticker cannot keep the test scheduler alive.
+            vm.openSession("s2")
+            runCurrent()
+            vm.stop()
+            advanceUntilIdle()
+        }
     }
 }

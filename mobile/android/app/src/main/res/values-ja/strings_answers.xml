@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">コピーできませんでした。テキストを選択してコピーしてください。</string>
     <string name="image_download">画像をダウンロード</string>
     <string name="generated_image">生成された画像</string>
+    <string name="ai_reply">AIの返答</string>
 </resources>

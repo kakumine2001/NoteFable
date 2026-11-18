@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">कॉपी नहीं हो सका। कृपया टेक्स्ट चुनकर स्वयं कॉपी करें।</string>
     <string name="image_download">इमेज डाउनलोड करें</string>
     <string name="generated_image">बनाई गई इमेज</string>
+    <string name="ai_reply">AI का जवाब</string>
 </resources>

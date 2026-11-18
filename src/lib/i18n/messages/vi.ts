@@ -679,4 +679,7 @@ export const vi: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” sẽ bị xóa. Các ghi chú bên trong vẫn được giữ lại và đưa ra ngoài dự án.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” sẽ được chuyển vào Thùng rác. Bạn có thể khôi phục trong vòng {count} ngày.",
   "＋ New project": "＋ Dự án mới",
+  "Choose a character": "Chọn nhân vật",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Hiển thị trong trò chuyện, ở thanh bên và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.",
+  "AI reply": "Câu trả lời của AI",
 };

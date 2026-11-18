@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">Не удалось скопировать. Выделите текст и скопируйте его вручную.</string>
     <string name="image_download">Скачать изображение</string>
     <string name="generated_image">Сгенерированное изображение</string>
+    <string name="ai_reply">Ответ ИИ</string>
 </resources>

@@ -26,6 +26,9 @@ import com.kakumine.notefable.data.ChatStreamEvent
 import com.kakumine.notefable.data.Activity
 import com.kakumine.notefable.data.ActivityEvent
 import com.kakumine.notefable.data.ActivityStep
+import com.kakumine.notefable.data.CharacterOutcome
+import com.kakumine.notefable.data.CharacterState
+import com.kakumine.notefable.data.deriveTurnCharacterState
 import com.kakumine.notefable.data.FailureInfo
 import com.kakumine.notefable.data.Proposal
 import com.kakumine.notefable.data.GeneratedImageDto
@@ -68,6 +71,8 @@ data class UiMessage(
     val thinkingMs: Long? = null,
     /** 正在生成图片：显示占位卡片而不是转圈。 */
     val generatingImage: Boolean = false,
+    /** 图片生成回合（失败后 generatingImage 变回 false、images 为空时仍保留，避免误显示文字聊天模型名或允许按文字改写）。 */
+    val imageTurn: Boolean = generatingImage || images.isNotEmpty(),
     /** 服务端在正文末尾追加的"Request failed: …"的位置（activity 里的 failure），界面据此换成译文。 */
     val failure: FailureInfo? = null,
     /**
@@ -88,7 +93,11 @@ data class UiMessage(
     val key: String = id,
     /** 这条消息还有别的版本（编辑过的提问、重新生成的回答）时的位置和前后版本；只有一个版本时为空。 */
     val versions: MessageVersions? = null,
-)
+) {
+    /** 图片生成回合（生成中、已完成或生成失败）：回答顶部不标文字聊天模型名，提问不开放按文字改写。 */
+    val isImageAnswer: Boolean
+        get() = imageTurn || generatingImage || images.isNotEmpty()
+}
 
 /** 发送前上传附件的进度（网页输入栏下方的那一行）。 */
 sealed interface UploadProgress {
@@ -165,7 +174,37 @@ data class ChatUiState(
      * 还没拿到会话 ID 的新聊天不在里面。侧栏据此不让删生成中的聊天。
      */
     val generatingSessionIds: Set<String> = emptySet(),
+    /** 当前聊天的角色完成 / 出错短暂状态反馈（网页 characterOutcome）。 */
+    val characterOutcome: CharacterOutcome? = null,
 ) {
+    private val hasActiveTurnOutput: Boolean
+        get() {
+            val last = messages.lastOrNull() ?: return false
+            if (last.role != MessageRole.Assistant) return false
+            return last.content.isNotEmpty() ||
+                last.images.isNotEmpty() ||
+                last.proposals.isNotEmpty() ||
+                last.activity.any { it is ActivityStep.ProposalStep }
+        }
+
+    fun heroCharacterState(isTyping: Boolean = false, hidden: Boolean = false): CharacterState =
+        deriveTurnCharacterState(
+            isBusy = sending || upload != null,
+            isStopping = stopping,
+            hasOutput = hasActiveTurnOutput,
+            outcome = characterOutcome,
+            isTyping = isTyping,
+            hidden = hidden,
+        )
+
+    fun activeReplyCharacterState(hidden: Boolean = false): CharacterState =
+        deriveTurnCharacterState(
+            isBusy = sending && upload == null,
+            isStopping = stopping,
+            hasOutput = hasActiveTurnOutput,
+            outcome = characterOutcome,
+            hidden = hidden,
+        )
     /** 图片交给图片接口时不受聊天模型限制。 */
     val supportsImages: Boolean
         get() = imageMode || selectedModel?.supportsImageInput != false
@@ -242,8 +281,13 @@ class ChatViewModel(
         private set
 
     fun updateDraft(text: String) {
+        val changed = text != draft
         draft = text
         savedState[DRAFT_KEY] = text
+        val activeKey = keyOf(_state.value)
+        if (changed && outcomes[activeKey] == CharacterOutcome.Error) {
+            flashOutcome(activeKey, null)
+        }
     }
 
     // ---- 每个聊天各自的消息与回答（网页 page.tsx 的 sessionMessagesRef / streamingSessionsRef） ----
@@ -335,6 +379,33 @@ class ChatViewModel(
     /** 已经请服务端停止、在等回答结束的聊天。 */
     private val stopping = mutableSetOf<String>()
 
+    /** 每个聊天各自的角色短暂完成 / 出错反馈与计时任务（切换聊天或在别的聊天里发送不会取消其它聊天的计时）。 */
+    private val outcomes = mutableMapOf<String, CharacterOutcome>()
+    private val outcomeJobs = mutableMapOf<String, Job>()
+
+    private fun syncOutcome() {
+        _state.update { it.copy(characterOutcome = outcomes[keyOf(it)]) }
+    }
+
+    private fun flashOutcome(key: String, kind: CharacterOutcome?) {
+        outcomeJobs.remove(key)?.cancel()
+        if (kind == null) {
+            if (outcomes.remove(key) != null) syncOutcome()
+            return
+        }
+        outcomes[key] = kind
+        syncOutcome()
+        val job = viewModelScope.launch {
+            delay(if (kind == CharacterOutcome.Completed) 650L else 950L)
+            if (outcomes[key] == kind) {
+                outcomes.remove(key)
+                outcomeJobs.remove(key)
+                syncOutcome()
+            }
+        }
+        outcomeJobs[key] = job
+    }
+
     init {
         viewModelScope.launch { loadModels() }
         refreshSessions()
@@ -371,6 +442,8 @@ class ChatViewModel(
     /** 聊天已删除：从列表去掉；删的是正在看的聊天时回到新聊天（网页 deleteSession）。 */
     fun onSessionDeleted(id: String) {
         cache.remove(id)
+        outcomeJobs.remove(id)?.cancel()
+        outcomes.remove(id)
         if (_state.value.activeSessionId == id) newChat()
         patchSessions { list -> list.filterNot { it.id == id } }
     }
@@ -421,6 +494,9 @@ class ChatViewModel(
         cache.clear()
         draftIcons.clear()
         loadJob?.cancel()
+        outcomeJobs.values.toList().forEach { it.cancel() }
+        outcomeJobs.clear()
+        outcomes.clear()
         newChatKey = "$NEW_CHAT_PREFIX${++newChats}"
         // 草稿文字留着（网页登录前把它预存起来、回来后放回输入栏）；附件和网页一样不跨登录保留（网页登录会重载页面，
         // 登录提示里也写着"登录时不会保留附件"）。
@@ -430,7 +506,7 @@ class ChatViewModel(
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
                 files = if (it.upload == null) emptyList() else it.files, attachedPages = emptyList(),
                 notice = null, guestLimit = null, upgradeLimit = null, reveal = null, rejectedEdit = null,
-                draftIcon = null,
+                draftIcon = null, characterOutcome = null,
             )
         }
         syncBusy()
@@ -481,6 +557,8 @@ class ChatViewModel(
         if (previous.startsWith(NEW_CHAT_PREFIX) && previous !in streams) {
             cache.remove(previous)
             draftIcons.remove(previous)
+            outcomeJobs.remove(previous)?.cancel()
+            outcomes.remove(previous)
         }
         if (sessionId == null) newChatKey = "$NEW_CHAT_PREFIX${++newChats}"
         val key = sessionId ?: newChatKey
@@ -489,6 +567,7 @@ class ChatViewModel(
             it.copy(
                 activeSessionId = sessionId, messages = cache[key] ?: emptyList(), messagesLoading = loading, messagesFailed = false,
                 notice = null, reveal = null, rejectedEdit = null,
+                characterOutcome = outcomes[key],
             )
         }
         syncDraftIcon()
@@ -732,17 +811,20 @@ class ChatViewModel(
         // 历史还在加载、或加载失败时发送，新消息会插进空列表（失败页还会盖住它们）；而回答结束后的对账又会换掉整个列表。读到历史再发。
         if (prompt.isEmpty() || current.sending || current.messagesLoading || current.messagesFailed) return
         if (current.upload != null || current.filesError != null || current.importing > 0) return
+        val key = keyOf(current)
         // 图片接口只收文字和参考图，不读笔记：不悄悄丢掉，提示用户（网页同样）。
         if (current.imageMode && current.attachedPages.isNotEmpty()) {
             _state.update { it.copy(notice = ComposerNotice.PagesInImageMode) }
+            flashOutcome(key, CharacterOutcome.Error)
             return
         }
         // 放回被拒的提问时可能超过上限：不悄悄删减，让用户自己移除。
         if (current.attachedPages.size > MAX_MESSAGE_NOTES) {
             _state.update { it.copy(notice = ComposerNotice.TooManyPages) }
+            flashOutcome(key, CharacterOutcome.Error)
             return
         }
-        val key = keyOf(current)
+        flashOutcome(key, null)
         // 正在进行的静默对账返回的是发送前的快照，会抹掉刚加进去的消息，所以先取消。
         loadJob?.cancel()
         reconcileJobs.remove(key)?.cancel()
@@ -811,6 +893,7 @@ class ChatViewModel(
     private class TurnOutcome(
         val sessionId: String?,
         val completed: Boolean,
+        val streamFailed: Boolean = false,
         val stopped: Boolean = false,
         val hasAnswer: Boolean = false,
         val resync: Boolean = false,
@@ -823,13 +906,19 @@ class ChatViewModel(
         // 先登记再启动：主线程立即调度时，任务可能在 launch 返回前就跑完。
         run.job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             var outcome: TurnOutcome? = null
+            var stopRequested = false
             try {
                 outcome = body()
             } finally {
+                stopRequested = run.key in stopping
                 removeStream(run.key, run.job)
                 syncBusy()
             }
             if (run.epoch == epoch) outcome?.let {
+                when {
+                    it.streamFailed -> flashOutcome(run.key, CharacterOutcome.Error)
+                    it.completed && !it.stopped && !stopRequested -> flashOutcome(run.key, CharacterOutcome.Completed)
+                }
                 if (it.stopped) reconcileStopped(it.sessionId, it.hasAnswer, it.knownBefore) else reconcile(it.sessionId, it.completed || it.resync)
             }
         }
@@ -859,6 +948,10 @@ class ChatViewModel(
             if (next < 0) emptyList() else dest.drop(1 + next)
         } else dest
         if (removeStream(from, run.job)) addStream(sessionId, run.job)
+        outcomes.remove(from)?.let { kind ->
+            outcomeJobs.remove(from)?.cancel()
+            flashOutcome(sessionId, kind)
+        }
         run.key = sessionId
         if (_state.value.activeSessionId == null && newChatKey == from) _state.update { it.copy(activeSessionId = sessionId) }
         if (keyOf(_state.value) == sessionId) {
@@ -940,6 +1033,7 @@ class ChatViewModel(
             // 用户已经去了别的聊天：不在那边的输入栏报错（网页只在 navigationIntent 没变时 setSendError）。
             val report = error !is CancellationException && navigation == navigationCount
             _state.update { it.copy(upload = null, notice = if (report) ComposerNotice.UploadFailed else it.notice) }
+            if (report) flashOutcome(keyOf(_state.value), CharacterOutcome.Error)
             flushRestores()
             if (error is CancellationException) throw error
             return null
@@ -982,6 +1076,7 @@ class ChatViewModel(
     /** 回答结束（完成、失败或被停止）时收尾：去掉"进行中"状态，失败则记下原因。 */
     private fun finishAssistant(run: TurnRun, turn: Turn, failed: Throwable?) {
         if (run.epoch != epoch) return
+        if (failed != null) flashOutcome(run.key, CharacterOutcome.Error)
         val assistantId = turn.assistantId
         val limited = failed is ApiException && failed.isUsageLimit
         // 还没拿到会话 ID 的新聊天失败了，而用户已经离开它：这个聊天再也打不开（网页发送前就建好了会话，
@@ -1138,6 +1233,7 @@ class ChatViewModel(
         if (target.role != (if (text != null) MessageRole.User else MessageRole.Assistant)) return
         loadJob?.cancel()
         reconcileJobs.remove(sessionId)?.cancel()
+        flashOutcome(sessionId, null)
 
         // 从这条消息起先从画面上拿掉，放上新版本的位置；服务端只是把它们隐藏，不删除。
         val modelId = current.selectedModel?.id
@@ -1176,6 +1272,7 @@ class ChatViewModel(
         if (current.sending || current.messagesLoading || sessionId in streams || versionJob?.isActive == true) return
         loadJob?.cancel()
         reconcileJobs.remove(sessionId)?.cancel()
+        flashOutcome(sessionId, null)
         _state.update { it.copy(notice = null, reveal = null) }
         val identity = epoch
         versionJob = viewModelScope.launch {
@@ -1236,8 +1333,8 @@ class ChatViewModel(
         val job = viewModelScope.launch(start = CoroutineStart.LAZY) {
             val list = runCatching { backend.messages(finished) }.getOrNull()
             ensureActive()
-            // 这期间又在这个聊天里发了新消息：快照是旧的，不用。
-            if (list != null && finished !in streams) applyLoaded(finished, list)
+            // 这期间又在这个聊天里发了新消息：快照是旧的，不用；空列表也不冲掉本机已收到的回答。
+            if (!list.isNullOrEmpty() && finished !in streams) applyLoaded(finished, list)
         }
         reconcileJobs[finished] = job
         job.invokeOnCompletion { if (reconcileJobs[finished] === job) reconcileJobs.remove(finished) }
@@ -1251,6 +1348,7 @@ class ChatViewModel(
         val activityEvents = mutableListOf<ActivityEvent>()
         var sessionId = request.sessionId
         var failure: Throwable? = null
+        var streamFailed = false
         var completed = false
         var stopped = false
         val startedAt = System.currentTimeMillis()
@@ -1292,11 +1390,16 @@ class ChatViewModel(
                                 refreshSessions()
                             }
                             is ChatStreamEvent.Delta -> pending.append(event.text)
-                            // 进度条与提案卡片的事件；服务端追加的失败文的位置另外记下。
+                            // 进度条与提案卡片的事件；服务端追加的失败文的位置另外记下，并把本回合标为出错（不播完成反馈）。
                             is ChatStreamEvent.Activity -> {
-                                Activity.parseEvent(event.payload)?.let(activityEvents::add)
-                                FailureInfo.from(event.payload)?.let { failure ->
-                                    updateAssistant(run, assistantId) { it.copy(failure = failure) }
+                                val parsed = Activity.parseEvent(event.payload)
+                                if (parsed != null) {
+                                    if (parsed is ActivityEvent.Failure) streamFailed = true
+                                    activityEvents += parsed
+                                }
+                                FailureInfo.from(event.payload)?.let { failureInfo ->
+                                    streamFailed = true
+                                    updateAssistant(run, assistantId) { it.copy(failure = failureInfo) }
                                 }
                             }
                         }
@@ -1323,7 +1426,7 @@ class ChatViewModel(
         // 编辑 / 重新生成没开始就失败：finishAssistant 已经退回原样，再核对一次服务端的状态。
         val resync = failure != null && turn.before != null && cache[run.key]?.none { it.id == assistantId } == true
         return TurnOutcome(
-            sessionId, completed, stopped = stopped, hasAnswer = hasAnswer, resync = resync,
+            sessionId, completed, streamFailed = streamFailed, stopped = stopped, hasAnswer = hasAnswer, resync = resync,
             knownBefore = turn.before.orEmpty().mapTo(mutableSetOf()) { it.id },
         )
     }

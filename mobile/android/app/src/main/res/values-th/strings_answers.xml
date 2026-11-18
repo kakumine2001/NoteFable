@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">คัดลอกไม่สำเร็จ กรุณาคลุมข้อความแล้วคัดลอกด้วยตนเอง</string>
     <string name="image_download">ดาวน์โหลดรูปภาพ</string>
     <string name="generated_image">รูปภาพที่สร้างขึ้น</string>
+    <string name="ai_reply">คำตอบของ AI</string>
 </resources>

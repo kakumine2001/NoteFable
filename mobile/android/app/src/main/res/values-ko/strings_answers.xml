@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">복사하지 못했어요. 텍스트를 직접 선택해서 복사해 주세요.</string>
     <string name="image_download">이미지 다운로드</string>
     <string name="generated_image">생성된 이미지</string>
+    <string name="ai_reply">AI 답변</string>
 </resources>

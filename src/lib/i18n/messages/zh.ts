@@ -688,4 +688,7 @@ export const zh: Record<string, string> = {
   "Get {chat} messages and {image} images a month with Pro for {price}/month.": "升级 Pro（每月 {price}），每月可发 {chat} 条消息、生成 {image} 张图片。",
   "Minimal": "极低",
   "NoteFable Pro · {price}/month": "NoteFable Pro · 每月 {price}",
+  "Choose a character": "选择角色",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "显示在聊天、侧栏和笔记里的 AI 按钮上。只保存在这台设备上。",
+  "AI reply": "AI 回复",
 };

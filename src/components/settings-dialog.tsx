@@ -119,6 +119,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const ref = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
   const profileGuard = useRef(() => true);
+  const iconGuard = useRef(() => true);
   const fieldId = useId();
   const helpId = useId();
   const [tab, setTab] = useState<Tab>("general");
@@ -149,6 +150,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const close = () => {
     if (locked.current) return false;
     if (!profileGuard.current()) { setTab("account"); return false; }
+    if (!iconGuard.current()) { setTab("general"); return false; }
     return closeUnlessDirty();
   };
   // 右上の「閉じる」・スマホ幅の「戻る」ボタン。編集中の写真・絵文字の欄ごと閉じる（Esc・戻るのように 1 段ずつにはしない）。
@@ -240,7 +242,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
             <h3 className="settings-group-label">{t("General")}</h3>
             <div className="settings-card">
               <LanguageSettings user={user} />
-              <AppIconSettings />
+              <AppIconSettings closeGuardRef={iconGuard} />
             </div>
           </section>
 

@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">Tidak dapat memuat instruksi khusus Anda.</string>
     <string name="acct_err_save_custom_instructions">Tidak dapat menyimpan instruksi khusus Anda. Silakan coba lagi.</string>
     <string name="app_icon_title">Ikon</string>
-    <string name="app_icon_help">Ditampilkan di bilah samping, pada balasan AI, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.</string>
-    <string name="app_icon_choose_emoji">Pilih emoji</string>
+    <string name="app_icon_help">Ditampilkan di obrolan, di bilah samping, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.</string>
+    <string name="app_icon_choose_character">Pilih karakter</string>
     <string name="app_icon_upload_image">Unggah gambar</string>
-    <string name="app_icon_use_logo">Gunakan logo NoteFable</string>
     <string name="app_icon_could_not_save">Tidak dapat menyimpan ikon di perangkat ini.</string>
 </resources>

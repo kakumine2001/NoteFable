@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">تعذّر النسخ. حدّد النص وانسخه يدوياً.</string>
     <string name="image_download">تنزيل الصورة</string>
     <string name="generated_image">صورة مُنشأة</string>
+    <string name="ai_reply">رد الذكاء الاصطناعي</string>
 </resources>

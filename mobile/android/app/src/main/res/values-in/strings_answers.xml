@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">Tidak dapat menyalin. Pilih teks lalu salin secara manual.</string>
     <string name="image_download">Unduh gambar</string>
     <string name="generated_image">Gambar hasil buatan AI</string>
+    <string name="ai_reply">Balasan AI</string>
 </resources>

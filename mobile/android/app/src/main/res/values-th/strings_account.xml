@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">ไม่สามารถโหลดคำสั่งกำหนดเองของคุณได้</string>
     <string name="acct_err_save_custom_instructions">ไม่สามารถบันทึกคำสั่งกำหนดเองของคุณได้ กรุณาลองอีกครั้ง</string>
     <string name="app_icon_title">ไอคอน</string>
-    <string name="app_icon_help">แสดงในแถบด้านข้าง ในคำตอบของ AI และบนปุ่ม AI ในโน้ต บันทึกไว้บนอุปกรณ์นี้เท่านั้น</string>
-    <string name="app_icon_choose_emoji">เลือกอิโมจิ</string>
+    <string name="app_icon_help">แสดงในแชท ในแถบด้านข้าง และบนปุ่ม AI ในโน้ต บันทึกไว้บนอุปกรณ์นี้เท่านั้น</string>
+    <string name="app_icon_choose_character">เลือกตัวละคร</string>
     <string name="app_icon_upload_image">อัปโหลดรูปภาพ</string>
-    <string name="app_icon_use_logo">ใช้โลโก้ NoteFable</string>
     <string name="app_icon_could_not_save">ไม่สามารถบันทึกไอคอนบนอุปกรณ์นี้ได้</string>
 </resources>

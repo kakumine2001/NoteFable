@@ -1,30 +1,37 @@
 "use client";
 
-import { BrandMark } from "@/components/notefable-logo";
-import { isImageIcon, useAppIcon } from "@/lib/app-icon";
-import { emojiToImage } from "@/lib/emoji-raster";
+import { ResolvedCharacterAvatar } from "@/components/character-avatar";
+import { resolveAppIcon, useAppIcon } from "@/lib/app-icon";
+import type { CharacterState } from "@/lib/characters";
 
-// ワークスペースのアイコン。設定で替えていればその絵文字・画像を、替えていなければ NoteFable のロゴを出す。
-// icon を渡すとその値をそのまま描く（設定画面の見本用）。
-export function AppIcon({ size = 20, icon }: { size?: number; icon?: string | null }) {
+// ワークスペース全体で使う AI アイコン（サイドバー、AI の返答、ノートの AI ボタン、設定の見本）。
+// 設定で選んでいればそのキャラクター／カスタム画像を、未設定やデコード失敗時は既定キャラクターの Quill を出す。
+// icon を明示すると保存値の代わりにその値をそのまま描く（設定画面の見本用）。
+export function AppIcon({
+  size = 20,
+  icon,
+  state = "idle",
+  animated = false,
+}: {
+  size?: number;
+  icon?: string | null;
+  state?: CharacterState;
+  animated?: boolean;
+}) {
   const saved = useAppIcon();
-  const value = icon === undefined ? saved : icon;
-  if (!value) return <BrandMark size={size} />;
-  if (isImageIcon(value)) {
-    // data URL の小さな画像なので、next/image の最適化は通さない。
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img className="app-icon-image" src={value} alt="" width={size} height={size} draggable={false} />;
-  }
-  // 絵文字は画像にして、描かれた範囲を枠の中央に置く（文字のままだとフォントの余白で中央からずれる）。
-  const emojiImage = emojiToImage(value);
-  if (emojiImage) {
-    // eslint-disable-next-line @next/next/no-img-element
-    return <img className="app-icon-emoji-image" src={emojiImage} alt="" width={size} height={size} draggable={false} />;
-  }
-  return <span className="app-icon-emoji" style={{ width: size, height: size, fontSize: size * 0.9 }} aria-hidden="true">{value}</span>;
+  const resolved = resolveAppIcon(icon === undefined ? saved : icon);
+
+  return (
+    <ResolvedCharacterAvatar
+      resolved={resolved}
+      size={size}
+      state={state}
+      animated={animated}
+    />
+  );
 }
 
-// ワークスペースのサイドバーに出すロゴ。設定でアイコンを替えていれば、その絵文字・画像になる。
+// ワークスペースのサイドバーに出すロゴ。選んだ AI キャラクター（またはカスタム画像）と NoteFable の文字を並べる。
 export function NoteFableLogo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="nf-logo" role="img" aria-label="NoteFable">

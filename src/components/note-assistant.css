@@ -10,7 +10,7 @@
 .note-ai-fab.is-dragging:active { transform: none; }
 .note-ai-fab:hover { background: var(--notion-hover); }
 .note-ai-fab:active { transform: scale(0.95); }
-.note-ai-fab.is-open { background: var(--notion-blue); border-color: var(--notion-blue); color: #fff; }
+.note-ai-fab.is-open { background: var(--notion-bg); border-color: var(--notion-blue); box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.2), var(--notion-shadow); }
 @media (max-width: 639px) {
   .note-ai-fab { inset-inline-end: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); width: 3.25rem; height: 3.25rem; }
   /* シートが開いている間は、ボタンはシートの後ろに隠れる。 */

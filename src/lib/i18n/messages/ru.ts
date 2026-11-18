@@ -679,4 +679,7 @@ export const ru: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "Проект «{name}» будет удалён. Заметки сохранятся и будут вынесены из проекта.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "Заметка «{title}» будет перемещена в корзину. Её можно восстановить в течение {count} дн.",
   "＋ New project": "＋ Новый проект",
+  "Choose a character": "Выбрать персонажа",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Отображается в чате, на боковой панели и на кнопке ИИ в заметках. Сохраняется только на этом устройстве.",
+  "AI reply": "Ответ ИИ",
 };

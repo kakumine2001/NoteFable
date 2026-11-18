@@ -1,6 +1,5 @@
 import { isLocale, type Locale } from "@/lib/i18n/locale";
-import { isImageIcon, saveAppIcon } from "@/lib/app-icon";
-import { isEmojiIcon } from "@/lib/emoji-icon";
+import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@/lib/app-icon";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -54,10 +53,14 @@ export function postToNative(message: NativeMessage, target: BridgeWindow | unde
   }
 }
 
-// アプリから渡されたアイコンを確かめる。null・空文字は既定のロゴ（null）、絵文字 1 つか画像の data URL はそのまま、それ以外は undefined。
+// アプリから渡されたアイコン設定を確かめる。null・空文字・Quill は既定キャラクター（null）、
+// 他のプリセットは "character:<id>"、画像の data URL はそのまま、それ以外（旧絵文字や壊れた値）は undefined。
 export function parseAppIcon(value: unknown): string | null | undefined {
   if (value === null || value === "") return null;
-  return typeof value === "string" && (isImageIcon(value) || isEmojiIcon(value)) ? value : undefined;
+  if (typeof value !== "string") return undefined;
+  if (isImageIcon(value)) return value;
+  const characterId = parseCharacterIcon(value);
+  return characterId ? toCharacterIcon(characterId) : undefined;
 }
 
 // アプリの設定で選んだアイコンを読む。アプリの外や、アイコンを渡さない古いアプリでは undefined（WebView に覚えている値を変えない）。

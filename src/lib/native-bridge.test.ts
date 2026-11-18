@@ -5,13 +5,15 @@ import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSetti
 describe("readNativeAppIcon", () => {
   const postMessage = () => {};
 
-  it("reads the icon chosen in the app", () => {
-    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "🦊" } })).toBe("🦊");
+  it("reads preset characters and custom images chosen in the app", () => {
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "character:foldie" } })).toBe("character:foldie");
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "quill" } })).toBeNull();
     expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "data:image/png;base64,AAAA" } })).toBe("data:image/png;base64,AAAA");
   });
 
-  it("returns the default logo for an empty or unreadable value", () => {
+  it("falls back to default Quill (null) for empty, legacy emoji, or unreadable values", () => {
     expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "" } })).toBeNull();
+    expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "🦊" } })).toBeNull();
     expect(readNativeAppIcon({ NoteFableNative: { postMessage, appIcon: () => "not an icon" } })).toBeNull();
   });
 
@@ -127,11 +129,13 @@ describe("embed api", () => {
     expect(parsePageSettings(null)).toBeNull();
   });
 
-  it("forwards the icon chosen in the app, rejecting anything that is not an emoji or an image", () => {
+  it("forwards preset characters and custom images chosen in the app, rejecting invalid values", () => {
     const appIcon = vi.fn();
     const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, appIcon, post: () => {} });
-    expect(api.appIcon("🦊")).toBe(true);
-    expect(appIcon).toHaveBeenLastCalledWith("🦊");
+    expect(api.appIcon("character:piko")).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith("character:piko");
+    expect(api.appIcon("quill")).toBe(true);
+    expect(appIcon).toHaveBeenLastCalledWith(null);
     expect(api.appIcon("data:image/png;base64,AAAA")).toBe(true);
     expect(appIcon).toHaveBeenLastCalledWith("data:image/png;base64,AAAA");
     expect(api.appIcon(null)).toBe(true);
@@ -139,10 +143,11 @@ describe("embed api", () => {
     expect(api.appIcon("")).toBe(true);
     expect(appIcon).toHaveBeenLastCalledWith(null);
     expect(api.appIcon("logo")).toBe(false);
-    expect(api.appIcon("🦊🦊")).toBe(false);
+    expect(api.appIcon("🦊")).toBe(false);
+    expect(api.appIcon("character:unknown")).toBe(false);
     expect(api.appIcon(3)).toBe(false);
     expect(api.appIcon(undefined)).toBe(false);
-    expect(appIcon).toHaveBeenCalledTimes(4);
+    expect(appIcon).toHaveBeenCalledTimes(5);
     expect(parseAppIcon("https://example.com/a.png")).toBeUndefined();
   });
 
