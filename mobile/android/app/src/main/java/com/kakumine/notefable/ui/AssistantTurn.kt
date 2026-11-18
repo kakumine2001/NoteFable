@@ -114,7 +114,7 @@ internal fun AssistantTurn(
             )
             if (modelLabel != null) {
                 Spacer(Modifier.width(5.6.dp))
-                Text("· $modelLabel", style = RoleLabelBase.copy(letterSpacing = 0.24.sp))
+                Text(modelLabel, style = RoleLabelBase.copy(letterSpacing = 0.24.sp))
             }
         }
         if (thinking || progress.isNotEmpty()) {

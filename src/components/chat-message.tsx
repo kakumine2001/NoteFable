@@ -144,7 +144,7 @@ export const ChatMessage = memo(function ChatMessage({
               animated={characterState !== undefined && characterState !== "idle" && characterState !== "hidden"}
             />
             <span className="sr-only">{t("AI reply")}</span>
-            {modelLabel && <span className="notion-role-model">· {modelLabel}</span>}
+            {modelLabel && <span className="notion-role-model">{modelLabel}</span>}
           </div>
         )}
         {shouldShowActivity && (
