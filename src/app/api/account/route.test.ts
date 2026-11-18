@@ -146,7 +146,7 @@ describe("account profile", () => {
   });
 
   it("rejects unknown display languages", async () => {
-    for (const locale of ["auto", "fr", "zh-CN", 42]) expect((await PATCH(patch({ locale }))).status).toBe(400);
+    for (const locale of ["auto", "xx", "zh-CN", 42]) expect((await PATCH(patch({ locale }))).status).toBe(400);
     expect(mocks.update).not.toHaveBeenCalled();
   });
 

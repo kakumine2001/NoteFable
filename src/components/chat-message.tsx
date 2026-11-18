@@ -126,8 +126,8 @@ export const ChatMessage = memo(function ChatMessage({
       : null;
 
   // 回答したモデルの表示名。未知の ID（廃止したモデルなど）は誤った名前を出さないよう省く。
-  // 画像は選んだチャットモデルに関係なく OpenAI の画像 API で作るので、画像の回答には出さない。
-  const isImageAnswer = hasGeneratedImages || !!message.isGeneratingImage;
+  // 画像は選んだチャットモデルに関係なく OpenAI の画像 API で作るので、生成成功・生成中・失敗のいずれでも画像の回答には出さない。
+  const isImageAnswer = hasGeneratedImages || !!message.isGeneratingImage || !!message.isImageTurn;
   const modelLabel = message.role === "ASSISTANT" && message.model && !isImageAnswer
     ? modelOptions.find((option) => option.id === message.model)?.label
     : undefined;

@@ -54,6 +54,7 @@ import com.kakumine.notefable.data.CharacterEye
 import com.kakumine.notefable.data.CharacterId
 import com.kakumine.notefable.data.CharacterPath
 import com.kakumine.notefable.data.CharacterState
+import com.kakumine.notefable.data.CharacterStatePose
 import com.kakumine.notefable.data.ResolvedAppIcon
 import com.kakumine.notefable.data.resolveAppIcon
 import kotlin.math.min
@@ -309,58 +310,21 @@ fun CharacterGraphic(
         respondPhase = 0f
     }
 
-    val floatScale = if (hero) 1f else 0.42f
     val burstBell = if (burst.value <= 0.4f) burst.value / 0.4f else (1f - burst.value) / 0.6f
-
-    var bodyOffsetY = 0f
-    var bodyTilt = 0f
-    var accentAngle = 0f
-    var gazeX = 0f
-    var gazeY = 0f
-    var eyeScaleY = 1f
-
-    if (!reducedMotion && state != CharacterState.Hidden) {
-        when (state) {
-            CharacterState.Idle -> if (live) {
-                bodyOffsetY = -m.floatAmplitude * floatScale * floatPhase
-                bodyTilt = m.idleBodyTiltDeg * floatPhase
-                accentAngle = m.idleAccentDeg * idleAccentWave
-                eyeScaleY = blinkScale
-            }
-            CharacterState.Typing -> {
-                bodyOffsetY = 2f * typingProgress
-                bodyTilt = m.typingTiltDeg * typingProgress
-                accentAngle = m.typingAccentDeg * typingProgress
-                gazeY = m.typingGazeY * typingProgress
-                eyeScaleY = if (live) blinkScale else 1f
-            }
-            CharacterState.Thinking -> if (live) {
-                bodyOffsetY = -4f + 2f * thinkPhase
-                bodyTilt = m.thinkingTiltDeg * thinkPhase
-                accentAngle = m.thinkingAccentDeg * (0.25f + 0.75f * kotlin.math.abs(thinkPhase))
-                gazeX = m.thinkingGazeX * thinkPhase
-                gazeY = -2.8f
-            }
-            CharacterState.Responding -> if (live) {
-                bodyOffsetY = -3.5f * respondPhase
-                bodyTilt = m.respondingTiltDeg * respondPhase
-                accentAngle = m.respondingAccentDeg * respondPhase
-                eyeScaleY = blinkScale
-            }
-            CharacterState.Completed -> if (live) {
-                bodyOffsetY = m.completedNodY * (if (hero) 1f else 0.65f) * burstBell
-                accentAngle = m.completedAccentDeg * burstBell
-                eyeScaleY = 1f - 0.65f * burstBell
-            }
-            CharacterState.Error -> if (live) {
-                bodyOffsetY = m.errorDropY * (if (hero) 1f else 0.65f) * burstBell
-                bodyTilt = m.errorTiltDeg * burstBell
-                accentAngle = m.errorAccentDeg * burstBell
-                gazeY = 5f * burstBell
-            }
-            CharacterState.Hidden -> Unit
-        }
-    }
+    val pose = computeCharacterDrawPose(
+        characterId = characterId,
+        state = state,
+        hero = hero,
+        reducedMotion = reducedMotion,
+        live = live,
+        floatPhase = floatPhase,
+        blinkScale = blinkScale,
+        idleAccentWave = idleAccentWave,
+        typingProgress = typingProgress,
+        thinkPhase = thinkPhase,
+        respondPhase = respondPhase,
+        burstBell = burstBell,
+    )
 
     val canvasHeight = if (hero) size * 1.0625f else size
     Canvas(modifier.size(size, canvasHeight)) {
@@ -391,36 +355,38 @@ fun CharacterGraphic(
                     val enterOffsetY = if (hero) 34f * (1f - enter.value) else 0f
                     val accentPivot = Offset(spec.accentPivotX, spec.accentPivotY)
 
-                    translate(top = enterOffsetY + bodyOffsetY) {
+                    translate(top = enterOffsetY + pose.bodyOffsetY) {
                         scale(enterScale, pivot = Offset(120f, 206f)) {
-                            rotate(bodyTilt, pivot = Offset(120f, 195f)) {
-                                if (parsed.backAccents.isNotEmpty()) {
-                                    rotate(accentAngle, pivot = accentPivot) {
-                                        drawLayers(parsed.backAccents, alpha)
+                            scale(pose.bodyScale, pivot = Offset(120f, 195f)) {
+                                rotate(pose.bodyTiltDeg, pivot = Offset(120f, 195f)) {
+                                    if (parsed.backAccents.isNotEmpty()) {
+                                        rotate(pose.accentDeg, pivot = accentPivot) {
+                                            drawLayers(parsed.backAccents, alpha)
+                                        }
                                     }
-                                }
-                                drawLayers(parsed.body, alpha)
-                                if (parsed.frontAccents.isNotEmpty()) {
-                                    rotate(accentAngle, pivot = accentPivot) {
-                                        drawLayers(parsed.frontAccents, alpha)
+                                    drawLayers(parsed.body, alpha)
+                                    if (parsed.frontAccents.isNotEmpty()) {
+                                        rotate(pose.accentDeg, pivot = accentPivot) {
+                                            drawLayers(parsed.frontAccents, alpha)
+                                        }
                                     }
-                                }
-                                translate(left = gazeX, top = gazeY) {
-                                    parsed.eyes.forEach { eye ->
-                                        scale(scaleX = 1f, scaleY = eyeScaleY, pivot = Offset(eye.cx, eye.cy)) {
-                                            when (eye) {
-                                                is ParsedEye.Capsule -> {
-                                                    rotate(eye.rotation, pivot = Offset(eye.cx, eye.cy)) {
-                                                        drawRoundRect(
-                                                            color = eye.fill,
-                                                            topLeft = Offset(eye.x, eye.y),
-                                                            size = Size(eye.width, eye.height),
-                                                            cornerRadius = CornerRadius(eye.rx, eye.rx),
-                                                            alpha = alpha,
-                                                        )
+                                    translate(left = pose.gazeX, top = pose.gazeY) {
+                                        parsed.eyes.forEach { eye ->
+                                            scale(scaleX = 1f, scaleY = pose.eyeScaleY, pivot = Offset(eye.cx, eye.cy)) {
+                                                when (eye) {
+                                                    is ParsedEye.Capsule -> {
+                                                        rotate(eye.rotation, pivot = Offset(eye.cx, eye.cy)) {
+                                                            drawRoundRect(
+                                                                color = eye.fill,
+                                                                topLeft = Offset(eye.x, eye.y),
+                                                                size = Size(eye.width, eye.height),
+                                                                cornerRadius = CornerRadius(eye.rx, eye.rx),
+                                                                alpha = alpha,
+                                                            )
+                                                        }
                                                     }
+                                                    is ParsedEye.Polygon -> drawPath(eye.path, eye.fill, alpha = alpha)
                                                 }
-                                                is ParsedEye.Polygon -> drawPath(eye.path, eye.fill, alpha = alpha)
                                             }
                                         }
                                     }
@@ -431,6 +397,93 @@ fun CharacterGraphic(
                 }
             }
         }
+    }
+}
+
+/**
+ * 计算当前绘制帧的角色姿态：
+ * - 系统降低动画（ANIMATOR_DURATION_SCALE == 0）或非实时动画态时，使用 [CharacterCatalog.pose] 的静态语义姿态，
+ *   让 Typing / Thinking / Responding / Completed / Error 在无动画下依然可清晰区分；
+ * - Hidden 态统一归零静止。
+ */
+internal fun computeCharacterDrawPose(
+    characterId: CharacterId,
+    state: CharacterState,
+    hero: Boolean,
+    reducedMotion: Boolean,
+    live: Boolean,
+    floatPhase: Float = 0f,
+    blinkScale: Float = 1f,
+    idleAccentWave: Float = 0f,
+    typingProgress: Float = 0f,
+    thinkPhase: Float = 0f,
+    respondPhase: Float = 0f,
+    burstBell: Float = 0f,
+): CharacterStatePose {
+    if (state == CharacterState.Hidden) {
+        return CharacterCatalog.pose(characterId, CharacterState.Hidden)
+    }
+    if (reducedMotion || !live) {
+        return CharacterCatalog.pose(characterId, state)
+    }
+    val m = CharacterCatalog.spec(characterId).motion
+    val floatScale = if (hero) 1f else 0.42f
+    return when (state) {
+        CharacterState.Idle -> CharacterStatePose(
+            bodyOffsetY = -m.floatAmplitude * floatScale * floatPhase,
+            bodyTiltDeg = m.idleBodyTiltDeg * floatPhase,
+            bodyScale = 1f,
+            accentDeg = m.idleAccentDeg * idleAccentWave,
+            gazeX = 0f,
+            gazeY = 0f,
+            eyeScaleY = blinkScale,
+        )
+        CharacterState.Typing -> CharacterStatePose(
+            bodyOffsetY = 1.5f * typingProgress,
+            bodyTiltDeg = m.typingTiltDeg * typingProgress,
+            bodyScale = 1f,
+            accentDeg = m.typingAccentDeg * typingProgress,
+            gazeX = 0f,
+            gazeY = m.typingGazeY * typingProgress,
+            eyeScaleY = blinkScale,
+        )
+        CharacterState.Thinking -> CharacterStatePose(
+            bodyOffsetY = -4f + 2f * thinkPhase,
+            bodyTiltDeg = m.thinkingTiltDeg * thinkPhase,
+            bodyScale = 1f,
+            accentDeg = m.thinkingAccentDeg * (0.25f + 0.75f * kotlin.math.abs(thinkPhase)),
+            gazeX = m.thinkingGazeX * thinkPhase,
+            gazeY = -2.8f,
+            eyeScaleY = 1f,
+        )
+        CharacterState.Responding -> CharacterStatePose(
+            bodyOffsetY = -3.5f * respondPhase,
+            bodyTiltDeg = m.respondingTiltDeg * respondPhase,
+            bodyScale = 1f + 0.015f * respondPhase,
+            accentDeg = m.respondingAccentDeg * respondPhase,
+            gazeX = 0f,
+            gazeY = 1.5f * respondPhase,
+            eyeScaleY = blinkScale,
+        )
+        CharacterState.Completed -> CharacterStatePose(
+            bodyOffsetY = m.completedNodY * (if (hero) 1f else 0.65f) * burstBell,
+            bodyTiltDeg = 0f,
+            bodyScale = 1f + 0.02f * burstBell,
+            accentDeg = m.completedAccentDeg * burstBell,
+            gazeX = 0f,
+            gazeY = 0f,
+            eyeScaleY = 1f - 0.65f * burstBell,
+        )
+        CharacterState.Error -> CharacterStatePose(
+            bodyOffsetY = m.errorDropY * (if (hero) 1f else 0.65f) * burstBell,
+            bodyTiltDeg = m.errorTiltDeg * burstBell,
+            bodyScale = 1f - 0.015f * burstBell,
+            accentDeg = m.errorAccentDeg * burstBell,
+            gazeX = 0f,
+            gazeY = 5f * burstBell,
+            eyeScaleY = 1f - 0.18f * burstBell,
+        )
+        CharacterState.Hidden -> CharacterCatalog.pose(characterId, CharacterState.Hidden)
     }
 }
 

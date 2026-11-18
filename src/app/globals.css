@@ -1115,14 +1115,32 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   animation: nf-char-enter 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms both;
 }
 
-/* 状態別の基本姿勢（動きを減らす設定でも穏やかな向きだけは反映されるよう分離）。 */
+/* 状態別の基本姿勢（getCharacterStatePose と対応。prefers-reduced-motion: reduce でアニメーションを止めても各状態を判別できる）。 */
 .nf-char-actor { transition: transform 180ms ease-out; }
 .nf-char-accent { transition: transform 180ms ease-out; }
 .nf-char-gaze { transform: translate(calc(var(--ex, 0) * 1px), calc(var(--ey, 0) * 1px)); transition: transform 140ms ease-out; }
+.nf-char-eye { transition: transform 140ms ease-out; }
 
-.nf-char[data-state="typing"] .nf-char-actor { transform: translateY(2px) rotate(var(--cf-tilt-typing, 2deg)); }
+.nf-char[data-state="typing"] .nf-char-actor { transform: translateY(1.5px) rotate(var(--cf-tilt-typing, 2deg)); }
 .nf-char[data-state="typing"] .nf-char-accent { transform: rotate(var(--cf-accent-typing, 4deg)); }
 .nf-char[data-state="typing"] .nf-char-gaze { transform: translate(0, var(--cf-gaze-typing, 8px)); }
+
+.nf-char[data-state="thinking"] .nf-char-actor { transform: translateY(-2px) rotate(var(--cf-tilt-thinking, -3deg)); }
+.nf-char[data-state="thinking"] .nf-char-accent { transform: rotate(var(--cf-accent-thinking, -10deg)); }
+.nf-char[data-state="thinking"] .nf-char-gaze { transform: translate(var(--cf-gaze-thinking, 6.5px), -2.5px); }
+
+.nf-char[data-state="responding"] .nf-char-actor { transform: translateY(-1px) rotate(var(--cf-tilt-responding, 1.8deg)) scale(1.015); }
+.nf-char[data-state="responding"] .nf-char-accent { transform: rotate(var(--cf-accent-responding, -5deg)); }
+.nf-char[data-state="responding"] .nf-char-gaze { transform: translate(0, 1.5px); }
+
+.nf-char[data-state="completed"] .nf-char-actor { transform: translateY(calc(var(--cf-nod-completed, 7px) * 0.4)) rotate(1.2deg) scale(1.02); }
+.nf-char[data-state="completed"] .nf-char-accent { transform: rotate(var(--cf-accent-completed, 8deg)); }
+.nf-char[data-state="completed"] .nf-char-eye { transform: scaleY(0.72); }
+
+.nf-char[data-state="error"] .nf-char-actor { transform: translateY(var(--cf-drop-error, 5.5px)) rotate(var(--cf-tilt-error, -2.5deg)) scale(0.985); }
+.nf-char[data-state="error"] .nf-char-accent { transform: rotate(var(--cf-accent-error, 11deg)); }
+.nf-char[data-state="error"] .nf-char-gaze { transform: translate(0, 3.5px); }
+.nf-char[data-state="error"] .nf-char-eye { transform: scaleY(0.82); }
 
 /* 動的フィードバック（data-animated="true" かつ hidden 以外）。 */
 .nf-char[data-animated="true"][data-state="idle"] .nf-char-actor {
@@ -1176,6 +1194,9 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .nf-char[data-animated="true"][data-state="error"] .nf-char-gaze {
   animation: nf-char-error-gaze 600ms ease-out 1 both;
+}
+.nf-char[data-animated="true"][data-state="error"] .nf-char-eye {
+  animation: nf-char-error-eye 600ms ease-out 1 both;
 }
 
 .nf-char[data-state="hidden"] .nf-char-enter,
@@ -1257,6 +1278,10 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 @keyframes nf-char-error-gaze {
   0%, 100% { transform: translate(0, 0); }
   40% { transform: translate(0, 5px); }
+}
+@keyframes nf-char-error-eye {
+  0%, 100% { transform: scaleY(1); }
+  40% { transform: scaleY(0.82); }
 }
 
 /* 書き出しの候補（StarterPrompts）。パソコンの幅の空の会話だけ、入力欄の下に出す。 */

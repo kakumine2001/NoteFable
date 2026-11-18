@@ -1,6 +1,8 @@
 package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.ApiException
+import com.kakumine.notefable.data.CharacterOutcome
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatBackend
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.ChatStreamEvent
@@ -12,6 +14,8 @@ import com.kakumine.notefable.data.ModelsResponse
 import com.kakumine.notefable.data.SessionSummary
 import com.kakumine.notefable.data.UploadPlan
 import com.kakumine.notefable.data.UploadSlot
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
@@ -215,10 +219,47 @@ class ChatTurnActionsTest {
 
         backend.stored = backend.stored.dropLast(1) + MessageDto("a3", "ASSISTANT", "half an", versions = MessageVersions(2, 2, prevId = "a2"))
         backend.events.close()
+        runCurrent()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
         advanceUntilIdle()
         assertEquals("a3", vm.state.value.messages.last().id)
+        assertNull(vm.state.value.characterOutcome)
         assertFalse(vm.state.value.sending)
         assertFalse(vm.state.value.stopping)
+    }
+
+    @Test
+    fun `a regenerated stream that emits failure before closing flashes Error instead of Completed`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = openChat(backend)
+
+        vm.regenerate("a2")
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Partial\n\nRequest failed: Upstream reset."))
+        backend.events.send(
+            ChatStreamEvent.Activity(
+                Json.parseToJsonElement("""{"type":"failure","id":"request-failure","offset":9,"detail":"Upstream reset."}""").jsonObject,
+            ),
+        )
+        backend.stored = backend.stored.dropLast(1) + MessageDto(
+            "a3",
+            "ASSISTANT",
+            "Partial\n\nRequest failed: Upstream reset.",
+            activity = Json.parseToJsonElement("""[{"id":"request-failure","kind":"failure","offset":9,"detail":"Upstream reset."}]"""),
+            versions = MessageVersions(2, 2, prevId = "a2"),
+        )
+        backend.events.close()
+        runCurrent()
+        advanceTimeBy(100)
+        runCurrent()
+
+        assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Error, vm.state.value.activeReplyCharacterState())
+        assertEquals("Partial\n\nRequest failed: Upstream reset.", vm.state.value.messages.last().content)
+
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
     }
 
     @Test

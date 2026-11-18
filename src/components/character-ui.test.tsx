@@ -1,8 +1,43 @@
-import { createElement } from "react";
+import { createElement, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CHARACTER_IDS } from "@/lib/characters";
 import { messagesFor } from "@/lib/i18n/messages";
+
+const hookSlots = vi.hoisted(() => ({
+  active: false,
+  values: [] as unknown[],
+  cursor: 0,
+}));
+
+vi.mock("react", async (original) => {
+  const actual = await original<typeof import("react")>();
+  let idSeq = 0;
+  return {
+    ...actual,
+    useId: () => (hookSlots.active ? `test-id-${++idSeq}` : actual.useId()),
+    useRef: (initial: unknown) => (hookSlots.active ? { current: initial } : actual.useRef(initial)),
+    useEffect: (fn: () => void | (() => void), deps?: readonly unknown[]) => {
+      if (!hookSlots.active) actual.useEffect(fn, deps);
+    },
+    useCallback: <T extends (...args: never[]) => unknown>(fn: T, deps: readonly unknown[]) => (
+      hookSlots.active ? fn : actual.useCallback(fn, deps)
+    ),
+    useState: (initial: unknown) => {
+      if (!hookSlots.active) return actual.useState(initial);
+      const idx = hookSlots.cursor++;
+      if (idx >= hookSlots.values.length) {
+        hookSlots.values.push(typeof initial === "function" ? (initial as () => unknown)() : initial);
+      }
+      const set = (next: unknown) => {
+        hookSlots.values[idx] = typeof next === "function"
+          ? (next as (prev: unknown) => unknown)(hookSlots.values[idx])
+          : next;
+      };
+      return [hookSlots.values[idx], set];
+    },
+  };
+});
 
 const mockLocale = { current: "en" as "en" | "ja" | "zh" | "ar" };
 const mockSavedIcon = { current: null as string | null };
@@ -37,11 +72,15 @@ import { AppIcon, NoteFableLogo } from "./app-icon";
 import { AppIconSettings } from "./app-icon-settings";
 import { ChatMessage } from "./chat-message";
 import { Mascot } from "./mascot";
+import { deriveNoteAssistantCharacterStates } from "./note-assistant";
 
 describe("product-wide character touchpoints & AI reply de-branding", () => {
   beforeEach(() => {
     mockLocale.current = "en";
     mockSavedIcon.current = null;
+    hookSlots.active = false;
+    hookSlots.values = [];
+    hookSlots.cursor = 0;
   });
 
   afterEach(() => {
@@ -117,6 +156,207 @@ describe("product-wide character touchpoints & AI reply de-branding", () => {
     expect(imageReplyHtml).toContain('<span class="sr-only">AI reply</span>');
     expect(imageReplyHtml).not.toContain("GPT-6 Luna");
     expect(imageReplyHtml).not.toContain(">NoteFable<");
+
+    // Failed image assistant reply (isImageTurn preserved after isGeneratingImage clears with no generatedImages):
+    // still omits the text-chat model label so failed image turns never claim GPT-6 Luna wrote them.
+    const failedImageReplyHtml = renderToStaticMarkup(
+      createElement(ChatMessage, {
+        message: {
+          id: "m3",
+          role: "ASSISTANT",
+          content: "Request failed: Failed to generate image.",
+          model: "gpt-6-luna",
+          failed: true,
+          isGeneratingImage: false,
+          isImageTurn: true,
+        },
+        isStreaming: false,
+        thinkingSeconds: 0,
+        characterState: "error",
+      }),
+    );
+    expect(failedImageReplyHtml).toContain('data-character="piko"');
+    expect(failedImageReplyHtml).toContain('data-state="error"');
+    expect(failedImageReplyHtml).toContain('<span class="sr-only">AI reply</span>');
+    expect(failedImageReplyHtml).not.toContain("GPT-6 Luna");
+    expect(failedImageReplyHtml).not.toContain(">NoteFable<");
+  });
+
+  it("falls back to Quill when a custom image data URL fails to decode, and retries when the saved image changes", () => {
+    type AnyEl = ReactElement<Record<string, unknown>>;
+    const renderWithHooks = (factory: () => ReactNode): AnyEl => {
+      hookSlots.active = true;
+      hookSlots.cursor = 0;
+      const expand = (node: ReactNode): ReactNode => {
+        if (!node || typeof node !== "object" || Array.isArray(node)) return node;
+        const el = node as AnyEl;
+        if (typeof el.type === "function") {
+          return expand((el.type as (props: unknown) => ReactNode)(el.props));
+        }
+        const children = el.props?.children as ReactNode;
+        if (Array.isArray(children)) {
+          return { ...el, props: { ...el.props, children: children.map(expand) } };
+        }
+        if (children) {
+          return { ...el, props: { ...el.props, children: expand(children) } };
+        }
+        return el;
+      };
+      try {
+        return expand(factory()) as AnyEl;
+      } finally {
+        hookSlots.active = false;
+      }
+    };
+
+    const findImg = (node: ReactNode): AnyEl | null => {
+      if (!node || typeof node !== "object") return null;
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const found = findImg(item);
+          if (found) return found;
+        }
+        return null;
+      }
+      const el = node as AnyEl;
+      if (el.type === "img") return el;
+      return findImg(el.props?.children as ReactNode);
+    };
+
+    const findSvg = (node: ReactNode): AnyEl | null => {
+      if (!node || typeof node !== "object") return null;
+      if (Array.isArray(node)) {
+        for (const item of node) {
+          const found = findSvg(item);
+          if (found) return found;
+        }
+        return null;
+      }
+      const el = node as AnyEl;
+      if (el.type === "svg" && el.props["data-character"]) return el;
+      return findSvg(el.props?.children as ReactNode);
+    };
+
+    // Empty-payload data URLs immediately render Quill across all touchpoints.
+    mockSavedIcon.current = "data:image/png;base64,";
+    expect(renderToStaticMarkup(createElement(Mascot, { state: "idle" }))).toContain('data-character="quill"');
+    expect(renderToStaticMarkup(createElement(AppIcon, { size: 24 }))).toContain('data-character="quill"');
+    expect(renderToStaticMarkup(createElement(NoteFableLogo))).toContain('data-character="quill"');
+    expect(renderToStaticMarkup(createElement(AppIconSettings, {}))).toContain('data-character="quill"');
+
+    // Truncated/corrupt PNG data URL takes image branch initially, falls back to Quill on decode error
+    // (both async onError and synchronous broken-image ref check), and retries when the saved image value changes.
+    for (const { renderSlot, expectedState } of [
+      { renderSlot: () => createElement(AppIcon, { size: 24, state: "thinking", animated: true }), expectedState: "thinking" },
+      { renderSlot: () => createElement(Mascot, { state: "thinking" }), expectedState: "thinking" },
+      { renderSlot: () => createElement(NoteFableLogo), expectedState: "idle" },
+      { renderSlot: () => createElement(AppIconSettings, {}), expectedState: "idle" },
+    ]) {
+      hookSlots.values = [];
+      mockSavedIcon.current = "data:image/png;base64,TRUNCATED_PNG";
+
+      const initialTree = renderWithHooks(renderSlot);
+      const brokenImg = findImg(initialTree);
+      expect(brokenImg).not.toBeNull();
+      expect(brokenImg!.props.src).toBe("data:image/png;base64,TRUNCATED_PNG");
+
+      // Simulate browser image decode failure -> re-render falls back to Quill in the current state.
+      (brokenImg!.props.onError as () => void)();
+      const fallbackTree = renderWithHooks(renderSlot);
+      expect(findImg(fallbackTree)).toBeNull();
+      const fallbackSvg = findSvg(fallbackTree);
+      expect(fallbackSvg).not.toBeNull();
+      expect(fallbackSvg!.props["data-character"]).toBe("quill");
+      expect(fallbackSvg!.props["data-state"]).toBe(expectedState);
+
+      // Updating the saved custom image retries the new image URL instead of staying stuck on fallback.
+      mockSavedIcon.current = "data:image/png;base64,NEW_VALID_PNG";
+      const retriedTree = renderWithHooks(renderSlot);
+      const retriedImg = findImg(retriedTree);
+      expect(retriedImg).not.toBeNull();
+      expect(retriedImg!.props.src).toBe("data:image/png;base64,NEW_VALID_PNG");
+
+      // Also verify immediate ref-based broken image detection (when cached broken data URL already completed before mount).
+      (retriedImg!.props.ref as (img: Partial<HTMLImageElement>) => void)({ complete: true, naturalWidth: 0 });
+      const syncFallbackTree = renderWithHooks(renderSlot);
+      expect(findImg(syncFallbackTree)).toBeNull();
+      expect(findSvg(syncFallbackTree)?.props["data-character"]).toBe("quill");
+    }
+  });
+
+  it("scopes NoteAssistant turn output to the active send so follow-up saves/uploads stay in thinking instead of flashing responding", () => {
+    const previousTurnMessages = [
+      { id: "u1", role: "USER" as const, content: "Summarize this note" },
+      { id: "a1", role: "ASSISTANT" as const, content: "First completed answer.", model: "gpt-6-luna" },
+    ];
+
+    // Follow-up started: activeTurnAssistantId is already set to new "a2", while note flush / attachment upload is still pending
+    // (so "a2" is not in messages yet, and "a1" still holds the previous answer).
+    const pendingSaveOrUpload = deriveNoteAssistantCharacterStates({
+      messages: previousTurnMessages,
+      activeTurnAssistantId: "a2",
+      busy: true,
+      streaming: false,
+      outcome: null,
+      isTyping: false,
+      hidden: false,
+    });
+    expect(pendingSaveOrUpload.hasTurnOutput).toBe(false);
+    expect(pendingSaveOrUpload.noteCharacterState).toBe("thinking");
+    expect(pendingSaveOrUpload.replyCharacterState).toBe("idle");
+
+    // Placeholder "a2" appended and stream opened before first token -> still thinking.
+    const waitingFirstToken = deriveNoteAssistantCharacterStates({
+      messages: [
+        ...previousTurnMessages,
+        { id: "u2", role: "USER", content: "Now add bullet points" },
+        { id: "a2", role: "ASSISTANT", content: "", model: "gpt-6-luna" },
+      ],
+      activeTurnAssistantId: "a2",
+      busy: true,
+      streaming: true,
+      outcome: null,
+      isTyping: false,
+      hidden: false,
+    });
+    expect(waitingFirstToken.hasTurnOutput).toBe(false);
+    expect(waitingFirstToken.noteCharacterState).toBe("thinking");
+    expect(waitingFirstToken.replyCharacterState).toBe("thinking");
+
+    // First delta arrives on "a2" -> transitions to responding.
+    const streamingDelta = deriveNoteAssistantCharacterStates({
+      messages: [
+        ...previousTurnMessages,
+        { id: "u2", role: "USER", content: "Now add bullet points" },
+        { id: "a2", role: "ASSISTANT", content: "• Point 1", model: "gpt-6-luna" },
+      ],
+      activeTurnAssistantId: "a2",
+      busy: true,
+      streaming: true,
+      outcome: null,
+      isTyping: false,
+      hidden: false,
+    });
+    expect(streamingDelta.hasTurnOutput).toBe(true);
+    expect(streamingDelta.noteCharacterState).toBe("responding");
+    expect(streamingDelta.replyCharacterState).toBe("responding");
+
+    // Stream fails after partial output -> outcome="error" drives error state, never completed.
+    const failedMidStream = deriveNoteAssistantCharacterStates({
+      messages: [
+        ...previousTurnMessages,
+        { id: "u2", role: "USER", content: "Now add bullet points" },
+        { id: "a2", role: "ASSISTANT", content: "• Point 1\n\nRequest failed: Upstream reset.", model: "gpt-6-luna" },
+      ],
+      activeTurnAssistantId: "a2",
+      busy: false,
+      streaming: false,
+      outcome: "error",
+      isTyping: false,
+      hidden: false,
+    });
+    expect(failedMidStream.noteCharacterState).toBe("error");
+    expect(failedMidStream.replyCharacterState).toBe("error");
   });
 
   it("renders reworked Settings -> Icon with Choose a character + Upload an image, removing Choose an emoji and Use NoteFable logo", () => {

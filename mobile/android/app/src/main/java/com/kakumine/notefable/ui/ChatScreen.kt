@@ -470,11 +470,11 @@ private fun MessageList(
             ) {
                 itemsIndexed(state.messages, key = { _, it -> it.key }) { index, message ->
                     val modelLabel = message.modelId?.let { id -> state.models.firstOrNull { it.id == id }?.label }
-                    // 图片不是聊天模型画的：图片回答上方不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
-                    val isImageAnswer = message.generatingImage || message.images.isNotEmpty()
+                    // 图片不是聊天模型画的：无论生成中、成功或失败，图片回答上方都不显示模型名（网页 chat-message.tsx 的 isImageAnswer）。
+                    val isImageAnswer = message.isImageAnswer
                     // 生成图片的提问不能编辑（改写后会按文字回答重做；网页 page.tsx 的 canEdit）。
                     val reply = state.messages.getOrNull(index + 1)
-                    val canEdit = !(reply != null && reply.role == MessageRole.Assistant && (reply.generatingImage || reply.images.isNotEmpty()))
+                    val canEdit = !(reply != null && reply.role == MessageRole.Assistant && reply.isImageAnswer)
                     Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
                         if (message.role == MessageRole.User) {
                             UserTurn(message, canEdit, state.rejectedEdit?.takeIf { it.messageId == message.id }?.text)

@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import type { ResolvedAppIcon } from "@/lib/app-icon";
 import {
   CHARACTER_HERO_VIEWBOX,
   CHARACTER_ICON_VIEWBOX,
+  DEFAULT_CHARACTER_ID,
   getCharacterDefinition,
   type CharacterId,
   type CharacterLayerPath,
@@ -197,5 +199,125 @@ export function CharacterGraphic({
         content
       )}
     </svg>
+  );
+}
+
+function hasDataUrlPayload(dataUrl: string): boolean {
+  const comma = dataUrl.indexOf(",");
+  return comma >= 0 && comma + 1 < dataUrl.length;
+}
+
+function CustomCharacterImageOrFallback({
+  dataUrl,
+  size,
+  state,
+  hero,
+  animated,
+  className,
+}: {
+  dataUrl: string;
+  size: number;
+  state: CharacterState;
+  hero: boolean;
+  animated: boolean;
+  className?: string;
+}) {
+  const [failedDataUrl, setFailedDataUrl] = useState<string | null>(null);
+  const markFailed = useCallback(() => setFailedDataUrl(dataUrl), [dataUrl]);
+  const checkImmediateFailure = useCallback((img: HTMLImageElement | null) => {
+    if (img && img.complete && img.naturalWidth === 0) {
+      setFailedDataUrl(dataUrl);
+    }
+  }, [dataUrl]);
+
+  if (!hasDataUrlPayload(dataUrl) || failedDataUrl === dataUrl) {
+    return (
+      <CharacterGraphic
+        characterId={DEFAULT_CHARACTER_ID}
+        size={size}
+        state={state}
+        hero={hero}
+        animated={animated}
+        className={className}
+      />
+    );
+  }
+
+  if (hero) {
+    return (
+      <span className="nf-mascot-custom-wrap" style={{ width: size, height: size * 1.0625 }} aria-hidden="true">
+        {/* data URL のカスタムアイコンなので next/image の最適化は通さない。デコード失敗時は既定の Quill へ戻す。 */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          key={dataUrl}
+          ref={checkImmediateFailure}
+          className="nf-mascot-custom"
+          src={dataUrl}
+          alt=""
+          width={size}
+          height={size}
+          draggable={false}
+          onError={markFailed}
+        />
+      </span>
+    );
+  }
+
+  // data URL の小さな画像なので、next/image の最適化は通さない。デコード失敗時は既定の Quill へ戻す。
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      key={dataUrl}
+      ref={checkImmediateFailure}
+      className="app-icon-image"
+      src={dataUrl}
+      alt=""
+      width={size}
+      height={size}
+      draggable={false}
+      onError={markFailed}
+    />
+  );
+}
+
+// カスタム画像と 7 キャラクターを共通で描き分けるスロット。
+// 破損した data URL のデコードに失敗した場合は既定キャラクター（Quill）へフォールバックし、保存画像が変わったら再試行する。
+export function ResolvedCharacterAvatar({
+  resolved,
+  size = 24,
+  state = "idle",
+  hero = false,
+  animated = false,
+  className,
+}: {
+  resolved: ResolvedAppIcon;
+  size?: number;
+  state?: CharacterState;
+  hero?: boolean;
+  animated?: boolean;
+  className?: string;
+}) {
+  if (resolved.kind === "image") {
+    return (
+      <CustomCharacterImageOrFallback
+        dataUrl={resolved.dataUrl}
+        size={size}
+        state={state}
+        hero={hero}
+        animated={animated}
+        className={className}
+      />
+    );
+  }
+
+  return (
+    <CharacterGraphic
+      characterId={resolved.characterId}
+      size={size}
+      state={state}
+      hero={hero}
+      animated={animated}
+      className={className}
+    />
   );
 }

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CharacterGraphic } from "@/components/character-avatar";
 import { renderNativeCharactersKotlin } from "../../scripts/gen-native-characters";
 import {
@@ -10,11 +10,13 @@ import {
   CHARACTER_IDS,
   CHARACTER_STATES,
   DEFAULT_CHARACTER_ID,
+  createSessionOutcomeStore,
   deriveTurnCharacterState,
   getCharacterDefinition,
   getCharacterStatePose,
   isCharacterId,
   resolveCharacterState,
+  type CharacterTurnOutcome,
 } from "./characters";
 
 function srgbChannelLuminance(byte: number): number {
@@ -198,5 +200,66 @@ describe("character semantic state machine", () => {
 
     // Request fails (e.g. 429 restores draft so isTyping is true) -> Error takes priority over Typing
     expect(deriveTurnCharacterState({ isBusy: false, hasOutput: false, outcome: "error", isTyping: true })).toBe("error");
+  });
+
+  it("scopes outcome timers per session so starting another chat never cancels or freezes an earlier chat's error cue", () => {
+    vi.useFakeTimers();
+    try {
+      let outcomes: Record<string, CharacterTurnOutcome> = {};
+      const store = createSessionOutcomeStore({
+        onChange: (next) => {
+          outcomes = next;
+        },
+      });
+
+      // Chat A fails -> 950ms error cue starts.
+      store.flash("chat-a", "error");
+      expect(outcomes).toEqual({ "chat-a": "error" });
+
+      // 200ms later user switches to Chat B and sends (clearing Chat B's outcome).
+      vi.advanceTimersByTime(200);
+      store.flash("chat-b", null);
+      expect(outcomes).toEqual({ "chat-a": "error" });
+
+      // Returning to Chat A at 600ms still shows error.
+      vi.advanceTimersByTime(400);
+      expect(outcomes["chat-a"]).toBe("error");
+
+      // At 950ms total, Chat A's own timer expires even while Chat B is still waiting.
+      vi.advanceTimersByTime(350);
+      expect(outcomes["chat-a"]).toBeUndefined();
+      expect(outcomes).toEqual({});
+
+      // Migrating a new-session key preserves its running outcome timer.
+      store.flash("__new__", "completed");
+      vi.advanceTimersByTime(250);
+      store.migrate("__new__", "chat-c");
+      expect(outcomes).toEqual({ "chat-c": "completed" });
+      vi.advanceTimersByTime(400);
+      expect(outcomes).toEqual({});
+
+      store.dispose();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("defines static reduced-motion CSS poses in globals.css for typing, thinking, responding, completed, and error", () => {
+    const cssPath = path.resolve(import.meta.dirname, "../app/globals.css");
+    const css = readFileSync(cssPath, "utf8");
+    const beforeKeyframes = css.split("@keyframes nf-char-enter")[0] ?? "";
+
+    for (const activeState of ["typing", "thinking", "responding", "completed", "error"] as const) {
+      expect(
+        beforeKeyframes,
+        `expected static base pose rule for ${activeState}`,
+      ).toContain(`.nf-char[data-state="${activeState}"] .nf-char-actor`);
+      expect(
+        beforeKeyframes,
+        `expected static accent pose rule for ${activeState}`,
+      ).toContain(`.nf-char[data-state="${activeState}"] .nf-char-accent`);
+    }
+
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)[\s\S]*?\.nf-char-actor[\s\S]*?animation:\s*none\s*!important/);
   });
 });

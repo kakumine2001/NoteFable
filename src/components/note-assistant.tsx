@@ -16,7 +16,7 @@ import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
-import { parseChatStreamLine } from "@/lib/chat-stream";
+import { readChatEventStream } from "@/lib/chat-stream";
 import { deriveTurnCharacterState } from "@/lib/characters";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useDocumentHidden } from "@/lib/use-document-hidden";
@@ -41,12 +41,54 @@ const QUICK_ACTIONS = [
 // 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。rem は 1rem の px（ボタンとパネルの大きさは CSS で rem 指定なので、ブラウザーの文字サイズ設定に合わせる）。
 const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16 });
 
+export function hasAssistantMessageOutput(message: Message | undefined): boolean {
+  return Boolean(
+    message && (
+      message.content.length > 0 ||
+      message.proposals?.length ||
+      message.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal")
+    ),
+  );
+}
+
+// 今回の送信（activeTurnAssistantId）だけから出力有無を判定し、保存・アップロード待ち中に前回の回答で responding に誤遷移させない。
+export function deriveNoteAssistantCharacterStates(input: {
+  messages: readonly Message[];
+  activeTurnAssistantId: string | null;
+  busy: boolean;
+  streaming: boolean;
+  outcome: "completed" | "error" | null;
+  isTyping: boolean;
+  hidden: boolean;
+}) {
+  const currentTurnAssistant = input.activeTurnAssistantId
+    ? input.messages.find((message) => message.id === input.activeTurnAssistantId)
+    : undefined;
+  const hasTurnOutput = hasAssistantMessageOutput(currentTurnAssistant);
+  return {
+    hasTurnOutput,
+    noteCharacterState: deriveTurnCharacterState({
+      isBusy: input.busy,
+      hasOutput: hasTurnOutput,
+      outcome: input.outcome,
+      isTyping: input.isTyping,
+      hidden: input.hidden,
+    }),
+    replyCharacterState: deriveTurnCharacterState({
+      isBusy: input.streaming,
+      hasOutput: hasTurnOutput,
+      outcome: input.outcome,
+      hidden: input.hidden,
+    }),
+  };
+}
+
 // /api/chat に送り、届いた本文の差分と途中経過を順に渡す。セッション ID はレスポンスヘッダーから受け取る。
 async function streamChat(
   body: FormData,
   onSession: (id: string) => void,
   onChunk: (chunk: string, activity: ActivityEvent[], elapsedMs: number) => void,
-) {
+): Promise<{ streamFailed: boolean }> {
   const startedAt = Date.now();
   const response = await fetch("/api/chat", { method: "POST", body });
   if (!response.ok || !response.body) {
@@ -56,29 +98,9 @@ async function streamChat(
   const id = response.headers.get("X-Session-Id");
   if (id) onSession(id);
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split(/\r?\n\r?\n/);
-    buffer = events.pop() ?? "";
-
-    let chunk = "";
-    const activity: ActivityEvent[] = [];
-    for (const eventText of events) {
-      for (const line of eventText.split(/\r?\n/)) {
-        try {
-          const item = parseChatStreamLine(line);
-          if (typeof item === "string") chunk += item;
-          else if (item) activity.push(item);
-        } catch { /* 壊れた 1 行は読み飛ばす。 */ }
-      }
-    }
-    if (chunk || activity.length) onChunk(chunk, activity, Date.now() - startedAt);
-  }
+  return readChatEventStream(response.body, (chunk, activity, receivedAt) => {
+    onChunk(chunk, activity, receivedAt - startedAt);
+  });
 }
 
 // ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
@@ -104,6 +126,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const [streaming, setStreaming] = useState(false);
   // 保存待ちから返答の終わりまで true。チャットのボタンを無効にするのに使う。
   const [busy, setBusy] = useState(false);
+  // 今回の送信に対応するアシスタント回答の ID（保存・アップロード待ちの間に前回の回答を出力済みと誤認しないため）。
+  const [activeTurnAssistantId, setActiveTurnAssistantId] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [inputFocused, setInputFocused] = useState(false);
   const [outcome, setOutcome] = useState<"completed" | "error" | null>(null);
@@ -287,12 +311,15 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
     if (problem) { setError(problem); flashOutcome("error"); return; }
+    const assistantId = crypto.randomUUID();
     sending.current = true;
+    setActiveTurnAssistantId(assistantId);
     setBusy(true);
     setError("");
     flashOutcome(null);
     if (!(await flush())) {
       setError(msg("Resolve the note's unsaved changes first, then ask again."));
+      setActiveTurnAssistantId(null);
       flashOutcome("error");
       sending.current = false;
       setBusy(false);
@@ -307,6 +334,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
+      setActiveTurnAssistantId(null);
       flashOutcome("error");
       sending.current = false;
       setBusy(false);
@@ -316,7 +344,6 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     }
     stick.current = true;
 
-    const assistantId = crypto.randomUUID();
     setMessages((current) => [
       ...current,
       {
@@ -343,7 +370,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     // サーバーが発言を受け付けたか。受け付ける前に断られたら、添付は入力欄に残し、上げたファイルは片付ける。
     let accepted = false;
     try {
-      await streamChat(
+      const { streamFailed } = await streamChat(
         body,
         (id) => {
           sessionId.current = id;
@@ -360,7 +387,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           thinkingMs: message.thinkingMs ?? (chunk ? elapsedMs : undefined),
         })),
       );
-      flashOutcome("completed");
+      flashOutcome(streamFailed ? "error" : "completed");
     } catch (caught) {
       flashOutcome("error");
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
@@ -399,25 +426,13 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (event.key === "Escape" && !phone) close();
   }
 
-  const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
-  const hasTurnOutput = Boolean(
-    lastAssistant && (
-      lastAssistant.content.length > 0 ||
-      lastAssistant.proposals?.length ||
-      lastAssistant.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal")
-    ),
-  );
-  const noteCharacterState = deriveTurnCharacterState({
-    isBusy: busy,
-    hasOutput: hasTurnOutput,
+  const { noteCharacterState, replyCharacterState } = deriveNoteAssistantCharacterStates({
+    messages,
+    activeTurnAssistantId,
+    busy,
+    streaming,
     outcome,
     isTyping: open && (inputFocused || Boolean(input.trim())),
-    hidden: docHidden,
-  });
-  const replyCharacterState = deriveTurnCharacterState({
-    isBusy: streaming,
-    hasOutput: hasTurnOutput,
-    outcome,
     hidden: docHidden,
   });
 
@@ -441,8 +456,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             </div>
           </div>
         ) : messages.map((message) => (
-          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === lastAssistant?.id} thinkingSeconds={seconds}
-            characterState={message.id === lastAssistant?.id ? replyCharacterState : undefined} />
+          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
+            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} />
         ))}
       </div>
 

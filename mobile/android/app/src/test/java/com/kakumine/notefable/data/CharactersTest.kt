@@ -3,6 +3,7 @@ package com.kakumine.notefable.data
 import com.kakumine.notefable.ui.ChatUiState
 import com.kakumine.notefable.ui.MessageRole
 import com.kakumine.notefable.ui.UiMessage
+import com.kakumine.notefable.ui.computeCharacterDrawPose
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
@@ -105,5 +106,45 @@ class CharactersTest {
         val errored = base.copy(sending = false, characterOutcome = CharacterOutcome.Error)
         assertEquals(CharacterState.Error, errored.heroCharacterState(isTyping = true))
         assertEquals(CharacterState.Hidden, errored.heroCharacterState(isTyping = true, hidden = true))
+    }
+
+    @Test
+    fun `reduced motion preserves distinct static poses for idle, typing, thinking, responding, completed, and error across all 7 characters`() {
+        val visibleStates = listOf(
+            CharacterState.Idle,
+            CharacterState.Typing,
+            CharacterState.Thinking,
+            CharacterState.Responding,
+            CharacterState.Completed,
+            CharacterState.Error,
+        )
+        for (id in CharacterId.entries) {
+            for (hero in listOf(false, true)) {
+                val poses = visibleStates.map { state ->
+                    val drawPose = computeCharacterDrawPose(
+                        characterId = id,
+                        state = state,
+                        hero = hero,
+                        reducedMotion = true,
+                        live = false,
+                        floatPhase = 0.8f,
+                        thinkPhase = -0.6f,
+                        respondPhase = 0.7f,
+                        burstBell = 1f,
+                    )
+                    assertEquals(CharacterCatalog.pose(id, state), drawPose)
+                    drawPose
+                }
+                assertEquals(
+                    "expected all 6 visible states to have distinct reduced-motion static poses for $id (hero=$hero)",
+                    visibleStates.size,
+                    poses.toSet().size,
+                )
+                assertEquals(
+                    CharacterStatePose(0f, 0f, 1f, 0f, 0f, 0f, 1f),
+                    computeCharacterDrawPose(id, CharacterState.Hidden, hero = hero, reducedMotion = true, live = false),
+                )
+            }
+        }
     }
 }

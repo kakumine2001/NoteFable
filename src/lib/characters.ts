@@ -621,11 +621,76 @@ export function resolveCharacterState(input: CharacterStateInput): CharacterStat
   return "idle";
 }
 
+export type CharacterTurnOutcome = "completed" | "error";
+
+export function characterOutcomeDurationMs(kind: CharacterTurnOutcome): number {
+  return kind === "completed" ? 650 : 950;
+}
+
+// Per-session transient outcome tracker so clearing or starting one chat never cancels another chat's outcome timer.
+export function createSessionOutcomeStore(options: {
+  onChange: (outcomes: Record<string, CharacterTurnOutcome>) => void;
+  setTimer?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+  clearTimer?: (id: ReturnType<typeof setTimeout>) => void;
+}) {
+  const schedule = options.setTimer ?? ((fn, ms) => setTimeout(fn, ms));
+  const cancel = options.clearTimer ?? ((id) => clearTimeout(id));
+  const entries = new Map<string, { key: string; kind: CharacterTurnOutcome; timerId: ReturnType<typeof setTimeout> }>();
+
+  const snapshot = (): Record<string, CharacterTurnOutcome> => {
+    const next: Record<string, CharacterTurnOutcome> = {};
+    for (const [key, entry] of entries) next[key] = entry.kind;
+    return next;
+  };
+
+  return {
+    flash(sessionKey: string, kind: CharacterTurnOutcome | null) {
+      const existing = entries.get(sessionKey);
+      if (existing) {
+        cancel(existing.timerId);
+        entries.delete(sessionKey);
+      }
+      if (!kind) {
+        if (existing) options.onChange(snapshot());
+        return;
+      }
+      const entry = {
+        key: sessionKey,
+        kind,
+        timerId: null as unknown as ReturnType<typeof setTimeout>,
+      };
+      entry.timerId = schedule(() => {
+        if (entries.get(entry.key) === entry) {
+          entries.delete(entry.key);
+          options.onChange(snapshot());
+        }
+      }, characterOutcomeDurationMs(kind));
+      entries.set(sessionKey, entry);
+      options.onChange(snapshot());
+    },
+    migrate(fromKey: string, toKey: string) {
+      if (fromKey === toKey) return;
+      const moved = entries.get(fromKey);
+      if (!moved) return;
+      entries.delete(fromKey);
+      const targetExisting = entries.get(toKey);
+      if (targetExisting) cancel(targetExisting.timerId);
+      moved.key = toKey;
+      entries.set(toKey, moved);
+      options.onChange(snapshot());
+    },
+    dispose() {
+      for (const entry of entries.values()) cancel(entry.timerId);
+      entries.clear();
+    },
+  };
+}
+
 export type TurnOutputSignals = {
   isBusy: boolean;
   isStopping?: boolean;
   hasOutput: boolean;
-  outcome?: "completed" | "error" | null;
+  outcome?: CharacterTurnOutcome | null;
   isTyping?: boolean;
   hidden?: boolean;
 };

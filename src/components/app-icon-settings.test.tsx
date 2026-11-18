@@ -15,6 +15,7 @@ vi.mock("react", async (original) => {
     ...actual,
     useId: () => `test-id-${++idSeq}`,
     useRef: (initial: unknown) => ({ current: initial }),
+    useCallback: <T extends (...args: never[]) => unknown>(fn: T) => fn,
     useEffect: (fn: () => void | (() => void)) => {
       fn();
     },
