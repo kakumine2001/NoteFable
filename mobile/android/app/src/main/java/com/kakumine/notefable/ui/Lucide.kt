@@ -7,12 +7,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.scale
-import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.Dp
@@ -284,35 +282,6 @@ fun LucideIcon(
             scale(this.size.width / 24f, pivot = Offset.Zero) {
                 val stroke = Stroke(width = strokeWidth, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 parsed.forEach { drawPath(it, tint, style = stroke) }
-            }
-        }
-    }
-}
-
-// 产品形象（src/components/notefable-logo.tsx）：折了角的便签 + 两只眼睛。品牌标志和空白首页的形象（Mascot.kt）用同一份路径。
-internal const val MascotBody =
-    "M21 9h13.5a1.5 1.5 0 0 1 1.5 1.5v12a4 4 0 0 0 4 4h11.5a1.5 1.5 0 0 1 1.5 1.5V46a9 9 0 0 1-9 9H20a9 9 0 0 1-9-9V19A10 10 0 0 1 21 9Z"
-internal const val MascotFlap =
-    "M39.5 12.4c0-1.3 1.6-2 2.6-1.1l9.6 9.6c.9 1 .3 2.6-1.1 2.6H42a2.5 2.5 0 0 1-2.5-2.5Z"
-private const val MascotEyeHoles =
-    "M22.5 35.5a2.5 2.5 0 0 1 5 0v4a2.5 2.5 0 0 1-5 0ZM36.5 35.5a2.5 2.5 0 0 1 5 0v4a2.5 2.5 0 0 1-5 0Z"
-
-// 品牌标志（网页 BrandMark，viewBox 8 6 48 52）：单色填充，眼睛从身体里镂空。
-@Composable
-fun BrandMark(size: Dp, tint: Color, modifier: Modifier = Modifier) {
-    val body = remember {
-        PathParser().parsePathString(MascotBody + MascotEyeHoles).toPath().apply { fillType = PathFillType.EvenOdd }
-    }
-    val flap = remember { PathParser().parsePathString(MascotFlap).toPath() }
-    Canvas(modifier.size(size)) {
-        // viewBox 48x52 按"保持比例、居中"放进正方形（preserveAspectRatio 默认值）。
-        val s = this.size.height / 52f
-        translate(left = (this.size.width - 48f * s) / 2f) {
-            scale(s, pivot = Offset.Zero) {
-                translate(left = -8f, top = -6f) {
-                    drawPath(body, tint)
-                    drawPath(flap, tint)
-                }
             }
         }
     }

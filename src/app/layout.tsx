@@ -25,10 +25,6 @@ export const metadata: Metadata = {
   title: "NoteFable",
   // Next.js の Metadata API へ渡すページ説明。
   description: "A personal space for AI conversations, notes, and ideas.",
-  // 古い favicon キャッシュを拾いにくくするため、使うアイコンを明示する。
-  icons: {
-    icon: [{ url: "/icon.svg", type: "image/svg+xml", sizes: "any" }],
-  },
 };
 
 // モバイルのキーボード表示時も本文の表示領域を追従させる。

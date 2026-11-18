@@ -28,7 +28,7 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 - **文案文件按批次分开**：`strings.xml` 是早期界面的文案，之后每一批功能把新文案放进自己的 `res/values/strings_<批次>.xml`（例如 `strings_answers.xml`、`strings_search.xml`），各语言目录里放同名文件，键一一对应。同一个句子只放一处，后面的批次直接引用已有的键，不重复定义。
 - **服务端发来的文字**不进 `strings*.xml`，见下文“与服务端的约定”里的系统文词典。
 - **颜色**：`ui/Theme.kt` 的 `Sm` 对象，逐项对应 `--nf-*` / `--notion-*`。**网页只有浅色主题**，所以原生版也只做浅色，不跟随系统深色模式。
-- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制；7 个预设 AI 角色（Foldie、Piko、Velo、默认的 Quill、Sora、Loop、Orbit）由 `scripts/gen-native-characters.ts` 从 `src/lib/characters.ts` 生成 `data/Characters.kt`，经 `ui/Mascot.kt` 的 `CharacterGraphic` 绘制；启动图标和 `public/icon.svg` 保留品牌标志图形。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
+- **图标**：网页用 lucide，原生版 `ui/Lucide.kt` 直接用同一份路径数据绘制；7 个预设 AI 角色（Foldie、Piko、Velo、默认的 Quill、Sora、Loop、Orbit）由 `scripts/gen-native-characters.ts` 从 `src/lib/characters.ts` 生成 `data/Characters.kt`，经 `ui/Mascot.kt` 的 `CharacterGraphic` 绘制；Android 自适应启动图标、网页标签页和官网品牌标志统一使用默认角色 Quill。`/app` 移动端界面 `import` 的图标以及拍照、设置、置顶等后续要用的图标已一次性收进 `Lucide.kt`；没收的是只在 BlockNote 编辑器里用的、落地页 `thread-landing.tsx` 的（ArrowRight、BookOpen、NotebookPen）、桌面端侧栏开关 PanelLeft，以及笔记封面按钮的 ImageIcon（`note-page-header.tsx`，目前在 WebView 里由网页自己画）（从 lucide-react 渲染同名组件，circle / rect / line 换成等价 path），名字与网页的 import 相同；缺新图标时用同样方法补，不手画。
 - **字体**：网页的字体栈在安卓上落到 Roboto（日文 / 中文用系统 Noto CJK），原生版用系统默认，所以一致。等宽的角色标签网页用 Geist Mono，原生版先用系统等宽，没有内置字体文件。
 
 | 位置 | 网页数值（CSS px） | 原生 |
