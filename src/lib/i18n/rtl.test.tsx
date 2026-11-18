@@ -9,9 +9,7 @@ import { I18nProvider, useI18n } from "@/components/i18n-provider";
 import { sideMenuPlacementFor, submenuPositionFor } from "@/components/note-editor";
 import { loginEmailContent } from "@/lib/email-login";
 import { landingTitle } from "./landing-meta";
-import { LOCALES } from "./locale";
 import { messagesFor } from "./messages";
-import { createTranslator } from "./translate";
 
 function Probe() {
   const { locale, dir, t } = useI18n();
@@ -40,13 +38,8 @@ describe("RTL and multi-script presentation", () => {
     expect(frHtml).toContain('data-probe="fr:ltr"');
   });
 
-  it("joins landing titles without an ASCII space only for CJK locales (zh, zh-Hant, ja)", () => {
-    for (const locale of LOCALES) {
-      const t = createTranslator(messagesFor(locale));
-      const title = landingTitle(t, locale);
-      const expectedSeparator = locale === "zh" || locale === "zh-Hant" || locale === "ja" ? "" : " ";
-      expect(title, locale).toBe(`NoteFable — ${[t("Ask it."), t("Keep it."), t("Find it again.")].join(expectedSeparator)}`);
-    }
+  it("pins the landing page title to the English hero headline", () => {
+    expect(landingTitle()).toBe("NoteFable — Ask it. Keep it. Find it again.");
   });
 
   it("formats login emails with dir=rtl for Arabic while keeping the 6-digit OTP code LTR", () => {

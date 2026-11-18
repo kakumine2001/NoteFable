@@ -17,7 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const locale: Locale = isLocale(value) ? value : "en";
   const t = createTranslator(messagesFor(locale));
   return {
-    title: landingTitle(t, locale),
+    title: landingTitle(),
     description: t(DESCRIPTION),
     alternates: {
       canonical: landingPath(locale),
