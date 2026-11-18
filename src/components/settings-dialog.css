@@ -188,3 +188,8 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
 @media (prefers-reduced-motion: reduce) {
   dialog.settings-dialog, dialog.settings-dialog::backdrop, dialog.settings-dialog .settings-unsaved, dialog.settings-dialog .settings-unsaved.is-attention { animation: none; }
 }
+
+/* Auto includes the effective language, so let long names wrap. */
+dialog.settings-dialog .settings-select.language-setting { height: auto; min-height: 2.25rem; padding-block: .35rem; }
+dialog.settings-dialog .settings-select.language-setting > span { white-space: normal; overflow-wrap: anywhere; text-align: start; }
+@media (max-width: 639px) { dialog.settings-dialog .settings-select.language-setting { min-height: 2.5rem; } }

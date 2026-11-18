@@ -1,9 +1,9 @@
 "use client";
 
-import { Check, Languages } from "lucide-react";
+import { Check, Languages, Search } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useI18n } from "@/components/i18n-provider";
-import { LOCALE_NAMES, LOCALES, type Locale } from "@/lib/i18n/locale";
+import { LOCALE_NAMES, LOCALES, LOCALE_TAGS, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 // 言語の一覧を開くボタンの状態（一覧の位置と、閉じたあとのフォーカス）。このメニューと設定画面の「言語」の行が使う。
@@ -24,105 +24,114 @@ export function useLanguageMenuAnchor() {
   };
 }
 
-// 表示言語を選んだときの処理（このブラウザの Cookie に残す）と、切り替えに失敗したときの理由。
-// 選んでいなければ環境の言語（src/lib/i18n/locale.ts の順）で表示していて、current はそれ（切り替え中なら行き先）。
-// onChoose は呼び出し側の追加の処理（紹介ページ: アカウントへの保存と URL の言語）。切り替えが済んでから 1 回だけ呼ぶ。
-export function useLanguageChoice(onChoose?: (next: Locale) => void) {
+export type LanguageChoiceHandler = (next: LocalePreference, effective: Locale, isCurrent: () => boolean) => Promise<string> | void;
+
+// Dictionary switches never navigate or remount workspace content. Await a
+// successful switch before saving the landing preference and updating its URL.
+export function useLanguageChoice(onChoose?: LanguageChoiceHandler) {
   const { locale, preference, target, changeError, setPreference } = useI18n();
-  // 最後に選んだ言語（切り替えの成否と、onChoose を呼んだかを見る）。
-  const [chosen, setChosen] = useState<Locale | null>(null);
-  const notified = useRef<Locale | null>(null);
-  const current = target && target !== "auto" ? target : locale;
-
-  useEffect(() => {
-    if (!chosen || locale !== chosen || notified.current === chosen) return;
-    notified.current = chosen;
-    onChoose?.(chosen);
-  }, [chosen, locale, onChoose]);
-
-  function choose(next: Locale) {
-    // 環境の言語で表示中に同じ言語を選んだときも、選択として残す（Cookie に書く。辞書は取り直さない）。
-    if (next === current && preference === next) return;
-    notified.current = null;
-    setChosen(next);
-    setPreference(next);
+  const [saveError, setSaveError] = useState("");
+  const request = useRef(0);
+  const current = target ?? preference;
+  async function choose(next: LocalePreference) {
+    const id = ++request.current;
+    const previous = preference;
+    setSaveError("");
+    if (!await setPreference(next) || id !== request.current) return;
+    // Auto's effective language is supplied by the provider on the next render;
+    // landing URLs use / for Auto so refresh follows the environment again.
+    const error = await onChoose?.(next, next === "auto" ? locale : next, () => id === request.current);
+    if (error && id === request.current) {
+      await setPreference(previous);
+      setSaveError(error);
+    }
   }
-
-  // 切り替えに失敗した（辞書を取れなかった）: 表示は元の言語のまま。もう一度選べば再試行。
-  const failed = chosen !== null && locale !== chosen && target === null && changeError ? changeError : null;
-  return { current, choose, failed };
+  return { current, choose, failed: saveError || changeError || null };
 }
 
-// 表示言語のメニュー（紹介ページのフッター）。ボタンとメニューの印は今の表示言語。
-// ログインした人の言語はアカウントに保存し、設定画面で選ぶ。サイドバーではヘルプメニュー（help-menu.tsx）の中に置く。
-export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: (next: Locale) => void }) {
-  const { t, locale } = useI18n();
+export function LanguageMenu({ className, onChoose }: { className?: string; onChoose?: LanguageChoiceHandler }) {
+  const { t, locale, preference, switching } = useI18n();
   const { anchor, triggerRef, toggle, close } = useLanguageMenuAnchor();
   const { current, choose, failed } = useLanguageChoice(onChoose);
+  const label = preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale];
   return (
     <>
-      <button ref={triggerRef} type="button" className={className} aria-haspopup="menu" aria-expanded={anchor !== null}
-        aria-label={t("Language: {language}", { language: LOCALE_NAMES[locale] })}
-        onClick={toggle}>
-        <Languages size={14} aria-hidden="true" />
-        <span lang={locale}>{LOCALE_NAMES[locale]}</span>
+      <button ref={triggerRef} type="button" className={className} aria-haspopup="dialog" aria-expanded={anchor !== null}
+        aria-label={t("Language: {language}", { language: label })} aria-busy={switching} onClick={toggle}>
+        <Languages size={14} aria-hidden="true" /><span>{label}</span>
       </button>
       {failed && <span role="alert" className="language-menu-error">{t(failed)}</span>}
-      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={(next) => { close(); choose(next); }} onClose={close} />}
+      {anchor && <LanguageMenuPanel anchor={anchor} current={current} onChoose={(next) => { close(); void choose(next); }} onClose={close} />}
     </>
   );
 }
 
-// 言語の一覧（ボタンの下か上に開く）。設定画面の「言語」の行も同じものを使う。
-// current は印を付ける言語（null はどれにも付けない）。align="end" はボタンの右端に揃える（行の右端にあるボタン用）。
+// A modal dialog contains a search field and a radio group. Native buttons keep
+// Enter/Space activation, while arrows/Home/End move focus without choosing.
 export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, onClose }: {
-  anchor: DOMRect; current: Locale | null; align?: "start" | "end"; onChoose: (next: Locale) => void; onClose: () => void;
+  anchor: DOMRect; current: LocalePreference | null; align?: "start" | "end"; onChoose: (next: LocalePreference) => void; onClose: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [viewport, setViewport] = useState(() => ({ width: window.innerWidth, height: window.visualViewport?.height ?? window.innerHeight }));
+  useEffect(() => {
+    const resize = () => setViewport({ width: window.innerWidth, height: window.visualViewport?.height ?? window.innerHeight });
+    window.addEventListener("resize", resize);
+    window.visualViewport?.addEventListener("resize", resize);
+    return () => { window.removeEventListener("resize", resize); window.visualViewport?.removeEventListener("resize", resize); };
+  }, []);
   useBackToClose(true, onClose);
   useEffect(() => {
     ref.current?.showModal();
-    (ref.current?.querySelector<HTMLButtonElement>('[aria-checked="true"]') ?? ref.current?.querySelector<HTMLButtonElement>('[role="menuitemradio"]'))?.focus();
+    searchRef.current?.focus();
   }, []);
-
-  // ボタンは画面の下の方にあるので、下に入らなければ上に開く。横はボタンの左端（align="end" は右端）に揃え、画面からはみ出さない。
-  // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）で見積もる。
-  const height = LOCALES.length * 44 + 12;
-  const below = anchor.bottom + 4 + height <= window.innerHeight - 8;
-  const style = {
-    left: Math.max(8, Math.min(align === "end" ? anchor.right - 228 : anchor.left, window.innerWidth - 236)),
-    // 上に開くときは top を外す（モーダルの <dialog> は既定で top: 0 を持っていて、bottom だけでは効かない）。
-    ...(below ? { top: anchor.bottom + 4 } : { top: "auto", bottom: Math.max(8, window.innerHeight - anchor.top + 4) }),
-  };
-
-  function keyboard(event: KeyboardEvent<HTMLDivElement>) {
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+  const options: LocalePreference[] = ["auto", ...LOCALES];
+  const filtered = options.filter((option) => option === "auto" || `${LOCALE_NAMES[option]} ${option} ${LOCALE_TAGS[option]}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
+  const width = Math.min(320, viewport.width - 16);
+  const height = Math.min(368, viewport.height - 16);
+  const top = anchor.bottom + 4 + height <= viewport.height - 8 ? anchor.bottom + 4
+    : Math.max(8, anchor.top - height - 4);
+  const style = { width, maxHeight: height, top, left: Math.max(8, Math.min(align === "end" ? anchor.right - width : anchor.left, viewport.width - width - 8)) };
+  function keyboard(event: KeyboardEvent<HTMLDialogElement>) {
+    if (event.nativeEvent.isComposing) return;
+    const searching = event.target === searchRef.current;
+    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key) || (searching && ["Home", "End"].includes(event.key))) return;
     event.preventDefault();
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]'));
+    const items = Array.from(ref.current?.querySelectorAll<HTMLButtonElement>('[role="radio"]') ?? []);
     const index = items.indexOf(document.activeElement as HTMLButtonElement);
     const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
+      : index < 0 ? (event.key === "ArrowDown" ? 0 : items.length - 1)
       : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
     items[next]?.focus();
+    items[next]?.scrollIntoView({ block: "nearest" });
   }
-
   return (
-    <dialog ref={ref} aria-label={t("Language")} className="chat-actions-menu language-menu" style={style} translate="no"
+    <dialog ref={ref} aria-label={t("Language")} className="chat-actions-menu language-menu" style={style} onKeyDown={keyboard}
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onClick={(event) => {
         if (event.target !== event.currentTarget) return;
         const r = event.currentTarget.getBoundingClientRect();
         if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) onClose();
       }}>
-      <div role="menu" onKeyDown={keyboard}>
-        {LOCALES.map((option) => (
-          <button key={option} type="button" role="menuitemradio" aria-checked={option === current} className="chat-menu-item"
-            onClick={() => onChoose(option)}>
-            <span lang={option} className="language-menu-name">{LOCALE_NAMES[option]}</span>
+      <label className="language-menu-search">
+        <Search size={15} aria-hidden="true" />
+        <input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)}
+          placeholder={t("Search languages")} aria-label={t("Search languages")} />
+      </label>
+      <div role="radiogroup" aria-label={t("Language")} className="language-menu-options">
+        {filtered.map((option) => (
+          <button key={option} type="button" role="radio" aria-checked={option === current} className="chat-menu-item" onClick={() => onChoose(option)}>
+            <span className="language-menu-name">
+              {option === "auto" ? <>{t("Auto detect")}<small>{t("Auto (current: {language})", { language: LOCALE_NAMES[locale] })}</small></>
+                : <><span lang={LOCALE_TAGS[option]} translate="no">{LOCALE_NAMES[option]}</span>{option === locale && <small>{t("Current language")}</small>}</>}
+            </span>
             <Check size={15} aria-hidden="true" className={`language-menu-check${option === current ? "" : " invisible"}`} />
           </button>
         ))}
       </div>
+      {filtered.length === 1 && query && <p role="status" className="language-menu-empty">{t("No languages found.")}</p>}
     </dialog>
   );
 }

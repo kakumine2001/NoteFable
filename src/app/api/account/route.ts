@@ -33,7 +33,7 @@ export async function GET() {
     const row = await getOrCreateUser().catch(() => null);
     // 削除したアカウントの古いログイン Cookie（deleted-accounts.ts）は匿名の行になる。ログインしていない表示にする。
     if (row && !isAccountUser(row)) return NextResponse.json({ configured: true, ...methods, user: null, googleClientId, billing });
-    // 行を読めなかったときは表示言語を返さない（null を返すと「未選択」と区別できず、ブラウザの選択で上書きされる）。
+    // An absent locale is unknown; null is a known Auto preference.
     const user = toAccountUser({ displayName: row?.displayName ?? null, avatarIcon: row?.avatarIcon ?? null, avatarImage: row?.avatarImage ?? null, locale: row ? row.locale : undefined }, google);
     // trialDays: 無料の試用を出せる日数（初めての申し込みだけ。出せない・行を読めなかったときは 0）。
     const trialDays = billing && row && isTrialEligible(row) ? PRO_TRIAL_DAYS : 0;

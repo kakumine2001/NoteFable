@@ -3,4 +3,9 @@
 <resources>
     <string name="ui_locale">zh-Hant</string>
     <string name="language_change_failed">無法切換語言，請重試。</string>
+    <string name="language_auto">自動檢測</string>
+    <string name="language_auto_current">自動檢測（當前：%1$s）</string>
+    <string name="language_search">搜尋語言</string>
+    <string name="language_effective">當前語言</string>
+    <string name="language_no_results">未找到語言。</string>
 </resources>

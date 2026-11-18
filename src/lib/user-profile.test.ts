@@ -35,10 +35,11 @@ describe("parseProfilePatch", () => {
     expect(parseProfilePatch({ icon: null, displayName: "" })).toEqual({ ok: true, data: { avatarIcon: null, displayName: null } });
   });
 
-  it("accepts a supported display language but not automatic or unknown ones", () => {
+  it("accepts a supported display language and null for Auto, but not unknown ones", () => {
     expect(parseProfilePatch({ locale: "ja" })).toEqual({ ok: true, data: { locale: "ja" } });
     expect(parseProfilePatch({ locale: "zh-Hant" })).toEqual({ ok: true, data: { locale: "zh-Hant" } });
-    for (const locale of [null, "auto", "fr", "", 5]) {
+    expect(parseProfilePatch({ locale: null })).toEqual({ ok: true, data: { locale: null } });
+    for (const locale of ["auto", "fr", "", 5]) {
       expect(parseProfilePatch({ locale })).toEqual({ ok: false, error: "Choose one of the listed languages." });
     }
   });

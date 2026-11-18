@@ -2875,3 +2875,16 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .notes-recent-card { transition: none; }
   .notes-recent-card:hover:not(:disabled) { transform: none; }
 }
+
+/* Language search stays visible while a growing list scrolls within the viewport. */
+.chat-actions-menu.language-menu { overflow: hidden; padding: .35rem; }
+.language-menu[open] { display: flex; flex-direction: column; }
+.language-menu-search { display: flex; flex: none; align-items: center; gap: .5rem; margin: .25rem; padding: .5rem; border: 1px solid var(--notion-border); border-radius: .4rem; color: var(--notion-muted); }
+.language-menu-search:focus-within { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+.language-menu-search input { width: 100%; min-width: 0; background: transparent; color: var(--notion-text); font-size: .875rem; outline: none; }
+.language-menu-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+.language-menu .language-menu-name { white-space: normal; overflow-wrap: anywhere; }
+.language-menu-name small { display: block; margin-top: .15rem; color: var(--notion-muted); font-size: .75rem; }
+.language-menu [aria-checked="true"] { background: var(--notion-active); }
+.language-menu-empty { padding: .5rem .75rem; font-size: .8125rem; color: var(--notion-muted); }
+.help-menu-value { min-width: 0; max-width: 65%; white-space: normal; overflow-wrap: anywhere; text-align: end; }

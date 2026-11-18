@@ -20,7 +20,7 @@ const LINKS = [
 // サイドバー下部の「?」。紹介・プライバシー・利用規約・特商法表記（と、ログインしていなければ表示言語）をここにまとめ、
 // 普段は小さなボタン 1 つだけを見せる（ChatGPT / Claude のヘルプメニューと同じ置き方）。ログインした人の言語は設定画面で選ぶ。
 export function HelpMenu({ guest }: { guest: boolean }) {
-  const { t, locale } = useI18n();
+  const { t, locale, preference } = useI18n();
   const router = useRouter();
   const language = useLanguageChoice();
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -58,11 +58,11 @@ export function HelpMenu({ guest }: { guest: boolean }) {
           ))}
           {guest && <>
             <hr className="chat-menu-divider" />
-            <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="menu"
+            <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="dialog"
               onClick={() => setOpen({ kind: "language", anchor: open.anchor })}>
               <Languages size={16} aria-hidden="true" className="help-menu-icon" />
               <span className="flex-1">{t("Language")}</span>
-              <span lang={locale} className="help-menu-value">{LOCALE_NAMES[locale]}</span>
+              <span lang={locale} className="help-menu-value">{preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale]}</span>
               <ChevronRight size={15} aria-hidden="true" className="help-menu-icon" />
             </button>
           </>}

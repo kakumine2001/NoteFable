@@ -1,8 +1,10 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
-import { isLocale, LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference } from "@/lib/i18n/locale";
-import { createTranslator, msg, type Messages, type Translate } from "@/lib/i18n/translate";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference } from "@/lib/i18n/locale";
+import { createTranslator, type Messages, type Translate } from "@/lib/i18n/translate";
+
+import { createLocaleSwitcher } from "@/lib/locale-switch";
 
 type I18nValue = {
   locale: Locale;
@@ -10,7 +12,7 @@ type I18nValue = {
   tag: string;
   preference: LocalePreference;
   t: Translate;
-  setPreference: (next: LocalePreference) => void;
+  setPreference: (next: LocalePreference) => Promise<boolean>;
   switching: boolean;
   // 切り替え中の行き先（切り替えていなければ null）。表示がアカウントの言語に向かっているかを同期が確かめる。
   target: LocalePreference | null;
@@ -18,7 +20,7 @@ type I18nValue = {
 };
 
 const fallback: I18nValue = {
-  locale: "en", tag: "en", preference: "auto", t: createTranslator({}), setPreference: () => {}, switching: false, target: null, changeError: "",
+  locale: "en", tag: "en", preference: "auto", t: createTranslator({}), setPreference: async () => false, switching: false, target: null, changeError: "",
 };
 
 const I18nContext = createContext<I18nValue>(fallback);
@@ -45,11 +47,11 @@ function writeLocaleCookie(next: LocalePreference) {
 }
 
 // 進行中の言語の切り替え（辞書の取得）。新しい切り替えやログアウトが来たら中止する（後から Cookie を書き戻さないように）。
-let activeSwitch: AbortController | null = null;
+let activeSwitch: ReturnType<typeof createLocaleSwitcher> | null = null;
 
 // ブラウザに残した言語の選択を消す（ログアウトの直前に呼ぶ）。次に開いたページは環境の言語で表示される。
 export function forgetLocaleChoice() {
-  activeSwitch?.abort();
+  activeSwitch?.cancel();
   writeLocaleCookie("auto");
 }
 
@@ -66,9 +68,7 @@ export function I18nProvider({ locale, messages, children }: {
   // 同じ言語の間は同じ t を使い、t に依存する処理を不要に読み込み直さない。
   const [translator, setTranslator] = useState(() => ({ locale, t: createTranslator(messages) }));
   const { locale: activeLocale, t } = translator;
-  const activeLocaleRef = useRef(activeLocale);
-  useEffect(() => { activeLocaleRef.current = activeLocale; }, [activeLocale]);
-  useEffect(() => () => { activeSwitch?.abort(); }, []);
+
   // ルートのレイアウトは静的に保つため <html lang="en"> を出す。表示言語に合わせて書き換える。
   useEffect(() => {
     const root = document.documentElement;
@@ -76,41 +76,23 @@ export function I18nProvider({ locale, messages, children }: {
     root.lang = LOCALE_TAGS[activeLocale];
     return () => { root.lang = previous; };
   }, [activeLocale]);
-  // 後から来た切り替えが勝つ（進行中のものは中止する）。
-  const setPreference = useCallback((next: LocalePreference) => {
-    activeSwitch?.abort();
-    activeSwitch = null;
-    setChangeError("");
-    // いま表示している言語に固定するだけなら、辞書を取り直さずに Cookie だけを書く。
-    if (next !== "auto" && next === activeLocaleRef.current) {
-      setTarget(null);
+  const [switcher] = useState(() => createLocaleSwitcher({
+    locale,
+    pending: setTarget,
+    error: setChangeError,
+    commit: (next, dictionary) => {
       writeLocaleCookie(next);
-      return;
-    }
-    const controller = new AbortController();
-    activeSwitch = controller;
-    setTarget(next);
-    void (async () => {
-      try {
-        const response = await fetch(`/api/i18n?preference=${encodeURIComponent(next)}`, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error("Language request failed");
-        const data = await response.json();
-        if (!isLocale(data.locale) || !data.messages || typeof data.messages !== "object" || Array.isArray(data.messages)
-          || Object.values(data.messages).some((message) => typeof message !== "string")) throw new Error("Invalid language response");
-        if (controller.signal.aborted) return;
-        writeLocaleCookie(next);
-        setTranslator((current) => current.locale === data.locale ? current : { locale: data.locale, t: createTranslator(data.messages) });
-      } catch {
-        if (!controller.signal.aborted) setChangeError(msg("Could not change language. Please try again."));
-      } finally {
-        // 次の切り替えに中止されたときは、その切り替えが状態を引き継ぐ。それ以外（完了・失敗・ログアウトでの中止）はここで終える。
-        if (activeSwitch === controller) {
-          activeSwitch = null;
-          setTarget(null);
-        }
+      if (dictionary) {
+        setTranslator((current) => current.locale === dictionary.locale ? current : { locale: dictionary.locale, t: createTranslator(dictionary.messages) });
       }
-    })();
-  }, []);
+    },
+  }));
+  useEffect(() => () => { switcher.cancel(); if (activeSwitch === switcher) activeSwitch = null; }, [switcher]);
+  const setPreference = useCallback((next: LocalePreference) => {
+    if (activeSwitch !== switcher) activeSwitch?.cancel();
+    activeSwitch = switcher;
+    return switcher.choose(next);
+  }, [switcher]);
   const switching = target !== null;
   const value = useMemo(() => ({ locale: activeLocale, tag: LOCALE_TAGS[activeLocale], preference, t, setPreference, switching, target, changeError }),
     [activeLocale, preference, t, setPreference, switching, target, changeError]);

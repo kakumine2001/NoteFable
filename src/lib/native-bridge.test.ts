@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NotePage } from "@/types/notes";
-import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSettings, parseUpdatedPage, postToNative, readNativeAppIcon, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSettings, parseUpdatedPage, postToNative, readNativeAppIcon, readNativeLanguage, toEmbedSaveState, type NativeMessage } from "./native-bridge";
 
 describe("readNativeAppIcon", () => {
   const postMessage = () => {};
@@ -183,5 +183,34 @@ describe("embed api", () => {
     expect(target.notefableEmbed).toBe(second);
     removeSecond();
     expect(target.notefableEmbed).toBeUndefined();
+  });
+});
+
+describe("native language changes", () => {
+  it("accepts enabled effective languages without flushing or replacing a note", async () => {
+    const language = vi.fn().mockResolvedValue(true);
+    const flush = vi.fn();
+    const api = createEmbedApi({ language, flush, openHistory: vi.fn(), post: vi.fn() });
+    await expect(api.language("zh-Hant")).resolves.toBe(true);
+    expect(language).toHaveBeenCalledWith("zh-Hant");
+    expect(flush).not.toHaveBeenCalled();
+    await expect(api.language("ko")).resolves.toBe(false);
+    await expect(api.language(null)).resolves.toBe(false);
+    expect(language).toHaveBeenCalledTimes(1);
+  });
+  it("reports a failed language change so the editor can retain its previous dictionary", async () => {
+    const api = createEmbedApi({ language: vi.fn().mockRejectedValue(new Error("offline")), flush: vi.fn(), openHistory: vi.fn(), post: vi.fn() });
+    await expect(api.language("ja")).resolves.toBe(false);
+  });
+});
+
+
+describe("readNativeLanguage", () => {
+  it("reads enabled native languages and ignores absent, invalid or throwing bridges", () => {
+    const postMessage = () => {};
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "zh-Hant" } })).toBe("zh-Hant");
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "ko" } })).toBeNull();
+    expect(readNativeLanguage({ NoteFableNative: { postMessage } })).toBeNull();
+    expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => { throw new Error("gone"); } } })).toBeNull();
   });
 });

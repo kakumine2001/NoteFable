@@ -28,3 +28,29 @@ describe("language dictionary endpoint", () => {
     expect(await response.json()).toEqual({ locale: "en", messages: {} });
   });
 });
+
+function request(query: string, language?: string, country?: string) {
+  return new NextRequest(`http://localhost/api/i18n${query}`, { headers: {
+    cookie: "notefable-locale=ja", ...(language ? { "accept-language": language } : {}), ...(country ? { "x-vercel-ip-country": country } : {}),
+  } });
+}
+describe("language dictionaries and native Auto resolution", () => {
+  it("uses the explicit cookie until Auto is requested", async () => {
+    expect((await GET(request("", "zh-HK", "JP")).json()).locale).toBe("ja");
+    const response = GET(request("?preference=auto", "zh-HK", "JP"));
+    const data = await response.json();
+    expect(data.locale).toBe("zh-Hant");
+    expect(data.messages["Auto detect"]).toBeTruthy();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+  it("returns only an inferred locale to native without changing any preference", async () => {
+    const response = GET(request("?preference=auto&format=locale", "ko-KR,es-MX;q=0.8", "JP"));
+    expect(await response.json()).toEqual({ locale: "ja" });
+    expect(response.headers.get("set-cookie")).toBeNull();
+    expect(response.headers.get("cache-control")).toBe("private, no-store");
+  });
+  it("honors matching languages before country and falls back to English", async () => {
+    expect(await GET(request("?preference=auto&format=locale", "pt-BR,zh-HK;q=0.4", "JP")).json()).toEqual({ locale: "zh-Hant" });
+    expect(await GET(request("?preference=auto&format=locale", "ar-SA,en;q=0", "ZZ")).json()).toEqual({ locale: "en" });
+  });
+});

@@ -2,6 +2,16 @@ package com.kakumine.notefable
 
 import android.content.Intent
 import android.content.res.Configuration
+import android.content.res.Resources
+import android.os.LocaleList
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.json.JSONObject
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -25,11 +35,56 @@ class MainActivity : AppCompatActivity() {
     private val accountViewModel: AccountViewModel by viewModels { AccountViewModel.Factory }
     private val notesViewModel: NotesViewModel by viewModels { NotesViewModel.Factory }
 
+    private var autoRequest = 0
+    private var autoFallback: Pair<String, AppLanguage.Preference>? = null
+    private val localeClient by lazy { OkHttpClient() }
+
+    private fun systemTags(): List<String> = Resources.getSystem().configuration.locales.toLanguageTags().split(',')
+
+    /** Keep Auto's inferred resources separate from the persisted app preference. */
+    @Suppress("DEPRECATION")
+    private fun resolveAutoConfiguration() {
+        val requestId = ++autoRequest
+        if (!AppCompatDelegate.getApplicationLocales().isEmpty) return
+        val tags = systemTags()
+        val key = tags.joinToString(",")
+        val matched = tags.firstNotNullOfOrNull(AppLanguage::localeFromTag)
+        fun display(language: AppLanguage.Preference) {
+            val config = Configuration(resources.configuration)
+            config.setLocales(LocaleList.forLanguageTags(language.tag))
+            resources.updateConfiguration(config, resources.displayMetrics)
+            AppLanguage.uiLocale = getString(R.string.ui_locale)
+            window.decorView.dispatchConfigurationChanged(config)
+        }
+        display(matched ?: autoFallback?.takeIf { it.first == key }?.second ?: AppLanguage.Preference.English)
+        if (matched != null || autoFallback?.first == key) return
+        // Only unsupported system lists need country inference. This endpoint is
+        // private/no-store and does not read or create an account/device record.
+        lifecycleScope.launch {
+            val inferred = withContext(Dispatchers.IO) {
+                runCatching {
+                    val request = Request.Builder().url(BuildConfig.BASE_URL + "/api/i18n?preference=auto&format=locale")
+                        .header("Accept-Language", key).build()
+                    localeClient.newCall(request).execute().use { response ->
+                        check(response.isSuccessful)
+                        AppLanguage.preferenceOfCode(JSONObject(response.body.string()).getString("locale"))
+                    }
+                }.getOrNull()
+            } ?: return@launch
+            // Travel, a system change or a newer manual selection invalidates it.
+            if (requestId == autoRequest && AppCompatDelegate.getApplicationLocales().isEmpty && systemTags() == tags) {
+                autoFallback = key to inferred
+                display(inferred)
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // 网页只有浅色主题：状态栏和导航栏固定用深色图标，不随系统深色模式切换。
         val transparentLight = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         enableEdgeToEdge(statusBarStyle = transparentLight, navigationBarStyle = transparentLight)
         super.onCreate(savedInstanceState)
+        resolveAutoConfiguration()
         AppLanguage.uiLocale = getString(R.string.ui_locale)
         setContent {
             NoteFableTheme {
@@ -63,6 +118,7 @@ class MainActivity : AppCompatActivity() {
     // 这里把新配置交给 View 树，让 AndroidComposeView 更新 LocalConfiguration；系统发来的变化多走一次也无妨。
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
+        resolveAutoConfiguration()
         AppLanguage.uiLocale = getString(R.string.ui_locale)
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             window.decorView.dispatchConfigurationChanged(Configuration(resources.configuration))

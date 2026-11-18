@@ -1,6 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { applyProfileEdit, profileEditChanges, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
-import type { Locale } from "@/lib/i18n/locale";
+import type { LocalePreference } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 
 export type Account = {
@@ -72,12 +72,25 @@ export function loadAccount(attempt = 0) {
 // 紹介ページの言語メニューで選んだ言語を、ログインしていればアカウントにも保存する（紹介ページは AccountLocaleSync を置かない）。
 // このページで利用者の情報を読み終えていれば（/app から来た）、いつもの保存の列に入れて手元の状態も合わせる
 // （直接送ると、/app に戻ったときに古い言語に切り戻される）。読んでいなければ直接送る（未ログインなら 401 で何もしない）。
-export function saveLocaleIfSignedIn(locale: Locale) {
+export async function saveLocaleIfSignedIn(preference: LocalePreference): Promise<string> {
+  const locale = preference === "auto" ? null : preference;
   if (confirmed) {
-    if (confirmed.user) void saveProfile({ locale });
-    return;
+    if (!confirmed.user) return "";
+    await saveProfile({ locale });
+    return saveError;
   }
-  void fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) }).catch(() => {});
+  // Landing pages may not have loaded the account store yet. Serialize their
+  // direct patches too, so a slower earlier choice cannot win on the server.
+  const run = chain.then(async () => {
+    try {
+      const response = await fetch("/api/account", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale }) });
+      if (response.ok || response.status === 401 || response.status === 404) return "";
+      const data = await response.json().catch(() => ({}));
+      return typeof data.error === "string" ? data.error : msg("Could not save.");
+    } catch { return msg("Could not save."); }
+  });
+  chain = run.then(() => undefined);
+  return run;
 }
 
 // テスト用: 今の見え方（確定済みの状態 + 送信待ちの編集）。
