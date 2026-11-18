@@ -10,11 +10,11 @@ import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { BrandMark } from "@/components/notefable-logo";
 import { LOCALES, type Locale, type LocalePreference } from "@/lib/i18n/locale";
-import { landingTitle } from "@/lib/i18n/landing-meta";
+import { LANDING_HERO, landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
 import { saveLocaleIfSignedIn } from "@/lib/account-store";
 import { afterSheetHistory } from "@/lib/use-back-to-close";
-import { useI18n, useT } from "@/components/i18n-provider";
+import { useT } from "@/components/i18n-provider";
 
 // 同じ問いを英語・中国語・日本語で打ち直す。ページ全体がこの一つの問いを追いかける。
 const QUESTIONS = [
@@ -218,9 +218,8 @@ async function onLandingLocale(preference: LocalePreference, locale: Locale, isC
 
 export function ThreadLanding() {
   const t = useT();
-  const { locale } = useI18n();
-  // メニューで言語を切り替えたら、タブのタイトルもその言語にする（最初はメタデータと同じもの）。
-  useEffect(() => { document.title = landingTitle(t, locale); }, [t, locale]);
+  // タブのタイトルはメタデータ（[locale]/page.tsx）と同じ英語のヒーロー見出しに揃える。
+  useEffect(() => { document.title = landingTitle(); }, [t]);
   const { options: modelOptions, defaultModel } = useModels();
   const defaultModelLabel = modelOptions.find((model) => model.id === defaultModel)?.label ?? modelOptions[0].label;
   const STATIONS = useStations();
@@ -294,9 +293,9 @@ export function ThreadLanding() {
         >
           <div className="tl-hero-glow" aria-hidden="true" />
           <div className="tl-wrap">
-            <p className="tl-kicker">{t("AI chat and notes, in one place")}</p>
-            <h1 id="tl-title"><span className="tl-rise">{t("Ask it.")}</span> <span className="tl-rise"><span className="tl-mark">{t("Keep it.")}</span></span><br /><span className="tl-rise">{t("Find it again.")}</span></h1>
-            <p className="tl-lede">{t("NoteFable is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it.")}</p>
+            <p className="tl-kicker" lang="en" dir="ltr">{LANDING_HERO.eyebrow}</p>
+            <h1 id="tl-title" lang="en" dir="ltr"><span className="tl-rise">{LANDING_HERO.headlineLead}</span> <span className="tl-rise"><span className="tl-mark">{LANDING_HERO.headlineMark}</span></span><br /><span className="tl-rise">{LANDING_HERO.headlineTail}</span></h1>
+            <p className="tl-lede" lang="en" dir="ltr">{LANDING_HERO.lede}</p>
 
             <Link className="tl-composer" href="/app" prefetch={false} aria-label={t("Open NoteFable and ask a question")}>
               <span className="tl-composer-text" aria-hidden="true"><TypedQuestion /></span>

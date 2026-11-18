@@ -228,4 +228,4 @@
 @keyframes tl-write-rtl { from { opacity: 0; clip-path: inset(0 0 0 100%); } to { opacity: 1; clip-path: inset(0 0 0 -4px); } }
 [dir="rtl"] .tl-live .is-on .tl-card-note li,
 [dir="rtl"] .tl-live .is-on .tl-note-own { animation-name: tl-write-rtl; }
-:lang(ar) :is(.tl-brand, .tl-kicker, .tl-hero h1, .tl-step, .tl-copy h3, .tl-card h4, .tl-facts h3, .tl-finale h2) { letter-spacing: 0; }
+:lang(ar) :is(.tl-brand, .tl-step, .tl-copy h3, .tl-card h4, .tl-facts h3, .tl-finale h2) { letter-spacing: 0; }
