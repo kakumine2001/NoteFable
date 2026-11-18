@@ -8,7 +8,8 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
-import { BrandMark } from "@/components/notefable-logo";
+import { CharacterGraphic } from "@/components/character-avatar";
+import { DEFAULT_CHARACTER_ID } from "@/lib/characters";
 import { LOCALES, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { LANDING_HERO, landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
@@ -276,7 +277,7 @@ export function ThreadLanding() {
       <a className="tl-skip" href="#tl-main">{t("Skip to content")}</a>
 
       <header className="tl-nav tl-wrap">
-        <Link className="tl-brand" href={INTRO_HREF} aria-label={t("NoteFable home")}><BrandMark /><span>NoteFable</span></Link>
+        <Link className="tl-brand" href={INTRO_HREF} aria-label={t("NoteFable home")}><CharacterGraphic characterId={DEFAULT_CHARACTER_ID} size={26} /><span>NoteFable</span></Link>
         <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 
@@ -352,7 +353,7 @@ export function ThreadLanding() {
       </main>
 
       <footer className="tl-footer tl-wrap">
-        <span className="tl-brand"><BrandMark size={20} /><span>NoteFable</span></span>
+        <span className="tl-brand"><CharacterGraphic characterId={DEFAULT_CHARACTER_ID} size={20} /><span>NoteFable</span></span>
         <div className="tl-footer-end">
           <LanguageMenu className="tl-language" onChoose={onLandingLocale} />
           <nav aria-label={t("Legal")}><Link href="/privacy">{t("Privacy")}</Link><Link href="/terms">{t("Terms")}</Link><Link href="/legal-notice">{t("Commercial disclosure")}</Link></nav>

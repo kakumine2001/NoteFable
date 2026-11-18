@@ -4,7 +4,7 @@
 
 | 文件 | 用途 | 规格 |
 | --- | --- | --- |
-| `icon-512.png` | 应用图标 | 512×512 PNG，满版方形（Play 自己加圆角），与 `public/icon.svg` 同一图形 |
+| `icon-512.png` | 应用图标 | 512×512 PNG，满版方形（Play 自己加圆角），与 `src/app/icon.svg` 同一图形 |
 | `feature-graphic-1024x500.png` | 置顶大图 | 1024×500 PNG |
 | `screenshots/01-…05-*.png` | 手机屏幕截图 | 1080×1920（9:16），按文件名顺序上传 |
 
