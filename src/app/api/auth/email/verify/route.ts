@@ -13,7 +13,7 @@ function fail(status: number, error: string) {
 // 次のリクエストで getOrCreateUser が行う（Google ログインと同じ）。
 export async function POST(request: NextRequest) {
   if (!isEmailLoginConfigured()) return fail(404, msg("Email sign-in is not enabled."));
-  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return fail(403, "Forbidden.");
+  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return fail(403, msg("Forbidden."));
 
   const body = (await request.json().catch(() => null)) as { email?: unknown; code?: unknown } | null;
   const email = parseEmail(body?.email);

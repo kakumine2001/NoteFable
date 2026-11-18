@@ -68,12 +68,16 @@ describe("POST /api/auth/email/start", () => {
 });
 
 describe("POST /api/auth/email/verify", () => {
-  it("sets the session cookie for the right code", async () => {
+  it("sets the session cookie for the right code, including Arabic-Indic digits", async () => {
     mocks.verify.mockResolvedValue("ok");
     const response = await verify(request("/api/auth/email/verify", { email: "a@example.com", code: "123 456" }));
     expect(response.status).toBe(200);
     expect(mocks.verify).toHaveBeenCalledWith("a@example.com", "123456");
     expect(response.cookies.get("authjs.session-token")?.value).toBe("jwt");
+
+    const arabic = await verify(request("/api/auth/email/verify", { email: "a@example.com", code: "٤٨٢ ٩١٠" }));
+    expect(arabic.status).toBe(200);
+    expect(mocks.verify).toHaveBeenCalledWith("a@example.com", "482910");
   });
 
   it("explains wrong, expired and locked codes without a cookie", async () => {

@@ -105,27 +105,27 @@ button:disabled {
 .notes-page-header { position: relative; }
 .notes-cover { position: relative; height: 30vh; min-height: 160px; max-height: 280px; }
 .notes-cover-actions {
-  position: absolute; right: max(24px, calc((100% - 708px) / 2)); bottom: 12px;
+  position: absolute; inset-inline-end: max(24px, calc((100% - 708px) / 2)); bottom: 12px;
   display: flex; overflow: hidden; border-radius: 4px; background: #fff;
   box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
   opacity: 0; transition: opacity 120ms ease;
 }
 .notes-cover:hover .notes-cover-actions, .notes-cover:focus-within .notes-cover-actions { opacity: 1; }
 .notes-cover-actions button { padding: 4px 8px; font-size: 12px; color: var(--notes-muted); white-space: nowrap; }
-.notes-cover-actions button + button { border-left: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-cover-actions button + button { border-inline-start: 1px solid rgba(55, 53, 47, 0.09); }
 .notes-cover-actions button:hover { background: var(--notes-hover); }
 .notes-header-inner { position: relative; padding-top: 80px; }
 .notes-page-header.has-cover .notes-header-inner { padding-top: 0; }
 .notes-icon-wrap { position: relative; width: fit-content; }
 .notes-icon {
-  display: grid; width: 78px; height: 78px; place-items: center; margin-left: -4px;
+  display: grid; width: 78px; height: 78px; place-items: center; margin-inline-start: -4px;
   border-radius: 4px; font-size: 70px; line-height: 1; transition: background-color 120ms ease;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 .notes-icon:not(:disabled):hover { background: var(--notes-hover); }
 .notes-page-header.has-cover .notes-icon-wrap { margin-top: -42px; }
 .notes-header-controls {
-  display: flex; min-height: 28px; flex-wrap: wrap; gap: 2px; margin: 4px 0 4px -8px;
+  display: flex; min-height: 28px; flex-wrap: wrap; gap: 2px; margin-block: 4px; margin-inline: -8px 0;
   opacity: 0; transition: opacity 120ms ease;
 }
 .notes-page-header:hover .notes-header-controls, .notes-header-controls:focus-within { opacity: 1; }
@@ -147,10 +147,10 @@ button:disabled {
   position: absolute; z-index: 60; overflow: hidden; border-radius: 8px; background: #fff;
   box-shadow: var(--notes-menu-shadow); animation: motion-menu-enter 120ms ease-out;
 }
-.notes-icon-picker { top: calc(100% + 4px); left: 0; width: min(408px, calc(100vw - 32px)); }
-.notes-cover-picker { right: max(24px, calc((100% - 708px) / 2)); top: calc(100% - 4px); width: min(420px, calc(100vw - 32px)); }
+.notes-icon-picker { top: calc(100% + 4px); inset-inline-start: 0; width: min(408px, calc(100vw - 32px)); }
+.notes-cover-picker { inset-inline-end: max(24px, calc((100% - 708px) / 2)); top: calc(100% - 4px); width: min(420px, calc(100vw - 32px)); }
 .notes-picker-bar {
-  display: flex; min-height: 36px; align-items: center; justify-content: space-between; padding: 0 8px 0 12px;
+  display: flex; min-height: 36px; align-items: center; justify-content: space-between; padding-inline: 12px 8px;
   border-bottom: 1px solid rgba(55, 53, 47, 0.09); font-size: 14px; font-weight: 500; color: var(--notes-text);
 }
 .notes-picker-bar button {
@@ -199,7 +199,7 @@ button:disabled {
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 /* 見出しの左に置くアイコン。見出しの文字サイズに合わせる。 */
-.chat-title-icon { margin-right: 0.3em; vertical-align: middle; }
+.chat-title-icon { margin-inline-end: 0.3em; vertical-align: middle; }
 .chat-title-icon-button {
   display: inline-grid; width: 1.3em; height: 1.3em; place-items: center; border-radius: 6px;
   color: var(--notion-muted); transition: background-color 120ms ease;
@@ -211,11 +211,11 @@ button:disabled {
 }
 /* サイドバーの行のアイコン。押すと選択画面（画面に固定して出す）が開く。 */
 .chat-row-icon-button {
-  display: grid; width: 1.75rem; height: 1.75rem; flex-shrink: 0; place-items: center; margin-left: 0.25rem;
+  display: grid; width: 1.75rem; height: 1.75rem; flex-shrink: 0; place-items: center; margin-inline-start: 0.25rem;
   border-radius: 4px; transition: background-color 120ms ease;
 }
 .chat-row-icon-button:hover { background: var(--notes-hover); }
-@media (max-width: 639px) { .chat-row-icon-button { width: 2.5rem; height: 2.5rem; margin-left: 0.125rem; } }
+@media (max-width: 639px) { .chat-row-icon-button { width: 2.5rem; height: 2.5rem; margin-inline-start: 0.125rem; } }
 .chat-floating-picker { position: fixed; z-index: 70; }
 
 /* 「Sign in with Google」ボタン。Google の公式ボタン（ライト・角四角）の見た目: 白地、細い枠、4 色の G、濃い文字。 */
@@ -244,11 +244,11 @@ button:disabled {
    .notes-dialog / .notes-dialog-input / .notion-button はこの後ろにあるので、上書きされないよう親クラス付きで指定する。 */
 dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem); padding: 2rem 1.75rem 1.5rem; }
 .signin-close {
-  position: absolute; top: 0.75rem; right: 0.75rem; display: grid; width: 2rem; height: 2rem; place-items: center;
+  position: absolute; top: 0.75rem; inset-inline-end: 0.75rem; display: grid; width: 2rem; height: 2rem; place-items: center;
   border-radius: 6px; color: var(--notion-muted);
 }
 .signin-close:hover { background: var(--notion-hover); }
-.signin-back { display: inline-flex; align-items: center; gap: 0.3rem; margin: -0.75rem 0 0.75rem -0.25rem; padding: 0.25rem; border-radius: 6px; font-size: 0.875rem; color: var(--notion-muted); }
+.signin-back { display: inline-flex; align-items: center; gap: 0.3rem; margin-block: -0.75rem 0.75rem; margin-inline: -0.25rem 0; padding: 0.25rem; border-radius: 6px; font-size: 0.875rem; color: var(--notion-muted); }
 .signin-back:hover:not(:disabled) { background: var(--notion-hover); }
 .signin-title { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.01em; text-align: center; color: var(--notion-text); }
 .signin-subtitle { margin: 0.4rem 0 1.5rem; text-align: center; font-size: 0.875rem; line-height: 1.5; color: var(--notion-muted); }
@@ -256,7 +256,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .signin-divider { display: flex; align-items: center; gap: 0.75rem; margin: 1rem 0; font-size: 0.8125rem; color: var(--notion-faint); }
 .signin-divider::before, .signin-divider::after { content: ""; flex: 1; height: 1px; background: var(--notion-border); }
 .signin-dialog .signin-input { margin-top: 0; height: 44px; border-radius: 8px; }
-.signin-dialog .signin-code { text-align: center; font-size: 1.5rem; letter-spacing: 0.45em; font-variant-numeric: tabular-nums; }
+.signin-dialog .signin-code { direction: ltr; text-align: center; font-size: 1.5rem; letter-spacing: 0.45em; font-variant-numeric: tabular-nums; }
 .signin-dialog .signin-submit { width: 100%; min-height: 44px; margin-top: 0.75rem; border-radius: 8px; font-size: 15px; font-weight: 600; }
 .signin-hint { margin-top: 0.75rem; text-align: center; font-size: 0.8125rem; color: var(--notion-faint); }
 .signin-error { margin-top: 0.5rem; font-size: 0.875rem; color: #b91c1c; }
@@ -267,7 +267,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 /* 未ログインで 1 日の上限に達したときのログイン案内。下からふわっと出て、アイコンが弾み、ログインボタンに一度だけ光が走る。 */
 .guest-limit-prompt {
-  position: relative; display: flex; align-items: flex-start; gap: 12px; padding: 14px 40px 14px 14px;
+  position: relative; display: flex; align-items: flex-start; gap: 12px; padding-block: 14px; padding-inline: 14px 40px;
   border: 1px solid var(--nf-accent-line); border-radius: 12px;
   background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
   box-shadow: var(--nf-composer-shadow);
@@ -295,7 +295,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .guest-limit-later { color: var(--notion-muted); font-size: 13.5px; }
 .guest-limit-later:hover { color: var(--notion-text); text-decoration: underline; }
 .guest-limit-close {
-  position: absolute; top: 8px; right: 8px; display: grid; width: 28px; height: 28px; place-items: center;
+  position: absolute; top: 8px; inset-inline-end: 8px; display: grid; width: 28px; height: 28px; place-items: center;
   border-radius: 6px; color: var(--notion-faint);
 }
 .guest-limit-close:hover { background: var(--notion-hover); color: var(--notion-text); }
@@ -333,7 +333,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .profile-menu-head { display: flex; align-items: center; gap: 12px; }
 .profile-avatar-button { position: relative; flex-shrink: 0; border-radius: 9999px; }
 .profile-avatar-badge {
-  position: absolute; right: -2px; bottom: -2px; display: grid; width: 20px; height: 20px; place-items: center;
+  position: absolute; inset-inline-end: -2px; bottom: -2px; display: grid; width: 20px; height: 20px; place-items: center;
   border: 2px solid #fff; border-radius: 9999px; background: var(--notion-text); color: #fff;
 }
 .profile-label { display: block; margin-bottom: 2px; font-size: 12px; color: var(--notion-muted); }
@@ -381,7 +381,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .profile-name-input { height: 40px; font-size: 16px; }
 }
 .notes-popover:focus { outline: none; }
-.chat-title-picker { top: calc(100% + 6px); left: 0; width: min(408px, calc(100vw - 48px)); font-size: 1rem; font-weight: 400; letter-spacing: normal; }
+.chat-title-picker { top: calc(100% + 6px); inset-inline-start: 0; width: min(408px, calc(100vw - 48px)); font-size: 1rem; font-weight: 400; letter-spacing: normal; }
 @media (pointer: coarse) {
   .chat-icon-button { width: 32px; height: 32px; }
   .chat-icon-emoji { font-size: 18px; }
@@ -427,11 +427,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-block-editor [data-content-type="numberedListItem"] { gap: 0; }
 .notes-block-editor [data-content-type="bulletListItem"]::before,
 .notes-block-editor [data-content-type="numberedListItem"]::before { min-width: 24px; text-align: center; }
-.notes-block-editor .bn-block-group .bn-block-group { margin-left: 24px; }
-.notes-block-editor .bn-block-group .bn-block-group > .bn-block-outer:not([data-prev-depth-changed])::before { border-left: 0; }
+.notes-block-editor .bn-block-group .bn-block-group { margin-inline-start: 24px; }
+.notes-block-editor .bn-block-group .bn-block-group > .bn-block-outer:not([data-prev-depth-changed])::before { border-inline-start: 0; border-left: 0; border-right: 0; }
 
 /* To-do: 16px の角丸チェックボックス。完了したら青塗り + 取り消し線 */
-.notes-block-editor [data-content-type="checkListItem"] > div:first-child { display: flex; width: 24px; justify-content: center; margin-right: 2px; }
+.notes-block-editor [data-content-type="checkListItem"] > div:first-child { display: flex; width: 24px; justify-content: center; margin-inline-end: 2px; }
 .notes-block-editor [data-content-type="checkListItem"] input[type="checkbox"] {
   appearance: none; width: 16px; height: 16px; margin: 0; margin-top: 0.22em; flex-shrink: 0;
   border: 1.5px solid currentColor; border-radius: 3px; background: #fff; cursor: pointer;
@@ -447,12 +447,12 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 /* 引用: 左に 3px の黒線、文字は通常色で少し大きく */
 .notes-block-editor [data-content-type="quote"] blockquote {
-  margin: 0; padding: 0 14px; border-left: 3px solid currentColor; color: var(--notes-text); font-size: 1.1em;
+  margin: 0; padding: 0 14px; border-inline-start: 3px solid currentColor; color: var(--notes-text); font-size: 1.1em;
 }
 
 /* コードブロック（Notion 風）: 薄いベージュ地・広い余白・角丸 10px。言語とコピーはホバーした時だけ右上に出す。
    BlockNote 自身の CSS は同じ詳細度で後から読み込まれるため、必ず .bn-block-content まで含めて指定する。 */
-.notes-block-editor .bn-block-content[data-content-type="codeBlock"] { margin: 4px 0; padding: 0; border-radius: 10px; background: var(--notes-code-bg); color: var(--notes-text); }
+.notes-block-editor .bn-block-content[data-content-type="codeBlock"] { direction: ltr; text-align: left; margin: 4px 0; padding: 0; border-radius: 10px; background: var(--notes-code-bg); color: var(--notes-text); }
 .notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre {
   width: 100%; margin: 0; padding: 32px 16px 32px 32px; border-radius: 10px;
   background: transparent; color: var(--notes-text);
@@ -463,7 +463,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 /* インラインのコード・リンク・区切り線 */
 .notes-block-editor .bn-inline-content code {
-  padding: 0.2em 0.4em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;
+  direction: ltr; unicode-bidi: isolate; padding: 0.2em 0.4em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;
   font-family: SFMono-Regular, Menlo, Consolas, "Liberation Mono", var(--font-geist-mono), monospace; font-size: 85%;
 }
 .notes-block-editor .bn-inline-content a {
@@ -474,18 +474,18 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* トグル（折りたたみリスト・折りたたみ見出し）: 24px の三角ボタン。開くと 90 度回る（回転は BlockNote 側）。 */
 .notes-block-editor .bn-block-content .bn-toggle-wrapper { align-items: flex-start; }
 .notes-block-editor .bn-block-content .bn-toggle-button {
-  flex-shrink: 0; width: 24px; height: 24px; margin-right: 2px; padding: 0; align-items: center; justify-content: center;
+  flex-shrink: 0; width: 24px; height: 24px; margin-inline-end: 2px; padding: 0; align-items: center; justify-content: center;
   border-radius: 4px; color: var(--notes-text); transition: transform 0.15s ease, background 0.12s ease;
 }
 .notes-block-editor .bn-block-content .bn-toggle-button > svg { width: 16px; height: 16px; }
 .notes-block-editor .bn-block-content .bn-toggle-button:hover { background: var(--notes-hover); }
 /* 見出しのトグルは、1 行目の高さ（見出しの文字の大きさ × 行の高さ 1.3）の中央に三角を置く。 */
 .notes-block-editor .bn-block-content[data-content-type="heading"] .bn-toggle-button { margin-top: calc((1.3em - 24px) / 2); }
-.notes-block-editor .bn-block-content .bn-toggle-add-block-button { margin-left: 26px; padding: 3px 2px; font-size: 16px; color: rgba(55, 53, 47, 0.45); }
+.notes-block-editor .bn-block-content .bn-toggle-add-block-button { margin-inline-start: 26px; padding: 3px 2px; font-size: 16px; color: rgba(55, 53, 47, 0.45); }
 
 /* コールアウト: 角丸の色付きの枠に、絵文字と本文を横に並べる。既定は灰色、色を「Default」にすると枠線だけ。 */
 .notes-block-editor .bn-block-content[data-content-type="callout"] {
-  margin: 4px 0; padding: 16px 16px 16px 12px; border: 1px solid transparent; border-radius: 10px;
+  margin: 4px 0; padding-block: 16px; padding-inline: 12px 16px; border: 1px solid transparent; border-radius: 10px;
 }
 .notes-block-editor .bn-block-content[data-content-type="callout"]:not([data-background-color]) { background: #f1f1ef; }
 .notes-block-editor .bn-block-content[data-content-type="callout"][data-background-color="default"] { border-color: var(--notes-divider); }
@@ -530,8 +530,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .notes-slash-group { padding: 6px 14px 4px; font-size: 12px; font-weight: 500; color: rgba(55, 53, 47, 0.65); }
 .notes-slash-item {
-  display: flex; width: calc(100% - 8px); height: 28px; align-items: center; gap: 8px; margin: 0 4px; padding: 0 10px 0 8px;
-  border-radius: 6px; font-size: 14px; text-align: left; color: inherit;
+  display: flex; width: calc(100% - 8px); height: 28px; align-items: center; gap: 8px; margin: 0 4px; padding-inline: 8px 10px;
+  border-radius: 6px; font-size: 14px; text-align: start; color: inherit;
 }
 .notes-slash-item:hover { background: rgba(55, 53, 47, 0.06); }
 .notes-slash-item[aria-selected="true"] { background: rgba(55, 53, 47, 0.08); }
@@ -582,7 +582,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .notes-icon { width: 60px; height: 60px; font-size: 52px; }
   .notes-page-header.has-cover .notes-icon-wrap { margin-top: -32px; }
   .notes-header-controls { opacity: 1; }
-  .notes-block-editor .bn-side-menu { margin-left: 4px; }
+  .notes-block-editor .bn-side-menu { margin-inline-start: 4px; }
 }
 
 .notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: white; color: var(--notion-text); box-shadow: var(--notion-shadow); }
@@ -713,11 +713,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* ノートのグループ操作ダイアログとサイドバーのグループ表示。 */
 .notes-dialog-input { display: block; width: 100%; margin-top: 0.75rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 1rem; color: var(--notion-text); background: #fff; }
 .notes-dialog-input:focus { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
-.notes-dialog-option { display: flex; width: 100%; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 0.5rem; border-radius: 6px; padding: 0 0.6rem; text-align: left; font-size: 0.9375rem; color: var(--notion-text); }
+.notes-dialog-option { display: flex; width: 100%; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 0.5rem; border-radius: 6px; padding: 0 0.6rem; text-align: start; font-size: 0.9375rem; color: var(--notion-text); }
 .notes-dialog-option[aria-checked="true"] { background: var(--notion-hover); font-weight: 600; }
 @media (hover: hover) { .notes-dialog-option:hover:not(:disabled) { background: var(--notion-hover); } }
-.notes-group-members { margin-left: 0.75rem; border-left: 1px solid var(--notion-border); padding-left: 0.25rem; }
-.notes-move-action { margin-right: 0; }
+.notes-group-members { margin-inline-start: 0.75rem; border-inline-start: 1px solid var(--notion-border); padding-inline-start: 0.25rem; }
+.notes-move-action { margin-inline-end: 0; }
 
 /* スマホの Notes ホーム（作成済みノートの一覧）。 */
 .notes-home-item { display: flex; align-items: center; border-bottom: 1px solid var(--notion-border); }
@@ -733,7 +733,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-home-title { margin: 0.5rem 0 0.75rem; font-size: 2rem; font-weight: 750; letter-spacing: -0.04em; color: var(--nf-ink); }
 .notes-home-list { margin: 0 0 1rem; padding: 0; list-style: none; }
 .notes-home-row {
-  display: flex; width: 100%; min-height: 3.5rem; align-items: center; gap: 0.85rem; text-align: left;
+  display: flex; width: 100%; min-height: 3.5rem; align-items: center; gap: 0.85rem; text-align: start;
   border-bottom: 1px solid var(--notion-border); padding: 0.4rem 0.25rem; color: var(--notion-text);
 }
 .notes-home-icon { display: grid; width: 1.75rem; flex: none; place-items: center; font-size: 1.25rem; color: var(--notion-faint); }
@@ -741,12 +741,12 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-home-date { flex: none; font-size: 0.8125rem; color: var(--notion-muted); }
 /* サブページの木（スマホのホーム）: 開閉の矢印と、字下げした子の一覧。 */
 .notes-home-toggle { display: grid; width: 1.75rem; height: 3rem; flex: none; place-items: center; color: var(--notion-faint); }
-.notes-home-sub { margin: 0 0 0 1.5rem; }
+.notes-home-sub { margin-inline-start: 1.5rem; }
 
 /* サブページの木（サイドバー）: 開閉の矢印。子はプロジェクトの中と同じく字下げと細い線で示す。 */
-.notes-row-toggle { display: grid; width: 1.25rem; height: 1.75rem; flex-shrink: 0; place-items: center; margin-left: 0.125rem; border-radius: 4px; color: var(--notion-faint); }
+.notes-row-toggle { display: grid; width: 1.25rem; height: 1.75rem; flex-shrink: 0; place-items: center; margin-inline-start: 0.125rem; border-radius: 4px; color: var(--notion-faint); }
 @media (hover: hover) { .notes-row-toggle:hover { background: var(--notion-hover); color: var(--notion-muted); } }
-.notes-row-toggle + .chat-row-icon-button { margin-left: 0; }
+.notes-row-toggle + .chat-row-icon-button { margin-inline-start: 0; }
 .notes-subpages-empty { padding: 0.375rem 0.5rem; font-size: 0.8125rem; color: var(--notion-faint); }
 
 /* 移動先の選択（ページの一覧）。 */
@@ -773,7 +773,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-menu-font[aria-checked="true"] .notes-menu-font-sample { color: var(--notion-blue); }
 .notes-menu-font.notes-font-serif .notes-menu-font-sample { font-family: var(--notes-font-serif); }
 .notes-menu-font.notes-font-mono .notes-menu-font-sample { font-family: var(--notes-font-mono); }
-.notes-menu-switch { position: relative; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(55, 53, 47, 0.2); transition: background-color 120ms ease; }
+.notes-menu-switch { position: relative; direction: ltr; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(55, 53, 47, 0.2); transition: background-color 120ms ease; }
 .notes-menu-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 120ms ease; }
 .notes-menu-switch[data-on="true"] { background: var(--notion-blue); }
 .notes-menu-switch[data-on="true"]::after { transform: translateX(12px); }
@@ -802,7 +802,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .model-sheet-list { display: grid; gap: 2px; }
 .model-sheet-row {
   display: flex; width: 100%; min-height: 3.25rem; align-items: center; justify-content: space-between;
-  border-radius: 0.65rem; padding: 0 0.85rem; font-size: 1.0625rem; color: var(--notion-text); text-align: left;
+  border-radius: 0.65rem; padding: 0 0.85rem; font-size: 1.0625rem; color: var(--notion-text); text-align: start;
 }
 .model-sheet-row.is-selected { background: var(--notion-hover); font-weight: 600; }
 .model-sheet-efforts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.5rem; }
@@ -820,7 +820,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* スマホの「＋」シートの行（ファイルを追加 / 画像を作る）。 */
 .attach-row {
   display: flex; width: 100%; min-height: 3.75rem; align-items: center; gap: 0.9rem; cursor: pointer;
-  border-radius: 0.7rem; padding: 0.4rem 0.85rem; color: var(--notion-text); text-align: left;
+  border-radius: 0.7rem; padding: 0.4rem 0.85rem; color: var(--notion-text); text-align: start;
 }
 .attach-row > span { display: grid; flex: 1; min-width: 0; }
 .attach-row strong { font-size: 1.0625rem; font-weight: 600; }
@@ -828,7 +828,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .attach-row[aria-pressed="true"] { background: var(--notion-hover); }
 /* パソコンで「＋」の上に開くメニュー。外枠はモデル選択のメニューと同じで、行はシートより小さくする。 */
 .attach-menu {
-  position: absolute; bottom: 100%; left: 0; z-index: 30; display: grid; gap: 2px;
+  position: absolute; bottom: 100%; inset-inline-start: 0; z-index: 30; display: grid; gap: 2px;
   width: min(17rem, calc(100vw - 1rem)); margin-bottom: 0.5rem; padding: 0.4rem;
 }
 .attach-menu .attach-row { min-height: 2.5rem; gap: 0.65rem; border-radius: 0.55rem; padding: 0.4rem 0.6rem; }
@@ -847,7 +847,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 /* 画像作成モードが入っているときに、入力欄の上へ出す外せる目印。 */
 .image-mode-chip {
-  display: inline-flex; height: 2rem; align-items: center; gap: 0.4rem; margin: 0 0 0.25rem 0.25rem;
+  display: inline-flex; height: 2rem; align-items: center; gap: 0.4rem; margin-block: 0 0.25rem; margin-inline-start: 0.25rem;
   border-radius: 999px; background: rgba(35, 131, 226, 0.12); padding: 0 0.7rem; font-size: 0.875rem;
   font-weight: 500; color: var(--notion-blue);
 }
@@ -887,7 +887,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   position: absolute;
   top: 0.45rem;
   bottom: 0.45rem;
-  left: 0;
+  inset-inline-start: 0;
   width: 3px;
   border-radius: 999px;
   background: var(--nf-accent);
@@ -897,7 +897,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   display: grid;
   width: 1.6rem;
   height: 1.6rem;
-  margin-right: 0.2rem;
+  margin-inline-end: 0.2rem;
   flex: none;
   place-items: center;
   border-radius: 0.25rem;
@@ -928,12 +928,12 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 [data-order-drop="before"]::before, [data-order-drop="after"]::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: #2383e2; pointer-events: none; z-index: 3; }
 [data-order-drop="before"]::before { top: 0; }
 [data-order-drop="after"]::after { bottom: 0; }
-.list-reorder-error { position: absolute; z-index: 5; top: 100%; left: 0; width: min(220px, 90vw); padding: 6px; background: #fff; color: #b91c1c; border: 1px solid var(--notion-border); font-size: 12px; }
+.list-reorder-error { position: absolute; z-index: 5; top: 100%; inset-inline-start: 0; width: min(220px, 90vw); padding: 6px; background: #fff; color: #b91c1c; border: 1px solid var(--notion-border); font-size: 12px; }
 .chat-more-button:hover { color: var(--notion-text); }
 .chat-section-label, .chat-project-heading { padding: .9rem .5rem .3rem; color: var(--notion-muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .chat-project-heading .notion-icon-button { margin-block: -.3rem; }
 .chat-project-heading { display: flex; align-items: center; justify-content: space-between; }
-.chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: .4rem; padding: .4rem .2rem; text-align: left; font-size: .875rem; }
+.chat-project-toggle { display: flex; min-width: 0; flex: 1; align-items: center; gap: .4rem; padding: .4rem .2rem; text-align: start; font-size: .875rem; }
 .chat-actions-menu { position: fixed; margin: 0; width: 228px; max-height: calc(100dvh - 16px); overflow-y: auto; padding: .35rem; border: 1px solid var(--notion-border); border-radius: .75rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; }
 .chat-actions-menu::backdrop { background: transparent; }
 /* 行の「…」メニューは、押したボタンの側（右上）から小さく広がって出る。 */
@@ -941,7 +941,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 @keyframes chat-row-menu-in { from { opacity: 0; transform: translateY(-4px) scale(.96); } }
 @media (prefers-reduced-motion: reduce) { .chat-row-menu[open] { animation: none; } }
 .chat-menu-error { margin: .3rem .75rem .4rem; color: #b91c1c; font-size: .8125rem; line-height: 1.4; }
-.chat-menu-item { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 40px; padding: .6rem .75rem; border-radius: .4rem; text-align: left; font-size: .875rem; }
+.chat-menu-item { display: flex; align-items: center; gap: .75rem; width: 100%; min-height: 40px; padding: .6rem .75rem; border-radius: .4rem; text-align: start; font-size: .875rem; }
 .chat-menu-item:hover, .chat-menu-item:focus-visible { background: var(--notion-hover); outline: none; }
 .chat-menu-item.is-danger { color: #b91c1c; }
 .chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
@@ -952,7 +952,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .sidebar-footer { display: flex; flex-shrink: 0; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .5rem; border-top: 1px solid var(--notion-border); }
 .sidebar-footer-account { min-width: 0; flex: 1; }
 .sidebar-footer-account:empty { display: none; }
-.sidebar-help-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-left: auto; align-items: center; justify-content: center; border-radius: .4rem; color: var(--notion-faint); transition: background 100ms ease, color 100ms ease; }
+.sidebar-help-trigger { display: inline-flex; width: 2rem; height: 2rem; flex: none; margin-inline-start: auto; align-items: center; justify-content: center; border-radius: .4rem; color: var(--notion-faint); transition: background 100ms ease, color 100ms ease; }
 .sidebar-help-trigger:hover, .sidebar-help-trigger[aria-expanded="true"] { background: var(--notion-hover); color: var(--notion-text); }
 .sidebar-help-trigger:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
 .sidebar-footer .language-menu-error { padding: 0 .5rem; font-size: .75rem; }
@@ -1250,14 +1250,14 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 .codex-model-name {
-  padding: 0 0.12rem 0 0.72rem;
+  padding-inline: 0.72rem 0.12rem;
   color: var(--notion-text);
 }
 
 .codex-reasoning-trigger {
   flex: none;
   gap: 0.24rem;
-  padding: 0 0.55rem 0 0.28rem;
+  padding-inline: 0.28rem 0.55rem;
   color: var(--notion-muted);
 }
 
@@ -1296,6 +1296,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 .codex-advanced-panel {
+  direction: ltr;
   padding-block: 0.375rem;
 }
 
@@ -1486,7 +1487,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   color: var(--notion-muted);
   font-size: 0.78rem;
   font-weight: 550;
-  text-align: left;
+  text-align: start;
   text-overflow: ellipsis;
   white-space: nowrap;
   transition:
@@ -1578,7 +1579,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   padding: 0.4rem 0.55rem;
   color: var(--notion-text);
   font-size: 0.82rem;
-  text-align: left;
+  text-align: start;
   transition: background 100ms ease;
 }
 
@@ -1947,6 +1948,12 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 /* 数式（KaTeX）。長い式は式の中で横にスクロールさせ、ページ全体は横に動かさない。 */
+.markdown-body .katex,
+.markdown-body .katex-display {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
 .markdown-body .katex-display {
   margin: 0.9rem 0;
   overflow-x: auto;
@@ -1976,7 +1983,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   max-width: 100%;
   align-items: center;
   gap: 0.3rem;
-  margin-left: -0.35rem;
+  margin-inline-start: -0.35rem;
   padding: 0.15rem 0.35rem;
   border-radius: 4px;
   font-weight: 500;
@@ -2020,9 +2027,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-activity-steps {
   max-height: 22rem;
   overflow-y: auto;
-  margin: 0.35rem 0 0 0.2rem;
-  padding: 0.1rem 0 0.1rem 0.85rem;
-  border-left: 1px solid var(--notion-border-strong);
+  margin-block: 0.35rem 0;
+  margin-inline-start: 0.2rem;
+  padding-block: 0.1rem;
+  padding-inline-start: 0.85rem;
+  border-inline-start: 1px solid var(--notion-border-strong);
   list-style: none;
   animation: motion-fade-in 160ms ease-out;
 }
@@ -2178,7 +2187,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .markdown-body ul,
 .markdown-body ol {
-  padding-left: 1.35rem;
+  padding-inline-start: 1.35rem;
 }
 
 .markdown-body ul {
@@ -2191,7 +2200,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .markdown-body li {
   margin: 0.08rem 0;
-  padding-left: 0.15rem;
+  padding-inline-start: 0.15rem;
 }
 
 .markdown-body li > p {
@@ -2199,9 +2208,9 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 .markdown-body blockquote {
-  border-left: 3px solid var(--notion-border-strong);
+  border-inline-start: 3px solid var(--notion-border-strong);
   color: var(--notion-muted);
-  padding-left: 0.9rem;
+  padding-inline-start: 0.9rem;
 }
 
 .markdown-body a {
@@ -2388,7 +2397,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .generated-image-download {
   /* 生成画像の保存操作。画像の上でも読めるよう半透明の濃色背景にする。 */
   position: absolute;
-  right: 0.9rem;
+  inset-inline-end: 0.9rem;
   bottom: 0.9rem;
   display: grid;
   height: 2.75rem;
@@ -2411,6 +2420,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .markdown-body pre {
   /* コードブロック本体。ヘッダーとは分けて横スクロールだけ持たせる。 */
+  direction: ltr;
+  text-align: left;
   margin: 0;
   overflow-x: auto;
   border-radius: 0;
@@ -2432,6 +2443,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .markdown-code-shell {
   /* 言語ラベル、コピー、pre をまとめるコードブロックの外枠。 */
   position: relative;
+  direction: ltr;
+  text-align: left;
   margin: 1rem 0;
   overflow: hidden;
   border: 1px solid #e5e7eb;
@@ -2529,6 +2542,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .markdown-inline-code {
   /* 文中コード用の軽い強調。ブロックコードとは背景と余白を分ける。 */
+  direction: ltr;
+  unicode-bidi: isolate;
   border-radius: 0.35rem;
   background: #e2e8f0;
   color: #0f172a;
@@ -2549,7 +2564,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .markdown-body td {
   border: 1px solid var(--notion-border-strong);
   padding: 0.45rem 0.7rem;
-  text-align: left;
+  text-align: start;
   vertical-align: top;
 }
 
@@ -2570,7 +2585,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 /* ブロックメニューの補助表示（ショートカット・区切り・Color のアイコン） */
-.notes-menu-shortcut { margin-left: auto; padding-left: 16px; font-size: 12px; color: rgba(55, 53, 47, 0.45); }
+.notes-menu-shortcut { margin-inline-start: auto; padding-inline-start: 16px; font-size: 12px; color: rgba(55, 53, 47, 0.45); }
 .bn-ariakit .bn-ak-menu .bn-ak-separator { width: auto; height: 0; margin: 4px 0; border: 0; border-top: 1px solid rgba(55, 53, 47, 0.09); }
 .bn-ariakit .bn-drag-handle-menu > .bn-ak-menu-item:nth-child(2)::before {
   content: ""; width: 16px; height: 16px; flex-shrink: 0; background: rgba(55, 53, 47, 0.75);
@@ -2578,7 +2593,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z'/%3E%3Ccircle cx='13.5' cy='6.5' r='.5' fill='black'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5' fill='black'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5' fill='black'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
 }
 .notes-toolbar-sep { width: 1px; height: 20px; margin: 0 2px; flex-shrink: 0; background: rgba(55, 53, 47, 0.09); }
-.bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-left: auto; color: rgba(55, 53, 47, 0.45); }
+.bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-inline-start: auto; color: rgba(55, 53, 47, 0.45); }
 
 /* コードブロック: 明るい配色のハイライト、言語ラベル、Copy ボタン */
 .notes-block-editor { position: relative; }
@@ -2669,7 +2684,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   align-items: center;
   gap: 0.45rem;
   padding: 0;
-  text-align: left;
+  text-align: start;
   font: inherit;
   color: inherit;
   cursor: pointer;
@@ -2826,7 +2841,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 /* サイドバーの Search 行: 右端に Ctrl K の目印を出す。指で使う端末や狭い画面にはキーボードが無いので隠す。 */
 .sidebar-search-hint {
-  margin-left: auto; padding: 0 0.35rem; border: 1px solid var(--notion-border); border-radius: 0.25rem;
+  margin-inline-start: auto; padding: 0 0.35rem; border: 1px solid var(--notion-border); border-radius: 0.25rem;
   color: var(--notion-faint); font-family: inherit; font-size: 0.6875rem; font-weight: 400; line-height: 1.1rem;
 }
 @media (hover: none), (max-width: 639px) {
@@ -2853,7 +2868,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   }
   .notes-recent-list li { flex: none; scroll-snap-align: start; }
   .notes-recent-card {
-    position: relative; display: flex; width: 9.5rem; height: 9.5rem; flex-direction: column; overflow: hidden; padding: 0 0.9rem 0.8rem; text-align: left;
+    position: relative; display: flex; width: 9.5rem; height: 9.5rem; flex-direction: column; overflow: hidden; padding: 0 0.9rem 0.8rem; text-align: start;
     border: 1px solid var(--notion-border); border-radius: 0.9rem; background: var(--notion-bg); box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04);
     transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
   }
@@ -2891,3 +2906,83 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .language-menu [aria-checked="true"] { background: var(--notion-active); }
 .language-menu-empty { padding: .5rem .75rem; font-size: .8125rem; color: var(--notion-muted); }
 .help-menu-value { min-width: 0; max-width: 65%; white-space: normal; overflow-wrap: anywhere; text-align: end; }
+
+/* RTL mirroring, directional popups, drawer motion, and Arabic cursive letter-spacing safety. */
+[dir="rtl"] .rtl-mirror,
+[dir="rtl"] .signin-back svg,
+[dir="rtl"] .settings-back svg,
+[dir="rtl"] .note-history-back svg,
+[dir="rtl"] .desktop-sidebar-toggle svg,
+[dir="rtl"] .version-nav svg,
+[dir="rtl"] .chat-activity-chevron:not(.is-open),
+[dir="rtl"] .page-edit-chevron:not(.is-open),
+[dir="rtl"] .notes-block-editor .bn-block-content .bn-toggle-wrapper:not([data-show-children="true"]) .bn-toggle-button > svg {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .chat-row-menu[open] { transform-origin: top left; }
+[dir="rtl"] .help-menu[open] { transform-origin: bottom left; }
+[dir="rtl"] .codex-model-menu { transform-origin: bottom right; }
+[dir="rtl"] .notion-drawer { box-shadow: 8px 0 24px rgba(15, 15, 15, 0.1); }
+@keyframes motion-sidebar-panel-enter-rtl {
+  from { opacity: 0; transform: translateX(0.75rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes motion-desktop-sidebar-enter-rtl {
+  from { opacity: 0; transform: translateX(0.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+[dir="rtl"] .motion-sidebar-panel { animation-name: motion-sidebar-panel-enter-rtl; }
+[dir="rtl"] .motion-desktop-sidebar { animation-name: motion-desktop-sidebar-enter-rtl; }
+/* BlockNote loads its own physical left/right rules after globals.css; neutralize them in RTL with higher specificity so nesting, quotes, list markers, toggles, tables and menus only use inline-start. */
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block-group {
+  margin-left: 0;
+  margin-inline-start: 24px;
+  margin-inline-end: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block-group > .bn-block-outer:not([data-prev-depth-changed])::before,
+[dir="rtl"] .notes-block-editor .bn-block-group .bn-block:not(:has(.bn-toggle-wrapper)) .bn-block-group .bn-block-outer:not([data-prev-depth-changed])::before {
+  left: auto;
+  right: -20px;
+  border-left: 0;
+  border-right: 0;
+  border-inline-start: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-outer[data-prev-depth-change] {
+  margin-left: 0;
+  margin-inline-start: calc(10px * var(--x));
+}
+[dir="rtl"] .notes-block-editor .bn-block-outer[data-prev-depth-change] .bn-block-outer[data-prev-depth-change] {
+  margin-left: 0;
+  margin-inline-start: 0;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="quote"] blockquote {
+  border-left: 0;
+  border-inline-end: 0;
+  border-inline-start: 3px solid currentColor;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="bulletListItem"]::before,
+[dir="rtl"] .notes-block-editor .bn-block-content[data-content-type="numberedListItem"]::before {
+  padding-right: 0;
+  padding-inline-end: 4px;
+}
+[dir="rtl"] .notes-block-editor .bn-block-content .bn-toggle-add-block-button {
+  margin-left: 0;
+  margin-inline-start: 26px;
+}
+[dir="rtl"] .notes-block-editor .bn-editor .bn-block-content[data-content-type="table"] th {
+  text-align: start;
+}
+[dir="rtl"] .bn-ariakit .bn-extend-button-add-remove-columns {
+  margin-left: 0;
+  margin-inline-start: 4px;
+}
+[dir="rtl"] .bn-ariakit .bn-ak-label {
+  padding-left: 0;
+  padding-inline-start: 1rem;
+}
+[dir="rtl"] .bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child svg {
+  transform: scaleX(-1);
+}
+:lang(ar) :is(h1, h2, h3, h4, h5, h6, .notes-title, .signin-title, .chat-section-label, .chat-project-heading, .notion-role-label, .nf-logo span, .notes-home-title, .notes-home-greeting) {
+  letter-spacing: 0;
+}

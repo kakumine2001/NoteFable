@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -31,6 +32,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -44,6 +46,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
@@ -85,41 +88,43 @@ internal fun CodeBlock(code: String, language: String?) {
     else LanguageLabels[result.language] ?: result.language
     val annotated = remember(result) { result.annotated(text) }
 
-    Column(
-        Modifier.padding(vertical = ShellExtraMargin).fillMaxWidth()
-            .clip(RoundedCornerShape(5.6.dp))
-            .background(Sm.Sidebar)
-            .border(1.dp, CodeBorder, RoundedCornerShape(5.6.dp)),
-    ) {
-        Row(
-            Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                .background(Color.White.copy(alpha = 0.72f))
-                .drawBehind {
-                    val y = size.height - 0.5.dp.toPx()
-                    drawLine(CodeBorder, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
-                }
-                .padding(start = 16.dp, end = 12.8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Column(
+            Modifier.padding(vertical = ShellExtraMargin).fillMaxWidth()
+                .clip(RoundedCornerShape(5.6.dp))
+                .background(Sm.Sidebar)
+                .border(1.dp, CodeBorder, RoundedCornerShape(5.6.dp)),
         ) {
-            Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                LucideIcon(Lucide.Code2, 15.dp, Color(0xFF0F172A), strokeWidth = 2.2f)
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .background(Color.White.copy(alpha = 0.72f))
+                    .drawBehind {
+                        val y = size.height - 0.5.dp.toPx()
+                        drawLine(CodeBorder, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                    }
+                    .padding(start = 16.dp, end = 12.8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LucideIcon(Lucide.Code2, 15.dp, Color(0xFF0F172A), strokeWidth = 2.2f)
+                    Text(
+                        label,
+                        style = TextStyle(fontSize = 14.72.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A), letterSpacing = 0.sp),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                CopyCodeButton(text)
+            }
+            Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
                 Text(
-                    label,
-                    style = TextStyle(fontSize = 14.72.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A), letterSpacing = 0.sp),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    annotated,
+                    style = CodeText,
+                    softWrap = false,
+                    modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 15.2.dp, bottom = 21.6.dp),
                 )
             }
-            CopyCodeButton(text)
-        }
-        Box(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())) {
-            Text(
-                annotated,
-                style = CodeText,
-                softWrap = false,
-                modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 15.2.dp, bottom = 21.6.dp),
-            )
         }
     }
 }

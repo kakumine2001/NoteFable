@@ -356,11 +356,19 @@ private fun MenuEntry(text: String, icon: List<String>, spinning: Boolean = fals
 /** 网页 AnswerMenu 的定位：左边对齐按钮（夹在 8 和 窗口宽 - 菜单宽 - 8 之间）；下方放得下就在按钮下 4，否则在按钮上 4；顶边至少 8。 */
 internal class BelowOrAbove(private val density: Density) : PopupPositionProvider {
     override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset =
-        with(density) { answerMenuPosition(anchorBounds, windowSize, popupContentSize, 8.dp.roundToPx(), 4.dp.roundToPx()) }
+        with(density) { answerMenuPosition(anchorBounds, windowSize, popupContentSize, 8.dp.roundToPx(), 4.dp.roundToPx(), layoutDirection) }
 }
 
-internal fun answerMenuPosition(anchor: IntRect, window: IntSize, menu: IntSize, edge: Int, gap: Int): IntOffset {
-    val left = maxOf(edge, minOf(anchor.left, window.width - menu.width - edge))
+internal fun answerMenuPosition(
+    anchor: IntRect,
+    window: IntSize,
+    menu: IntSize,
+    edge: Int,
+    gap: Int,
+    layoutDirection: LayoutDirection = LayoutDirection.Ltr,
+): IntOffset {
+    val start = if (layoutDirection == LayoutDirection.Rtl) anchor.right - menu.width else anchor.left
+    val left = maxOf(edge, minOf(start, window.width - menu.width - edge))
     val below = anchor.bottom + gap
     val top = maxOf(edge, if (below + menu.height <= window.height - edge) below else anchor.top - menu.height - gap)
     return IntOffset(left, top)

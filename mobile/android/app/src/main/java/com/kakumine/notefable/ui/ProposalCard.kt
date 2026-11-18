@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -36,6 +37,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
@@ -179,7 +181,8 @@ private fun Card(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.2.dp),
             ) {
-                Box(Modifier.size(14.dp).rotate(if (open) 90f else 0f)) { LucideIcon(Lucide.ChevronRight, 14.dp, Sm.Faint, strokeWidth = 2f) }
+                val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+                Box(Modifier.size(14.dp).rotate(if (open) (if (rtl) -90f else 90f) else 0f)) { LucideIcon(Lucide.ChevronRight, 14.dp, Sm.Faint, strokeWidth = 2f) }
                 LucideIcon(icon, 14.dp, headerStyle.color, strokeWidth = 1.9f)
                 Text(title, style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (badge != null) {

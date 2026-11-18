@@ -32,8 +32,9 @@ class EmojiCatalogTest {
         assertEquals(listOf("1f408"), zh.emojis.filter(zh.matcher("猫")!!).map { it.unified })
         val hant = EmojiCatalog.parse(json, "zh-Hant")
         assertEquals(listOf("1f408"), hant.emojis.filter(hant.matcher("貓")!!).map { it.unified })
-        // 不认识的语言用英文。
-        assertEquals(listOf("cat"), EmojiCatalog.parse(json, "fr").find("1f408")?.names)
+        // 不认识的语言或包里无关键词文件的语言（如 ar / id / tr）回退到英文关键词。
+        assertEquals(listOf("cat"), EmojiCatalog.parse(json, "nl").find("1f408")?.names)
+        assertEquals(listOf("cat"), EmojiCatalog.parse(json, "ar").find("1f408")?.names)
     }
 
     @Test
@@ -76,5 +77,7 @@ class EmojiCatalogTest {
         for (name in catalog.categories + listOf("search", "clear")) assertNotNull(name, catalog.icons[name])
         assertTrue(catalog.emojis.filter(catalog.matcher("ネコ")!!).isNotEmpty())
         assertTrue(catalog.inCategory("flags").isNotEmpty())
+        assertTrue(EmojiCatalog.parse(asset, "ko").find("1f600")!!.names.isNotEmpty())
+        assertTrue(EmojiCatalog.parse(asset, "ar").find("1f600")!!.names.contains("grinning face"))
     }
 }

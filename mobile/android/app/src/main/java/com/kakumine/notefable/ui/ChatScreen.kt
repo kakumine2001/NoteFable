@@ -92,6 +92,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
@@ -104,6 +105,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
@@ -528,6 +530,7 @@ private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier
 // （40 + 8）在空白首页也只是透明、照样占位（只有 ≥ 640 才 display: none）。所以这里底部留 48 + 48，标题的位置才和网页一致。
 @Composable
 private fun EmptyState(title: String?, icon: String?, hasDraft: Boolean, onChangeIcon: (String?) -> Unit) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(
         Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
         verticalArrangement = Arrangement.Center,
@@ -547,7 +550,7 @@ private fun EmptyState(title: String?, icon: String?, hasDraft: Boolean, onChang
                 fontSize = 32.sp,
                 lineHeight = 36.8.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = (-1.28).sp,
+                letterSpacing = if (rtl) 0.sp else (-1.28).sp,
             )
         }
         Text(
@@ -570,10 +573,16 @@ internal val RoleLabelBase = TextStyle(
     color = Sm.Muted,
 )
 
-// 网页的等宽字体（Geist Mono）没有日文 / 中文字形，这些字回落到普通 UI 字体；原生版的系统等宽字体回落时会出现倾斜字形，
-// 所以含中日文的标签直接用默认字体，拉丁字母的标签仍用等宽。
-internal fun roleLabelStyle(text: String): TextStyle =
-    if (text.any { it.code >= 0x2E80 }) RoleLabelBase.copy(fontFamily = FontFamily.Default) else RoleLabelBase
+// 网页的等宽字体（Geist Mono）没有非拉丁字形，这些字回落到普通 UI 字体；原生版的系统等宽字体回落时会出现倾斜字形，
+// 且阿拉伯字母有非零字距时会断开连写，因此非拉丁脚本用默认字体，阿拉伯字母字距归零。
+internal fun roleLabelStyle(text: String): TextStyle {
+    val nonMonospace = text.any { it.code >= 0x0590 }
+    val arabic = text.any { it.code in 0x0600..0x08FF || it.code in 0xFB50..0xFDFF || it.code in 0xFE70..0xFEFF }
+    return RoleLabelBase.copy(
+        fontFamily = if (nonMonospace) FontFamily.Default else RoleLabelBase.fontFamily,
+        letterSpacing = if (arabic) 0.sp else RoleLabelBase.letterSpacing,
+    )
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

@@ -14,10 +14,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
 import androidx.compose.ui.text.TextStyle
@@ -26,6 +28,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.mikepenz.markdown.compose.components.markdownComponents
@@ -76,11 +79,11 @@ import org.intellij.markdown.MarkdownTokenTypes
 //    表头 --nf-user-bubble 底、--nf-ink、600；列宽按内容自动分配，放不下时横向滚动（见 [AnswerTable]）。
 private val Body = TextStyle(fontSize = 16.sp, lineHeight = 27.52.sp, color = Sm.Text, letterSpacing = 0.sp)
 
-private fun heading(size: Float) = TextStyle(
+private fun heading(size: Float, rtl: Boolean) = TextStyle(
     fontSize = size.sp,
     lineHeight = (size * 1.3f).sp,
     fontWeight = FontWeight.SemiBold,
-    letterSpacing = (size * -0.015f).sp,
+    letterSpacing = if (rtl) 0.sp else (size * -0.015f).sp,
     color = Sm.Ink,
 )
 
@@ -109,13 +112,14 @@ private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, mut
         inlineCodeBackground = Color(0xFFE2E8F0),
         dividerColor = Sm.Border,
     )
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val typography = markdownTypography(
-        h1 = heading(24.8f),
-        h2 = heading(20.8f),
-        h3 = heading(17.28f),
-        h4 = heading(17.28f),
-        h5 = heading(17.28f),
-        h6 = heading(17.28f),
+        h1 = heading(24.8f, rtl),
+        h2 = heading(20.8f, rtl),
+        h3 = heading(17.28f, rtl),
+        h4 = heading(17.28f, rtl),
+        h5 = heading(17.28f, rtl),
+        h6 = heading(17.28f, rtl),
         text = body,
         paragraph = body,
         ordered = body,
@@ -240,11 +244,13 @@ private fun mathConfig(muted: Boolean) = remember(muted) {
     LatexConfig(fontSize = 19.36.sp, theme = LatexTheme.light(color = if (muted) Sm.Muted else Sm.Text, backgroundColor = Color.Transparent))
 }
 
-/** 独立公式（网页 .katex-display）：单独一块，居中，上下 14.4；比屏幕宽时在公式里横向滚动。 */
+/** 独立公式（网页 .katex-display）：单独一块，居中，上下 14.4；比屏幕宽时在公式里横向滚动。数学公式始终从左往右排。 */
 @Composable
 private fun DisplayMath(latex: String, muted: Boolean) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 8.8.dp).horizontalScroll(rememberScrollState()), Alignment.Center) {
-        Latex(remember(latex) { MathMarkdown.typeset(latex) }, Modifier, mathConfig(muted), false)
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+        Box(Modifier.fillMaxWidth().padding(vertical = 8.8.dp).horizontalScroll(rememberScrollState()), Alignment.Center) {
+            Latex(remember(latex) { MathMarkdown.typeset(latex) }, Modifier, mathConfig(muted), false)
+        }
     }
 }
 
@@ -336,10 +342,11 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
                         if (i < geometry.rows.size) y += geometry.rows[i]
                     }
                     var x = 0f
-                    for (i in 0..geometry.columns.size) {
+                    val cols = if (layoutDirection == LayoutDirection.Rtl) geometry.columns.reversedArray() else geometry.columns
+                    for (i in 0..cols.size) {
                         val at = (x - line / 2).coerceIn(line / 2, width - line / 2)
                         drawLine(Sm.BorderStrong, Offset(at, 0f), Offset(at, height), line)
-                        if (i < geometry.columns.size) x += geometry.columns[i]
+                        if (i < cols.size) x += cols[i]
                     }
                 },
             ) { measurables, _ ->
@@ -361,7 +368,7 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
                     placeables.forEachIndexed { rowIndex, row ->
                         var x = 0
                         row.forEachIndexed { column, placeable ->
-                            placeable.place(x, y)
+                            placeable.placeRelative(x, y)
                             x += widths[column]
                         }
                         y += heights[rowIndex]

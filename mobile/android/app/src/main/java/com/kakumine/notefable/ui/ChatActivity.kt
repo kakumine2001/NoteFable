@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -53,6 +54,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
@@ -131,7 +133,8 @@ internal fun ChatActivity(
                 modifier = Modifier.weight(1f, fill = false),
             )
             if (steps.isNotEmpty()) {
-                Box(Modifier.size(14.dp).rotate(if (open) 90f else 0f)) {
+                val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+                Box(Modifier.size(14.dp).rotate(if (open) (if (rtl) -90f else 90f) else 0f)) {
                     LucideIcon(Lucide.ChevronRight, 14.dp, Sm.Muted, strokeWidth = 2f)
                 }
             }
@@ -142,7 +145,11 @@ internal fun ChatActivity(
             LaunchedEffect(thinking, steps) { if (thinking) scroll.scrollTo(scroll.maxValue) }
             Column(
                 Modifier.padding(start = 3.2.dp, top = 5.6.dp).heightIn(max = 352.dp)
-                    .drawBehind { drawRect(Sm.BorderStrong, size = size.copy(width = 1.dp.toPx())) }
+                    .drawBehind {
+                        val lineW = 1.dp.toPx()
+                        val lineX = if (layoutDirection == LayoutDirection.Rtl) size.width - lineW else 0f
+                        drawRect(Sm.BorderStrong, topLeft = Offset(lineX, 0f), size = size.copy(width = lineW))
+                    }
                     .verticalScroll(scroll)
                     .padding(start = 13.6.dp, top = 1.6.dp, bottom = 1.6.dp),
             ) {

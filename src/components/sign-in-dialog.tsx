@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { GoogleLogo } from "@/components/google-logo";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
+import { cleanLoginCode } from "@/lib/login-code";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { useAccount } from "@/lib/account-store";
 
@@ -142,8 +143,8 @@ export function SignInDialog({ onClose, onBeforeSignIn }: { onClose: () => void;
           </button>
           <h2 className="signin-title">{t("Check your email")}</h2>
           <p className="signin-subtitle break-words">{t("We sent a 6-digit code to {email}. It expires in 10 minutes.", { email: sentTo })}</p>
-          <input autoFocus inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" maxLength={6} value={code}
-            onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+          <input autoFocus dir="ltr" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]*" value={code}
+            onChange={(event) => setCode(cleanLoginCode(event.target.value))}
             className="notes-dialog-input signin-input signin-code" aria-label={t("6-digit code")} placeholder="000000" />
           {feedback}
           <button type="submit" disabled={busy || code.length !== 6} className="notion-button notion-button-primary signin-submit">

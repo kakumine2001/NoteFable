@@ -13,7 +13,7 @@ class AppLanguageTest {
     @Test
     fun `reads the saved app language like the web localeFromTag`() {
         assertEquals(AppLanguage.Preference.Auto, AppLanguage.preferenceOf(null))
-        assertEquals(AppLanguage.Preference.Auto, AppLanguage.preferenceOf(Locale.forLanguageTag("fr")))
+        assertEquals(AppLanguage.Preference.Auto, AppLanguage.preferenceOf(Locale.forLanguageTag("nl")))
         assertEquals(AppLanguage.Preference.English, AppLanguage.preferenceOf(Locale.forLanguageTag("en-GB")))
         assertEquals(AppLanguage.Preference.Japanese, AppLanguage.preferenceOf(Locale.forLanguageTag("ja")))
         assertEquals(AppLanguage.Preference.Simplified, AppLanguage.preferenceOf(Locale.forLanguageTag("zh-CN")))
@@ -22,6 +22,21 @@ class AppLanguageTest {
         assertEquals(AppLanguage.Preference.Traditional, AppLanguage.preferenceOf(Locale.forLanguageTag("zh-TW")))
         assertEquals(AppLanguage.Preference.Traditional, AppLanguage.preferenceOf(Locale.forLanguageTag("zh-HK")))
         assertEquals(AppLanguage.Preference.Traditional, AppLanguage.preferenceOf(Locale.forLanguageTag("zh-Hant")))
+        assertEquals(AppLanguage.Preference.Korean, AppLanguage.preferenceOf(Locale.forLanguageTag("ko-KR")))
+        assertEquals(AppLanguage.Preference.Spanish, AppLanguage.preferenceOf(Locale.forLanguageTag("es-MX")))
+        assertEquals(AppLanguage.Preference.French, AppLanguage.preferenceOf(Locale.forLanguageTag("fr-CA")))
+        assertEquals(AppLanguage.Preference.German, AppLanguage.preferenceOf(Locale.forLanguageTag("de-DE")))
+        assertEquals(AppLanguage.Preference.PortugueseBrazil, AppLanguage.preferenceOf(Locale.forLanguageTag("pt-BR")))
+        assertEquals(AppLanguage.Preference.PortugueseBrazil, AppLanguage.preferenceOf(Locale.forLanguageTag("pt-PT")))
+        assertEquals(AppLanguage.Preference.Italian, AppLanguage.preferenceOf(Locale.forLanguageTag("it-IT")))
+        assertEquals(AppLanguage.Preference.Indonesian, AppLanguage.preferenceOf(Locale.forLanguageTag("id-ID")))
+        assertEquals(AppLanguage.Preference.Indonesian, AppLanguage.preferenceOf(Locale("in", "ID")))
+        assertEquals(AppLanguage.Preference.Vietnamese, AppLanguage.preferenceOf(Locale.forLanguageTag("vi-VN")))
+        assertEquals(AppLanguage.Preference.Thai, AppLanguage.preferenceOf(Locale.forLanguageTag("th-TH")))
+        assertEquals(AppLanguage.Preference.Hindi, AppLanguage.preferenceOf(Locale.forLanguageTag("hi-IN")))
+        assertEquals(AppLanguage.Preference.Arabic, AppLanguage.preferenceOf(Locale.forLanguageTag("ar-SA")))
+        assertEquals(AppLanguage.Preference.Turkish, AppLanguage.preferenceOf(Locale.forLanguageTag("tr-TR")))
+        assertEquals(AppLanguage.Preference.Russian, AppLanguage.preferenceOf(Locale.forLanguageTag("ru-RU")))
     }
 
     @Test
@@ -37,13 +52,21 @@ class AppLanguageTest {
         assertEquals("zh-CN", AppLanguage.acceptLanguage("zh"))
         assertEquals("zh-TW", AppLanguage.acceptLanguage("zh-Hant"))
         assertEquals("ja", AppLanguage.acceptLanguage("ja"))
+        assertEquals("pt-BR", AppLanguage.acceptLanguage("pt-BR"))
+        assertEquals("id", AppLanguage.acceptLanguage("id"))
+        assertEquals("ar", AppLanguage.acceptLanguage("ar"))
         assertEquals("en", AppLanguage.acceptLanguage(null))
     }
 
     @Test
     fun `menu names are written in their own language like the web LOCALE_NAMES`() {
         assertEquals(
-            listOf(null, "English", "简体中文", "繁體中文", "日本語"),
+            listOf(
+                null,
+                "English", "简体中文", "繁體中文", "日本語",
+                "한국어", "Español", "Français", "Deutsch", "Português (Brasil)", "Italiano",
+                "Bahasa Indonesia", "Tiếng Việt", "ไทย", "हिन्दी", "العربية", "Türkçe", "Русский",
+            ),
             AppLanguage.Preference.entries.map(AppLanguage::nativeName),
         )
     }
@@ -53,13 +76,22 @@ class AppLanguageTest {
         assertEquals(AppLanguage.Preference.Traditional, AppLanguage.localeFromTag("zh_HK"))
         assertEquals(AppLanguage.Preference.Simplified, AppLanguage.localeFromTag("zh-Hans-HK"))
         assertEquals(AppLanguage.Preference.Japanese, AppLanguage.localeFromTag("jpn-JP"))
-        listOf("ko-KR", "es-MX", "pt-BR", "ar-SA", "in-ID", "zh--HK", "en-!", "*").forEach {
+        assertEquals(AppLanguage.Preference.Korean, AppLanguage.localeFromTag("ko-KR"))
+        assertEquals(AppLanguage.Preference.Spanish, AppLanguage.localeFromTag("es-419"))
+        assertEquals(AppLanguage.Preference.PortugueseBrazil, AppLanguage.localeFromTag("pt-BR"))
+        assertEquals(AppLanguage.Preference.Arabic, AppLanguage.localeFromTag("ar-SA"))
+        assertEquals(AppLanguage.Preference.Indonesian, AppLanguage.localeFromTag("in-ID"))
+        assertEquals(AppLanguage.Preference.Indonesian, AppLanguage.localeFromTag("id-ID"))
+        listOf("nl-NL", "sv-SE", "pl-PL", "he-IL", "zh--HK", "en-!", "*").forEach {
             assertEquals(null, AppLanguage.localeFromTag(it))
         }
         assertEquals(AppLanguage.Preference.Japanese, AppLanguage.resolveLocale(AppLanguage.Preference.Japanese, listOf("en"), "CN"))
-        assertEquals(AppLanguage.Preference.Traditional, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR", "zh-HK"), "JP"))
-        assertEquals(AppLanguage.Preference.Japanese, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR"), "JP"))
-        assertEquals(AppLanguage.Preference.English, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR")))
+        assertEquals(AppLanguage.Preference.Korean, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("ko-KR", "zh-HK"), "JP"))
+        assertEquals(AppLanguage.Preference.Traditional, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("nl-NL", "zh-HK"), "JP"))
+        assertEquals(AppLanguage.Preference.Japanese, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("nl-NL"), "JP"))
+        assertEquals(AppLanguage.Preference.Arabic, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("nl-NL"), "SA"))
+        assertEquals(AppLanguage.Preference.English, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("nl-NL"), "IN"))
+        assertEquals(AppLanguage.Preference.English, AppLanguage.resolveLocale(AppLanguage.Preference.Auto, listOf("nl-NL")))
     }
 
     // ---- 界面语言跟着账号走（和网页 src/lib/locale-sync.test.ts 同样的情况） ----
@@ -91,7 +123,6 @@ class AppLanguageTest {
         assertEquals(null, sync(signedIn = false, preference = auto))
     }
 
-
     @Test
     fun `follows the language saved on the account`() {
         assertEquals(LocaleSyncAction.Switch(zh), sync(saved = "zh", preference = auto))
@@ -100,6 +131,7 @@ class AppLanguageTest {
         assertEquals(null, sync(saved = "zh", preference = zh, active = en, target = zh))
         assertEquals(LocaleSyncAction.Switch(ja), sync(saved = "ja", preference = ja, active = zh))
         assertEquals(LocaleSyncAction.Switch(AppLanguage.Preference.Traditional), sync(saved = "zh-Hant"))
+        assertEquals(LocaleSyncAction.Switch(AppLanguage.Preference.Arabic), sync(saved = "ar"))
     }
 
     @Test
@@ -124,8 +156,11 @@ class AppLanguageTest {
     @Test
     fun `reads the account language codes`() {
         assertEquals(AppLanguage.Preference.Traditional, AppLanguage.preferenceOfCode("zh-Hant"))
+        assertEquals(AppLanguage.Preference.French, AppLanguage.preferenceOfCode("fr"))
+        assertEquals(AppLanguage.Preference.PortugueseBrazil, AppLanguage.preferenceOfCode("pt-BR"))
+        assertEquals(AppLanguage.Preference.Arabic, AppLanguage.preferenceOfCode("ar"))
         assertEquals(null, AppLanguage.preferenceOfCode("auto"))
-        assertEquals(null, AppLanguage.preferenceOfCode("fr"))
+        assertEquals(null, AppLanguage.preferenceOfCode("nl"))
         assertEquals(null, AppLanguage.preferenceOfCode(null))
     }
 

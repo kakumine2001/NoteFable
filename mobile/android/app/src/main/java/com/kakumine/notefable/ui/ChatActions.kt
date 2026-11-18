@@ -43,6 +43,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -172,12 +173,14 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
                 with(density) {
                     val edge = 8.dp.roundToPx()
                     val top = minOf(anchor.bottom + 4.dp.roundToPx(), windowSize.height - 250.dp.roundToPx()).coerceAtLeast(edge)
-                    val left = minOf(anchor.right - width.roundToPx(), windowSize.width - (width + 8.dp).roundToPx()).coerceAtLeast(edge)
+                    val start = if (layoutDirection == LayoutDirection.Rtl) anchor.left else anchor.right - width.roundToPx()
+                    val left = minOf(start, windowSize.width - (width + 8.dp).roundToPx()).coerceAtLeast(edge)
                     return IntOffset(left, top)
                 }
             }
         }
     }
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Popup(popupPositionProvider = provider, onDismissRequest = onClose, properties = PopupProperties(focusable = true)) {
         Column(
             Modifier.width(width)
@@ -187,7 +190,7 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
                     scaleX = .96f + .04f * progress
                     scaleY = .96f + .04f * progress
                     translationY = -4.dp.toPx() * (1f - progress)
-                    transformOrigin = TransformOrigin(1f, 0f)
+                    transformOrigin = TransformOrigin(if (rtl) 0f else 1f, 0f)
                 }
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = MenuShadow, spotColor = MenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))

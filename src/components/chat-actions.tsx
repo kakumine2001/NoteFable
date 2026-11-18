@@ -19,9 +19,10 @@ function Dialog({ title, onClose, anchor, children }: { title: string; onClose: 
   const ref = useRef<HTMLDialogElement>(null);
   useBackToClose(true, onClose);
   useEffect(() => { ref.current?.showModal(); ref.current?.querySelector<HTMLButtonElement>('button[role="menuitem"]')?.focus(); }, []);
+  const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
   const position = anchor ? {
     top: Math.max(8, Math.min(anchor.bottom + 4, window.innerHeight - 250)),
-    left: Math.max(8, Math.min(anchor.right - 228, window.innerWidth - 236)),
+    left: Math.max(8, Math.min(rtl ? anchor.left : anchor.right - 228, window.innerWidth - 236)),
   } : undefined;
   return <dialog ref={ref} aria-label={title} className={anchor ? "chat-actions-menu chat-row-menu" : "notes-dialog"} style={position}
     onCancel={event => { event.preventDefault(); onClose(); }}

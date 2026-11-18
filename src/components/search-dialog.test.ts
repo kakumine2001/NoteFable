@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSearchShortcut, orderProjects, splitHighlight } from "./search-dialog";
+import { isSearchShortcut, nextSearchTabScope, orderProjects, splitHighlight } from "./search-dialog";
 
 describe("splitHighlight", () => {
   it("marks every occurrence of every term, case-insensitively, keeping the original text", () => {
@@ -87,5 +87,24 @@ describe("isSearchShortcut", () => {
   it("opens from ordinary inputs such as the chat box or the page itself", () => {
     expect(isSearchShortcut(press({ target: element({ isContentEditable: false, closest: () => null }) }))).toBe(true);
     expect(isSearchShortcut(press({ target: element({}) }))).toBe(true);
+  });
+});
+
+describe("nextSearchTabScope", () => {
+  it("moves forward on ArrowRight and backward on ArrowLeft in LTR ([All] [Chats] [Notes])", () => {
+    expect(nextSearchTabScope(0, "ArrowRight", "ltr")).toBe("chats");
+    expect(nextSearchTabScope(1, "ArrowRight", "ltr")).toBe("notes");
+    expect(nextSearchTabScope(2, "ArrowRight", "ltr")).toBe("all");
+    expect(nextSearchTabScope(0, "ArrowLeft", "ltr")).toBe("notes");
+    expect(nextSearchTabScope(2, "ArrowLeft", "ltr")).toBe("chats");
+  });
+
+  it("moves by visual direction in RTL ([Notes] [Chats] [All]: ArrowLeft advances, ArrowRight goes back)", () => {
+    expect(nextSearchTabScope(0, "ArrowLeft", "rtl")).toBe("chats");
+    expect(nextSearchTabScope(1, "ArrowLeft", "rtl")).toBe("notes");
+    expect(nextSearchTabScope(2, "ArrowLeft", "rtl")).toBe("all");
+    expect(nextSearchTabScope(2, "ArrowRight", "rtl")).toBe("chats");
+    expect(nextSearchTabScope(1, "ArrowRight", "rtl")).toBe("all");
+    expect(nextSearchTabScope(0, "ArrowRight", "rtl")).toBe("notes");
   });
 });

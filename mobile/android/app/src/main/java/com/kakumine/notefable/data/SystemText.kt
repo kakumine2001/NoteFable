@@ -38,10 +38,28 @@ class SystemText(
 
         /** `ui_locale` 或语言标签 → 词典的键。zh 和网页 localeFromTag 一样：有 Hant 或台港澳地区是繁体，其余简体。 */
         internal fun normalizeLanguage(language: String?): String? {
-            val parts = language?.lowercase()?.split('-', '_') ?: return null
+            val parts = language?.trim()?.lowercase()?.split('-', '_') ?: return null
             return when (parts.first()) {
-                "zh" -> if ("hant" in parts || parts.any { it in setOf("tw", "hk", "mo") }) "zh-Hant" else "zh"
-                "ja" -> "ja"
+                "zh", "chi", "zho", "cmn" -> when {
+                    "hant" in parts -> "zh-Hant"
+                    "hans" in parts -> "zh"
+                    parts.any { it in setOf("tw", "hk", "mo") } -> "zh-Hant"
+                    else -> "zh"
+                }
+                "ja", "jpn" -> "ja"
+                "ko", "kor" -> "ko"
+                "es", "spa" -> "es"
+                "fr", "fra", "fre" -> "fr"
+                "de", "deu", "ger" -> "de"
+                "pt", "por" -> "pt-BR"
+                "it", "ita" -> "it"
+                "id", "in", "ind" -> "id"
+                "vi", "vie" -> "vi"
+                "th", "tha" -> "th"
+                "hi", "hin" -> "hi"
+                "ar", "ara" -> "ar"
+                "tr", "tur" -> "tr"
+                "ru", "rus" -> "ru"
                 else -> null
             }
         }

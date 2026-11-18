@@ -15,8 +15,23 @@ export const NATIVE_EMOJI_ASSET = "mobile/android/app/src/main/assets/emoji.json
 const require = createRequire(import.meta.url);
 const packageDir = path.dirname(require.resolve("emoji-picker-react/package.json"));
 
-// 网页 full-emoji-picker.tsx 的 EMOJI_DATA 的键 → 包里的数据文件。
-const LOCALES = { en: "en", zh: "zh", "zh-Hant": "zh-hant", ja: "ja" } as const;
+// 网页 full-emoji-picker.tsx 的 EMOJI_DATA 的键 → 包里的数据文件（id / ar / tr 包里没有，回退到 en）。
+const LOCALES = {
+  en: "en",
+  zh: "zh",
+  "zh-Hant": "zh-hant",
+  ja: "ja",
+  ko: "ko",
+  es: "es",
+  fr: "fr",
+  de: "de",
+  "pt-BR": "pt",
+  it: "it",
+  vi: "vi",
+  th: "th",
+  hi: "hi",
+  ru: "ru",
+} as const;
 type Locale = keyof typeof LOCALES;
 
 // 网页 EMOJI_CATEGORIES 的顺序（suggested 是"最近使用"，没有固定表情）。

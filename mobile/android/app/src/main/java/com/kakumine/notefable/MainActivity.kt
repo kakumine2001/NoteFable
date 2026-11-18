@@ -15,6 +15,7 @@ import org.json.JSONObject
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import java.util.Locale
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -51,9 +52,12 @@ class MainActivity : AppCompatActivity() {
         val matched = tags.firstNotNullOfOrNull(AppLanguage::localeFromTag)
         fun display(language: AppLanguage.Preference) {
             val config = Configuration(resources.configuration)
-            config.setLocales(LocaleList.forLanguageTags(language.tag))
+            val tag = language.tag ?: "en"
+            config.setLocales(LocaleList.forLanguageTags(tag))
+            config.setLayoutDirection(Locale.forLanguageTag(tag))
             resources.updateConfiguration(config, resources.displayMetrics)
             AppLanguage.uiLocale = getString(R.string.ui_locale)
+            window.decorView.layoutDirection = config.layoutDirection
             window.decorView.dispatchConfigurationChanged(config)
         }
         display(matched ?: autoFallback?.takeIf { it.first == key }?.second ?: AppLanguage.Preference.English)
@@ -86,6 +90,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         resolveAutoConfiguration()
         AppLanguage.uiLocale = getString(R.string.ui_locale)
+        window.decorView.layoutDirection = resources.configuration.layoutDirection
         setContent {
             NoteFableTheme {
                 NoteFableRoot(viewModel, accountViewModel, notesViewModel)
@@ -120,6 +125,7 @@ class MainActivity : AppCompatActivity() {
         super.onConfigurationChanged(newConfig)
         resolveAutoConfiguration()
         AppLanguage.uiLocale = getString(R.string.ui_locale)
+        window.decorView.layoutDirection = resources.configuration.layoutDirection
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             window.decorView.dispatchConfigurationChanged(Configuration(resources.configuration))
         }

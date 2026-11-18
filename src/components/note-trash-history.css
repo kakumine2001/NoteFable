@@ -5,7 +5,7 @@ dialog.notes-dialog.note-th-dialog {
 dialog.notes-dialog.note-th-dialog[open] { display: flex; flex-direction: column; animation: motion-fade-in 120ms ease-out both; }
 dialog.notes-dialog.note-th-dialog.note-history-dialog { width: min(calc(100% - 3rem), 60rem); height: min(80dvh, 40rem); max-height: none; }
 
-.note-th-header { display: flex; flex: none; align-items: center; gap: 0.5rem; padding: 0.75rem 0.75rem 0.75rem 1rem; border-bottom: 1px solid var(--notion-border); }
+.note-th-header { display: flex; flex: none; align-items: center; gap: 0.5rem; padding-block: 0.75rem; padding-inline: 1rem 0.75rem; border-bottom: 1px solid var(--notion-border); }
 .note-th-title { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.5rem; margin: 0; font-size: 1rem; font-weight: 600; }
 .note-th-title svg { flex: none; color: var(--notion-muted); }
 .note-th-hint { flex: none; margin: 0; padding: 0.6rem 1rem 0; font-size: 0.8125rem; line-height: 1.45; color: var(--notion-muted); }
@@ -16,7 +16,7 @@ dialog.notes-dialog.note-th-dialog.note-history-dialog { width: min(calc(100% - 
 .note-th-icon { display: grid; width: 1.5rem; height: 1.5rem; flex: none; place-items: center; font-size: 1.0625rem; line-height: 1; color: var(--notion-muted); }
 .note-th-confirm { display: flex; flex: none; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin: 0.6rem 1rem 0; padding: 0.6rem 0.75rem; border: 1px solid rgba(185, 28, 28, 0.25); border-radius: 6px; font-size: 0.8125rem; line-height: 1.4; }
 .note-th-confirm-text { min-width: 0; flex: 1 1 12rem; }
-.note-th-confirm-actions { display: flex; flex: none; gap: 0.35rem; margin-left: auto; }
+.note-th-confirm-actions { display: flex; flex: none; gap: 0.35rem; margin-inline-start: auto; }
 dialog.note-th-dialog .notion-button { min-height: 2.25rem; }
 dialog.note-th-dialog .notion-button:disabled { opacity: 0.5; }
 /* .notion-button の文字色が .notes-delete より後ろにあって勝つので、破壊的な操作の赤はここで指定する。 */
@@ -36,11 +36,11 @@ dialog.note-th-dialog .notion-button-primary:disabled { opacity: 0.45; }
 
 /* 編集履歴: 左に一覧、右にプレビュー（スマホでは一覧とプレビューを切り替える） */
 .note-history-layout { display: grid; min-height: 0; flex: 1; grid-template-columns: 16rem minmax(0, 1fr); }
-.note-history-list-pane { min-height: 0; overflow-y: auto; border-right: 1px solid var(--notion-border); padding: 0.35rem; }
+.note-history-list-pane { min-height: 0; overflow-y: auto; border-inline-end: 1px solid var(--notion-border); padding: 0.35rem; }
 .note-history-list { margin: 0; padding: 0; list-style: none; }
 .note-history-item {
   display: flex; width: 100%; min-height: 3rem; flex-direction: column; justify-content: center; gap: 0.1rem;
-  border-radius: 6px; padding: 0.4rem 0.6rem; text-align: left; color: var(--notion-text);
+  border-radius: 6px; padding: 0.4rem 0.6rem; text-align: start; color: var(--notion-text);
 }
 @media (hover: hover) { .note-history-item:hover { background: var(--notion-hover); } }
 .note-history-item[aria-current="true"] { background: var(--notion-active); }
@@ -72,7 +72,7 @@ dialog.note-th-dialog .notion-button-primary:disabled { opacity: 0.45; }
   .note-trash-row { flex-wrap: wrap; row-gap: 0.4rem; }
   .note-trash-actions, .note-trash-confirm { width: 100%; flex-wrap: wrap; justify-content: flex-end; }
   .note-history-layout { grid-template-columns: minmax(0, 1fr); }
-  .note-history-list-pane { border-right: 0; }
+  .note-history-list-pane { border-inline-end: 0; }
   .note-history-item { min-height: 3.5rem; }
   .note-history-layout[data-view="list"] .note-history-preview { display: none; }
   .note-history-layout[data-view="detail"] .note-history-list-pane { display: none; }

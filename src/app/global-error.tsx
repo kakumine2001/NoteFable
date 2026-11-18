@@ -4,7 +4,8 @@ import "./globals.css";
 import { useEffect, useRef, useState } from "react";
 import { AppErrorScreen } from "@/components/app-error-screen";
 import { I18nProvider } from "@/components/i18n-provider";
-import { DEFAULT_LOCALE, isLocale, LOCALE_COOKIE, LOCALE_TAGS, localeFromAcceptLanguage, type Locale } from "@/lib/i18n/locale";
+import { DEFAULT_LOCALE, isLocale, LOCALE_COOKIE, LOCALE_DIRS, LOCALE_TAGS, localeFromAcceptLanguage, type Locale } from "@/lib/i18n/locale";
+import { loadMessages } from "@/lib/i18n/messages/load";
 import type { Messages } from "@/lib/i18n/translate";
 
 // ルートのレイアウト（[locale]/layout の言語設定を含む）で例外が起きたときの画面。レイアウトの代わりに html と body を自分で出す。
@@ -29,11 +30,11 @@ export default function GlobalError({ error, unstable_retry }: { error: Error & 
     const locale = clientLocale(pageTag.current);
     if (locale === DEFAULT_LOCALE) return;
     let live = true;
-    void import("@/lib/i18n/messages").then(({ messagesFor }) => { if (live) setI18n({ locale, messages: messagesFor(locale) }); }).catch(() => {});
+    void loadMessages(locale).then((messages) => { if (live) setI18n({ locale, messages }); }).catch(() => {});
     return () => { live = false; };
   }, []);
   return (
-    <html lang={LOCALE_TAGS[i18n.locale]}>
+    <html lang={LOCALE_TAGS[i18n.locale]} dir={LOCALE_DIRS[i18n.locale]}>
       <body>
         <title>NoteFable</title>
         {/* I18nProvider は最初に受け取った辞書を使い続けるので、言語が変わったら作り直す。 */}

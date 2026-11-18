@@ -51,7 +51,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       <div className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
       <button type="button" className="notes-home-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
-        {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+        {open ? <ChevronDown size={18} /> : <ChevronRight size={18} className="rtl-mirror" />}
       </button>
       <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)} className="notes-home-row">
         <span className="notes-home-icon" aria-hidden="true">{page.icon ?? <FileText size={20} />}</span>

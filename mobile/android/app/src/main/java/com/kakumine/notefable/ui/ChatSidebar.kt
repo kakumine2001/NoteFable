@@ -49,6 +49,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.roundToIntRect
 import androidx.compose.ui.unit.sp
@@ -345,7 +346,9 @@ private fun SessionRow(session: SessionSummary, props: RowProps) {
                     // 当前行左侧 3px 蓝条（上下各缩 7.2，全圆角）；拖动目标是它时不画，免得和插入线混在一起。
                     if (active && !lineBefore && !lineAfter) {
                         val inset = 7.2.dp.toPx()
-                        drawRoundRect(Sm.Blue, topLeft = Offset(0f, inset), size = Size(3.dp.toPx(), size.height - inset * 2),
+                        val barW = 3.dp.toPx()
+                        val barX = if (layoutDirection == LayoutDirection.Rtl) size.width - barW else 0f
+                        drawRoundRect(Sm.Blue, topLeft = Offset(barX, inset), size = Size(barW, size.height - inset * 2),
                             cornerRadius = CornerRadius(1.5.dp.toPx()))
                     }
                 },

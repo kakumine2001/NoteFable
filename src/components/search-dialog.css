@@ -8,7 +8,7 @@
 }
 @keyframes search-panel-in { from { transform: translateY(-6px) scale(0.99); opacity: 0; } to { transform: none; opacity: 1; } }
 
-.search-root .search-field { display: flex; align-items: center; gap: 0.6rem; padding: 0.35rem 0.5rem 0.35rem 1rem; border-bottom: 1px solid var(--notion-border); }
+.search-root .search-field { display: flex; align-items: center; gap: 0.6rem; padding-block: 0.35rem; padding-inline: 1rem 0.5rem; border-bottom: 1px solid var(--notion-border); }
 .search-root .search-field-icon { flex: none; color: var(--notion-muted); }
 .search-root .search-input {
   flex: 1; min-width: 0; height: 2.75rem; border: 0; outline: 0; background: transparent; color: var(--notion-text); font-size: 1rem;
@@ -25,7 +25,7 @@
 .search-root .search-tabs { display: flex; flex: none; gap: 0.25rem; }
 /* Chats タブだけに出るプロジェクトの絞り込み。右端に寄せ、長い名前は省略する。 */
 .search-root .search-project {
-  flex: 0 1 auto; min-width: 0; max-width: 55%; height: 1.9rem; margin-left: auto; padding: 0 0.4rem; border: 1px solid var(--notion-border); border-radius: 6px;
+  flex: 0 1 auto; min-width: 0; max-width: 55%; height: 1.9rem; margin-inline-start: auto; padding: 0 0.4rem; border: 1px solid var(--notion-border); border-radius: 6px;
   background: transparent; color: var(--notion-muted); font-size: 0.8125rem; text-overflow: ellipsis; cursor: pointer;
 }
 @media (hover: hover) { .search-root .search-project:hover { background: var(--notion-hover); color: var(--notion-text); } }
@@ -49,7 +49,7 @@
 /* 会話が入っているプロジェクト名。タイトルより目立たない小さな文字。 */
 .search-root .search-row-project { flex: 0 1 auto; max-width: 40%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.75rem; color: var(--notion-faint); }
 /* 添付ファイルの本文に当たったときの「in ファイル名」。 */
-.search-root .search-row-file { display: inline-flex; align-items: center; gap: 0.2rem; margin-right: 0.35rem; vertical-align: -1px; font-size: 0.75rem; font-weight: 500; color: var(--notion-text); }
+.search-root .search-row-file { display: inline-flex; align-items: center; gap: 0.2rem; margin-inline-end: 0.35rem; vertical-align: -1px; font-size: 0.75rem; font-weight: 500; color: var(--notion-text); }
 .search-root .search-row-snippet {
   display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 0.8125rem; line-height: 1.4;
   color: var(--notion-muted); overflow-wrap: anywhere;
@@ -71,7 +71,7 @@
   .search-root { padding: 0; align-items: stretch; }
   .search-backdrop { display: none; }
   .search-root .search-panel { width: 100%; max-height: none; height: 100dvh; border: 0; border-radius: 0; box-shadow: none; padding-top: env(safe-area-inset-top); animation: model-sheet-up 200ms ease-out both; }
-  .search-root .search-field { padding-left: 0.9rem; }
+  .search-root .search-field { padding-inline-start: 0.9rem; }
   .search-root .search-input { height: 3rem; font-size: 1rem; }
   .search-root .search-close { width: 2.5rem; height: 2.5rem; }
   .search-root .search-tab { min-height: 2.5rem; padding: 0 0.9rem; font-size: 0.9375rem; }

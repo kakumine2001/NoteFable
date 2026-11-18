@@ -102,7 +102,11 @@ class SystemTextTest {
         assertNotEquals(limit, zh.localize(limit))
         assertNotEquals(limit, ja.localize(limit))
         assertEquals("「Plan」を読みました", ja.localize("Read “Plan”"))
-        // 繁体中文界面（ui_locale = zh-Hant）用繁体词典，不退回简体。
+        // 繁体中文界面（ui_locale = zh-Hant）用繁体词典，不退回简体；新增语言及 in-ID 别名同样命中各自词典。
         assertEquals("請求失敗：資料庫暫時不可用。", asset.translator("zh-Hant").localize("Request failed: Database is unavailable."))
+        assertNotEquals(limit, asset.translator("ko").localize(limit))
+        assertNotEquals(limit, asset.translator("ar").localize(limit))
+        assertNotEquals(limit, asset.translator("in-ID").localize(limit))
+        assertNotEquals(limit, asset.translator("pt-BR").localize(limit))
     }
 }

@@ -6,14 +6,26 @@ import { Shuffle } from "lucide-react";
 import { useMemo } from "react";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { useI18n } from "@/components/i18n-provider";
+import type { Locale } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 
 // 選んだ言語の検索用データだけを追加で読み込む。別言語を初期バンドルに含めない。
-const EMOJI_DATA = {
+// emoji-picker-react がデータを持たない言語（id / ar / tr）は UI 文言を翻訳したまま英語キーワードにフォールバックする。
+const EMOJI_DATA: Partial<Record<Locale, typeof emojiData | (() => Promise<{ default: typeof emojiData }>)>> = {
   en: emojiData,
   zh: () => import("emoji-picker-react/data/emojis-zh"),
   "zh-Hant": () => import("emoji-picker-react/data/emojis-zh-hant"),
   ja: () => import("emoji-picker-react/data/emojis-ja"),
+  ko: () => import("emoji-picker-react/data/emojis-ko"),
+  es: () => import("emoji-picker-react/data/emojis-es"),
+  fr: () => import("emoji-picker-react/data/emojis-fr"),
+  de: () => import("emoji-picker-react/data/emojis-de"),
+  "pt-BR": () => import("emoji-picker-react/data/emojis-pt"),
+  it: () => import("emoji-picker-react/data/emojis-it"),
+  vi: () => import("emoji-picker-react/data/emojis-vi"),
+  th: () => import("emoji-picker-react/data/emojis-th"),
+  hi: () => import("emoji-picker-react/data/emojis-hi"),
+  ru: () => import("emoji-picker-react/data/emojis-ru"),
 };
 
 const EMOJI_CATEGORIES = [
@@ -71,7 +83,7 @@ export default function FullEmojiPicker({ current, removeLabel, onChange, onClos
     </div>
     <EmojiPicker width="100%" height="var(--emoji-picker-height)" theme={Theme.LIGHT}
       emojiStyle={EmojiStyle.NATIVE} suggestedEmojisMode={SuggestionMode.RECENT}
-      previewConfig={{ showPreview: false }} emojiData={EMOJI_DATA[locale]}
+      previewConfig={{ showPreview: false }} emojiData={EMOJI_DATA[locale] ?? emojiData}
       categories={categories}
       labels={labels}
       onEmojiClick={(item) => { onChange(item.emoji); onClose(); }} />

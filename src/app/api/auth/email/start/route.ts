@@ -12,7 +12,7 @@ function fail(status: number, error: string) {
 // メールアドレスに 6 桁の確認コードを送る。アドレスが登録済みかどうかは返事から分からないようにする（同じ返事）。
 export async function POST(request: NextRequest) {
   if (!isEmailLoginConfigured()) return fail(404, msg("Email sign-in is not enabled."));
-  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return fail(403, "Forbidden.");
+  if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) return fail(403, msg("Forbidden."));
 
   const body = (await request.json().catch(() => null)) as { email?: unknown; locale?: unknown } | null;
   const email = parseEmail(body?.email);

@@ -3,7 +3,7 @@
 import { Check, Languages, Search } from "lucide-react";
 import { useEffect, useRef, useState, type KeyboardEvent, type MouseEvent } from "react";
 import { useI18n } from "@/components/i18n-provider";
-import { LOCALE_NAMES, LOCALES, LOCALE_TAGS, type Locale, type LocalePreference } from "@/lib/i18n/locale";
+import { LOCALE_DIRS, LOCALE_NAMES, LOCALES, LOCALE_TAGS, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
 // 言語の一覧を開くボタンの状態（一覧の位置と、閉じたあとのフォーカス）。このメニューと設定画面の「言語」の行が使う。
@@ -71,7 +71,7 @@ export function LanguageMenu({ className, onChoose }: { className?: string; onCh
 export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, onClose }: {
   anchor: DOMRect; current: LocalePreference | null; align?: "start" | "end"; onChoose: (next: LocalePreference) => void; onClose: () => void;
 }) {
-  const { t, locale } = useI18n();
+  const { t, locale, dir } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState("");
   const searchRef = useRef<HTMLInputElement>(null);
@@ -98,9 +98,10 @@ export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, 
   const width = Math.min(320, viewport.width - 16);
   const height = Math.min(368, viewport.height - 16);
   const opensBelow = anchor.bottom + 4 + height <= viewport.height - 8;
+  const alignRight = (dir === "ltr") === (align === "end");
   const style = {
     width,
-    left: Math.max(8, Math.min(align === "end" ? anchor.right - width : anchor.left, viewport.width - width - 8)),
+    left: Math.max(8, Math.min(alignRight ? anchor.right - width : anchor.left, viewport.width - width - 8)),
     ...(opensBelow
       ? { top: anchor.bottom + 4, maxHeight: height }
       : { top: "auto", bottom: window.innerHeight - anchor.top + 4, maxHeight: Math.max(0, Math.min(height, anchor.top - 12)) }),
@@ -136,7 +137,7 @@ export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, 
           <button key={option} type="button" role="radio" aria-checked={option === current} className="chat-menu-item" onClick={() => onChoose(option)}>
             <span className="language-menu-name">
               {option === "auto" ? <>{t("Auto detect")}<small>{t("Auto (current: {language})", { language: LOCALE_NAMES[locale] })}</small></>
-                : <><span lang={LOCALE_TAGS[option]} translate="no">{LOCALE_NAMES[option]}</span>{option === locale && <small>{t("Current language")}</small>}</>}
+                : <><span lang={LOCALE_TAGS[option]} dir={LOCALE_DIRS[option]} translate="no">{LOCALE_NAMES[option]}</span>{option === locale && <small>{t("Current language")}</small>}</>}
             </span>
             <Check size={15} aria-hidden="true" className={`language-menu-check${option === current ? "" : " invisible"}`} />
           </button>

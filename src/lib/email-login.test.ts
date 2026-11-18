@@ -52,8 +52,13 @@ describe("parsing", () => {
     expect(parseEmail(42)).toBeNull();
   });
 
-  it("accepts only six digits, ignoring spaces", () => {
+  it("accepts only six digits, normalizing Unicode decimal digits and ignoring spaces", () => {
     expect(parseCode("123 456")).toBe("123456");
+    expect(parseCode("٤٨٢٩١٠")).toBe("482910");
+    expect(parseCode("٤٨٢ ٩١٠")).toBe("482910");
+    expect(parseCode("۴۸۲۹۱۰")).toBe("482910");
+    expect(parseCode("४८२९१०")).toBe("482910");
+    expect(parseCode("４８２９１０")).toBe("482910");
     expect(parseCode("12345")).toBeNull();
     expect(parseCode("12345a")).toBeNull();
   });

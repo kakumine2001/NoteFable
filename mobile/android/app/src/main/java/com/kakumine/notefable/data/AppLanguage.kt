@@ -17,6 +17,19 @@ object AppLanguage {
         Simplified("zh", "zh-CN"),
         Traditional("zh-Hant", "zh-TW"),
         Japanese("ja", "ja"),
+        Korean("ko", "ko"),
+        Spanish("es", "es"),
+        French("fr", "fr"),
+        German("de", "de"),
+        PortugueseBrazil("pt-BR", "pt-BR"),
+        Italian("it", "it"),
+        Indonesian("id", "id"),
+        Vietnamese("vi", "vi"),
+        Thai("th", "th"),
+        Hindi("hi", "hi"),
+        Arabic("ar", "ar"),
+        Turkish("tr", "tr"),
+        Russian("ru", "ru"),
     }
 
     /** 网页 LOCALE_NAMES：各语言用它自己的写法；"自动"由调用方翻译。 */
@@ -26,10 +39,28 @@ object AppLanguage {
         Preference.Simplified -> "简体中文"
         Preference.Traditional -> "繁體中文"
         Preference.Japanese -> "日本語"
+        Preference.Korean -> "한국어"
+        Preference.Spanish -> "Español"
+        Preference.French -> "Français"
+        Preference.German -> "Deutsch"
+        Preference.PortugueseBrazil -> "Português (Brasil)"
+        Preference.Italian -> "Italiano"
+        Preference.Indonesian -> "Bahasa Indonesia"
+        Preference.Vietnamese -> "Tiếng Việt"
+        Preference.Thai -> "ไทย"
+        Preference.Hindi -> "हिन्दी"
+        Preference.Arabic -> "العربية"
+        Preference.Turkish -> "Türkçe"
+        Preference.Russian -> "Русский"
     }
 
     private val TraditionalRegions = setOf("TW", "HK", "MO")
-    private val Aliases = mapOf("eng" to "en", "jpn" to "ja", "chi" to "zh", "zho" to "zh", "cmn" to "zh", "in" to "id")
+    private val Aliases = mapOf(
+        "eng" to "en", "jpn" to "ja", "chi" to "zh", "zho" to "zh", "cmn" to "zh",
+        "kor" to "ko", "spa" to "es", "fra" to "fr", "fre" to "fr", "deu" to "de", "ger" to "de",
+        "por" to "pt", "ita" to "it", "ind" to "id", "in" to "id", "vie" to "vi", "tha" to "th",
+        "hin" to "hi", "ara" to "ar", "tur" to "tr", "rus" to "ru",
+    )
 
     /** Strict BCP 47 parsing; legacy underscores and ISO aliases match Web. */
     fun localeFromTag(tag: String?): Preference? {
@@ -47,33 +78,53 @@ object AppLanguage {
                 locale.country.uppercase(Locale.ROOT) in TraditionalRegions -> Preference.Traditional
                 else -> Preference.Simplified
             }
+            "ko" -> Preference.Korean
+            "es" -> Preference.Spanish
+            "fr" -> Preference.French
+            "de" -> Preference.German
+            "pt" -> Preference.PortugueseBrazil
+            "it" -> Preference.Italian
+            "id", "in" -> Preference.Indonesian
+            "vi" -> Preference.Vietnamese
+            "th" -> Preference.Thai
+            "hi" -> Preference.Hindi
+            "ar" -> Preference.Arabic
+            "tr" -> Preference.Turkish
+            "ru" -> Preference.Russian
             else -> null
         }
     }
     fun preferenceOf(locale: Locale?): Preference = localeFromTag(locale?.toLanguageTag()) ?: Preference.Auto
 
     fun localeFromCountry(country: String?): Preference? = when (country?.trim()?.uppercase(Locale.ROOT)) {
+        "US", "GB", "AU", "NZ", "IE" -> Preference.English
         "CN", "SG" -> Preference.Simplified
         "TW", "HK", "MO" -> Preference.Traditional
         "JP" -> Preference.Japanese
-        "US", "GB", "AU", "NZ", "IE" -> Preference.English
+        "KR" -> Preference.Korean
+        "ES", "MX", "AR", "CO", "CL", "PE" -> Preference.Spanish
+        "FR" -> Preference.French
+        "DE", "AT" -> Preference.German
+        "BR" -> Preference.PortugueseBrazil
+        "IT" -> Preference.Italian
+        "ID" -> Preference.Indonesian
+        "VN" -> Preference.Vietnamese
+        "TH" -> Preference.Thai
+        "SA", "EG", "AE", "MA", "DZ", "JO", "KW", "QA" -> Preference.Arabic
+        "TR" -> Preference.Turkish
+        "RU" -> Preference.Russian
         else -> null
     }
     fun resolveLocale(preference: Preference, preferredTags: List<String>, country: String? = null): Preference =
         if (preference != Preference.Auto) preference else preferredTags.firstNotNullOfOrNull(::localeFromTag)
             ?: localeFromCountry(country) ?: Preference.English
 
-    /** 账号上存的语言代码（en / zh / zh-Hant / ja，网页 Locale）→ 选项；不认识的是 null。"auto" 不是账号能存的值。 */
+    /** 账号上存的语言代码（网页 Locale）→ 选项；不认识的是 null。"auto" 不是账号能存的值。 */
     fun preferenceOfCode(code: String?): Preference? =
         Preference.entries.firstOrNull { it != Preference.Auto && it.code == code }
 
-    /** `ui_locale`（en / zh / zh-Hant / ja）→ Accept-Language 的值（网页 LOCALE_TAGS）。 */
-    fun acceptLanguage(uiLocale: String?): String = when (uiLocale) {
-        "zh" -> "zh-CN"
-        "zh-Hant" -> "zh-TW"
-        "ja" -> "ja"
-        else -> "en"
-    }
+    /** `ui_locale`（网页 Locale）→ Accept-Language 的值（网页 LOCALE_TAGS）。 */
+    fun acceptLanguage(uiLocale: String?): String = preferenceOfCode(uiLocale)?.tag ?: "en"
 
     /** 当前界面语言（`ui_locale`）。由 MainActivity 在创建和配置变化时更新；HTTP 拦截器用它设置 Accept-Language。 */
     @Volatile
