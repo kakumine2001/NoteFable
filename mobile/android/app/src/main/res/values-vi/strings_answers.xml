@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">Không thể sao chép. Hãy bôi đen văn bản để sao chép thủ công.</string>
     <string name="image_download">Tải hình ảnh xuống</string>
     <string name="generated_image">Hình ảnh đã tạo</string>
+    <string name="ai_reply">Câu trả lời của AI</string>
 </resources>

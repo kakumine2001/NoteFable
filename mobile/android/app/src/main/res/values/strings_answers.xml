@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">Could not copy. Select the text and copy it instead.</string>
     <string name="image_download">Download image</string>
     <string name="generated_image">Generated image</string>
+    <string name="ai_reply">AI reply</string>
 </resources>

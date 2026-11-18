@@ -133,6 +133,7 @@ internal fun SettingsDialog(
             busy || deleting || pickerOpen || account.uploading -> Unit
             // 编辑区开着（包括选好照片在裁剪）：先只关编辑区（网页 closeGuard）。
             editor != AvatarEditor.Closed -> onEditor(AvatarEditor.Closed)
+            appIcon.picking -> appIcon.picking = false
             dirty -> attention++
             else -> closeNow()
         }

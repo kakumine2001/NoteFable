@@ -679,4 +679,7 @@ export const ar: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "سيتم حذف «{name}». ستُحفظ ملاحظاته وتُنقل خارج المشروع.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "سيتم نقل «{title}» إلى سلة المهملات. يمكنك استعادتها خلال {count} من الأيام.",
   "＋ New project": "＋ مشروع جديد",
+  "Choose a character": "اختر شخصية",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "تظهر في المحادثة، وفي الشريط الجانبي، وعلى زر الذكاء الاصطناعي داخل الملاحظات. وتُحفظ على هذا الجهاز فقط.",
+  "AI reply": "رد الذكاء الاصطناعي",
 };

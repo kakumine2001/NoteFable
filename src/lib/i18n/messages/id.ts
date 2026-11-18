@@ -679,4 +679,7 @@ export const id: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” akan dihapus. Catatan di dalamnya tetap disimpan dan dikeluarkan dari proyek.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” akan dipindahkan ke Sampah. Anda dapat memulihkannya selama {count} hari.",
   "＋ New project": "＋ Proyek baru",
+  "Choose a character": "Pilih karakter",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Ditampilkan di obrolan, di bilah samping, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.",
+  "AI reply": "Balasan AI",
 };

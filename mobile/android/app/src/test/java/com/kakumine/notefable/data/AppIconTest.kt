@@ -11,14 +11,39 @@ class AppIconTest {
     private val image = "data:image/png;base64,AAEC"
 
     @Test
-    fun `a stored value is an image data URL or one emoji, anything else falls back to the logo`() {
-        assertEquals(image, validAppIcon(image))
-        assertEquals("🦊", validAppIcon("🦊"))
-        assertEquals("👩🏽‍💻", validAppIcon("👩🏽‍💻"))
+    fun `un-customized, empty, legacy emoji, and unknown values normalize to default Quill`() {
         assertNull(validAppIcon(null))
         assertNull(validAppIcon(""))
+        assertNull(validAppIcon("quill"))
+        assertNull(validAppIcon("character:quill"))
+        // Legacy custom emojis migrate cleanly to null -> default Quill.
+        assertNull(validAppIcon("🦊"))
+        assertNull(validAppIcon("👩🏽‍💻"))
+        assertNull(validAppIcon("character:unknown_future"))
         assertNull(validAppIcon("two words"))
         assertNull(validAppIcon("x".repeat(65)))
+
+        assertEquals(ResolvedAppIcon.Character(CharacterId.Quill), resolveAppIcon(null))
+        assertEquals(ResolvedAppIcon.Character(CharacterId.Quill), resolveAppIcon("🦊"))
+    }
+
+    @Test
+    fun `all 7 preset characters and custom uploaded images resolve and round-trip cleanly`() {
+        assertEquals(image, validAppIcon(image))
+        assertEquals(ResolvedAppIcon.Image(image), resolveAppIcon(image))
+
+        for (character in CharacterId.entries) {
+            val encoded = toCharacterIcon(character)
+            if (character == CharacterId.Default) {
+                assertNull(encoded)
+            } else {
+                assertEquals("character:${character.id}", encoded)
+                assertEquals(character, parseCharacterIcon(encoded!!))
+            }
+            assertEquals(character, parseCharacterIcon(character.id))
+            assertEquals(ResolvedAppIcon.Character(character), resolveAppIcon(encoded))
+            assertEquals(ResolvedAppIcon.Character(character), resolveAppIcon(character.id))
+        }
     }
 
     @Test
@@ -34,7 +59,6 @@ class AppIconTest {
         assertEquals(1, appIconSampleSize(383, 4000))
         assertEquals(2, appIconSampleSize(384, 4000))
         assertEquals(8, appIconSampleSize(3000, 4000))
-        // 很长的图：短边不大，但像素太多，继续缩小。
         assertTrue(appIconSampleSize(300, 200_000) >= 2)
     }
 
@@ -45,40 +69,46 @@ class AppIconTest {
         assertTrue(url.startsWith("data:image/png;base64,"))
         assertTrue(isImageIcon(url))
         assertArrayEquals(bytes, appIconImageBytes(url))
-        assertNull(appIconImageBytes("🦊"))
+        assertNull(appIconImageBytes("character:foldie"))
         assertNull(appIconImageBytes("data:image/svg+xml,<svg/>"))
         assertNull(appIconImageBytes("data:image/png;base64,***"))
     }
 
     @Test
-    fun `the store starts from the saved icon and drops a broken one`() {
-        assertEquals("🦊", AppIconStore(read = { "🦊" }, write = { true }).icon.value)
+    fun `the store preserves custom uploads and preset characters while migrating legacy emoji on startup`() {
+        assertEquals(image, AppIconStore(read = { image }, write = { true }).icon.value)
+        assertEquals("character:foldie", AppIconStore(read = { "character:foldie" }, write = { true }).icon.value)
+        assertNull(AppIconStore(read = { "🦊" }, write = { true }).icon.value)
         assertNull(AppIconStore(read = { "not an icon" }, write = { true }).icon.value)
         assertNull(AppIconStore(read = { error("storage unavailable") }, write = { true }).icon.value)
     }
 
     @Test
-    fun `saving writes the value and shows it, null goes back to the logo`() {
+    fun `saving writes preset characters and custom images, and Quill or null clears back to default`() {
         val written = mutableListOf<String?>()
         val store = AppIconStore(read = { null }, write = { written += it; true })
-        assertTrue(store.save("🦊"))
-        assertEquals("🦊", store.icon.value)
+        assertTrue(store.save("character:piko"))
+        assertEquals("character:piko", store.icon.value)
         assertTrue(store.save(image))
         assertEquals(image, store.icon.value)
-        assertTrue(store.save(null))
+        assertTrue(store.save("quill"))
         assertNull(store.icon.value)
-        assertEquals(listOf("🦊", image, null), written)
+        assertEquals(listOf("character:piko", image, null), written)
     }
 
     @Test
-    fun `a failed save keeps the icon that is shown`() {
+    fun `a failed or invalid save keeps the currently active icon unchanged`() {
         var fail = false
-        val store = AppIconStore(read = { "🦊" }, write = { if (fail) error("disk full") else false })
-        assertFalse(store.save("🐼"))
+        val store = AppIconStore(read = { "character:sora" }, write = { if (fail) error("disk full") else false })
+        assertFalse(store.save("character:loop"))
         fail = true
         assertFalse(store.save(null))
-        assertEquals("🦊", store.icon.value)
-        // 不能用的值不写。
-        assertFalse(AppIconStore(read = { null }, write = { true }).save("two words"))
+        assertEquals("character:sora", store.icon.value)
+
+        // Legacy emojis and arbitrary strings are rejected on save.
+        val writable = AppIconStore(read = { "character:velo" }, write = { true })
+        assertFalse(writable.save("🦊"))
+        assertFalse(writable.save("two words"))
+        assertEquals("character:velo", writable.icon.value)
     }
 }

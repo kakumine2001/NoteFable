@@ -679,4 +679,7 @@ export const ptBR: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” será excluído. As notas dele serão mantidas e sairão do projeto.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” será movida para a Lixeira. Você poderá restaurá-la por {count} dias.",
   "＋ New project": "＋ Novo projeto",
+  "Choose a character": "Escolher um personagem",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Exibido no chat, na barra lateral e no botão de IA nas notas. Salvo apenas neste dispositivo.",
+  "AI reply": "Resposta da IA",
 };

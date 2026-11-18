@@ -63,4 +63,5 @@
     <string name="answer_copy_failed">Kopyalanamadı. Metni seçip elle kopyalayın.</string>
     <string name="image_download">Görseli indir</string>
     <string name="generated_image">Oluşturulan görsel</string>
+    <string name="ai_reply">Yapay zekâ yanıtı</string>
 </resources>

@@ -1104,40 +1104,159 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   }
 }
 
-/* 空の会話のキャラクター（src/components/mascot.tsx）。SVG の中なので、transform の px は viewBox の単位。 */
+/* AI キャラクター（src/components/character-avatar.tsx / mascot.tsx）。SVG の中なので transform の px は viewBox の単位。 */
 .nf-mascot-stage { display: flex; height: 68px; margin-bottom: 0.9rem; }
-.nf-mascot { display: block; overflow: visible; color: var(--nf-ink); fill: currentColor; }
-.nf-mascot-shadow { opacity: 0.1; transform-box: fill-box; transform-origin: center; animation: nf-mascot-shadow 4.2s ease-in-out 700ms infinite; }
-.nf-mascot-enter { transform-box: fill-box; transform-origin: 50% 100%; animation: nf-mascot-enter 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms both; }
-.nf-mascot-float { animation: nf-mascot-float 4.2s ease-in-out 700ms infinite; }
-.nf-mascot-flap { transform-box: fill-box; transform-origin: 0% 100%; animation: nf-mascot-flap 6.5s ease-in-out 2s infinite; }
-.nf-mascot-eyes { fill: #fff; transform: translate(calc(var(--ex, 0) * 1px), calc(var(--ey, 0) * 1px)); transition: transform 140ms ease-out; }
-.nf-mascot[data-look="down"] .nf-mascot-eyes { transform: translate(0, 2.4px); }
-.nf-mascot-eye { transform-box: fill-box; transform-origin: center; animation: nf-mascot-blink 5.6s ease-in-out 1.6s infinite; }
+.nf-mascot-custom-wrap { display: inline-grid; place-items: center; }
+.nf-mascot-custom { display: block; border-radius: 22%; object-fit: cover; box-shadow: 0 6px 18px rgba(12, 23, 48, 0.12); }
 
-@keyframes nf-mascot-enter {
-  from { opacity: 0; transform: translateY(10px) scale(0.6); }
+.nf-char { display: block; flex: none; overflow: visible; }
+.nf-char-shadow { fill: var(--nf-ink); opacity: 0.1; }
+.nf-char.is-hero[data-animated="true"] .nf-char-enter {
+  animation: nf-char-enter 560ms cubic-bezier(0.34, 1.56, 0.64, 1) 80ms both;
+}
+
+/* 状態別の基本姿勢（動きを減らす設定でも穏やかな向きだけは反映されるよう分離）。 */
+.nf-char-actor { transition: transform 180ms ease-out; }
+.nf-char-accent { transition: transform 180ms ease-out; }
+.nf-char-gaze { transform: translate(calc(var(--ex, 0) * 1px), calc(var(--ey, 0) * 1px)); transition: transform 140ms ease-out; }
+
+.nf-char[data-state="typing"] .nf-char-actor { transform: translateY(2px) rotate(var(--cf-tilt-typing, 2deg)); }
+.nf-char[data-state="typing"] .nf-char-accent { transform: rotate(var(--cf-accent-typing, 4deg)); }
+.nf-char[data-state="typing"] .nf-char-gaze { transform: translate(0, var(--cf-gaze-typing, 8px)); }
+
+/* 動的フィードバック（data-animated="true" かつ hidden 以外）。 */
+.nf-char[data-animated="true"][data-state="idle"] .nf-char-actor {
+  animation: nf-char-float var(--cf-float-ms, 4200ms) ease-in-out 500ms infinite;
+}
+.nf-char.is-hero[data-animated="true"][data-state="idle"] .nf-char-shadow {
+  animation: nf-char-shadow var(--cf-float-ms, 4200ms) ease-in-out 500ms infinite;
+}
+.nf-char[data-animated="true"][data-state="idle"] .nf-char-accent {
+  animation: nf-char-accent-idle 6.4s ease-in-out 1.8s infinite;
+}
+.nf-char[data-animated="true"][data-state="idle"] .nf-char-eye,
+.nf-char[data-animated="true"][data-state="typing"] .nf-char-eye,
+.nf-char[data-animated="true"][data-state="responding"] .nf-char-eye {
+  animation: nf-char-blink 5.6s ease-in-out 1.5s infinite;
+}
+
+.nf-char[data-animated="true"][data-state="thinking"] .nf-char-actor {
+  animation: nf-char-thinking-body 2.6s ease-in-out infinite;
+}
+.nf-char[data-animated="true"][data-state="thinking"] .nf-char-accent {
+  animation: nf-char-thinking-accent 2.6s ease-in-out infinite;
+}
+.nf-char[data-animated="true"][data-state="thinking"] .nf-char-gaze {
+  animation: nf-char-thinking-gaze 2.6s ease-in-out infinite;
+}
+
+.nf-char[data-animated="true"][data-state="responding"] .nf-char-actor {
+  animation: nf-char-responding-body 1.9s ease-in-out infinite;
+}
+.nf-char[data-animated="true"][data-state="responding"] .nf-char-accent {
+  animation: nf-char-responding-accent 1.9s ease-in-out infinite;
+}
+
+/* completed / error は 1 回限りの控えめな動きで静止へ戻る（無限ループしない）。 */
+.nf-char[data-animated="true"][data-state="completed"] .nf-char-actor {
+  animation: nf-char-completed-body 540ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+.nf-char[data-animated="true"][data-state="completed"] .nf-char-accent {
+  animation: nf-char-completed-accent 540ms cubic-bezier(0.22, 1, 0.36, 1) 1 both;
+}
+.nf-char[data-animated="true"][data-state="completed"] .nf-char-eye {
+  animation: nf-char-completed-eye 540ms ease-out 1 both;
+}
+
+.nf-char[data-animated="true"][data-state="error"] .nf-char-actor {
+  animation: nf-char-error-body 600ms cubic-bezier(0.25, 0.9, 0.35, 1) 1 both;
+}
+.nf-char[data-animated="true"][data-state="error"] .nf-char-accent {
+  animation: nf-char-error-accent 600ms cubic-bezier(0.25, 0.9, 0.35, 1) 1 both;
+}
+.nf-char[data-animated="true"][data-state="error"] .nf-char-gaze {
+  animation: nf-char-error-gaze 600ms ease-out 1 both;
+}
+
+.nf-char[data-state="hidden"] .nf-char-enter,
+.nf-char[data-state="hidden"] .nf-char-shadow,
+.nf-char[data-state="hidden"] .nf-char-actor,
+.nf-char[data-state="hidden"] .nf-char-accent,
+.nf-char[data-state="hidden"] .nf-char-gaze,
+.nf-char[data-state="hidden"] .nf-char-eye {
+  animation: none !important;
+  transition: none !important;
+}
+
+@keyframes nf-char-enter {
+  from { opacity: 0; transform: translateY(34px) scale(0.62); }
   to { opacity: 1; transform: none; }
 }
-@keyframes nf-mascot-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-2.5px); }
+@keyframes nf-char-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(var(--cf-float-y, -7px)) rotate(var(--cf-idle-tilt, 0deg)); }
 }
-@keyframes nf-mascot-shadow {
+@keyframes nf-char-shadow {
   0%, 100% { opacity: 0.1; transform: scaleX(1); }
-  50% { opacity: 0.06; transform: scaleX(0.82); }
+  50% { opacity: 0.06; transform: scaleX(0.84); }
 }
-/* 折った角（耳）がときどきぴくっと動く。 */
-@keyframes nf-mascot-flap {
-  0%, 9%, 100% { transform: rotate(0); }
-  2.5% { transform: rotate(-10deg); }
-  5% { transform: rotate(3deg); }
-  7% { transform: rotate(-5deg); }
+@keyframes nf-char-accent-idle {
+  0%, 10%, 100% { transform: rotate(0deg); }
+  3% { transform: rotate(var(--cf-accent-idle, -8deg)); }
+  6% { transform: rotate(calc(var(--cf-accent-idle, -8deg) * -0.3)); }
+  8% { transform: rotate(calc(var(--cf-accent-idle, -8deg) * 0.45)); }
 }
-/* まばたき。1 周に 1 回と、続けて 2 回。 */
-@keyframes nf-mascot-blink {
+@keyframes nf-char-blink {
   0%, 3.6%, 52%, 55.6%, 59.2%, 100% { transform: scaleY(1); }
-  1.8%, 53.8%, 57.4% { transform: scaleY(0.1); }
+  1.8%, 53.8%, 57.4% { transform: scaleY(0.12); }
+}
+@keyframes nf-char-thinking-body {
+  0%, 100% { transform: translateY(-2px) rotate(var(--cf-tilt-thinking, -3deg)); }
+  50% { transform: translateY(-6px) rotate(calc(var(--cf-tilt-thinking, -3deg) * -0.85)); }
+}
+@keyframes nf-char-thinking-accent {
+  0%, 100% { transform: rotate(var(--cf-accent-thinking, -10deg)); }
+  50% { transform: rotate(calc(var(--cf-accent-thinking, -10deg) * -0.55)); }
+}
+@keyframes nf-char-thinking-gaze {
+  0%, 100% { transform: translate(calc(var(--cf-gaze-thinking, 6.5px) * -1), -2.5px); }
+  50% { transform: translate(var(--cf-gaze-thinking, 6.5px), -3.5px); }
+}
+@keyframes nf-char-responding-body {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-3.5px) rotate(var(--cf-tilt-responding, 1.8deg)); }
+}
+@keyframes nf-char-responding-accent {
+  0%, 100% { transform: rotate(0deg); }
+  50% { transform: rotate(var(--cf-accent-responding, -5deg)); }
+}
+@keyframes nf-char-completed-body {
+  0% { transform: translateY(0) scale(1); }
+  36% { transform: translateY(var(--cf-nod-completed, 7px)) scale(1.03, 0.97); }
+  72% { transform: translateY(-2.5px) scale(0.99, 1.01); }
+  100% { transform: translateY(0) scale(1); }
+}
+@keyframes nf-char-completed-accent {
+  0%, 100% { transform: rotate(0deg); }
+  40% { transform: rotate(var(--cf-accent-completed, 8deg)); }
+}
+@keyframes nf-char-completed-eye {
+  0%, 100% { transform: scaleY(1); }
+  38% { transform: scaleY(0.32); }
+}
+@keyframes nf-char-error-body {
+  0% { transform: translateY(0) rotate(0deg); }
+  35% { transform: translateY(var(--cf-drop-error, 5.5px)) rotate(var(--cf-tilt-error, -2.5deg)); }
+  70% { transform: translateY(calc(var(--cf-drop-error, 5.5px) * 0.45)) rotate(calc(var(--cf-tilt-error, -2.5deg) * -0.35)); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+@keyframes nf-char-error-accent {
+  0%, 100% { transform: rotate(0deg); }
+  38% { transform: rotate(var(--cf-accent-error, 11deg)); }
+}
+@keyframes nf-char-error-gaze {
+  0%, 100% { transform: translate(0, 0); }
+  40% { transform: translate(0, 5px); }
 }
 
 /* 書き出しの候補（StarterPrompts）。パソコンの幅の空の会話だけ、入力欄の下に出す。 */
@@ -1926,13 +2045,15 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .motion-desktop-sidebar,
   .motion-page-enter,
   .motion-drawer-enter,
-  .nf-mascot-shadow,
-  .nf-mascot-enter,
-  .nf-mascot-float,
-  .nf-mascot-flap,
-  .nf-mascot-eye,
+  .nf-char-shadow,
+  .nf-char-enter,
+  .nf-char-actor,
+  .nf-char-accent,
+  .nf-char-gaze,
+  .nf-char-eye,
   .nf-starters li {
-    animation: none;
+    animation: none !important;
+    transition: none !important;
   }
 }
 

@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">Không thể tải hướng dẫn tùy chỉnh của bạn.</string>
     <string name="acct_err_save_custom_instructions">Không thể lưu hướng dẫn tùy chỉnh của bạn. Vui lòng thử lại.</string>
     <string name="app_icon_title">Biểu tượng</string>
-    <string name="app_icon_help">Hiển thị ở thanh bên, trên câu trả lời của AI và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.</string>
-    <string name="app_icon_choose_emoji">Chọn biểu tượng cảm xúc</string>
+    <string name="app_icon_help">Hiển thị trong trò chuyện, ở thanh bên và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.</string>
+    <string name="app_icon_choose_character">Chọn nhân vật</string>
     <string name="app_icon_upload_image">Tải hình ảnh lên</string>
-    <string name="app_icon_use_logo">Dùng biểu trưng NoteFable</string>
     <string name="app_icon_could_not_save">Không thể lưu biểu tượng trên thiết bị này.</string>
 </resources>

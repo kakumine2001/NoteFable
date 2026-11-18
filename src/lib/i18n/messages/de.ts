@@ -679,4 +679,7 @@ export const de: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "„{name}“ wird gelöscht. Die zugehörigen Notizen bleiben erhalten und werden aus dem Projekt verschoben.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "„{title}“ wird in den Papierkorb verschoben. Du kannst die Notiz {count} Tage lang wiederherstellen.",
   "＋ New project": "＋ Neues Projekt",
+  "Choose a character": "Charakter auswählen",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Wird im Chat, in der Seitenleiste und auf der KI-Schaltfläche in Notizen angezeigt. Nur auf diesem Gerät gespeichert.",
+  "AI reply": "KI-Antwort",
 };

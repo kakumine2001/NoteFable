@@ -680,4 +680,7 @@ export const ja: Record<string, string> = {
   "Get {chat} messages and {image} images a month with Pro for {price}/month.": "Pro（月額 {price}）なら、毎月 {chat} 件のメッセージと {image} 枚の画像が使えます。",
   "Minimal": "最小",
   "NoteFable Pro · {price}/month": "NoteFable Pro · 月額 {price}",
+  "Choose a character": "キャラクターを選択",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "チャット、サイドバー、ノートのAIボタンに表示されます。この端末にだけ保存されます。",
+  "AI reply": "AIの返答",
 };

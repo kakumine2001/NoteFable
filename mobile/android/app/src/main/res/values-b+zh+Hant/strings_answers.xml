@@ -64,4 +64,5 @@
     <string name="answer_copy_failed">無法複製，請選中文字後手動複製。</string>
     <string name="image_download">下載圖片</string>
     <string name="generated_image">生成的圖片</string>
+    <string name="ai_reply">AI 回覆</string>
 </resources>

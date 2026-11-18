@@ -110,6 +110,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatProjectNote
 import com.kakumine.notefable.data.LocalFile
 import com.mikepenz.markdown.m3.Markdown
@@ -160,6 +161,9 @@ fun ChatScreen(
     var sheetOpen by rememberSaveable { mutableStateOf(false) }
     var attachOpen by rememberSaveable { mutableStateOf(false) }
     var pagesOpen by rememberSaveable { mutableStateOf(false) }
+    var composerFocused by remember { mutableStateOf(false) }
+    val heroCharacterState = state.heroCharacterState(isTyping = composerFocused || input.isNotBlank())
+    val activeReplyCharacterState = state.activeReplyCharacterState()
     val pickFiles = rememberFilePicker(onImportFiles)
     val context = LocalContext.current
     val pasteImages: (List<android.net.Uri>, TransferableContent) -> Unit = { uris, content ->
@@ -199,7 +203,16 @@ fun ChatScreen(
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 androidx.compose.runtime.CompositionLocalProvider(LocalTurnActions provides turnActions) {
-                    MessageList(state, input.isNotBlank(), onRetryMessages, onSwitchWorkspace, onChangeIcon, onRevealDone)
+                    MessageList(
+                        state = state,
+                        hasDraft = input.isNotBlank(),
+                        heroCharacterState = heroCharacterState,
+                        activeReplyCharacterState = activeReplyCharacterState,
+                        onRetry = onRetryMessages,
+                        onSwitchWorkspace = onSwitchWorkspace,
+                        onChangeIcon = onChangeIcon,
+                        onRevealDone = onRevealDone,
+                    )
                 }
             }
             val guestLimit = state.guestLimit
@@ -256,6 +269,7 @@ fun ChatScreen(
                 onRemovePage = onRemovePage,
                 onImageModeOff = { onImageMode(false) },
                 onPasteImages = pasteImages,
+                onFocusChange = { composerFocused = it },
             )
         }
     }
@@ -358,7 +372,16 @@ internal fun TopIconButton(
 // 消息列表
 
 @Composable
-private fun MessageList(state: ChatUiState, hasDraft: Boolean, onRetry: () -> Unit, onSwitchWorkspace: (Workspace) -> Unit, onChangeIcon: (String?) -> Unit, onRevealDone: (Long) -> Unit) {
+private fun MessageList(
+    state: ChatUiState,
+    hasDraft: Boolean,
+    heroCharacterState: CharacterState,
+    activeReplyCharacterState: CharacterState,
+    onRetry: () -> Unit,
+    onSwitchWorkspace: (Workspace) -> Unit,
+    onChangeIcon: (String?) -> Unit,
+    onRevealDone: (Long) -> Unit,
+) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
@@ -433,7 +456,7 @@ private fun MessageList(state: ChatUiState, hasDraft: Boolean, onRetry: () -> Un
             WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 // 已保存但还没有消息的聊天显示它自己的标题和图标（网页 EmptyConversation 的 title = activeTitle）。
-                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, hasDraft, onChangeIcon)
+                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, hasDraft, heroCharacterState, onChangeIcon)
             }
         }
         else -> Box(Modifier.fillMaxSize()) {
@@ -455,7 +478,10 @@ private fun MessageList(state: ChatUiState, hasDraft: Boolean, onRetry: () -> Un
                     Box(Modifier.revealFlash(flash?.takeIf { it.messageId == message.id })) {
                         if (message.role == MessageRole.User) {
                             UserTurn(message, canEdit, state.rejectedEdit?.takeIf { it.messageId == message.id }?.text)
-                        } else AssistantTurn(message, modelLabel.takeIf { !isImageAnswer })
+                        } else {
+                            val turnState = if (index == state.messages.lastIndex) activeReplyCharacterState else CharacterState.Idle
+                            AssistantTurn(message, modelLabel.takeIf { !isImageAnswer }, turnState)
+                        }
                     }
                 }
             }
@@ -529,14 +555,20 @@ private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier
 // 网页的消息列容器自带 48 的底部内边距，居中的是"标题块 + 48"；手机宽度（< 640）下输入栏区顶部那一行"滚动到底部"
 // （40 + 8）在空白首页也只是透明、照样占位（只有 ≥ 640 才 display: none）。所以这里底部留 48 + 48，标题的位置才和网页一致。
 @Composable
-private fun EmptyState(title: String?, icon: String?, hasDraft: Boolean, onChangeIcon: (String?) -> Unit) {
+private fun EmptyState(
+    title: String?,
+    icon: String?,
+    hasDraft: Boolean,
+    characterState: CharacterState,
+    onChangeIcon: (String?) -> Unit,
+) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(
         Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
         verticalArrangement = Arrangement.Center,
     ) {
-        // 标题上方的产品形象（网页 .nf-mascot-stage：64 × 68，下距 14.4）；输入框里有字时往下看。
-        Mascot(lookDown = hasDraft, modifier = Modifier.padding(bottom = 14.4.dp))
+        // 标题上方的 AI 角色（网页 .nf-mascot-stage：64 × 68，下距 14.4）；跟随真实输入与会话状态反馈。
+        Mascot(lookDown = hasDraft, state = characterState, modifier = Modifier.padding(bottom = 14.4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 网页 ChatTitleIcon：1.3em（41.6）、圆角 6；表情 0.85em（27.2），没有时 MessageSquareText 0.7em（22.4）描边 1.8。
             ChatIconButton(icon, onChangeIcon, Modifier.size(41.6.dp), RoundedCornerShape(6.dp)) {
@@ -712,6 +744,7 @@ private fun Composer(
     onRemovePage: (String) -> Unit,
     onImageModeOff: () -> Unit,
     onPasteImages: (List<android.net.Uri>, TransferableContent) -> Unit,
+    onFocusChange: (Boolean) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
     // 输入框用 TextFieldState（粘贴图片要用 contentReceiver，只有这种输入框支持）；草稿仍在 ViewModel 里，两边同步：
@@ -775,7 +808,10 @@ private fun Composer(
                 state = field,
                 // 上传附件期间不能改文字（网页此时输入框是只读的）。
                 readOnly = upload != null,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged { focused = it.isFocused }
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged {
+                    focused = it.isFocused
+                    onFocusChange(it.isFocused)
+                }
                     // 粘贴图片：只把 PNG / JPEG / WEBP 交给附件流程（网页 onPaste），其它内容照常粘贴成文字。
                     .contentReceiver { content ->
                         if (!content.hasMediaType(MediaType.Image)) return@contentReceiver content

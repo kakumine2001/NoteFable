@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">Não foi possível carregar suas instruções personalizadas.</string>
     <string name="acct_err_save_custom_instructions">Não foi possível salvar suas instruções personalizadas. Tente novamente.</string>
     <string name="app_icon_title">Ícone</string>
-    <string name="app_icon_help">Exibido na barra lateral, nas respostas da IA e no botão de IA nas notas. Salvo apenas neste dispositivo.</string>
-    <string name="app_icon_choose_emoji">Escolher um emoji</string>
+    <string name="app_icon_help">Exibido no chat, na barra lateral e no botão de IA nas notas. Salvo apenas neste dispositivo.</string>
+    <string name="app_icon_choose_character">Escolher um personagem</string>
     <string name="app_icon_upload_image">Enviar uma imagem</string>
-    <string name="app_icon_use_logo">Usar logotipo do NoteFable</string>
     <string name="app_icon_could_not_save">Não foi possível salvar o ícone neste dispositivo.</string>
 </resources>

@@ -679,4 +679,7 @@ export const tr: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” silinecek. İçindeki notlar korunur ve projeden çıkarılır.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” Çöp Kutusu'na taşınacak. {count} gün boyunca geri yükleyebilirsiniz.",
   "＋ New project": "＋ Yeni proje",
+  "Choose a character": "Karakter seç",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Sohbette, kenar çubuğunda ve notlardaki yapay zekâ düğmesinde gösterilir. Yalnızca bu cihaza kaydedilir.",
+  "AI reply": "Yapay zekâ yanıtı",
 };

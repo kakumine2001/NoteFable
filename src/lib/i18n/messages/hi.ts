@@ -679,4 +679,7 @@ export const hi: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” हटा दिया जाएगा। इसके नोट्स सुरक्षित रहेंगे और प्रोजेक्ट से बाहर आ जाएँगे।",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” को ट्रैश में भेज दिया जाएगा। आप इसे {count} दिनों तक पुनर्स्थापित कर सकते हैं।",
   "＋ New project": "＋ नया प्रोजेक्ट",
+  "Choose a character": "कैरेक्टर चुनें",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "चैट, साइडबार और नोट्स के AI बटन पर दिखाई देता है। केवल इसी डिवाइस पर सेव रहता है।",
+  "AI reply": "AI का जवाब",
 };

@@ -51,6 +51,8 @@ import type { ReorderRequest } from "@/lib/list-order";
 import { ChatProjectSync, SessionOrganizationSync } from "@/lib/session-organization-sync";
 import { SessionIconSync } from "@/lib/session-icon-sync";
 import { parseChatStreamLine } from "@/lib/chat-stream";
+import { deriveTurnCharacterState } from "@/lib/characters";
+import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { useModels } from "@/components/models-provider";
@@ -456,6 +458,24 @@ export default function Home() {
   const streamAbortsRef = useRef<Record<string, AbortController>>({});
   // 停止ボタンの状態。ready は止められる、stopping は止めてサーバーの保存を待っている。
   const [stopStates, setStopStates] = useState<Record<string, "ready" | "stopping">>({});
+  const stopRequestedRef = useRef<Set<string>>(new Set());
+  // AI キャラクターの入力フォーカス・完了・エラーの一時状態（会話ごとに管理）。
+  const docHidden = useDocumentHidden();
+  const [composerFocused, setComposerFocused] = useState(false);
+  const [characterOutcome, setCharacterOutcome] = useState<{ sessionKey: string; kind: "completed" | "error" } | null>(null);
+  const characterOutcomeTimerRef = useRef(0);
+  function flashCharacterOutcome(sessionKey: string, kind: "completed" | "error" | null) {
+    window.clearTimeout(characterOutcomeTimerRef.current);
+    if (!kind) {
+      setCharacterOutcome((current) => (!current || current.sessionKey === sessionKey ? null : current));
+      return;
+    }
+    setCharacterOutcome({ sessionKey, kind });
+    characterOutcomeTimerRef.current = window.setTimeout(() => {
+      setCharacterOutcome((current) => (current?.sessionKey === sessionKey ? null : current));
+    }, kind === "completed" ? 650 : 950);
+  }
+  useEffect(() => () => window.clearTimeout(characterOutcomeTimerRef.current), []);
   // 送ったが断られた発言の書き直し（上限・通信の失敗など）。その発言の編集欄に戻して、書いた文を失わない。
   const [rejectedEdit, setRejectedEdit] = useState<{ messageId: string; text: string } | null>(null);
   // 「新しいチャットで分岐」の作成中（二重に作らない）。
@@ -552,6 +572,12 @@ export default function Home() {
       setStreamingSessions(nextStreamingSessions);
     }
 
+    if (stopRequestedRef.current.has(fromKey)) {
+      stopRequestedRef.current.delete(fromKey);
+      stopRequestedRef.current.add(toSessionId);
+    }
+    setCharacterOutcome((current) => (current?.sessionKey === fromKey ? { ...current, sessionKey: toSessionId } : current));
+
     if (getMessagesKey(activeSessionIdRef.current) === fromKey) {
       activeSessionIdRef.current = toSessionId;
       setActiveSessionId(toSessionId);
@@ -602,6 +628,7 @@ export default function Home() {
     const sessionKey = getMessagesKey(activeSessionIdRef.current);
     const controller = streamAbortsRef.current[sessionKey];
     if (!controller || controller.signal.aborted || stopStates[sessionKey] === "stopping") return;
+    stopRequestedRef.current.add(sessionKey);
     setStopStates((current) => ({ ...current, [sessionKey]: "stopping" }));
     let acknowledged = false;
     if (sessionKey !== NEW_SESSION_MESSAGES_KEY) {
@@ -1087,6 +1114,7 @@ export default function Home() {
     }
 
     submittedInputRestoreGuardRef.current = null;
+    if (characterOutcome?.kind === "error") flashCharacterOutcome(activeSessionKey, null);
     setInput(nextInput);
   }
 
@@ -1116,20 +1144,25 @@ export default function Home() {
     // 画像の作成はノートを読まない（画像 API は文章のプロンプトと参照画像だけを受け取る）。黙って捨てずに知らせる。
     if (imageGenerationMode && submittedPages.length) {
       setSendError(msg("Pages can’t be attached when creating an image. Remove them or turn off image creation."));
+      flashCharacterOutcome(requestSessionKey, "error");
       return;
     }
     // 断られた送信のページを戻したときなどに上限を超えることがある。黙って減らさず、外してもらう。
     if (submittedPages.length > MAX_MESSAGE_NOTES) {
       setSendError(msg("You can attach up to 5 pages to a message."));
+      flashCharacterOutcome(requestSessionKey, "error");
       return;
     }
     if (validationError) {
       const submitted = submittedFiles.map(({ file }) => file);
       setSendError(() => (translate: Translate) => getUploadValidationError(submitted, uploadOptions, translate) || getUploadRequestError(submitted, userContent, translate) || translate(validationError));
+      flashCharacterOutcome(requestSessionKey, "error");
       return;
     }
 
     setSendError("");
+    flashCharacterOutcome(requestSessionKey, null);
+    stopRequestedRef.current.delete(requestSessionKey);
     submittingSessionKeysRef.current.add(requestSessionKey);
 
     let uploadedTickets: string[] = [];
@@ -1145,7 +1178,10 @@ export default function Home() {
         return;
       }
     } catch (error) {
-      if (navigationIntent === sessionNavigationIntentRef.current) setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
+      if (navigationIntent === sessionNavigationIntentRef.current) {
+        setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
+        flashCharacterOutcome(requestSessionKey, "error");
+      }
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
       return;
     } finally {
@@ -1161,6 +1197,7 @@ export default function Home() {
       if (!session) {
         await cleanupClientUploads(uploadedTickets);
         setSendError(error || msg("Database is unavailable. Start local PostgreSQL and try again."));
+        flashCharacterOutcome(requestSessionKey, "error");
         submittingSessionKeysRef.current.delete(initialRequestSessionKey);
         return;
       }
@@ -1316,6 +1353,7 @@ export default function Home() {
         if (completedSessionId) {
           shouldCleanupSubmittedPreviews = await refreshSessionMessages(completedSessionId);
         }
+        flashCharacterOutcome(requestSessionKey, "completed");
         return;
       }
 
@@ -1336,12 +1374,16 @@ export default function Home() {
       if (resolvedSessionId) {
         shouldCleanupSubmittedPreviews = await refreshSessionMessages(resolvedSessionId);
       }
+      if (!stopRequestedRef.current.has(requestSessionKey)) {
+        flashCharacterOutcome(requestSessionKey, "completed");
+      }
     } catch (error) {
       if (chatController?.signal.aborted) {
         // 利用者が止めた。失敗ではないので、届いた分をそのまま残す。
         shouldCleanupSubmittedPreviews = await finishStoppedStream(requestSessionKey, assistantMessageId);
         return;
       }
+      flashCharacterOutcome(requestSessionKey, "error");
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
       // 原文を保持し、明示した失敗・上限の文だけを表示時に訳す。
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
@@ -1389,6 +1431,7 @@ export default function Home() {
         );
       }
       await cleanupClientUploads(uploadedTickets);
+      stopRequestedRef.current.delete(requestSessionKey);
       registerStop(requestSessionKey, null);
       finishStreamingSession(requestSessionKey);
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
@@ -1409,6 +1452,8 @@ export default function Home() {
 
     setSendError("");
     setRejectedEdit(null);
+    flashCharacterOutcome(sessionId, null);
+    stopRequestedRef.current.delete(sessionId);
     cancelReveal();
     submittingSessionKeysRef.current.add(sessionId);
     // 対象から先を画面から外し、新しい版が入る枠を置く。サーバー側では消えず、隠れるだけ。
@@ -1434,6 +1479,9 @@ export default function Home() {
       await streamChatInto({ body, sessionKey: sessionId, sessionId, assistantMessageId, startedAt, controller });
       await loadSessions();
       await refreshSessionMessages(sessionId);
+      if (!stopRequestedRef.current.has(sessionId)) {
+        flashCharacterOutcome(sessionId, "completed");
+      }
     } catch (error) {
       if (controller.signal.aborted) {
         const synced = await finishStoppedStream(sessionId, assistantMessageId, before);
@@ -1443,6 +1491,7 @@ export default function Home() {
         }
         return;
       }
+      flashCharacterOutcome(sessionId, "error");
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
       if (error instanceof UsageLimitError && error.tier !== "pro") {
         // 入力欄に書きかけの文があれば、ログインや申し込みから戻ってきても残るようにする（通常の送信と同じ）。
@@ -1467,6 +1516,7 @@ export default function Home() {
         }
       }
     } finally {
+      stopRequestedRef.current.delete(sessionId);
       registerStop(sessionId, null);
       finishStreamingSession(sessionId);
       submittingSessionKeysRef.current.delete(sessionId);
@@ -1883,6 +1933,32 @@ export default function Home() {
   // 空の会話の絵と書き出しの候補は、履歴を読んでいるあいだは出さない。
   const historyPending = historyPendingId !== null && historyPendingId === activeSessionId;
   const hasDraft = Boolean(input.trim());
+  const activeOutcome = characterOutcome?.sessionKey === activeSessionKey ? characterOutcome.kind : null;
+  const lastMessage = messages.at(-1);
+  const hasActiveTurnOutput = Boolean(
+    lastMessage?.role === "ASSISTANT" && (
+      lastMessage.content.length > 0 ||
+      lastMessage.generatedImages?.length ||
+      lastMessage.proposals?.length ||
+      lastMessage.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal")
+    ),
+  );
+  const chatHidden = docHidden || workspaceView !== "chat";
+  const heroCharacterState = deriveTurnCharacterState({
+    isBusy: isActiveSessionBusy,
+    isStopping: activeStopState === "stopping",
+    hasOutput: hasActiveTurnOutput,
+    outcome: activeOutcome,
+    isTyping: composerFocused || hasDraft,
+    hidden: chatHidden,
+  });
+  const activeReplyCharacterState = deriveTurnCharacterState({
+    isBusy: isActiveSessionStreaming,
+    isStopping: activeStopState === "stopping",
+    hasOutput: hasActiveTurnOutput,
+    outcome: activeOutcome,
+    hidden: chatHidden,
+  });
   // スマホでは、ホーム画面（空の会話・ノート未選択）では見出しを本文側に出すので、上部バーの標題は会話中・ノート編集中だけ出す。
   const showPhoneTitle = workspaceView === "chat" ? !emptyState : Boolean(notes.active) && !notesList;
 
@@ -2009,6 +2085,7 @@ export default function Home() {
               <EmptyConversation
                 title={activeTitle}
                 hasDraft={hasDraft}
+                characterState={heroCharacterState}
                 loading={historyPending}
                 icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
                 onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
@@ -2049,6 +2126,7 @@ export default function Home() {
                         actions={turnActions}
                         canEdit={canEdit}
                         editDraft={rejectedEdit?.messageId === message.id ? rejectedEdit.text : undefined}
+                        characterState={index === messages.length - 1 && message.role === "ASSISTANT" ? activeReplyCharacterState : undefined}
                       />
                     );
                   })}
@@ -2204,6 +2282,8 @@ export default function Home() {
                   readOnly={Boolean(uploadProgress)}
                   ref={inputRef}
                   value={input}
+                  onFocus={() => setComposerFocused(true)}
+                  onBlur={() => setComposerFocused(false)}
                   onChange={(event) => changeInput(event.target.value, event.currentTarget)}
                   onPaste={(event) => {
                     const pastedImages = getClipboardImageFiles(event.clipboardData.items);

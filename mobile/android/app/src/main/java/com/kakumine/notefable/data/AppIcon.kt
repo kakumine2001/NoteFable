@@ -6,25 +6,58 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.util.Base64
 import kotlin.math.min
 
-// 设置里的"图标"（网页 src/lib/app-icon.ts）：侧栏的标志、AI 回答的标签、笔记里的 AI 按钮上显示的图标，可以换成表情或图片。
-// 只存在这台设备上（不存到账号）。值和网页的 localStorage `notefable:app-icon` 相同：一个表情，或缩小后的图片的 data URL；
-// null 是默认的 NoteFable 标志。WebView 编辑器（/note-embed）里的 AI 按钮由网页自己画，值经 JS 桥交给它（NoteEditor.kt）。
+// 设置里的 AI 角色 / 自定义图标（网页 src/lib/app-icon.ts）：
+// 空聊天首页大形象、AI 回答顶部标识、侧栏图标、笔记 AI 按钮、设置预览全部统一跟随当前选择。
+// 只保存在当前设备上（不跨设备同步）。
+// null（未设置）表示默认角色 Quill（D · Quill）；其他官方角色存为 "character:<id>"；自定义上传图片保留 "data:image/..."。
+// 旧版本的表情符号或未知值会自动迁移回默认角色（null -> Quill）。
 
-/** 保存的图片的边长（网页 ICON_IMAGE_SIZE）：最大也只显示到 26 左右，高分屏也够。 */
 const val APP_ICON_IMAGE_SIZE = 96
+const val CHARACTER_ICON_PREFIX = "character:"
+
+sealed interface ResolvedAppIcon {
+    data class Character(val characterId: CharacterId) : ResolvedAppIcon
+    data class Image(val dataUrl: String) : ResolvedAppIcon
+}
 
 /** 网页 isImageIcon。 */
 fun isImageIcon(icon: String): Boolean = icon.startsWith("data:image/")
 
+fun parseCharacterIcon(value: String): CharacterId? {
+    val rawId = if (value.startsWith(CHARACTER_ICON_PREFIX)) value.removePrefix(CHARACTER_ICON_PREFIX) else value
+    return CharacterId.fromId(rawId)
+}
+
+fun toCharacterIcon(characterId: CharacterId): String? =
+    if (characterId == CharacterId.Default) null else "$CHARACTER_ICON_PREFIX${characterId.id}"
+
 /**
- * 存着的值能不能用（网页 read()）：图片的 data URL，或一个表情；坏掉的值退回标志。
- * 表情只会是选择器里选出来的，这里只挡明显不对的（太长、带空白）；网页那边拿到后还会按"单个表情"再核对一次。
+ * 读取存储时的兼容归一化（网页 normalizeAppIcon）：
+ * - null / 空串 / "quill" / "character:quill" -> null（默认角色 Quill）
+ * - 有效官方角色 -> "character:<id>"
+ * - 自定义上传图片 data URL -> 原样保留
+ * - 旧版表情或损坏/未知字符串 -> null（自动回退到默认角色 Quill）
  */
-fun validAppIcon(value: String?): String? = when {
-    value.isNullOrEmpty() -> null
-    isImageIcon(value) -> value
-    value.length <= 64 && value.none(Char::isWhitespace) -> value
-    else -> null
+fun normalizeAppIcon(value: String?): String? {
+    if (value.isNullOrEmpty()) return null
+    if (isImageIcon(value)) return value
+    val characterId = parseCharacterIcon(value)
+    return characterId?.let(::toCharacterIcon)
+}
+
+/**
+ * 校验主动保存时的输入值：有效图片 data URL 或有效角色标识返回归一化后的存储值，非法输入返回 IllegalArgument。
+ * 为兼容旧测试签名，[validAppIcon] 对存储读取值执行安全归一化。
+ */
+fun validAppIcon(value: String?): String? = normalizeAppIcon(value)
+
+fun resolveAppIcon(icon: String?): ResolvedAppIcon {
+    val normalized = normalizeAppIcon(icon)
+    if (normalized != null && isImageIcon(normalized)) {
+        return ResolvedAppIcon.Image(normalized)
+    }
+    val characterId = normalized?.let(::parseCharacterIcon) ?: CharacterId.Default
+    return ResolvedAppIcon.Character(characterId)
 }
 
 /** 解码后最多这么多像素（和头像相同的上限）。 */
@@ -62,15 +95,22 @@ fun appIconImageBytes(icon: String): ByteArray? {
 }
 
 /**
- * 现在的图标。[read] / [write] 是这台设备上的存储（App 里是 SharedPreferences）；
- * 存不进去时 [save] 返回 false、显示的图标不变（网页 saveAppIcon）。
+ * 现在的图标设置。[read] / [write] 是这台设备上的存储（App 里是 SharedPreferences）；
+ * 存不进去或传入非法值时 [save] 返回 false、显示的图标不变（网页 saveAppIcon）。
  */
 class AppIconStore(read: () -> String?, private val write: (String?) -> Boolean) {
-    private val state = MutableStateFlow(validAppIcon(runCatching(read).getOrNull()))
+    private val state = MutableStateFlow(normalizeAppIcon(runCatching(read).getOrNull()))
     val icon: StateFlow<String?> = state.asStateFlow()
 
     fun save(icon: String?): Boolean {
-        val next = icon?.let { validAppIcon(it) ?: return false }
+        val next: String? = when {
+            icon.isNullOrEmpty() -> null
+            isImageIcon(icon) -> icon
+            else -> {
+                val characterId = parseCharacterIcon(icon) ?: return false
+                toCharacterIcon(characterId)
+            }
+        }
         if (!runCatching { write(next) }.getOrDefault(false)) return false
         state.value = next
         return true

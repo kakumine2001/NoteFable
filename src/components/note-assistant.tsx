@@ -17,7 +17,9 @@ import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLe
 import "@/components/note-assistant.css";
 import { applyActivityEvent, type ActivityEvent } from "@/lib/chat-activity";
 import { parseChatStreamLine } from "@/lib/chat-stream";
+import { deriveTurnCharacterState } from "@/lib/characters";
 import { useBackToClose } from "@/lib/use-back-to-close";
+import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { MAX_MESSAGE_NOTES, type AttachedPage, type Message, type UploadFile } from "@/types/chat";
@@ -103,6 +105,18 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // 保存待ちから返答の終わりまで true。チャットのボタンを無効にするのに使う。
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [inputFocused, setInputFocused] = useState(false);
+  const [outcome, setOutcome] = useState<"completed" | "error" | null>(null);
+  const outcomeTimer = useRef(0);
+  const docHidden = useDocumentHidden();
+  const flashOutcome = (kind: "completed" | "error" | null) => {
+    window.clearTimeout(outcomeTimer.current);
+    setOutcome(kind);
+    if (kind) {
+      outcomeTimer.current = window.setTimeout(() => setOutcome(null), kind === "completed" ? 650 : 950);
+    }
+  };
+  useEffect(() => () => window.clearTimeout(outcomeTimer.current), []);
   const [guestLimit, setGuestLimit] = useState(false);
   const [upgradeLimit, setUpgradeLimit] = useState(false);
   // 次の発言に添付するファイルとノート。送信が受け付けられたら空にする。
@@ -272,12 +286,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const rawFiles = sentFiles.map(({ file }) => file);
     const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
-    if (problem) { setError(problem); return; }
+    if (problem) { setError(problem); flashOutcome("error"); return; }
     sending.current = true;
     setBusy(true);
     setError("");
+    flashOutcome(null);
     if (!(await flush())) {
       setError(msg("Resolve the note's unsaved changes first, then ask again."));
+      flashOutcome("error");
       sending.current = false;
       setBusy(false);
       return;
@@ -291,6 +307,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       });
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
+      flashOutcome("error");
       sending.current = false;
       setBusy(false);
       return;
@@ -343,7 +360,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           thinkingMs: message.thinkingMs ?? (chunk ? elapsedMs : undefined),
         })),
       );
+      flashOutcome("completed");
     } catch (caught) {
+      flashOutcome("error");
       const detail = caught instanceof Error ? caught.message : msg("Unknown error.");
       const limited = caught instanceof UsageLimitError;
       if (!accepted && tickets.length) void cleanupClientUploads(tickets);
@@ -381,12 +400,32 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   }
 
   const lastAssistant = [...messages].reverse().find((message) => message.role === "ASSISTANT");
+  const hasTurnOutput = Boolean(
+    lastAssistant && (
+      lastAssistant.content.length > 0 ||
+      lastAssistant.proposals?.length ||
+      lastAssistant.activity?.some((step) => step.kind === "proposal" || step.kind === "create_proposal")
+    ),
+  );
+  const noteCharacterState = deriveTurnCharacterState({
+    isBusy: busy,
+    hasOutput: hasTurnOutput,
+    outcome,
+    isTyping: open && (inputFocused || Boolean(input.trim())),
+    hidden: docHidden,
+  });
+  const replyCharacterState = deriveTurnCharacterState({
+    isBusy: streaming,
+    hasOutput: hasTurnOutput,
+    outcome,
+    hidden: docHidden,
+  });
 
   const panel = (
     <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-label={t("Ask AI about this note")}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
-        <AppIcon size={16} />
+        <AppIcon size={18} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
         <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
@@ -402,7 +441,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             </div>
           </div>
         ) : messages.map((message) => (
-          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === lastAssistant?.id} thinkingSeconds={seconds} />
+          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === lastAssistant?.id} thinkingSeconds={seconds}
+            characterState={message.id === lastAssistant?.id ? replyCharacterState : undefined} />
         ))}
       </div>
 
@@ -437,7 +477,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           </ul>
         )}
         <div className="note-ai-composer">
-          <textarea ref={inputRef} value={input} rows={1} readOnly={Boolean(uploadProgress)} onChange={(event) => setInput(event.target.value)} onKeyDown={onKeyDown}
+          <textarea ref={inputRef} value={input} rows={1} readOnly={Boolean(uploadProgress)}
+            onFocus={() => setInputFocused(true)} onBlur={() => setInputFocused(false)}
+            onChange={(event) => { setInput(event.target.value); if (outcome === "error") flashOutcome(null); }} onKeyDown={onKeyDown}
             onPaste={(event) => {
               const pasted = getClipboardImageFiles(event.clipboardData.items);
               if (!pasted.length) return;
@@ -466,7 +508,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
         aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
-        <AppIcon size={24} />
+        <AppIcon size={28} state={noteCharacterState} animated />
       </button>
       {open && (phone
         ? createPortal(

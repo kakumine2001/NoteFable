@@ -679,4 +679,7 @@ export const fr: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "« {name} » sera supprimé. Ses notes seront conservées et retirées du projet.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "« {title} » sera déplacée dans la corbeille. Vous pourrez la restaurer pendant {count} jours.",
   "＋ New project": "＋ Nouveau projet",
+  "Choose a character": "Choisir un personnage",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Affiché dans le chat, dans la barre latérale et sur le bouton IA des notes. Enregistré uniquement sur cet appareil.",
+  "AI reply": "Réponse de l’IA",
 };

@@ -62,6 +62,7 @@ import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
 import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.data.ActivityStep
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.GeneratedImageDto
 import com.kakumine.notefable.data.ImageSaver
 import com.kakumine.notefable.data.ProposalStore
@@ -82,7 +83,11 @@ val LocalOpenNote = staticCompositionLocalOf<(String) -> Unit> { {} }
 private val ActionErrorText = TextStyle(fontSize = 13.sp, lineHeight = 18.2.sp, color = Color(0xFF933B34), letterSpacing = 0.sp)
 
 @Composable
-internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
+internal fun AssistantTurn(
+    message: UiMessage,
+    modelLabel: String?,
+    characterState: CharacterState = CharacterState.Idle,
+) {
     val systemText = rememberSystemText()
     val openNote = LocalOpenNote.current
     val app = LocalContext.current.applicationContext as? NoteFableApp
@@ -92,13 +97,21 @@ internal fun AssistantTurn(message: UiMessage, modelLabel: String?) {
     val progress = remember(message.activity) { message.activity.progressSteps() }
     val failureStep = message.activity.firstOrNull { it is ActivityStep.Failure } as? ActivityStep.Failure
     val proposals = remember(message.proposals, message.activity) { mergeProposals(message.proposals, message.activity) }
+    val aiReplyLabel = stringResource(R.string.ai_reply)
+    val headerLabel = if (modelLabel != null) "$aiReplyLabel · $modelLabel" else aiReplyLabel
 
     Column(Modifier.fillMaxWidth()) {
-        // "NoteFable · 模型名"：图标 12（设置里换过就是那个表情 / 图片，否则品牌标志），间距 5.6；模型名不转大写，字距 .02em。
-        Row(Modifier.padding(bottom = 7.2.dp), verticalAlignment = Alignment.CenterVertically) {
-            AppIcon(12.dp, Sm.Ink)
-            Spacer(Modifier.width(5.6.dp))
-            Text("NOTEFABLE", style = RoleLabelBase)
+        // AI 回答顶部只显示选中的角色小图标与模型名（不再重复 NOTEFABLE 文字），保留无障碍说明。
+        Row(
+            Modifier.padding(bottom = 7.2.dp).semantics(mergeDescendants = true) { contentDescription = headerLabel },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            AppIcon(
+                16.dp,
+                Sm.Ink,
+                state = characterState,
+                animated = characterState != CharacterState.Idle && characterState != CharacterState.Hidden,
+            )
             if (modelLabel != null) {
                 Spacer(Modifier.width(5.6.dp))
                 Text("· $modelLabel", style = RoleLabelBase.copy(letterSpacing = 0.24.sp))

@@ -27,9 +27,8 @@
     <string name="acct_err_load_custom_instructions">आपके कस्टम निर्देश लोड नहीं हो सके।</string>
     <string name="acct_err_save_custom_instructions">आपके कस्टम निर्देश सेव नहीं किए जा सके। कृपया फिर से प्रयास करें।</string>
     <string name="app_icon_title">आइकन</string>
-    <string name="app_icon_help">साइडबार, AI के जवाबों और नोट्स के AI बटन पर दिखाई देता है। केवल इसी डिवाइस पर सेव रहता है।</string>
-    <string name="app_icon_choose_emoji">इमोजी चुनें</string>
+    <string name="app_icon_help">चैट, साइडबार और नोट्स के AI बटन पर दिखाई देता है। केवल इसी डिवाइस पर सेव रहता है।</string>
+    <string name="app_icon_choose_character">कैरेक्टर चुनें</string>
     <string name="app_icon_upload_image">इमेज अपलोड करें</string>
-    <string name="app_icon_use_logo">NoteFable लोगो का उपयोग करें</string>
     <string name="app_icon_could_not_save">इस डिवाइस पर आइकन सेव नहीं किया जा सका।</string>
 </resources>

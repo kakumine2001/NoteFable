@@ -679,4 +679,7 @@ export const ko: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "“{name}” 프로젝트가 삭제됩니다. 프로젝트 안의 노트는 유지되며 프로젝트 밖으로 이동됩니다.",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” 노트가 휴지통으로 이동됩니다. {count}일 동안 복원할 수 있어요.",
   "＋ New project": "＋ 새 프로젝트",
+  "Choose a character": "캐릭터 선택",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "채팅, 사이드바, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.",
+  "AI reply": "AI 답변",
 };

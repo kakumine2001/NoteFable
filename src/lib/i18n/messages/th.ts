@@ -679,4 +679,7 @@ export const th: Record<string, string> = {
   "“{name}” will be deleted. Its notes are kept and move out of the project.": "ระบบจะลบ “{name}” โดยโน้ตข้างในจะยังคงอยู่และถูกย้ายออกจากโปรเจกต์",
   "“{title}” will be moved to Trash. You can restore it for {count} days.": "“{title}” จะถูกย้ายไปที่ถังขยะ คุณสามารถกู้คืนได้ภายใน {count} วัน",
   "＋ New project": "＋ โปรเจกต์ใหม่",
+  "Choose a character": "เลือกตัวละคร",
+  "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "แสดงในแชท ในแถบด้านข้าง และบนปุ่ม AI ในโน้ต บันทึกไว้บนอุปกรณ์นี้เท่านั้น",
+  "AI reply": "คำตอบของ AI",
 };

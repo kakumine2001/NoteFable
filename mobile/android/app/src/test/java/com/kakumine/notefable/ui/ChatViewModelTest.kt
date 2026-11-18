@@ -2,6 +2,8 @@ package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.ChatBackend
+import com.kakumine.notefable.data.CharacterOutcome
+import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.AttachError
 import com.kakumine.notefable.data.ChatStreamEvent
@@ -827,5 +829,58 @@ class ChatViewModelTest {
 
         assertEquals(listOf(Triple("s1", localIds[0], "db-1"), Triple("s1", localIds[1], "db-2")), renames)
         assertEquals(localIds, vm.state.value.messages.map { it.key })
+    }
+
+    @Test
+    fun `character state tracks real turn lifecycle and clears immediately on stop`() = runTest(dispatcher) {
+        val backend = FakeBackend()
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)
+        advanceUntilIdle()
+
+        assertEquals(CharacterState.Idle, vm.state.value.heroCharacterState())
+        assertEquals(CharacterState.Typing, vm.state.value.heroCharacterState(isTyping = true))
+
+        vm.send("hi")
+        runCurrent()
+        assertEquals(CharacterState.Thinking, vm.state.value.activeReplyCharacterState())
+
+        backend.events.send(ChatStreamEvent.Started("s1"))
+        backend.events.send(ChatStreamEvent.Delta("Hello"))
+        settle()
+        assertEquals(CharacterState.Responding, vm.state.value.activeReplyCharacterState())
+
+        backend.stored = listOf(MessageDto("db-1", "USER", "hi"), MessageDto("db-2", "ASSISTANT", "Hello"))
+        backend.events.close()
+        runCurrent()
+        advanceTimeBy(100)
+        assertEquals(CharacterOutcome.Completed, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Completed, vm.state.value.activeReplyCharacterState())
+
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        // Stopping a turn clears Thinking/Responding without flashing Completed.
+        backend.events = Channel(Channel.UNLIMITED)
+        vm.send("stop me")
+        runCurrent()
+        assertEquals(CharacterState.Thinking, vm.state.value.activeReplyCharacterState())
+        vm.stop()
+        runCurrent()
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
+
+        // Failed turn flashes Error briefly, then returns to Idle.
+        backend.streamError = IOException("network down")
+        vm.send("fail me")
+        runCurrent()
+        advanceTimeBy(100)
+        assertEquals(CharacterOutcome.Error, vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Error, vm.state.value.activeReplyCharacterState())
+        advanceUntilIdle()
+        assertNull(vm.state.value.characterOutcome)
+        assertEquals(CharacterState.Idle, vm.state.value.activeReplyCharacterState())
     }
 }
