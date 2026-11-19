@@ -114,9 +114,9 @@ Preview 永远不连生产库，也不碰生产的图片。2026-11-19 起由 Neo
 
 图片：Preview 的 `BLOB_READ_WRITE_TOKEN` 指向单独的私有 Blob store `notefable-preview`，Production / Development 用原来的 store。所以 Preview 里删图、删账号不会删掉正式用户的图片；从生产复制来的旧图片在 Preview 里读不到（404），这是预期的。
 
-不限分支的 Preview `DATABASE_URL` 仍指向旧的共享 Neon 分支 `preview`，只在集成没给某个分支建库时兜底，可以删掉。
+没有不限分支的 Preview `DATABASE_URL`，也没有共享的 Preview 库：每个 Preview 都只连集成给它建的分支库。
 
-规则：迁移一旦部署过（包括 Preview）就不再修改，要改另写新迁移。2026-11-19 共享 `preview` 库就因 `20261118000000_subscription` 执行后又被改过，缺 `User.subscriptionProvider`，Preview 全部 500。
+规则：迁移一旦部署过（包括 Preview）就不再修改，要改另写新迁移。以前的共享 Preview 库就是因为一个已执行的迁移后来又被改过，缺列，导致 Preview 全部 500。
 
 ## Database Schema Boundary
 
