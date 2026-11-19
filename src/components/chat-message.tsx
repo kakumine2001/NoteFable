@@ -66,6 +66,8 @@ type ChatMessageProps = {
   editDraft?: string;
   // 最新のアシスタント回答にだけ渡す AI キャラクターのリアルタイム状態。
   characterState?: CharacterState;
+  // 回答の頭に出すキャラクターの大きさ。チャットは 32px、幅の狭いノートの AI パネルは小さくする。
+  characterSize?: number;
 };
 
 export const ChatMessage = memo(function ChatMessage({
@@ -79,6 +81,7 @@ export const ChatMessage = memo(function ChatMessage({
   canEdit = false,
   editDraft,
   characterState,
+  characterSize = 32,
 }: ChatMessageProps) {
   const t = useT();
   // 自分の発言をその場で書き直している間。断られた書き直しが戻ってきたときは、開いた状態から始める。
@@ -139,7 +142,7 @@ export const ChatMessage = memo(function ChatMessage({
         {message.role === "ASSISTANT" && (
           <div className="notion-role-label is-assistant">
             <AppIcon
-              size={32}
+              size={characterSize}
               state={characterState ?? "idle"}
               animated={characterState !== undefined && characterState !== "idle" && characterState !== "hidden"}
             />

@@ -457,7 +457,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           </div>
         ) : messages.map((message) => (
           <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
-            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} />
+            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
         ))}
       </div>
 

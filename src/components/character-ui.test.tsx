@@ -134,6 +134,8 @@ describe("product-wide character touchpoints & AI reply de-branding", () => {
     );
     expect(textReplyHtml).toContain('data-character="piko"');
     expect(textReplyHtml).toContain('data-state="completed"');
+    // Chat replies show the character at 32px (native AssistantTurn uses 32.dp); the note panel passes a smaller size.
+    expect(textReplyHtml).toMatch(/<svg[^>]*data-character="piko"[^>]*width="32"|<svg[^>]*width="32"[^>]*data-character="piko"/);
     expect(textReplyHtml).toContain("GPT-6 Luna");
     expect(textReplyHtml).toContain('<span class="sr-only">AI reply</span>');
     expect(textReplyHtml).not.toContain(">NoteFable<");
