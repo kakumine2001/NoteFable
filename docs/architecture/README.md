@@ -70,6 +70,7 @@ flowchart LR
 | --- | --- |
 | `src/app/[locale]/page.tsx`、`src/components/thread-landing.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与笔记链接保留查询参数转到 `/app` |
 | `src/app/[locale]/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
+| `src/lib/hosts.ts`、`src/proxy.ts`、`src/lib/i18n/routing.ts` | 介绍页（`notefable.com`）与工作区（`app.notefable.com`）分域：按主机分流、旧链接转发、共享提示 Cookie（[deployment.md](deployment.md)） |
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx` | 公开的隐私权政策、服务条款（Google 同意屏幕要填这两个链接）和特定商取引法に基づく表記（日文，Stripe / 日本法律要求） |

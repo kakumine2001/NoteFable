@@ -82,7 +82,7 @@ mobile/android/
   app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
 ```
 
-- 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android`（按应用 ID + Play 应用签名登记），所以只有 Play 签名的包能用 Google 登录。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是 `https://notefable.com`。聊天链接（`ChatLink`、Manifest 的 intent-filter）把 `notefable.com` 和 `www.notefable.com` 当成同一个站。
+- 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android`（按应用 ID + Play 应用签名登记），所以只有 Play 签名的包能用 Google 登录。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是工作区的主机 `https://app.notefable.com`；帮助菜单打开的介绍页和法律页面用 `notefable.siteUrl`（`https://notefable.com`，`BuildConfig.SITE_URL`）。1.0.10 及以前连的是 `notefable.com`：启动时 `PersistentCookieJar.moveHost` 把旧主机的 Cookie（匿名设备、登录会话）搬到新主机，升级后不用重新登录。服务端两个主机都提供 `/api/*` 和 `/note-embed`，旧版 App 照常可用（[deployment.md](deployment.md)）。聊天链接（`ChatLink`）把 `app.notefable.com`、`notefable.com` 和 `www.notefable.com` 当成同一个站。
 - minSdk 26，compileSdk / targetSdk 36，AGP 8.13.2，Gradle 8.14.3，Kotlin 2.3.21。AGP 至少用 8.13.2，其附带的 R8 才支持 Kotlin 2.3 元数据（[官方兼容说明](https://developer.android.com/build/releases/agp-8-13-0-release-notes)）。Compose BOM、OkHttp、Coil、Markdown 渲染库仍沿用当前固定版本；升级依赖时同时核对它们要求的 AGP、Gradle 和 SDK 平台。
 
 ## 与服务端的约定
@@ -240,7 +240,7 @@ mobile/android/
 - 高亮的折叠规则移植在 `data/SearchFold.kt`（`search-fold.ts` 的客户端部分）。对照用例 `app/src/test/resources/search-fold-cases.json` 由 `npx tsx scripts/gen-native-search-fold-cases.ts` 用网页实现算出（输入同 `search-fold.test.ts`），`SearchFoldParityTest` 用它核对 Kotlin 版；改了 `search-fold.ts` 要重新生成，`src/lib/native-search-fold-cases.test.ts` 会在用例过期时失败。
 - 选结果：聊天结果切到聊天并 `openSessionAt(id, messageId)`；笔记结果用结果里的标题和图标打开原生笔记编辑页（列表还没读过也能开）。网页会滚到命中的笔记块（blockId），原生版的 `/note-embed` 还没有对应参数，只打开笔记开头。
 - 定位到消息（`ChatUiState.reveal`）：消息读完后滚到那条消息、放在可视区中间，然后闪 2 秒（黄色底保持 1.2 秒再淡出，外圈 3px，与 `.search-reveal-flash` 一致）；消息已不存在就停在最底部；换了聊天就作废。闪的强度按开始时间算，条目滚出屏幕再回来时接着当前进度、不从头重放；2 秒后作废，从侧栏重开不再闪（网页 `clearFlash`）。`listState` 和上一段聊天共用，先等新列表量好（项数对上、可见项的 key 都是这段聊天的消息）再判断目标在不在屏幕上。定位完成前不贴底（`followAction` 的 `revealPending`，同网页 openChatFromLink 关掉 pinToBottom）；滚到目标后停止跟随底部，目标不存在时恢复跟随。
-- 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 写 `autoVerify="false"`，不需要 `assetlinks.json`：Android 12+ 默认仍由浏览器打开，用户在系统设置的"打开支持的链接"里把站点加给 App 后才会进 App。外部链接经 `ChatViewModel.linkRequests` 交给 `NoteFableRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
+- 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 分两组：工作区主机（`BASE_URL` 的主机，正式为 `app.notefable.com`）写 `autoVerify="true"`，由 `public/.well-known/assetlinks.json`（包名 + Play 应用签名证书的 SHA-256）验证后系统直接用 App 打开，可以用 `adb shell pm get-app-links com.kakumine.notefable` 查看验证状态；旧主机 `notefable.com` / `www` 写 `autoVerify="false"`（介绍页也在这个主机，不抢），用户在系统设置的"打开支持的链接"里加给 App 后才进 App，否则浏览器打开后转到工作区主机。外部链接经 `ChatViewModel.linkRequests` 交给 `NoteFableRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
 - 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`、`ChatRevealLayoutTest`。
 
 ## 账号头像（Batch 7b）
@@ -265,7 +265,7 @@ cd mobile/android
 ```
 
 - 交付用 Play 签名的通用 APK：`./gradlew bundleRelease` 出 AAB，上传到内部测试轨道后从 App bundle explorer 下载。本机的 `assembleRelease` / `assembleDebug` 包只用于本机检查，没有 Google 登录（用邮箱验证码登录）。流程和 Drive 规则见 [android.md](android.md#安装包交付)。
-- 默认连线上 `https://notefable.com`（`mobile/android/gradle.properties`）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
+- 默认连线上 `https://app.notefable.com`（`mobile/android/gradle.properties`）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000 -Pnotefable.siteUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 
 ## 路线图
