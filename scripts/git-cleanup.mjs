@@ -13,7 +13,6 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, statSync } from "node:fs";
 import path from "node:path";
-import { deletePreviewBranch, listPreviewBranches, neonApiKey, neonBranchName, removeVercelDatabaseUrl } from "./preview-db.mjs";
 
 const dryRun = process.argv.includes("--dry-run");
 const DETACHED_IDLE_MS = 24 * 60 * 60 * 1000;
@@ -111,7 +110,6 @@ for (const line of git(["for-each-ref", "--format=%(refname:short) %(objectname)
 }
 
 // Branches on origin.
-const deletedOrigin = [];
 for (const line of git(["for-each-ref", "--format=%(refname:short) %(objectname)", "refs/remotes/origin"]).split("\n")) {
   const [ref, sha] = line.split(" ");
   const branch = ref?.replace(/^origin\//, "");
@@ -122,48 +120,9 @@ for (const line of git(["for-each-ref", "--format=%(refname:short) %(objectname)
     skipped.push(`origin/${branch}: merged, kept because its worktree was left in place`);
   } else {
     // The lease makes the push fail if someone pushed to the branch after our fetch.
-    if (
-      act(`delete origin/${branch}`, () =>
-        git(["push", `--force-with-lease=refs/heads/${branch}:${sha}`, "origin", "--delete", branch]),
-      )
-    )
-      deletedOrigin.push(branch);
-  }
-}
-
-// Preview databases (scripts/preview-db.mjs): a merged branch's Neon branch and its
-// branch-scoped Vercel DATABASE_URL go with it. Branches still on origin keep theirs.
-const neonKey = neonApiKey();
-if (!neonKey) {
-  skipped.push("preview databases: NEON_API_KEY not set, Neon preview/ branches not checked");
-} else {
-  try {
-    const { projectId, branches } = await listPreviewBranches(neonKey);
-    const merged = new Map(deletedOrigin.map((b) => [neonBranchName(b), b]));
-    const live = new Set(
-      git(["for-each-ref", "--format=%(refname:short)", "refs/remotes/origin"])
-        .split("\n")
-        .map((ref) => ref.replace(/^origin\//, ""))
-        .filter((b) => b && b !== "HEAD" && b !== "origin" && !deletedOrigin.includes(b))
-        .map(neonBranchName),
+    act(`delete origin/${branch}`, () =>
+      git(["push", `--force-with-lease=refs/heads/${branch}:${sha}`, "origin", "--delete", branch]),
     );
-    for (const b of branches) {
-      const gitBranch = merged.get(b.name);
-      if (gitBranch) {
-        console.log(`${dryRun ? "[dry-run] " : ""}delete Neon branch ${b.name} and its Vercel DATABASE_URL`);
-        if (dryRun) continue;
-        try {
-          await deletePreviewBranch(neonKey, projectId, b.id);
-          removeVercelDatabaseUrl(gitBranch);
-        } catch (error) {
-          skipped.push(`Neon branch ${b.name}: delete failed (${error.message})`);
-        }
-      } else if (!live.has(b.name)) {
-        skipped.push(`Neon branch ${b.name}: its git branch is gone; delete it with npm run preview:db -- delete <git-branch>`);
-      }
-    }
-  } catch (error) {
-    skipped.push(`preview databases: ${error.message}`);
   }
 }
 
