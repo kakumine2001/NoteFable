@@ -101,20 +101,21 @@ internal fun AssistantTurn(
     val headerLabel = if (modelLabel != null) "$aiReplyLabel · $modelLabel" else aiReplyLabel
 
     Column(Modifier.fillMaxWidth()) {
-        // AI 回答顶部只显示选中的角色小图标与模型名（不再重复 NOTEFABLE 文字），保留无障碍说明。
+        // AI 回答顶部只显示选中的角色与模型名（不再重复 NOTEFABLE 文字），保留无障碍说明。
+        // 网页 .notion-role-label.is-assistant：角色 32px、间距 8、下距 8.8；模型名用正文字体 13px、500、灰色。
         Row(
-            Modifier.padding(bottom = 7.2.dp).semantics(mergeDescendants = true) { contentDescription = headerLabel },
+            Modifier.padding(bottom = 8.8.dp).semantics(mergeDescendants = true) { contentDescription = headerLabel },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             AppIcon(
-                16.dp,
+                32.dp,
                 Sm.Ink,
                 state = characterState,
                 animated = characterState != CharacterState.Idle && characterState != CharacterState.Hidden,
             )
             if (modelLabel != null) {
-                Spacer(Modifier.width(5.6.dp))
-                Text(modelLabel, style = RoleLabelBase.copy(letterSpacing = 0.24.sp))
+                Spacer(Modifier.width(8.dp))
+                Text(modelLabel, style = AssistantModelLabel)
             }
         }
         if (thinking || progress.isNotEmpty()) {

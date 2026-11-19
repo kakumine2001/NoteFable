@@ -139,7 +139,7 @@ export const ChatMessage = memo(function ChatMessage({
         {message.role === "ASSISTANT" && (
           <div className="notion-role-label is-assistant">
             <AppIcon
-              size={16}
+              size={32}
               state={characterState ?? "idle"}
               animated={characterState !== undefined && characterState !== "idle" && characterState !== "hidden"}
             />

@@ -631,6 +631,15 @@ internal val RoleLabelBase = TextStyle(
     color = Sm.Muted,
 )
 
+// 回答头部的模型名：网页 .notion-role-model，正文字体 13px、500、无字距、灰色。
+internal val AssistantModelLabel = TextStyle(
+    fontFamily = FontFamily.Default,
+    fontSize = 13.sp,
+    lineHeight = 18.sp,
+    fontWeight = FontWeight.Medium,
+    color = Sm.Muted,
+)
+
 // 网页的等宽字体（Geist Mono）没有非拉丁字形，这些字回落到普通 UI 字体；原生版的系统等宽字体回落时会出现倾斜字形，
 // 且阿拉伯字母有非零字距时会断开连写，因此非拉丁脚本用默认字体，阿拉伯字母字距归零。
 internal fun roleLabelStyle(text: String): TextStyle {
