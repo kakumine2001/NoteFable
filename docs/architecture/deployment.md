@@ -103,6 +103,31 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 仍需注意：Preview 环境如果复用生产 `DATABASE_URL`，也可能触发 migration，所以环境变量必须明确区分。
 
+### Preview 数据库（每个 git 分支一个 Neon 分支）
+
+Preview 永远不连生产库。Neon 项目 `neon_db` 里有两类非生产分支：
+
+- `preview`：Vercel Preview 的默认 `DATABASE_URL`（不限分支）指向它。它是 2026-10-23 从 `production` 复制的，之后只靠 Preview 构建里的 `prisma migrate deploy` 跟进。**已执行过的迁移文件被改过时，这里不会自动补**（2026-11-19 就因 `20261118000000_subscription` 事后加列而缺 `User.subscriptionProvider`，Preview 全部 500）。
+- `preview/<git 分支名，/ 换成 ->`：给某个 PR 单独用的分支。Vercel 的 Preview 环境变量可以限定 git 分支，限定分支的值优先于不限分支的值，所以这个 PR 的 Preview 会连自己的 Neon 分支，其他 Preview 不受影响。
+
+给一个 git 分支开独立数据库（`scripts/preview-db.mjs`）：
+
+```bash
+npm run preview:db -- create [git-branch]   # 默认当前分支；分支要先 push 过
+npm run preview:db -- delete [git-branch]
+npm run preview:db -- list
+```
+
+`create` 做三件事：从 Neon 默认分支（`production`）建 `preview/<git 分支名，/ 换成 ->`（已存在就复用，compute 0.25–0.5 CU），取它的 pooled 连接串，写成 Vercel Preview 限定该 git 分支的 Sensitive `DATABASE_URL`（值走 stdin，不进命令行），再重新部署该分支最新的 deployment。构建里的 `prisma migrate deploy` 只会把迁移套到这个 Neon 分支，不碰 `preview` 和 `production`。
+
+`npm run git:cleanup` 删掉已合并的 origin 分支时，会一起删掉对应的 Neon 分支和 Vercel 变量；git 分支已不存在、但 Neon 分支还在的，列在 “Left in place” 里。脚本只删名字以 `preview/` 开头、且不是默认或受保护的 Neon 分支。
+
+前提：`NEON_API_KEY`（Neon → Account settings → API keys）放在环境变量或主 checkout 的 `.env.local`（已被 gitignore），Vercel CLI 已登录。没有 key 时脚本报错退出，`git:cleanup` 只跳过这一步。手动做的话：Neon 建分支取 pooled 连接串 → Vercel Environment Variables 加 `DATABASE_URL`（Preview、填 Git Branch）→ Redeploy。
+
+不要改已经部署过（包括部署到共享 `preview` 分支）的迁移文件，加列另写一个新迁移。
+
+注意：从 `production` 复制的分支带有真实用户数据的副本，只给自己测试用，不要把 Preview 分享链接给别人。
+
 ## Database Schema Boundary
 
 NoteFable 的表固定放在 `notefable` schema：`src/lib/database-url.ts` 的 `DATABASE_SCHEMA` 会覆盖 `DATABASE_URL` 里的 `?schema=`（运行时 `src/lib/prisma.ts` 和迁移 `prisma.config.ts` 都是），运行时再显式把它传给 Prisma adapter。连接字符串里写什么 schema 都不影响。
