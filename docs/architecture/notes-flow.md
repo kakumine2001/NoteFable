@@ -113,7 +113,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 笔记里的 AI 助手
 
-打开笔记时，右下角有一个圆形的 AI 按钮（`src/components/note-assistant.tsx`）：显示当前所选的 AI 角色（默认 Quill）或上传图标，预设角色带有轻量待机及输入 / 思考 / 回答 / 完成 / 报错状态反馈动画（悬浮按钮尺寸固定，不挤压或移动笔记正文；系统开启“减少动态效果”时静止）。电脑上点开是浮在按钮上方的小面板，手机上是底部弹出的面板（端上的“返回”键可以关闭）。面板里可以输入要求，或点常用按钮（Improve writing、Fix spelling & grammar、Summarize、Make it shorter、Continue writing）。发送前先把正在输入的内容保存（`NoteSaveQueue.flush`），保存不了（例如有冲突）就不发送。
+打开笔记时，右下角有一个圆形的 AI 按钮（`src/components/note-assistant.tsx`，电脑 52px、手机 56px，里面的角色 34px）：显示当前所选的 AI 角色（默认 Quill）或上传图标，预设角色带有轻量待机及输入 / 思考 / 回答 / 完成 / 报错状态反馈动画（悬浮按钮尺寸固定，不挤压或移动笔记正文；系统开启“减少动态效果”时静止）。电脑上点开是浮在按钮上方的小面板，手机上是底部弹出的面板（端上的“返回”键可以关闭）。面板里可以输入要求，或点常用按钮（Improve writing、Fix spelling & grammar、Summarize、Make it shorter、Continue writing）。发送前先把正在输入的内容保存（`NoteSaveQueue.flush`），保存不了（例如有冲突）就不发送。
 
 面板直接调用 `/api/chat`，额外带上 `noteId`（并固定 `webSearch=off`），使用聊天里当前选的模型和推理强度。服务端确认该笔记属于当前用户（否则 404），新建的会话写入 `Session.noteId`，并在共享的 `buildInstructions()` 里加一行说明“用户正在这篇笔记里提问”，要求先 `read_note` 再 `propose_note_edit`。带 `noteId` 的请求只能续用 `noteId` 相同的会话，普通聊天也不能续用笔记会话（否则 404）；这些会话不会出现在 Chats 列表里，也不会被跨 Chats/Notes 搜索命中。笔记放进 Trash 时这些会话保留（`Session.noteId` 不动），只有笔记被永久删除时才随笔记一起级联删除；笔记在 Trash 期间不能再向它发送助手请求（`/api/chat` 的笔记校验带 `deletedAt: null`，返回 404）。面板只在页面打开期间保留这段对话，刷新后重新开始。
 
