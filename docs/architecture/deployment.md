@@ -101,7 +101,22 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 当前 `vercel.json` 的 Build Command 会先执行 `npm run prisma:migrate`，再执行 `npm run build`。因此从 Vercel 正常构建的 production deployment 会走 migration deploy。
 
-仍需注意：Preview 环境如果复用生产 `DATABASE_URL`，也可能触发 migration，所以环境变量必须明确区分。
+Preview 的 `DATABASE_URL` 由 Neon 的 Vercel 集成按 git 分支提供（见下面「Preview 数据库与图片」），Preview 构建的 migration 只改那个分支库。
+
+### Preview 数据库与图片（Neon 的 Vercel 集成）
+
+Preview 永远不连生产库，也不碰生产的图片。2026-11-19 起由 Neon 的 Vercel 集成（Neon 控制台 → 项目 `neon_db` → Integrations → Vercel）自动管理：
+
+1. 每个 git 分支第一次部署 Preview 时，集成先取消那次构建，从 `production` 复制出 Neon 分支 `preview/<git 分支名>`，把它的 `DATABASE_URL` / `DATABASE_URL_UNPOOLED` 写成只对这个 git 分支生效的 Preview 变量，再重新部署。之后同一分支的部署都连这个库。
+2. 构建里的 `prisma migrate deploy` 只改这个分支库，不碰 `production` 和别的 PR。
+3. git 分支合并或删除后，集成自动删掉对应的 Neon 分支（集成设置里的 “Automatically delete obsolete Neon branches”）。
+4. Production 的 `DATABASE_URL` 不归集成管，仍是原来的值。集成另外加了 Production 的 `DATABASE_URL_UNPOOLED` 和 Development 的变量（指向 Neon 分支 `vercel-dev`），代码都不读，本地开发照旧用 `.env`。
+
+图片：Preview 的 `BLOB_READ_WRITE_TOKEN` 指向单独的私有 Blob store `notefable-preview`，Production / Development 用原来的 store。所以 Preview 里删图、删账号不会删掉正式用户的图片；从生产复制来的旧图片在 Preview 里读不到（404），这是预期的。
+
+不限分支的 Preview `DATABASE_URL` 仍指向旧的共享 Neon 分支 `preview`，只在集成没给某个分支建库时兜底，可以删掉。
+
+规则：迁移一旦部署过（包括 Preview）就不再修改，要改另写新迁移。2026-11-19 共享 `preview` 库就因 `20261118000000_subscription` 执行后又被改过，缺 `User.subscriptionProvider`，Preview 全部 500。
 
 ## Database Schema Boundary
 
@@ -231,7 +246,7 @@ Vercel Function
   -> PostgreSQL 保存 imageStoragePath
 ```
 
-Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`；Vercel 环境缺少 token 会直接报错。
+Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`（Preview 用单独的 store `notefable-preview`，见上面「Preview 数据库与图片」）。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`；Vercel 环境缺少 token 会直接报错。
 
 ## Production Debug Checklist
 

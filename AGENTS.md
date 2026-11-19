@@ -55,7 +55,8 @@ Several agents work on this repo at the same time. These rules keep their work f
 
 - Production: Neon, db `neondb`, schema `notefable`. Schema changes only via `npm run prisma:migrate` / `prisma migrate deploy` (Vercel runs it before build).
 - Never run `prisma db push` (any flags) or `prisma migrate reset` against production.
-- Don't point Preview deployments at the production database.
+- Don't point Preview deployments at the production database or Blob store. Neon's Vercel integration gives every git branch's Preview its own Neon branch and deletes it after the merge; Preview has its own Blob store (`docs/architecture/deployment.md`).
+- Never edit a migration once it has been deployed anywhere (Preview included): add a new migration.
 
 ## Android
 
