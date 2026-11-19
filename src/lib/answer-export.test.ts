@@ -91,10 +91,10 @@ describe("message ids and conversation links", () => {
   });
 
   it("links to the conversation, and to the message only when it is stored", () => {
-    expect(answerConversationUrl("https://app.example", "sess123")).toBe("https://app.example/?chat=sess123");
-    expect(answerConversationUrl("https://app.example", "sess123", "cmgx9k2a00001abcd1234efgh")).toBe("https://app.example/?chat=sess123&message=cmgx9k2a00001abcd1234efgh");
-    expect(answerConversationUrl("https://app.example", "sess123", crypto.randomUUID())).toBe("https://app.example/?chat=sess123");
-    expect(answerConversationUrl("https://app.example", "sess123", null)).toBe("https://app.example/?chat=sess123");
+    expect(answerConversationUrl("https://app.example", "sess123")).toBe("https://app.example/c/sess123");
+    expect(answerConversationUrl("https://app.example", "sess123", "cmgx9k2a00001abcd1234efgh")).toBe("https://app.example/c/sess123?message=cmgx9k2a00001abcd1234efgh");
+    expect(answerConversationUrl("https://app.example", "sess123", crypto.randomUUID())).toBe("https://app.example/c/sess123");
+    expect(answerConversationUrl("https://app.example", "sess123", null)).toBe("https://app.example/c/sess123");
   });
 });
 

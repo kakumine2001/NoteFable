@@ -6,6 +6,9 @@ import { isLocale, LOCALE_COOKIE, parsePreference, resolveLocale, type Locale } 
 // 言語ごとに作り置いた静的なページ（/[locale]、/[locale]/app、/[locale]/note-embed）で配る。
 // proxy.ts がここで表示言語を決め、アドレスバーの URL はそのままで中身だけ言語別のページに差し替える（rewrite）。
 export const LOCALIZED_PATHS = ["/", "/app", "/note-embed"] as const;
+// proxy.ts の matcher（Next.js は matcher を静的に読むので proxy.ts にも同じ値を書き、テストで一致を確かめる）。
+// /c/<会話>: 会話の共有リンク（answerConversationUrl）。/<言語>/app: 言語固定のワークスペース（紹介サイトのホストではワークスペースのホストへ送る）。
+export const PROXY_MATCHER = [...LOCALIZED_PATHS, "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app"];
 // アプリは自分の表示言語を ?lang= で渡す（/note-embed だけ）。Cookie やブラウザの言語より優先する。
 const EMBED_PATH = "/note-embed";
 
@@ -31,6 +34,11 @@ export function siteOrigin() {
   return host ? `https://${host}` : "http://localhost:3000";
 }
 
+// 会話の共有リンク /c/<会話>?message=<メッセージ>。Android の App Links はこの形だけを App で開く（ログインや Stripe からの
+// 戻り先の / や /app は App に取られない）。ワークスペースの /?chat=<会話>&message=… へ送る。
+const SHARE_PATH = /^\/c\/([A-Za-z0-9_-]{1,64})\/?$/;
+const LOCALE_APP_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/app\/?$/;
+
 // 保存済みの会話・ノートへの古いリンク（/?chat=… など）は、指定を保ったままワークスペースへ送る。
 const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];
 
@@ -52,6 +60,21 @@ export function routeLocalizedRequest(request: {
   const role = !hosts ? "single" : url.host === hosts.appHost ? "app" : url.host === hosts.siteHost ? "site" : "single";
   const returning = url.pathname === "/" && !url.searchParams.has(INTRO_PARAM) && RETURNING_COOKIES.some((name) => request.cookie(name));
   const legacy = url.pathname === "/" && LEGACY_WORKSPACE_KEYS.some((key) => url.searchParams.has(key));
+
+  const share = SHARE_PATH.exec(url.pathname);
+  if (share) {
+    const target = new URL(url);
+    target.searchParams.delete("chat");
+    target.search = `?${new URLSearchParams([["chat", share[1]], ...target.searchParams])}`;
+    if (hosts && role !== "single") return { kind: "redirect", url: workspaceUrl(hosts, target), noindex: true };
+    target.pathname = "/app";
+    return { kind: "redirect", url: target };
+  }
+  if (url.pathname.startsWith("/c/")) return { kind: "none" };
+  if (LOCALE_APP_PATH.test(url.pathname)) {
+    // 言語固定のワークスペース（/ja/app など）は静的なページがそのまま出る。紹介サイトのホストでだけワークスペースのホストへ送る。
+    return hosts && role === "site" ? { kind: "redirect", url: workspaceUrl(hosts, url) } : { kind: "none" };
+  }
 
   if (hosts && role === "site") {
     // 紹介サイトのワークスペース（/app、古い /?chat=…、回訪者の /）は、ワークスペースのホストへ。指定（検索部分）は保つ。

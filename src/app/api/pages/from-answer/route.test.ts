@@ -40,21 +40,21 @@ describe("POST /api/pages/from-answer", () => {
     expect(data.cover).toBeNull();
     const expected = answerToNoteContent(markdown, {
       conversationTitle: "Weekly sync",
-      conversationUrl: `https://notefable.example/?chat=${sessionId}&message=${messageId}`,
+      conversationUrl: `https://notefable.example/c/${sessionId}?message=${messageId}`,
       savedAt: new Date(2026, 9, 16, 12),
     });
     expect(data.title).toBe("Plan");
     expect(stripIds(data.blocks)).toEqual(stripIds(expected.blocks));
     expect(() => validateNoteContent({ title: data.title, icon: null, cover: null, coverPosition: null, blocks: data.blocks })).not.toThrow();
     const sourceBlock = (data.blocks as Block[]).at(-1)!;
-    expect(sourceBlock.content?.[1]).toMatchObject({ type: "link", href: `https://notefable.example/?chat=${sessionId}&message=${messageId}` });
+    expect(sourceBlock.content?.[1]).toMatchObject({ type: "link", href: `https://notefable.example/c/${sessionId}?message=${messageId}` });
     expect(sourceBlock.content?.[2].text).toBe("\" on 2026-10-16.");
   });
 
   it("links only to the chat for a message that is not stored yet", async () => {
     await POST(post({ markdown: "Hello", sessionId, messageId: "0f8c2c43-1111-2222-3333-444455556666" }));
     const sourceBlock = (mocks.create.mock.calls[0][0].data.blocks as Block[]).at(-1)!;
-    expect(sourceBlock.content?.[1].href).toBe(`https://notefable.example/?chat=${sessionId}`);
+    expect(sourceBlock.content?.[1].href).toBe(`https://notefable.example/c/${sessionId}`);
   });
 
   it("does not save from a chat that belongs to someone else or to a note assistant", async () => {

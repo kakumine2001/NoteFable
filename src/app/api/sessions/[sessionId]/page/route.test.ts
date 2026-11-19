@@ -54,7 +54,7 @@ describe("POST /api/sessions/:id/page", () => {
     const data = mocks.create.mock.calls[0][0].data;
     expect(data).toMatchObject({ userId: "mine", title: "Kanji basics", cover: null });
     const last = data.blocks.at(-1);
-    expect(last.content[1]).toMatchObject({ type: "link", href: `https://notefable.example/?chat=${sessionId}` });
+    expect(last.content[1]).toMatchObject({ type: "link", href: `https://notefable.example/c/${sessionId}` });
     expect(mocks.refund).not.toHaveBeenCalled();
   });
 

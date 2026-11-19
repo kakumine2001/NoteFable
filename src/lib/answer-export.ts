@@ -160,10 +160,11 @@ export function isStoredMessageId(id: string) {
 }
 
 // 保存したノートやダウンロードしたファイルから会話へ戻るリンク。メッセージが DB に保存済みのときだけ、そのメッセージまで指す。
+// 形は /c/<会話>?message=<メッセージ>（proxy がワークスペースの /?chat=…&message=… へ送る。Android は App Links でこの形を App で開く）。
+// 以前の /?chat=… のリンクも引き続き開ける。
 export function answerConversationUrl(origin: string, sessionId: string, messageId?: string | null) {
-  const params = new URLSearchParams({ chat: sessionId });
-  if (messageId && isStoredMessageId(messageId)) params.set("message", messageId);
-  return `${origin}/?${params}`;
+  const query = messageId && isStoredMessageId(messageId) ? `?${new URLSearchParams({ message: messageId })}` : "";
+  return `${origin}/c/${encodeURIComponent(sessionId)}${query}`;
 }
 
 // ---- ファイル名 ----

@@ -72,8 +72,8 @@ describe("localized routing", () => {
   });
 
   it("runs the proxy on every localized path", async () => {
-    const [{ config }, { LOCALIZED_PATHS }] = await Promise.all([import("@/proxy"), import("./routing")]);
-    expect(config.matcher).toEqual([...LOCALIZED_PATHS]);
+    const [{ config }, { PROXY_MATCHER }] = await Promise.all([import("@/proxy"), import("./routing")]);
+    expect(config.matcher).toEqual(PROXY_MATCHER);
   });
 
   it("leaves other paths alone", () => {
@@ -81,6 +81,14 @@ describe("localized routing", () => {
     expect(route("/ja/note-embed").kind).toBe("none");
     expect(route("/privacy").kind).toBe("none");
     expect(route("/ja").kind).toBe("none");
+    expect(route("/ja/app").kind).toBe("none");
+    expect(route("/c/").kind).toBe("none");
+    expect(route("/c/bad%20id").kind).toBe("none");
+  });
+
+  it("opens shared conversation links in the workspace", () => {
+    expect(target(route("/c/chat-1?message=m1"))).toBe("redirect /app?chat=chat-1&message=m1");
+    expect(target(route("/c/chat-1?chat=other"))).toBe("redirect /app?chat=chat-1");
   });
 });
 
@@ -140,6 +148,16 @@ describe("split site and workspace hosts", () => {
     expect(where(result)).toBe("rewrite /en/note-embed?page=p1");
     expect(result.hint).toBe(false);
     expect(result.noindex).toBe(true);
+  });
+
+  it("sends shared conversation links to the workspace host from either host", () => {
+    expect(where(at("https://app.notefable.com/c/chat-1?message=m1"))).toBe("redirect https://app.notefable.com/?chat=chat-1&message=m1");
+    expect(where(at("https://notefable.com/c/chat-1"))).toBe("redirect https://app.notefable.com/?chat=chat-1");
+  });
+
+  it("sends a language-specific workspace on the site to the workspace host", () => {
+    expect(where(at("https://notefable.com/ja/app?chat=c1"))).toBe("redirect https://app.notefable.com/?chat=c1");
+    expect(at("https://app.notefable.com/ja/app").kind).toBe("none");
   });
 
   it("treats any other host (Preview, localhost) as a single host", () => {

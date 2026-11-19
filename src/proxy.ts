@@ -26,6 +26,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // LOCALIZED_PATHS（src/lib/i18n/routing.ts）と同じ並び。
-  matcher: ["/", "/app", "/note-embed"],
+  // PROXY_MATCHER（src/lib/i18n/routing.ts）と同じ値。
+  matcher: ["/", "/app", "/note-embed", "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app"],
 };
