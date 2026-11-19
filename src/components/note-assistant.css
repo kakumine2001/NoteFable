@@ -1,6 +1,7 @@
 /* ノートを開いたまま使う AI アシスタント（右下の丸いボタンと、そこから開くパネル）。 */
+/* 中のキャラクターがボタンの主役。34px のキャラクターを PC 52px・スマホ 56px（指で押しやすい大きさ）の丸に入れる。 */
 .note-ai-fab {
-  position: fixed; inset-inline-end: 1.25rem; bottom: 1.25rem; z-index: 40; display: grid; width: 3rem; height: 3rem; place-items: center;
+  position: fixed; inset-inline-end: 1.25rem; bottom: 1.25rem; z-index: 40; display: grid; width: 3.25rem; height: 3.25rem; place-items: center;
   border-radius: 999px; border: 1px solid var(--notion-border-strong); background: var(--notion-bg); color: var(--notion-text);
   box-shadow: var(--notion-shadow); transition: transform 120ms ease, background-color 120ms ease;
 }
@@ -12,13 +13,14 @@
 .note-ai-fab:active { transform: scale(0.95); }
 .note-ai-fab.is-open { background: var(--notion-bg); border-color: var(--notion-blue); box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.2), var(--notion-shadow); }
 @media (max-width: 639px) {
-  .note-ai-fab { inset-inline-end: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); width: 3.25rem; height: 3.25rem; }
+  .note-ai-fab { inset-inline-end: 1rem; bottom: calc(1rem + env(safe-area-inset-bottom)); width: 3.5rem; height: 3.5rem; }
   /* シートが開いている間は、ボタンはシートの後ろに隠れる。 */
   .note-ai-fab.is-open { z-index: 30; }
 }
 
+/* ボタンの下端 1.25rem + ボタン 3.25rem + 隙間 0.75rem。 */
 .note-ai-panel {
-  position: fixed; inset-inline-end: 1.25rem; bottom: 5rem; z-index: 40; display: flex; flex-direction: column; width: min(26rem, calc(100vw - 2.5rem));
+  position: fixed; inset-inline-end: 1.25rem; bottom: 5.25rem; z-index: 40; display: flex; flex-direction: column; width: min(26rem, calc(100vw - 2.5rem));
   height: min(36rem, calc(100dvh - 7rem)); border-radius: 0.9rem; border: 1px solid var(--notion-border-strong); background: var(--notion-bg);
   box-shadow: rgba(15, 15, 15, 0.16) 0 8px 28px, rgba(15, 15, 15, 0.06) 0 0 0 1px; overflow: hidden; animation: motion-fade-in 120ms ease-out both;
 }
