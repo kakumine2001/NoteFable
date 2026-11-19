@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { splitHosts } from "@/lib/hosts";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_DIRS, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference, type TextDirection } from "@/lib/i18n/locale";
 import { createTranslator, type Messages, type Translate } from "@/lib/i18n/translate";
 
@@ -39,12 +40,25 @@ const subscribePreference = (listener: () => void) => {
 const serverPreference = (): LocalePreference => "auto";
 
 // 言語の選択を Cookie に書く（"auto" は消す）。読んでいる画面へ知らせる。
+// 紹介サイトとワークスペースを別ホストにしたときは、両方のホストで同じ選択を読めるよう共通の Domain に書き、
+// 以前このホストだけに書いた Cookie は消す（同じ名前が 2 つ残ると古い方を読むことがある）。
 function writeLocaleCookie(next: LocalePreference) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const domain = sharedCookieDomain();
+  const base = `Path=/; SameSite=Lax${secure}`;
+  if (domain) document.cookie = `${LOCALE_COOKIE}=; ${base}; Max-Age=0`;
+  const scope = domain ? `${base}; Domain=${domain}` : base;
   document.cookie = next === "auto"
-    ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
-    : `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+    ? `${LOCALE_COOKIE}=; ${scope}; Max-Age=0`
+    : `${LOCALE_COOKIE}=${next}; ${scope}; Max-Age=${LOCALE_COOKIE_MAX_AGE}`;
   preferenceListeners.forEach((listener) => listener());
+}
+
+// 今のホストが別ホスト構成の一方のとき、両方で読める Cookie の Domain。そうでなければ null（このホストだけに書く）。
+function sharedCookieDomain() {
+  const hosts = splitHosts();
+  if (!hosts?.cookieDomain) return null;
+  return window.location.host === hosts.siteHost || window.location.host === hosts.appHost ? hosts.cookieDomain : null;
 }
 
 // 進行中の言語の切り替え（辞書の取得）。新しい切り替えやログアウトが来たら中止する（後から Cookie を書き戻さないように）。

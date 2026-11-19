@@ -118,10 +118,11 @@ private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLan
                 .padding(5.6.dp)
                 .semantics { contentDescription = label },
         ) {
-            HelpItem(Lucide.Info, stringResource(R.string.about)) { onClose(); openInBrowser(context, BuildConfig.BASE_URL + "/?intro") }
-            HelpItem(Lucide.Shield, stringResource(R.string.privacy)) { onClose(); uri.openUri(BuildConfig.BASE_URL + "/privacy") }
-            HelpItem(Lucide.FileText, stringResource(R.string.terms)) { onClose(); uri.openUri(BuildConfig.BASE_URL + "/terms") }
-            HelpItem(Lucide.Scale, stringResource(R.string.commercial_disclosure)) { onClose(); uri.openUri(BuildConfig.BASE_URL + "/legal-notice") }
+            // 介绍页和法律页面在介绍页的主机（SITE_URL），不是工作区的主机（BASE_URL）。
+            HelpItem(Lucide.Info, stringResource(R.string.visit_website)) { onClose(); openInBrowser(context, BuildConfig.SITE_URL + "/?intro") }
+            HelpItem(Lucide.Shield, stringResource(R.string.privacy)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/privacy") }
+            HelpItem(Lucide.FileText, stringResource(R.string.terms)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/terms") }
+            HelpItem(Lucide.Scale, stringResource(R.string.commercial_disclosure)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/legal-notice") }
             if (guest) {
                 // .chat-menu-divider：上下 4.8、左右 8 的 1px 线。
                 Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))

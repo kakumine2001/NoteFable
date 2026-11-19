@@ -4,7 +4,7 @@ NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，
 
 用户可以从聊天开始，把回答和资料整理成 Notes，再让 AI 读取笔记、提出修改建议，确认后应用。当前支持匿名试用、Google / 邮箱验证码登录、流式聊天、文件上下文、图片输入与生成、Web 搜索、回答保存与整段对话导出、跨 Chats 与 Notes 的关键词搜索、自定义指令、项目共通指示与参考笔记，以及笔记的回收站和编辑历史。以下记录当前实现；产品化方向不代表付费、公开分享或协作功能已经上线。
 
-网站根路径 `/` 是产品介绍主页，点击主页入口后进入 `/app` 使用聊天与 Notes；也可以直接收藏 `/app`。旧的根路径会话和笔记链接（带 `chat`、`message`、`view` 或 `page` 参数）会保留全部查询参数转到 `/app`，已保存的链接继续可用。
+产品介绍主页在 `notefable.com`，聊天与 Notes 工作区在 `app.notefable.com`（参照 Notion 的分域；同一份代码按主机分流，见 [deployment.md](docs/architecture/deployment.md)）。旧地址 `notefable.com/app` 和带 `chat`、`message`、`view` 或 `page` 参数的旧链接保留全部查询参数转到工作区。没有设置分域变量的环境（Preview、本地）仍是 `/` 介绍页、`/app` 工作区。
 
 界面支持 17 种语言（English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский，其中阿拉伯语支持完整的从右到左 RTL 排版）及“自动检测”选项。登录用户可在“设置”中选择界面语言（偏好保存在账号上并跨设备同步），未登录访客可在侧栏帮助菜单或介绍页页脚选择本机语言。自动检测按“浏览器 / 系统语言 → 保守的访问国家回退 → 英文”决定；明确选择的语言优先于环境判断。首页、`/app` 和 `/note-embed` 按全部 17 种语言预先生成静态页面，由 `src/proxy.ts` 选择语言并在网址不变的情况下返回对应页面。退出登录时清除本机偏好并回到自动检测。界面语言不改写聊天、笔记或 AI 的输出语言；隐私政策、服务条款正文保持英文，特定商取引法标示保持日文。实现和维护方式见[界面语言](docs/architecture/i18n.md)。
 
@@ -26,7 +26,8 @@ NoteFable 是一个把 AI 对话、笔记和资料整理放在一起的产品，
 - Vercel Node.js：24.x
 - Vercel Production region：`iad1`
 - Production aliases：
-  - `notefable.com`
+  - `notefable.com`（介绍页）
+  - `app.notefable.com`（工作区）
   - `www.notefable.com`（跳转到主域名）
   - `notefable-kaku10.vercel.app`
 - 数据库：Neon PostgreSQL

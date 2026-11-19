@@ -39,14 +39,26 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 本站的聊天链接（/?chat=…&amp;message=…）。autoVerify="false"：不做 App Links 验证，不需要 assetlinks.json；
-                 Android 12+ 默认仍由浏览器打开，用户在系统的"打开支持的链接"里把本站加给 App 后才进 App。 -->
-            <intent-filter android:autoVerify="false">
+            <!-- 工作区主机（BASE_URL，正式为 app.notefable.com）的链接：/?chat=…&amp;message=…、/app?chat=…。
+                 autoVerify="true"：Android 用 https://app.notefable.com/.well-known/assetlinks.json（public/.well-known/）验证后，
+                 系统直接用 App 打开，不再询问。整个主机都是工作区，所以只拦这个主机；介绍页、法律页面和登录在 notefable.com，不受影响。 -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${notefableScheme}" />
                 <data android:host="${notefableHost}" />
+                <data android:path="/" />
+                <data android:path="/app" />
+                <data android:pathPattern="/.*/app" />
+            </intent-filter>
+            <!-- 旧主机的聊天链接（以前保存的 notefable.com/?chat=… 等）。不做验证（介绍页也在这个主机，不能抢）：
+                 用户在系统的"打开支持的链接"里把它加给 App 后才进 App，否则由浏览器打开并转到工作区主机。 -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" />
                 <data android:host="notefable.com" />
                 <data android:host="www.notefable.com" />
                 <data android:path="/" />

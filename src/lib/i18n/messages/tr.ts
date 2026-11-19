@@ -15,7 +15,7 @@ export const tr: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Kurtarılan taslak en son nottan farklı. Bir kopya kaydedin veya en son sürümü yükleyin.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Yapay zekâ sohbeti ve notlar tek bir yerde: soru sorun, yanıtı not olarak saklayın ve daha sonra kolayca yeniden bulun.",
   "AI chat and notes, in one place": "Yapay zekâ sohbeti ve notlar, tek bir yerde",
-  "About": "Hakkında",
+  "Visit website": "Web sitesini ziyaret et",
   "Account": "Hesap",
   "Actions": "İşlemler",
   "Actions for project {name}": "{name} projesi için işlemler",

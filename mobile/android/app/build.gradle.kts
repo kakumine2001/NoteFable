@@ -20,6 +20,8 @@ android {
 
         val baseUrl = (project.findProperty("notefable.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")
+        val siteUrl = (project.findProperty("notefable.siteUrl") as String).trimEnd('/')
+        buildConfigField("String", "SITE_URL", "\"$siteUrl\"")
         // 聊天链接的 intent-filter（AndroidManifest）只认本站。
         manifestPlaceholders["notefableScheme"] = baseUrl.substringBefore("://")
         manifestPlaceholders["notefableHost"] = baseUrl.substringAfter("://").substringBefore('/').substringBefore(':')

@@ -7,14 +7,17 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
+import { siteHref } from "@/lib/hosts";
 import { INTRO_HREF } from "@/lib/i18n/routing";
 import { afterSheetHistory, useBackToClose } from "@/lib/use-back-to-close";
 
+// 紹介サイト（/?intro は回訪者でもワークスペースへ戻されない）と法律のページ。紹介サイトとワークスペースを別ホストにしたときは
+// 紹介サイトのホストへの絶対 URL になる（src/lib/hosts.ts）。
 const LINKS = [
-  { href: INTRO_HREF, label: "About", icon: Info },
-  { href: "/privacy", label: "Privacy", icon: Shield },
-  { href: "/terms", label: "Terms", icon: FileText },
-  { href: "/legal-notice", label: "Commercial disclosure", icon: Scale },
+  { href: siteHref(INTRO_HREF), label: "Visit website", icon: Info },
+  { href: siteHref("/privacy"), label: "Privacy", icon: Shield },
+  { href: siteHref("/terms"), label: "Terms", icon: FileText },
+  { href: siteHref("/legal-notice"), label: "Commercial disclosure", icon: Scale },
 ] as const;
 
 // サイドバー下部の「?」。紹介・プライバシー・利用規約・特商法表記（と、ログインしていなければ表示言語）をここにまとめ、
@@ -51,7 +54,9 @@ export function HelpMenu({ guest }: { guest: boolean }) {
               event.preventDefault();
               setOpen(null);
               // 閉じた後片付け（目印を外す予約）が走ってから待ち合わせる。
-              setTimeout(() => afterSheetHistory(() => router.push(href)));
+              // 別ホストへはアプリ内の遷移ではなく、普通のページ移動にする。
+              const go = () => (/^https?:/.test(href) ? window.location.assign(href) : router.push(href));
+              setTimeout(() => afterSheetHistory(go));
             }}>
               <Icon size={16} aria-hidden="true" className="help-menu-icon" />{t(label)}
             </Link>

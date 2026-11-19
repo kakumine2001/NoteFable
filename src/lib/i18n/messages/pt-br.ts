@@ -15,7 +15,7 @@ export const ptBR: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Um rascunho recuperado difere da nota mais recente. Salve uma cópia ou carregue a versão mais recente.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Chat com IA e notas em um só lugar: faça uma pergunta, salve a resposta como nota e encontre tudo depois.",
   "AI chat and notes, in one place": "Chat com IA e notas, em um só lugar",
-  "About": "Sobre",
+  "Visit website": "Visitar o site",
   "Account": "Conta",
   "Actions": "Ações",
   "Actions for project {name}": "Ações para o projeto {name}",

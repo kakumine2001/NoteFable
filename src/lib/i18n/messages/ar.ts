@@ -15,7 +15,7 @@ export const ar: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "تختلف المسودة المستعادة عن أحدث نسخة من الملاحظة. احفظ نسخة جديدة أو حمّل أحدث إصدار.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "محادثات الذكاء الاصطناعي والملاحظات في مكان واحد: اطرح سؤالاً، واحتفظ بالإجابة كملاحظة، واعثر عليها لاحقاً بسهولة.",
   "AI chat and notes, in one place": "محادثات الذكاء الاصطناعي والملاحظات في مكان واحد",
-  "About": "حول",
+  "Visit website": "زيارة الموقع الإلكتروني",
   "Account": "الحساب",
   "Actions": "الإجراءات",
   "Actions for project {name}": "إجراءات المشروع «{name}»",

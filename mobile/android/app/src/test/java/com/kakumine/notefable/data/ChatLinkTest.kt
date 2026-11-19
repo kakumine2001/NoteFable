@@ -39,4 +39,13 @@ class ChatLinkTest {
         assertEquals(ChatLink.Open("c1", "m1"), ChatLink.parse("https://www.notefable.com/?chat=c1&message=m1", base))
         assertNull(ChatLink.parse("https://notefable.com.evil.example/?chat=c1", base))
     }
+
+    @Test
+    fun `accepts old notefable_com links when the server is the workspace host`() {
+        val base = "https://app.notefable.com"
+        assertEquals(ChatLink.Open("c1", "m1"), ChatLink.parse("https://app.notefable.com/?chat=c1&message=m1", base))
+        assertEquals(ChatLink.Open("c1", null), ChatLink.parse("https://notefable.com/app?chat=c1", base))
+        assertEquals(ChatLink.Open("c1", null), ChatLink.parse("https://www.notefable.com/?chat=c1", base))
+        assertNull(ChatLink.parse("https://evil.notefable.com/?chat=c1", base))
+    }
 }

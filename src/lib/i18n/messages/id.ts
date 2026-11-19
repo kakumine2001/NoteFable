@@ -15,7 +15,7 @@ export const id: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Draf yang dipulihkan berbeda dari catatan terbaru. Simpan salinan atau muat versi terbaru.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Chat AI dan catatan di satu tempat: ajukan pertanyaan, simpan jawabannya sebagai catatan, lalu temukan lagi nanti.",
   "AI chat and notes, in one place": "Chat AI dan catatan, di satu tempat",
-  "About": "Tentang",
+  "Visit website": "Kunjungi situs web",
   "Account": "Akun",
   "Actions": "Tindakan",
   "Actions for project {name}": "Tindakan untuk proyek {name}",

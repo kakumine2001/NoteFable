@@ -15,7 +15,7 @@ export const es: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Un borrador recuperado difiere de la nota más reciente. Guarda una copia o carga la última versión.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Chat con IA y notas en un solo lugar: haz una pregunta, guarda la respuesta como nota y vuelve a encontrarla después.",
   "AI chat and notes, in one place": "Chat con IA y notas, en un solo lugar",
-  "About": "Acerca de",
+  "Visit website": "Visitar el sitio web",
   "Account": "Cuenta",
   "Actions": "Acciones",
   "Actions for project {name}": "Acciones para el proyecto {name}",
