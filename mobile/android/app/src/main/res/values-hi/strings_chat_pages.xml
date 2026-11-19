@@ -15,4 +15,7 @@
     <string name="create_page_partial">यह चैट बहुत लंबी है, इसलिए इसका कुछ हिस्सा छोड़ दिया गया।</string>
     <string name="open_page">नोट खोलें</string>
     <string name="language_current">भाषा: %1$s</string>
+    <string name="recently_edited">हाल ही में संपादित</string>
+    <string name="note_attached">संलग्न</string>
+    <string name="open_note_title">%1$s खोलें</string>
 </resources>

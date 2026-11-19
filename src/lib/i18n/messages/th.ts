@@ -444,6 +444,8 @@ export const th: Record<string, string> = {
   "Reasoning effort": "ระดับการคิดวิเคราะห์",
   "Reasoning effort: {currentReasoningLabel}": "ระดับการคิดวิเคราะห์: {currentReasoningLabel}",
   "Reasoning settings": "การตั้งค่าการคิดวิเคราะห์",
+  "Attached": "แนบแล้ว",
+  "Open {title}": "เปิด {title}",
   "Recently edited": "แก้ไขล่าสุด",
   "Recently used": "ใช้ล่าสุด",
   "Red": "สีแดง",

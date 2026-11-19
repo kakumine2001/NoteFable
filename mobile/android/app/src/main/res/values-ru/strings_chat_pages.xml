@@ -15,4 +15,7 @@
     <string name="create_page_partial">Этот чат очень длинный, поэтому часть сообщений была опущена.</string>
     <string name="open_page">Открыть заметку</string>
     <string name="language_current">Язык: %1$s</string>
+    <string name="recently_edited">Недавно изменённые</string>
+    <string name="note_attached">Прикреплено</string>
+    <string name="open_note_title">Открыть %1$s</string>
 </resources>

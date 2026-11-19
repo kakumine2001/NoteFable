@@ -15,4 +15,7 @@
     <string name="create_page_partial">هذه المحادثة طويلة، لذا تم اختصار جزء منها.</string>
     <string name="open_page">فتح الملاحظة</string>
     <string name="language_current">اللغة: %1$s</string>
+    <string name="recently_edited">المعدّلة مؤخراً</string>
+    <string name="note_attached">مرفقة</string>
+    <string name="open_note_title">فتح %1$s</string>
 </resources>

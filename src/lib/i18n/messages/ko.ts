@@ -444,6 +444,8 @@ export const ko: Record<string, string> = {
   "Reasoning effort": "추론 강도",
   "Reasoning effort: {currentReasoningLabel}": "추론 강도: {currentReasoningLabel}",
   "Reasoning settings": "추론 설정",
+  "Attached": "첨부됨",
+  "Open {title}": "{title} 열기",
   "Recently edited": "최근 편집됨",
   "Recently used": "최근 사용",
   "Red": "빨간색",

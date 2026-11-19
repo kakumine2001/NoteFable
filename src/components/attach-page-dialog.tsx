@@ -7,7 +7,7 @@ import "@/components/chat-project-settings.css";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
-import { MAX_MESSAGE_NOTES, type AttachedPage } from "@/types/chat";
+import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage } from "@/types/chat";
 
 // 一覧に出すノートの上限。多いときは絞り込みで探す（プロジェクト設定の参照ノート選びと同じ）。
 const MAX_LISTED = 100;
@@ -59,8 +59,7 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
   }, [pages, filter, t]);
 
   function toggle(page: AttachedPage) {
-    setSelected((list) => list.some((item) => item.id === page.id) ? list.filter((item) => item.id !== page.id)
-      : list.length >= MAX_MESSAGE_NOTES ? list : [...list, page]);
+    setSelected((list) => toggleAttachedPage(list, page));
   }
 
   // チャットの画面はサイドバーや入力欄の中に重なっているので、その外（body）に出す。

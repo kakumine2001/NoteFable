@@ -444,6 +444,8 @@ export const de: Record<string, string> = {
   "Reasoning effort": "Denktiefe",
   "Reasoning effort: {currentReasoningLabel}": "Denktiefe: {currentReasoningLabel}",
   "Reasoning settings": "Denkeinstellungen",
+  "Attached": "Angehängt",
+  "Open {title}": "{title} öffnen",
   "Recently edited": "Zuletzt bearbeitet",
   "Recently used": "Zuletzt verwendet",
   "Red": "Rot",

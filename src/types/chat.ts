@@ -14,6 +14,11 @@ export const MAX_MESSAGE_NOTES = 5;
 // 発言に添付したノート。表示用のタイトルとアイコンは、履歴を読むたびにノートから取り直す。
 export type AttachedPage = { id: string; title: string; icon: string | null };
 
+export function toggleAttachedPage(list: AttachedPage[], page: AttachedPage): AttachedPage[] {
+  if (list.some((item) => item.id === page.id)) return list.filter((item) => item.id !== page.id);
+  return list.length < MAX_MESSAGE_NOTES ? [...list, page] : list;
+}
+
 // サイドバー用の一覧と PATCH / POST の応答。noteCount はゴミ箱に入っていないノートだけを数える。
 export type ChatProjectSummary = { id: string; name: string; noteCount: number; hasInstructions: boolean };
 // 設定画面用の詳細。notes は選んだ順（position の昇順）で、ゴミ箱のノートは含まない。

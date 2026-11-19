@@ -361,6 +361,8 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ## 发言附加的笔记
 
+新对话按最近编辑时间显示最多 4 篇笔记。桌面端在输入框下方展示，手机端在上方的可滚动区域展示，给键盘和输入框留出空间。客户端通过 `GET /api/pages?recent=1` 获取本人未删除的最近 4 篇笔记，只取 ID、标题、图标和编辑时间，后台创建或更新笔记后刷新，没有笔记时隐藏整块。点卡片会切换输入框上方的笔记标签并聚焦输入框，与“添加页面”窗口共用选择和 5 篇上限。右上角的 ↗ 单独打开笔记，“全部笔记”进入笔记首页。已有消息的对话不显示卡片。
+
 用户可以把自己已有的笔记附加到一条发言上，让 AI 把它们当作这段对话的参考内容。入口在附加菜单：手机的“＋”底部弹层（`src/components/attach-sheet.tsx`）里 “Attach pages” 一行（与 “Add files or photos”、“Create an image” 并列），桌面在输入框下方工具栏带文字的 “Attach pages” 按钮（窄屏用 `@media` 隐藏，改走弹层）。桌面的“＋”在其上方弹出小菜单（同一文件里的 `AttachMenu`），只有 “Add files or photos” 和 “Create an image” 两行；图片模式开启后，手机和桌面都在输入框上方显示可取消的标签。两者打开同一个选择对话框（`src/components/attach-page-dialog.tsx`，沿用项目设置里参考笔记的列表、筛选和样式），读取 `GET /api/pages`，每条发言最多选 5 篇（`MAX_MESSAGE_NOTES`）。选中的笔记显示为输入框上方的标签，点一下移除；打开对话框时，已选但已进入 Trash 的笔记会被去掉，标题按最新的显示。图片生成模式不读笔记，带着笔记发送时提示先移除或关闭图片生成，不静默丢弃。因使用上限被拒绝时，笔记和文本、附件一起回到输入框。
 
 - **请求**：`/api/chat` 的表单字段 `pages` 是笔记 ID 的 JSON 数组（缺省或空表示没有）。格式不对、ID 为空或超过 64 字符时 400 `Attached pages must be a list of page IDs.`，去重后超过 5 篇时 400 `You can attach up to 5 pages to a message.`。随后在计数使用量之前只保留属于当前用户、不在 Trash 的笔记（`liveOwnedNoteIds`，保持顺序）；其他 ID（他人的、不存在的、选好后才放进 Trash 的）直接丢掉，不记录也不发送，发言照常发出，不会因此丢掉草稿。

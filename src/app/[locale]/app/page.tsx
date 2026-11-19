@@ -31,6 +31,7 @@ import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
+import { ChatRecentNotes } from "@/components/chat-recent-notes";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
@@ -63,7 +64,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
-import { MAX_MESSAGE_NOTES, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
+import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
@@ -339,6 +340,7 @@ export default function Home() {
   // 左サイドバーに表示するチャットセッション一覧。
   const organizationSync = useRef(new SessionOrganizationSync());
   const projectSync = useRef(new ChatProjectSync());
+  const [sessionsReady, setSessionsReady] = useState(false);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [chatProjects, setChatProjects] = useState<ChatProject[]>([]);
   const [chatProjectError, setChatProjectError] = useState("");
@@ -374,6 +376,7 @@ export default function Home() {
   // 画面中央に表示する会話メッセージ。送信直後の楽観表示もここに入る。
   const [messages, setMessages] = useState<Message[]>([]);
   // 履歴をまだ読んでいる会話の ID。そのあいだは空の会話の絵と書き出しの候補を出さない（読み終わると消えて、ちらつくため）。
+  const [historyFailedId, setHistoryFailedId] = useState<string | null>(null);
   const [historyPendingId, setHistoryPendingId] = useState<string | null>(null);
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
@@ -793,6 +796,8 @@ export default function Home() {
     } catch {
       // 一時的な同期失敗では、現在表示している一覧を消さない。
       return false;
+    } finally {
+      setSessionsReady(true);
     }
   }
 
@@ -878,11 +883,13 @@ export default function Home() {
         activeSessionIdRef.current === sessionId &&
         !streamingSessionsRef.current[sessionId]
       ) {
+        setHistoryFailedId(sessionId);
         setSendError(msg("Failed to load conversation."));
       }
       return;
     }
 
+    setHistoryFailedId(null);
     // 最新の選択に対応する履歴だけを表示へ反映する。
     replaceCachedMessages(sessionId, fetchedMessages);
     if (sessionLoadAbortRef.current === controller) {
@@ -1915,6 +1922,16 @@ export default function Home() {
   const emptyState = messages.length === 0;
   // 空の会話の絵と書き出しの候補は、履歴を読んでいるあいだは出さない。
   const historyPending = historyPendingId !== null && historyPendingId === activeSessionId;
+  const historyReady = !historyPending && (!activeSessionId || activeSessionId !== historyFailedId);
+  const recentNoteCards = workspaceView === "chat" && emptyState && historyReady && sessionsReady && (
+    <ChatRecentNotes selected={attachedPages} disabled={Boolean(uploadProgress)} lastEditor={notes.active}
+      onToggle={(page) => {
+        setAttachedPages((list) => toggleAttachedPage(list, page));
+        setSendError("");
+        inputRef.current?.focus();
+      }}
+      onOpen={openNoteFromLink} onViewAll={() => changeWorkspace("pages")} />
+  );
   const hasDraft = Boolean(input.trim());
   const activeOutcome = characterOutcomes[activeSessionKey] ?? null;
   const lastMessage = messages.at(-1);
@@ -2065,15 +2082,18 @@ export default function Home() {
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
           >
             {emptyState ? (
-              <EmptyConversation
-                title={activeTitle}
-                hasDraft={hasDraft}
-                characterState={heroCharacterState}
-                loading={historyPending}
-                icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
-                onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
-                onWorkspaceChange={changeWorkspace}
-              />
+              <>
+                <EmptyConversation
+                  title={activeTitle}
+                  hasDraft={hasDraft}
+                  characterState={heroCharacterState}
+                  loading={historyPending}
+                  icon={activeSession ? (activeSession.icon ?? null) : draftIcon}
+                  onIconChange={(icon) => (activeSession ? changeSessionIcon(activeSession.id, icon) : changeDraftIcon(icon))}
+                  onWorkspaceChange={changeWorkspace}
+                />
+                {isNarrowScreen && recentNoteCards}
+              </>
             ) : (
               <>
                 <header className="pb-10 pt-12 motion-page-enter max-sm:hidden">
@@ -2358,6 +2378,7 @@ export default function Home() {
               }}
             />
           )}
+          {!isNarrowScreen && recentNoteCards}
           <AttachSheet
             open={attachSheetOpen && isNarrowScreen}
             onClose={() => setAttachSheetOpen(false)}

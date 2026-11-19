@@ -15,4 +15,7 @@
     <string name="create_page_partial">對話較長，省略了一部分內容。</string>
     <string name="open_page">開啟筆記</string>
     <string name="language_current">語言：%1$s</string>
+    <string name="recently_edited">最近編輯</string>
+    <string name="note_attached">已附加</string>
+    <string name="open_note_title">開啟《%1$s》</string>
 </resources>

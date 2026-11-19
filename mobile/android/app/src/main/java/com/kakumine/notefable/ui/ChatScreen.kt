@@ -6,6 +6,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -81,6 +82,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -112,6 +115,7 @@ import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatProjectNote
+import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.LocalFile
 import com.mikepenz.markdown.m3.Markdown
 import com.mikepenz.markdown.m3.markdownColor
@@ -151,6 +155,8 @@ fun ChatScreen(
     onRevealDone: (Long) -> Unit = {},
     /** 添加笔记窗口打开时读自己的笔记列表（GET /api/pages）。 */
     loadNotes: suspend () -> List<ChatProjectNote> = { emptyList() },
+    recentNotes: List<NotePageSummary> = emptyList(),
+    onToggleRecentNote: (ChatProjectNote) -> Unit = {},
     onAttachPages: (List<ChatProjectNote>) -> Unit = {},
     onRemovePage: (String) -> Unit = {},
     /** 顶栏「整理成笔记」：打开那个聊天的窗口。 */
@@ -164,6 +170,7 @@ fun ChatScreen(
     var composerFocused by remember { mutableStateOf(false) }
     val heroCharacterState = state.heroCharacterState(isTyping = composerFocused || input.isNotBlank())
     val activeReplyCharacterState = state.activeReplyCharacterState()
+    val composerFocus = remember { FocusRequester() }
     val pickFiles = rememberFilePicker(onImportFiles)
     val context = LocalContext.current
     val pasteImages: (List<android.net.Uri>, TransferableContent) -> Unit = { uris, content ->
@@ -212,6 +219,15 @@ fun ChatScreen(
                         onSwitchWorkspace = onSwitchWorkspace,
                         onChangeIcon = onChangeIcon,
                         onRevealDone = onRevealDone,
+                        recentNotes = if (recentNotes.isEmpty()) null else {
+                            {
+                                ChatRecentNotes(
+                                    pages = recentNotes, selected = state.attachedPages, enabled = state.upload == null,
+                                    onToggle = { onToggleRecentNote(it); composerFocus.requestFocus() },
+                                    onOpen = LocalOpenNote.current, onViewAll = { onSwitchWorkspace(Workspace.Notes) },
+                                )
+                            }
+                        },
                     )
                 }
             }
@@ -270,6 +286,7 @@ fun ChatScreen(
                 onImageModeOff = { onImageMode(false) },
                 onPasteImages = pasteImages,
                 onFocusChange = { composerFocused = it },
+                focus = composerFocus,
             )
         }
     }
@@ -381,6 +398,7 @@ private fun MessageList(
     onSwitchWorkspace: (Workspace) -> Unit,
     onChangeIcon: (String?) -> Unit,
     onRevealDone: (Long) -> Unit,
+    recentNotes: (@Composable () -> Unit)?,
 ) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -452,11 +470,17 @@ private fun MessageList(
             TextButton(onClick = onRetry) { Text(stringResource(R.string.retry), color = Sm.Blue) }
         }
         // 空白首页：网页手机版在顶栏下方放 Chat / Note 切换（左右 24、上距 4），标题在剩下的空间里居中。
-        state.messages.isEmpty() -> Column(Modifier.fillMaxSize()) {
-            WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
-            Box(Modifier.weight(1f).fillMaxWidth()) {
-                // 已保存但还没有消息的聊天显示它自己的标题和图标（网页 EmptyConversation 的 title = activeTitle）。
-                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, hasDraft, heroCharacterState, onChangeIcon)
+        state.messages.isEmpty() -> BoxWithConstraints(Modifier.fillMaxSize()) {
+            val showMascot = recentNotes == null || maxHeight >= 400.dp
+            // Keep shortcuts in scrollable content when the IME reduces the available height.
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState(), reverseScrolling = true).heightIn(min = maxHeight),
+                verticalArrangement = Arrangement.SpaceBetween) {
+                WorkspaceSwitch(Workspace.Chat, onSwitchWorkspace, Modifier.padding(start = PageGutter, end = PageGutter, top = 4.dp))
+                EmptyState(state.activeTitle.takeIf { state.activeSessionId != null }, state.activeIcon, hasDraft,
+                    heroCharacterState, onChangeIcon, reserveBottomSpace = recentNotes == null,
+                    showMascot = showMascot)
+                if (recentNotes != null) Box(Modifier.padding(horizontal = PageGutter)) { recentNotes() }
+                else Spacer(Modifier.height(0.dp))
             }
         }
         else -> Box(Modifier.fillMaxSize()) {
@@ -561,14 +585,16 @@ private fun EmptyState(
     hasDraft: Boolean,
     characterState: CharacterState,
     onChangeIcon: (String?) -> Unit,
+    reserveBottomSpace: Boolean,
+    showMascot: Boolean,
 ) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(
-        Modifier.fillMaxSize().padding(start = PageGutter, end = PageGutter, bottom = ListBottomPadding),
+        Modifier.fillMaxWidth().padding(start = PageGutter, end = PageGutter, bottom = if (reserveBottomSpace) ListBottomPadding else 0.dp),
         verticalArrangement = Arrangement.Center,
     ) {
         // 标题上方的 AI 角色（网页 .nf-mascot-stage：64 × 68，下距 14.4）；跟随真实输入与会话状态反馈。
-        Mascot(lookDown = hasDraft, state = characterState, modifier = Modifier.padding(bottom = 14.4.dp))
+        if (showMascot) Mascot(lookDown = hasDraft, state = characterState, modifier = Modifier.padding(bottom = 14.4.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             // 网页 ChatTitleIcon：1.3em（41.6）、圆角 6；表情 0.85em（27.2），没有时 MessageSquareText 0.7em（22.4）描边 1.8。
             ChatIconButton(icon, onChangeIcon, Modifier.size(41.6.dp), RoundedCornerShape(6.dp)) {
@@ -745,6 +771,7 @@ private fun Composer(
     onImageModeOff: () -> Unit,
     onPasteImages: (List<android.net.Uri>, TransferableContent) -> Unit,
     onFocusChange: (Boolean) -> Unit = {},
+    focus: FocusRequester,
 ) {
     var focused by remember { mutableStateOf(false) }
     // 输入框用 TextFieldState（粘贴图片要用 contentReceiver，只有这种输入框支持）；草稿仍在 ViewModel 里，两边同步：
@@ -808,7 +835,7 @@ private fun Composer(
                 state = field,
                 // 上传附件期间不能改文字（网页此时输入框是只读的）。
                 readOnly = upload != null,
-                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).onFocusChanged {
+                modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).focusRequester(focus).onFocusChanged {
                     focused = it.isFocused
                     onFocusChange(it.isFocused)
                 }

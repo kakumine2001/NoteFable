@@ -444,6 +444,8 @@ export const ptBR: Record<string, string> = {
   "Reasoning effort": "Nível de raciocínio",
   "Reasoning effort: {currentReasoningLabel}": "Nível de raciocínio: {currentReasoningLabel}",
   "Reasoning settings": "Configurações de raciocínio",
+  "Attached": "Anexada",
+  "Open {title}": "Abrir {title}",
   "Recently edited": "Editado recentemente",
   "Recently used": "Usados recentemente",
   "Red": "Vermelho",

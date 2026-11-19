@@ -444,6 +444,8 @@ export const tr: Record<string, string> = {
   "Reasoning effort": "Akıl yürütme düzeyi",
   "Reasoning effort: {currentReasoningLabel}": "Akıl yürütme düzeyi: {currentReasoningLabel}",
   "Reasoning settings": "Akıl yürütme ayarları",
+  "Attached": "Eklendi",
+  "Open {title}": "{title} sayfasını aç",
   "Recently edited": "Son düzenlenenler",
   "Recently used": "Son kullanılanlar",
   "Red": "Kırmızı",

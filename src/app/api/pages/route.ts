@@ -3,12 +3,22 @@ import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { createNotePage } from "@/lib/note-create";
 import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { CHAT_RECENT_COUNT } from "@/types/notes";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const user = await getOrCreateUser();
+    if (new URL(request.url).searchParams.get("recent") === "1") {
+      const pages = await prisma.notePage.findMany({
+        where: { userId: user.id, deletedAt: null },
+        orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+        take: CHAT_RECENT_COUNT,
+        select: { id: true, title: true, icon: true, updatedAt: true },
+      });
+      return NextResponse.json({ pages }, { headers: { "Cache-Control": "no-store" } });
+    }
     const [pages, groups] = await Promise.all([
       prisma.notePage.findMany({
         where: { userId: user.id, deletedAt: null }, orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],

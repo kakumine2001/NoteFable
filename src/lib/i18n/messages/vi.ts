@@ -444,6 +444,8 @@ export const vi: Record<string, string> = {
   "Reasoning effort": "Mức độ suy luận",
   "Reasoning effort: {currentReasoningLabel}": "Mức độ suy luận: {currentReasoningLabel}",
   "Reasoning settings": "Cài đặt suy luận",
+  "Attached": "Đã đính kèm",
+  "Open {title}": "Mở {title}",
   "Recently edited": "Chỉnh sửa gần đây",
   "Recently used": "Dùng gần đây",
   "Red": "Đỏ",

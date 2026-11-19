@@ -11,8 +11,8 @@ export function greetingFor(hour: number) {
 }
 
 // 最後に編集した順に、先頭の数件。
-export function recentPages<T extends { updatedAt: string }>(pages: readonly T[]): T[] {
-  return [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, RECENT_COUNT);
+export function recentPages<T extends { updatedAt: string }>(pages: readonly T[], count = RECENT_COUNT): T[] {
+  return [...pages].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)).slice(0, count);
 }
 
 const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [["year", 31536000], ["month", 2592000], ["week", 604800], ["day", 86400], ["hour", 3600], ["minute", 60]];

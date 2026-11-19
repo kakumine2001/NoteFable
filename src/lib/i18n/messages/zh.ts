@@ -633,6 +633,8 @@ export const zh: Record<string, string> = {
   "Good morning": "早上好",
   "Good afternoon": "下午好",
   "Good evening": "晚上好",
+  "Attached": "已附加",
+  "Open {title}": "打开《{title}》",
   "Recently edited": "最近编辑",
   "Home": "主页",
   "Stop generating": "停止生成",

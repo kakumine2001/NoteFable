@@ -15,4 +15,7 @@
     <string name="create_page_partial">Bu sohbet uzun olduğu için bir kısmı dışarıda bırakıldı.</string>
     <string name="open_page">Notu aç</string>
     <string name="language_current">Dil: %1$s</string>
+    <string name="recently_edited">Son düzenlenenler</string>
+    <string name="note_attached">Eklendi</string>
+    <string name="open_note_title">%1$s sayfasını aç</string>
 </resources>

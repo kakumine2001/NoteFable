@@ -13,6 +13,7 @@ describe("recentPages", () => {
   it("returns the eight most recently edited pages, newest first", () => {
     const pages = Array.from({ length: 10 }, (_, index) => ({ id: index, updatedAt: `2026-11-${String(index + 1).padStart(2, "0")}T00:00:00.000Z` }));
     expect(recentPages(pages).map((page) => page.id)).toEqual([9, 8, 7, 6, 5, 4, 3, 2]);
+    expect(recentPages(pages, 4).map((page) => page.id)).toEqual([9, 8, 7, 6]);
     expect(pages[0].id).toBe(0);
   });
 });

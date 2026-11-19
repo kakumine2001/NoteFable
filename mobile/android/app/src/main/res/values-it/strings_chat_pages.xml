@@ -15,4 +15,7 @@
     <string name="create_page_partial">Questa chat è lunga, quindi una parte è stata tralasciata.</string>
     <string name="open_page">Apri nota</string>
     <string name="language_current">Lingua: %1$s</string>
+    <string name="recently_edited">Modificate di recente</string>
+    <string name="note_attached">Allegata</string>
+    <string name="open_note_title">Apri %1$s</string>
 </resources>

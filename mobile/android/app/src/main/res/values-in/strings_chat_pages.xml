@@ -15,4 +15,7 @@
     <string name="create_page_partial">Chat ini sangat panjang, sehingga sebagian isinya dilewati.</string>
     <string name="open_page">Buka catatan</string>
     <string name="language_current">Bahasa: %1$s</string>
+    <string name="recently_edited">Baru diedit</string>
+    <string name="note_attached">Terlampir</string>
+    <string name="open_note_title">Buka %1$s</string>
 </resources>
