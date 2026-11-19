@@ -107,7 +107,7 @@ Preview 的 `DATABASE_URL` 由 Neon 的 Vercel 集成按 git 分支提供（见�
 
 Preview 永远不连生产库，也不碰生产的图片。2026-11-19 起由 Neon 的 Vercel 集成（Neon 控制台 → 项目 `neon_db` → Integrations → Vercel）自动管理：
 
-1. 每个 git 分支第一次部署 Preview 时，集成先取消那次构建，从 `production` 复制出 Neon 分支 `preview/<git 分支名>`，把它的 `DATABASE_URL` / `DATABASE_URL_UNPOOLED` 写成只对这个 git 分支生效的 Preview 变量，再重新部署。之后同一分支的部署都连这个库。
+1. 每个 git 分支第一次部署 Preview 时，集成先取消那次构建，从 `production` 复制出 Neon 分支 `preview/<git 分支名>`，把它的 `DATABASE_URL` / `DATABASE_URL_UNPOOLED` 写成只对这个 git 分支生效的 Preview 变量，再重新部署。之后同一分支的部署都连这个库。被取消的那次构建会在 GitHub PR 上显示成一个失败的 Vercel 检查，合并前等重新部署那次变成成功。
 2. 构建里的 `prisma migrate deploy` 只改这个分支库，不碰 `production` 和别的 PR。
 3. git 分支合并或删除后，集成自动删掉对应的 Neon 分支（集成设置里的 “Automatically delete obsolete Neon branches”）。
 4. Production 的 `DATABASE_URL` 不归集成管，仍是原来的值。集成另外加了 Production 的 `DATABASE_URL_UNPOOLED` 和 Development 的变量（指向 Neon 分支 `vercel-dev`），代码都不读，本地开发照旧用 `.env`。
