@@ -15,4 +15,7 @@
     <string name="create_page_partial">แชทนี้มีความยาวมาก ระบบจึงตัดเนื้อหาบางส่วนออก</string>
     <string name="open_page">เปิดโน้ต</string>
     <string name="language_current">ภาษา: %1$s</string>
+    <string name="recently_edited">แก้ไขล่าสุด</string>
+    <string name="note_attached">แนบแล้ว</string>
+    <string name="open_note_title">เปิด %1$s</string>
 </resources>

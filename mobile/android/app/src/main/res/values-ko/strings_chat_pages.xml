@@ -15,4 +15,7 @@
     <string name="create_page_partial">대화가 길어 일부 내용은 생략되었어요.</string>
     <string name="open_page">노트 열기</string>
     <string name="language_current">언어: %1$s</string>
+    <string name="recently_edited">최근 편집됨</string>
+    <string name="note_attached">첨부됨</string>
+    <string name="open_note_title">%1$s 열기</string>
 </resources>

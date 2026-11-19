@@ -742,6 +742,13 @@ class ChatViewModel(
         _state.update { if (it.upload != null) it else it.copy(attachedPages = pages, notice = null) }
     }
 
+    fun toggleRecentNote(note: ChatProjectNote) {
+        _state.update { state ->
+            if (state.upload != null) state
+            else state.copy(attachedPages = toggleProjectNote(state.attachedPages, note, MAX_MESSAGE_NOTES), notice = null)
+        }
+    }
+
     /** 点掉输入栏上方的一篇笔记。 */
     fun removeAttachedPage(id: String) {
         _state.update { state ->

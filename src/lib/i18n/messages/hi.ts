@@ -444,6 +444,8 @@ export const hi: Record<string, string> = {
   "Reasoning effort": "सोचने की गहराई",
   "Reasoning effort: {currentReasoningLabel}": "सोचने की गहराई: {currentReasoningLabel}",
   "Reasoning settings": "सोच की सेटिंग्स",
+  "Attached": "संलग्न",
+  "Open {title}": "{title} खोलें",
   "Recently edited": "हाल ही में संपादित",
   "Recently used": "हाल ही में प्रयुक्त",
   "Red": "लाल",

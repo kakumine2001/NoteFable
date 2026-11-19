@@ -444,6 +444,8 @@ export const fr: Record<string, string> = {
   "Reasoning effort": "Niveau de réflexion",
   "Reasoning effort: {currentReasoningLabel}": "Niveau de réflexion : {currentReasoningLabel}",
   "Reasoning settings": "Paramètres de réflexion",
+  "Attached": "Jointe",
+  "Open {title}": "Ouvrir {title}",
   "Recently edited": "Modifiées récemment",
   "Recently used": "Utilisés récemment",
   "Red": "Rouge",

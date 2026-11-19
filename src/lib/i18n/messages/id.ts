@@ -444,6 +444,8 @@ export const id: Record<string, string> = {
   "Reasoning effort": "Tingkat penalaran",
   "Reasoning effort: {currentReasoningLabel}": "Tingkat penalaran: {currentReasoningLabel}",
   "Reasoning settings": "Pengaturan penalaran",
+  "Attached": "Terlampir",
+  "Open {title}": "Buka {title}",
   "Recently edited": "Baru diedit",
   "Recently used": "Baru digunakan",
   "Red": "Merah",

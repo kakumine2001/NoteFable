@@ -15,4 +15,7 @@
     <string name="create_page_partial">Đoạn chat này khá dài nên một phần nội dung đã được lược bớt.</string>
     <string name="open_page">Mở ghi chú</string>
     <string name="language_current">Ngôn ngữ: %1$s</string>
+    <string name="recently_edited">Chỉnh sửa gần đây</string>
+    <string name="note_attached">Đã đính kèm</string>
+    <string name="open_note_title">Mở %1$s</string>
 </resources>

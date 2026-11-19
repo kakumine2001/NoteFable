@@ -15,4 +15,7 @@
     <string name="create_page_partial">Cette discussion étant longue, une partie a été omise.</string>
     <string name="open_page">Ouvrir la note</string>
     <string name="language_current">Langue : %1$s</string>
+    <string name="recently_edited">Modifiées récemment</string>
+    <string name="note_attached">Jointe</string>
+    <string name="open_note_title">Ouvrir %1$s</string>
 </resources>

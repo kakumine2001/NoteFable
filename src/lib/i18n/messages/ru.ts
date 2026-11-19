@@ -444,6 +444,8 @@ export const ru: Record<string, string> = {
   "Reasoning effort": "Уровень размышления",
   "Reasoning effort: {currentReasoningLabel}": "Уровень размышления: {currentReasoningLabel}",
   "Reasoning settings": "Настройки размышления",
+  "Attached": "Прикреплено",
+  "Open {title}": "Открыть {title}",
   "Recently edited": "Недавно изменённые",
   "Recently used": "Недавно использованные",
   "Red": "Красный",

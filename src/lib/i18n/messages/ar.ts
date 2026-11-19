@@ -444,6 +444,8 @@ export const ar: Record<string, string> = {
   "Reasoning effort": "عمق التفكير",
   "Reasoning effort: {currentReasoningLabel}": "عمق التفكير: {currentReasoningLabel}",
   "Reasoning settings": "إعدادات التفكير",
+  "Attached": "مرفقة",
+  "Open {title}": "فتح {title}",
   "Recently edited": "المعدّلة مؤخراً",
   "Recently used": "المستخدمة مؤخراً",
   "Red": "أحمر",

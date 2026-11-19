@@ -29,6 +29,8 @@ import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -268,6 +270,21 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 busy = turnBusy,
             )
         }
+        val showRecentNotes = notes.workspace == Workspace.Chat && state.messages.isEmpty() &&
+            !state.messagesLoading && !state.messagesFailed && !state.sessionsLoading
+        val recentNotes = if (showRecentNotes) key(account.user?.email) {
+            // An export or applied proposal refreshes notes.pages, including while chat stays open.
+            val recent by produceState<List<NotePageSummary>>(emptyList(), notes.pages) {
+                try {
+                    value = app.api.recentNotes()
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    value = emptyList()
+                }
+            }
+            recent
+        } else emptyList()
         when {
             notes.workspace == Workspace.Chat -> androidx.compose.runtime.CompositionLocalProvider(LocalOpenNote provides notesViewModel::openNoteFromLink, LocalAnswerSessionId provides state.activeSessionId, LocalConversationDownloader provides conversationDownloader) { ChatScreen(
                 state = state,
@@ -293,6 +310,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onDismissGuestLimit = viewModel::dismissGuestLimit,
                 onDismissUpgradeLimit = viewModel::dismissUpgradeLimit,
                 loadNotes = { app.api.notes().pages.map { com.kakumine.notefable.data.ChatProjectNote(it.id, it.title, it.icon) } },
+                recentNotes = recentNotes,
+                onToggleRecentNote = viewModel::toggleRecentNote,
                 onAttachPages = viewModel::setAttachedPages,
                 onRemovePage = viewModel::removeAttachedPage,
                 onCreatePage = { id -> createPageSessionId = id },

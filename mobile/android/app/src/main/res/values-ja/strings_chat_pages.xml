@@ -14,4 +14,7 @@
     <string name="create_page_partial">長い会話なので、一部を省きました。</string>
     <string name="open_page">ノートを開く</string>
     <string name="language_current">言語：%1$s</string>
+    <string name="recently_edited">最近の編集</string>
+    <string name="note_attached">添付済み</string>
+    <string name="open_note_title">「%1$s」を開く</string>
 </resources>

@@ -210,6 +210,8 @@ class NoteFableApi(
 
     override suspend fun notes(): NotesList = getJson("/api/pages")
 
+    suspend fun recentNotes(): List<NotePageSummary> = getJson<NotesList>("/api/pages?recent=1").pages
+
     // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
     override suspend fun createNote(parentId: String?): NotePageSummary {
         val body = buildJsonObject {

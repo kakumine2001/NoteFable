@@ -3023,13 +3023,15 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
     mask-image: linear-gradient(to right, transparent, #000 0.5rem, #000 calc(100% - 2rem), transparent);
   }
   .notes-recent-list li { flex: none; scroll-snap-align: start; }
-  .notes-recent-card {
-    position: relative; display: flex; width: 9.5rem; height: 9.5rem; flex-direction: column; overflow: hidden; padding: 0 0.9rem 0.8rem; text-align: start;
-    border: 1px solid var(--notion-border); border-radius: 0.9rem; background: var(--notion-bg); box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04);
-    transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
-  }
-  .notes-recent-card:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--notion-border-strong); box-shadow: 0 8px 20px rgba(15, 15, 15, 0.08); }
-  .notes-recent-card:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+}
+.notes-recent-card {
+  position: relative; display: flex; width: 9.5rem; height: 9.5rem; flex-direction: column; overflow: hidden; padding: 0 0.9rem 0.8rem; text-align: start;
+  border: 1px solid var(--notion-border); border-radius: 0.9rem; background: var(--notion-bg); box-shadow: 0 1px 2px rgba(15, 15, 15, 0.04);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.notes-recent-card:hover:not(:disabled) { transform: translateY(-2px); border-color: var(--notion-border-strong); box-shadow: 0 8px 20px rgba(15, 15, 15, 0.08); }
+.notes-recent-card:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 2px; }
+@media (min-width: 640px) {
   .notes-recent-cover { display: block; flex: none; height: 2.75rem; margin: 0 -0.9rem; background: var(--notion-sidebar); }
   .notes-recent-icon { display: grid; width: 2rem; height: 2rem; flex: none; place-items: center start; margin-top: -1rem; font-size: 1.6rem; line-height: 1; color: var(--notion-faint); }
   .notes-recent-name {
@@ -3042,9 +3044,38 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 @media (min-width: 1024px) {
   .notes-home .notion-home-switch { display: none; }
 }
-@media (min-width: 640px) and (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) {
   .notes-recent-card { transition: none; }
   .notes-recent-card:hover:not(:disabled) { transform: none; }
+}
+
+.chat-recent { margin-top: 0.75rem; }
+.chat-recent header { display: flex; justify-content: space-between; align-items: center; color: var(--notion-muted); font-size: 0.8125rem; }
+.chat-recent h2 { font-weight: 600; }
+.chat-recent-all { display: inline-flex; gap: 0.25rem; align-items: center; padding-inline: 0.25rem; min-height: 2rem; }
+.chat-recent ul { display: flex; gap: 0.5rem; overflow-x: auto; padding: 0.25rem 0.2rem; scrollbar-width: thin; }
+.chat-recent li { position: relative; flex: none; }
+.chat-recent .notes-recent-card { width: 9.5rem; height: auto; min-height: 6.25rem; padding: 0.625rem 0.75rem; gap: 0.25rem; }
+.chat-recent .notes-recent-card[aria-pressed="true"] { border-color: var(--nf-accent-line); background: var(--nf-accent-soft); }
+.chat-recent .notes-recent-card:disabled { opacity: 0.55; }
+.chat-recent-icon { display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.5rem; background: var(--notion-sidebar); color: var(--notion-muted); }
+.chat-recent-title { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 600; }
+.chat-recent-action { display: flex; align-items: center; gap: 0.25rem; color: var(--notion-muted); font-size: 0.75rem; }
+.chat-recent-open { position: absolute; inset-block-start: 1px; inset-inline-end: 1px; display: grid; place-items: center; width: 2rem; height: 2rem; border-radius: 0.75rem; color: var(--notion-muted); }
+@media (max-width: 639px) {
+  .notion-chat-scroll:has(.chat-recent) { container: empty-chat / size; }
+  .notion-chat-scroll > .notion-page-column:has(.chat-recent) { padding-bottom: 0; }
+  .notion-chat-workspace.is-empty:has(.chat-recent) .notion-scroll-bottom { display: none; }
+  .chat-recent ul { scrollbar-width: none; scroll-snap-type: x proximity; }
+  .chat-recent li { scroll-snap-align: start; }
+  .chat-recent-all, .chat-recent-open { min-height: 3rem; min-width: 3rem; }
+}
+@container empty-chat (height < 25rem) {
+  .notion-page-column:has(.chat-recent) .nf-mascot-stage { display: none; }
+}
+.chat-recent-open:hover { background: var(--notion-hover); }
+@media (min-width: 640px) and (hover: hover) and (pointer: fine) {
+  .chat-recent li:not(:hover):not(:focus-within) .chat-recent-open { opacity: 0; }
 }
 
 /* Language search stays visible while a growing list scrolls within the viewport. */

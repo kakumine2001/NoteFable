@@ -625,6 +625,8 @@ export const ja: Record<string, string> = {
   "Good morning": "おはようございます",
   "Good afternoon": "こんにちは",
   "Good evening": "こんばんは",
+  "Attached": "添付済み",
+  "Open {title}": "「{title}」を開く",
   "Recently edited": "最近の編集",
   "Home": "ホーム",
   "Stop generating": "生成を停止",
