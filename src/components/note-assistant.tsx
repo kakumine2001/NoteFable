@@ -184,8 +184,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const drag = useRef<{ pointerId: number; startX: number; startY: number; right: number; bottom: number; last: FabPosition | null } | null>(null);
   // ドラッグを終えた直後のクリックでは開閉しない。
   const skipClick = useRef(false);
-  // CSS の .note-ai-fab と同じ大きさ（3rem、スマホは 3.25rem）。
-  const fabSize = (phone ? 3.25 : 3) * viewport.rem;
+  // CSS の .note-ai-fab と同じ大きさ（3.25rem、スマホは 3.5rem）。
+  const fabSize = (phone ? 3.5 : 3.25) * viewport.rem;
   // 画面が小さくなっても、ボタンは必ず画面の中に置く。
   const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
 
@@ -457,7 +457,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           </div>
         ) : messages.map((message) => (
           <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
-            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} />
+            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
         ))}
       </div>
 
@@ -523,7 +523,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
         aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
-        <AppIcon size={28} state={noteCharacterState} animated />
+        <AppIcon size={34} state={noteCharacterState} animated />
       </button>
       {open && (phone
         ? createPortal(
