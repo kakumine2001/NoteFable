@@ -103,22 +103,6 @@ Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，�
 
 仍需注意：Preview 环境如果复用生产 `DATABASE_URL`，也可能触发 migration，所以环境变量必须明确区分。
 
-### Preview 数据库（每个 git 分支一个 Neon 分支）
-
-Preview 永远不连生产库。Neon 项目 `neon_db` 里有两类非生产分支：
-
-- `preview`：Vercel Preview 的默认 `DATABASE_URL`（不限分支）指向它。它是 2026-10-23 从 `production` 复制的，之后只靠 Preview 构建里的 `prisma migrate deploy` 跟进。**已执行过的迁移文件被改过时，这里不会自动补**（2026-11-19 就因 `20261118000000_subscription` 事后加列而缺 `User.subscriptionProvider`，Preview 全部 500）。
-- `preview/<git 分支名，/ 换成 ->`：给某个 PR 单独用的分支。Vercel 的 Preview 环境变量可以限定 git 分支，限定分支的值优先于不限分支的值，所以这个 PR 的 Preview 会连自己的 Neon 分支，其他 Preview 不受影响。
-
-给一个 git 分支开独立数据库：
-
-1. Neon：从 `production` 建分支 `preview/<名字>`（compute 0.25–0.5 CU 够用），取它的 **pooled** 连接串（主机名带 `-pooler`）。
-2. Vercel：项目 `notefable` → Environment Variables，新增 `DATABASE_URL`，类型 Sensitive，环境只选 Preview，Git Branch 填该分支名。
-3. 重新部署该分支（push 一个提交或在 Vercel 里 Redeploy）。构建时 `prisma migrate deploy` 会把分支里新增的迁移套到这个 Neon 分支上，不碰 `preview` 和 `production`。
-4. 分支合并或放弃后，删掉这个 Vercel 环境变量和 Neon 分支（Neon 免费额度对分支数和 compute 时间有限制）。
-
-注意：从 `production` 复制的分支带有真实用户数据的副本，只给自己测试用，不要分享 Preview 链接。Neon 的 Vercel 集成可以自动为每次 Preview 部署建分支并注入 `DATABASE_URL`，但需要在 Vercel / Neon 控制台里授权安装，目前没装。
-
 ## Database Schema Boundary
 
 NoteFable 的表固定放在 `notefable` schema：`src/lib/database-url.ts` 的 `DATABASE_SCHEMA` 会覆盖 `DATABASE_URL` 里的 `?schema=`（运行时 `src/lib/prisma.ts` 和迁移 `prisma.config.ts` 都是），运行时再显式把它传给 Prisma adapter。连接字符串里写什么 schema 都不影响。
