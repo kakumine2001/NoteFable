@@ -8,16 +8,17 @@ import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
 import { siteHref } from "@/lib/hosts";
+import { msg } from "@/lib/i18n/translate";
 import { INTRO_HREF } from "@/lib/i18n/routing";
 import { afterSheetHistory, useBackToClose } from "@/lib/use-back-to-close";
 
 // 紹介サイト（/?intro は回訪者でもワークスペースへ戻されない）と法律のページ。紹介サイトとワークスペースを別ホストにしたときは
 // 紹介サイトのホストへの絶対 URL になる（src/lib/hosts.ts）。
 const LINKS = [
-  { href: siteHref(INTRO_HREF), label: "Visit website", icon: Info },
-  { href: siteHref("/privacy"), label: "Privacy", icon: Shield },
-  { href: siteHref("/terms"), label: "Terms", icon: FileText },
-  { href: siteHref("/legal-notice"), label: "Commercial disclosure", icon: Scale },
+  { href: siteHref(INTRO_HREF), label: msg("Visit website"), icon: Info },
+  { href: siteHref("/privacy"), label: msg("Privacy"), icon: Shield },
+  { href: siteHref("/terms"), label: msg("Terms"), icon: FileText },
+  { href: siteHref("/legal-notice"), label: msg("Commercial disclosure"), icon: Scale },
 ] as const;
 
 // サイドバー下部の「?」。紹介・プライバシー・利用規約・特商法表記（と、ログインしていなければ表示言語）をここにまとめ、

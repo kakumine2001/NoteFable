@@ -48,4 +48,14 @@ class ChatLinkTest {
         assertEquals(ChatLink.Open("c1", null), ChatLink.parse("https://www.notefable.com/?chat=c1", base))
         assertNull(ChatLink.parse("https://evil.notefable.com/?chat=c1", base))
     }
+
+    @Test
+    fun `opens shared conversation links`() {
+        val base = "https://app.notefable.com"
+        assertEquals(ChatLink.Open("c1", "m1"), ChatLink.parse("https://app.notefable.com/c/c1?message=m1", base))
+        assertEquals(ChatLink.Open("c1", null), ChatLink.parse("https://app.notefable.com/c/c1/", base))
+        assertEquals(ChatLink.Invalid, ChatLink.parse("https://app.notefable.com/c/bad%20id", base))
+        assertNull(ChatLink.parse("https://app.notefable.com/c/", base))
+        assertNull(ChatLink.parse("https://app.notefable.com/c/c1/extra", base))
+    }
 }

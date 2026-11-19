@@ -27,6 +27,9 @@ export default function PrivacyPage() {
             When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
             name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only
             cookie, valid for 5 minutes, while it signs you in.
+            The workspace (app.notefable.com) also sets a cookie named <code>notefable_app</code> for notefable.com and its subdomains
+            (valid for about 13 months). It only records that this browser has used the workspace, so notefable.com can take you straight back to it;
+            it contains no identifier.
           </li>
           <li>
             <strong>Google sign-in (optional).</strong> If you choose “Sign in with Google”, Google gives us your Google account ID,

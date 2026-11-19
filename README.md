@@ -284,7 +284,7 @@ Notes 编辑和自动保存本身不调用 AI；笔记内的 AI 助手只在用�
 
 ## 回答的复制、保存与导出
 
-每条完成的 AI 回答下面只保留复制和三个点（More options）两个图标；三个点菜单里提供 Save to page、保存后的 Open saved page，以及 Download conversation（下载整段对话），把好的回答直接用到工作里，不必再请 AI 重述。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（`POST /api/pages`，和手动新建同一个接口）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用和 Web 搜索的出处链接（表格变成每行一个段落），末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/?chat=<会话 ID>&message=<消息 ID>`，打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie / Google 账号归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
+每条完成的 AI 回答下面只保留复制和三个点（More options）两个图标；三个点菜单里提供 Save to page、保存后的 Open saved page，以及 Download conversation（下载整段对话），把好的回答直接用到工作里，不必再请 AI 重述。Copy 复制保存的 Markdown 原文；Save to page 一键新建一篇笔记（`POST /api/pages`，和手动新建同一个接口）：标题取回答的第一个标题或第一行，正文保留列表、代码块、引用和 Web 搜索的出处链接（表格变成每行一个段落），末尾附分隔线和指回原会话的链接；Download conversation 会读取这个聊天从头到尾的全部已保存消息，按顺序包含你的提问和 AI 回答，以会话标题命名 `.md` 文件，并保留代码、引用链接和附件名称（图片保留需登录查看的链接，不打包附件原文件），末尾附原会话链接。复制和 Save to page 仍只处理点选的那条回答。回到原会话的链接形如 `/c/<会话 ID>?message=<消息 ID>`（以前的 `/?chat=<会话 ID>&message=<消息 ID>` 也能开），打开后进入该会话并滚到那条消息；它不是分享链接，仍按设备 Cookie / Google 账号归属。过长的回答存成笔记时会在块的边界截断并注明（上限 2,000 个块、1 MiB）。“已保存”只在当前页面内记得，刷新后再点会新建第二篇。没有新增环境变量和数据库迁移。详见 [chat-flow.md](docs/architecture/chat-flow.md#回答的复制保存到-notes-与-markdown-导出)。
 
 ## 搜索、项目上下文与 Trash
 

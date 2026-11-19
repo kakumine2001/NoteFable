@@ -3,7 +3,8 @@ package com.kakumine.notefable.data
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 /**
- * 指向聊天的链接：`https://<站点>/?chat=<会话>&message=<消息>`（保存到笔记、下载的 Markdown 里写的，见 src/lib/answer-export.ts），
+ * 指向聊天的链接：`https://<站点>/c/<会话>?message=<消息>`（保存到笔记、下载的 Markdown 里写的，见 src/lib/answer-export.ts），
+ * 以前的 `https://<站点>/?chat=<会话>&message=<消息>`，
  * 以及服务端转发后的 `/app?chat=…`、`/<语言>/app?chat=…`。规则同网页 `src/app/[locale]/app/page.tsx` 打开链接的部分。
  */
 sealed interface ChatLink {
@@ -31,8 +32,11 @@ sealed interface ChatLink {
             val base = baseUrl.toHttpUrlOrNull() ?: return null
             if (!sameSite(target, base)) return null
             val path = target.encodedPath
-            if (path != "/" && path != "/app" && path != "/app/" && !LOCALE_APP.matches(path)) return null
-            val chatId = target.queryParameter("chat")?.takeIf { it.isNotEmpty() } ?: return null
+            val segments = target.pathSegments
+            // 分享链接 /c/<会话>?message=…（网页 answerConversationUrl 现在生成的形式）。
+            val shared = if (segments.size in 2..3 && segments[0] == "c" && segments.getOrNull(2).isNullOrEmpty()) segments[1] else null
+            if (shared == null && path != "/" && path != "/app" && path != "/app/" && !LOCALE_APP.matches(path)) return null
+            val chatId = (shared ?: target.queryParameter("chat"))?.takeIf { it.isNotEmpty() } ?: return null
             if (!LINK_ID.matches(chatId)) return Invalid
             val messageId = target.queryParameter("message")?.takeIf { LINK_ID.matches(it) }
             return Open(chatId, messageId)

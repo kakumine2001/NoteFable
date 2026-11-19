@@ -75,12 +75,7 @@ class PersistentCookieJar(context: Context) : CookieJar {
         for ((key, cookie) in moving) {
             cookies.remove(key)
             editor.remove(key)
-            val moved = Cookie.Builder().name(cookie.name).value(cookie.value).expiresAt(cookie.expiresAt)
-                .hostOnlyDomain(to).path(cookie.path).apply {
-                    if (cookie.secure) secure()
-                    if (cookie.httpOnly) httpOnly()
-                    cookie.sameSite?.let { sameSite(it) }
-                }.build()
+            val moved = relocate(cookie, to)
             val movedKey = keyOf(moved)
             if (movedKey in cookies) continue
             cookies[movedKey] = moved
@@ -114,5 +109,16 @@ class PersistentCookieJar(context: Context) : CookieJar {
                 f.getOrNull(8)?.takeIf { it.isNotEmpty() }?.let { sameSite(it) }
             }.build()
         }.getOrNull()
+    }
+
+    companion object {
+        /** 同样的 Cookie（值、期限、路径、Secure / HttpOnly / SameSite），只把主机换成 [host]（仍然只发给这个主机）。 */
+        fun relocate(cookie: Cookie, host: String): Cookie =
+            Cookie.Builder().name(cookie.name).value(cookie.value).expiresAt(cookie.expiresAt)
+                .hostOnlyDomain(host).path(cookie.path).apply {
+                    if (cookie.secure) secure()
+                    if (cookie.httpOnly) httpOnly()
+                    cookie.sameSite?.let { sameSite(it) }
+                }.build()
     }
 }

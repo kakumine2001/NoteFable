@@ -47,6 +47,8 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
 | `notefable.com/note-embed` | 照常提供（已安装的旧版 Android App 从这里加载笔记编辑器） |
 | `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
+| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`） |
+| `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
 | 两个主机的 `/api/*` | 都照常提供，**不做跳转**：旧版 Android App 的 `BASE_URL` 是 `https://notefable.com`，Stripe Webhook 和 Google Play RTDN（Pub/Sub push）的端点也登记在 `notefable.com`，它们都不跟随跳转（RTDN 的 audience 默认取请求 URL）。要迁移这些端点，先改 Stripe 端点、Pub/Sub 订阅和 `GOOGLE_PLAY_PUSH_AUDIENCE` |
 
