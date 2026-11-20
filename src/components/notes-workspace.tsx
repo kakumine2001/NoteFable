@@ -79,7 +79,9 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   }, [activeId, loading, emptyPage, settings.locked]);
 
   return <div className={`notes-workspace flex-1 overflow-y-auto${pageClass}`}>
-    {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
+    {/* 一覧を読み込み中・失敗したときも、スマホの「聊天 / 笔记」切り替えを消さない。 */}
+    {listMode && !(notes.pages.length || notes.groups.length) && (loading || error) && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
+    {error &&<div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />

@@ -42,6 +42,8 @@
 /* ナビ */
 .tl-nav { position: relative; z-index: 2; display: flex; height: 72px; align-items: center; justify-content: space-between; }
 .tl-brand { display: inline-flex; align-items: center; gap: 9px; color: var(--tl-ink); font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
+/* ロゴのリンクは指で押しやすい高さにする（見た目の大きさは変えない）。 */
+a.tl-brand { min-height: 44px; }
 .tl-nav-cta { display: inline-flex; min-height: 40px; align-items: center; gap: 8px; padding: 0 16px; border: 1px solid var(--tl-line); border-radius: 999px; background: #fff; color: var(--tl-ink) !important; font-size: 14px; font-weight: 550; transition: border-color 160ms ease, background-color 160ms ease; }
 .tl-nav-cta svg { transition: transform 160ms ease; }
 .tl-nav-cta:hover { border-color: var(--tl-ink); background: var(--tl-soft); }
