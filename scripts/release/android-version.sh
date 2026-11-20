@@ -21,7 +21,6 @@ git rev-parse --verify --quiet HEAD^2 > /dev/null || {
   echo "::error::An Android release requires a PR merged with a merge commit."
   exit 1
 }
-echo "versionCode $before -> $after. Play alpha release is planned for $(git rev-parse HEAD)."
 version_name() {
   git show "$1:$config" | sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)"[[:space:]]*$/\1/p'
 }
@@ -31,5 +30,6 @@ if [[ -z "$old_name" || -z "$new_name" || "$old_name" == *$'\n'* || "$new_name" 
   echo "::error::Update versionName when increasing versionCode."
   exit 1
 fi
+echo "versionCode $before -> $after. Play alpha release is planned for $(git rev-parse HEAD)."
 echo "version_code=$after" >> "$GITHUB_OUTPUT"
 echo 'publish=true' >> "$GITHUB_OUTPUT"
