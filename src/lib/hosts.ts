@@ -50,8 +50,9 @@ export function siteHref(path: string, hosts = splitHosts(), currentHost = typeo
 }
 
 // 今のページが紹介サイトのホストか（ブラウザだけ。ホストを分けていない環境では false）。このホストには API もログインも無い。
+// 名前が同じでポートだけ違う構成（手元）は API を止めていないので、紹介サイトのホストとは見なさない。
 export function onSiteHost(hosts = splitHosts(), currentHost = typeof window === "undefined" ? null : window.location.host) {
-  return Boolean(hosts && currentHost === hosts.siteHost);
+  return Boolean(hosts && currentHost === hosts.siteHost && siteApiBlocked(hosts));
 }
 
 // 紹介サイトのホストでは API を配らない（API はワークスペースのホストだけ）。例外は紹介ページの言語メニューが読む辞書（/api/i18n）。
@@ -61,12 +62,15 @@ export const SITE_API_BLOCKED_PATH = "/api/unavailable";
 
 const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
+// Next.js は Host ヘッダーのポートを除いた名前と比べる。名前が同じでポートだけ違う構成（手元で 2 つのポートに分けたとき）は
+// 見分けられないので、何も止めない。
+function siteApiBlocked(hosts: SplitHosts) {
+  return new URL(hosts.site).hostname !== new URL(hosts.app).hostname;
+}
+
 export function siteApiBlockRewrites(hosts = splitHosts()) {
-  if (!hosts) return [];
-  // Next.js は Host ヘッダーのポートを除いた名前と比べるので、ここもポート無しの名前にする。
-  // 名前が同じでポートだけ違う構成（手元で 2 つのポートに分けたとき）は見分けられないので、何も止めない。
+  if (!hosts || !siteApiBlocked(hosts)) return [];
   const siteName = new URL(hosts.site).hostname;
-  if (siteName === new URL(hosts.app).hostname) return [];
   return [{
     source: `/api/:path((?!(?:${SITE_API_PATHS.map(escapeRegex).join("|")})$).*)`,
     has: [{ type: "host" as const, value: escapeRegex(siteName) }],

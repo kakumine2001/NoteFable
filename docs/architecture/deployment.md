@@ -45,7 +45,7 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | --- | --- |
 | `notefable.com/` | 介绍页；用过工作区的设备（共享提示 Cookie `notefable_app`，或旧的设备 / 登录 Cookie）转到 `app.notefable.com/`，`/?intro` 始终显示介绍页 |
 | `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
-| `notefable.com/note-embed` | 307 转到 `app.notefable.com/note-embed`，保留查询参数（编辑器用的接口只在工作区主机） |
+| `notefable.com/note-embed`、`notefable.com/<语言>/note-embed` | 307 转到 `app.notefable.com` 的同一路径，保留查询参数（编辑器用的接口只在工作区主机） |
 | `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
 | 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`） |
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
@@ -58,7 +58,7 @@ Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Co
 上线 / 回退步骤：
 
 1. Vercel 项目添加 `app.notefable.com`（Vercel 管理 DNS，自动签发证书）。
-2. Google OAuth 客户端登记 `https://app.notefable.com/api/auth/callback/google`（保留原来的 `notefable.com` 回调）。
+2. Google OAuth 客户端登记 `https://app.notefable.com/api/auth/callback/google`（`notefable.com` 的回调不登记）。
 3. Stripe Webhook 端点、Pub/Sub push 订阅（地址和 audience）和 `GOOGLE_PLAY_PUSH_AUDIENCE` 都改成 `app.notefable.com` 的地址。
 4. Production 设置上面两个变量并重新部署。
 5. 回退：删除两个变量并重新部署，即回到单主机，`notefable.com/api/*` 恢复可用；`app.notefable.com` 可以保留，第 3 步登记的地址不用改回。
@@ -207,7 +207,7 @@ AUTH_GOOGLE_ID
 AUTH_GOOGLE_SECRET
 ```
 
-三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（分域后登录在 `app.notefable.com` 进行，登记这个主机的回调；`notefable.com` 的回调在分域时不可用，只为回退到单主机保留）（本地为 `http://localhost:3000/api/auth/callback/google`）。
+三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（分域后登录在 `app.notefable.com` 进行，登记这个主机的回调；`notefable.com` 的回调不登记；回退到单主机时要重新登记）（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
 **Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在聊天 / 笔记侧栏底部（网页和 Android）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记了 `https://notefable.com/api/auth/callback/google` 和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
 

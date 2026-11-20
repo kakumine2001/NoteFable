@@ -40,5 +40,5 @@ function singleLocaleCookie(header: string | null) {
 
 export const config = {
   // PROXY_MATCHER（src/lib/i18n/routing.ts）と同じ値。
-  matcher: ["/", "/app", "/note-embed", "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app"],
+  matcher: ["/", "/app", "/note-embed", "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/note-embed"],
 };
