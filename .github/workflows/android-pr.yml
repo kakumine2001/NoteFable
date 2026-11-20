@@ -2,14 +2,13 @@ name: Android PR checks
 
 on:
   pull_request:
+    # edited: re-check when the PR is retargeted to main; title or body edits are skipped below.
     types: [opened, synchronize, reopened, edited]
     branches: [main]
     paths:
       - "mobile/android/**"
       - ".github/workflows/android-*.yml"
       - "scripts/release/android-version.sh"
-      - "docs/architecture/android.md"
-      - "AGENTS.md"
 
 permissions:
   contents: read
@@ -20,12 +19,13 @@ concurrency:
 
 jobs:
   android:
+    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
       - name: Validate Android version
         run: bash scripts/release/android-version.sh
