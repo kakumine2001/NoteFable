@@ -68,8 +68,9 @@ export function PlanSettings() {
             const label = kind === "chat"
               ? (entry.period === "day" ? t("Messages today") : pro ? t("Messages this period") : t("Messages this month"))
               : (entry.period === "day" ? t("Image generations today") : pro ? t("Image generations this period") : t("Image generations this month"));
-            // 無料プランは「今月の画像」を出さず、今日の画像生成だけを表示する。Pro は今期の上限と今日の分を並べる。
-            const meters = kind === "image" && !pro && entry.daily
+            // 無料プランは通常「今月の画像生成」を出さず今日の分だけを表示する（月上限に達したときだけ満額バーを出して理由が分かるようにする）。Pro は今期と今日を並べる。
+            const hideMonthlyFreeImage = kind === "image" && !pro && Boolean(entry.daily) && entry.used < entry.limit;
+            const meters = hideMonthlyFreeImage
               ? []
               : [{ key: kind as string, label, used: entry.used, limit: entry.limit }];
             if (entry.daily) meters.push({ key: `${kind}-day`, label: t("Image generations today"), used: entry.daily.used, limit: entry.daily.limit });

@@ -65,6 +65,26 @@ describe("PlanSettings usage meters and copy", () => {
     expect(text).toContain("2,000 messages and 60 image generations a month. Cancel anytime.");
   });
 
+  it("shows monthly image usage on Free plan once the monthly cap is reached", () => {
+    state.plan = {
+      plan: "free",
+      provider: null,
+      billing: true,
+      priceJpy: 300,
+      trialDays: 0,
+      canManage: false,
+      manageUrl: null,
+      subscription: null,
+      usage: {
+        chat: { used: 0, limit: 40, period: "day", resetsAt: "2026-11-22T00:00:00Z" },
+        image: { used: 20, limit: 20, period: "month", resetsAt: "2026-12-01T00:00:00Z", daily: { used: 0, limit: 5, resetsAt: "2026-11-22T00:00:00Z" } },
+      },
+    };
+    const text = collectText(PlanSettings());
+    expect(text).toContain("Image generations this month 20 / 20");
+    expect(text).toContain("Image generations today 0 / 5");
+  });
+
   it("shows both period and daily image generation meters on Pro plan", () => {
     state.plan = {
       plan: "pro",
