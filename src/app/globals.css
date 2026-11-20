@@ -953,6 +953,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* 入力欄の上の引用と、送った発言の先頭の引用。左（RTL では右）の線と灰色の文字、長いものは 3 行で切る。 */
 .chat-quote { display: flex; align-items: flex-start; gap: .5rem; min-width: 0; padding-inline-start: .65rem; border-inline-start: 2px solid var(--notion-border); color: var(--notion-muted); font-size: .8125rem; line-height: 1.45rem; }
 .chat-quote-text { min-width: 0; flex: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-quote.is-sent .chat-quote-text { display: block; -webkit-line-clamp: none; overflow: visible; }
 .chat-quote-remove { display: grid; flex: none; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: .35rem; color: var(--notion-muted); }
 .chat-quote-remove:hover, .chat-quote-remove:focus-visible { background: var(--notion-hover); outline: none; }
 /* 会話へファイルをドラッグしている間の受け皿（パソコンのみ）。 */

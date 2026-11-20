@@ -10,7 +10,7 @@ const BUTTON_HEIGHT = 36;
 const GAP = 8;
 const EDGE = 8;
 
-type Placement = { top: number; left: number; text: string };
+type Placement = { top: number; left: number; range: Range };
 
 /** 選択した範囲が 1 つの引用できる回答（data-quotable）の中に収まっているときの、その回答の要素。 */
 function quotableOf(node: Node | null, container: HTMLElement): HTMLElement | null {
@@ -19,14 +19,42 @@ function quotableOf(node: Node | null, container: HTMLElement): HTMLElement | nu
   return quotable && container.contains(quotable) ? quotable : null;
 }
 
+/**
+ * 選んだ範囲の文字。selection.toString() だと数式（KaTeX）の読み上げ用 MathML と TeX が重なり、
+ * コードブロックの見出し（言語名・コピー）も混ざるので、複製した範囲から作り直す：
+ * 数式は TeX ソース（$…$ / $$…$$）に置き換え、コードの見出しは落とし、改行は画面上の段落に合わせる（innerText）。
+ */
+function selectedText(range: Range) {
+  const fragment = range.cloneContents();
+  fragment.querySelectorAll(".markdown-code-header").forEach((node) => node.replaceWith());
+  fragment.querySelectorAll(".katex").forEach((node) => {
+    const tex = node.querySelector('annotation[encoding="application/x-tex"]')?.textContent?.trim();
+    const visible = node.querySelector(".katex-html")?.textContent ?? node.textContent ?? "";
+    const display = node.parentElement?.classList.contains("katex-display") ?? false;
+    node.replaceWith(document.createTextNode(tex ? (display ? `$$${tex}$$` : `$${tex}$`) : visible));
+  });
+  // innerText は配置された要素でしか段落の改行を出さないので、画面外に一度置いて読む。
+  const holder = document.createElement("div");
+  holder.className = "markdown-body";
+  holder.style.cssText = "position:fixed;left:-10000px;top:0;width:800px;pointer-events:none;";
+  holder.setAttribute("aria-hidden", "true");
+  holder.append(fragment);
+  document.body.append(holder);
+  try {
+    return holder.innerText;
+  } finally {
+    holder.replaceWith();
+  }
+}
+
 function placementFor(container: HTMLElement): Placement | null {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || !selection.rangeCount) return null;
   const from = quotableOf(selection.anchorNode, container);
   if (!from || from !== quotableOf(selection.focusNode, container)) return null;
-  const text = normalizeQuote(selection.toString());
-  if (!text) return null;
   const range = selection.getRangeAt(0);
+  // 文字の組み立て（複製と配置）は押したときだけ。ここでは空でないことだけ見る。
+  if (!selection.toString().trim()) return null;
   const rects = Array.from(range.getClientRects()).filter((rect) => rect.width || rect.height);
   const first = rects[0] ?? range.getBoundingClientRect();
   const last = rects.at(-1) ?? first;
@@ -40,7 +68,7 @@ function placementFor(container: HTMLElement): Placement | null {
   if (top < view.top - BUTTON_HEIGHT || top > view.bottom) return null;
   const anchor = touch ? last : first;
   const left = Math.min(Math.max(anchor.left, EDGE), window.innerWidth - EDGE);
-  return { top, left, text };
+  return { top, left, range };
 }
 
 /**
@@ -95,7 +123,8 @@ export function QuoteSelectionButton({ container, disabled, onQuote }: {
       onPointerDown={(event) => event.preventDefault()}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => {
-        onQuote(placement.text);
+        const text = normalizeQuote(selectedText(placement.range));
+        if (text) onQuote(text);
         window.getSelection()?.removeAllRanges();
         setPlacement(null);
       }}

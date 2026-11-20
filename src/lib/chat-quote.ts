@@ -14,9 +14,10 @@ export function normalizeQuote(selection: string): string {
     compact.push(line);
   }
   const text = compact.join("\n").trim();
-  if (text.length <= MAX_QUOTE_CHARS) return text;
-  // サロゲートペアの途中で切らない。
-  const clipped = Array.from(text).slice(0, MAX_QUOTE_CHARS).join("").trimEnd();
+  // 文字数は Android（ChatQuote.kt）と同じくコードポイントで数え、サロゲートペアの途中で切らない。
+  const chars = Array.from(text);
+  if (chars.length <= MAX_QUOTE_CHARS) return text;
+  const clipped = chars.slice(0, MAX_QUOTE_CHARS).join("").trimEnd();
   return `${clipped}…`;
 }
 

@@ -755,12 +755,13 @@ class ChatViewModel(
     /** 回答里选中文字点了「问 NoteFable」：放到输入栏上方作为引用（再引用会换掉之前的）。 */
     fun setQuote(text: String) {
         val quote = ChatQuote.normalize(text)
-        if (quote.isNotEmpty()) _state.update { it.copy(quote = quote, notice = null) }
+        // 上传附件时发出的内容已定，引用和附件一样不能改（网页同样）。
+        if (quote.isNotEmpty()) _state.update { if (it.upload != null) it else it.copy(quote = quote, notice = null) }
     }
 
     /** 点掉输入栏上方的引用。 */
     fun clearQuote() {
-        _state.update { it.copy(quote = null) }
+        _state.update { if (it.upload != null) it else it.copy(quote = null) }
     }
 
     /** 点掉输入栏上方的一篇笔记。 */
@@ -1186,8 +1187,10 @@ class ChatViewModel(
             pendingRestores += restore
             return
         }
-        // 带引用的提问：引用回到输入栏上方，输入栏只放提问。
-        val (quote, text) = ChatQuote.split(restore.text)
+        // 带引用的提问：引用回到输入栏上方，输入栏只放提问。等待期间已经选了别的引用时留着它，
+        // 被拒的提问连同引用块整段放回输入栏（网页 restoreComposerText 同样）。
+        val keepQuote = _state.value.quote != null
+        val (quote, text) = if (keepQuote) null to restore.text else ChatQuote.split(restore.text)
         updateDraft(mergeRejectedDraft(text, draft))
         _state.update { state ->
             state.copy(

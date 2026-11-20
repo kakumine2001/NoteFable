@@ -7,6 +7,9 @@ describe("chat quote", () => {
     const long = normalizeQuote("😀".repeat(MAX_QUOTE_CHARS + 5));
     expect(long.endsWith("…")).toBe(true);
     expect(Array.from(long)).toHaveLength(MAX_QUOTE_CHARS + 1);
+    // UTF-16 では上限を超えても、コードポイントで上限内なら切らない。
+    const emoji = "😀".repeat(MAX_QUOTE_CHARS - 1);
+    expect(normalizeQuote(emoji)).toBe(emoji);
   });
 
   it("composes a blockquote in front of the question", () => {

@@ -218,15 +218,17 @@ fun ChatScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     LocalTurnActions provides turnActions,
-                    LocalQuoteSelection provides QuoteSelection(
-                        onQuote = { text ->
-                            onQuote(text)
-                            quoteCount++
-                            // 接着打提问：聚焦输入栏，弹出键盘。
-                            composerFocus.requestFocus()
-                        },
-                        resetKey = quoteCount,
-                    ),
+                    LocalQuoteSelection provides remember(quoteCount, onQuote) {
+                        QuoteSelection(
+                            onQuote = { text ->
+                                onQuote(text)
+                                quoteCount++
+                                // 接着打提问：聚焦输入栏，弹出键盘。
+                                composerFocus.requestFocus()
+                            },
+                            resetKey = quoteCount,
+                        )
+                    },
                 ) {
                     MessageList(
                         state = state,
@@ -718,10 +720,12 @@ private fun UserTurn(message: UiMessage, canEdit: Boolean, editDraft: String?) {
                 if (message.content.isNotEmpty()) {
                     // 回答里引用来问的提问：开头的引用和提问分开，引用灰字在上（网页 chat-message.tsx）。
                     val (quote, body) = remember(message.content) { ChatQuote.split(message.content) }
-                    if (quote != null) QuoteText(quote, Modifier.padding(bottom = 8.dp))
-                    // 网页提问文字是 15px / 行高 28（leading-7），不是回答正文的 16。
                     SelectionContainer {
-                        Text(body, color = Sm.Text, fontSize = 15.sp, lineHeight = 28.sp)
+                        Column {
+                            if (quote != null) QuoteText(quote, Modifier.padding(bottom = 8.dp), maxLines = Int.MAX_VALUE)
+                            // 网页提问文字是 15px / 行高 28（leading-7），不是回答正文的 16。
+                            Text(body, color = Sm.Text, fontSize = 15.sp, lineHeight = 28.sp)
+                        }
                     }
                 }
             }
@@ -835,7 +839,7 @@ private fun Composer(
         prompt?.invoke()
         if (error != null) ComposerError(error)
         // 网页：引用在最上面，笔记在附件上面；上传附件时不能移除。
-        if (quote != null) ComposerQuote(quote, onRemoveQuote)
+        if (quote != null) ComposerQuote(quote, enabled = upload == null, onRemove = onRemoveQuote)
         if (pages.isNotEmpty()) PendingPages(pages, enabled = upload == null, onRemove = onRemovePage)
         if (files.isNotEmpty()) PendingFiles(files, enabled = upload == null, onRemove = onRemoveFile)
         Column(

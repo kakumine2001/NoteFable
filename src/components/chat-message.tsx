@@ -156,8 +156,7 @@ export const ChatMessage = memo(function ChatMessage({
           <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
         )}
         {message.role === "ASSISTANT" ? (
-          // 本文の揃った回答は、一部を選ぶと「NoteFable に聞く」で引用できる（quote-selection.tsx）。
-          <div className="markdown-body" data-quotable={shouldShowAnswerActions ? "" : undefined}>
+          <div className="markdown-body">
             {hasGeneratedImages && (
               // 画像生成モードの結果。本文とは別に、ダウンロード可能な画像として表示する。
               <div className="generated-image-grid">
@@ -185,7 +184,12 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
-            {message.content && <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />}
+            {message.content && (
+              // 本文の揃った回答は、本文の一部を選ぶと「NoteFable に聞く」で引用できる（quote-selection.tsx）。提案カードは対象外。
+              <div data-quotable={shouldShowAnswerActions ? "" : undefined}>
+                <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />
+              </div>
+            )}
             {proposals.map((proposal) => proposal.kind === "proposal"
               ? <PageEditProposal key={proposal.id} proposal={proposal} />
               : <PageCreateProposal key={proposal.id} proposal={proposal} />)}
@@ -226,8 +230,8 @@ export const ChatMessage = memo(function ChatMessage({
             {message.content && (
               <div className="text-[15px] leading-7 text-[var(--notion-text)]">
                 {userQuote.quote && (
-                  // 回答から引用して聞いた発言は、先頭の引用を本文と分けて灰色で出す。
-                  <div className="chat-quote mb-2"><span className="chat-quote-text">{userQuote.quote}</span></div>
+                  // 回答から引用して聞いた発言は、先頭の引用を本文と分けて灰色で出す（省略せず全文）。
+                  <div className="chat-quote is-sent mb-2"><span className="chat-quote-text">{userQuote.quote}</span></div>
                 )}
                 <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{userQuote.body}</div>
               </div>

@@ -2,6 +2,7 @@ package com.kakumine.notefable.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.Build
 import android.graphics.Rect as AndroidRect
 import android.view.ActionMode
 import android.view.Menu
@@ -92,14 +93,8 @@ fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
                         close()
                         return@item
                     }
-                    val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    doCopy()
+                    quoteThroughClipboard(view, { doCopy() }, onQuote)
                     close()
-                    // 复制可能在下一帧才写进剪贴板：等一帧再读。
-                    view.post {
-                        val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(view.context)?.toString()
-                        if (!text.isNullOrBlank()) onQuote(text)
-                    }
                 }
                 item(QuoteMenuKey.Copy, copyLabel) { copy?.invoke(this) ?: close() }
                 item(QuoteMenuKey.SelectAll, selectAllLabel) { selectAll?.invoke(this) ?: close() }
@@ -123,6 +118,37 @@ fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
 }
 
 private enum class QuoteMenuKey { Ask, Copy, SelectAll }
+
+/**
+ * 「问 NoteFable」：Compose 的选区不给出选中的文字，所以借一次「复制」，从剪贴板读回，
+ * 读完把剪贴板换回原来的内容（用户之前复制的东西不丢）。复制可能在下一帧才写进去，所以等一帧读，没写进去再等一次；
+ * 剪贴板没有新内容（时间戳没变）时不把旧内容当成选中的文字。
+ */
+private fun quoteThroughClipboard(view: View, copy: () -> Unit, onQuote: (String) -> Unit) {
+    val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    val previous = runCatching { clipboard.primaryClip }.getOrNull()
+    val previousStamp = previous?.description?.timestamp
+    copy()
+    fun read(retry: Boolean) {
+        val clip = runCatching { clipboard.primaryClip }.getOrNull()
+        val fresh = clip != null && clip.itemCount > 0 && clip.description.timestamp != previousStamp
+        if (!fresh && retry) {
+            view.postDelayed({ read(retry = false) }, CLIPBOARD_RETRY_MS)
+            return
+        }
+        val text = if (fresh) clip!!.getItemAt(0).coerceToText(view.context)?.toString() else null
+        if (fresh) {
+            runCatching {
+                if (previous != null) clipboard.setPrimaryClip(previous)
+                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) clipboard.clearPrimaryClip()
+            }
+        }
+        if (!text.isNullOrBlank()) onQuote(text)
+    }
+    view.post { read(retry = true) }
+}
+
+private const val CLIPBOARD_RETRY_MS = 100L
 
 private class QuoteTextToolbar(
     private val view: View,
@@ -165,14 +191,8 @@ private class QuoteTextToolbar(
 
     private fun ask() {
         val copy = onCopy ?: return
-        val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        copy()
+        quoteThroughClipboard(view, copy, onQuote)
         hide()
-        // 复制可能在下一帧才写进剪贴板：等一帧再读。
-        view.post {
-            val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(view.context)?.toString()
-            if (!text.isNullOrBlank()) onQuote(text)
-        }
     }
 
     private val callback = object : ActionMode.Callback2() {
@@ -228,7 +248,7 @@ private class QuoteTextToolbar(
  * 输入栏上方的引用（网页 .chat-quote）：左边 2 的竖线（Border 色），13 号 Muted 字、行高 23.2、最多 3 行，右边 24 的 ✕。
  */
 @Composable
-fun ComposerQuote(quote: String, onRemove: () -> Unit) {
+fun ComposerQuote(quote: String, enabled: Boolean, onRemove: () -> Unit) {
     val label = stringResource(R.string.quote)
     val remove = stringResource(R.string.remove_quote)
     Row(
@@ -239,7 +259,8 @@ fun ComposerQuote(quote: String, onRemove: () -> Unit) {
         QuoteText(quote, Modifier.weight(1f))
         Box(
             Modifier.size(24.dp).clip(RoundedCornerShape(5.6.dp))
-                .clickable(role = Role.Button, onClick = onRemove)
+                // 上传附件时（发出的内容已定）不能移除，和附件标签一样。
+                .clickable(enabled = enabled, role = Role.Button, onClick = onRemove)
                 .semantics { contentDescription = remove },
             Alignment.Center,
         ) {
@@ -248,9 +269,9 @@ fun ComposerQuote(quote: String, onRemove: () -> Unit) {
     }
 }
 
-/** 引用的正文：左边竖线 + 灰字，最多 3 行。输入栏上方和发言里共用。 */
+/** 引用的正文：左边竖线 + 灰字。输入栏上方最多 3 行；发言里显示全文（网页 .chat-quote.is-sent）。 */
 @Composable
-fun QuoteText(quote: String, modifier: Modifier = Modifier) {
+fun QuoteText(quote: String, modifier: Modifier = Modifier, maxLines: Int = 3) {
     Row(modifier.height(IntrinsicSize.Min)) {
         Box(Modifier.width(2.dp).fillMaxHeight().background(Sm.Border))
         Text(
@@ -258,7 +279,7 @@ fun QuoteText(quote: String, modifier: Modifier = Modifier) {
             color = Sm.Muted,
             fontSize = 13.sp,
             lineHeight = 23.2.sp,
-            maxLines = 3,
+            maxLines = maxLines,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(start = 10.4.dp),
         )

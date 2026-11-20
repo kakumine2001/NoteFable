@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { splitQuotedMessage } from "@/lib/chat-quote";
 import { getOrCreateUser } from "@/lib/auth";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
 import { optionalEnv, requireEnv } from "@/lib/env";
@@ -76,7 +77,8 @@ const IMAGE_GENERATION_ATTEMPTS = 2;
 
 function makeTitle(message: string) {
   // 画像生成でもチャットと同じルールで、プロンプト先頭からセッションタイトルを作る。
-  const compact = message.replace(/\s+/g, " ").trim();
+  // 回答から引用した発言は、引用ではなく後ろの指示から作る（/api/chat と同じ）。
+  const compact = splitQuotedMessage(message).body.replace(/\s+/g, " ").trim();
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
 
