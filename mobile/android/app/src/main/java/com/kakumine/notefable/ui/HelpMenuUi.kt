@@ -128,7 +128,9 @@ private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLan
                 Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
                 HelpItem(
                     Lucide.Languages, stringResource(R.string.language),
-                    value = languageLabel(currentPreference()), chevron = true, onClick = onLanguage,
+                    // Web と同じ短い値：Auto は「自動検出」だけ（実際の言語は画面の言語そのもの）、それ以外は言語名。
+                    value = currentPreference().let { if (it == AppLanguage.Preference.Auto) stringResource(R.string.language_auto) else languageLabel(it) },
+                    chevron = true, onClick = onLanguage,
                 )
             }
         }
@@ -145,8 +147,11 @@ private fun HelpItem(icon: List<String>, text: String, value: String? = null, ch
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         LucideIcon(icon, 16.dp, Sm.Muted)
-        Text(text, color = Sm.Text, fontSize = 14.sp, modifier = Modifier.weight(1f))
-        value?.let { Text(it, color = Sm.Muted, fontSize = 13.sp) }
+        // 値は見出しの下に小さく出す（Web の .help-menu-label .help-menu-value）。横に並べると見出しが 1 文字ずつ縦に潰れる。
+        Column(Modifier.weight(1f)) {
+            Text(text, color = Sm.Text, fontSize = 14.sp)
+            value?.let { Text(it, color = Sm.Muted, fontSize = 12.sp, modifier = Modifier.padding(top = 2.4.dp)) }
+        }
         if (chevron) LucideIcon(Lucide.ChevronRight, 15.dp, Sm.Muted)
     }
 }
