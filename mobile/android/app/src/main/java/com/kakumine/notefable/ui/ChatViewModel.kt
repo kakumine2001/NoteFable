@@ -272,7 +272,8 @@ class ChatViewModel(
     private val onMessageIdChanged: (sessionId: String, from: String, to: String) -> Unit = { _, _, _ -> },
 ) : ViewModel() {
     private val _state = MutableStateFlow(
-        ChatUiState(chosenModelId = settings.modelId, chosenReasoning = settings.reasoning),
+        // 引用和草稿一起存进 SavedStateHandle：进程被系统回收后（比如登录时离开了 App），提问和它引用的文字一起回来。
+        ChatUiState(chosenModelId = settings.modelId, chosenReasoning = settings.reasoning, quote = savedState.get<String>(QUOTE_KEY)),
     )
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
 
@@ -757,11 +758,17 @@ class ChatViewModel(
         val quote = ChatQuote.normalize(text)
         // 上传附件时发出的内容已定，引用和附件一样不能改（网页同样）。
         if (quote.isNotEmpty()) _state.update { if (it.upload != null) it else it.copy(quote = quote, notice = null) }
+        saveQuote()
+    }
+
+    private fun saveQuote() {
+        savedState[QUOTE_KEY] = _state.value.quote
     }
 
     /** 点掉输入栏上方的引用。 */
     fun clearQuote() {
         _state.update { if (it.upload != null) it else it.copy(quote = null) }
+        saveQuote()
     }
 
     /** 点掉输入栏上方的一篇笔记。 */
@@ -1030,6 +1037,7 @@ class ChatViewModel(
         )
         updateCached(run.key) { it + userMessage + assistantMessage }
         _state.update { it.copy(files = emptyList(), attachedPages = emptyList(), quote = null, upload = null, notice = null, sentCount = it.sentCount + 1) }
+        saveQuote()
         // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
         updateDraft("")
         // 上传期间别的聊天退回来的提问，等这里清空输入栏后再放回去。
@@ -1201,6 +1209,7 @@ class ChatViewModel(
                 attachedPages = mergeRestoredPages(restore.pages, state.attachedPages),
             )
         }
+        saveQuote()
     }
 
     /** 上传结束了：放回等着的提问。 */
@@ -1488,6 +1497,7 @@ class ChatViewModel(
 
     companion object {
         private const val DRAFT_KEY = "draft"
+        private const val QUOTE_KEY = "quote"
 
         /** 还没有会话 ID 的新聊天的本机键前缀（服务端的 ID 不会这样开头）。 */
         private const val NEW_CHAT_PREFIX = "new-chat:"

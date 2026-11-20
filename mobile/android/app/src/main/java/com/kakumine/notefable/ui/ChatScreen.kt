@@ -218,6 +218,7 @@ fun ChatScreen(
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 androidx.compose.runtime.CompositionLocalProvider(
                     LocalTurnActions provides turnActions,
+                    // 上传附件时引用不能改（ViewModel 不收），菜单里只去掉「问 NoteFable」，复制和全选照常（网页同样不显示）。
                     LocalQuoteSelection provides remember(quoteCount, onQuote) {
                         QuoteSelection(
                             onQuote = { text ->
@@ -228,7 +229,7 @@ fun ChatScreen(
                             },
                             resetKey = quoteCount,
                         )
-                    },
+                    }.takeIf { state.upload == null },
                 ) {
                     MessageList(
                         state = state,

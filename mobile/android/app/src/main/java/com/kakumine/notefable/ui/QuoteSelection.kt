@@ -1,8 +1,5 @@
 package com.kakumine.notefable.ui
 
-import android.content.ClipboardManager
-import android.content.Context
-import android.os.Build
 import android.graphics.Rect as AndroidRect
 import android.view.ActionMode
 import android.view.Menu
@@ -35,7 +32,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.platform.Clipboard
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.NativeClipboard
 import androidx.compose.ui.platform.TextToolbar
 import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.res.stringResource
@@ -57,29 +58,70 @@ class QuoteSelection(val onQuote: (String) -> Unit, val resetKey: Int)
 val LocalQuoteSelection = compositionLocalOf<QuoteSelection?> { null }
 
 /**
+ * 回答的选区用的剪贴板（放进 LocalClipboard）。Compose 的选区不对外给选中的文字，只在「复制」时把它交给剪贴板，
+ * 所以「问 NoteFable」借一次「复制」：[capture] 期间写来的文字直接交给引用，不进系统剪贴板（用户之前复制的图片、文件等不受影响）。
+ * 其它时候（普通的「复制」、代码块的复制按钮）照常转给系统剪贴板。
+ */
+class QuoteClipboard(private val system: Clipboard) : Clipboard {
+    private var pending: ((String) -> Unit)? = null
+
+    /** 跑 [copy]（选区的「复制」），把它交来的文字给 [onQuote]。选区的复制是同步写进来的，没写进来就什么也不做。 */
+    fun capture(copy: () -> Unit, onQuote: (String) -> Unit) {
+        pending = onQuote
+        try {
+            copy()
+        } finally {
+            pending = null
+        }
+    }
+
+    override suspend fun getClipEntry(): ClipEntry? = system.getClipEntry()
+
+    override suspend fun setClipEntry(clipEntry: ClipEntry?) {
+        val take = pending
+        if (take == null) {
+            system.setClipEntry(clipEntry)
+            return
+        }
+        pending = null
+        val clip = clipEntry?.clipData
+        val text = if (clip != null && clip.itemCount > 0) clip.getItemAt(0).text?.toString() else null
+        if (!text.isNullOrBlank()) take(text)
+    }
+
+    override val nativeClipboard: NativeClipboard get() = system.nativeClipboard
+}
+
+/** 在提供 [QuoteClipboard] 的 CompositionLocalProvider 外面调用：包住的是系统剪贴板。 */
+@Composable
+fun rememberQuoteClipboard(): QuoteClipboard {
+    val system = LocalClipboard.current
+    return remember(system) { QuoteClipboard(system) }
+}
+
+/**
  * 回答的选中菜单：系统的浮动菜单里在「复制」「全选」前面加「问 NoteFable」（ChatGPT 的「ChatGPT に聞く」同样的位置）。
- * Compose 的选区不对外给选中的文字，所以「问 NoteFable」先走一次「复制」，再从剪贴板读回刚复制的文字。
+ * 「问 NoteFable」借一次「复制」，由 [QuoteClipboard] 接住选中的文字。
  */
 @Composable
-fun rememberQuoteTextToolbar(onQuote: (String) -> Unit): TextToolbar {
+fun rememberQuoteTextToolbar(clipboard: QuoteClipboard, onQuote: (String) -> Unit): TextToolbar {
     val view = LocalView.current
     val ask = stringResource(R.string.ask_notefable)
-    return remember(view, ask, onQuote) { QuoteTextToolbar(view, ask, onQuote) }
+    return remember(view, ask, clipboard, onQuote) { QuoteTextToolbar(view, ask, clipboard, onQuote) }
 }
 
 /**
  * 新版 Compose 的文字菜单（foundation 1.10 起默认开启 isNewContextMenuEnabled）不走 LocalTextToolbar，
  * 所以在选区的 Modifier 上做同样的菜单：「问 NoteFable」「复制」「全选」（和 [QuoteTextToolbar] 一致）。
  * 选区自己的项先收集、加在这里的项排在最后，所以 filter 把原来的「复制」「全选」记下并去掉（其它系统项也去掉），
- * 再由这里按顺序加上；没有原来的项时对应的这一项也去掉。「问 NoteFable」先走一次「复制」，再从剪贴板读回文字。
+ * 再由这里按顺序加上；没有原来的项时对应的这一项也去掉。「问 NoteFable」借一次「复制」，由 [QuoteClipboard] 接住文字。
  */
 @Composable
-fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
-    val view = LocalView.current
+fun rememberQuoteMenuModifier(clipboard: QuoteClipboard, onQuote: (String) -> Unit): Modifier {
     val ask = stringResource(R.string.ask_notefable)
     val copyLabel = stringResource(android.R.string.copy)
     val selectAllLabel = stringResource(android.R.string.selectAll)
-    return remember(view, ask, copyLabel, selectAllLabel, onQuote) {
+    return remember(clipboard, ask, copyLabel, selectAllLabel, onQuote) {
         // 每次生成菜单时：先跑 builder（清空），filter 再按列表顺序先看到原来的项、后看到这里的项。
         var copy: (TextContextMenuSession.() -> Unit)? = null
         var selectAll: (TextContextMenuSession.() -> Unit)? = null
@@ -93,7 +135,7 @@ fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
                         close()
                         return@item
                     }
-                    quoteThroughClipboard(view, { doCopy() }, onQuote)
+                    clipboard.capture({ doCopy() }, onQuote)
                     close()
                 }
                 item(QuoteMenuKey.Copy, copyLabel) { copy?.invoke(this) ?: close() }
@@ -119,40 +161,10 @@ fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
 
 private enum class QuoteMenuKey { Ask, Copy, SelectAll }
 
-/**
- * 「问 NoteFable」：Compose 的选区不给出选中的文字，所以借一次「复制」，从剪贴板读回，
- * 读完把剪贴板换回原来的内容（用户之前复制的东西不丢）。复制可能在下一帧才写进去，所以等一帧读，没写进去再等一次；
- * 剪贴板没有新内容（时间戳没变）时不把旧内容当成选中的文字。
- */
-private fun quoteThroughClipboard(view: View, copy: () -> Unit, onQuote: (String) -> Unit) {
-    val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-    val previous = runCatching { clipboard.primaryClip }.getOrNull()
-    val previousStamp = previous?.description?.timestamp
-    copy()
-    fun read(retry: Boolean) {
-        val clip = runCatching { clipboard.primaryClip }.getOrNull()
-        val fresh = clip != null && clip.itemCount > 0 && clip.description.timestamp != previousStamp
-        if (!fresh && retry) {
-            view.postDelayed({ read(retry = false) }, CLIPBOARD_RETRY_MS)
-            return
-        }
-        val text = if (fresh) clip!!.getItemAt(0).coerceToText(view.context)?.toString() else null
-        if (fresh) {
-            runCatching {
-                if (previous != null) clipboard.setPrimaryClip(previous)
-                else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) clipboard.clearPrimaryClip()
-            }
-        }
-        if (!text.isNullOrBlank()) onQuote(text)
-    }
-    view.post { read(retry = true) }
-}
-
-private const val CLIPBOARD_RETRY_MS = 100L
-
 private class QuoteTextToolbar(
     private val view: View,
     private val askLabel: String,
+    private val clipboard: QuoteClipboard,
     private val onQuote: (String) -> Unit,
 ) : TextToolbar {
     private var actionMode: ActionMode? = null
@@ -191,7 +203,7 @@ private class QuoteTextToolbar(
 
     private fun ask() {
         val copy = onCopy ?: return
-        quoteThroughClipboard(view, copy, onQuote)
+        clipboard.capture(copy, onQuote)
         hide()
     }
 

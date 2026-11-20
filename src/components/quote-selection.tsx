@@ -28,6 +28,10 @@ function quotableOf(node: Node | null, container: HTMLElement): HTMLElement | nu
  * 数式は TeX ソース（$…$ / $$…$$）に置き換え、コードの見出しは落とし、改行は画面上の段落に合わせる（innerText）。
  */
 function selectedText(range: Range) {
+  // コードブロックの中だけを選んだときは複製に <pre> が入らず、innerText が改行と字下げを潰すので、元の文字をそのまま使う。
+  const start = range.commonAncestorContainer;
+  const inCode = (start instanceof Element ? start : start.parentElement)?.closest("pre");
+  if (inCode) return range.toString();
   const fragment = range.cloneContents();
   fragment.querySelectorAll(".markdown-code-header").forEach((node) => node.replaceWith());
   fragment.querySelectorAll(".katex").forEach((node) => {
@@ -78,6 +82,9 @@ function placementFor(container: HTMLElement): Placement | null {
   // マウスでは選択の上（上が足りなければ下）に置く。
   let top = first.top - BUTTON_HEIGHT - GAP;
   if (top < view.top + EDGE) top = last.bottom + GAP;
+  // 長い選択で両端が見えている範囲の外にあるときも、ボタンは会話の見えている範囲に収める。
+  const bottom = Math.min(view.bottom, window.innerHeight) - BUTTON_HEIGHT - EDGE;
+  top = Math.max(Math.max(view.top, 0) + EDGE, Math.min(top, bottom));
   const left = Math.min(Math.max(first.left, EDGE), window.innerWidth - EDGE);
   return { top, left, range };
 }

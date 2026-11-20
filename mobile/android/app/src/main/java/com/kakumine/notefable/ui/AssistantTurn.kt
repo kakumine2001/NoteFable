@@ -152,8 +152,13 @@ internal fun AssistantTurn(
                 // 引用后换一个 key 重建选区，选中的高亮随之消失。
                 key(quoteSelection.resetKey) {
                     // 旧版文字菜单走 LocalTextToolbar，新版走选区上的 Modifier：两边都接上。
-                    CompositionLocalProvider(LocalTextToolbar provides rememberQuoteTextToolbar(quoteSelection.onQuote)) {
-                        answer(rememberQuoteMenuModifier(quoteSelection.onQuote))
+                    // 「问 NoteFable」借选区的「复制」拿文字，由这里换上的剪贴板接住，不碰系统剪贴板。
+                    val clipboard = rememberQuoteClipboard()
+                    CompositionLocalProvider(
+                        LocalClipboard provides clipboard,
+                        LocalTextToolbar provides rememberQuoteTextToolbar(clipboard, quoteSelection.onQuote),
+                    ) {
+                        answer(rememberQuoteMenuModifier(clipboard, quoteSelection.onQuote))
                     }
                 }
             } else answer(Modifier)
