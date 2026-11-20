@@ -135,8 +135,8 @@ internal fun AssistantTurn(
         }
         if (message.generatingImage && message.images.isEmpty()) GeneratingImagePreview()
         if (message.content.isNotEmpty()) {
-            val answer = @Composable {
-                SelectionContainer {
+            val answer = @Composable { menu: Modifier ->
+                SelectionContainer(menu) {
                     // 使用上限的句子只翻译（网页 t(message.content)），其它回答只替换末尾的"Request failed: …"。
                     AnswerMarkdown(
                         if (message.usageLimit) systemText.t(message.content)
@@ -151,9 +151,12 @@ internal fun AssistantTurn(
             if (quotable && quoteSelection != null) {
                 // 引用后换一个 key 重建选区，选中的高亮随之消失。
                 key(quoteSelection.resetKey) {
-                    CompositionLocalProvider(LocalTextToolbar provides rememberQuoteTextToolbar(quoteSelection.onQuote)) { answer() }
+                    // 旧版文字菜单走 LocalTextToolbar，新版走选区上的 Modifier：两边都接上。
+                    CompositionLocalProvider(LocalTextToolbar provides rememberQuoteTextToolbar(quoteSelection.onQuote)) {
+                        answer(rememberQuoteMenuModifier(quoteSelection.onQuote))
+                    }
                 }
-            } else answer()
+            } else answer(Modifier)
         }
         val store = app?.proposals
         if (proposals.isNotEmpty() && store != null) ProposalCards(proposals, store, openNote)

@@ -20,6 +20,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.contextmenu.builder.item
+import androidx.compose.foundation.text.contextmenu.data.TextContextMenuItem
+import androidx.compose.foundation.text.contextmenu.data.TextContextMenuKeys
+import androidx.compose.foundation.text.contextmenu.data.TextContextMenuSession
+import androidx.compose.foundation.text.contextmenu.modifier.appendTextContextMenuComponents
+import androidx.compose.foundation.text.contextmenu.modifier.filterTextContextMenuComponents
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.compositionLocalOf
@@ -59,6 +65,64 @@ fun rememberQuoteTextToolbar(onQuote: (String) -> Unit): TextToolbar {
     val ask = stringResource(R.string.ask_notefable)
     return remember(view, ask, onQuote) { QuoteTextToolbar(view, ask, onQuote) }
 }
+
+/**
+ * 新版 Compose 的文字菜单（foundation 1.10 起默认开启 isNewContextMenuEnabled）不走 LocalTextToolbar，
+ * 所以在选区的 Modifier 上做同样的菜单：「问 NoteFable」「复制」「全选」（和 [QuoteTextToolbar] 一致）。
+ * 选区自己的项先收集、加在这里的项排在最后，所以 filter 把原来的「复制」「全选」记下并去掉（其它系统项也去掉），
+ * 再由这里按顺序加上；没有原来的项时对应的这一项也去掉。「问 NoteFable」先走一次「复制」，再从剪贴板读回文字。
+ */
+@Composable
+fun rememberQuoteMenuModifier(onQuote: (String) -> Unit): Modifier {
+    val view = LocalView.current
+    val ask = stringResource(R.string.ask_notefable)
+    val copyLabel = stringResource(android.R.string.copy)
+    val selectAllLabel = stringResource(android.R.string.selectAll)
+    return remember(view, ask, copyLabel, selectAllLabel, onQuote) {
+        // 每次生成菜单时：先跑 builder（清空），filter 再按列表顺序先看到原来的项、后看到这里的项。
+        var copy: (TextContextMenuSession.() -> Unit)? = null
+        var selectAll: (TextContextMenuSession.() -> Unit)? = null
+        Modifier
+            .appendTextContextMenuComponents {
+                copy = null
+                selectAll = null
+                item(QuoteMenuKey.Ask, ask) {
+                    val doCopy = copy
+                    if (doCopy == null) {
+                        close()
+                        return@item
+                    }
+                    val clipboard = view.context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    doCopy()
+                    close()
+                    // 复制可能在下一帧才写进剪贴板：等一帧再读。
+                    view.post {
+                        val text = clipboard.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(view.context)?.toString()
+                        if (!text.isNullOrBlank()) onQuote(text)
+                    }
+                }
+                item(QuoteMenuKey.Copy, copyLabel) { copy?.invoke(this) ?: close() }
+                item(QuoteMenuKey.SelectAll, selectAllLabel) { selectAll?.invoke(this) ?: close() }
+            }
+            .filterTextContextMenuComponents { component ->
+                when (component.key) {
+                    QuoteMenuKey.Ask, QuoteMenuKey.Copy -> copy != null
+                    QuoteMenuKey.SelectAll -> selectAll != null
+                    TextContextMenuKeys.CopyKey -> {
+                        copy = (component as? TextContextMenuItem)?.onClick
+                        false
+                    }
+                    TextContextMenuKeys.SelectAllKey -> {
+                        selectAll = (component as? TextContextMenuItem)?.onClick
+                        false
+                    }
+                    else -> false
+                }
+            }
+    }
+}
+
+private enum class QuoteMenuKey { Ask, Copy, SelectAll }
 
 private class QuoteTextToolbar(
     private val view: View,
