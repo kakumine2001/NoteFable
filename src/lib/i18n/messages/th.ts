@@ -15,7 +15,7 @@ export const th: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "ฉบับร่างที่กู้คืนมาไม่ตรงกับโน้ตล่าสุด กรุณาบันทึกเป็นสำเนาหรือโหลดเวอร์ชันล่าสุด",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "รวมแชท AI และโน้ตไว้ในที่เดียว ถามคำถาม เก็บคำตอบเป็นโน้ต แล้วกลับมาค้นเจอได้ทุกเมื่อ",
   "AI chat and notes, in one place": "แชท AI และโน้ต รวมไว้ในที่เดียว",
-  "About": "เกี่ยวกับ",
+  "Visit website": "เยี่ยมชมเว็บไซต์",
   "Account": "บัญชี",
   "Actions": "การทำงาน",
   "Actions for project {name}": "การทำงานสำหรับโปรเจกต์ {name}",

@@ -39,19 +39,18 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- 本站的聊天链接（/?chat=…&amp;message=…）。autoVerify="false"：不做 App Links 验证，不需要 assetlinks.json；
-                 Android 12+ 默认仍由浏览器打开，用户在系统的"打开支持的链接"里把本站加给 App 后才进 App。 -->
-            <intent-filter android:autoVerify="false">
+            <!-- 会话的分享链接 https://app.notefable.com/c/<会话>?message=<消息>（网页 answerConversationUrl 生成）。
+                 autoVerify="true"：Android 用工作区主机的 /.well-known/assetlinks.json（public/.well-known/）验证后直接用 App 打开。
+                 只认 /c/ 开头的路径：工作区的 / 和 /app 是网页登录（Auth.js）和 Stripe 付款后的返回地址，不能被 App 抢走。
+                 也只认这一个主机：Android 11 及以下会验证 Manifest 里所有 http(s) 主机，www 是跳转、通不过验证；
+                 以前保存的 notefable.com/?chat=… 旧链接由浏览器打开并转到网页工作区。 -->
+            <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="${notefableScheme}" />
                 <data android:host="${notefableHost}" />
-                <data android:host="notefable.com" />
-                <data android:host="www.notefable.com" />
-                <data android:path="/" />
-                <data android:path="/app" />
-                <data android:pathPattern="/.*/app" />
+                <data android:pathPrefix="/c/" />
             </intent-filter>
         </activity>
         <!-- Android 12 及以下：由 AppCompat 保存应用内选择的语言（Android 13+ 由系统保存）。 -->

@@ -15,7 +15,7 @@ export const it: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Una bozza recuperata è diversa dall’ultima versione della nota. Salva una copia o carica l’ultima versione.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Chat IA e note in un unico posto: fai una domanda, conserva la risposta come nota e ritrovala in seguito.",
   "AI chat and notes, in one place": "Chat IA e note, in un unico posto",
-  "About": "Informazioni",
+  "Visit website": "Visita il sito web",
   "Account": "Account",
   "Actions": "Azioni",
   "Actions for project {name}": "Azioni per il progetto {name}",

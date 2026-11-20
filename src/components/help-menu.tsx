@@ -7,14 +7,19 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
+import { siteHref } from "@/lib/hosts";
+import { msg } from "@/lib/i18n/translate";
 import { INTRO_HREF } from "@/lib/i18n/routing";
 import { afterSheetHistory, useBackToClose } from "@/lib/use-back-to-close";
 
-const LINKS = [
-  { href: INTRO_HREF, label: "About", icon: Info },
-  { href: "/privacy", label: "Privacy", icon: Shield },
-  { href: "/terms", label: "Terms", icon: FileText },
-  { href: "/legal-notice", label: "Commercial disclosure", icon: Scale },
+// 紹介サイト（/?intro は回訪者でもワークスペースへ戻されない）と法律のページ。紹介サイトとワークスペースを別ホストにしたときは
+// 紹介サイトのホストへの絶対 URL になる（src/lib/hosts.ts）。
+// 開いたときのホストで決める（ワークスペースのホストなら紹介サイトへの絶対 URL）。
+const links = () => [
+  { href: siteHref(INTRO_HREF), label: msg("Visit website"), icon: Info },
+  { href: siteHref("/privacy"), label: msg("Privacy"), icon: Shield },
+  { href: siteHref("/terms"), label: msg("Terms"), icon: FileText },
+  { href: siteHref("/legal-notice"), label: msg("Commercial disclosure"), icon: Scale },
 ] as const;
 
 // サイドバー下部の「?」。紹介・プライバシー・利用規約・特商法表記（と、ログインしていなければ表示言語）をここにまとめ、
@@ -42,8 +47,8 @@ export function HelpMenu({ guest }: { guest: boolean }) {
       </button>
       {language.failed && <span role="alert" className="language-menu-error">{t(language.failed)}</span>}
       {open?.kind === "help" && (
-        <HelpPanel anchor={open.anchor} items={LINKS.length + (guest ? 1 : 0)} onClose={close}>
-          {LINKS.map(({ href, label, icon: Icon }) => (
+        <HelpPanel anchor={open.anchor} items={links().length + (guest ? 1 : 0)} onClose={close}>
+          {links().map(({ href, label, icon: Icon }) => (
             // メニューを閉じると履歴の目印を外す history.back() が走るので、それが済んでから移る（先に移ると戻されることがある）。
             // 新しいタブで開くなどの修飾付きクリックはブラウザに任せる。
             <Link key={href} href={href} role="menuitem" className="chat-menu-item" onClick={(event) => {
@@ -51,7 +56,9 @@ export function HelpMenu({ guest }: { guest: boolean }) {
               event.preventDefault();
               setOpen(null);
               // 閉じた後片付け（目印を外す予約）が走ってから待ち合わせる。
-              setTimeout(() => afterSheetHistory(() => router.push(href)));
+              // 別ホストへはアプリ内の遷移ではなく、普通のページ移動にする。
+              const go = () => (/^https?:/.test(href) ? window.location.assign(href) : router.push(href));
+              setTimeout(() => afterSheetHistory(go));
             }}>
               <Icon size={16} aria-hidden="true" className="help-menu-icon" />{t(label)}
             </Link>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { splitHosts } from "@/lib/hosts";
 import { routeLocalizedRequest } from "./routing";
 
 function route(path: string, { cookie, language, country, cookies = {} }: { cookie?: string; language?: string; country?: string; cookies?: Record<string, string> } = {}) {
@@ -71,8 +72,8 @@ describe("localized routing", () => {
   });
 
   it("runs the proxy on every localized path", async () => {
-    const [{ config }, { LOCALIZED_PATHS }] = await Promise.all([import("@/proxy"), import("./routing")]);
-    expect(config.matcher).toEqual([...LOCALIZED_PATHS]);
+    const [{ config }, { PROXY_MATCHER }] = await Promise.all([import("@/proxy"), import("./routing")]);
+    expect(config.matcher).toEqual(PROXY_MATCHER);
   });
 
   it("leaves other paths alone", () => {
@@ -80,5 +81,92 @@ describe("localized routing", () => {
     expect(route("/ja/note-embed").kind).toBe("none");
     expect(route("/privacy").kind).toBe("none");
     expect(route("/ja").kind).toBe("none");
+    expect(route("/ja/app").kind).toBe("none");
+    expect(route("/c/").kind).toBe("none");
+    expect(route("/c/bad%20id").kind).toBe("none");
+  });
+
+  it("opens shared conversation links in the workspace", () => {
+    expect(target(route("/c/chat-1?message=m1"))).toBe("redirect /app?chat=chat-1&message=m1");
+    expect(target(route("/c/chat-1?chat=other"))).toBe("redirect /app?chat=chat-1");
+  });
+});
+
+describe("split site and workspace hosts", () => {
+  const hosts = splitHosts({ site: "https://notefable.com", app: "https://app.notefable.com" });
+  const at = (href: string, { language = "en", cookies = {} as Record<string, string> } = {}) => routeLocalizedRequest({
+    url: href,
+    cookie: (name) => cookies[name],
+    header: (name) => (name === "accept-language" ? language : null),
+  }, hosts);
+  const where = (result: ReturnType<typeof at>) => (result.kind === "none" ? null : `${result.kind} ${result.kind === "redirect" ? result.url.href : `${result.url.pathname}${result.url.search}`}`);
+
+  it("derives a shared cookie domain only for a subdomain", () => {
+    expect(hosts?.cookieDomain).toBe("notefable.com");
+    expect(splitHosts({ site: "https://notefable.com", app: "https://notefable.app" })?.cookieDomain).toBeNull();
+    expect(splitHosts({ site: "https://notefable.com" })).toBeNull();
+    expect(splitHosts({ site: "https://notefable.com", app: "https://notefable.com" })).toBeNull();
+    expect(splitHosts({ site: "not a url", app: "https://app.notefable.com" })).toBeNull();
+  });
+
+  it("shows the introduction to new visitors on the site", () => {
+    expect(where(at("https://notefable.com/", { language: "ja" }))).toBe("rewrite /ja");
+    expect(at("https://notefable.com/").noindex).toBeUndefined();
+  });
+
+  it("sends the old workspace address and legacy links to the workspace host with their parameters", () => {
+    expect(where(at("https://notefable.com/app?view=pages&page=p1"))).toBe("redirect https://app.notefable.com/?view=pages&page=p1");
+    expect(where(at("https://notefable.com/?chat=c1&message=m1"))).toBe("redirect https://app.notefable.com/?chat=c1&message=m1");
+    expect(where(at("https://notefable.com/app"))).toBe("redirect https://app.notefable.com/");
+    // 紹介サイトだけに書いた言語の選択を、送り先のホストへ持っていく（proxy.ts が共通 Domain に書く）。
+    expect(at("https://notefable.com/app").carryLocale).toBe(true);
+    expect(at("https://app.notefable.com/app").carryLocale).toBeUndefined();
+  });
+
+  it.each(["notefable_app", "notefable_device", "__Secure-authjs.session-token"])("sends a returning %s visitor from the site to the workspace host", (name) => {
+    expect(where(at("https://notefable.com/", { cookies: { [name]: "1" } }))).toBe("redirect https://app.notefable.com/");
+    expect(where(at("https://notefable.com/?intro", { language: "ja", cookies: { [name]: "1" } }))).toBe("rewrite /ja?intro");
+  });
+
+  it("keeps the note embed on the site for installed Android apps", () => {
+    expect(where(at("https://notefable.com/note-embed?page=p1&lang=ja"))).toBe("rewrite /ja/note-embed?page=p1&lang=ja");
+  });
+
+  it("serves the workspace at / on the workspace host, unindexed, and marks the device as returning", () => {
+    const result = at("https://app.notefable.com/?chat=c1", { language: "zh-TW" });
+    expect(where(result)).toBe("rewrite /zh-Hant/app?chat=c1");
+    expect(result.noindex).toBe(true);
+    expect(result.hint).toBe(true);
+    // 回訪者の Cookie があってもワークスペースのホストでは転送しない（ループしない）。
+    expect(where(at("https://app.notefable.com/", { cookies: { notefable_app: "1" } }))).toBe("rewrite /en/app");
+    expect(where(at("https://app.notefable.com/?intro"))).toBe("rewrite /en/app?intro");
+  });
+
+  it("folds /app on the workspace host into / (Stripe returns and old links)", () => {
+    expect(where(at("https://app.notefable.com/app?billing=success"))).toBe("redirect https://app.notefable.com/?billing=success");
+  });
+
+  it("serves the note embed on the workspace host without marking the device", () => {
+    const result = at("https://app.notefable.com/note-embed?page=p1");
+    expect(where(result)).toBe("rewrite /en/note-embed?page=p1");
+    expect(result.hint).toBe(false);
+    expect(result.noindex).toBe(true);
+  });
+
+  it("sends shared conversation links to the workspace host from either host", () => {
+    expect(where(at("https://app.notefable.com/c/chat-1?message=m1"))).toBe("redirect https://app.notefable.com/?chat=chat-1&message=m1");
+    expect(where(at("https://notefable.com/c/chat-1"))).toBe("redirect https://app.notefable.com/?chat=chat-1");
+  });
+
+  it("sends a language-specific workspace on the site to the workspace host", () => {
+    expect(where(at("https://notefable.com/ja/app?chat=c1"))).toBe("redirect https://app.notefable.com/?chat=c1");
+    expect(at("https://app.notefable.com/ja/app").kind).toBe("none");
+    expect(at("https://app.notefable.com/ja/app").noindex).toBe(true);
+    expect(at("https://notefable.com/ja/app").carryLocale).toBe(true);
+  });
+
+  it("treats any other host (Preview, localhost) as a single host", () => {
+    expect(where(at("https://notefable-git-x.vercel.app/app"))).toBe("rewrite /en/app");
+    expect(where(at("https://notefable-git-x.vercel.app/", { cookies: { notefable_device: "x" } }))).toBe("redirect https://notefable-git-x.vercel.app/app");
   });
 });

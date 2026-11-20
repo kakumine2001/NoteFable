@@ -24,10 +24,42 @@ Production region: iad1
 Production aliases：
 
 ```text
-notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）
+notefable.com                 # 正式域名（2026-11-15 购入，Vercel 管理 DNS）：介绍页、法律页面
+app.notefable.com             # 工作区（聊天与 Notes）
 www.notefable.com             # 308 跳转到 notefable.com
 notefable-kaku10.vercel.app
 ```
+
+### 官网与工作区分域（`src/lib/hosts.ts`）
+
+参照 Notion：介绍页在 `notefable.com`，工作区在 `app.notefable.com`，同一个 Vercel 项目、同一份代码，由 `src/proxy.ts` 按主机分流。Production 设置两个变量时才分域：
+
+```text
+NEXT_PUBLIC_SITE_ORIGIN=https://notefable.com
+NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
+```
+
+`NEXT_PUBLIC_*` 在构建时写进页面，修改后要重新部署。Preview 和本地不设这两个变量，保持单主机（`/` 介绍页、`/app` 工作区）；设了变量后，不是这两个主机的请求（Preview 的 `*.vercel.app`、`notefable-kaku10.vercel.app`）也按单主机处理。
+
+| 请求 | 结果 |
+| --- | --- |
+| `notefable.com/` | 介绍页；用过工作区的设备（共享提示 Cookie `notefable_app`，或旧的设备 / 登录 Cookie）转到 `app.notefable.com/`，`/?intro` 始终显示介绍页 |
+| `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
+| `notefable.com/note-embed` | 照常提供（已安装的旧版 Android App 从这里加载笔记编辑器） |
+| `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
+| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`） |
+| `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
+| `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
+| 两个主机的 `/api/*` | 都照常提供，**不做跳转**：旧版 Android App 的 `BASE_URL` 是 `https://notefable.com`，Stripe Webhook 和 Google Play RTDN（Pub/Sub push）的端点也登记在 `notefable.com`，它们都不跟随跳转（RTDN 的 audience 默认取请求 URL）。要迁移这些端点，先改 Stripe 端点、Pub/Sub 订阅和 `GOOGLE_PLAY_PUSH_AUDIENCE` |
+
+Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Cookie 和 `localStorage`（草稿、模型选择等）不会从 `notefable.com` 带到 `app.notefable.com`。分域时的决定（2026-11-19）是不迁移：旧的匿名数据留在数据库里，在新主机上从新的匿名身份开始；登录用户在新主机重新登录后数据照常可见。界面语言 Cookie（`notefable-locale`）在分域后写到 `Domain=notefable.com`，两个主机共用。
+
+上线 / 回退步骤：
+
+1. Vercel 项目添加 `app.notefable.com`（Vercel 管理 DNS，自动签发证书）。
+2. Google OAuth 客户端登记 `https://app.notefable.com/api/auth/callback/google`（保留原来的 `notefable.com` 回调）。
+3. Production 设置上面两个变量并重新部署。
+4. 回退：删除两个变量并重新部署，即回到单主机；`app.notefable.com` 可以保留。
 
 生产部署应始终核对 Vercel deployment 的 `gitSource.sha` 是否等于 GitHub `main` 当前提交；不要仅凭域名判断线上代码版本。
 
@@ -173,7 +205,7 @@ AUTH_GOOGLE_ID
 AUTH_GOOGLE_SECRET
 ```
 
-三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（本地为 `http://localhost:3000/api/auth/callback/google`）。
+三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（分域后登录在 `app.notefable.com` 进行，两个主机的回调都要登记）（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
 **Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在聊天 / 笔记侧栏底部（网页和 Android）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记了 `https://notefable.com/api/auth/callback/google` 和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
 

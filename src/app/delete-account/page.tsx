@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { appHref, splitHosts } from "@/lib/hosts";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
 
 export const metadata: Metadata = {
@@ -7,13 +8,16 @@ export const metadata: Metadata = {
   description: "How to delete your NoteFable account and data.",
 };
 
+// ワークスペースの公開 URL（紹介サイトと別ホストなら app.notefable.com）。
+const WORKSPACE_URL = splitHosts() ? appHref() : "https://notefable.com/app";
+
 // Google Play の「アカウント削除の URL」。アプリを入れていない人でも、削除の方法と消えるデータが分かるようにする。
 export default function DeleteAccountPage() {
   return (
     <LegalPage title="Delete your NoteFable account">
       <LegalSection title="Delete it yourself">
         <ol className="list-decimal space-y-1.5 pl-6">
-          <li>Open NoteFable — the Android app or <a href="https://notefable.com/app">notefable.com/app</a> — and sign in to the account.</li>
+          <li>Open NoteFable — the Android app or <a href={WORKSPACE_URL}>{WORKSPACE_URL.replace(/^https:\/\//, "").replace(/\/$/, "")}</a> — and sign in to the account.</li>
           <li>Tap your name at the bottom of the sidebar, then <strong>Settings</strong>.</li>
           <li>Tap <strong>Delete account</strong>, read the warning, then <strong>Delete permanently</strong>.</li>
         </ol>

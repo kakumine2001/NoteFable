@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.kakumine.notefable",
+      "sha256_cert_fingerprints": ["99:2F:2E:38:06:BD:4F:A8:0B:45:94:1A:CA:B0:5A:51:DC:9E:24:A4:D2:CF:48:C1:3A:BB:CD:25:C4:3A:22:DA"]
+    }
+  }
+]

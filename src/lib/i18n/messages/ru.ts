@@ -15,7 +15,7 @@ export const ru: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Восстановленный черновик отличается от последней версии заметки. Сохраните копию или загрузите актуальную версию.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Чат с ИИ и заметки в одном месте: задайте вопрос, сохраните ответ как заметку и легко найдите его позже.",
   "AI chat and notes, in one place": "Чат с ИИ и заметки в одном месте",
-  "About": "О сервисе",
+  "Visit website": "Перейти на сайт",
   "Account": "Аккаунт",
   "Actions": "Действия",
   "Actions for project {name}": "Действия для проекта {name}",

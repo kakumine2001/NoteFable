@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { splitHosts } from "@/lib/hosts";
 import { LOCALE_COOKIE, LOCALE_COOKIE_MAX_AGE, LOCALE_DIRS, LOCALE_TAGS, parsePreference, type Locale, type LocalePreference, type TextDirection } from "@/lib/i18n/locale";
 import { createTranslator, type Messages, type Translate } from "@/lib/i18n/translate";
 
@@ -39,11 +40,41 @@ const subscribePreference = (listener: () => void) => {
 const serverPreference = (): LocalePreference => "auto";
 
 // 言語の選択を Cookie に書く（"auto" は消す）。読んでいる画面へ知らせる。
+// 紹介サイトとワークスペースを別ホストにしたときは、両方のホストで同じ選択を読めるよう共通の Domain に書き、
+// 以前このホストだけに書いた Cookie は消す（同じ名前が 2 つ残ると古い方を読むことがある）。
 function writeLocaleCookie(next: LocalePreference) {
   const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const domain = sharedCookieDomain();
+  const base = `Path=/; SameSite=Lax${secure}`;
+  if (domain) document.cookie = `${LOCALE_COOKIE}=; ${base}; Max-Age=0`;
+  const scope = domain ? `${base}; Domain=${domain}` : base;
   document.cookie = next === "auto"
-    ? `${LOCALE_COOKIE}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
-    : `${LOCALE_COOKIE}=${next}; Path=/; Max-Age=${LOCALE_COOKIE_MAX_AGE}; SameSite=Lax${secure}`;
+    ? `${LOCALE_COOKIE}=; ${scope}; Max-Age=0`
+    : `${LOCALE_COOKIE}=${next}; ${scope}; Max-Age=${LOCALE_COOKIE_MAX_AGE}`;
+  preferenceListeners.forEach((listener) => listener());
+}
+
+// 今のホストが別ホスト構成の一方のとき、両方で読める Cookie の Domain。そうでなければ null（このホストだけに書く）。
+function sharedCookieDomain() {
+  const hosts = splitHosts();
+  if (!hosts?.cookieDomain) return null;
+  return window.location.host === hosts.siteHost || window.location.host === hosts.appHost ? hosts.cookieDomain : null;
+}
+
+// 別ホストに分ける前にこのホストだけに書いた言語の Cookie を、両ホスト共通の Domain に移す（一度だけ、表示時に）。
+// 両方が残っていると、proxy（最後の値）と画面（最初の値）で読む値が食い違うため。両方あるときは共通 Domain の方を残す。
+function migrateLocaleCookie() {
+  const domain = sharedCookieDomain();
+  if (!domain) return;
+  const values = document.cookie.split("; ").filter((part) => part.startsWith(`${LOCALE_COOKIE}=`));
+  if (values.length === 0) return;
+  const secure = window.location.protocol === "https:" ? "; Secure" : "";
+  const base = `Path=/; SameSite=Lax${secure}`;
+  document.cookie = `${LOCALE_COOKIE}=; ${base}; Max-Age=0`;
+  if (values.length === 1) {
+    const value = parsePreference(values[0].slice(LOCALE_COOKIE.length + 1));
+    if (value !== "auto") document.cookie = `${LOCALE_COOKIE}=${value}; ${base}; Domain=${domain}; Max-Age=${LOCALE_COOKIE_MAX_AGE}`;
+  }
   preferenceListeners.forEach((listener) => listener());
 }
 
@@ -70,6 +101,7 @@ export function I18nProvider({ locale, messages, children }: {
   const [translator, setTranslator] = useState(() => ({ locale, t: createTranslator(messages) }));
   const { locale: activeLocale, t } = translator;
 
+  useEffect(migrateLocaleCookie, []);
   // ルートのレイアウトは静的に保つため <html lang="en"> を出す。表示言語と文字方向に合わせて書き換える。
   useEffect(() => {
     const root = document.documentElement;

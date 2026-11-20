@@ -15,6 +15,7 @@ import { LOCALE_NAMES } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { AccountUser } from "@/lib/user-profile";
+import { siteHref } from "@/lib/hosts";
 import { INTRO_HREF } from "@/lib/i18n/routing";
 import { MAX_CUSTOM_INSTRUCTIONS } from "@/types/chat";
 
@@ -74,7 +75,7 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));
       forgetLocaleChoice();
-      window.location.replace(INTRO_HREF);
+      window.location.replace(siteHref(INTRO_HREF));
     } catch (reason) {
       setError(reason instanceof Error && reason.message ? reason.message : msg("Could not delete your account. Please try again."));
       setDeleting(false); onBusyChange(false);

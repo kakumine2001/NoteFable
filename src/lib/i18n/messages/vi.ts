@@ -15,7 +15,7 @@ export const vi: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "Bản nháp khôi phục khác với ghi chú mới nhất. Hãy lưu thành bản sao hoặc tải phiên bản mới nhất.",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "Trò chuyện AI và ghi chú ở cùng một nơi: đặt câu hỏi, lưu câu trả lời thành ghi chú và tìm lại bất cứ khi nào cần.",
   "AI chat and notes, in one place": "Trò chuyện AI và ghi chú, tất cả ở một nơi",
-  "About": "Giới thiệu",
+  "Visit website": "Truy cập trang web",
   "Account": "Tài khoản",
   "Actions": "Thao tác",
   "Actions for project {name}": "Thao tác cho dự án {name}",

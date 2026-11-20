@@ -286,7 +286,7 @@ export const ja: Record<string, string> = {
   "Polarised sunglasses": "偏光サングラス",
   "Preparing attachments…": "添付ファイルを準備中…",
   "Press '/' for commands…": "「/」でコマンドを表示…",
-  "About": "概要",
+  "Visit website": "公式サイトへ",
   "Privacy": "プライバシー",
   "Profile": "プロフィール",
   "Project": "プロジェクト",

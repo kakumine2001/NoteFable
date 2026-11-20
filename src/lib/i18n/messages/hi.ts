@@ -15,7 +15,7 @@ export const hi: Record<string, string> = {
   "A recovered draft differs from the latest note. Save a copy or load the latest version.": "रिकवर किया गया ड्राफ़्ट नवीनतम नोट से अलग है। इसकी कॉपी सेव करें या नवीनतम वर्ज़न लोड करें।",
   "AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.": "AI चैट और नोट्स एक ही जगह: सवाल पूछें, जवाब को नोट के रूप में रखें, और बाद में आसानी से फिर ढूँढ लें।",
   "AI chat and notes, in one place": "AI चैट और नोट्स, एक ही जगह",
-  "About": "परिचय",
+  "Visit website": "वेबसाइट पर जाएँ",
   "Account": "खाता",
   "Actions": "कार्रवाइयाँ",
   "Actions for project {name}": "प्रोजेक्ट {name} के लिए कार्रवाइयाँ",

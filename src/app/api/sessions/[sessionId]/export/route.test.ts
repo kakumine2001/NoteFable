@@ -28,7 +28,7 @@ describe("GET /api/sessions/:id/export", () => {
     const expected = conversationToMarkdownFile([
       { role: "USER", content: "Look at this", attachments: [{ filename: "photo.png", dataUrl: "/api/attachments/a1/image" }, { filename: "notes.pdf" }] },
       { role: "ASSISTANT", content: "Here is a picture", attachments: [], generatedImages: [{ id: "g1", dataUrl: "/api/attachments/g1/image" }] },
-    ], { conversationTitle: "Weekly: sync?", conversationUrl: `https://notefable.example/?chat=${sessionId}`, savedAt: new Date(2026, 9, 16, 12) });
+    ], { conversationTitle: "Weekly: sync?", conversationUrl: `https://notefable.example/c/${sessionId}`, savedAt: new Date(2026, 9, 16, 12) });
     expect(body.markdown).toBe(expected);
     expect(body.markdown).toContain("## You\n\nLook at this\n\n- [photo.png](<https://notefable.example/api/attachments/a1/image>)\n- notes.pdf");
     expect(body.markdown).toContain("- [Generated image 1](<https://notefable.example/api/attachments/g1/image>)");

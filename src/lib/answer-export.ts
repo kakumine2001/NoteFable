@@ -1,3 +1,4 @@
+import { splitHosts } from "@/lib/hosts";
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
 import { TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
@@ -160,10 +161,19 @@ export function isStoredMessageId(id: string) {
 }
 
 // 保存したノートやダウンロードしたファイルから会話へ戻るリンク。メッセージが DB に保存済みのときだけ、そのメッセージまで指す。
-export function answerConversationUrl(origin: string, sessionId: string, messageId?: string | null) {
-  const params = new URLSearchParams({ chat: sessionId });
-  if (messageId && isStoredMessageId(messageId)) params.set("message", messageId);
-  return `${origin}/?${params}`;
+// 形は /c/<会話>?message=<メッセージ>（proxy がワークスペースの /?chat=…&message=… へ送る。Android は App Links でこの形を App で開く）。
+// 以前の /?chat=… のリンクも引き続き開ける。
+// 分域後に紹介サイトのホスト（notefable.com）へ届く要求は、まだ旧ホストを使う古い Android アプリから来る。そのアプリは /c/ を
+// 知らず、ブラウザで開いてしまう（ブラウザには App の Cookie が無い）ので、以前の /?chat= の形で返す。
+export function answerConversationUrl(origin: string, sessionId: string, messageId?: string | null, hosts = splitHosts()) {
+  const stored = messageId && isStoredMessageId(messageId) ? messageId : null;
+  if (hosts && origin === hosts.site) {
+    const params = new URLSearchParams({ chat: sessionId });
+    if (stored) params.set("message", stored);
+    return `${origin}/?${params}`;
+  }
+  const query = stored ? `?${new URLSearchParams({ message: stored })}` : "";
+  return `${origin}/c/${encodeURIComponent(sessionId)}${query}`;
 }
 
 // ---- ファイル名 ----

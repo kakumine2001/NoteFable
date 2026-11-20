@@ -70,6 +70,7 @@ flowchart LR
 | --- | --- |
 | `src/app/[locale]/page.tsx`、`src/components/thread-landing.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与笔记链接保留查询参数转到 `/app` |
 | `src/app/[locale]/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
+| `src/lib/hosts.ts`、`src/proxy.ts`、`src/lib/i18n/routing.ts` | 介绍页（`notefable.com`）与工作区（`app.notefable.com`）分域：按主机分流、旧链接转发、共享提示 Cookie（[deployment.md](deployment.md)） |
 | `src/app/api/chat/route.ts` | 普通聊天主流程 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx` | 公开的隐私权政策、服务条款（Google 同意屏幕要填这两个链接）和特定商取引法に基づく表記（日文，Stripe / 日本法律要求） |
@@ -82,7 +83,7 @@ flowchart LR
 | `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx` | 已登录用户的自定义指令（适用于所有聊天）：校验、写入系统指令；设置对话框还集中了个人资料（`profile-settings.tsx`）、界面语言和退出登录 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
-| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/?chat=&message=` 会话链接（根页面重定向后，由 `src/app/[locale]/app/page.tsx` 打开会话） |
+| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/c/<会话>?message=` 会话链接（`src/proxy.ts` 转到工作区的 `?chat=&message=`，由 `src/app/[locale]/app/page.tsx` 打开会话；以前的 `/?chat=` 链接也能开） |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
 | `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；Google 或邮箱登录时返回对应账号的用户 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |

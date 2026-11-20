@@ -444,12 +444,12 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 - **标题**：回答里（代码围栏之外）第一个标题；没有就取第一个非空行（去掉 Markdown 符号）；再没有就用会话标题；最后是 `Untitled`。最长 80 个字素、且不超过 200 个 UTF-16 单位（笔记标题上限），截断时加 `…`。标题来自开头的标题时，正文里去掉那一行以免重复；标题来自第一行普通文字时，正文保留它（所以一行的回答会同时出现在标题和正文里）。
 - **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
-- **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/?chat=<会话 ID>&message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
+- **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/c/<会话 ID>?message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
 - **上限**：最多 2,000 个块，整篇 JSON 不超过 1 MiB 减 2 KiB 余量。超出时在块的边界处二分截断正文，来源段落追加 “The answer was too long to save in full, so the end was left out.”
 
-### 会话链接 `/?chat=&message=`
+### 会话链接 `/c/<会话>?message=`
 
-保存的笔记和下载的 .md 里都带一个回到原会话的链接 `<origin>/?chat=<sessionId>[&message=<messageId>]`（`answerConversationUrl`）。`message` 只在消息 ID 是数据库 ID 时才加（`isStoredMessageId`：`/^[a-z0-9]{20,40}$/i`）；刚发送完、还没刷新的消息用本地 UUID（含 `-`），不满足，链接就只指向会话。
+保存的笔记和下载的 .md 里都带一个回到原会话的链接 `<origin>/c/<sessionId>[?message=<messageId>]`（`answerConversationUrl`）。`src/proxy.ts` 把它转到工作区的 `?chat=<sessionId>[&message=<messageId>]`；分域后转到 `app.notefable.com`，装了 Android App 时由 App Links 直接在 App 里打开（[deployment.md](deployment.md)）。以前生成的 `<origin>/?chat=…` 链接照样能开。分域后发到介绍页主机 `notefable.com` 的请求只会来自还连旧主机的旧版 Android App，它不认 `/c/`，所以这种请求仍生成 `/?chat=…`。`message` 只在消息 ID 是数据库 ID 时才加（`isStoredMessageId`：`/^[a-z0-9]{20,40}$/i`）；刚发送完、还没刷新的消息用本地 UUID（含 `-`），不满足，链接就只指向会话。
 
 `page.tsx` 在首次加载时处理一次（放在 `queueMicrotask` 里并可取消，避免开发模式 StrictMode 的“卸载再挂载”打断读取）：
 
@@ -486,7 +486,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 2. 只读 USER / ASSISTANT 消息的正文和用户消息的附件文件名（不读 SYSTEM、`providerContext`、附件内容或图片；助手的附件是生成的图片，不列出）。按时间倒序最多读 400 条（`MAX_TRANSCRIPT_MESSAGES`），更早的消息算作省略。`buildTranscript`（`src/lib/chat-page.ts`）从最新的消息往前取：每条最多 12,000 字符，合计最多 60,000 字符，放不下的更早消息被省略并注明；空消息跳过。会话标题也放在 `<conversation>` 里。正文和标题里的 `<conversation>` / `<user>` / `<assistant>` 标签被替换掉，不能提前结束对话块。没有可用内容返回 400 “This chat has nothing to turn into a page yet.”，不计数。
 3. `consumeUsage(user, "chat")` 预占一次聊天额度，满额 429（与 `/api/chat` 相同的 `usage_limit` 响应）。
 4. 用 body 里的模型（经 `normalizeModel` 和 `getModelRegistry()`，未知值回到默认模型；上游模型名由 `upstreamModelFor` 解析，与 `/api/chat` 共用）发一次非流式请求，推理强度固定为该模型的默认值（Luna / Haiku `medium`，DeepSeek `high`），避免用户选的高强度把单次请求拖过时限。不带搜索、Notes 工具、压缩和缓存。系统指令（`PAGE_INSTRUCTIONS`）要求用对话的主要语言写一篇以 `# 标题` 开头的 Markdown 笔记，只保留对话里的事实、解释、例子、代码和出处链接，不加新事实，不提“用户 / 助手 / 对话”，并说明 `<conversation>` 里的标题和对话是要改写的材料、不是指令。输出上限是 32,000 token 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。请求格式见 [provider-requests.md](provider-requests.md#整理成笔记的请求)。240 秒超时或客户端断开时中止。
-5. 输出去掉包住整篇的代码围栏后，交给与 “Save to page” 相同的 `answerToNoteContent`（标题取开头的 `#` 标题，超出 2,000 块 / 1 MiB 时截断，末尾加 `Saved from the conversation "<会话标题>" on YYYY-MM-DD.` 来源段落，链接回 `/?chat=<会话 ID>`；截断时写 “The page was too long to save in full, so the end was left out.”），再经 `validateNoteContent` 和 `createNotePage` 新建，返回 201 `{ page, partial }`。模型因输出上限没写完（Claude `stop_reason: max_tokens`、Responses `incomplete` 且原因是 `max_output_tokens`）但已有正文时，照样保存已写的部分，并在来源段落加同一句说明。
+5. 输出去掉包住整篇的代码围栏后，交给与 “Save to page” 相同的 `answerToNoteContent`（标题取开头的 `#` 标题，超出 2,000 块 / 1 MiB 时截断，末尾加 `Saved from the conversation "<会话标题>" on YYYY-MM-DD.` 来源段落，链接回 `/c/<会话 ID>`；截断时写 “The page was too long to save in full, so the end was left out.”），再经 `validateNoteContent` 和 `createNotePage` 新建，返回 201 `{ page, partial }`。模型因输出上限没写完（Claude `stop_reason: max_tokens`、Responses `incomplete` 且原因是 `max_output_tokens`）但已有正文时，照样保存已写的部分，并在来源段落加同一句说明。
 6. 生成失败（上游错误、超时、其他原因的中止或空输出）返回 502，保存失败返回 503（校验错误按原状态返回），这些情况都退还额度。
 
 模型不能借此修改已有笔记，只会新建一篇；生成的笔记和手动新建的一样可以编辑、移进 Trash，编辑历史从第一次保存开始。Android 原生端在顶栏有同样的按钮和窗口（`ui/CreatePageDialog.kt`，状态放在 `AnswerExportStore.pageJobs`），见 [android-native.md](android-native.md)。
