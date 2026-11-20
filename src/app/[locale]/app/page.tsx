@@ -463,22 +463,21 @@ export default function Home() {
     desktop.addEventListener("change", onResize);
     return () => desktop.removeEventListener("change", onResize);
   }, [sidebarOpen]);
-  // ドロワーを開いている間は、フォーカスをドロワーへ移し、後ろの画面を操作できなくする（Tab で隠れたボタンへ行かない）。
-  // 閉じたら開いたボタンへ戻す。ただしドロワーの操作で別の場所（入力欄など）へフォーカスが移ったときは奪わない。
+  // ドロワーを開いている間は、フォーカスをドロワーへ移す。後ろの画面は描画で inert にする（Tab で隠れたボタンへ行かない。
+  // 描画で外すので、閉じる同じ更新の中で入力欄などへ移すフォーカスも効く）。閉じたらメニューのボタンへ戻す。
+  // 戻す先は document.activeElement ではなくボタンそのもの（iOS はボタンをタップしてもフォーカスしないので、
+  // 開く前の入力欄が「開いた要素」に見え、閉じたときにキーボードが出てしまう）。ほかの場所へ移ったフォーカスは奪わない。
   const drawerRootRef = useRef<HTMLDivElement>(null);
-  const pageRef = useRef<HTMLElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (!sidebarOpen || window.matchMedia("(min-width: 1024px)").matches) return;
-    const page = pageRef.current;
     const drawer = drawerRootRef.current;
-    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    if (page) page.inert = true;
-    drawer?.querySelector<HTMLElement>('.motion-sidebar-panel :is(button, a[href], input, textarea, [tabindex]):not([disabled], [tabindex="-1"])')
+    if (!sidebarOpen || !drawer || getComputedStyle(drawer).display === "none") return;
+    drawer.querySelector<HTMLElement>('.motion-sidebar-panel :is(button, a[href], input, textarea, [tabindex]):not([disabled], [tabindex="-1"])')
       ?.focus({ preventScroll: true });
+    const toggle = menuToggleRef.current;
     return () => {
-      if (page) page.inert = false;
       const focused = document.activeElement;
-      if (opener?.isConnected && (!focused || focused === document.body || drawer?.contains(focused))) opener.focus({ preventScroll: true });
+      if (toggle?.isConnected && (!focused || focused === document.body || drawer.contains(focused))) toggle.focus({ preventScroll: true });
     };
   }, [sidebarOpen]);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
@@ -2096,7 +2095,7 @@ export default function Home() {
         </div>
       )}
 
-      <section ref={pageRef} className="notion-page" {...(workspaceView === "chat" ? fileDropHandlers : {})}>
+      <section className="notion-page" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
             <div><Paperclip size={22} /><span>{t("Drop files to attach")}</span></div>
@@ -2105,6 +2104,7 @@ export default function Home() {
         <header className="notion-topbar">
           <div className="flex min-w-0 items-center gap-3">
             <button
+              ref={menuToggleRef}
               className="notion-icon-button mobile-sidebar-toggle"
               onClick={() => setSidebarOpen(true)}
               aria-label={t("Open sidebar")}

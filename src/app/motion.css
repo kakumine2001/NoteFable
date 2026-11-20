@@ -38,7 +38,11 @@ html[data-vt-kind="fade"]::view-transition-old(topbar),
 html[data-vt-kind="fade"]::view-transition-old(nf-home-switch) { animation: none; opacity: 0; }
 html[data-vt-kind="fade"]::view-transition-new(nf-sidebar),
 html[data-vt-kind="fade"]::view-transition-new(topbar),
-html[data-vt-kind="fade"]::view-transition-new(nf-home-switch) { animation: none; }
+html[data-vt-kind="fade"]::view-transition-new(nf-home-switch),
+/* 位置と大きさも動かさない（タブレット幅では空のチャットとノートで切り替えの位置が違い、伸び縮みして見える）。 */
+html[data-vt-kind="fade"]::view-transition-group(nf-sidebar),
+html[data-vt-kind="fade"]::view-transition-group(topbar),
+html[data-vt-kind="fade"]::view-transition-group(nf-home-switch) { animation: none; }
 /* 一覧からノートへ: 古い画面は左へ、新しい画面は右から入る。戻るときはその逆。 */
 html[data-vt-kind="forward"]::view-transition-old(root) { animation-name: vt-out-left; }
 html[data-vt-kind="forward"]::view-transition-new(root) { animation-name: vt-in-right; }

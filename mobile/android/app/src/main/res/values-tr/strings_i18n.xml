@@ -5,6 +5,7 @@
     <string name="language_change_failed">Dil değiştirilemedi. Lütfen tekrar deneyin.</string>
     <string name="language_auto">Otomatik algıla</string>
     <string name="language_auto_current">Otomatik (geçerli: %1$s)</string>
+    <string name="language_auto_now">Geçerli: %1$s</string>
     <string name="language_search">Dil ara</string>
     <string name="language_effective">Geçerli dil</string>
     <string name="language_no_results">Dil bulunamadı.</string>

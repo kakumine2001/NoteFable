@@ -4,6 +4,7 @@
     <string name="language_change_failed">言語を切り替えられませんでした。もう一度お試しください。</string>
     <string name="language_auto">自動検出</string>
     <string name="language_auto_current">自動検出（現在：%1$s）</string>
+    <string name="language_auto_now">現在：%1$s</string>
     <string name="language_search">言語を検索</string>
     <string name="language_effective">現在の言語</string>
     <string name="language_no_results">言語が見つかりません。</string>

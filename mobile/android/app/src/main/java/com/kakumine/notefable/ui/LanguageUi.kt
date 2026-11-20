@@ -300,7 +300,11 @@ internal fun LanguageMenu(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            LanguageName(option, Modifier.fillMaxWidth(), fontSize = 14)
+                            // Auto 行：「自动检测」下面用小字写「当前：○○」（和网页的语言列表一样，不重复「自动检测」）。
+                            if (option == AppLanguage.Preference.Auto) {
+                                Text(stringResource(R.string.language_auto), color = Sm.Text, fontSize = 14.sp)
+                                Text(stringResource(R.string.language_auto_now, AppLanguage.nativeName(showingLanguage()).orEmpty()), color = Sm.Muted, fontSize = 12.sp)
+                            } else LanguageName(option, Modifier.fillMaxWidth(), fontSize = 14)
                             if (option == effective) Text(stringResource(R.string.language_effective), color = Sm.Muted, fontSize = 12.sp)
                         }
                         Spacer(Modifier.width(12.dp))
