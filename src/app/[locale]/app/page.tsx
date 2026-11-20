@@ -1879,6 +1879,8 @@ export default function Home() {
 
       // 編集中の Ctrl+B は区画編集器の太字ショートカットに渡す。
       if (event.target instanceof HTMLElement && event.target.closest('[contenteditable="true"], input, textarea')) return;
+      // 検索などのモーダルを開いている間は切り替えない（後ろでドロワーが開き、フォーカスがモーダルの外へ移ってしまう）。
+      if (document.querySelector('dialog:modal, [role="dialog"][aria-modal="true"]')) return;
 
       event.preventDefault();
       if (window.matchMedia("(min-width: 1024px)").matches) {
