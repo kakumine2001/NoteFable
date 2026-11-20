@@ -80,19 +80,23 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
 
   const hasItems = notes.pages.length > 0 || notes.groups.length > 0;
   // 一覧が中身なしのあいだ（読み込み中・失敗・空）は、スマホの「聊天 / 笔记」切り替えを 1 つだけ出し続ける（消えない・作り直さない）。
-  // 中身が届いて NotesHome の切り替えに替わるときは、切り替えにあったキーボードのフォーカスを新しい方へ移す。
-  const switchFocused = useRef(false);
+  // 中身が届いて NotesHome の切り替えに替わるときは、切り替えにあったキーボードのフォーカスを新しい方の同じボタン（聊天 / 笔记）へ移す。
+  // フォーカスしていたボタンの位置。切り替えの外なら null。
+  const switchFocused = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const focused = document.activeElement;
-    if (!switchFocused.current || (focused && focused !== document.body)) return;
-    rootRef.current?.querySelector<HTMLElement>('.notion-home-switch [aria-pressed="true"]')?.focus({ preventScroll: true });
+    if (switchFocused.current === null || (focused && focused !== document.body)) return;
+    rootRef.current?.querySelectorAll<HTMLElement>(".notion-home-switch button")[switchFocused.current]?.focus({ preventScroll: true });
   }, [hasItems, loading, error]);
 
   return <div ref={rootRef} className={`notes-workspace flex-1 overflow-y-auto${pageClass}`}
-    onFocus={(event) => { switchFocused.current = !!(event.target as HTMLElement).closest(".notion-home-switch"); }}
+    onFocus={(event) => {
+      const button = (event.target as HTMLElement).closest(".notion-home-switch button");
+      switchFocused.current = button?.parentElement ? Array.from(button.parentElement.children).indexOf(button) : null;
+    }}
     // 要素が消えて外れたフォーカス（relatedTarget なし）は覚えたままにして、上で付け直す。
-    onBlur={(event) => { if (event.relatedTarget) switchFocused.current = false; }}>
+    onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
