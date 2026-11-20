@@ -2,8 +2,8 @@ name: Android PR checks
 
 on:
   pull_request:
-    # edited: re-check when the PR is retargeted to main; title or body edits are skipped below.
-    types: [opened, synchronize, reopened, edited]
+    # No "edited": a title or body edit would cancel a running check. After retargeting a PR to main, push or reopen it.
+    types: [opened, synchronize, reopened]
     branches: [main]
     paths:
       - "mobile/android/**"
@@ -19,7 +19,6 @@ concurrency:
 
 jobs:
   android:
-    if: github.event.action != 'edited' || github.event.changes.base != null
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:

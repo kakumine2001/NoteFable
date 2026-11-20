@@ -1,7 +1,7 @@
 set -euo pipefail
-# Compares the Android version of a merge commit (HEAD) with main before the merge (HEAD^1).
-# Runs on the PR's test merge in Android PR checks and on the real merge commit in the release workflow.
-# Needs full history (fetch-depth: 0) for the merge base.
+# Compares the Android version of a PR merge (HEAD) with main before the merge (HEAD^1); HEAD^2 is the PR head.
+# Runs on GitHub's test merge in Android PR checks and on the real merge commit in the release workflow.
+# Needs full history (fetch-depth: 0) for the merge base. The repository allows only merge-commit merges.
 config=mobile/android/app/build.gradle.kts
 version_code() {
   git show "$1:$config" | sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$/\1/p'
@@ -13,7 +13,7 @@ valid_code() {
   [[ "$1" =~ ^[1-9][0-9]{0,9}$ ]]
 }
 git rev-parse --verify --quiet HEAD^2 > /dev/null || {
-  echo "::error::Android releases need a PR merged with a merge commit (squash and rebase merges are not supported)."
+  echo "::error::HEAD is not a merge commit. The version check needs the PR merge (HEAD^1 = main, HEAD^2 = PR head); merge PRs with a merge commit."
   exit 1
 }
 before=$(version_code HEAD^1)
@@ -28,8 +28,17 @@ if (( after > 2100000000 || after < before )); then
 fi
 if (( after == before )); then
   # The PR may have bumped the version to a value that main already reached through another PR.
-  base=$(git merge-base HEAD^1 HEAD^2)
-  if [[ "$(version_code "$base")" != "$(version_code HEAD^2)" ]]; then
+  base=$(git merge-base HEAD^1 HEAD^2) || {
+    echo "::error::No merge base between main and the PR head. Check out the full history (fetch-depth: 0)."
+    exit 1
+  }
+  pr_before=$(version_code "$base")
+  pr_after=$(version_code HEAD^2)
+  if ! valid_code "$pr_before" || ! valid_code "$pr_after"; then
+    echo "::error::Expected a single positive versionCode at the PR head and its merge base."
+    exit 1
+  fi
+  if [[ "$pr_before" != "$pr_after" ]]; then
     echo "::error::This PR changes versionCode, but main already has versionCode $after. Raise it above $after or revert the version change."
     exit 1
   fi

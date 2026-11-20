@@ -135,6 +135,8 @@ jobs:
             directory=$(mktemp -d "$RUNNER_TEMP/play-whatsnew.XXXXXX")
             cp -- "$source" "$directory/whatsnew-en-US"
             echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::This release PR did not change $source, so the release has no What's new text."
           fi
 
       - name: Upload AAB to Google Play closed testing
