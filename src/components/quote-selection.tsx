@@ -84,12 +84,15 @@ export function QuoteSelectionButton({ container, disabled, onQuote }: {
   const [placement, setPlacement] = useState<Placement | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const [width, setWidth] = useState(0);
+  // タッチで押している間。iOS Safari はタップの始まりで選択を外すことがあるので、その間はボタンを消さずに押した位置で待つ。
+  const pressedRef = useRef(false);
 
   useEffect(() => {
     let frame = 0;
     const update = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
+        if (pressedRef.current) return;
         const element = container.current;
         setPlacement(element && !disabled ? placementFor(element) : null);
       });
@@ -113,6 +116,13 @@ export function QuoteSelectionButton({ container, disabled, onQuote }: {
 
   if (!placement || typeof document === "undefined") return null;
   const left = Math.max(EDGE, Math.min(placement.left, window.innerWidth - width - EDGE));
+  const activate = () => {
+    const text = normalizeQuote(selectedText(placement.range));
+    // iOS ではタップの処理の中で同期してフォーカスしないと画面キーボードが開かない。onQuote が入力欄へフォーカスする。
+    if (text) onQuote(text);
+    window.getSelection()?.removeAllRanges();
+    setPlacement(null);
+  };
   return createPortal(
     <button
       ref={button}
@@ -120,14 +130,23 @@ export function QuoteSelectionButton({ container, disabled, onQuote }: {
       className="quote-selection-button"
       style={{ top: placement.top, left }}
       // 押した瞬間に選択が外れないよう、フォーカス移動を止める。
-      onPointerDown={(event) => event.preventDefault()}
-      onMouseDown={(event) => event.preventDefault()}
-      onClick={() => {
-        const text = normalizeQuote(selectedText(placement.range));
-        if (text) onQuote(text);
-        window.getSelection()?.removeAllRanges();
-        setPlacement(null);
+      onPointerDown={(event) => {
+        event.preventDefault();
+        if (event.pointerType !== "mouse") pressedRef.current = true;
       }}
+      // iOS Safari（WebKit）はタッチで押したこのボタンに click を送らないことがある。タッチは指を離したときに引用する。
+      onPointerUp={(event) => {
+        if (event.pointerType === "mouse" || !pressedRef.current) return;
+        pressedRef.current = false;
+        event.preventDefault();
+        activate();
+      }}
+      onPointerCancel={() => {
+        pressedRef.current = false;
+      }}
+      onMouseDown={(event) => event.preventDefault()}
+      // マウスとキーボード（Enter / Space）はいつもの click。タッチは上で済んでいる（ボタンはもう消えている）。
+      onClick={activate}
     >
       <MessageSquareQuote size={15} aria-hidden="true" />
       <span>{t("Ask NoteFable")}</span>

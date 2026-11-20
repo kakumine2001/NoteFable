@@ -946,7 +946,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-menu-item.is-danger { color: #b91c1c; }
 .chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
 /* 回答の一部を選んだときの「NoteFable に聞く」（quote-selection.tsx）。メニューと同じ白い面・枠・影。 */
-.quote-selection-button { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .8rem; border: 1px solid var(--notion-border); border-radius: .6rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; font-size: .875rem; white-space: nowrap; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
+.quote-selection-button { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .8rem; border: 1px solid var(--notion-border); border-radius: .6rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; font-size: .875rem; white-space: nowrap; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
 .quote-selection-button:hover, .quote-selection-button:focus-visible { background: var(--notion-hover); outline: none; }
 .quote-selection-button svg { color: var(--notion-muted); }
 @media (prefers-reduced-motion: reduce) { .quote-selection-button { animation: none; } }
