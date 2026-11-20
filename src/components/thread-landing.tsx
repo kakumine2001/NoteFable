@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  ArrowRight, ArrowUp, BookOpen, Copy, FileText, Folder, Globe, History,
+  ArrowRight, ArrowUp, BookOpen, Check, Copy, FilePenLine, FileText, Folder, Globe, History,
   MessageSquareText, MoreHorizontal, NotebookPen, Paperclip, Plus, Search,
 } from "lucide-react";
 import Link from "next/link";
@@ -147,6 +147,29 @@ function useStations(): Station[] {
         </ul>
         <p className="tl-note-own">{t("In my own words: the sky keeps the blue for itself")}<i aria-hidden="true" /></p>
         <span className="tl-card-meta"><History size={13} />{" "}{t("Saved · history kept")}</span>
+      </div>
+    ),
+  },
+  {
+    id: "revise",
+    label: t("Revise"),
+    title: t("Let the AI edit the note itself."),
+    body: t("Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history."),
+    card: (
+      <div className="tl-card tl-card-edit">
+        <p className="tl-bubble">{t("Add a one-line summary at the top.")}</p>
+        {/* 実物の編集案カード（page-edit-proposal.tsx）と同じアイコン・文言を使う。 */}
+        <div className="tl-proposal">
+          <span className="tl-card-meta"><FilePenLine size={13} />{" "}{t("Proposed edit to “{title}”", { title: t("Why sunsets are red") })}</span>
+          <div className="tl-proposal-add">
+            <div className="tl-proposal-op">{t("{op} · start of note", { op: t("Insert") })}</div>
+            <p>{t("In short: at sunset the light crosses more air, the blue is scattered away, and red is left.")}</p>
+          </div>
+          <div className="tl-actions tl-proposal-actions">
+            <span className="tl-proposal-apply"><Check size={13} />{" "}{t("Apply")}</span>
+            <span>{t("Discard")}</span>
+          </div>
+        </div>
       </div>
     ),
   },

@@ -687,4 +687,9 @@ export const vi: Record<string, string> = {
   "Choose a character": "Chọn nhân vật",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Hiển thị trong trò chuyện, ở thanh bên và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.",
   "AI reply": "Câu trả lời của AI",
+  "Revise": "Chỉnh sửa",
+  "Let the AI edit the note itself.": "Để AI trực tiếp sửa ghi chú giúp bạn.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Yêu cầu trong cuộc trò chuyện hoặc ngay trong ghi chú: sắp xếp lại, viết lại một phần, bổ sung chỗ còn thiếu. AI đọc ghi chú của bạn và đề xuất thay đổi. Không có gì được ghi cho đến khi bạn chấp thuận, và phiên bản trước vẫn nằm trong lịch sử.",
+  "Add a one-line summary at the top.": "Thêm một dòng tóm tắt ở đầu.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Tóm lại: lúc hoàng hôn ánh sáng đi qua nhiều không khí hơn, ánh sáng xanh bị tán xạ hết và sắc đỏ còn lại.",
 };
