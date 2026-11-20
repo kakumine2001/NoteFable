@@ -8,9 +8,6 @@ import json
 import os
 import sys
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-
 PACKAGE = "com.kakumine.notefable"
 SCOPES = ["https://www.googleapis.com/auth/androidpublisher"]
 
@@ -26,8 +23,8 @@ def prepare_promotion(tracks, version_code, target, rollout_percent):
     if target not in ("alpha", "beta", "production"):
         fail("Unsupported destination track")
 
-    # The Play API may call the internal track 'internal' or 'qa' depending on
-    # the existing app/track representation. Identify it by returned name.
+    # The Play Developer API documents qa for internal testing; some integrations
+    # identify the same track as internal. Read the track identifier from Play.
     internal = next(
         (t for t in tracks if t.get("track") in ("internal", "qa")), None
     )
@@ -53,6 +50,9 @@ def prepare_promotion(tracks, version_code, target, rollout_percent):
             fail(f"{target} contains a newer versionCode; refusing downgrade")
         if release.get("status") in ("inProgress", "draft"):
             fail(f"{target} already has an active staged/draft release; handle it in Play Console")
+
+    if target != "production" and destination is None:
+        fail(f"{target} testing track does not exist; configure it in Play Console first")
 
     selected = source[0]
     release = {
@@ -82,6 +82,8 @@ def main():
     target = os.environ["TARGET_TRACK"].strip()
     rollout_percent = int(os.environ.get("ROLLOUT_PERCENT", "10"))
     info = json.loads(os.environ["GOOGLE_PLAY_SERVICE_ACCOUNT_JSON"])
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
 
     credentials = service_account.Credentials.from_service_account_info(
         info, scopes=SCOPES
@@ -106,6 +108,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except (KeyError, ValueError) as exc:
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
         print(f"::error::{exc}", file=sys.stderr)
         sys.exit(1)
