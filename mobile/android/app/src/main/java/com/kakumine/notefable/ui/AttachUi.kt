@@ -24,6 +24,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.content.TransferableContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -427,7 +429,7 @@ internal fun SpinningLoader(size: androidx.compose.ui.unit.Dp, modifier: Modifie
     Box(modifier.rotate(spin)) { LucideIcon(Lucide.LoaderCircle, size, Sm.Muted) }
 }
 
-/** 点「＋」后从底部出来的抽屉：添加文件、添加笔记，或切换「生成图片」。外观与模型抽屉相同。 */
+/** 点「＋」后从底部出来的抽屉：添加文件、添加笔记、切换「生成图片」，已有会话时还可以「整理成笔记」。外观与模型抽屉相同。 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttachSheet(
@@ -435,6 +437,8 @@ fun AttachSheet(
     onPickFiles: () -> Unit,
     onAttachPages: () -> Unit,
     onToggleImageMode: () -> Unit,
+    onCreatePage: (() -> Unit)? = null,
+    createPageEnabled: Boolean = true,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -457,7 +461,11 @@ fun AttachSheet(
             Box(Modifier.padding(top = 12.dp, bottom = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Sm.SheetGrab))
         },
     ) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).windowInsetsPadding(WindowInsets.navigationBars)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+        ) {
             AttachRow(Lucide.Paperclip, stringResource(R.string.attach_files), null, pressed = false, checked = false) {
                 closeThen(onPickFiles)
             }
@@ -474,16 +482,36 @@ fun AttachSheet(
             ) {
                 closeThen(onToggleImageMode)
             }
+            if (onCreatePage != null) {
+                AttachRow(
+                    Lucide.FilePlus,
+                    stringResource(R.string.create_page),
+                    stringResource(R.string.create_page_title),
+                    pressed = false,
+                    checked = false,
+                    enabled = createPageEnabled,
+                ) {
+                    closeThen(onCreatePage)
+                }
+            }
         }
     }
 }
 
 // .attach-row：最小高 60、圆角 11.2、内边距 6.4×13.6、图标 22 与文字间距 14.4；标题 17 半粗，说明 14 灰。
 @Composable
-private fun AttachRow(icon: List<String>, title: String, detail: String?, pressed: Boolean, checked: Boolean, onClick: () -> Unit) {
+private fun AttachRow(
+    icon: List<String>,
+    title: String,
+    detail: String?,
+    pressed: Boolean,
+    checked: Boolean,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
     Row(
-        Modifier.fillMaxWidth().heightIn(min = 60.dp).clip(RoundedCornerShape(11.2.dp))
-            .background(if (pressed) Sm.Hover else Color.Transparent).clickable(onClick = onClick)
+        Modifier.fillMaxWidth().heightIn(min = 60.dp).alpha(if (enabled) 1f else 0.45f).clip(RoundedCornerShape(11.2.dp))
+            .background(if (pressed) Sm.Hover else Color.Transparent).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 13.6.dp, vertical = 6.4.dp)
             .semantics(mergeDescendants = true) { role = Role.Button; if (detail != null) stateDescription = detail },
         verticalAlignment = Alignment.CenterVertically,

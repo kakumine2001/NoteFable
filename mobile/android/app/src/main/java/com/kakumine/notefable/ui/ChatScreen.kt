@@ -208,9 +208,6 @@ fun ChatScreen(
                 onNewChat = onNewChat,
                 onChangeIcon = onChangeIcon,
                 onSearch = onSearch,
-                // 网页：有消息的已保存聊天才有；当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。
-                onCreatePage = state.activeSessionId?.takeIf { !isEmptyChat }?.let { id -> { onCreatePage(id) } },
-                createPageEnabled = !state.sending && state.upload == null,
             )
         },
     ) { inner ->
@@ -323,6 +320,9 @@ fun ChatScreen(
             onPickFiles = pickFiles,
             onAttachPages = { pagesOpen = true },
             onToggleImageMode = { onImageMode(!state.imageMode) },
+            // 网页：有消息的已保存聊天才有；当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。
+            onCreatePage = state.activeSessionId?.takeIf { !isEmptyChat }?.let { id -> { onCreatePage(id) } },
+            createPageEnabled = !state.sending && state.upload == null,
             onDismiss = { attachOpen = false },
         )
     }
@@ -351,8 +351,6 @@ private fun TopBar(
     onNewChat: () -> Unit,
     onChangeIcon: (String?) -> Unit,
     onSearch: () -> Unit,
-    onCreatePage: (() -> Unit)? = null,
-    createPageEnabled: Boolean = true,
 ) {
     Row(
         Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -382,11 +380,6 @@ private fun TopBar(
         if (showNewChat) {
             Spacer(Modifier.width(8.dp))
             TopIconButton(Lucide.Plus, stringResource(R.string.new_chat), onNewChat)
-        }
-        // 网页：新建聊天右边的「整理成笔记」（FilePlus 20）。回答进行中不可点，外观不变（网页的 disabled 没有单独样式）。
-        if (onCreatePage != null) {
-            Spacer(Modifier.width(8.dp))
-            TopIconButton(Lucide.FilePlus, stringResource(R.string.create_page), onCreatePage, enabled = createPageEnabled)
         }
     }
 }

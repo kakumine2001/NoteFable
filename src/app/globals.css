@@ -826,6 +826,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .attach-row strong { font-size: 1.0625rem; font-weight: 600; }
 .attach-row small { font-size: 0.875rem; color: var(--notion-muted); }
 .attach-row[aria-pressed="true"] { background: var(--notion-hover); }
+.attach-row:disabled { opacity: 0.45; cursor: not-allowed; }
 /* パソコンで「＋」の上に開くメニュー。外枠はモデル選択のメニューと同じで、行はシートより小さくする。 */
 .attach-menu {
   position: absolute; bottom: 100%; inset-inline-start: 0; z-index: 30; display: grid; gap: 2px;
@@ -839,7 +840,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .attach-menu .attach-row[aria-checked="true"] { background: var(--notion-hover); }
 .attach-menu .attach-row[aria-checked="true"] > svg { color: var(--notion-blue); }
 @media (hover: hover) {
-  .attach-menu .attach-row:hover { background: var(--notion-hover); }
+  .attach-menu .attach-row:hover:not(:disabled) { background: var(--notion-hover); }
 }
 /* スマホではノートの添付は「＋」シートに移したので、入力欄の下の段からは外す。 */
 @media (max-width: 639px) {

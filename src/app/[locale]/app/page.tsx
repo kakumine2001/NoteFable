@@ -4,7 +4,6 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
-  FilePlus,
   FileText,
   History,
   ImagePlus,
@@ -436,6 +435,8 @@ export default function Home() {
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  // チャットからノートへ移ったとき、開いていた「＋」シートは閉じる（戻ったときに勝手に開き直さない）。
+  if (attachSheetOpen && workspaceView !== "chat") setAttachSheetOpen(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 次の発言に添付する自分のノート（ID とタイトル・アイコン）。本文はサーバーが送信のたびに読み直す。
@@ -2160,13 +2161,6 @@ export default function Home() {
                 <Plus size={20} />
               </button>
             )}
-            {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
-            {workspaceView === "chat" && !emptyState && activeSession && (
-              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionBusy} onClick={() => setCreatePageSessionId(activeSession.id)}
-                aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
-                <FilePlus size={20} />
-              </button>
-            )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
@@ -2401,6 +2395,8 @@ export default function Home() {
                     // 続けて絵の説明を打てるよう、入力欄へフォーカスを移す。
                     inputRef.current?.focus();
                   }}
+                  onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+                  createPageDisabled={isActiveSessionBusy}
                 />
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -2516,12 +2512,14 @@ export default function Home() {
           )}
           {!isNarrowScreen && recentNoteCards}
           <AttachSheet
-            open={attachSheetOpen && isNarrowScreen}
+            open={attachSheetOpen && isNarrowScreen && workspaceView === "chat"}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
             onAttachPages={() => setPageDialogOpen(true)}
+            onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+            createPageDisabled={isActiveSessionBusy}
           />
           {pageDialogOpen && (
             <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)}

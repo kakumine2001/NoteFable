@@ -15,8 +15,8 @@ android {
         applicationId = "com.kakumine.notefable"
         minSdk = 26
         targetSdk = 36
-        versionCode = 22
-        versionName = "1.0.12"
+        versionCode = 23
+        versionName = "1.0.13"
 
         val baseUrl = (project.findProperty("notefable.baseUrl") as String).trimEnd('/')
         buildConfigField("String", "BASE_URL", "\"$baseUrl\"")

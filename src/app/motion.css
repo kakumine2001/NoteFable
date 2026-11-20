@@ -99,7 +99,7 @@ html[data-vt-kind="list"] .vt-row { view-transition-name: var(--vt-name); }
 .notion-sidebar-action:active:not(:disabled),
 .sidebar-primary-action:active:not(:disabled),
 .notion-segment:active:not(:disabled),
-.attach-row:active,
+.attach-row:active:not(:disabled),
 .model-sheet-row:active:not(:disabled),
 .note-ai-chip:active:not(:disabled),
 .notes-empty-new:active:not(:disabled) { transform: scale(0.97); }
