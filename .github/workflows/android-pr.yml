@@ -2,14 +2,13 @@ name: Android PR checks
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, edited]
+    # No "edited": a title or body edit would cancel a running check. After retargeting a PR to main, push or reopen it.
+    types: [opened, synchronize, reopened]
     branches: [main]
     paths:
       - "mobile/android/**"
       - ".github/workflows/android-*.yml"
       - "scripts/release/android-version.sh"
-      - "docs/architecture/android.md"
-      - "AGENTS.md"
 
 permissions:
   contents: read
@@ -25,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
       - name: Validate Android version
         run: bash scripts/release/android-version.sh

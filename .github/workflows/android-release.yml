@@ -21,7 +21,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
-          fetch-depth: 2
+          fetch-depth: 0
           persist-credentials: false
       - name: Compare Android version with main before the merge
         id: version
@@ -45,6 +45,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 2
           persist-credentials: false
 
       - name: Skip superseded Android releases
@@ -90,6 +91,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         if: steps.current.outputs.publish == 'true'
         with:
+          # This job holds signing secrets: never write its build outputs to the shared Actions cache.
           cache-read-only: true
 
       - name: Android unit tests
@@ -128,10 +130,13 @@ jobs:
         run: |
           set -euo pipefail
           source=mobile/android/play-store/release-notes.txt
-          if [[ -s "$source" ]]; then
+          # Use the notes only when this merge changed them, so one release's notes are not reused.
+          if [[ -s "$source" ]] && ! git diff --quiet HEAD^1 HEAD -- "$source"; then
             directory=$(mktemp -d "$RUNNER_TEMP/play-whatsnew.XXXXXX")
             cp -- "$source" "$directory/whatsnew-en-US"
             echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::This release PR did not change $source, so the release has no What's new text."
           fi
 
       - name: Upload AAB to Google Play closed testing
