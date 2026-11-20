@@ -8,7 +8,8 @@ import { isLocale, LOCALE_COOKIE, parsePreference, resolveLocale, type Locale } 
 export const LOCALIZED_PATHS = ["/", "/app", "/note-embed"] as const;
 // proxy.ts の matcher（Next.js は matcher を静的に読むので proxy.ts にも同じ値を書き、テストで一致を確かめる）。
 // /c/<会話>: 会話の共有リンク（answerConversationUrl）。/<言語>/app: 言語固定のワークスペース（紹介サイトのホストではワークスペースのホストへ送る）。
-export const PROXY_MATCHER = [...LOCALIZED_PATHS, "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app"];
+// /<言語>/note-embed: 言語固定のエディター（紹介サイトのホストではワークスペースのホストへ送る）。
+export const PROXY_MATCHER = [...LOCALIZED_PATHS, "/c/:id", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/app", "/:locale([A-Za-z]{2}(?:-[A-Za-z]{2,4})?)/note-embed"];
 // アプリは自分の表示言語を ?lang= で渡す（/note-embed だけ）。Cookie やブラウザの言語より優先する。
 const EMBED_PATH = "/note-embed";
 
@@ -38,6 +39,7 @@ export function siteOrigin() {
 // 戻り先の / や /app は App に取られない）。ワークスペースの /?chat=<会話>&message=… へ送る。
 const SHARE_PATH = /^\/c\/([A-Za-z0-9_-]{1,64})\/?$/;
 const LOCALE_APP_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/app\/?$/;
+const LOCALE_EMBED_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/note-embed\/?$/;
 
 // 保存済みの会話・ノートへの古いリンク（/?chat=… など）は、指定を保ったままワークスペースへ送る。
 const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];
@@ -77,11 +79,18 @@ export function routeLocalizedRequest(request: {
     if (hosts && role === "site") return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
     return role === "app" ? { kind: "none", noindex: true } : { kind: "none" };
   }
+  if (LOCALE_EMBED_PATH.test(url.pathname)) {
+    // 言語固定のエディター（/ja/note-embed など）も、紹介サイトのホストでだけワークスペースのホストへ送る。
+    if (hosts && role === "site") return { kind: "redirect", url: new URL(`${url.pathname}${url.search}`, hosts.app) };
+    return { kind: "none" };
+  }
 
   if (hosts && role === "site") {
     // 紹介サイトのワークスペース（/app、古い /?chat=…、回訪者の /）は、ワークスペースのホストへ。指定（検索部分）は保つ。
-    // /note-embed は古い Android アプリがこのホストで開くので、ここでそのまま出す。/api/* は proxy を通らず、どちらのホストでも動く。
+    // /api/* は proxy を通らない。このホストでは next.config.ts の rewrites が止める（hosts.ts の siteApiBlockRewrites）。
     if (url.pathname === "/app" || legacy || returning) return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
+    // ノートのエディターはワークスペースのホストの API を使うので、そちらへ送る。
+    if (url.pathname === EMBED_PATH) return { kind: "redirect", url: new URL(`${EMBED_PATH}${url.search}`, hosts.app) };
   }
   if (hosts && role === "app") {
     // ワークスペースのホストでは / がワークスペース。/app（Stripe からの戻りや古いリンク）は / へ寄せる。

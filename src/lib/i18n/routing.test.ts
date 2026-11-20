@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { splitHosts } from "@/lib/hosts";
+import { onSiteHost, SITE_API_BLOCKED_PATH, siteApiBlockRewrites, splitHosts } from "@/lib/hosts";
 import { routeLocalizedRequest } from "./routing";
 
 function route(path: string, { cookie, language, country, cookies = {} }: { cookie?: string; language?: string; country?: string; cookies?: Record<string, string> } = {}) {
@@ -128,8 +128,29 @@ describe("split site and workspace hosts", () => {
     expect(where(at("https://notefable.com/?intro", { language: "ja", cookies: { [name]: "1" } }))).toBe("rewrite /ja?intro");
   });
 
-  it("keeps the note embed on the site for installed Android apps", () => {
-    expect(where(at("https://notefable.com/note-embed?page=p1&lang=ja"))).toBe("rewrite /ja/note-embed?page=p1&lang=ja");
+  it("sends the note embed from the site to the workspace host, where the API is", () => {
+    expect(where(at("https://notefable.com/note-embed?page=p1&lang=ja"))).toBe("redirect https://app.notefable.com/note-embed?page=p1&lang=ja");
+    expect(where(at("https://notefable.com/ja/note-embed?page=p1"))).toBe("redirect https://app.notefable.com/ja/note-embed?page=p1");
+    expect(at("https://app.notefable.com/ja/note-embed?page=p1").kind).toBe("none");
+  });
+
+  it("blocks the API on the site host except the dictionary the introduction reads", () => {
+    const [rule] = siteApiBlockRewrites(hosts);
+    expect(rule.destination).toBe(SITE_API_BLOCKED_PATH);
+    expect(new RegExp(`^${rule.has[0].value}$`).test("notefable.com")).toBe(true);
+    expect(new RegExp(`^${rule.has[0].value}$`).test("app.notefable.com")).toBe(false);
+    expect(new RegExp(`^${rule.has[0].value}$`).test("notefableXcom")).toBe(false);
+    const inner = /^\/api\/:path\((.*)\)$/.exec(rule.source)?.[1] ?? "";
+    const blocked = (path: string) => new RegExp(`^${inner}$`).test(path);
+    expect(["billing/webhook", "billing/google/notify", "account", "chat", "auth/callback/google", "i18n/x", "i18nx", ""].every(blocked)).toBe(true);
+    expect(blocked("i18n")).toBe(false);
+    expect(siteApiBlockRewrites(null)).toEqual([]);
+    // 名前が同じでポートだけ違う構成では、ワークスペースの API まで止めてしまうので何もしない。
+    expect(siteApiBlockRewrites(splitHosts({ site: "http://localhost:3000", app: "http://localhost:3001" }))).toEqual([]);
+    expect(onSiteHost(hosts, "notefable.com")).toBe(true);
+    expect(onSiteHost(hosts, "app.notefable.com")).toBe(false);
+    expect(onSiteHost(null, "notefable.com")).toBe(false);
+    expect(onSiteHost(splitHosts({ site: "http://localhost:3000", app: "http://localhost:3001" }), "localhost:3000")).toBe(false);
   });
 
   it("serves the workspace at / on the workspace host, unindexed, and marks the device as returning", () => {
