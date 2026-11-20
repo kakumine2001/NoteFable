@@ -1,0 +1,50 @@
+name: Android PR checks
+
+# Untrusted PR code never gets signing or Google Play publishing credentials.
+on:
+  pull_request:
+    paths:
+      - "mobile/android/**"
+      - ".github/workflows/android-*.yml"
+      - "scripts/release/**"
+      - "docs/architecture/android.md"
+      - "AGENTS.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Unit tests and debug build
+        working-directory: mobile/android
+        run: |
+          set -euo pipefail
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug --no-daemon
+
+  release-policy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Promotion policy tests
+        run: python -m unittest discover -s scripts/release -p 'test_*.py' -v
