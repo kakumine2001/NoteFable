@@ -687,4 +687,9 @@ export const ru: Record<string, string> = {
   "Choose a character": "Выбрать персонажа",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Отображается в чате, на боковой панели и на кнопке ИИ в заметках. Сохраняется только на этом устройстве.",
   "AI reply": "Ответ ИИ",
+  "Revise": "Доработать",
+  "Let the AI edit the note itself.": "Пусть ИИ сам отредактирует заметку.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Попросите в чате или прямо в заметке: привести в порядок, переписать раздел, добавить недостающее. ИИ читает ваши заметки и предлагает изменение. Ничего не записывается, пока вы не одобрите, а прежняя версия остаётся в истории.",
+  "Add a one-line summary at the top.": "Добавь в начало краткое резюме в одну строку.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Коротко: на закате свет проходит через больший слой воздуха, синий рассеивается, остаётся красный.",
 };

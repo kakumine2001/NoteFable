@@ -51,7 +51,9 @@ describe("ThreadLanding hero English pinning", () => {
       expect(html, `${locale}: nav CTA`).toContain(escapeHtmlText(t("Open workspace")));
       expect(html, `${locale}: composer aria-label`).toContain(escapeHtmlText(t("Open NoteFable and ask a question")));
       expect(html, `${locale}: hero note`).toContain(escapeHtmlText(t("Click the box to start. No account needed.")));
-      expect(html, `${locale}: station 05 title`).toContain(escapeHtmlText(t("Find it again, however you typed it.")));
+      expect(html, `${locale}: revise station title`).toContain(escapeHtmlText(t("Let the AI edit the note itself.")));
+      expect(html, `${locale}: revise proposal card`).toContain(escapeHtmlText(t("{op} · start of note", { op: t("Insert") })));
+      expect(html, `${locale}: find station title`).toContain(escapeHtmlText(t("Find it again, however you typed it.")));
       expect(html, `${locale}: finale`).toContain(escapeHtmlText(t("What is the question you keep coming back to?")));
       expect(html, `${locale}: footer`).toContain(escapeHtmlText(t("Privacy")));
     }

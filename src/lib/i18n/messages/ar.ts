@@ -687,4 +687,9 @@ export const ar: Record<string, string> = {
   "Choose a character": "اختر شخصية",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "تظهر في المحادثة، وفي الشريط الجانبي، وعلى زر الذكاء الاصطناعي داخل الملاحظات. وتُحفظ على هذا الجهاز فقط.",
   "AI reply": "رد الذكاء الاصطناعي",
+  "Revise": "راجِع",
+  "Let the AI edit the note itself.": "دع الذكاء الاصطناعي يعدّل الملاحظة نفسها.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "اطلب ذلك في المحادثة أو من داخل الملاحظة: رتّبها، أعد كتابة قسم، أضف ما ينقصها. يقرأ الذكاء الاصطناعي ملاحظاتك ويقترح التعديل. لا يُكتب شيء قبل موافقتك، وتبقى النسخة السابقة في السجل.",
+  "Add a one-line summary at the top.": "أضف ملخصًا من سطر واحد في الأعلى.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "باختصار: عند الغروب يعبر الضوء هواءً أكثر، فيتشتت الأزرق ويبقى الأحمر.",
 };
