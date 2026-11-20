@@ -463,6 +463,24 @@ export default function Home() {
     desktop.addEventListener("change", onResize);
     return () => desktop.removeEventListener("change", onResize);
   }, [sidebarOpen]);
+  // ドロワーを開いている間は、フォーカスをドロワーへ移し、後ろの画面を操作できなくする（Tab で隠れたボタンへ行かない）。
+  // 閉じたら開いたボタンへ戻す。ただしドロワーの操作で別の場所（入力欄など）へフォーカスが移ったときは奪わない。
+  const drawerRootRef = useRef<HTMLDivElement>(null);
+  const pageRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    if (!sidebarOpen || window.matchMedia("(min-width: 1024px)").matches) return;
+    const page = pageRef.current;
+    const drawer = drawerRootRef.current;
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    if (page) page.inert = true;
+    drawer?.querySelector<HTMLElement>('.motion-sidebar-panel :is(button, a[href], input, textarea, [tabindex]):not([disabled], [tabindex="-1"])')
+      ?.focus({ preventScroll: true });
+    return () => {
+      if (page) page.inert = false;
+      const focused = document.activeElement;
+      if (opener?.isConnected && (!focused || focused === document.body || drawer?.contains(focused))) opener.focus({ preventScroll: true });
+    };
+  }, [sidebarOpen]);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
   const [sidebarVisible, setSidebarVisible] = useState(true);
   // 最下部にいる時は手動スクロールボタンを隠す。
@@ -2068,7 +2086,7 @@ export default function Home() {
       {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div ref={drawerRootRef} className="fixed inset-0 z-40 lg:hidden">
           <button
             className="motion-fade-in absolute inset-0 bg-black/15"
             onClick={() => setSidebarOpen(false)}
@@ -2078,7 +2096,7 @@ export default function Home() {
         </div>
       )}
 
-      <section className="notion-page" {...(workspaceView === "chat" ? fileDropHandlers : {})}>
+      <section ref={pageRef} className="notion-page" {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
             <div><Paperclip size={22} /><span>{t("Drop files to attach")}</span></div>
