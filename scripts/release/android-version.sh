@@ -32,6 +32,12 @@ if (( after == before )); then
     echo "::error::No merge base between main and the PR head. Check out the full history (fetch-depth: 0)."
     exit 1
   }
+  # A PR branched before the client moved to mobile/android has no config at its merge base or head,
+  # so it cannot have bumped this version.
+  if ! git cat-file -e "$base:$config" 2> /dev/null || ! git cat-file -e "HEAD^2:$config" 2> /dev/null; then
+    echo "versionCode is unchanged ($after). No Play alpha release is planned."
+    exit 0
+  fi
   pr_before=$(version_code "$base")
   pr_after=$(version_code HEAD^2)
   if ! valid_code "$pr_before" || ! valid_code "$pr_after"; then

@@ -146,7 +146,6 @@ jobs:
           serviceAccountJsonPlainText: ${{ secrets.ALPHA_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
           releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
-          mappingFile: mobile/android/app/build/outputs/mapping/release/mapping.txt
           tracks: alpha
           status: completed
           whatsNewDirectory: ${{ steps.notes.outputs.directory }}
