@@ -1,0 +1,42 @@
+name: Android PR checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+    branches: [main]
+    paths:
+      - "mobile/android/**"
+      - ".github/workflows/android-*.yml"
+      - "scripts/release/android-version.sh"
+      - "docs/architecture/android.md"
+      - "AGENTS.md"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Validate Android version
+        run: bash scripts/release/android-version.sh
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "platforms;android-36 build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Android unit tests
+        working-directory: mobile/android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
