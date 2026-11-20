@@ -3120,7 +3120,9 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .language-menu-name small { display: block; margin-top: .15rem; color: var(--notion-muted); font-size: .75rem; }
 .language-menu [aria-checked="true"] { background: var(--notion-active); }
 .language-menu-empty { padding: .5rem .75rem; font-size: .8125rem; color: var(--notion-muted); }
-.help-menu-value { min-width: 0; max-width: 65%; white-space: normal; overflow-wrap: anywhere; text-align: end; }
+/* 「言語」の行：値は見出しの下に小さく（.language-menu-name small と同じ）。横に並べると見出しが 1 文字ずつ縦に潰れる。 */
+.help-menu-label { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.help-menu-label .help-menu-value { display: block; margin-top: .15rem; font-size: .75rem; }
 
 /* RTL mirroring, directional popups, drawer motion, and Arabic cursive letter-spacing safety. */
 [dir="rtl"] .rtl-mirror,

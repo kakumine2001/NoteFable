@@ -68,8 +68,13 @@ export function HelpMenu({ guest }: { guest: boolean }) {
             <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="dialog"
               onClick={() => setOpen({ kind: "language", anchor: open.anchor })}>
               <Languages size={16} aria-hidden="true" className="help-menu-icon" />
-              <span className="flex-1">{t("Language")}</span>
-              <span lang={LOCALE_TAGS[locale]} dir={preference === "auto" ? undefined : LOCALE_DIRS[locale]} className="help-menu-value">{preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale]}</span>
+              {/* 幅 228px の行に見出しと値を横に並べると、多くの言語で見出しが縦に潰れる。値は見出しの下に小さく出す（言語一覧の行と同じ形）。 */}
+              <span className="help-menu-label">
+                {t("Language")}
+                {preference === "auto"
+                  ? <small className="help-menu-value">{t("Auto detect")}</small>
+                  : <small lang={LOCALE_TAGS[locale]} dir={LOCALE_DIRS[locale]} className="help-menu-value">{LOCALE_NAMES[locale]}</small>}
+              </span>
               <ChevronRight size={15} aria-hidden="true" className="help-menu-icon rtl-mirror" />
             </button>
           </>}
@@ -92,8 +97,8 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
     ref.current?.showModal();
     ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
   }, []);
-  // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）と区切り線で見積もる。
-  const height = items * 44 + 24;
+  // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）と区切り線で見積もる。言語の行は値を下に出す 2 行なので 1 項目では 24px 足りない。
+  const height = items * 44 + 24 + (items > links().length ? 24 : 0);
   // ボタンは画面の一番下にあるので上に開く。上に入りきらない低い画面では上端（8px）から出し、
   // .chat-actions-menu の max-height（画面の高さ − 16px）を超える分はメニューの中でスクロールする。
   const above = anchor.top - 4 - height >= 8;
