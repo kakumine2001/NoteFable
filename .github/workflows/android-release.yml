@@ -1,55 +1,22 @@
-name: Android release
+name: Android internal release
 
-# 发版方式（二选一）：
-# 1. 给目标 commit 打标签 android-v<versionName>（例如 android-v1.0.13）并推送，
-#    自动构建签名 AAB 并发布到 Play 内部测试轨道。标签里的版本号必须与
-#    mobile/android/app/build.gradle.kts 的 versionName 一致（不一致直接失败），
-#    且 versionCode 必须比 Play 上已有的大（提交前先在 build.gradle.kts 里 +1）。
-# 2. 在 Actions 页面手动运行（workflow_dispatch），自选轨道和发布状态；
-#    production 轨道只允许从 main 运行（即已过评审合并的代码），其他分支直接失败。
-#
-# 凭据存放（不进仓库）：
-#   签名凭据是仓库 Secrets，构建 job 使用：
-#     NOTEFABLE_KEYSTORE_B64            上传密钥库（.jks）的 base64
-#     NOTEFABLE_KEYSTORE_PASSWORD       密钥库密码
-#     NOTEFABLE_KEY_ALIAS               密钥别名
-#     NOTEFABLE_KEY_PASSWORD            密钥密码
-#   Play 发布凭据 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON 不在仓库 Secrets 里，
-#   而在 GitHub Environment「play-publish」中。该 Environment 的部署范围
-#   被平台限制为 main 分支与 android-v* 标签：发布 job 只有从这两个来源
-#   运行时才能拿到凭据，其他分支的运行根本收不到它（平台级强制，
-#   不是 workflow 文件里的自觉检查）。
-# 版本说明：若 mobile/android/play-store/release-notes.txt 存在，其内容作为
-# 本次的 en-US 版本说明（经 whatsNewDirectory 传给 Play）。
-
+# Release contract:
+#   1. Merge the Android change to main and bump versionCode / versionName.
+#   2. Push android-v<versionName> pointing to a commit already on main.
+#   3. CI tests, signs one AAB, uploads that exact artifact to Play internal.
+#   4. Promote that already-uploaded versionCode via android-promote.yml;
+#      NEVER build and upload it again when switching Play tracks.
 on:
   push:
     tags:
       - "android-v*"
-  workflow_dispatch:
-    inputs:
-      track:
-        description: "Play track"
-        type: choice
-        options:
-          - internal
-          - alpha
-          - beta
-          - production
-        default: internal
-      status:
-        description: "Release status"
-        type: choice
-        options:
-          - completed
-          - draft
-        default: completed
 
 permissions:
   contents: read
 
+# Google Play only allows one live edit at a time. Also serialize promotions.
 concurrency:
-  group: android-release
+  group: android-play-deploy
   cancel-in-progress: false
   queue: max
 
@@ -58,51 +25,40 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     outputs:
-      track: ${{ steps.meta.outputs.track }}
-      status: ${{ steps.meta.outputs.status }}
       version_name: ${{ steps.meta.outputs.version_name }}
       version_code: ${{ steps.meta.outputs.version_code }}
     steps:
-      - name: Checkout
+      - name: Checkout tag commit
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Resolve track, status and version
+      - name: Check merged commit and tag/version match
         id: meta
         shell: bash
-        env:
-          INPUT_TRACK: ${{ inputs.track }}
-          INPUT_STATUS: ${{ inputs.status }}
-          EVENT_NAME: ${{ github.event_name }}
-          TAG_NAME: ${{ github.ref_name }}
-          GIT_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
-          track="$INPUT_TRACK"
-          status="$INPUT_STATUS"
-          if [ "$EVENT_NAME" = "push" ]; then
-            track="internal"
-            status="completed"
-          fi
-          if [ "$track" = "production" ] && [ "$GIT_REF" != "refs/heads/main" ]; then
-            echo "::error::Production releases only run from main (the reviewed, merged code), got ref $GIT_REF"
+          # Tags can point at unreviewed branch commits. Only release from main history.
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
+            echo "::error::Tag must reference a commit already merged to main"
             exit 1
           fi
-          version_name=$(grep -oP 'versionName\s*=\s*"\K[^"]+' mobile/android/app/build.gradle.kts)
-          version_code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' mobile/android/app/build.gradle.kts)
-          if [ "$EVENT_NAME" = "push" ]; then
-            tag_version="${TAG_NAME#android-v}"
-            if [ "$tag_version" != "$version_name" ]; then
-              echo "::error::Tag $TAG_NAME does not match versionName $version_name in build.gradle.kts"
-              exit 1
-            fi
+          version_file="mobile/android/app/build.gradle.kts"
+          version_name=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$version_file")
+          version_code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$version_file")
+          tag_name="${GITHUB_REF_NAME}"
+          if [ "$tag_name" != "android-v$version_name" ]; then
+            echo "::error::Tag $tag_name does not match versionName $version_name"
+            exit 1
           fi
-          {
-            echo "track=$track"
-            echo "status=$status"
-            echo "version_name=$version_name"
-            echo "version_code=$version_code"
-          } >> "$GITHUB_OUTPUT"
-          echo "Releasing $version_name ($version_code) to track=$track status=$status"
+          if ! [[ "$version_code" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::Invalid versionCode $version_code"
+            exit 1
+          fi
+          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
+          echo "Verified tag $tag_name and main-merged versionCode $version_code"
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -118,23 +74,28 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Run Android unit tests
+        working-directory: mobile/android
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
       - name: Decode upload keystore
         id: signing
+        shell: bash
         env:
           KEYSTORE_B64: ${{ secrets.NOTEFABLE_KEYSTORE_B64 }}
           STORE_PW: ${{ secrets.NOTEFABLE_KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.NOTEFABLE_KEY_ALIAS }}
           KEY_PW: ${{ secrets.NOTEFABLE_KEY_PASSWORD }}
-        shell: bash
         run: |
           set -euo pipefail
           if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PW" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PW" ]; then
-            echo "::error::Signing secrets are missing (NOTEFABLE_KEYSTORE_B64 / NOTEFABLE_KEYSTORE_PASSWORD / NOTEFABLE_KEY_ALIAS / NOTEFABLE_KEY_PASSWORD)"
+            echo "::error::Missing Android upload signing secrets"
             exit 1
           fi
           signing_dir="$RUNNER_TEMP/notefable-signing"
           mkdir -p "$signing_dir"
-          echo "$KEYSTORE_B64" | base64 -d > "$signing_dir/upload.jks"
+          umask 077
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$signing_dir/upload.jks"
           echo "keystore_path=$signing_dir/upload.jks" >> "$GITHUB_OUTPUT"
 
       - name: Build signed AAB
@@ -154,49 +115,48 @@ jobs:
       - name: Upload AAB as workflow artifact
         uses: actions/upload-artifact@v4
         with:
-          name: notefable-${{ steps.meta.outputs.version_name }}-aab
+          name: notefable-${{ steps.meta.outputs.version_code }}-aab
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
-          retention-days: 14
+          if-no-files-found: error
+          retention-days: 30
 
   publish:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    # 只有 main 分支与 android-v* 标签能部署到这个 Environment，
-    # 因此只有这些来源的运行能拿到 Play 发布凭据。
+    # Environment should permit only android-v* tags. Secret must live here,
+    # never in repository-level Secrets or source files.
     environment: play-publish
     steps:
-      - name: Checkout
+      - name: Checkout release source
         uses: actions/checkout@v4
 
-      - name: Download AAB artifact
+      - name: Download the tested AAB
         uses: actions/download-artifact@v4
         with:
-          name: notefable-${{ needs.build.outputs.version_name }}-aab
+          name: notefable-${{ needs.build.outputs.version_code }}-aab
           path: aab
 
-      - name: Prepare release notes
+      - name: Prepare optional localized release notes
         id: notes
         shell: bash
         run: |
           set -euo pipefail
-          dir="$RUNNER_TEMP/whatsnew"
-          mkdir -p "$dir"
-          src="mobile/android/play-store/release-notes.txt"
-          if [ -f "$src" ]; then
-            cp "$src" "$dir/whatsnew-en-US"
+          directory="$RUNNER_TEMP/play-whatsnew"
+          mkdir -p "$directory"
+          file="mobile/android/play-store/release-notes.txt"
+          if [ -f "$file" ]; then
+            cp "$file" "$directory/whatsnew-en-US"
           fi
-          echo "dir=$dir" >> "$GITHUB_OUTPUT"
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
 
-      - name: Upload to Google Play
-        # Pinned to the v1 commit: this action receives the Play publishing
-        # credential, so its code may only change through a repo change.
+      - name: Upload once to Google Play internal testing
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
           releaseFiles: aab/app-release.aab
-          track: ${{ needs.build.outputs.track }}
-          status: ${{ needs.build.outputs.status }}
+          tracks: internal
+          status: completed
           releaseName: ${{ needs.build.outputs.version_name }}
-          whatsNewDirectory: ${{ steps.notes.outputs.dir }}
+          whatsNewDirectory: ${{ steps.notes.outputs.directory }}
