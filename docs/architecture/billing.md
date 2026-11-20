@@ -63,7 +63,7 @@ STRIPE_WEBHOOK_SECRET   # Webhook 端点的签名密钥（whsec_…）
 Stripe 后台要做的事：
 
 - 产品 “NoteFable Pro”，价格 ¥300 / 月（JPY、recurring、税込）。把 price ID 填进 `STRIPE_PRICE_ID`。
-- Webhook 端点 `https://notefable.com/api/billing/webhook`，订阅上面第 3 步列出的事件。
+- Webhook 端点 `https://app.notefable.com/api/billing/webhook`（接口只在工作区主机，`notefable.com/api/*` 是 404），订阅上面第 3 步列出的事件。
 - Customer Portal：允许取消订阅、更新支付方式、查看收据；隐私政策和服务条款的链接填 notefable.com 的 `/privacy`、`/terms`。解约方式由代码改成“在计费周期结束时取消”（见上面第 5 步），后台不用手动改；用受限密钥（`rk_…`）时要给它 Customer Portal 构成的读写权限。
 - Billing → 订阅与邮件 → 重试用尽后：选“取消订阅”（不要选“保持逾期”，否则会一直是 Pro）。
 - 日本的“特定商取引法に基づく表記”在 `/legal-notice`（`src/app/legal-notice/page.tsx`）：姓名、住所、电话按法 11 条但书写成“请求时立即开示”。Stripe 后台“公开业务信息”里填这个网址。价格、上限、解约或退款规则变了，同时改这一页和服务条款第 3 节。
@@ -92,7 +92,7 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 ```text
 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  # 机密：服务账号 play-billing 的 JSON 密钥（整段）
 GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT  # pubsub-push@studymate-511413.iam.gserviceaccount.com（Pub/Sub push 签名用的服务账号）
-GOOGLE_PLAY_PUSH_AUDIENCE         # https://notefable.com/api/billing/google/notify（不设时用请求的地址）
+GOOGLE_PLAY_PUSH_AUDIENCE         # https://app.notefable.com/api/billing/google/notify（不设时用请求的地址）
 GOOGLE_PLAY_PACKAGE_NAME          # 可选，默认 com.kakumine.notefable
 GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 ```
@@ -101,5 +101,5 @@ GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 
 - Play Console：App `NoteFable`（`com.kakumine.notefable`），内部测试有 1.0.6（versionCode 16）的草稿；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
 - Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
-- Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
+- Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://app.notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

@@ -49,6 +49,23 @@ export function siteHref(path: string, hosts = splitHosts(), currentHost = typeo
   return hosts && currentHost === hosts.appHost ? `${hosts.site}${path}` : path;
 }
 
+// 紹介サイトのホストでは API を配らない（API はワークスペースのホストだけ）。例外は紹介ページの言語メニューが読む辞書（/api/i18n）。
+// next.config.ts の rewrites（beforeFiles）に入れる規則。ホストを分けていない環境では空で、別名（*.vercel.app）にも掛からない。
+export const SITE_API_PATHS = ["i18n"];
+export const SITE_API_BLOCKED_PATH = "/api/unavailable";
+
+const escapeRegex = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+export function siteApiBlockRewrites(hosts = splitHosts()) {
+  if (!hosts) return [];
+  // Next.js は Host ヘッダーのポートを除いた名前と比べるので、ここもポート無しの名前にする。
+  return [{
+    source: `/api/:path((?!(?:${SITE_API_PATHS.map(escapeRegex).join("|")})$).*)`,
+    has: [{ type: "host" as const, value: escapeRegex(new URL(hosts.site).hostname) }],
+    destination: SITE_API_BLOCKED_PATH,
+  }];
+}
+
 // ワークスペースを使ったことのある端末の目印。ワークスペースのホストが両ホスト共通の Domain で書き、紹介サイトの / が読んで
 // ワークスペースへ送る。中身は "1" だけで、本人確認には使わない（ログインや端末の識別は各ホストの Cookie の役目）。
 export const RETURNING_HINT_COOKIE = "notefable_app";

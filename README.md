@@ -298,7 +298,7 @@ Notes 编辑和自动保存本身不调用 AI；笔记内的 AI 助手只在用�
 
 ## Android 应用
 
-Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App：聊天、侧栏、搜索、附件、图片生成、笔记列表与项目、回收站使用原生界面；笔记编辑器通过 WebView 加载同一套 `/note-embed`。代码已接入 Google / 邮箱验证码登录、设置（个人资料、界面语言、自定义指令）、发言添加笔记和整理成笔记，真实账号登录流程的验证状态与网页尚未对齐的细节见 [android-native.md](docs/architecture/android-native.md)。默认连接工作区主机 `https://app.notefable.com`（旧版连 `notefable.com`，服务端两个主机都保留 API）。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)；`mobile/ios/` 目前只有原生 iOS 的目录说明，尚未开发。
+Android 客户端是 `mobile/android/` 的 Kotlin / Compose 原生 App：聊天、侧栏、搜索、附件、图片生成、笔记列表与项目、回收站使用原生界面；笔记编辑器通过 WebView 加载同一套 `/note-embed`。代码已接入 Google / 邮箱验证码登录、设置（个人资料、界面语言、自定义指令）、发言添加笔记和整理成笔记，真实账号登录流程的验证状态与网页尚未对齐的细节见 [android-native.md](docs/architecture/android-native.md)。默认连接工作区主机 `https://app.notefable.com`（接口只在这个主机提供，`notefable.com/api/*` 是 404）。开发环境与 APK 交付见 [android.md](docs/architecture/android.md)；`mobile/ios/` 目前只有原生 iOS 的目录说明，尚未开发。
 
 ## API 保护
 

@@ -45,12 +45,13 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | --- | --- |
 | `notefable.com/` | 介绍页；用过工作区的设备（共享提示 Cookie `notefable_app`，或旧的设备 / 登录 Cookie）转到 `app.notefable.com/`，`/?intro` 始终显示介绍页 |
 | `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
-| `notefable.com/note-embed` | 照常提供（已安装的旧版 Android App 从这里加载笔记编辑器） |
+| `notefable.com/note-embed` | 307 转到 `app.notefable.com/note-embed`，保留查询参数（编辑器用的接口只在工作区主机） |
 | `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
 | 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`） |
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
-| 两个主机的 `/api/*` | 都照常提供，**不做跳转**：旧版 Android App 的 `BASE_URL` 是 `https://notefable.com`，Stripe Webhook 和 Google Play RTDN（Pub/Sub push）的端点也登记在 `notefable.com`，它们都不跟随跳转（RTDN 的 audience 默认取请求 URL）。要迁移这些端点，先改 Stripe 端点、Pub/Sub 订阅和 `GOOGLE_PLAY_PUSH_AUDIENCE` |
+| `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
+| `notefable.com/api/*` | 404（JSON，不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机匹配，转到 `/api/unavailable`；没分域的环境和 `*.vercel.app` 别名不受影响 |
 
 Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Cookie 和 `localStorage`（草稿、模型选择等）不会从 `notefable.com` 带到 `app.notefable.com`。分域时的决定（2026-11-19）是不迁移：旧的匿名数据留在数据库里，在新主机上从新的匿名身份开始；登录用户在新主机重新登录后数据照常可见。界面语言 Cookie（`notefable-locale`）在分域后写到 `Domain=notefable.com`，两个主机共用。
 
@@ -58,8 +59,9 @@ Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Co
 
 1. Vercel 项目添加 `app.notefable.com`（Vercel 管理 DNS，自动签发证书）。
 2. Google OAuth 客户端登记 `https://app.notefable.com/api/auth/callback/google`（保留原来的 `notefable.com` 回调）。
-3. Production 设置上面两个变量并重新部署。
-4. 回退：删除两个变量并重新部署，即回到单主机；`app.notefable.com` 可以保留。
+3. Stripe Webhook 端点、Pub/Sub push 订阅（地址和 audience）和 `GOOGLE_PLAY_PUSH_AUDIENCE` 都改成 `app.notefable.com` 的地址。
+4. Production 设置上面两个变量并重新部署。
+5. 回退：删除两个变量并重新部署，即回到单主机，`notefable.com/api/*` 恢复可用；`app.notefable.com` 可以保留，第 3 步登记的地址不用改回。
 
 生产部署应始终核对 Vercel deployment 的 `gitSource.sha` 是否等于 GitHub `main` 当前提交；不要仅凭域名判断线上代码版本。
 

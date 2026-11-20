@@ -80,8 +80,10 @@ export function routeLocalizedRequest(request: {
 
   if (hosts && role === "site") {
     // 紹介サイトのワークスペース（/app、古い /?chat=…、回訪者の /）は、ワークスペースのホストへ。指定（検索部分）は保つ。
-    // /note-embed は古い Android アプリがこのホストで開くので、ここでそのまま出す。/api/* は proxy を通らず、どちらのホストでも動く。
+    // /api/* は proxy を通らない。このホストでは next.config.ts の rewrites が 404 にする（hosts.ts の siteApiBlockRewrites）。
     if (url.pathname === "/app" || legacy || returning) return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
+    // ノートのエディターはワークスペースのホストの API を使うので、そちらへ送る。
+    if (url.pathname === EMBED_PATH) return { kind: "redirect", url: new URL(`${EMBED_PATH}${url.search}`, hosts.app) };
   }
   if (hosts && role === "app") {
     // ワークスペースのホストでは / がワークスペース。/app（Stripe からの戻りや古いリンク）は / へ寄せる。
