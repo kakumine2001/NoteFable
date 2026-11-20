@@ -435,6 +435,8 @@ export default function Home() {
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  // チャットからノートへ移ったとき、開いていた「＋」シートは閉じる（戻ったときに勝手に開き直さない）。
+  if (attachSheetOpen && workspaceView !== "chat") setAttachSheetOpen(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 次の発言に添付する自分のノート（ID とタイトル・アイコン）。本文はサーバーが送信のたびに読み直す。
@@ -2510,7 +2512,7 @@ export default function Home() {
           )}
           {!isNarrowScreen && recentNoteCards}
           <AttachSheet
-            open={attachSheetOpen && isNarrowScreen}
+            open={attachSheetOpen && isNarrowScreen && workspaceView === "chat"}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
             imageMode={imageGenerationMode}

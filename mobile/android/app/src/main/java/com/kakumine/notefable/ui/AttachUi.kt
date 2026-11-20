@@ -24,6 +24,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.content.TransferableContent
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -459,7 +461,11 @@ fun AttachSheet(
             Box(Modifier.padding(top = 12.dp, bottom = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Sm.SheetGrab))
         },
     ) {
-        Column(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 16.dp).windowInsetsPadding(WindowInsets.navigationBars)) {
+        Column(
+            Modifier.verticalScroll(rememberScrollState())
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                .windowInsetsPadding(WindowInsets.navigationBars),
+        ) {
             AttachRow(Lucide.Paperclip, stringResource(R.string.attach_files), null, pressed = false, checked = false) {
                 closeThen(onPickFiles)
             }
