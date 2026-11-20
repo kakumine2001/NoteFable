@@ -26,8 +26,7 @@ function escapeHtmlText(value: string) {
 describe("ThreadLanding hero English pinning", () => {
   it("renders the three hero lines in English across all 17 locales while localizing neighbouring landing copy", () => {
     for (const locale of LOCALES) {
-      // 見出しは読点ごとに .tl-phrase で包まれるので、文面の照合はその span を外してから行う。
-      const html = renderLanding(locale).replace(/<span class="tl-phrase">(.*?)<\/span>/g, "$1");
+      const html = renderLanding(locale);
       const dict = messagesFor(locale);
       const t = createTranslator(dict);
 
@@ -52,7 +51,9 @@ describe("ThreadLanding hero English pinning", () => {
       expect(html, `${locale}: nav CTA`).toContain(escapeHtmlText(t("Open workspace")));
       expect(html, `${locale}: composer aria-label`).toContain(escapeHtmlText(t("Open NoteFable and ask a question")));
       expect(html, `${locale}: hero note`).toContain(escapeHtmlText(t("Click the box to start. No account needed.")));
-      expect(html, `${locale}: station 05 title`).toContain(escapeHtmlText(t("Find it again, however you typed it.")));
+      expect(html, `${locale}: revise station title`).toContain(escapeHtmlText(t("Let the AI edit the note itself.")));
+      expect(html, `${locale}: revise proposal card`).toContain(escapeHtmlText(t("{op} · start of note", { op: t("Insert") })));
+      expect(html, `${locale}: find station title`).toContain(escapeHtmlText(t("Find it again, however you typed it.")));
       expect(html, `${locale}: finale`).toContain(escapeHtmlText(t("What is the question you keep coming back to?")));
       expect(html, `${locale}: footer`).toContain(escapeHtmlText(t("Privacy")));
     }

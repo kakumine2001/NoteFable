@@ -688,6 +688,6 @@ export const ja: Record<string, string> = {
   "Revise": "直す",
   "Let the AI edit the note itself.": "ノートの手直しも、AIに任せる。",
   "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "チャットでもノートの中でも頼めます。整理する、一部を書き直す、足りない内容を補う。AIがノートを読んで編集案を出し、あなたが承認するまで何も書き換わりません。編集前の版も履歴に残ります。",
-  "Add a one-line summary at the top.": "冒頭に一行の要約を入れて。",
+  "Add a one-line summary at the top.": "冒頭に一行の要約を。",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "要約：夕方は光が大気を長く通るため、青い光が散乱し、赤い光が残る。",
 };

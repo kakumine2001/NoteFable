@@ -23,11 +23,16 @@
 :where(.tl-page) :where(ul, ol) { list-style: none; }
 .tl-page svg { flex: none; }
 .tl-wrap { width: min(1080px, calc(100% - 48px)); margin-inline: auto; }
-/* 語の途中で折り返さない。見出しは読点ごとのまとまり（.tl-phrase）を 1 行に保ち、日本語の本文は文節の切れ目で折り返す
-   （auto-phrase は対応ブラウザーのみ。未対応なら従来どおり）。韓国語は単語の途中で切らない。 */
-.tl-phrase { display: inline-block; }
+/* 語の途中で折り返さない。日本語は文節の切れ目で折り返す（auto-phrase。対応ブラウザーのみで、未対応なら本文は従来どおり）。
+   韓国語は単語の途中で切らない。日本語（auto-phrase 未対応のとき）と中国語の見出し・短い一文は、句読点の後ろでだけ折り返し、
+   1 行に収まらないまとまりだけ途中で折る（残しておきたい答 / えを、ノートに。のような切れ方を防ぐ）。 */
 .tl-page:lang(ja) { word-break: auto-phrase; line-break: strict; }
 .tl-page:lang(ko) { word-break: keep-all; overflow-wrap: anywhere; }
+.tl-page:lang(zh) :is(.tl-hero-note, .tl-copy h3, .tl-card h4, .tl-bubble, .tl-facts h3, .tl-finale h2),
+.tl-page:lang(ja) :is(.tl-copy h3, .tl-finale h2) { word-break: keep-all; overflow-wrap: anywhere; }
+@supports not (word-break: auto-phrase) {
+  .tl-page:lang(ja) :is(.tl-hero-note, .tl-card h4, .tl-bubble, .tl-facts h3) { word-break: keep-all; overflow-wrap: anywhere; }
+}
 .tl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .tl-skip { position: absolute; z-index: 10; top: 12px; inset-inline-start: 12px; padding: 10px 16px; border-radius: 8px; background: var(--tl-ink); color: #fff !important; transform: translateY(-200%); }
 .tl-skip:focus { transform: none; }
@@ -97,7 +102,7 @@
 .tl-card-meta { display: inline-flex; align-items: center; gap: 6px; color: var(--tl-muted); font-size: 12px; }
 .tl-card h4 { color: var(--tl-ink); font-size: 18px; font-weight: 650; letter-spacing: -0.02em; }
 
-.tl-card-ask { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; background: var(--tl-soft); }
+.tl-card-ask, .tl-card-edit { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; background: var(--tl-soft); }
 .tl-bubble { max-width: 88%; padding: 10px 15px; border-radius: 18px 18px 4px 18px; background: var(--tl-ink); color: #fff; font-size: 15px; transform-origin: 100% 100%; }
 .tl-file { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--tl-line); border-radius: 8px; background: #fff; font-size: 12px; }
 .tl-models { display: flex; flex-wrap: wrap; gap: 6px; align-self: stretch; margin-top: 8px !important; padding-top: 14px !important; border-top: 1px dashed var(--tl-line); }
@@ -119,13 +124,12 @@
 .tl-note-own { margin: 10px 0 14px !important; color: var(--tl-ink); }
 .tl-note-own i { display: inline-block; width: 2px; height: 1.05em; margin-inline-start: 2px; background: var(--tl-blue); vertical-align: -0.16em; animation: tl-blink 1.05s steps(2, jump-none) infinite; }
 
-.tl-card-edit { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; background: var(--tl-soft); }
+.tl-card-edit { gap: 12px; }
 .tl-proposal { align-self: stretch; padding: 14px; border: 1px solid var(--tl-line); border-radius: 12px; background: #fff; }
 .tl-proposal-add { margin-top: 10px; padding-block: 8px; padding-inline: 12px 10px; border-inline-start: 2px solid var(--tl-blue); border-radius: 4px; background: rgba(35, 131, 226, 0.08); color: var(--tl-ink); }
-.tl-proposal-add b { display: block; color: var(--tl-blue-deep); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
-.tl-proposal-actions { display: flex; align-items: center; gap: 6px; margin-top: 12px; color: var(--tl-muted); font-size: 12px; }
-.tl-proposal-actions span { display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px; border-radius: 8px; }
-.tl-proposal-actions .tl-proposal-apply { background: var(--tl-ink); color: #fff; font-weight: 550; }
+.tl-proposal-op { color: var(--tl-blue-deep); font-size: 11px; font-weight: 600; letter-spacing: 0.02em; }
+.tl-proposal-actions { margin-top: 12px; }
+.tl-proposal-actions .tl-proposal-apply { padding-inline: 11px; background: var(--tl-ink); color: #fff; font-weight: 550; }
 
 .tl-card-project h4 { display: flex; align-items: center; gap: 8px; }
 .tl-card-project dt { margin-top: 14px; color: var(--tl-muted); font-size: 12px; }
@@ -159,7 +163,8 @@
 .tl-live .is-on .tl-actions { animation: tl-rise-s 420ms 2400ms both; }
 .tl-live .is-on .tl-action-save { animation: tl-nudge 1.6s 3000ms ease-in-out 2; }
 .tl-live .is-on .tl-proposal { animation: tl-rise-s 460ms 700ms both; }
-.tl-live .is-on .tl-proposal-apply { animation: tl-nudge 1.6s 1500ms ease-in-out 2; }
+.tl-live .is-on .tl-proposal-actions { animation-delay: 1100ms; }
+.tl-live .is-on .tl-proposal-apply { animation: tl-nudge 1.6s 1700ms ease-in-out 2; }
 .tl-live .is-on .tl-card-note li { animation: tl-write 420ms calc(350ms + var(--n, 0) * 220ms) both; }
 .tl-card-note li:nth-child(2) { --n: 1; } .tl-card-note li:nth-child(3) { --n: 2; }
 .tl-live .is-on .tl-note-own { animation: tl-write 520ms 1150ms both; }
@@ -231,6 +236,11 @@
   .tl-finale { border-radius: 22px; }
   .tl-search-box kbd { display: none; }
 }
+/* 日本語の見出しは読点までの 1 まとまりが最長 11 文字。幅 360px のスマホでもそれが 1 行に収まる大きさにする。 */
+@media (max-width: 430px) {
+  .tl-page:lang(ja) .tl-copy h3 { font-size: 24px; }
+  .tl-page:lang(ja) .tl-finale h2 { font-size: clamp(24px, 6.6vw, 30px); }
+}
 @media (prefers-reduced-motion: reduce) {
   .tl-page *, .tl-page *::before, .tl-page *::after { animation: none !important; transition: none !important; }
 }
@@ -243,4 +253,4 @@
 @keyframes tl-write-rtl { from { opacity: 0; clip-path: inset(0 0 0 100%); } to { opacity: 1; clip-path: inset(0 0 0 -4px); } }
 [dir="rtl"] .tl-live .is-on .tl-card-note li,
 [dir="rtl"] .tl-live .is-on .tl-note-own { animation-name: tl-write-rtl; }
-:lang(ar) :is(.tl-brand, .tl-step, .tl-copy h3, .tl-card h4, .tl-proposal-add b, .tl-facts h3, .tl-finale h2) { letter-spacing: 0; }
+:lang(ar) :is(.tl-brand, .tl-step, .tl-copy h3, .tl-card h4, .tl-proposal-op, .tl-facts h3, .tl-finale h2) { letter-spacing: 0; }
