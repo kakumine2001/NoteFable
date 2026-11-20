@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  ArrowRight, ArrowUp, BookOpen, Copy, FileText, Folder, Globe, History,
-  MessageSquareText, MoreHorizontal, NotebookPen, Paperclip, Plus, Search,
+  ArrowRight, ArrowUp, BookOpen, Check, Copy, FileText, Folder, Globe, History,
+  MessageSquareText, MoreHorizontal, NotebookPen, Paperclip, Plus, Search, Sparkles,
 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -87,6 +87,14 @@ function stream(text: string, emphasis: string) {
   });
 }
 
+// 見出しや短い一文を全角の読点・句点の後ろで区切り、各まとまりを 1 行に保つ（日本語・中国語は語の途中でも折り返せるので、
+// そのままだと「残しておきたい答 / えを、ノートに。」のように切れる）。全角の句読点が無い言語では何もしない。
+export function phrases(text: string): ReactNode {
+  const parts = text.match(/[^、，。！？]*[、，。！？]+|[^、，。！？]+$/g);
+  if (!parts || parts.length < 2) return text;
+  return parts.map((part, index) => <span className="tl-phrase" key={index}>{part}</span>);
+}
+
 function searchExcerpt(text: string, term: string) {
   return text.split("{term}").flatMap((part, index) =>
     index ? [<mark key={index}>{term}</mark>, part] : [part]);
@@ -105,7 +113,7 @@ function useStations(): Station[] {
     body: t("A question, a PDF, a screenshot, half a sentence. Choose the model that suits it and how hard it should think."),
     card: (
       <div className="tl-card tl-card-ask">
-        <p className="tl-bubble">{t("Why is the sunset red if the sky is blue?")}</p>
+        <p className="tl-bubble">{phrases(t("Why is the sunset red if the sky is blue?"))}</p>
         <span className="tl-file"><Paperclip size={13} />{" "}optics-ch3.pdf</span>
         <ul className="tl-models" aria-label={t("Available models")}>
           {modelOptions.map((model) => <li key={model.id} data-current={model.id === defaultModel || undefined}>{model.label}</li>)}
@@ -147,6 +155,25 @@ function useStations(): Station[] {
         </ul>
         <p className="tl-note-own">{t("In my own words: the sky keeps the blue for itself")}<i aria-hidden="true" /></p>
         <span className="tl-card-meta"><History size={13} />{" "}{t("Saved · history kept")}</span>
+      </div>
+    ),
+  },
+  {
+    id: "revise",
+    label: t("Revise"),
+    title: t("Let the AI edit the note itself."),
+    body: t("Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history."),
+    card: (
+      <div className="tl-card tl-card-edit">
+        <p className="tl-bubble">{phrases(t("Add a one-line summary at the top."))}</p>
+        <div className="tl-proposal">
+          <span className="tl-card-meta"><Sparkles size={13} />{" "}{t("Proposed note edit")}{" · "}{t("Why sunsets are red")}</span>
+          <p className="tl-proposal-add"><b>{t("Insert")}</b>{t("In short: at sunset the light crosses more air, the blue is scattered away, and red is left.")}</p>
+          <div className="tl-proposal-actions">
+            <span className="tl-proposal-apply"><Check size={13} />{" "}{t("Apply")}</span>
+            <span>{t("Discard")}</span>
+          </div>
+        </div>
       </div>
     ),
   },
@@ -306,7 +333,7 @@ export function ThreadLanding() {
                 <span className="tl-composer-send"><ArrowUp size={17} /></span>
               </span>
             </Link>
-            <p className="tl-hero-note">{t("Click the box to start. No account needed.")}</p>
+            <p className="tl-hero-note">{phrases(t("Click the box to start. No account needed."))}</p>
             <div className="tl-stem" aria-hidden="true" />
           </div>
         </section>
@@ -331,7 +358,7 @@ export function ThreadLanding() {
                 </div>
                 <div className="tl-copy">
                   <span className="tl-step"><b>{String(index + 1).padStart(2, "0")}</b> {station.label}</span>
-                  <h3>{station.title}</h3>
+                  <h3>{phrases(station.title)}</h3>
                   <p>{station.body}</p>
                 </div>
                 <div className="tl-card-slot">{station.card}</div>
@@ -346,7 +373,7 @@ export function ThreadLanding() {
 
         <section className="tl-wrap" aria-labelledby="tl-finale-title">
           <div className="tl-finale">
-            <h2 id="tl-finale-title">{t("What is the question you keep coming back to?")}</h2>
+            <h2 id="tl-finale-title">{phrases(t("What is the question you keep coming back to?"))}</h2>
             <Link className="tl-finale-cta" href="/app" prefetch={false}>{t("Open NoteFable")}{" "}<ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </section>

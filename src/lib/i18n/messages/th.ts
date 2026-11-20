@@ -684,4 +684,9 @@ export const th: Record<string, string> = {
   "Choose a character": "เลือกตัวละคร",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "แสดงในแชท ในแถบด้านข้าง และบนปุ่ม AI ในโน้ต บันทึกไว้บนอุปกรณ์นี้เท่านั้น",
   "AI reply": "คำตอบของ AI",
+  "Revise": "ปรับแก้",
+  "Let the AI edit the note itself.": "ให้ AI ช่วยแก้โน้ตให้คุณ",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "ขอได้ทั้งในแชตหรือในโน้ต: จัดระเบียบ เขียนบางส่วนใหม่ เติมสิ่งที่ขาด AI จะอ่านโน้ตของคุณแล้วเสนอการแก้ไข จะไม่มีการเขียนอะไรจนกว่าคุณจะอนุมัติ และเวอร์ชันก่อนหน้ายังอยู่ในประวัติ",
+  "Add a one-line summary at the top.": "เพิ่มสรุปหนึ่งบรรทัดไว้ด้านบน",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "สรุป: ยามอาทิตย์ตกแสงเดินทางผ่านอากาศมากขึ้น แสงสีน้ำเงินกระเจิงออก เหลือแต่สีแดง",
 };

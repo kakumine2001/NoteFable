@@ -684,4 +684,9 @@ export const de: Record<string, string> = {
   "Choose a character": "Charakter auswählen",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Wird im Chat, in der Seitenleiste und auf der KI-Schaltfläche in Notizen angezeigt. Nur auf diesem Gerät gespeichert.",
   "AI reply": "KI-Antwort",
+  "Revise": "Überarbeiten",
+  "Let the AI edit the note itself.": "Lass die KI die Notiz selbst bearbeiten.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Bitte im Chat oder direkt in der Notiz darum: aufräumen, einen Abschnitt neu schreiben, Fehlendes ergänzen. Die KI liest deine Notizen und schlägt die Änderung vor. Nichts wird geschrieben, bevor du zustimmst, und die frühere Version bleibt im Verlauf.",
+  "Add a one-line summary at the top.": "Füge oben eine einzeilige Zusammenfassung ein.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Kurz gesagt: Bei Sonnenuntergang durchquert das Licht mehr Luft, Blau wird gestreut, Rot bleibt.",
 };

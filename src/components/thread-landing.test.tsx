@@ -26,7 +26,8 @@ function escapeHtmlText(value: string) {
 describe("ThreadLanding hero English pinning", () => {
   it("renders the three hero lines in English across all 17 locales while localizing neighbouring landing copy", () => {
     for (const locale of LOCALES) {
-      const html = renderLanding(locale);
+      // 見出しは読点ごとに .tl-phrase で包まれるので、文面の照合はその span を外してから行う。
+      const html = renderLanding(locale).replace(/<span class="tl-phrase">(.*?)<\/span>/g, "$1");
       const dict = messagesFor(locale);
       const t = createTranslator(dict);
 

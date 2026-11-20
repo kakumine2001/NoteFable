@@ -684,4 +684,9 @@ export const id: Record<string, string> = {
   "Choose a character": "Pilih karakter",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Ditampilkan di obrolan, di bilah samping, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.",
   "AI reply": "Balasan AI",
+  "Revise": "Perbaiki",
+  "Let the AI edit the note itself.": "Biarkan AI yang mengedit catatan Anda.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Minta lewat chat atau dari dalam catatan: merapikan, menulis ulang satu bagian, menambahkan yang kurang. AI membaca catatan Anda dan mengusulkan perubahannya. Tidak ada yang ditulis sebelum Anda menyetujuinya, dan versi sebelumnya tetap ada di riwayat.",
+  "Add a one-line summary at the top.": "Tambahkan ringkasan satu baris di bagian atas.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Singkatnya: saat senja cahaya melewati lebih banyak udara, biru terhambur habis, dan merah tersisa.",
 };

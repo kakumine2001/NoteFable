@@ -684,4 +684,9 @@ export const ko: Record<string, string> = {
   "Choose a character": "캐릭터 선택",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "채팅, 사이드바, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.",
   "AI reply": "AI 답변",
+  "Revise": "다듬기",
+  "Let the AI edit the note itself.": "노트 수정도 AI에게 맡기세요.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "채팅이나 노트 안에서 요청하세요. 정리하기, 일부 다시 쓰기, 빠진 내용 채우기. AI가 노트를 읽고 수정안을 제안하며, 승인하기 전에는 아무것도 바뀌지 않습니다. 수정 전 버전도 기록에 남습니다.",
+  "Add a one-line summary at the top.": "맨 위에 한 줄 요약을 추가해 주세요.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "요약: 해 질 녘에는 빛이 더 많은 공기를 지나며 파란 빛은 흩어지고 붉은 빛이 남는다.",
 };

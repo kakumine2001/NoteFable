@@ -684,4 +684,9 @@ export const ptBR: Record<string, string> = {
   "Choose a character": "Escolher um personagem",
   "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.": "Exibido no chat, na barra lateral e no botão de IA nas notas. Salvo apenas neste dispositivo.",
   "AI reply": "Resposta da IA",
+  "Revise": "Revise",
+  "Let the AI edit the note itself.": "Deixe a IA editar a nota para você.",
+  "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Peça no chat ou dentro da nota: organizar, reescrever uma seção, acrescentar o que falta. A IA lê suas notas e propõe a alteração. Nada é escrito até você aprovar, e a versão anterior fica no histórico.",
+  "Add a one-line summary at the top.": "Adicione um resumo de uma linha no início.",
+  "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Em resumo: no pôr do sol a luz atravessa mais ar, o azul se espalha e o vermelho resta.",
 };
