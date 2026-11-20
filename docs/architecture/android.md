@@ -17,15 +17,9 @@
 
 所有交给用户的包只用一种签名：Play 的应用签名密钥。所以 Google Cloud 里只需要一个 Android OAuth 客户端（`NoteFable-Android`），本机签名的包（debug 和本机 release）不能用 Google 登录，开发时用邮箱验证码登录，要测 Google 登录就装 Play 签名的包。
 
-**暂停：用户说恢复之前，不要下载 Play 签名的通用 APK，也不要往 Drive 上传任何 APK（下面第 4、5 步和“Drive 规则”整段暂时不执行）；也不要把它当作下一步提出来。** 用户解除暂停后，删掉这一段。
+**暂停：用户说恢复之前，不要下载 Play 签名的通用 APK，也不要往 Drive 上传任何 APK（暂时不执行“Drive 规则”）；也不要把它当作下一步提出来。** 用户解除暂停后，删掉这一段。
 
-交付流程：
-
-1. `mobile/android/app/build.gradle.kts` 里 `versionCode` 加 1、`versionName` 同步更新（Play 不接受重复的 `versionCode`，系统也可能不允许覆盖安装）。
-2. `./gradlew bundleRelease`（上传密钥签名）→ `app/build/outputs/bundle/release/app-release.aab`。
-3. 所有者把 AAB 上传到 Play Console 的**内部测试**轨道并发布，或由 CI 工作流自动上传（见下「正式签名与 Google Play」的 CI 条目）。
-4. Play Console → App bundle explorer（アプリバンドル エクスプローラ）→ 这个版本 → 下载**签名済みのユニバーサル APK**（Play 签名的通用 APK），改名后传到 Drive。
-5. 测试人员可以从内部测试轨道直接安装（能用 Play 结算），也可以装 Drive 上的 APK（同样是 Play 签名，Google 登录能用，但不是从 Play 安装的，不能购买）。
+封闭测试人员通过 Play 的 alpha 测试邀请安装，使用 Play 签名并支持 Google 登录。Drive 交付恢复后，从 Play Console 的 App bundle explorer 下载该版本的 Play 签名通用 APK，再按下方规则上传。侧载的 APK 不支持 Play 购买。
 
 Drive 规则：
 
@@ -39,10 +33,10 @@ Drive 规则：
 
 - **上传密钥**：PKCS12 密钥库放在本机用户目录（不进仓库，路径和密码写在 `~/.gradle/gradle.properties` 的 `notefable.upload.storeFile` / `storePassword` / `keyAlias` / `keyPassword`），所有 worktree 共用。`app/build.gradle.kts` 有这些属性时用它签 release 包；缺任何一个时 `bundleRelease` / `assembleRelease` 直接失败，只有加 `-Pnotefable.release.debugSigning=true` 才用 debug 签名（只能自己侧载）。上传密钥只用来把 AAB 交给 Play，它签的包不交付给用户。密钥库和密码要另外备份；丢了可以在 Play Console 申请重置上传密钥，但要等 Google 处理。
 - **构建**：`./gradlew bundleRelease` → `app/build/outputs/bundle/release/app-release.aab`（上传 Play）；`assembleRelease` → 本机签名的 APK，只用于本机检查（没有 Google 登录），不交付。每次上传 Play 前 `versionCode` 加 1。
-- **PR 检查（不发布）**：`.github/workflows/android-pr.yml` 在 Android / 发布配置 PR 上运行无密钥的单元测试、debug 构建和发布策略测试。PR 不得获取上传密钥或 Play 发布凭据。
-- **唯一的 AAB 构建与上传入口**：`.github/workflows/android-release.yml` 仅由 `android-v<versionName>` 标签触发，且标签指向的 commit 必须已在 `main` 历史中。版本名必须匹配 Gradle 配置，`versionCode` 必须未在 Play 使用。CI 先测试，再使用上传密钥签名 AAB，只上传一次到 Play **内部测试**（`completed`）。本工作流不提供直接选择 production 的参数。CI 产物保留 30 天供排查。
-- **晋级已验证版本**：内部测试通过后，在 Actions 中运行 `.github/workflows/android-promote.yml`，选择 `main`，输入该版本在 Play 的 `versionCode`、目标轨道与确认词 `PROMOTE`。工作流通过 Google Play Developer API 查找内部测试轨道（`qa` / `internal`）中 `completed` 的版本，并在目标轨道复用同一个 `versionCode`；**不构建新 AAB，也不重新上传**。防止重复发布、降级、覆盖进行中的灰度发布。目标 `alpha` / `beta` 测试轨道必须预先在 Console 配好。production 仅允许 5% / 10% / 20% / 25% / 50% 初始灰度，后续扩大、暂停或完成由 Play Console 人工操作。Google Play 的审核和发布状态仍以 Console 为准。
-- **凭据和权限**：上传密钥库与口令放仓库 Secrets（`NOTEFABLE_KEYSTORE_B64`、`NOTEFABLE_KEYSTORE_PASSWORD`、`NOTEFABLE_KEY_ALIAS`、`NOTEFABLE_KEY_PASSWORD`）；`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` **只**放 GitHub Environment `play-publish`。Environment 的允许部署分支/标签必须在 GitHub 后台明确限制为 `main` 与 `android-v*`，工作流文件本身不能自动创建这些限制。私有仓库的 Environment 功能存在 GitHub 套餐条件，需要在设置中实际核实；不要假设 Required reviewers 审批在私有仓库可用。正式发布由人工触发，非自动合并或自动晋级。凭据不写进仓库。版本说明优先取 `mobile/android/play-store/release-notes.txt`（存在时，暂映射 en-US）。
+- **PR 检查**：Android 或发布配置改动提交到以 main 为目标的 PR 时，Android CI 校验 versionCode 并运行单元测试。检查任务不读取签名密钥、Play 凭据或构建安装包。
+- **何时发封闭测试**：平时正常合并 Android 改动，保持 versionCode 不变。需要发布时，在准备合入 main 的 PR 中提高 mobile/android/app/build.gradle.kts 的 versionCode、更新 versionName，并在 PR 描述标明这次会发布到 alpha。选用 Play 中尚未使用且高于上一个已发布版本的 versionCode。
+- **自动发布**：GitHub 确认 PR 已合入 main 后，发布工作流比较合并提交与它的第一父提交。versionCode 未变就跳过，版本号降低、格式无效或上调 versionCode 却未更改 versionName 时失败。只有使用 merge commit 合并且 versionCode 上调，才会对这个合并提交跑测试、签名构建一个 AAB，并上传到 Google Play 的 alpha 封闭测试轨道。修改其他分支、直接推送、打标签和关闭未合并的 PR 都不会触发发布。发布任务串行执行，排队期间如果 main 已有更高的 versionCode，就跳过旧任务。Play Console 显示审核和可用状态。
+- **凭据**：GitHub Environment play-publish 的部署规则只允许 main 分支。把 ALPHA_KEYSTORE_B64、ALPHA_KEYSTORE_PASSWORD、ALPHA_KEY_ALIAS、ALPHA_KEY_PASSWORD 和 ALPHA_PLAY_SERVICE_ACCOUNT_JSON 设为这个 Environment 的 Secrets，验证新配置后移除旧的仓库级 Android 签名和 Play 发布 Secrets。发布服务账号应只获得此应用的封闭测试发布权限。首次发布前核对 Console 中目标封闭测试轨道的 API ID 为 alpha。如果 alpha 已收到 AAB 但工作流报错，先核对 Console 的版本再重试，Play 不接受重复的 versionCode。可选版本说明取 mobile/android/play-store/release-notes.txt，语言为 en-US。
 
 - **Play 应用签名**：Play 用自己保管的应用签名密钥（Google 生成，私钥不给开发者）重新签名后分发。Google Cloud 的 Android OAuth 客户端一个只能填一个 SHA-1，所以只登记这一把：`NoteFable-Android`（包名 `com.kakumine.notefable`，SHA-1 取自 Play Console → 应用完整性 → アプリ署名鍵）。Google Cloud 里只有它和网页用的 `NoteFable-Web` 两个 OAuth 客户端；以前登记 debug 签名和上传密钥的客户端已删除。不用“鍵を変更”把应用签名密钥换成上传密钥：一把密钥兼任上传和签发，泄露后无法重置上传密钥。OAuth 同意屏幕已经是“正式版 / 外部”，任何 Google 账号都能登录。
 - **商店资料**：文字和 Console 表单答案在 [docs/play-store/](../play-store/listing.md)，图片在 `mobile/android/play-store/`。

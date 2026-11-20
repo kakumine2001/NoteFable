@@ -1,162 +1,146 @@
-name: Android internal release
+name: Android release to Play alpha
 
-# Release contract:
-#   1. Merge the Android change to main and bump versionCode / versionName.
-#   2. Push android-v<versionName> pointing to a commit already on main.
-#   3. CI tests, signs one AAB, uploads that exact artifact to Play internal.
-#   4. Promote that already-uploaded versionCode via android-promote.yml;
-#      NEVER build and upload it again when switching Play tracks.
 on:
-  push:
-    tags:
-      - "android-v*"
+  pull_request_target:
+    types: [closed]
+    branches: [main]
 
 permissions:
   contents: read
 
-# Google Play only allows one live edit at a time. Also serialize promotions.
-concurrency:
-  group: android-play-deploy
-  cancel-in-progress: false
-  queue: max
-
 jobs:
-  build:
+  plan:
+    if: github.event.pull_request.merged == true && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.version.outputs.publish }}
+      version_code: ${{ steps.version.outputs.version_code }}
+    steps:
+      # Check out the commit merged into main. This event has base-repository privileges.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Compare Android version with main before the merge
+        id: version
+        shell: bash
+        run: bash scripts/release/android-version.sh
+
+  release:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    outputs:
-      version_name: ${{ steps.meta.outputs.version_name }}
-      version_code: ${{ steps.meta.outputs.version_code }}
-    steps:
-      - name: Checkout tag commit
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Check merged commit and tag/version match
-        id: meta
+    environment: play-publish
+    concurrency:
+      group: android-play-alpha
+      cancel-in-progress: false
+      queue: max
+    defaults:
+      run:
         shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          persist-credentials: false
+
+      - name: Skip superseded Android releases
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION_CODE: ${{ needs.plan.outputs.version_code }}
         run: |
           set -euo pipefail
-          # Tags can point at unreviewed branch commits. Only release from main history.
-          git fetch --no-tags origin main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor HEAD refs/remotes/origin/main; then
-            echo "::error::Tag must reference a commit already merged to main"
+          config=mobile/android/app/build.gradle.kts
+          current=$(gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$config?ref=main" \
+            | sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$/\1/p')
+          if ! [[ "$current" =~ ^[1-9][0-9]{0,9}$ ]] || (( current < RELEASE_VERSION_CODE )); then
+            echo "::error::Could not verify the current release version on main."
             exit 1
           fi
-          version_file="mobile/android/app/build.gradle.kts"
-          version_name=$(grep -oP 'versionName\s*=\s*"\K[^"]+' "$version_file")
-          version_code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' "$version_file")
-          tag_name="${GITHUB_REF_NAME}"
-          if [ "$tag_name" != "android-v$version_name" ]; then
-            echo "::error::Tag $tag_name does not match versionName $version_name"
-            exit 1
+          if (( current > RELEASE_VERSION_CODE )); then
+            echo "Skipping versionCode $RELEASE_VERSION_CODE. Main has versionCode $current."
+            exit 0
           fi
-          if ! [[ "$version_code" =~ ^[1-9][0-9]*$ ]]; then
-            echo "::error::Invalid versionCode $version_code"
-            exit 1
-          fi
-          echo "version_name=$version_name" >> "$GITHUB_OUTPUT"
-          echo "version_code=$version_code" >> "$GITHUB_OUTPUT"
-          echo "Verified tag $tag_name and main-merged versionCode $version_code"
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
 
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
+      - name: Check Play credential
+        if: steps.current.outputs.publish == 'true'
+        env:
+          PLAY_CREDENTIAL: ${{ secrets.ALPHA_PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [[ -z "$PLAY_CREDENTIAL" ]]; then
+            echo "::error::Missing ALPHA_PLAY_SERVICE_ACCOUNT_JSON in play-publish."
+            exit 1
+          fi
+
+      - uses: actions/setup-java@v4
+        if: steps.current.outputs.publish == 'true'
         with:
           distribution: temurin
           java-version: "21"
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v3
+        if: steps.current.outputs.publish == 'true'
         with:
           packages: "platforms;android-36 build-tools;36.0.0"
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.current.outputs.publish == 'true'
+        with:
+          cache-read-only: true
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Run Android unit tests
+      - name: Android unit tests
+        if: steps.current.outputs.publish == 'true'
         working-directory: mobile/android
         run: ./gradlew :app:testDebugUnitTest --no-daemon
 
-      - name: Decode upload keystore
-        id: signing
-        shell: bash
-        env:
-          KEYSTORE_B64: ${{ secrets.NOTEFABLE_KEYSTORE_B64 }}
-          STORE_PW: ${{ secrets.NOTEFABLE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.NOTEFABLE_KEY_ALIAS }}
-          KEY_PW: ${{ secrets.NOTEFABLE_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          if [ -z "$KEYSTORE_B64" ] || [ -z "$STORE_PW" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PW" ]; then
-            echo "::error::Missing Android upload signing secrets"
-            exit 1
-          fi
-          signing_dir="$RUNNER_TEMP/notefable-signing"
-          mkdir -p "$signing_dir"
-          umask 077
-          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$signing_dir/upload.jks"
-          echo "keystore_path=$signing_dir/upload.jks" >> "$GITHUB_OUTPUT"
-
       - name: Build signed AAB
+        if: steps.current.outputs.publish == 'true'
         working-directory: mobile/android
         env:
-          STORE_PW: ${{ secrets.NOTEFABLE_KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.NOTEFABLE_KEY_ALIAS }}
-          KEY_PW: ${{ secrets.NOTEFABLE_KEY_PASSWORD }}
-          KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
-        run: >-
-          ./gradlew :app:bundleRelease --no-daemon
-          -Pnotefable.upload.storeFile="$KEYSTORE_PATH"
-          -Pnotefable.upload.storePassword="$STORE_PW"
-          -Pnotefable.upload.keyAlias="$KEY_ALIAS"
-          -Pnotefable.upload.keyPassword="$KEY_PW"
-
-      - name: Upload AAB as workflow artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: notefable-${{ steps.meta.outputs.version_code }}-aab
-          path: mobile/android/app/build/outputs/bundle/release/app-release.aab
-          if-no-files-found: error
-          retention-days: 30
-
-  publish:
-    needs: build
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    # Environment should permit only android-v* tags. Secret must live here,
-    # never in repository-level Secrets or source files.
-    environment: play-publish
-    steps:
-      - name: Checkout release source
-        uses: actions/checkout@v4
-
-      - name: Download the tested AAB
-        uses: actions/download-artifact@v4
-        with:
-          name: notefable-${{ needs.build.outputs.version_code }}-aab
-          path: aab
-
-      - name: Prepare optional localized release notes
-        id: notes
-        shell: bash
+          KEYSTORE_B64: ${{ secrets.ALPHA_KEYSTORE_B64 }}
+          STORE_PASSWORD: ${{ secrets.ALPHA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ALPHA_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ALPHA_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          directory="$RUNNER_TEMP/play-whatsnew"
-          mkdir -p "$directory"
-          file="mobile/android/play-store/release-notes.txt"
-          if [ -f "$file" ]; then
-            cp "$file" "$directory/whatsnew-en-US"
+          if [[ -z "$KEYSTORE_B64" || -z "$STORE_PASSWORD" || -z "$KEY_ALIAS" || -z "$KEY_PASSWORD" ]]; then
+            echo "::error::Missing Android signing credentials in play-publish."
+            exit 1
           fi
-          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          umask 077
+          keystore=$(mktemp "$RUNNER_TEMP/android-upload.XXXXXX")
+          trap 'rm -f -- "$keystore"' EXIT
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$keystore"
+          unset KEYSTORE_B64
+          env "ORG_GRADLE_PROJECT_notefable.upload.storeFile=$keystore" \
+              "ORG_GRADLE_PROJECT_notefable.upload.storePassword=$STORE_PASSWORD" \
+              "ORG_GRADLE_PROJECT_notefable.upload.keyAlias=$KEY_ALIAS" \
+              "ORG_GRADLE_PROJECT_notefable.upload.keyPassword=$KEY_PASSWORD" \
+              "$BASH" ./gradlew :app:bundleRelease --no-daemon
 
-      - name: Upload once to Google Play internal testing
+      - name: Prepare optional release notes
+        if: steps.current.outputs.publish == 'true'
+        id: notes
+        run: |
+          set -euo pipefail
+          source=mobile/android/play-store/release-notes.txt
+          if [[ -s "$source" ]]; then
+            directory=$(mktemp -d "$RUNNER_TEMP/play-whatsnew.XXXXXX")
+            cp -- "$source" "$directory/whatsnew-en-US"
+            echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload AAB to Google Play closed testing
+        if: steps.current.outputs.publish == 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
         with:
-          serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          serviceAccountJsonPlainText: ${{ secrets.ALPHA_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
-          releaseFiles: aab/app-release.aab
-          tracks: internal
+          releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
+          tracks: alpha
           status: completed
-          releaseName: ${{ needs.build.outputs.version_name }}
           whatsNewDirectory: ${{ steps.notes.outputs.directory }}
