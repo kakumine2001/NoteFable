@@ -5,7 +5,8 @@ name: Android release
 #    自动构建签名 AAB 并发布到 Play 内部测试轨道。标签里的版本号必须与
 #    mobile/android/app/build.gradle.kts 的 versionName 一致（不一致直接失败），
 #    且 versionCode 必须比 Play 上已有的大（提交前先在 build.gradle.kts 里 +1）。
-# 2. 在 Actions 页面手动运行（workflow_dispatch），自选轨道和发布状态。
+# 2. 在 Actions 页面手动运行（workflow_dispatch），自选轨道和发布状态；
+#    production 轨道只允许从 main 运行（即已过评审合并的代码），其他分支直接失败。
 #
 # 签名与发布凭据全部来自仓库 Secrets（不进仓库）：
 #   NOTEFABLE_KEYSTORE_B64            上传密钥库（.jks）的 base64
@@ -13,7 +14,8 @@ name: Android release
 #   NOTEFABLE_KEY_ALIAS               密钥别名
 #   NOTEFABLE_KEY_PASSWORD            密钥密码
 #   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  有 Play 发布权限的服务账号 JSON
-# 版本说明：若 mobile/android/play-store/release-notes.txt 存在，其内容作为本次说明。
+# 版本说明：若 mobile/android/play-store/release-notes.txt 存在，其内容作为
+# 本次的 en-US 版本说明（经 whatsNewDirectory 传给 Play）。
 
 on:
   push:
@@ -44,6 +46,7 @@ permissions:
 concurrency:
   group: android-release
   cancel-in-progress: false
+  queue: max
 
 jobs:
   release:
@@ -61,6 +64,7 @@ jobs:
           INPUT_STATUS: ${{ inputs.status }}
           EVENT_NAME: ${{ github.event_name }}
           TAG_NAME: ${{ github.ref_name }}
+          GIT_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           track="$INPUT_TRACK"
@@ -68,6 +72,10 @@ jobs:
           if [ "$EVENT_NAME" = "push" ]; then
             track="internal"
             status="completed"
+          fi
+          if [ "$track" = "production" ] && [ "$GIT_REF" != "refs/heads/main" ]; then
+            echo "::error::Production releases only run from main (the reviewed, merged code), got ref $GIT_REF"
+            exit 1
           fi
           version_name=$(grep -oP 'versionName\s*=\s*"\K[^"]+' mobile/android/app/build.gradle.kts)
           version_code=$(grep -oP 'versionCode\s*=\s*\K[0-9]+' mobile/android/app/build.gradle.kts)
@@ -100,7 +108,8 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Write upload signing config
+      - name: Decode upload keystore
+        id: signing
         env:
           KEYSTORE_B64: ${{ secrets.NOTEFABLE_KEYSTORE_B64 }}
           STORE_PW: ${{ secrets.NOTEFABLE_KEYSTORE_PASSWORD }}
@@ -114,19 +123,23 @@ jobs:
             exit 1
           fi
           signing_dir="$RUNNER_TEMP/notefable-signing"
-          mkdir -p "$signing_dir" "$HOME/.gradle"
+          mkdir -p "$signing_dir"
           echo "$KEYSTORE_B64" | base64 -d > "$signing_dir/upload.jks"
-          {
-            printf 'notefable.upload.storeFile=%s\n' "$signing_dir/upload.jks"
-            printf 'notefable.upload.storePassword=%s\n' "$STORE_PW"
-            printf 'notefable.upload.keyAlias=%s\n' "$KEY_ALIAS"
-            printf 'notefable.upload.keyPassword=%s\n' "$KEY_PW"
-          } > "$HOME/.gradle/gradle.properties"
-          chmod 600 "$HOME/.gradle/gradle.properties"
+          echo "keystore_path=$signing_dir/upload.jks" >> "$GITHUB_OUTPUT"
 
       - name: Build signed AAB
         working-directory: mobile/android
-        run: ./gradlew :app:bundleRelease --no-daemon
+        env:
+          STORE_PW: ${{ secrets.NOTEFABLE_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.NOTEFABLE_KEY_ALIAS }}
+          KEY_PW: ${{ secrets.NOTEFABLE_KEY_PASSWORD }}
+          KEYSTORE_PATH: ${{ steps.signing.outputs.keystore_path }}
+        run: >-
+          ./gradlew :app:bundleRelease --no-daemon
+          -Pnotefable.upload.storeFile="$KEYSTORE_PATH"
+          -Pnotefable.upload.storePassword="$STORE_PW"
+          -Pnotefable.upload.keyAlias="$KEY_ALIAS"
+          -Pnotefable.upload.keyPassword="$KEY_PW"
 
       - name: Upload AAB as workflow artifact
         uses: actions/upload-artifact@v4
@@ -135,23 +148,23 @@ jobs:
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
 
-      - name: Read release notes
+      - name: Prepare release notes
         id: notes
         shell: bash
         run: |
-          notes_file="mobile/android/play-store/release-notes.txt"
-          if [ -f "$notes_file" ]; then
-            {
-              echo "text<<RELEASE_NOTES_EOF"
-              cat "$notes_file"
-              echo "RELEASE_NOTES_EOF"
-            } >> "$GITHUB_OUTPUT"
-          else
-            echo "text=" >> "$GITHUB_OUTPUT"
+          set -euo pipefail
+          dir="$RUNNER_TEMP/whatsnew"
+          mkdir -p "$dir"
+          src="mobile/android/play-store/release-notes.txt"
+          if [ -f "$src" ]; then
+            cp "$src" "$dir/whatsnew-en-US"
           fi
+          echo "dir=$dir" >> "$GITHUB_OUTPUT"
 
       - name: Upload to Google Play
-        uses: r0adkll/upload-google-play@v1
+        # Pinned to the v1 commit: this action receives the Play publishing
+        # credential, so its code may only change through a repo change.
+        uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
@@ -159,4 +172,4 @@ jobs:
           track: ${{ steps.meta.outputs.track }}
           status: ${{ steps.meta.outputs.status }}
           releaseName: ${{ steps.meta.outputs.version_name }}
-          releaseNotes: ${{ steps.notes.outputs.text }}
+          whatsNewDirectory: ${{ steps.notes.outputs.dir }}
