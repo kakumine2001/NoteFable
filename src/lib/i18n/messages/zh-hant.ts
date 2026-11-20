@@ -511,7 +511,7 @@ export const zhHant: Record<string, string> = {
   "Open": "開啟",
   "Open NoteFable": "開啟 NoteFable",
   "Open NoteFable and ask a question": "開啟 NoteFable，開始提問",
-  "Open it and start. Your chats and notes are tied to this browser.": "開啟就能用。聊天和筆記會與當前瀏覽器繫結。",
+  "Open it and start. Your chats and notes are tied to this browser.": "開啟就能用。聊天和筆記會記在當前瀏覽器名下。",
   "Open page": "開啟筆記",
   "Open saved page": "開啟已儲存的筆記",
   "Open sidebar": "開啟側邊欄",

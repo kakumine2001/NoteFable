@@ -331,7 +331,7 @@ export const zh: Record<string, string> = {
   "Open": "打开",
   "Open NoteFable": "打开 NoteFable",
   "Open NoteFable and ask a question": "打开 NoteFable，开始提问",
-  "Open it and start. Your chats and notes are tied to this browser.": "打开就能用。聊天和笔记会与当前浏览器绑定。",
+  "Open it and start. Your chats and notes are tied to this browser.": "打开就能用。聊天和笔记会记在当前浏览器名下。",
   "Open saved page": "打开已保存的笔记",
   "Open sidebar": "打开侧边栏",
   "Open the note": "打开笔记",
