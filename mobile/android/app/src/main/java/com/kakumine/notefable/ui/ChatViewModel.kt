@@ -14,6 +14,7 @@ import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.data.ApiException
 import com.kakumine.notefable.data.AttachError
 import com.kakumine.notefable.data.AttachmentDto
+import com.kakumine.notefable.data.ChatQuote
 import com.kakumine.notefable.data.LocalFile
 import com.kakumine.notefable.data.attachmentError
 import com.kakumine.notefable.data.selectionError
@@ -150,6 +151,8 @@ data class ChatUiState(
     val files: List<LocalFile> = emptyList(),
     /** 下一条消息要添加的笔记（ID、标题、图标）。正文由服务端每次发送时重新读取（网页 attachedPages）。 */
     val attachedPages: List<ChatProjectNote> = emptyList(),
+    /** 从回答里选中、点「问 NoteFable」引用的文字。发送时作为引用块放在正文前面（[ChatQuote]，网页 quote）。 */
+    val quote: String? = null,
     /** 「生成图片」模式：下一条消息交给图片接口。 */
     val imageMode: Boolean = false,
     val upload: UploadProgress? = null,
@@ -749,6 +752,17 @@ class ChatViewModel(
         }
     }
 
+    /** 回答里选中文字点了「问 NoteFable」：放到输入栏上方作为引用（再引用会换掉之前的）。 */
+    fun setQuote(text: String) {
+        val quote = ChatQuote.normalize(text)
+        if (quote.isNotEmpty()) _state.update { it.copy(quote = quote, notice = null) }
+    }
+
+    /** 点掉输入栏上方的引用。 */
+    fun clearQuote() {
+        _state.update { it.copy(quote = null) }
+    }
+
     /** 点掉输入栏上方的一篇笔记。 */
     fun removeAttachedPage(id: String) {
         _state.update { state ->
@@ -840,8 +854,12 @@ class ChatViewModel(
         val pages = current.attachedPages
         val imageMode = current.imageMode
         val modelId = current.selectedModel?.id
+        // 有引用时，引用块放在提问前面一起发（网页 composeQuotedMessage）。被拒时整段放回，引用回到输入栏上方。
+        val quote = current.quote
+        val message = ChatQuote.compose(quote, prompt)
+        val rawText = if (quote != null) message else text
         val request = ChatRequest(
-            message = prompt,
+            message = message,
             sessionId = current.activeSessionId,
             model = modelId,
             reasoning = current.selectedReasoning,
@@ -852,7 +870,7 @@ class ChatViewModel(
         if (files.isEmpty()) {
             // 提问立即出现在对话里（不等任务被调度）。
             val run = TurnRun(key, epoch)
-            val turn = beginTurn(run, prompt, text, files, pages, imageMode, modelId)
+            val turn = beginTurn(run, message, rawText, files, pages, imageMode, modelId)
             launchTurn(run) { runTurn(run, turn, request, imageMode) }
             return
         }
@@ -875,7 +893,7 @@ class ChatViewModel(
                 return@launchTurn null
             }
             // 上传期间笔记不能改（按钮不可用），所以发的还是开始上传时的这组。
-            val turn = beginTurn(run, prompt, text, files, pages, imageMode, modelId)
+            val turn = beginTurn(run, message, rawText, files, pages, imageMode, modelId)
             runTurn(run, turn, request.copy(uploads = tickets), imageMode)
         }
     }
@@ -1010,7 +1028,7 @@ class ChatViewModel(
             modelId = modelId.takeIf { !imageMode }, generatingImage = imageMode,
         )
         updateCached(run.key) { it + userMessage + assistantMessage }
-        _state.update { it.copy(files = emptyList(), attachedPages = emptyList(), upload = null, notice = null, sentCount = it.sentCount + 1) }
+        _state.update { it.copy(files = emptyList(), attachedPages = emptyList(), quote = null, upload = null, notice = null, sentCount = it.sentCount + 1) }
         // 消息真正发出去之后才清空草稿：附件上传失败时文字还留在输入栏里。
         updateDraft("")
         // 上传期间别的聊天退回来的提问，等这里清空输入栏后再放回去。
@@ -1168,9 +1186,12 @@ class ChatViewModel(
             pendingRestores += restore
             return
         }
-        updateDraft(mergeRejectedDraft(restore.text, draft))
+        // 带引用的提问：引用回到输入栏上方，输入栏只放提问。
+        val (quote, text) = ChatQuote.split(restore.text)
+        updateDraft(mergeRejectedDraft(text, draft))
         _state.update { state ->
             state.copy(
+                quote = quote ?: state.quote,
                 files = if (restore.files.isEmpty()) state.files
                 else restore.files + state.files.filterNot { current -> restore.files.any { it.uri == current.uri } },
                 // 笔记也排在前面；合起来超过上限也不删减（发送前提示用户移除，网页同样）。

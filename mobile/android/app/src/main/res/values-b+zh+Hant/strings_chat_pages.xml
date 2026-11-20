@@ -4,6 +4,9 @@
     <string name="attach_pages">新增頁面</string>
     <string name="attach_pages_desc">讓 AI 參考你的筆記</string>
     <string name="attached_pages">已新增的頁面</string>
+    <string name="ask_notefable">問 NoteFable</string>
+    <string name="quote">引用</string>
+    <string name="remove_quote">移除引用</string>
     <string name="attach_pages_help">AI 會把你新增的頁面作為這段對話的參考內容。每次傳送都會重新讀取，所以總是使用最新的內容。</string>
     <string name="attach_pages_submit">新增</string>
     <string name="err_pages_image_mode">生成圖片時不能新增頁面。請移除頁面或關閉圖片生成。</string>

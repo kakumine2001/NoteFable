@@ -4,6 +4,9 @@
     <string name="attach_pages">แนบหน้า</string>
     <string name="attach_pages_desc">ให้ AI อ่านโน้ตของคุณประกอบการตอบ</string>
     <string name="attached_pages">หน้าที่แนบไว้</string>
+    <string name="ask_notefable">ถาม NoteFable</string>
+    <string name="quote">คำพูดยกมา</string>
+    <string name="remove_quote">ลบข้อความที่อ้างอิง</string>
     <string name="attach_pages_help">AI จะอ่านหน้าที่คุณแนบไว้เป็นบริบทสำหรับแชทนี้ และจะอ่านใหม่ทุกครั้งที่ส่งข้อความ จึงใช้เนื้อหาที่แก้ไขล่าสุดเสมอ</string>
     <string name="attach_pages_submit">แนบ</string>
     <string name="err_pages_image_mode">ไม่สามารถแนบหน้าขณะสร้างรูปภาพได้ กรุณานำหน้าที่แนบออกหรือปิดโหมดสร้างรูปภาพ</string>

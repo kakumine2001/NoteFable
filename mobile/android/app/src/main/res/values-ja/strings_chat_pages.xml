@@ -3,6 +3,9 @@
     <string name="attach_pages">ページを添付</string>
     <string name="attach_pages_desc">ノートの内容を AI に読ませる</string>
     <string name="attached_pages">添付したページ</string>
+    <string name="ask_notefable">NoteFable に聞く</string>
+    <string name="quote">引用</string>
+    <string name="remove_quote">引用を外す</string>
     <string name="attach_pages_help">添付したページは、このチャットで AI が参考にします。送信のたびに読み直すので、常に最新の内容が使われます。</string>
     <string name="attach_pages_submit">添付</string>
     <string name="err_pages_image_mode">画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。</string>

@@ -3,6 +3,9 @@
     <string name="attach_pages">添加页面</string>
     <string name="attach_pages_desc">让 AI 参考你的笔记</string>
     <string name="attached_pages">已添加的页面</string>
+    <string name="ask_notefable">问 NoteFable</string>
+    <string name="quote">引用</string>
+    <string name="remove_quote">移除引用</string>
     <string name="attach_pages_help">AI 会把你添加的页面作为这段对话的参考内容。每次发送都会重新读取，所以总是使用最新的内容。</string>
     <string name="attach_pages_submit">添加</string>
     <string name="err_pages_image_mode">生成图片时不能添加页面。请移除页面或关闭图片生成。</string>

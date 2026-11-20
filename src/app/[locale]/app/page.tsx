@@ -24,6 +24,8 @@ import type { ChatProject } from "@/components/chat-actions";
 import { ChatSidebar } from "@/components/chat-sidebar";
 import { ChatTitleIcon, ChatTopbarIcon } from "@/components/chat-icon";
 import { ChatMessage } from "@/components/chat-message";
+import { QuoteSelectionButton } from "@/components/quote-selection";
+import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountLocaleSync } from "@/components/account-button";
@@ -380,6 +382,15 @@ export default function Home() {
   const [historyPendingId, setHistoryPendingId] = useState<string | null>(null);
   // 入力欄のテキスト。送信時に trim して API へ渡す。
   const [input, setInput] = useState("");
+  // 回答から選んで「NoteFable に聞く」で取り込んだ引用。送るときに本文の先頭へ引用ブロックとして付ける（lib/chat-quote.ts）。
+  const [quote, setQuote] = useState<string | null>(null);
+  const quoteRef = useRef<string | null>(null);
+  useEffect(() => {
+    quoteRef.current = quote;
+  }, [quote]);
+  // 会話へファイルをドラッグしている間（受け皿を出す）。子要素の出入りで dragenter / dragleave が続くので深さで数える。
+  const [fileDragActive, setFileDragActive] = useState(false);
+  const fileDragDepthRef = useRef(0);
   // 送信前のセッション作成など、会話に紐づかない失敗を入力欄の近くに出す。
   // エラーは英語か API の原文で保持する。複数の値のある添付校正は、値を分け直さず今の t で描く関数を保持する。
   const [sendError, setSendError] = useState<ErrorText>("");
@@ -394,7 +405,7 @@ export default function Home() {
   // 断られた発言の書き直し（下の rejectedEdit）。ページを離れるときに入力欄が空なら、これを預ける。
   const rejectedEditRef = useRef<{ messageId: string; text: string } | null>(null);
   const composerMountedRef = useKeepDraftOnLeave("chat", () => (guestLimitHitRef.current
-    ? (inputRef.current?.value ?? composerTextRef.current) || rejectedEditRef.current?.text || ""
+    ? withComposerQuote(inputRef.current?.value ?? composerTextRef.current) || rejectedEditRef.current?.text || ""
     : null));
   const [uploadProgress, setUploadProgress] = useState<UploadProgress | null>(null);
   // 現在選択中のモデル ID。API へそのまま渡し、サーバー側で再検証する。
@@ -733,6 +744,57 @@ export default function Home() {
     }
     return false;
   }
+
+  // 預ける下書きには、入力欄の上の引用も付ける（本文が空なら何も預けない）。
+  function withComposerQuote(text: string) {
+    return text.trim() ? composeQuotedMessage(quoteRef.current, text) : text;
+  }
+
+  // 預けた・断られた下書きを入力欄へ戻す。先頭の引用は入力欄の上の引用に戻す。
+  function restoreComposerText(text: string) {
+    const { quote: restoredQuote, body } = splitQuotedMessage(text);
+    if (restoredQuote) setQuote(restoredQuote);
+    return body;
+  }
+
+  function quoteSelection(text: string) {
+    setQuote(text);
+    setSendError("");
+    // 続けて質問を打てるよう入力欄へ。スマホでは画面キーボードが開く。
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }
+
+  function hasDraggedFiles(event: React.DragEvent) {
+    return Array.from(event.dataTransfer.types).includes("Files");
+  }
+
+  // パソコンで会話へファイルを落としたら、「＋」から選んだのと同じ添付の流れへ渡す。
+  const fileDropHandlers = {
+    onDragEnter: (event: React.DragEvent) => {
+      if (!hasDraggedFiles(event)) return;
+      event.preventDefault();
+      fileDragDepthRef.current += 1;
+      setFileDragActive(true);
+    },
+    onDragOver: (event: React.DragEvent) => {
+      if (!hasDraggedFiles(event)) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = uploadProgress ? "none" : "copy";
+    },
+    onDragLeave: (event: React.DragEvent) => {
+      if (!hasDraggedFiles(event)) return;
+      fileDragDepthRef.current = Math.max(0, fileDragDepthRef.current - 1);
+      if (!fileDragDepthRef.current) setFileDragActive(false);
+    },
+    onDrop: (event: React.DragEvent) => {
+      if (!hasDraggedFiles(event)) return;
+      event.preventDefault();
+      fileDragDepthRef.current = 0;
+      setFileDragActive(false);
+      addUploadFiles(Array.from(event.dataTransfer.files));
+      inputRef.current?.focus();
+    },
+  };
 
   function addUploadFiles(incoming: File[]) {
     if (uploadProgress) return;
@@ -1101,7 +1163,8 @@ export default function Home() {
     event.preventDefault();
 
     const submittedInputValue = inputRef.current?.value ?? input;
-    const userContent = submittedInputValue.trim();
+    const submittedQuote = submittedInputValue.trim() ? quoteRef.current : null;
+    const userContent = composeQuotedMessage(submittedQuote, submittedInputValue);
     const submittedFiles = files;
     const submittedPages = attachedPages;
     let requestSessionId = activeSessionIdRef.current;
@@ -1249,6 +1312,7 @@ export default function Home() {
     }
     setFiles([]);
     setAttachedPages([]);
+    if (submittedQuote) setQuote(null);
 
     const streamStartedAt = new Date().getTime();
     startStreamingSession(requestSessionKey, streamStartedAt);
@@ -1384,9 +1448,11 @@ export default function Home() {
         // 添付のプレビューは入力欄側が持ち続けるので、画面上の送信済み発言からは外す。
         submittedInputRestoreGuardRef.current = null;
         const typedMeanwhile = inputRef.current?.value ?? "";
-        const restored = typedMeanwhile.trim() ? [submittedInputValue.trimEnd(), typedMeanwhile].join("\n\n") : submittedInputValue;
+        // 引用を付けて送った本文は、引用を入力欄の上へ戻し、質問だけを入力欄に戻す。
+        const rejectedBody = restoreComposerText(userContent);
+        const restored = typedMeanwhile.trim() ? [rejectedBody, typedMeanwhile].join("\n\n") : rejectedBody;
         // 待つ間に別の画面へ移っていたら、入力欄の代わりに預けておく。
-        if (!composerMountedRef.current) keepRejectedDraft("chat", submittedInputValue);
+        if (!composerMountedRef.current) keepRejectedDraft("chat", userContent);
         setInput(restored);
         if (inputRef.current) inputRef.current.value = restored;
         if (submittedFiles.length) setFiles((current) => [...submittedFiles, ...current.filter((item) => !submittedFiles.some((sent) => sent.id === item.id))]);
@@ -1587,7 +1653,12 @@ export default function Home() {
     if (!pending) return;
     // 戻した本文は、送るか消すまで次にページを離れるときも預け続ける。
     guestLimitHitRef.current = true;
-    queueMicrotask(() => setInput((current) => current || pending));
+    // 引用を付けた本文なら、引用は入力欄の上へ戻す。
+    const restored = splitQuotedMessage(pending);
+    queueMicrotask(() => {
+      setInput((current) => current || restored.body);
+      if (restored.quote) setQuote((current) => current ?? restored.quote);
+    });
   }, []);
 
   useEffect(() => {
@@ -2076,7 +2147,14 @@ export default function Home() {
           <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
         </div>
 
-        <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}>
+        <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
+          {...fileDropHandlers}>
+        {fileDragActive && (
+          <div className="chat-drop-overlay" aria-hidden="true">
+            <div><Paperclip size={22} /><span>{t("Drop files to attach")}</span></div>
+          </div>
+        )}
+        <QuoteSelectionButton container={chatScrollRef} disabled={workspaceView !== "chat"} onQuote={quoteSelection} />
         <div ref={chatScrollRef} className="notion-chat-scroll relative z-0 flex-1 overflow-y-auto">
           <div
             className="notion-page-column flex min-h-full flex-col px-6 pb-12 sm:px-12"
@@ -2161,12 +2239,12 @@ export default function Home() {
           <BillingReturnNotice />
           {upgradeLimit && (
             <UpgradePrompt kind={upgradeLimit} onClose={() => setUpgradeLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
-              onBeforeUpgrade={() => savePendingDraft("chat", (inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
+              onBeforeUpgrade={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}
           {guestLimit && (
             <GuestLimitPrompt kind={guestLimit} onClose={() => setGuestLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
               // 入力欄が空で、断られた書き直しがあるときは、その文を預ける（ログイン後に入力欄へ戻る）。
-              onBeforeSignIn={() => savePendingDraft("chat", (inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
+              onBeforeSignIn={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}
           {(uploadError || sendError) && (
             <div
@@ -2178,6 +2256,16 @@ export default function Home() {
           )}
           {/* 入力欄はボタンの文字や添付のチップが状態でよく差し替わる。ページ翻訳や拡張がここの文字を書き換えると React の更新が失敗して画面が落ちるので、翻訳の対象から外す。 */}
           <form onSubmit={sendMessage} className="notion-page-column" translate="no">
+            {quote && (
+              // 回答から取り込んだ引用。送ると発言の先頭に引用として付く。× で外す。
+              <div className="chat-quote mb-3" role="group" aria-label={t("Quote")}>
+                <span className="chat-quote-text">{quote}</span>
+                <button type="button" className="chat-quote-remove" onClick={() => setQuote(null)}
+                  aria-label={t("Remove quote")} title={t("Remove quote")}>
+                  <X size={14} aria-hidden="true" />
+                </button>
+              </div>
+            )}
             {!!attachedPages.length && (
               // 添付したノート。押すと外れる（ファイルのチップと同じ）。
               // 文字の大きさは ul に付ける。globals.css の button { font: inherit } はレイヤー外で、button に付けた text-xs より強い。

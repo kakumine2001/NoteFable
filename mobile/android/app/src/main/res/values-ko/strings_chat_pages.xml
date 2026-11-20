@@ -4,6 +4,9 @@
     <string name="attach_pages">페이지 첨부</string>
     <string name="attach_pages_desc">AI가 내 노트를 참고하도록 허용</string>
     <string name="attached_pages">첨부된 페이지</string>
+    <string name="ask_notefable">NoteFable에게 묻기</string>
+    <string name="quote">인용구</string>
+    <string name="remove_quote">인용 삭제</string>
     <string name="attach_pages_help">첨부한 페이지는 이 채팅에서 AI가 참고 자료로 읽습니다. 메시지를 보낼 때마다 다시 읽으므로 항상 최신 수정 내용이 반영됩니다.</string>
     <string name="attach_pages_submit">첨부</string>
     <string name="err_pages_image_mode">이미지를 생성할 때는 페이지를 첨부할 수 없어요. 페이지를 제거하거나 이미지 생성을 꺼 주세요.</string>

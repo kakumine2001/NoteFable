@@ -16,6 +16,7 @@ import type { CharacterState } from "@/lib/characters";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeFailureText } from "@/lib/failure-text";
+import { splitQuotedMessage } from "@/lib/chat-quote";
 
 function GeneratingImagePreview() {
   const t = useT();
@@ -104,6 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
   // 保存済みの提案を優先し、ストリーム中でまだ保存側に出ていないものだけを足す。
   const stored = message.proposals ?? [];
   const proposals: StoredProposal[] = [...stored, ...steps.filter((step): step is StoredProposal => (step.kind === "proposal" || step.kind === "create_proposal") && !stored.some((item) => item.id === step.id))];
+  const userQuote = message.role === "USER" ? splitQuotedMessage(message.content) : { quote: null, body: message.content };
   const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
   // 本文のある完了した回答にだけ操作の行を出す（生成中・画像だけ・送信の失敗表示には出さない）。
   const shouldShowAnswerActions =
@@ -154,7 +156,8 @@ export const ChatMessage = memo(function ChatMessage({
           <ChatActivity steps={activity} isThinking={shouldShowThinking} seconds={activitySeconds} />
         )}
         {message.role === "ASSISTANT" ? (
-          <div className="markdown-body">
+          // 本文の揃った回答は、一部を選ぶと「NoteFable に聞く」で引用できる（quote-selection.tsx）。
+          <div className="markdown-body" data-quotable={shouldShowAnswerActions ? "" : undefined}>
             {hasGeneratedImages && (
               // 画像生成モードの結果。本文とは別に、ダウンロード可能な画像として表示する。
               <div className="generated-image-grid">
@@ -222,7 +225,11 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             {message.content && (
               <div className="text-[15px] leading-7 text-[var(--notion-text)]">
-                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</div>
+                {userQuote.quote && (
+                  // 回答から引用して聞いた発言は、先頭の引用を本文と分けて灰色で出す。
+                  <div className="chat-quote mb-2"><span className="chat-quote-text">{userQuote.quote}</span></div>
+                )}
+                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{userQuote.body}</div>
               </div>
             )}
           </div>
