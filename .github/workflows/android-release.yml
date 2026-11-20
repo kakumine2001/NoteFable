@@ -8,12 +8,17 @@ name: Android release
 # 2. 在 Actions 页面手动运行（workflow_dispatch），自选轨道和发布状态；
 #    production 轨道只允许从 main 运行（即已过评审合并的代码），其他分支直接失败。
 #
-# 签名与发布凭据全部来自仓库 Secrets（不进仓库）：
-#   NOTEFABLE_KEYSTORE_B64            上传密钥库（.jks）的 base64
-#   NOTEFABLE_KEYSTORE_PASSWORD       密钥库密码
-#   NOTEFABLE_KEY_ALIAS               密钥别名
-#   NOTEFABLE_KEY_PASSWORD            密钥密码
-#   GOOGLE_PLAY_SERVICE_ACCOUNT_JSON  有 Play 发布权限的服务账号 JSON
+# 凭据存放（不进仓库）：
+#   签名凭据是仓库 Secrets，构建 job 使用：
+#     NOTEFABLE_KEYSTORE_B64            上传密钥库（.jks）的 base64
+#     NOTEFABLE_KEYSTORE_PASSWORD       密钥库密码
+#     NOTEFABLE_KEY_ALIAS               密钥别名
+#     NOTEFABLE_KEY_PASSWORD            密钥密码
+#   Play 发布凭据 GOOGLE_PLAY_SERVICE_ACCOUNT_JSON 不在仓库 Secrets 里，
+#   而在 GitHub Environment「play-publish」中。该 Environment 的部署范围
+#   被平台限制为 main 分支与 android-v* 标签：发布 job 只有从这两个来源
+#   运行时才能拿到凭据，其他分支的运行根本收不到它（平台级强制，
+#   不是 workflow 文件里的自觉检查）。
 # 版本说明：若 mobile/android/play-store/release-notes.txt 存在，其内容作为
 # 本次的 en-US 版本说明（经 whatsNewDirectory 传给 Play）。
 
@@ -49,9 +54,14 @@ concurrency:
   queue: max
 
 jobs:
-  release:
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      track: ${{ steps.meta.outputs.track }}
+      status: ${{ steps.meta.outputs.status }}
+      version_name: ${{ steps.meta.outputs.version_name }}
+      version_code: ${{ steps.meta.outputs.version_code }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -148,6 +158,23 @@ jobs:
           path: mobile/android/app/build/outputs/bundle/release/app-release.aab
           retention-days: 14
 
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # 只有 main 分支与 android-v* 标签能部署到这个 Environment，
+    # 因此只有这些来源的运行能拿到 Play 发布凭据。
+    environment: play-publish
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: notefable-${{ needs.build.outputs.version_name }}-aab
+          path: aab
+
       - name: Prepare release notes
         id: notes
         shell: bash
@@ -168,8 +195,8 @@ jobs:
         with:
           serviceAccountJsonPlainText: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
-          releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
-          track: ${{ steps.meta.outputs.track }}
-          status: ${{ steps.meta.outputs.status }}
-          releaseName: ${{ steps.meta.outputs.version_name }}
+          releaseFiles: aab/app-release.aab
+          track: ${{ needs.build.outputs.track }}
+          status: ${{ needs.build.outputs.status }}
+          releaseName: ${{ needs.build.outputs.version_name }}
           whatsNewDirectory: ${{ steps.notes.outputs.dir }}
