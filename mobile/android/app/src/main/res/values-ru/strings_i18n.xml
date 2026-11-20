@@ -5,6 +5,7 @@
     <string name="language_change_failed">Не удалось изменить язык. Пожалуйста, попробуйте ещё раз.</string>
     <string name="language_auto">Определять автоматически</string>
     <string name="language_auto_current">Автоматически (сейчас: %1$s)</string>
+    <string name="language_auto_now">Сейчас: %1$s</string>
     <string name="language_search">Поиск языков</string>
     <string name="language_effective">Текущий язык</string>
     <string name="language_no_results">Языки не найдены.</string>

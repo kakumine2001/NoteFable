@@ -5,6 +5,7 @@
     <string name="language_change_failed">تعذّر تغيير اللغة. يرجى المحاولة مرة أخرى.</string>
     <string name="language_auto">اكتشاف تلقائي</string>
     <string name="language_auto_current">تلقائي (الحالية: %1$s)</string>
+    <string name="language_auto_now">الحالية: %1$s</string>
     <string name="language_search">البحث في اللغات</string>
     <string name="language_effective">اللغة الحالية</string>
     <string name="language_no_results">لم يتم العثور على لغات.</string>

@@ -136,7 +136,7 @@ export function LanguageMenuPanel({ anchor, current, align = "start", onChoose, 
         {filtered.map((option) => (
           <button key={option} type="button" role="radio" aria-checked={option === current} className="chat-menu-item" onClick={() => onChoose(option)}>
             <span className="language-menu-name">
-              {option === "auto" ? <>{t("Auto detect")}<small>{t("Auto (current: {language})", { language: LOCALE_NAMES[locale] })}</small></>
+              {option === "auto" ? <>{t("Auto detect")}<small>{t("Current: {language}", { language: LOCALE_NAMES[locale] })}</small></>
                 : <><span lang={LOCALE_TAGS[option]} dir={LOCALE_DIRS[option]} translate="no">{LOCALE_NAMES[option]}</span>{option === locale && <small>{t("Current language")}</small>}</>}
             </span>
             <Check size={15} aria-hidden="true" className={`language-menu-check${option === current ? "" : " invisible"}`} />

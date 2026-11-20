@@ -947,7 +947,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
 /* 回答の一部を選んだときの「NoteFable に聞く」（quote-selection.tsx）。メニューと同じ白い面・枠・影。 */
 .quote-selection-button { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .8rem; border: 1px solid var(--notion-border); border-radius: .6rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; font-size: .875rem; white-space: nowrap; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
-.quote-selection-button:hover, .quote-selection-button:focus-visible { background: var(--notion-hover); outline: none; }
+/* 回答の文字の上に浮くので、半透明の --notion-hover を白い面に重ねて不透明のまま色を付ける。 */
+.quote-selection-button:hover, .quote-selection-button:focus-visible { background: linear-gradient(var(--notion-hover), var(--notion-hover)) var(--notion-bg); outline: none; }
 .quote-selection-button svg { color: var(--notion-muted); }
 /* タッチ端末：入力欄のすぐ上に入力欄と同じ幅の帯。左に選んだ文字（灰色・1 行）、右に「NoteFable に聞く」。 */
 .quote-selection-button.is-bar { height: 44px; gap: .6rem; padding: 0 .9rem; border-radius: .9rem; animation-name: quote-bar-in; }

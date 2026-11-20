@@ -5,6 +5,7 @@
     <string name="language_change_failed">Không thể đổi ngôn ngữ. Vui lòng thử lại.</string>
     <string name="language_auto">Tự động nhận diện</string>
     <string name="language_auto_current">Tự động (hiện tại: %1$s)</string>
+    <string name="language_auto_now">Hiện tại: %1$s</string>
     <string name="language_search">Tìm kiếm ngôn ngữ</string>
     <string name="language_effective">Ngôn ngữ hiện tại</string>
     <string name="language_no_results">Không tìm thấy ngôn ngữ nào.</string>

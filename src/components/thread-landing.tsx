@@ -215,7 +215,7 @@ function useFacts() {
   const t = useT();
   return [
   { title: t("No account needed"), body: t("Open it and start. Your chats and notes are tied to this browser.") },
-  { title: t("Google sign-in, if you want it"), body: t("Sign in to carry the same chats and notes to another device.") },
+  { title: t("Google or email sign-in, if you want it"), body: t("Sign in to carry the same chats and notes to another device.") },
   { title: t("An assistant inside every note"), body: t("Ask about the page you are writing without leaving it.") },
   ];
 }
