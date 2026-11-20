@@ -4,7 +4,6 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
-  FilePlus,
   FileText,
   History,
   ImagePlus,
@@ -2160,13 +2159,6 @@ export default function Home() {
                 <Plus size={20} />
               </button>
             )}
-            {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
-            {workspaceView === "chat" && !emptyState && activeSession && (
-              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionBusy} onClick={() => setCreatePageSessionId(activeSession.id)}
-                aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
-                <FilePlus size={20} />
-              </button>
-            )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
@@ -2401,6 +2393,8 @@ export default function Home() {
                     // 続けて絵の説明を打てるよう、入力欄へフォーカスを移す。
                     inputRef.current?.focus();
                   }}
+                  onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+                  createPageDisabled={isActiveSessionBusy}
                 />
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -2522,6 +2516,8 @@ export default function Home() {
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
             onAttachPages={() => setPageDialogOpen(true)}
+            onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+            createPageDisabled={isActiveSessionBusy}
           />
           {pageDialogOpen && (
             <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)}

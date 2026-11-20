@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, FileText, ImagePlus, Paperclip, Plus } from "lucide-react";
+import { Check, FilePlus, FileText, ImagePlus, Paperclip, Plus } from "lucide-react";
 import { type ChangeEvent, type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -8,7 +8,7 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { ATTACHMENT_ACCEPT } from "@/lib/client-files";
 import { useT } from "@/components/i18n-provider";
 
-// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、自分のノートを添付するか、画像を作るモードに切り替えるかを選ぶ。
+// スマホで「＋」を押したときに画面下から出るシート。ファイルを足すか、自分のノートを添付するか、画像を作るモードに切り替えるか、会話をノートにまとめるかを選ぶ。
 // 画像作成の行は、選んでいるチャットモデルに関係なく常に出す（画像生成は OpenAI の画像 API を直接呼ぶ）。
 export function AttachSheet({
   open,
@@ -17,6 +17,8 @@ export function AttachSheet({
   imageMode,
   onToggleImageMode,
   onAttachPages,
+  onCreatePage,
+  createPageDisabled = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -25,6 +27,9 @@ export function AttachSheet({
   onToggleImageMode: () => void;
   // ノートを選ぶダイアログを開く。シートは先に閉じる。
   onAttachPages: () => void;
+  // 会話全体をノートにまとめるダイアログを開く。メッセージがある会話のときだけ渡す。
+  onCreatePage?: () => void;
+  createPageDisabled?: boolean;
 }) {
   const t = useT();
   useBackToClose(open, onClose);
@@ -89,6 +94,25 @@ export function AttachSheet({
           </span>
           {imageMode && <Check size={20} />}
         </button>
+
+        {onCreatePage && (
+          <button
+            type="button"
+            className="attach-row"
+            aria-haspopup="dialog"
+            disabled={createPageDisabled}
+            onClick={() => {
+              onClose();
+              onCreatePage();
+            }}
+          >
+            <FilePlus size={22} />
+            <span>
+              <strong>{t("Create page")}</strong>
+              <small>{t("Create a page from this chat")}</small>
+            </span>
+          </button>
+        )}
       </div>
     </div>,
     document.body,
@@ -104,6 +128,8 @@ export function AttachMenu({
   imageMode = false,
   onToggleImageMode,
   onAttachPages,
+  onCreatePage,
+  createPageDisabled = false,
   className = "relative col-start-1 row-start-2",
   backToClose = false,
 }: {
@@ -112,6 +138,8 @@ export function AttachMenu({
   imageMode?: boolean;
   onToggleImageMode?: () => void;
   onAttachPages?: () => void;
+  onCreatePage?: () => void;
+  createPageDisabled?: boolean;
   className?: string;
   // スマホのシートの中で使うとき：端末の「戻る」と Esc で、下のシートより先にこのメニューだけを閉じる。
   backToClose?: boolean;
@@ -145,7 +173,7 @@ export function AttachMenu({
     document.addEventListener("mousedown", closeOnOutsideClick);
     document.addEventListener("keydown", closeOnEscape);
     // キーボードで開いた人がそのまま矢印キーで選べるよう、最初の行へフォーカスを移す。
-    menuRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    menuRef.current?.querySelector<HTMLButtonElement>("button:not(:disabled)")?.focus();
 
     return () => {
       document.removeEventListener("mousedown", closeOnOutsideClick);
@@ -154,7 +182,8 @@ export function AttachMenu({
   }, [shown]);
 
   function moveFocus(event: ReactKeyboardEvent<HTMLDivElement>) {
-    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button"));
+    const rows = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>("button:not(:disabled)"));
+    if (rows.length === 0) return;
     const index = rows.indexOf(document.activeElement as HTMLButtonElement);
     let next: number;
     if (event.key === "ArrowDown") next = (index + 1) % rows.length;
@@ -251,6 +280,25 @@ export function AttachMenu({
                 <small>{imageMode ? t("On — your next message creates an image") : t("Describe it and it is drawn for you")}</small>
               </span>
               {imageMode && <Check size={16} />}
+            </button>
+          )}
+          {onCreatePage && (
+            <button
+              type="button"
+              role="menuitem"
+              aria-haspopup="dialog"
+              className="attach-row"
+              disabled={createPageDisabled}
+              onClick={() => {
+                setOpen(false);
+                onCreatePage();
+              }}
+            >
+              <FilePlus size={18} />
+              <span>
+                <strong>{t("Create page")}</strong>
+                <small>{t("Create a page from this chat")}</small>
+              </span>
             </button>
           )}
         </div>
