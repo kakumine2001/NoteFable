@@ -459,6 +459,20 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 这个链接不是分享链接：会话仍按设备 Cookie / Google 账号归属，在别的浏览器里打开只会得到 “Failed to load conversation.”。在笔记里点这个链接是整页导航（BlockNote 链接），整页重新加载后再跳转。
 
+## 引用回答追问（问 NoteFable）
+
+在回答里选中一段文字，出现 **Ask NoteFable**（`src/components/quote-selection.tsx`）：有鼠标时在选区上方（上面放不下就在下方，长选区两端都在可见范围外时夹在会话可见范围内）；触屏时是输入框正上方、与输入框同宽的一条（左边灰字是选中文字的第一行，右边是蓝色的 “Ask NoteFable”，整条可点）。触屏的系统选择菜单（iOS 的“拷贝 / 查询”等）会出现在选区上方或下方，放在选区旁边会被它挡住，而网页没法往系统菜单里加项，所以不跟着选区走。只认会话滚动区里带 `data-quotable` 的回答正文（`AssistantMarkdown` 外层，不含提案卡片）——和操作行同样的条件（已完成、没失败、有正文），选区两端必须在同一条回答里。点了以后从复制的选区重新取文字（数学公式换成 TeX 源码 `$…$` / `$$…$$`，去掉代码块的标题行；选区整个在一个代码块里时直接用原文，保留换行和缩进），再 `normalizeQuote`（去掉首尾空白、合并连续空行、最多 2,000 个码位，超出加 `…`）放到输入框上方的引用条（`.chat-quote`，× 移除；再引用会换掉），焦点回到输入框。触屏上在手指离开时执行（`pointerup`）：iOS Safari（WebKit）不给这个按钮发 `click`，而且可能在按下时就清掉选区，所以按住期间不随选区变化收起按钮，用按下前记下的选区取文字。实测（Playwright，模拟）：Chromium、Firefox、WebKit 的桌面，iPhone 15（WebKit）与 Pixel 7（Chromium）的触屏都能引用并聚焦输入框。
+
+- **发送格式**：不加新字段，也不改服务端。`composeQuotedMessage`（`src/lib/chat-quote.ts`）把引用写成 Markdown 引用块放在提问前面：`> 每一行` + 空行 + 提问，作为普通的 `message` 发出、原样保存，模型看到的就是这段文字。只有引用没有提问时不能发送（与空输入相同）。
+- **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
+- **上传附件期间**：引用不能移除或替换（发出的内容已定）。
+- **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
+- Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
+
+## 拖放添加文件
+
+有鼠标的设备上，把文件拖到聊天视图（`.notion-page` 整块，含顶栏和输入框）时显示虚线框的 “Drop files to attach”，放下后与 “＋” 选择文件、粘贴图片走同一个 `addUploadFiles`（同样的数量、大小、类型校验和错误提示）。只处理拖进来的是文件（`dataTransfer.types` 含 `Files`）的情况，拖文字不受影响；上传中不接收。拖到受理范围外（侧栏等）放下时，窗口级的 `dragover` / `drop` 只阻止浏览器打开文件、离开页面。Android 不适用。
+
 ## 回答里的数学公式
 
 回答的 Markdown 里的 LaTeX 公式在网页上由 KaTeX 渲染（`src/components/assistant-markdown.tsx`：聊天回答和笔记助手面板），Android 原生 App 用同一套规则认公式、用自带的排版库画（见下）。

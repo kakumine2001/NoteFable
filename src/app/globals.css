@@ -945,6 +945,25 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .chat-menu-item:hover, .chat-menu-item:focus-visible { background: var(--notion-hover); outline: none; }
 .chat-menu-item.is-danger { color: #b91c1c; }
 .chat-menu-divider { margin: .3rem .5rem; border: 0; border-top: 1px solid var(--notion-border); }
+/* 回答の一部を選んだときの「NoteFable に聞く」（quote-selection.tsx）。メニューと同じ白い面・枠・影。 */
+.quote-selection-button { position: fixed; z-index: 60; display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .8rem; border: 1px solid var(--notion-border); border-radius: .6rem; color: var(--notion-text); background: var(--notion-bg); box-shadow: 0 8px 32px #0002; font-size: .875rem; white-space: nowrap; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; animation: chat-row-menu-in 140ms cubic-bezier(.2, .8, .2, 1); }
+.quote-selection-button:hover, .quote-selection-button:focus-visible { background: var(--notion-hover); outline: none; }
+.quote-selection-button svg { color: var(--notion-muted); }
+/* タッチ端末：入力欄のすぐ上に入力欄と同じ幅の帯。左に選んだ文字（灰色・1 行）、右に「NoteFable に聞く」。 */
+.quote-selection-button.is-bar { height: 44px; gap: .6rem; padding: 0 .9rem; border-radius: .9rem; animation-name: quote-bar-in; }
+.quote-selection-preview { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; text-align: start; color: var(--notion-muted); }
+.quote-selection-button.is-bar .quote-selection-label { flex: none; font-weight: 600; color: var(--nf-accent, var(--notion-text)); }
+@keyframes quote-bar-in { from { opacity: 0; transform: translateY(6px); } }
+@media (prefers-reduced-motion: reduce) { .quote-selection-button { animation: none; } }
+/* 入力欄の上の引用と、送った発言の先頭の引用。左（RTL では右）の線と灰色の文字、長いものは 3 行で切る。 */
+.chat-quote { display: flex; align-items: flex-start; gap: .5rem; min-width: 0; padding-inline-start: .65rem; border-inline-start: 2px solid var(--notion-border); color: var(--notion-muted); font-size: .8125rem; line-height: 1.45rem; }
+.chat-quote-text { min-width: 0; flex: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; white-space: pre-wrap; overflow-wrap: anywhere; }
+.chat-quote.is-sent .chat-quote-text { display: block; -webkit-line-clamp: none; overflow: visible; }
+.chat-quote-remove { display: grid; flex: none; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: .35rem; color: var(--notion-muted); }
+.chat-quote-remove:hover, .chat-quote-remove:focus-visible { background: var(--notion-hover); outline: none; }
+/* 会話へファイルをドラッグしている間の受け皿（パソコンのみ）。 */
+.chat-drop-overlay { position: absolute; inset: .75rem; z-index: 40; display: grid; place-items: center; border: 2px dashed var(--notion-border); border-radius: 1rem; color: var(--notion-muted); background: color-mix(in srgb, var(--notion-bg) 88%, transparent); font-size: .9375rem; pointer-events: none; }
+.chat-drop-overlay > div { display: flex; flex-direction: column; align-items: center; gap: .5rem; }
 /* 表示言語のメニュー（language-menu.tsx）。項目は .chat-menu-item、今の言語の右端にチェック。 */
 .language-menu-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .language-menu-check { flex: none; color: var(--notion-blue); }

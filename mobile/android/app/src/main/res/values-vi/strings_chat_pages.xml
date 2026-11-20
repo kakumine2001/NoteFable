@@ -4,6 +4,9 @@
     <string name="attach_pages">Đính kèm trang</string>
     <string name="attach_pages_desc">Cho phép AI đọc ghi chú của bạn</string>
     <string name="attached_pages">Trang đã đính kèm</string>
+    <string name="ask_notefable">Hỏi NoteFable</string>
+    <string name="quote">Trích dẫn</string>
+    <string name="remove_quote">Xóa trích dẫn</string>
     <string name="attach_pages_help">AI sẽ đọc các trang bạn đính kèm làm ngữ cảnh cho đoạn chat này. Nội dung được đọc lại ở mỗi tin nhắn nên luôn dùng các chỉnh sửa mới nhất của bạn.</string>
     <string name="attach_pages_submit">Đính kèm</string>
     <string name="err_pages_image_mode">Không thể đính kèm trang khi tạo hình ảnh. Hãy gỡ các trang đính kèm hoặc tắt tạo hình ảnh.</string>
