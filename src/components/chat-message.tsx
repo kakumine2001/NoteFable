@@ -16,6 +16,7 @@ import type { CharacterState } from "@/lib/characters";
 import type { Message, StoredProposal } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeFailureText } from "@/lib/failure-text";
+import { splitQuotedMessage } from "@/lib/chat-quote";
 
 function GeneratingImagePreview() {
   const t = useT();
@@ -104,6 +105,7 @@ export const ChatMessage = memo(function ChatMessage({
   // 保存済みの提案を優先し、ストリーム中でまだ保存側に出ていないものだけを足す。
   const stored = message.proposals ?? [];
   const proposals: StoredProposal[] = [...stored, ...steps.filter((step): step is StoredProposal => (step.kind === "proposal" || step.kind === "create_proposal") && !stored.some((item) => item.id === step.id))];
+  const userQuote = message.role === "USER" ? splitQuotedMessage(message.content) : { quote: null, body: message.content };
   const shouldShowActivity = message.role === "ASSISTANT" && (shouldShowThinking || activity.length > 0);
   // 本文のある完了した回答にだけ操作の行を出す（生成中・画像だけ・送信の失敗表示には出さない）。
   const shouldShowAnswerActions =
@@ -182,7 +184,12 @@ export const ChatMessage = memo(function ChatMessage({
               </div>
             )}
             {shouldShowImagePreview && <GeneratingImagePreview />}
-            {message.content && <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />}
+            {message.content && (
+              // 本文の揃った回答は、本文の一部を選ぶと「NoteFable に聞く」で引用できる（quote-selection.tsx）。提案カードは対象外。
+              <div data-quotable={shouldShowAnswerActions ? "" : undefined}>
+                <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />
+              </div>
+            )}
             {proposals.map((proposal) => proposal.kind === "proposal"
               ? <PageEditProposal key={proposal.id} proposal={proposal} />
               : <PageCreateProposal key={proposal.id} proposal={proposal} />)}
@@ -222,7 +229,11 @@ export const ChatMessage = memo(function ChatMessage({
             )}
             {message.content && (
               <div className="text-[15px] leading-7 text-[var(--notion-text)]">
-                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{message.content}</div>
+                {userQuote.quote && (
+                  // 回答から引用して聞いた発言は、先頭の引用を本文と分けて灰色で出す（省略せず全文）。
+                  <div className="chat-quote is-sent mb-2"><span className="chat-quote-text">{userQuote.quote}</span></div>
+                )}
+                <div className="whitespace-pre-wrap break-words [overflow-wrap:anywhere]">{userQuote.body}</div>
               </div>
             )}
           </div>

@@ -5,6 +5,9 @@
     <string name="attach_pages">Attach pages</string>
     <string name="attach_pages_desc">Let the AI read your notes</string>
     <string name="attached_pages">Attached pages</string>
+    <string name="ask_notefable">Ask NoteFable</string>
+    <string name="quote">Quote</string>
+    <string name="remove_quote">Remove quote</string>
     <string name="attach_pages_help">The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.</string>
     <string name="attach_pages_submit">Attach</string>
     <string name="err_pages_image_mode">Pages can’t be attached when creating an image. Remove them or turn off image creation.</string>

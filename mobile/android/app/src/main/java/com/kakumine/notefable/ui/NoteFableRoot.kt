@@ -314,6 +314,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onToggleRecentNote = viewModel::toggleRecentNote,
                 onAttachPages = viewModel::setAttachedPages,
                 onRemovePage = viewModel::removeAttachedPage,
+                onQuote = viewModel::setQuote,
+                onRemoveQuote = viewModel::clearQuote,
                 onCreatePage = { id -> createPageSessionId = id },
                 turnActions = turnActions,
             ) }

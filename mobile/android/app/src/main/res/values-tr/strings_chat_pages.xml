@@ -4,6 +4,9 @@
     <string name="attach_pages">Sayfa ekle</string>
     <string name="attach_pages_desc">Yapay zekânın notlarınızı okumasına izin verin</string>
     <string name="attached_pages">Eklenen sayfalar</string>
+    <string name="ask_notefable">NoteFable\'a sor</string>
+    <string name="quote">Alıntı</string>
+    <string name="remove_quote">Alıntıyı kaldır</string>
     <string name="attach_pages_help">Yapay zekâ, eklediğiniz sayfaları bu sohbet için bağlam olarak okur. Sayfalar her mesajda yeniden okunduğu için en son düzenlemeleriniz kullanılır.</string>
     <string name="attach_pages_submit">Ekle</string>
     <string name="err_pages_image_mode">Görsel oluştururken sayfa eklenemez. Sayfaları kaldırın veya görsel oluşturmayı kapatın.</string>

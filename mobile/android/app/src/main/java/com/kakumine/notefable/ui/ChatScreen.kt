@@ -72,6 +72,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -113,6 +114,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.ChatQuote
 import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ChatProjectNote
 import com.kakumine.notefable.data.NotePageSummary
@@ -159,6 +161,9 @@ fun ChatScreen(
     onToggleRecentNote: (ChatProjectNote) -> Unit = {},
     onAttachPages: (List<ChatProjectNote>) -> Unit = {},
     onRemovePage: (String) -> Unit = {},
+    /** 回答里选中文字点了「问 NoteFable」 / 点掉输入栏上方的引用。 */
+    onQuote: (String) -> Unit = {},
+    onRemoveQuote: () -> Unit = {},
     /** 顶栏「整理成笔记」：打开那个聊天的窗口。 */
     onCreatePage: (String) -> Unit = {},
     /** 消息上的编辑、重新生成、版本切换、分支；为空时不显示。 */
@@ -168,6 +173,8 @@ fun ChatScreen(
     var attachOpen by rememberSaveable { mutableStateOf(false) }
     var pagesOpen by rememberSaveable { mutableStateOf(false) }
     var composerFocused by remember { mutableStateOf(false) }
+    // 每引用一次加 1：回答换 key 重建选区，选中的高亮消失。
+    var quoteCount by remember { mutableIntStateOf(0) }
     val heroCharacterState = state.heroCharacterState(isTyping = composerFocused || input.isNotBlank())
     val activeReplyCharacterState = state.activeReplyCharacterState()
     val composerFocus = remember { FocusRequester() }
@@ -209,7 +216,21 @@ fun ChatScreen(
     ) { inner ->
         Column(Modifier.padding(inner).fillMaxSize()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                androidx.compose.runtime.CompositionLocalProvider(LocalTurnActions provides turnActions) {
+                androidx.compose.runtime.CompositionLocalProvider(
+                    LocalTurnActions provides turnActions,
+                    // 上传附件时引用不能改（ViewModel 不收），菜单里只去掉「问 NoteFable」，复制和全选照常（网页同样不显示）。
+                    LocalQuoteSelection provides remember(quoteCount, onQuote) {
+                        QuoteSelection(
+                            onQuote = { text ->
+                                onQuote(text)
+                                quoteCount++
+                                // 接着打提问：聚焦输入栏，弹出键盘。
+                                composerFocus.requestFocus()
+                            },
+                            resetKey = quoteCount,
+                        )
+                    }.takeIf { state.upload == null },
+                ) {
                     MessageList(
                         state = state,
                         hasDraft = input.isNotBlank(),
@@ -261,6 +282,8 @@ fun ChatScreen(
                 effortLabel = state.selectedReasoning?.let { reasoningLabel(it) },
                 files = state.files,
                 pages = state.attachedPages,
+                quote = state.quote,
+                onRemoveQuote = onRemoveQuote,
                 upload = state.upload,
                 imageMode = state.imageMode,
                 error = state.filesError?.let { attachErrorText(it) } ?: when (val notice = state.notice) {
@@ -696,9 +719,14 @@ private fun UserTurn(message: UiMessage, canEdit: Boolean, editDraft: String?) {
                     }
                 }
                 if (message.content.isNotEmpty()) {
-                    // 网页提问文字是 15px / 行高 28（leading-7），不是回答正文的 16。
+                    // 回答里引用来问的提问：开头的引用和提问分开，引用灰字在上（网页 chat-message.tsx）。
+                    val (quote, body) = remember(message.content) { ChatQuote.split(message.content) }
                     SelectionContainer {
-                        Text(message.content, color = Sm.Text, fontSize = 15.sp, lineHeight = 28.sp)
+                        Column {
+                            if (quote != null) QuoteText(quote, Modifier.padding(bottom = 8.dp), maxLines = Int.MAX_VALUE)
+                            // 网页提问文字是 15px / 行高 28（leading-7），不是回答正文的 16。
+                            Text(body, color = Sm.Text, fontSize = 15.sp, lineHeight = 28.sp)
+                        }
                     }
                 }
             }
@@ -762,6 +790,8 @@ private fun Composer(
     effortLabel: String?,
     files: List<LocalFile>,
     pages: List<ChatProjectNote>,
+    quote: String?,
+    onRemoveQuote: () -> Unit,
     upload: UploadProgress?,
     imageMode: Boolean,
     error: String?,
@@ -809,7 +839,8 @@ private fun Composer(
     ) {
         prompt?.invoke()
         if (error != null) ComposerError(error)
-        // 网页：笔记在附件上面；上传附件时不能移除。
+        // 网页：引用在最上面，笔记在附件上面；上传附件时不能移除。
+        if (quote != null) ComposerQuote(quote, enabled = upload == null, onRemove = onRemoveQuote)
         if (pages.isNotEmpty()) PendingPages(pages, enabled = upload == null, onRemove = onRemovePage)
         if (files.isNotEmpty()) PendingFiles(files, enabled = upload == null, onRemove = onRemoveFile)
         Column(

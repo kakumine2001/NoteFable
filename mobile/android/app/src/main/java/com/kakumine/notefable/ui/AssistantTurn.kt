@@ -27,6 +27,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.runtime.key
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -132,13 +135,33 @@ internal fun AssistantTurn(
         }
         if (message.generatingImage && message.images.isEmpty()) GeneratingImagePreview()
         if (message.content.isNotEmpty()) {
-            SelectionContainer {
-                // 使用上限的句子只翻译（网页 t(message.content)），其它回答只替换末尾的"Request failed: …"。
-                AnswerMarkdown(
-                    if (message.usageLimit) systemText.t(message.content)
-                    else systemText.localizeFailure(message.content, message.failure ?: failureStep?.info),
-                )
+            val answer = @Composable { menu: Modifier ->
+                SelectionContainer(menu) {
+                    // 使用上限的句子只翻译（网页 t(message.content)），其它回答只替换末尾的"Request failed: …"。
+                    AnswerMarkdown(
+                        if (message.usageLimit) systemText.t(message.content)
+                        else systemText.localizeFailure(message.content, message.failure ?: failureStep?.info),
+                    )
+                }
             }
+            // 本文完整的回答，选中文字时菜单里多一个「问 NoteFable」（网页 data-quotable：和操作行同样的条件）。
+            val quoteSelection = LocalQuoteSelection.current
+            val quotable = quoteSelection != null && !message.streaming && message.errorDetail == null && !message.usageLimit &&
+                !message.generatingImage && message.content.isNotBlank()
+            if (quotable && quoteSelection != null) {
+                // 引用后换一个 key 重建选区，选中的高亮随之消失。
+                key(quoteSelection.resetKey) {
+                    // 旧版文字菜单走 LocalTextToolbar，新版走选区上的 Modifier：两边都接上。
+                    // 「问 NoteFable」借选区的「复制」拿文字，由这里换上的剪贴板接住，不碰系统剪贴板。
+                    val clipboard = rememberQuoteClipboard()
+                    CompositionLocalProvider(
+                        LocalClipboard provides clipboard,
+                        LocalTextToolbar provides rememberQuoteTextToolbar(clipboard, quoteSelection.onQuote),
+                    ) {
+                        answer(rememberQuoteMenuModifier(clipboard, quoteSelection.onQuote))
+                    }
+                }
+            } else answer(Modifier)
         }
         val store = app?.proposals
         if (proposals.isNotEmpty() && store != null) ProposalCards(proposals, store, openNote)

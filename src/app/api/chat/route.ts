@@ -48,12 +48,14 @@ import { getModelRegistry, upstreamModelFor } from "@/lib/model-registry";
 import { subtreeIds } from "@/lib/chat-branches";
 import { loadActiveLeafId, loadBranchTree, lockSession } from "@/lib/chat-branch-store";
 import { isSupportedImageMimeType } from "@/lib/image-types";
+import { splitQuotedMessage } from "@/lib/chat-quote";
 
 export const runtime = "nodejs";
 
 function makeTitle(message: string) {
   // 改行や連続スペースを 1 つの空白にして、一覧表示で崩れないタイトルにする。
-  const compact = message.replace(/\s+/g, " ").trim();
+  // 回答から引用して聞いた発言は、引用ではなく質問の部分から作る。
+  const compact = splitQuotedMessage(message).body.replace(/\s+/g, " ").trim();
   // 長すぎるタイトルはサイドバーで読みにくいため、先頭だけを使う。
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
