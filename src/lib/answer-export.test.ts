@@ -92,6 +92,10 @@ describe("message ids and conversation links", () => {
 
   it("links to the conversation, and to the message only when it is stored", () => {
     expect(answerConversationUrl("https://app.example", "sess123")).toBe("https://app.example/c/sess123");
+    // 分域後に紹介サイトのホストへ届いた要求（古い Android アプリ）には、古いアプリが読める以前の形で返す。
+    const hosts = { site: "https://notefable.com", app: "https://app.notefable.com", siteHost: "notefable.com", appHost: "app.notefable.com", cookieDomain: "notefable.com" };
+    expect(answerConversationUrl("https://notefable.com", "sess123", "cmgx9k2a00001abcd1234efgh", hosts)).toBe("https://notefable.com/?chat=sess123&message=cmgx9k2a00001abcd1234efgh");
+    expect(answerConversationUrl("https://app.notefable.com", "sess123", null, hosts)).toBe("https://app.notefable.com/c/sess123");
     expect(answerConversationUrl("https://app.example", "sess123", "cmgx9k2a00001abcd1234efgh")).toBe("https://app.example/c/sess123?message=cmgx9k2a00001abcd1234efgh");
     expect(answerConversationUrl("https://app.example", "sess123", crypto.randomUUID())).toBe("https://app.example/c/sess123");
     expect(answerConversationUrl("https://app.example", "sess123", null)).toBe("https://app.example/c/sess123");

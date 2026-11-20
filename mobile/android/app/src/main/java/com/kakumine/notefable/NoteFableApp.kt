@@ -14,7 +14,6 @@ import com.kakumine.notefable.data.ProposalApi
 import com.kakumine.notefable.data.ProposalStore
 import com.kakumine.notefable.data.PlayBilling
 import kotlinx.coroutines.CoroutineScope
-import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import kotlinx.coroutines.MainScope
 import com.kakumine.notefable.data.NoteFableApi
 import com.kakumine.notefable.data.SystemText
@@ -22,8 +21,9 @@ import com.kakumine.notefable.data.SystemText
 class NoteFableApp : Application(), SingletonImageLoader.Factory {
     val cookieJar: PersistentCookieJar by lazy {
         // 旧版连 notefable.com，现在连 app.notefable.com（工作区的主机）：把旧主机的 Cookie 搬过来，登录和匿名数据都保留。
+        // 只在连正式服务器时搬（-Pnotefable.baseUrl 指向测试服务器时，不能把正式的登录 Cookie 送过去）。
         PersistentCookieJar(this).also { jar ->
-            BuildConfig.BASE_URL.toHttpUrlOrNull()?.host?.let { jar.moveHost(LEGACY_SERVER_HOST, it) }
+            if (BuildConfig.BASE_URL == SERVER_URL) jar.moveHost(LEGACY_SERVER_HOST, SERVER_HOST)
         }
     }
     val api: NoteFableApi by lazy {
@@ -65,3 +65,7 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
 
 /** 1.0.10 及以前连接的服务器主机（现在是介绍页的主机）。 */
 private const val LEGACY_SERVER_HOST = "notefable.com"
+
+/** 正式的服务器（工作区的主机）。 */
+private const val SERVER_HOST = "app.notefable.com"
+private const val SERVER_URL = "https://$SERVER_HOST"

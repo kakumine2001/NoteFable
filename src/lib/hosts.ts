@@ -43,9 +43,10 @@ export function appHref(search = "", hosts = splitHosts()) {
   return hosts ? `${hosts.app}/${search}` : `/app${search}`;
 }
 
-// 紹介サイト側のページ（/?intro、/privacy など）へのリンク。分けていなければ同じホストの相対パス。
-export function siteHref(path: string, hosts = splitHosts()) {
-  return hosts ? `${hosts.site}${path}` : path;
+// 紹介サイト側のページ（/?intro、/privacy など）へのリンク。ワークスペースのホストにいるときだけ紹介サイトへの絶対 URL にし、
+// それ以外（紹介サイト、Preview、notefable-kaku10.vercel.app のような別名）は同じホストの相対パス。currentHost を省くとブラウザの今のホスト。
+export function siteHref(path: string, hosts = splitHosts(), currentHost = typeof window === "undefined" ? null : window.location.host) {
+  return hosts && currentHost === hosts.appHost ? `${hosts.site}${path}` : path;
 }
 
 // ワークスペースを使ったことのある端末の目印。ワークスペースのホストが両ホスト共通の Domain で書き、紹介サイトの / が読んで

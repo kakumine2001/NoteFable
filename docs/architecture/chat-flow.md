@@ -449,7 +449,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 ### 会话链接 `/c/<会话>?message=`
 
-保存的笔记和下载的 .md 里都带一个回到原会话的链接 `<origin>/c/<sessionId>[?message=<messageId>]`（`answerConversationUrl`）。`src/proxy.ts` 把它转到工作区的 `?chat=<sessionId>[&message=<messageId>]`；分域后转到 `app.notefable.com`，装了 Android App 时由 App Links 直接在 App 里打开（[deployment.md](deployment.md)）。以前生成的 `<origin>/?chat=…` 链接照样能开。`message` 只在消息 ID 是数据库 ID 时才加（`isStoredMessageId`：`/^[a-z0-9]{20,40}$/i`）；刚发送完、还没刷新的消息用本地 UUID（含 `-`），不满足，链接就只指向会话。
+保存的笔记和下载的 .md 里都带一个回到原会话的链接 `<origin>/c/<sessionId>[?message=<messageId>]`（`answerConversationUrl`）。`src/proxy.ts` 把它转到工作区的 `?chat=<sessionId>[&message=<messageId>]`；分域后转到 `app.notefable.com`，装了 Android App 时由 App Links 直接在 App 里打开（[deployment.md](deployment.md)）。以前生成的 `<origin>/?chat=…` 链接照样能开。分域后发到介绍页主机 `notefable.com` 的请求只会来自还连旧主机的旧版 Android App，它不认 `/c/`，所以这种请求仍生成 `/?chat=…`。`message` 只在消息 ID 是数据库 ID 时才加（`isStoredMessageId`：`/^[a-z0-9]{20,40}$/i`）；刚发送完、还没刷新的消息用本地 UUID（含 `-`），不满足，链接就只指向会话。
 
 `page.tsx` 在首次加载时处理一次（放在 `queueMicrotask` 里并可取消，避免开发模式 StrictMode 的“卸载再挂载”打断读取）：
 

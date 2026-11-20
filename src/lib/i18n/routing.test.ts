@@ -118,6 +118,9 @@ describe("split site and workspace hosts", () => {
     expect(where(at("https://notefable.com/app?view=pages&page=p1"))).toBe("redirect https://app.notefable.com/?view=pages&page=p1");
     expect(where(at("https://notefable.com/?chat=c1&message=m1"))).toBe("redirect https://app.notefable.com/?chat=c1&message=m1");
     expect(where(at("https://notefable.com/app"))).toBe("redirect https://app.notefable.com/");
+    // 紹介サイトだけに書いた言語の選択を、送り先のホストへ持っていく（proxy.ts が共通 Domain に書く）。
+    expect(at("https://notefable.com/app").carryLocale).toBe(true);
+    expect(at("https://app.notefable.com/app").carryLocale).toBeUndefined();
   });
 
   it.each(["notefable_app", "notefable_device", "__Secure-authjs.session-token"])("sends a returning %s visitor from the site to the workspace host", (name) => {
@@ -158,6 +161,8 @@ describe("split site and workspace hosts", () => {
   it("sends a language-specific workspace on the site to the workspace host", () => {
     expect(where(at("https://notefable.com/ja/app?chat=c1"))).toBe("redirect https://app.notefable.com/?chat=c1");
     expect(at("https://app.notefable.com/ja/app").kind).toBe("none");
+    expect(at("https://app.notefable.com/ja/app").noindex).toBe(true);
+    expect(at("https://notefable.com/ja/app").carryLocale).toBe(true);
   });
 
   it("treats any other host (Preview, localhost) as a single host", () => {

@@ -10,7 +10,6 @@ import { LanguageMenu } from "@/components/language-menu";
 import { useModels } from "@/components/models-provider";
 import { CharacterGraphic } from "@/components/character-avatar";
 import { DEFAULT_CHARACTER_ID } from "@/lib/characters";
-import { appHref } from "@/lib/hosts";
 import { LOCALES, type Locale, type LocalePreference } from "@/lib/i18n/locale";
 import { LANDING_HERO, landingTitle } from "@/lib/i18n/landing-meta";
 import { INTRO_HREF, landingPath } from "@/lib/i18n/routing";
@@ -279,7 +278,7 @@ export function ThreadLanding() {
 
       <header className="tl-nav tl-wrap">
         <Link className="tl-brand" href={INTRO_HREF} aria-label={t("NoteFable home")}><CharacterGraphic characterId={DEFAULT_CHARACTER_ID} size={26} /><span>NoteFable</span></Link>
-        <Link className="tl-nav-cta" href={appHref()} prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
+        <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 
       <main id="tl-main">
@@ -299,7 +298,7 @@ export function ThreadLanding() {
             <h1 id="tl-title" lang="en" dir="ltr"><span className="tl-rise">{LANDING_HERO.headlineLead}</span> <span className="tl-rise"><span className="tl-mark">{LANDING_HERO.headlineMark}</span></span><br /><span className="tl-rise">{LANDING_HERO.headlineTail}</span></h1>
             <p className="tl-lede" lang="en" dir="ltr">{LANDING_HERO.lede}</p>
 
-            <Link className="tl-composer" href={appHref()} prefetch={false} aria-label={t("Open NoteFable and ask a question")}>
+            <Link className="tl-composer" href="/app" prefetch={false} aria-label={t("Open NoteFable and ask a question")}>
               <span className="tl-composer-text" aria-hidden="true"><TypedQuestion /></span>
               <span className="tl-composer-bar" aria-hidden="true">
                 <span className="tl-composer-plus"><Plus size={17} /></span>
@@ -348,7 +347,7 @@ export function ThreadLanding() {
         <section className="tl-wrap" aria-labelledby="tl-finale-title">
           <div className="tl-finale">
             <h2 id="tl-finale-title">{t("What is the question you keep coming back to?")}</h2>
-            <Link className="tl-finale-cta" href={appHref()} prefetch={false}>{t("Open NoteFable")}{" "}<ArrowRight size={17} aria-hidden="true" /></Link>
+            <Link className="tl-finale-cta" href="/app" prefetch={false}>{t("Open NoteFable")}{" "}<ArrowRight size={17} aria-hidden="true" /></Link>
           </div>
         </section>
       </main>

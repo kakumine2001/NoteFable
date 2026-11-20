@@ -43,7 +43,8 @@ const LOCALE_APP_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/app\/?$/;
 const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];
 
 // hint: ワークスペースを使った目印の Cookie を書く。noindex: 検索エンジンに載せない（ワークスペースのホスト）。
-export type LocaleRoute = ({ kind: "redirect"; url: URL } | { kind: "rewrite"; url: URL } | { kind: "none" }) & { hint?: boolean; noindex?: boolean };
+// carryLocale: 紹介サイトからワークスペースのホストへ送るとき、このホストだけの言語 Cookie を両ホスト共通の Domain にも書く。
+export type LocaleRoute = ({ kind: "redirect"; url: URL } | { kind: "rewrite"; url: URL } | { kind: "none" }) & { hint?: boolean; noindex?: boolean; carryLocale?: boolean };
 
 // ワークスペースのホストの / に search を付けた URL。
 function workspaceUrl(hosts: SplitHosts, url: URL) {
@@ -73,13 +74,14 @@ export function routeLocalizedRequest(request: {
   if (url.pathname.startsWith("/c/")) return { kind: "none" };
   if (LOCALE_APP_PATH.test(url.pathname)) {
     // 言語固定のワークスペース（/ja/app など）は静的なページがそのまま出る。紹介サイトのホストでだけワークスペースのホストへ送る。
-    return hosts && role === "site" ? { kind: "redirect", url: workspaceUrl(hosts, url) } : { kind: "none" };
+    if (hosts && role === "site") return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
+    return role === "app" ? { kind: "none", noindex: true } : { kind: "none" };
   }
 
   if (hosts && role === "site") {
     // 紹介サイトのワークスペース（/app、古い /?chat=…、回訪者の /）は、ワークスペースのホストへ。指定（検索部分）は保つ。
     // /note-embed は古い Android アプリがこのホストで開くので、ここでそのまま出す。/api/* は proxy を通らず、どちらのホストでも動く。
-    if (url.pathname === "/app" || legacy || returning) return { kind: "redirect", url: workspaceUrl(hosts, url) };
+    if (url.pathname === "/app" || legacy || returning) return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
   }
   if (hosts && role === "app") {
     // ワークスペースのホストでは / がワークスペース。/app（Stripe からの戻りや古いリンク）は / へ寄せる。
