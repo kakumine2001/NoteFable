@@ -93,15 +93,9 @@ Google 登录时：Google 从 App 上的章算出编号，和 Google Cloud 里 N
 - **APK**：手机能直接安装的文件，像电脑上的 `.exe` 安装包。
 - **AAB**：专门交给 Play 的打包文件，手机不能直接装。Play 按每台手机的型号把它做成 APK，顺便盖上 Google 的章。
 
-每次发新版：
+普通改动可以直接通过 PR 合入 main。需要发封闭测试时，在 PR 中提高 versionCode（Play 使用的版本流水号）并更新 versionName（给用户看的版本号）。合并后，GitHub Actions 构建签名 AAB 并上传到 Play 的 alpha 封闭测试轨道。测试人员收到邀请后从 Play 安装。
 
-1. 打开 `mobile/android/app/build.gradle.kts`，`versionCode`（版本流水号，Play 不接受重复的）加 1，`versionName`（给人看的版本号，比如 1.0.8）改成新的。
-2. 电脑上运行 `./gradlew bundleRelease`，得到 AAB（用你的上传密钥盖章）。
-3. 在 Play Console 把 AAB 传到「内部测试」并发布。内部测试 = 只有你和少数人能从 Play 装的测试版。
-4. 自己的手机从 Play 测试链接安装，试一下。
-5. 要发 APK 文件给别人时：Play Console → App bundle explorer（アプリバンドル エクスプローラ）→ 下载「署名済みのユニバーサル APK」，传到 Google Drive 的发布文件夹（只留最新一个）。
-
-从 Drive 装的 APK 能用 Google 登录（章是对的），但不能买 Pro：Play 只让从 Play 商店装的 App 付款。详细规则见 [android.md](architecture/android.md)。
+Drive 安装包交付当前暂停。发布条件和 Play 签名规则见 [Android 应用](architecture/android.md)。
 
 ## 收费
 
@@ -145,9 +139,8 @@ Stripe 还有 4 项没亲眼确认（商品价格、Webhook、扣款失败后的
 
 网站、Stripe、签名和登录都准备好了；剩下的都在 Play 那边，最慢的是 14 天封闭测试。
 
-- [ ] 电脑上打包 1.0.7
 - [ ] Play Console 启用订阅 `notefable_pro`
-- [ ] 上传到内部测试，用手机试 Google 登录和购买 Pro
+- [ ] 从 Play 的 alpha 封闭测试安装，用手机验证 Google 登录和购买 Pro
 - [ ] 填 Play Console 的应用内容声明和商店介绍（答案在 [docs/play-store/](play-store/console-answers.md)）
 - [ ] 找 12 个人做 14 天封闭测试（封闭测试 = 指定的人能从 Play 装的测试版；新的个人开发者账号必须先过这一关）
 - [ ] 申请正式上架
