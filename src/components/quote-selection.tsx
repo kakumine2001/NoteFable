@@ -9,8 +9,9 @@ import { normalizeQuote } from "@/lib/chat-quote";
 const BUTTON_HEIGHT = 36;
 const GAP = 8;
 const EDGE = 8;
+const TOUCH_BOTTOM_GAP = 12;
 
-type Placement = { top: number; left: number; range: Range };
+type Placement = { top: number; left: number; centered: boolean; range: Range };
 
 /** 選択した範囲が 1 つの引用できる回答（data-quotable）の中に収まっているときの、その回答の要素。 */
 function quotableOf(node: Node | null, container: HTMLElement): HTMLElement | null {
@@ -59,16 +60,18 @@ function placementFor(container: HTMLElement): Placement | null {
   const first = rects[0] ?? range.getBoundingClientRect();
   const last = rects.at(-1) ?? first;
   const view = container.getBoundingClientRect();
-  // タッチ端末では OS の選択メニューが選択の上に出るので、ボタンは選択の下に置く。マウスでは選択の上に置く。
-  const touch = window.matchMedia("(hover: none) and (pointer: coarse)").matches;
-  let top = touch ? last.bottom + GAP + 18 : first.top - BUTTON_HEIGHT - GAP;
-  if (!touch && top < view.top + EDGE) top = last.bottom + GAP;
-  if (touch && top + BUTTON_HEIGHT > view.bottom - EDGE) top = first.top - BUTTON_HEIGHT - GAP;
   // 選択が会話の見えている範囲の外へ出ていたら出さない。
-  if (top < view.top - BUTTON_HEIGHT || top > view.bottom) return null;
-  const anchor = touch ? last : first;
-  const left = Math.min(Math.max(anchor.left, EDGE), window.innerWidth - EDGE);
-  return { top, left, range };
+  if (last.bottom < view.top || first.top > view.bottom) return null;
+  // タッチ端末では OS の選択メニュー（iOS の「コピー・調べる」など）が選択の上か下に出て、選択の近くに置くと隠れる。
+  // ウェブからはそのメニューに項目を足せないので、会話の下端（入力欄のすぐ上）の中央に固定して出す。
+  if (window.matchMedia("(hover: none) and (pointer: coarse)").matches) {
+    return { top: view.bottom - BUTTON_HEIGHT - TOUCH_BOTTOM_GAP, left: (view.left + view.right) / 2, centered: true, range };
+  }
+  // マウスでは選択の上（上が足りなければ下）に置く。
+  let top = first.top - BUTTON_HEIGHT - GAP;
+  if (top < view.top + EDGE) top = last.bottom + GAP;
+  const left = Math.min(Math.max(first.left, EDGE), window.innerWidth - EDGE);
+  return { top, left, centered: false, range };
 }
 
 /**
@@ -115,7 +118,8 @@ export function QuoteSelectionButton({ container, disabled, onQuote }: {
   }, [placement]);
 
   if (!placement || typeof document === "undefined") return null;
-  const left = Math.max(EDGE, Math.min(placement.left, window.innerWidth - width - EDGE));
+  const start = placement.centered ? placement.left - width / 2 : placement.left;
+  const left = Math.max(EDGE, Math.min(start, window.innerWidth - width - EDGE));
   const activate = () => {
     const text = normalizeQuote(selectedText(placement.range));
     // iOS ではタップの処理の中で同期してフォーカスしないと画面キーボードが開かない。onQuote が入力欄へフォーカスする。
