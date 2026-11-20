@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { applyProfileEdit, profileEditChanges, type AccountUser, type ProfileEdit } from "@/lib/user-profile";
+import { onSiteHost } from "@/lib/hosts";
 import type { LocalePreference } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 
@@ -79,6 +80,8 @@ export async function saveLocaleIfSignedIn(preference: LocalePreference): Promis
     await saveProfile({ locale });
     return saveError;
   }
+  // ホストを分けた構成の紹介サイトにはログインも API も無い（選んだ言語は共通 Domain の Cookie でワークスペースへ届く）。
+  if (onSiteHost()) return "";
   // Landing pages may not have loaded the account store yet. Serialize their
   // direct patches too, so a slower earlier choice cannot win on the server.
   const run = chain.then(async () => {

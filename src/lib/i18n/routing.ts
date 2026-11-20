@@ -80,7 +80,7 @@ export function routeLocalizedRequest(request: {
 
   if (hosts && role === "site") {
     // 紹介サイトのワークスペース（/app、古い /?chat=…、回訪者の /）は、ワークスペースのホストへ。指定（検索部分）は保つ。
-    // /api/* は proxy を通らない。このホストでは next.config.ts の rewrites が 404 にする（hosts.ts の siteApiBlockRewrites）。
+    // /api/* は proxy を通らない。このホストでは next.config.ts の rewrites が止める（hosts.ts の siteApiBlockRewrites）。
     if (url.pathname === "/app" || legacy || returning) return { kind: "redirect", url: workspaceUrl(hosts, url), carryLocale: true };
     // ノートのエディターはワークスペースのホストの API を使うので、そちらへ送る。
     if (url.pathname === EMBED_PATH) return { kind: "redirect", url: new URL(`${EMBED_PATH}${url.search}`, hosts.app) };
