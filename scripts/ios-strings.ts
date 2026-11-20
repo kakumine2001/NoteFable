@@ -1,0 +1,306 @@
+// 原生 iOS 的界面文案（mobile/ios/NoteFable/Resources/<语言>.lproj/Localizable.strings）。
+// 不另外维护一份：从 Android 的字符串资源（res/values*/strings*.xml，17 种语言）逐条转换。键就是 Android 的资源名，
+// Swift 端用 L("键", 参数…) 读（mobile/ios/NoteFable/Core/Text/L10n.swift）。
+// 值去掉 XML 转义和 Android 转义（\'、\n、"…" 包裹等，规则同 aapt2），占位符（%1$s / %2$d）和 %% 原样保留：
+// L10n.format 自己替换它们，不走 String(format:)。遇到没处理过的写法（plurals、数组、内嵌标签、不认识的转义）直接报错。
+// 生成：npx tsx scripts/gen-ios-strings.ts；src/lib/ios-strings.test.ts 在文件过期时失败。
+import { readdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { LOCALES, type Locale } from "../src/lib/i18n/locale";
+import { defaultStringXmlFileNames, NATIVE_LOCALE_RES_DIRS, NATIVE_RES_DIR, unescapeAndroidString } from "./native-strings";
+
+const root = path.resolve(import.meta.dirname, "..");
+export const IOS_RESOURCES_DIR = path.join(root, "mobile", "ios", "NoteFable", "Resources");
+export const IOS_STRINGS_FILE = "Localizable.strings";
+
+// 网页 Locale → iOS 的 lproj 名（和 mobile/ios/Support/Info.plist 的 CFBundleLocalizations、AppLanguage.swift 一致）。
+export const IOS_LPROJ: Record<Locale, string> = {
+  en: "en",
+  zh: "zh-Hans",
+  "zh-Hant": "zh-Hant",
+  ja: "ja",
+  ko: "ko",
+  es: "es",
+  fr: "fr",
+  de: "de",
+  "pt-BR": "pt-BR",
+  it: "it",
+  id: "id",
+  vi: "vi",
+  th: "th",
+  hi: "hi",
+  ar: "ar",
+  tr: "tr",
+  ru: "ru",
+};
+
+export function iosStringsPath(locale: Locale): string {
+  return path.join(IOS_RESOURCES_DIR, `${IOS_LPROJ[locale]}.lproj`, IOS_STRINGS_FILE);
+}
+
+export type AndroidStringEntry = { name: string; raw: string; translatable: boolean };
+
+/** 一个 strings*.xml 里的全部 <string>，按出现顺序。<string> 以外的元素（plurals、string-array…）报错。 */
+export function parseAndroidStringsXml(xml: string, label: string): AndroidStringEntry[] {
+  const body = xml.replace(/\r\n/g, "\n").replace(/<!--[\s\S]*?-->/g, "");
+  const wrapper = /^\s*<\?xml[^>]*\?>\s*<resources(?:\s[^>]*)?>([\s\S]*)<\/resources>\s*$/.exec(body);
+  if (!wrapper) throw new Error(`${label}: expected an XML declaration and one <resources> element`);
+  const entries: AndroidStringEntry[] = [];
+  const names = new Set<string>();
+  const rest = wrapper[1].replace(/<string(\s[^>]*)?>([\s\S]*?)<\/string>/g, (_, attrs: string | undefined, raw: string) => {
+    const attributes = new Map<string, string>();
+    const leftover = (attrs ?? "").replace(/\s+([\w:.-]+)\s*=\s*"([^"]*)"/g, (__, key: string, value: string) => {
+      attributes.set(key, value);
+      return "";
+    });
+    if (leftover.trim()) throw new Error(`${label}: cannot read the attributes of <string${attrs}>`);
+    const name = attributes.get("name");
+    if (!name || !/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name)) throw new Error(`${label}: <string> without a usable name (${name ?? ""})`);
+    for (const key of attributes.keys()) {
+      if (key !== "name" && key !== "translatable") throw new Error(`${label}:${name}: unsupported attribute ${key}`);
+    }
+    const translatable = attributes.get("translatable") ?? "true";
+    if (translatable !== "true" && translatable !== "false") throw new Error(`${label}:${name}: translatable="${translatable}"`);
+    if (names.has(name)) throw new Error(`${label}: duplicate string ${name}`);
+    names.add(name);
+    entries.push({ name, raw, translatable: translatable === "true" });
+    return "";
+  });
+  if (rest.trim()) throw new Error(`${label}: unsupported content: ${rest.trim().slice(0, 80)}`);
+  return entries;
+}
+
+const XML_ENTITIES: Record<string, string> = { lt: "<", gt: ">", amp: "&", quot: '"', apos: "'" };
+
+/** XML 解析器交给 aapt2 的文字：实体换成字符。标签（<b>、<xliff:g>、CDATA）不支持。 */
+function decodeXmlText(raw: string, label: string): string {
+  if (raw.includes("<")) throw new Error(`${label}: markup inside a string is not supported`);
+  return raw.replace(/&(#x[0-9a-fA-F]+|#[0-9]+|[A-Za-z]+);|&/g, (whole: string, ref: string | undefined) => {
+    if (ref === undefined) throw new Error(`${label}: bare "&"`);
+    if (ref.startsWith("#x")) return String.fromCodePoint(parseInt(ref.slice(2), 16));
+    if (ref.startsWith("#")) return String.fromCodePoint(parseInt(ref.slice(1), 10));
+    if (!Object.hasOwn(XML_ENTITIES, ref)) throw new Error(`${label}: unknown entity ${whole}`);
+    return XML_ENTITIES[ref];
+  });
+}
+
+const ANDROID_SPACE = /[ \t\n\v\f\r]/;
+
+/**
+ * Android 运行时 getString() 得到的文字（aapt2 ResourceUtils::StringBuilder 的规则）：
+ * 引号外的 ASCII 空白压成一个空格并去掉首尾；没转义的 " 是"原样保留空白"的开关，本身不输出；
+ * 反斜杠转义 \n \t \' \" \\ \@ \? \# \uXXXX。引号外没转义的 '、不认识的转义、资源引用（@… / ?…）都报错。
+ */
+export function androidStringValue(raw: string, label: string): string {
+  const text = decodeXmlText(raw, label);
+  const first = text.replace(/^[ \t\n\v\f\r]+/, "")[0];
+  if (first === "@" || first === "?") throw new Error(`${label}: resource references are not supported (escape a leading ${first} as \\${first})`);
+
+  // soft = 引号外、没转义的空白（要压缩 / 去掉的那种）。
+  const pieces: { char: string; soft: boolean }[] = [];
+  let quoted = false;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (char === "\\") {
+      const next = text[index + 1];
+      if (next === "n") pieces.push({ char: "\n", soft: false });
+      else if (next === "t") pieces.push({ char: "\t", soft: false });
+      else if (next !== undefined && "'\"\\@?#".includes(next)) pieces.push({ char: next, soft: false });
+      else if (next === "u") {
+        const hex = text.slice(index + 2, index + 6);
+        if (!/^[0-9a-fA-F]{4}$/.test(hex)) throw new Error(`${label}: bad \\u escape`);
+        pieces.push({ char: String.fromCharCode(parseInt(hex, 16)), soft: false });
+        index += 4;
+      } else throw new Error(`${label}: unknown escape \\${next ?? ""}`);
+      index++;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (!quoted && char === "'") {
+      throw new Error(`${label}: unescaped apostrophe`);
+    } else {
+      pieces.push({ char, soft: !quoted && ANDROID_SPACE.test(char) });
+    }
+  }
+  if (quoted) throw new Error(`${label}: unterminated quote`);
+
+  let value = "";
+  let space = false;
+  for (const piece of pieces) {
+    if (piece.soft) {
+      space = value.length > 0;
+      continue;
+    }
+    if (space) value += " ";
+    space = false;
+    value += piece.char;
+  }
+  return value;
+}
+
+/**
+ * 值里的占位符（%1$s / %2$d，按出现顺序）。Swift 端的 L10n.format 只认这两种和 %%：
+ * 不带序号的 %s / %d 之类报错；带占位符的句子里单独的 % 也报错（Android 的 String.format 同样会失败）。
+ */
+export function formatSpecs(value: string, label = "value"): string[] {
+  const specs: string[] = [];
+  const lone: number[] = [];
+  for (let index = 0; index < value.length; index++) {
+    if (value[index] !== "%") continue;
+    if (value[index + 1] === "%") {
+      index++;
+      continue;
+    }
+    const spec = /^%\d+\$[sd]/.exec(value.slice(index, index + 16));
+    if (spec) {
+      specs.push(spec[0]);
+      index += spec[0].length - 1;
+    } else lone.push(index);
+  }
+  for (const index of lone) {
+    const next = value[index + 1] ?? "";
+    if (specs.length > 0 || /[A-Za-z0-9.,+#(-]/.test(next)) {
+      throw new Error(`${label}: unsupported format specifier at "${value.slice(index, index + 6)}" (use %1$s / %1$d, or %% for a literal percent sign)`);
+    }
+  }
+  return specs;
+}
+
+const LONE_SURROGATE = /[\ud800-\udbff](?![\udc00-\udfff])|(?:[^\ud800-\udbff]|^)[\udc00-\udfff]/;
+
+/** .strings 的双引号字符串里的写法。 */
+export function escapeStringsValue(value: string, label: string): string {
+  if (LONE_SURROGATE.test(value)) throw new Error(`${label}: lone surrogate`);
+  let out = "";
+  for (const char of value) {
+    if (char === "\\") out += "\\\\";
+    else if (char === '"') out += '\\"';
+    else if (char === "\n") out += "\\n";
+    else if (char === "\t") out += "\\t";
+    else if (char === "\r") out += "\\r";
+    else if (char < " " || char === "\x7f") throw new Error(`${label}: control character U+${char.charCodeAt(0).toString(16).padStart(4, "0")}`);
+    else out += char;
+  }
+  return out;
+}
+
+export type IosStringEntry = { key: string; value: string; file: string };
+
+function readLocaleEntries(locale: Locale): Map<string, Map<string, AndroidStringEntry>> {
+  const dirName = NATIVE_LOCALE_RES_DIRS[locale];
+  const dir = path.join(NATIVE_RES_DIR, dirName);
+  const expected = defaultStringXmlFileNames();
+  const actual = readdirSync(dir).filter((name) => name.startsWith("strings") && name.endsWith(".xml")).sort();
+  if (actual.join("\n") !== expected.join("\n")) {
+    throw new Error(`${dirName}: string files differ from values/: [${actual.join(", ")}] vs [${expected.join(", ")}]`);
+  }
+  return new Map(expected.map((fileName) => {
+    const label = `${dirName}/${fileName}`;
+    const entries = parseAndroidStringsXml(readFileSync(path.join(dir, fileName), "utf8"), label);
+    return [fileName, new Map(entries.map((entry) => [entry.name, entry]))];
+  }));
+}
+
+function valueOf(entry: AndroidStringEntry, label: string): string {
+  const value = androidStringValue(entry.raw, label);
+  formatSpecs(value, label);
+  // scripts/native-strings.ts（Android 13 种语言的生成）用的是它自己的 unescapeAndroidString：两边读出的文字必须一样。
+  // 它不处理 \n / \t / \u / 数字实体，这几种跳过；它会把带占位符的句子里的 %% 换成 %，比较前照做。
+  if (!/\\[ntu#]|&#/.test(entry.raw)) {
+    const reference = unescapeAndroidString(entry.raw);
+    const comparable = reference.specs.length > 0 ? value.replace(/%%/g, "%") : value;
+    if (comparable !== reference.text) {
+      throw new Error(`${label}: ${JSON.stringify(value)} differs from unescapeAndroidString ${JSON.stringify(reference.text)}`);
+    }
+  }
+  return value;
+}
+
+/**
+ * 一种语言的全部文案，顺序是 res/values 的文件名、文件里的出现顺序（17 种语言相同）。
+ * - 键集合以 res/values 为准：某种语言少了或多了键都报错，占位符不一致也报错。
+ * - `ui_locale` 必须是这种语言的网页 Locale 代码。
+ * - translatable="false" 的条目（只在 res/values 里有）每种语言都写英文原值：Android 靠资源回退读到它，
+ *   lproj 之间没有回退，不写的话 L("键") 会返回键本身。
+ */
+export function iosStringEntries(locale: Locale): IosStringEntry[] {
+  const base = readLocaleEntries("en");
+  const target = locale === "en" ? base : readLocaleEntries(locale);
+  const dirName = NATIVE_LOCALE_RES_DIRS[locale];
+  const out: IosStringEntry[] = [];
+  const seen = new Set<string>();
+  for (const [fileName, baseEntries] of base) {
+    const targetEntries = target.get(fileName)!;
+    for (const name of targetEntries.keys()) {
+      if (!baseEntries.has(name)) throw new Error(`${dirName}/${fileName}:${name} is not in values/${fileName}`);
+    }
+    for (const [name, baseEntry] of baseEntries) {
+      if (seen.has(name)) throw new Error(`values/${fileName}: ${name} is defined in two files`);
+      seen.add(name);
+      const baseValue = valueOf(baseEntry, `values/${fileName}:${name}`);
+      const own = targetEntries.get(name);
+      let value: string;
+      if (name === "ui_locale") {
+        if (!own) throw new Error(`${dirName}/${fileName}: missing ui_locale`);
+        value = valueOf(own, `${dirName}/${fileName}:${name}`);
+        if (value !== locale) throw new Error(`${dirName}/${fileName}: ui_locale is "${value}", expected "${locale}"`);
+      } else if (!baseEntry.translatable) {
+        if (own && locale !== "en") throw new Error(`${dirName}/${fileName}:${name} is translatable="false" in values/ but translated here`);
+        value = baseValue;
+      } else {
+        if (!own) throw new Error(`${dirName}/${fileName}: missing ${name}`);
+        value = valueOf(own, `${dirName}/${fileName}:${name}`);
+        if (formatSpecs(value).sort().join(" ") !== formatSpecs(baseValue).sort().join(" ")) {
+          throw new Error(`${dirName}/${fileName}:${name}: placeholders differ from values/ (${JSON.stringify(value)} vs ${JSON.stringify(baseValue)})`);
+        }
+      }
+      if (!value) throw new Error(`${dirName}/${fileName}:${name} is empty`);
+      out.push({ key: name, value, file: fileName });
+    }
+  }
+  return out;
+}
+
+/** 一种语言的 Localizable.strings 的内容（UTF-8、LF）。 */
+export function iosStringsFile(locale: Locale): string {
+  const dirName = NATIVE_LOCALE_RES_DIRS[locale];
+  const lines = [
+    `/* Generated by scripts/gen-ios-strings.ts from the Android string resources (mobile/android/app/src/main/res/${dirName}). Do not edit by hand. */`,
+  ];
+  let file = "";
+  for (const entry of iosStringEntries(locale)) {
+    if (entry.file !== file) {
+      file = entry.file;
+      lines.push("", `/* ${file} */`);
+    }
+    lines.push(`"${entry.key}" = "${escapeStringsValue(entry.value, `${dirName}:${entry.key}`)}";`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+/** 全部 17 种语言：Localizable.strings 的路径 → 内容。 */
+export function iosStringsFiles(): Map<string, string> {
+  return new Map(LOCALES.map((locale) => [iosStringsPath(locale), iosStringsFile(locale)]));
+}
+
+/** Resources 下现有的 <名字>.lproj/Localizable.strings（用来找出已经不在语言表里的旧文件）。 */
+export function existingIosStringsPaths(): string[] {
+  let names: string[];
+  try {
+    names = readdirSync(IOS_RESOURCES_DIR);
+  } catch {
+    return [];
+  }
+  return names
+    .filter((name) => name.endsWith(".lproj"))
+    .map((name) => path.join(IOS_RESOURCES_DIR, name, IOS_STRINGS_FILE))
+    .filter((file) => {
+      try {
+        readFileSync(file);
+        return true;
+      } catch {
+        return false;
+      }
+    })
+    .sort();
+}

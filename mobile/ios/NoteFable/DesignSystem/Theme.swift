@@ -23,6 +23,19 @@ enum Sm {
     static let codeBackground = Color(argb: 0xFFF7F6F3) // --notes-code-bg
     static let danger = Color(argb: 0xFFB91C1C)         // .is-danger
     static let composerShadow = Color(argb: 0x120C1730) // --nf-composer-shadow 的主阴影 .07
+
+    // 通用控件（DesignSystem）用到的面、遮罩和阴影。
+    static let surface = Color(argb: 0xFFFFFFFF)         // --notion-bg：对话框、菜单、抽屉的白底
+    static let dialogScrim = Color(argb: 0x330F0F0F)     // .notes-dialog::backdrop rgba(15,15,15,.2)
+    static let sheetScrim = Color(argb: 0x590F0F0F)      // .model-sheet-backdrop rgba(15,15,15,.35)
+    static let panelShadow = Color(argb: 0x1F0F0F0F)     // --notion-shadow 的 0 4px 14px rgba(15,15,15,.12)
+    static let panelRing = Color(argb: 0x0D0F0F0F)       // --notion-shadow 的 0 0 0 1px rgba(15,15,15,.05)
+    static let menuShadow = Color(argb: 0x22000000)      // .chat-actions-menu 0 8px 32px #0002
+    static let sheetShadow = Color(argb: 0x330F0F0F)     // .model-sheet 0 -8px 24px rgba(15,15,15,.2)
+    static let primaryShadow = Color(argb: 0x1F0C1730)   // .sidebar-primary-action 0 1px 2px rgba(12,23,48,.12)
+    static let errorText = Color(argb: 0xFF933B34)       // .notion-error / .answer-menu-error 的字
+    static let errorBackground = Color(argb: 0xA6FFE2DD) // .notion-error rgba(255,226,221,.65)
+    static let focusRing = Color(argb: 0x292383E2)       // 设置里聚焦时外侧 3px 光圈 rgba(35,131,226,.16)
 }
 
 extension Color {

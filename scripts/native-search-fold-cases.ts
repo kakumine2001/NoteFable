@@ -1,12 +1,16 @@
-// 原生 Android 的检索折叠（mobile/android/.../data/SearchFold.kt）和网页 src/lib/search-fold.ts 的对照用例。
+// 原生端的检索折叠（mobile/android/.../data/SearchFold.kt、mobile/ios/NoteFable/Core/Text/SearchFold.swift）
+// 和网页 src/lib/search-fold.ts 的对照用例。
 // 输入取自 src/lib/search-fold.test.ts（再加几条），期望值由网页的实现算出，写进 Android 单元测试的资源，
-// SearchFoldParityTest 用它核对 Kotlin 版。生成：npx tsx scripts/gen-native-search-fold-cases.ts
+// SearchFoldParityTest 用它核对 Kotlin 版；iOS 的单元测试（SearchFoldParityTests）用内容相同的一份。
+// 生成：npx tsx scripts/gen-native-search-fold-cases.ts
 // src/lib/native-search-fold-cases.test.ts 会在用例过期（改了 search-fold.ts 没重新生成）时让测试失败。
 import path from "node:path";
 import { buildSearchSnippet, countMatchedTerms, findTermRanges, foldSearchText, foldWithMap } from "../src/lib/search-fold";
 import { parseSearchTerms } from "../src/types/search";
 
 export const NATIVE_SEARCH_FOLD_CASES = path.join(process.cwd(), "mobile/android/app/src/test/resources/search-fold-cases.json");
+// iOS 的测试包只带 Tests/NoteFableCoreTests/Fixtures 下的文件，所以放一份同样的。
+export const IOS_SEARCH_FOLD_CASES = path.join(process.cwd(), "mobile/ios/Tests/NoteFableCoreTests/Fixtures/search-fold-cases.json");
 
 const VOICED = String.fromCharCode(0x3099);
 const ACUTE = String.fromCharCode(0x0301);

@@ -37,6 +37,19 @@ targets:
     platform: iOS
     sources:
       - path: NoteFable
+      # 和 Android 共用的打包资源（由 scripts/gen-native-*.ts 从网页源码生成），不另存一份。
+      - path: ../android/app/src/main/assets/models.json
+        group: SharedAssets
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/system-text.json
+        group: SharedAssets
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/usage-limits.json
+        group: SharedAssets
+        buildPhase: resources
+      - path: ../android/app/src/main/assets/emoji.json
+        group: SharedAssets
+        buildPhase: resources
     dependencies:
       - package: swift-markdown
         product: Markdown
