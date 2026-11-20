@@ -1,0 +1,19 @@
+// 构建配置。值经 Support/Info.plist 进到 App 里（AppConfig 读取）。
+// xcconfig 里 "//" 是注释，所以地址写成 https:/$()/host。
+// 本机联调：在同目录建 Local.xcconfig（不进仓库）覆盖下面的值，例如
+//   NOTEFABLE_BASE_URL = http:/$()/localhost:3000
+
+// 工作区主机：/api/* 和 /note-embed 只在这里提供（docs/architecture/deployment.md）。
+NOTEFABLE_BASE_URL = https:/$()/app.notefable.com
+// 介绍页和法律页面的主机（帮助菜单打开的网页）。
+NOTEFABLE_SITE_URL = https:/$()/notefable.com
+
+// Google 登录：在 Google Cloud 里登记 iOS 客户端（Bundle ID com.kakumine.notefable）后填这两项。
+// 留空时登录窗口不显示 Google，只有邮箱验证码。REVERSED 是 iOS 客户端 ID 倒过来写的 URL scheme。
+GOOGLE_IOS_CLIENT_ID =
+GOOGLE_IOS_REVERSED_CLIENT_ID = notefable-google-unset
+
+// 签名：有了 Apple Developer 账号后在 Local.xcconfig 里写 DEVELOPMENT_TEAM = <Team ID>。
+CODE_SIGN_STYLE = Automatic
+
+#include? "Local.xcconfig"
