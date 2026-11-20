@@ -1,0 +1,258 @@
+import Foundation
+
+/// 抽屉和首页在看聊天还是笔记（网页的 Chat / Note 切换）。
+enum Workspace: Equatable, Sendable {
+    case chat
+    case notes
+}
+
+/// 给用户看的错误。服务端返回的原句（[detail]，英文，和聊天一样原样显示）优先；
+/// 网络错误这类没有原句的，用 [kind] 对应的网页文案（[notesErrorText]）。
+struct NotesError: Equatable, Sendable {
+    enum Kind: Equatable, Sendable {
+        case load, create, trash, trashUnsaved, group, trashLoad, trashAction, unsavedDraft
+    }
+
+    var kind: Kind
+    var detail: String?
+
+    init(_ kind: Kind, _ detail: String? = nil) {
+        self.kind = kind
+        self.detail = detail
+    }
+}
+
+/// 正在编辑的笔记。标题和图标随网页编辑器的 meta 消息更新。
+/// [editor] 是这个编辑器（WebView）最初打开的页面 id，编辑器没换就不变；冲突后"另存为新笔记"时网页换到新页面，
+/// [id] 跟着变成新页面，[editor] 不变，所以 WebView 不重新加载。
+struct OpenNote: Equatable, Sendable {
+    var id: String
+    var title: String
+    var icon: String?
+    var editor: String
+
+    init(_ id: String, _ title: String, _ icon: String?, editor: String? = nil) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.editor = editor ?? id
+    }
+}
+
+/// 让网页保存的结果。[draftKept]：没保存成功，但草稿已留在 WebView 里、之后会重试（不是冲突），可以先离开。
+struct FlushResult: Equatable, Sendable {
+    var ok: Bool
+    var draftKept: Bool
+
+    init(_ ok: Bool, draftKept: Bool = false) {
+        self.ok = ok
+        self.draftKept = draftKept
+    }
+}
+
+struct TrashUiState: Equatable, Sendable {
+    /// nil 表示还在读。
+    var items: [NoteTrashItem]? = nil
+    var loadError: NotesError? = nil
+    var error: NotesError? = nil
+    var busy: Bool = false
+    var confirmAll: Bool = false
+    var confirmId: String? = nil
+}
+
+/// 拖动失败：[id] 是被拖的笔记。[detail] 是服务端原句（经词典翻译后显示）；没有时 [wait] 为真显示
+/// "Wait for the previous move to finish."，否则 "Could not move the item. Try again."（[reorderFailureText]）。
+struct ReorderFailure: Equatable, Sendable {
+    var id: String
+    var detail: String?
+    var wait: Bool
+
+    init(_ id: String, _ detail: String? = nil, wait: Bool = false) {
+        self.id = id
+        self.detail = detail
+        self.wait = wait
+    }
+}
+
+struct NotesUiState: Equatable, Sendable {
+    var workspace: Workspace = .chat
+    var pages: [NotePageSummary] = [] {
+        didSet { treeCache = TreeCache() }
+    }
+    var groups: [NoteGroupSummary] = []
+    /// 还没读到过列表（首次加载中）。
+    var loading: Bool = false
+    var loaded: Bool = false
+    var error: NotesError? = nil
+    /// 新建、移到回收站进行中：和网页一样期间禁用列表操作。
+    var busy: Bool = false
+    var groupError: NotesError? = nil
+    var collapsed: Set<String> = []
+    /// 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。
+    var expanded: Set<String> = []
+    var open: OpenNote? = nil
+    /// 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。
+    var saveState: String? = nil
+    /// 离开笔记时没能保存：提示后留在笔记里。
+    var notice: NotesError? = nil
+    /// 回收站窗口；nil 表示没打开。
+    var trash: TrashUiState? = nil
+    /// 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。
+    var iconError: Bool = false
+    /// 有一次 POST /api/pages/reorder 还没完（网页 use-note-pages 的 reorderBusy）：这时再排序会提示等上一次完成。
+    var reorderBusy: Bool = false
+    /// 正在移动（排序或拖进项目）的笔记：这些行不能拖（网页每个 ReorderRowButton 自己的 busy）。
+    var moveBusy: Set<String> = []
+    /// 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。
+    var reorderError: ReorderFailure? = nil
+
+    init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = []) {
+        self.workspace = workspace
+        self.collapsed = collapsed
+        self.expanded = expanded
+    }
+
+    private func isLoose(_ page: NotePageSummary) -> Bool {
+        guard let groupId = page.groupId else { return true }
+        return !groups.contains { $0.id == groupId }
+    }
+
+    /// 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。只列最上层的页面，子页面缩进在父页面下。
+    var loosePages: [NotePageSummary] {
+        roots.filter(isLoose)
+    }
+
+    /// 未分组的页面数（含子页面），"No project" 标题后的数字。
+    var looseCount: Int {
+        pages.filter(isLoose).count
+    }
+
+    /// 项目里最上层的页面（列表用）。
+    func members(_ groupId: String) -> [NotePageSummary] {
+        roots.filter { $0.groupId == groupId }
+    }
+
+    /// 项目里的页面数（含子页面），项目标题后的数字。
+    func memberCount(_ groupId: String) -> Int {
+        pages.filter { $0.groupId == groupId }.count
+    }
+
+    // 父页面 → 子页面（列表顺序）。父页面不在列表里（回收站等）的子页面当最上层，键是 nil（网页 note-tree.ts 的 childrenByParent）。
+    // 每个状态只算一次（pages 一变就作废）：侧栏和首页按项目、按节点反复读。只在主线程读。
+    private final class TreeBox: @unchecked Sendable {
+        var tree: [String?: [NotePageSummary]]?
+    }
+
+    private struct TreeCache: Equatable, Sendable {
+        let box = TreeBox()
+        // 缓存不算状态的一部分。
+        static func == (lhs: TreeCache, rhs: TreeCache) -> Bool { true }
+    }
+
+    private var treeCache = TreeCache()
+
+    private var tree: [String?: [NotePageSummary]] {
+        if let tree = treeCache.box.tree { return tree }
+        let ids = Set(pages.map(\.id))
+        let tree = Dictionary(grouping: pages) { page -> String? in
+            guard let parent = page.parentId, ids.contains(parent), parent != page.id else { return nil }
+            return parent
+        }
+        treeCache.box.tree = tree
+        return tree
+    }
+
+    var roots: [NotePageSummary] {
+        tree[nil] ?? []
+    }
+
+    func children(_ parentId: String) -> [NotePageSummary] {
+        tree[parentId] ?? []
+    }
+
+    /// 祖先（从上往下，不含自己）。数据坏了成环时也会停。
+    func ancestors(_ id: String) -> [NotePageSummary] {
+        var byId: [String: NotePageSummary] = [:]
+        for page in pages { byId[page.id] = page }
+        var chain: [NotePageSummary] = []
+        var seen: Set<String> = [id]
+        var parent = byId[id]?.parentId
+        while let current = parent, !seen.contains(current) {
+            guard let page = byId[current] else { break }
+            seen.insert(current)
+            chain.insert(page, at: 0)
+            parent = page.parentId
+        }
+        return chain
+    }
+
+    /// 子孙的 id（不含自己）。
+    func descendants(_ id: String) -> Set<String> {
+        var result: Set<String> = []
+        var stack = children(id)
+        while let page = stack.popLast() {
+            if page.id == id || !result.insert(page.id).inserted { continue }
+            stack.append(contentsOf: children(page.id))
+        }
+        return result
+    }
+
+    /// 收藏（按收藏的先后；同一时刻的保持列表顺序）。
+    var favorites: [NotePageSummary] {
+        notesStableSorted(pages.filter { $0.favoritedAt != nil }) { ($0.favoritedAt ?? "") < ($1.favoritedAt ?? "") }
+    }
+
+    /// 展开着：自己展开了，或者是打开着的笔记的祖先（网页侧栏同样会展开）。
+    func isExpanded(_ id: String) -> Bool {
+        if expanded.contains(id) { return true }
+        guard let open, !children(id).isEmpty else { return false }
+        return ancestors(open.id).contains { $0.id == id }
+    }
+}
+
+/// 稳定排序（Kotlin 的 sortedWith）：比不出先后的保持原来的顺序。
+func notesStableSorted<T>(_ items: [T], by areInIncreasingOrder: (T, T) -> Bool) -> [T] {
+    items.enumerated().sorted { a, b in
+        if areInIncreasingOrder(a.element, b.element) { return true }
+        if areInIncreasingOrder(b.element, a.element) { return false }
+        return a.offset < b.offset
+    }.map(\.element)
+}
+
+/// 折叠了哪些项目、展开了哪些页面，重开 App 后保留（网页存在 localStorage）。
+protocol NotesPrefs: AnyObject {
+    var collapsedGroups: Set<String> { get set }
+    var expandedPages: Set<String> { get set }
+}
+
+/// 只留在内存里（测试、预览）。
+final class MemoryNotesPrefs: NotesPrefs {
+    var collapsedGroups: Set<String>
+    var expandedPages: Set<String>
+
+    init(collapsedGroups: Set<String> = [], expandedPages: Set<String> = []) {
+        self.collapsedGroups = collapsedGroups
+        self.expandedPages = expandedPages
+    }
+}
+
+/// 存在 UserDefaults 里（Android 的 SharedPreferences "notes" 的 collapsed / expanded）。
+final class UserDefaultsNotesPrefs: NotesPrefs {
+    private let defaults: UserDefaults
+    private let collapsedKey = "notes.collapsed"
+    private let expandedKey = "notes.expanded"
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    var collapsedGroups: Set<String> {
+        get { Set(defaults.stringArray(forKey: collapsedKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: collapsedKey) }
+    }
+
+    var expandedPages: Set<String> {
+        get { Set(defaults.stringArray(forKey: expandedKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: expandedKey) }
+    }
+}
