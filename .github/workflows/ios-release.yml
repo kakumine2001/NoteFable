@@ -1,0 +1,280 @@
+name: iOS release to App Store Connect
+
+on:
+  pull_request_target:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    if: github.event.pull_request.merged == true && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      publish: ${{ steps.version.outputs.publish }}
+      build_number: ${{ steps.version.outputs.build_number }}
+      marketing_version: ${{ steps.version.outputs.marketing_version }}
+    steps:
+      # Check out the commit merged into main. This event has base-repository privileges.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Compare iOS version with main before the merge
+        id: version
+        shell: bash
+        run: bash scripts/release/ios-version.sh
+
+  release:
+    needs: plan
+    if: needs.plan.outputs.publish == 'true'
+    # Xcode 26 / iOS 26 SDK is required by App Store Connect; macos-26 ships Xcode 26 by default.
+    # Never write build outputs from this secret-holding job to the shared Actions cache.
+    runs-on: macos-26
+    timeout-minutes: 45
+    environment: appstore-publish
+    concurrency:
+      group: ios-appstore-testflight
+      cancel-in-progress: false
+      queue: max
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Skip superseded iOS releases
+        id: current
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
+        run: |
+          set -euo pipefail
+          if ! [[ "$RELEASE_BUILD_NUMBER" =~ ^[1-9][0-9]{0,8}$ ]]; then
+            echo "::error::Invalid planned iOS build number."
+            exit 1
+          fi
+          config=mobile/ios/project.yml
+          current=$(gh api -H 'Accept: application/vnd.github.raw+json' \
+            "repos/$GITHUB_REPOSITORY/contents/$config?ref=main" \
+            | bash scripts/release/ios-version.sh --parse-build)
+          if ! [[ "$current" =~ ^[1-9][0-9]{0,8}$ ]] || (( current < RELEASE_BUILD_NUMBER )); then
+            echo "::error::Could not verify the current iOS build number on main."
+            exit 1
+          fi
+          if (( current > RELEASE_BUILD_NUMBER )); then
+            echo "Skipping build $RELEASE_BUILD_NUMBER. Main has build $current."
+            exit 0
+          fi
+          echo 'publish=true' >> "$GITHUB_OUTPUT"
+
+      - name: Check App Store Connect credentials
+        if: steps.current.outputs.publish == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_KEY_P8_B64: ${{ secrets.APPSTORE_API_KEY_P8_B64 }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_IOS_REVERSED_CLIENT_ID: ${{ secrets.GOOGLE_IOS_REVERSED_CLIENT_ID }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$APPLE_TEAM_ID" ]] || missing+=(APPLE_TEAM_ID)
+          [[ -n "$APPSTORE_API_KEY_ID" ]] || missing+=(APPSTORE_API_KEY_ID)
+          [[ -n "$APPSTORE_API_ISSUER_ID" ]] || missing+=(APPSTORE_API_ISSUER_ID)
+          [[ -n "$APPSTORE_API_KEY_P8_B64" ]] || missing+=(APPSTORE_API_KEY_P8_B64)
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::Missing required secrets in appstore-publish: ${missing[*]}."
+            exit 1
+          fi
+          if ! [[ "$APPLE_TEAM_ID" =~ ^[A-Z0-9]{10}$ ]]; then
+            echo "::error::APPLE_TEAM_ID must be a 10-character uppercase alphanumeric Apple Team ID."
+            exit 1
+          fi
+          if ! [[ "$APPSTORE_API_KEY_ID" =~ ^[A-Za-z0-9]{6,20}$ ]]; then
+            echo "::error::APPSTORE_API_KEY_ID must be an alphanumeric App Store Connect API Key ID."
+            exit 1
+          fi
+          if ! [[ "$APPSTORE_API_ISSUER_ID" =~ ^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$ ]]; then
+            echo "::error::APPSTORE_API_ISSUER_ID must be a UUID."
+            exit 1
+          fi
+          if [[ ( -n "$GOOGLE_IOS_CLIENT_ID" && -z "$GOOGLE_IOS_REVERSED_CLIENT_ID" ) || ( -z "$GOOGLE_IOS_CLIENT_ID" && -n "$GOOGLE_IOS_REVERSED_CLIENT_ID" ) ]]; then
+            echo "::error::Set both GOOGLE_IOS_CLIENT_ID and GOOGLE_IOS_REVERSED_CLIENT_ID, or leave both unset."
+            exit 1
+          fi
+          if [[ -n "$GOOGLE_IOS_CLIENT_ID" ]]; then
+            if ! [[ "$GOOGLE_IOS_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]] || ! [[ "$GOOGLE_IOS_REVERSED_CLIENT_ID" =~ ^[A-Za-z0-9._-]+$ ]]; then
+              echo "::error::GOOGLE_IOS_CLIENT_ID and GOOGLE_IOS_REVERSED_CLIENT_ID contain invalid characters."
+              exit 1
+            fi
+          fi
+          python3 -c '
+          import base64, os, sys
+          raw = "".join(os.environ["APPSTORE_API_KEY_P8_B64"].split())
+          try:
+              pem = base64.b64decode(raw, validate=True)
+          except Exception:
+              print("::error::APPSTORE_API_KEY_P8_B64 is not valid Base64.", file=sys.stderr)
+              sys.exit(1)
+          if b"-----BEGIN PRIVATE KEY-----" not in pem or b"-----END PRIVATE KEY-----" not in pem:
+              print("::error::APPSTORE_API_KEY_P8_B64 must decode to an App Store Connect .p8 PEM private key.", file=sys.stderr)
+              sys.exit(1)
+          '
+
+      - name: Xcode version
+        if: steps.current.outputs.publish == 'true'
+        run: xcodebuild -version
+
+      - name: Core unit tests
+        if: steps.current.outputs.publish == 'true'
+        working-directory: mobile/ios
+        run: swift test
+
+      - name: Generate Xcode project
+        if: steps.current.outputs.publish == 'true'
+        working-directory: mobile/ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Build release archive
+        if: steps.current.outputs.publish == 'true'
+        working-directory: mobile/ios
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          GOOGLE_IOS_CLIENT_ID: ${{ secrets.GOOGLE_IOS_CLIENT_ID }}
+          GOOGLE_IOS_REVERSED_CLIENT_ID: ${{ secrets.GOOGLE_IOS_REVERSED_CLIENT_ID }}
+          EXPECTED_BUILD_NUMBER: ${{ needs.plan.outputs.build_number }}
+          EXPECTED_MARKETING_VERSION: ${{ needs.plan.outputs.marketing_version }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p Config
+          archive_path="$RUNNER_TEMP/NoteFable.xcarchive"
+          archive_ok=false
+          cleanup_archive_step() {
+            rm -f -- Config/Local.xcconfig
+            if [[ "$archive_ok" != true ]]; then
+              rm -rf -- "$archive_path"
+            fi
+          }
+          trap cleanup_archive_step EXIT
+          {
+            printf 'DEVELOPMENT_TEAM = %s\n' "$APPLE_TEAM_ID"
+            if [[ -n "$GOOGLE_IOS_CLIENT_ID" ]]; then
+              printf 'GOOGLE_IOS_CLIENT_ID = %s\n' "$GOOGLE_IOS_CLIENT_ID"
+              printf 'GOOGLE_IOS_REVERSED_CLIENT_ID = %s\n' "$GOOGLE_IOS_REVERSED_CLIENT_ID"
+            fi
+          } > Config/Local.xcconfig
+
+          rm -rf -- "$archive_path"
+          xcodebuild archive \
+            -project NoteFable.xcodeproj \
+            -scheme NoteFable \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$archive_path" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO
+
+          app_path="$archive_path/Products/Applications/NoteFable.app"
+          if [[ ! -d "$app_path" ]]; then
+            echo "::error::Expected archived app bundle at $app_path."
+            exit 1
+          fi
+
+          actual_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$app_path/Info.plist")
+          actual_marketing=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$app_path/Info.plist")
+          if [[ "$actual_build" != "$EXPECTED_BUILD_NUMBER" || "$actual_marketing" != "$EXPECTED_MARKETING_VERSION" ]]; then
+            echo "::error::Archived app version $actual_marketing ($actual_build) does not match planned $EXPECTED_MARKETING_VERSION ($EXPECTED_BUILD_NUMBER)."
+            exit 1
+          fi
+
+          # CODE_SIGNING_ALLOWED=NO skips embedding entitlements during archive; resolve the target's
+          # configured CODE_SIGN_ENTITLEMENTS and attach it with an ad-hoc signature so exportArchive
+          # preserves capabilities (e.g. Associated Domains).
+          entitlements=$(xcodebuild -project NoteFable.xcodeproj -scheme NoteFable -configuration Release -showBuildSettings \
+            | awk -F ' = ' '$1 ~ /^[[:space:]]*CODE_SIGN_ENTITLEMENTS$/ { print $2; exit }')
+          if [[ -n "$entitlements" ]]; then
+            if [[ ! -f "$entitlements" ]]; then
+              echo "::error::Configured CODE_SIGN_ENTITLEMENTS file not found: $entitlements"
+              exit 1
+            fi
+            codesign --force --sign "-" \
+              --entitlements "$entitlements" \
+              "$app_path"
+          fi
+          archive_ok=true
+
+      - name: Export cloud-signed IPA and upload to App Store Connect
+        if: steps.current.outputs.publish == 'true'
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPSTORE_API_KEY_ID: ${{ secrets.APPSTORE_API_KEY_ID }}
+          APPSTORE_API_ISSUER_ID: ${{ secrets.APPSTORE_API_ISSUER_ID }}
+          APPSTORE_API_KEY_P8_B64: ${{ secrets.APPSTORE_API_KEY_P8_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          archive_path="$RUNNER_TEMP/NoteFable.xcarchive"
+          key_dir=$(mktemp -d "$RUNNER_TEMP/asc-keys.XXXXXX")
+          export_dir=$(mktemp -d "$RUNNER_TEMP/ios-export.XXXXXX")
+          opts_dir=$(mktemp -d "$RUNNER_TEMP/export-options.XXXXXX")
+          export_options="$opts_dir/ExportOptions.plist"
+          trap 'rm -rf -- "$key_dir" "$export_dir" "$opts_dir" "$archive_path"' EXIT
+
+          key_file="$key_dir/AuthKey_${APPSTORE_API_KEY_ID}.p8"
+          python3 -c '
+          import base64, os, sys
+          raw = "".join(os.environ["APPSTORE_API_KEY_P8_B64"].split())
+          with open(sys.argv[1], "wb") as f:
+              f.write(base64.b64decode(raw, validate=True))
+          ' "$key_file"
+          unset APPSTORE_API_KEY_P8_B64
+
+          python3 -c '
+          import os, plistlib, sys
+          options = {
+              "method": "app-store-connect",
+              "signingStyle": "automatic",
+              "teamID": os.environ["APPLE_TEAM_ID"],
+              "destination": "export",
+              "uploadSymbols": True,
+              "manageAppVersionAndBuildNumber": False,
+          }
+          with open(sys.argv[1], "wb") as f:
+              plistlib.dump(options, f)
+          ' "$export_options"
+
+          xcodebuild -exportArchive \
+            -archivePath "$archive_path" \
+            -exportPath "$export_dir" \
+            -exportOptionsPlist "$export_options" \
+            -allowProvisioningUpdates \
+            -authenticationKeyPath "$key_file" \
+            -authenticationKeyID "$APPSTORE_API_KEY_ID" \
+            -authenticationKeyIssuerID "$APPSTORE_API_ISSUER_ID"
+
+          shopt -s nullglob
+          ipas=("$export_dir"/*.ipa)
+          if (( ${#ipas[@]} != 1 )); then
+            echo "::error::Expected exactly 1 exported .ipa in $export_dir, found ${#ipas[@]}."
+            exit 1
+          fi
+
+          API_PRIVATE_KEYS_DIR="$key_dir" xcrun altool --upload-app \
+            --type ios \
+            --file "${ipas[0]}" \
+            --apiKey "$APPSTORE_API_KEY_ID" \
+            --apiIssuer "$APPSTORE_API_ISSUER_ID"
