@@ -1,0 +1,100 @@
+name: Android promote (existing Play release)
+
+# This never builds or uploads an AAB. It only moves a previously tested
+# internal-track versionCode into a higher Google Play track.
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "Existing completed internal testing versionCode (e.g. 22)"
+        type: string
+        required: true
+      target:
+        description: "Destination Play track"
+        type: choice
+        required: true
+        options:
+          - alpha
+          - beta
+          - production
+      rollout_percent:
+        description: "Production only: staged rollout percentage (never 100% here)"
+        type: choice
+        default: "10"
+        options:
+          - "5"
+          - "10"
+          - "20"
+          - "25"
+          - "50"
+      confirmation:
+        description: "Type PROMOTE to confirm the Play release change"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+# Serialize all Play edits with the tag-triggered upload workflow.
+concurrency:
+  group: android-play-deploy
+  cancel-in-progress: false
+  queue: max
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Confirm reviewed source and intentional dispatch
+        env:
+          CONFIRMATION: ${{ inputs.confirmation }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          TARGET: ${{ inputs.target }}
+        run: |
+          set -euo pipefail
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Promotions are only permitted from main"
+            exit 1
+          fi
+          if [ "$CONFIRMATION" != "PROMOTE" ]; then
+            echo "::error::Type PROMOTE to explicitly authorize the track change"
+            exit 1
+          fi
+          if ! [[ "$VERSION_CODE" =~ ^[1-9][0-9]*$ ]]; then
+            echo "::error::version_code must be a positive integer"
+            exit 1
+          fi
+          case "$TARGET" in alpha|beta|production) ;; *)
+            echo "::error::Unknown Play track: $TARGET"
+            exit 1 ;;
+          esac
+          echo "Promoting existing internal versionCode $VERSION_CODE to $TARGET"
+
+  promote:
+    needs: preflight
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: play-publish
+    steps:
+      - name: Checkout reviewed workflow code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Google Play API client
+        run: python -m pip install --disable-pip-version-check 'google-api-python-client>=2,<3' 'google-auth>=2,<3'
+
+      - name: Promote without rebuilding
+        env:
+          GOOGLE_PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_PLAY_SERVICE_ACCOUNT_JSON }}
+          VERSION_CODE: ${{ inputs.version_code }}
+          TARGET_TRACK: ${{ inputs.target }}
+          ROLLOUT_PERCENT: ${{ inputs.rollout_percent }}
+        run: |
+          set -euo pipefail
+          test -n "$GOOGLE_PLAY_SERVICE_ACCOUNT_JSON" || { echo "::error::Missing play-publish credential"; exit 1; }
+          python scripts/release/promote_android.py
