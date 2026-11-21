@@ -82,16 +82,18 @@ struct ProfileSettings: View {
     private func load(_ item: PhotosPickerItem) async {
         let type = item.supportedContentTypes.first { $0.conforms(to: .image) }
         let mimeType = type.map { $0.preferredMIMEType ?? "image/*" }
+        // 读之前记下这一次选择的"代"：读完时模型用它认出过期的照片（离开过这一栏再回来时，这个视图已经换了一个）。
+        let token = model.photoPickToken
         let data = try? await item.loadTransferable(type: Data.self)
         // 读的时候换了照片、离开了照片页或关了设置：不再进入裁剪（否则 `picked` 留在 true，设置关不掉、不能退出）。
         guard pickedItem == item, model.state.editor == .photo else { return }
         guard let data else {
             // 读不出来：按"不是图片"提示。
-            model.photoPicked(mimeType: nil, size: nil)
+            model.photoPicked(mimeType: nil, size: nil, token: token)
             pickedItem = nil
             return
         }
-        if model.photoPicked(mimeType: mimeType, size: Int64(data.count)) {
+        if model.photoPicked(mimeType: mimeType, size: Int64(data.count), token: token) {
             pickCount += 1
             photo = PickedAvatarPhoto(id: pickCount, data: data)
         } else {

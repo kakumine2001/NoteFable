@@ -589,6 +589,37 @@ final class AccountModelsTests: XCTestCase {
     }
 
     @MainActor
+    /// 照片还在读的时候离开"账号"那一栏再回来：读完的那张是上一次的，不进入裁剪（不然 picked 为真却没有照片可裁，回不了列表）。
+    func testAPhotoThatFinishesLoadingAfterLeavingAndComingBackIsIgnored() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        let vm = await account(stub)
+        let model = await settings(stub, vm, Log())
+        model.show(.account)
+        model.toggleEditor()
+        model.pickPhoto()
+        let stale = model.photoPickToken
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        model.show(.account)
+        model.toggleEditor()
+        XCTAssertFalse(model.photoPicked(mimeType: "image/png", size: 2048, token: stale))
+        XCTAssertFalse(model.state.picked)
+        XCTAssertFalse(model.photoBusy)
+        // 这一次自己选的照常进入裁剪。
+        model.pickPhoto()
+        XCTAssertTrue(model.photoPicked(mimeType: "image/png", size: 2048, token: model.photoPickToken))
+        XCTAssertTrue(model.state.picked)
+        // 换了编辑页（表情）之后读完的也不要。
+        model.cancelCrop()
+        model.pickPhoto()
+        let beforeSwitch = model.photoPickToken
+        model.setEditor(.emoji)
+        XCTAssertFalse(model.photoPicked(mimeType: "image/png", size: 2048, token: beforeSwitch))
+        XCTAssertFalse(model.state.picked)
+    }
+
+    @MainActor
     func testTheAvatarEditorClosesFirstAndAPickedPhotoBlocksTheTopBarClose() async {
         let stub = StubAccount()
         stub.user = AccountUser(name: "Ann", googleName: "Ann")

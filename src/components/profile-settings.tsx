@@ -16,16 +16,21 @@ type Editor = "closed" | "photo" | "emoji";
 
 // 設定画面が閉じてよいかを尋ねる。写真・絵文字の編集中は、まずその編集だけを閉じて false を返す。
 // ファイル選択中と写真の送信中も false（閉じると失敗の知らせを出す場所がなくなる）。
-export type ProfileCloseGuard = RefObject<() => boolean>;
+// force は、設定の「戻る」ボタン（スマホ幅で一覧に戻る）から。ファイル選択画面が開いたままだと思い込んでいても編集を閉じる
+// （選択画面の取消を知らせないブラウザでは、その印が残り続ける）。
+export type ProfileCloseGuard = RefObject<(force?: boolean) => boolean>;
 
 // 設定画面の「プロフィール」。顔（写真をアップロード・絵文字を選ぶ）・名前・メール・Google の表示に戻すボタン。
 // 名前・写真・絵文字は変えたその場で保存する（account-store が順番に送る）。
-export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhotoBusyChange }: {
+export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, nameFlushRef, onPhotoBusyChange }: {
   user: AccountUser;
   onSave: (patch: ProfileEdit) => void;
   // 切り抜いた写真を保存する。失敗したときはその理由の文を返し、成功したら空文字を返す。
   onUpload: (photo: Blob) => Promise<string>;
   closeGuardRef: ProfileCloseGuard;
+  // 入力途中の名前を今すぐ確定する関数を入れる。スマホ幅で欄の画面を離れるとき、設定画面が呼ぶ
+  // （欄は隠れるだけで消えないので、アンマウント時の確定も blur も当てにできない）。
+  nameFlushRef?: RefObject<() => void>;
   // 写真を切り抜いている間（まだ保存していない）と送っている間は true。
   onPhotoBusyChange: (busy: boolean) => void;
 }) {
@@ -51,8 +56,12 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
 
   const shownName = user.displayName ?? user.googleName ?? "";
 
+  // 同じ下書きを 2 回確定しない（一覧に戻るときは、確定の呼び出しと入力欄の blur が続けて来る）。
+  const committed = useRef<string | null>(null);
+  useEffect(() => { committed.current = null; }, [draft]);
   function commitName() {
-    if (draft === null) return;
+    if (draft === null || committed.current === draft) return;
+    committed.current = draft;
     const next = draft.replace(/\s+/g, " ").trim();
     setDraft(null);
     // 空にした、または Google の名前と同じにした場合は、Google の名前に戻す（null）。
@@ -62,7 +71,7 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
 
   // 入力途中の名前は、どんな閉じ方（Esc・戻るキー・ボタン）でも保存する。閉じると入力欄ごと消えて blur が起きないため、閉じる時に確定する。
   const flushRef = useRef(commitName);
-  useEffect(() => { flushRef.current = commitName; });
+  useEffect(() => { flushRef.current = commitName; if (nameFlushRef) nameFlushRef.current = commitName; });
   useEffect(() => () => flushRef.current(), []);
 
   function choosePhoto(event: ChangeEvent<HTMLInputElement>) {
@@ -98,8 +107,9 @@ export function ProfileSettings({ user, onSave, onUpload, closeGuardRef, onPhoto
   }
 
   useEffect(() => {
-    closeGuardRef.current = () => {
-      if (filePickerOpen.current || uploading) return false;
+    closeGuardRef.current = (force = false) => {
+      if (uploading || (filePickerOpen.current && !force)) return false;
+      filePickerOpen.current = false;
       if (editor !== "closed") { switchEditor("closed"); return false; }
       return true;
     };

@@ -250,7 +250,8 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
   dialog.settings-dialog .settings-home-list > .settings-home-row + .settings-home-row::before {
     content: ""; position: absolute; top: 0; inset-inline: 3.125rem 0; height: 1px; background: var(--notion-border);
   }
-  dialog.settings-dialog .settings-home-chevron { flex: none; color: var(--notion-faint); }
+  /* .settings-row-button svg（灰色）に勝つよう、.settings-home を付けて詳細度を上げる。 */
+  dialog.settings-dialog .settings-home .settings-home-chevron { flex: none; color: var(--notion-faint); }
   dialog.settings-dialog .settings-home-chevron:dir(rtl), dialog.settings-dialog .settings-back:dir(rtl) svg { transform: scaleX(-1); }
 
   dialog.settings-dialog .settings-row { min-height: 3.5rem; }
@@ -272,7 +273,9 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
 
 @media (prefers-reduced-motion: reduce) {
   dialog.settings-dialog, dialog.settings-dialog::backdrop, dialog.settings-dialog .settings-unsaved, dialog.settings-dialog .settings-unsaved.is-attention,
-  dialog.settings-dialog .settings-shell .settings-body { animation: none; }
+  /* 画面の切り替えの規則（上の @media の中）と同じ詳細度にして、後に書いたこちらを勝たせる。 */
+  dialog.settings-dialog .settings-shell[data-home="false"] .settings-body,
+  dialog.settings-dialog .settings-shell[data-home="true"][data-navigated="true"] .settings-body { animation: none; }
 }
 
 /* Auto includes the effective language, so let long names wrap. */

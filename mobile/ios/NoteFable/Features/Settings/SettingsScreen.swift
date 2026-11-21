@@ -73,24 +73,27 @@ struct SettingsScreen: View {
         VStack(spacing: 0) {
             topBar(page)
             // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
+            // 这里不用 transition：旧画面要马上没有（网页 display: none），新画面出现时自己从起点动到位（SettingsEntrance）。
+            // 只有在列表和一栏之间换才重新出场（网页：animation-name 变了才重新播放）；从一栏直接换到另一栏时不动。
+            let animated = state.navigated && !reduceMotion
             ZStack(alignment: .top) {
                 if let page {
-                    scrollBody(account: account, dirty: dirty) {
-                        pageContent(page, state)
+                    SettingsEntrance(offset: entranceOffset(forward: true), animated: animated) {
+                        scrollBody(account: account, dirty: dirty) {
+                            pageContent(page, state)
+                        }
+                        // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
+                        .id(page)
                     }
-                    // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
-                    .id(page)
-                    .transition(bodyTransition(forward: true, navigated: state.navigated))
                 } else {
-                    scrollBody(account: account, dirty: dirty) {
-                        homeContent
+                    SettingsEntrance(offset: entranceOffset(forward: false), animated: animated) {
+                        scrollBody(account: account, dirty: dirty) {
+                            homeContent
+                        }
                     }
-                    .transition(bodyTransition(forward: false, navigated: state.navigated))
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-            // 只有在列表和一栏之间换的时候才有动画（网页：animation-name 变了才重新播放，从一栏直接换到另一栏时不播）。
-            .animation(reduceMotion ? nil : NFMotion.emphasized(0.2), value: page == nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
@@ -165,17 +168,11 @@ struct SettingsScreen: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
-    /// 换画面的过渡（网页 settings-page-forward / settings-page-back）：新画面从 16 外淡入，旧画面直接消失。
-    /// 进一栏从行尾一侧来，回列表从行首一侧来；offset 不随布局方向镜像，所以自己分左右。
-    /// "减弱动态效果"时、还没换过画面时（刚打开的列表）没有。
-    private func bodyTransition(forward: Bool, navigated: Bool) -> AnyTransition {
-        if reduceMotion || !navigated { return .identity }
+    /// 新画面出场的起点（网页 settings-page-forward / settings-page-back 的 16px）：进一栏从行尾一侧来，回列表从行首一侧来。
+    /// offset 不随布局方向镜像，所以自己分左右。
+    private func entranceOffset(forward: Bool) -> CGFloat {
         let towardTrailing: CGFloat = layoutDirection == .rightToLeft ? -16 : 16
-        let x: CGFloat = forward ? towardTrailing : -towardTrailing
-        return .asymmetric(
-            insertion: AnyTransition.offset(x: x, y: 0).combined(with: .opacity),
-            removal: .identity
-        )
+        return forward ? towardTrailing : -towardTrailing
     }
 
     // MARK: 入口列表
@@ -331,5 +328,30 @@ private struct SettingsInstructionsField: View {
             }
             .padding(.top, 12)
             .accessibilityLabel(label)
+    }
+}
+
+/// 新画面的出场（网页 settings-page-forward / settings-page-back）：从横向 `offset` 外淡入，200ms cubic-bezier(.2,.8,.2,1)。
+/// 每个画面一个：这个视图出现时自己从起点动到位，所以旧画面不用留着陪它。`animated` 为 false 时（"减弱动态效果"、
+/// 刚打开的列表）一出现就在位。
+private struct SettingsEntrance<Content: View>: View {
+    private let offset: CGFloat
+    private let content: Content
+    @State private var shown: Bool
+
+    init(offset: CGFloat, animated: Bool, @ViewBuilder content: () -> Content) {
+        self.offset = offset
+        self.content = content()
+        _shown = State(initialValue: !animated)
+    }
+
+    var body: some View {
+        content
+            .offset(x: shown ? 0 : offset)
+            .opacity(shown ? 1 : 0)
+            .onAppear {
+                if shown { return }
+                withAnimation(NFMotion.emphasized(0.2)) { shown = true }
+            }
     }
 }

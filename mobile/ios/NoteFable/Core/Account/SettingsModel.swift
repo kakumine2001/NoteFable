@@ -182,6 +182,8 @@ final class SettingsDialogModel {
     @ObservationIgnored private let deleteAccount: @MainActor () async -> Error?
     @ObservationIgnored private let onClose: @MainActor () -> Void
     @ObservationIgnored private let work = PendingWork()
+    /// 选照片的"代"：每次开始选、换编辑页、换画面都加一。界面开始读照片时记下它，读完交回来对一下（见 `photoPicked`）。
+    @ObservationIgnored private(set) var photoPickToken = 0
     @ObservationIgnored private var attempt = 0
 
     /// - Parameters:
@@ -310,8 +312,9 @@ final class SettingsDialogModel {
             // 正常的返回走不到这里（photoBusy 时不让离开），只有自定义指令保存失败、被带去"个性化"时才会。
             if state.picked { cancelCrop() }
         }
-        // 系统选择器属于离开的那一栏，跟着视图一起关了。
+        // 系统选择器属于离开的那一栏，跟着视图一起关了；还在读的照片也不要了。
         state.pickerOpen = false
+        photoPickToken += 1
         state.page = next
     }
 
@@ -391,6 +394,7 @@ final class SettingsDialogModel {
     }
 
     func setEditor(_ next: AvatarEditor) {
+        photoPickToken += 1
         state.editor = next
         state.picked = false
         account.showPhotoError(nil)
@@ -398,6 +402,7 @@ final class SettingsDialogModel {
 
     /// "上传照片"：界面接着打开系统的照片选择器。
     func pickPhoto() {
+        photoPickToken += 1
         state.pickerOpen = true
     }
 
@@ -407,8 +412,11 @@ final class SettingsDialogModel {
     }
 
     /// 选好了一个文件：不是图片、超过 10 MB 的直接提示；可以的话返回 true，界面进入裁剪。
+    /// `token` 是开始读这张照片时的 `photoPickToken`：读的途中换了编辑页、离开过"账号"那一栏、又选了一次的，
+    /// 这张照片已经不是现在这个界面要的（读它的那个视图也已经不在了），不进入裁剪。不传就不查（只有单元测试这样用）。
     @discardableResult
-    func photoPicked(mimeType: String?, size: Int64?) -> Bool {
+    func photoPicked(mimeType: String?, size: Int64?, token: Int? = nil) -> Bool {
+        if let token, token != photoPickToken { return false }
         state.pickerOpen = false
         // 照片读完时已经不在"账号"那一栏（裁剪界面不在了）：不进入裁剪，见 `navigate`。
         guard state.page == .account else { return false }

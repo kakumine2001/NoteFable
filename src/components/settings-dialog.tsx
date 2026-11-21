@@ -125,8 +125,9 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const { saveError } = useAccount();
   const ref = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
-  const profileGuard = useRef(() => true);
+  const profileGuard = useRef<(force?: boolean) => boolean>(() => true);
   const iconGuard = useRef(() => true);
+  const nameFlush = useRef(() => {});
   const fieldId = useId();
   const helpId = useId();
   const [tab, setTab] = useState<Tab>("general");
@@ -136,13 +137,24 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const [navigated, setNavigated] = useState(false);
   const bodyRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   // 欄の画面に進むときに押した行。一覧に戻ったらそこへフォーカスを返す。
   const opener = useRef<HTMLElement | null>(null);
   // show / goHome で画面を替えた直後だけ、スクロール位置とフォーカスを合わせる。
   const moved = useRef(false);
   // 欄を出す（スマホ幅ではその欄の画面に進む）。
-  const show = (id: Tab) => { moved.current = true; setNavigated(true); setTab(id); setHome(false); };
-  const goHome = () => { moved.current = true; setNavigated(true); setHome(true); };
+  // 画面を替える前に、入力中の欄（名前）からフォーカスを外して確定させる。隠すだけでは blur が起きず、入力が保存されない。
+  const settleInput = () => {
+    nameFlush.current();
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && bodyRef.current?.contains(active)) active.blur();
+  };
+  const show = (id: Tab) => {
+    // 同じ欄に留まるとき（未保存の指示で引き止めたとき）は、書きかけの入力欄からフォーカスを外さない。
+    if (home || id !== tab) settleInput();
+    moved.current = true; setNavigated(true); setTab(id); setHome(false);
+  };
+  const goHome = () => { settleInput(); moved.current = true; setNavigated(true); setHome(true); };
   const [attempt, setAttempt] = useState(0);
   // 読み込んだ時点の指示（null は読み込み前）。変えていなければ保存を送らない。
   const [initial, setInitial] = useState<string | null>(null);
@@ -182,7 +194,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   // スマホ幅の欄の画面の「戻る」ボタン。開いている写真・絵文字の編集は閉じて、一覧に戻る。
   const backHome = () => {
     const step = settingsButtonStep({ locked: locked.current, photoBusy, onPage: true, dirty });
-    if (step.type === "home") { profileGuard.current(); iconGuard.current(); }
+    if (step.type === "home") { profileGuard.current(true); iconGuard.current(); }
     apply(step);
   };
   useBackToClose(true, close);
@@ -194,7 +206,8 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
     moved.current = false;
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
     if (!isPhone()) return;
-    if (home) opener.current?.focus(); else backRef.current?.focus();
+    // 押した行が分からないとき（デスクトップ幅で開いてから幅を狭めたときなど）は「閉じる」に置く。
+    if (home) (opener.current ?? closeRef.current)?.focus(); else backRef.current?.focus();
   }, [home, tab]);
 
   useEffect(() => {
@@ -258,7 +271,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
             <span className="settings-title-mobile">{home ? t("Settings") : tabLabel}</span>
             <span className="settings-title-desktop">{tabLabel}</span>
           </h2>
-          <button type="button" className="notion-icon-button settings-close grid" aria-label={t("Close")} onClick={closeAll}><X size={18} /></button>
+          <button ref={closeRef} type="button" className="notion-icon-button settings-close grid" aria-label={t("Close")} onClick={closeAll}><X size={18} /></button>
         </header>
         <div ref={bodyRef} className={`settings-body${dirty ? " has-unsaved" : ""}`}>
           {/* 名前・写真・言語の保存に失敗したときの知らせ。どの欄を見ていても出るよう、欄の外（いちばん上）に置く。 */}
@@ -284,7 +297,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
           </div>
           <section className={group("account")} aria-label={t("Profile")}>
             <div className="settings-card settings-card-padded">
-              <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} onPhotoBusyChange={setPhotoBusy} />
+              <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} nameFlushRef={nameFlush} onPhotoBusyChange={setPhotoBusy} />
             </div>
           </section>
 
