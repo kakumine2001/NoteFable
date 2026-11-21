@@ -1,0 +1,12 @@
+# XcodeGen 生成的工程和 Xcode / SwiftPM 的本机产物
+*.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+DerivedData/
+.build/
+.swiftpm/
+build/
+*.ipa
+*.dSYM/
+Config/Local.xcconfig
+Package.resolved

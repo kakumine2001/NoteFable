@@ -147,7 +147,8 @@ jobs:
       - name: Core unit tests
         if: steps.current.outputs.publish == 'true'
         working-directory: mobile/ios
-        run: swift test
+        # A hung test would otherwise run until the job timeout: the script stops it and prints where it is stuck.
+        run: bash scripts/ci-core-tests.sh
 
       - name: Generate Xcode project
         if: steps.current.outputs.publish == 'true'
