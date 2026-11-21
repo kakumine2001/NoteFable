@@ -50,12 +50,6 @@ function unpack(value?: string) {
   return deviceId;
 }
 
-export async function getAnonymousDeviceId() {
-  // Cookie が存在し署名も正しい場合だけ、匿名デバイス ID を返す読み取り専用関数。
-  const cookieStore = await cookies();
-  return unpack(cookieStore.get(COOKIE_NAME)?.value);
-}
-
 async function issueDeviceId() {
   // 新しい匿名 ID を発行して httpOnly Cookie に保存する。クライアント JS から直接読まれないようにしている。
   const cookieStore = await cookies();

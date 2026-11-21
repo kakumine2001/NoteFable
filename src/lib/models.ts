@@ -87,11 +87,6 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
   },
 ] as const;
 
-// 許可済みモデル ID だけを取り出した一覧。クライアント入力の正規化に使う。
-export const AVAILABLE_MODELS = MODEL_OPTIONS.map((model) => model.id);
-
-export type ModelId = (typeof AVAILABLE_MODELS)[number];
-
 // サーバーが決めた「今使えるモデル」の一覧とその既定。環境変数 NOTEFABLE_MODELS で組み込みの一覧を上書きでき
 // （src/lib/model-registry.ts）、画面側は自分で持たずサーバーから受け取る（src/components/models-provider.tsx）。
 export type ModelRegistry = { options: readonly ModelOption[]; defaultModel: string };

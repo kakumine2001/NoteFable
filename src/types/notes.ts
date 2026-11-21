@@ -23,7 +23,6 @@ export type NotePageSummary = {
 };
 export type NotePageFont = "default" | "serif" | "mono";
 export type NotePageSettings = { fullWidth: boolean; smallText: boolean; font: NotePageFont; locked: boolean };
-export const DEFAULT_PAGE_SETTINGS: NotePageSettings = { fullWidth: false, smallText: false, font: "default", locked: false };
 // 一覧の 1 件から表示設定を取り出す（未設定・不明な値は既定値）。
 export function pageSettingsOf(page: Partial<NotePageSettings> | undefined): NotePageSettings {
   const font = page?.font === "serif" || page?.font === "mono" ? page.font : "default";
