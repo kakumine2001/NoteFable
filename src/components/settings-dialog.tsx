@@ -138,6 +138,9 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const bodyRef = useRef<HTMLDivElement>(null);
   const backRef = useRef<HTMLButtonElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  // 直前の操作がキーボードだったか。画面を替えたあとのフォーカスの置き場所を決める（下の useEffect）。
+  const byKeyboard = useRef(false);
   // 欄の画面に進むときに押した行。一覧に戻ったらそこへフォーカスを返す。
   const opener = useRef<HTMLElement | null>(null);
   // show / goHome で画面を替えた直後だけ、スクロール位置とフォーカスを合わせる。
@@ -200,12 +203,33 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   useBackToClose(true, close);
   // 開いたときのフォーカスは画面そのものに置く。最初のボタンに置くと、タッチの端末でも開いた瞬間にフォーカスの枠が出る。
   useEffect(() => { ref.current?.showModal(); ref.current?.focus(); }, []);
-  // 画面を替えたら上から見せる。スマホ幅ではフォーカスも移す（欄の画面では「戻る」、一覧では押した行）。
+  // 操作がキーボードか指・マウスかを覚える。window の capture で聞く（Esc は useBackToClose が先に受けて止めるため）。
+  // 文字の入力は数えない: 名前を打ったあと端末の「戻る」で一覧に戻っても、キーボードの操作とは見なさない。
+  // 入力欄の中では、空白・Enter・矢印は文字の入力やカーソルの移動なので、Tab と Esc だけを数える（変換中のキーも数えない）。
+  useEffect(() => {
+    const keys = new Set(["Tab", "Enter", " ", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+    const typing = (target: EventTarget | null) => target instanceof HTMLTextAreaElement
+      || (target instanceof HTMLInputElement && !["button", "checkbox", "radio", "file", "submit", "reset", "range", "color"].includes(target.type))
+      || (target instanceof HTMLElement && target.isContentEditable);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || !keys.has(event.key)) return;
+      if (typing(event.target) && event.key !== "Tab" && event.key !== "Escape") return;
+      byKeyboard.current = true;
+    };
+    const onPointer = () => { byKeyboard.current = false; };
+    window.addEventListener("keydown", onKey, true);
+    window.addEventListener("pointerdown", onPointer, true);
+    return () => { window.removeEventListener("keydown", onKey, true); window.removeEventListener("pointerdown", onPointer, true); };
+  }, []);
+  // 画面を替えたら上から見せる。スマホ幅ではフォーカスも移す。
+  // キーボードで操作しているときは、欄の画面では「戻る」、一覧では押した行に置く（そこから続けて操作できる）。
+  // 指・マウスのときは題に置く: ボタンに置くと、iOS の Safari は触っていないボタンにフォーカスの枠を描く。
   useEffect(() => {
     if (!moved.current) return;
     moved.current = false;
     if (bodyRef.current) bodyRef.current.scrollTop = 0;
     if (!isPhone()) return;
+    if (!byKeyboard.current) { titleRef.current?.focus(); return; }
     // 押した行が分からないとき（デスクトップ幅で開いてから幅を狭めたときなど）は「閉じる」に置く。
     if (home) (opener.current ?? closeRef.current)?.focus(); else backRef.current?.focus();
   }, [home, tab]);
@@ -267,7 +291,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
       <div className="settings-main">
         <header className="settings-header">
           <button ref={backRef} type="button" className="notion-icon-button settings-back grid" aria-label={t("Back")} onClick={backHome}><ArrowLeft size={20} /></button>
-          <h2 className="settings-title">
+          <h2 ref={titleRef} tabIndex={-1} className="settings-title">
             <span className="settings-title-mobile">{home ? t("Settings") : tabLabel}</span>
             <span className="settings-title-desktop">{tabLabel}</span>
           </h2>

@@ -8,7 +8,8 @@ dialog.settings-dialog {
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 24px 64px rgba(12, 23, 48, 0.22);
   animation: settings-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-dialog.settings-dialog:focus { outline: none; }
+/* 画面と題は、フォーカスの置き場所にするだけ（スクリプトから置く）。枠は描かない。 */
+dialog.settings-dialog:focus, dialog.settings-dialog .settings-title:focus { outline: none; }
 dialog.settings-dialog::backdrop { background: rgba(12, 23, 48, 0.32); backdrop-filter: blur(2px); animation: settings-fade 180ms ease-out both; }
 @keyframes settings-enter { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes settings-fade { from { opacity: 0; } to { opacity: 1; } }
