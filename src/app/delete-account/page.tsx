@@ -18,7 +18,7 @@ export default function DeleteAccountPage() {
       <LegalSection title="Delete it yourself">
         <ol className="list-decimal space-y-1.5 pl-6">
           <li>Open NoteFable — the Android app or <a href={WORKSPACE_URL}>{WORKSPACE_URL.replace(/^https:\/\//, "").replace(/\/$/, "")}</a> — and sign in to the account.</li>
-          <li>Tap your name at the bottom of the sidebar, then <strong>Settings</strong>.</li>
+          <li>Tap your name at the bottom of the sidebar to open <strong>Settings</strong>, then <strong>Account</strong>.</li>
           <li>Tap <strong>Delete account</strong>, read the warning, then <strong>Delete permanently</strong>.</li>
         </ol>
         <p>The account is deleted right away and you are signed out on every device.</p>

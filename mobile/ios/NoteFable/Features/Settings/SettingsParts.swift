@@ -2,32 +2,138 @@ import SwiftUI
 import UIKit
 
 // 设置画面的共用部件（网页 src/components/settings-dialog.css 的手机宽度的值，Android ui/SettingsParts.kt）：
-// 分组标题、卡片、行、说明文字、读取中的一行、"未保存的更改"条。小按钮用 DesignSystem 的 `SettingsChip`。
+// 顶栏的圆按钮、入口列表的账号行和各栏的行、卡片、行、说明文字、读取中的一行、"未保存的更改"条。
+// 小按钮用 DesignSystem 的 `SettingsChip`。
 
 /// .settings-saved 的绿色。
 let settingsSavedGreen = Color(argb: 0xFF15803D)
 
-/// .settings-group-label：13/550 灰，左 4、下 8。
-struct SettingsGroupLabel: View {
-    private let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.nf(13, weight: 550))
-            .nfLineHeight(19.5, fontSize: 13)
-            .foregroundStyle(Sm.muted)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 4)
-            .padding(.bottom, 8)
-            .accessibilityAddTraits(.isHeader)
+extension SettingsPage {
+    /// 入口列表里那一行的图标（网页 TABS 的 icon）。
+    var icon: [String] {
+        switch self {
+        case .general: return Lucide.slidersHorizontal
+        case .personalization: return Lucide.penLine
+        case .plan: return Lucide.creditCard
+        case .account: return Lucide.circleUser
+        }
     }
 }
 
-/// .settings-card：白底、1px 细线、圆角 12；`padded` 时内边距 16（.settings-card-padded）。
+/// 顶栏行首的圆按钮（手机的 .settings-back / .settings-close）：40×40、全圆角、白底、1px 细线（--notion-border）、正文色的图标；
+/// 入口列表上是"关闭"（X 18），一栏里是"返回"（ArrowLeft 20，从右到左的界面里镜像）。按下的手感同 .notion-icon-button（灰底、缩到 .97）。
+struct SettingsBarButton: View {
+    private let icon: [String]
+    private let iconSize: CGFloat
+    private let label: String
+    private let action: () -> Void
+
+    init(_ icon: [String], iconSize: CGFloat, label: String, action: @escaping () -> Void) {
+        self.icon = icon
+        self.iconSize = iconSize
+        self.label = label
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            LucideIcon(icon, size: iconSize, color: Sm.text)
+                .frame(width: 40, height: 40)
+                .overlay { Circle().strokeBorder(Sm.border, lineWidth: 1) }
+        }
+        // 白底由样式画（按下的灰底叠在它上面）；40 见方、圆角 20 就是圆。
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 20, scale: 0.97))
+        .accessibilityLabel(label)
+    }
+}
+
+/// .settings-card.settings-identity：入口列表最上面的账号行，点了进"账号"那一栏。白底、1px 细线、圆角 20、内边距 14×16；
+/// 头像 44 + 间距 14 + 名字 17/600 墨色（一行，放不下截断）和它下面间距 2 的邮箱 14 灰（一行；没有邮箱、或名字写的就是邮箱时没有），
+/// 行尾 ChevronRight 18 浅灰（从右到左的界面里镜像）。行高都是 1.5（25.5 / 21）。
+struct SettingsIdentityCard: View {
+    private let user: AccountUser
+    private let action: () -> Void
+
+    init(user: AccountUser, action: @escaping () -> Void) {
+        self.user = user
+        self.action = action
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 20)
+        Button(action: action) {
+            HStack(alignment: .center, spacing: 14) {
+                UserAvatar(user: user, size: 44)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(user.rowName ?? L("account"))
+                        .font(.nf(17, weight: 600))
+                        .nfLineHeight(25.5, fontSize: 17)
+                        .foregroundStyle(Sm.ink)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                    if let email = user.identityEmail {
+                        Text(email)
+                            .font(.nf(14))
+                            .nfLineHeight(21, fontSize: 14)
+                            .foregroundStyle(Sm.muted)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                LucideIcon(Lucide.chevronRight, size: 18, color: Sm.faint)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+            .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+        }
+        // 白底由样式画（按下的灰底叠在它上面，网页是悬停的 --notion-hover）。
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 20))
+    }
+}
+
+/// .settings-row.settings-row-button.settings-home-row：入口列表里一栏的行。最小高 56、内边距 10×16，
+/// 图标 20（正文色）+ 间距 14 + 名字 16/500，行尾 ChevronRight 18 浅灰（从右到左的界面里镜像）。
+/// `divided`（第二行起）在行的上沿画 1px 细线：从行首 50 处（名字的左边，图标下面不画）到行尾，不占高度（网页 ::before）。
+struct SettingsHomeRow: View {
+    private let label: String
+    private let icon: [String]
+    private let divided: Bool
+    private let action: () -> Void
+
+    init(_ label: String, icon: [String], divided: Bool, action: @escaping () -> Void) {
+        self.label = label
+        self.icon = icon
+        self.divided = divided
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 14) {
+                LucideIcon(icon, size: 20, color: Sm.text)
+                Text(label)
+                    .font(.nf(16, weight: 500))
+                    .foregroundStyle(Sm.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                LucideIcon(Lucide.chevronRight, size: 18, color: Sm.faint)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
+        }
+        .buttonStyle(.pressable(cornerRadius: 0))
+        .overlay(alignment: .top) {
+            if divided {
+                NFDivider()
+                    .padding(.leading, 50)
+                    .allowsHitTesting(false)
+            }
+        }
+    }
+}
+
+/// .settings-card（手机）：白底、1px 细线、圆角 20；`padded` 时内边距 16（.settings-card-padded）。
 /// 行与行之间用 `SettingsRowDivider` 隔开。
 struct SettingsCard<Content: View>: View {
     private let padded: Bool
@@ -39,7 +145,7 @@ struct SettingsCard<Content: View>: View {
     }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: 12)
+        let shape = RoundedRectangle(cornerRadius: 20)
         VStack(alignment: .leading, spacing: 0) {
             content
         }

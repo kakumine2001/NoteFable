@@ -270,6 +270,7 @@ final class AccountModelsTests: XCTestCase {
         model.closeAll()
         XCTAssertEqual(model.state.attention, 2)
         XCTAssertEqual(log.list, [])
+        XCTAssertEqual(model.state.page, .personalization, "the page with the unsaved text is shown")
 
         model.discard()
         XCTAssertEqual(model.state.instructions, "Be brief.")
@@ -294,8 +295,233 @@ final class AccountModelsTests: XCTestCase {
         model.setInstructions(" Be kind. ")
         XCTAssertFalse(model.saved)
         XCTAssertFalse(model.dirty)
+        // 一次退一步：先回入口列表，再关。
+        model.requestClose()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(log.list, [])
         model.requestClose()
         XCTAssertEqual(log.list, ["close"])
+    }
+
+    // ---- 设置：入口列表和各栏 ----
+
+    @MainActor
+    func testSettingsOpenOnTheHomeListAndBackReturnsToItBeforeClosing() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        let vm = await account(stub)
+        let log = Log()
+        let model = await settings(stub, vm, log)
+        XCTAssertEqual(SettingsPage.allCases, [.general, .personalization, .plan, .account])
+        XCTAssertEqual(SettingsPage.allCases.map(\.titleKey), ["settings_general", "settings_personalization", "plan_title", "account"])
+        XCTAssertNil(model.state.page)
+        XCTAssertFalse(model.state.navigated, "the home list first appears without the page transition")
+
+        model.show(.plan)
+        XCTAssertEqual(model.state.page, .plan)
+        XCTAssertTrue(model.state.navigated)
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertTrue(model.state.navigated)
+        XCTAssertEqual(log.list, [], "Back on a page only returns to the home list")
+
+        model.show(.general)
+        model.requestClose()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(log.list, [])
+        model.closeAll()
+        XCTAssertEqual(log.list, ["close"])
+    }
+
+    /// 和网页 src/lib/settings-navigation.test.ts 是同一批例子。
+    func testTheCloseAndBackRulesMatchTheWeb() {
+        // Esc / 返回一次退一步：一栏 → 入口列表 → 关。
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: nil, onPage: true, dirty: false), .home)
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: nil, onPage: false, dirty: false), .close)
+        // 先收起开着的编辑区，并显示它所在的那一栏。
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: .account, onPage: false, dirty: false), .show(.account, attention: false))
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: .general, onPage: true, dirty: false), .show(.general, attention: false))
+        // 有没保存的自定义指令：留在"个性化"，在一栏里和在列表上都一样。
+        let shake = SettingsStep.show(.personalization, attention: true)
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: nil, onPage: true, dirty: true), shake)
+        XCTAssertEqual(settingsDismissStep(locked: false, editorIn: nil, onPage: false, dirty: true), shake)
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: false, onPage: true, dirty: true), shake)
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: false, onPage: false, dirty: true), shake)
+        // 保存中、删除中什么都不做。
+        XCTAssertEqual(settingsDismissStep(locked: true, editorIn: .account, onPage: true, dirty: true), .stay)
+        XCTAssertEqual(settingsButtonStep(locked: true, photoBusy: true, onPage: true, dirty: true), .stay)
+        // 顶栏的按钮：一栏里回列表，列表上关。
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: false, onPage: true, dirty: false), .home)
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: false, onPage: false, dirty: false), .close)
+        // 照片在裁剪或上传：显示"账号"那一栏，排在"没保存"的检查前面。
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: true, onPage: true, dirty: false), .show(.account, attention: false))
+        XCTAssertEqual(settingsButtonStep(locked: false, photoBusy: true, onPage: false, dirty: true), .show(.account, attention: false))
+    }
+
+    func testTheIdentityRowShowsTheEmailOnlyUnderADifferentName() {
+        XCTAssertEqual(AccountUser(name: "Ann", email: "ann@example.test").identityEmail, "ann@example.test")
+        XCTAssertNil(AccountUser(name: "Ann").identityEmail)
+        XCTAssertNil(AccountUser(name: "Ann", email: "").identityEmail)
+        // 没有名字时名字那一行写的就是邮箱：不再写第二遍。
+        XCTAssertEqual(AccountUser(email: "ann@example.test").rowName, "ann@example.test")
+        XCTAssertNil(AccountUser(email: "ann@example.test").identityEmail)
+        XCTAssertNil(AccountUser(name: "ann@example.test", email: "ann@example.test").identityEmail)
+    }
+
+    @MainActor
+    func testUnsavedCustomInstructionsBlockLeavingThePageAndAFailedSaveShowsIt() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        stub.instructions = "Be brief."
+        let vm = await account(stub)
+        let log = Log()
+        let model = await settings(stub, vm, log)
+
+        model.show(.personalization)
+        model.setInstructions("Be kind.")
+        model.backHome()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertEqual(model.state.attention, 1)
+        model.requestClose()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertEqual(model.state.attention, 2)
+
+        // 在别的栏按返回：被带回"个性化"，开着的编辑区不动。
+        model.show(.account)
+        model.setEditor(.emoji)
+        model.backHome()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertEqual(model.state.attention, 3)
+        XCTAssertEqual(model.state.editor, .emoji)
+        XCTAssertEqual(log.list, [])
+
+        // 在别的栏按"保存"失败：原因显示在"个性化"，所以切过去。
+        model.show(.general)
+        stub.failInstructions = TestIOError()
+        model.save()
+        await model.idle()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertNotNil(model.state.error)
+        XCTAssertEqual(model.state.attention, 3)
+
+        // 保存中：返回什么都不做。
+        stub.failInstructions = nil
+        let gate = TestGate()
+        stub.gate = gate
+        model.save()
+        model.backHome()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertEqual(model.state.attention, 3)
+        await gate.entered()
+        gate.open()
+        await model.idle()
+        XCTAssertFalse(model.dirty)
+
+        // 存好了：返回一步回到列表，开着的头像编辑区一起关掉。
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(model.state.editor, .closed)
+        model.closeAll()
+        XCTAssertEqual(log.list, ["close"])
+    }
+
+    @MainActor
+    func testAPickedPhotoKeepsTheAccountPageAndBackClosesOpenEditorsInOneStep() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        let vm = await account(stub)
+        let log = Log()
+        let model = await settings(stub, vm, log)
+
+        model.show(.account)
+        model.toggleEditor()
+        model.pickPhoto()
+        XCTAssertTrue(model.photoPicked(mimeType: "image/png", size: 2048))
+        model.backHome()
+        XCTAssertEqual(model.state.page, .account, "a picked photo is not saved yet")
+        XCTAssertTrue(model.state.picked)
+        XCTAssertEqual(model.state.editor, .photo)
+
+        let gate = TestGate()
+        stub.gate = gate
+        model.uploadPhoto(Data(count: 3))
+        model.backHome()
+        XCTAssertEqual(model.state.page, .account, "uploading")
+        model.requestClose()
+        XCTAssertEqual(model.state.page, .account)
+        XCTAssertEqual(model.state.editor, .photo, "uploading: the editor stays open")
+        await gate.entered()
+        gate.open()
+        await vm.idle()
+        XCTAssertFalse(model.photoBusy)
+
+        // 表情页开着：返回连它一起关掉，一步回到列表。
+        model.setEditor(.emoji)
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(model.state.editor, .closed)
+
+        model.show(.general)
+        model.setAppIconPicking(true)
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertFalse(model.state.appIconPicking)
+
+        // 读屏的"返回"一次只退一步：先关编辑区（在别的栏时切到它所在的栏），再回列表。
+        model.show(.account)
+        model.setEditor(.emoji)
+        model.requestClose()
+        XCTAssertEqual(model.state.editor, .closed)
+        XCTAssertEqual(model.state.page, .account)
+        model.requestClose()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(log.list, [])
+    }
+
+    @MainActor
+    func testLeavingTheAccountPageSavesTheNameAndDropsAPhotoWaitingToBeCropped() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        stub.instructions = "Be brief."
+        let vm = await account(stub)
+        let log = Log()
+        let model = await settings(stub, vm, log)
+
+        // 输入中的名字：离开"账号"那一栏时存掉（那一栏的输入框等不到失焦）。
+        model.show(.account)
+        model.nameFocusChanged(true)
+        model.setNameDraft("Bo")
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertFalse(model.state.editingName)
+        await vm.idle()
+        XCTAssertEqual(vm.state.user?.displayName, "Bo")
+
+        // 正在裁剪时在"未保存的更改"条上按保存、保存失败：被带去"个性化"，裁剪界面连同照片不在了，所以不再算"选了照片"。
+        model.show(.account)
+        model.setInstructions("Be kind.")
+        model.toggleEditor()
+        model.pickPhoto()
+        XCTAssertTrue(model.photoPicked(mimeType: "image/png", size: 2048))
+        stub.failInstructions = TestIOError()
+        model.save()
+        await model.idle()
+        XCTAssertEqual(model.state.page, .personalization)
+        XCTAssertFalse(model.state.picked)
+        XCTAssertFalse(model.photoBusy)
+        XCTAssertFalse(model.state.pickerOpen)
+
+        // 照片读完时已经不在"账号"那一栏：不进入裁剪。
+        model.pickPhoto()
+        XCTAssertFalse(model.photoPicked(mimeType: "image/png", size: 2048))
+        XCTAssertFalse(model.state.picked)
+        XCTAssertFalse(model.state.pickerOpen)
+        XCTAssertNil(vm.state.photoError)
+
+        model.discard()
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        XCTAssertEqual(log.list, [])
     }
 
     @MainActor
@@ -363,6 +589,37 @@ final class AccountModelsTests: XCTestCase {
     }
 
     @MainActor
+    /// 照片还在读的时候离开"账号"那一栏再回来：读完的那张是上一次的，不进入裁剪（不然 picked 为真却没有照片可裁，回不了列表）。
+    func testAPhotoThatFinishesLoadingAfterLeavingAndComingBackIsIgnored() async {
+        let stub = StubAccount()
+        stub.user = AccountUser(name: "Ann", googleName: "Ann")
+        let vm = await account(stub)
+        let model = await settings(stub, vm, Log())
+        model.show(.account)
+        model.toggleEditor()
+        model.pickPhoto()
+        let stale = model.photoPickToken
+        model.backHome()
+        XCTAssertNil(model.state.page)
+        model.show(.account)
+        model.toggleEditor()
+        XCTAssertFalse(model.photoPicked(mimeType: "image/png", size: 2048, token: stale))
+        XCTAssertFalse(model.state.picked)
+        XCTAssertFalse(model.photoBusy)
+        // 这一次自己选的照常进入裁剪。
+        model.pickPhoto()
+        XCTAssertTrue(model.photoPicked(mimeType: "image/png", size: 2048, token: model.photoPickToken))
+        XCTAssertTrue(model.state.picked)
+        // 换了编辑页（表情）之后读完的也不要。
+        model.cancelCrop()
+        model.pickPhoto()
+        let beforeSwitch = model.photoPickToken
+        model.setEditor(.emoji)
+        XCTAssertFalse(model.photoPicked(mimeType: "image/png", size: 2048, token: beforeSwitch))
+        XCTAssertFalse(model.state.picked)
+    }
+
+    @MainActor
     func testTheAvatarEditorClosesFirstAndAPickedPhotoBlocksTheTopBarClose() async {
         let stub = StubAccount()
         stub.user = AccountUser(name: "Ann", googleName: "Ann")
@@ -370,6 +627,7 @@ final class AccountModelsTests: XCTestCase {
         let log = Log()
         let model = await settings(stub, vm, log)
 
+        model.show(.account)
         model.toggleEditor()
         XCTAssertEqual(model.state.editor, .photo)
         model.pickPhoto()
@@ -387,6 +645,7 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertFalse(model.signOutEnabled)
         model.closeAll()
         XCTAssertEqual(log.list, [], "a picked photo is not saved yet")
+        XCTAssertEqual(model.state.page, .account)
 
         let gate = TestGate()
         stub.gate = gate
@@ -408,6 +667,10 @@ final class AccountModelsTests: XCTestCase {
         model.setAppIconPicking(true)
         model.requestClose()
         XCTAssertFalse(model.state.appIconPicking)
+        XCTAssertEqual(model.state.page, .general, "the page of what was just closed is shown")
+        XCTAssertEqual(log.list, [])
+        model.requestClose()
+        XCTAssertNil(model.state.page)
         XCTAssertEqual(log.list, [])
         model.requestClose()
         XCTAssertEqual(log.list, ["close"])

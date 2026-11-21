@@ -253,6 +253,27 @@ object Lucide {
         "m17 8-5-5-5 5",
         "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
     )
+    // 设置的入口一览（settings-dialog.tsx 的 TABS），同样从 lucide-react 1.16.0 取；CircleUser 的两个 circle 换成等价的 path。
+    val SlidersHorizontal = listOf(
+        "M10 5H3",
+        "M12 19H3",
+        "M14 3v4",
+        "M16 17v4",
+        "M21 12h-9",
+        "M21 19h-5",
+        "M21 5h-7",
+        "M8 10v4",
+        "M8 12H3",
+    )
+    val PenLine = listOf(
+        "M13 21h8",
+        "M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z",
+    )
+    val CircleUser = listOf(
+        "M2 12a10 10 0 1 0 20 0a10 10 0 1 0 -20 0",
+        "M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
+        "M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662",
+    )
     val MoreHorizontal = Ellipsis
     val Loader2 = LoaderCircle
 

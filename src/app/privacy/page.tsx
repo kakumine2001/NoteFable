@@ -139,7 +139,7 @@ export default function PrivacyPage() {
           until we remove them. Signing out does not delete anything.
         </p>
         <p>
-          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Delete account</em> on the website or in the Android app. This immediately and
+          <strong>Deleting your account.</strong> When signed in, open <em>Settings → Account → Delete account</em> on the website or in the Android app. This immediately and
           permanently deletes your account and everything in it: chats, messages, notes, note history, projects, uploaded and generated images, files, your profile
           and settings. It also ends a Pro subscription bought on the website immediately, deletes your customer record at Stripe, and stops a Google Play subscription from renewing; Stripe and Google keep their payment records (such as invoices and charges) as the law requires. Database backups that may still contain it are overwritten within 30 days. To keep other signed-in devices from re-creating the account, we keep a one-way hash of its Google account ID and email address (not the ID or address itself) for 400 days. If you cannot sign in, email
           {" "}<a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a> from the account’s address and we will delete it within 30 days.

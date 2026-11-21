@@ -46,7 +46,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 | --- | --- |
 | 是否收集或分享所需的用户数据类型 | 是 |
 | 传输中的数据是否都经过加密 | 是（只走 HTTPS） |
-| 是否提供让用户请求删除数据的方式 | 是：App 和网页的 设置 → 删除账号；网址 https://notefable.com/delete-account |
+| 是否提供让用户请求删除数据的方式 | 是：App 和网页的 设置 → 账号 → 删除账号；网址 https://notefable.com/delete-account |
 | 账号创建方式 | 用户名和其他验证方式（邮箱验证码）＋ OAuth（Google）；可不建账号使用 |
 
 收集的数据（全部"收集"，都**不**"分享"：发给 AI 提供商、Vercel、Neon、Resend、Stripe、Google 属于代表我们处理数据的服务提供商，按 Play 的定义不算分享）：
