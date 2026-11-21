@@ -221,7 +221,7 @@ struct GeneratingImagePreview: View {
         }
     }
 
-    private func dotRow(phase: (Int) -> Double) -> some View {
+    private func dotRow(phase: @escaping (Int) -> Double) -> some View {
         HStack(spacing: 3.2) {
             ForEach(0..<3, id: \.self) { index in
                 let value = phase(index)
