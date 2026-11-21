@@ -18,7 +18,8 @@ enum RemoteImageLoader {
     /// `path` 是 `/api/…` 的相对路径、完整的 http(s) 地址，或 `data:` 地址。读不到、解不出来返回 nil。
     @MainActor
     static func image(_ path: String, app: AppEnvironment) async -> UIImage? {
-        let key = cacheKey(path, generation: app.identityGeneration)
+        let generation = app.identityGeneration
+        let key = cacheKey(path, generation: generation)
         if let cached = cache.object(forKey: key) { return cached }
         let data: Data
         if path.hasPrefix("data:") {
@@ -41,7 +42,8 @@ enum RemoteImageLoader {
             // 先在后台把位图解出来，第一次画的时候主线程不用再解码。
             return image.preparingForDisplay() ?? image
         }.value
-        guard let decoded else { return nil }
+        // 读的途中换了身份：这是上一个身份的图片，不交给调用方（视图的 .task 要到下一次重绘才取消，可能还没来得及）。
+        guard let decoded, app.identityGeneration == generation else { return nil }
         cache.setObject(decoded, forKey: key, cost: cost(of: decoded))
         return decoded
     }
@@ -73,11 +75,15 @@ enum RemoteImageLoader {
     }
 
     private static func source(_ path: String, baseURL: String) -> Source {
-        // 没有协议的是本站的相对路径（`/api/…`），和原来一样交给 App 的客户端补全。
-        guard let url = URL(string: path), let scheme = url.scheme?.lowercased() else { return .app }
-        guard scheme == "http" || scheme == "https" else { return .unsupported }
-        if let base = URL(string: baseURL), base.scheme?.lowercased() == scheme,
-           base.host?.lowercased() == url.host?.lowercased(), base.port == url.port {
+        // 本站的相对路径只认 `/api/…` 这种以一个 / 开头的：App 的客户端是把它直接接在站点地址后面，
+        // 别的写法（`@host/…`、`.host/…`、`:8443/…`、`//host/…`）接上去会变成另一个主机或端口。
+        if path.hasPrefix("/") { return path.hasPrefix("//") ? .unsupported : .app }
+        // 完整地址只认小写的 http(s):// 开头（App 的客户端按这个判断是不是完整地址）。
+        guard path.hasPrefix("http://") || path.hasPrefix("https://"), let url = URL(string: path),
+              let scheme = url.scheme?.lowercased(), url.host?.isEmpty == false else { return .unsupported }
+        func port(_ url: URL, _ scheme: String) -> Int { url.port ?? (scheme == "https" ? 443 : 80) }
+        if let base = URL(string: baseURL), let baseScheme = base.scheme?.lowercased(), baseScheme == scheme,
+           base.host?.lowercased() == url.host?.lowercased(), port(base, baseScheme) == port(url, scheme) {
             return .app
         }
         return .external(url)

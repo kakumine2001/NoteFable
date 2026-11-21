@@ -35,9 +35,9 @@ private struct NotesDialogsModifier: ViewModifier {
     @Binding var dialog: NotesDialogState?
     /// 窗口里的请求进行中：这时点遮罩不关。
     @State private var busy = false
-    /// 每换一个窗口（包括关掉）加一。和 Android / 网页一样请求中也能点“取消”，那个请求晚回来时
+    /// 现在是第几个窗口（每换一个，包括关掉，加一）。和 Android / 网页一样请求中也能点“取消”，那个请求晚回来时
     /// 只认它自己的那一代：不改新窗口的 `busy`，也不关掉新窗口。
-    @State private var generation = 0
+    @State private var generation = NotesDialogGeneration()
     @Environment(AppEnvironment.self) private var app
 
     func body(content: Content) -> some View {
@@ -50,23 +50,40 @@ private struct NotesDialogsModifier: ViewModifier {
                 source.wrappedValue = next
             }
         )
-        let current = generation
+        // 在这里（画之前）就按窗口的 id 更新：新窗口第一次画出来时拿到的已经是自己的那一代，
+        // 它一出现就要关（笔记已经不在了）也关得掉。
+        let generation = self.generation
+        let current = generation.current(for: dialog?.id)
         let busyBinding = $busy
-        let generationBinding = $generation
         let ownBusy = Binding<Bool>(
             get: { busyBinding.wrappedValue },
-            set: { if generationBinding.wrappedValue == current { busyBinding.wrappedValue = $0 } }
+            set: { if generation.value == current { busyBinding.wrappedValue = $0 } }
         )
         content
             .nfDialog(item: item, dismissDisabled: busy) { state in
                 NotesDialogContent(state: state, busy: ownBusy, close: {
-                    if generationBinding.wrappedValue == current { item.wrappedValue = nil }
+                    if generation.value == current { item.wrappedValue = nil }
                 })
             }
             .onChange(of: dialog?.id) { _, _ in
-                generation += 1
                 busy = false
             }
+    }
+}
+
+/// 窗口的“代”。放在引用类型里：在 body 里更新它不会引起重绘。
+@MainActor
+private final class NotesDialogGeneration {
+    private var lastId: String?
+    private(set) var value = 0
+
+    /// `id` 和上一次不同就算换了一个窗口。返回现在的代。
+    func current(for id: String?) -> Int {
+        if id != lastId {
+            lastId = id
+            value += 1
+        }
+        return value
     }
 }
 

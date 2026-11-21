@@ -119,9 +119,9 @@ struct AppIconSettings: View {
         let mine = choice
         let isImage = item.supportedContentTypes.contains { $0.conforms(to: .image) }
         let data = isImage ? (try? await item.loadTransferable(type: Data.self)) : nil
-        guard pickedItem == item, choice == mine else { return }
-        // 下次再选同一张也要有反应。
-        pickedItem = nil
+        // 下次再选同一张也要有反应（这次的结果不用了也要清掉）。
+        if pickedItem == item { pickedItem = nil }
+        guard choice == mine else { return }
         let icon: AppIconValue?
         if let data {
             icon = await AvatarImageDecoder.renderAppIconInBackground(data)

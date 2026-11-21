@@ -191,9 +191,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         Self.cookieChain = Task { @MainActor [weak self] in
             await previous?.value
             guard let self, self.loadRun == current, self.webView != nil else { return }
+            let identity = self.app.identityGeneration
             let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
             await NoteEditorController.replaceCookies(cookies)
-            guard self.loadRun == current, let webView = self.webView else { return }
+            // 换 Cookie 的途中换了身份：这页属于上一个身份（界面要到下一次重绘才收掉它），不带着旧 Cookie 去加载。
+            guard self.loadRun == current, self.app.identityGeneration == identity, let webView = self.webView else { return }
             webView.load(URLRequest(url: url))
         }
     }

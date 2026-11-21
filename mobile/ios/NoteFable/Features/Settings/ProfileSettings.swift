@@ -69,6 +69,8 @@ struct ProfileSettings: View {
         .onChange(of: state.editor) { _, editor in
             // 照片还在读时换到表情页、关上编辑区：这张照片不要了（`picked` 那时本来就是 false，上面的不会触发）。
             if editor != .photo {
+                // 选好了、还没读完：`pickerOpen` 还是 true（要等 `photoPicked` 才清），这里一并清掉，不然设置关不了。
+                if pickedItem != nil { model.pickerCancelled() }
                 photo = nil
                 pickedItem = nil
             }
