@@ -347,6 +347,7 @@
 "language_change_failed" = "언어를 변경하지 못했어요. 다시 시도해 주세요.";
 "language_auto" = "자동 감지";
 "language_auto_current" = "자동 감지 (현재: %1$s)";
+"language_auto_now" = "현재: %1$s";
 "language_search" = "언어 검색";
 "language_effective" = "현재 언어";
 "language_no_results" = "언어를 찾을 수 없어요.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "오늘의 메시지";
 "plan_messages_period" = "이번 기간 메시지";
 "plan_messages_month" = "이번 달 메시지";
-"plan_images_today" = "오늘의 이미지";
-"plan_images_period" = "이번 기간 이미지";
-"plan_images_month" = "이번 달 이미지";
+"plan_images_today" = "오늘의 이미지 생성";
+"plan_images_period" = "이번 기간 이미지 생성";
+"plan_images_month" = "이번 달 이미지 생성";
 "plan_renews" = "%1$s에 자동 갱신됩니다.";
 "plan_ends" = "Pro가 %1$s에 종료됩니다.";
 "plan_past_due" = "지난 결제에 실패했어요. Pro를 계속 이용하려면 결제 수단을 업데이트해 주세요.";
 "plan_load_failed" = "플랜을 불러오지 못했어요.";
 "plan_offer_title" = "NoteFable Pro · 월 %1$s";
-"plan_offer_body" = "매달 메시지 %1$s개와 이미지 %2$d장 제공. 언제든 해지할 수 있어요.";
+"plan_offer_body" = "매달 메시지 %1$s개와 이미지 생성 %2$d회 제공. 언제든 해지할 수 있어요.";
 "plan_upgrade" = "Pro로 업그레이드";
 "plan_manage_play" = "Google Play에서 구독 관리";
 "plan_welcome" = "NoteFable Pro에 오신 것을 환영합니다";

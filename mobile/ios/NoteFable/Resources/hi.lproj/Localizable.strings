@@ -347,6 +347,7 @@
 "language_change_failed" = "भाषा बदली नहीं जा सकी। कृपया फिर से प्रयास करें।";
 "language_auto" = "अपने आप पहचानें";
 "language_auto_current" = "ऑटो (वर्तमान: %1$s)";
+"language_auto_now" = "वर्तमान: %1$s";
 "language_search" = "भाषाएँ खोजें";
 "language_effective" = "वर्तमान भाषा";
 "language_no_results" = "कोई भाषा नहीं मिली।";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "आज के संदेश";
 "plan_messages_period" = "इस अवधि के संदेश";
 "plan_messages_month" = "इस महीने के संदेश";
-"plan_images_today" = "आज की इमेज";
-"plan_images_period" = "इस अवधि की इमेज";
-"plan_images_month" = "इस महीने की इमेज";
+"plan_images_today" = "आज की इमेज जनरेशन";
+"plan_images_period" = "इस अवधि की इमेज जनरेशन";
+"plan_images_month" = "इस महीने की इमेज जनरेशन";
 "plan_renews" = "%1$s को अपने आप नवीनीकृत होगा।";
 "plan_ends" = "Pro %1$s को समाप्त होगा।";
 "plan_past_due" = "आपका पिछला भुगतान विफल रहा। Pro जारी रखने के लिए अपनी भुगतान विधि अपडेट करें।";
 "plan_load_failed" = "आपका प्लान लोड नहीं हो सका।";
 "plan_offer_title" = "NoteFable Pro · %1$s/माह";
-"plan_offer_body" = "हर महीने %1$s संदेश और %2$d इमेज। कभी भी रद्द करें।";
+"plan_offer_body" = "हर महीने %1$s संदेश और %2$d इमेज जनरेशन। कभी भी रद्द करें।";
 "plan_upgrade" = "Pro में अपग्रेड करें";
 "plan_manage_play" = "Google Play पर सदस्यता प्रबंधित करें";
 "plan_welcome" = "NoteFable Pro में आपका स्वागत है";

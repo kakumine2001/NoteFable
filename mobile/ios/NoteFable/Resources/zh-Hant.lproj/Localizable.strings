@@ -347,6 +347,7 @@
 "language_change_failed" = "無法切換語言，請重試。";
 "language_auto" = "自動檢測";
 "language_auto_current" = "自動檢測（當前：%1$s）";
+"language_auto_now" = "當前：%1$s";
 "language_search" = "搜尋語言";
 "language_effective" = "當前語言";
 "language_no_results" = "未找到語言。";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "今天的訊息";
 "plan_messages_period" = "本期訊息";
 "plan_messages_month" = "本月訊息";
-"plan_images_today" = "今天的圖片";
-"plan_images_period" = "本期圖片";
-"plan_images_month" = "本月圖片";
+"plan_images_today" = "今日圖片生成";
+"plan_images_period" = "本期圖片生成";
+"plan_images_month" = "本月圖片生成";
 "plan_renews" = "將於 %1$s 自動續費。";
 "plan_ends" = "Pro 將於 %1$s 結束。";
 "plan_past_due" = "上次扣款失敗。請更新付款方式以繼續使用 Pro。";
 "plan_load_failed" = "無法載入你的方案。";
 "plan_offer_title" = "NoteFable Pro · 每月 %1$s";
-"plan_offer_body" = "每月 %1$s 條訊息、%2$d 張圖片。隨時可以取消。";
+"plan_offer_body" = "每月 %1$s 條訊息、生成 %2$d 張圖片。隨時可以取消。";
 "plan_upgrade" = "升級到 Pro";
 "plan_manage_play" = "在 Google Play 上管理訂閱";
 "plan_welcome" = "歡迎使用 NoteFable Pro";

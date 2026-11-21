@@ -347,6 +347,7 @@
 "language_change_failed" = "Could not change language. Please try again.";
 "language_auto" = "Auto detect";
 "language_auto_current" = "Auto (current: %1$s)";
+"language_auto_now" = "Current: %1$s";
 "language_search" = "Search languages";
 "language_effective" = "Current language";
 "language_no_results" = "No languages found.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "Messages today";
 "plan_messages_period" = "Messages this period";
 "plan_messages_month" = "Messages this month";
-"plan_images_today" = "Images today";
-"plan_images_period" = "Images this period";
-"plan_images_month" = "Images this month";
+"plan_images_today" = "Image generations today";
+"plan_images_period" = "Image generations this period";
+"plan_images_month" = "Image generations this month";
 "plan_renews" = "Renews on %1$s.";
 "plan_ends" = "Pro ends on %1$s.";
 "plan_past_due" = "Your last payment failed. Update your payment method to keep Pro.";
 "plan_load_failed" = "Could not load your plan.";
 "plan_offer_title" = "NoteFable Pro · %1$s/month";
-"plan_offer_body" = "%1$s messages and %2$d images a month. Cancel anytime.";
+"plan_offer_body" = "%1$s messages and %2$d image generations a month. Cancel anytime.";
 "plan_upgrade" = "Upgrade to Pro";
 "plan_manage_play" = "Manage subscription on Google Play";
 "plan_welcome" = "Welcome to NoteFable Pro";

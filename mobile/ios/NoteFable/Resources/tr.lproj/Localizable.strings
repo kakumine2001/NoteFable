@@ -347,6 +347,7 @@
 "language_change_failed" = "Dil değiştirilemedi. Lütfen tekrar deneyin.";
 "language_auto" = "Otomatik algıla";
 "language_auto_current" = "Otomatik (geçerli: %1$s)";
+"language_auto_now" = "Geçerli: %1$s";
 "language_search" = "Dil ara";
 "language_effective" = "Geçerli dil";
 "language_no_results" = "Dil bulunamadı.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "Bugünkü mesajlar";
 "plan_messages_period" = "Bu dönemki mesajlar";
 "plan_messages_month" = "Bu ayki mesajlar";
-"plan_images_today" = "Bugünkü görseller";
-"plan_images_period" = "Bu dönemki görseller";
-"plan_images_month" = "Bu ayki görseller";
+"plan_images_today" = "Bugünkü görsel oluşturma";
+"plan_images_period" = "Bu dönemki görsel oluşturma";
+"plan_images_month" = "Bu ayki görsel oluşturma";
 "plan_renews" = "%1$s tarihinde otomatik yenilenir.";
 "plan_ends" = "Pro aboneliği %1$s tarihinde sona erer.";
 "plan_past_due" = "Son ödemeniz başarısız oldu. Pro aboneliğinizi sürdürmek için ödeme yönteminizi güncelleyin.";
 "plan_load_failed" = "Planınız yüklenemedi.";
 "plan_offer_title" = "NoteFable Pro · Ayda %1$s";
-"plan_offer_body" = "Ayda %1$s mesaj ve %2$d görsel. İstediğiniz zaman iptal edin.";
+"plan_offer_body" = "Ayda %1$s mesaj ve %2$d görsel oluşturma. İstediğiniz zaman iptal edin.";
 "plan_upgrade" = "Pro'ya yükselt";
 "plan_manage_play" = "Google Play'de aboneliği yönet";
 "plan_welcome" = "NoteFable Pro'ya hoş geldiniz";

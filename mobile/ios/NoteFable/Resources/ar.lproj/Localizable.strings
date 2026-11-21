@@ -347,6 +347,7 @@
 "language_change_failed" = "تعذّر تغيير اللغة. يرجى المحاولة مرة أخرى.";
 "language_auto" = "اكتشاف تلقائي";
 "language_auto_current" = "تلقائي (الحالية: %1$s)";
+"language_auto_now" = "الحالية: %1$s";
 "language_search" = "البحث في اللغات";
 "language_effective" = "اللغة الحالية";
 "language_no_results" = "لم يتم العثور على لغات.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "الرسائل اليوم";
 "plan_messages_period" = "الرسائل في هذه الفترة";
 "plan_messages_month" = "الرسائل هذا الشهر";
-"plan_images_today" = "الصور اليوم";
-"plan_images_period" = "الصور في هذه الفترة";
-"plan_images_month" = "الصور هذا الشهر";
+"plan_images_today" = "توليد الصور اليوم";
+"plan_images_period" = "توليد الصور في هذه الفترة";
+"plan_images_month" = "توليد الصور هذا الشهر";
 "plan_renews" = "يتجدد تلقائياً في %1$s.";
 "plan_ends" = "ينتهي اشتراك Pro في %1$s.";
 "plan_past_due" = "فشلت عملية الدفع الأخيرة. حدّث وسيلة الدفع للاحتفاظ باشتراك Pro.";
 "plan_load_failed" = "تعذّر تحميل خطتك.";
 "plan_offer_title" = "NoteFable Pro · %1$s شهرياً";
-"plan_offer_body" = "%1$s من الرسائل و%2$d من الصور شهرياً. يمكنك الإلغاء في أي وقت.";
+"plan_offer_body" = "%1$s من الرسائل و%2$d من عمليات توليد الصور شهرياً. يمكنك الإلغاء في أي وقت.";
 "plan_upgrade" = "الترقية إلى Pro";
 "plan_manage_play" = "إدارة الاشتراك على Google Play";
 "plan_welcome" = "مرحباً بك في NoteFable Pro";

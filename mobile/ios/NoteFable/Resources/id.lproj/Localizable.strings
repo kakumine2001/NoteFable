@@ -347,6 +347,7 @@
 "language_change_failed" = "Tidak dapat mengubah bahasa. Silakan coba lagi.";
 "language_auto" = "Deteksi otomatis";
 "language_auto_current" = "Otomatis (saat ini: %1$s)";
+"language_auto_now" = "Saat ini: %1$s";
 "language_search" = "Cari bahasa";
 "language_effective" = "Bahasa saat ini";
 "language_no_results" = "Bahasa tidak ditemukan.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "Pesan hari ini";
 "plan_messages_period" = "Pesan periode ini";
 "plan_messages_month" = "Pesan bulan ini";
-"plan_images_today" = "Gambar hari ini";
-"plan_images_period" = "Gambar periode ini";
-"plan_images_month" = "Gambar bulan ini";
+"plan_images_today" = "Pembuatan gambar hari ini";
+"plan_images_period" = "Pembuatan gambar periode ini";
+"plan_images_month" = "Pembuatan gambar bulan ini";
 "plan_renews" = "Diperpanjang otomatis pada %1$s.";
 "plan_ends" = "Pro berakhir pada %1$s.";
 "plan_past_due" = "Pembayaran terakhir Anda gagal. Perbarui metode pembayaran Anda agar tetap menggunakan Pro.";
 "plan_load_failed" = "Tidak dapat memuat paket Anda.";
 "plan_offer_title" = "NoteFable Pro · %1$s/bulan";
-"plan_offer_body" = "%1$s pesan dan %2$d gambar per bulan. Batalkan kapan saja.";
+"plan_offer_body" = "%1$s pesan dan %2$d pembuatan gambar per bulan. Batalkan kapan saja.";
 "plan_upgrade" = "Upgrade ke Pro";
 "plan_manage_play" = "Kelola langganan di Google Play";
 "plan_welcome" = "Selamat datang di NoteFable Pro";

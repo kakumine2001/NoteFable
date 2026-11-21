@@ -347,6 +347,7 @@
 "language_change_failed" = "ไม่สามารถเปลี่ยนภาษาได้ กรุณาลองอีกครั้ง";
 "language_auto" = "ตรวจหาอัตโนมัติ";
 "language_auto_current" = "อัตโนมัติ (ปัจจุบัน: %1$s)";
+"language_auto_now" = "ปัจจุบัน: %1$s";
 "language_search" = "ค้นหาภาษา";
 "language_effective" = "ภาษาปัจจุบัน";
 "language_no_results" = "ไม่พบภาษา";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "ข้อความวันนี้";
 "plan_messages_period" = "ข้อความรอบนี้";
 "plan_messages_month" = "ข้อความเดือนนี้";
-"plan_images_today" = "รูปภาพวันนี้";
-"plan_images_period" = "รูปภาพรอบนี้";
-"plan_images_month" = "รูปภาพเดือนนี้";
+"plan_images_today" = "การสร้างรูปภาพวันนี้";
+"plan_images_period" = "การสร้างรูปภาพรอบนี้";
+"plan_images_month" = "การสร้างรูปภาพเดือนนี้";
 "plan_renews" = "ต่ออายุอัตโนมัติในวันที่ %1$s";
 "plan_ends" = "Pro จะสิ้นสุดในวันที่ %1$s";
 "plan_past_due" = "การชำระเงินครั้งล่าสุดไม่สำเร็จ กรุณาอัปเดตวิธีการชำระเงินเพื่อใช้งาน Pro ต่อ";
 "plan_load_failed" = "ไม่สามารถโหลดแผนการใช้งานของคุณได้";
 "plan_offer_title" = "NoteFable Pro · %1$s/เดือน";
-"plan_offer_body" = "%1$s ข้อความ และ %2$d รูปภาพต่อเดือน ยกเลิกได้ทุกเมื่อ";
+"plan_offer_body" = "%1$s ข้อความ และการสร้างรูปภาพ %2$d ครั้งต่อเดือน ยกเลิกได้ทุกเมื่อ";
 "plan_upgrade" = "อัปเกรดเป็น Pro";
 "plan_manage_play" = "จัดการการสมัครสมาชิกบน Google Play";
 "plan_welcome" = "ยินดีต้อนรับสู่ NoteFable Pro";

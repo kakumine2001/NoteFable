@@ -347,6 +347,7 @@
 "language_change_failed" = "Không thể đổi ngôn ngữ. Vui lòng thử lại.";
 "language_auto" = "Tự động nhận diện";
 "language_auto_current" = "Tự động (hiện tại: %1$s)";
+"language_auto_now" = "Hiện tại: %1$s";
 "language_search" = "Tìm kiếm ngôn ngữ";
 "language_effective" = "Ngôn ngữ hiện tại";
 "language_no_results" = "Không tìm thấy ngôn ngữ nào.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "Tin nhắn hôm nay";
 "plan_messages_period" = "Tin nhắn kỳ này";
 "plan_messages_month" = "Tin nhắn tháng này";
-"plan_images_today" = "Hình ảnh hôm nay";
-"plan_images_period" = "Hình ảnh kỳ này";
-"plan_images_month" = "Hình ảnh tháng này";
+"plan_images_today" = "Tạo hình ảnh hôm nay";
+"plan_images_period" = "Tạo hình ảnh kỳ này";
+"plan_images_month" = "Tạo hình ảnh tháng này";
 "plan_renews" = "Tự động gia hạn vào %1$s.";
 "plan_ends" = "Gói Pro kết thúc vào %1$s.";
 "plan_past_due" = "Lần thanh toán gần nhất của bạn không thành công. Hãy cập nhật phương thức thanh toán để tiếp tục sử dụng Pro.";
 "plan_load_failed" = "Không thể tải gói dịch vụ của bạn.";
 "plan_offer_title" = "NoteFable Pro · %1$s/tháng";
-"plan_offer_body" = "%1$s tin nhắn và %2$d hình ảnh mỗi tháng. Hủy bất cứ lúc nào.";
+"plan_offer_body" = "%1$s tin nhắn và %2$d lượt tạo hình ảnh mỗi tháng. Hủy bất cứ lúc nào.";
 "plan_upgrade" = "Nâng cấp lên Pro";
 "plan_manage_play" = "Quản lý gói đăng ký trên Google Play";
 "plan_welcome" = "Chào mừng bạn đến với NoteFable Pro";

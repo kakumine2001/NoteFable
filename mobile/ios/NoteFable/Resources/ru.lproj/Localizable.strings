@@ -347,6 +347,7 @@
 "language_change_failed" = "Не удалось изменить язык. Пожалуйста, попробуйте ещё раз.";
 "language_auto" = "Определять автоматически";
 "language_auto_current" = "Автоматически (сейчас: %1$s)";
+"language_auto_now" = "Сейчас: %1$s";
 "language_search" = "Поиск языков";
 "language_effective" = "Текущий язык";
 "language_no_results" = "Языки не найдены.";
@@ -384,15 +385,15 @@
 "plan_messages_today" = "Сообщения сегодня";
 "plan_messages_period" = "Сообщения за этот период";
 "plan_messages_month" = "Сообщения в этом месяце";
-"plan_images_today" = "Изображения сегодня";
-"plan_images_period" = "Изображения за этот период";
-"plan_images_month" = "Изображения в этом месяце";
+"plan_images_today" = "Генерации изображений сегодня";
+"plan_images_period" = "Генерации изображений за этот период";
+"plan_images_month" = "Генерации изображений в этом месяце";
 "plan_renews" = "Автопродление %1$s.";
 "plan_ends" = "Подписка Pro действует до %1$s.";
 "plan_past_due" = "Последний платёж не прошёл. Обновите способ оплаты, чтобы сохранить подписку Pro.";
 "plan_load_failed" = "Не удалось загрузить информацию о тарифе.";
 "plan_offer_title" = "NoteFable Pro · %1$s/мес.";
-"plan_offer_body" = "%1$s сообщений и %2$d изображений в месяц. Отмена в любой момент.";
+"plan_offer_body" = "%1$s сообщений и %2$d генераций изображений в месяц. Отмена в любой момент.";
 "plan_upgrade" = "Перейти на Pro";
 "plan_manage_play" = "Управление подпиской в Google Play";
 "plan_welcome" = "Добро пожаловать в NoteFable Pro";
