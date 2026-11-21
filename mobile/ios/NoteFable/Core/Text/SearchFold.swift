@@ -42,16 +42,29 @@ enum SearchFold {
         (value >= 0x4e00 && value <= 0x9fff) || (value >= 0x3400 && value <= 0x4dbf) || (value >= 0xac00 && value <= 0xd7a3)
     }
 
-    /// NFKC。Apple 平台用 Foundation 的 `precomposedStringWithCompatibilityMapping`。
-    /// Linux 的 Foundation（swift-corelibs）里这个属性只分解不合成（ﾃ+ﾞ 得到 テ+゛，가+ᆨ 不变），
-    /// 而单元测试在 Linux 上跑，所以那边改用 ICU 的 NFKC 变换（结果正确，已用对照用例核对）。
+    /// NFKC。Foundation 的 `precomposedStringWithCompatibilityMapping` 本该就是它，但 swift-foundation 的实现
+    /// （Linux，以及 macOS 26 的 CI 上实测也是）只分解不合成：ﾃ+ﾞ 得到 テ+゛，가+ᆨ 不变。
+    /// 所以第一次用时拿一小段文字试一遍，用第一个结果正确的做法；都不对时退回 Foundation 的（对照用例的单元测试会失败）。
     static func nfkc(_ text: String) -> String {
-        #if canImport(Darwin)
-        return text.precomposedStringWithCompatibilityMapping
-        #else
-        return text.applyingTransform(StringTransform(rawValue: "NFKC"), reverse: false) ?? text.precomposedStringWithCompatibilityMapping
-        #endif
+        nfkcImplementation(text)
     }
+
+    private static let nfkcImplementation: @Sendable (String) -> String = {
+        let candidates: [@Sendable (String) -> String] = [
+            { $0.precomposedStringWithCompatibilityMapping },
+            // NFKD 再 NFC：按定义就是 NFKC。
+            { $0.decomposedStringWithCompatibilityMapping.precomposedStringWithCanonicalMapping },
+            // ICU 的变换。
+            { $0.applyingTransform(StringTransform(rawValue: "NFKC"), reverse: false) ?? $0 },
+        ]
+        // ﾃﾞ、分开写的 각、Ａ、㌕ → デ 각 A キログラム。按码点比：String 的 == 把合成前后的写法算作相等。
+        let probe = "\u{FF83}\u{FF9E}\u{AC00}\u{11A8}\u{FF21}\u{3315}"
+        let expected: [UInt32] = [0x30C7, 0xAC01, 0x41, 0x30AD, 0x30ED, 0x30B0, 0x30E9, 0x30E0]
+        for candidate in candidates where candidate(probe).unicodeScalars.map(\.value) == expected {
+            return candidate
+        }
+        return candidates[0]
+    }()
 
     /// 折叠一个"字 + 跟着它的组合记号"，接到 `out` 后面，返回接了几个 UTF-16 码元。
     private static func foldCluster(_ cluster: ArraySlice<Unicode.Scalar>, into out: inout [UInt16]) -> Int {

@@ -37,6 +37,7 @@ private struct NoteFableWindow: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
     @Environment(\.scenePhase) private var scenePhase
+    @State private var lastOpened: (url: URL, at: Date)? = nil
 
     var body: some View {
         let language = app.language
@@ -50,7 +51,7 @@ private struct NoteFableWindow: View {
             // 自定义 URL scheme（Google 登录的回调）和 Universal Link 都可能从这里进来。
             .onOpenURL { url in open(url) }
             // Universal Link：`https://<工作区主机>/c/<会话>?message=<消息>` 等（规则在 `ChatLink.parse`；Android 的 VIEW intent）。
-            // 有这个处理时系统不再把同一个网址交给 onOpenURL。
+            // 同一个网址如果两边都收到，`open` 只处理一次。
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                 if let url = activity.webpageURL { open(url) }
             }
@@ -68,6 +69,10 @@ private struct NoteFableWindow: View {
 
     private func open(_ url: URL) {
         if GoogleSignInBridge.handle(url) { return }
+        // Universal Link 可能同时交给 onOpenURL 和 onContinueUserActivity：一秒内的同一个网址只开一次。
+        let now = Date()
+        if let last = lastOpened, last.url == url, now.timeIntervalSince(last.at) < 1 { return }
+        lastOpened = (url, now)
         router.handleIncomingURL(url)
     }
 }

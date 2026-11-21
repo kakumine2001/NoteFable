@@ -9,7 +9,7 @@
 - 工作流：[`.github/workflows/ios-pr.yml`](../../.github/workflows/ios-pr.yml)
 - 改动 `mobile/ios/**`、`mobile/android/app/src/main/assets/**`、`.github/workflows/ios-*.yml` 或 `scripts/release/ios-version*.sh` 并向 `main` 提 PR 时运行；只改 PR 标题或描述时不触发。
 - 先在 `ubuntu-latest` 上运行版本号校验脚本测试（`scripts/release/ios-version.test.sh`）与本次 PR 的版本号检查（`scripts/release/ios-version.sh`），避免版本号出错时白耗高倍率的 macOS 分钟数。
-- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `macos-26` 运行 `swift test`、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
+- 只有校验通过且仓库存在 `mobile/ios/project.yml` 时，才启动 `macos-26` 运行 Core 的单元测试（`mobile/ios/scripts/ci-core-tests.sh`：`swift test` 加一个时限，测试挂住时打印卡住的调用栈并提前结束，不把任务时限耗完）、XcodeGen 生成工程和模拟器无签名构建。PR 检查不接触任何发布凭据。
 
 ## 自动打包与上传 App Store Connect（TestFlight）
 
@@ -31,7 +31,7 @@
 - **Runner 与 SDK**：使用 `macos-26`（默认带 Xcode 26 / iOS 26 SDK，满足 App Store Connect 的最低 SDK 要求）。
 - **凭据前置检查**：在跑测试和安装工具前先校验 `appstore-publish` 的必需 Secrets 是否齐全且格式正确，缺失时直接列出缺项并快速失败。
 - **构建与云端签名**：
-  1. 运行 `swift test` 和 `xcodegen generate`。
+  1. 运行 Core 的单元测试（同一个 `ci-core-tests.sh`）和 `xcodegen generate`。
   2. 写入临时 `Config/Local.xcconfig`（注入 `DEVELOPMENT_TEAM` 与可选的 Google iOS 客户端配置，退出即删），以 `CODE_SIGNING_ALLOWED=NO` 执行 `xcodebuild archive` 生成 `.xcarchive`，核对包内 `CFBundleVersion` / `CFBundleShortVersionString` 与计划版本一致。
   3. 从构建配置读取 `CODE_SIGN_ENTITLEMENTS`（若配置了 entitlements 文件但缺失则直接失败），用 ad-hoc `codesign --force --sign "-" --entitlements ...` 补写权限声明，防止 `CODE_SIGNING_ALLOWED=NO` 导致 Associated Domains（`applinks:app.notefable.com`）在导出阶段丢失。
   4. 通过 `xcodebuild -exportArchive`（`method: app-store-connect`、`signingStyle: automatic`、`destination: export`、`manageAppVersionAndBuildNumber: false`）配合 `-allowProvisioningUpdates` 和 App Store Connect API Key（`.p8`）由 Apple 云端自动签名导出 `.ipa`，无需本地 `.p12` 证书或手动维护描述文件。

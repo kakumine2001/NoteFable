@@ -370,6 +370,14 @@ final class PersistentCookieJar: CookieStore, @unchecked Sendable {
         guard let data = try? JSONEncoder().encode(table.cookies) else { return }
         try? FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         try? data.write(to: fileURL, options: .atomic)
+        #if canImport(Darwin)
+        // 身份 Cookie 不进 iCloud / 电脑上的备份（Android 是 allowBackup="false"）：备份被别人拿到、或恢复到另一台手机时不带着登录会话。
+        // 原子写入会换成一个新文件，这个标记要每次写完重新加。
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        var url = fileURL
+        try? url.setResourceValues(values)
+        #endif
     }
 }
 

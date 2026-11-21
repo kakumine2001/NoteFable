@@ -59,7 +59,8 @@ jobs:
         run: xcodebuild -version
       - name: Core unit tests
         working-directory: mobile/ios
-        run: swift test
+        # A hung test would otherwise run until the job timeout: the script stops it and prints where it is stuck.
+        run: bash scripts/ci-core-tests.sh
       - name: Generate Xcode project
         working-directory: mobile/ios
         run: |
