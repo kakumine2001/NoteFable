@@ -50,6 +50,8 @@ struct NotesDrawerBody: View {
         }
         // 打开抽屉时的刷新（列表、清掉上次改图标失败的提示）由 Root 统一做（RootView.refreshDrawerLists）。
         .notesDialogs($dialog)
+        // 登录 / 退出后：旧身份的笔记对话框关掉（网页换身份会重新加载页面）。
+        .onChange(of: app.identityGeneration) { _, _ in dialog = nil }
     }
 }
 

@@ -35,6 +35,9 @@ private struct NotesDialogsModifier: ViewModifier {
     @Binding var dialog: NotesDialogState?
     /// 窗口里的请求进行中：这时点遮罩不关。
     @State private var busy = false
+    /// 每换一个窗口（包括关掉）加一。和 Android / 网页一样请求中也能点“取消”，那个请求晚回来时
+    /// 只认它自己的那一代：不改新窗口的 `busy`，也不关掉新窗口。
+    @State private var generation = 0
     @Environment(AppEnvironment.self) private var app
 
     func body(content: Content) -> some View {
@@ -47,9 +50,23 @@ private struct NotesDialogsModifier: ViewModifier {
                 source.wrappedValue = next
             }
         )
-        content.nfDialog(item: item, dismissDisabled: busy) { state in
-            NotesDialogContent(state: state, busy: $busy, close: { item.wrappedValue = nil })
-        }
+        let current = generation
+        let busyBinding = $busy
+        let generationBinding = $generation
+        let ownBusy = Binding<Bool>(
+            get: { busyBinding.wrappedValue },
+            set: { if generationBinding.wrappedValue == current { busyBinding.wrappedValue = $0 } }
+        )
+        content
+            .nfDialog(item: item, dismissDisabled: busy) { state in
+                NotesDialogContent(state: state, busy: ownBusy, close: {
+                    if generationBinding.wrappedValue == current { item.wrappedValue = nil }
+                })
+            }
+            .onChange(of: dialog?.id) { _, _ in
+                generation += 1
+                busy = false
+            }
     }
 }
 

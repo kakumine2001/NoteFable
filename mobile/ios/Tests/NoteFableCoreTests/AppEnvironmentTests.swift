@@ -220,6 +220,22 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(log.count("/api/pages"), before + 1)
     }
 
+    // MARK: - AppRouter
+
+    func testOpeningANoteSearchResultFromChatOpensTheNote() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        XCTAssertEqual(environment.notes.state.workspace, .chat)
+        router.searchOpen = true
+
+        router.openNote("n9", title: "Found", icon: "📘")
+        XCTAssertFalse(router.searchOpen)
+        // 不只是切到笔记列表：那篇笔记要打开（Android NoteFableRoot 的 onOpenNote）。
+        await eventually { environment.notes.state.open?.id == "n9" }
+        XCTAssertEqual(environment.notes.state.workspace, .notes)
+        XCTAssertEqual(environment.notes.state.open?.title, "Found")
+    }
+
     // MARK: - 打包的资源
 
     func testLoadsBundledAssets() async throws {

@@ -51,11 +51,11 @@ final class AppRouter {
     }
 
     /// 检索结果里的笔记：结果自带标题和图标，列表还没读过也能开。
+    /// 直接交给 openNote（Android NoteFableRoot 的 onOpenNote 也是）：它自己先存当前笔记、再切到笔记工作区。
+    /// 不能包在 setWorkspace(.notes) { … } 里：那个回调在导航进行中执行，openNote 会被当成重复导航丢掉。
     func openNote(_ id: String, title: String?, icon: String?) {
         dismissOverlays()
-        app.notes.setWorkspace(.notes) { [app] in
-            app.notes.openNote(id, title: title, icon: icon)
-        }
+        app.notes.openNote(id, title: title, icon: icon)
     }
 
     /// 打开一段聊天并定位到某条消息（检索结果、聊天链接）。在笔记里时先保存笔记，存不上就留在笔记里、不动聊天。
@@ -87,6 +87,8 @@ final class AppRouter {
     /// 登录 / 退出后：旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
     func onIdentityChanged() {
         createPageSessionId = nil
+        // 检索面板里还是旧身份的结果。
+        searchOpen = false
     }
 
     private func dismissOverlays() {

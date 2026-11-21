@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # 在 Linux Swift 容器里编译 / 测试 NoteFable/Core。源码目录只读挂在 /src，构建目录挂在 /build（用具名卷留住缓存）。
 #
-#   docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test
+#   docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v "<仓库>/mobile/android/app/src/main/assets:/android-assets:ro" \
+#     -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test
+# 不挂 /android-assets 时，读打包资源（models.json 等）的 4 个测试会跳过。
 #
 # 只检查一部分（别的文件还没写完时）：ONLY 是相对 NoteFable/ 的目录或文件，TESTS 是测试文件名，都用空格分开。
 #   -e ONLY="Core/Networking Core/Models" -e TESTS="NoteFableApiTests.swift"

@@ -24,7 +24,7 @@ indirect enum MarkdownInline: Equatable, Sendable {
     case softBreak
     /// 行尾两个空格或反斜杠的强制换行。
     case lineBreak
-    /// 行内公式的 LaTeX 源码（交给排版前先过 `MathMarkdown.typeset`）。
+    /// 行内公式的 LaTeX 源码（原样交给 SwiftMath，它自己区分减号和负号）。
     case math(String)
 
     /// 不带样式的文字（量宽度、读屏用）。公式是 LaTeX 源码，图片是替代文字。

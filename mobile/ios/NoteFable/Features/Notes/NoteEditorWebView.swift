@@ -43,9 +43,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     /// `window.webkit.messageHandlers.<名字>`：网页的 `window.NoteFableNative.postMessage` 经它转过来。
     private static let handlerName = "notefableNative"
 
-    /// 所有编辑器共用一个不落盘的数据存储：Cookie 每次加载前换成 App 的；网页的本地草稿（localStorage）在 App 运行期间留着，
-    /// 离开笔记再回来、网页进程崩溃后重新加载都还能恢复。
-    private static let dataStore = WKWebsiteDataStore.nonPersistent()
+    /// 所有编辑器共用 App 的默认（落盘的）数据存储：Cookie 每次加载前换成 App 的；网页的本地草稿（localStorage）
+    /// 和 Android 的 WebView 一样跨 App 重启保留，离开笔记再回来、网页进程崩溃、App 被系统杀掉后重新打开都还能恢复。
+    private static let dataStore = WKWebsiteDataStore.default()
+    /// 所有编辑器的换 Cookie 排成一条链，一次只换一个：旧的加载既不会清掉新加载刚放进去的 Cookie，也不会把上一个身份的 Cookie 放回去。
+    private static var cookieChain: Task<Void, Never>?
 
     private let editor: String
     private let app: AppEnvironment
@@ -58,6 +60,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private var pushedIcon: String?
     private var pushedLanguage = ""
     private var edgePan: UIScreenEdgePanGestureRecognizer?
+    /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：离开编辑页时关掉，网页不会一直等着。
+    private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
 
     init(editor: String, app: AppEnvironment, router: AppRouter) {
         self.editor = editor
@@ -120,12 +124,19 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         if language != pushedLanguage {
             pushedLanguage = language
             bridge.pushLanguage(language)
+            // 换成 / 换掉阿拉伯语时，返回手势也换到新的行首那一边。
+            edgePan?.edges = app.language.isRightToLeft ? .right : .left
         }
     }
 
     /// 离开编辑页：等着网页回答的保存都算失败，注销桥，停掉网页。
     func teardown() {
         loadRun += 1
+        if let dialog = openDialog {
+            openDialog = nil
+            if dialog.alert.presentingViewController != nil { dialog.alert.dismiss(animated: false) }
+            dialog.cancel()
+        }
         bridge.release(self)
         // 直接从一篇换到另一篇时，新编辑器可能已经登记了：只注销自己的。
         if app.editorBridge === bridge { app.registerEditor(nil) }
@@ -174,10 +185,15 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             forMainFrameOnly: true
         ))
 
-        let cookies = URL(string: app.config.baseURL).map { app.cookies(for: $0) } ?? []
-        Task { @MainActor [weak self] in
+        // 排在前面的换 Cookie 做完再轮到这次；轮到时这次已经被新的加载或离开页面取代就什么都不做。
+        // App 的 Cookie 在真正换的那一刻读，不用开始加载时的旧值（中间可能登录 / 退出了）。
+        let previous = Self.cookieChain
+        Self.cookieChain = Task { @MainActor [weak self] in
+            await previous?.value
+            guard let self, self.loadRun == current, self.webView != nil else { return }
+            let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
             await NoteEditorController.replaceCookies(cookies)
-            guard let self, self.loadRun == current, let webView = self.webView else { return }
+            guard self.loadRun == current, let webView = self.webView else { return }
             webView.load(URLRequest(url: url))
         }
     }
@@ -308,10 +324,33 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         UIApplication.shared.open(url, options: [:], completionHandler: nil)
     }
 
-    private func present(_ alert: UIAlertController) -> Bool {
-        guard let presenter = NoteFileDownloader.topViewController(webView) else { return false }
+    /// 弹出网页的提示框。弹不出来（没有窗口、最上面的画面正在关 / 正在弹出）时马上按 `cancel` 回答；
+    /// 弹出来了就记下来，离开编辑页时由 `teardown` 关掉并按 `cancel` 回答。
+    private func show(_ alert: UIAlertController, cancel: @escaping () -> Void) {
+        guard let presenter = NoteFileDownloader.topViewController(webView),
+              presenter.viewIfLoaded?.window != nil,
+              !presenter.isBeingDismissed, !presenter.isBeingPresented,
+              self.webView != nil
+        else {
+            cancel()
+            return
+        }
+        openDialog = (alert, cancel)
         presenter.present(alert, animated: true)
-        return true
+    }
+}
+
+/// 网页提示框的回答只给一次：按钮和 `teardown` 都可能来回答，后到的不再动续体。都在主线程上调用。
+private final class DialogAnswer<Value> {
+    private var continuation: CheckedContinuation<Value, Never>?
+
+    init(_ continuation: CheckedContinuation<Value, Never>) {
+        self.continuation = continuation
+    }
+
+    func resume(_ value: Value) {
+        continuation?.resume(returning: value)
+        continuation = nil
     }
 }
 
@@ -401,22 +440,24 @@ extension NoteEditorController: WKUIDelegate {
     }
 
     // 网页的 alert / confirm / prompt（冲突时“放弃草稿并读取最新版本？”用的是 window.confirm）：用系统的提示框。
-    // 弹不出来（没有窗口）时按“取消”回答。
+    // 弹不出来（没有窗口）或离开编辑页时按“取消”回答。
 
     func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async {
         await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            let answer = DialogAnswer(done)
             let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: L("done"), style: .default) { _ in done.resume() })
-            if !present(alert) { done.resume() }
+            alert.addAction(UIAlertAction(title: L("done"), style: .default) { _ in answer.resume(()) })
+            show(alert) { answer.resume(()) }
         }
     }
 
     func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String, initiatedByFrame frame: WKFrameInfo) async -> Bool {
-        await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+        await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            let answer = DialogAnswer(continuation)
             let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-            alert.addAction(UIAlertAction(title: L("cancel"), style: .cancel) { _ in answer.resume(returning: false) })
-            alert.addAction(UIAlertAction(title: L("done"), style: .default) { _ in answer.resume(returning: true) })
-            if !present(alert) { answer.resume(returning: false) }
+            alert.addAction(UIAlertAction(title: L("cancel"), style: .cancel) { _ in answer.resume(false) })
+            alert.addAction(UIAlertAction(title: L("done"), style: .default) { _ in answer.resume(true) })
+            show(alert) { answer.resume(false) }
         }
     }
 
@@ -426,14 +467,15 @@ extension NoteEditorController: WKUIDelegate {
         defaultText: String?,
         initiatedByFrame frame: WKFrameInfo
     ) async -> String? {
-        await withCheckedContinuation { (answer: CheckedContinuation<String?, Never>) in
+        await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            let answer = DialogAnswer(continuation)
             let alert = UIAlertController(title: nil, message: prompt, preferredStyle: .alert)
             alert.addTextField { field in field.text = defaultText }
-            alert.addAction(UIAlertAction(title: L("cancel"), style: .cancel) { _ in answer.resume(returning: nil) })
+            alert.addAction(UIAlertAction(title: L("cancel"), style: .cancel) { _ in answer.resume(nil) })
             alert.addAction(UIAlertAction(title: L("done"), style: .default) { [weak alert] _ in
-                answer.resume(returning: alert?.textFields?.first?.text ?? "")
+                answer.resume(alert?.textFields?.first?.text ?? "")
             })
-            if !present(alert) { answer.resume(returning: nil) }
+            show(alert) { answer.resume(nil) }
         }
     }
 }

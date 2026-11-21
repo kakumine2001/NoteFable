@@ -30,7 +30,8 @@ struct CodeBlock: View, Equatable {
     var body: some View {
         let highlighted = highlighter.highlight(code, language)
         VStack(alignment: .leading, spacing: 0) {
-            header(label: highlighted.label)
+            // 语言名每次重画时取：纯文本的"代码"跟着界面语言变（缓存里只记语言）。
+            header(label: CodeHighlighter.label(highlighted.language))
             ScrollView(.horizontal) {
                 Text(highlighted.text)
                     .font(.nfMono(codeFontSize))
@@ -98,7 +99,8 @@ struct CodeBlock: View, Equatable {
 
 /// 高亮好的代码。
 private struct HighlightedCode {
-    let label: String
+    /// 认出来的语言（`CodeHighlighter.plain` 是纯文本）。
+    let language: String
     let text: AttributedString
 }
 
@@ -106,7 +108,7 @@ private struct HighlightedCode {
 private final class CodeBlockHighlighter {
     private var code: String?
     private var language: String?
-    private var result = HighlightedCode(label: "", text: AttributedString())
+    private var result = HighlightedCode(language: "", text: AttributedString())
 
     func highlight(_ code: String, _ language: String?) -> HighlightedCode {
         if code == self.code, language == self.language { return result }
@@ -125,7 +127,7 @@ private final class CodeBlockHighlighter {
             }
             text.append(part)
         }
-        result = HighlightedCode(label: CodeHighlighter.label(highlighted.language), text: text)
+        result = HighlightedCode(language: highlighted.language, text: text)
         self.code = code
         self.language = language
         return result

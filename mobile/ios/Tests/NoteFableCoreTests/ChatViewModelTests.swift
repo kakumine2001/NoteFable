@@ -379,6 +379,32 @@ final class ChatViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testStopEndsASendStillWaitingForAStalledSessionList() async {
+        let clock = ChatTestClock()
+        let gate = ChatDeferred<Void>()
+        let backend = newBackend()
+        backend.sessionsHandler = { _ in
+            try await gate.value()
+            return []
+        }
+        let vm = await newViewModel(backend, clock)
+
+        vm.send("hello")
+        await clock.settle()
+        XCTAssertTrue(vm.state.sending)
+
+        // 会话列表还卡着：停止键不能被它拖住（Kotlin 的 join() 被取消就返回）。
+        vm.stop()
+        await clock.advanceUntilIdle()
+        XCTAssertFalse(vm.state.sending)
+        XCTAssertTrue(backend.requests.isEmpty)
+
+        gate.complete()
+        await clock.advanceUntilIdle()
+        XCTAssertTrue(backend.requests.isEmpty, "a stopped send never reaches /api/chat")
+    }
+
+    @MainActor
     func testAnOlderSessionListResponseCannotOverwriteANewerOne() async {
         let clock = ChatTestClock()
         let slow = ChatDeferred<[SessionSummary]>()

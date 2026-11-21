@@ -178,7 +178,12 @@ final class URLSessionTransportTests: XCTestCase {
     func testCancellingTheReaderEndsAStream() async throws {
         let proceed = DispatchSemaphore(value: 0)
         try start { _ in
-            .chunked(status: 200, headers: [:], chunks: [Data("one".utf8), Data("two".utf8)], between: { proceed.wait() })
+            // 要写 text/event-stream（聊天的流就是它）：Apple 的 URLSession 对没写类型的响应会先攒够 512 字节来猜类型，
+            // 第一块只有 3 个字节时一直不交出来，这个测试在 macOS 上就等不到第一块。
+            .chunked(
+                status: 200, headers: ["Content-Type": "text/event-stream"],
+                chunks: [Data("one".utf8), Data("two".utf8)], between: { proceed.wait() }
+            )
         }
         defer { proceed.signal() }
         let stream = try await transport.stream(HTTPRequest(url: url("/api/chat"), timeout: .streaming))
@@ -205,6 +210,25 @@ final class URLSessionTransportTests: XCTestCase {
         } catch {
             XCTAssertEqual((error as? URLError)?.code, .timedOut, "\(error)")
         }
+    }
+
+    func testAFinishedRequestWithATotalTimeLimitIsReleased() async throws {
+        try start { _ in .full(status: 200, headers: [:], body: Data("{}".utf8)) }
+        // 进度回调由请求的 Exchange 持有：请求结束后它被放掉，捕获的对象也就放掉了。
+        final class Canary: @unchecked Sendable {}
+        weak var released: Canary?
+        do {
+            let canary = Canary()
+            released = canary
+            let request = HTTPRequest(method: "POST", url: url("/x"), body: .data(Data("x".utf8)), timeout: HTTPTimeout(idle: 30, total: 60))
+            let (_, response) = try await transport.upload(request) { _, _ in _ = canary }
+            XCTAssertEqual(response.statusCode, 200)
+        }
+        // 总时限的计时器还排在队列里（60 秒后才到点）：它不能把 Exchange 留住。
+        for _ in 0..<200 where released != nil {
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+        XCTAssertNil(released, "the timed request's Exchange leaked")
     }
 
     func testAConnectionFailureIsANetworkErrorNotAnApiError() async throws {

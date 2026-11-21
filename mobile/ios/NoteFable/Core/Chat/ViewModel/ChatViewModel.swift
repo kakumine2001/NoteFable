@@ -305,6 +305,8 @@ final class ChatViewModel {
     func awaitSessionsRequest() async {
         while let job = sessionsJob, job.isActive {
             await job.join()
+            // 自己被取消（停止键、换身份）就不再等：Kotlin 的 join() 在这里抛 CancellationException。
+            if Task.isCancelled { return }
         }
     }
 

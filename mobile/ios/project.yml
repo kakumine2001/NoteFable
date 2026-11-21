@@ -64,6 +64,8 @@ targets:
         INFOPLIST_FILE: Support/Info.plist
         CODE_SIGN_ENTITLEMENTS: Support/NoteFable.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # 系统弹出的界面（提示框、确认菜单、选字光标）没单独设 tint 时用的强调色：AccentColor（#2383E2），不是系统蓝。
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_EMIT_LOC_STRINGS: NO

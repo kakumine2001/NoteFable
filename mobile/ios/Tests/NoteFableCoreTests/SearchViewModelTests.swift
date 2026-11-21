@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 import XCTest
 @testable import NoteFableCore
 
@@ -130,6 +131,23 @@ final class SearchViewModelTests: XCTestCase {
         await vm.job?.value
         XCTAssertEqual(backend.calls.count, 2)
         XCTAssertFalse(vm.state.view(projects, nil, true).failed)
+    }
+
+    @MainActor
+    func testProjectsArrivingLaterRedrawTheViewEvenWithoutANewSearch() async {
+        let backend = FakeSearch()
+        let clock = ManualClock()
+        let vm = model(backend, clock)
+        let changed = Collected<Bool>()
+        withObservationTracking {
+            _ = vm.view(currentProjectId: nil, chatFirst: true)
+        } onChange: {
+            changed.add(true)
+        }
+        // 检索条件没变（不重新检索），但项目筛选和项目名要跟着列表出来（Android 是 Compose 参数，变了就重组）。
+        vm.setProjects(projects)
+        XCTAssertEqual(changed.values, [true])
+        XCTAssertNil(vm.job)
     }
 
     @MainActor

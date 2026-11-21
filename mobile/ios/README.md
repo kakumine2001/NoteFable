@@ -17,7 +17,8 @@ mobile/ios/
       Chat/  Notes/  Sidebar/  Search/  Account/  Text/
     DesignSystem/      Theme（Sm 颜色）、Lucide 图标、Mascot、通用控件
     Features/          各界面：Root、Chat、Sidebar、Notes、Search、Account、Settings
-    Resources/         Assets.xcassets、<语言>.lproj/Localizable.strings、打包的 JSON 资源
+    Resources/         Assets.xcassets、<语言>.lproj/Localizable.strings
+                       （打包的 JSON 资源和 Android 共用，project.yml 直接引用 mobile/android/app/src/main/assets/，不另存一份）
   Tests/NoteFableCoreTests/   Core 的单元测试（XCTest）
 ```
 
@@ -37,8 +38,9 @@ mobile/ios/
 Windows / Linux（没有 Xcode）只能验证 Core 和语法：
 
 ```bash
-# Core：编译 + 单元测试（Docker 里的 Linux Swift）
-docker run --rm -v "<仓库>/mobile/ios:/src" -v nf-ios-build:/build -w /src swift:6.1 swift test --scratch-path /build
+# Core：编译 + 单元测试（Docker 里的 Linux Swift）。源码只读，构建缓存在具名卷里；
+# 和 Android 共用的 JSON 资源挂在 /android-assets，不挂的话读这些资源的测试会跳过。
+docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v "<仓库>/mobile/android/app/src/main/assets:/android-assets:ro" -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test
 # 界面层：只查语法（不查类型）
 docker run --rm -v "<仓库>/mobile/ios:/src" -w /src swift:6.1 bash -c 'find NoteFable -name "*.swift" -print0 | xargs -0 swiftc -frontend -parse'
 ```

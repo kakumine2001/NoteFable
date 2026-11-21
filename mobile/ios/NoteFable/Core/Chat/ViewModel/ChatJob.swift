@@ -7,6 +7,9 @@ final class ChatJob {
     private(set) var isCompleted = false
     private(set) var isCancelled = false
     private var task: Task<Void, Never>?
+    /// 在 [join] 里等着的调用方；任务结束或调用方自己被取消时放行。
+    private var waiters: [Int: CheckedContinuation<Void, Never>] = [:]
+    private var nextWaiter = 0
 
     init() {}
 
@@ -19,6 +22,9 @@ final class ChatJob {
         task = Task { @MainActor in
             if !(skipIfCancelled && self.isCancelled) { await body() }
             self.isCompleted = true
+            let waiting = self.waiters.values
+            self.waiters = [:]
+            waiting.forEach { $0.resume() }
         }
     }
 
@@ -28,8 +34,23 @@ final class ChatJob {
     }
 
     /// 等任务结束（被取消的也等它收尾完）。
+    /// 和 Kotlin 的 Job.join() 一样，等的一方自己被取消时马上返回（不取消这个任务）：`await task.value` 不理会
+    /// 调用方的取消，停止键会被一个卡住的请求拖住。返回后调用方自己查 `Task.isCancelled`。
     func join() async {
-        await task?.value
+        if task == nil || isCompleted { return }
+        nextWaiter += 1
+        let id = nextWaiter
+        await withTaskCancellationHandler {
+            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                if isCompleted || Task.isCancelled {
+                    continuation.resume()
+                } else {
+                    waiters[id] = continuation
+                }
+            }
+        } onCancel: {
+            Task { @MainActor in self.waiters.removeValue(forKey: id)?.resume() }
+        }
     }
 
     @discardableResult

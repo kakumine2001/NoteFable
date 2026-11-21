@@ -28,9 +28,19 @@ extension EnvironmentValues {
     }
 }
 
+/// `SelectableText` 显示的内容由什么决定：这几样没变，拼出来的文字就一样。
+/// 不直接比 `NSAttributedString`：公式的 `NSTextAttachment` 每次拼都是新对象、只按对象比，带公式的段落永远"不相等"。
+struct SelectableTextContent: Equatable {
+    let pieces: [AnswerInlinePiece]
+    let style: AnswerTextStyle
+    let baseURL: String
+}
+
 /// 一段可以选中的富文本。宽度跟内容（最宽到外面给的宽度），高度跟着折行后的内容。
 struct SelectableText: UIViewRepresentable {
     let text: NSAttributedString
+    /// `text` 的来源；它没变时不重设文字。
+    let content: SelectableTextContent
     /// 外面给的宽度是 0（父视图在问"最窄多窄"）时报的高度：一行的行高。
     let minHeight: CGFloat
     let quote: AnswerQuoteAction?
@@ -67,12 +77,12 @@ struct SelectableText: UIViewRepresentable {
         let coordinator = context.coordinator
         coordinator.quote = quote
         coordinator.onOpenLink = onOpenLink
-        // 内容没变就不重设：重设会丢掉用户正在选的选区。
-        if coordinator.text !== text, !(coordinator.text?.isEqual(to: text) ?? false) {
+        // 内容没变就不重设：重设会丢掉用户正在选的选区（回答之外的重绘也会走到这里）。
+        if coordinator.content != content {
             view.attributedText = text
             view.invalidateIntrinsicContentSize()
+            coordinator.content = content
         }
-        coordinator.text = text
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
@@ -108,7 +118,7 @@ struct SelectableText: UIViewRepresentable {
         var quote: AnswerQuoteAction?
         var onOpenLink: ((URL) -> Void)?
         /// 现在显示着的内容。
-        var text: NSAttributedString?
+        var content: SelectableTextContent?
 
         // 点链接：交给外面（本站的聊天链接在 App 里开，其余用系统浏览器），不走系统默认的打开方式和长按预览。
         func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool {

@@ -89,7 +89,10 @@ final class URLSessionTransport: NSObject, HTTPTransport, @unchecked Sendable {
         lock.withLock { exchanges[task.taskIdentifier] = exchange }
         if let total = request.timeout.total {
             // URLSession 只有按会话设的资源超时，没有按请求的总时限：自己计时，到点取消并报超时。
-            let watchdog = DispatchWorkItem { [weak self, weak task] in
+            // exchange 要弱引用：DispatchWorkItem 取消后也一直留着闭包，强引用会和 exchange.watchdog 成环，
+            // 每个请求的 Exchange（连同读到的整个响应体）都放不掉。
+            let watchdog = DispatchWorkItem { [weak self, weak task, weak exchange] in
+                guard let exchange else { return }
                 self?.lock.withLock { exchange.timedOut = true }
                 task?.cancel()
             }
@@ -195,6 +198,7 @@ extension URLSessionTransport: URLSessionDataDelegate {
         }
         guard let (exchange, timedOut) = found else { return }
         exchange.watchdog?.cancel()
+        exchange.watchdog = nil
 
         let failure: Error? = error.map { error in
             if timedOut { return URLError(.timedOut) }

@@ -135,6 +135,8 @@ struct AvatarCropper: View {
     /// 拖动开始时的偏移：之后每次用"原偏移 + 总位移"重新夹（拖出边界再拖回来时与网页一致）。
     @State private var dragOrigin: CGSize?
     @State private var exporting = false
+    /// 正在画要上传的图片。裁剪界面没了（取消、关掉编辑区）就作废，画完也不上传（Android 的 scope 随界面取消）。
+    @State private var export: Task<Void, Never>?
 
     init(data: Data, saving: Bool, error: String?, onCancel: @escaping () -> Void, onSave: @escaping (Data) -> Void) {
         self.data = data
@@ -208,6 +210,10 @@ struct AvatarCropper: View {
             let decoded = await AvatarImageDecoder.decodeInBackground(data)
             if !Task.isCancelled { source = decoded }
         }
+        .onDisappear {
+            export?.cancel()
+            export = nil
+        }
     }
 
     /// 预览圆：直径 200，外侧 1px 的细环（box-shadow 0 0 0 1px），所以外框是 202。照片不随界面方向翻转。
@@ -262,9 +268,12 @@ struct AvatarCropper: View {
     private func save(_ image: CGImage?, _ current: CropLayout?) {
         guard let image, let current, !exporting else { return }
         exporting = true
-        Task { @MainActor in
+        let onSave = self.onSave
+        export = Task { @MainActor in
             let bytes = await AvatarImageDecoder.renderAvatarInBackground(image, layout: current)
+            if Task.isCancelled { return }
             exporting = false
+            export = nil
             if let bytes { onSave(bytes) }
         }
     }

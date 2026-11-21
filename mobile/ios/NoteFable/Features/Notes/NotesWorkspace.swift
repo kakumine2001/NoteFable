@@ -30,6 +30,8 @@ struct NotesWorkspace: View {
         .background(Sm.surface)
         .notesDialogs($dialog)
         .noteTrashSheet()
+        // 登录 / 退出后：旧身份的笔记对话框关掉（网页换身份会重新加载页面）。
+        .onChange(of: app.identityGeneration) { _, _ in dialog = nil }
     }
 
     /// 笔记列表的顶栏（高 56、左右 10.4）：网页手机版是左边菜单、右边搜索。

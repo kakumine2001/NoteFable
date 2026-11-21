@@ -133,6 +133,11 @@ private struct ChatDrawerList: View, Equatable {
                 ProjectSettingsDialog(model: settings)
             }
         }
+        // 登录 / 退出后：旧身份的对话框和项目设置关掉（网页换身份会重新加载页面）。
+        .onChange(of: app.identityGeneration) { _, _ in
+            dialog = nil
+            settings = nil
+        }
     }
 
     private var settingsPresented: Binding<Bool> {

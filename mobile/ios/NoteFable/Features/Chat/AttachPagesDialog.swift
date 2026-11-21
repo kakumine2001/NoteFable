@@ -114,7 +114,8 @@ private struct AttachPagesDialogBody: View {
                     if footerHeight != size.height { footerHeight = size.height }
                 }
         }
-        .background(Sm.surface, in: shape)
+        // 卡片上的空白处不算"点外面"（和 EmojiPicker 一样明确接住，不靠遮罩和卡片的层叠顺序）。
+        .background { shape.fill(Sm.surface).onTapGesture {} }
         .clipShape(shape)
         // --notion-shadow：0 4px 14px rgba(15,15,15,.12) + 外侧 1px 的细环 rgba(15,15,15,.05)。
         .overlay {

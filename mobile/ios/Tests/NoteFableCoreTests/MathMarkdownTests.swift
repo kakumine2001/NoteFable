@@ -141,29 +141,6 @@ final class MathMarkdownTests: XCTestCase {
         XCTAssertEqual(MathMarkdown.prepare("数式 \\( a \\) です").formulas, [inline("a")])
     }
 
-    func testTypesetsMinusSigns() {
-        let minus = "\u{2212}"
-        // 减法（两边有间距）和负号（没有间距）。
-        XCTAssertEqual(
-            MathMarkdown.typeset("x=\\frac{-b\\pm\\sqrt{b^2-4ac}}{2a}"),
-            "x=\\frac{\(minus)b\\pm\\sqrt{b^2\\minus 4ac}}{2a}"
-        )
-        XCTAssertEqual(MathMarkdown.typeset("a - -b"), "a \\minus  \(minus)b")
-        XCTAssertEqual(MathMarkdown.typeset("(-1) \\cdot -2"), "(\(minus)1) \\cdot \(minus)2")
-        XCTAssertEqual(MathMarkdown.typeset("2\\pi - 1"), "2\\pi \\minus  1")
-        XCTAssertEqual(MathMarkdown.typeset("\\left|x\\right|-1"), "\\left|x\\right|\\minus 1")
-        // 上下标里不加间距。
-        XCTAssertEqual(
-            MathMarkdown.typeset("e^{-x} + x_{n-1} + 10^{-3}-1"),
-            "e^{\(minus)x} + x_{n\(minus)1} + 10^{\(minus)3}\\minus 1"
-        )
-        // 文字、环境名、长度里的 - 不动。
-        XCTAssertEqual(MathMarkdown.typeset("\\text{well-known} - 1"), "\\text{well-known} \\minus  1")
-        XCTAssertEqual(MathMarkdown.typeset("a\\\\[-2pt]b\\kern-2pt c\\hspace{-1em}d"), "a\\\\[-2pt]b\\kern-2pt c\\hspace{-1em}d")
-        XCTAssertEqual(MathMarkdown.typeset("\\begin{align-x}a\\end{align-x}"), "\\begin{align-x}a\\end{align-x}")
-        XCTAssertEqual(MathMarkdown.typeset("a+b"), "a+b")
-    }
-
     func testFindsTheDisplayFormulaOfAParagraph() {
         let formulas = [inline("a"), block("b")]
         XCTAssertEqual(MathMarkdown.displayFormula("  \(p(1))\n", formulas), block("b"))

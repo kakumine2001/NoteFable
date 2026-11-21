@@ -57,6 +57,10 @@ final class ChatScrollController: NSObject {
         observations = []
         scrollView?.panGestureRecognizer.removeTarget(self, action: #selector(handlePan(_:)))
         scrollView = nil
+        // 等着的检查都是对旧的 UIScrollView 的：一起取消。
+        cancelProgrammatic()
+        idleTask?.cancel()
+        idleTask = nil
     }
 
     // MARK: - 给消息列表用的

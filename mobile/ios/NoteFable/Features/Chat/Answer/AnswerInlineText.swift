@@ -420,6 +420,7 @@ struct AnswerRichText: View {
         if selectable {
             SelectableText(
                 text: AnswerInlineRenderer.attributedString(pieces, style: style, links: links),
+                content: SelectableTextContent(pieces: pieces, style: style, baseURL: app.config.baseURL),
                 minHeight: style.lineHeight,
                 quote: quote,
                 onOpenLink: { url in openLink(url) }
@@ -476,13 +477,14 @@ private struct AnswerInlineImage: View {
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
-    @State private var loaded: UIImage? = nil
+    /// 带着地址和身份记：段落里的图片按位置排，同一个位置换了地址（生成途中）或换了身份时不留旧图。
+    @State private var loaded: LoadedImage? = nil
 
     var body: some View {
         let links = AnswerLinkResolver(baseURL: app.config.baseURL)
         let address = links.url(source)?.absoluteString ?? source
         Group {
-            if let image = loaded ?? RemoteImageLoader.cachedImage(address, app: app) {
+            if let image = loaded?.current(address, app: app) ?? RemoteImageLoader.cachedImage(address, app: app) {
                 Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -499,10 +501,10 @@ private struct AnswerInlineImage: View {
             if router.handleIncomingURL(url) { return }
             UIApplication.shared.open(url)
         }
-        .task(id: address) {
+        .task(id: RemoteImageRequest(path: address, generation: app.identityGeneration)) {
             let image = await RemoteImageLoader.image(address, app: app)
             if Task.isCancelled { return }
-            loaded = image
+            loaded = image.map { LoadedImage(path: address, generation: app.identityGeneration, image: $0) }
         }
     }
 }

@@ -66,6 +66,13 @@ struct ProfileSettings: View {
                 pickedItem = nil
             }
         }
+        .onChange(of: state.editor) { _, editor in
+            // 照片还在读时换到表情页、关上编辑区：这张照片不要了（`picked` 那时本来就是 false，上面的不会触发）。
+            if editor != .photo {
+                photo = nil
+                pickedItem = nil
+            }
+        }
         .onChange(of: nameFocused) { _, focused in model.nameFocusChanged(focused) }
     }
 
@@ -74,7 +81,8 @@ struct ProfileSettings: View {
         let type = item.supportedContentTypes.first { $0.conforms(to: .image) }
         let mimeType = type.map { $0.preferredMIMEType ?? "image/*" }
         let data = try? await item.loadTransferable(type: Data.self)
-        guard pickedItem == item else { return }
+        // 读的时候换了照片、离开了照片页或关了设置：不再进入裁剪（否则 `picked` 留在 true，设置关不掉、不能退出）。
+        guard pickedItem == item, model.state.editor == .photo else { return }
         guard let data else {
             // 读不出来：按"不是图片"提示。
             model.photoPicked(mimeType: nil, size: nil)

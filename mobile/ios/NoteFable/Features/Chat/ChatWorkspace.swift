@@ -67,6 +67,11 @@ struct ChatWorkspace: View {
         .onChange(of: state.quote) { old, new in
             if let new, new != old, state.upload == nil { focusRequest += 1 }
         }
+        // 定位请求平常由消息列表处理；读取失败、或读完是空会话时列表不在界面上，在这里作废请求
+        // （Android 的 revealMessage 在分支外面，四种情况都会处理到），免得它一直挂着、之后挡住贴底。
+        .task(id: ChatRevealTrigger(state)) {
+            consumeRevealWithoutList()
+        }
         .task(id: ChatRecentNotesTrigger(
             show: showRecent,
             pages: app.notes.state.pages,
@@ -141,6 +146,21 @@ struct ChatWorkspace: View {
         }
         .padding(ChatMetrics.pageGutter)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 列表不显示（读取失败 / 没有消息）时，这段聊天的定位请求找不到目标：作废。
+    private func consumeRevealWithoutList() {
+        let state = app.chat.state
+        guard let request = state.reveal, state.messagesFailed || state.messages.isEmpty else { return }
+        let step = revealStep(
+            requestSessionId: request.sessionId,
+            activeSessionId: state.activeSessionId,
+            messagesLoading: state.messagesLoading,
+            messagesFailed: state.messagesFailed,
+            messageIds: state.messages.map(\.id),
+            messageId: request.messageId
+        )
+        if step == .notFound { app.chat.consumeReveal(request.token) }
     }
 
     /// 笔记列表变了（导出、应用了提案）或换了身份就重读；读不到当作没有。不显示时清空，回来时从空的开始。

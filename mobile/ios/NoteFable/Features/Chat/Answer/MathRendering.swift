@@ -5,7 +5,9 @@ import UIKit
 // 数学公式的排版（网页用 KaTeX，Android 用 latex-renderer；这里用 SwiftMath，iosMath 的 Swift 版，自带 Latin Modern Math 字体）。
 // 用到 SwiftMath 的地方都在这个文件里：`MTMathUILabel` 负责解析和排版，排好的结果（`displayList`）画成一张图片，
 // 行内公式按基线嵌进文字，独立公式居中显示。同一个公式（源码、字号、颜色都相同）只排一次。
-// 交给排版库之前先过 `MathMarkdown.typeset`（把 - 换成真正的减号，规则和 Android 相同）。
+// LaTeX 源码原样交给 SwiftMath。Android 的 `MathMarkdown.typeset`（把 - 换成 `\minus` / U+2212）没有移植：那是给 latex-renderer 用的（它把 - 画成短横线），
+// SwiftMath 自己就把 - 排成减号 U+2212，并按 TeX 的规则把开头、运算符后面的 - 当负号（MTMathList.finalized）；
+// 它没有 `\minus` 命令（整个公式会报错），也不认 LaTeX 源码里的非 ASCII 字符 U+2212（直接丢掉，负号就没了）。
 
 /// 排好的公式：图片，以及基线离图片底边的距离。
 struct MathRender {
@@ -49,7 +51,7 @@ final class MathImageCache {
         label.textAlignment = .left
         label.fontSize = fontSize
         label.textColor = color
-        label.latex = MathMarkdown.typeset(latex)
+        label.latex = latex
         guard label.error == nil, label.mathList != nil else { return nil }
 
         let fitting = label.intrinsicContentSize

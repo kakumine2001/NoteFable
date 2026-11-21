@@ -18,7 +18,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 568 项单元测试通过（移植自 Android 的单元测试） |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 570 多项单元测试通过（大部分移植自 Android 的单元测试） |
 | `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
 
 上线前还缺：
@@ -88,7 +88,7 @@ mobile/ios/
 | 输入框粘贴图片 | `BasicTextField` 的 `contentReceiver` | `UITextView` 子类重写 `paste` |
 | 选文件 / 照片 / 拍照 | 系统选择器 | `PhotosPicker`、`fileImporter`、`UIImagePickerController` |
 | 保存生成的图片 | MediaStore | `PHPhotoLibrary`（只申请“添加”权限） |
-| 笔记编辑器 | `WebView` + `addJavascriptInterface` | `WKWebView` + `WKScriptMessageHandler`；加载前把 App 的 Cookie 抄进它的 Cookie 库 |
+| 笔记编辑器 | `WebView` + `addJavascriptInterface` | `WKWebView` + `WKScriptMessageHandler`；用落盘的默认数据存储（网页的本地草稿和 Android 一样跨 App 重启保留），每次加载前把它的 Cookie 换成 App 的（所有编辑器排成一条链依次换） |
 | Google 登录 | Credential Manager | GoogleSignIn SDK |
 | 返回键 | 系统返回键、预测性返回 | 没有返回键：抽屉、面板、编辑页用边缘滑动或各自的关闭按钮 |
 
@@ -104,7 +104,7 @@ mobile/ios/
 
 ## 生成的文件
 
-这些文件由脚本从 Android / 网页的源头生成，不手改；对应的 vitest 测试在生成物过期时失败。
+这些文件由脚本从 Android / 网页的源头生成，不手改。前三个有 vitest 测试，生成物过期时失败；`AppIcon-1024.png` 没有测试，改了 `src/app/icon.svg` 要自己重跑脚本。
 
 | 文件 | 来源 | 脚本 |
 | --- | --- | --- |
@@ -119,7 +119,7 @@ mobile/ios/
 
 没有 Mac 时：
 
-- Core：`docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test`
+- Core：`docker run --rm -v "<仓库>/mobile/ios:/src:ro" -v "<仓库>/mobile/android/app/src/main/assets:/android-assets:ro" -v nf-ios-build:/build swift:6.1 bash /src/scripts/core-check.sh test`（和 Android 共用的 JSON 资源挂在 `/android-assets`；不挂的话读这些资源的测试会跳过）
 - 界面层只能查语法：`swiftc -frontend -parse`（命令见 README）。**类型错误只有 CI 能发现**：改到 `mobile/ios/**` 的 PR 会在 `macos-26` 上跑 `swift test`、`xcodegen generate` 和模拟器无签名构建，失败时 “Compiler errors” 一步列出全部错误。macOS 机器按高倍率计分钟数，尽量攒够改动再推。
 
 有 Mac 时：`brew install xcodegen && cd mobile/ios && xcodegen generate && open NoteFable.xcodeproj`。

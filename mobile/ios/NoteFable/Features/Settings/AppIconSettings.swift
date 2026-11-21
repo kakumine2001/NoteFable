@@ -24,6 +24,8 @@ struct AppIconSettings: View {
     @State private var error: AppIconSettingsError?
     @State private var pickerShown = false
     @State private var pickedItem: PhotosPickerItem?
+    /// 每次选角色、选图片加一：图片还在后台处理时又选了别的，处理完的旧图片不再盖掉新的选择。
+    @State private var choice = 0
 
     init(model: SettingsDialogModel) {
         self.model = model
@@ -72,7 +74,10 @@ struct AppIconSettings: View {
             if picking {
                 AppIconCharacterPicker(
                     selected: selectedCharacter(icon),
-                    onSelect: { character in save(toCharacterIcon(character)) },
+                    onSelect: { character in
+                        choice += 1
+                        save(toCharacterIcon(character))
+                    },
                     onClose: { model.setAppIconPicking(false) }
                 )
                 .padding(.horizontal, 16)
@@ -110,12 +115,21 @@ struct AppIconSettings: View {
     }
 
     private func load(_ item: PhotosPickerItem) async {
+        choice += 1
+        let mine = choice
         let isImage = item.supportedContentTypes.contains { $0.conforms(to: .image) }
         let data = isImage ? (try? await item.loadTransferable(type: Data.self)) : nil
-        guard pickedItem == item else { return }
+        guard pickedItem == item, choice == mine else { return }
         // 下次再选同一张也要有反应。
         pickedItem = nil
-        guard let data, let icon = await AvatarImageDecoder.renderAppIconInBackground(data) else {
+        let icon: AppIconValue?
+        if let data {
+            icon = await AvatarImageDecoder.renderAppIconInBackground(data)
+        } else {
+            icon = nil
+        }
+        guard choice == mine else { return }
+        guard let icon else {
             error = .notImage
             return
         }

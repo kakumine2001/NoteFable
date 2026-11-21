@@ -29,7 +29,9 @@ private struct GeneratedImageView: View {
     let image: GeneratedImageDto
 
     @Environment(AppEnvironment.self) private var app
-    @State private var loaded: UIImage? = nil
+    /// 读到的图片和读它时的身份。地址变了（data: 换成存好后的 `/api/attachments/…/image`）还是同一张图（按 id 排），
+    /// 新地址读完前接着显示；换了身份就不再显示。
+    @State private var loaded: (image: UIImage, generation: Int)? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 4.8)
@@ -53,17 +55,19 @@ private struct GeneratedImageView: View {
                 .padding(.bottom, 14.4)
                 .accessibilityLabel(L("image_download"))
             }
-            .task(id: image.dataUrl) {
+            .task(id: RemoteImageRequest(path: image.dataUrl, generation: app.identityGeneration)) {
                 let result = await RemoteImageLoader.image(image.dataUrl, app: app)
                 if Task.isCancelled { return }
-                loaded = result
+                // 新地址读不到时留着同一张图的旧结果（同一身份下）。
+                if let result { loaded = (result, app.identityGeneration) }
             }
     }
 
     /// 占满宽度、高度按图片的宽高比；读到之前先占一个正方形。
     @ViewBuilder
     private var picture: some View {
-        if let shown = loaded ?? RemoteImageLoader.cachedImage(image.dataUrl, app: app) {
+        let current = loaded.flatMap { $0.generation == app.identityGeneration ? $0.image : nil }
+        if let shown = RemoteImageLoader.cachedImage(image.dataUrl, app: app) ?? current {
             Image(uiImage: shown)
                 .resizable()
                 .aspectRatio(contentMode: .fit)

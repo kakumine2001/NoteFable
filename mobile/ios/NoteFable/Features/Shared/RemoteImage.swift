@@ -25,8 +25,16 @@ enum RemoteImageLoader {
             guard let bytes = dataUrlBytes(path) else { return nil }
             data = bytes
         } else {
-            guard let bytes = try? await app.fetchData(path) else { return nil }
-            data = bytes
+            switch source(path, baseURL: app.config.baseURL) {
+            case .app:
+                guard let bytes = try? await app.fetchData(path) else { return nil }
+                data = bytes
+            case .external(let url):
+                guard let bytes = await fetchExternal(url) else { return nil }
+                data = bytes
+            case .unsupported:
+                return nil
+            }
         }
         let decoded = await Task.detached(priority: .userInitiated) { () -> UIImage? in
             guard let image = UIImage(data: data) else { return nil }
@@ -53,6 +61,45 @@ enum RemoteImageLoader {
     private static func cost(of image: UIImage) -> Int {
         let pixels = image.size.width * image.scale * image.size.height * image.scale
         return max(1, Int(pixels) * 4)
+    }
+
+    private enum Source {
+        /// 本站（相对路径或同源的完整地址）：带 App 的 Cookie 读。
+        case app
+        /// 别的站点的 http(s) 图片（回答里 Markdown 的外链插图、Google 头像）。
+        case external(URL)
+        /// 其它协议：不读。
+        case unsupported
+    }
+
+    private static func source(_ path: String, baseURL: String) -> Source {
+        // 没有协议的是本站的相对路径（`/api/…`），和原来一样交给 App 的客户端补全。
+        guard let url = URL(string: path), let scheme = url.scheme?.lowercased() else { return .app }
+        guard scheme == "http" || scheme == "https" else { return .unsupported }
+        if let base = URL(string: baseURL), base.scheme?.lowercased() == scheme,
+           base.host?.lowercased() == url.host?.lowercased(), base.port == url.port {
+            return .app
+        }
+        return .external(url)
+    }
+
+    /// 别的站点的图片不走 App 的 HTTP 客户端：那边会把任何站点回的 Set-Cookie 存进 App 的 Cookie 罐，
+    /// 跳转回本站时还会带上登录 Cookie。这里用一个不读写 Cookie、不留缓存的临时会话（网页里浏览器也不会给外站带本站的 Cookie）。
+    private static let externalSession: URLSession = {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.httpCookieAcceptPolicy = .never
+        configuration.httpShouldSetCookies = false
+        configuration.httpCookieStorage = nil
+        configuration.urlCredentialStorage = nil
+        configuration.urlCache = nil
+        configuration.timeoutIntervalForRequest = 30
+        return URLSession(configuration: configuration)
+    }()
+
+    private static func fetchExternal(_ url: URL) async -> Data? {
+        guard let result = try? await externalSession.data(from: url),
+              let http = result.1 as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { return nil }
+        return result.0
     }
 }
 
@@ -96,24 +143,32 @@ struct RemoteImage: View {
         .task(id: RemoteImageRequest(path: path, generation: app.identityGeneration)) {
             let image = await RemoteImageLoader.image(path, app: app)
             if Task.isCancelled { return }
-            loaded = image.map { LoadedImage(path: path, image: $0) }
+            loaded = image.map { LoadedImage(path: path, generation: app.identityGeneration, image: $0) }
         }
     }
 
-    /// 换了地址后旧图不再显示；缓存里有的直接用。
+    /// 换了地址或身份后旧图不再显示；缓存里有的直接用。
     private var currentImage: UIImage? {
-        if let loaded, loaded.path == path { return loaded.image }
+        if let image = loaded?.current(path, app: app) { return image }
         return RemoteImageLoader.cachedImage(path, app: app)
     }
 }
 
-private struct LoadedImage {
+/// 视图里记着的已读到的图片，连同读它时的地址和身份：地址或身份变了就不再拿出来用
+/// （`.task(id:)` 重新读完之前，不能把上一个地址 / 上一个身份的图片留在屏幕上）。
+struct LoadedImage {
     let path: String
+    let generation: Int
     let image: UIImage
+
+    @MainActor
+    func current(_ path: String, app: AppEnvironment) -> UIImage? {
+        path == self.path && generation == app.identityGeneration ? image : nil
+    }
 }
 
 /// `.task(id:)` 的标识：地址或身份变了就重新读。
-private struct RemoteImageRequest: Equatable {
+struct RemoteImageRequest: Equatable {
     let path: String
     let generation: Int
 }

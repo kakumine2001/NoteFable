@@ -142,7 +142,9 @@ final class SearchViewModel {
     @ObservationIgnored private let backend: SearchBackend
     @ObservationIgnored private let debounceMs: Int
     @ObservationIgnored private let sleep: (Int) async throws -> Void
-    @ObservationIgnored private var projects: [ChatProjectSummary] = []
+    /// 要被观察：[view] 用它出项目筛选和项目名，列表读完时条件没变（不重新检索）界面也得重画
+    /// （Android 是 Compose 的参数，变了就重组）。
+    private var projects: [ChatProjectSummary] = []
     /// 正在等待 / 进行的那次检索（测试里等它结束）。
     @ObservationIgnored private(set) var job: Task<Void, Never>?
     @ObservationIgnored private var scheduledKey: String?

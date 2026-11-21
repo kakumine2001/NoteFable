@@ -76,9 +76,14 @@ struct ChatMessageList: View {
             scroll.onAtBottomChange = { value in atBottom = value }
         }
         // 换了会话、发出或收到新消息：重新跟随（Android LaunchedEffect(activeSessionId, messages.size)）。
-        .onChange(of: state.activeSessionId) { _, _ in scroll.follow() }
+        // 几个 onChange 的先后没有保证：跟随前先同步定位状态，打开另一段聊天的检索结果时不先贴一次底。
+        .onChange(of: state.activeSessionId) { _, _ in
+            scroll.revealPending = revealPending
+            scroll.follow()
+        }
         .onChange(of: messages.count) { _, count in
             scroll.hasItems = count > 0
+            scroll.revealPending = revealPending
             scroll.follow()
         }
         .onChange(of: revealPending, initial: true) { _, pending in
