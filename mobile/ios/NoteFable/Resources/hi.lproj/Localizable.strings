@@ -501,3 +501,9 @@
 "edit_message" = "संदेश संपादित करें";
 "turn_send" = "भेजें";
 "branch_title" = "शाखा · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "फ़ोटो लाइब्रेरी";
+"attach_source_camera" = "फ़ोटो लें";
+"attach_source_files" = "फ़ाइलें चुनें";
+"photos_access_denied" = "सेटिंग्स में NoteFable को फ़ोटो जोड़ने की अनुमति दें, फिर दोबारा कोशिश करें।";

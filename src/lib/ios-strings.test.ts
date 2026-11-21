@@ -6,6 +6,7 @@ import {
   existingIosStringsPaths,
   formatSpecs,
   IOS_LPROJ,
+  IOS_ONLY_STRINGS,
   iosStringsFiles,
   iosStringsPath,
   parseAndroidStringsXml,
@@ -113,6 +114,17 @@ describe("iOS Localizable.strings", { timeout: 60_000 }, () => {
     expect(turkish.get("move_to_trash")).toBe("Çöp Kutusu'na taşı");
     for (const strings of [english, french, turkish]) {
       for (const [key, value] of strings) expect(value.includes("\\"), key).toBe(false);
+    }
+  });
+
+  it("adds the iOS-only strings in every language", () => {
+    expect(Object.keys(IOS_ONLY_STRINGS).length).toBeGreaterThan(0);
+    for (const locale of LOCALES) {
+      const strings = parseStringsFile(read(iosStringsPath(locale)), IOS_LPROJ[locale]);
+      for (const [key, values] of Object.entries(IOS_ONLY_STRINGS)) {
+        expect(Object.keys(values).sort(), key).toEqual([...LOCALES].sort());
+        expect(strings.get(key), `${locale}:${key}`).toBe(values[locale]);
+      }
     }
   });
 

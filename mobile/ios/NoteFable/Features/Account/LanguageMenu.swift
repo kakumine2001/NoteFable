@@ -47,8 +47,11 @@ private struct LanguageMenuContent: View {
             FittingScrollView(maxHeight: Self.listMaxHeight) {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(options, id: \.self) { option in
+                        // Auto 行：「自动检测」下面用小字写「当前：○○」（Android LanguageMenu，不重复「自动检测」）。
+                        let auto = option == .auto
                         LanguageOptionRow(
-                            name: languageLabel(option, showing: showing),
+                            name: auto ? L("language_auto") : languageLabel(option, showing: showing),
+                            detail: auto ? L("language_auto_now", AppLanguage.nativeName(showing) ?? "") : nil,
                             tag: option.tag ?? showing.tag,
                             effective: option == showing,
                             selected: option == checked
@@ -105,6 +108,8 @@ private struct LanguageMenuContent: View {
 /// 菜单里的一种语言。语言名按它自己的语言排版（网页 lang=）。
 private struct LanguageOptionRow: View {
     let name: String
+    /// Auto 行的第二行（language_auto_now）。
+    let detail: String?
     let tag: String?
     let effective: Bool
     let selected: Bool
@@ -121,6 +126,11 @@ private struct LanguageOptionRow: View {
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
                         .environment(\.locale, Locale(identifier: tag ?? "en"))
+                    if let detail {
+                        Text(detail)
+                            .font(.nf(12))
+                            .foregroundStyle(Sm.muted)
+                    }
                     if effective {
                         Text(L("language_effective"))
                             .font(.nf(12))

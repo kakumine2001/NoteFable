@@ -48,6 +48,7 @@ extension PlanInfo {
     }
 
     /// 用量：消息、图片；图片除了月上限还有每日上限，今天的用量也列出来。
+    /// 免费方案平时不显示“本月图片生成”，只显示今天的；撞到月上限时才显示满额条。Pro 两条都显示（Android PlanSettings.kt）。
     var meters: [PlanMeter] {
         var out: [PlanMeter] = []
         func add(_ key: String, _ used: Int, _ limit: Int) {
@@ -57,7 +58,9 @@ extension PlanInfo {
             add(chat.period == "day" ? "plan_messages_today" : isPro ? "plan_messages_period" : "plan_messages_month", chat.used, chat.limit)
         }
         if let image = usage["image"] {
-            add(image.period == "day" ? "plan_images_today" : isPro ? "plan_images_period" : "plan_images_month", image.used, image.limit)
+            if isPro || image.daily == nil || image.used >= image.limit {
+                add(image.period == "day" ? "plan_images_today" : isPro ? "plan_images_period" : "plan_images_month", image.used, image.limit)
+            }
             if let daily = image.daily { add("plan_images_today", daily.used, daily.limit) }
         }
         return out

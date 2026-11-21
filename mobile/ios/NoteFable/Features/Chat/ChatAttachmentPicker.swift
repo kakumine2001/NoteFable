@@ -157,11 +157,11 @@ private struct ChatAttachmentPickerModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .confirmationDialog(L("attach_files"), isPresented: $isChoosing, titleVisibility: .hidden) {
-                Button(sourceTitle("attach_source_photos", fallback: "Photo Library")) { presentLater { photosOpen = true } }
+                Button(L("attach_source_photos")) { presentLater { photosOpen = true } }
                 if UIImagePickerController.isSourceTypeAvailable(.camera) {
-                    Button(sourceTitle("attach_source_camera", fallback: "Take Photo")) { presentLater { cameraOpen = true } }
+                    Button(L("attach_source_camera")) { presentLater { cameraOpen = true } }
                 }
-                Button(sourceTitle("attach_source_files", fallback: "Choose Files")) { presentLater { filesOpen = true } }
+                Button(L("attach_source_files")) { presentLater { filesOpen = true } }
                 Button(L("cancel"), role: .cancel) {}
             }
             // 三个系统界面各挂在自己的视图上，互不影响。
@@ -209,11 +209,6 @@ private struct ChatAttachmentPickerModifier: ViewModifier {
         }
     }
 
-    /// 这三项的文案 Android 没有（它用的是系统选择器）；字符串资源里加上之前先用英文。
-    private func sourceTitle(_ key: String, fallback: String) -> String {
-        let text = L(key)
-        return text == key ? fallback : text
-    }
 }
 
 /// 系统相机（UIImagePickerController）。拍好给出照片，取消给 nil；关掉由外面负责。

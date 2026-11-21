@@ -351,13 +351,18 @@ struct ImageModeChip: View {
 
 // MARK: - 「＋」抽屉
 
-/// 点「＋」后从底部出来的抽屉里的三行（网页 attach-sheet.tsx）：添加文件或照片、添加页面、切换「生成图片」。
-/// 选了一项先关抽屉，等它滑下去再做事（网页：先关抽屉，再开选笔记的窗口）。
+/// 点「＋」后从底部出来的抽屉里的几行（网页 attach-sheet.tsx）：添加文件或照片、添加页面、切换「生成图片」，
+/// 已保存且有消息的聊天还有最后一行「整理成笔记」（FilePlus，副标题 create_page_title）。
+/// 选了一项先关抽屉，等它滑下去再做事（网页：先关抽屉，再开选笔记的窗口）。行多了放不下时抽屉自己在里面滚动。
 struct AttachSheet: View {
     let imageMode: Bool
     let onPickFiles: () -> Void
     let onAttachPages: () -> Void
     let onToggleImageMode: () -> Void
+    /// 「整理成笔记」；nil 时没有这一行（空白的新聊天）。
+    let onCreatePage: (() -> Void)?
+    /// 当前聊天在发送（含上传附件）时这一行变淡（.45）不能点：最后的回答还没存下。
+    let createPageEnabled: Bool
 
     @Environment(\.nfDismiss) private var dismiss
 
@@ -372,6 +377,13 @@ struct AttachSheet: View {
                 isOn: imageMode
             ) {
                 closeThen(onToggleImageMode)
+            }
+            if let onCreatePage {
+                SheetActionRow(L("create_page"), detail: L("create_page_title"), icon: Lucide.filePlus) {
+                    closeThen(onCreatePage)
+                }
+                .disabled(!createPageEnabled)
+                .opacity(createPageEnabled ? 1 : 0.45)
             }
         }
     }

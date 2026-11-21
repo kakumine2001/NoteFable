@@ -49,7 +49,8 @@ private struct NoteFableWindow: View {
             .preferredColorScheme(.light)
             // 自定义 URL scheme（Google 登录的回调）和 Universal Link 都可能从这里进来。
             .onOpenURL { url in open(url) }
-            // Universal Link：`https://<站点>/c/<会话>?message=<消息>`（Android 的 VIEW intent）。
+            // Universal Link：`https://<工作区主机>/c/<会话>?message=<消息>` 等（规则在 `ChatLink.parse`；Android 的 VIEW intent）。
+            // 有这个处理时系统不再把同一个网址交给 onOpenURL。
             .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
                 if let url = activity.webpageURL { open(url) }
             }

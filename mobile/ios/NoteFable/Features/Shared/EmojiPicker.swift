@@ -52,11 +52,12 @@ private struct EmojiPickerPresenter: ViewModifier {
         let onPick = self.onPick
         let id = NFOverlayID(namespace: namespace, key: nil)
         let environment = self.environment
+        let style = Self.style
         return content.transformAnchorPreference(key: NFOverlayKey.self, value: .bounds) { (items: inout [NFOverlayItem], anchor: Anchor<CGRect>) in
             guard presented else { return }
             items.append(NFOverlayItem(
                 id: id,
-                kind: .panel(Self.style),
+                kind: .panel(style),
                 dismissDisabled: false,
                 environment: environment,
                 content: {

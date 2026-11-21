@@ -11,6 +11,10 @@ struct LanguageSettingsRowView: View {
     @Environment(AppEnvironment.self) private var app
     @State private var menuOpen = false
 
+    init(user: AccountUser) {
+        self.user = user
+    }
+
     var body: some View {
         let showing = app.language.active
         let row = LanguageSettingsRow(user: user, showing: showing)

@@ -72,8 +72,8 @@ final class ReorderDragController {
     /// 当前目标是投放区时它的键（同一个容器可以有几个投放区，只高亮手指下的那个）。
     private(set) var targetZone: String?
 
-    /// 列表内容的坐标系的名字。
-    @ObservationIgnored let space = UUID()
+    /// 列表内容的坐标系的名字（`let` 不参与观察，不用标 @ObservationIgnored）。
+    let space = UUID()
 
     private struct Slot {
         var owner: UUID

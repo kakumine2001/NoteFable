@@ -125,6 +125,8 @@ private struct SidebarFooter: View {
                     .foregroundStyle(Sm.danger)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 8)
+                    // Android 的 liveRegion = Assertive：出现时读屏念出来。
+                    .onAppear { UIAccessibility.post(notification: .announcement, argument: L("language_change_failed")) }
             }
         }
         .padding(8)

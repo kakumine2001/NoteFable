@@ -15,6 +15,8 @@ struct SettingsScreenHost: View {
     @State private var model: SettingsDialogModel?
     @State private var plan: PlanSettingsModel?
 
+    init() {}
+
     var body: some View {
         ZStack {
             if let model, let plan, let user = app.account.state.user {

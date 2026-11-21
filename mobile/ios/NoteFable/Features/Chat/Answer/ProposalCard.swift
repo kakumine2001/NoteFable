@@ -38,7 +38,7 @@ struct ProposalCard: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.layoutDirection) private var layoutDirection
     /// nil 表示用户没点过：已处理的卡片默认最小化，待确认的展开。
-    @State private var manualOpen: Bool?
+    @State private var manualOpen: Bool? = nil
 
     var body: some View {
         // 读 `ProposalStore.states`：应用 / 放弃的进度变了卡片跟着变。

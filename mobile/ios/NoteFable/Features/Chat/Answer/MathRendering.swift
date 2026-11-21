@@ -43,7 +43,7 @@ final class MathImageCache {
     }
 
     private static func typeset(_ latex: String, fontSize: CGFloat, color: UIColor, display: Bool) -> MathRender? {
-        let label = MTMathUILabel()
+        let label = MTMathUILabel(frame: .zero)
         label.displayErrorInline = false
         label.labelMode = display ? .display : .text
         label.textAlignment = .left

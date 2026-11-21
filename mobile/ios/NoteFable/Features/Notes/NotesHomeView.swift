@@ -386,8 +386,11 @@ private struct NotesEmptyView: View {
     /// 说明文里的占位符换成“/”键帽：等宽 13、浅灰底（--notes-code-bg）。
     private var intro: AttributedString {
         var key = AttributedString(" / ")
-        key.swiftUI.font = Font.nfMono(13)
-        key.swiftUI.backgroundColor = Sm.codeBackground
+        // 显式写出类型：UIKit 也有同名的 font / backgroundColor 属性（UIFont / UIColor）。
+        let keyFont: Font = .nfMono(13)
+        let keyBackground: Color = Sm.codeBackground
+        key.font = keyFont
+        key.backgroundColor = keyBackground
         var text = AttributedString()
         let parts = L("notes_intro").components(separatedBy: "%1$s")
         for (index, part) in parts.enumerated() {

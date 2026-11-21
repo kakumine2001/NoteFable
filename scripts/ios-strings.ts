@@ -1,5 +1,6 @@
 // 原生 iOS 的界面文案（mobile/ios/NoteFable/Resources/<语言>.lproj/Localizable.strings）。
 // 不另外维护一份：从 Android 的字符串资源（res/values*/strings*.xml，17 种语言）逐条转换。键就是 Android 的资源名，
+// 只有 iOS 才需要的少数几条写在下面的 IOS_ONLY_STRINGS 里。
 // Swift 端用 L("键", 参数…) 读（mobile/ios/NoteFable/Core/Text/L10n.swift）。
 // 值去掉 XML 转义和 Android 转义（\'、\n、"…" 包裹等，规则同 aapt2），占位符（%1$s / %2$d）和 %% 原样保留：
 // L10n.format 自己替换它们，不走 String(format:)。遇到没处理过的写法（plurals、数组、内嵌标签、不认识的转义）直接报错。
@@ -185,6 +186,52 @@ export function escapeStringsValue(value: string, label: string): string {
 
 export type IosStringEntry = { key: string; value: string; file: string };
 
+/** 生成文件里 iOS 专有文案那一段的标题。 */
+export const IOS_ONLY_SECTION = "iOS only (scripts/ios-strings.ts)";
+
+/**
+ * 只有 iOS 用的文案：Android 交给系统选择器、网页交给浏览器的地方，iOS 要自己列出来。
+ * 用的是 iOS 系统自己的说法（Safari 选文件时的那几项），17 种语言都要写。键不能和 Android 的资源名重复。
+ */
+export const IOS_ONLY_STRINGS: Record<string, Record<Locale, string>> = {
+  // 点“添加文件或照片”后先选来源（ChatAttachmentPicker.swift）。
+  attach_source_photos: {
+    en: "Photo Library", zh: "照片图库", "zh-Hant": "照片圖庫", ja: "写真ライブラリ", ko: "사진 보관함", es: "Fototeca",
+    fr: "Photothèque", de: "Fotomediathek", "pt-BR": "Fototeca", it: "Libreria foto", id: "Perpustakaan Foto",
+    vi: "Thư viện ảnh", th: "คลังรูปภาพ", hi: "फ़ोटो लाइब्रेरी", ar: "مكتبة الصور", tr: "Fotoğraf Arşivi", ru: "Медиатека",
+  },
+  attach_source_camera: {
+    en: "Take Photo", zh: "拍照", "zh-Hant": "拍照", ja: "写真を撮る", ko: "사진 찍기", es: "Hacer foto",
+    fr: "Prendre une photo", de: "Foto aufnehmen", "pt-BR": "Tirar Foto", it: "Scatta foto", id: "Ambil Foto",
+    vi: "Chụp ảnh", th: "ถ่ายรูป", hi: "फ़ोटो लें", ar: "التقاط صورة", tr: "Fotoğraf Çek", ru: "Снять фото",
+  },
+  attach_source_files: {
+    en: "Choose Files", zh: "选取文件", "zh-Hant": "選擇檔案", ja: "ファイルを選択", ko: "파일 선택", es: "Seleccionar archivos",
+    fr: "Choisir des fichiers", de: "Dateien auswählen", "pt-BR": "Escolher Arquivos", it: "Scegli file", id: "Pilih File",
+    vi: "Chọn tệp", th: "เลือกไฟล์", hi: "फ़ाइलें चुनें", ar: "اختيار ملفات", tr: "Dosya Seç", ru: "Выбрать файлы",
+  },
+  // 保存生成的图片时没有“添加照片”的权限（GeneratedImages.swift）。
+  photos_access_denied: {
+    en: "Allow NoteFable to add to your photo library in Settings, then try again.",
+    zh: "请在“设置”中允许 NoteFable 向照片图库添加照片，然后重试。",
+    "zh-Hant": "請在「設定」中允許 NoteFable 將照片加入照片圖庫，然後再試一次。",
+    ja: "「設定」で NoteFable に写真の追加を許可してから、もう一度お試しください。",
+    ko: "설정에서 NoteFable이 사진을 추가하도록 허용한 다음 다시 시도하세요.",
+    es: "Permite que NoteFable añada fotos en Ajustes y vuelve a intentarlo.",
+    fr: "Autorisez NoteFable à ajouter des photos dans Réglages, puis réessayez.",
+    de: "Erlaube NoteFable in den Einstellungen, Fotos hinzuzufügen, und versuche es erneut.",
+    "pt-BR": "Permita que o NoteFable adicione fotos nos Ajustes e tente novamente.",
+    it: "Consenti a NoteFable di aggiungere foto in Impostazioni, poi riprova.",
+    id: "Izinkan NoteFable menambahkan foto di Pengaturan, lalu coba lagi.",
+    vi: "Hãy cho phép NoteFable thêm ảnh trong Cài đặt, rồi thử lại.",
+    th: "อนุญาตให้ NoteFable เพิ่มรูปภาพในการตั้งค่า แล้วลองอีกครั้ง",
+    hi: "सेटिंग्स में NoteFable को फ़ोटो जोड़ने की अनुमति दें, फिर दोबारा कोशिश करें।",
+    ar: "اسمح لـ NoteFable بإضافة الصور من الإعدادات، ثم حاول مرة أخرى.",
+    tr: "Ayarlar’dan NoteFable’ın fotoğraf eklemesine izin verin, sonra yeniden deneyin.",
+    ru: "Разрешите NoteFable добавлять фото в Настройках и повторите попытку.",
+  },
+};
+
 function readLocaleEntries(locale: Locale): Map<string, Map<string, AndroidStringEntry>> {
   const dirName = NATIVE_LOCALE_RES_DIRS[locale];
   const dir = path.join(NATIVE_RES_DIR, dirName);
@@ -216,7 +263,7 @@ function valueOf(entry: AndroidStringEntry, label: string): string {
 }
 
 /**
- * 一种语言的全部文案，顺序是 res/values 的文件名、文件里的出现顺序（17 种语言相同）。
+ * 一种语言的全部文案，顺序是 res/values 的文件名、文件里的出现顺序（17 种语言相同），最后是 iOS 专有的 `IOS_ONLY_STRINGS`。
  * - 键集合以 res/values 为准：某种语言少了或多了键都报错，占位符不一致也报错。
  * - `ui_locale` 必须是这种语言的网页 Locale 代码。
  * - translatable="false" 的条目（只在 res/values 里有）每种语言都写英文原值：Android 靠资源回退读到它，
@@ -256,6 +303,15 @@ export function iosStringEntries(locale: Locale): IosStringEntry[] {
       if (!value) throw new Error(`${dirName}/${fileName}:${name} is empty`);
       out.push({ key: name, value, file: fileName });
     }
+  }
+  for (const [key, values] of Object.entries(IOS_ONLY_STRINGS)) {
+    if (seen.has(key)) throw new Error(`IOS_ONLY_STRINGS: ${key} is already an Android string`);
+    const value = values[locale];
+    if (!value) throw new Error(`IOS_ONLY_STRINGS: ${key} has no ${locale} text`);
+    if (formatSpecs(value, key).sort().join(" ") !== formatSpecs(values.en, key).sort().join(" ")) {
+      throw new Error(`IOS_ONLY_STRINGS:${key}: ${locale} placeholders differ from en`);
+    }
+    out.push({ key, value, file: IOS_ONLY_SECTION });
   }
   return out;
 }

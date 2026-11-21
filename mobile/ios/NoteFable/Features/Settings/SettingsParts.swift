@@ -152,6 +152,13 @@ struct SettingsUnsavedBar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    init(attention: Int, busy: Bool, onDiscard: @escaping () -> Void, onSave: @escaping () -> Void) {
+        self.attention = attention
+        self.busy = busy
+        self.onDiscard = onDiscard
+        self.onSave = onSave
+    }
+
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 14)
         HStack(spacing: 8) {

@@ -11,6 +11,10 @@ struct PlanSettingsCard: View {
 
     @Environment(AppEnvironment.self) private var app
 
+    init(model: PlanSettingsModel) {
+        self.model = model
+    }
+
     var body: some View {
         let state = model.state
         HStack(spacing: 8) {

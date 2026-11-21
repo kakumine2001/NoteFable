@@ -28,6 +28,11 @@ struct ProfileSettings: View {
     @State private var photo: PickedAvatarPhoto?
     @State private var pickCount = 0
 
+    init(model: SettingsDialogModel, user: AccountUser) {
+        self.model = model
+        self.user = user
+    }
+
     var body: some View {
         let state = model.state
         VStack(alignment: .leading, spacing: 0) {

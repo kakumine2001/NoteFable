@@ -501,3 +501,9 @@
 "edit_message" = "Modifica messaggio";
 "turn_send" = "Invia";
 "branch_title" = "Diramazione · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "Libreria foto";
+"attach_source_camera" = "Scatta foto";
+"attach_source_files" = "Scegli file";
+"photos_access_denied" = "Consenti a NoteFable di aggiungere foto in Impostazioni, poi riprova.";

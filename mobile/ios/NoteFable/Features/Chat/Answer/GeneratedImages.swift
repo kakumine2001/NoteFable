@@ -29,7 +29,7 @@ private struct GeneratedImageView: View {
     let image: GeneratedImageDto
 
     @Environment(AppEnvironment.self) private var app
-    @State private var loaded: UIImage?
+    @State private var loaded: UIImage? = nil
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 4.8)
@@ -133,6 +133,8 @@ enum GeneratedImageSaver {
                 let name = fileName(id: image.id, mimeType: sniffMimeType(data) ?? image.mimeType)
                 try await addToPhotos(data, fileName: name)
                 Toast.show(L("save_saved"))
+            } catch GeneratedImageSaveError.photosDenied {
+                Toast.show(L("photos_access_denied"), long: true)
             } catch {
                 Toast.show(L("request_failed", app.systemText.localize(chatFailureDetail(error))), long: true)
             }
@@ -152,13 +154,9 @@ enum GeneratedImageSaver {
     }
 }
 
-enum GeneratedImageSaveError: LocalizedError {
+enum GeneratedImageSaveError: Error {
     /// 用户没有允许往相册里添加照片。
     case photosDenied
-
-    var errorDescription: String? {
-        "Photo library access was denied."
-    }
 }
 
 // MARK: - 生成中

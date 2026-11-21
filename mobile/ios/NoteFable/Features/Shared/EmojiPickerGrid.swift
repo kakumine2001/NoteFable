@@ -31,6 +31,12 @@ struct EmojiGrid: View {
     @State private var variations: EmojiVariationTarget?
     @FocusState private var searchFocused: Bool
 
+    init(catalog: EmojiCatalog, height: CGFloat, onPick: @escaping (String) -> Void) {
+        self.catalog = catalog
+        self.height = height
+        self.onPick = onPick
+    }
+
     /// 搜索头部 70（15 + 40 + 15）+ 分类导航 60。
     private var listHeight: CGFloat { max(0, height - 130) }
 

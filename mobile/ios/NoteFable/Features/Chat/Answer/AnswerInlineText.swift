@@ -476,7 +476,7 @@ private struct AnswerInlineImage: View {
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
-    @State private var loaded: UIImage?
+    @State private var loaded: UIImage? = nil
 
     var body: some View {
         let links = AnswerLinkResolver(baseURL: app.config.baseURL)

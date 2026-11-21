@@ -1,17 +1,14 @@
 import SwiftUI
 
 /// 聊天的顶栏（Android ChatScreen.kt 的 `TopBar`）：高 56、左右内边距 10.4，图标按钮 40×40（图标 20，圆角 4.8）。
-/// 行首是菜单；有标题时接着 12 处是聊天图标（点开表情选择器）和 14 灰色标题；行尾按钮组间距 8：搜索、新建聊天、「整理成笔记」。
+/// 行首是菜单；有标题时接着 12 处是聊天图标（点开表情选择器）和 14 灰色标题；行尾按钮组间距 8：搜索、新建聊天。
 /// 空白首页（没有消息）不放标题和"新建聊天"（已经在新聊天里），只有搜索。
+/// 「整理成笔记」不在顶栏：它是输入栏「＋」抽屉的最后一行（`AttachSheet`）。
 struct ChatTopBar: View {
     /// 没有消息时为 nil。
     let title: String?
     let icon: String?
     let showNewChat: Bool
-    /// 有消息的已保存聊天才有「整理成笔记」；nil 时不显示。
-    let createPageSessionId: String?
-    /// 当前聊天在发送（含上传附件）时不能点，最后的回答还没存下。外观不变（网页的 disabled 没有单独样式）。
-    let createPageEnabled: Bool
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -37,13 +34,6 @@ struct ChatTopBar: View {
             if showNewChat {
                 NFIconButton(Lucide.plus, label: L("new_chat")) { app.chat.newChat() }
                     .padding(.leading, 8)
-            }
-            if let createPageSessionId {
-                NFIconButton(Lucide.filePlus, label: L("create_page"), disabledColor: Sm.muted) {
-                    router.createPageSessionId = createPageSessionId
-                }
-                .disabled(!createPageEnabled)
-                .padding(.leading, 8)
             }
         }
         .padding(.horizontal, 10.4)

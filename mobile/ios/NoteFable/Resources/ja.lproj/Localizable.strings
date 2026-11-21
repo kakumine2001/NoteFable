@@ -501,3 +501,9 @@
 "edit_message" = "メッセージを編集";
 "turn_send" = "送信";
 "branch_title" = "分岐 · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "写真ライブラリ";
+"attach_source_camera" = "写真を撮る";
+"attach_source_files" = "ファイルを選択";
+"photos_access_denied" = "「設定」で NoteFable に写真の追加を許可してから、もう一度お試しください。";

@@ -101,18 +101,18 @@ enum AvatarImageDecoder {
 
     /// 在后台线程读照片。
     static func decodeInBackground(_ data: Data) async -> AvatarImageSource {
-        await Task.detached(priority: .userInitiated) { decode(data) }.value
+        await Task.detached(priority: .userInitiated) { AvatarImageDecoder.decode(data) }.value
     }
 
     /// 在后台线程画成要上传的图片。
     static func renderAvatarInBackground(_ image: CGImage, layout: CropLayout) async -> Data? {
         let box = AvatarSendableBox(value: image)
-        return await Task.detached(priority: .userInitiated) { renderAvatar(box.value, layout: layout) }.value
+        return await Task.detached(priority: .userInitiated) { AvatarImageDecoder.renderAvatar(box.value, layout: layout) }.value
     }
 
     /// 在后台线程做成"图标"的存储值。
     static func renderAppIconInBackground(_ data: Data) async -> AppIconValue? {
-        await Task.detached(priority: .userInitiated) { renderAppIcon(data) }.value
+        await Task.detached(priority: .userInitiated) { AvatarImageDecoder.renderAppIcon(data) }.value
     }
 }
 
@@ -135,6 +135,14 @@ struct AvatarCropper: View {
     /// 拖动开始时的偏移：之后每次用"原偏移 + 总位移"重新夹（拖出边界再拖回来时与网页一致）。
     @State private var dragOrigin: CGSize?
     @State private var exporting = false
+
+    init(data: Data, saving: Bool, error: String?, onCancel: @escaping () -> Void, onSave: @escaping (Data) -> Void) {
+        self.data = data
+        self.saving = saving
+        self.error = error
+        self.onCancel = onCancel
+        self.onSave = onSave
+    }
 
     private var image: CGImage? {
         if case .ready(let image) = source { return image }

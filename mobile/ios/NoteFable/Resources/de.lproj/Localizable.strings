@@ -501,3 +501,9 @@
 "edit_message" = "Nachricht bearbeiten";
 "turn_send" = "Senden";
 "branch_title" = "Verzweigung · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "Fotomediathek";
+"attach_source_camera" = "Foto aufnehmen";
+"attach_source_files" = "Dateien auswählen";
+"photos_access_denied" = "Erlaube NoteFable in den Einstellungen, Fotos hinzuzufügen, und versuche es erneut.";

@@ -501,3 +501,9 @@
 "edit_message" = "تعديل الرسالة";
 "turn_send" = "إرسال";
 "branch_title" = "فرع · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "مكتبة الصور";
+"attach_source_camera" = "التقاط صورة";
+"attach_source_files" = "اختيار ملفات";
+"photos_access_denied" = "اسمح لـ NoteFable بإضافة الصور من الإعدادات، ثم حاول مرة أخرى.";

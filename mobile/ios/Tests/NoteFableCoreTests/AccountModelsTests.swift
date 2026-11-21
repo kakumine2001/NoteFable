@@ -459,6 +459,16 @@ final class AccountModelsTests: XCTestCase {
         XCTAssertEqual(free.meters.map(\.countText), ["12 / 30", "5 / 5", "1 / 2"])
         XCTAssertEqual(free.meters.map(\.full), [false, true, false])
         XCTAssertEqual(free.meters[0].ratio, 0.4, accuracy: 0.0001)
+        // 免费方案没到月上限时不列“本月图片生成”，只列今天的。
+        let belowCap = PlanInfo(usage: [
+            "chat": PlanUsage(used: 12, limit: 30, period: "day"),
+            "image": PlanUsage(used: 4, limit: 5, period: "month", daily: PlanDailyUsage(used: 1, limit: 2)),
+        ])
+        XCTAssertEqual(belowCap.meters.map(\.labelKey), ["plan_messages_today", "plan_images_today"])
+        XCTAssertEqual(belowCap.meters.map(\.id), [0, 1])
+        // 没有每日上限的方案照旧列出月用量。
+        let noDaily = PlanInfo(usage: ["image": PlanUsage(used: 0, limit: 5, period: "month")])
+        XCTAssertEqual(noDaily.meters.map(\.labelKey), ["plan_images_month"])
         // 没有上限数据时算满。
         XCTAssertTrue(PlanMeter(id: 0, labelKey: "x", used: 0, limit: 0).full)
 

@@ -501,3 +501,9 @@
 "edit_message" = "编辑消息";
 "turn_send" = "发送";
 "branch_title" = "分支 · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "照片图库";
+"attach_source_camera" = "拍照";
+"attach_source_files" = "选取文件";
+"photos_access_denied" = "请在“设置”中允许 NoteFable 向照片图库添加照片，然后重试。";

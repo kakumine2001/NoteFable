@@ -66,7 +66,7 @@ struct RemoteImage: View {
     private let contentMode: ContentMode
 
     @Environment(AppEnvironment.self) private var app
-    @State private var loaded: LoadedImage?
+    @State private var loaded: LoadedImage? = nil
 
     init(path: String, contentMode: ContentMode = .fill) {
         self.path = path

@@ -92,6 +92,16 @@ mobile/ios/
 | Google 登录 | Credential Manager | GoogleSignIn SDK |
 | 返回键 | 系统返回键、预测性返回 | 没有返回键：抽屉、面板、编辑页用边缘滑动或各自的关闭按钮 |
 
+### 和 Android 行为不同的地方
+
+- **添加文件或照片**：iOS 没有合在一起的系统选择器，点了先出“照片图库 / 拍照 / 选取文件”三项，再打开对应的系统界面。
+- **回答里选字**：一段一个文字视图，选区不能跨段；还在流式输出的回答不能选（用普通文字渲染，为了速度）。
+- **下载会话**：用系统的“存储到文件”（`.fileExporter`）；下载途中 App 被杀不会像 Android 那样恢复。
+- **保存生成的图片**：存进相册后只提示“已保存”，不打开图片。没有权限时提示去“设置”里允许。
+- **笔记里的文件**：下载到临时目录后打开分享面板（存到“文件”或用别的 App 打开），不是直接存进下载目录。
+- **提示用户升级的地方**（游客 / 免费用户撞到上限）只保留登录入口。
+- **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
+
 ## 生成的文件
 
 这些文件由脚本从 Android / 网页的源头生成，不手改；对应的 vitest 测试在生成物过期时失败。
@@ -103,7 +113,7 @@ mobile/ios/
 | `Tests/NoteFableCoreTests/Fixtures/search-fold-cases.json` | `src/lib/search-fold.ts` 的用例 | `npx tsx scripts/gen-native-search-fold-cases.ts` |
 | `Resources/Assets.xcassets/AppIcon.appiconset/AppIcon-1024.png` | 角色 Quill | `npx tsx scripts/gen-ios-app-icon.ts` |
 
-新文案的流程：先加到 Android 的 `res/values`（及 zh、ja），跑 Android 的生成脚本，再跑 `gen-ios-strings.ts`。iOS 里用 `L("键", 参数…)`，键就是 Android 的资源名。
+新文案的流程：先加到 Android 的 `res/values`（及 zh、ja），跑 Android 的生成脚本，再跑 `gen-ios-strings.ts`。iOS 里用 `L("键", 参数…)`，键就是 Android 的资源名。只有 iOS 才需要的文案（Android 交给系统界面的地方）写在 `scripts/ios-strings.ts` 的 `IOS_ONLY_STRINGS` 里，17 种语言都要写。
 
 ## 构建与验证
 

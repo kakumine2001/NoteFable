@@ -22,8 +22,8 @@ enum ChatComposerMetrics {
     static let topInset: CGFloat = 4
     static let leadingInset: CGFloat = 6
     static let minHeight: CGFloat = 40
-    /// 最多 6 行（TextFieldLineLimits.MultiLine(maxHeightInLines = 6)）。
-    static let maxHeight: CGFloat = topInset + lineHeight * 6
+    /// 最多 6 行（TextFieldLineLimits.MultiLine(maxHeightInLines = 6)）：顶上的留白（4 + 半个行距）+ 6 个行高。
+    static var maxHeight: CGFloat { topInset + lineGap / 2 + lineHeight * 6 }
 }
 
 /// 输入框 + 占位文字。高度跟着内容：`ChatComposerTextView` 量出内容高度后报上来。

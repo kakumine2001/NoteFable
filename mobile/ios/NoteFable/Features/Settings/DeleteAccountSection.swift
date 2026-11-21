@@ -12,6 +12,10 @@ struct DeleteAccountSection: View {
     private static let dangerBorder = Color(argb: 0x33B91C1C) // rgba(185, 28, 28, 0.2)
     private static let dangerFill = Color(argb: 0x0AB91C1C)   // rgba(185, 28, 28, 0.04)
 
+    init(model: SettingsDialogModel) {
+        self.model = model
+    }
+
     var body: some View {
         let state = model.state
         if !state.confirmingDelete {

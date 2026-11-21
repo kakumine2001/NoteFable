@@ -227,6 +227,10 @@ final class ChatScrollProbeView: UIView {
     override func didMoveToWindow() {
         super.didMoveToWindow()
         locate()
+        // 刚进窗口时上面的视图层级可能还没接好：下一轮主循环再找一次（已经接上的话 attach 直接返回）。
+        Task { @MainActor [weak self] in
+            self?.locate()
+        }
     }
 
     /// 往上找第一个 UIScrollView（SwiftUI 的 ScrollView 背后就是它）。

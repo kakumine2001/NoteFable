@@ -108,7 +108,7 @@ struct ChatActivity: View {
     @Environment(AppRouter.self) private var router
     @Environment(\.layoutDirection) private var layoutDirection
     /// nil 表示用户还没点过：等待中展开，正文来了自动收起。
-    @State private var manualOpen: Bool?
+    @State private var manualOpen: Bool? = nil
     @State private var firstShown = Date()
 
     private var open: Bool {
@@ -153,8 +153,8 @@ struct ChatActivity: View {
             .padding(.vertical, 2.4)
         }
         .buttonStyle(.pressable(pressedBackground: steps.isEmpty ? nil : Sm.hover, cornerRadius: 4))
-        // 往行首方向挪 5.6，文字和正文的行首对齐（offset 在从右到左的界面里跟着镜像）。
-        .offset(x: -5.6)
+        // 往行首方向挪 5.6，文字和正文的行首对齐（用行首的负内边距，从右到左的界面里也是往行首挪）。
+        .padding(.leading, -5.6)
     }
 
     private var stepList: some View {

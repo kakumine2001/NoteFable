@@ -501,3 +501,9 @@
 "edit_message" = "แก้ไขข้อความ";
 "turn_send" = "ส่ง";
 "branch_title" = "แขนง · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "คลังรูปภาพ";
+"attach_source_camera" = "ถ่ายรูป";
+"attach_source_files" = "เลือกไฟล์";
+"photos_access_denied" = "อนุญาตให้ NoteFable เพิ่มรูปภาพในการตั้งค่า แล้วลองอีกครั้ง";

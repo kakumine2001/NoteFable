@@ -25,6 +25,10 @@ struct AppIconSettings: View {
     @State private var pickerShown = false
     @State private var pickedItem: PhotosPickerItem?
 
+    init(model: SettingsDialogModel) {
+        self.model = model
+    }
+
     var body: some View {
         let icon = app.appIcon.icon
         let picking = model.state.appIconPicking

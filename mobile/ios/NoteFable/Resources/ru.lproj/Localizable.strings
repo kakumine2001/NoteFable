@@ -501,3 +501,9 @@
 "edit_message" = "Изменить сообщение";
 "turn_send" = "Отправить";
 "branch_title" = "Ветка · %1$s";
+
+/* iOS only (scripts/ios-strings.ts) */
+"attach_source_photos" = "Медиатека";
+"attach_source_camera" = "Снять фото";
+"attach_source_files" = "Выбрать файлы";
+"photos_access_denied" = "Разрешите NoteFable добавлять фото в Настройках и повторите попытку.";

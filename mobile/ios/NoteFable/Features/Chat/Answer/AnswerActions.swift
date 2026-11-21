@@ -29,10 +29,10 @@ struct AnswerActions: View {
     @State private var menuOpen = false
     @State private var downloading = false
     @State private var reporting = false
-    @State private var menuError: AnswerMenuError?
-    @State private var downloadTask: Task<Void, Never>?
+    @State private var menuError: AnswerMenuError? = nil
+    @State private var downloadTask: Task<Void, Never>? = nil
     /// 等着写进用户选的位置的对话 Markdown。
-    @State private var exportDocument: MarkdownExportDocument?
+    @State private var exportDocument: MarkdownExportDocument? = nil
     @State private var exportName = ""
     @State private var exporting = false
 
@@ -73,7 +73,7 @@ struct AnswerActions: View {
             }
         }
         .padding(.top, 6.4)
-        .offset(x: -10.4)
+        .padding(.leading, -10.4)
         .task(id: copiedTick) {
             guard copiedTick > 0 else { return }
             try? await Task.sleep(nanoseconds: 2_000_000_000)
@@ -107,7 +107,7 @@ struct AnswerActions: View {
     private func menu(sessionId: String) -> some View {
         let state = app.chat.state
         // 这个聊天在发送、上传或读取时不能重新生成、分支（Android TurnActions.busy）。
-        let busy = state.sending || state.upload != nil || state.messagesLoading
+        let busy = answerTurnBusy(state)
         // 还没换成服务端 ID 的回答（local-N）不能重新生成、分支、报告（网页 isSavedMessageId）。
         let stored = !message.id.hasPrefix(ChatViewModel.LOCAL_ID_PREFIX)
         let save = app.answerExports.saves[AnswerExportStore.key(sessionId, message.id)]
@@ -268,32 +268,20 @@ struct MarkdownExportDocument: FileDocument {
 
 // MARK: - 版本切换
 
-/// 「‹ 2/3 ›」（网页 turn-actions.tsx 的 VersionNav）：两个 36 的箭头按钮夹着 13 号的数字（最小宽 28、居中、Muted）；
-/// 到头的箭头和聊天忙的时候是 Faint 色、不能点。
+/// 回答的「‹ 2/3 ›」：用提问那边的 `VersionNav`（TurnActions.swift），忙的判断和提问相同（Android TurnActions.busy）。
 struct AnswerVersionNav: View {
     let versions: MessageVersions
 
     @Environment(AppEnvironment.self) private var app
 
     var body: some View {
-        let state = app.chat.state
-        let busy = state.sending || state.upload != nil || state.messagesLoading
-        HStack(spacing: 0) {
-            NFIconButton(Lucide.chevronLeft, label: L("previous_version"), size: 36, iconSize: 16, strokeWidth: 1.9) {
-                if let id = versions.prevId { app.chat.showVersion(id) }
-            }
-            .disabled(busy || versions.prevId == nil)
-            Text(versionLabel(versions))
-                .font(.nf(13))
-                .foregroundStyle(Sm.muted)
-                .lineLimit(1)
-                .frame(minWidth: 28)
-            NFIconButton(Lucide.chevronRight, label: L("next_version"), size: 36, iconSize: 16, strokeWidth: 1.9) {
-                if let id = versions.nextId { app.chat.showVersion(id) }
-            }
-            .disabled(busy || versions.nextId == nil)
-        }
+        VersionNav(versions: versions, busy: answerTurnBusy(app.chat.state)) { id in app.chat.showVersion(id) }
     }
+}
+
+/// 这个聊天在发送、上传或读取：不能重新生成、分支、切换版本（Android NoteFableRoot 的 turnBusy）。
+func answerTurnBusy(_ state: ChatUiState) -> Bool {
+    state.sending || state.upload != nil || state.messagesLoading
 }
 
 // MARK: - 只有"报告"的操作行
@@ -310,7 +298,7 @@ struct AnswerReportOnlyAction: View {
                 reporting = true
             }
             .padding(.top, 6.4)
-            .offset(x: -10.4)
+            .padding(.leading, -10.4)
             .reportAnswerDialog(messageId: messageId, isPresented: $reporting)
         }
     }

@@ -22,6 +22,8 @@ struct SignInDialogHost: View {
     @State private var model: SignInDialogModel?
     @State private var shown = false
 
+    init() {}
+
     var body: some View {
         GeometryReader { proxy in
             ZStack {
