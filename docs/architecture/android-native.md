@@ -17,7 +17,7 @@
 
 Markdown 异步解析下一段流式内容时保留上一帧，避免反复显示空白加载态；有序列表保留原文的起始编号，与网页一致。
 
-另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；登录后点侧栏的账号行打开设置（`ui/SettingsDialog.kt`：个人资料、界面语言、自定义指令、退出登录）。发言可以添加自己的笔记（“添加页面”），顶栏可以把聊天整理成笔记（“整理成笔记”），见下文“附件与图片”和“整理成笔记”。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
+另有 Credential Manager Google 登录、退出、修改显示名和头像（照片 / 表情，见下文“账号头像”）的代码，沿用 `/api/native-auth/*` 和 `/api/account`，真实账号登录流程仍需单独验证。附件（文件选择、上传、发送）和「生成图片」模式已有，见下文“附件与图片”。笔记（列表、项目、子页面、收藏、页面菜单、回收站、拖动排序、WebView 编辑器）已有，见下文“笔记”。回答的过程面板、提案卡片、代码块等见下文“回答体验”。上限时的草稿恢复与登录提示、滚动到底部按钮、粘贴图片和拍照见下文“输入栏与使用上限”。搜索、跳转到消息和聊天链接见下文“搜索与跳转”。登录入口已对齐为「登录」按钮 + 弹窗，按服务端配置提供 Google / 邮箱验证码（`ui/SignInDialog.kt`）；登录后点侧栏的账号行打开设置（`ui/SettingsDialog.kt`：个人资料、界面语言、自定义指令、退出登录）。发言可以添加自己的笔记（“添加页面”），输入栏“＋”抽屉可以把聊天整理成笔记（“整理成笔记”），见下文“附件与图片”和“整理成笔记”。这些是当前源码能力，不代表已安装 APK 自动获得更新；交付状态以实际构建、运行验证和 Drive 上的包为准。
 
 ## 与网页界面保持一致
 
@@ -167,7 +167,7 @@ mobile/android/
 
 ## 整理成笔记
 
-网页 `create-page-dialog.tsx`（规则见 [chat-flow.md](chat-flow.md)）：顶栏“新建聊天”右边的 FilePlus 按钮，已保存且有消息的聊天才有；当前聊天在发送（含上传附件）时不能点。窗口是 `ui/CreatePageDialog.kt`（`.notes-dialog`）：说明 → 进行中（转圈 + 可以关掉的说明）→ 完成（“已在笔记中创建…”，省略了一部分时多一句）+“打开笔记”；失败显示服务端原句（429 / 400 / 413）、“Session not found.”（404）或通用句，经系统文词典翻译，可以重试。请求是 `ExportApi.createPageFromChat`（`POST /api/sessions/:id/page {model, savedOn}`，单独的客户端不设读超时、总时限 320 秒）。状态按聊天放在 App 级的 `AnswerExportStore.pageJobs`：关掉窗口照常生成，重开时进行中的照样显示、不会重复建；关窗口时忘掉已结束的结果；完成后通过 `created` 刷新笔记列表；登录 / 退出时清空。
+网页 `create-page-dialog.tsx`（规则见 [chat-flow.md](chat-flow.md)）：输入栏“＋”抽屉（`AttachSheet`）末尾的 “整理成笔记” 一行（`Lucide.FilePlus`，副标题 `R.string.create_page_title`），已保存且有消息的聊天才显示；当前聊天在发送（含上传附件）时置灰不可点。窗口是 `ui/CreatePageDialog.kt`（`.notes-dialog`）：说明 → 进行中（转圈 + 可以关掉的说明）→ 完成（“已在笔记中创建…”，省略了一部分时多一句）+“打开笔记”；失败显示服务端原句（429 / 400 / 413）、“Session not found.”（404）或通用句，经系统文词典翻译，可以重试。请求是 `ExportApi.createPageFromChat`（`POST /api/sessions/:id/page {model, savedOn}`，单独的客户端不设读超时、总时限 320 秒）。状态按聊天放在 App 级的 `AnswerExportStore.pageJobs`：关掉窗口照常生成，重开时进行中的照样显示、不会重复建；关窗口时忘掉已结束的结果；完成后通过 `created` 刷新笔记列表；登录 / 退出时清空。
 
 ## 输入栏与使用上限
 
@@ -178,7 +178,7 @@ mobile/android/
 - **粘贴图片**：输入框换成 `TextFieldState` 版的 `BasicTextField`（草稿仍在 ViewModel，两边同步），用 `contentReceiver` 收剪贴板 / 键盘里的 PNG、JPEG、WEBP（网页 `getClipboardImageFiles`），其它内容照常粘贴成文字。图片先拷进缓存目录（`image.png` 等，和网页粘贴的文件名一样），再走 `addFiles` 的校验。拷贝（以及文件选择器读文件名和大小）经 `ChatViewModel.importFiles` 在后台进行，期间 `importing` 大于 0、不能发送，免得图片漏掉、跑进下一条。键盘插入的图片，临时读取权限挂在 `TransferableContent` extras 里的 `InputContentInfo` 上：拷贝期间一直引用着它，拷完调 `releasePermission`。
 - **拍照**：没有新加一行，"添加文件或照片"打开的系统选择器里同时列出相机 App（`ACTION_GET_CONTENT` 选择器 + `EXTRA_INITIAL_INTENTS` 的拍照意图，和手机浏览器里网页的文件选择框一样）。照片写到缓存目录 `attachments/`，经 FileProvider（`${applicationId}.attachments`，`res/xml/file_paths.xml`）交给相机 App；不需要相机权限，Manifest 里用 `<queries>` 声明要查相机。缓存里超过一天的副本在下次新建副本（打开选择器或粘贴图片）时清掉；不再拍照或粘贴的话，旧副本留到系统清缓存为止。选择器返回后用哪些文件（选中的文件优先，否则看相机文件有没有内容）在 `pickedAttachmentSources`，有单元测试。
 
-- **方案与购买**（`ui/PlanSettings.kt`，网页 `plan-settings.tsx`、`.settings-plan-*`）：设置里个人资料下面的“方案”卡片，读 `GET /api/billing`，显示免费 / Pro 徽章、Pro 的续费 / 结束 / 扣款失败 / 试用结束说明、本期的聊天和图片用量条（图片另有一条“今天的图片”，对应每日上限 `usage.image.daily`）。还能免费试用时（`trialDays > 0` 且 Play 返回带免费阶段的 offer，见 [billing.md](billing.md#免费试用)）介绍框和上限提示多一行试用说明，按钮写“开始 N 天免费试用”。免费用户在服务端开了 Play 结算、Play 商品读得到时，显示和网页一样的 Pro 介绍框和“升级到 Pro”，打开 **Google Play** 的购买窗口（`data/PlayBilling.kt`，网页是 Stripe）；Play 买的 Pro 显示“在 Google Play 上管理订阅”。免费用户撞到上限时，输入栏上方的升级提示（`UpgradeLimitPrompt`，网页 `UpgradePrompt`）沿用登录提示的外框和动画，按钮同样打开 Play。网页（Stripe）买的订阅在 App 里没有管理入口；App 内嵌的笔记编辑页不显示网页的升级提示。从 Drive 装的 APK 连不上 Play 结算，购买按钮不出现。流程见 [billing.md](billing.md#androidgoogle-play-结算)。
+- **方案与购买**（`ui/PlanSettings.kt`，网页 `plan-settings.tsx`、`.settings-plan-*`）：设置里个人资料下面的“方案”卡片，读 `GET /api/billing`，显示免费 / Pro 徽章、Pro 的续费 / 结束 / 扣款失败 / 试用结束说明、聊天和图片生成用量条（Pro 同时显示本期与今日图片生成；免费方案平时只显示今日图片生成，仅在触及月上限时补显示本月满额条）。还能免费试用时（`trialDays > 0` 且 Play 返回带免费阶段的 offer，见 [billing.md](billing.md#免费试用)）介绍框和上限提示多一行试用说明，按钮写“开始 N 天免费试用”。免费用户在服务端开了 Play 结算、Play 商品读得到时，显示和网页一样的 Pro 介绍框和“升级到 Pro”，打开 **Google Play** 的购买窗口（`data/PlayBilling.kt`，网页是 Stripe）；Play 买的 Pro 显示“在 Google Play 上管理订阅”。免费用户撞到上限时，输入栏上方的升级提示（`UpgradeLimitPrompt`，网页 `UpgradePrompt`）沿用登录提示的外框和动画，按钮同样打开 Play。网页（Stripe）买的订阅在 App 里没有管理入口；App 内嵌的笔记编辑页不显示网页的升级提示。从 Drive 装的 APK 连不上 Play 结算，购买按钮不出现。流程见 [billing.md](billing.md#androidgoogle-play-结算)。
 
 ## 回答体验
 
@@ -265,7 +265,7 @@ cd mobile/android
 ./gradlew testDebugUnitTest assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- 交付用 Play 签名的通用 APK：`./gradlew bundleRelease` 出 AAB，上传到内部测试轨道后从 App bundle explorer 下载。本机的 `assembleRelease` / `assembleDebug` 包只用于本机检查，没有 Google 登录（用邮箱验证码登录）。流程和 Drive 规则见 [android.md](android.md#安装包交付)。
+- 需要发布时，通过合入 main 的 PR 提高 versionCode，CI 会构建 AAB 并上传到 Play 的 alpha 封闭测试轨道。本机的 `assembleRelease` / `assembleDebug` 包只用于本机检查，没有 Google 登录（用邮箱验证码登录）。流程和 Drive 规则见 [android.md](android.md#安装包交付)。
 - 默认连线上 `https://app.notefable.com`（`mobile/android/gradle.properties`）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000 -Pnotefable.siteUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 

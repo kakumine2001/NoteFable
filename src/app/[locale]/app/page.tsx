@@ -4,7 +4,6 @@ import {
   ArrowDown,
   ArrowUp,
   ChevronLeft,
-  FilePlus,
   FileText,
   History,
   ImagePlus,
@@ -436,6 +435,8 @@ export default function Home() {
   // 通常チャットではなく画像生成 API へ送るかどうかを表す。
   const [imageGenerationMode, setImageGenerationMode] = useState(false);
   const [attachSheetOpen, setAttachSheetOpen] = useState(false);
+  // チャットからノートへ移ったとき、開いていた「＋」シートは閉じる（戻ったときに勝手に開き直さない）。
+  if (attachSheetOpen && workspaceView !== "chat") setAttachSheetOpen(false);
   // 送信前に選択されている添付ファイル。画像の場合は previewUrl も持つ。
   const [files, setFiles] = useState<UploadFile[]>([]);
   // 次の発言に添付する自分のノート（ID とタイトル・アイコン）。本文はサーバーが送信のたびに読み直す。
@@ -462,6 +463,23 @@ export default function Home() {
     }
     desktop.addEventListener("change", onResize);
     return () => desktop.removeEventListener("change", onResize);
+  }, [sidebarOpen]);
+  // ドロワーを開いている間は、フォーカスをドロワーへ移す。後ろの画面は描画で inert にする（Tab で隠れたボタンへ行かない。
+  // 描画で外すので、閉じる同じ更新の中で入力欄などへ移すフォーカスも効く）。閉じたらメニューのボタンへ戻す。
+  // 戻す先は document.activeElement ではなくボタンそのもの（iOS はボタンをタップしてもフォーカスしないので、
+  // 開く前の入力欄が「開いた要素」に見え、閉じたときにキーボードが出てしまう）。ほかの場所へ移ったフォーカスは奪わない。
+  const drawerRootRef = useRef<HTMLDivElement>(null);
+  const menuToggleRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const drawer = drawerRootRef.current;
+    if (!sidebarOpen || !drawer || getComputedStyle(drawer).display === "none") return;
+    drawer.querySelector<HTMLElement>('.motion-sidebar-panel :is(button, a[href], input, textarea, [tabindex]):not([disabled], [tabindex="-1"])')
+      ?.focus({ preventScroll: true });
+    const toggle = menuToggleRef.current;
+    return () => {
+      const focused = document.activeElement;
+      if (toggle?.isConnected && (!focused || focused === document.body || drawer.contains(focused))) toggle.focus({ preventScroll: true });
+    };
   }, [sidebarOpen]);
   // デスクトップ表示でサイドバー自体を表示するかどうか。
   const [sidebarVisible, setSidebarVisible] = useState(true);
@@ -1862,6 +1880,8 @@ export default function Home() {
 
       // 編集中の Ctrl+B は区画編集器の太字ショートカットに渡す。
       if (event.target instanceof HTMLElement && event.target.closest('[contenteditable="true"], input, textarea')) return;
+      // 検索などのモーダルを開いている間は切り替えない（後ろでドロワーが開き、フォーカスがモーダルの外へ移ってしまう）。
+      if (document.querySelector('dialog:modal, [role="dialog"][aria-modal="true"]')) return;
 
       event.preventDefault();
       if (window.matchMedia("(min-width: 1024px)").matches) {
@@ -2068,7 +2088,7 @@ export default function Home() {
       {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (
-        <div className="fixed inset-0 z-40 lg:hidden">
+        <div ref={drawerRootRef} className="fixed inset-0 z-40 lg:hidden">
           <button
             className="motion-fade-in absolute inset-0 bg-black/15"
             onClick={() => setSidebarOpen(false)}
@@ -2078,7 +2098,7 @@ export default function Home() {
         </div>
       )}
 
-      <section className="notion-page" {...(workspaceView === "chat" ? fileDropHandlers : {})}>
+      <section className="notion-page" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
             <div><Paperclip size={22} /><span>{t("Drop files to attach")}</span></div>
@@ -2087,6 +2107,7 @@ export default function Home() {
         <header className="notion-topbar">
           <div className="flex min-w-0 items-center gap-3">
             <button
+              ref={menuToggleRef}
               className="notion-icon-button mobile-sidebar-toggle"
               onClick={() => setSidebarOpen(true)}
               aria-label={t("Open sidebar")}
@@ -2138,13 +2159,6 @@ export default function Home() {
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
                 aria-label={t("New chat")} title={t("New chat")}>
                 <Plus size={20} />
-              </button>
-            )}
-            {/* 会話全体を AI がノートに書き直す。返答の途中は、最後の回答がまだ保存されていないので押せない。 */}
-            {workspaceView === "chat" && !emptyState && activeSession && (
-              <button type="button" className="notion-icon-button grid" disabled={isActiveSessionBusy} onClick={() => setCreatePageSessionId(activeSession.id)}
-                aria-label={t("Create page")} title={t("Create page")} aria-haspopup="dialog">
-                <FilePlus size={20} />
               </button>
             )}
             {workspaceView === "pages" && !notesList && activeSummary && pageSettingsOf(activeSummary).locked && (
@@ -2381,6 +2395,8 @@ export default function Home() {
                     // 続けて絵の説明を打てるよう、入力欄へフォーカスを移す。
                     inputRef.current?.focus();
                   }}
+                  onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+                  createPageDisabled={isActiveSessionBusy}
                 />
               )}
               <div className="col-span-3 row-start-1 min-w-0">
@@ -2496,12 +2512,14 @@ export default function Home() {
           )}
           {!isNarrowScreen && recentNoteCards}
           <AttachSheet
-            open={attachSheetOpen && isNarrowScreen}
+            open={attachSheetOpen && isNarrowScreen && workspaceView === "chat"}
             onClose={() => setAttachSheetOpen(false)}
             onFilesChange={handleFileSelect}
             imageMode={imageGenerationMode}
             onToggleImageMode={() => setImageGenerationMode((current) => !current)}
             onAttachPages={() => setPageDialogOpen(true)}
+            onCreatePage={!emptyState && activeSession ? () => setCreatePageSessionId(activeSession.id) : undefined}
+            createPageDisabled={isActiveSessionBusy}
           />
           {pageDialogOpen && (
             <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)}

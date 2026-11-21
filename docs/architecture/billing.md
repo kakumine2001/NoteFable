@@ -13,7 +13,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 | pro | `User.plan = PRO` | 2,000 / 账期 | 60 / 账期，且 10 / 天 |
 
 - “天”是日本时间的一天；免费的“月”是日本时间的自然月；Pro 的“账期”是 Stripe 的当前计费周期（`subscriptionPeriodStart`〜`subscriptionPeriodEnd`），续费时重新计算。账期已过但续费通知还没到时，先按自然月计（不会被上一期用满的计数卡住）。Pro 和免费的月计数是不同的行（`chat:pro` / `image:pro` 与 `image:month`），所以升级时免费额度的用量不带进 Pro，回到免费时也不按旧账期算。
-- 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里图片显示两条用量（本月 / 今天）。
+- 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里 Pro 显示两条图片生成用量（本期 / 今日），免费方案平时只显示今日图片生成（后台仍执行月总量上限，触顶时补显示满额的本月条）。
 - 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
 - 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
 
@@ -99,7 +99,7 @@ GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 
 已经建好的（2026-11-17）：
 
-- Play Console：App `NoteFable`（`com.kakumine.notefable`），内部测试有 1.0.6（versionCode 16）的草稿；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
+- Play Console：App `NoteFable`（`com.kakumine.notefable`），1.0.12（versionCode 22）已在内部测试和封闭测试（Alpha）完全发布（2026-11-20），之后的版本由 GitHub Actions 上传到 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
 - Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
 - Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://app.notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

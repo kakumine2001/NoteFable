@@ -1,0 +1,62 @@
+set -euo pipefail
+# Compares the Android version of a PR merge (HEAD) with main before the merge (HEAD^1); HEAD^2 is the PR head.
+# Runs on GitHub's test merge in Android PR checks and on the real merge commit in the release workflow.
+# Needs full history (fetch-depth: 0) for the merge base. The repository allows only merge-commit merges.
+config=mobile/android/app/build.gradle.kts
+version_code() {
+  git show "$1:$config" | sed -nE 's/^[[:space:]]*versionCode[[:space:]]*=[[:space:]]*([0-9]+)[[:space:]]*$/\1/p'
+}
+version_name() {
+  git show "$1:$config" | sed -nE 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"([^"]+)"[[:space:]]*$/\1/p'
+}
+valid_code() {
+  [[ "$1" =~ ^[1-9][0-9]{0,9}$ ]]
+}
+git rev-parse --verify --quiet HEAD^2 > /dev/null || {
+  echo "::error::HEAD is not a merge commit. The version check needs the PR merge (HEAD^1 = main, HEAD^2 = PR head); merge PRs with a merge commit."
+  exit 1
+}
+before=$(version_code HEAD^1)
+after=$(version_code HEAD)
+if ! valid_code "$before" || ! valid_code "$after"; then
+  echo "::error::Expected a single positive versionCode in each Gradle config."
+  exit 1
+fi
+if (( after > 2100000000 || after < before )); then
+  echo "::error::Android versionCode must not decrease or exceed the Google Play limit."
+  exit 1
+fi
+if (( after == before )); then
+  # The PR may have bumped the version to a value that main already reached through another PR.
+  base=$(git merge-base HEAD^1 HEAD^2) || {
+    echo "::error::No merge base between main and the PR head. Check out the full history (fetch-depth: 0)."
+    exit 1
+  }
+  # A PR branched before the client moved to mobile/android has no config at its merge base or head,
+  # so it cannot have bumped this version.
+  if ! git cat-file -e "$base:$config" 2> /dev/null || ! git cat-file -e "HEAD^2:$config" 2> /dev/null; then
+    echo "versionCode is unchanged ($after). No Play alpha release is planned."
+    exit 0
+  fi
+  pr_before=$(version_code "$base")
+  pr_after=$(version_code HEAD^2)
+  if ! valid_code "$pr_before" || ! valid_code "$pr_after"; then
+    echo "::error::Expected a single positive versionCode at the PR head and its merge base."
+    exit 1
+  fi
+  if [[ "$pr_before" != "$pr_after" ]]; then
+    echo "::error::This PR changes versionCode, but main already has versionCode $after. Raise it above $after or revert the version change."
+    exit 1
+  fi
+  echo "versionCode is unchanged ($after). No Play alpha release is planned."
+  exit 0
+fi
+old_name=$(version_name HEAD^1)
+new_name=$(version_name HEAD)
+if [[ -z "$old_name" || -z "$new_name" || "$old_name" == *$'\n'* || "$new_name" == *$'\n'* || "$new_name" == "$old_name" ]]; then
+  echo "::error::Update versionName when increasing versionCode."
+  exit 1
+fi
+echo "versionCode $before -> $after. Play alpha release is planned for $(git rev-parse HEAD)."
+echo "version_code=$after" >> "$GITHUB_OUTPUT"
+echo 'publish=true' >> "$GITHUB_OUTPUT"

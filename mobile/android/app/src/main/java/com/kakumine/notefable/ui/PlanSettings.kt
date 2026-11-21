@@ -168,17 +168,19 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
                     )
                 }
                 current.usage["image"]?.let { usage ->
-                    PlanMeter(
-                        stringResource(
-                            when {
-                                usage.period == "day" -> R.string.plan_images_today
-                                pro -> R.string.plan_images_period
-                                else -> R.string.plan_images_month
-                            },
-                        ),
-                        usage,
-                    )
-                    // 图片除了月上限还有每日上限，今天的用量也列出来。
+                    // 免费方案平时不显示「本月图片生成」，只显示今天的；撞到月上限时再显示满额条以免用户困惑。Pro 同时显示本期上限与今日上限。
+                    if (pro || usage.daily == null || usage.used >= usage.limit) {
+                        PlanMeter(
+                            stringResource(
+                                when {
+                                    usage.period == "day" -> R.string.plan_images_today
+                                    pro -> R.string.plan_images_period
+                                    else -> R.string.plan_images_month
+                                },
+                            ),
+                            usage,
+                        )
+                    }
                     usage.daily?.let { PlanMeter(stringResource(R.string.plan_images_today), PlanUsage(it.used, it.limit)) }
                 }
             }

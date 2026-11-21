@@ -138,7 +138,7 @@ Content-Type: application/json
 
 ## 整理成笔记的请求
 
-聊天顶栏的 Create page（`src/lib/chat-page.ts`）用所选聊天模型发一次非流式请求，推理强度是该模型的默认值，不带搜索、工具、压缩和 `cache_control`，240 秒超时。输出上限 `<limit>` 是 32,000 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。`input` 是整理好的对话文字，全部在 `<conversation>` 里：`Chat title: …`，必要时一行省略说明，再是按时间排列的 `<user>` / `<assistant>` 块（每条最多 12,000 字符，合计最多 60,000）。
+输入栏 “＋” 菜单里的 Create page（`src/lib/chat-page.ts`）用所选聊天模型发一次非流式请求，推理强度是该模型的默认值，不带搜索、工具、压缩和 `cache_control`，240 秒超时。输出上限 `<limit>` 是 32,000 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。`input` 是整理好的对话文字，全部在 `<conversation>` 里：`Chat title: …`，必要时一行省略说明，再是按时间排列的 `<user>` / `<assistant>` 块（每条最多 12,000 字符，合计最多 60,000）。
 
 - OpenAI：`POST /responses`，`{ model, instructions, input, reasoning: { effort }, max_output_tokens: <limit>, safety_identifier, store: false, stream: false }`；`status` 不是 `completed` 视为失败，只有 `incomplete` 且原因是 `max_output_tokens` 时保存已写的部分。
 - DeepSeek：同样发到 `${DEEPSEEK_BASE_URL}/responses`，用 `buildDeepSeekResponsesRequest`（`reasoning.effort` 与 `max_output_tokens: <limit>`，`stream: false`），不带 `web_search`、`safety_identifier`、`store`。

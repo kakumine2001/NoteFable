@@ -5,6 +5,7 @@
     <string name="language_change_failed">Tidak dapat mengubah bahasa. Silakan coba lagi.</string>
     <string name="language_auto">Deteksi otomatis</string>
     <string name="language_auto_current">Otomatis (saat ini: %1$s)</string>
+    <string name="language_auto_now">Saat ini: %1$s</string>
     <string name="language_search">Cari bahasa</string>
     <string name="language_effective">Bahasa saat ini</string>
     <string name="language_no_results">Bahasa tidak ditemukan.</string>

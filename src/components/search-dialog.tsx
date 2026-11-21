@@ -248,7 +248,11 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   function onTabKeyDown(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
     event.preventDefault();
-    changeScope(nextSearchTabScope(index, event.key, dir));
+    // 矢印キーではフォーカスをタブに残す（入力欄へ移すと、続けて矢印でタブを動かせない）。
+    const next = nextSearchTabScope(index, event.key, dir);
+    setScope(next);
+    setActive(0);
+    document.getElementById(`${baseId}-tab-${next}`)?.focus();
   }
 
   let body: ReactNode;

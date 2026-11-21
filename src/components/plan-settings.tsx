@@ -67,10 +67,13 @@ export function PlanSettings() {
             const entry = plan.usage[kind];
             const label = kind === "chat"
               ? (entry.period === "day" ? t("Messages today") : pro ? t("Messages this period") : t("Messages this month"))
-              : (entry.period === "day" ? t("Images today") : pro ? t("Images this period") : t("Images this month"));
-            // 画像は月の上限に加えて 1 日の上限もあるので、今日の分も並べる。
-            const meters = [{ key: kind as string, label, used: entry.used, limit: entry.limit }];
-            if (entry.daily) meters.push({ key: `${kind}-day`, label: t("Images today"), used: entry.daily.used, limit: entry.daily.limit });
+              : (entry.period === "day" ? t("Image generations today") : pro ? t("Image generations this period") : t("Image generations this month"));
+            // 無料プランは通常「今月の画像生成」を出さず今日の分だけを表示する（月上限に達したときだけ満額バーを出して理由が分かるようにする）。Pro は今期と今日を並べる。
+            const hideMonthlyFreeImage = kind === "image" && !pro && Boolean(entry.daily) && entry.used < entry.limit;
+            const meters = hideMonthlyFreeImage
+              ? []
+              : [{ key: kind as string, label, used: entry.used, limit: entry.limit }];
+            if (entry.daily) meters.push({ key: `${kind}-day`, label: t("Image generations today"), used: entry.daily.used, limit: entry.daily.limit });
             return meters.map((meter) => {
               const ratio = meter.limit ? Math.min(1, meter.used / meter.limit) : 1;
               return (
@@ -86,7 +89,7 @@ export function PlanSettings() {
         {!pro && plan.billing && (
           <div className="settings-plan-offer">
             <p className="settings-plan-offer-title"><Sparkles size={15} aria-hidden="true" />{t("NoteFable Pro · ¥{price}/month", { price: plan.priceJpy })}</p>
-            <p className="project-settings-help">{t("{chat} messages and {image} images a month. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image })}</p>
+            <p className="project-settings-help">{t("{chat} messages and {image} image generations a month. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image })}</p>
             {plan.trialDays > 0 && <p className="project-settings-help">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: plan.trialDays, price: plan.priceJpy })}</p>}
             <button type="button" className="signin-open-button settings-plan-upgrade" disabled={busy} onClick={() => void open("checkout")}>
               {busy ? t("Opening…") : plan.trialDays > 0 ? t("Start {days}-day free trial", { days: plan.trialDays }) : t("Upgrade to Pro")}

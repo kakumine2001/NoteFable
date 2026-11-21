@@ -3,7 +3,7 @@
 import { ChevronRight, CircleHelp, FileText, Info, Languages, Scale, Shield } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
@@ -68,8 +68,13 @@ export function HelpMenu({ guest }: { guest: boolean }) {
             <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="dialog"
               onClick={() => setOpen({ kind: "language", anchor: open.anchor })}>
               <Languages size={16} aria-hidden="true" className="help-menu-icon" />
-              <span className="flex-1">{t("Language")}</span>
-              <span lang={LOCALE_TAGS[locale]} dir={preference === "auto" ? undefined : LOCALE_DIRS[locale]} className="help-menu-value">{preference === "auto" ? t("Auto (current: {language})", { language: LOCALE_NAMES[locale] }) : LOCALE_NAMES[locale]}</span>
+              {/* 幅 228px の行に見出しと値を横に並べると、多くの言語で見出しが縦に潰れる。値は見出しの下に小さく出す（言語一覧の行と同じ形）。 */}
+              <span className="help-menu-label">
+                {t("Language")}
+                {preference === "auto"
+                  ? <small className="help-menu-value">{t("Auto detect")}</small>
+                  : <small lang={LOCALE_TAGS[locale]} dir={LOCALE_DIRS[locale]} className="help-menu-value">{LOCALE_NAMES[locale]}</small>}
+              </span>
               <ChevronRight size={15} aria-hidden="true" className="help-menu-icon rtl-mirror" />
             </button>
           </>}
@@ -88,12 +93,17 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
   const { t, dir } = useI18n();
   const ref = useRef<HTMLDialogElement>(null);
   useBackToClose(true, onClose);
-  useEffect(() => {
-    ref.current?.showModal();
-    ref.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  // 最初は項目がいちばん高いスマホの幅（.chat-menu-item 44px）と区切り線で見積もり、開いたら描画前に実際の高さで置き換える
+  // （文字を大きくした環境や 2 行になる言語の行で、見積もりより高くなる）。
+  const [height, setHeight] = useState(items * 44 + 24);
+  useLayoutEffect(() => {
+    const dialog = ref.current;
+    if (!dialog) return;
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    // max-height で切られる前の高さ（中身 + 枠）。
+    setHeight(dialog.scrollHeight + dialog.offsetHeight - dialog.clientHeight);
   }, []);
-  // 高さは項目がいちばん高いスマホの幅（.chat-menu-item 44px）と区切り線で見積もる。
-  const height = items * 44 + 24;
   // ボタンは画面の一番下にあるので上に開く。上に入りきらない低い画面では上端（8px）から出し、
   // .chat-actions-menu の max-height（画面の高さ − 16px）を超える分はメニューの中でスクロールする。
   const above = anchor.top - 4 - height >= 8;

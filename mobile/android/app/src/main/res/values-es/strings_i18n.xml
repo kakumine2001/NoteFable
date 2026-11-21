@@ -5,6 +5,7 @@
     <string name="language_change_failed">No se pudo cambiar el idioma. Inténtalo de nuevo.</string>
     <string name="language_auto">Detectar automáticamente</string>
     <string name="language_auto_current">Automático (actual: %1$s)</string>
+    <string name="language_auto_now">Actual: %1$s</string>
     <string name="language_search">Buscar idiomas</string>
     <string name="language_effective">Idioma actual</string>
     <string name="language_no_results">No se encontraron idiomas.</string>
