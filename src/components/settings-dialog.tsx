@@ -205,9 +205,17 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   useEffect(() => { ref.current?.showModal(); ref.current?.focus(); }, []);
   // 操作がキーボードか指・マウスかを覚える。window の capture で聞く（Esc は useBackToClose が先に受けて止めるため）。
   // 文字の入力は数えない: 名前を打ったあと端末の「戻る」で一覧に戻っても、キーボードの操作とは見なさない。
+  // 入力欄の中では、空白・Enter・矢印は文字の入力やカーソルの移動なので、Tab と Esc だけを数える（変換中のキーも数えない）。
   useEffect(() => {
     const keys = new Set(["Tab", "Enter", " ", "Escape", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
-    const onKey = (event: KeyboardEvent) => { if (keys.has(event.key)) byKeyboard.current = true; };
+    const typing = (target: EventTarget | null) => target instanceof HTMLTextAreaElement
+      || (target instanceof HTMLInputElement && !["button", "checkbox", "radio", "file", "submit", "reset", "range", "color"].includes(target.type))
+      || (target instanceof HTMLElement && target.isContentEditable);
+    const onKey = (event: KeyboardEvent) => {
+      if (event.isComposing || !keys.has(event.key)) return;
+      if (typing(event.target) && event.key !== "Tab" && event.key !== "Escape") return;
+      byKeyboard.current = true;
+    };
     const onPointer = () => { byKeyboard.current = false; };
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("pointerdown", onPointer, true);
