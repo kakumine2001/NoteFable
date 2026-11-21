@@ -1,12 +1,20 @@
 import SwiftUI
+import UIKit
 
-// 设置（网页 SettingsDialog 的手机宽度，Android ui/SettingsDialog.kt；从侧栏的账号行打开，登录后才有）。全屏：灰底（--notion-sidebar），
-// 顶栏高 56、左右 10.4：返回键 40（ArrowLeft 20）+ 间距 4 +"设置"17/650 墨色；下面左右 16、上 8、下 32 的滚动区，
-// 各栏是白色卡片（圆角 12、1px 细线），栏间距 24，栏标题 13/550 灰：
-// 个人资料（没有栏标题）、方案、通用（语言、图标）、个性化（自定义指令）、账号（退出登录、删除账号）。
+// 设置（网页 SettingsDialog 的手机宽度，Android ui/SettingsDialog.kt；从侧栏的账号行打开，登录后才有）。全屏，灰底（--notion-sidebar）。
+// 两级（和 ChatGPT、Claude 的手机 App 一样）：先是入口列表，点一行进那一栏自己的画面。
+// - 顶栏高 64、左右 16：行首 40 的圆按钮（白底、1px 细线；列表上是"关闭" X 18，一栏里是"返回" ArrowLeft 20），
+//   标题在整条顶栏的正中，17/650 墨色（列表上是"设置"，一栏里是那一栏的名字）；行尾空着（留 40，让标题居中）。
+// - 下面是左右 16、上 8、下 32 的滚动区。名字、头像、语言保存失败的提示在它的最上面，列表和每一栏里都有。
+// - 入口列表（.settings-home）：账号行（头像、名字、邮箱，点了进"账号"），下面 24 是四行的卡片：通用、个性化、方案、账号。
+// - 一栏的画面只有那一栏的内容，没有栏标题（名字在顶栏上）。卡片都是白底、1px 细线、圆角 20：
+//   通用（语言、图标）；个性化（自定义指令）；方案；账号（个人资料，下面 24 是退出登录、删除账号）。
+// - 换画面：200ms cubic-bezier(.2,.8,.2,1)，新画面淡入并横移 16（进一栏从行尾一侧来，回列表从行首一侧来，从右到左的界面里反过来），
+//   旧画面直接消失。"减弱动态效果"时没有，刚打开时的列表也没有。换了以后从最上面开始看。
 // 资料、语言和图标改了就存。只有自定义指令要按"保存"：改了以后下方浮出"未保存的更改"条（放弃 / 保存），
-// 保存或放弃之前不关（顶栏的返回只让那条晃一下）。保存后留在设置里，标题右边显示"已保存"。
-// 关闭：保存中、删除中、选照片 / 上传照片时不关。不管怎么关，输入中的名字都先存掉。规则都在 Core 的 `SettingsDialogModel`。
+// 保存或放弃之前不关、也不回列表（只让那条晃一下）。保存后留在设置里，标题右边显示"已保存"。
+// 什么时候能关、能回列表、被拦下来时切到哪一栏，规则都在 Core 的 `SettingsDialogModel`。
+// iOS 没有返回键，设置面板也没有边缘滑动的手势：回列表只有顶栏的"返回"（读屏的"返回"手势走 `requestClose`，一次退一步）。
 
 /// 设置面板的内容：每次打开建一份新的状态（上一次的错误、没存的指令不带进来）。由 `accountOverlays()` 放进 `.nfPanel(style: .settings)`。
 struct SettingsScreenHost: View {
@@ -55,27 +63,34 @@ struct SettingsScreen: View {
 
     @Environment(AppEnvironment.self) private var app
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
         let account = app.account.state
         let state = model.state
         let dirty = model.dirty
+        let page = state.page
         VStack(spacing: 0) {
-            topBar
-            ScrollView(.vertical) {
-                VStack(alignment: .leading, spacing: 24) {
-                    profileSection(account)
-                    planSection
-                    generalSection
-                    personalizationSection(state)
-                    accountSection
+            topBar(page)
+            // 入口列表和一栏的画面各是一个滚动区：换画面就是换一个新的，所以总是从最上面开始（网页 scrollTop = 0）。
+            ZStack(alignment: .top) {
+                if let page {
+                    scrollBody(account: account, dirty: dirty) {
+                        pageContent(page, state)
+                    }
+                    // 被拦下来、从一栏直接换到另一栏时（保存失败等）也换一个新的滚动区。
+                    .id(page)
+                    .transition(bodyTransition(forward: true, navigated: state.navigated))
+                } else {
+                    scrollBody(account: account, dirty: dirty) {
+                        homeContent
+                    }
+                    .transition(bodyTransition(forward: false, navigated: state.navigated))
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 8)
-                // 条出来时多留出条的高度，最后一栏不被挡住（.settings-body.has-unsaved）。
-                .padding(.bottom, dirty ? 96 : 32)
             }
-            .scrollDismissesKeyboard(.interactively)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            // 只有在列表和一栏之间换的时候才有动画（网页：animation-name 变了才重新播放，从一栏直接换到另一栏时不播）。
+            .animation(reduceMotion ? nil : NFMotion.emphasized(0.2), value: page == nil)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .overlay(alignment: .bottom) {
@@ -93,63 +108,106 @@ struct SettingsScreen: View {
         }
         // 账号的资料变了（保存成功、失败回滚）：没在编辑时名字输入框跟着走。
         .onChange(of: user) { _, _ in model.userChanged() }
+        // 换了画面：读屏从新画面的开头（顶栏的按钮）接着念（网页把焦点移到"返回"上）。
+        .onChange(of: page) { _, _ in UIAccessibility.post(notification: .screenChanged, argument: nil) }
+        // 读屏的"返回"手势（两指搓擦）= 网页的 Esc：一次退一步。
+        .accessibilityAction(.escape) { model.requestClose() }
     }
 
     // MARK: 顶栏
 
-    private var topBar: some View {
-        HStack(spacing: 4) {
-            // 顶栏的返回（网页 closeAll）：有没保存的指令时只让"未保存的更改"条晃一下。
-            NFIconButton(Lucide.arrowLeft, label: L("back"), color: Sm.text) { model.closeAll() }
-            Text(L("acct_settings"))
+    /// .settings-header（手机）：三列 40 | 1fr | 40、间距 8、左右 16、高 64。标题在中间那一列里居中，所以也在整条顶栏的正中。
+    private func topBar(_ page: SettingsPage?) -> some View {
+        let home = page == nil
+        return HStack(spacing: 8) {
+            SettingsBarButton(home ? Lucide.x : Lucide.arrowLeft, iconSize: home ? 18 : 20, label: L(home ? "close" : "back")) {
+                // 列表上是关闭（网页 closeAll），一栏里是回列表（网页 backHome）；拦不拦由模型决定。
+                if model.state.page == nil {
+                    model.closeAll()
+                } else {
+                    model.backHome()
+                }
+            }
+            Text(L(page?.titleKey ?? "acct_settings"))
                 .font(.nf(17, weight: 650))
                 .foregroundStyle(Sm.ink)
                 .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .accessibilityAddTraits(.isHeader)
-            Spacer(minLength: 0)
+            // 行尾那一列空着，只为让标题居中。
+            Color.clear
+                .frame(width: 40, height: 40)
+                .accessibilityHidden(true)
         }
-        .padding(.horizontal, 10.4)
-        .frame(height: 56)
+        .padding(.horizontal, 16)
+        .frame(height: 64)
+    }
+
+    // MARK: 滚动区
+
+    /// .settings-body（手机）：左右 16、上 8、下 32；"未保存的更改"条出来时下面多留出条的高度（.has-unsaved，96），最后一块不被挡住。
+    /// 最上面是名字、头像、语言保存失败的提示（.settings-save-error，下距 12）：列表和每一栏里都在。
+    private func scrollBody<Content: View>(account: AccountUiState, dirty: Bool, @ViewBuilder content: () -> Content) -> some View {
+        let inner = content()
+        return ScrollView(.vertical) {
+            VStack(alignment: .leading, spacing: 0) {
+                if let error = account.profileError {
+                    SettingsErrorLine(profileErrorText(error, app.systemText))
+                        .padding(.bottom, 12)
+                }
+                inner
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, dirty ? 96 : 32)
+        }
+        .scrollDismissesKeyboard(.interactively)
+    }
+
+    /// 换画面的过渡（网页 settings-page-forward / settings-page-back）：新画面从 16 外淡入，旧画面直接消失。
+    /// 进一栏从行尾一侧来，回列表从行首一侧来；offset 不随布局方向镜像，所以自己分左右。
+    /// "减弱动态效果"时、还没换过画面时（刚打开的列表）没有。
+    private func bodyTransition(forward: Bool, navigated: Bool) -> AnyTransition {
+        if reduceMotion || !navigated { return .identity }
+        let towardTrailing: CGFloat = layoutDirection == .rightToLeft ? -16 : 16
+        let x: CGFloat = forward ? towardTrailing : -towardTrailing
+        return .asymmetric(
+            insertion: AnyTransition.offset(x: x, y: 0).combined(with: .opacity),
+            removal: .identity
+        )
+    }
+
+    // MARK: 入口列表
+
+    /// .settings-home：账号行，下面 24 是各栏的行（顺序同网页 TABS）。
+    private var homeContent: some View {
+        let pages = SettingsPage.allCases
+        return VStack(alignment: .leading, spacing: 24) {
+            SettingsIdentityCard(user: user) { model.show(.account) }
+            SettingsCard {
+                ForEach(pages, id: \.self) { page in
+                    SettingsHomeRow(L(page.titleKey), icon: page.icon, divided: page != pages.first) {
+                        model.show(page)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: 各栏
 
-    private func profileSection(_ account: AccountUiState) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // 名字、头像、语言保存失败的提示：放在最上面（网页 .settings-save-error，下距 12）。
-            if let error = account.profileError {
-                SettingsErrorLine(profileErrorText(error, app.systemText))
-                    .padding(.bottom, 12)
-            }
-            SettingsCard(padded: true) {
-                ProfileSettings(model: model, user: user)
-            }
-        }
-    }
-
-    private var planSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsGroupLabel(L("plan_title"))
-            SettingsCard(padded: true) {
-                PlanSettingsCard(model: plan)
-            }
-        }
-    }
-
-    private var generalSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsGroupLabel(L("settings_general"))
+    /// 一栏的内容（网页 .settings-group.is-active；"账号"是个人资料和账号两块，间距 24）。
+    @ViewBuilder
+    private func pageContent(_ page: SettingsPage, _ state: SettingsDialogState) -> some View {
+        switch page {
+        case .general:
             SettingsCard {
                 LanguageSettingsRowView(user: user)
                 SettingsRowDivider()
                 AppIconSettings(model: model)
             }
-        }
-    }
-
-    private func personalizationSection(_ state: SettingsDialogState) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsGroupLabel(L("settings_personalization"))
+        case .personalization:
             SettingsCard(padded: true) {
                 CustomInstructionsSection(model: model)
                 if let error = state.error {
@@ -157,18 +215,21 @@ struct SettingsScreen: View {
                         .padding(.top, 12)
                 }
             }
-        }
-    }
-
-    private var accountSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            SettingsGroupLabel(L("account"))
+        case .plan:
+            SettingsCard(padded: true) {
+                PlanSettingsCard(model: plan)
+            }
+        case .account:
+            SettingsCard(padded: true) {
+                ProfileSettings(model: model, user: user)
+            }
             SettingsCard {
                 SettingsRowButton(L("sign_out"), icon: Lucide.logOut) { model.signOut() }
                     .disabled(!model.signOutEnabled)
                 SettingsRowDivider()
                 DeleteAccountSection(model: model)
             }
+            .padding(.top, 24)
         }
     }
 }

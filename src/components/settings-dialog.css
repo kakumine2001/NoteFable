@@ -1,4 +1,5 @@
-/* 設定画面（settings-dialog.tsx）。デスクトップ幅は左にナビ・右に選んだ欄、スマホ幅は全画面で全部の欄をカードにして縦に並べる。
+/* 設定画面（settings-dialog.tsx）。デスクトップ幅は左にナビ・右に選んだ欄。
+   スマホ幅は全画面の 2 段: 入口の一覧（.settings-home）→ 押した欄だけの画面（ChatGPT・Claude のアプリと同じ形）。
    globals.css は layer 外なので、同じ詳細度では順序で負ける。ここでは dialog.settings-dialog を頭に付けて確実に勝たせる。 */
 
 dialog.settings-dialog {
@@ -7,6 +8,7 @@ dialog.settings-dialog {
   box-shadow: 0 0 0 1px rgba(15, 15, 15, 0.06), 0 24px 64px rgba(12, 23, 48, 0.22);
   animation: settings-enter 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
+dialog.settings-dialog:focus { outline: none; }
 dialog.settings-dialog::backdrop { background: rgba(12, 23, 48, 0.32); backdrop-filter: blur(2px); animation: settings-fade 180ms ease-out both; }
 @keyframes settings-enter { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
 @keyframes settings-fade { from { opacity: 0; } to { opacity: 1; } }
@@ -49,6 +51,9 @@ dialog.settings-dialog .settings-save-error { margin: 0 0 0.75rem; }
   dialog.settings-dialog .settings-group + .settings-group { margin-top: 0; }
   dialog.settings-dialog .settings-group.is-active ~ .settings-group.is-active { margin-top: 1.25rem; }
 }
+
+/* スマホ幅の入口の一覧。デスクトップ幅では左のナビがその役目なので出さない。 */
+dialog.settings-dialog .settings-home { display: none; }
 
 /* カードと行。 */
 dialog.settings-dialog .settings-card { overflow: hidden; border: 1px solid var(--notion-border-strong); border-radius: 12px; background: #fff; }
@@ -194,18 +199,60 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
   dialog.settings-dialog .settings-unsaved-save:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
 }
 
-/* スマホ幅: 全画面。ナビは出さず、上に「戻る」と題、下に全部の欄をカードで並べる（地は灰色、カードは白）。 */
+/* スマホ幅: 全画面（地は灰色、カードは白）。最初は入口の一覧、行を押すとその欄だけの画面。 */
 @media (max-width: 639px) {
   dialog.settings-dialog { width: 100%; height: 100dvh; margin: 0; border-radius: 0; box-shadow: none; animation-name: settings-slide; animation-duration: 220ms; }
-  dialog.settings-dialog .settings-nav, dialog.settings-dialog .settings-close, dialog.settings-dialog .settings-title-desktop { display: none; }
+  dialog.settings-dialog .settings-nav, dialog.settings-dialog .settings-title-desktop { display: none; }
   dialog.settings-dialog .settings-title-mobile { display: inline; }
-  dialog.settings-dialog .settings-back { display: grid; width: 2.5rem; height: 2.5rem; border-radius: 0.3rem; color: var(--notion-text); }
   dialog.settings-dialog .settings-main { background: var(--notion-sidebar); }
-  dialog.settings-dialog .settings-header { min-height: 3.5rem; gap: 0.25rem; padding: 0 0.65rem; padding-top: env(safe-area-inset-top); }
+  /* 上の帯: 左に丸いボタン（一覧では「閉じる」、欄の画面では「戻る」）、題は中央。右の列は題を中央に保つための空き。 */
+  dialog.settings-dialog .settings-header {
+    display: grid; grid-template-columns: 2.5rem minmax(0, 1fr) 2.5rem; min-height: 4rem; gap: 0.5rem; padding: 0 1rem; padding-top: env(safe-area-inset-top);
+  }
+  dialog.settings-dialog .settings-title { grid-column: 2; text-align: center; }
+  dialog.settings-dialog .settings-back, dialog.settings-dialog .settings-close {
+    grid-column: 1; grid-row: 1; width: 2.5rem; height: 2.5rem; border: 1px solid var(--notion-border); border-radius: 999px; background: #fff; color: var(--notion-text);
+  }
+  dialog.settings-dialog .settings-back { display: grid; }
+  dialog.settings-dialog .settings-shell[data-home="true"] .settings-back, dialog.settings-dialog .settings-shell[data-home="false"] .settings-close { display: none; }
   dialog.settings-dialog .settings-body { padding: 0.5rem 1rem calc(2rem + env(safe-area-inset-bottom)); }
   dialog.settings-dialog .settings-body.has-unsaved { padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
-  dialog.settings-dialog .settings-card { border-color: var(--notion-border); }
-  dialog.settings-dialog .settings-group + .settings-group { margin-top: 1.5rem; }
+  dialog.settings-dialog .settings-card { border-color: var(--notion-border); border-radius: 20px; }
+
+  /* 入口の一覧と欄の画面の切り替え。欄の画面では、選んだ欄だけを出す（題は上の帯にあるので、欄のラベルは出さない）。 */
+  dialog.settings-dialog .settings-shell[data-home="true"] .settings-home { display: block; }
+  dialog.settings-dialog .settings-shell[data-home="true"] .settings-group,
+  dialog.settings-dialog .settings-shell[data-home="false"] .settings-group:not(.is-active),
+  dialog.settings-dialog .settings-shell[data-home="false"] .settings-group-label { display: none; }
+  dialog.settings-dialog .settings-group + .settings-group { margin-top: 0; }
+  dialog.settings-dialog .settings-group.is-active ~ .settings-group.is-active { margin-top: 1.5rem; }
+  /* 画面を替えたとき、進む向きに少し動かして出す（animation-name が変わるたびにやり直される）。 */
+  dialog.settings-dialog .settings-shell[data-home="false"] .settings-body { animation: settings-page-forward 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  dialog.settings-dialog .settings-shell[data-home="true"][data-navigated="true"] .settings-body { animation: settings-page-back 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  /* 右から左に書く言語では、動く向きを逆にする。 */
+  dialog.settings-dialog .settings-shell:dir(rtl) { --settings-page-dir: -1; }
+
+  /* アカウントの行（顔・名前・メール）。 */
+  dialog.settings-dialog .settings-identity {
+    display: flex; width: 100%; align-items: center; gap: 0.875rem; padding: 0.875rem 1rem; text-align: start; transition: background-color 120ms ease;
+  }
+  dialog.settings-dialog .settings-identity > * + * { border-top: 0; }
+  dialog.settings-dialog .settings-identity .settings-row-text { flex: 1; }
+  dialog.settings-dialog .settings-identity-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 1.0625rem; font-weight: 600; color: var(--nf-ink); }
+  dialog.settings-dialog .settings-identity .settings-row-help { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
+  dialog.settings-dialog .settings-identity:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
+  /* 欄ごとの入口の行: アイコン・名前・右向きの矢印。区切り線は名前の左端から（アイコンの下には引かない）。 */
+  dialog.settings-dialog .settings-home-list { margin-top: 1.5rem; }
+  dialog.settings-dialog .settings-home-row { position: relative; min-height: 3.5rem; gap: 0.875rem; }
+  dialog.settings-dialog .settings-home-row svg:first-child { color: var(--notion-text); }
+  dialog.settings-dialog .settings-home-row .settings-row-title { flex: 1; }
+  dialog.settings-dialog .settings-home-list > .settings-home-row + .settings-home-row { border-top: 0; }
+  dialog.settings-dialog .settings-home-list > .settings-home-row + .settings-home-row::before {
+    content: ""; position: absolute; top: 0; inset-inline: 3.125rem 0; height: 1px; background: var(--notion-border);
+  }
+  dialog.settings-dialog .settings-home-chevron { flex: none; color: var(--notion-faint); }
+  dialog.settings-dialog .settings-home-chevron:dir(rtl), dialog.settings-dialog .settings-back:dir(rtl) svg { transform: scaleX(-1); }
+
   dialog.settings-dialog .settings-row { min-height: 3.5rem; }
   dialog.settings-dialog .settings-row-title { font-size: 1rem; }
   dialog.settings-dialog .settings-select { height: 2.5rem; font-size: 0.9375rem; }
@@ -219,9 +266,13 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
   dialog.settings-dialog .settings-unsaved { bottom: calc(1rem + env(safe-area-inset-bottom)); }
   dialog.settings-dialog .settings-unsaved button { min-height: 2.5rem; }
 }
+@media (max-width: 639px) and (hover: hover) { dialog.settings-dialog .settings-identity:hover { background: var(--notion-hover); } }
+@keyframes settings-page-forward { from { opacity: 0; transform: translateX(calc(16px * var(--settings-page-dir, 1))); } to { opacity: 1; transform: none; } }
+@keyframes settings-page-back { from { opacity: 0; transform: translateX(calc(-16px * var(--settings-page-dir, 1))); } to { opacity: 1; transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
-  dialog.settings-dialog, dialog.settings-dialog::backdrop, dialog.settings-dialog .settings-unsaved, dialog.settings-dialog .settings-unsaved.is-attention { animation: none; }
+  dialog.settings-dialog, dialog.settings-dialog::backdrop, dialog.settings-dialog .settings-unsaved, dialog.settings-dialog .settings-unsaved.is-attention,
+  dialog.settings-dialog .settings-shell .settings-body { animation: none; }
 }
 
 /* Auto includes the effective language, so let long names wrap. */

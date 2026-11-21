@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -62,6 +63,51 @@ import java.util.Locale
 
 private val MeterFull = Color(0xFFB45309) // .settings-plan-bar.is-full
 
+/** "方案"卡片的状态：读到的方案、读取失败的原因、Play 的商品、购买窗口开没开、购买的结果。 */
+@Stable
+internal class PlanSettingsState {
+    var attempt by mutableIntStateOf(0)
+    var plan by mutableStateOf<PlanInfo?>(null)
+    var loadError by mutableStateOf<Throwable?>(null)
+    var product by mutableStateOf<PlayProduct?>(null)
+    var purchasing by mutableStateOf(false)
+    var outcome by mutableStateOf<PlayPurchaseEvent?>(null)
+}
+
+/**
+ * 读方案、读 Play 的商品、收购买的结果。在设置窗口里调用，不在"方案"页里：设置分成了一览和各栏的页面，
+ * 而网页各栏一直挂着（只是不显示），所以方案在打开设置时读一次，进出"方案"页不重读，购买的结果离开页面再回来也还在。
+ */
+@Composable
+internal fun rememberPlanSettingsState(load: suspend () -> Result<PlanInfo>): PlanSettingsState {
+    val state = remember { PlanSettingsState() }
+    val billing = (LocalContext.current.applicationContext as NoteFableApp).playBilling
+
+    LaunchedEffect(state.attempt) {
+        load().onSuccess { state.plan = it }.onFailure { state.loadError = it }
+    }
+    // 免费且能在 App 里买：先把之前没报告成的购买补报（开通了就重读方案），再读 Play 的商品和价格。
+    val plan = state.plan
+    val productId = plan?.takeIf { it.plan != "pro" && it.googlePlay && it.accountId != null }?.productId
+    val allowTrial = (plan?.trialDays ?: 0) > 0
+    LaunchedEffect(productId, allowTrial) {
+        if (productId == null) return@LaunchedEffect
+        if (billing.recover(productId)) {
+            state.attempt++
+            return@LaunchedEffect
+        }
+        state.product = billing.product(productId, allowTrial)
+    }
+    LaunchedEffect(billing) {
+        billing.events.collect { event ->
+            state.purchasing = false
+            if (event != PlayPurchaseEvent.Cancelled) state.outcome = event
+            if (event == PlayPurchaseEvent.Subscribed) state.attempt++
+        }
+    }
+    return state
+}
+
 /**
  * 设置里“方案”卡片的内容（网页 src/components/plan-settings.tsx，样式 settings-dialog.css 的 .settings-plan-*，手机宽度）：
  * 第一行“NoteFable”17/650 墨色，后接徽章（12/600、左右 8 上下 2、全圆角；免费是浅灰底灰字，Pro 是浅蓝底蓝字）；
@@ -69,43 +115,19 @@ private val MeterFull = Color(0xFFB45309) // .settings-plan-bar.is-full
  * 底色 hover 灰、填充蓝，用满时橙），条目间距 14、上距 16。
  * 免费用户：服务端开了 Play 结算（googlePlay）且 Play 商品读得到时，显示 Pro 的介绍框和“升级到 Pro”（Google Play 的购买窗口，
  * 网页是 Stripe）；还能免费试用时（服务端 trialDays > 0 且 Play 给了带试用的 offer）多一行试用说明，按钮写“开始 N 天免费试用”；Play 里买的 Pro 显示“在 Google Play 上管理订阅”（.settings-chip，上距 16）。网页（Stripe）买的订阅在 App 里不提供管理入口。
+ * 状态在 [PlanSettingsState] 里，由设置窗口拿着（[rememberPlanSettingsState]）。
  */
 @Composable
-internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
-    var attempt by remember { mutableIntStateOf(0) }
-    var plan by remember { mutableStateOf<PlanInfo?>(null) }
-    var loadError by remember { mutableStateOf<Throwable?>(null) }
+internal fun PlanSettings(state: PlanSettingsState) {
     val system = rememberSystemText()
     val context = LocalContext.current
     val billing = (context.applicationContext as NoteFableApp).playBilling
     val activity = LocalActivity.current
-    var product by remember { mutableStateOf<PlayProduct?>(null) }
-    var purchasing by remember { mutableStateOf(false) }
-    var outcome by remember { mutableStateOf<PlayPurchaseEvent?>(null) }
+    val loadError = state.loadError
+    val product = state.product
+    val purchasing = state.purchasing
 
-    LaunchedEffect(attempt) {
-        load().onSuccess { plan = it }.onFailure { loadError = it }
-    }
-    // 免费且能在 App 里买：先把之前没报告成的购买补报（开通了就重读方案），再读 Play 的商品和价格。
-    val productId = plan?.takeIf { it.plan != "pro" && it.googlePlay && it.accountId != null }?.productId
-    val allowTrial = (plan?.trialDays ?: 0) > 0
-    LaunchedEffect(productId, allowTrial) {
-        if (productId == null) return@LaunchedEffect
-        if (billing.recover(productId)) {
-            attempt++
-            return@LaunchedEffect
-        }
-        product = billing.product(productId, allowTrial)
-    }
-    LaunchedEffect(billing) {
-        billing.events.collect { event ->
-            purchasing = false
-            if (event != PlayPurchaseEvent.Cancelled) outcome = event
-            if (event == PlayPurchaseEvent.Subscribed) attempt++
-        }
-    }
-
-    val current = plan
+    val current = state.plan
     val pro = current?.plan == "pro"
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text("NoteFable", color = Sm.Ink, fontSize = 17.sp, lineHeight = 25.5.sp, fontWeight = FontWeight(650))
@@ -120,12 +142,11 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
     }
     when {
         loadError != null -> {
-            val error = loadError
             Text(
-                (error as? ApiException)?.serverMessage()?.let(system::localize) ?: stringResource(R.string.plan_load_failed),
+                (loadError as? ApiException)?.serverMessage()?.let(system::localize) ?: stringResource(R.string.plan_load_failed),
                 color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 12.dp),
             )
-            NotionButton(stringResource(R.string.try_again), onClick = { loadError = null; attempt++ }, modifier = Modifier.padding(top = 8.dp))
+            NotionButton(stringResource(R.string.try_again), onClick = { state.loadError = null; state.attempt++ }, modifier = Modifier.padding(top = 8.dp))
         }
         current == null -> Row(Modifier.padding(top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
             SpinningLoader(14.dp)
@@ -133,7 +154,7 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
             Text(stringResource(R.string.sb_loading), color = Sm.Muted, fontSize = 13.sp)
         }
         else -> {
-            when (val event = outcome) {
+            when (val event = state.outcome) {
                 PlayPurchaseEvent.Subscribed -> SettingsHelpText(stringResource(R.string.plan_welcome))
                 PlayPurchaseEvent.Pending -> SettingsHelpText(stringResource(R.string.plan_pending))
                 is PlayPurchaseEvent.Failed -> Text(
@@ -188,10 +209,10 @@ internal fun PlanSettings(load: suspend () -> Result<PlanInfo>) {
             val accountId = current.accountId
             if (!pro && offer != null && accountId != null) {
                 PlanOffer(offer, purchasing) {
-                    if (activity != null && !purchasing) {
-                        outcome = null
-                        purchasing = billing.launch(activity, offer, accountId)
-                        if (!purchasing) outcome = PlayPurchaseEvent.Failed(null)
+                    if (activity != null && !state.purchasing) {
+                        state.outcome = null
+                        state.purchasing = billing.launch(activity, offer, accountId)
+                        if (!state.purchasing) state.outcome = PlayPurchaseEvent.Failed(null)
                     }
                 }
             }

@@ -44,8 +44,8 @@ export default function TermsPage() {
             it follows Google Play’s eligibility rules and the terms Google Play shows before you buy.
           </li>
           <li>
-            <strong>Cancelling.</strong> You can cancel at any time: on the website in <em>Settings → Manage subscription</em>; for a Google Play purchase in
-            {" "}<em>Settings → Manage subscription on Google Play</em> or in the Google Play Store’s Subscriptions. Pro stays active until the end of the period you
+            <strong>Cancelling.</strong> You can cancel at any time: on the website in <em>Settings → Plan → Manage subscription</em>; for a Google Play purchase in
+            {" "}<em>Settings → Plan → Manage subscription on Google Play</em> or in the Google Play Store’s Subscriptions. Pro stays active until the end of the period you
             have paid for, and you are not charged again.
           </li>
           <li>

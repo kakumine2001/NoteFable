@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Check, ChevronsUpDown, CircleUser, CreditCard, LoaderCircle, LogOut, PenLine, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Check, ChevronRight, ChevronsUpDown, CircleUser, CreditCard, LoaderCircle, LogOut, PenLine, SlidersHorizontal, Trash2, X, type LucideIcon } from "lucide-react";
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "@/components/chat-project-settings.css";
@@ -10,7 +10,9 @@ import { LanguageMenuPanel, useLanguageMenuAnchor } from "@/components/language-
 import { PlanSettings } from "@/components/plan-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
+import { UserAvatar } from "@/components/user-avatar";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
+import { settingsButtonStep, settingsDismissStep, type SettingsStep, type SettingsTab } from "@/lib/settings-navigation";
 import { LOCALE_NAMES } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { useBackToClose } from "@/lib/use-back-to-close";
@@ -101,8 +103,8 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
   );
 }
 
-type Tab = "general" | "personalization" | "plan" | "account";
-// デスクトップ幅の左のナビに出す順。スマホ幅ではナビを出さず、全部の欄を 1 つの画面に縦に並べる（順番は下の JSX の順）。
+type Tab = SettingsTab;
+// デスクトップ幅の左のナビと、スマホ幅の最初の画面（入口の一覧）に出す順。
 const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "general", label: msg("General"), icon: SlidersHorizontal },
   { id: "personalization", label: msg("Personalization"), icon: PenLine },
@@ -110,7 +112,11 @@ const TABS: { id: Tab; label: string; icon: LucideIcon }[] = [
   { id: "account", label: msg("Account"), icon: CircleUser },
 ];
 
-// ログインした利用者の設定。デスクトップ幅は左にナビ・右に選んだ欄、スマホ幅は全画面で全部の欄をカードにして縦に並べる。
+// スマホ幅かどうか（settings-dialog.css の @media と同じ境目）。
+const isPhone = () => window.matchMedia("(max-width: 639px)").matches;
+
+// ログインした利用者の設定。デスクトップ幅は左にナビ・右に選んだ欄。
+// スマホ幅は全画面の 2 段: 最初は入口の一覧（アカウントの行と、欄ごとの行）だけを出し、行を押すとその欄の画面に進む。
 // プロフィール・言語・アイコンは変えたその場で保存する。カスタム指示だけは「保存」を押すまで送らない:
 // 書き換えると下に「未保存の変更」のバーが出て、保存か破棄をするまで閉じない（黙って捨てない）。
 // onSignOut は失敗したときに理由の文を返す（成功したらページが読み直される）。
@@ -124,6 +130,19 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   const fieldId = useId();
   const helpId = useId();
   const [tab, setTab] = useState<Tab>("general");
+  // スマホ幅で入口の一覧を出しているか。デスクトップ幅では使わない（いつも tab の欄を出す）。
+  const [home, setHome] = useState(true);
+  // 一度でも画面を替えたか。開いた直後の一覧は、画面の切り替えの動きを付けずに出す。
+  const [navigated, setNavigated] = useState(false);
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const backRef = useRef<HTMLButtonElement>(null);
+  // 欄の画面に進むときに押した行。一覧に戻ったらそこへフォーカスを返す。
+  const opener = useRef<HTMLElement | null>(null);
+  // show / goHome で画面を替えた直後だけ、スクロール位置とフォーカスを合わせる。
+  const moved = useRef(false);
+  // 欄を出す（スマホ幅ではその欄の画面に進む）。
+  const show = (id: Tab) => { moved.current = true; setNavigated(true); setTab(id); setHome(false); };
+  const goHome = () => { moved.current = true; setNavigated(true); setHome(true); };
   const [attempt, setAttempt] = useState(0);
   // 読み込んだ時点の指示（null は読み込み前）。変えていなければ保存を送らない。
   const [initial, setInitial] = useState<string | null>(null);
@@ -140,29 +159,43 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
   // 写真を切り抜き中・送信中。その間は閉じない（切り抜いた写真や失敗の知らせが消えないように）。
   const [photoBusy, setPhotoBusy] = useState(false);
   const dirty = initial !== null && instructions.trim() !== initial;
-  // 未保存の指示があるときは閉じずに、その欄とバーを見せる。
-  const closeUnlessDirty = () => {
-    if (dirty) { setTab("personalization"); setAttention((count) => count + 1); return false; }
-    onClose();
+  // スマホ幅で欄の画面を見ているか（Esc・戻るは、まず一覧に戻す）。
+  const onPage = () => !home && isPhone();
+  // settings-navigation.ts の決まりで決めたことを行う。設定を閉じたとき以外は false を返す（useBackToClose は「戻る」の登録を保つ）。
+  const apply = (step: SettingsStep) => {
+    if (step.type === "close") { onClose(); return; }
+    if (step.type === "home") goHome();
+    // 未保存の指示があるときは、その欄とバーを見せる（バーを揺らして知らせる）。
+    if (step.type === "show") { show(step.tab); if (step.attention) setAttention((count) => count + 1); }
+    return false;
   };
   // Esc・戻る・外側のクリック。保存中は閉じない（閉じると、保存に失敗しても知らせる場所がなくなる）。
-  // 写真・絵文字の編集中は、まずその編集だけを閉じる（別の欄を見ていたら、何が起きたか分かるようアカウントの欄を出す）。
-  // false を返すと useBackToClose は「戻る」の登録を保つ。
+  // 写真・絵文字の編集中は、まずその編集だけを閉じる（別の欄を見ていたら、何が起きたか分かるようその欄を出す）。
   const close = () => {
     if (locked.current) return false;
-    if (!profileGuard.current()) { setTab("account"); return false; }
-    if (!iconGuard.current()) { setTab("general"); return false; }
-    return closeUnlessDirty();
+    const editorIn = !profileGuard.current() ? "account" : !iconGuard.current() ? "general" : null;
+    return apply(settingsDismissStep({ locked: false, editorIn, onPage: onPage(), dirty }));
   };
-  // 右上の「閉じる」・スマホ幅の「戻る」ボタン。編集中の写真・絵文字の欄ごと閉じる（Esc・戻るのように 1 段ずつにはしない）。
+  // 右上の「閉じる」ボタン（スマホ幅では一覧の左上）。編集中の写真・絵文字の欄ごと閉じる（Esc・戻るのように 1 段ずつにはしない）。
   // 切り抜き中・送信中の写真があるときは閉じずに、その欄を出す。ファイル選択画面の取消を知らせないブラウザでも、これで必ず閉じられる。
-  const closeAll = () => {
-    if (locked.current) return;
-    if (photoBusy) { setTab("account"); return; }
-    closeUnlessDirty();
+  const closeAll = () => { apply(settingsButtonStep({ locked: locked.current, photoBusy, onPage: false, dirty })); };
+  // スマホ幅の欄の画面の「戻る」ボタン。開いている写真・絵文字の編集は閉じて、一覧に戻る。
+  const backHome = () => {
+    const step = settingsButtonStep({ locked: locked.current, photoBusy, onPage: true, dirty });
+    if (step.type === "home") { profileGuard.current(); iconGuard.current(); }
+    apply(step);
   };
   useBackToClose(true, close);
-  useEffect(() => { ref.current?.showModal(); }, []);
+  // 開いたときのフォーカスは画面そのものに置く。最初のボタンに置くと、タッチの端末でも開いた瞬間にフォーカスの枠が出る。
+  useEffect(() => { ref.current?.showModal(); ref.current?.focus(); }, []);
+  // 画面を替えたら上から見せる。スマホ幅ではフォーカスも移す（欄の画面では「戻る」、一覧では押した行）。
+  useEffect(() => {
+    if (!moved.current) return;
+    moved.current = false;
+    if (bodyRef.current) bodyRef.current.scrollTop = 0;
+    if (!isPhone()) return;
+    if (home) opener.current?.focus(); else backRef.current?.focus();
+  }, [home, tab]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -192,22 +225,24 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
     } catch (reason) {
       setError(reason instanceof Error && reason.message ? reason.message : msg("Could not save your custom instructions. Please try again."));
       // 失敗の理由はカスタム指示の欄に出る。別の欄からバーの「保存」を押したときも見えるようにする。
-      setTab("personalization");
+      show("personalization");
     } finally { locked.current = false; setBusy(false); }
   }
 
   const accountBusy = busy || signingOut || photoBusy;
+  const tabLabel = t(TABS.find((entry) => entry.id === tab)!.label);
+  const name = user.name ?? user.email ?? t("Account");
   // デスクトップ幅では、ナビで選んだ欄（is-active）だけを出す。
   const group = (id: Tab) => `settings-group${tab === id ? " is-active" : ""}`;
   // サイドバーは幅によって隠れる（デスクトップ用と抽屉用の 2 つがある）ので、その外（body）に出す。
-  return createPortal(<dialog ref={ref} aria-label={t("Settings")} className="notes-dialog settings-dialog"
+  return createPortal(<dialog ref={ref} tabIndex={-1} aria-label={t("Settings")} className="notes-dialog settings-dialog"
     // Esc は useBackToClose が受けて既定の動作を止めるので、ここに来るのはそれ以外の閉じる要求（Android Chrome の「戻る」など）。
     // それでもブラウザが閉じてしまった場合（続けて「戻る」を押したときなど）は、開いている状態を合わせる。
     // React は cancel / close を子から親へ伝えるので、中で開いた言語の一覧（これも <dialog>）のものは無視する。
     onCancel={(event) => { if (event.target !== event.currentTarget) return; event.preventDefault(); close(); }}
     onClose={(event) => { if (event.target === event.currentTarget) onClose(); }}
     onClick={(event) => { if (event.target === event.currentTarget) { const r = event.currentTarget.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) close(); } }}>
-    <div className="settings-shell">
+    <div className="settings-shell" data-home={home} data-navigated={navigated}>
       <nav className="settings-nav" aria-label={t("Settings")}>
         <p className="settings-nav-title" aria-hidden="true">{t("Settings")}</p>
         {TABS.map(({ id, label, icon: Icon }) => (
@@ -218,16 +253,35 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
       </nav>
       <div className="settings-main">
         <header className="settings-header">
-          <button type="button" className="notion-icon-button settings-back grid" aria-label={t("Back")} onClick={closeAll}><ArrowLeft size={20} /></button>
+          <button ref={backRef} type="button" className="notion-icon-button settings-back grid" aria-label={t("Back")} onClick={backHome}><ArrowLeft size={20} /></button>
           <h2 className="settings-title">
-            <span className="settings-title-mobile">{t("Settings")}</span>
-            <span className="settings-title-desktop">{t(TABS.find((entry) => entry.id === tab)!.label)}</span>
+            <span className="settings-title-mobile">{home ? t("Settings") : tabLabel}</span>
+            <span className="settings-title-desktop">{tabLabel}</span>
           </h2>
           <button type="button" className="notion-icon-button settings-close grid" aria-label={t("Close")} onClick={closeAll}><X size={18} /></button>
         </header>
-        <div className={`settings-body${dirty ? " has-unsaved" : ""}`}>
+        <div ref={bodyRef} className={`settings-body${dirty ? " has-unsaved" : ""}`}>
           {/* 名前・写真・言語の保存に失敗したときの知らせ。どの欄を見ていても出るよう、欄の外（いちばん上）に置く。 */}
           {saveError && <p role="alert" className="project-settings-error settings-save-error">{localizeSystemText(saveError, t)}</p>}
+          {/* スマホ幅の最初の画面: アカウントの行と、欄ごとの入口の行。押すとその欄の画面に進む（デスクトップ幅では出さない）。 */}
+          <div className="settings-home">
+            <button type="button" className="settings-card settings-identity" onClick={(event) => { opener.current = event.currentTarget; show("account"); }}>
+              <UserAvatar user={user} size={44} />
+              <span className="settings-row-text">
+                <span className="settings-identity-name">{name}</span>
+                {user.email && user.email !== name && <span className="settings-row-help">{user.email}</span>}
+              </span>
+              <ChevronRight size={18} className="settings-home-chevron" aria-hidden="true" />
+            </button>
+            <div className="settings-card settings-home-list">
+              {TABS.map(({ id, label, icon: Icon }) => (
+                <button key={id} type="button" className="settings-row settings-row-button settings-home-row" onClick={(event) => { opener.current = event.currentTarget; show(id); }}>
+                  <Icon size={20} aria-hidden="true" /><span className="settings-row-title">{t(label)}</span>
+                  <ChevronRight size={18} className="settings-home-chevron" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </div>
           <section className={group("account")} aria-label={t("Profile")}>
             <div className="settings-card settings-card-padded">
               <ProfileSettings user={user} onSave={saveProfile} onUpload={uploadPhoto} closeGuardRef={profileGuard} onPhotoBusyChange={setPhotoBusy} />

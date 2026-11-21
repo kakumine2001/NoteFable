@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -27,42 +28,108 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
+import com.kakumine.notefable.data.AccountUser
 
-// 设置画面的共用部件（网页 src/components/settings-dialog.css 的手机宽度的值）：分组标题、卡片、行、小按钮、"未保存的更改"条。
+// 设置画面的共用部件（网页 src/components/settings-dialog.css 的手机宽度的值）：顶栏的圆形按钮、入口一览的账号行和各栏的行、
+// 卡片、行、小按钮、"未保存的更改"条。
 
 // 网页进场动画用的 cubic-bezier(0.2, 0.8, 0.2, 1)。
 internal val SettingsEase = CubicBezierEasing(0.2f, 0.8f, 0.2f, 1f)
 
-private val SettingsCardShape = RoundedCornerShape(12.dp)
+private val SettingsCardShape = RoundedCornerShape(20.dp)
 private val UnsavedShadow = Color(0x470C1730) // 0 8px 28px rgba(12, 23, 48, .28)
 
 /** 设置里聚焦 / 打开时外侧 3px 的光圈：0 0 0 3px rgba(35, 131, 226, .16)（.settings-select、textarea.settings-textarea）。 */
 internal val SettingsFocusRing = Color(0x292383E2)
 
-/** .settings-group-label：13/550 灰，左 4、下 8。 */
+/**
+ * 顶栏左边的圆形按钮（.settings-close / .settings-back，手机）：40×40、白底、1px 细线（--notion-border）、全圆角，
+ * 图标是正文色（--notion-text）。一览上是"关闭"（X 18），页面上是"返回"（ArrowLeft 20，从右往左的语言里镜像）。
+ */
 @Composable
-internal fun SettingsGroupLabel(text: String) {
-    Text(
-        text, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, fontWeight = FontWeight(550),
-        modifier = Modifier.padding(start = 4.dp, bottom = 8.dp).semantics { heading() },
-    )
+internal fun SettingsBarButton(icon: List<String>, iconSize: Dp, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Box(
+        modifier.size(40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.Border, CircleShape)
+            .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label },
+        Alignment.Center,
+    ) {
+        LucideIcon(icon, iconSize, Sm.Text)
+    }
 }
 
-/** .settings-card：白底、1px 细线、圆角 12；padded 时内边距 16（.settings-card-padded）。行与行之间用 [SettingsRowDivider] 隔开。 */
+/**
+ * 入口一览最上面的账号行（.settings-card.settings-identity）：整张卡片可点，内边距 14×16、间距 14；头像 44；
+ * 名字 17/600 墨色、一行、放不下省略；下面隔 2 是邮箱 14 灰（行高 1.5）、一行（没有邮箱或和名字一样时不出）；
+ * 最右边 ChevronRight 18（--notion-faint，从右往左的语言里镜像）。点了进"账号"页。
+ */
+@Composable
+internal fun SettingsIdentityRow(user: AccountUser, name: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Row(
+        modifier.fillMaxWidth().clip(SettingsCardShape).background(Color.White).border(1.dp, Sm.Border, SettingsCardShape)
+            .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        UserAvatar(user, 44.dp)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(name, color = Sm.Ink, fontSize = 17.sp, lineHeight = 25.5.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            user.email?.takeIf { it.isNotEmpty() && it != name }?.let {
+                Text(it, color = Sm.Muted, fontSize = 14.sp, lineHeight = 21.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        LucideIcon(Lucide.ChevronRight, 18.dp, Sm.Faint)
+    }
+}
+
+/**
+ * 入口一览里各栏的行（.settings-row.settings-row-button.settings-home-row）：最小高 56、内边距 10×16、间距 14；
+ * 图标 20（正文色）、名字 16/500 占满中间、最右边 ChevronRight 18（--notion-faint，从右往左的语言里镜像）。
+ * [divider]（第二行起）：行的上边一条 1px 细线，从起始边 50 处（名字的左端，不画到图标下面）到结束边；
+ * 和网页的 ::before 一样是盖在行上的，不占高度。
+ */
+@Composable
+internal fun SettingsHomeRow(icon: List<String>, label: String, divider: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    Row(
+        modifier.fillMaxWidth().heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onClick)
+            .drawBehind {
+                if (divider) {
+                    val width = size.width - 50.dp.toPx()
+                    drawRect(Sm.Border, topLeft = Offset(if (rtl) 0f else 50.dp.toPx(), 0f), size = Size(width, 1.dp.toPx()))
+                }
+            }
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        LucideIcon(icon, 20.dp, Sm.Text)
+        Text(label, Modifier.weight(1f), color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium)
+        LucideIcon(Lucide.ChevronRight, 18.dp, Sm.Faint)
+    }
+}
+
+/** .settings-card（手机）：白底、1px 细线、圆角 20；padded 时内边距 16（.settings-card-padded）。行与行之间用 [SettingsRowDivider] 隔开。 */
 @Composable
 internal fun SettingsCard(padded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(
