@@ -11,9 +11,10 @@ mobile/ios/
   Config/              xcconfig：服务器地址、Google 客户端 ID、签名
   Support/             Info.plist、entitlements
   NoteFable/
-    App/               入口、依赖装配（AppEnvironment）、语言控制
+    App/               入口（@main）
     Core/              不依赖 SwiftUI / UIKit 的一层：网络、接口、DTO、解析、ViewModel
-      Support/  Networking/  Models/  API/  Chat/  Notes/  Account/  Search/  Text/
+      App/（依赖装配 AppEnvironment、导航 AppRouter）  Support/  Networking/  Models/  API/
+      Chat/  Notes/  Sidebar/  Search/  Account/  Text/
     DesignSystem/      Theme（Sm 颜色）、Lucide 图标、Mascot、通用控件
     Features/          各界面：Root、Chat、Sidebar、Notes、Search、Account、Settings
     Resources/         Assets.xcassets、<语言>.lproj/Localizable.strings、打包的 JSON 资源

@@ -1,0 +1,224 @@
+import SwiftUI
+import UIKit
+
+// 设置画面的共用部件（网页 src/components/settings-dialog.css 的手机宽度的值，Android ui/SettingsParts.kt）：
+// 分组标题、卡片、行、说明文字、读取中的一行、"未保存的更改"条。小按钮用 DesignSystem 的 `SettingsChip`。
+
+/// .settings-saved 的绿色。
+let settingsSavedGreen = Color(argb: 0xFF15803D)
+
+/// .settings-group-label：13/550 灰，左 4、下 8。
+struct SettingsGroupLabel: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.nf(13, weight: 550))
+            .nfLineHeight(19.5, fontSize: 13)
+            .foregroundStyle(Sm.muted)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 4)
+            .padding(.bottom, 8)
+            .accessibilityAddTraits(.isHeader)
+    }
+}
+
+/// .settings-card：白底、1px 细线、圆角 12；`padded` 时内边距 16（.settings-card-padded）。
+/// 行与行之间用 `SettingsRowDivider` 隔开。
+struct SettingsCard<Content: View>: View {
+    private let padded: Bool
+    private let content: Content
+
+    init(padded: Bool = false, @ViewBuilder content: () -> Content) {
+        self.padded = padded
+        self.content = content()
+    }
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 12)
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(padded ? 16 : 0)
+        .background(Sm.surface, in: shape)
+        .clipShape(shape)
+        .overlay { shape.strokeBorder(Sm.border, lineWidth: 1) }
+    }
+}
+
+/// 卡片里行之间的 1px 线（.settings-card > * + *）。
+struct SettingsRowDivider: View {
+    var body: some View {
+        NFDivider()
+    }
+}
+
+/// .settings-row.settings-row-button（手机）：整行可点，最小高 56、内边距 10×16、图标 16（灰）+ 间距 12 + 16/500 的字；
+/// `danger` 时图标和字都是红色；不可用（`.disabled(true)`）时 0.55。
+struct SettingsRowButton: View {
+    private let icon: [String]
+    private let label: String
+    private let danger: Bool
+    private let action: () -> Void
+
+    init(_ label: String, icon: [String], danger: Bool = false, action: @escaping () -> Void) {
+        self.label = label
+        self.icon = icon
+        self.danger = danger
+        self.action = action
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 12) {
+                LucideIcon(icon, size: 16, color: danger ? Sm.danger : Sm.muted)
+                Text(label)
+                    .font(.nf(16, weight: 500))
+                    .foregroundStyle(danger ? Sm.danger : Sm.text)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .frame(minHeight: 56)
+        }
+        .buttonStyle(.pressable(cornerRadius: 0, disabledOpacity: 0.55))
+    }
+}
+
+/// .project-settings-help：13 / 行高 1.5 灰，上距 4。
+struct SettingsHelpLine: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.nf(13))
+            .nfLineHeight(19.5, fontSize: 13)
+            .foregroundStyle(Sm.muted)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.top, 4)
+    }
+}
+
+/// 设置里的错误文：14 / 行高 21、红字 #b91c1c。
+struct SettingsErrorLine: View {
+    private let text: String
+
+    init(_ text: String) {
+        self.text = text
+    }
+
+    var body: some View {
+        Text(text)
+            .font(.nf(14))
+            .nfLineHeight(21, fontSize: 14)
+            .foregroundStyle(Sm.danger)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+
+/// 读取中的一行：转圈 14 + 间距 4 + "正在加载…"13 灰，上距 9.6。
+struct SettingsLoadingLine: View {
+    var body: some View {
+        HStack(spacing: 4) {
+            Spinner(size: 14)
+            Text(L("sb_loading"))
+                .font(.nf(13))
+                .foregroundStyle(Sm.muted)
+        }
+        .padding(.top, 9.6)
+    }
+}
+
+/// .settings-unsaved（手机）："未保存的更改"条，改了自定义指令还没保存时浮在画面下方：最小高 52、内边距 8/8/8/16、圆角 14、
+/// 墨色底、阴影 0 8 28 rgba(12,23,48,.28)；文字 14/500 白；"放弃"（白 .82）和"保存"（白底墨色字）最小高 40、左右 14、圆角 10、
+/// 14/550，间距 8。出现时从下方 16 滑入（200ms，由放它的地方加过渡）；`attention` 每变一次（没保存就想关）左右晃一下（360ms），
+/// 并让读屏念出来。
+struct SettingsUnsavedBar: View {
+    let attention: Int
+    let busy: Bool
+    let onDiscard: () -> Void
+    let onSave: () -> Void
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: 14)
+        HStack(spacing: 8) {
+            Text(L("settings_unsaved"))
+                .font(.nf(14, weight: 500))
+                .foregroundStyle(.white)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            SettingsUnsavedButton(label: L("proposal_discard"), filled: false, action: onDiscard)
+                .disabled(busy)
+            SettingsUnsavedButton(label: L(busy ? "sb_saving" : "save"), filled: true, action: onSave)
+                .disabled(busy)
+        }
+        .padding(.leading, 16)
+        .padding(.trailing, 8)
+        .padding(.vertical, 8)
+        .frame(minHeight: 52)
+        // 点在条上（文字、空白处）不要落到下面的行上（退出登录等）。
+        .background { shape.fill(Sm.ink).onTapGesture {} }
+        .shadow(color: Color(argb: 0x470C1730), radius: 14, x: 0, y: 8)
+        .modifier(SettingsShakeEffect(progress: CGFloat(attention)))
+        .animation(reduceMotion || attention == 0 ? nil : .linear(duration: 0.36), value: attention)
+        .onChange(of: attention) { _, value in
+            if value > 0 { UIAccessibility.post(notification: .announcement, argument: L("settings_unsaved")) }
+        }
+    }
+}
+
+private struct SettingsUnsavedButton: View {
+    let label: String
+    let filled: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(label)
+                .font(.nf(14, weight: 550))
+                .foregroundStyle(filled ? Sm.ink : Color.white.opacity(0.82))
+                .lineLimit(1)
+                .padding(.horizontal, 14)
+                .frame(minHeight: 40)
+        }
+        .buttonStyle(.pressable(
+            background: filled ? .white : .clear,
+            pressedBackground: filled ? Sm.hover : Color.white.opacity(0.12),
+            cornerRadius: 10, scale: 0.97, disabledOpacity: 0.6
+        ))
+    }
+}
+
+/// 左右晃一下（网页 settings-unsaved-shake）：360ms 里 0 → −6 → 6 → −6 → 6 → 0。
+/// `progress` 每加 1 晃一次：小数部分是这一次晃到哪里了。
+private struct SettingsShakeEffect: GeometryEffect {
+    var progress: CGFloat
+
+    var animatableData: CGFloat {
+        get { progress }
+        set { progress = newValue }
+    }
+
+    func effectValue(size: CGSize) -> ProjectionTransform {
+        let fraction = progress - progress.rounded(.down)
+        // 五段等长的直线：每 72ms 一个关键帧。
+        let stops: [CGFloat] = [0, -6, 6, -6, 6, 0]
+        let scaled = fraction * 5
+        let index = min(4, max(0, Int(scaled)))
+        let local = scaled - CGFloat(index)
+        let x = stops[index] + (stops[index + 1] - stops[index]) * local
+        return ProjectionTransform(CGAffineTransform(translationX: x, y: 0))
+    }
+}
