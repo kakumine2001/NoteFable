@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 // 列表拖动排序里找目标的规则（Android ui/ReorderDrag.kt；网页 reorder-row-button.tsx）。手势和画线在界面层。
 

@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 // 头像裁剪里不画界面的计算（Android ui/AvatarCropper.kt；网页 avatar-cropper.tsx）。读图、画图在界面层。
 
@@ -47,7 +50,12 @@ func cropLayout(
 /// 保存时（网页 save()：把圆里看到的部分画到 512×512 上）整张照片在 512×512 画布上的位置：预览里的位置 × 512 / view。
 func avatarOutputRect(_ layout: CropLayout, view: Double = AVATAR_VIEW) -> CGRect {
     let ratio = Double(AVATAR_OUTPUT) / view
-    return CGRect(x: layout.dx * ratio, y: layout.dy * ratio, width: layout.w * ratio, height: layout.h * ratio)
+    // 先算成 Double 再建 CGRect：四个乘法直接写在参数里，Apple 平台的类型检查会超时（Double / CGFloat 两种重载）。
+    let x: Double = layout.dx * ratio
+    let y: Double = layout.dy * ratio
+    let width: Double = layout.w * ratio
+    let height: Double = layout.h * ratio
+    return CGRect(x: x, y: y, width: width, height: height)
 }
 
 /// 解码后最多这么多像素（ARGB 约 80 MB）：再大的位图画不动，还容易把内存用光。

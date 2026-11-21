@@ -1,4 +1,7 @@
 import Foundation
+#if canImport(CoreGraphics)
+import CoreGraphics
+#endif
 
 // 列表拖动排序的状态（Android ui/ReorderDrag.kt 的 DragState；网页 reorder-row-button.tsx + globals.css 的 .list-reorder-*、
 // [data-order-*]），聊天侧栏和笔记侧栏 / 首页共用。找目标的规则（DropTarget、dropTargetAt、dropZoneAt、reorderScrollDelta）

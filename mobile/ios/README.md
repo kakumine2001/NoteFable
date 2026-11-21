@@ -24,7 +24,7 @@ mobile/ios/
 ## 约定
 
 - **对照 Android 移植**：类型、函数、文件名尽量和 Kotlin 端相同（`ChatViewModel`、`SessionDto`、`ChatStreamParser`…），方便两边对照着改；枚举 case 用 lowerCamelCase。规则、数值、文案以网页和 Android 为准，不自创。Android 的单元测试一并移植。
-- **Core 不 import SwiftUI / UIKit / Combine**，只用 Foundation（+ `Observation`、swift-markdown）。网络走 `Core/Networking` 的传输协议，测试里换成假的。Linux 上 `URLSession` 在 `FoundationNetworking` 里：`#if canImport(FoundationNetworking) import FoundationNetworking #endif`。
+- **Core 不 import SwiftUI / UIKit / Combine**，只用 Foundation（+ `Observation`、swift-markdown）。用到 `CGRect` / `CGPoint` 的方法（`contains`、`minY`、`.zero`…）的文件要加 `#if canImport(CoreGraphics) import CoreGraphics #endif`：Linux 的 Foundation 自带这些，macOS 上它们在 CoreGraphics 里，不加的话 Linux 能过、CI 不过。网络走 `Core/Networking` 的传输协议，测试里换成假的。Linux 上 `URLSession` 在 `FoundationNetworking` 里：`#if canImport(FoundationNetworking) import FoundationNetworking #endif`。
 - **同一个模块**：Core 的源码直接编进 App 模块，所以都用默认的 internal，不写 `public`。
 - **ViewModel**：`@MainActor @Observable final class`，状态是一个值类型（如 `ChatUiState`），放在 Core，依赖经初始化参数注入（协议或闭包），时间用注入的 sleep / clock，测试不真等。
 - **文案**：`L("键", 参数…)`（`Core/Text/L10n.swift`），键 = Android 字符串资源名，占位符保留 `%1$s` / `%1$d`。`Localizable.strings` 由 `npx tsx scripts/gen-ios-strings.ts` 从 Android 资源生成，不手改；新文案先加到 Android 的 `res/values`（及 zh、ja），再跑两端的生成脚本。服务端发来的英文句子用 `SystemText` 翻译。
