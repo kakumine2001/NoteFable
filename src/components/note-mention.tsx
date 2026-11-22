@@ -4,6 +4,7 @@ import { createReactInlineContentSpec } from "@blocknote/react";
 import { CalendarDays, FileText } from "lucide-react";
 import { createContext, useContext, useRef } from "react";
 import { useI18n } from "@/components/i18n-provider";
+import { NoteIcon } from "@/components/note-icon";
 import { isNoteDate } from "@/lib/note-mention";
 
 // Notion の「@」メンション: ページへのリンク（いまのタイトルとアイコンを表示し、押すとそのページを開く）と日付。
@@ -59,7 +60,7 @@ export const createMentionSpec = createReactInlineContentSpec(
         title={missing ? t("This page is not available") : label}
         onMouseDown={(event) => event.preventDefault()}
         onClick={(event) => { event.preventDefault(); if (!missing) openPage(pageId); }}>
-        <span className="note-mention-icon" aria-hidden>{page?.icon ?? <FileText size={14} strokeWidth={1.8} />}</span>
+        <span className="note-mention-icon" aria-hidden><NoteIcon icon={page?.icon} fallback={<FileText size={14} strokeWidth={1.8} />} /></span>
         <span className="note-mention-title">{label}</span>
       </a>;
     },

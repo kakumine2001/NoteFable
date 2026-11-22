@@ -10,6 +10,7 @@ import { MAX_SEARCH_QUERY_CHARS, parseSearchTerms, type ChatSearchResult, type N
 import { useI18n } from "@/components/i18n-provider";
 import type { TextDirection } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
+import { NoteIcon } from "@/components/note-icon";
 
 type Result = NoteSearchResult | ChatSearchResult;
 // key は「どの検索条件の結果か」。data が null なら、その条件の検索に失敗した。
@@ -97,7 +98,7 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
   id: string; index: number; result: Result; terms: string[]; projectName?: string; active: boolean; onHover: (index: number) => void; onSelect: (result: Result) => void;
 }) {
   const { t, tag } = useI18n();
-  const icon = result.icon ?? (result.kind === "note" ? <FileText size={16} /> : <MessageSquareText size={16} />);
+  const icon = result.kind === "note" ? <NoteIcon icon={result.icon} fallback={<FileText size={16} />} /> : result.icon ?? <MessageSquareText size={16} />;
   const fileName = result.kind === "chat" ? result.attachmentName : null;
   // 添付ファイルの本文に当たったときは、話し手ではなくファイル名を示す。
   const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? t("You: ") : t("NoteFable: ")) : "";

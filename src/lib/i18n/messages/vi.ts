@@ -754,4 +754,6 @@ export const vi: Record<string, string> = {
   "Could not export the page.": "Không thể xuất trang.",
   "Could not import Markdown files.": "Không thể nhập các tệp Markdown.",
   "Import to": "Nhập vào",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Nên dùng ảnh vuông tối thiểu 280 × 280 pixel. JPEG, PNG, WebP hoặc GIF, tối đa 4 MB.",
+  "Images must be 4 MB or smaller.": "Ảnh phải từ 4 MB trở xuống.",
 };

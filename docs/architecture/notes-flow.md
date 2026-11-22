@@ -6,6 +6,8 @@ Notes 是 NoteFable 内部的文字笔记模式。切换模式保留聊天输入
 
 Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选择器，打开时才加载，支持英文搜索、分类、最近使用和肤色。表情以单个 Unicode 字素保存，包含旗帜、键帽和组合表情；原生显示受设备字体支持范围限制。头像照片与封面的现有上传流程保留，不提供独立的图标素材库。
 
+**页面图标也可以是上传的图片**（仿 Notion 的 Emoji / Upload 两个标签页）：页面标题上方和侧栏行首的图标选择器（`EmojiPopover` / `FloatingEmojiPopover` 传 `allowUpload`）多一个“上传”标签页，选的图片经封面同一个接口 `POST /api/pages/covers`（JPEG/PNG/WebP/GIF、按文件头判断、最大 4 MiB）保存，`icon` 存同样形式的键 `upload:page-covers/<用户ID>/<uuid>.<ext>`。`validateNoteContent` 接受“单个 emoji 或这种键”；新建、自动保存（PATCH 带 `icon`）、`PUT /api/pages/:id/icon`、复制和历史恢复都像封面一样先 `assertCoverOwner`（只能用自己目录下的键）再在事务里 `claimCover`（把 `NoteCoverAsset` 设为使用中）。显示统一走 `NoteIcon`（`src/components/note-icon.tsx`）：emoji 原样，图片是 `/api/pages/covers?key=` 的 `<img>`（1em 四方、圆角 3）；公开分享页走 `/s/:token/cover?page=<id>&kind=icon`（只返回该公开页面自己的图标图片）。只能放文字的地方（AI 新建提案的标题前缀等）用 `noteIconText`，图片图标不显示。AI 的 `propose_note_create` 只接受 emoji 图标。聊天会话图标和 Callout 的 emoji 不变，仍只能是 emoji。
+
 `src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 包含段落、H1–H3（可设为折叠标题，`isToggleable`）、项目/编号/待办列表、折叠列表（`toggleListItem`）、引用、Callout（`callout`，自定义块，见下）、代码、分隔线、表格（`table`）、数学公式块（`mathBlock`）以及行内数学公式节点（`mathInline`）；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放视频/音频块、外部链接嵌入或子页面。
 
 ### 仿 Notion 的块与操作
@@ -83,11 +85,11 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version` |
 | `GET /api/pages/:id/share` | 返回该笔记的公开分享状态 `{ share }`（含是否已发布、链接、是否包含子页面、过期时间、是否从上级分享排除、上级公开页面的继承信息） |
 | `PUT /api/pages/:id/share` | `{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
-| `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、子页面列表与面包屑。封面与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
+| `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、子页面列表与面包屑。封面、图片图标（`/s/:token/cover?kind=icon`）与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
 | `POST /api/pages/:id/duplicate` | 复制这篇及子页面，201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
 | `GET /api/pages/:id/export` | 把这一篇导出成 Markdown：`{ fileName, markdown }`（与 `GET /api/sessions/:id/export` 同形），`Cache-Control: no-store`；不存在、不是本人的或在 Trash 里返回 404。见“Markdown 导出与导入” |
 | `POST /api/pages/import` | `{ files: [{ name, markdown }], groupId? }`：每个文件新建一篇笔记，全部在一个事务里，201 `{ pages }`（摘要，顺序与文件相同）。上限和错误见“Markdown 导出与导入” |
-| `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji 或 null> }`，返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
+| `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji、上传图片的键或 null> }`（键要在自己目录下，并在同一事务里 `claimCover`），返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
 
 所有操作通过 `getOrCreateUser()` 识别当前用户（签名设备 Cookie 或 Google / 邮箱登录会话）；页面不存在、属于其他用户或在 Trash 里时，除 Trash 接口外都返回 404。PATCH 版本不一致时返回 409 和当前拥有的页面，正文相同的重复请求可以成功返回，以处理保存响应丢失的情况。GET 使用 no-store；应用内不对写操作限流。
 

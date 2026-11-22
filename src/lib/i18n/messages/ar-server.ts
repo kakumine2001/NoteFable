@@ -102,7 +102,6 @@ export const arServer: Record<string, string> = {
   "Not found.": "غير موجود.",
   "Note changed since it was read": "تغيّرت الملاحظة بعد قراءتها",
   "Note content exceeds 1 MiB.": "يتجاوز محتوى الملاحظة 1 MiB.",
-  "Note icon must be a single emoji.": "يجب أن تكون أيقونة الملاحظة رمزاً تعبيرياً واحداً.",
   "Note not found": "لم يتم العثور على الملاحظة",
   "Note not found in the trash.": "لم يتم العثور على الملاحظة في سلة المهملات.",
   "Note not found.": "لم يتم العثور على الملاحظة.",
@@ -234,4 +233,6 @@ export const arServer: Record<string, string> = {
   "You can import up to {max} files at once.": "يمكنك استيراد ما يصل إلى {max} ملفات في المرة الواحدة.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "يمكن استيراد ملفات Markdown (.md و.markdown و.txt) فقط.",
   "File is too long for one note: {name}": "الملف طويل جدًا بالنسبة لملاحظة واحدة: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "يجب أن تكون أيقونة الملاحظة رمزًا تعبيريًا واحدًا أو صورة مرفوعة.",
+  "This icon image is no longer available. Choose another icon.": "لم تعد صورة الأيقونة هذه متاحة. اختر أيقونة أخرى.",
 };

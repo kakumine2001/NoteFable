@@ -763,4 +763,6 @@ export const zh: Record<string, string> = {
   "Could not export the page.": "无法导出页面。",
   "Could not import Markdown files.": "无法导入 Markdown 文件。",
   "Import to": "导入到",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "建议使用不小于 280 × 280 像素的正方形图片。支持 JPEG、PNG、WebP 或 GIF，最大 4 MB。",
+  "Images must be 4 MB or smaller.": "图片需不超过 4 MB。",
 };

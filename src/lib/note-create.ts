@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 // parentId を渡すとそのページのサブページになり、グループは親と同じになる。
 export async function createNotePage(userId: string, content: NoteContent, { parentId = null }: { parentId?: string | null } = {}) {
   assertCoverOwner(content.cover, userId);
+  assertCoverOwner(content.icon, userId, "icon");
   assertNoteFilesOwner(content.blocks, userId);
   return prisma.$transaction(async (tx) => {
     let groupId: string | null = null;
@@ -18,6 +19,7 @@ export async function createNotePage(userId: string, content: NoteContent, { par
       groupId = (await resolveParent(tx, userId, null, parentId)).groupId;
     }
     await claimCover(tx, content.cover, userId);
+    await claimCover(tx, content.icon, userId, "icon");
     return tx.notePage.create({ data: { userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
   });
 }

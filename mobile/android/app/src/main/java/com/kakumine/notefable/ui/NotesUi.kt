@@ -531,7 +531,17 @@ private fun IconSquare(icon: List<String>, iconSize: Dp, box: Dp, description: S
 /** 笔记图标：设置了表情就显示表情，否则是 lucide 的 FileText。 */
 @Composable
 fun NoteIcon(icon: String?, emojiSize: androidx.compose.ui.unit.TextUnit, iconSize: Dp, tint: Color) {
-    if (icon != null) Text(icon, fontSize = emojiSize, lineHeight = emojiSize)
+    // 上传的图片图标：和表情一样大（1em 四方、圆角 3），带登录 Cookie 读（Coil 共用 App 的 OkHttp）。
+    val image = com.kakumine.notefable.data.NoteIcons.imagePath(icon)
+    if (image != null) {
+        val side = with(androidx.compose.ui.platform.LocalDensity.current) { emojiSize.toDp() }
+        coil3.compose.AsyncImage(
+            model = com.kakumine.notefable.BuildConfig.BASE_URL.trimEnd('/') + image,
+            contentDescription = null,
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+            modifier = Modifier.size(side).clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
+        )
+    } else if (icon != null) Text(icon, fontSize = emojiSize, lineHeight = emojiSize)
     else LucideIcon(Lucide.FileText, iconSize, tint)
 }
 

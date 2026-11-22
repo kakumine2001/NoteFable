@@ -102,7 +102,6 @@ export const idServer: Record<string, string> = {
   "Not found.": "Tidak ditemukan.",
   "Note changed since it was read": "Catatan telah berubah sejak dibaca",
   "Note content exceeds 1 MiB.": "Isi catatan melebihi 1 MiB.",
-  "Note icon must be a single emoji.": "Ikon catatan harus berupa satu emoji.",
   "Note not found": "Catatan tidak ditemukan",
   "Note not found in the trash.": "Catatan tidak ditemukan di sampah.",
   "Note not found.": "Catatan tidak ditemukan.",
@@ -234,4 +233,6 @@ export const idServer: Record<string, string> = {
   "You can import up to {max} files at once.": "Anda dapat mengimpor maksimal {max} file sekaligus.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.",
   "File is too long for one note: {name}": "File terlalu panjang untuk satu catatan: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "Ikon catatan harus berupa satu emoji atau gambar yang diunggah.",
+  "This icon image is no longer available. Choose another icon.": "Gambar ikon ini sudah tidak tersedia. Pilih ikon lain.",
 };

@@ -754,4 +754,6 @@ export const it: Record<string, string> = {
   "Could not export the page.": "Impossibile esportare la pagina.",
   "Could not import Markdown files.": "Impossibile importare i file Markdown.",
   "Import to": "Importa in",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Funzionano meglio le immagini quadrate di almeno 280 × 280 pixel. JPEG, PNG, WebP o GIF, fino a 4 MB.",
+  "Images must be 4 MB or smaller.": "Le immagini devono essere di 4 MB o meno.",
 };

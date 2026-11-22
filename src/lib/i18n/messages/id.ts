@@ -754,4 +754,6 @@ export const id: Record<string, string> = {
   "Could not export the page.": "Tidak dapat mengekspor halaman.",
   "Could not import Markdown files.": "Tidak dapat mengimpor file Markdown.",
   "Import to": "Impor ke",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Gambar persegi minimal 280 × 280 piksel paling cocok. JPEG, PNG, WebP, atau GIF, hingga 4 MB.",
+  "Images must be 4 MB or smaller.": "Gambar harus berukuran 4 MB atau kurang.",
 };

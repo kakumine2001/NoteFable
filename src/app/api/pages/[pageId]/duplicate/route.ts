@@ -35,6 +35,7 @@ export async function POST(_request: Request, context: Context) {
         for (const source of sources) {
           if (copies.has(source.id) || (source.id !== root.id && !copies.has(source.parentId ?? ""))) continue;
           await claimCover(tx, source.cover, user.id);
+          await claimCover(tx, source.icon, user.id, "icon");
           const copy = await tx.notePage.create({
             data: {
               userId: user.id, title: source.id === root.id ? duplicateTitle(source.title) : source.title, icon: source.icon, cover: source.cover,

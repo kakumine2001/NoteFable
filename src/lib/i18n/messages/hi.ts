@@ -754,4 +754,6 @@ export const hi: Record<string, string> = {
   "Could not export the page.": "पेज एक्सपोर्ट नहीं हो सका।",
   "Could not import Markdown files.": "Markdown फ़ाइलें इंपोर्ट नहीं हो सकीं।",
   "Import to": "यहाँ आयात करें",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "कम से कम 280 × 280 पिक्सेल की वर्गाकार इमेज सबसे अच्छी रहती है। JPEG, PNG, WebP या GIF, 4 MB तक।",
+  "Images must be 4 MB or smaller.": "इमेज 4 MB या उससे छोटी होनी चाहिए।",
 };

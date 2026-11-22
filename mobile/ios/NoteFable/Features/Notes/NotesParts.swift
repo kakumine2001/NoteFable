@@ -168,7 +168,11 @@ struct NoteIconGlyph: View {
 
     var body: some View {
         Group {
-            if let icon, !icon.isEmpty {
+            if let image = NoteIcons.imagePath(icon) {
+                RemoteImage(path: image)
+                    .frame(width: emojiSize, height: emojiSize)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+            } else if let icon, !icon.isEmpty {
                 Text(icon)
                     .font(.system(size: emojiSize))
                     .lineLimit(1)

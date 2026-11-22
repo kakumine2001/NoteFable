@@ -27,6 +27,10 @@ export function shareCoverUrl(token: string, pageId: string) {
   return `/s/${encodeURIComponent(token)}/cover?page=${encodeURIComponent(pageId)}`;
 }
 
+export function shareIconUrl(token: string, pageId: string) {
+  return `/s/${encodeURIComponent(token)}/cover?page=${encodeURIComponent(pageId)}&kind=icon`;
+}
+
 export type ShareExpiryPreset = "never" | "1h" | "1d" | "7d" | "30d" | "custom";
 
 const PRESET_MS: Record<Exclude<ShareExpiryPreset, "never" | "custom">, number> = {

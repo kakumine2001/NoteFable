@@ -76,7 +76,6 @@ export const zhServer: Record<string, string> = {
   "No changes supplied.": "没有要保存的更改。",
   "Not found.": "找不到内容。",
   "Note content exceeds 1 MiB.": "笔记内容超过 1 MiB。",
-  "Note icon must be a single emoji.": "笔记图标只能是一个表情符号。",
   "Note not found in the trash.": "回收站里找不到这篇笔记。",
   "Note not found.": "找不到笔记。",
   "Nothing to update.": "没有需要更新的内容。",
@@ -234,4 +233,6 @@ export const zhServer: Record<string, string> = {
   "You can import up to {max} files at once.": "一次最多只能导入 {max} 个文件。",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "只能导入 Markdown（.md、.markdown、.txt）文件。",
   "File is too long for one note: {name}": "文件太长，无法导入为一篇笔记：{name}",
+  "Note icon must be a single emoji or an uploaded image.": "笔记图标必须是一个表情符号或上传的图片。",
+  "This icon image is no longer available. Choose another icon.": "此图标图片已不可用，请选择其他图标。",
 };

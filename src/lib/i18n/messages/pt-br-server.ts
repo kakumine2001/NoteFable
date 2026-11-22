@@ -102,7 +102,6 @@ export const ptBRServer: Record<string, string> = {
   "Not found.": "Não encontrado.",
   "Note changed since it was read": "A nota foi alterada desde que foi lida",
   "Note content exceeds 1 MiB.": "O conteúdo da nota excede 1 MiB.",
-  "Note icon must be a single emoji.": "O ícone da nota deve ser um único emoji.",
   "Note not found": "Nota não encontrada",
   "Note not found in the trash.": "Nota não encontrada na lixeira.",
   "Note not found.": "Nota não encontrada.",
@@ -234,4 +233,6 @@ export const ptBRServer: Record<string, string> = {
   "You can import up to {max} files at once.": "Você pode importar até {max} arquivos por vez.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Só é possível importar arquivos Markdown (.md, .markdown, .txt).",
   "File is too long for one note: {name}": "O arquivo é longo demais para uma única nota: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "O ícone da nota deve ser um único emoji ou uma imagem enviada.",
+  "This icon image is no longer available. Choose another icon.": "Esta imagem de ícone não está mais disponível. Escolha outro ícone.",
 };

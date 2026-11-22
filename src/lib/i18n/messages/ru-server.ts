@@ -102,7 +102,6 @@ export const ruServer: Record<string, string> = {
   "Not found.": "Не найдено.",
   "Note changed since it was read": "Заметка изменилась с момента чтения",
   "Note content exceeds 1 MiB.": "Содержимое заметки превышает 1 MiB.",
-  "Note icon must be a single emoji.": "Значком заметки может быть только один эмодзи.",
   "Note not found": "Заметка не найдена",
   "Note not found in the trash.": "Заметка не найдена в корзине.",
   "Note not found.": "Заметка не найдена.",
@@ -234,4 +233,6 @@ export const ruServer: Record<string, string> = {
   "You can import up to {max} files at once.": "За раз можно импортировать не более {max} файлов.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Импортировать можно только файлы Markdown (.md, .markdown, .txt).",
   "File is too long for one note: {name}": "Файл слишком длинный для одной заметки: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "Значок заметки должен быть одним эмодзи или загруженным изображением.",
+  "This icon image is no longer available. Choose another icon.": "Это изображение значка больше недоступно. Выберите другой значок.",
 };

@@ -12,6 +12,7 @@ import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { normalizeQuote } from "@/lib/chat-quote";
 import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
+import { NoteIcon } from "@/components/note-icon";
 import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
 import { MathEditorProvider, canInsertInlineMath, convertSelectionToInlineMath, createMathBlockSpec, markNextMathBlockAutoOpen, markNextMathInlineAutoOpen, mathInlineSpec } from "@/components/note-math";
@@ -609,7 +610,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
       .map((item) => ({ key: `date:${item.key}`, title: item.title, subtext: formatNoteDate(item.date, locale), group: t("Date"), icon: <CalendarDays size={18} />, onItemClick: insert(dateMention(item.date)) }));
     const pageItems = (pageMentions ? pages ?? [] : []).filter((page) => page.id !== currentPageId && (!q || (page.title || t("Untitled")).toLowerCase().includes(q)))
       .slice(0, 8).map((page) => ({ key: `page:${page.id}`, title: page.title || t("Untitled"), group: t("Link to page"),
-        icon: page.icon ? <span className="notes-mention-menu-emoji">{page.icon}</span> : <FileText size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
+        icon: page.icon ? <span className="notes-mention-menu-emoji"><NoteIcon icon={page.icon} /></span> : <FileText size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
     return [...pageItems, ...dates];
   }
 

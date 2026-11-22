@@ -110,4 +110,13 @@ final class NotesApiTests: XCTestCase {
         XCTAssertEqual(json?["font"]?.stringValue, "mono")
         XCTAssertNil(json?["favoritedAt"])
     }
+
+    func testNoteIconsReadUploadedImagesAndKeepEmojiAsText() {
+        let key = "upload:page-covers/user1/0e111e3a-9e25-4944-ade7-b460580fa921.png"
+        XCTAssertEqual(NoteIcons.imagePath(key), "/api/pages/covers?key=page-covers%2Fuser1%2F0e111e3a-9e25-4944-ade7-b460580fa921.png")
+        XCTAssertNil(NoteIcons.imagePath("📄"))
+        XCTAssertNil(NoteIcons.imagePath("upload:page-covers/user1/../x.png"))
+        XCTAssertNil(NoteIcons.text(key))
+        XCTAssertEqual(NoteIcons.text("📄"), "📄")
+    }
 }

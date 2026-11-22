@@ -130,6 +130,12 @@ button:disabled {
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
 .notes-icon:not(:disabled):hover { background: var(--notes-hover); }
+/* アップロード画像のアイコン。絵文字と同じ大きさ（1em 四方）で、どこでも絵文字と並ぶ。 */
+.note-icon-image { display: inline-block; width: 1em; height: 1em; border-radius: 3px; object-fit: cover; vertical-align: -0.12em; }
+.notes-icon .note-icon-image { width: 0.92em; height: 0.92em; border-radius: 6px; }
+.emoji-picker-tabs { padding: 6px 8px 0; }
+.emoji-picker-upload { min-height: 180px; justify-content: center; }
+.emoji-picker-upload .emoji-picker-upload-remove { border: 0; color: var(--notes-muted); }
 .notes-page-header.has-cover .notes-icon-wrap { margin-top: -42px; }
 .notes-header-controls {
   display: flex; min-height: 28px; flex-wrap: wrap; gap: 2px; margin-block: 4px; margin-inline: -8px 0;

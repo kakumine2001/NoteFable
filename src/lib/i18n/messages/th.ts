@@ -754,4 +754,6 @@ export const th: Record<string, string> = {
   "Could not export the page.": "ไม่สามารถส่งออกหน้าได้",
   "Could not import Markdown files.": "ไม่สามารถนำเข้าไฟล์ Markdown ได้",
   "Import to": "นำเข้าไปที่",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "แนะนำรูปสี่เหลี่ยมจัตุรัสขนาดอย่างน้อย 280 × 280 พิกเซล รองรับ JPEG, PNG, WebP หรือ GIF ไม่เกิน 4 MB",
+  "Images must be 4 MB or smaller.": "รูปภาพต้องมีขนาดไม่เกิน 4 MB",
 };

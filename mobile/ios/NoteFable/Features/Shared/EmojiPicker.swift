@@ -234,7 +234,8 @@ private struct EmojiPickerBar: View {
                 .foregroundStyle(Sm.text)
                 .lineLimit(1)
             // 选中标记：网页在"Emoji"后面接一个空格和当前表情（aria-label "Current emoji"）。
-            if let current, !current.isEmpty {
+            // 笔记的图标是上传图片时没有文字形式，和网页一样不显示（Remove 照常可用）。
+            if let current = NoteIcons.text(current), !current.isEmpty {
                 Text(" " + current)
                     .font(.nf(14))
                     .foregroundStyle(Sm.text)

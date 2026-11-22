@@ -754,4 +754,6 @@ export const ko: Record<string, string> = {
   "Could not export the page.": "페이지를 내보내지 못했어요.",
   "Could not import Markdown files.": "Markdown 파일을 가져오지 못했어요.",
   "Import to": "가져올 위치",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "280 × 280픽셀 이상의 정사각형 이미지가 가장 좋습니다. JPEG, PNG, WebP 또는 GIF, 최대 4MB.",
+  "Images must be 4 MB or smaller.": "이미지는 4MB 이하여야 합니다.",
 };

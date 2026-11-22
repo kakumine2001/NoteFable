@@ -164,7 +164,8 @@ export function validateNoteContent(value: unknown): NoteContent {
   // 旧クライアントや旧下書きには icon/cover がないため、未指定は null として扱う。
   const icon = value.icon ?? null;
   const cover = value.cover ?? null;
-  if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji."));
+  // アイコンは絵文字 1 つか、カバーと同じ形でアップロードした画像（upload:page-covers/<所有者>/<UUID>.<拡張子>）。
+  if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
   if (cover !== null && !isPresetCover(cover) && !uploadedCoverPath(cover)) throw new NoteValidationError(msg("Unsupported note cover."));
   const coverPosition = value.coverPosition ?? null;
   if (coverPosition !== null && !(Number.isInteger(coverPosition) && Number(coverPosition) >= 0 && Number(coverPosition) <= 100)) {

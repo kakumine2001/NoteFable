@@ -76,7 +76,6 @@ export const jaServer: Record<string, string> = {
   "No changes supplied.": "変更がありません。",
   "Not found.": "見つかりません。",
   "Note content exceeds 1 MiB.": "ノートの内容が 1 MiB を超えています。",
-  "Note icon must be a single emoji.": "ノートのアイコンは絵文字 1 つにしてください。",
   "Note not found in the trash.": "ゴミ箱にこのノートが見つかりません。",
   "Note not found.": "ノートが見つかりません。",
   "Nothing to update.": "更新する内容がありません。",
@@ -234,4 +233,6 @@ export const jaServer: Record<string, string> = {
   "You can import up to {max} files at once.": "一度に読み込めるファイルは {max} 個までです。",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "読み込めるのは Markdown（.md、.markdown、.txt）ファイルだけです。",
   "File is too long for one note: {name}": "ファイルが長すぎて 1 つのノートに読み込めません: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "ノートのアイコンは絵文字 1 つか、アップロードした画像にしてください。",
+  "This icon image is no longer available. Choose another icon.": "このアイコン画像は使えなくなりました。別のアイコンを選んでください。",
 };

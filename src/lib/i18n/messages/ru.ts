@@ -754,4 +754,6 @@ export const ru: Record<string, string> = {
   "Could not export the page.": "Не удалось экспортировать страницу.",
   "Could not import Markdown files.": "Не удалось импортировать файлы Markdown.",
   "Import to": "Импортировать в",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Лучше всего подходят квадратные изображения от 280 × 280 пикселей. JPEG, PNG, WebP или GIF, до 4 МБ.",
+  "Images must be 4 MB or smaller.": "Размер изображения не должен превышать 4 МБ.",
 };

@@ -102,7 +102,6 @@ export const deServer: Record<string, string> = {
   "Not found.": "Nicht gefunden.",
   "Note changed since it was read": "Die Notiz wurde seit dem Lesen geändert",
   "Note content exceeds 1 MiB.": "Der Notizinhalt überschreitet 1 MiB.",
-  "Note icon must be a single emoji.": "Das Notiz-Icon muss ein einzelnes Emoji sein.",
   "Note not found": "Notiz nicht gefunden",
   "Note not found in the trash.": "Notiz im Papierkorb nicht gefunden.",
   "Note not found.": "Notiz nicht gefunden.",
@@ -234,4 +233,6 @@ export const deServer: Record<string, string> = {
   "You can import up to {max} files at once.": "Du kannst höchstens {max} Dateien gleichzeitig importieren.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Es können nur Markdown-Dateien (.md, .markdown, .txt) importiert werden.",
   "File is too long for one note: {name}": "Die Datei ist zu lang für eine einzelne Notiz: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "Das Notizsymbol muss ein einzelnes Emoji oder ein hochgeladenes Bild sein.",
+  "This icon image is no longer available. Choose another icon.": "Dieses Symbolbild ist nicht mehr verfügbar. Wähle ein anderes Symbol.",
 };

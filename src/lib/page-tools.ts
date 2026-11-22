@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ToolDefinition, ToolRun } from "@/lib/chat-tools";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { isEmojiIcon } from "@/lib/emoji-icon";
 import { createAttachmentResolver, listChatAttachments } from "@/lib/note-attachments";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
@@ -200,6 +201,7 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
   try {
     const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await createAttachmentResolver(userId, sessionId, excludeMessageIds)([value.markdown]))[0] : value.markdown);
     const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
+    if (icon !== null && !isEmojiIcon(icon)) return toolError("icon must be a single emoji or null.");
     const content = validateNoteContent({ title, icon, blocks });
     assertNoteFilesOwner(content.blocks, userId);
     const proposal = await saveProposal(userId, sessionId, { kind: "CREATE", payload: {

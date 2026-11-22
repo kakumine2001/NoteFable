@@ -754,4 +754,6 @@ export const ptBR: Record<string, string> = {
   "Could not export the page.": "Não foi possível exportar a página.",
   "Could not import Markdown files.": "Não foi possível importar os arquivos Markdown.",
   "Import to": "Importar para",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Imagens quadradas de pelo menos 280 × 280 pixels funcionam melhor. JPEG, PNG, WebP ou GIF, até 4 MB.",
+  "Images must be 4 MB or smaller.": "As imagens devem ter 4 MB ou menos.",
 };

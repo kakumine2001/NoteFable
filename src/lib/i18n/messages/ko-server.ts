@@ -102,7 +102,6 @@ export const koServer: Record<string, string> = {
   "Not found.": "찾을 수 없어요.",
   "Note changed since it was read": "읽은 후 노트가 변경됨",
   "Note content exceeds 1 MiB.": "노트 내용이 1 MiB를 초과해요.",
-  "Note icon must be a single emoji.": "노트 아이콘은 이모지 1개여야 해요.",
   "Note not found": "노트를 찾을 수 없음",
   "Note not found in the trash.": "휴지통에서 노트를 찾을 수 없어요.",
   "Note not found.": "노트를 찾을 수 없어요.",
@@ -234,4 +233,6 @@ export const koServer: Record<string, string> = {
   "You can import up to {max} files at once.": "한 번에 최대 {max}개의 파일까지 가져올 수 있어요.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Markdown(.md, .markdown, .txt) 파일만 가져올 수 있어요.",
   "File is too long for one note: {name}": "파일이 너무 길어 노트 하나로 가져올 수 없어요: {name}",
+  "Note icon must be a single emoji or an uploaded image.": "노트 아이콘은 이모지 하나 또는 업로드한 이미지여야 합니다.",
+  "This icon image is no longer available. Choose another icon.": "이 아이콘 이미지는 더 이상 사용할 수 없습니다. 다른 아이콘을 선택하세요.",
 };

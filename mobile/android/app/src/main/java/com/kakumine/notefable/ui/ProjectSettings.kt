@@ -351,7 +351,7 @@ internal fun NoteOption(page: ChatProjectNote, untitled: String, checked: Boolea
         Checkbox16(checked, enabled = !busy && !blocked)
         Spacer(Modifier.width(8.8.dp))
         Box(Modifier.width(20.dp), Alignment.Center) {
-            if (page.icon != null) Text(page.icon, fontSize = 14.sp) else LucideIcon(Lucide.FileText, 14.dp, Sm.Muted)
+            NoteIcon(page.icon, 14.sp, 14.dp, Sm.Muted)
         }
         Spacer(Modifier.width(8.8.dp))
         Text(title, Modifier.weight(1f), color = if (blocked) Sm.Faint else Sm.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

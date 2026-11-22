@@ -68,8 +68,7 @@ internal fun ChatRecentNotes(
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Box(Modifier.size(32.dp).background(Sm.Sidebar, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                            if (page.icon == null) LucideIcon(Lucide.FileText, 18.dp, Sm.Muted)
-                            else Text(page.icon, fontSize = 16.sp)
+                            NoteIcon(page.icon, 16.sp, 18.dp, Sm.Muted)
                         }
                         Text(title, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)

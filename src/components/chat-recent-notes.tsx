@@ -5,6 +5,7 @@ import type { NoteSaveQueue } from "@/lib/note-save-queue";
 import { CHAT_RECENT_COUNT } from "@/types/notes";
 import { recentPages } from "@/lib/notes-home-text";
 import { MAX_MESSAGE_NOTES, type AttachedPage } from "@/types/chat";
+import { NoteIcon } from "@/components/note-icon";
 
 type RecentNote = AttachedPage & { updatedAt: string };
 
@@ -57,7 +58,7 @@ export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOp
         <button type="button" className="notes-recent-card" aria-pressed={attached}
           disabled={disabled || (!attached && selected.length >= MAX_MESSAGE_NOTES)}
           onClick={() => onToggle({ id, title, icon })}>
-          <span aria-hidden="true" className="chat-recent-icon">{icon ?? <FileText size={18} />}</span>
+          <span aria-hidden="true" className="chat-recent-icon"><NoteIcon icon={icon} fallback={<FileText size={18} />} /></span>
           <span className="chat-recent-title">{name}</span>
           <span className="chat-recent-action">{attached && <Check size={12} aria-hidden="true" />}<span>{attached ? t("Attached") : t("Attach")}</span></span>
         </button>
