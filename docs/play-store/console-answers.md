@@ -86,7 +86,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-已完成（2026-11-20）：1.0.12（versionCode 22）在内部测试和封闭测试（Alpha 轨道）完全发布。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动上传到 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
+已完成（2026-11-20）：1.0.12（versionCode 22）在内部测试和封闭测试（Alpha 轨道）完全发布。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
 
 剩下的（都要在 Play Console / Google Cloud 上由所有者操作）：
 
