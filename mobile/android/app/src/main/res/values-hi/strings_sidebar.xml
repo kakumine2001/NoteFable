@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">प्रोजेक्ट सेव नहीं किया जा सका। कृपया फिर से प्रयास करें।</string>
     <string name="sb_loading">लोड हो रहा है…</string>
     <string name="sb_instructions">निर्देश</string>
-    <string name="sb_instructions_help">इस प्रोजेक्ट की हर चैट पर लागू होगा। बताएँ कि प्रोजेक्ट किस काम के लिए है, किस भाषा में जवाब देना है, और जवाब का फ़ॉर्मेट कैसा हो।</string>
     <string name="sb_instructions_placeholder">उदाहरण: जापानी बिज़नेस ईमेल लिखने में मेरी मदद करें। विनम्र भाषा रखें और पहले एक छोटा ड्राफ़्ट दें।</string>
     <string name="sb_reference_notes">संदर्भ नोट्स</string>
-    <string name="sb_reference_notes_help">केवल यहाँ चुने गए नोट्स ही इस प्रोजेक्ट की चैट में AI के साथ साझा किए जाते हैं। इन्हें लाइव पढ़ा जाता है, इसलिए आपके ताज़ा बदलाव अगले संदेश से लागू होते हैं।</string>
     <string name="sb_selected_notes">चुने गए नोट्स</string>
     <string name="sb_remove_title">%1$s को हटाएँ</string>
     <string name="sb_filter_notes">अपने नोट्स फ़िल्टर करें</string>

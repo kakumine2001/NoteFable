@@ -112,7 +112,6 @@ fun AttachPagesDialog(
             Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)) {
                 val full = selected.size >= MAX_MESSAGE_NOTES
                 SettingsSectionLabel(stringResource(R.string.sb_your_notes), "${selected.size}/$MAX_MESSAGE_NOTES", full)
-                SettingsHelpText(stringResource(R.string.attach_pages_help))
                 if (selected.isNotEmpty()) {
                     val selectedLabel = stringResource(R.string.sb_selected_notes)
                     FlowRow(

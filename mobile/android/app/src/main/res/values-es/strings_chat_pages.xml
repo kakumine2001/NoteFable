@@ -7,7 +7,6 @@
     <string name="ask_notefable">Preguntar a NoteFable</string>
     <string name="quote">Cita</string>
     <string name="remove_quote">Quitar cita</string>
-    <string name="attach_pages_help">La IA lee las páginas que adjuntas como contexto para este chat. Vuelven a leerse con cada mensaje, así que siempre se usan tus últimos cambios.</string>
     <string name="attach_pages_submit">Adjuntar</string>
     <string name="err_pages_image_mode">No se pueden adjuntar páginas al crear una imagen. Quítalas o desactiva la creación de imágenes.</string>
     <string name="create_page">Crear nota</string>

@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Не удалось сохранить проект. Пожалуйста, попробуйте ещё раз.</string>
     <string name="sb_loading">Загрузка…</string>
     <string name="sb_instructions">Инструкции</string>
-    <string name="sb_instructions_help">Применяется ко всем чатам в этом проекте. Укажите назначение проекта, язык и желаемый формат ответов.</string>
     <string name="sb_instructions_placeholder">Пример: Помогай мне писать деловые письма на японском языке. Соблюдай вежливый тон и сначала предлагай короткий черновик.</string>
     <string name="sb_reference_notes">Справочные заметки</string>
-    <string name="sb_reference_notes_help">ИИ в чатах этого проекта видит только выбранные здесь заметки. Они считываются в реальном времени, поэтому ваши последние правки учитываются уже со следующего сообщения.</string>
     <string name="sb_selected_notes">Выбранные заметки</string>
     <string name="sb_remove_title">Убрать «%1$s»</string>
     <string name="sb_filter_notes">Фильтр заметок</string>

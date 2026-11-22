@@ -61,7 +61,7 @@ export function unescapeAndroidString(raw: string): { text: string; quoted: bool
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&amp;/g, "&")
-    .replace(/\\(['"?@\\])/g, "$1");
+    .replace(/\\(['"?@\\n])/g, (_, c: string) => (c === "n" ? "\n" : c));
   const specs = [...s.matchAll(/%\d+\$[sd]/g)].map((m) => m[0]);
   if (specs.length > 0) s = s.replace(/%%/g, "%");
   return { text: s, quoted, specs };
@@ -74,14 +74,15 @@ export function escapeAndroidString(value: string, forceQuote: boolean): string 
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
   if (needsQuote) {
-    const inner = xmlEscaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    const inner = xmlEscaped.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
     return `"${inner}"`;
   }
   return xmlEscaped
     .replace(/\\/g, "\\\\")
     .replace(/'/g, "\\'")
     .replace(/"/g, '\\"')
-    .replace(/^([@?])/, "\\$1");
+    .replace(/^([@?])/, "\\$1")
+    .replace(/\n/g, "\\n");
 }
 
 function escapeRegExp(value: string): string {

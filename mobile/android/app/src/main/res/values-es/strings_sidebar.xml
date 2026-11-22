@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">No se pudo guardar el proyecto. Inténtalo de nuevo.</string>
     <string name="sb_loading">Cargando…</string>
     <string name="sb_instructions">Instrucciones</string>
-    <string name="sb_instructions_help">Se aplica a todos los chats de este proyecto. Indica para qué es el proyecto, en qué idioma debe responder y qué formato usar.</string>
     <string name="sb_instructions_placeholder">Ejemplo: Ayúdame a redactar correos comerciales en japonés. Mantén un tono cortés y responde primero con un borrador breve.</string>
     <string name="sb_reference_notes">Notas de referencia</string>
-    <string name="sb_reference_notes_help">Solo las notas que elijas aquí se comparten con la IA en los chats de este proyecto. Se leen en tiempo real, así que tus últimos cambios se aplican desde el próximo mensaje.</string>
     <string name="sb_selected_notes">Notas seleccionadas</string>
     <string name="sb_remove_title">Quitar %1$s</string>
     <string name="sb_filter_notes">Filtrar tus notas</string>

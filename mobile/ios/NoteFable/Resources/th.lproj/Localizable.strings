@@ -184,12 +184,11 @@
 "settings_personalization" = "การปรับแต่งเฉพาะบุคคล";
 "settings_unsaved" = "มีการแก้ไขที่ยังไม่ได้บันทึก";
 "acct_custom_instructions" = "คำสั่งกำหนดเอง";
-"acct_custom_instructions_help" = "จะมีผลกับทุกแชทของคุณตั้งแต่ข้อความถัดไป บอก NoteFable เกี่ยวกับตัวคุณและรูปแบบคำตอบที่คุณต้องการ ทั้งนี้ภายในโปรเจกต์ คำสั่งของโปรเจกต์จะได้รับความสำคัญก่อน";
-"acct_custom_instructions_placeholder" = "ตัวอย่าง: ฉันกำลังเตรียมสอบ JLPT N1 ช่วยอธิบายไวยากรณ์พร้อมประโยคตัวอย่างสั้นๆ และตอบอย่างกระชับ";
+"acct_custom_instructions_help" = "เขียนเรื่องเกี่ยวกับตัวคุณหรือรูปแบบคำตอบที่ชอบไว้ แล้วจะใช้กับทุกแชท";
+"acct_custom_instructions_placeholder" = "ตัวอย่าง:\n- ตอบแบบเป็นกันเอง เข้าใจง่าย\n- บอกข้อสรุปก่อน และตอบสั้น ๆ\n- ถ้าไม่แน่ใจ ให้บอกตรง ๆ อย่าเดา";
 "acct_err_load_custom_instructions" = "ไม่สามารถโหลดคำสั่งกำหนดเองของคุณได้";
 "acct_err_save_custom_instructions" = "ไม่สามารถบันทึกคำสั่งกำหนดเองของคุณได้ กรุณาลองอีกครั้ง";
 "app_icon_title" = "ไอคอน";
-"app_icon_help" = "แสดงในแชท ในแถบด้านข้าง และบนปุ่ม AI ในโน้ต บันทึกไว้บนอุปกรณ์นี้เท่านั้น";
 "app_icon_choose_character" = "เลือกตัวละคร";
 "app_icon_upload_image" = "อัปโหลดรูปภาพ";
 "app_icon_could_not_save" = "ไม่สามารถบันทึกไอคอนบนอุปกรณ์นี้ได้";
@@ -273,7 +272,6 @@
 "ask_notefable" = "ถาม NoteFable";
 "quote" = "คำพูดยกมา";
 "remove_quote" = "ลบข้อความที่อ้างอิง";
-"attach_pages_help" = "AI จะอ่านหน้าที่คุณแนบไว้เป็นบริบทสำหรับแชทนี้ และจะอ่านใหม่ทุกครั้งที่ส่งข้อความ จึงใช้เนื้อหาที่แก้ไขล่าสุดเสมอ";
 "attach_pages_submit" = "แนบ";
 "err_pages_image_mode" = "ไม่สามารถแนบหน้าขณะสร้างรูปภาพได้ กรุณานำหน้าที่แนบออกหรือปิดโหมดสร้างรูปภาพ";
 "create_page" = "สรุปเป็นโน้ต";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "ใน %1$s";
 
+/* strings_share.xml */
+"share_action" = "แชร์";
+"share_publish_to_web" = "เผยแพร่ไปยังเว็บ";
+"share_publish" = "เผยแพร่";
+"share_republish" = "เผยแพร่อีกครั้ง";
+"share_unpublish" = "ยกเลิกการเผยแพร่";
+"share_desc" = "เผยแพร่โน้ตนี้เพื่อให้ทุกคนที่มีลิงก์สามารถดูได้";
+"share_expired" = "ลิงก์แชร์นี้หมดอายุแล้ว";
+"share_public_link" = "ลิงก์สาธารณะ";
+"share_copy_link" = "คัดลอกลิงก์";
+"share_open_link" = "เปิดลิงก์";
+"share_include_subpages" = "รวมหน้าย่อย";
+"share_link_expires" = "ลิงก์หมดอายุ";
+"share_never" = "ไม่หมดอายุ";
+"share_1h" = "1 ชั่วโมง";
+"share_1d" = "1 วัน";
+"share_7d" = "7 วัน";
+"share_30d" = "30 วัน";
+"share_custom_date" = "กำหนดวันเวลา…";
+"share_set" = "ตั้งค่า";
+"share_expires_time" = "หมดอายุ %1$s";
+"share_via_parent" = "แชร์ผ่านหน้าหลัก (%1$s)";
+"share_excluded_parent" = "ยกเว้นจากการแชร์ของหน้าหลัก (%1$s)";
+"share_exclude_from_parent" = "ยกเว้นจากการแชร์หน้าหลัก";
+"share_load_failed" = "ไม่สามารถโหลดการตั้งค่าการแชร์ได้";
+"share_update_failed" = "ไม่สามารถอัปเดตการตั้งค่าการแชร์ได้";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "ปักหมุดแล้ว";
 "sb_close_sidebar" = "ปิดแถบด้านข้าง";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "ไม่สามารถบันทึกโปรเจกต์ได้ กรุณาลองอีกครั้ง";
 "sb_loading" = "กำลังโหลด…";
 "sb_instructions" = "คำสั่ง";
-"sb_instructions_help" = "จะมีผลกับทุกแชทในโปรเจกต์นี้ ระบุเป้าหมายของโปรเจกต์ ภาษาที่ต้องการให้ตอบ และรูปแบบการจัดวางคำตอบ";
 "sb_instructions_placeholder" = "ตัวอย่าง: ช่วยฉันเขียนอีเมลธุรกิจภาษาญี่ปุ่น ใช้ถ้อยคำสุภาพ และให้ร่างสั้นๆ มาก่อนเสมอ";
 "sb_reference_notes" = "โน้ตอ้างอิง";
-"sb_reference_notes_help" = "เฉพาะโน้ตที่คุณเลือกไว้ที่นี่เท่านั้นที่จะแชร์ให้ AI ในแชทของโปรเจกต์นี้ ระบบจะอ่านข้อมูลล่าสุดทุกครั้ง การแก้ไขล่าสุดจึงมีผลตั้งแต่ข้อความถัดไป";
 "sb_selected_notes" = "โน้ตที่เลือก";
 "sb_remove_title" = "นำ %1$s ออก";
 "sb_filter_notes" = "กรองโน้ตของคุณ";

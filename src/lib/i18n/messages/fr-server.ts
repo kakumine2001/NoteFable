@@ -221,4 +221,7 @@ export const frServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Cette proposition n’est plus valide. Reformulez votre demande pour obtenir une nouvelle proposition.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Cette note a été modifiée depuis la création de la proposition. Reformulez votre demande pour obtenir une nouvelle proposition.",
   "Upload up to {max} files at a time.": "Vous pouvez téléverser jusqu’à {max} fichiers à la fois.",
+  "Invalid request body.": "Le corps de la requête est invalide.",
+  "Invalid share settings.": "Les paramètres de partage sont invalides.",
+  "Expiration time must be in the future.": "La date d'expiration doit être dans le futur.",
 };

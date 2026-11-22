@@ -236,6 +236,62 @@ final class AppEnvironmentTests: XCTestCase {
         XCTAssertEqual(environment.notes.state.open?.title, "Found")
     }
 
+    // MARK: - 系统分享
+
+    func testShareUrlPutsTheSharedContentIntoANewChatAndClosesPanels() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        router.searchOpen = true
+        router.settingsOpen = true
+        router.drawerOpen = true
+        let photo = LocalFile(uri: "file:///photo", name: "photo.png", mimeType: "image/png", size: 10)
+        var requested: [String?] = []
+        environment.consumeSharePayloads = { id in
+            requested.append(id)
+            return [("from share", [photo])]
+        }
+
+        let handled = router.handleIncomingURL(try XCTUnwrap(URL(string: "notefable://share?id=abcdef12-3456")))
+        XCTAssertTrue(handled)
+        await eventually { environment.chat.draft == "from share" && environment.chat.state.files == [photo] }
+        XCTAssertEqual(requested, ["abcdef12-3456"])
+        XCTAssertFalse(router.searchOpen)
+        XCTAssertFalse(router.settingsOpen)
+        XCTAssertFalse(router.drawerOpen)
+        XCTAssertEqual(environment.notes.state.workspace, .chat)
+        XCTAssertNil(environment.chat.state.activeSessionId)
+    }
+
+    func testPendingSharesAreTakenOnceEvenWhenRequestedTwiceAtTheSameTime() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        var calls = 0
+        environment.consumeSharePayloads = { _ in
+            calls += 1
+            // 第一次取到两份按先后顺序排列的分享，之后没有（取走就删）。
+            return calls == 1 ? [("first share", []), ("second share", [])] : []
+        }
+
+        router.consumePendingShares()
+        router.consumePendingShares()
+        await eventually { calls == 2 }
+        await settleMainActor()
+        XCTAssertEqual(environment.chat.draft, "first share\n\nsecond share")
+    }
+
+    func testShareUrlWithBadIdIsNotHandledAsAShare() async throws {
+        let environment = try makeEnvironment()
+        let router = AppRouter(app: environment)
+        var called = false
+        environment.consumeSharePayloads = { _ in
+            called = true
+            return []
+        }
+        XCTAssertFalse(router.handleIncomingURL(try XCTUnwrap(URL(string: "notefable://share?id=../x"))))
+        await settleMainActor()
+        XCTAssertFalse(called)
+    }
+
     // MARK: - 打包的资源
 
     func testLoadsBundledAssets() async throws {

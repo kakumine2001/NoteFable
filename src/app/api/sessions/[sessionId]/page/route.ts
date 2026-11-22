@@ -8,6 +8,7 @@ import { getModelRegistry, upstreamModelFor } from "@/lib/model-registry";
 import { getModelOption, normalizeModel } from "@/lib/models";
 import { noteApiError } from "@/lib/note-api";
 import { createNotePage } from "@/lib/note-create";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
 import { prisma } from "@/lib/prisma";
 import { clientNetworkKey, consumeUsage, refundUsage, usageLimitResponse, type UsageTicket } from "@/lib/usage-limits";
@@ -90,6 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
     });
     const content = validateNoteContent({ title, icon: null, cover: null, coverPosition: null, blocks });
     const page = await createNotePage(user.id, content);
+    scheduleNoteEmbeddingSync(user.id, [page.id]);
     return NextResponse.json({ page, partial: transcript.omitted }, { status: 201 });
   } catch (error) {
     await refundUsage(ticket);

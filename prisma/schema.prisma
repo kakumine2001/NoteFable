@@ -96,6 +96,7 @@ model User {
   noteProposals NoteProposal[]
   noteGroups    NoteGroup[]
   noteRevisions NoteRevision[]
+  noteEmbeddings NoteEmbedding[]
 }
 
 // メールでのログイン用の確認コード。コードそのものは保存せず、HMAC だけを持つ。使ったら消す。
@@ -140,9 +141,16 @@ model NotePage {
   // "default" / "serif" / "mono"
   font          String    @default("default")
   // ロック中は画面での編集を止める（権限ではなく、うっかり編集の防止）。
-  locked        Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  locked                 Boolean   @default(false)
+  // 公開共有（Notion の Share → Publish）。token は初回公開時に発行し、非公開後も保持する。
+  shareToken             String?   @unique
+  shareEnabled           Boolean   @default(false)
+  shareIncludeSubpages   Boolean   @default(true)
+  shareExpiresAt         DateTime?
+  // 親ページが公開中でも、このサブページ（とその配下）を公開対象から外す。
+  shareExcludeFromParent Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   group    NoteGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
@@ -153,6 +161,7 @@ model NotePage {
   revisions         NoteRevision[]
   projectRefs       ChatProjectNote[]
   messageRefs       MessageNote[]
+  embeddings        NoteEmbedding[]
 
   @@index([userId, updatedAt])
   @@index([userId, groupId])
@@ -178,6 +187,35 @@ model NoteRevision {
 
   @@index([noteId, createdAt])
   @@index([userId])
+}
+
+// ノート本文の意味検索（セマンティック検索）用のチャンク単位ベクトル。
+// NotePage の本文が変わると非同期または検索時の遅延更新で作り直す。
+// NotePage を完全削除するとカスケード削除される。ゴミ箱のノートは検索時に NotePage.deletedAt IS NULL で除外する。
+model NoteEmbedding {
+  id          String   @id @default(cuid())
+  noteId      String
+  userId      String
+  chunkIndex  Int
+  // このチャンクの先頭ブロック ID（検索結果から該当箇所へジャンプするために使う。タイトルのみのときは null）。
+  blockId     String?
+  // 埋め込みを作った時点の NotePage.version。検索時は現在の version と一致する行だけを使い、古い版の本文を出さない。
+  noteVersion Int
+  // 埋め込みを作った時点のタイトル＋本文の SHA-256（先頭 32 hex 文字）。本文が変わっていなければ再計算しない。
+  contentHash String
+  // 生成に使ったモデルと次元（モデルを切り替えても古いベクトルと混ぜない）。
+  model       String
+  dimensions  Int
+  // L2 正規化済みの Float32Array（リトルエンディアン、dimensions * 4 バイト）。
+  vector      Bytes
+  updatedAt   DateTime @updatedAt
+
+  note NotePage @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  user User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, chunkIndex])
+  @@index([userId, model, dimensions])
+  @@index([noteId])
 }
 
 // ノートをまとめるグループ（フォルダ）。1 階層だけで、並びは position の昇順。

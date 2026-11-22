@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 这个文件由 scripts/gen-native-zh-hant.ts 从 values-zh 的同名文件生成，不要直接修改。 -->
+<resources>
+    <string name="share_action">分享</string>
+    <string name="share_publish_to_web">公開到網頁</string>
+    <string name="share_publish">公開</string>
+    <string name="share_republish">重新公開</string>
+    <string name="share_unpublish">取消公開</string>
+    <string name="share_desc">公開這篇筆記後，擁有連結的人即可線上檢視。</string>
+    <string name="share_expired">此分享連結已過期。</string>
+    <string name="share_public_link">公開連結</string>
+    <string name="share_copy_link">複製連結</string>
+    <string name="share_open_link">開啟連結</string>
+    <string name="share_include_subpages">包含子頁面</string>
+    <string name="share_link_expires">連結有效期</string>
+    <string name="share_never">永不過期</string>
+    <string name="share_1h">1 小時</string>
+    <string name="share_1d">1 天</string>
+    <string name="share_7d">7 天</string>
+    <string name="share_30d">30 天</string>
+    <string name="share_custom_date">自定義時間…</string>
+    <string name="share_set">設定</string>
+    <string name="share_expires_time">到期時間：%1$s</string>
+    <string name="share_via_parent">正隨上級頁面公開（%1$s）</string>
+    <string name="share_excluded_parent">已從上級分享中排除（%1$s）</string>
+    <string name="share_exclude_from_parent">不隨上級頁面公開</string>
+    <string name="share_load_failed">無法載入分享設定。</string>
+    <string name="share_update_failed">無法更新分享設定。</string>
+</resources>

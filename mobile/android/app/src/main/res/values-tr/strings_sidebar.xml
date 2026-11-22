@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Proje kaydedilemedi. Lütfen tekrar deneyin.</string>
     <string name="sb_loading">Yükleniyor…</string>
     <string name="sb_instructions">Talimatlar</string>
-    <string name="sb_instructions_help">Bu projedeki her sohbete uygulanır. Projenin amacını, hangi dilde yanıt verileceğini ve yanıtların nasıl biçimlendirileceğini belirtin.</string>
     <string name="sb_instructions_placeholder">Örnek: Japonca iş e-postaları yazmama yardımcı ol. Nazik bir üslup kullan ve önce kısa bir taslakla yanıt ver.</string>
     <string name="sb_reference_notes">Referans notları</string>
-    <string name="sb_reference_notes_help">Bu projenin sohbetlerinde yapay zekâyla yalnızca burada seçtiğiniz notlar paylaşılır. Notlar anlık okunduğundan, en son düzenlemeleriniz bir sonraki mesajdan itibaren geçerli olur.</string>
     <string name="sb_selected_notes">Seçilen notlar</string>
     <string name="sb_remove_title">%1$s öğesini kaldır</string>
     <string name="sb_filter_notes">Notlarınızı filtreleyin</string>

@@ -169,7 +169,7 @@ dialog.settings-dialog .settings-plan-manage { margin-top: 1rem; }
 /* カスタム指示。 */
 dialog.settings-dialog .project-settings-label { font-size: 0.9375rem; font-weight: 500; }
 dialog.settings-dialog textarea.settings-textarea {
-  display: block; width: 100%; min-height: 11rem; margin-top: 0.75rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 10px;
+  display: block; width: 100%; min-height: 15rem; margin-top: 0.75rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 10px;
   padding: 0.625rem 0.75rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: #fff;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }

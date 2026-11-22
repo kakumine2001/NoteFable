@@ -221,4 +221,7 @@ export const deServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Dieser Vorschlag ist nicht mehr gültig. Bitte frage erneut nach einem neuen Vorschlag.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Diese Notiz wurde nach dem Erstellen des Vorschlags geändert. Bitte frage erneut nach einem neuen Vorschlag.",
   "Upload up to {max} files at a time.": "Lade höchstens {max} Dateien gleichzeitig hoch.",
+  "Invalid request body.": "Ungültiger Anfragetext.",
+  "Invalid share settings.": "Ungültige Freigabeeinstellungen.",
+  "Expiration time must be in the future.": "Das Ablaufdatum muss in der Zukunft liegen.",
 };

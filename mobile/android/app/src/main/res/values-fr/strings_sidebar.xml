@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Impossible d’enregistrer le projet. Veuillez réessayer.</string>
     <string name="sb_loading">Chargement…</string>
     <string name="sb_instructions">Instructions</string>
-    <string name="sb_instructions_help">S’applique à chaque discussion de ce projet. Précisez l’objectif du projet, la langue de réponse et la mise en forme souhaitée.</string>
     <string name="sb_instructions_placeholder">Exemple : Aidez-moi à rédiger des e-mails professionnels en japonais. Gardez un ton poli et proposez d’abord un court brouillon.</string>
     <string name="sb_reference_notes">Notes de référence</string>
-    <string name="sb_reference_notes_help">Seules les notes sélectionnées ici sont partagées avec l’IA dans les discussions de ce projet. Elles sont lues en direct : vos dernières modifications s’appliquent dès le prochain message.</string>
     <string name="sb_selected_notes">Notes sélectionnées</string>
     <string name="sb_remove_title">Retirer « %1$s »</string>
     <string name="sb_filter_notes">Filtrer vos notes</string>

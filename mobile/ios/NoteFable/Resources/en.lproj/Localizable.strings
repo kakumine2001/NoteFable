@@ -184,12 +184,11 @@
 "settings_personalization" = "Personalization";
 "settings_unsaved" = "Unsaved changes";
 "acct_custom_instructions" = "Custom instructions";
-"acct_custom_instructions_help" = "Applied to all your chats from the next message. Tell NoteFable about yourself and how you want it to answer. A project’s instructions take priority inside that project.";
-"acct_custom_instructions_placeholder" = "Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.";
+"acct_custom_instructions_help" = "Share anything about yourself or how you like answers, and it applies to every chat.";
+"acct_custom_instructions_placeholder" = "For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing";
 "acct_err_load_custom_instructions" = "Could not load your custom instructions.";
 "acct_err_save_custom_instructions" = "Could not save your custom instructions. Please try again.";
 "app_icon_title" = "Icon";
-"app_icon_help" = "Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.";
 "app_icon_choose_character" = "Choose a character";
 "app_icon_upload_image" = "Upload an image";
 "app_icon_could_not_save" = "Could not save the icon on this device.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Ask NoteFable";
 "quote" = "Quote";
 "remove_quote" = "Remove quote";
-"attach_pages_help" = "The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.";
 "attach_pages_submit" = "Attach";
 "err_pages_image_mode" = "Pages can’t be attached when creating an image. Remove them or turn off image creation.";
 "create_page" = "Create page";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "in %1$s";
 
+/* strings_share.xml */
+"share_action" = "Share";
+"share_publish_to_web" = "Publish to web";
+"share_publish" = "Publish";
+"share_republish" = "Republish";
+"share_unpublish" = "Unpublish";
+"share_desc" = "Publish this note so anyone with the link can view it.";
+"share_expired" = "This share link has expired.";
+"share_public_link" = "Public link";
+"share_copy_link" = "Copy link";
+"share_open_link" = "Open link";
+"share_include_subpages" = "Include sub-pages";
+"share_link_expires" = "Link expires";
+"share_never" = "Never";
+"share_1h" = "1 hour";
+"share_1d" = "1 day";
+"share_7d" = "7 days";
+"share_30d" = "30 days";
+"share_custom_date" = "Custom date…";
+"share_set" = "Set";
+"share_expires_time" = "Expires %1$s";
+"share_via_parent" = "Shared via parent page (%1$s)";
+"share_excluded_parent" = "Excluded from parent share (%1$s)";
+"share_exclude_from_parent" = "Exclude from parent share";
+"share_load_failed" = "Failed to load share settings.";
+"share_update_failed" = "Failed to update share settings.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Pinned";
 "sb_close_sidebar" = "Close sidebar";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "Could not save the project. Please try again.";
 "sb_loading" = "Loading…";
 "sb_instructions" = "Instructions";
-"sb_instructions_help" = "Applied to every chat in this project. Say what the project is for, which language to answer in, and how to format answers.";
 "sb_instructions_placeholder" = "Example: Help me write Japanese business emails. Keep a polite tone and answer with a short draft first.";
 "sb_reference_notes" = "Reference notes";
-"sb_reference_notes_help" = "Only the notes you choose here are shared with the AI in this project’s chats. They are read live, so your latest edits apply from the next message.";
 "sb_selected_notes" = "Selected notes";
 "sb_remove_title" = "Remove %1$s";
 "sb_filter_notes" = "Filter your notes";

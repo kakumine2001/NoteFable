@@ -1,0 +1,136 @@
+// システムの「共有」から届いた内容（Web Share Target）を、チャットの入力欄へ渡すための部品。
+// public/sw.js が POST /share-target で受け取った中身を Cache Storage に預け、/app?share=<id> へ 303 で送る。
+// ここはそれを 1 度だけ取り出す側。Android・iOS の同名の規則（composeSharedText / ShareIntake）と同じ文の組み立てにする。
+
+export const SHARE_CACHE_NAME = "notefable-share-v1";
+export const SHARE_CACHE_PREFIX = "/__notefable_share__/";
+export const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+export const SHARE_MAX_AGE_MS = 10 * 60 * 1000;
+const SHARE_DRAFT_KEY = "notefable-share-draft";
+
+// Android PWA の共有は同じタブを /share-target へ遷移させるため、離れる直前の未送信下書きを sessionStorage へ退避する。
+export function saveShareDraft(text: string) {
+  try {
+    if (text.trim()) window.sessionStorage.setItem(SHARE_DRAFT_KEY, text);
+    else window.sessionStorage.removeItem(SHARE_DRAFT_KEY);
+  } catch {
+    // プライベートモード等で保存できない場合は何もしない。
+  }
+}
+
+export function takeShareDraft() {
+  try {
+    const text = window.sessionStorage.getItem(SHARE_DRAFT_KEY);
+    window.sessionStorage.removeItem(SHARE_DRAFT_KEY);
+    return text ?? "";
+  } catch {
+    return "";
+  }
+}
+
+type ShareMeta = {
+  createdAt: number;
+  title: string;
+  text: string;
+  url: string;
+  files: Array<{ index: number; name: string; type: string; size: number; truncated: boolean }>;
+};
+
+export type ConsumedWebShare = { text: string; files: File[] };
+
+// タイトル・本文・URL を 1 つの文にまとめる。同じ内容が重なるもの（本文にすでに URL が入っている等）は 1 度だけ。
+export function composeSharedText({ title, text, url }: { title?: string | null; text?: string | null; url?: string | null }) {
+  const cleanTitle = (title ?? "").trim();
+  const cleanText = (text ?? "").trim();
+  const cleanUrl = (url ?? "").trim();
+  const parts: string[] = [];
+  if (cleanTitle && !cleanText.includes(cleanTitle) && cleanTitle !== cleanUrl) parts.push(cleanTitle);
+  if (cleanText) parts.push(cleanText);
+  if (cleanUrl && !cleanText.includes(cleanUrl)) parts.push(cleanUrl);
+  return parts.join("\n");
+}
+
+// 入力欄にすでに書きかけがあれば消さずに、その後ろへ足す。
+export function mergeDraftWithShare(existingDraft: string, sharedText: string) {
+  if (!sharedText.trim()) return existingDraft;
+  if (!existingDraft.trim()) return sharedText;
+  return `${existingDraft}\n\n${sharedText}`;
+}
+
+// 開発時の StrictMode は effect を 2 回走らせる。1 度目で預かり物を消しても 2 度目が同じ結果を受け取れるよう、id ごとに 1 つの Promise を共有する。
+const consumed = new Map<string, Promise<ConsumedWebShare | null>>();
+
+export function consumeWebShare(id: string): Promise<ConsumedWebShare | null> {
+  if (!SHARE_ID_PATTERN.test(id)) return Promise.resolve(null);
+  const existing = consumed.get(id);
+  if (existing) return existing;
+  const next = readAndDelete(id).catch(() => null);
+  consumed.set(id, next);
+  return next;
+}
+
+async function readAndDelete(id: string): Promise<ConsumedWebShare | null> {
+  if (typeof caches === "undefined") return null;
+  const cache = await caches.open(SHARE_CACHE_NAME);
+  const base = `${SHARE_CACHE_PREFIX}${id}`;
+  const metaResponse = await cache.match(`${base}/meta.json`);
+  if (!metaResponse) return null;
+  const meta = (await metaResponse.json()) as ShareMeta;
+  const expired = typeof meta.createdAt !== "number" || Date.now() - meta.createdAt > SHARE_MAX_AGE_MS;
+  const files: File[] = [];
+  if (!expired) {
+    for (const info of meta.files ?? []) {
+      const response = await cache.match(`${base}/file-${info.index}`);
+      const blob = response ? await response.blob() : new Blob([]);
+      const file = new File([blob], info.name, { type: info.type });
+      // 大きすぎて預けなかったファイルも、本当の大きさを名乗らせる。そうすると添付の検証が「20 MiB を超えています」と正しく断る。
+      if (info.truncated) Object.defineProperty(file, "size", { value: info.size });
+      files.push(file);
+    }
+  }
+  await cache.delete(`${base}/meta.json`);
+  for (const info of meta.files ?? []) await cache.delete(`${base}/file-${info.index}`);
+  return expired ? null : { text: composeSharedText(meta), files };
+}
+
+function timestampFromShareKey(url: string) {
+  const index = url.indexOf(SHARE_CACHE_PREFIX);
+  if (index < 0) return null;
+  const rest = url.slice(index + SHARE_CACHE_PREFIX.length);
+  const slash = rest.indexOf("/");
+  const id = slash >= 0 ? rest.slice(0, slash) : rest;
+  const dash = id.indexOf("-");
+  if (dash <= 0) return null;
+  const ms = Number(id.slice(0, dash));
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
+// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュや期限切れの孤立ファイルを掃除する（書き込み途中の新しいファイルは消さない）。
+export async function pruneExpiredWebShares(now = Date.now()) {
+  if (typeof caches === "undefined") return;
+  const cache = await caches.open(SHARE_CACHE_NAME);
+  const keys = await cache.keys();
+  const validPrefixes = new Set<string>();
+  const expiredPrefixes = new Set<string>();
+  for (const key of keys) {
+    if (!key.url.endsWith("/meta.json")) continue;
+    const prefix = key.url.slice(0, -"meta.json".length);
+    const response = await cache.match(key);
+    const meta = response ? ((await response.json().catch(() => null)) as ShareMeta | null) : null;
+    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt <= SHARE_MAX_AGE_MS) {
+      validPrefixes.add(prefix);
+    } else {
+      expiredPrefixes.add(prefix);
+    }
+  }
+  for (const key of keys) {
+    if (Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix))) continue;
+    if (Array.from(expiredPrefixes).some((prefix) => key.url.startsWith(prefix))) {
+      await cache.delete(key);
+      continue;
+    }
+    const started = timestampFromShareKey(key.url);
+    if (started !== null && now - started <= SHARE_MAX_AGE_MS) continue;
+    await cache.delete(key);
+  }
+}

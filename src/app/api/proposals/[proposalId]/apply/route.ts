@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { applyProposal } from "@/lib/note-proposals";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ proposalId: string }> };
@@ -13,6 +14,8 @@ export async function POST(_request: Request, context: Context) {
     const { proposalId } = await context.params;
     const result = await applyProposal(user.id, proposalId);
     if (!result.ok) return NextResponse.json({ error: result.error }, { status: result.httpStatus });
+    const appliedPageId = (result.page as { id?: unknown } | null)?.id;
+    if (typeof appliedPageId === "string") scheduleNoteEmbeddingSync(user.id, [appliedPageId]);
     return NextResponse.json({ status: result.status, kind: result.kind, page: result.page });
   } catch (error) {
     console.error("Failed to apply a note proposal", error);

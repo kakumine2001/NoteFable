@@ -184,12 +184,11 @@
 "settings_personalization" = "個性化";
 "settings_unsaved" = "有未儲存的更改";
 "acct_custom_instructions" = "自定義指令";
-"acct_custom_instructions_help" = "從下一條訊息起適用於你的所有聊天。可以介紹你自己，以及希望 NoteFable 怎樣回答。在專案內，專案的指示優先。";
-"acct_custom_instructions_placeholder" = "例如：我正在備考 JLPT N1。請用簡短的例句講解語法，回答儘量簡潔。";
+"acct_custom_instructions_help" = "寫下你的情況或喜歡的回答方式，所有聊天都會參考。";
+"acct_custom_instructions_placeholder" = "例如：\n- 用輕鬆自然的語氣回答\n- 先說結論，儘量簡短\n- 不確定就直接說，不要瞎猜";
 "acct_err_load_custom_instructions" = "無法載入你的自定義指令。";
 "acct_err_save_custom_instructions" = "無法儲存你的自定義指令，請重試。";
 "app_icon_title" = "圖示";
-"app_icon_help" = "顯示在聊天、側欄和筆記裡的 AI 按鈕上。只儲存在這臺裝置上。";
 "app_icon_choose_character" = "選擇角色";
 "app_icon_upload_image" = "上傳圖片";
 "app_icon_could_not_save" = "無法在這臺裝置上儲存圖示。";
@@ -273,7 +272,6 @@
 "ask_notefable" = "問 NoteFable";
 "quote" = "引用";
 "remove_quote" = "移除引用";
-"attach_pages_help" = "AI 會把你新增的頁面作為這段對話的參考內容。每次傳送都會重新讀取，所以總是使用最新的內容。";
 "attach_pages_submit" = "新增";
 "err_pages_image_mode" = "生成圖片時不能新增頁面。請移除頁面或關閉圖片生成。";
 "create_page" = "整理成筆記";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable：";
 "search_in_file" = "在 %1$s 中";
 
+/* strings_share.xml */
+"share_action" = "分享";
+"share_publish_to_web" = "公開到網頁";
+"share_publish" = "公開";
+"share_republish" = "重新公開";
+"share_unpublish" = "取消公開";
+"share_desc" = "公開這篇筆記後，擁有連結的人即可線上檢視。";
+"share_expired" = "此分享連結已過期。";
+"share_public_link" = "公開連結";
+"share_copy_link" = "複製連結";
+"share_open_link" = "開啟連結";
+"share_include_subpages" = "包含子頁面";
+"share_link_expires" = "連結有效期";
+"share_never" = "永不過期";
+"share_1h" = "1 小時";
+"share_1d" = "1 天";
+"share_7d" = "7 天";
+"share_30d" = "30 天";
+"share_custom_date" = "自定義時間…";
+"share_set" = "設定";
+"share_expires_time" = "到期時間：%1$s";
+"share_via_parent" = "正隨上級頁面公開（%1$s）";
+"share_excluded_parent" = "已從上級分享中排除（%1$s）";
+"share_exclude_from_parent" = "不隨上級頁面公開";
+"share_load_failed" = "無法載入分享設定。";
+"share_update_failed" = "無法更新分享設定。";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "已置頂";
 "sb_close_sidebar" = "關閉側邊欄";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "無法儲存專案，請重試。";
 "sb_loading" = "正在載入…";
 "sb_instructions" = "指示";
-"sb_instructions_help" = "適用於此專案的每個聊天。可說明專案用途、回答語言和格式要求。";
 "sb_instructions_placeholder" = "例如：幫我寫日語商務郵件。保持禮貌，先給出一份簡短草稿。";
 "sb_reference_notes" = "參考筆記";
-"sb_reference_notes_help" = "只有在這裡選中的筆記才會提供給此專案聊天中的 AI。每次都會讀取最新內容，修改會從下一條訊息起生效。";
 "sb_selected_notes" = "已選筆記";
 "sb_remove_title" = "移除 %1$s";
 "sb_filter_notes" = "篩選筆記";

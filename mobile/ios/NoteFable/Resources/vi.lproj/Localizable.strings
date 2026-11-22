@@ -184,12 +184,11 @@
 "settings_personalization" = "Cá nhân hóa";
 "settings_unsaved" = "Có thay đổi chưa lưu";
 "acct_custom_instructions" = "Hướng dẫn tùy chỉnh";
-"acct_custom_instructions_help" = "Áp dụng cho mọi đoạn chat của bạn từ tin nhắn tiếp theo. Hãy giới thiệu về bản thân và cách bạn muốn NoteFable trả lời. Trong dự án, hướng dẫn của dự án sẽ được ưu tiên.";
-"acct_custom_instructions_placeholder" = "Ví dụ: Tôi đang ôn thi JLPT N1. Hãy giải thích ngữ pháp bằng các ví dụ ngắn và trả lời súc tích.";
+"acct_custom_instructions_help" = "Viết đôi điều về bạn hoặc cách bạn muốn được trả lời, và điều đó sẽ áp dụng cho mọi đoạn chat.";
+"acct_custom_instructions_placeholder" = "Ví dụ:\n- Trả lời tự nhiên, dễ hiểu\n- Nói kết luận trước, ngắn gọn thôi\n- Nếu không chắc thì nói thẳng, đừng đoán";
 "acct_err_load_custom_instructions" = "Không thể tải hướng dẫn tùy chỉnh của bạn.";
 "acct_err_save_custom_instructions" = "Không thể lưu hướng dẫn tùy chỉnh của bạn. Vui lòng thử lại.";
 "app_icon_title" = "Biểu tượng";
-"app_icon_help" = "Hiển thị trong trò chuyện, ở thanh bên và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.";
 "app_icon_choose_character" = "Chọn nhân vật";
 "app_icon_upload_image" = "Tải hình ảnh lên";
 "app_icon_could_not_save" = "Không thể lưu biểu tượng trên thiết bị này.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Hỏi NoteFable";
 "quote" = "Trích dẫn";
 "remove_quote" = "Xóa trích dẫn";
-"attach_pages_help" = "AI sẽ đọc các trang bạn đính kèm làm ngữ cảnh cho đoạn chat này. Nội dung được đọc lại ở mỗi tin nhắn nên luôn dùng các chỉnh sửa mới nhất của bạn.";
 "attach_pages_submit" = "Đính kèm";
 "err_pages_image_mode" = "Không thể đính kèm trang khi tạo hình ảnh. Hãy gỡ các trang đính kèm hoặc tắt tạo hình ảnh.";
 "create_page" = "Tổng hợp thành ghi chú";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "trong %1$s";
 
+/* strings_share.xml */
+"share_action" = "Chia sẻ";
+"share_publish_to_web" = "Xuất bản lên web";
+"share_publish" = "Xuất bản";
+"share_republish" = "Xuất bản lại";
+"share_unpublish" = "Hủy xuất bản";
+"share_desc" = "Xuất bản ghi chú này để bất kỳ ai có liên kết đều có thể xem.";
+"share_expired" = "Liên kết chia sẻ này đã hết hạn.";
+"share_public_link" = "Liên kết công khai";
+"share_copy_link" = "Sao chép liên kết";
+"share_open_link" = "Mở liên kết";
+"share_include_subpages" = "Bao gồm trang con";
+"share_link_expires" = "Hết hạn liên kết";
+"share_never" = "Không bao giờ";
+"share_1h" = "1 giờ";
+"share_1d" = "1 ngày";
+"share_7d" = "7 ngày";
+"share_30d" = "30 ngày";
+"share_custom_date" = "Ngày tùy chỉnh…";
+"share_set" = "Đặt";
+"share_expires_time" = "Hết hạn: %1$s";
+"share_via_parent" = "Đang chia sẻ qua trang cha (%1$s)";
+"share_excluded_parent" = "Đã loại trừ khỏi chia sẻ trang cha (%1$s)";
+"share_exclude_from_parent" = "Loại trừ khỏi chia sẻ trang cha";
+"share_load_failed" = "Không thể tải cài đặt chia sẻ.";
+"share_update_failed" = "Không thể cập nhật cài đặt chia sẻ.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Đã ghim";
 "sb_close_sidebar" = "Đóng thanh bên";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "Không thể lưu dự án. Vui lòng thử lại.";
 "sb_loading" = "Đang tải…";
 "sb_instructions" = "Hướng dẫn";
-"sb_instructions_help" = "Áp dụng cho mọi đoạn chat trong dự án này. Hãy nêu mục đích của dự án, ngôn ngữ trả lời và định dạng câu trả lời mong muốn.";
 "sb_instructions_placeholder" = "Ví dụ: Giúp tôi viết email công việc bằng tiếng Nhật. Giữ giọng văn lịch sự và đưa ra một bản nháp ngắn trước.";
 "sb_reference_notes" = "Ghi chú tham khảo";
-"sb_reference_notes_help" = "Chỉ những ghi chú bạn chọn ở đây mới được chia sẻ với AI trong các đoạn chat của dự án này. Nội dung được đọc trực tiếp nên các chỉnh sửa mới nhất của bạn sẽ áp dụng ngay từ tin nhắn tiếp theo.";
 "sb_selected_notes" = "Ghi chú đã chọn";
 "sb_remove_title" = "Gỡ “%1$s”";
 "sb_filter_notes" = "Lọc ghi chú";

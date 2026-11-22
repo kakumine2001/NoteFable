@@ -221,4 +221,7 @@ export const idServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Usulan ini sudah tidak berlaku. Minta lagi untuk mendapatkan usulan baru.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Catatan ini berubah setelah usulan dibuat. Minta lagi untuk mendapatkan usulan baru.",
   "Upload up to {max} files at a time.": "Unggah maksimal {max} file sekaligus.",
+  "Invalid request body.": "Isi permintaan tidak valid.",
+  "Invalid share settings.": "Pengaturan berbagi tidak valid.",
+  "Expiration time must be in the future.": "Waktu kedaluwarsa harus di masa mendatang.",
 };

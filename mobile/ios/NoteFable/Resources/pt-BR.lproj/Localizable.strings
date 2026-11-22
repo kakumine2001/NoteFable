@@ -184,12 +184,11 @@
 "settings_personalization" = "Personalização";
 "settings_unsaved" = "Alterações não salvas";
 "acct_custom_instructions" = "Instruções personalizadas";
-"acct_custom_instructions_help" = "Aplicado a todos os seus chats a partir da próxima mensagem. Conte ao NoteFable sobre você e como prefere que ele responda. Dentro de um projeto, as instruções do projeto têm prioridade.";
-"acct_custom_instructions_placeholder" = "Exemplo: Estou me preparando para o JLPT N1. Explique a gramática com exemplos curtos e dê respostas breves.";
+"acct_custom_instructions_help" = "Conte algo sobre você ou como prefere as respostas, e isso vale para todos os chats.";
+"acct_custom_instructions_placeholder" = "Por exemplo:\n- Responda de forma simples e descontraída\n- Comece pela conclusão e seja breve\n- Se não tiver certeza, diga isso em vez de chutar";
 "acct_err_load_custom_instructions" = "Não foi possível carregar suas instruções personalizadas.";
 "acct_err_save_custom_instructions" = "Não foi possível salvar suas instruções personalizadas. Tente novamente.";
 "app_icon_title" = "Ícone";
-"app_icon_help" = "Exibido no chat, na barra lateral e no botão de IA nas notas. Salvo apenas neste dispositivo.";
 "app_icon_choose_character" = "Escolher um personagem";
 "app_icon_upload_image" = "Enviar uma imagem";
 "app_icon_could_not_save" = "Não foi possível salvar o ícone neste dispositivo.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Perguntar ao NoteFable";
 "quote" = "Citação";
 "remove_quote" = "Remover citação";
-"attach_pages_help" = "A IA lê as páginas anexadas como contexto para este chat. Elas são relidas a cada mensagem, então suas edições mais recentes são usadas.";
 "attach_pages_submit" = "Anexar";
 "err_pages_image_mode" = "Não é possível anexar páginas ao criar uma imagem. Remova-as ou desative a criação de imagens.";
 "create_page" = "Criar nota";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "em %1$s";
 
+/* strings_share.xml */
+"share_action" = "Compartilhar";
+"share_publish_to_web" = "Publicar na web";
+"share_publish" = "Publicar";
+"share_republish" = "Publicar novamente";
+"share_unpublish" = "Cancelar publicação";
+"share_desc" = "Publique esta nota para que qualquer pessoa com o link possa visualizá-la.";
+"share_expired" = "Este link de compartilhamento expirou.";
+"share_public_link" = "Link público";
+"share_copy_link" = "Copiar link";
+"share_open_link" = "Abrir link";
+"share_include_subpages" = "Incluir subpáginas";
+"share_link_expires" = "O link expira em";
+"share_never" = "Nunca";
+"share_1h" = "1 hora";
+"share_1d" = "1 dia";
+"share_7d" = "7 dias";
+"share_30d" = "30 dias";
+"share_custom_date" = "Data personalizada…";
+"share_set" = "Definir";
+"share_expires_time" = "Expira em %1$s";
+"share_via_parent" = "Compartilhada pela página superior (%1$s)";
+"share_excluded_parent" = "Excluída do compartilhamento superior (%1$s)";
+"share_exclude_from_parent" = "Excluir do compartilhamento superior";
+"share_load_failed" = "Não foi possível carregar as configurações de compartilhamento.";
+"share_update_failed" = "Não foi possível atualizar as configurações de compartilhamento.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Fixado";
 "sb_close_sidebar" = "Fechar barra lateral";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "Não foi possível salvar o projeto. Tente novamente.";
 "sb_loading" = "Carregando…";
 "sb_instructions" = "Instruções";
-"sb_instructions_help" = "Aplicado a todos os chats deste projeto. Diga qual é o objetivo do projeto, em que idioma responder e como formatar as respostas.";
 "sb_instructions_placeholder" = "Exemplo: Ajude-me a escrever e-mails comerciais em japonês. Mantenha um tom educado e responda primeiro com um rascunho curto.";
 "sb_reference_notes" = "Notas de referência";
-"sb_reference_notes_help" = "Apenas as notas que você escolher aqui são compartilhadas com a IA nos chats deste projeto. Elas são lidas em tempo real, então suas edições mais recentes valem a partir da próxima mensagem.";
 "sb_selected_notes" = "Notas selecionadas";
 "sb_remove_title" = "Remover %1$s";
 "sb_filter_notes" = "Filtrar suas notas";

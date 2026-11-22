@@ -184,12 +184,11 @@
 "settings_personalization" = "パーソナライズ";
 "settings_unsaved" = "未保存の変更があります";
 "acct_custom_instructions" = "カスタム指示";
-"acct_custom_instructions_help" = "次のメッセージから、すべてのチャットに適用されます。自分のことや、NoteFable にどう答えてほしいかを書いてください。プロジェクト内では、プロジェクトの指示が優先されます。";
-"acct_custom_instructions_placeholder" = "例: JLPT N1 の勉強中です。文法は短い例文で説明して、回答は簡潔にしてください。";
+"acct_custom_instructions_help" = "自分のことや答え方の好みを書くと、すべてのチャットに反映されます。";
+"acct_custom_instructions_placeholder" = "例：\n・タメ口で、わかりやすく答えて\n・結論から先に、短めに\n・わからないことは推測せずにそう言って";
 "acct_err_load_custom_instructions" = "カスタム指示を読み込めませんでした。";
 "acct_err_save_custom_instructions" = "カスタム指示を保存できませんでした。もう一度お試しください。";
 "app_icon_title" = "アイコン";
-"app_icon_help" = "チャット、サイドバー、ノートのAIボタンに表示されます。この端末にだけ保存されます。";
 "app_icon_choose_character" = "キャラクターを選択";
 "app_icon_upload_image" = "画像をアップロード";
 "app_icon_could_not_save" = "この端末にアイコンを保存できませんでした。";
@@ -273,7 +272,6 @@
 "ask_notefable" = "NoteFable に聞く";
 "quote" = "引用";
 "remove_quote" = "引用を外す";
-"attach_pages_help" = "添付したページは、このチャットで AI が参考にします。送信のたびに読み直すので、常に最新の内容が使われます。";
 "attach_pages_submit" = "添付";
 "err_pages_image_mode" = "画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。";
 "create_page" = "ノートにまとめる";
@@ -437,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable：";
 "search_in_file" = "%1$s内";
 
+/* strings_share.xml */
+"share_action" = "共有";
+"share_publish_to_web" = "ウェブに公開";
+"share_publish" = "公開";
+"share_republish" = "再公開";
+"share_unpublish" = "公開を停止";
+"share_desc" = "公開すると、リンクを知っている人なら誰でも閲覧できます。";
+"share_expired" = "この共有リンクは期限切れです。";
+"share_public_link" = "公開リンク";
+"share_copy_link" = "リンクをコピー";
+"share_open_link" = "リンクを開く";
+"share_include_subpages" = "サブページを含める";
+"share_link_expires" = "リンクの有効期限";
+"share_never" = "無期限";
+"share_1h" = "1 時間";
+"share_1d" = "1 日";
+"share_7d" = "7 日間";
+"share_30d" = "30 日間";
+"share_custom_date" = "日時を指定…";
+"share_set" = "設定";
+"share_expires_time" = "期限: %1$s";
+"share_via_parent" = "親ページ経由で公開中（%1$s）";
+"share_excluded_parent" = "親ページの共有から除外中（%1$s）";
+"share_exclude_from_parent" = "親ページの共有から除外";
+"share_load_failed" = "共有設定を読み込めませんでした。";
+"share_update_failed" = "共有設定を更新できませんでした。";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "固定済み";
 "sb_close_sidebar" = "サイドバーを閉じる";
@@ -470,10 +495,8 @@
 "sb_err_save_project" = "プロジェクトを保存できませんでした。もう一度お試しください。";
 "sb_loading" = "読み込み中…";
 "sb_instructions" = "指示";
-"sb_instructions_help" = "このプロジェクト内のすべてのチャットに適用されます。プロジェクトの目的、回答の言語や形式を指定してください。";
 "sb_instructions_placeholder" = "例：日本語のビジネスメール作成を手伝ってください。丁寧な表現を使い、最初に短い文案を出してください。";
 "sb_reference_notes" = "参考ノート";
-"sb_reference_notes_help" = "ここで選んだノートだけを、このプロジェクトのチャットでAIに共有します。送信時に読み込むため、次のメッセージから最新の編集内容が反映されます。";
 "sb_selected_notes" = "選択したノート";
 "sb_remove_title" = "「%1$s」を削除";
 "sb_filter_notes" = "ノートを絞り込む";

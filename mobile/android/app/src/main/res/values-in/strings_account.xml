@@ -22,12 +22,11 @@
     <string name="settings_personalization">Personalisasi</string>
     <string name="settings_unsaved">Perubahan belum disimpan</string>
     <string name="acct_custom_instructions">Instruksi khusus</string>
-    <string name="acct_custom_instructions_help">Diterapkan ke semua chat Anda mulai pesan berikutnya. Ceritakan tentang diri Anda dan bagaimana Anda ingin NoteFable menjawab. Di dalam proyek, instruksi proyek lebih diutamakan.</string>
-    <string name="acct_custom_instructions_placeholder">Contoh: Saya sedang mempersiapkan JLPT N1. Jelaskan tata bahasa dengan contoh singkat, dan buat jawaban tetap ringkas.</string>
+    <string name="acct_custom_instructions_help">Tulis tentang diri Anda atau gaya jawaban yang Anda suka, dan itu berlaku di semua chat.</string>
+    <string name="acct_custom_instructions_placeholder">Contoh:\n- Jawab dengan bahasa santai yang mudah dipahami\n- Mulai dari kesimpulan, singkat saja\n- Kalau tidak yakin, bilang saja, jangan menebak</string>
     <string name="acct_err_load_custom_instructions">Tidak dapat memuat instruksi khusus Anda.</string>
     <string name="acct_err_save_custom_instructions">Tidak dapat menyimpan instruksi khusus Anda. Silakan coba lagi.</string>
     <string name="app_icon_title">Ikon</string>
-    <string name="app_icon_help">Ditampilkan di obrolan, di bilah samping, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.</string>
     <string name="app_icon_choose_character">Pilih karakter</string>
     <string name="app_icon_upload_image">Unggah gambar</string>
     <string name="app_icon_could_not_save">Tidak dapat menyimpan ikon di perangkat ini.</string>

@@ -1,0 +1,93 @@
+// NoteFable の Service Worker。ページや API はキャッシュしない。
+// やることは 1 つだけ：インストールした PWA がシステムの「共有」から受け取った POST /share-target を預かり、/app?share=<id> へ送る。
+// 預かった中身（文・ファイル）は Cache Storage に置き、アプリ側（src/lib/share-target.ts）が 1 度だけ取り出して消す。
+const SHARE_CACHE = "notefable-share-v1";
+const SHARE_PREFIX = "/__notefable_share__/";
+const MAX_FILES = 20;
+// これより大きいファイルは中身を預けず、本当の大きさだけ記録する（アプリ側が「大きすぎる」と正しく断れる）。
+const MAX_STORED_BYTES = 25 * 1024 * 1024;
+const MAX_AGE_MS = 10 * 60 * 1000;
+
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+
+self.addEventListener("fetch", (event) => {
+  const request = event.request;
+  if (request.method !== "POST") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin || url.pathname !== "/share-target") return;
+  event.respondWith(handleShare(request));
+});
+
+async function handleShare(request) {
+  let cache = null;
+  const writtenKeys = [];
+  try {
+    const form = await request.formData();
+    const text = (key) => (typeof form.get(key) === "string" ? form.get(key) : "");
+    const picked = form.getAll("files").filter((value) => typeof value !== "string").slice(0, MAX_FILES);
+    const id = `${Date.now()}-${crypto.randomUUID()}`;
+    cache = await caches.open(SHARE_CACHE);
+    await prune(cache);
+    const files = [];
+    for (let index = 0; index < picked.length; index += 1) {
+      const file = picked[index];
+      const truncated = file.size > MAX_STORED_BYTES;
+      const key = `${SHARE_PREFIX}${id}/file-${index}`;
+      await cache.put(key, new Response(truncated ? new Blob([]) : file));
+      writtenKeys.push(key);
+      files.push({ index, name: file.name, type: file.type, size: file.size, truncated });
+    }
+    const meta = { createdAt: Date.now(), title: text("title"), text: text("text"), url: text("url"), files };
+    const metaKey = `${SHARE_PREFIX}${id}/meta.json`;
+    await cache.put(metaKey, new Response(JSON.stringify(meta), { headers: { "Content-Type": "application/json" } }));
+    writtenKeys.push(metaKey);
+    return Response.redirect(`/app?share=${encodeURIComponent(id)}`, 303);
+  } catch {
+    if (cache) {
+      for (const key of writtenKeys) await cache.delete(key).catch(() => {});
+    }
+    return Response.redirect("/app", 303);
+  }
+}
+
+// 10 分以上前に預かったまま使われなかったもの、および期限切れの孤立ファイルを捨てる（書き込み途中の新しいファイルは消さない）。
+function timestampFromKeyUrl(url) {
+  const index = url.indexOf(SHARE_PREFIX);
+  if (index < 0) return null;
+  const rest = url.slice(index + SHARE_PREFIX.length);
+  const slash = rest.indexOf("/");
+  const id = slash >= 0 ? rest.slice(0, slash) : rest;
+  const dash = id.indexOf("-");
+  if (dash <= 0) return null;
+  const ms = Number(id.slice(0, dash));
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
+async function prune(cache) {
+  const now = Date.now();
+  const keys = await cache.keys();
+  const validPrefixes = new Set();
+  const expiredPrefixes = new Set();
+  for (const key of keys) {
+    if (!key.url.endsWith("/meta.json")) continue;
+    const prefix = key.url.slice(0, -"meta.json".length);
+    const response = await cache.match(key);
+    const meta = response ? await response.json().catch(() => null) : null;
+    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt < MAX_AGE_MS) {
+      validPrefixes.add(prefix);
+    } else {
+      expiredPrefixes.add(prefix);
+    }
+  }
+  for (const key of keys) {
+    if (Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix))) continue;
+    if (Array.from(expiredPrefixes).some((prefix) => key.url.startsWith(prefix))) {
+      await cache.delete(key);
+      continue;
+    }
+    const started = timestampFromKeyUrl(key.url);
+    if (started !== null && now - started < MAX_AGE_MS) continue;
+    await cache.delete(key);
+  }
+}

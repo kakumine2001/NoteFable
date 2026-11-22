@@ -221,4 +221,7 @@ export const ptBRServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Esta proposta não é mais válida. Peça novamente para receber uma nova proposta.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Esta nota mudou depois que a proposta foi criada. Peça novamente para receber uma nova proposta.",
   "Upload up to {max} files at a time.": "Envie até {max} arquivos por vez.",
+  "Invalid request body.": "Corpo da solicitação inválido.",
+  "Invalid share settings.": "Configurações de compartilhamento inválidas.",
+  "Expiration time must be in the future.": "A data de expiração deve estar no futuro.",
 };
