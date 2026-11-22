@@ -109,7 +109,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
-    {actionError && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
+    {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />

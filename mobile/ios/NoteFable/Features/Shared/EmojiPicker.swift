@@ -114,8 +114,6 @@ private struct EmojiPopoverLayer: View {
             .shadow(color: Sm.panelShadow, radius: 7, x: 0, y: 4)
             .accessibilityElement(children: .contain)
             .accessibilityLabel(L("em_choose"))
-            // 网页的表情面板固定用浅色主题（full-emoji-picker.tsx 的 Theme.LIGHT），深色外观下也是浅色的一块。
-            .environment(\.colorScheme, .light)
     }
 }
 

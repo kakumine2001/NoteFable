@@ -288,6 +288,8 @@ export default function Home() {
   const [importingFiles, setImportingFiles] = useState<File[] | null>(null);
   async function importMarkdownFiles(fileList: File[], groupId?: string | null) {
     setSidebarOpen(false);
+    // 一覧の読み込みに失敗したままだと groups は空で、プロジェクトがあっても尋ねずに取り込んでしまう。読めるまで取り込まない。
+    if (groupId === undefined && !notes.ensureListLoaded()) return;
     if (groupId === undefined && notes.groups.length > 0) {
       if (fileList.length && notes.checkImportFiles(fileList)) setImportingFiles(fileList);
       return;

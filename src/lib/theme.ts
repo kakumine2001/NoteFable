@@ -28,8 +28,17 @@ export function resolveTheme(preference: ThemePreference, systemDark: boolean): 
 // 保存できなかった（容量超過・ストレージ無効）ときに、このタブの間だけ覚えておく設定。保存できたら空に戻す。
 let unsavedPreference: ThemePreference | null = null;
 
+// サイトのストレージを禁じたブラウザでは、localStorage を読むだけで SecurityError になる。使えなければ undefined。
+function browserStorage(): Storage | undefined {
+  try {
+    return typeof localStorage === "undefined" ? undefined : localStorage;
+  } catch {
+    return undefined;
+  }
+}
+
 export function readThemePreference(
-  storage: Pick<Storage, "getItem"> | undefined = typeof localStorage === "undefined" ? undefined : localStorage,
+  storage: Pick<Storage, "getItem"> | undefined = browserStorage(),
 ): ThemePreference {
   if (unsavedPreference) return unsavedPreference;
   if (!storage) return "system";
@@ -56,7 +65,7 @@ export function applyThemeToDocument(preference: ThemePreference, systemDark = s
 
 export function saveThemePreference(
   preference: ThemePreference,
-  storage: Pick<Storage, "setItem"> | undefined = typeof localStorage === "undefined" ? undefined : localStorage,
+  storage: Pick<Storage, "setItem"> | undefined = browserStorage(),
 ): ResolvedTheme {
   unsavedPreference = preference;
   if (storage) {

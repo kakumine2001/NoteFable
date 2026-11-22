@@ -95,15 +95,18 @@ internal fun rememberMarkdownImportPicker(identityGeneration: () -> Int, onPicke
     val context = LocalContext.current.applicationContext
     val currentOnPicked by rememberUpdatedState(onPicked)
     val scope = rememberCoroutineScope()
+    // 选了几次。问文件名和大小要时间（云盘可能很慢）：先选的那批问完时如果又选过一批，就不让旧的顶掉新的。
+    val picks = remember { intArrayOf(0) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        val pick = ++picks[0]
         scope.launch {
             // 问文件名和大小的这段时间里换了账号，就不把旧账号下选的文件交出去。
             val generation = identityGeneration()
             val candidates =
                 if (uris.size > NoteImport.MAX_FILES) uris.map { ImportCandidate(it.lastPathSegment.orEmpty(), null) { readImportText(context, it) } }
                 else withContext(Dispatchers.IO) { uris.map { importCandidate(context, it) } }
-            if (identityGeneration() == generation) currentOnPicked(candidates)
+            if (identityGeneration() == generation && pick == picks[0]) currentOnPicked(candidates)
         }
     }
     return remember(picker) {

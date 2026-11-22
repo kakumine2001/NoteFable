@@ -760,6 +760,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-dialog-subtitle { margin: 1rem 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
 .notes-move-filter { margin-top: 0.5rem; }
 .notes-import-targets { max-height: 50dvh; overflow-y: auto; }
+/* 書き出し・取り込みの失敗。長いノートを下まで読んでいる途中でも見えるよう、スクロールする領域の上端に留める。 */
+.notes-action-error { position: sticky; top: 0; z-index: 5; padding-bottom: 0.5rem; background: var(--notion-bg); }
 .notes-move-pages { display: grid; gap: 0.125rem; max-height: 40dvh; margin-top: 0.5rem; overflow-y: auto; }
 .notes-move-icon { display: grid; width: 1.25rem; flex: none; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
 

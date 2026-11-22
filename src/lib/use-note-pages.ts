@@ -495,6 +495,17 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // 選んだファイルを送る前に、数・拡張子・大きさを確かめる。合わなければ理由を出して false。
   // 取り込み先を尋ねる前にも呼ぶ（先を選ばせてから断らない）。
+  // 一覧（プロジェクトを含む）を読み込めているか。読めていない間は、プロジェクトがあるかどうか分からない。
+  // 読めていなければ理由を出し、読み直しを始めて false（取り込み先を尋ねずに「プロジェクトなし」へ入れない）。
+  function ensureListLoaded(): boolean {
+    if (loaded.current) return true;
+    // 読み込みの途中なら、終わるのを待ってもらう（失敗の表示は出さない）。
+    if (loading) return false;
+    setActionError(msg("Failed to load notes."));
+    if (!started.current) { started.current = true; void load(); }
+    return false;
+  }
+
   function checkImportFiles(fileList: File[]): boolean {
     // 別の操作（書き出しなど）の途中は取り込めない。取り込み先を選ばせてから黙って捨てないよう、ここで止める。
     if (actionBusy.current) return false;
@@ -546,5 +557,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };
 }
