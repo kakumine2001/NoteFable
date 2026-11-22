@@ -44,7 +44,7 @@ describe("POST /api/sessions/:id/page", () => {
     const response = await post();
     expect(response.status).toBe(201);
     expect(await response.json()).toMatchObject({ page: { id: "page1" }, partial: false });
-    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine", noteId: null }, select: { title: true } });
+    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine" }, select: { title: true } });
     expect(mocks.messages.mock.calls[0][0]).toMatchObject({ where: { sessionId, role: { in: ["USER", "ASSISTANT"] } }, take: MAX_TRANSCRIPT_MESSAGES + 1 });
     expect(mocks.messages.mock.calls[0][0].select).not.toHaveProperty("providerContext");
     const call = mocks.generate.mock.calls[0][0];
@@ -80,7 +80,7 @@ describe("POST /api/sessions/:id/page", () => {
     expect(mocks.generate.mock.calls[0][0].provider).toBe("openai");
   });
 
-  it("returns 404 for someone else's chat or a note assistant chat without counting usage", async () => {
+  it("returns 404 for someone else's chat without counting usage", async () => {
     mocks.session.mockResolvedValue(null);
     expect((await post()).status).toBe(404);
     expect((await post(undefined, "../x")).status).toBe(404);

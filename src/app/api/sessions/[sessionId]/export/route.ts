@@ -15,7 +15,7 @@ export async function GET(request: Request, context: RouteContext) {
   const user = await getOrCreateUser();
   const { sessionId } = await context.params;
   const session = await prisma.session.findFirst({
-    where: { id: sessionId, userId: user.id, noteId: null },
+    where: { id: sessionId, userId: user.id },
     select: { title: true },
   });
   if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });

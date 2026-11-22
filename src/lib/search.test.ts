@@ -220,7 +220,7 @@ describe("searchNotes", () => {
 describe("searchChats", () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
-  it("queries only the user's non-note sessions, messages and attachments, schema-qualified, DB-side", async () => {
+  it("queries only the user's sessions (note chats included), messages and attachments, schema-qualified, DB-side", async () => {
     mocks.queryRaw.mockResolvedValue([]);
     await searchChats("mine", ["100%", "a_b"]);
     const { sql, values } = lastSql();
@@ -229,11 +229,10 @@ describe("searchChats", () => {
     expect(sql).toContain('FROM "notefable"."Attachment" a');
     expect(sql).toContain('JOIN "notefable"."Session" ms ON ms."id" = m."sessionId"');
     expect(sql).toContain("m.\"role\" IN ('USER', 'ASSISTANT')");
-    // 利用者の絞り込みと noteId IS NULL は、メッセージ側・添付側・会話側のすべてにある。
+    // 利用者の絞り込みは、メッセージ側・添付側・会話側のすべてにある。ノートの AI パネルで始めた会話も Chats の会話なので、noteId では外さない。
     expect(count(sql, 'ms."userId" = ')).toBe(2);
-    expect(count(sql, 'ms."noteId" IS NULL')).toBe(2);
     expect(count(sql, /(?<![a-z])s\."userId" = /)).toBe(1);
-    expect(count(sql, /(?<![a-z])s\."noteId" IS NULL/)).toBe(1);
+    expect(sql).not.toContain('"noteId"');
     expect(values.filter((value) => value === "mine")).toHaveLength(3);
     expect(sql).toMatch(/ORDER BY r\."tier", r\."titleTerms" DESC, r\."sortAt" DESC, r\."id" DESC/);
     expect(sql).toMatch(/LIMIT /);

@@ -112,6 +112,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     BackHandler(enabled = !drawerState.isOpen && notes.workspace == Workspace.Notes && notes.open == null) {
         notesViewModel.setWorkspace(Workspace.Chat)
     }
+    // 从笔记切回聊天：当前会话可能刚在笔记的 AI 面板里聊过，重读一次。
+    var lastWorkspace by remember { mutableStateOf(notes.workspace) }
+    LaunchedEffect(notes.workspace) {
+        if (notes.workspace == Workspace.Chat && lastWorkspace != Workspace.Chat) viewModel.refreshActiveQuietly()
+        lastWorkspace = notes.workspace
+    }
     // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Open) {

@@ -34,7 +34,7 @@ describe("POST /api/pages/from-answer", () => {
     expect(response.status).toBe(201);
     const { page } = await response.json();
     expect(page.id).toBe("page1");
-    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine", noteId: null }, select: { title: true } });
+    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine" }, select: { title: true } });
     const data = mocks.create.mock.calls[0][0].data;
     expect(data.userId).toBe("mine");
     expect(data.cover).toBeNull();
@@ -57,7 +57,7 @@ describe("POST /api/pages/from-answer", () => {
     expect(sourceBlock.content?.[1].href).toBe(`https://notefable.example/c/${sessionId}`);
   });
 
-  it("does not save from a chat that belongs to someone else or to a note assistant", async () => {
+  it("does not save from a chat that belongs to someone else", async () => {
     mocks.session.mockResolvedValue(null);
     const response = await POST(post({ markdown: "Hello", sessionId, messageId }));
     expect(response.status).toBe(404);

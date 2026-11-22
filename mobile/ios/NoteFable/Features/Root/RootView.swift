@@ -20,6 +20,10 @@ struct RootView: View {
         .onChange(of: router.drawerOpen) { _, open in
             if open { refreshDrawerLists() }
         }
+        // 从笔记切回聊天：当前会话可能刚在笔记的 AI 面板里聊过，重读一次。
+        .onChange(of: app.notes.state.workspace) { old, new in
+            if new == .chat && old != .chat { app.chat.refreshActiveQuietly() }
+        }
         // 登录 / 退出后：旧身份的窗口关掉。
         .onChange(of: app.identityGeneration) { _, _ in
             router.onIdentityChanged()

@@ -142,7 +142,7 @@ export type ChatSearchOptions = {
   projectId?: string | null;
 };
 
-// ノートのアシスタントの会話（noteId あり）は対象外。1 会話 1 件で、全語がタイトルか、いずれかのメッセージ（添付ファイルの本文を含む）にあるものだけ。
+// ノートの AI パネルで始めた会話も含む。1 会話 1 件で、全語がタイトルか、いずれかのメッセージ（添付ファイルの本文を含む）にあるものだけ。
 // 並び順は、タイトルに全語がある会話 → 1 つのメッセージに全語が揃っている会話 → 語が複数のメッセージに散らばっている会話。
 // 同じ区分の中では、タイトルに入っている語が多い順、最新の一致メッセージ（無ければ会話の更新）が新しい順。
 // 抜粋と移動先は、会話の中で一致する語がいちばん多い（同数なら新しい）メッセージ。その抜粋だけを DB から受け取る。
@@ -160,7 +160,7 @@ export async function searchChats(userId: string, terms: string[], options: Chat
         SELECT m."sessionId", m."id" AS "messageId", m."createdAt", ${termMask('m."content"', needles)} AS "mask"
         FROM ${table("Message")} m
         JOIN ${table("Session")} ms ON ms."id" = m."sessionId"
-        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active"
+        WHERE ms."userId" = ${userId} ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active"
         OFFSET 0
       ) x WHERE x."mask" > 0
       UNION ALL
@@ -169,7 +169,7 @@ export async function searchChats(userId: string, terms: string[], options: Chat
         FROM ${table("Attachment")} a
         JOIN ${table("Message")} m ON m."id" = a."messageId"
         JOIN ${table("Session")} ms ON ms."id" = m."sessionId"
-        WHERE ms."userId" = ${userId} AND ms."noteId" IS NULL ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active" AND a."extractedText" IS NOT NULL
+        WHERE ms."userId" = ${userId} ${inProject("ms")} AND m."role" IN ('USER', 'ASSISTANT') AND m."active" AND a."extractedText" IS NOT NULL
         OFFSET 0
       ) y WHERE y."mask" > 0
     ), "msg" AS (
@@ -191,7 +191,7 @@ export async function searchChats(userId: string, terms: string[], options: Chat
       FROM ${table("Session")} s
       CROSS JOIN LATERAL (SELECT ${termMask('s."title"', needles)} AS "mask" OFFSET 0) tm
       LEFT JOIN "agg" ag ON ag."sessionId" = s."id"
-      WHERE s."userId" = ${userId} AND s."noteId" IS NULL ${inProject("s")} AND (tm."mask" | COALESCE(ag."allMask", 0)) = ${full}
+      WHERE s."userId" = ${userId} ${inProject("s")} AND (tm."mask" | COALESCE(ag."allMask", 0)) = ${full}
       ORDER BY "tier", "titleTerms" DESC, "sortAt" DESC, s."id" DESC
       LIMIT ${SEARCH_RESULT_LIMIT}
     ) r

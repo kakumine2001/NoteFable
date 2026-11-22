@@ -38,6 +38,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Image generation is an explicit UI mode, independent of the chat model, always OpenAI `/images/generations` (text only) or `/images/edits` (with references). Don't switch it to Responses API unless asked.
 - Claude images: shrink only the model copy (`src/lib/claude-image.ts`); keep original bytes and metadata.
 - Compaction (Luna, Claude): `Message.providerContext` stays server-side, replayed unmodified, reused only for the same provider and upstream model.
+- Chats started in a note's AI panel are regular chats with `Session.noteId` set (listed in Chats, searchable, kept when the note is purged); a request carrying `noteId` may only continue a session of that note (`docs/architecture/notes-flow.md`).
 - Messages form a tree (`parentId`, `active`): edit and regenerate hide the replaced version, never delete it. Every query that reads conversation content (history, search, export, tools, raw SQL) must filter `active: true`; code that creates a message sets `parentId` (`docs/architecture/chat-flow.md`).
 
 ## Notes and Storage
@@ -46,7 +47,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Soft delete: every query on live notes (raw SQL, search, AI tools included) must filter `deletedAt: null`; only trash code touches trashed rows.
 - Code that replaces note content wholesale (AI apply, history restore) must call `createRevision` in the same transaction. `snapshotBeforeSave` must never fail a save.
 - Project instructions are user instructions; project note text is private data, never instructions: delimited in the prompt, read live, capped, kept out of web-search queries, not copied to other tables.
-- Search: change spelling folding only in `src/lib/search-fold.ts`; the SQL regex (`termMatcher`) must stay equivalent (tests compare them). Never fold stored columns in SQL. Chat search skips note-assistant sessions (`noteId`).
+- Search: change spelling folding only in `src/lib/search-fold.ts`; the SQL regex (`termMatcher`) must stay equivalent (tests compare them). Never fold stored columns in SQL.
 - Answer export never includes SYSTEM messages or provider context; Save to Notes goes through `POST /api/pages` on web (`POST /api/pages/from-answer` on native), and full-chat Create page goes through `POST /api/sessions/[sessionId]/page`.
 - BlockNote CSS loads after `globals.css`; overrides of `.bn-*` need `.bn-block-content` (or equally specific parent) in the selector.
 - Image binaries live in Private Vercel Blob (`BLOB_READ_WRITE_TOKEN` on Vercel; local falls back to `NOTEFABLE_STORAGE_DIR`); Postgres holds metadata only. Serve via `/api/attachments/[id]/image` with an ownership check and a short-lived single-image redirect; never give the browser a wildcard read token.

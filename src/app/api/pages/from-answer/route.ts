@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     const body = readFromAnswer(await readNoteRequest(request));
     const user = await getOrCreateUser();
     const session = await prisma.session.findFirst({
-      where: { id: body.sessionId, userId: user.id, noteId: null },
+      where: { id: body.sessionId, userId: user.id },
       select: { title: true },
     });
     if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
