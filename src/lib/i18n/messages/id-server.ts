@@ -225,4 +225,5 @@ export const idServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Pilih setidaknya satu file Markdown untuk diimpor.",
   "You can import up to {max} files at once.": "Anda dapat mengimpor maksimal {max} file sekaligus.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.",
+  "File is too long for one note: {name}": "File terlalu panjang untuk satu catatan: {name}",
 };

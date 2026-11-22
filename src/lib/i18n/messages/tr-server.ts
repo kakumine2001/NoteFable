@@ -225,4 +225,5 @@ export const trServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "İçe aktarmak için en az bir Markdown dosyası seçin.",
   "You can import up to {max} files at once.": "Tek seferde en fazla {max} dosya içe aktarabilirsiniz.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Yalnızca Markdown (.md, .markdown, .txt) dosyaları içe aktarılabilir.",
+  "File is too long for one note: {name}": "Dosya tek bir not için çok uzun: {name}",
 };

@@ -5,7 +5,7 @@ import "./motion.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { siteOrigin } from "@/lib/i18n/routing";
-import { THEME_INIT_SCRIPT } from "@/lib/theme";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-init";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
 const geistSans = Geist({

@@ -225,4 +225,5 @@ export const zhServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "请至少选择一个要导入的 Markdown 文件。",
   "You can import up to {max} files at once.": "一次最多只能导入 {max} 个文件。",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "只能导入 Markdown（.md、.markdown、.txt）文件。",
+  "File is too long for one note: {name}": "文件太长，无法导入为一篇笔记：{name}",
 };

@@ -225,4 +225,5 @@ export const ruServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Выберите хотя бы один файл Markdown для импорта.",
   "You can import up to {max} files at once.": "За раз можно импортировать не более {max} файлов.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Импортировать можно только файлы Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "Файл слишком длинный для одной заметки: {name}",
 };

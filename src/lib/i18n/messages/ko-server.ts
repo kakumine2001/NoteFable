@@ -225,4 +225,5 @@ export const koServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "가져올 Markdown 파일을 하나 이상 선택해 주세요.",
   "You can import up to {max} files at once.": "한 번에 최대 {max}개의 파일까지 가져올 수 있어요.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Markdown(.md, .markdown, .txt) 파일만 가져올 수 있어요.",
+  "File is too long for one note: {name}": "파일이 너무 길어 노트 하나로 가져올 수 없어요: {name}",
 };

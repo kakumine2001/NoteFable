@@ -67,6 +67,19 @@ describe("POST /api/pages/import", () => {
     expect(mocks.createPage).not.toHaveBeenCalled();
   });
 
+  it("rejects a file that does not fit in one note instead of dropping its end", async () => {
+    const response = await POST(jsonRequest({
+      files: [
+        { name: "short.md", markdown: "ok" },
+        { name: "long.md", markdown: Array.from({ length: 2500 }, (_, i) => `line ${i}`).join("\n\n") },
+      ],
+    }));
+    expect(response.status).toBe(413);
+    expect((await response.json()).error).toBe("File is too long for one note: long.md");
+    // 1 件でも収まらなければ、どのノートも作らない。
+    expect(mocks.createPage).not.toHaveBeenCalled();
+  });
+
   it("checks group ownership when groupId is provided", async () => {
     mocks.findGroup.mockResolvedValue(null);
     const response = await POST(jsonRequest({

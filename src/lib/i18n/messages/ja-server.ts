@@ -225,4 +225,5 @@ export const jaServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "読み込む Markdown ファイルを 1 つ以上選んでください。",
   "You can import up to {max} files at once.": "一度に読み込めるファイルは {max} 個までです。",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "読み込めるのは Markdown（.md、.markdown、.txt）ファイルだけです。",
+  "File is too long for one note: {name}": "ファイルが長すぎて 1 つのノートに読み込めません: {name}",
 };

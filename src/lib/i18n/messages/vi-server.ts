@@ -225,4 +225,5 @@ export const viServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Hãy chọn ít nhất một tệp Markdown để nhập.",
   "You can import up to {max} files at once.": "Bạn có thể nhập tối đa {max} tệp mỗi lần.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Chỉ có thể nhập tệp Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "Tệp quá dài cho một ghi chú: {name}",
 };

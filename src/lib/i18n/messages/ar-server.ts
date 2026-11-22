@@ -225,4 +225,5 @@ export const arServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "اختر ملف Markdown واحدًا على الأقل للاستيراد.",
   "You can import up to {max} files at once.": "يمكنك استيراد ما يصل إلى {max} ملفات في المرة الواحدة.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "يمكن استيراد ملفات Markdown (.md و.markdown و.txt) فقط.",
+  "File is too long for one note: {name}": "الملف طويل جدًا بالنسبة لملاحظة واحدة: {name}",
 };

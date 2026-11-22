@@ -14,6 +14,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Claude response stopped: {reason}. Please retry.",
   "Enter 1 to {max} characters to search for.",
   "File is too large: {name}",
+  "File is too long for one note: {name}",
   "Group names can have at most {max} characters.",
   "Instructions can have at most {max} characters.",
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.",

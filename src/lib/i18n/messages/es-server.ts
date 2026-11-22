@@ -225,4 +225,5 @@ export const esServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Selecciona al menos un archivo Markdown para importar.",
   "You can import up to {max} files at once.": "Puedes importar hasta {max} archivos a la vez.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Solo se pueden importar archivos Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "El archivo es demasiado largo para una sola nota: {name}",
 };

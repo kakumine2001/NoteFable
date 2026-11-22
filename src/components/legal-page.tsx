@@ -11,7 +11,7 @@ export const LEGAL_UPDATED_JA = legalUpdatedDate.toLocaleDateString("ja-JP", { y
 // プライバシーポリシー・利用規約・特商法表記で共通の見た目。アプリ本体は body がスクロールしない作りなので、ここで自前のスクロール領域を持つ。
 export function LegalPage({ title, lang = "en", updatedLabel = `Last updated: ${LEGAL_UPDATED}`, children }: { title: string; lang?: string; updatedLabel?: string; children: ReactNode }) {
   return (
-    <main lang={lang} className="h-dvh overflow-y-auto bg-white text-[var(--notion-text)]" style={{ fontFamily: "var(--font-ui)" }}>
+    <main lang={lang} className="h-dvh overflow-y-auto bg-[var(--notion-bg)] text-[var(--notion-text)]" style={{ fontFamily: "var(--font-ui)" }}>
       <article className="mx-auto w-full max-w-[44rem] px-6 pb-24 pt-12 text-[15px] leading-7">
         <Link href="/" className="text-sm text-[var(--notion-muted)] hover:underline">← NoteFable</Link>
         <h1 className="mt-6 text-[2rem] font-bold leading-tight tracking-[-0.02em]">{title}</h1>

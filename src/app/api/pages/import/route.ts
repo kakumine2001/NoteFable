@@ -62,7 +62,9 @@ export async function POST(request: Request) {
       if (encoder.encode(markdown).byteLength > MAX_IMPORT_FILE_BYTES) {
         throw new NoteValidationError(msg("Note content exceeds 1 MiB."), 413);
       }
-      const { content } = markdownFileToNoteContent(name, markdown);
+      const { content, truncated } = markdownFileToNoteContent(name, markdown);
+      // ノートの上限（ブロック数・容量）に収まらないファイルは、後ろを黙って捨てずに断る。
+      if (truncated) throw new NoteValidationError(fmt("File is too long for one note: {name}", { name: name.trim().slice(0, 120) }), 413);
       const validated = validateNoteContent(content);
       assertNoteFilesOwner(validated.blocks, user.id);
       return validated;

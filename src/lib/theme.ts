@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useSyncExternalStore } from "react";
+import { THEME_STORAGE_KEY } from "@/lib/theme-init";
 
-export const THEME_STORAGE_KEY = "notefable:theme:v1";
+export { THEME_STORAGE_KEY } from "@/lib/theme-init";
 export const THEME_EVENT = "notefable:theme-changed";
 
 export type ThemePreference = "system" | "light" | "dark";
@@ -66,9 +67,6 @@ export function saveThemePreference(
   }
   return resolved;
 }
-
-// 静的ページの初回描画前に適用して、ダークモード時の白フラッシュを防ぐ。Cookie・ヘッダーは読まない。
-export const THEME_INIT_SCRIPT = `(function(){try{var p=new URLSearchParams(location.search).get("theme");if(p!=="light"&&p!=="dark"&&p!=="system"){p=localStorage.getItem(${JSON.stringify(THEME_STORAGE_KEY)})||"system";}var d=p==="dark"||(p!=="light"&&window.matchMedia("(prefers-color-scheme: dark)").matches);var r=d?"dark":"light";document.documentElement.dataset.theme=r;document.documentElement.style.colorScheme=r;}catch(e){}})();`;
 
 function subscribeTheme(onStoreChange: () => void) {
   if (typeof window === "undefined") return () => {};

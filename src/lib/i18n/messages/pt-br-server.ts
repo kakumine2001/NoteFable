@@ -225,4 +225,5 @@ export const ptBRServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Selecione pelo menos um arquivo Markdown para importar.",
   "You can import up to {max} files at once.": "Você pode importar até {max} arquivos por vez.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Só é possível importar arquivos Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "O arquivo é longo demais para uma única nota: {name}",
 };

@@ -312,6 +312,7 @@ export const zhHant: Record<string, string> = {
   "Faster": "更快",
   "Favorites": "收藏",
   "File is too large: {name}": "檔案太大：{name}",
+  "File is too long for one note: {name}": "檔案太長，無法匯入為一篇筆記：{name}",
   "File not found.": "找不到檔案。",
   "Files must be 4 MB or smaller.": "檔案不能超過 4 MB。",
   "Filter notes…": "篩選筆記…",

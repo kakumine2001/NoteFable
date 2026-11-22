@@ -320,13 +320,17 @@ export default function Home() {
   }, [splitHydrated, splitOpen, splitRatio, notes.activeId]);
 
   // 分割表示を開いた直後、まだノートが選ばれていなければ前回開いていたノート（無ければ最近編集したノート）を開く。
+  // 同じノートを開こうとするのは 1 回だけ。読み込みに失敗しても loading が戻るたびに取り直し続けない（分割表示を開き直すとまた試す）。
+  const splitAutoOpenedRef = useRef<string | null>(null);
   const selectNote = notes.select;
   useEffect(() => {
-    if (!splitActive || notes.activeId || notes.loading || !notes.pages.length) return;
+    if (!splitActive) { splitAutoOpenedRef.current = null; return; }
+    if (notes.activeId || notes.loading || !notes.pages.length) return;
     const preferred = splitPageIdRef.current && notes.pages.some((page) => page.id === splitPageIdRef.current)
       ? splitPageIdRef.current
       : recentPages(notes.pages, 1)[0]?.id;
-    if (preferred) {
+    if (preferred && splitAutoOpenedRef.current !== preferred) {
+      splitAutoOpenedRef.current = preferred;
       splitPageIdRef.current = preferred;
       void selectNote(preferred, "none");
     }

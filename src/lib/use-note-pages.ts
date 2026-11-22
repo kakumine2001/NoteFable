@@ -513,6 +513,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setError("");
     try {
       const files = await Promise.all(fileList.map(async (file) => ({ name: file.name, markdown: await file.text() })));
+      // サーバーは JSON にした本文の大きさで断る（改行や引用符は 2 バイトになる）ので、送る形で測り直す。
+      if (new TextEncoder().encode(JSON.stringify({ files })).byteLength > MAX_IMPORT_TOTAL_BYTES) throw new Error(msg("Import exceeds 4 MB."));
       const data = await pageRequest("/api/pages/import", "POST", { files });
       const created = (data.pages ?? []) as NotePageSummary[];
       if (created.length) {

@@ -225,4 +225,5 @@ export const hiServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "इंपोर्ट करने के लिए कम से कम एक Markdown फ़ाइल चुनें।",
   "You can import up to {max} files at once.": "आप एक बार में अधिकतम {max} फ़ाइलें इंपोर्ट कर सकते हैं।",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "केवल Markdown (.md, .markdown, .txt) फ़ाइलें इंपोर्ट की जा सकती हैं।",
+  "File is too long for one note: {name}": "फ़ाइल एक नोट के लिए बहुत लंबी है: {name}",
 };

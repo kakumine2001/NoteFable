@@ -225,4 +225,5 @@ export const deServer: Record<string, string> = {
   "Select at least one Markdown file to import.": "Wähle mindestens eine Markdown-Datei zum Importieren aus.",
   "You can import up to {max} files at once.": "Du kannst höchstens {max} Dateien gleichzeitig importieren.",
   "Only Markdown (.md, .markdown, .txt) files can be imported.": "Es können nur Markdown-Dateien (.md, .markdown, .txt) importiert werden.",
+  "File is too long for one note: {name}": "Die Datei ist zu lang für eine einzelne Notiz: {name}",
 };
