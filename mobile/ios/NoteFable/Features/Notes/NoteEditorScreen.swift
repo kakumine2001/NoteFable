@@ -1,9 +1,11 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 // 笔记编辑页（Android ui/NoteEditor.kt 的 NoteEditorScreen）：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 文件图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
 // 版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
+// “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
 
 @MainActor
 struct NoteEditorScreen: View {
@@ -11,6 +13,12 @@ struct NoteEditorScreen: View {
     @Binding private var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    /// 编辑页现在显示的外观（设置里选的，或跟随系统）：原样交给网页编辑器。
+    @Environment(\.colorScheme) private var colorScheme
+    /// 等着写进用户选的位置的笔记 Markdown。
+    @State private var exportDocument: MarkdownExportDocument? = nil
+    @State private var exportName = ""
+    @State private var exporting = false
 
     /// `dialog` 是笔记页的对话框状态：“…”菜单的“移动到”“移到回收站”经它打开窗口。
     init(open: OpenNote, dialog: Binding<NotesDialogState?>) {
@@ -38,11 +46,35 @@ struct NoteEditorScreen: View {
             }
             NoteEditorWebView(
                 editor: open.editor, app: app, router: router,
-                appIcon: app.appIcon.icon, language: app.language.uiLocale
+                appIcon: app.appIcon.icon, language: app.language.uiLocale,
+                theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .background(Sm.surface)
+        .background(Sm.background)
+        .fileExporter(
+            isPresented: $exporting,
+            document: exportDocument,
+            contentType: MarkdownExportDocument.markdown,
+            defaultFilename: exportName
+        ) { result in
+            exportDocument = nil
+            // 存好了不另外提示（网页是浏览器自己的下载）；取消选择什么也不做。
+            guard case .failure(let failure) = result else { return }
+            if (failure as? CocoaError)?.code == .userCancelled { return }
+            Toast.show(L("note_export_failed"), long: true)
+        }
+    }
+
+    /// 导出这一篇（网页 exportPage）。失败的原因由 ViewModel 写进顶栏下面的提示条；读到之前离开了这篇笔记就不再弹出保存位置的选择。
+    private func exportMarkdown(_ id: String) {
+        let notes = app.notes
+        Task { @MainActor in
+            guard let note = await notes.exportPage(id), notes.state.open?.id == id else { return }
+            exportDocument = MarkdownExportDocument(text: note.markdown)
+            exportName = noteExportBaseName(note.fileName)
+            exporting = true
+        }
     }
 
     private func topBar(_ state: NotesUiState, page: NotePageSummary?) -> some View {
@@ -114,6 +146,7 @@ struct NoteEditorScreen: View {
             onDuplicate: { notes.duplicate(id) },
             onAddInside: { notes.createNote(parentId: id) },
             onMove: { dialogBinding.wrappedValue = .move(pageId: id) },
+            onExport: { exportMarkdown(id) },
             onTrash: {
                 if let page = notes.state.pages.first(where: { $0.id == id }) {
                     dialogBinding.wrappedValue = .trashNote(page)

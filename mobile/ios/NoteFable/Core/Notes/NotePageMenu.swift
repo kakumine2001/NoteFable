@@ -11,6 +11,8 @@ struct NotePageMenuActions {
     var onDuplicate: () -> Void
     var onAddInside: () -> Void
     var onMove: () -> Void
+    /// "导出 Markdown"（网页 onExport）。
+    var onExport: () -> Void
     var onTrash: () -> Void
 }
 

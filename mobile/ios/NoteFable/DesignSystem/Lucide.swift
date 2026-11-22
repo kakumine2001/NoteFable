@@ -259,6 +259,27 @@ enum Lucide {
         "M9 10a3 3 0 1 0 6 0a3 3 0 1 0 -6 0",
         "M7 20.662V19a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v1.662",
     ]
+    // 设置里"外观"的三个选项（theme-settings.tsx 的 Monitor / Sun / Moon），同样从 lucide-react 1.16.0 取；
+    // Monitor 的 rect、Sun 的 circle 换成等价的 path（和 Android 的 Lucide.kt 相同）。
+    static let monitor: [String] = [
+        "M4 3h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z",
+        "M8 21h8",
+        "M12 17v4",
+    ]
+    static let sun: [String] = [
+        "M8 12a4 4 0 1 0 8 0a4 4 0 1 0 -8 0",
+        "M12 2v2",
+        "M12 20v2",
+        "m4.93 4.93 1.41 1.41",
+        "m17.66 17.66 1.41 1.41",
+        "M2 12h2",
+        "M20 12h2",
+        "m6.34 17.66-1.41 1.41",
+        "m19.07 4.93-1.41 1.41",
+    ]
+    static let moon: [String] = [
+        "M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401",
+    ]
     static let moreHorizontal: [String] = ellipsis
     static let loader2: [String] = loaderCircle
 

@@ -353,12 +353,26 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         )
     }
 
-    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) -> String {
+    func exportNote(id: String) async throws -> ExportedNote {
+        try await http.getJson("/api/pages/\(segment(id))/export")
+    }
+
+    // 与网页 use-note-pages.ts 的 importMarkdown() 发送的内容相同。
+    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary] {
+        let items = files.map { file -> JSONValue in
+            ["name": .string(file.name), "markdown": .string(file.markdown)]
+        }
+        let body: JSONValue = ["files": .array(items)]
+        return try await http.send(try http.request("POST", "/api/pages/import", json: body), as: PagesResponse.self).pages
+    }
+
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {
         absoluteUrl(
             "/note-embed?page=" + segment(pageId)
                 + (lang.map { "&lang=" + $0 } ?? "")
                 + (model.map { "&model=" + segment($0) } ?? "")
                 + (reasoning.map { "&reasoning=" + segment($0) } ?? "")
+                + (theme.map { "&theme=" + segment($0) } ?? "")
         )
     }
 

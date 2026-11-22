@@ -415,7 +415,7 @@ private struct AttachPagesCheckbox: View {
                 shape.fill(Sm.blue.opacity(alpha))
                 LucideIcon(Lucide.check, size: 12, color: .white)
             } else {
-                shape.fill(Color.white)
+                shape.fill(Sm.surface)
                 shape.strokeBorder(Color(argb: 0xFF767676).opacity(alpha), lineWidth: 1)
             }
         }

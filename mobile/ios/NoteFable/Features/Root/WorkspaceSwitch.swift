@@ -57,7 +57,8 @@ private struct WorkspaceSegment: View {
                 if active {
                     // box-shadow: rgba(15,15,15,.1) 0 0 0 1px, rgba(15,15,15,.08) 0 1px 2px。
                     shape
-                        .fill(Color.white)
+                        // .notion-segment.is-active：白底；深色是 --notion-surface。
+                        .fill(Sm.surface)
                         .shadow(color: Color(argb: 0x140F0F0F), radius: 1, x: 0, y: 1)
                         .overlay {
                             RoundedRectangle(cornerRadius: 6.9)

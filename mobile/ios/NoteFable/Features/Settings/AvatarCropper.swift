@@ -288,7 +288,7 @@ private struct AvatarCropButton: View {
         Button(action: action) {
             Text(label)
                 .font(.nf(15))
-                .foregroundStyle(primary ? Color.white : Sm.text)
+                .foregroundStyle(primary ? Sm.onInk : Sm.text)
                 .lineLimit(1)
                 .padding(.horizontal, 14)
                 .frame(height: 42)

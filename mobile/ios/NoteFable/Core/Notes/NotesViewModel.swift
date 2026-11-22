@@ -43,6 +43,8 @@ final class NotesViewModel {
     @ObservationIgnored private var trashTask: Task<Void, Never>?
     @ObservationIgnored private var trashActionTasks: [Int: Task<Void, Never>] = [:]
     @ObservationIgnored private var nextTrashAction = 0
+    /// 有一次导出还没完：连点不会重复导出（网页 exportPage 的 actionBusy）。
+    @ObservationIgnored private var exporting = false
 
     /// 每次换身份加一。旧身份下发出、换身份后才回来的改动结果直接丢掉，不写进新身份的列表。
     @ObservationIgnored private var identity = 0
@@ -621,6 +623,83 @@ final class NotesViewModel {
                         $0.busy = false
                         if !cancelled { $0.groupError = errorOf(.group, error) }
                     }
+                }
+            }
+        }
+    }
+
+    // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----
+
+    /// 导出这一篇的 Markdown（`{ fileName, markdown }`），交给界面去存成文件。服务端导出的是已保存的内容，
+    /// 所以打开着的是它时先让网页保存；存不上（冲突、断网）就不导出，提示先处理草稿。
+    /// 失败返回 nil，原因显示在编辑页顶栏下面（[NotesUiState.notice]；网页写在"…"菜单里，这边菜单已经关了）。
+    func exportPage(_ id: String) async -> ExportedNote? {
+        if exporting || state.busy { return nil }
+        exporting = true
+        defer { exporting = false }
+        let owner = identity
+        update {
+            $0.groupError = nil
+            // 上一次导出的提示不留着。
+            if $0.notice?.kind == .export || $0.notice?.kind == .exportUnsaved { $0.notice = nil }
+        }
+        if state.open?.id == id, !(await flushOpen()).ok {
+            if owner == identity { update { $0.notice = NotesError(.exportUnsaved) } }
+            return nil
+        }
+        do {
+            let note = try await backend.exportNote(id: id)
+            return owner == identity ? note : nil
+        } catch {
+            if owner == identity, !isCancellation(error) { update { $0.notice = errorOf(.export, error) } }
+            return nil
+        }
+    }
+
+    /// 导入用户选的 Markdown 文件，建好后打开第一篇（网页 page.tsx 的 importMarkdownFiles）。
+    /// 发请求前先在本机查数量、扩展名和大小（[noteImportProblem]），不合格就只提示、不读也不传。
+    /// 文件在后台线程读；读出来的大小和选的时候不一样（选完又改了、系统没给出大小）时再查一遍。
+    func importMarkdown(_ sources: [NoteImportSource]) async {
+        if state.busy || sources.isEmpty { return }
+        if let problem = noteImportProblem(sources.map { (name: $0.name, size: $0.size) }) {
+            update { $0.error = NotesError(problem) }
+            return
+        }
+        let owner = identity
+        update {
+            $0.busy = true
+            $0.error = nil
+        }
+        do {
+            let contents = try await Task.detached(priority: .userInitiated) {
+                try sources.map { (name: $0.name, data: try $0.read()) }
+            }.value
+            if let problem = noteImportProblem(contents.map { (name: $0.name, size: $0.data.count) }) {
+                if owner == identity {
+                    update {
+                        $0.busy = false
+                        $0.error = NotesError(problem)
+                    }
+                }
+                return
+            }
+            let files = contents.map { ImportMarkdownFile(name: $0.name, markdown: noteImportText($0.data)) }
+            let created = try await backend.importMarkdown(files: files)
+            let applied = commit(owner) {
+                update { state in
+                    let ids = Set(created.map(\.id))
+                    let merged = created + state.pages.filter { !ids.contains($0.id) }
+                    state.pages = notesStableSorted(merged) { Self.byPosition($0, $1, tieOnId: false) }
+                    state.busy = false
+                }
+            }
+            if applied, let first = created.first { openNote(first.id, title: first.title, icon: first.icon) }
+        } catch {
+            if owner == identity {
+                let cancelled = isCancellation(error)
+                update {
+                    $0.busy = false
+                    if !cancelled { $0.error = errorOf(.importFailed, error) }
                 }
             }
         }

@@ -203,7 +203,7 @@ private struct GuestLimitSignInButton: View {
         Button(action: action) {
             Text(label)
                 .font(.nf(15, weight: 600))
-                .foregroundStyle(.white)
+                .foregroundStyle(Sm.onInk)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .padding(.horizontal, 16)

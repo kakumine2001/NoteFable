@@ -44,6 +44,22 @@ enum AppIconDefaults {
     }
 }
 
+/// 设置里选的外观存在 UserDefaults（Android 的 SharedPreferences "app_theme" 的 theme；网页 localStorage 的 notefable:theme:v1）。
+enum AppThemeDefaults {
+    static let key = "app_theme.theme"
+
+    @MainActor
+    static func store(_ defaults: UserDefaults) -> AppThemeStore {
+        AppThemeStore(
+            read: { defaults.string(forKey: key) },
+            write: { value in
+                defaults.set(value, forKey: key)
+                return true
+            }
+        )
+    }
+}
+
 /// 按地址存的字节（附件图片），最近用过的留着：超过条数或总字节数时丢掉最久没用的。
 /// 只在内存里，换身份时整个清掉（图片按归属校验，别的身份读不到）。
 struct DataCache {

@@ -188,7 +188,33 @@ final class NotesTestBackend: NotesBackend {
         try maybeFail()
     }
 
-    nonisolated func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) -> String {
+    /// 导出的内容；导入时每个文件建一篇 `imported-N`（题名是去掉扩展名的文件名）。
+    var exported = ExportedNote(fileName: "Cell structure.md", markdown: "# Cell structure\n")
+    var imported: [[ImportMarkdownFile]] = []
+
+    func exportNote(id: String) async throws -> ExportedNote {
+        calls.append("export:\(id)")
+        try maybeFail()
+        await hold("export")
+        return exported
+    }
+
+    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary] {
+        calls.append("import:\(files.map(\.name).joined(separator: ","))")
+        try maybeFail()
+        await hold("import")
+        imported.append(files)
+        let created = files.enumerated().map { index, file in
+            NotePageSummary(
+                id: "imported-\(index + 1)", title: String(file.name.split(separator: ".").first ?? ""), icon: nil,
+                position: -(index + 1), createdAt: "2026-11-20T00:00:0\(index)Z"
+            )
+        }
+        pages = created + pages
+        return created
+    }
+
+    nonisolated func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {
         "https://example.test/note-embed?page=\(pageId)&lang=\(lang ?? "null")"
     }
 }
@@ -228,4 +254,5 @@ final class NotesTestEditor: NoteEditorBridge {
     func pageSettings(_ pageJson: String) { calls.append("settings:\(pageJson)") }
     func appIcon(_ value: String?) { calls.append("icon:\(value ?? "null")") }
     func language(_ code: String) { calls.append("lang:\(code)") }
+    func theme(_ value: String) { calls.append("theme:\(value)") }
 }

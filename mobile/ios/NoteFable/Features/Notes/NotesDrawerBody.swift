@@ -1,7 +1,7 @@
 import SwiftUI
 
 // 侧栏的笔记部分（网页 NotesSidebar，手机尺寸；Android ui/NotesUi.kt 的 NotesDrawerBody）。头部、Chat / Note 切换和底部的账号由 Root 放。
-// 从上到下：“新笔记”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → NOTES）、最下面的回收站行。
+// 从上到下：“新笔记”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → NOTES）、最下面的“导入 Markdown”和回收站两行。
 // 笔记行长按标题后可以拖动排序（Features/Shared/ReorderDragUI.swift）：放到别的笔记前 / 后是排序，放到项目行上移进项目，
 // 放到 NOTES 标签上移出项目。
 
@@ -12,6 +12,7 @@ struct NotesDrawerBody: View {
     @Environment(AppRouter.self) private var router
     @State private var dialog: NotesDialogState?
     @State private var reorder = ReorderDragController()
+    @State private var importing = false
 
     init() {}
 
@@ -19,6 +20,7 @@ struct NotesDrawerBody: View {
         let notes = app.notes
         let state = notes.state
         let busy = state.busy || state.loading
+        let router = self.router
         VStack(spacing: 0) {
             // “新笔记”（.sidebar-primary-action）：上距 12、左右 8、下距 4。
             SidebarPrimaryButton(L("new_note")) {
@@ -43,11 +45,16 @@ struct NotesDrawerBody: View {
                     }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 回收站（.notion-sidebar-action）。
+            // 导入 Markdown、回收站（.notion-sidebar-action）。
+            NotesSidebarActionRow(icon: Lucide.upload, title: L("import_markdown")) { importing = true }
+                .disabled(busy)
+                .padding(.horizontal, 8)
             NotesSidebarActionRow(icon: Lucide.trash2, title: L("trash")) { notes.openTrash() }
                 .padding(.horizontal, 8)
                 .padding(.bottom, 4)
         }
+        // 选好文件就收起抽屉（网页 importMarkdownFiles 的 setSidebarOpen(false)），导入完打开第一篇。
+        .noteMarkdownImporter(isPresented: $importing) { router.closeDrawer() }
         // 打开抽屉时的刷新（列表、清掉上次改图标失败的提示）由 Root 统一做（RootView.refreshDrawerLists）。
         .notesDialogs($dialog)
         // 登录 / 退出后：旧身份的笔记对话框关掉（网页换身份会重新加载页面）。

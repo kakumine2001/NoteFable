@@ -50,7 +50,8 @@ struct AppIconSettings: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 AppIconView(icon: icon, size: 24, animated: true)
                     .frame(width: 40, height: 40)
-                    .background(Color.white, in: Circle())
+                    // .settings-app-icon-preview：--notion-bg。
+                    .background(Sm.background, in: Circle())
                     .overlay { Circle().strokeBorder(Sm.borderStrong, lineWidth: 1) }
             }
             .padding(.horizontal, 16)
@@ -159,7 +160,7 @@ private struct AppIconCharacterPicker: View {
             .padding(.leading, 14)
             .padding(.trailing, 10)
             .padding(.vertical, 8)
-            .background(Color.white)
+            .background(Sm.surface)
             SettingsRowDivider()
             VStack(spacing: 8) {
                 ForEach(rows.indices, id: \.self) { index in
@@ -229,7 +230,7 @@ private struct AppIconCharacterCard: View {
             .padding(.vertical, 10)
             .overlay { shape.strokeBorder(selected ? Sm.blue : Sm.borderStrong, lineWidth: selected ? 1.5 : 1) }
         }
-        .buttonStyle(.pressable(background: .white, cornerRadius: 10))
+        .buttonStyle(.pressable(background: Sm.surface, cornerRadius: 10))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(character.isDefault ? "\(character.displayName) (\(defaultBadge))" : character.displayName)
         .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)

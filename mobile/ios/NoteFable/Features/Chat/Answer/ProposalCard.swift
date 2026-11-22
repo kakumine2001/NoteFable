@@ -14,11 +14,12 @@ import SwiftUI
 
 private let cardFontSize: CGFloat = 13.6
 private let cardLineHeight: CGFloat = 21.08
-private let beforeBackground = Color(argb: 0x1AE03E3E)
-private let beforeStrike = Color(argb: 0x73E03E3E)
-private let afterBackground = Color(argb: 0x24448361)
+// 深色（:root[data-theme="dark"] .page-edit-before / .page-edit-after）：rgba(248,113,113,.16)、删除线 .55、rgba(52,211,153,.16)。
+private let beforeBackground = Color(light: 0x1AE03E3E, dark: 0x29F87171)
+private let beforeStrike = Color(light: 0x73E03E3E, dark: 0x8CF87171)
+private let afterBackground = Color(light: 0x24448361, dark: 0x2934D399)
 private let warningInk = Color(argb: 0xFFCB912F)
-private let cardErrorInk = Color(argb: 0xFFE03E3E)
+private let cardErrorInk = Color(light: 0xFFE03E3E, dark: 0xFFF87171) // .page-edit-error；深色是 --nf-danger
 
 /// 回答下面的提案卡片（一条回答可以有几张）。
 struct ProposalCards: View {
@@ -301,7 +302,7 @@ private struct ProposalActionButton: View {
     let action: () -> Void
 
     var body: some View {
-        let ink: Color = primary ? .white : Sm.text
+        let ink: Color = primary ? Sm.onInk : Sm.text
         let shape = RoundedRectangle(cornerRadius: 6)
         Button(action: action) {
             HStack(spacing: 4.8) {

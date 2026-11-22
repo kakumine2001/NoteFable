@@ -270,7 +270,7 @@ struct SettingsUnsavedBar: View {
         HStack(spacing: 8) {
             Text(L("settings_unsaved"))
                 .font(.nf(14, weight: 500))
-                .foregroundStyle(.white)
+                .foregroundStyle(Sm.onInk)
                 .frame(maxWidth: .infinity, alignment: .leading)
             SettingsUnsavedButton(label: L("proposal_discard"), filled: false, action: onDiscard)
                 .disabled(busy)
@@ -301,14 +301,15 @@ private struct SettingsUnsavedButton: View {
         Button(action: action) {
             Text(label)
                 .font(.nf(14, weight: 550))
-                .foregroundStyle(filled ? Sm.ink : Color.white.opacity(0.82))
+                .foregroundStyle(filled ? Sm.ink : Sm.onInk.opacity(0.82))
                 .lineLimit(1)
                 .padding(.horizontal, 14)
                 .frame(minHeight: 40)
         }
         .buttonStyle(.pressable(
-            background: filled ? .white : .clear,
-            pressedBackground: filled ? Sm.hover : Color.white.opacity(0.12),
+            background: filled ? Sm.onInk : .clear,
+            // .settings-unsaved-discard:hover 的 rgba(127,127,127,.18) 放在按下的时候。
+            pressedBackground: filled ? Sm.hover : Color(argb: 0x2E7F7F7F),
             cornerRadius: 10, scale: 0.97, disabledOpacity: 0.6
         ))
     }

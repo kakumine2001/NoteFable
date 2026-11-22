@@ -215,9 +215,16 @@ protocol NotesBackend {
     /// 清空回收站；[before] 是确认时看到的最新一条的 deletedAt，确认后别处新扔的不会被删。
     func emptyTrash(before: String) async throws
 
-    /// 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…`）。
+    /// 导出一篇笔记的 Markdown（`GET /api/pages/:id/export`）。服务端导出的是已保存的内容。
+    func exportNote(id: String) async throws -> ExportedNote
+
+    /// 把一个或多个 Markdown 文件导入成笔记（`POST /api/pages/import`），返回新建的笔记（顺序和文件相同）。
+    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary]
+
+    /// 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
     /// [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
-    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) -> String
+    /// [theme] 是 App 现在显示的外观（light / dark）：网页在第一次绘制前就按它上色（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String
 }
 
 extension NotesBackend {
@@ -226,7 +233,11 @@ extension NotesBackend {
     }
 
     func noteEmbedUrl(pageId: String, lang: String?) -> String {
-        noteEmbedUrl(pageId: pageId, lang: lang, model: nil, reasoning: nil)
+        noteEmbedUrl(pageId: pageId, lang: lang, model: nil, reasoning: nil, theme: nil)
+    }
+
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) -> String {
+        noteEmbedUrl(pageId: pageId, lang: lang, model: model, reasoning: reasoning, theme: nil)
     }
 }
 
@@ -237,7 +248,7 @@ let TRASH_RETENTION_DAYS = 30
 ///
 /// 网页调的是 `window.NoteFableNative.postMessage(json)`（Android 的 @JavascriptInterface）。WKWebView 没有这种对象，
 /// 界面层要在页面开始加载前注入一段脚本，把 `window.NoteFableNative` 定义成转发给
-/// `window.webkit.messageHandlers.<名字>.postMessage(json)` 的对象（还有同步返回的 `appIcon()` / `language()`），
+/// `window.webkit.messageHandlers.<名字>.postMessage(json)` 的对象（还有同步返回的 `appIcon()` / `language()` / `theme()`），
 /// 收到的 JSON 文本交给 [parse]。
 enum EmbedMessage: Equatable, Sendable {
     case ready(id: String, title: String, icon: String?)

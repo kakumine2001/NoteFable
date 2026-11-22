@@ -62,7 +62,7 @@ struct ChatWorkspace: View {
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .top)
         }
-        .background(Sm.surface)
+        .background(Sm.background)
         // 回答里选中文字点了「问 NoteFable」：引用放到输入栏上方后聚焦输入框，接着打提问（Android composerFocus.requestFocus()）。
         .onChange(of: state.quote) { old, new in
             if let new, new != old, state.upload == nil { focusRequest += 1 }

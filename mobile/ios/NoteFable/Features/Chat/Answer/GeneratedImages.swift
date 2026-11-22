@@ -178,7 +178,8 @@ struct GeneratingImagePreview: View {
             canvas
         }
         .frame(maxWidth: 448, alignment: .leading)
-        .background(Color.white)
+        // .generated-image-placeholder：--notion-surface。
+        .background(Sm.surface)
         .clipShape(shape)
         .overlay { shape.strokeBorder(Sm.borderStrong, lineWidth: 1) }
     }

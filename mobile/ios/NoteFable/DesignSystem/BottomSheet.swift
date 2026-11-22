@@ -306,7 +306,8 @@ struct SheetDoneButton: View {
         Button(action: action) {
             Text(title)
                 .font(.nf(16, weight: 600))
-                .foregroundStyle(.white)
+                // .model-sheet-done：--notion-text 底上的字，深色时是 --nf-on-ink。
+                .foregroundStyle(Sm.onInk)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 48)
         }
