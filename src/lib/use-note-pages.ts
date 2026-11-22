@@ -496,6 +496,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   // 選んだファイルを送る前に、数・拡張子・大きさを確かめる。合わなければ理由を出して false。
   // 取り込み先を尋ねる前にも呼ぶ（先を選ばせてから断らない）。
   function checkImportFiles(fileList: File[]): boolean {
+    // 別の操作（書き出しなど）の途中は取り込めない。取り込み先を選ばせてから黙って捨てないよう、ここで止める。
+    if (actionBusy.current) return false;
     let problem = "";
     let totalBytes = 0;
     if (fileList.length > MAX_IMPORT_FILES) problem = fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES });

@@ -96,7 +96,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val conversationDownloader = rememberConversationDownloader()
     // 笔记的 Markdown 导出（页面菜单）和导入（侧栏、笔记首页）用的系统文件选择器，同样注册在根上。
     val exportNote = rememberNoteExporter(notesViewModel)
-    val pickMarkdownImport = rememberMarkdownImportPicker { files ->
+    val pickMarkdownImport = rememberMarkdownImportPicker({ notesViewModel.identityGeneration }) { files ->
         // 网页 importMarkdownFiles：先关侧栏；有项目时先问导入到哪里（下面的 ImportTargetDialog），导入后打开第一篇。
         scope.launch { drawerState.close() }
         notesViewModel.pickedForImport(files)

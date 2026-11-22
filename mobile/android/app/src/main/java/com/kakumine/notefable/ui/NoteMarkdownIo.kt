@@ -91,17 +91,19 @@ internal fun rememberNoteExporter(notes: NotesViewModel): (pageId: String) -> Un
  * 文件名和大小要访问文件提供方（云盘可能很慢），放到后台线程问；选多了的不问，直接交出去报"太多"。
  */
 @Composable
-internal fun rememberMarkdownImportPicker(onPicked: (List<ImportCandidate>) -> Unit): () -> Unit {
+internal fun rememberMarkdownImportPicker(identityGeneration: () -> Int, onPicked: (List<ImportCandidate>) -> Unit): () -> Unit {
     val context = LocalContext.current.applicationContext
     val currentOnPicked by rememberUpdatedState(onPicked)
     val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
         if (uris.isEmpty()) return@rememberLauncherForActivityResult
         scope.launch {
+            // 问文件名和大小的这段时间里换了账号，就不把旧账号下选的文件交出去。
+            val generation = identityGeneration()
             val candidates =
                 if (uris.size > NoteImport.MAX_FILES) uris.map { ImportCandidate(it.lastPathSegment.orEmpty(), null) { readImportText(context, it) } }
                 else withContext(Dispatchers.IO) { uris.map { importCandidate(context, it) } }
-            currentOnPicked(candidates)
+            if (identityGeneration() == generation) currentOnPicked(candidates)
         }
     }
     return remember(picker) {

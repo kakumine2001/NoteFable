@@ -210,6 +210,9 @@ class NotesViewModel(
     /** 每次换身份加一。旧身份下发出、换身份后才回来的改动结果直接丢掉，不写进新身份的列表。 */
     private var identity = 0
 
+    /** 当前身份的序号。界面在慢操作（向文件提供方问文件名和大小）前后各读一次，不一样就丢掉旧身份下选的文件。 */
+    val identityGeneration: Int get() = identity
+
     /** 每完成一次改动（新建、移动、删除…）加一。刷新期间有改动完成的话，刷新读到的可能是改动前的列表，要重读。 */
     private var mutations = 0
 
@@ -731,6 +734,8 @@ class NotesViewModel(
                     if (owner == identity) _state.update { it.copy(busy = false, error = importError(problem)) }
                     return@launch
                 }
+                // 读文件期间（云盘可能很慢）换了账号：请求会带着新账号的 cookie 发出去，把旧账号选的文件导进新账号。不发。
+                if (owner != identity) return@launch
                 val created = backend.importMarkdown(payload, groupId)
                 val applied = commit(owner) {
                     _state.update { s -> s.copy(busy = false, pages = created.fold(s.pages) { pages, page -> upsert(pages, page) }) }

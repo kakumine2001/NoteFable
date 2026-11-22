@@ -669,7 +669,8 @@ final class NotesViewModel {
             await importMarkdown(sources)
             return false
         }
-        return !sources.isEmpty && checkImportFiles(sources)
+        // 别的操作还在进行时不问（[importMarkdown] 那时也不导入）：不让人选完去处以后什么都没发生。
+        return !state.busy && !sources.isEmpty && checkImportFiles(sources)
     }
 
     /// 发请求之前在本机查数量、扩展名和大小（网页 use-note-pages.ts 的 checkImportFiles）：
