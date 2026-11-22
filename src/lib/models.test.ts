@@ -9,9 +9,10 @@ import {
 } from "./models";
 
 describe("model configuration", () => {
-  it("only enables web search for a provider that implements it", () => {
-    expect(getModelOption("deepseek-flash").supportsWebSearch).toBe(false);
+  it("enables web search for all built-in providers", () => {
+    expect(getModelOption("deepseek-flash").supportsWebSearch).toBe(true);
     expect(getModelOption("gpt-6-luna").supportsWebSearch).toBe(true);
+    expect(getModelOption("claude-haiku-5-5").supportsWebSearch).toBe(true);
   });
   it("keeps one DeepSeek model that accepts image input", () => {
     const openAI = getModelOption("gpt-6-luna");

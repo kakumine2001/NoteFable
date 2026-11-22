@@ -77,8 +77,8 @@ export const MODEL_OPTIONS: readonly ModelOption[] = [
     label: "DeepSeek-V4.1-Flash",
     provider: "deepseek",
     supportsImageInput: true,
-    // 現行の DeepSeek Responses API は組み込み web_search を無視する。
-    supportsWebSearch: false,
+    // DeepSeek-V4.1-Flash は Responses API のサーバー検索ツール deepseek_web_search に対応する。
+    supportsWebSearch: true,
     supportsCompaction: false,
     supportsPageTools: true,
     // 推論強度は low / high / max に対応し、既定値は high。

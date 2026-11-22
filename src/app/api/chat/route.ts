@@ -840,7 +840,13 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 body: {
                   ...buildDeepSeekResponsesRequest({ model: upstreamModel, instructions, input, effort: reasoning, stream: true }),
                   input,
-                  ...(pageTools.length ? { tools: toResponsesTools(pageTools), tool_choice: "auto" } : {}),
+                  ...(webSearchMode !== "off" || pageTools.length
+                    ? {
+                        tools: [...(webSearchMode !== "off" ? [{ type: "deepseek_web_search" }] : []), ...toResponsesTools(pageTools)],
+                        // DeepSeek のサーバー検索ツール（deepseek_web_search）は tool_choice での強制指定を受け付けないため auto を使う。
+                        tool_choice: "auto",
+                      }
+                    : {}),
                 },
                 request: requestDeepSeekResponses,
                 runTool,
@@ -909,10 +915,8 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
               emit(encodeActivityStreamEvent(activity));
               if (activity.type === "proposal" || activity.type === "create_proposal") delivered = true;
             }
-            if (modelOption.provider !== "deepseek") {
-              const citation = getWebCitation(payload);
-              if (citation) webCitations.set(citation.url, citation.title);
-            }
+            const citation = getWebCitation(payload);
+            if (citation) webCitations.set(citation.url, citation.title);
             // プロバイダー別の形式から、画面に出す本文差分だけを取り出す。
             const delta =
               modelOption.provider === "deepseek"
@@ -952,9 +956,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
           if (!assistantText.trim() && !proposalIds.length) throw new Error(msg("The model returned an empty response. Please retry."));
         }
 
-        if (modelOption.provider !== "deepseek") {
-          forwardText(formatWebCitations(webCitations));
-        }
+        forwardText(formatWebCitations(webCitations));
 
         // ユーザーに実際に流した本文だけをアシスタント発言として保存する。
         await saveAssistant(assistantText, { providerContext, strictProposals: true });

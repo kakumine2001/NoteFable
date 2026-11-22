@@ -33,7 +33,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - `src/lib/models.ts` defines the built-in models, capabilities and reasoning levels. The server decides which are offered through `NOTEFABLE_MODELS` (`src/lib/model-registry.ts`, format in `docs/architecture/deployment.md`); web, Android and iOS take the list from the server (`ModelsProvider`, `GET /api/models`) and never hard-code it. Server code reads models through `getModelRegistry()`.
 - Provider routing and request code stay in code: an env-defined model can only reuse an existing provider. After changing `models.ts`, regenerate the shared native fallback (`mobile/android/app/src/main/assets/models.json`, also bundled by iOS) with `scripts/gen-native-models.ts`.
 - Chat system prompt lives only in `buildInstructions()` (`src/app/api/chat/route.ts`); don't duplicate it per provider.
-- OpenAI/DeepSeek use Responses API; Anthropic uses Messages API (`src/lib/anthropic-messages.ts`). DeepSeek ignores `web_search`: don't send it.
+- OpenAI/DeepSeek use Responses API; Anthropic uses Messages API (`src/lib/anthropic-messages.ts`). DeepSeek uses `{ type: "deepseek_web_search" }` with `tool_choice: "auto"` (`deepseek-flash` ignores `web_search` and rejects forcing `deepseek_web_search` in `tool_choice`).
 - Haiku: adaptive thinking with `output_config.effort`, no sampling params or thinking budget; keep native blocks for `pause_turn`.
 - Image generation is an explicit UI mode, independent of the chat model, always OpenAI `/images/generations` (text only) or `/images/edits` (with references). Don't switch it to Responses API unless asked.
 - Claude images: shrink only the model copy (`src/lib/claude-image.ts`); keep original bytes and metadata.

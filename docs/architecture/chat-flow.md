@@ -272,9 +272,9 @@ provider-native web_search
 模型自行决定是否搜索
 ```
 
-OpenAI 与 Anthropic 启用 provider-native Web 搜索。DeepSeek 的现行 Responses API 会忽略该工具（只支持 `function` 工具，[官方说明](https://api-docs.deepseek.com/guides/responses_api/#tools)），因此 `src/lib/models.ts` 将其搜索能力设为 false。旧客户端传来的搜索开关也会归一化为 off，模型指令明确禁止模拟 Web 搜索。DeepSeek 仍会收到 Notes 的 `function` 工具。
+OpenAI、DeepSeek 与 Anthropic 均启用 provider-native Web 搜索。DeepSeek-V4.1-Flash（`deepseek-flash`）的 Responses API 会忽略 `{ type: "web_search" }`（仅 `deepseek-v4-pro` 支持），必须声明 `{ type: "deepseek_web_search" }`（[官方说明](https://api-docs.deepseek.com/guides/web_search)），开启思考时会在服务端自动执行多步搜索与网页读取（返回 `web_search_call` 的 `search` / `open_page` 动作及 `url_citation` 引用），并可与 Notes 的 `function` 工具同时声明。
 
-GPT 默认使用 `tool_choice: auto`，由模型判断是否需要搜索。API 收到 `webSearch=force` 时，若同时发送了 Notes 工具，则使用 `{ type: "allowed_tools", mode: "required", tools: [{ type: "web_search" }] }`，确保第一轮必须执行 Web 搜索，而不是只调用 Notes 工具就算满足；没有 Notes 工具时使用 `required`。之后的轮次改为 `auto`。收到 `off` 时不发送搜索工具。搜索产生的 URL 注释会转换为回答末尾可点击的来源链接，并与回答一起保存。
+三家默认都使用 `auto`，由模型判断是否需要搜索。API 收到 `webSearch=force` 时：GPT 若同时发送了 Notes 工具，则使用 `{ type: "allowed_tools", mode: "required", tools: [{ type: "web_search" }] }`，确保第一轮必须执行 Web 搜索，而不是只调用 Notes 工具就算满足，没有 Notes 工具时使用 `required`（之后的轮次改为 `auto`）；Claude 使用 `{ type: "tool", name: "web_search" }`；DeepSeek 的服务端工具 `deepseek_web_search` 不支持在 `tool_choice` 中强制指定（会返回 400，`allowed_tools` 会返回 422），因此 `auto` 与 `force` 均发送 `tool_choice: "auto"`。收到 `off` 时不发送搜索工具。搜索产生的 URL 注释会转换为回答末尾可点击的来源链接，并与回答一起保存。
 
 DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_result>` 时停止读取并返回错误；不能把异常片段保存成正常回答。`response.incomplete`、空回答和没有 `response.completed` 的断流也会明确报错。过去已保存的异常助手回答保留在数据库中，但不会再次加入模型输入。
 
@@ -512,7 +512,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 `/api/chat` 的 SSE 里有两种 `data`：JSON 字符串是正文增量；`{ "activity": ... }` 是途中经过，由 `src/lib/chat-activity.ts` 处理。除了服务端添加的项目 `context` 事件（见上文）和失败 `failure` 元数据，其余从上游事件转换而来：
 
 - OpenAI 推理强度不是 `none` 时请求 `reasoning.summary: "auto"`，转发推理摘要；DeepSeek 转发 `reasoning_text` 推理正文；Claude 请求 `thinking.display: summarized` 并转发 thinking 摘要。
-- GPT 启用搜索时请求 `include: ["web_search_call.action.sources"]`，转发每次 `web_search_call` 的搜索词、来源 URL、打开的页面（`open_page`）和页内查找（`find_in_page`）。只保留 http(s) URL。
+- GPT 启用搜索时请求 `include: ["web_search_call.action.sources"]`（DeepSeek 默认即在 `web_search_call` 中返回 `sources`），三家模型均转发每次 `web_search_call` 的搜索词、来源 URL、打开的页面（`open_page`）和页内查找（`find_in_page`）。只保留 http(s) URL。
 
 前端把它们显示为可折叠的时间线：思考中自动展开并显示当前动作，正文开始后折叠为 `Thought for Ns · N searches · N sources`。服务端用同一个 `applyActivityEvent` 累积途中经过，回答保存时（含失败分支）一并写入 `Message.activity` 和 `Message.thinkingMs`，刷新页面或换设备后仍可展开查看。保存前由 `serializeActivity` 去掉提案（已存于 `NoteProposal`）并把推理文本总量限制在 2 万字符；读取时由 `parseStoredActivity` 校验，坏数据直接丢弃。保存的是各家公开的推理内容：OpenAI 与 Claude 只有摘要，DeepSeek 为推理正文；`reasoning.encrypted_content` 仍只存于 `providerContext`，不可读也不显示。推理内容仅用于显示，不会回传给模型。
 
