@@ -221,4 +221,7 @@ export const hiServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "यह सुझाव अब मान्य नहीं है। नया सुझाव पाने के लिए फिर से पूछें।",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "सुझाव बनने के बाद इस नोट में बदलाव हुआ है। नया सुझाव पाने के लिए फिर से पूछें।",
   "Upload up to {max} files at a time.": "एक बार में अधिकतम {max} फ़ाइलें अपलोड करें।",
+  "Invalid request body.": "अनुरोध सामग्री अमान्य है।",
+  "Invalid share settings.": "साझाकरण सेटिंग्स अमान्य हैं।",
+  "Expiration time must be in the future.": "समाप्ति समय भविष्य में होना चाहिए।",
 };

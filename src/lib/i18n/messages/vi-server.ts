@@ -221,4 +221,7 @@ export const viServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Đề xuất này không còn hiệu lực. Hãy yêu cầu lại để nhận đề xuất mới.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Ghi chú này đã thay đổi sau khi tạo đề xuất. Hãy yêu cầu lại để nhận đề xuất mới.",
   "Upload up to {max} files at a time.": "Tải lên tối đa {max} tệp mỗi lần.",
+  "Invalid request body.": "Nội dung yêu cầu không hợp lệ.",
+  "Invalid share settings.": "Cài đặt chia sẻ không hợp lệ.",
+  "Expiration time must be in the future.": "Thời gian hết hạn phải ở trong tương lai.",
 };

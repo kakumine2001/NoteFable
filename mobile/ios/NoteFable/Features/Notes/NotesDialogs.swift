@@ -12,6 +12,7 @@ enum NotesDialogState: Identifiable, Equatable {
     case renameGroup(NoteGroupSummary)
     case deleteGroup(NoteGroupSummary)
     case trashNote(NotePageSummary)
+    case share(pageId: String)
 
     var id: String {
         switch self {
@@ -20,6 +21,7 @@ enum NotesDialogState: Identifiable, Equatable {
         case .renameGroup(let group): return "rename-group:" + group.id
         case .deleteGroup(let group): return "delete-group:" + group.id
         case .trashNote(let page): return "trash-note:" + page.id
+        case .share(let pageId): return "share:" + pageId
         }
     }
 }
@@ -137,6 +139,8 @@ private struct NotesDialogContent: View {
                 close: close,
                 onConfirm: { await notes.trashNote(page.id) }
             )
+        case .share(let pageId):
+            NoteShareDialog(pageId: pageId, busy: $busy, close: close)
         }
     }
 }

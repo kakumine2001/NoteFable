@@ -69,6 +69,7 @@ private sealed interface NotesDialogState {
     data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
     data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
     data class TrashNote(val page: NotePageSummary) : NotesDialogState
+    data class Share(val pageId: String) : NotesDialogState
 }
 
 @Composable
@@ -111,6 +112,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     BackHandler(enabled = !drawerState.isOpen && notes.workspace == Workspace.Notes && notes.open == null) {
         notesViewModel.setWorkspace(Workspace.Chat)
     }
+    // 从笔记切回聊天：当前会话可能刚在笔记的 AI 面板里聊过，重读一次。
+    var lastWorkspace by remember { mutableStateOf(notes.workspace) }
+    LaunchedEffect(notes.workspace) {
+        if (notes.workspace == Workspace.Chat && lastWorkspace != Workspace.Chat) viewModel.refreshActiveQuietly()
+        lastWorkspace = notes.workspace
+    }
     // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
     LaunchedEffect(drawerState.currentValue) {
         if (drawerState.currentValue == DrawerValue.Open) {
@@ -133,6 +140,27 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             searchOpen = false
             closeDrawer()
             openChatLink(link, viewModel, notesViewModel)
+        }
+    }
+
+    // 系统分享（MainActivity 的 SEND intent）：先关掉检索面板和抽屉再切到聊天。
+    // 如果笔记保存失败暂时留在笔记里，把分享暂存下来，等真正回到聊天工作区时再放进输入栏，不丢用户的分享。
+    var deferredShares by remember { mutableStateOf<List<com.kakumine.notefable.data.IncomingShareRequest>>(emptyList()) }
+    LaunchedEffect(viewModel) {
+        viewModel.shareRequests.collect { share ->
+            searchOpen = false
+            closeDrawer()
+            deferredShares = deferredShares + share
+            if (notesViewModel.state.value.workspace != Workspace.Chat) {
+                notesViewModel.setWorkspace(Workspace.Chat)
+            }
+        }
+    }
+    LaunchedEffect(notes.workspace, deferredShares) {
+        if (notes.workspace == Workspace.Chat && deferredShares.isNotEmpty()) {
+            val pending = deferredShares
+            deferredShares = emptyList()
+            pending.forEach(viewModel::applyIncomingShare)
         }
     }
 
@@ -364,6 +392,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onMove = { dialog = NotesDialogState.Move(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
+                    onShare = { dialog = NotesDialogState.Share(open.id) },
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -474,6 +503,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
             onConfirm = { vm.trashNote(dialog.page.id) },
             onClose = close,
         )
+        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close)
     }
 }
 

@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ChevronLeft,
   FileText,
+  Globe,
   History,
   ImagePlus,
   Lock,
@@ -36,14 +37,17 @@ import { ChatRecentNotes } from "@/components/chat-recent-notes";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
+import { NoteShareDialog } from "@/components/note-share-dialog";
 import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { ancestorsOf, descendantIdsOf } from "@/lib/note-tree";
-import { pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
+import { isPageShared, pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
+import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent } from "@/lib/chat-activity";
 import { createUploadFile, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
@@ -65,6 +69,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
+import { consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares, saveShareDraft, takeShareDraft } from "@/lib/share-target";
 import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -157,6 +162,7 @@ export default function Home() {
   // 検索の小窓（Ctrl/Cmd+K）。履歴の小窓は、開いた時点のノート ID を持ち、別のノートに移ったら出さない。
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+  const [shareNoteId, setShareNoteId] = useState<string | null>(null);
   // 「Create page」の窓を開いている会話。
   const [createPageSessionId, setCreatePageSessionId] = useState<string | null>(null);
   // 上部バーの「…」メニューから開く「移動」と「ゴミ箱へ」の確認。
@@ -661,8 +667,8 @@ export default function Home() {
   }
 
   function registerStop(sessionKey: string, controller: AbortController | null) {
-    if (controller) streamAbortsRef.current[sessionKey] = controller;
-    else delete streamAbortsRef.current[sessionKey];
+    if (controller) { streamAbortsRef.current[sessionKey] = controller; chatsTurns.add(sessionKey); }
+    else { delete streamAbortsRef.current[sessionKey]; chatsTurns.delete(sessionKey); }
     setStopStates((current) => {
       const next = { ...current };
       if (controller) next[sessionKey] = "ready";
@@ -1113,7 +1119,7 @@ export default function Home() {
   }
 
   async function deleteSession(sessionId: string) {
-    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error(msg("Wait for the reply to finish before deleting this chat.")); }
+    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId) || notePanelTurns.has(sessionId)) { throw new Error(msg("Wait for the reply to finish before deleting this chat.")); }
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
     let response: Response;
     try {
@@ -1222,6 +1228,11 @@ export default function Home() {
       streamingSessionsRef.current[requestSessionKey] ||
       submittingSessionKeysRef.current.has(requestSessionKey)
     ) {
+      return;
+    }
+    // この会話がノートの AI パネルで回答を待っている間は、ここからは送らない（2 つの発言が同じ枝で重なる）。
+    if (requestSessionId && notePanelTurns.has(requestSessionId)) {
+      setSendError(msg("Wait for the current reply to finish."));
       return;
     }
 
@@ -1543,6 +1554,7 @@ export default function Home() {
   async function rerunTurn(kind: "regenerate" | "edit", messageId: string, text = "") {
     const sessionId = activeSessionIdRef.current;
     if (!sessionId || uploadProgress || streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) return;
+    if (notePanelTurns.has(sessionId)) { setSendError(msg("Wait for the current reply to finish.")); return; }
     const before = sessionMessagesRef.current[sessionId] ?? [];
     const index = before.findIndex((message) => message.id === messageId);
     const target = before[index];
@@ -1922,9 +1934,21 @@ export default function Home() {
   }, [revealTick, workspaceView, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
 
   // プロジェクトの参照ノートのチップなどが投げる "notefable:open-note" / "notefable:open-chat" を、検索結果と同じ開き方に流す。
-  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects });
+  // ノートの AI パネルで会話が増えた・進んだとき。一覧を読み直し、その会話をここでも開いていたら（読み込み済みなら）発言も読み直す。
+  // 読み直している間にここから送り始めたら、古い一覧で送信中の表示を上書きしない。
+  async function refreshAfterNoteChat(sessionId?: string) {
+    void loadSessions();
+    if (!sessionId || !sessionMessagesRef.current[sessionId]) return;
+    const busy = () => Boolean(streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId) || streamAbortsRef.current[sessionId]);
+    if (busy()) return;
+    const fetched = await fetchSessionMessages(sessionId);
+    if (!fetched || fetched === "missing" || busy()) return;
+    replaceCachedMessages(sessionId, fetched);
+  }
+
+  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) });
   useEffect(() => {
-    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects };
+    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) };
   });
   useEffect(() => {
     function detailOf(event: Event) {
@@ -1943,10 +1967,17 @@ export default function Home() {
     function onPageCreated() {
       linkOpenersRef.current.projects();
     }
+    function onNoteChatSaved(event: Event) {
+      const id = detailOf(event)?.id;
+      linkOpenersRef.current.sessions(typeof id === "string" ? id : undefined);
+    }
     window.addEventListener("notefable:open-note", onOpenNote);
     window.addEventListener("notefable:open-chat", onOpenChat);
     window.addEventListener("notefable:page-created", onPageCreated);
+    // ノートの AI パネルで会話が増えた・進んだら、Chats の一覧にもすぐ出す。
+    window.addEventListener(NOTE_CHAT_SAVED_EVENT, onNoteChatSaved);
     return () => {
+      window.removeEventListener(NOTE_CHAT_SAVED_EVENT, onNoteChatSaved);
       window.removeEventListener("notefable:open-note", onOpenNote);
       window.removeEventListener("notefable:open-chat", onOpenChat);
       window.removeEventListener("notefable:page-created", onPageCreated);
@@ -1983,6 +2014,62 @@ export default function Home() {
     });
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  // 預かった中身を入れるときに、その時点で最新の添付の判定（選んだモデルなど）を使う。
+  const addUploadFilesRef = useRef(addUploadFiles);
+  useEffect(() => {
+    addUploadFilesRef.current = addUploadFiles;
+  });
+
+  // インストールした PWA がシステムの「共有」から受け取った内容（?share=<id>、public/sw.js が預かったもの）を、新しいチャットの入力欄へ入れる。
+  // 送信はしない。Android PWA は同じタブを遷移させるので、離れる前の下書きを退避し、共有で戻ったときだけ引き継いで後ろへ足す。
+  useEffect(() => {
+    if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    void pruneExpiredWebShares().catch(() => {});
+    // 上限後のログイン復帰で下書きがすでに預けられる場合は重複保存しない。
+    const onPageHide = () => {
+      if (!guestLimitHitRef.current) saveShareDraft(composerTextRef.current);
+    };
+    window.addEventListener("pagehide", onPageHide);
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      const url = new URL(window.location.href);
+      const shareId = url.searchParams.get("share");
+      // 共有以外の通常の読み込みでは、前回退避した下書きは破棄する。
+      const savedDraft = takeShareDraft();
+      if (!shareId) return;
+      url.searchParams.delete("share");
+      if (url.searchParams.get("view") === "pages") {
+        url.searchParams.delete("view");
+        url.searchParams.delete("page");
+      }
+      window.history.replaceState(window.history.state, "", url);
+      setWorkspaceView("chat");
+      setNotesList(false);
+      // 何も開いていない新しいチャットから始める。読み込み中にユーザーが別の会話へ移ったら、そちらへは入れない。
+      const shareIntent = sessionNavigationIntentRef.current + 1;
+      sessionNavigationIntentRef.current = shareIntent;
+      sessionLoadAbortRef.current?.abort();
+      activeSessionIdRef.current = null;
+      setActiveSessionId(null);
+      setMessages([]);
+      setSendError("");
+      quoteRef.current = null;
+      setQuote(null);
+      void consumeWebShare(shareId).then((shared) => {
+        if (cancelled || !shared || sessionNavigationIntentRef.current !== shareIntent || activeSessionIdRef.current !== null) return;
+        const combined = mergeDraftWithShare(savedDraft, shared.text);
+        if (combined) setInput((current) => mergeDraftWithShare(current, combined));
+        if (shared.files.length) addUploadFilesRef.current(shared.files);
+        inputRef.current?.focus();
+      });
+    });
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, []);
 
@@ -2165,6 +2252,13 @@ export default function Home() {
               <button type="button" className="notes-locked-button" disabled={notes.busy} onClick={() => void notes.updateSettings(activeSummary.id, { locked: false })}
                 aria-label={t("Unlock page")} title={t("Unlock page")}>
                 <Lock size={14} /><span className="hidden sm:inline">{t("Locked")}</span>
+              </button>
+            )}
+            {workspaceView === "pages" && !notesList && activeSummary && (
+              <button type="button" className={`notes-share-button${isPageShared(activeSummary) ? " is-shared" : ""}`} disabled={notes.busy}
+                onClick={() => setShareNoteId(activeSummary.id)}
+                aria-label={t("Share")} title={t("Share")} aria-haspopup="dialog">
+                <Globe size={15} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
               </button>
             )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
@@ -2544,6 +2638,11 @@ export default function Home() {
       {historyQueue && historyNoteId && (
         <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
+      )}
+      {workspaceView === "pages" && shareNoteId && (
+        <NoteShareDialog key={shareNoteId} pageId={shareNoteId}
+          beforePublish={(includeSubpages) => notes.flushSubtree(shareNoteId, includeSubpages)}
+          onUpdated={notes.applyShareMeta} onClose={() => setShareNoteId(null)} />
       )}
     </main>
   );

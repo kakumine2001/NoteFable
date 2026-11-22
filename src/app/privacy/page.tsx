@@ -99,6 +99,7 @@ export default function PrivacyPage() {
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
             When the assistant looks at your notes, the note text it reads goes to that same provider; if the reply uses web search, that search also runs at
             that provider. Image generation and image editing always go to OpenAI, whichever chat model is selected.
+            To power meaning-based note search, note titles, note text and note search queries are also sent to OpenAI to create search vectors (stored in our database and deleted when you delete the note or your account), whichever chat model is selected.
             For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>
@@ -150,7 +151,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="7. Security">
         <p>
-          Data is sent over HTTPS, the device cookie is signed, and each chat and note can be read only through the browser or Google account that created it.
+          Data is sent over HTTPS, the device cookie is signed, and each private chat and note can be read only through the browser or signed-in account that created it.
+          If you explicitly publish a note to the web, anyone with its share link can read that note (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
           No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using NoteFable without signing in on shared devices.
         </p>
       </LegalSection>

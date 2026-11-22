@@ -21,6 +21,8 @@ import com.kakumine.notefable.data.selectionError
 import com.kakumine.notefable.data.ChatBackend
 import com.kakumine.notefable.data.ChatLink
 import com.kakumine.notefable.data.ChatProjectNote
+import com.kakumine.notefable.data.IncomingShareRequest
+import com.kakumine.notefable.data.mergeDraftWithShare
 import com.kakumine.notefable.data.MAX_MESSAGE_NOTES
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.ChatStreamEvent
@@ -639,6 +641,34 @@ class ChatViewModel(
         externalLinks.trySend(link)
     }
 
+    // 系统「分享」交来的内容（MainActivity 的 SEND intent）：同样交给 NoteFableRoot，先关掉检索面板和抽屉再放进新聊天。
+    private val externalShares = Channel<IncomingShareRequest>(Channel.UNLIMITED)
+    val shareRequests: Flow<IncomingShareRequest> = externalShares.receiveAsFlow()
+
+    fun requestShare(share: IncomingShareRequest) {
+        externalShares.trySend(share)
+    }
+
+    private val pendingShares = mutableListOf<IncomingShareRequest>()
+
+    /**
+     * 把分享来的内容放进一个新聊天的输入栏（不自动发送，用户补一句再发）。
+     * 已经在空的新聊天里时不换，输入栏里写了一半的话保留、分享的文字接在后面；换聊天时旧聊天的引用不带过来。
+     * 如果当前正在上传附件，先排队等上传结束再放进输入栏，免得上传完成后清空输入栏把刚分享的内容冲掉。
+     */
+    fun applyIncomingShare(share: IncomingShareRequest) {
+        val current = _state.value
+        if (current.upload != null) {
+            pendingShares += share
+            return
+        }
+        val switched = current.activeSessionId != null || current.messages.isNotEmpty()
+        newChat()
+        if (switched) clearQuote()
+        if (share.text.isNotEmpty()) updateDraft(mergeDraftWithShare(draft, share.text))
+        share.loadFiles?.let { importFiles(it) }
+    }
+
     /** 界面处理完（滚到了、或消息已不存在）后清掉这次定位请求。 */
     fun consumeReveal(token: Long) {
         _state.update { if (it.reveal?.token == token) it.copy(reveal = null) else it }
@@ -648,6 +678,13 @@ class ChatViewModel(
 
     fun reloadActive() {
         _state.value.activeSessionId?.let { loadMessages(it) }
+    }
+
+    /** 从笔记回到聊天时安静地重读当前会话：笔记里的 AI 面板聊的也是 Chats 里的会话，可能刚给它加了内容。 */
+    fun refreshActiveQuietly() {
+        val id = _state.value.activeSessionId ?: return
+        if (_state.value.messagesLoading || id in streams) return
+        loadMessages(id, quiet = true)
     }
 
     private fun loadMessages(sessionId: String, quiet: Boolean = false) {
@@ -1212,12 +1249,19 @@ class ChatViewModel(
         saveQuote()
     }
 
-    /** 上传结束了：放回等着的提问。 */
+    /** 上传结束了：放回等着的提问和排队中的系统分享。 */
     private fun flushRestores() {
-        if (pendingRestores.isEmpty() || _state.value.upload != null) return
-        val restores = pendingRestores.toList()
-        pendingRestores.clear()
-        restores.forEach(::restoreDraft)
+        if (_state.value.upload != null) return
+        if (pendingRestores.isNotEmpty()) {
+            val restores = pendingRestores.toList()
+            pendingRestores.clear()
+            restores.forEach(::restoreDraft)
+        }
+        if (pendingShares.isNotEmpty()) {
+            val shares = pendingShares.toList()
+            pendingShares.clear()
+            shares.forEach(::applyIncomingShare)
+        }
     }
 
     /**

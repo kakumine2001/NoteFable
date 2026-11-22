@@ -65,13 +65,15 @@ erDiagram
     Session ||--o{ Message : contains
     Message ||--o{ Attachment : has
     User ||--o{ NotePage : owns
+    User ||--o{ NoteEmbedding : owns
     User ||--o{ NoteCoverAsset : uploads
     User ||--o{ NoteGroup : owns
     NoteGroup ||--o{ NotePage : groups
     NotePage ||--o{ NotePage : "sub-pages (set null)"
     User ||--o{ NoteRevision : owns
     NotePage ||--o{ NoteRevision : "history (cascade)"
-    NotePage ||--o{ Session : "note assistant (cascade)"
+    NotePage ||--o{ NoteEmbedding : "semantic index (cascade)"
+    NotePage ||--o{ Session : "started in note (set null)"
     ChatProject ||--o{ ChatProjectNote : "references (cascade)"
     NotePage ||--o{ ChatProjectNote : "referenced by (cascade)"
     Message ||--o{ MessageNote : "attaches (cascade)"
@@ -139,6 +141,11 @@ erDiagram
         boolean smallText
         string font "default, serif, mono"
         boolean locked
+        string shareToken "nullable, unique"
+        boolean shareEnabled
+        boolean shareIncludeSubpages
+        datetime shareExpiresAt "nullable"
+        boolean shareExcludeFromParent
         json blocks
         int version
         datetime deletedAt "nullable, in Trash when set"
@@ -156,6 +163,20 @@ erDiagram
         json blocks
         int version "NotePage.version at snapshot time"
         datetime createdAt
+    }
+
+    NoteEmbedding {
+        string id PK
+        string noteId FK
+        string userId FK
+        int chunkIndex "unique with noteId"
+        string blockId "nullable"
+        int noteVersion "must match NotePage.version"
+        string contentHash
+        string model
+        int dimensions
+        bytes vector "L2-normalized Float32 LE"
+        datetime updatedAt
     }
 
     ChatProject {
@@ -321,6 +342,10 @@ User 1 -> N Session / ChatProject / NotePage / NoteCoverAsset / NoteProposal / N
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
+### NoteEmbedding
+
+笔记语义搜索的向量索引（`20261122120000_note_embeddings` 新增，`src/lib/note-embeddings.ts`）。按 `NotePage` 的标题和正文拆块（每块最多 1,000 字符、每篇最多 12 块），调用 OpenAI `/embeddings`（默认 `text-embedding-3-small`，支持 `text-embedding-3-small` / `text-embedding-3-large`，512 维）生成 L2 归一化后的小端 `Float32Array` 存入 `BYTEA`（`vector`），不依赖 `pgvector` 扩展。**索引不复制笔记正文**：只记录 `blockId` 与 `noteVersion`（生成时的 `NotePage.version`），查询时必须同时满足 `p."deletedAt" IS NULL` 与 `e."noteVersion" = p."version"`，并仅对命中的上位笔记实时读取 `NotePage.blocks` 生成摘录，确保不会泄露已删除或旧版本正文。`contentHash` 为标题与块内容的 SHA-256 前 32 位十六进制，正文未变时只更新 `noteVersion`、不调用外部接口；写入时以 `pg_advisory_xact_lock` 加锁并核对 `NotePage.version`。`(noteId, chunkIndex)` 唯一，索引 `(userId, model, dimensions)` 和 `(noteId)`；`noteId` 与 `userId` 均为 `ON DELETE CASCADE`。Trash 里的笔记保留索引行，复原后无需重建即可命中。
+
 ### NoteGroup
 
 Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面到分组（`PUT /api/pages/:id/group`）会把页面脱离父页面（`parentId = null`）并同步更新整棵子树的 `groupId`，不增加 `version`。
@@ -366,7 +391,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `icon`（可空，单个 emoji，`null` 为默认聊天图标）
 - `pinned`（置顶）、`projectId`（可空，独立聊天项目）、`titleManual`（手动标题不再被自动标题覆盖）
 - `userId`
-- `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`。笔记放进 Trash 时对话原样保留，复原后仍在；笔记被永久删除（手动、清空 Trash 或过期清理）时一起级联删除）
+- `noteId`（可空；有值表示这段对话是在“笔记里的 AI 面板”里开始的，关联 `NotePage`，面板按它列出这篇笔记的聊天。它同时是 Chats 里的普通会话。外键 `ON DELETE SET NULL`（`20261122120000_session_note_set_null`）：笔记放进 Trash 时不动，笔记被永久删除时会话保留、只把 `noteId` 置空）
 - `stopRequestedAt`（可空；用户点击“停止”时的时间戳，生成中的 `/api/chat` 每秒轮询该值以停止上游请求并保存已生成正文）
 - `createdAt`
 - `updatedAt`
@@ -379,7 +404,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 (noteId)
 ```
 
-用于按用户读取会话。`GET /api/sessions` 按 `pinned` 降序、`position` 升序、`updatedAt` 降序和 `id` 降序返回，只包含 `noteId` 为空的会话，所以笔记助手的对话不会出现在侧栏的 Chats 里。`noteId` 通过 `20261014210000_session_note` migration 部署（只追加可空列、索引和外键）；手动顺序见文末的列表排序说明。
+用于按用户读取会话。`GET /api/sessions` 按 `pinned` 降序、`position` 升序、`updatedAt` 降序和 `id` 降序返回当前用户的全部会话（含在笔记 AI 面板里开始的会话，每项带 `noteId`）；`GET /api/sessions?noteId=<id>` 只返回本人在这篇笔记里开始的会话，按 `updatedAt` 降序，供面板的聊天列表使用。`noteId` 通过 `20261014210000_session_note` migration 部署（只追加可空列、索引和外键）；手动顺序见文末的列表排序说明。
 
 `icon` 可在 `POST /api/sessions` 创建会话时一并给出（新聊天在第一条消息前选的图标；不带请求体的旧调用仍然可用），之后由 `PATCH /api/sessions/[sessionId]` 修改：校验与 Notes 图标相同（`src/lib/emoji-icon.ts`，单个 emoji 或 `null`），按会话 ID 和当前用户 ID 限定所有者；修改图标时把 `updatedAt` 原样写回，保留置顶与手动顺序以及同序时的时间排序：写入条件包含读到的 `updatedAt`，若同时有回答保存使其前进则重新读取并重试（最多 3 次），仍有竞争时以保存图标为优先、不再保持排序。另外，第一条消息生成标题时 `/api/chat` 会让模型顺带选一个 emoji（见 [chat-flow.md](chat-flow.md)），只在 `icon` 仍为 `null` 时写入，同样把 `updatedAt` 原样写回（竞争时重读，最多 3 次，仍失败就不写）。新增字段通过 `20261014200000_session_icon` migration 部署。
 
@@ -486,7 +511,7 @@ UserPlan
 
 | 数据 | 保留规则 | 删除时的级联 |
 | --- | --- | --- |
-| Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`ChatProjectNote`、`MessageNote` 和笔记助手的 `Session`（及其消息、附件行、提案） |
+| Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`ChatProjectNote`、`MessageNote`；在这篇笔记里开始的 `Session` 保留（`noteId` 置空），仍在 Chats 里 |
 | 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
 | 项目参考笔记（`ChatProjectNote`） | 每个项目最多 5 篇；Trash 里的笔记保留关联但不使用 | 随项目、随笔记的永久删除级联删除 |
 | 发言附加的笔记（`MessageNote`） | 每条发言最多 5 篇；Trash 里的笔记保留关联但不使用、不显示 | 随消息（会话）、随笔记的永久删除级联删除 |
@@ -526,7 +551,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。
 
 聊天行右侧显示三点按钮，置顶/取消置顶、重命名、移动项目和删除确认均在三点菜单内。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 
