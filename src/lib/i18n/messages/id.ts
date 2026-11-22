@@ -171,6 +171,7 @@ export const id: Record<string, string> = {
   "Current language": "Bahasa saat ini",
   "Current: {language}": "Saat ini: {language}",
   "Custom instructions": "Instruksi khusus",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Tulis tentang diri Anda atau gaya jawaban yang Anda suka, dan itu berlaku di semua chat.",
   "Dark skin tone": "Warna kulit gelap",
   "Database is unavailable. Start local PostgreSQL and try again.": "Database tidak tersedia. Jalankan PostgreSQL lokal lalu coba lagi.",
   "Default": "Bawaan",

@@ -184,6 +184,7 @@
 "settings_personalization" = "맞춤 설정";
 "settings_unsaved" = "저장되지 않은 변경사항";
 "acct_custom_instructions" = "맞춤 지침";
+"acct_custom_instructions_help" = "자신에 대한 정보나 원하는 답변 방식을 적어 두면 모든 채팅에 반영돼요.";
 "acct_custom_instructions_placeholder" = "예:\n- 편하고 쉬운 말투로 답해 줘\n- 결론부터, 짧게\n- 확실하지 않으면 추측하지 말고 모른다고 말해 줘";
 "acct_err_load_custom_instructions" = "맞춤 지침을 불러오지 못했어요.";
 "acct_err_save_custom_instructions" = "맞춤 지침을 저장하지 못했어요. 다시 시도해 주세요.";

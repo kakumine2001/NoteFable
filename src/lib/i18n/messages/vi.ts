@@ -171,6 +171,7 @@ export const vi: Record<string, string> = {
   "Current language": "Ngôn ngữ hiện tại",
   "Current: {language}": "Hiện tại: {language}",
   "Custom instructions": "Hướng dẫn tùy chỉnh",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Viết đôi điều về bạn hoặc cách bạn muốn được trả lời, và điều đó sẽ áp dụng cho mọi đoạn chat.",
   "Dark skin tone": "Tông da sẫm",
   "Database is unavailable. Start local PostgreSQL and try again.": "Không thể kết nối cơ sở dữ liệu. Hãy khởi động PostgreSQL cục bộ và thử lại.",
   "Default": "Mặc định",

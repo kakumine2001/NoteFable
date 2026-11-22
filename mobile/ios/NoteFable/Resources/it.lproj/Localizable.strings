@@ -184,6 +184,7 @@
 "settings_personalization" = "Personalizzazione";
 "settings_unsaved" = "Modifiche non salvate";
 "acct_custom_instructions" = "Istruzioni personalizzate";
+"acct_custom_instructions_help" = "Racconta qualcosa di te o come preferisci le risposte: varrà per tutte le chat.";
 "acct_custom_instructions_placeholder" = "Per esempio:\n- Rispondi in modo semplice e informale\n- Parti dalla conclusione e sii breve\n- Se non sei sicuro, dillo invece di tirare a indovinare";
 "acct_err_load_custom_instructions" = "Impossibile caricare le tue istruzioni personalizzate.";
 "acct_err_save_custom_instructions" = "Impossibile salvare le tue istruzioni personalizzate. Riprova.";

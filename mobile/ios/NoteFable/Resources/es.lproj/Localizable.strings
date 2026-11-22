@@ -184,6 +184,7 @@
 "settings_personalization" = "Personalización";
 "settings_unsaved" = "Cambios sin guardar";
 "acct_custom_instructions" = "Instrucciones personalizadas";
+"acct_custom_instructions_help" = "Cuéntale algo sobre ti o cómo prefieres las respuestas, y se aplicará en todos los chats.";
 "acct_custom_instructions_placeholder" = "Por ejemplo:\n- Responde con un tono sencillo y cercano\n- Empieza por la conclusión y sé breve\n- Si no estás seguro, dilo en vez de suponer";
 "acct_err_load_custom_instructions" = "No se pudieron cargar tus instrucciones personalizadas.";
 "acct_err_save_custom_instructions" = "No se pudieron guardar tus instrucciones personalizadas. Inténtalo de nuevo.";

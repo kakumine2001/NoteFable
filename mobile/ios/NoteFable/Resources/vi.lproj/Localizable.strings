@@ -184,6 +184,7 @@
 "settings_personalization" = "Cá nhân hóa";
 "settings_unsaved" = "Có thay đổi chưa lưu";
 "acct_custom_instructions" = "Hướng dẫn tùy chỉnh";
+"acct_custom_instructions_help" = "Viết đôi điều về bạn hoặc cách bạn muốn được trả lời, và điều đó sẽ áp dụng cho mọi đoạn chat.";
 "acct_custom_instructions_placeholder" = "Ví dụ:\n- Trả lời tự nhiên, dễ hiểu\n- Nói kết luận trước, ngắn gọn thôi\n- Nếu không chắc thì nói thẳng, đừng đoán";
 "acct_err_load_custom_instructions" = "Không thể tải hướng dẫn tùy chỉnh của bạn.";
 "acct_err_save_custom_instructions" = "Không thể lưu hướng dẫn tùy chỉnh của bạn. Vui lòng thử lại.";

@@ -171,6 +171,7 @@ export const ko: Record<string, string> = {
   "Current language": "현재 언어",
   "Current: {language}": "현재: {language}",
   "Custom instructions": "맞춤 지침",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "자신에 대한 정보나 원하는 답변 방식을 적어 두면 모든 채팅에 반영돼요.",
   "Dark skin tone": "어두운 피부색",
   "Database is unavailable. Start local PostgreSQL and try again.": "데이터베이스에 연결할 수 없어요. 로컬 PostgreSQL을 시작한 후 다시 시도해 주세요.",
   "Default": "기본",

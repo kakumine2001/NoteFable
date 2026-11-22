@@ -184,6 +184,7 @@
 "settings_personalization" = "การปรับแต่งเฉพาะบุคคล";
 "settings_unsaved" = "มีการแก้ไขที่ยังไม่ได้บันทึก";
 "acct_custom_instructions" = "คำสั่งกำหนดเอง";
+"acct_custom_instructions_help" = "เขียนเรื่องเกี่ยวกับตัวคุณหรือรูปแบบคำตอบที่ชอบไว้ แล้วจะใช้กับทุกแชท";
 "acct_custom_instructions_placeholder" = "ตัวอย่าง:\n- ตอบแบบเป็นกันเอง เข้าใจง่าย\n- บอกข้อสรุปก่อน และตอบสั้น ๆ\n- ถ้าไม่แน่ใจ ให้บอกตรง ๆ อย่าเดา";
 "acct_err_load_custom_instructions" = "ไม่สามารถโหลดคำสั่งกำหนดเองของคุณได้";
 "acct_err_save_custom_instructions" = "ไม่สามารถบันทึกคำสั่งกำหนดเองของคุณได้ กรุณาลองอีกครั้ง";

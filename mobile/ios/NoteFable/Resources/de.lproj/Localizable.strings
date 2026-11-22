@@ -184,6 +184,7 @@
 "settings_personalization" = "Personalisierung";
 "settings_unsaved" = "Ungespeicherte Änderungen";
 "acct_custom_instructions" = "Benutzerdefinierte Anweisungen";
+"acct_custom_instructions_help" = "Erzähl etwas über dich oder wie du Antworten magst – das gilt dann für alle Chats.";
 "acct_custom_instructions_placeholder" = "Zum Beispiel:\n- Antworte locker und verständlich\n- Fang mit dem Ergebnis an und fass dich kurz\n- Wenn du dir nicht sicher bist, sag es, statt zu raten";
 "acct_err_load_custom_instructions" = "Deine benutzerdefinierten Anweisungen konnten nicht geladen werden.";
 "acct_err_save_custom_instructions" = "Deine benutzerdefinierten Anweisungen konnten nicht gespeichert werden. Bitte versuche es erneut.";

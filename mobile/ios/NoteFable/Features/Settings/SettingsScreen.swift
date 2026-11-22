@@ -263,6 +263,7 @@ private struct CustomInstructionsSection: View {
                     .monospacedDigit()
             }
         }
+        SettingsHelpLine(L("acct_custom_instructions_help"))
         if let loadError = state.loadError {
             SettingsErrorLine(loadError.text("acct_err_load_custom_instructions", app.systemText))
                 .padding(.top, 12)

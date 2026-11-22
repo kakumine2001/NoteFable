@@ -22,6 +22,7 @@
     <string name="settings_personalization">التخصيص</string>
     <string name="settings_unsaved">تغييرات غير محفوظة</string>
     <string name="acct_custom_instructions">تعليمات مخصصة</string>
+    <string name="acct_custom_instructions_help">اكتب شيئًا عن نفسك أو عن الطريقة التي تفضّل بها الإجابات، وسيُطبَّق ذلك على كل المحادثات.</string>
     <string name="acct_custom_instructions_placeholder">مثال:\n- أجب بلغة بسيطة وودية\n- ابدأ بالخلاصة واختصر\n- إن لم تكن متأكدًا فقل ذلك بدل التخمين</string>
     <string name="acct_err_load_custom_instructions">تعذّر تحميل تعليماتك المخصصة.</string>
     <string name="acct_err_save_custom_instructions">تعذّر حفظ تعليماتك المخصصة. يرجى المحاولة مرة أخرى.</string>

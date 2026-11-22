@@ -171,6 +171,7 @@ export const ru: Record<string, string> = {
   "Current language": "Текущий язык",
   "Current: {language}": "Сейчас: {language}",
   "Custom instructions": "Пользовательские инструкции",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Расскажите о себе или о том, какие ответы вам нравятся, — это будет учитываться во всех чатах.",
   "Dark skin tone": "Тёмный тон кожи",
   "Database is unavailable. Start local PostgreSQL and try again.": "База данных недоступна. Запустите локальный PostgreSQL и попробуйте ещё раз.",
   "Default": "По умолчанию",

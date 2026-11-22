@@ -676,6 +676,7 @@ export const zhHant: Record<string, string> = {
   "Serif": "襯線",
   "Session not found.": "找不到對話。",
   "Settings": "設定",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "寫下你的情況或喜歡的回答方式，所有聊天都會參考。",
   "Show all emoji": "顯示全部表情",
   "Showing the first {count} notes. Type in the filter to find others.": "顯示前 {count} 篇筆記，輸入篩選詞可查詢其他筆記。",
   "Sign in": "登入",

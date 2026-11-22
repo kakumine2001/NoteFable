@@ -22,6 +22,7 @@
     <string name="settings_personalization">Cá nhân hóa</string>
     <string name="settings_unsaved">Có thay đổi chưa lưu</string>
     <string name="acct_custom_instructions">Hướng dẫn tùy chỉnh</string>
+    <string name="acct_custom_instructions_help">Viết đôi điều về bạn hoặc cách bạn muốn được trả lời, và điều đó sẽ áp dụng cho mọi đoạn chat.</string>
     <string name="acct_custom_instructions_placeholder">Ví dụ:\n- Trả lời tự nhiên, dễ hiểu\n- Nói kết luận trước, ngắn gọn thôi\n- Nếu không chắc thì nói thẳng, đừng đoán</string>
     <string name="acct_err_load_custom_instructions">Không thể tải hướng dẫn tùy chỉnh của bạn.</string>
     <string name="acct_err_save_custom_instructions">Không thể lưu hướng dẫn tùy chỉnh của bạn. Vui lòng thử lại.</string>

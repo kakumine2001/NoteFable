@@ -171,6 +171,7 @@ export const tr: Record<string, string> = {
   "Current language": "Geçerli dil",
   "Current: {language}": "Geçerli: {language}",
   "Custom instructions": "Özel talimatlar",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Kendinden ya da nasıl yanıt istediğinden bahset; bu tüm sohbetlerde geçerli olur.",
   "Dark skin tone": "Koyu cilt tonu",
   "Database is unavailable. Start local PostgreSQL and try again.": "Veritabanına ulaşılamıyor. Yerel PostgreSQL hizmetini başlatıp tekrar deneyin.",
   "Default": "Varsayılan",

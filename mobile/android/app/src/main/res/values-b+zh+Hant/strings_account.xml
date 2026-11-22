@@ -23,6 +23,7 @@
     <string name="settings_personalization">個性化</string>
     <string name="settings_unsaved">有未儲存的更改</string>
     <string name="acct_custom_instructions">自定義指令</string>
+    <string name="acct_custom_instructions_help">寫下你的情況或喜歡的回答方式，所有聊天都會參考。</string>
     <string name="acct_custom_instructions_placeholder">例如：\n- 用輕鬆自然的語氣回答\n- 先說結論，儘量簡短\n- 不確定就直接說，不要瞎猜</string>
     <string name="acct_err_load_custom_instructions">無法載入你的自定義指令。</string>
     <string name="acct_err_save_custom_instructions">無法儲存你的自定義指令，請重試。</string>

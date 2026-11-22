@@ -171,6 +171,7 @@ export const ar: Record<string, string> = {
   "Current language": "اللغة الحالية",
   "Current: {language}": "الحالية: {language}",
   "Custom instructions": "تعليمات مخصصة",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "اكتب شيئًا عن نفسك أو عن الطريقة التي تفضّل بها الإجابات، وسيُطبَّق ذلك على كل المحادثات.",
   "Dark skin tone": "بشرة داكنة",
   "Database is unavailable. Start local PostgreSQL and try again.": "قاعدة البيانات غير متاحة. شغّل PostgreSQL المحلي وحاول مرة أخرى.",
   "Default": "افتراضي",

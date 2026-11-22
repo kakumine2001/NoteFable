@@ -184,6 +184,7 @@
 "settings_personalization" = "Personnalisation";
 "settings_unsaved" = "Modifications non enregistrées";
 "acct_custom_instructions" = "Instructions personnalisées";
+"acct_custom_instructions_help" = "Parlez de vous ou de vos préférences de réponse : cela s’appliquera à toutes les discussions.";
 "acct_custom_instructions_placeholder" = "Par exemple :\n- Réponds simplement, sur un ton détendu\n- Commence par la conclusion et reste bref\n- Si tu n’es pas sûr, dis-le au lieu de deviner";
 "acct_err_load_custom_instructions" = "Impossible de charger vos instructions personnalisées.";
 "acct_err_save_custom_instructions" = "Impossible d’enregistrer vos instructions personnalisées. Veuillez réessayer.";

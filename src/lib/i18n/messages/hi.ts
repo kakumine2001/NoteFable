@@ -171,6 +171,7 @@ export const hi: Record<string, string> = {
   "Current language": "वर्तमान भाषा",
   "Current: {language}": "वर्तमान: {language}",
   "Custom instructions": "कस्टम निर्देश",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "अपने बारे में या जवाबों की अपनी पसंद लिखें, यह हर चैट पर लागू होगा।",
   "Dark skin tone": "गहरा त्वचा रंग",
   "Database is unavailable. Start local PostgreSQL and try again.": "डेटाबेस उपलब्ध नहीं है। लोकल PostgreSQL शुरू करें और फिर से प्रयास करें।",
   "Default": "डिफ़ॉल्ट",

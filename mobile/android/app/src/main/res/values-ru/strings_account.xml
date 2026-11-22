@@ -22,6 +22,7 @@
     <string name="settings_personalization">Персонализация</string>
     <string name="settings_unsaved">Есть несохранённые изменения</string>
     <string name="acct_custom_instructions">Пользовательские инструкции</string>
+    <string name="acct_custom_instructions_help">Расскажите о себе или о том, какие ответы вам нравятся, — это будет учитываться во всех чатах.</string>
     <string name="acct_custom_instructions_placeholder">Например:\n- Отвечай просто и по-дружески\n- Сначала вывод, коротко\n- Если не уверен, так и скажи, не гадай</string>
     <string name="acct_err_load_custom_instructions">Не удалось загрузить ваши пользовательские инструкции.</string>
     <string name="acct_err_save_custom_instructions">Не удалось сохранить ваши пользовательские инструкции. Пожалуйста, попробуйте ещё раз.</string>

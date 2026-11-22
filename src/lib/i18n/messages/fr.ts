@@ -171,6 +171,7 @@ export const fr: Record<string, string> = {
   "Current language": "Langue actuelle",
   "Current: {language}": "Actuelle : {language}",
   "Custom instructions": "Instructions personnalisées",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Parlez de vous ou de vos préférences de réponse : cela s’appliquera à toutes les discussions.",
   "Dark skin tone": "Teint foncé",
   "Database is unavailable. Start local PostgreSQL and try again.": "La base de données est indisponible. Démarrez PostgreSQL en local et réessayez.",
   "Default": "Par défaut",

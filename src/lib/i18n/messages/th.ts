@@ -171,6 +171,7 @@ export const th: Record<string, string> = {
   "Current language": "ภาษาปัจจุบัน",
   "Current: {language}": "ปัจจุบัน: {language}",
   "Custom instructions": "คำสั่งกำหนดเอง",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "เขียนเรื่องเกี่ยวกับตัวคุณหรือรูปแบบคำตอบที่ชอบไว้ แล้วจะใช้กับทุกแชท",
   "Dark skin tone": "สีผิวเข้ม",
   "Database is unavailable. Start local PostgreSQL and try again.": "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาเปิด PostgreSQL ในเครื่องแล้วลองอีกครั้ง",
   "Default": "ค่าเริ่มต้น",

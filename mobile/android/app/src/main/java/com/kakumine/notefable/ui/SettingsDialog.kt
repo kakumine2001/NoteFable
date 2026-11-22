@@ -458,6 +458,7 @@ private fun CustomInstructionsSection(
             Text("${instructions.length}/$MAX_CUSTOM_INSTRUCTIONS", color = Sm.Muted, fontSize = 12.sp, lineHeight = 18.sp)
         }
     }
+    SettingsHelpText(stringResource(R.string.acct_custom_instructions_help))
     when {
         loadError != null -> {
             Text(loadError, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 12.dp))

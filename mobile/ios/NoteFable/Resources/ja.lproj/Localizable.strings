@@ -184,6 +184,7 @@
 "settings_personalization" = "パーソナライズ";
 "settings_unsaved" = "未保存の変更があります";
 "acct_custom_instructions" = "カスタム指示";
+"acct_custom_instructions_help" = "自分のことや答え方の好みを書くと、すべてのチャットに反映されます。";
 "acct_custom_instructions_placeholder" = "例：\n・タメ口で、わかりやすく答えて\n・結論から先に、短めに\n・わからないことは推測せずにそう言って";
 "acct_err_load_custom_instructions" = "カスタム指示を読み込めませんでした。";
 "acct_err_save_custom_instructions" = "カスタム指示を保存できませんでした。もう一度お試しください。";

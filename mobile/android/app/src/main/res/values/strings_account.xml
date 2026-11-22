@@ -23,6 +23,7 @@
     <string name="settings_personalization">Personalization</string>
     <string name="settings_unsaved">Unsaved changes</string>
     <string name="acct_custom_instructions">Custom instructions</string>
+    <string name="acct_custom_instructions_help">Share anything about yourself or how you like answers, and it applies to every chat.</string>
     <string name="acct_custom_instructions_placeholder">For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing</string>
     <string name="acct_err_load_custom_instructions">Could not load your custom instructions.</string>
     <string name="acct_err_save_custom_instructions">Could not save your custom instructions. Please try again.</string>

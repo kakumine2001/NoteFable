@@ -184,6 +184,7 @@
 "settings_personalization" = "Kişiselleştirme";
 "settings_unsaved" = "Kaydedilmemiş değişiklikler";
 "acct_custom_instructions" = "Özel talimatlar";
+"acct_custom_instructions_help" = "Kendinden ya da nasıl yanıt istediğinden bahset; bu tüm sohbetlerde geçerli olur.";
 "acct_custom_instructions_placeholder" = "Örneğin:\n- Sade ve samimi bir dille cevap ver\n- Önce sonucu söyle, kısa tut\n- Emin değilsen tahmin yürütme, bunu söyle";
 "acct_err_load_custom_instructions" = "Özel talimatlarınız yüklenemedi.";
 "acct_err_save_custom_instructions" = "Özel talimatlarınız kaydedilemedi. Lütfen tekrar deneyin.";

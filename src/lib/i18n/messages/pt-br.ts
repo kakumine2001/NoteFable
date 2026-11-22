@@ -171,6 +171,7 @@ export const ptBR: Record<string, string> = {
   "Current language": "Idioma atual",
   "Current: {language}": "Atual: {language}",
   "Custom instructions": "Instruções personalizadas",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "Conte algo sobre você ou como prefere as respostas, e isso vale para todos os chats.",
   "Dark skin tone": "Tom de pele escuro",
   "Database is unavailable. Start local PostgreSQL and try again.": "O banco de dados está indisponível. Inicie o PostgreSQL local e tente novamente.",
   "Default": "Padrão",

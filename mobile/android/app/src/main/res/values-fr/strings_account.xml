@@ -22,6 +22,7 @@
     <string name="settings_personalization">Personnalisation</string>
     <string name="settings_unsaved">Modifications non enregistrées</string>
     <string name="acct_custom_instructions">Instructions personnalisées</string>
+    <string name="acct_custom_instructions_help">Parlez de vous ou de vos préférences de réponse : cela s’appliquera à toutes les discussions.</string>
     <string name="acct_custom_instructions_placeholder">Par exemple :\n- Réponds simplement, sur un ton détendu\n- Commence par la conclusion et reste bref\n- Si tu n’es pas sûr, dis-le au lieu de deviner</string>
     <string name="acct_err_load_custom_instructions">Impossible de charger vos instructions personnalisées.</string>
     <string name="acct_err_save_custom_instructions">Impossible d’enregistrer vos instructions personnalisées. Veuillez réessayer.</string>

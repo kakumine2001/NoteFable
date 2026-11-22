@@ -22,6 +22,7 @@
     <string name="settings_personalization">Personalização</string>
     <string name="settings_unsaved">Alterações não salvas</string>
     <string name="acct_custom_instructions">Instruções personalizadas</string>
+    <string name="acct_custom_instructions_help">Conte algo sobre você ou como prefere as respostas, e isso vale para todos os chats.</string>
     <string name="acct_custom_instructions_placeholder">Por exemplo:\n- Responda de forma simples e descontraída\n- Comece pela conclusão e seja breve\n- Se não tiver certeza, diga isso em vez de chutar</string>
     <string name="acct_err_load_custom_instructions">Não foi possível carregar suas instruções personalizadas.</string>
     <string name="acct_err_save_custom_instructions">Não foi possível salvar suas instruções personalizadas. Tente novamente.</string>

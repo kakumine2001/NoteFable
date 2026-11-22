@@ -184,6 +184,7 @@
 "settings_personalization" = "Personalization";
 "settings_unsaved" = "Unsaved changes";
 "acct_custom_instructions" = "Custom instructions";
+"acct_custom_instructions_help" = "Share anything about yourself or how you like answers, and it applies to every chat.";
 "acct_custom_instructions_placeholder" = "For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing";
 "acct_err_load_custom_instructions" = "Could not load your custom instructions.";
 "acct_err_save_custom_instructions" = "Could not save your custom instructions. Please try again.";

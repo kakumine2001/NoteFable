@@ -184,6 +184,7 @@
 "settings_personalization" = "个性化";
 "settings_unsaved" = "有未保存的更改";
 "acct_custom_instructions" = "自定义指令";
+"acct_custom_instructions_help" = "写下你的情况或喜欢的回答方式，所有聊天都会参考。";
 "acct_custom_instructions_placeholder" = "例如：\n- 用轻松自然的语气回答\n- 先说结论，尽量简短\n- 不确定就直接说，不要瞎猜";
 "acct_err_load_custom_instructions" = "无法加载你的自定义指令。";
 "acct_err_save_custom_instructions" = "无法保存你的自定义指令，请重试。";

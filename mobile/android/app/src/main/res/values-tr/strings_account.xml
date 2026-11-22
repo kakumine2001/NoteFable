@@ -22,6 +22,7 @@
     <string name="settings_personalization">Kişiselleştirme</string>
     <string name="settings_unsaved">Kaydedilmemiş değişiklikler</string>
     <string name="acct_custom_instructions">Özel talimatlar</string>
+    <string name="acct_custom_instructions_help">Kendinden ya da nasıl yanıt istediğinden bahset; bu tüm sohbetlerde geçerli olur.</string>
     <string name="acct_custom_instructions_placeholder">Örneğin:\n- Sade ve samimi bir dille cevap ver\n- Önce sonucu söyle, kısa tut\n- Emin değilsen tahmin yürütme, bunu söyle</string>
     <string name="acct_err_load_custom_instructions">Özel talimatlarınız yüklenemedi.</string>
     <string name="acct_err_save_custom_instructions">Özel talimatlarınız kaydedilemedi. Lütfen tekrar deneyin.</string>

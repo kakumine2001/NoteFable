@@ -1,6 +1,7 @@
 export const ja: Record<string, string> = {
   "Settings": "設定",
   "Custom instructions": "カスタム指示",
+  "Share anything about yourself or how you like answers, and it applies to every chat.": "自分のことや答え方の好みを書くと、すべてのチャットに反映されます。",
   "For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing": "例：\n・タメ口で、わかりやすく答えて\n・結論から先に、短めに\n・わからないことは推測せずにそう言って",
   "Could not change language. Please try again.": "言語を切り替えられませんでした。もう一度お試しください。",
   "+{count} more": "ほか{count}件",
