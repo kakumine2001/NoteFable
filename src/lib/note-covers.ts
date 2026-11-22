@@ -8,20 +8,21 @@ export { sniffImage as sniffCoverImage } from "@/lib/note-file-keys";
 export const COVER_CONTENT_TYPES: Record<string, string> = { jpg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif" };
 
 // 他人のフォルダにある画像キーを、自分のページのカバーとして保存させない。
-export function assertCoverOwner(cover: string | null, userId: string) {
+// kind は誤りの文言だけを変える（ページのアイコンにも同じ形の画像を使う）。
+export function assertCoverOwner(cover: string | null, userId: string, kind: "cover" | "icon" = "cover") {
   const upload = uploadedCoverPath(cover);
-  if (upload && upload.ownerId !== userId) throw new NoteValidationError(msg("Unsupported note cover."));
+  if (upload && upload.ownerId !== userId) throw new NoteValidationError(kind === "icon" ? msg("Note icon must be a single emoji or an uploaded image.") : msg("Unsupported note cover."));
 }
 
 type CoverClient = Pick<typeof prisma, "noteCoverAsset">;
 
 // ページにアップロード画像を設定する保存処理の中で呼ぶ。資産行を「使用中」に戻し、
 // 日次削除がすでに行を消していた場合は保存を拒否して、存在しない画像を参照させない。
-export async function claimCover(tx: CoverClient, cover: string | null, userId: string) {
+export async function claimCover(tx: CoverClient, cover: string | null, userId: string, kind: "cover" | "icon" = "cover") {
   const upload = uploadedCoverPath(cover);
   if (!upload) return;
   const claimed = await tx.noteCoverAsset.updateMany({ where: { path: upload.path, userId, deletingAt: null }, data: { releasedAt: null } });
-  if (!claimed.count) throw new NoteValidationError(msg("This cover image is no longer available. Choose another cover."));
+  if (!claimed.count) throw new NoteValidationError(kind === "icon" ? msg("This icon image is no longer available. Choose another icon.") : msg("This cover image is no longer available. Choose another cover."));
 }
 
 // どのページからも参照されない状態が続いてから削除するまでの猶予。

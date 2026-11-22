@@ -411,7 +411,7 @@ internal fun PageChip(page: ChatProjectNote, removable: Boolean, enabled: Boolea
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (removable) 8.dp else 4.dp),
     ) {
-        NoteIcon(page.icon, 12.sp, iconSize, Sm.Muted)
+        Box(Modifier.heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { 16.sp.toDp() }), Alignment.Center) { NoteIcon(page.icon, 12.sp, iconSize, Sm.Muted) }
         Text(
             title, Modifier.weight(1f, fill = false),
             color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,

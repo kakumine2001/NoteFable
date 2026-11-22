@@ -102,7 +102,6 @@ export const thServer: Record<string, string> = {
   "Not found.": "ไม่พบข้อมูล",
   "Note changed since it was read": "โน้ตถูกแก้ไขหลังจากที่อ่านไปแล้ว",
   "Note content exceeds 1 MiB.": "เนื้อหาโน้ตมีขนาดเกิน 1 MiB",
-  "Note icon must be a single emoji.": "ไอคอนโน้ตต้องเป็นอิโมจิเพียง 1 ตัว",
   "Note not found": "ไม่พบโน้ต",
   "Note not found in the trash.": "ไม่พบโน้ตนี้ในถังขยะ",
   "Note not found.": "ไม่พบโน้ต",
@@ -225,4 +224,5 @@ export const thServer: Record<string, string> = {
   "Invalid share settings.": "การตั้งค่าการแชร์ไม่ถูกต้อง",
   "Expiration time must be in the future.": "เวลาหมดอายุต้องอยู่ในอนาคต",
   "Note icon must be a single emoji or an uploaded image.": "ไอคอนโน้ตต้องเป็นอีโมจิหนึ่งตัวหรือรูปภาพที่อัปโหลด",
+  "This icon image is no longer available. Choose another icon.": "รูปไอคอนนี้ใช้ไม่ได้แล้ว โปรดเลือกไอคอนอื่น",
 };

@@ -102,7 +102,6 @@ export const itServer: Record<string, string> = {
   "Not found.": "Non trovato.",
   "Note changed since it was read": "La nota è stata modificata dopo la lettura",
   "Note content exceeds 1 MiB.": "Il contenuto della nota supera 1 MiB.",
-  "Note icon must be a single emoji.": "L’icona della nota deve essere una sola emoji.",
   "Note not found": "Nota non trovata",
   "Note not found in the trash.": "Nota non trovata nel cestino.",
   "Note not found.": "Nota non trovata.",
@@ -225,4 +224,5 @@ export const itServer: Record<string, string> = {
   "Invalid share settings.": "Impostazioni di condivisione non valide.",
   "Expiration time must be in the future.": "La data di scadenza deve essere nel futuro.",
   "Note icon must be a single emoji or an uploaded image.": "L’icona della nota deve essere una singola emoji o un’immagine caricata.",
+  "This icon image is no longer available. Choose another icon.": "Questa immagine dell’icona non è più disponibile. Scegli un’altra icona.",
 };

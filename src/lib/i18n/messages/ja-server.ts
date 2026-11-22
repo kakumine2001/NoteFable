@@ -76,7 +76,6 @@ export const jaServer: Record<string, string> = {
   "No changes supplied.": "変更がありません。",
   "Not found.": "見つかりません。",
   "Note content exceeds 1 MiB.": "ノートの内容が 1 MiB を超えています。",
-  "Note icon must be a single emoji.": "ノートのアイコンは絵文字 1 つにしてください。",
   "Note not found in the trash.": "ゴミ箱にこのノートが見つかりません。",
   "Note not found.": "ノートが見つかりません。",
   "Nothing to update.": "更新する内容がありません。",
@@ -225,4 +224,5 @@ export const jaServer: Record<string, string> = {
   "Invalid share settings.": "共有設定が正しくありません。",
   "Expiration time must be in the future.": "有効期限は現在より後の日時を指定してください。",
   "Note icon must be a single emoji or an uploaded image.": "ノートのアイコンは絵文字 1 つか、アップロードした画像にしてください。",
+  "This icon image is no longer available. Choose another icon.": "このアイコン画像は使えなくなりました。別のアイコンを選んでください。",
 };

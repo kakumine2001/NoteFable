@@ -102,7 +102,6 @@ export const trServer: Record<string, string> = {
   "Not found.": "Bulunamadı.",
   "Note changed since it was read": "Not okunduktan sonra değiştirildi",
   "Note content exceeds 1 MiB.": "Not içeriği 1 MiB sınırını aşıyor.",
-  "Note icon must be a single emoji.": "Not simgesi tek bir emoji olmalıdır.",
   "Note not found": "Not bulunamadı",
   "Note not found in the trash.": "Not Çöp Kutusu'nda bulunamadı.",
   "Note not found.": "Not bulunamadı.",
@@ -225,4 +224,5 @@ export const trServer: Record<string, string> = {
   "Invalid share settings.": "Geçersiz paylaşım ayarları.",
   "Expiration time must be in the future.": "Son kullanma tarihi gelecekte olmalıdır.",
   "Note icon must be a single emoji or an uploaded image.": "Not simgesi tek bir emoji veya yüklenmiş bir görsel olmalıdır.",
+  "This icon image is no longer available. Choose another icon.": "Bu simge görseli artık kullanılamıyor. Başka bir simge seçin.",
 };

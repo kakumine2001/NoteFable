@@ -102,7 +102,6 @@ export const idServer: Record<string, string> = {
   "Not found.": "Tidak ditemukan.",
   "Note changed since it was read": "Catatan telah berubah sejak dibaca",
   "Note content exceeds 1 MiB.": "Isi catatan melebihi 1 MiB.",
-  "Note icon must be a single emoji.": "Ikon catatan harus berupa satu emoji.",
   "Note not found": "Catatan tidak ditemukan",
   "Note not found in the trash.": "Catatan tidak ditemukan di sampah.",
   "Note not found.": "Catatan tidak ditemukan.",
@@ -225,4 +224,5 @@ export const idServer: Record<string, string> = {
   "Invalid share settings.": "Pengaturan berbagi tidak valid.",
   "Expiration time must be in the future.": "Waktu kedaluwarsa harus di masa mendatang.",
   "Note icon must be a single emoji or an uploaded image.": "Ikon catatan harus berupa satu emoji atau gambar yang diunggah.",
+  "This icon image is no longer available. Choose another icon.": "Gambar ikon ini sudah tidak tersedia. Pilih ikon lain.",
 };

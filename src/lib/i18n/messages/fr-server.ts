@@ -102,7 +102,6 @@ export const frServer: Record<string, string> = {
   "Not found.": "Introuvable.",
   "Note changed since it was read": "La note a été modifiée depuis sa lecture",
   "Note content exceeds 1 MiB.": "Le contenu de la note dépasse 1 MiB.",
-  "Note icon must be a single emoji.": "L’icône de la note doit être un seul émoji.",
   "Note not found": "Note introuvable",
   "Note not found in the trash.": "Note introuvable dans la corbeille.",
   "Note not found.": "Note introuvable.",
@@ -225,4 +224,5 @@ export const frServer: Record<string, string> = {
   "Invalid share settings.": "Les paramètres de partage sont invalides.",
   "Expiration time must be in the future.": "La date d'expiration doit être dans le futur.",
   "Note icon must be a single emoji or an uploaded image.": "L’icône de la note doit être un seul emoji ou une image importée.",
+  "This icon image is no longer available. Choose another icon.": "Cette image d’icône n’est plus disponible. Choisissez une autre icône.",
 };

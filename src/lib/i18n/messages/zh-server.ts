@@ -76,7 +76,6 @@ export const zhServer: Record<string, string> = {
   "No changes supplied.": "没有要保存的更改。",
   "Not found.": "找不到内容。",
   "Note content exceeds 1 MiB.": "笔记内容超过 1 MiB。",
-  "Note icon must be a single emoji.": "笔记图标只能是一个表情符号。",
   "Note not found in the trash.": "回收站里找不到这篇笔记。",
   "Note not found.": "找不到笔记。",
   "Nothing to update.": "没有需要更新的内容。",
@@ -225,4 +224,5 @@ export const zhServer: Record<string, string> = {
   "Invalid share settings.": "分享设置无效。",
   "Expiration time must be in the future.": "过期时间必须晚于当前时间。",
   "Note icon must be a single emoji or an uploaded image.": "笔记图标必须是一个表情符号或上传的图片。",
+  "This icon image is no longer available. Choose another icon.": "此图标图片已不可用，请选择其他图标。",
 };

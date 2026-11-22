@@ -102,7 +102,6 @@ export const hiServer: Record<string, string> = {
   "Not found.": "नहीं मिला।",
   "Note changed since it was read": "पढ़े जाने के बाद से नोट में बदलाव हो चुका है",
   "Note content exceeds 1 MiB.": "नोट की सामग्री 1 MiB से अधिक है।",
-  "Note icon must be a single emoji.": "नोट आइकन केवल एक इमोजी होना चाहिए।",
   "Note not found": "नोट नहीं मिला",
   "Note not found in the trash.": "ट्रैश में यह नोट नहीं मिला।",
   "Note not found.": "नोट नहीं मिला।",
@@ -225,4 +224,5 @@ export const hiServer: Record<string, string> = {
   "Invalid share settings.": "साझाकरण सेटिंग्स अमान्य हैं।",
   "Expiration time must be in the future.": "समाप्ति समय भविष्य में होना चाहिए।",
   "Note icon must be a single emoji or an uploaded image.": "नोट का आइकन एक इमोजी या अपलोड की गई इमेज होना चाहिए।",
+  "This icon image is no longer available. Choose another icon.": "यह आइकन इमेज अब उपलब्ध नहीं है। कोई दूसरा आइकन चुनें।",
 };

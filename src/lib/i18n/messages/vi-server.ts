@@ -102,7 +102,6 @@ export const viServer: Record<string, string> = {
   "Not found.": "Không tìm thấy.",
   "Note changed since it was read": "Ghi chú đã thay đổi kể từ lúc được đọc",
   "Note content exceeds 1 MiB.": "Nội dung ghi chú vượt quá 1 MiB.",
-  "Note icon must be a single emoji.": "Biểu tượng ghi chú phải là một biểu tượng cảm xúc duy nhất.",
   "Note not found": "Không tìm thấy ghi chú",
   "Note not found in the trash.": "Không tìm thấy ghi chú trong thùng rác.",
   "Note not found.": "Không tìm thấy ghi chú.",
@@ -225,4 +224,5 @@ export const viServer: Record<string, string> = {
   "Invalid share settings.": "Cài đặt chia sẻ không hợp lệ.",
   "Expiration time must be in the future.": "Thời gian hết hạn phải ở trong tương lai.",
   "Note icon must be a single emoji or an uploaded image.": "Biểu tượng ghi chú phải là một emoji hoặc một ảnh đã tải lên.",
+  "This icon image is no longer available. Choose another icon.": "Ảnh biểu tượng này không còn dùng được. Hãy chọn biểu tượng khác.",
 };

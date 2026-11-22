@@ -17,14 +17,16 @@ export async function PUT(request: Request, context: Context) {
     const { icon } = await readSmallJson(request);
     if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
     const user = await getOrCreateUser();
-    assertCoverOwner(icon as string | null, user.id);
+    assertCoverOwner(icon as string | null, user.id, "icon");
     const { pageId } = await context.params;
+    // ページが見つかったときだけ画像を「使用中」にする（見つからない 404 では資産に触れない。失敗すれば更新ごと取り消す）。
     const result = await prisma.$transaction(async (tx) => {
-      await claimCover(tx, icon as string | null, user.id);
-      return tx.notePage.updateMany({
+      const updated = await tx.notePage.updateMany({
         where: { id: pageId, userId: user.id, deletedAt: null },
         data: { icon: icon as string | null, version: { increment: 1 } },
       });
+      if (updated.count) await claimCover(tx, icon as string | null, user.id, "icon");
+      return updated;
     });
     if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });

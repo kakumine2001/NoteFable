@@ -274,8 +274,10 @@ private fun PickerBar(current: String?, removeLabel: String, onRandom: () -> Uni
     ) {
         Text(stringResource(R.string.em_emoji), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.Medium)
         // 选中标记：网页在"Emoji"后面接一个空格和当前表情（aria-label "Current emoji"）。
-        if (current != null) {
-            Text(" $current", color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.semantics { contentDescription = "$currentLabel $current" })
+        // 笔记的图标是上传图片时没有文字形式，和网页一样不显示（Remove 照常可用）。
+        val currentEmoji = com.kakumine.notefable.data.NoteIcons.text(current)
+        if (currentEmoji != null) {
+            Text(" $currentEmoji", color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.semantics { contentDescription = "$currentLabel $currentEmoji" })
         }
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {

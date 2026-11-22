@@ -102,7 +102,6 @@ export const arServer: Record<string, string> = {
   "Not found.": "غير موجود.",
   "Note changed since it was read": "تغيّرت الملاحظة بعد قراءتها",
   "Note content exceeds 1 MiB.": "يتجاوز محتوى الملاحظة 1 MiB.",
-  "Note icon must be a single emoji.": "يجب أن تكون أيقونة الملاحظة رمزاً تعبيرياً واحداً.",
   "Note not found": "لم يتم العثور على الملاحظة",
   "Note not found in the trash.": "لم يتم العثور على الملاحظة في سلة المهملات.",
   "Note not found.": "لم يتم العثور على الملاحظة.",
@@ -225,4 +224,5 @@ export const arServer: Record<string, string> = {
   "Invalid share settings.": "إعدادات المشاركة غير صالحة.",
   "Expiration time must be in the future.": "يجب أن يكون وقت انتهاء الصلاحية في المستقبل.",
   "Note icon must be a single emoji or an uploaded image.": "يجب أن تكون أيقونة الملاحظة رمزًا تعبيريًا واحدًا أو صورة مرفوعة.",
+  "This icon image is no longer available. Choose another icon.": "لم تعد صورة الأيقونة هذه متاحة. اختر أيقونة أخرى.",
 };
