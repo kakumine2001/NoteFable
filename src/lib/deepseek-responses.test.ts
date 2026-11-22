@@ -1,10 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
   buildDeepSeekResponsesRequest,
+  deepSeekWebSearchTool,
   parseDeepSeekResponsesDelta,
 } from "./deepseek-responses";
 
 describe("DeepSeek Responses API helpers", () => {
+  it("selects the built-in web search tool for the resolved upstream DeepSeek model", () => {
+    expect(deepSeekWebSearchTool("deepseek-flash")).toEqual({ type: "deepseek_web_search" });
+    expect(deepSeekWebSearchTool("deepseek-v4-flash")).toEqual({ type: "deepseek_web_search" });
+    expect(deepSeekWebSearchTool("DeepSeek-V4.1-Flash-1017")).toEqual({ type: "deepseek_web_search" });
+    expect(deepSeekWebSearchTool("deepseek-v4-pro")).toEqual({ type: "web_search" });
+    expect(deepSeekWebSearchTool("deepseek-v4-pro-2026")).toEqual({ type: "web_search" });
+  });
   it("rejects incomplete replies and unhandled tool calls", () => {
     expect(() => parseDeepSeekResponsesDelta(JSON.stringify({ type: "response.incomplete" }))).toThrow("incomplete");
     expect(() => parseDeepSeekResponsesDelta(JSON.stringify({

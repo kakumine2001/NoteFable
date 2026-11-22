@@ -174,7 +174,8 @@ export function parseActivityEvent(event: UpstreamEvent & Record<string, unknown
   if (item?.type !== "web_search_call" || typeof item.id !== "string") return null;
   if (event.type === "response.output_item.added") return { type: "web", id: item.id, status: "running" };
   if (event.type === "response.output_item.done") {
-    return { type: "web", id: item.id, status: "done", action: parseWebAction(item.action) };
+    // 失敗した検索・ページ読み取り（status: "failed"）は action を持たせず、参照数にも保存済み履歴にも含めない。
+    return { type: "web", id: item.id, status: "done", action: item.status === "failed" ? undefined : parseWebAction(item.action) };
   }
   return null;
 }

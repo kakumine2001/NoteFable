@@ -94,17 +94,46 @@ describe("DeepSeek chat response boundary", () => {
     mocks.createMessage.mockResolvedValue({ id: "message" });
   });
 
-  it("normalizes old search requests and persists an ordinary answer", async () => {
+  it("enables deepseek_web_search with tool_choice auto and persists cited links and web activity", async () => {
     expect(await send([
+      { type: "response.output_item.added", item: { id: "ws_ds_1", type: "web_search_call", status: "in_progress" } },
+      { type: "response.output_item.done", item: { id: "ws_ds_1", type: "web_search_call", status: "completed",
+        action: { type: "search", queries: ["Apple Watch 中国語 入力"], sources: [{ type: "url", url: "https://support.apple.com/zh-cn" }] } } },
+      { type: "response.output_item.added", item: { id: "ws_ds_fail", type: "web_search_call", status: "in_progress" } },
+      { type: "response.output_item.done", item: { id: "ws_ds_fail", type: "web_search_call", status: "failed",
+        action: { type: "open_page", url: "https://support.apple.com/broken" } } },
       { type: "response.output_text.delta", delta: "通常の回答" },
+      { type: "response.output_text.annotation.added", annotation: {
+        type: "url_citation", url: "https://support.apple.com/zh-cn", title: "Apple Support",
+      } },
       { type: "response.completed" },
-    ])).toBe("通常の回答");
+    ])).toBe("通常の回答\n\nSources:\n- [Apple Support](<https://support.apple.com/zh-cn>)");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    // DeepSeek には検索を送らず、Pages の function ツールだけを送る。
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
+    // DeepSeek-V4.1-Flash には deepseek_web_search と Notes の function ツールを送り、tool_choice は常に auto にする。
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["deepseek_web_search", "search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toBe("auto");
-    expect(body.instructions).toContain("Web search is unavailable");
+    expect(body.instructions).toContain("When web search supplies facts, include clickable Markdown links to the sources in the answer.");
     expect(historyQuery()).not.toHaveProperty("take");
+    const saved = mocks.createMessage.mock.calls.at(-1)?.[0].data;
+    expect(JSON.parse(saved.activity)).toEqual([
+      { id: "ws_ds_1", kind: "web", status: "done",
+        action: { kind: "search", queries: ["Apple Watch 中国語 入力"], sources: ["https://support.apple.com/zh-cn"] } },
+    ]);
+  });
+
+  it("uses web_search when the configured upstream DeepSeek model is deepseek-v4-pro", async () => {
+    vi.stubEnv("NOTEFABLE_MODELS", JSON.stringify([{ id: "deepseek-flash", upstreamModel: "deepseek-v4-pro" }]));
+    try {
+      await send([
+        { type: "response.output_text.delta", delta: "回答" },
+        { type: "response.completed" },
+      ]);
+      const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
+      expect(body.model).toBe("deepseek-v4-pro");
+      expect(body.tools[0]).toEqual({ type: "web_search" });
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("never forwards or persists leaked tool text split across deltas", async () => {

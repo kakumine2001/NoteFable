@@ -114,6 +114,8 @@ describe("chat requests made from inside a note", () => {
     };
     expect(await tools({})).toContain("web_search");
     expect(await tools({ noteId: "note1" })).not.toContain("web_search");
+    expect(await tools({ model: "deepseek-flash" })).toContain("deepseek_web_search");
+    expect(await tools({ model: "deepseek-flash", noteId: "note1" })).not.toContain("deepseek_web_search");
   });
 
   it("returns 404 when the conversation does not match the note", async () => {

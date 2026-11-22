@@ -176,7 +176,7 @@ private fun shimmerBrush(): Brush {
 @Composable
 private fun describeCurrent(steps: List<ActivityStep>, systemText: SystemTextTranslator): String {
     val thinking = stringResource(R.string.activity_thinking)
-    return when (val last = steps.lastOrNull()) {
+    return when (val last = steps.lastOrNull { it !is ActivityStep.Web || !it.done || it.action != null }) {
         null -> thinking
         is ActivityStep.Thought -> Activity.splitThought(last.text).first.ifEmpty { thinking }
         is ActivityStep.Tool -> if (last.done && last.label != null) systemText.localize(last.label) else toolRunningLabel(last.name)
@@ -276,9 +276,10 @@ private fun StepRow(step: ActivityStep, systemText: SystemTextTranslator, onOpen
         is ActivityStep.Web -> {
             val action = step.action
             when {
-                !step.done || action == null -> StepShell(Lucide.LoaderCircle, spinning = true) {
+                !step.done -> StepShell(Lucide.LoaderCircle, spinning = true) {
                     StepTitle(stringResource(R.string.activity_searching_web_running))
                 }
+                action == null -> return
                 action is WebAction.Search -> StepShell(Lucide.Search) {
                     StepTitle(stringResource(R.string.activity_searched))
                     Column(Modifier.padding(top = 3.2.dp)) {

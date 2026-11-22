@@ -254,7 +254,7 @@ npm run prisma:migrate
 
 - GPT-6 Luna：支持图片输入、Web 搜索、Notes 工具，以及 `none / low / medium / high / xhigh / max`
 - Claude Haiku 5.5：支持图片输入、原生 Web 搜索和 Notes 工具；推理强度为 `low / medium / high / xhigh / max`，默认 `medium`，使用 adaptive thinking。Claude 的推理滑杆使用暖色，其他模型保留蓝色。
-- DeepSeek-V4.1-Flash：支持图片输入和 Notes 工具，不支持内置 Web 搜索；推理强度为 `low / high / max`，默认 `high`
+- DeepSeek-V4.1-Flash：支持图片输入、内置 Web 搜索（`deepseek_web_search`）和 Notes 工具；推理强度为 `low / high / max`，默认 `high`
 - 图片生成不依赖所选聊天模型：任何模型下都可以打开 Create an image，`/api/images` 固定调用 OpenAI 的图片接口，所选模型只记录在保存的消息上
 
 三个模型都可以用 `search_notes` / `read_note` 读取当前用户自己的 Notes（Trash 里的除外），用 `list_chat_attachments` 查找当前聊天的附件，并用 `propose_note_edit` / `propose_note_create` 提议修改或新建页面，包括把符合条件的聊天图片放进笔记：提案只会在聊天里显示成待确认的卡片，用户点 Apply / Create note 后才会保存。提案存进 `NoteProposal` 表，刷新页面后仍在，适用只会生效一次，详见 [chat-flow.md](docs/architecture/chat-flow.md#notes-工具三家模型共用)。
@@ -263,7 +263,7 @@ Claude 普通聊天默认使用官方最大输出 `max_tokens: 128000`，包含�
 
 两者发送上一次压缩状态和后续文字历史，首次压缩前发送全部文字历史，不再按最近 30 条或历史附件合计 120,000 字符截断（DeepSeek 同样发送全部文字历史，不设条数上限，历史附件文本合计仍限 120,000 字符）；单文件提取与历史图片限制保留。`Message.providerContext` 保存成功回答的厂商原生压缩状态，按 provider 与实际上游 model 隔离，下一轮从该状态继续；原消息和附件保留供界面查看，状态不返回浏览器。超出上游硬性输入或请求大小限制仍可能报错，压缩不能保证任意大单次上传均可接受。Batch API 的 300,000 token 输出需异步批处理与 Beta 标头，当前实时聊天不调用该接口。
 
-Web 搜索使用 OpenAI Responses API 或 Anthropic Messages API 的原生搜索能力。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，与 Notes 工具轮次合计最多 8 次上游请求（这是请求续接次数限制，与 `max_uses` 不同）。引用转换为可点击链接并随回答保存。DeepSeek 当前的 Responses API 会忽略内置 `web_search`，因此能力定义将其关闭，且不发送搜索工具或搜索指令。需要联网查询时使用 GPT 或 Claude。参见 [DeepSeek 官方兼容说明](https://api-docs.deepseek.com/guides/responses_api/#tools)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
+Web 搜索使用三家模型的服务端原生搜索能力（OpenAI Responses API 的 `web_search`、DeepSeek Responses API 的 `deepseek_web_search`、Anthropic Messages API 的 `web_search_20250305`）。Claude 使用基本 `web_search_20250305`，省略 `max_uses`，不设置单次上游请求的搜索次数上限；默认 `tool_choice: { type: "auto" }`，由模型决定是否搜索。遇到 `pause_turn` 时保留原生内容块继续，与 Notes 工具轮次合计最多 8 次上游请求（这是请求续接次数限制，与 `max_uses` 不同）。DeepSeek-V4.1-Flash（`deepseek-flash`）声明 `{ type: "deepseek_web_search" }`（该模型会忽略 OpenAI 同名的 `web_search`，且 `tool_choice` 不支持强制指定 `deepseek_web_search`，固定用 `"auto"`）。三家的搜索引用均转换为可点击链接并随回答保存。参见 [DeepSeek 官方搜索说明](https://api-docs.deepseek.com/guides/web_search)及 [Claude 官方搜索说明](https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool)。
 
 Claude 通过服务端 `ANTHROPIC_API_KEY` 接入 `/v1/messages`，API 费用与 Claude 订阅分开。推理档位和图片输入已按 [Haiku 官方规格](https://platform.claude.com/docs/en/models/haiku-5-5/overview)及 [effort 说明](https://platform.claude.com/docs/en/build-with-claude/effort)配置。文档提及的代码执行、结构化输出等能力尚未作为本应用功能开放；PDF 继续沿用统一的文本提取。普通回答仅保存文字和引用；发生压缩后，额外保存继续请求所需的原生压缩块及其后续输出，Claude 思考块不保存。原生状态仅供同厂商同模型的服务端后续请求复用。参见 [OpenAI 压缩](https://developers.openai.com/api/docs/guides/compaction)及 [Claude 压缩](https://platform.claude.com/docs/en/build-with-claude/compaction-threshold)。
 
