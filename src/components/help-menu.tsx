@@ -117,6 +117,8 @@ export function HelpMenu({ guest }: { guest: boolean }) {
   );
 }
 
+const MENU_ITEMS = '[role="menuitem"], [role="menuitemradio"]';
+
 // ボタンの上（入らなければ下）に開く小さなメニュー。右端をボタンに揃える。
 function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; items: number; onClose: () => void; children: React.ReactNode }) {
   const { t, dir } = useI18n();
@@ -129,7 +131,8 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
     const dialog = ref.current;
     if (!dialog) return;
     dialog.showModal();
-    dialog.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+    // 選ぶメニュー（外観）は、いま選ばれている項目から始める。
+    (dialog.querySelector<HTMLElement>('[role="menuitemradio"][aria-checked="true"]') ?? dialog.querySelector<HTMLElement>(MENU_ITEMS))?.focus();
     // max-height で切られる前の高さ（中身 + 枠）。
     setHeight(dialog.scrollHeight + dialog.offsetHeight - dialog.clientHeight);
   }, []);
@@ -144,7 +147,7 @@ function HelpPanel({ anchor, items, onClose, children }: { anchor: DOMRect; item
   function keyboard(event: KeyboardEvent<HTMLDivElement>) {
     if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
     event.preventDefault();
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]'));
+    const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>(MENU_ITEMS));
     const index = items.indexOf(document.activeElement as HTMLElement);
     const next = event.key === "Home" ? 0 : event.key === "End" ? items.length - 1
       : (index + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;

@@ -25,9 +25,13 @@ export function resolveTheme(preference: ThemePreference, systemDark: boolean): 
   return systemDark ? "dark" : "light";
 }
 
+// 保存できなかった（容量超過・ストレージ無効）ときに、このタブの間だけ覚えておく設定。保存できたら空に戻す。
+let unsavedPreference: ThemePreference | null = null;
+
 export function readThemePreference(
   storage: Pick<Storage, "getItem"> | undefined = typeof localStorage === "undefined" ? undefined : localStorage,
 ): ThemePreference {
+  if (unsavedPreference) return unsavedPreference;
   if (!storage) return "system";
   try {
     return parseThemePreference(storage.getItem(THEME_STORAGE_KEY)) ?? "system";
@@ -54,11 +58,13 @@ export function saveThemePreference(
   preference: ThemePreference,
   storage: Pick<Storage, "setItem"> | undefined = typeof localStorage === "undefined" ? undefined : localStorage,
 ): ResolvedTheme {
+  unsavedPreference = preference;
   if (storage) {
     try {
       storage.setItem(THEME_STORAGE_KEY, preference);
+      unsavedPreference = null;
     } catch {
-      // ストレージが使えない環境でも現在タブへの反映は続ける。
+      // ストレージが使えない環境でも現在タブへの反映は続ける（読み直しても元に戻らないよう unsavedPreference に残す）。
     }
   }
   const resolved = applyThemeToDocument(preference);
@@ -76,7 +82,10 @@ function subscribeTheme(onStoreChange: () => void) {
     onStoreChange();
   };
   const onStorage = (event: StorageEvent) => {
-    if (event.key === null || event.key === THEME_STORAGE_KEY) onChange();
+    if (event.key !== null && event.key !== THEME_STORAGE_KEY) return;
+    // 別のタブで選び直されたら、そちらに合わせる。
+    unsavedPreference = null;
+    onChange();
   };
   window.addEventListener(THEME_EVENT, onChange);
   window.addEventListener("storage", onStorage);

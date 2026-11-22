@@ -36,4 +36,16 @@ describe("theme preference helpers", () => {
     storage.setItem(THEME_STORAGE_KEY, "garbage");
     expect(readThemePreference(storage)).toBe("system");
   });
+
+  it("keeps the chosen theme for this tab when storage refuses the write", () => {
+    const full = { getItem: () => "light", setItem: () => { throw new Error("QuotaExceededError"); } };
+    saveThemePreference("dark", full);
+    // 保存できなくても、読み直したときに古い保存値へ戻らない。
+    expect(readThemePreference(full)).toBe("dark");
+    // 次に保存できたら、保存値に従う。
+    const storage = memoryStorage();
+    saveThemePreference("light", storage);
+    expect(readThemePreference(storage)).toBe("light");
+    expect(readThemePreference(full)).toBe("light");
+  });
 });

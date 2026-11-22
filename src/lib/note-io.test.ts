@@ -55,6 +55,27 @@ describe("note Markdown export and import helpers", () => {
     expect(validated.blocks[0]?.type).toBe("bulletListItem");
   });
 
+  it("keeps a note's own title through export and import", () => {
+    const long = "T".repeat(150);
+    for (const title of [long, "Release #", "#"]) {
+      const exported = noteToMarkdownFile({ title, blocks: [] });
+      expect(markdownFileToNoteContent("x.md", exported.markdown).content.title).toBe(title);
+    }
+  });
+
+  it("imports a long fenced block and an oversized ragged table without running out of stack or memory", () => {
+    const log = `# Log\n\n\`\`\`\n${Array.from({ length: 200_000 }, () => "x").join("\n")}\n\`\`\`\n`;
+    const code = markdownFileToNoteContent("log.md", log).content;
+    expect(code.blocks).toHaveLength(1);
+    expect(code.blocks[0]?.type).toBe("codeBlock");
+
+    // 見出しが 5000 列、本文が 1 列だけの 5000 行。そろえると 2500 万セルになるので、表にしない。
+    const header = `|${"a|".repeat(5000)}`;
+    const table = [header, `|${"-|".repeat(5000)}`, ...Array.from({ length: 5000 }, () => "|x|")].join("\n");
+    const ragged = markdownFileToNoteContent("t.md", table);
+    expect(ragged.content.blocks.some((block) => block.type === "table")).toBe(false);
+  });
+
   it("falls back to filename when markdown has no leading heading", () => {
     const { content } = markdownFileToNoteContent("folder/meeting-notes.markdown", "Action item one\n\n## Details\nBody");
     expect(content.title).toBe("meeting-notes");

@@ -45,7 +45,9 @@ function portableMarkdown(blocks: unknown): string {
 export function noteToMarkdownFile(note: { title: string; blocks: unknown }): { fileName: string; markdown: string } {
   const cleanTitle = note.title.replace(/[\r\n]+/g, " ").trim() || "Untitled";
   const body = portableMarkdown(note.blocks);
-  const markdown = body ? `# ${cleanTitle}\n\n${body}\n` : `# ${cleanTitle}\n`;
+  // 見出しの末尾の # は「閉じる記号」として読まれて消える。題名が # で終わるときは、閉じる記号を 1 つ足して題名の # を残す。
+  const heading = cleanTitle.endsWith("#") ? `# ${cleanTitle} #` : `# ${cleanTitle}`;
+  const markdown = body ? `${heading}\n\n${body}\n` : `${heading}\n`;
   return {
     fileName: answerFileName(cleanTitle || "note"),
     markdown,

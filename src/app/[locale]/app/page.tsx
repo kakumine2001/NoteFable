@@ -1376,13 +1376,14 @@ export default function Home() {
     stopRequestedRef.current.delete(requestSessionKey);
     submittingSessionKeysRef.current.add(requestSessionKey);
 
+    // 保存を待つ間に別の会話へ移ったことも下の確認で分かるよう、待つ前に控える。
+    const navigationIntent = sessionNavigationIntentRef.current;
     // 分割表示の右側ノートに未保存の編集があれば、AI が最新の本文を読めるよう先に保存する（失敗しても送信は止めない）。
     if (splitActive && notes.active?.dirty) {
       await notes.active.flush().catch(() => {});
     }
 
     let uploadedTickets: string[] = [];
-    const navigationIntent = sessionNavigationIntentRef.current;
     try {
       if (submittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
       uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
@@ -2327,7 +2328,8 @@ export default function Home() {
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />
+          {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}

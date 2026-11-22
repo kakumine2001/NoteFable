@@ -195,7 +195,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const guestLimitHitRef = useRef(false);
   const inputValueRef = useRef("");
   inputValueRef.current = input;
-  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? inputValueRef.current : null));
+  // 選んだ範囲はこの画面の状態で、再読み込みやノートの切り替えで消える。預けるときは引用として本文に入れ、
+  // 戻したあと「これを書き直して」がノート全体に向かないようにする。
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const draftToKeep = (text: string) => (text.trim() ? composeQuotedMessage(selectionRef.current, text) : "");
+  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null));
   const [seconds, setSeconds] = useState(0);
   const sessionId = useRef("");
   // 保存の完了待ちも含めて、送信中は次の送信を受け付けない（連打で会話が 2 つできないように）。
@@ -357,7 +362,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (!pending) return;
     // 戻した本文は、送るか消すまで次に離れるときも預け続ける。
     guestLimitHitRef.current = true;
+    // 預けた本文に引用として入っている範囲が画面にも残っていたら（パネルを閉じて開き直したとき）、二重に送らないよう画面の方を外す。
+    const kept = selectionRef.current?.trim();
+    if (kept && pending.startsWith(composeQuotedMessage(kept, ""))) onClearSelection?.();
     queueMicrotask(() => setInput((current) => current || pending));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ノートが変わったときに 1 回だけ取り出す。
   }, [noteId]);
 
   useEffect(() => {
@@ -489,7 +498,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       if (limited && caught.tier === "member" && !embedded) { guestLimitHitRef.current = true; setUpgradeLimit(true); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
-      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, text);
+      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text);
       if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       setMessages((current) => current.map((message) => message.id === assistantId
@@ -574,8 +583,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         )}
       </div>
 
-      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, input)} />}
-      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
+      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">

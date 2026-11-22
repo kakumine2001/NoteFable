@@ -44,12 +44,25 @@ enum NoteImportFiles {
         }
     }
 
+    /// 最多读到单个文件上限多 1 个字节：系统没给出大小、或选完以后文件变大时，也不会把整个大文件读进内存；
+    /// 多出来的那 1 个字节让 ViewModel 按"文件太大"提示。
+    private static func boundedContents(of url: URL) throws -> Data {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        let limit = MAX_IMPORT_FILE_BYTES + 1
+        var data = Data()
+        while data.count < limit, let chunk = try handle.read(upToCount: limit - data.count), !chunk.isEmpty {
+            data.append(chunk)
+        }
+        return data
+    }
+
     private static func contents(of url: URL) throws -> Data {
         try withAccess(url) {
             var result: Result<Data, Error> = .failure(CocoaError(.fileReadUnknown))
             var coordinationError: NSError?
             NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readable in
-                result = Result { try Data(contentsOf: readable) }
+                result = Result { try boundedContents(of: readable) }
             }
             if let coordinationError { throw coordinationError }
             return try result.get()

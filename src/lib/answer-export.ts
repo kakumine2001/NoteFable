@@ -1,5 +1,5 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
-import { TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
+import { MAX_PARSED_TABLE_CELLS, TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
 // 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
@@ -308,11 +308,12 @@ export function fitMarkdownBlocksToNote(title: string, markdown: string): { bloc
   return { blocks: takeBlocks(body, low), truncated: true };
 }
 
+// 取り込むファイルの題名。回答の題名（80 文字）と違い、書き出したノートの題名がそのまま戻るよう、ノートの上限（200 文字）まで残す。
 export function extractLeadingHeadingTitle(markdown: string, fallback: string): { title: string; body: string } {
   const lines = normalizeNewlines(markdown).split("\n");
   const found = analyze(lines);
   if (found.heading?.leading) {
-    const title = shorten(found.heading.text, TITLE_CHARS);
+    const title = shorten(found.heading.text, MAX_NOTE_TITLE);
     lines.splice(found.heading.line, 1);
     return { title: title || shorten(fallback, MAX_NOTE_TITLE) || "Untitled", body: lines.join("\n") };
   }
@@ -331,19 +332,31 @@ function prepareMarkdown(markdown: string) {
       const body: string[] = [];
       while (++index < lines.length && !closesFence(lines[index], opened)) body.push(lines[index]);
       // 中身に ``` があっても閉じられないよう、中の最長のバッククォート列より長い囲みにする。
-      const longest = Math.max(0, ...body.flatMap((text) => [...text.matchAll(/`+/g)].map((run) => run[0].length)));
+      // 取り込むファイルは何十万行にもなるので、行を引数に展開しない（引数の数の上限で RangeError になる）。
+      let longest = 0;
+      for (const text of body) for (const run of text.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
       const quote = "`".repeat(Math.max(3, longest + 1));
       const language = (opened.info.trim().split(/\s+/)[0] ?? "").replace(/[^\w+#.-]/g, "").slice(0, 80);
-      out.push(`${opened.indent}${quote}${language}`, ...body, `${opened.indent}${quote}`);
+      out.push(`${opened.indent}${quote}${language}`);
+      for (const text of body) out.push(text);
+      out.push(`${opened.indent}${quote}`);
       continue;
     }
     if (startsTable(lines, index)) {
+      const start = index;
       const rows = [splitRow(line)];
       index++;
       while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) rows.push(splitRow(lines[++index]));
       const columns = rows[0].length;
+      // 列をそろえた後のセル数が取り込み側の上限を超える表は、そろえずに元の行のまま渡す（取り込み側も表にしない）。
+      // 先にそろえると、行数 × 見出しの列数のセルを作ってメモリを使い切る。
+      if (rows.length * columns > MAX_PARSED_TABLE_CELLS) {
+        for (let at = start; at <= index; at++) out.push(rewriteLine(lines[at]));
+        continue;
+      }
       const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => rewriteLine(cells[column] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`;
-      out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
+      out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`);
+      for (let at = 1; at < rows.length; at++) out.push(row(rows[at]));
       continue;
     }
     out.push(rewriteLine(line));
