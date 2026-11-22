@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => ({ root: "" }));
 vi.mock("@/lib/env", () => ({ optionalEnv: (key: string) => (key === "NOTEFABLE_STORAGE_DIR" ? env.root : undefined) }));
-import { deleteStoredPrefix } from "./storage";
+import { StoredImageNotFoundError, deleteStoredPrefix, readStoredImage } from "./storage";
 
 describe("deleteStoredPrefix (local storage)", () => {
   afterEach(() => { env.root = ""; });
@@ -25,5 +25,19 @@ describe("deleteStoredPrefix (local storage)", () => {
     await expect(deleteStoredPrefix("note-files/")).rejects.toThrow("Invalid storage prefix.");
     await expect(deleteStoredPrefix("note-files/u1")).rejects.toThrow("Invalid storage prefix.");
     await expect(deleteStoredPrefix("../note-files/u1/")).rejects.toThrow();
+  });
+});
+
+describe("readStoredImage (local storage)", () => {
+  afterEach(() => { env.root = ""; });
+
+  it("tells a missing file apart from other read failures", async () => {
+    env.root = await mkdtemp(path.join(os.tmpdir(), "notefable-storage-"));
+    await mkdir(path.join(env.root, "app-icons", "u1"), { recursive: true });
+    await writeFile(path.join(env.root, "app-icons", "u1", "a.png"), "png");
+    expect((await readStoredImage("app-icons/u1/a.png")).toString()).toBe("png");
+    await expect(readStoredImage("app-icons/u1/gone.png")).rejects.toBeInstanceOf(StoredImageNotFoundError);
+    // フォルダを読もうとした（ENOENT 以外）は「無い」ではない。
+    await expect(readStoredImage("app-icons/u1")).rejects.not.toBeInstanceOf(StoredImageNotFoundError);
   });
 });

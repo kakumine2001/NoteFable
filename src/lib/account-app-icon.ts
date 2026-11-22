@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { normalizeAppIcon } from "@/lib/app-icon-value";
 import { msg } from "@/lib/i18n/translate";
 import { NoteValidationError } from "@/lib/note-document";
@@ -40,6 +41,12 @@ export function parseAppIconInput(value: unknown): AppIconInput {
   // 旧絵文字や知らない値は、端末のように黙って既定に戻さず断る（別の端末の設定を消さないように）。
   if (normalized === null && !/^(character:)?quill$/.test(value)) invalid();
   return { kind: "character", value: normalized };
+}
+
+// 端末が「このアイコンはどのアカウントのものか」を覚えるための、アカウントごとの不透明な鍵（利用者 ID そのものは出さない）。
+// 同じ端末で別のアカウントにログインしたとき、前のアカウントの画像を新しいアカウントへ送らないために使う。
+export function appIconAccountKey(userId: string) {
+  return createHash("sha256").update(`notefable:app-icon:${userId}`).digest("base64url").slice(0, 22);
 }
 
 export function appIconDataUrl(bytes: Buffer, mimeType: string) {

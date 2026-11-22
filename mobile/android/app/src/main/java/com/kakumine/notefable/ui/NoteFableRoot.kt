@@ -194,7 +194,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 accountViewModel.signOut(
                                     clearDeviceChoice = { clearGoogleCredentialState(activity) },
                                     // 退出后按系统语言显示（网页 forgetLocaleChoice）。未登录时语言同步不再清本机的选择，所以在这里清。
-                                    onSignedOut = { forgetLanguageChoice(); onIdentityChanged() },
+                                    // 账号的图标也不留给下一个用这台设备的人（恢复成默认）。
+                                    onSignedOut = { forgetLanguageChoice(); app.appIconSync.forgetAccount(); onIdentityChanged() },
                                 )
                             }
                         },
@@ -202,7 +203,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         // 设置里的"删除账号"：成功后和退出一样换成新的匿名身份（打开的笔记属于被删的账号，不再保存）。
                         deleteAccount = {
                             accountViewModel.deleteAccount(clearDeviceChoice = { clearGoogleCredentialState(activity) })
-                                .also { if (it == null) { forgetLanguageChoice(); onIdentityChanged() } }
+                                .also { if (it == null) { forgetLanguageChoice(); app.appIconSync.forgetAccount(); onIdentityChanged() } }
                         },
                     )
                 },

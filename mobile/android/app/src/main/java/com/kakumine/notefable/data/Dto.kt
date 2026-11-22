@@ -234,6 +234,9 @@ data class PlayClaimResponse(val plan: String = "free", val pending: Boolean = f
 @Serializable
 data class CustomInstructionsResponse(val instructions: String? = null)
 
-/** `GET / PUT /api/app-icon` 的回复（设置里的"图标"，见 AppIconSync.kt）。updatedAt 为 null 表示账号上还没保存过。 */
+/**
+ * `GET / PUT /api/app-icon` 的回复（设置里的"图标"，见 AppIconSync.kt）。updatedAt 为 null 表示账号上还没保存过；
+ * account 是这个账号的不透明的键（本机记住图标属于哪个账号）。
+ */
 @Serializable
-data class AppIconResponse(val icon: String? = null, val updatedAt: String? = null)
+data class AppIconResponse(val icon: String? = null, val updatedAt: String? = null, val account: String? = null)

@@ -8,7 +8,7 @@ import { SignInButton } from "@/components/sign-in-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, settled, useAccount } from "@/lib/account-store";
-import { pullAppIconFromAccount, setAppIconAccount } from "@/lib/app-icon-sync";
+import { forgetAccountAppIcon, pullAppIconFromAccount, setAppIconAccount } from "@/lib/app-icon-sync";
 import { msg } from "@/lib/i18n/translate";
 import { localeSyncAction } from "@/lib/locale-sync";
 
@@ -77,6 +77,8 @@ export function AccountButton() {
     setAppIconAccount(false);
     try {
       await signOut();
+      // アカウントのアイコンは、次にこの端末を使う人に残さない（既定に戻す）。
+      forgetAccountAppIcon();
       return "";
     } catch {
       // ログアウトできなかった。消した言語の選択を元に戻す。

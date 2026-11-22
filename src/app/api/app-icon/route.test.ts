@@ -7,12 +7,17 @@ vi.mock("@/lib/auth", () => ({
 }));
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { updateMany: mocks.updateMany } } }));
 vi.mock("@/lib/storage", () => ({
+  StoredImageNotFoundError: class StoredImageNotFoundError extends Error {},
   getImageExtension: (type: string) => ({ "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" })[type] ?? ".bin",
   readStoredImage: mocks.read,
   writeStoredImageAt: mocks.write,
   deleteStoredImage: mocks.del,
 }));
+import { appIconAccountKey } from "@/lib/account-app-icon";
+import { StoredImageNotFoundError } from "@/lib/storage";
 import { GET, PUT } from "./route";
+
+const MINE = appIconAccountKey("mine");
 
 const PNG_BASE64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==";
 const PNG_URL = `data:image/png;base64,${PNG_BASE64}`;
@@ -36,22 +41,37 @@ describe("reading the account icon", () => {
     const response = await GET();
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toEqual({ icon: null, updatedAt: null });
+    expect(await response.json()).toEqual({ icon: null, updatedAt: null, account: MINE });
+  });
+
+  it("gives each account its own opaque key", () => {
+    expect(MINE).toMatch(/^[A-Za-z0-9_-]{22}$/);
+    expect(MINE).not.toContain("mine");
+    expect(appIconAccountKey("other")).not.toBe(MINE);
   });
 
   it("returns a character with its update time", async () => {
     mocks.user.mockResolvedValue(account({ appIcon: "character:sora", appIconUpdatedAt: new Date("2026-11-22T00:00:00Z") }));
-    expect(await (await GET()).json()).toEqual({ icon: "character:sora", updatedAt: "2026-11-22T00:00:00.000Z" });
+    expect(await (await GET()).json()).toEqual({ icon: "character:sora", updatedAt: "2026-11-22T00:00:00.000Z", account: MINE });
   });
 
   it("returns an uploaded image as a data URL read from storage", async () => {
     mocks.user.mockResolvedValue(account({ appIcon: "image", appIconImage: OLD_IMAGE, appIconUpdatedAt: new Date("2026-11-22T00:00:00Z") }));
     mocks.read.mockResolvedValue(Buffer.from(PNG_BASE64, "base64"));
-    expect(await (await GET()).json()).toEqual({ icon: PNG_URL, updatedAt: "2026-11-22T00:00:00.000Z" });
+    expect(await (await GET()).json()).toEqual({ icon: PNG_URL, updatedAt: "2026-11-22T00:00:00.000Z", account: MINE });
     expect(mocks.read).toHaveBeenCalledWith(OLD_IMAGE, 64 * 1024);
   });
 
-  it("answers 503 when the stored image cannot be read", async () => {
+  it("answers the default icon, keeping the update time, when the stored image is gone", async () => {
+    mocks.user.mockResolvedValue(account({ appIcon: "image", appIconImage: OLD_IMAGE, appIconUpdatedAt: new Date("2026-11-22T00:00:00Z") }));
+    mocks.read.mockRejectedValue(new StoredImageNotFoundError("Stored image not found."));
+    const response = await GET();
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ icon: null, updatedAt: "2026-11-22T00:00:00.000Z", account: MINE });
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it("answers 503 when the stored image cannot be read for now", async () => {
     mocks.user.mockResolvedValue(account({ appIcon: "image", appIconImage: OLD_IMAGE, appIconUpdatedAt: new Date() }));
     mocks.read.mockRejectedValue(new Error("blob down"));
     const response = await GET();
@@ -74,6 +94,7 @@ describe("saving the account icon", () => {
     const body = await response.json();
     expect(body.icon).toBe("character:loop");
     expect(typeof body.updatedAt).toBe("string");
+    expect(body.account).toBe(MINE);
     expect(mocks.updateMany).toHaveBeenCalledWith({
       where: { id: "mine", appIconImage: null },
       data: { appIcon: "character:loop", appIconImage: null, appIconUpdatedAt: expect.any(Date) },

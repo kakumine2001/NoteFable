@@ -182,7 +182,7 @@ final class AppEnvironment {
         // ---- App 级的 Store ----
         let appIcon = AppIconDefaults.store(defaults)
         self.appIcon = appIcon
-        appIconSync = AppIconSync(store: appIcon, backend: accountApi)
+        appIconSync = AppIconSync(store: appIcon, backend: accountApi, memory: UserDefaultsAppIconSyncMemory(defaults: defaults))
         proposals = ProposalStore(backend: proposalApi)
         let answerExports = AnswerExportStore(backend: exportApi)
         self.answerExports = answerExports
@@ -296,6 +296,8 @@ final class AppEnvironment {
 
     private func onSignedOut() {
         language.forgetChoice()
+        // 账号的图标也不留给下一个用这台设备的人（恢复成默认）。
+        appIconSync.forgetAccount()
         onIdentityChanged()
     }
 

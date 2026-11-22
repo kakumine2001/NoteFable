@@ -151,11 +151,19 @@ sequenceDiagram
 
 已登录时随账号同步（网页 `src/lib/app-icon-sync.ts`，Android `data/AppIconSync.kt`，iOS `Core/Support/AppIconSync.swift`，规则相同）：
 
-- 启动（或登录）后和打开设置时 `GET /api/app-icon`。账号上有值（`updatedAt` 不为 `null`）就以账号为准写进本机；账号上还没有、而本机选过非默认的，就把本机的值 `PUT` 上去一次。读不到（离线等）时保留本机的值。
-- 在设置里选了就先写本机，再 `PUT /api/app-icon`；按选的顺序一个个送，读的途中又选了，读到的值不用。送不上时本机的选择保留，设置里显示“无法保存你的图标，请重试。”（网页显示服务端给的原因）。
-- 未登录（访客）不读也不送，只用本机的值；退出登录后本机的值留着。
+- 本机除了图标还记两项（网页 `localStorage` 的 `notefable:app-icon-owner` / `notefable:app-icon-pending`，Android `SharedPreferences` `app_icon` 的 `owner` / `pending`，iOS `UserDefaults` 的 `app_icon.owner` / `app_icon.pending`）：**归属账号**是本机的图标属于哪个账号（`GET` / `PUT` 返回的 `account`，账号的不透明键，不是用户 ID；未登录时选的没有归属账号），**待发送**是登录时选了、还没送到账号。账号状态里没有用户 ID（`AccountUser` 只有名字、邮箱、头像等，邮箱也不能区分账号：同一个邮箱可能是两个账号），所以用这个键。
+- 启动（或登录）后和打开设置时 `GET /api/app-icon`，按顺序判断：
+  1. 本机的图标的归属账号是别的账号：不送进这个账号，先恢复成默认（同一台设备换账号时，不把前一个人的照片放进新账号），清掉待发送。
+  2. 有待发送：不用账号上的旧值覆盖，把本机的值再 `PUT` 一次；送不上就继续等下一次。
+  3. 账号上有值（`updatedAt` 不为 `null`）：以账号为准写进本机，归属账号记成这个账号。
+  4. 账号上还没有，而本机选过非默认的（未登录时选的，或这个账号的）：把本机的值 `PUT` 上去一次。
 
-账号上的图片存在私有 Blob 的 `app-icons/<用户 ID>/`（本地开发是 `NOTEFABLE_STORAGE_DIR` 下同一路径），Postgres 只存路径（`User.appIconImage`，见 [database.md](database.md)）。
+  读不到（离线等）时保留本机的值。
+- 在设置里选了就先写本机，再 `PUT /api/app-icon`（发之前立起待发送，送到后放下并记下归属账号）；按选的顺序一个个送，读的途中又选了，读到的值不用。送不上时本机的选择保留，设置里显示“无法保存你的图标，请重试。”（网页显示服务端给的原因），下次读时再送。
+- 未登录（访客）不读也不送，只用本机的值，选的值没有归属账号。明确退出登录、删除账号时，本机的图标如果属于账号（有归属账号或待发送）就恢复成默认，不留给下一个人；未登录时选的保留。
+- 局限：启动时连不上服务端、账号还没读到时（这时按未登录处理），选的图标不送到账号，之后账号上的值优先。
+
+账号上的图片存在私有 Blob 的 `app-icons/<用户 ID>/`（本地开发是 `NOTEFABLE_STORAGE_DIR` 下同一路径），Postgres 只存路径（`User.appIconImage`，见 [database.md](database.md)）。图片在存储里不见了（Blob 404 / 本地文件不存在，`StoredImageNotFoundError`）时，`GET` 记日志并按默认角色回答（`icon: null`，`updatedAt` 照旧）；一时读不到才返回 503。
 
 ## 4. 当前图片实际存在哪里
 

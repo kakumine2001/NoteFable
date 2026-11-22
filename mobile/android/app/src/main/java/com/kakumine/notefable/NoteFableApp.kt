@@ -10,6 +10,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.kakumine.notefable.data.AccountApi
 import com.kakumine.notefable.data.AppIconStore
 import com.kakumine.notefable.data.AppIconSync
+import com.kakumine.notefable.data.AppIconSyncMemory
 import com.kakumine.notefable.data.PersistentCookieJar
 import com.kakumine.notefable.data.ProposalApi
 import com.kakumine.notefable.data.ProposalStore
@@ -40,7 +41,19 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
     }
 
     /** 登录时让图标跟着账号走（data/AppIconSync.kt，网页 app-icon-sync.ts）。 */
-    val appIconSync: AppIconSync by lazy { AppIconSync(appIcon, AccountApi(api.http)) }
+    val appIconSync: AppIconSync by lazy {
+        // 图标属于哪个账号、有没有还没送到的选择，和图标存在同一个 SharedPreferences 里。
+        val prefs = getSharedPreferences("app_icon", MODE_PRIVATE)
+        val memory = object : AppIconSyncMemory {
+            override var owner: String?
+                get() = prefs.getString("owner", null)
+                set(value) { prefs.edit().apply { if (value != null) putString("owner", value) else remove("owner") }.commit() }
+            override var pending: Boolean
+                get() = prefs.getBoolean("pending", false)
+                set(value) { prefs.edit().putBoolean("pending", value).commit() }
+        }
+        AppIconSync(appIcon, AccountApi(api.http), memory)
+    }
 
     /** Pro 的 Google Play 订阅（data/PlayBilling.kt）。购买结果回来时打开它的界面可能已经关了，所以放在 App 里。 */
     val playBilling: PlayBilling by lazy { PlayBilling(this, scope) { token -> AccountApi(api.http).claimPlayPurchase(token) } }

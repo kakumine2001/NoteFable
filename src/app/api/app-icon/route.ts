@@ -1,12 +1,12 @@
 import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
-import { APP_ICON_IMAGE, APP_ICON_ROOT, MAX_APP_ICON_BYTES, appIconDataUrl, appIconMimeType, parseAppIconInput } from "@/lib/account-app-icon";
+import { APP_ICON_IMAGE, APP_ICON_ROOT, MAX_APP_ICON_BYTES, appIconAccountKey, appIconDataUrl, appIconMimeType, parseAppIconInput } from "@/lib/account-app-icon";
 import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { msg } from "@/lib/i18n/translate";
 import { NoteValidationError } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
 import { prisma } from "@/lib/prisma";
-import { deleteStoredImage, getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { StoredImageNotFoundError, deleteStoredImage, getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -27,19 +27,33 @@ async function signedInUser() {
   return user;
 }
 
+// 保存した画像を data URL にする。画像が保存先に無い（消えた）・形式が分からないときは null（既定のキャラクター）にして記録する
+// （503 を返し続けると、どの端末もずっと同期できない）。一時的な読み取りの失敗は例外のまま（503、端末は手元の値を使い続ける）。
+async function storedImageIcon(storagePath: string) {
+  const mimeType = appIconMimeType(storagePath);
+  if (!mimeType) {
+    console.error("App icon has an unknown image type; answering the default icon", storagePath);
+    return null;
+  }
+  try {
+    // 小さい画像なので、別の URL にせずこの返事に入れる（端末はこのまま保存して表示する）。
+    return appIconDataUrl(await readStoredImage(storagePath, MAX_APP_ICON_BYTES), mimeType);
+  } catch (error) {
+    if (!(error instanceof StoredImageNotFoundError)) throw error;
+    console.error("App icon image is missing from storage; answering the default icon", storagePath);
+    return null;
+  }
+}
+
 // アカウントのアイコン。icon は端末と同じ形（null / "character:<id>" / 画像の data URL）。
 // updatedAt が null なら、まだどの端末からも保存していない（端末側が自分の設定を一度だけ送る目印）。
+// account はこのアカウントの不透明な鍵。端末は手元のアイコンがどのアカウントのものかを覚えるのに使う。
 export async function GET() {
   try {
     const user = await signedInUser();
     let icon = user.appIcon === APP_ICON_IMAGE ? null : user.appIcon;
-    if (user.appIcon === APP_ICON_IMAGE && user.appIconImage) {
-      const mimeType = appIconMimeType(user.appIconImage);
-      if (!mimeType) throw new Error("Unknown app icon type.");
-      // 小さい画像なので、別の URL にせずこの返事に入れる（端末はこのまま保存して表示する）。
-      icon = appIconDataUrl(await readStoredImage(user.appIconImage, MAX_APP_ICON_BYTES), mimeType);
-    }
-    return NextResponse.json({ icon, updatedAt: user.appIconUpdatedAt?.toISOString() ?? null }, NO_STORE);
+    if (user.appIcon === APP_ICON_IMAGE && user.appIconImage) icon = await storedImageIcon(user.appIconImage);
+    return NextResponse.json({ icon, updatedAt: user.appIconUpdatedAt?.toISOString() ?? null, account: appIconAccountKey(user.id) }, NO_STORE);
   } catch (error) {
     return failure(error, msg("Could not load your icon."));
   }
@@ -73,7 +87,7 @@ export async function PUT(request: Request) {
     if (user.appIconImage) await deleteStoredImage(user.appIconImage).catch(() => {});
 
     const icon = input.kind === "image" ? appIconDataUrl(input.bytes, input.mimeType) : input.value;
-    return NextResponse.json({ icon, updatedAt: updatedAt.toISOString() }, NO_STORE);
+    return NextResponse.json({ icon, updatedAt: updatedAt.toISOString(), account: appIconAccountKey(user.id) }, NO_STORE);
   } catch (error) {
     return failure(error, msg("Could not save your icon. Please try again."));
   }
