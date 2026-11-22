@@ -715,4 +715,5 @@ export const ja: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "このページを書き出す前に、未保存の下書きを解決してください。",
   "Could not export the page.": "ページを書き出せませんでした。",
   "Could not import Markdown files.": "Markdown ファイルを読み込めませんでした。",
+  "Import to": "読み込み先",
 };

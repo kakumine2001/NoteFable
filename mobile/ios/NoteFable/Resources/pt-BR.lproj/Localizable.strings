@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Só é possível importar arquivos Markdown (.md, .markdown, .txt).";
 "note_import_file_too_large" = "O conteúdo da nota excede 1 MiB.";
 "note_import_too_large" = "A importação excede 4 MB.";
+"import_to" = "Importar para";
 
 /* strings_plan.xml */
 "plan_title" = "Plano";

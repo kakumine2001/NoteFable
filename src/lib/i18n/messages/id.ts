@@ -714,4 +714,5 @@ export const id: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Selesaikan draf yang belum disimpan sebelum mengekspor halaman ini.",
   "Could not export the page.": "Tidak dapat mengekspor halaman.",
   "Could not import Markdown files.": "Tidak dapat mengimpor file Markdown.",
+  "Import to": "Impor ke",
 };

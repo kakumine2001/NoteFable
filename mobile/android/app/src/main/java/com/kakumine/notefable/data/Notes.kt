@@ -142,8 +142,11 @@ interface NotesBackend {
     /** 导出一篇笔记的 Markdown（`GET /api/pages/:id/export`，读的是已保存的内容）。 */
     suspend fun exportNote(id: String): ExportedNote
 
-    /** 把 Markdown 文件导入成笔记（`POST /api/pages/import`，每个文件一篇，放在最上层、不进项目），返回新建的笔记。 */
-    suspend fun importMarkdown(files: List<ImportMarkdownFile>): List<NotePageSummary>
+    /**
+     * 把 Markdown 文件导入成笔记（`POST /api/pages/import`，每个文件一篇，放在最上层），返回新建的笔记。
+     * [groupId] 是放进哪个项目，null 表示不进项目；不是自己的项目时服务端回 404。
+     */
+    suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String? = null): List<NotePageSummary>
 
     /**
      * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。

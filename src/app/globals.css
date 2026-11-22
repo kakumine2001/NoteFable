@@ -759,6 +759,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* 移動先の選択（ページの一覧）。 */
 .notes-dialog-subtitle { margin: 1rem 0 0; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
 .notes-move-filter { margin-top: 0.5rem; }
+.notes-import-targets { max-height: 50dvh; overflow-y: auto; }
 .notes-move-pages { display: grid; gap: 0.125rem; max-height: 40dvh; margin-top: 0.5rem; overflow-y: auto; }
 .notes-move-icon { display: grid; width: 1.25rem; flex: none; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
 

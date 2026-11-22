@@ -47,8 +47,11 @@ object NoteImport {
         return if (total > MAX_TOTAL_BYTES) Problem.TooLarge else null
     }
 
-    /** 发给 POST /api/pages/import 的请求体，与网页 use-note-pages.ts 的 importMarkdown() 相同：{ files: [{ name, markdown }] }。 */
-    fun requestBody(files: List<ImportMarkdownFile>): String = buildJsonObject {
+    /**
+     * 发给 POST /api/pages/import 的请求体，与网页 use-note-pages.ts 的 importMarkdown() 相同：
+     * 选了项目时 { files: [{ name, markdown }], groupId }，没选（"No project"）时只有 { files }。
+     */
+    fun requestBody(files: List<ImportMarkdownFile>, groupId: String? = null): String = buildJsonObject {
         putJsonArray("files") {
             files.forEach { file ->
                 addJsonObject {
@@ -57,13 +60,15 @@ object NoteImport {
                 }
             }
         }
+        if (!groupId.isNullOrEmpty()) put("groupId", groupId)
     }.toString()
 
     /**
-     * 服务端按整个 JSON 请求体的字节数拒绝（换行、引号转义后是 2 个字节），所以和网页一样按要发送的样子再量一次：
+     * 服务端按整个 JSON 请求体的字节数拒绝（换行、引号转义后是 2 个字节），所以和网页一样按要发送的样子（含 groupId）再量一次：
      * 超过合计上限就不发。
      */
-    fun requestTooLarge(files: List<ImportMarkdownFile>): Boolean = requestBody(files).toByteArray(Charsets.UTF_8).size > MAX_TOTAL_BYTES
+    fun requestTooLarge(files: List<ImportMarkdownFile>, groupId: String? = null): Boolean =
+        requestBody(files, groupId).toByteArray(Charsets.UTF_8).size > MAX_TOTAL_BYTES
 }
 
 /**

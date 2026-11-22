@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Импортировать можно только файлы Markdown (.md, .markdown, .txt).";
 "note_import_file_too_large" = "Содержимое заметки превышает 1 MiB.";
 "note_import_too_large" = "Импорт превышает 4 МБ.";
+"import_to" = "Импортировать в";
 
 /* strings_plan.xml */
 "plan_title" = "Тариф";

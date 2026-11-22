@@ -714,4 +714,5 @@ export const tr: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Bu sayfayı dışa aktarmadan önce kaydedilmemiş taslağı çözün.",
   "Could not export the page.": "Sayfa dışa aktarılamadı.",
   "Could not import Markdown files.": "Markdown dosyaları içe aktarılamadı.",
+  "Import to": "Şuraya içe aktar",
 };

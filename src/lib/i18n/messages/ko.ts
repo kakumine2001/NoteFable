@@ -714,4 +714,5 @@ export const ko: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "이 페이지를 내보내기 전에 저장되지 않은 초안을 먼저 해결해 주세요.",
   "Could not export the page.": "페이지를 내보내지 못했어요.",
   "Could not import Markdown files.": "Markdown 파일을 가져오지 못했어요.",
+  "Import to": "가져올 위치",
 };

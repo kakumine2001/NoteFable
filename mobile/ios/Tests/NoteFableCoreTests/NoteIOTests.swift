@@ -110,7 +110,7 @@ final class NoteIOTests: XCTestCase {
         let pages = try await makeApi(server).importMarkdown(files: [
             ImportMarkdownFile(name: "one.md", markdown: "# One\n"),
             ImportMarkdownFile(name: "two.txt", markdown: "plain \"text\""),
-        ])
+        ], groupId: nil)
         XCTAssertEqual(pages.map(\.id), ["n1", "n2"])
         let request = server.next()
         XCTAssertEqual(request.method, "POST")
@@ -122,10 +122,32 @@ final class NoteIOTests: XCTestCase {
 
         server.enqueue(#"{"error":"Note content exceeds 1 MiB."}"#, status: 413)
         let error = await errorThrown(
-            try await makeApi(server).importMarkdown(files: [ImportMarkdownFile(name: "big.md", markdown: "x")])
+            try await makeApi(server).importMarkdown(files: [ImportMarkdownFile(name: "big.md", markdown: "x")], groupId: nil)
         ) as? ApiException
         XCTAssertEqual(error?.status, 413)
         XCTAssertEqual(error?.message, "Note content exceeds 1 MiB.")
+    }
+
+    func testImportIntoAProjectSendsItsGroupIdLikeTheWeb() async throws {
+        let server = FakeTransport()
+        server.enqueue(#"{"pages":[{"id":"n1","title":"One","icon":null,"position":-1,"groupId":"g1"}]}"#, status: 201)
+        let pages = try await makeApi(server).importMarkdown(
+            files: [ImportMarkdownFile(name: "one.md", markdown: "# One\n")], groupId: "g1"
+        )
+        XCTAssertEqual(pages.first?.groupId, "g1")
+        let request = server.next()
+        XCTAssertEqual(request.path, "/api/pages/import")
+        XCTAssertEqual(request.jsonKeys, ["files", "groupId"])
+        XCTAssertEqual(request.json?["groupId"]?.stringValue, "g1")
+        XCTAssertEqual(request.json?["files"]?[0]?["name"]?.stringValue, "one.md")
+
+        // 不是自己的项目：服务端回 404 和原句。
+        server.enqueue(#"{"error":"Project not found."}"#, status: 404)
+        let error = await errorThrown(
+            try await makeApi(server).importMarkdown(files: [ImportMarkdownFile(name: "a.md", markdown: "x")], groupId: "gone")
+        ) as? ApiException
+        XCTAssertEqual(error?.status, 404)
+        XCTAssertEqual(error?.message, "Project not found.")
     }
 
     // ---- ViewModel：导出 ----
@@ -257,6 +279,95 @@ final class NoteIOTests: XCTestCase {
         await notesSettle()
         XCTAssertNil(vm.state.error)
         XCTAssertEqual(vm.state.open?.id, "imported-1")
+    }
+
+    // ---- ViewModel：导入到哪里（网页 importMarkdownFiles + ImportTargetDialog） ----
+
+    @MainActor
+    func testWithoutProjectsTheFilesAreImportedDirectlyWithNoGroupId() async {
+        let backend = NotesTestBackend()
+        backend.groups = []
+        let vm = await notesVm(backend)
+        let ask = await vm.beginImport([source("one.md", "# One\n")])
+        await notesSettle()
+        XCTAssertFalse(ask)
+        XCTAssertEqual(backend.imported, [[ImportMarkdownFile(name: "one.md", markdown: "# One\n")]])
+        XCTAssertEqual(backend.importedGroupIds, [nil])
+        XCTAssertEqual(vm.state.open?.id, "imported-1")
+        XCTAssertNil(vm.state.error)
+    }
+
+    @MainActor
+    func testWithProjectsTheDestinationIsAskedBeforeAnythingIsSent() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        let files = [source("one.md", "# One\n")]
+        let ask = await vm.beginImport(files)
+        XCTAssertTrue(ask)
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("import") })
+        XCTAssertFalse(vm.state.busy)
+        XCTAssertNil(vm.state.open)
+
+        // 选了项目：请求带它的 groupId。
+        await vm.importMarkdown(files, groupId: "g1")
+        await notesSettle()
+        XCTAssertEqual(backend.importedGroupIds, ["g1"])
+        XCTAssertEqual(vm.state.open?.id, "imported-1")
+
+        // 选了"无项目"：不带 groupId。
+        await vm.importMarkdown([source("two.md")], groupId: nil)
+        await notesSettle()
+        XCTAssertEqual(backend.importedGroupIds, ["g1", nil])
+        XCTAssertFalse(vm.state.busy)
+        XCTAssertNil(vm.state.error)
+    }
+
+    @MainActor
+    func testInvalidFilesAreRefusedBeforeTheDestinationIsAsked() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        let unread: @Sendable () throws -> Data = { Data() }
+
+        let nothing = await vm.beginImport([])
+        XCTAssertFalse(nothing)
+        XCTAssertNil(vm.state.error)
+
+        let tooMany = await vm.beginImport((0...MAX_IMPORT_FILES).map { NoteImportSource(name: "n\($0).md", size: 1, read: unread) })
+        XCTAssertFalse(tooMany)
+        XCTAssertEqual(vm.state.error, NotesError(.importTooMany))
+
+        let badType = await vm.beginImport([NoteImportSource(name: "photo.png", size: 1, read: unread)])
+        XCTAssertFalse(badType)
+        XCTAssertEqual(vm.state.error, NotesError(.importBadType))
+
+        let tooLarge = await vm.beginImport([NoteImportSource(name: "big.md", size: MAX_IMPORT_FILE_BYTES + 1, read: unread)])
+        XCTAssertFalse(tooLarge)
+        XCTAssertEqual(vm.state.error, NotesError(.importFileTooLarge))
+
+        let tooHeavy = await vm.beginImport((0..<5).map { NoteImportSource(name: "n\($0).md", size: MAX_IMPORT_FILE_BYTES, read: unread) })
+        XCTAssertFalse(tooHeavy)
+        XCTAssertEqual(vm.state.error, NotesError(.importTooLarge))
+
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("import") })
+        XCTAssertFalse(vm.state.busy)
+
+        // 合格的一次把上一次的提示收掉，然后才问导入到哪里。
+        let ask = await vm.beginImport([source("ok.md")])
+        XCTAssertTrue(ask)
+        XCTAssertNil(vm.state.error)
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("import") })
+    }
+
+    @MainActor
+    func testAFailedImportIntoAProjectShowsTheServersReason() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        backend.failNext = ApiException(status: 404, message: "Project not found.")
+        await vm.importMarkdown([source("a.md")], groupId: "gone")
+        XCTAssertEqual(vm.state.error, NotesError(.importFailed, "Project not found."))
+        XCTAssertTrue(backend.imported.isEmpty)
+        XCTAssertFalse(vm.state.busy)
+        XCTAssertNil(vm.state.open)
     }
 
     @MainActor
@@ -402,6 +513,22 @@ final class NoteIOTests: XCTestCase {
             noteImportBody([ImportMarkdownFile(name: "a.md", markdown: "x\n")]).encodedString(),
             #"{"files":[{"markdown":"x\n","name":"a.md"}]}"#
         )
+        // 选了项目时 groupId 也在量的请求体里；"无项目"（nil / 空）不带这个键。
+        let one = [ImportMarkdownFile(name: "a.md", markdown: "x\n")]
+        XCTAssertEqual(
+            noteImportBody(one, groupId: "g1").encodedString(),
+            #"{"files":[{"markdown":"x\n","name":"a.md"}],"groupId":"g1"}"#
+        )
+        XCTAssertEqual(noteImportBody(one, groupId: nil), noteImportBody(one))
+        XCTAssertEqual(noteImportBody(one, groupId: ""), noteImportBody(one))
+        // 不带 groupId 时刚好到上限的请求体，带上以后就超了。
+        let empty = (0..<4).map { _ in ImportMarkdownFile(name: "a.md", markdown: "") }
+        let room = MAX_IMPORT_TOTAL_BYTES - noteImportBody(empty).encodedString().utf8.count
+        let sizes = [MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILE_BYTES, room - 3 * MAX_IMPORT_FILE_BYTES]
+        let fitting = sizes.map { ImportMarkdownFile(name: "a.md", markdown: String(repeating: "x", count: $0)) }
+        XCTAssertEqual(noteImportBody(fitting).encodedString().utf8.count, MAX_IMPORT_TOTAL_BYTES)
+        XCTAssertNil(noteImportPayloadProblem(fitting))
+        XCTAssertEqual(noteImportPayloadProblem(fitting, groupId: "g1"), .importTooLarge)
     }
 
     @MainActor

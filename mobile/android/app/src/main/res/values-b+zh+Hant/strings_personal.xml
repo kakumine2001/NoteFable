@@ -16,4 +16,5 @@
     <string name="note_import_bad_type">只能匯入 Markdown 檔案（.md、.markdown、.txt）。</string>
     <string name="note_import_file_too_large">筆記內容超過 1 MiB。</string>
     <string name="note_import_too_large">匯入內容超過 4 MB。</string>
+    <string name="import_to">匯入到</string>
 </resources>

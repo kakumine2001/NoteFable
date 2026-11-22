@@ -714,4 +714,5 @@ export const ptBR: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Resolva o rascunho não salvo antes de exportar esta página.",
   "Could not export the page.": "Não foi possível exportar a página.",
   "Could not import Markdown files.": "Não foi possível importar os arquivos Markdown.",
+  "Import to": "Importar para",
 };

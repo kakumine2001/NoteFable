@@ -392,6 +392,7 @@
 "note_import_bad_type" = "นำเข้าได้เฉพาะไฟล์ Markdown (.md, .markdown, .txt) เท่านั้น";
 "note_import_file_too_large" = "เนื้อหาโน้ตมีขนาดเกิน 1 MiB";
 "note_import_too_large" = "ข้อมูลที่นำเข้ามีขนาดเกิน 4 MB";
+"import_to" = "นำเข้าไปที่";
 
 /* strings_plan.xml */
 "plan_title" = "แผนการใช้งาน";

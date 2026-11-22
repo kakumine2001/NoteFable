@@ -131,12 +131,15 @@ class NotesViewModelTest {
         var exported = ExportedNote("Cell structure.md", "# Cell structure\n\nBody\n")
         override suspend fun exportNote(id: String): ExportedNote { calls += "export:$id"; maybeFail(); return exported }
         var imported: List<ImportMarkdownFile> = emptyList()
-        /** 模拟服务端：每个文件一篇，新建的排在最前面（position 更小）。 */
-        override suspend fun importMarkdown(files: List<ImportMarkdownFile>): List<NotePageSummary> {
+        /** 最近一次导入请求带的 groupId；"unset" 表示还没导入过。 */
+        var importedGroup: String? = "unset"
+        /** 模拟服务端：每个文件一篇，新建的排在最前面（position 更小），放进请求指定的项目。 */
+        override suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String?): List<NotePageSummary> {
             calls += "import:" + files.joinToString(",") { it.name }; maybeFail(); hold("import")
             imported = files
+            importedGroup = groupId
             return files.mapIndexed { index, file ->
-                NotePageSummary("imp$index", file.name.substringBeforeLast('.'), null, position = index - files.size, createdAt = "2026-11-20T00:00:0${index}Z")
+                NotePageSummary("imp$index", file.name.substringBeforeLast('.'), null, position = index - files.size, createdAt = "2026-11-20T00:00:0${index}Z", groupId = groupId)
             }.also { pages.addAll(0, it) }
         }
         override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
@@ -929,6 +932,100 @@ class NotesViewModelTest {
         advanceUntilIdle()
         assertEquals(NotesError(NotesError.Kind.Import), vm.state.value.error)
         assertEquals(1, backend.calls.count { it.startsWith("import") })
+    }
+
+    // ---- 导入到哪个项目（网页 page.tsx 的 importMarkdownFiles + ImportTargetDialog） ----
+
+    @Test
+    fun `without any project the picked files are imported directly with no groupId`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply { groups.clear() }
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("Plan.md")))
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertEquals(listOf("import:Plan.md"), backend.calls.filter { it.startsWith("import") })
+        assertNull(backend.importedGroup)
+        assertEquals("imp0", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `with a project the picked files wait for a destination and the chosen project is sent`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("Plan.md"), markdownFile("ideas.txt")))
+        advanceUntilIdle()
+        // 窗口开着，还没读、没发。
+        assertTrue(vm.state.value.importTarget)
+        assertNull(vm.state.value.error)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+
+        vm.chooseImportTarget("g1")
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertEquals(listOf("import:Plan.md,ideas.txt"), backend.calls.filter { it.startsWith("import") })
+        assertEquals("g1", backend.importedGroup)
+        assertEquals(listOf("imp0", "imp1", "a"), vm.state.value.members("g1").map { it.id })
+        assertEquals("imp0", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `choosing No project imports without a groupId and Cancel imports nothing`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("a.md")))
+        vm.cancelImportTarget()
+        assertFalse(vm.state.value.importTarget)
+        // 取消后文件不留着：再"选"也不会导入上一次的。
+        vm.chooseImportTarget("g1")
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
+
+        vm.pickedForImport(listOf(markdownFile("b.md")))
+        vm.chooseImportTarget(null)
+        advanceUntilIdle()
+        assertEquals(listOf("import:b.md"), backend.calls.filter { it.startsWith("import") })
+        assertNull(backend.importedGroup)
+        assertEquals(listOf("imp0", "b"), vm.state.value.loosePages.map { it.id })
+    }
+
+    @Test
+    fun `invalid files show the error and never open the destination dialog`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        fun unread(name: String, size: Long?) = ImportCandidate(name, size) { error("must not read") }
+
+        vm.pickedForImport(List(NoteImport.MAX_FILES + 1) { unread("n$it.md", 1) })
+        assertEquals(NotesError(NotesError.Kind.ImportTooMany), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        vm.pickedForImport(listOf(unread("photo.png", 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        vm.pickedForImport(listOf(unread("big.md", NoteImport.MAX_FILE_BYTES + 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportFileTooLarge), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        // 什么都没选：不出窗口。
+        vm.pickedForImport(emptyList())
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
+        // 合规定的一选，之前的提示清掉、窗口打开（网页 checkImportFiles）。
+        vm.pickedForImport(listOf(unread("ok.md", 1)))
+        assertNull(vm.state.value.error)
+        assertTrue(vm.state.value.importTarget)
+    }
+
+    @Test
+    fun `files waiting for a destination are dropped when the identity changes`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("a.md")))
+        assertTrue(vm.state.value.importTarget)
+        vm.onIdentityChanged()
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        vm.chooseImportTarget("g1")
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
     }
 
     @Test

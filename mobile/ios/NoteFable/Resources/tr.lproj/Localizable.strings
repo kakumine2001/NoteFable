@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Yalnızca Markdown (.md, .markdown, .txt) dosyaları içe aktarılabilir.";
 "note_import_file_too_large" = "Not içeriği 1 MiB sınırını aşıyor.";
 "note_import_too_large" = "İçe aktarma 4 MB sınırını aşıyor.";
+"import_to" = "Şuraya içe aktar";
 
 /* strings_plan.xml */
 "plan_title" = "Plan";

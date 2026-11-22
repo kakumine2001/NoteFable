@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Chỉ có thể nhập tệp Markdown (.md, .markdown, .txt).";
 "note_import_file_too_large" = "Nội dung ghi chú vượt quá 1 MiB.";
 "note_import_too_large" = "Nội dung nhập vượt quá 4 MB.";
+"import_to" = "Nhập vào";
 
 /* strings_plan.xml */
 "plan_title" = "Gói dịch vụ";

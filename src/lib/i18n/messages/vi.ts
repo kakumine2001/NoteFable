@@ -714,4 +714,5 @@ export const vi: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Hãy xử lý bản nháp chưa lưu trước khi xuất trang này.",
   "Could not export the page.": "Không thể xuất trang.",
   "Could not import Markdown files.": "Không thể nhập các tệp Markdown.",
+  "Import to": "Nhập vào",
 };

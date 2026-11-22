@@ -714,4 +714,5 @@ export const fr: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Résolvez le brouillon non enregistré avant d’exporter cette page.",
   "Could not export the page.": "Impossible d’exporter la page.",
   "Could not import Markdown files.": "Impossible d’importer les fichiers Markdown.",
+  "Import to": "Importer dans",
 };

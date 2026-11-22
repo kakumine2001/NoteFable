@@ -370,6 +370,7 @@ export const zhHant: Record<string, string> = {
   "Images wider than 1500 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "建議使用寬度超過 1500 畫素的圖片。支援 JPEG、PNG、WebP 或 GIF，最大 4 MB。",
   "Import Markdown": "匯入 Markdown",
   "Import exceeds 4 MB.": "匯入內容超過 4 MB。",
+  "Import to": "匯入到",
   "Improve writing": "潤色文字",
   "In my own words: the sky keeps the blue for itself": "用自己的話說：天空把藍色留給了自己",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "一句話總結：日落時陽光穿過更厚的大氣，藍光被散射掉，留下的是紅光。",

@@ -1,9 +1,11 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 // 笔记的 Markdown 导入 / 导出里要用系统界面的部分（网页 use-note-pages.ts 的 importMarkdown / exportPage；规则在 Core 的 NoteIO.swift 和 NotesViewModel）：
 // - 导入：系统的文件选择器（`fileImporter`，可多选）。选好的地址是带访问权限的（security-scoped），读名字、大小和内容时各自申请、用完就还；
 //   iCloud 里还没下载的由 NSFileCoordinator 等它下载好。数量、扩展名、大小先在本机查（`noteImportProblem`），再读、再传。
+//   有项目的人先问"导入到"哪里（网页 ImportTargetDialog；`NotesViewModel.beginImport` 决定要不要问），没有项目的直接导入。
 // - 导出：服务端给的 `{ fileName, markdown }` 交给系统的"存储到文件"（`fileExporter`，UTF-8 的 .md），和下载对话用的是同一个文档类型
 //   （`MarkdownExportDocument`）。入口在笔记顶栏的"…"菜单（NoteEditorScreen）。
 
@@ -71,20 +73,33 @@ enum NoteImportFiles {
 }
 
 extension View {
-    /// "导入 Markdown"的系统文件选择器：把 `isPresented` 设成 true 就打开，选好后交给 `NotesViewModel.importMarkdown`
+    /// "导入 Markdown"的系统文件选择器：把 `isPresented` 设成 true 就打开，选好后交给 `NotesViewModel.beginImport`：
+    /// 没有项目就直接导入，有项目就先显示"导入到"窗口，选好去处再导入
     /// （建好后打开第一篇；出错的提示显示在笔记首页 / 编辑页的错误条里）。`onPicked` 在选好文件时调用（抽屉用它先收起自己）。
     func noteMarkdownImporter(isPresented: Binding<Bool>, onPicked: (() -> Void)? = nil) -> some View {
         modifier(NoteMarkdownImporterModifier(isPresented: isPresented, onPicked: onPicked))
     }
 }
 
+/// 选好了、等着选"导入到"哪里的一批文件。
+private struct NotePendingImport: Identifiable {
+    let id = UUID()
+    let sources: [NoteImportSource]
+    /// 选文件时的身份（`AppEnvironment.identityGeneration`）。
+    let generation: Int
+}
+
 private struct NoteMarkdownImporterModifier: ViewModifier {
     @Binding var isPresented: Bool
     let onPicked: (() -> Void)?
+    /// 有值时显示"导入到"窗口。
+    @State private var pending: NotePendingImport?
 
     @Environment(AppEnvironment.self) private var app
 
     func body(content: Content) -> some View {
+        let pendingBinding = $pending
+        let current = app
         content
             // 挂在自己的视图上，不和同一处的别的系统界面（对话框、别的选择器）互相影响。
             .background {
@@ -103,10 +118,57 @@ private struct NoteMarkdownImporterModifier: ViewModifier {
                         let sources = await NoteImportFiles.sources(urls)
                         // 看文件大小的期间换了身份（登录 / 退出）：旧身份选的文件不交给新身份导入。
                         guard environment.identityGeneration == generation else { return }
-                        await notes.importMarkdown(sources)
+                        // 有项目：文件合格才问导入到哪里；没有项目的在 beginImport 里已经直接导入了。
+                        guard await notes.beginImport(sources) else { return }
+                        guard environment.identityGeneration == generation else { return }
+                        pendingBinding.wrappedValue = NotePendingImport(sources: sources, generation: generation)
                     }
                 }
             }
+            .nfDialog(item: pendingBinding) { item in
+                NoteImportTargetDialog(
+                    onChoose: { groupId in
+                        pendingBinding.wrappedValue = nil
+                        let notes = current.notes
+                        // 窗口开着的期间换了身份：旧身份选的文件不交给新身份导入。
+                        guard current.identityGeneration == item.generation else { return }
+                        Task { @MainActor in
+                            await notes.importMarkdown(item.sources, groupId: groupId)
+                        }
+                    },
+                    close: { pendingBinding.wrappedValue = nil }
+                )
+            }
+            // 登录 / 退出后：旧身份的"导入到"窗口关掉（和笔记的其他对话框一样）。
+            .onChange(of: app.identityGeneration) { _, _ in pending = nil }
+    }
+}
+
+/// 选择导入到哪里（网页 ImportTargetDialog；样子和"移到"窗口 MoveNoteDialog 的项目列表相同）：
+/// "无项目"在最前，后面是各个项目（列表里的顺序）；点一行就开始导入，"取消"不导入。
+@MainActor
+private struct NoteImportTargetDialog: View {
+    let onChoose: (String?) -> Void
+    let close: () -> Void
+    @Environment(AppEnvironment.self) private var app
+
+    var body: some View {
+        let groups = app.notes.state.groups
+        NFDialogTitle(L("import_to"))
+        // .notes-import-targets：最高 50dvh，行间距 2。
+        FittingScrollView(maxHeight: UIScreen.main.bounds.height * 0.5) {
+            VStack(spacing: 2) {
+                NFOptionRow(L("no_project")) { onChoose(nil) }
+                ForEach(groups) { group in
+                    NFOptionRow(group.name) { onChoose(group.id) }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.top, 12)
+        NFDialogButtons(topSpacing: 16) {
+            NotionButton(L("cancel")) { close() }
+        }
     }
 }
 

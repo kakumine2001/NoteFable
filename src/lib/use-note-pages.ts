@@ -493,36 +493,36 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     }
   }
 
-  async function importMarkdown(fileList: File[]): Promise<NotePageSummary[]> {
-    if (actionBusy.current || !fileList.length) return [];
-    if (fileList.length > MAX_IMPORT_FILES) {
-      setActionError(fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES }));
-      return [];
-    }
+  // 選んだファイルを送る前に、数・拡張子・大きさを確かめる。合わなければ理由を出して false。
+  // 取り込み先を尋ねる前にも呼ぶ（先を選ばせてから断らない）。
+  function checkImportFiles(fileList: File[]): boolean {
+    let problem = "";
     let totalBytes = 0;
+    if (fileList.length > MAX_IMPORT_FILES) problem = fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES });
     for (const file of fileList) {
-      if (!isImportableMarkdownFile(file.name)) {
-        setActionError(msg("Only Markdown (.md, .markdown, .txt) files can be imported."));
-        return [];
-      }
-      if (file.size > MAX_IMPORT_FILE_BYTES) {
-        setActionError(msg("Note content exceeds 1 MiB."));
-        return [];
-      }
+      if (problem) break;
+      if (!isImportableMarkdownFile(file.name)) problem = msg("Only Markdown (.md, .markdown, .txt) files can be imported.");
+      else if (file.size > MAX_IMPORT_FILE_BYTES) problem = msg("Note content exceeds 1 MiB.");
       totalBytes += file.size;
     }
-    if (totalBytes > MAX_IMPORT_TOTAL_BYTES) {
-      setActionError(msg("Import exceeds 4 MB."));
-      return [];
-    }
+    if (!problem && totalBytes > MAX_IMPORT_TOTAL_BYTES) problem = msg("Import exceeds 4 MB.");
+    setActionError(problem);
+    return !problem;
+  }
+
+  // groupId は取り込み先のプロジェクト。null は「プロジェクトなし」。
+  async function importMarkdown(fileList: File[], groupId: string | null = null): Promise<NotePageSummary[]> {
+    if (actionBusy.current || !fileList.length) return [];
+    if (!checkImportFiles(fileList)) return [];
     actionBusy.current = true;
     setBusy(true);
     setActionError("");
     try {
       const files = await Promise.all(fileList.map(async (file) => ({ name: file.name, markdown: await file.text() })));
       // サーバーは JSON にした本文の大きさで断る（改行や引用符は 2 バイトになる）ので、送る形で測り直す。
-      if (new TextEncoder().encode(JSON.stringify({ files })).byteLength > MAX_IMPORT_TOTAL_BYTES) throw new Error(msg("Import exceeds 4 MB."));
-      const data = await pageRequest("/api/pages/import", "POST", { files });
+      const payload = groupId ? { files, groupId } : { files };
+      if (new TextEncoder().encode(JSON.stringify(payload)).byteLength > MAX_IMPORT_TOTAL_BYTES) throw new Error(msg("Import exceeds 4 MB."));
+      const data = await pageRequest("/api/pages/import", "POST", payload);
       const created = (data.pages ?? []) as NotePageSummary[];
       if (created.length) {
         runTransition(() => setPages((current) => {
@@ -544,5 +544,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

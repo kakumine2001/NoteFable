@@ -14,4 +14,5 @@
     <string name="note_import_bad_type">Импортировать можно только файлы Markdown (.md, .markdown, .txt).</string>
     <string name="note_import_file_too_large">Содержимое заметки превышает 1 MiB.</string>
     <string name="note_import_too_large">Импорт превышает 4 МБ.</string>
+    <string name="import_to">Импортировать в</string>
 </resources>

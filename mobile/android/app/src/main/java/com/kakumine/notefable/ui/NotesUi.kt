@@ -1007,6 +1007,28 @@ fun ConfirmDialog(
     }
 }
 
+/**
+ * 选择 Markdown 文件导入到哪里（网页 ImportTargetDialog）：只在至少有一个项目时出现。"No project" 在最前，后面是各个项目；
+ * 点一项就开始导入，"Cancel" 关掉不导入。样子和 [MoveNoteDialog] 的项目列表一样，没有打勾的当前项。
+ */
+@Composable
+fun ImportTargetDialog(groups: List<NoteGroupSummary>, onChoose: (String?) -> Unit, onClose: () -> Unit) {
+    NotesDialog(onClose) {
+        DialogTitle(stringResource(R.string.import_to))
+        // .notes-import-targets：最高 50dvh，项目多时列表自己滚动。
+        Column(
+            Modifier.padding(top = 12.dp).heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val options = listOf<Pair<String?, String>>(null to stringResource(R.string.no_project)) + groups.map { it.id to it.name }
+            options.forEach { (id, label) -> key(id) { DialogOption(label, checked = false, enabled = true, role = Role.Button) { onChoose(id) } } }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
+            NotionButton(stringResource(R.string.cancel), onClick = onClose)
+        }
+    }
+}
+
 /** 选择移到哪个项目（网页 MoveNoteDialog）：未分组、已有项目，或当场新建一个再移进去。 */
 @Composable
 fun MoveNoteDialog(
@@ -1129,12 +1151,12 @@ fun MoveNoteDialog(
 
 // .notes-dialog-option：最小高 40、圆角 6、左右 9.6、15 字；当前所在项目灰底、600、右边 ✓ 16。
 @Composable
-private fun DialogOption(label: String, checked: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun DialogOption(label: String, checked: Boolean, enabled: Boolean, role: Role = Role.RadioButton, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(6.dp))
             .background(if (checked) Sm.Hover else Color.Transparent)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 9.6.dp)
-            .semantics { role = Role.RadioButton },
+            .semantics { this.role = role },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp,

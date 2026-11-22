@@ -305,8 +305,8 @@ class NoteFableApi(
 
     override suspend fun exportNote(id: String): ExportedNote = getJson("/api/pages/${segment(id)}/export")
 
-    override suspend fun importMarkdown(files: List<ImportMarkdownFile>): List<NotePageSummary> {
-        val body = NoteImport.requestBody(files)
+    override suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String?): List<NotePageSummary> {
+        val body = NoteImport.requestBody(files, groupId)
         return send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/import")).post(body.toRequestBody(JSON))).pages
     }
 

@@ -714,4 +714,5 @@ export const hi: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "इस पेज को एक्सपोर्ट करने से पहले बिना सहेजे ड्राफ़्ट को सुलझाएं।",
   "Could not export the page.": "पेज एक्सपोर्ट नहीं हो सका।",
   "Could not import Markdown files.": "Markdown फ़ाइलें इंपोर्ट नहीं हो सकीं।",
+  "Import to": "यहाँ आयात करें",
 };

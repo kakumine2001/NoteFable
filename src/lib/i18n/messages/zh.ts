@@ -723,4 +723,5 @@ export const zh: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "请先处理未保存的草稿，再导出此页面。",
   "Could not export the page.": "无法导出页面。",
   "Could not import Markdown files.": "无法导入 Markdown 文件。",
+  "Import to": "导入到",
 };

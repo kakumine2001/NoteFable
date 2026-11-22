@@ -94,6 +94,8 @@ data class NotesUiState(
     val moveBusy: Set<String> = emptySet(),
     /** 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。 */
     val reorderError: ReorderFailure? = null,
+    /** "Import to" 窗口开着：选好的 Markdown 文件在等用户选导入到哪个项目（网页 page.tsx 的 importingFiles）。 */
+    val importTarget: Boolean = false,
 ) {
     /** 项目被删后残留的 groupId 也算未分组（网页 notes-sidebar.tsx 的 loose）。只列最上层的页面，子页面缩进在父页面下。 */
     val loosePages: List<NotePageSummary>
@@ -255,6 +257,8 @@ class NotesViewModel(
         linkJob?.cancel()
         trashJob?.cancel()
         trashActionJobs.toList().forEach { it.cancel() }
+        // 旧身份选好、还没选去处的导入文件不再导入（窗口随下面的新状态关掉）。
+        pendingImport = null
         _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded) }
         if (_state.value.workspace == Workspace.Notes) refresh()
     }
@@ -669,17 +673,51 @@ class NotesViewModel(
     /** 选好的位置写不进去（或没有能选保存位置的 App）：和读取失败同一句提示。 */
     fun exportFailed() = _state.update { it.copy(notice = NotesError(NotesError.Kind.Export)) }
 
+    /** 选好了、等用户选导入到哪里的文件（[NotesUiState.importTarget] 为 true 期间）。 */
+    private var pendingImport: List<ImportCandidate>? = null
+
     /**
-     * 导入 Markdown 文件（"Import Markdown"）。先按网页同样的规则查个数、扩展名和大小，不合规定就只显示原因、什么都不发；
-     * 然后读出全文发给服务端，新建的笔记放进列表，并打开第一篇（网页 page.tsx 的 importMarkdownFiles）。
-     * 期间和新建一样禁用列表操作（[NotesUiState.busy]）。
+     * 文件选择器选好了文件（网页 page.tsx 的 importMarkdownFiles）。一个项目都没有时和以前一样直接导入（不进项目）；
+     * 有项目时先在本机查个数、扩展名和大小，不合规定只显示原因、不出窗口，通过了才打开 "Import to" 窗口让用户选放哪里。
      */
-    fun importMarkdown(files: List<ImportCandidate>) {
-        if (files.isEmpty() || _state.value.busy) return
-        NoteImport.check(files.map { NoteImport.Entry(it.name, it.size ?: 0) })?.let { problem ->
-            _state.update { it.copy(error = importError(problem)) }
+    fun pickedForImport(files: List<ImportCandidate>) {
+        if (_state.value.groups.isEmpty()) {
+            importMarkdown(files)
             return
         }
+        if (files.isEmpty() || _state.value.busy || !checkImport(files)) return
+        pendingImport = files
+        _state.update { it.copy(importTarget = true) }
+    }
+
+    /** "Import to" 窗口里选了一项：[groupId] 是项目，null 是 "No project"。选的那一刻开始导入。 */
+    fun chooseImportTarget(groupId: String?) {
+        val files = pendingImport
+        cancelImportTarget()
+        if (files != null) importMarkdown(files, groupId)
+    }
+
+    /** 关掉 "Import to" 窗口，不导入。 */
+    fun cancelImportTarget() {
+        pendingImport = null
+        _state.update { it.copy(importTarget = false) }
+    }
+
+    /** 读之前按选择器报的大小查（网页 checkImportFiles）：有问题就显示原因并返回 false，没问题清掉之前的提示。 */
+    private fun checkImport(files: List<ImportCandidate>): Boolean {
+        val problem = NoteImport.check(files.map { NoteImport.Entry(it.name, it.size ?: 0) })
+        _state.update { it.copy(error = problem?.let(::importError)) }
+        return problem == null
+    }
+
+    /**
+     * 导入 Markdown 文件（"Import Markdown"）。先按网页同样的规则查个数、扩展名和大小，不合规定就只显示原因、什么都不发；
+     * 然后读出全文发给服务端（[groupId] 是放进哪个项目，null 不进项目），新建的笔记放进列表，并打开第一篇
+     * （网页 use-note-pages.ts 的 importMarkdown）。期间和新建一样禁用列表操作（[NotesUiState.busy]）。
+     */
+    fun importMarkdown(files: List<ImportCandidate>, groupId: String? = null) {
+        if (files.isEmpty() || _state.value.busy) return
+        if (!checkImport(files)) return
         val owner = identity
         _state.update { it.copy(busy = true, error = null) }
         viewModelScope.launch {
@@ -688,12 +726,12 @@ class NotesViewModel(
                 // 选择器报不出大小的文件，读完按实际的字节数再查一遍。
                 // 服务端量的是 JSON 请求体，转义后会比文件大：和网页一样按要发送的样子再量一次。
                 val problem = NoteImport.check(payload.map { NoteImport.Entry(it.name, it.markdown.toByteArray(Charsets.UTF_8).size.toLong()) })
-                    ?: NoteImport.Problem.TooLarge.takeIf { NoteImport.requestTooLarge(payload) }
+                    ?: NoteImport.Problem.TooLarge.takeIf { NoteImport.requestTooLarge(payload, groupId) }
                 if (problem != null) {
                     if (owner == identity) _state.update { it.copy(busy = false, error = importError(problem)) }
                     return@launch
                 }
-                val created = backend.importMarkdown(payload)
+                val created = backend.importMarkdown(payload, groupId)
                 val applied = commit(owner) {
                     _state.update { s -> s.copy(busy = false, pages = created.fold(s.pages) { pages, page -> upsert(pages, page) }) }
                 }

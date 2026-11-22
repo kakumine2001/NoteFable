@@ -15,4 +15,5 @@
     <string name="note_import_bad_type">只能导入 Markdown 文件（.md、.markdown、.txt）。</string>
     <string name="note_import_file_too_large">笔记内容超过 1 MiB。</string>
     <string name="note_import_too_large">导入内容超过 4 MB。</string>
+    <string name="import_to">导入到</string>
 </resources>

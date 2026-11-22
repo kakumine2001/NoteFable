@@ -38,7 +38,7 @@ import { ChatRecentNotes } from "@/components/chat-recent-notes";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
-import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
+import { ConfirmDialog, ImportTargetDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { ancestorsOf, descendantIdsOf } from "@/lib/note-tree";
 import { pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
@@ -284,9 +284,15 @@ export default function Home() {
     void notes.create(false, typeof parentId === "string" ? parentId : null).then(syncNotesList);
   }
 
-  async function importMarkdownFiles(fileList: File[]) {
+  // プロジェクトがある人には、取り込み先を尋ねてから取り込む（尋ねる前にファイルを確かめ、合わないものは先に断る）。
+  const [importingFiles, setImportingFiles] = useState<File[] | null>(null);
+  async function importMarkdownFiles(fileList: File[], groupId?: string | null) {
     setSidebarOpen(false);
-    const created = await notes.importMarkdown(fileList);
+    if (groupId === undefined && notes.groups.length > 0) {
+      if (fileList.length && notes.checkImportFiles(fileList)) setImportingFiles(fileList);
+      return;
+    }
+    const created = await notes.importMarkdown(fileList, groupId ?? null);
     if (created.length) openNote(created[0].id);
   }
 
@@ -2713,6 +2719,8 @@ export default function Home() {
         <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model}
           busy={createPageSessionId === activeSession?.id && isActiveSessionBusy} onClose={() => setCreatePageSessionId(null)} />
       )}
+      {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
+        onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
       {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.error} onClose={() => setTrashingNoteId(null)}

@@ -151,6 +151,16 @@ class NotesApiTest {
     }
 
     @Test
+    fun `importing into a project sends its groupId`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(201).setBody("""{"pages":[{"id":"n1","title":"Plan","icon":null,"version":0,"groupId":"g1"}]}"""))
+            val created = server.api().importMarkdown(listOf(ImportMarkdownFile("Plan.md", "# Plan")), "g1")
+            assertEquals(listOf("g1"), created.map { it.groupId })
+            assertEquals("""{"files":[{"name":"Plan.md","markdown":"# Plan"}],"groupId":"g1"}""", server.next().body.readUtf8())
+        }
+    }
+
+    @Test
     fun `an import the server rejects keeps its reason`() = runBlocking {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(413).setBody("""{"error":"Note content exceeds 1 MiB."}"""))

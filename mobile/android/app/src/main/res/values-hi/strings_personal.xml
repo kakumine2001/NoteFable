@@ -14,4 +14,5 @@
     <string name="note_import_bad_type">केवल Markdown (.md, .markdown, .txt) फ़ाइलें इंपोर्ट की जा सकती हैं।</string>
     <string name="note_import_file_too_large">नोट की सामग्री 1 MiB से अधिक है।</string>
     <string name="note_import_too_large">इंपोर्ट 4 MB से अधिक है।</string>
+    <string name="import_to">यहाँ आयात करें</string>
 </resources>

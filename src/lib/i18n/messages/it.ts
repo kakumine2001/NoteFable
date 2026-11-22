@@ -714,4 +714,5 @@ export const it: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Risolvi la bozza non salvata prima di esportare questa pagina.",
   "Could not export the page.": "Impossibile esportare la pagina.",
   "Could not import Markdown files.": "Impossibile importare i file Markdown.",
+  "Import to": "Importa in",
 };

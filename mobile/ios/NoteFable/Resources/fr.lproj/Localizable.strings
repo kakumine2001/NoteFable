@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Seuls les fichiers Markdown (.md, .markdown, .txt) peuvent être importés.";
 "note_import_file_too_large" = "Le contenu de la note dépasse 1 MiB.";
 "note_import_too_large" = "L’import dépasse 4 Mo.";
+"import_to" = "Importer dans";
 
 /* strings_plan.xml */
 "plan_title" = "Forfait";

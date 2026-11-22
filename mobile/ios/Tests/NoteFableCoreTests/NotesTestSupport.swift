@@ -191,6 +191,8 @@ final class NotesTestBackend: NotesBackend {
     /// 导出的内容；导入时每个文件建一篇 `imported-N`（题名是去掉扩展名的文件名）。
     var exported = ExportedNote(fileName: "Cell structure.md", markdown: "# Cell structure\n")
     var imported: [[ImportMarkdownFile]] = []
+    /// 每次导入带的项目（nil 是"无项目"）。
+    var importedGroupIds: [String?] = []
 
     func exportNote(id: String) async throws -> ExportedNote {
         calls.append("export:\(id)")
@@ -199,11 +201,12 @@ final class NotesTestBackend: NotesBackend {
         return exported
     }
 
-    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary] {
+    func importMarkdown(files: [ImportMarkdownFile], groupId: String?) async throws -> [NotePageSummary] {
         calls.append("import:\(files.map(\.name).joined(separator: ","))")
         try maybeFail()
         await hold("import")
         imported.append(files)
+        importedGroupIds.append(groupId)
         let created = files.enumerated().map { index, file in
             NotePageSummary(
                 id: "imported-\(index + 1)", title: String(file.name.split(separator: ".").first ?? ""), icon: nil,

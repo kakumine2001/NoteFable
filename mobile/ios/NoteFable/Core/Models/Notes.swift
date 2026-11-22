@@ -219,7 +219,8 @@ protocol NotesBackend {
     func exportNote(id: String) async throws -> ExportedNote
 
     /// 把一个或多个 Markdown 文件导入成笔记（`POST /api/pages/import`），返回新建的笔记（顺序和文件相同）。
-    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary]
+    /// [groupId] 是导入到哪个项目，nil 是"无项目"；不是自己的项目时服务端回 404。
+    func importMarkdown(files: [ImportMarkdownFile], groupId: String?) async throws -> [NotePageSummary]
 
     /// 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
     /// [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。

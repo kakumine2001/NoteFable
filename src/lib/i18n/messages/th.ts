@@ -714,4 +714,5 @@ export const th: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "โปรดจัดการฉบับร่างที่ยังไม่ได้บันทึกก่อนส่งออกหน้านี้",
   "Could not export the page.": "ไม่สามารถส่งออกหน้าได้",
   "Could not import Markdown files.": "ไม่สามารถนำเข้าไฟล์ Markdown ได้",
+  "Import to": "นำเข้าไปที่",
 };

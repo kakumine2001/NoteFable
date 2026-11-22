@@ -714,4 +714,5 @@ export const ru: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "Разберитесь с несохранённым черновиком, прежде чем экспортировать эту страницу.",
   "Could not export the page.": "Не удалось экспортировать страницу.",
   "Could not import Markdown files.": "Не удалось импортировать файлы Markdown.",
+  "Import to": "Импортировать в",
 };

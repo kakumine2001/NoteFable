@@ -661,16 +661,33 @@ final class NotesViewModel {
         }
     }
 
-    /// 导入用户选的 Markdown 文件，建好后打开第一篇（网页 page.tsx 的 importMarkdownFiles）。
+    /// 选好文件以后（网页 page.tsx 的 importMarkdownFiles 没带 groupId 的那一支）：一个项目都没有就直接导入（"无项目"）；
+    /// 有项目就先查文件（[checkImportFiles]，不合格的先拒绝，不让人选完去处再被拒），合格返回 true，
+    /// 由界面问"导入到"哪里，选好后再调 [importMarkdown]。返回 false 表示不用问（已经导入、已经提示，或什么也没选）。
+    func beginImport(_ sources: [NoteImportSource]) async -> Bool {
+        if state.groups.isEmpty {
+            await importMarkdown(sources)
+            return false
+        }
+        return !sources.isEmpty && checkImportFiles(sources)
+    }
+
+    /// 发请求之前在本机查数量、扩展名和大小（网页 use-note-pages.ts 的 checkImportFiles）：
+    /// 不合格就把原因显示出来并返回 false；合格就收掉上一次的提示。
+    private func checkImportFiles(_ sources: [NoteImportSource]) -> Bool {
+        let problem = noteImportProblem(sources.map { (name: $0.name, size: $0.size) })
+        update { $0.error = problem.map { NotesError($0) } }
+        return problem == nil
+    }
+
+    /// 导入用户选的 Markdown 文件，建好后打开第一篇（网页 use-note-pages.ts 的 importMarkdown）。
+    /// [groupId] 是导入到哪个项目，nil 是"无项目"。
     /// 发请求前先在本机查数量、扩展名和大小（[noteImportProblem]），不合格就只提示、不读也不传。
     /// 文件在后台线程读；读完按要发的内容再查一遍（[noteImportPayloadProblem]：选完又改了、系统没给出大小、
     /// 转成文字和 JSON 以后变大），读的期间换了身份就不传。
-    func importMarkdown(_ sources: [NoteImportSource]) async {
+    func importMarkdown(_ sources: [NoteImportSource], groupId: String? = nil) async {
         if state.busy || sources.isEmpty { return }
-        if let problem = noteImportProblem(sources.map { (name: $0.name, size: $0.size) }) {
-            update { $0.error = NotesError(problem) }
-            return
-        }
+        if !checkImportFiles(sources) { return }
         let owner = identity
         update {
             $0.busy = true
@@ -683,14 +700,14 @@ final class NotesViewModel {
             // 读文件期间换了身份（登录 / 退出）：旧身份选的文件不传给新身份。忙碌状态已经由换身份清掉了。
             guard owner == identity else { return }
             let files = contents.map { ImportMarkdownFile(name: $0.name, markdown: noteImportText($0.data)) }
-            if let problem = noteImportPayloadProblem(files) {
+            if let problem = noteImportPayloadProblem(files, groupId: groupId) {
                 update {
                     $0.busy = false
                     $0.error = NotesError(problem)
                 }
                 return
             }
-            let created = try await backend.importMarkdown(files: files)
+            let created = try await backend.importMarkdown(files: files, groupId: groupId)
             let applied = commit(owner) {
                 update { state in
                     let ids = Set(created.map(\.id))

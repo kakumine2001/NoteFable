@@ -358,8 +358,10 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
     }
 
     // 与网页 use-note-pages.ts 的 importMarkdown() 发送的内容相同。
-    func importMarkdown(files: [ImportMarkdownFile]) async throws -> [NotePageSummary] {
-        try await http.send(try http.request("POST", "/api/pages/import", json: noteImportBody(files)), as: PagesResponse.self).pages
+    func importMarkdown(files: [ImportMarkdownFile], groupId: String?) async throws -> [NotePageSummary] {
+        try await http.send(
+            try http.request("POST", "/api/pages/import", json: noteImportBody(files, groupId: groupId)), as: PagesResponse.self
+        ).pages
     }
 
     func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {

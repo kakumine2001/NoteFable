@@ -2,7 +2,7 @@ import Foundation
 
 // 笔记的 Markdown 导出 / 导入（网页 src/lib/note-io.ts 和 use-note-pages.ts 的 exportPage / importMarkdown）。
 // 转换都在服务端做：`GET /api/pages/:id/export` → `{ fileName, markdown }`；
-// `POST /api/pages/import` `{ files: [{ name, markdown }] }` → 201 `{ pages }`。App 只管选文件、先查一遍数量和大小、把结果交给系统。
+// `POST /api/pages/import` `{ files: [{ name, markdown }], groupId? }` → 201 `{ pages }`。App 只管选文件、先查一遍数量和大小、把结果交给系统。
 
 /// 一次导入最多几个文件、单个文件和总共最多多少字节（网页 MAX_IMPORT_FILES / MAX_IMPORT_FILE_BYTES / MAX_IMPORT_TOTAL_BYTES；
 /// 总量留在 Vercel 4.5 MB 请求上限以内）。
@@ -67,20 +67,23 @@ func noteImportProblem(_ files: [(name: String, size: Int)]) -> NotesError.Kind?
     return nil
 }
 
-/// `POST /api/pages/import` 的请求体：`{ files: [{ name, markdown }] }`（网页 importMarkdown 发的内容）。
-func noteImportBody(_ files: [ImportMarkdownFile]) -> JSONValue {
+/// `POST /api/pages/import` 的请求体（网页 importMarkdown 发的内容）：选了项目是 `{ files: [{ name, markdown }], groupId }`，
+/// 没选（"无项目"）是 `{ files }`，不带 `groupId`。
+func noteImportBody(_ files: [ImportMarkdownFile], groupId: String? = nil) -> JSONValue {
     let items = files.map { file -> JSONValue in
         ["name": .string(file.name), "markdown": .string(file.markdown)]
     }
-    return ["files": .array(items)]
+    var body: [String: JSONValue] = ["files": .array(items)]
+    if let groupId, !groupId.isEmpty { body["groupId"] = .string(groupId) }
+    return .object(body)
 }
 
 /// 读出文字以后、发请求之前再查一遍，量的是真正要发的东西（网页 importMarkdown 读完文件后的检查）：
 /// 服务端按 UTF-8 的文字查单个文件（坏掉的字节换成 U+FFFD 会变长），按 JSON 请求体查总量（换行、引号各占 2 字节）。
 /// 超了就在本机提示，不传上去让平台的请求上限拦下（那样只剩一句没有原因的失败）。
-func noteImportPayloadProblem(_ files: [ImportMarkdownFile]) -> NotesError.Kind? {
+func noteImportPayloadProblem(_ files: [ImportMarkdownFile], groupId: String? = nil) -> NotesError.Kind? {
     if let problem = noteImportProblem(files.map { (name: $0.name, size: $0.markdown.utf8.count) }) { return problem }
-    if noteImportBody(files).encodedString().utf8.count > MAX_IMPORT_TOTAL_BYTES { return .importTooLarge }
+    if noteImportBody(files, groupId: groupId).encodedString().utf8.count > MAX_IMPORT_TOTAL_BYTES { return .importTooLarge }
     return nil
 }
 

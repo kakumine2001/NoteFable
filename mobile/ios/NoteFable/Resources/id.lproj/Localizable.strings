@@ -392,6 +392,7 @@
 "note_import_bad_type" = "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.";
 "note_import_file_too_large" = "Isi catatan melebihi 1 MiB.";
 "note_import_too_large" = "Impor melebihi 4 MB.";
+"import_to" = "Impor ke";
 
 /* strings_plan.xml */
 "plan_title" = "Paket";

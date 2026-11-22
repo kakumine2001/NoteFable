@@ -714,4 +714,5 @@ export const ar: Record<string, string> = {
   "Resolve the unsaved draft before exporting this page.": "عالج المسودة غير المحفوظة قبل تصدير هذه الصفحة.",
   "Could not export the page.": "تعذّر تصدير الصفحة.",
   "Could not import Markdown files.": "تعذّر استيراد ملفات Markdown.",
+  "Import to": "استيراد إلى",
 };

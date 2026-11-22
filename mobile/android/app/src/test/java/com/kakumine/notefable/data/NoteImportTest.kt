@@ -47,6 +47,18 @@ class NoteImportTest {
             """{"files":[{"name":"a.md","markdown":"x\n\"y\""},{"name":"b.txt","markdown":""}]}""",
             NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", "x\n\"y\""), ImportMarkdownFile("b.txt", ""))),
         )
+        // 选了项目时 groupId 跟在 files 后面（网页 { files, groupId }）；没选或空串时不带这个键。
+        assertEquals(
+            """{"files":[{"name":"a.md","markdown":"x"}],"groupId":"g\"1"}""",
+            NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", "x")), "g\"1"),
+        )
+        assertEquals("""{"files":[{"name":"a.md","markdown":"x"}]}""", NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", "x")), null))
+        assertEquals("""{"files":[{"name":"a.md","markdown":"x"}]}""", NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", "x")), ""))
+        // groupId 也算进请求体的大小：不带时正好在上限上的请求，带了就超。
+        val frame = NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", ""))).toByteArray().size
+        val edge = listOf(ImportMarkdownFile("a.md", "x".repeat(NoteImport.MAX_TOTAL_BYTES.toInt() - frame)))
+        assertFalse(NoteImport.requestTooLarge(edge))
+        assertTrue(NoteImport.requestTooLarge(edge, "g1"))
         // 换行转义后每个是 2 个字节：文件合计没超，请求体也可能超。
         val half = NoteImport.MAX_FILE_BYTES.toInt() / 2
         assertFalse(NoteImport.requestTooLarge(List(3) { ImportMarkdownFile("n$it.md", "x".repeat(half) + "\n".repeat(half / 2)) }))

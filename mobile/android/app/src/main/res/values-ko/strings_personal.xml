@@ -14,4 +14,5 @@
     <string name="note_import_bad_type">Markdown(.md, .markdown, .txt) 파일만 가져올 수 있어요.</string>
     <string name="note_import_file_too_large">노트 내용이 1 MiB를 초과해요.</string>
     <string name="note_import_too_large">가져올 내용이 4 MB를 초과해요.</string>
+    <string name="import_to">가져올 위치</string>
 </resources>
