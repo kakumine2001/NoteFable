@@ -97,13 +97,13 @@ fun AttachPagesDialog(
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        LaunchedEffect(window) { window?.setDimAmount(0.2f) }
+        LaunchedEffect(window, Sm.isDark) { window?.setDimAmount(dialogDim()) }
         Column(
             Modifier.padding(horizontal = 19.dp).widthIn(max = 544.dp).fillMaxWidth()
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp - 38).coerceAtLeast(200).dp)
                 .shadow(14.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0F0F0F), spotColor = Color(0x1F0F0F0F))
-                .border(1.dp, Color(0x0D0F0F0F), RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)).background(Color.White),
+                .border(1.dp, Sm.Ring, RoundedCornerShape(8.dp))
+                .clip(RoundedCornerShape(8.dp)).background(Sm.Surface),
         ) {
             Text(
                 stringResource(R.string.attach_pages), color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold,

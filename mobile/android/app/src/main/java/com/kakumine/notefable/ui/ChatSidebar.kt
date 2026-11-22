@@ -73,7 +73,7 @@ import kotlinx.coroutines.launch
  *   放下即移进去并取消置顶。被拖的行半透明。手指在列表上下边 30 内移动时每次移动滚 12（网页 updateTarget 的 scrollBy，手指不动就不滚）。长按之前的滑动照常滚动列表；长按开始后拖动被吃掉，抽屉的横滑关闭和列表滚动不会同时触发。
  */
 
-private val ErrorRed = Color(0xFFB91C1C)
+private val ErrorRed: Color get() = Sm.Danger
 
 @Composable
 internal fun ChatDrawerBody(
@@ -104,9 +104,9 @@ internal fun ChatDrawerBody(
                 .padding(horizontal = 11.2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LucideIcon(Lucide.Plus, 16.dp, Color.White)
+            LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.new_chat), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight(550))
+            Text(stringResource(R.string.new_chat), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
         }
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
         SidebarSearchRow(onSearch)

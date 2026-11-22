@@ -378,6 +378,21 @@
 "pg_no_matching_pages" = "Không có trang nào khớp.";
 "pg_subpages_to_trash" = "Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.";
 
+/* strings_personal.xml */
+"appearance" = "Giao diện";
+"theme_system" = "Hệ thống";
+"theme_light" = "Sáng";
+"theme_dark" = "Tối";
+"export_markdown" = "Xuất Markdown";
+"import_markdown" = "Nhập Markdown";
+"note_export_failed" = "Không thể xuất trang.";
+"note_export_unsaved" = "Hãy xử lý bản nháp chưa lưu trước khi xuất trang này.";
+"note_import_failed" = "Không thể nhập các tệp Markdown.";
+"note_import_too_many" = "Bạn có thể nhập tối đa %1$d tệp mỗi lần.";
+"note_import_bad_type" = "Chỉ có thể nhập tệp Markdown (.md, .markdown, .txt).";
+"note_import_file_too_large" = "Nội dung ghi chú vượt quá 1 MiB.";
+"note_import_too_large" = "Nội dung nhập vượt quá 4 MB.";
+
 /* strings_plan.xml */
 "plan_title" = "Gói dịch vụ";
 "plan_pro" = "Pro";

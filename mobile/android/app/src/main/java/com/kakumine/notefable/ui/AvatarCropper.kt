@@ -334,6 +334,6 @@ private fun CropButton(label: String, primary: Boolean, enabled: Boolean, onClic
             .padding(horizontal = 14.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(label, color = if (primary) Color.White else Sm.Text, fontSize = 15.sp)
+        Text(label, color = if (primary) Sm.OnInk else Sm.Text, fontSize = 15.sp)
     }
 }

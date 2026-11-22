@@ -9,6 +9,7 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.kakumine.notefable.data.AccountApi
 import com.kakumine.notefable.data.AppIconStore
+import com.kakumine.notefable.data.AppThemeStore
 import com.kakumine.notefable.data.PersistentCookieJar
 import com.kakumine.notefable.data.ProposalApi
 import com.kakumine.notefable.data.ProposalStore
@@ -35,6 +36,15 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
         AppIconStore(
             read = { prefs.getString("icon", null) },
             write = { icon -> prefs.edit().apply { if (icon != null) putString("icon", icon) else remove("icon") }.commit() },
+        )
+    }
+
+    /** 外观主题（跟随系统 / 浅色 / 深色，只存在这台设备上；网页 localStorage 的 notefable:theme:v1）。 */
+    val appTheme: AppThemeStore by lazy {
+        val prefs = getSharedPreferences("app_theme", MODE_PRIVATE)
+        AppThemeStore(
+            read = { prefs.getString("theme", null) },
+            write = { value -> prefs.edit().putString("theme", value).commit() },
         )
     }
 

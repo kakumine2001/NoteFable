@@ -239,7 +239,7 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
                 Text(stringResource(R.string.app_icon_title), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                 Text(stringResource(R.string.app_icon_help), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 2.dp))
             }
-            Box(Modifier.size(40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.BorderStrong, CircleShape), Alignment.Center) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(Sm.Surface).border(1.dp, Sm.BorderStrong, CircleShape), Alignment.Center) {
                 AppIcon(24.dp, Sm.Ink, icon, animated = true)
             }
         }
@@ -286,7 +286,7 @@ private fun CharacterPickerCard(
             .border(1.dp, Sm.BorderStrong, shape),
     ) {
         Row(
-            Modifier.fillMaxWidth().background(Color.White).padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().background(Sm.Surface).padding(start = 14.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(
@@ -319,7 +319,7 @@ private fun CharacterPickerCard(
                             Modifier.weight(1f)
                                 .heightIn(min = 88.dp)
                                 .clip(cardShape)
-                                .background(Color.White)
+                                .background(Sm.Surface)
                                 .border(
                                     width = if (isSelected) 1.5.dp else 1.dp,
                                     color = if (isSelected) Sm.Blue else Sm.BorderStrong,

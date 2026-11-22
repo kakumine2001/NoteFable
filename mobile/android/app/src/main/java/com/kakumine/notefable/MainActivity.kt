@@ -13,6 +13,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import java.util.Locale
@@ -21,8 +22,13 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import com.kakumine.notefable.data.AppLanguage
 import com.kakumine.notefable.data.ChatLink
+import com.kakumine.notefable.data.systemInDarkTheme
 import com.kakumine.notefable.ui.AccountViewModel
 import com.kakumine.notefable.ui.ChatViewModel
 import com.kakumine.notefable.ui.NotesViewModel
@@ -31,6 +37,9 @@ import com.kakumine.notefable.ui.NoteFableTheme
 
 // AppCompatActivity：应用内切换语言（AppCompatDelegate.setApplicationLocales）在 Android 12 及以下也能生效
 //（那里由 AppCompat 保存选择并就地更新 Resources，见 onConfigurationChanged）。
+/** 深色时的窗口底色：网页 :root[data-theme="dark"] 的 --notion-bg（#191919），和 ui/Theme.kt 的 DarkSmPalette.background 相同。 */
+private const val WINDOW_DARK = 0xFF191919.toInt()
+
 class MainActivity : AppCompatActivity() {
     private val viewModel: ChatViewModel by viewModels { ChatViewModel.Factory }
     private val accountViewModel: AccountViewModel by viewModels { AccountViewModel.Factory }
@@ -84,15 +93,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // 网页只有浅色主题：状态栏和导航栏固定用深色图标，不随系统深色模式切换。
-        val transparentLight = SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-        enableEdgeToEdge(statusBarStyle = transparentLight, navigationBarStyle = transparentLight)
+        // 外观（跟随系统 / 浅色 / 深色）：状态栏、导航栏的图标和窗口底色在第一帧之前就按它定好。
+        val themeStore = (application as NoteFableApp).appTheme
+        applyWindowTheme(themeStore.preference.value.resolveDark(systemInDarkTheme(resources.configuration)))
         super.onCreate(savedInstanceState)
         resolveAutoConfiguration()
         AppLanguage.uiLocale = getString(R.string.ui_locale)
         window.decorView.layoutDirection = resources.configuration.layoutDirection
         setContent {
-            NoteFableTheme {
+            // 设置里换了外观，或"跟随系统"时系统切了深色（uiMode 在 configChanges 里，Activity 不重建）：就地换色板和系统栏。
+            val themePref by themeStore.preference.collectAsState()
+            val darkTheme = themePref.resolveDark(isSystemInDarkTheme())
+            LaunchedEffect(darkTheme) { applyWindowTheme(darkTheme) }
+            NoteFableTheme(darkTheme = darkTheme) {
                 NoteFableRoot(viewModel, accountViewModel, notesViewModel)
             }
         }
@@ -100,6 +113,16 @@ class MainActivity : AppCompatActivity() {
         //（FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY），那是旧链接，也不打开（网页处理完就把 ?chat= 从地址里去掉）。
         val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
         if (savedInstanceState == null && !fromHistory) handleLink(intent)
+    }
+
+    /**
+     * 系统栏图标的深浅和窗口底色（网页 --notion-bg：#fff / #191919）。窗口底色是 Compose 画出第一帧之前、
+     * 以及键盘弹出时露出来的颜色；系统是深色时冷启动的预览窗口由 values-night 的 window_background 负责。
+     */
+    private fun applyWindowTheme(dark: Boolean) {
+        val bars = if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+        enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        window.setBackgroundDrawable(ColorDrawable(if (dark) WINDOW_DARK else Color.WHITE))
     }
 
     // singleTask：App 已在运行时，链接从这里进来。

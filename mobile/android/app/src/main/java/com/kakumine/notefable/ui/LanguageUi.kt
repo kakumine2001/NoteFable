@@ -179,7 +179,7 @@ fun LanguageSettings(user: AccountUser, onChoose: (String?) -> Unit) {
                             )
                         }
                     }
-                    .heightIn(min = 40.dp).clip(shape).background(Color.White).border(1.dp, if (anchor != null) Sm.Blue else Sm.BorderStrong, shape)
+                    .heightIn(min = 40.dp).clip(shape).background(Sm.Surface).border(1.dp, if (anchor != null) Sm.Blue else Sm.BorderStrong, shape)
                     .clickable(role = Role.DropdownList) { anchor = bounds }
                     .semantics(mergeDescendants = true) { contentDescription = label }
                     .padding(start = 12.dp, end = 10.dp, top = 5.6.dp, bottom = 5.6.dp),
@@ -277,7 +277,7 @@ internal fun LanguageMenu(
             Modifier.width(minOf(320, configuration.screenWidthDp - 16).dp).heightIn(max = minOf(368, configuration.screenHeightDp - 16).dp)
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = LanguageMenuShadow, spotColor = LanguageMenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .clip(RoundedCornerShape(12.dp)).background(Sm.Surface)
                 .padding(5.6.dp)
                 .selectableGroup()
                 .semantics { contentDescription = label },

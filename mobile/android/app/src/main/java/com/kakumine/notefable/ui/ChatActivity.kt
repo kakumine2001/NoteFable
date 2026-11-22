@@ -76,8 +76,8 @@ import kotlin.math.roundToInt
 //  - 每步：上下 4.8、间距 8；图标 13（描边 1.9）浅灰，放在高 20.8 的格子里；标题 500 正文色，正文灰色上距 2.4；
 //  - 来源标签：上距 6.4、间距 4.8；全圆角、1px .09 描边、#F7F7F5 底、12 / 18.6 灰字、内边距 7.2×0.8、最宽 224、地球 11。
 
-private val ActivityText = TextStyle(fontSize = 13.12.sp, lineHeight = 20.336.sp, color = Sm.Muted, letterSpacing = 0.sp)
-private val ChipText = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, color = Sm.Muted, letterSpacing = 0.sp)
+private val ActivityText get() = TextStyle(fontSize = 13.12.sp, lineHeight = 20.336.sp, color = Sm.Muted, letterSpacing = 0.sp)
+private val ChipText get() = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, color = Sm.Muted, letterSpacing = 0.sp)
 private const val VISIBLE_SOURCES = 6
 
 /** 等待中的秒数（网页 thinkingSeconds：最少 1 秒，每秒更新）。[startedAt] 为 null 时从第一次显示开始算。 */

@@ -378,6 +378,21 @@
 "pg_no_matching_pages" = "没有匹配的页面。";
 "pg_subpages_to_trash" = "其中的子页面也会一起移入回收站。";
 
+/* strings_personal.xml */
+"appearance" = "外观";
+"theme_system" = "跟随系统";
+"theme_light" = "浅色";
+"theme_dark" = "深色";
+"export_markdown" = "导出 Markdown";
+"import_markdown" = "导入 Markdown";
+"note_export_failed" = "无法导出此页面。";
+"note_export_unsaved" = "请先处理未保存的草稿，再导出此页面。";
+"note_import_failed" = "无法导入 Markdown 文件。";
+"note_import_too_many" = "一次最多可导入 %1$d 个文件。";
+"note_import_bad_type" = "只能导入 Markdown 文件（.md、.markdown、.txt）。";
+"note_import_file_too_large" = "笔记内容超过 1 MiB。";
+"note_import_too_large" = "导入内容超过 4 MB。";
+
 /* strings_plan.xml */
 "plan_title" = "方案";
 "plan_pro" = "Pro";

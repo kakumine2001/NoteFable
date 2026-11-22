@@ -378,6 +378,21 @@
 "pg_no_matching_pages" = "لا توجد صفحات مطابقة.";
 "pg_subpages_to_trash" = "تنتقل صفحاتها الفرعية معها إلى سلة المهملات.";
 
+/* strings_personal.xml */
+"appearance" = "المظهر";
+"theme_system" = "النظام";
+"theme_light" = "فاتح";
+"theme_dark" = "داكن";
+"export_markdown" = "تصدير Markdown";
+"import_markdown" = "استيراد Markdown";
+"note_export_failed" = "تعذّر تصدير الصفحة.";
+"note_export_unsaved" = "عالج المسودة غير المحفوظة قبل تصدير هذه الصفحة.";
+"note_import_failed" = "تعذّر استيراد ملفات Markdown.";
+"note_import_too_many" = "يمكنك استيراد ما يصل إلى %1$d ملفات في المرة الواحدة.";
+"note_import_bad_type" = "يمكن استيراد ملفات Markdown (.md و.markdown و.txt) فقط.";
+"note_import_file_too_large" = "يتجاوز محتوى الملاحظة 1 MiB.";
+"note_import_too_large" = "يتجاوز الاستيراد 4 MB.";
+
 /* strings_plan.xml */
 "plan_title" = "الخطة";
 "plan_pro" = "Pro";

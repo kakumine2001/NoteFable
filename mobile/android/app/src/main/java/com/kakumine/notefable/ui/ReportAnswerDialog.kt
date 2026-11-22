@@ -42,7 +42,7 @@ import com.kakumine.notefable.data.serverMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-private val ReportError = Color(0xFFB91C1C) // text-[#b91c1c]
+private val ReportError: Color get() = Sm.Danger // text-[#b91c1c]
 
 /** 回答菜单"报告回答"的图标（lucide flag）。 */
 internal val FlagIcon = listOf(

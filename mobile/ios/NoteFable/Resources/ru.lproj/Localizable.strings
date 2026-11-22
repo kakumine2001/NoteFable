@@ -378,6 +378,21 @@
 "pg_no_matching_pages" = "Подходящих страниц не найдено.";
 "pg_subpages_to_trash" = "Вложенные подстраницы будут перемещены в корзину вместе с ней.";
 
+/* strings_personal.xml */
+"appearance" = "Оформление";
+"theme_system" = "Системная";
+"theme_light" = "Светлая";
+"theme_dark" = "Тёмная";
+"export_markdown" = "Экспорт в Markdown";
+"import_markdown" = "Импорт Markdown";
+"note_export_failed" = "Не удалось экспортировать страницу.";
+"note_export_unsaved" = "Разберитесь с несохранённым черновиком, прежде чем экспортировать эту страницу.";
+"note_import_failed" = "Не удалось импортировать файлы Markdown.";
+"note_import_too_many" = "За раз можно импортировать не более %1$d файлов.";
+"note_import_bad_type" = "Импортировать можно только файлы Markdown (.md, .markdown, .txt).";
+"note_import_file_too_large" = "Содержимое заметки превышает 1 MiB.";
+"note_import_too_large" = "Импорт превышает 4 МБ.";
+
 /* strings_plan.xml */
 "plan_title" = "Тариф";
 "plan_pro" = "Pro";

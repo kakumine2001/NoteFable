@@ -7,6 +7,10 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.CreationExtras
 import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.data.ApiException
+import com.kakumine.notefable.data.ExportedNote
+import com.kakumine.notefable.data.ImportCandidate
+import com.kakumine.notefable.data.ImportMarkdownFile
+import com.kakumine.notefable.data.NoteImport
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NotePageSettings
 import com.kakumine.notefable.data.NotePageSummary
@@ -32,7 +36,13 @@ enum class Workspace { Chat, Notes }
  * 网络错误这类没有原句的，用 [kind] 对应的网页文案。
  */
 data class NotesError(val kind: Kind, val detail: String? = null) {
-    enum class Kind { Load, Create, Trash, TrashUnsaved, Group, TrashLoad, TrashAction, UnsavedDraft }
+    enum class Kind {
+        Load, Create, Trash, TrashUnsaved, Group, TrashLoad, TrashAction, UnsavedDraft,
+        /** 导出 Markdown：读不到 / 写不进文件；打开着的笔记还有存不上的草稿。 */
+        Export, ExportUnsaved,
+        /** 导入 Markdown：请求失败（或文件读不出来）；选的文件超过个数、类型不对、单个太大、合计太大。 */
+        Import, ImportTooMany, ImportBadType, ImportFileTooLarge, ImportTooLarge,
+    }
 }
 
 /**
@@ -608,6 +618,97 @@ class NotesViewModel(
             }
         }
     }
+
+    // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----
+
+    /** 一次只导出一篇（网页的 actionBusy）。 */
+    private var exporting = false
+
+    /** 读好、等用户选保存位置的导出内容（页面 id → Markdown）。选择器开着时 Activity 重建也还在。 */
+    private var heldExport: Pair<String, String>? = null
+
+    /**
+     * 导出这一篇的 Markdown（页面菜单的 "Export Markdown"）。服务端导出的是已保存的内容，所以打开着的是它时先让编辑器保存，
+     * 存不上就不导出（网页："Resolve the unsaved draft before exporting this page."）。
+     * 成功返回文件名和内容（内容同时留在 [takeExport] 里，等界面选好保存位置再写）；失败时原因显示在笔记顶栏下面，返回 null。
+     */
+    suspend fun exportNote(id: String): ExportedNote? {
+        if (exporting) return null
+        exporting = true
+        val owner = identity
+        _state.update { it.copy(notice = null) }
+        try {
+            if (_state.value.open?.id == id && !flushOpen().ok) {
+                if (owner == identity) _state.update { it.copy(notice = NotesError(NotesError.Kind.ExportUnsaved)) }
+                return null
+            }
+            val exported = backend.exportNote(id)
+            if (owner != identity) return null
+            heldExport = id to exported.markdown
+            return exported.copy(fileName = exported.fileName.ifBlank { NoteImport.FALLBACK_EXPORT_NAME })
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Throwable) {
+            if (owner == identity) _state.update { it.copy(notice = errorOf(NotesError.Kind.Export, e)) }
+            return null
+        } finally {
+            exporting = false
+        }
+    }
+
+    /** 取走 [exportNote] 留下的内容；没有（进程被系统回收后重建）时返回 null，界面用 [exportedMarkdown] 重新读。 */
+    fun takeExport(id: String): String? = heldExport?.takeIf { it.first == id }?.second.also { heldExport = null }
+
+    /** 要写进文件的内容：[held]（刚取走的）优先，没有就重新读一次。 */
+    suspend fun exportedMarkdown(id: String, held: String?): String = held ?: backend.exportNote(id).markdown
+
+    /** 选好的位置写不进去（或没有能选保存位置的 App）：和读取失败同一句提示。 */
+    fun exportFailed() = _state.update { it.copy(notice = NotesError(NotesError.Kind.Export)) }
+
+    /**
+     * 导入 Markdown 文件（"Import Markdown"）。先按网页同样的规则查个数、扩展名和大小，不合规定就只显示原因、什么都不发；
+     * 然后读出全文发给服务端，新建的笔记放进列表，并打开第一篇（网页 page.tsx 的 importMarkdownFiles）。
+     * 期间和新建一样禁用列表操作（[NotesUiState.busy]）。
+     */
+    fun importMarkdown(files: List<ImportCandidate>) {
+        if (files.isEmpty() || _state.value.busy) return
+        NoteImport.check(files.map { NoteImport.Entry(it.name, it.size ?: 0) })?.let { problem ->
+            _state.update { it.copy(error = importError(problem)) }
+            return
+        }
+        val owner = identity
+        _state.update { it.copy(busy = true, error = null) }
+        viewModelScope.launch {
+            try {
+                val payload = files.map { ImportMarkdownFile(it.name, it.read()) }
+                // 选择器报不出大小的文件，读完按实际的字节数再查一遍。
+                val problem = NoteImport.check(payload.map { NoteImport.Entry(it.name, it.markdown.toByteArray(Charsets.UTF_8).size.toLong()) })
+                if (problem != null) {
+                    if (owner == identity) _state.update { it.copy(busy = false, error = importError(problem)) }
+                    return@launch
+                }
+                val created = backend.importMarkdown(payload)
+                val applied = commit(owner) {
+                    _state.update { s -> s.copy(busy = false, pages = created.fold(s.pages) { pages, page -> upsert(pages, page) }) }
+                }
+                if (applied) created.firstOrNull()?.let { openNote(it.id, it.title, it.icon) }
+            } catch (e: CancellationException) {
+                if (owner == identity) _state.update { it.copy(busy = false) }
+                throw e
+            } catch (e: Throwable) {
+                if (owner == identity) _state.update { it.copy(busy = false, error = errorOf(NotesError.Kind.Import, e)) }
+            }
+        }
+    }
+
+    private fun importError(problem: NoteImport.Problem) = NotesError(
+        when (problem) {
+            NoteImport.Problem.TooMany -> NotesError.Kind.ImportTooMany
+            NoteImport.Problem.BadType -> NotesError.Kind.ImportBadType
+            NoteImport.Problem.FileTooLarge -> NotesError.Kind.ImportFileTooLarge
+            NoteImport.Problem.TooLarge -> NotesError.Kind.ImportTooLarge
+        },
+    )
 
     fun toggleExpanded(id: String) {
         val open = _state.value.isExpanded(id)

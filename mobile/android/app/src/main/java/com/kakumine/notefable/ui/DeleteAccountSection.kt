@@ -34,9 +34,9 @@ import com.kakumine.notefable.data.serverMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
-private val Danger = Color(0xFFB91C1C) // .notes-delete
-private val DangerBorder = Color(0x33B91C1C) // rgba(185, 28, 28, 0.2)
-private val DangerFill = Color(0x0AB91C1C) // rgba(185, 28, 28, 0.04)
+private val Danger: Color get() = Sm.Danger // .notes-delete
+private val DangerBorder = Color(0x47B91C1C) // rgba(185, 28, 28, 0.28)
+private val DangerFill = Color(0x14B91C1C) // rgba(185, 28, 28, 0.08)
 
 /**
  * "删除账号"的状态：确认区开没开、删除中、失败的原因。由设置窗口拿着，不放在这一行里：设置分成了一览和各栏的页面，

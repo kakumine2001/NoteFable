@@ -95,10 +95,10 @@ fun clipInstructions(text: String, max: Int): String {
     return text.substring(0, end)
 }
 
-internal val SettingsDanger = Color(0xFFB91C1C) // .project-settings-error
+internal val SettingsDanger: Color get() = Sm.Danger // .project-settings-error
 private val CountFull = Color(0xFFB45309)      // .project-settings-count.is-full
 private val SettingsShadow = Color(0x1F0F0F0F) // --notion-shadow
-private val SettingsRing = Color(0x0D0F0F0F)
+private val SettingsRing: Color get() = Sm.Ring
 
 /**
  * 项目设置（网页 ChatProjectSettings，dialog.chat-project-settings 的手机尺寸）：
@@ -149,7 +149,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
     // 保存中不让关（网页保存时整个对话框锁住），否则请求结果到了也没人更新侧栏。
     Dialog(onDismissRequest = { if (!busy) onClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        LaunchedEffect(window) { window?.setDimAmount(0.2f) }
+        LaunchedEffect(window, Sm.isDark) { window?.setDimAmount(dialogDim()) }
         Column(
             // 宽：CSS 是 100% − 16，但浏览器 <dialog> 默认 max-width = 100% − 2em − 6px 更窄，412 宽时实际 374（左右各 19）；
             // 高同理不超过视口 − 38。
@@ -157,7 +157,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp - 38).coerceAtLeast(200).dp)
                 .shadow(14.dp, RoundedCornerShape(8.dp), ambientColor = SettingsShadow, spotColor = SettingsShadow)
                 .border(1.dp, SettingsRing, RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)).background(Color.White),
+                .clip(RoundedCornerShape(8.dp)).background(Sm.Surface),
         ) {
             Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)) {
                 Text(stringResource(R.string.sb_project_settings), color = Sm.Text, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
@@ -366,7 +366,7 @@ private fun Checkbox16(checked: Boolean, enabled: Boolean) {
     val alpha = if (enabled) 1f else 0.5f
     Box(
         Modifier.size(16.dp).clip(RoundedCornerShape(2.dp))
-            .background(if (checked) Sm.Blue.copy(alpha = alpha) else Color.White)
+            .background(if (checked) Sm.Blue.copy(alpha = alpha) else Sm.Surface)
             .then(if (checked) Modifier else Modifier.border(1.dp, Color(0xFF767676).copy(alpha = alpha), RoundedCornerShape(2.dp))),
         Alignment.Center,
     ) { if (checked) LucideIcon(Lucide.Check, 12.dp, Color.White) }

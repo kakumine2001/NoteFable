@@ -40,6 +40,14 @@ data class NotePageSettings(val fullWidth: Boolean? = null, val smallText: Boole
 /** POST /api/pages/:id/duplicate：复制后的最上层页面、所有复制件、全部笔记的新 position。 */
 data class DuplicateResult(val page: NotePageSummary, val pages: List<NotePageSummary>, val order: List<NoteOrderUpdate>)
 
+/** GET /api/pages/:id/export：一篇笔记的 Markdown 文件（"# 标题 + 正文"），和 /api/sessions/:id/export 同一形状。 */
+@Serializable
+data class ExportedNote(val fileName: String = "", val markdown: String = "")
+
+/** POST /api/pages/import 的一个文件：文件名（没有一级标题时去掉扩展名当标题）和全文。 */
+@Serializable
+data class ImportMarkdownFile(val name: String, val markdown: String)
+
 @Serializable
 data class NoteGroupSummary(val id: String, val name: String, val position: Int = 0)
 
@@ -131,11 +139,18 @@ interface NotesBackend {
     /** 清空回收站；[before] 是确认时看到的最新一条的 deletedAt，确认后别处新扔的不会被删。 */
     suspend fun emptyTrash(before: String)
 
+    /** 导出一篇笔记的 Markdown（`GET /api/pages/:id/export`，读的是已保存的内容）。 */
+    suspend fun exportNote(id: String): ExportedNote
+
+    /** 把 Markdown 文件导入成笔记（`POST /api/pages/import`，每个文件一篇，放在最上层、不进项目），返回新建的笔记。 */
+    suspend fun importMarkdown(files: List<ImportMarkdownFile>): List<NotePageSummary>
+
     /**
-     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…`）。
+     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
      * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
+     * [theme] 是 App 现在实际的外观（`light` / `dark`），网页第一帧就按它画（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
      */
-    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null): String
+    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null): String
 }
 
 /** 回收站里保留的天数，与 src/types/notes.ts 的 TRASH_RETENTION_DAYS 相同。 */
