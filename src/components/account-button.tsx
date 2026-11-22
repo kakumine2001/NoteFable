@@ -8,6 +8,7 @@ import { SignInButton } from "@/components/sign-in-dialog";
 import { SettingsDialog } from "@/components/settings-dialog";
 import { UserAvatar } from "@/components/user-avatar";
 import { clearSaveError, settled, useAccount } from "@/lib/account-store";
+import { forgetAccountAppIcon, pullAppIconFromAccount, setAppIconAccount } from "@/lib/app-icon-sync";
 import { msg } from "@/lib/i18n/translate";
 import { localeSyncAction } from "@/lib/locale-sync";
 
@@ -32,6 +33,17 @@ export function AccountLocaleSync() {
     const action = localeSyncAction({ loaded, configured, signedIn, saved, preference, active, target });
     if (action?.kind === "switch") setPreference(action.to);
   }, [loaded, configured, signedIn, saved, setPreference]);
+  return null;
+}
+
+// 設定の「アイコン」をアカウントと同期する（app-icon-sync.ts）。ログインしたら（起動時を含む）アカウントの値を読む。ワークスペースに 1 つだけ置く。
+export function AccountAppIconSync() {
+  const { account } = useAccount();
+  const signedIn = Boolean(account?.user);
+  useEffect(() => {
+    setAppIconAccount(signedIn);
+    if (signedIn) void pullAppIconFromAccount();
+  }, [signedIn]);
   return null;
 }
 
@@ -61,12 +73,17 @@ export function AccountButton() {
     // ログアウトした後は、選んでいた言語ではなく環境の言語で表示する。
     signingOut = true;
     forgetLocaleChoice();
+    // ログアウトの後は、アイコンをこの端末だけの設定に戻す（アカウントへ送らない）。
+    setAppIconAccount(false);
     try {
       await signOut();
+      // アカウントのアイコンは、次にこの端末を使う人に残さない（既定に戻す）。
+      forgetAccountAppIcon();
       return "";
     } catch {
       // ログアウトできなかった。消した言語の選択を元に戻す。
       signingOut = false;
+      setAppIconAccount(true);
       if (user?.locale !== undefined) setPreference(user.locale ?? "auto");
       return msg("Could not sign out. Please try again.");
     }

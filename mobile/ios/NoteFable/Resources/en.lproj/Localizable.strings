@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Choose a character";
 "app_icon_upload_image" = "Upload an image";
 "app_icon_could_not_save" = "Could not save the icon on this device.";
+"app_icon_could_not_sync" = "Could not save your icon. Please try again.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Delete account";

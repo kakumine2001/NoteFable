@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Chọn nhân vật";
 "app_icon_upload_image" = "Tải hình ảnh lên";
 "app_icon_could_not_save" = "Không thể lưu biểu tượng trên thiết bị này.";
+"app_icon_could_not_sync" = "Không thể lưu biểu tượng của bạn. Vui lòng thử lại.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Xóa tài khoản";

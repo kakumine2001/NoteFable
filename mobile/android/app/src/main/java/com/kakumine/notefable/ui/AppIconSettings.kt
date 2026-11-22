@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,6 +60,7 @@ import com.kakumine.notefable.NoteFableApp
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.APP_ICON_IMAGE_SIZE
 import com.kakumine.notefable.data.AppIconStore
+import com.kakumine.notefable.data.AppIconSync
 import com.kakumine.notefable.data.CharacterId
 import com.kakumine.notefable.data.CharacterState
 import com.kakumine.notefable.data.ResolvedAppIcon
@@ -77,6 +79,34 @@ import java.io.ByteArrayOutputStream
 
 @Composable
 internal fun appIconStore(): AppIconStore? = (LocalContext.current.applicationContext as? NoteFableApp)?.appIcon
+
+@Composable
+private fun noteFableApp(): NoteFableApp? = LocalContext.current.applicationContext as? NoteFableApp
+
+/**
+ * 图标跟着账号走（网页 account-button.tsx 的 AccountAppIconSync，App 里只放一个）：登录后（含启动时已登录）读账号上的图标。
+ * 未登录或正在退出时不同步，图标只存在这台设备上。
+ */
+@Composable
+internal fun AccountAppIconSync(account: AccountUiState) {
+    val sync: AppIconSync = noteFableApp()?.appIconSync ?: return
+    val signedIn = account.user != null && !account.signingOut
+    LaunchedEffect(signedIn) {
+        sync.signedIn = signedIn
+        if (signedIn) sync.pull()
+    }
+}
+
+/** 先存到这台设备、再在登录时送到账号（网页 app-icon-settings.tsx 的 apply）。送不上只提示，本机的选择保留。 */
+private fun applyAppIcon(app: NoteFableApp?, editor: AppIconEditor, next: String?) {
+    if (app == null || !app.appIcon.save(next)) {
+        editor.error = AppIconError.NotSaved
+        return
+    }
+    editor.error = null
+    // 用 App 级作用域送：关掉设置也会送完。
+    app.scope.launch { if (!app.appIconSync.push(next)) editor.error = AppIconError.NotSynced }
+}
 
 /** 现在的图标存储值：null 表示默认角色 Quill。 */
 @Composable
@@ -135,7 +165,7 @@ internal fun AppIcon(
 }
 
 /** 设置里"图标"一栏的出错提示（网页 app-icon-settings.tsx 的 error）。 */
-internal enum class AppIconError { NotSaved, NotImage }
+internal enum class AppIconError { NotSaved, NotImage, NotSynced }
 
 /** "图标"一栏的界面状态：角色选择网格是否展开、出错提示。 */
 @Stable
@@ -165,17 +195,17 @@ internal fun rememberAppIconEditor(): AppIconEditor = rememberSaveable(saver = A
 @Composable
 internal fun rememberAppIconImagePicker(editor: AppIconEditor, onPickerOpen: (Boolean) -> Unit): () -> Unit {
     val context = LocalContext.current
-    val store = appIconStore()
+    val app = noteFableApp()
     val scope = rememberCoroutineScope()
     val launcher = rememberLauncherForActivityResult(PickAvatarPhoto()) { uri ->
         onPickerOpen(false)
-        if (uri == null || store == null) return@rememberLauncherForActivityResult
+        if (uri == null || app == null) return@rememberLauncherForActivityResult
         scope.launch {
             val icon = readAppIconImage(context.contentResolver, uri)
             if (icon == null) {
                 editor.error = AppIconError.NotImage
             } else {
-                editor.error = if (store.save(icon)) null else AppIconError.NotSaved
+                applyAppIcon(app, editor, icon)
                 editor.picking = false
             }
         }
@@ -223,11 +253,13 @@ private fun renderAppIcon(bitmap: Bitmap): String {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
-    val store = appIconStore()
+    val app = noteFableApp()
     val icon = currentAppIcon()
     val resolved = resolveAppIcon(icon)
     val selectedCharacterId = (resolved as? ResolvedAppIcon.Character)?.characterId
-    val apply = { next: String? -> editor.error = if (store?.save(next) == true) null else AppIconError.NotSaved }
+    val apply = { next: String? -> applyAppIcon(app, editor, next) }
+    // 打开设置时重新读账号上的图标（别的设备换过的话这里也跟着变）。
+    LaunchedEffect(app) { app?.appIconSync?.pull() }
 
     Column(Modifier.fillMaxWidth()) {
         Row(
@@ -254,6 +286,7 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
             val text = when (it) {
                 AppIconError.NotSaved -> stringResource(R.string.app_icon_could_not_save)
                 AppIconError.NotImage -> stringResource(R.string.acct_choose_image)
+                AppIconError.NotSynced -> stringResource(R.string.app_icon_could_not_sync)
             }
             Text(text, color = SettingsDanger, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 12.dp))
         }

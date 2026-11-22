@@ -73,7 +73,7 @@ extension AccountProfileBackend {
     }
 }
 
-final class AccountApi: AccountProfileBackend, @unchecked Sendable {
+final class AccountApi: AccountProfileBackend, AppIconBackend, @unchecked Sendable {
     private let http: NoteFableHttp
 
     init(http: NoteFableHttp) {
@@ -107,6 +107,15 @@ final class AccountApi: AccountProfileBackend, @unchecked Sendable {
 
     func plan() async throws -> PlanInfo {
         try await http.getJson("/api/billing")
+    }
+
+    func accountAppIcon() async throws -> AppIconResponse {
+        try await http.getJson("/api/app-icon", as: AppIconResponse.self)
+    }
+
+    func saveAccountAppIcon(_ icon: String?) async throws -> AppIconResponse {
+        let body: JSONValue = ["icon": ApiJson.string(icon)]
+        return try await http.send(try http.request("PUT", "/api/app-icon", json: body), as: AppIconResponse.self)
     }
 
     func customInstructions() async throws -> String? {

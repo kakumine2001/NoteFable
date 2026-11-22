@@ -9,6 +9,8 @@ import coil3.SingletonImageLoader
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import com.kakumine.notefable.data.AccountApi
 import com.kakumine.notefable.data.AppIconStore
+import com.kakumine.notefable.data.AppIconSync
+import com.kakumine.notefable.data.AppIconSyncMemory
 import com.kakumine.notefable.data.PersistentCookieJar
 import com.kakumine.notefable.data.ProposalApi
 import com.kakumine.notefable.data.ProposalStore
@@ -29,13 +31,28 @@ class NoteFableApp : Application(), SingletonImageLoader.Factory {
     /** AI 笔记提案的应用 / 放弃状态（按提案 ID，跨界面重建保留；网页 page-edit-proposal.tsx 的 states）。 */
     val proposals: ProposalStore by lazy { ProposalStore(ProposalApi(api.httpClient, api::absoluteUrl), scope) }
 
-    /** 设置里选的图标（表情 / 图片，只存在这台设备上；网页 localStorage 的 notefable:app-icon）。 */
+    /** 设置里选的图标（角色 / 图片，存在这台设备上；网页 localStorage 的 notefable:app-icon）。登录时由 [appIconSync] 和账号同步。 */
     val appIcon: AppIconStore by lazy {
         val prefs = getSharedPreferences("app_icon", MODE_PRIVATE)
         AppIconStore(
             read = { prefs.getString("icon", null) },
             write = { icon -> prefs.edit().apply { if (icon != null) putString("icon", icon) else remove("icon") }.commit() },
         )
+    }
+
+    /** 登录时让图标跟着账号走（data/AppIconSync.kt，网页 app-icon-sync.ts）。 */
+    val appIconSync: AppIconSync by lazy {
+        // 图标属于哪个账号、有没有还没送到的选择，和图标存在同一个 SharedPreferences 里。
+        val prefs = getSharedPreferences("app_icon", MODE_PRIVATE)
+        val memory = object : AppIconSyncMemory {
+            override var owner: String?
+                get() = prefs.getString("owner", null)
+                set(value) { prefs.edit().apply { if (value != null) putString("owner", value) else remove("owner") }.commit() }
+            override var pending: Boolean
+                get() = prefs.getBoolean("pending", false)
+                set(value) { prefs.edit().putBoolean("pending", value).commit() }
+        }
+        AppIconSync(appIcon, AccountApi(api.http), memory)
     }
 
     /** Pro 的 Google Play 订阅（data/PlayBilling.kt）。购买结果回来时打开它的界面可能已经关了，所以放在 App 里。 */

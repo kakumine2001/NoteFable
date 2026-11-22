@@ -3,7 +3,7 @@ import Observation
 
 // 设置里的 AI 角色 / 自定义图标（网页 src/lib/app-icon.ts，Android data/AppIcon.kt）：
 // 空聊天首页的大形象、AI 回答顶部的标识、侧栏图标、笔记 AI 按钮、设置预览全部跟随当前选择。
-// 只保存在当前设备上（不跨设备同步）。
+// 保存在当前设备上；登录时还会和账号同步（AppIconSync.swift，网页 app-icon-sync.ts），访客只存在这台设备上。
 // nil（未设置）表示默认角色 Quill；其他预设角色存为 "character:<id>"；上传的图片保留 "data:image/..."。
 // 旧版本的表情符号或未知值自动回到默认角色（nil -> Quill）。
 

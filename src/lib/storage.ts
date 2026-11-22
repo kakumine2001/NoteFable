@@ -98,13 +98,18 @@ export async function writeStoredImageAt(storagePath: string, buffer: Buffer, mi
   return relativePath.replace(/\\/g, "/");
 }
 
+// 保存先にその画像が無い（Blob の 404、ローカルの ENOENT）。一時的な読み取りの失敗（通信・権限など）と区別したい呼び出し側が使う。
+export class StoredImageNotFoundError extends Error {}
+
 export async function readStoredImage(storagePath: string, maxBytes?: number) {
   const safePath = normalizeStoragePath(storagePath);
 
   if (hasVercelBlobToken()) {
     const { get } = await import("@vercel/blob");
     const result = await get(safePath, { access: "private" });
-    if (!result || result.statusCode !== 200) {
+    // get は 404 のときだけ null を返す（それ以外の失敗は例外）。
+    if (!result) throw new StoredImageNotFoundError(msg("Stored image not found."));
+    if (result.statusCode !== 200) {
       throw new Error(msg("Stored image not found."));
     }
 
@@ -124,7 +129,10 @@ export async function readStoredImage(storagePath: string, maxBytes?: number) {
   }
 
   assertStorageConfigured();
-  const buffer = await readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath));
+  const buffer = await readFile(path.join(/*turbopackIgnore: true*/ getStorageRoot(), safePath)).catch((error: unknown) => {
+    if ((error as NodeJS.ErrnoException)?.code === "ENOENT") throw new StoredImageNotFoundError(msg("Stored image not found."));
+    throw error;
+  });
   if (maxBytes !== undefined && buffer.length > maxBytes) throw new Error(msg("Stored file exceeds its declared size."));
   return buffer;
 }

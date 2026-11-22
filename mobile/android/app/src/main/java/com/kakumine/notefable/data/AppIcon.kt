@@ -8,7 +8,7 @@ import kotlin.math.min
 
 // 设置里的 AI 角色 / 自定义图标（网页 src/lib/app-icon.ts）：
 // 空聊天首页大形象、AI 回答顶部标识、侧栏图标、笔记 AI 按钮、设置预览全部统一跟随当前选择。
-// 只保存在当前设备上（不跨设备同步）。
+// 保存在当前设备上；登录时还会和账号同步（AppIconSync.kt，网页 app-icon-sync.ts），访客只存在这台设备上。
 // null（未设置）表示默认角色 Quill（D · Quill）；其他官方角色存为 "character:<id>"；自定义上传图片保留 "data:image/..."。
 // 旧版本的表情符号或未知值会自动迁移回默认角色（null -> Quill）。
 
