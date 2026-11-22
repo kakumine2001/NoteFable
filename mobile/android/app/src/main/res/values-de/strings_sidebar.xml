@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Das Projekt konnte nicht gespeichert werden. Bitte versuche es erneut.</string>
     <string name="sb_loading">Wird geladen…</string>
     <string name="sb_instructions">Anweisungen</string>
-    <string name="sb_instructions_help">Gilt für jeden Chat in diesem Projekt. Beschreibe, wofür das Projekt gedacht ist, in welcher Sprache geantwortet werden soll und wie Antworten formatiert sein sollen.</string>
     <string name="sb_instructions_placeholder">Beispiel: Hilf mir beim Schreiben japanischer Geschäfts-E-Mails. Achte auf einen höflichen Ton und gib mir zuerst einen kurzen Entwurf.</string>
     <string name="sb_reference_notes">Referenznotizen</string>
-    <string name="sb_reference_notes_help">Nur die hier ausgewählten Notizen werden in den Chats dieses Projekts mit der KI geteilt. Sie werden live eingelesen, sodass deine neuesten Änderungen ab der nächsten Nachricht gelten.</string>
     <string name="sb_selected_notes">Ausgewählte Notizen</string>
     <string name="sb_remove_title">„%1$s“ entfernen</string>
     <string name="sb_filter_notes">Notizen filtern</string>

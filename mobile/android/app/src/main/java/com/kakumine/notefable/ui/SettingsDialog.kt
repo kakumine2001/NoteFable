@@ -474,7 +474,7 @@ private fun CustomInstructionsSection(
     }
 }
 
-// textarea.settings-textarea（手机）：上距 12、最小高 176、1px 深描边、圆角 10、内边距 10×12、16 / 行高 1.55；
+// textarea.settings-textarea（手机）：上距 12、最小高 240、1px 深描边、圆角 10、内边距 10×12、16 / 行高 1.55；
 // 聚焦时蓝边 + 外侧 3px 的 rgba(35,131,226,.16) 光圈。
 @Composable
 private fun SettingsInstructionsField(value: String, onChange: (String) -> Unit, enabled: Boolean, label: String, placeholder: String) {
@@ -489,7 +489,7 @@ private fun SettingsInstructionsField(value: String, onChange: (String) -> Unit,
         modifier = Modifier.padding(top = 12.dp).fillMaxWidth().onFocusChanged { focused = it.isFocused }.semantics { contentDescription = label },
         decorationBox = { inner ->
             Box(
-                Modifier.fillMaxWidth().heightIn(min = 176.dp)
+                Modifier.fillMaxWidth().heightIn(min = 240.dp)
                     .drawBehind {
                         if (focused) {
                             val ring = 3.dp.toPx()

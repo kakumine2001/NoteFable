@@ -347,9 +347,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
                   ? <span className="settings-saved" role="status"><Check size={13} aria-hidden="true" />{t("Saved")}</span>
                   : initial !== null && <span className="project-settings-count" aria-live="polite">{instructions.length}/{MAX_CUSTOM_INSTRUCTIONS}</span>}
               </label>
-              <p id={helpId} className="project-settings-help">
-                {t("Applied to all your chats from the next message. Tell NoteFable about yourself and how you want it to answer. A project’s instructions take priority inside that project.")}
-              </p>
+              <p id={helpId} className="project-settings-help">{t("Share anything about yourself or how you like answers, and it applies to every chat.")}</p>
               {initial === null && !loadError && <p className="project-settings-empty" role="status"><LoaderCircle size={14} className="mr-1 inline animate-spin" aria-hidden="true" />{t("Loading…")}</p>}
               {loadError && <>
                 <p role="alert" className="project-settings-error">{localizeSystemText(loadError, t)}</p>
@@ -357,7 +355,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
               </>}
               {initial !== null && <textarea id={fieldId} className="settings-textarea" value={instructions} disabled={busy}
                 maxLength={MAX_CUSTOM_INSTRUCTIONS} aria-describedby={helpId}
-                placeholder={t("Example: I’m preparing for the JLPT N1. Explain grammar with short examples, and keep answers brief.")}
+                placeholder={t("For example:\n- Answer in plain, casual language\n- Lead with the conclusion and keep it short\n- If you’re not sure, say so instead of guessing")}
                 onChange={(event) => { setInstructions(event.target.value); setJustSaved(false); }} />}
               {error && <p role="alert" className="project-settings-error">{localizeSystemText(error, t)}</p>}
             </div>

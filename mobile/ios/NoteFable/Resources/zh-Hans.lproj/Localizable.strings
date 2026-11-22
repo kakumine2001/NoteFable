@@ -184,12 +184,11 @@
 "settings_personalization" = "个性化";
 "settings_unsaved" = "有未保存的更改";
 "acct_custom_instructions" = "自定义指令";
-"acct_custom_instructions_help" = "从下一条消息起适用于你的所有聊天。可以介绍你自己，以及希望 NoteFable 怎样回答。在项目内，项目的指示优先。";
-"acct_custom_instructions_placeholder" = "例如：我正在备考 JLPT N1。请用简短的例句讲解语法，回答尽量简洁。";
+"acct_custom_instructions_help" = "写下你的情况或喜欢的回答方式，所有聊天都会参考。";
+"acct_custom_instructions_placeholder" = "例如：\n- 用轻松自然的语气回答\n- 先说结论，尽量简短\n- 不确定就直接说，不要瞎猜";
 "acct_err_load_custom_instructions" = "无法加载你的自定义指令。";
 "acct_err_save_custom_instructions" = "无法保存你的自定义指令，请重试。";
 "app_icon_title" = "图标";
-"app_icon_help" = "显示在聊天、侧栏和笔记里的 AI 按钮上。只保存在这台设备上。";
 "app_icon_choose_character" = "选择角色";
 "app_icon_upload_image" = "上传图片";
 "app_icon_could_not_save" = "无法在这台设备上保存图标。";
@@ -274,7 +273,6 @@
 "ask_notefable" = "问 NoteFable";
 "quote" = "引用";
 "remove_quote" = "移除引用";
-"attach_pages_help" = "AI 会把你添加的页面作为这段对话的参考内容。每次发送都会重新读取，所以总是使用最新的内容。";
 "attach_pages_submit" = "添加";
 "err_pages_image_mode" = "生成图片时不能添加页面。请移除页面或关闭图片生成。";
 "create_page" = "整理成笔记";
@@ -471,10 +469,8 @@
 "sb_err_save_project" = "无法保存项目，请重试。";
 "sb_loading" = "正在加载…";
 "sb_instructions" = "指示";
-"sb_instructions_help" = "适用于此项目的每个聊天。可说明项目用途、回答语言和格式要求。";
 "sb_instructions_placeholder" = "例如：帮我写日语商务邮件。保持礼貌，先给出一份简短草稿。";
 "sb_reference_notes" = "参考笔记";
-"sb_reference_notes_help" = "只有在这里选中的笔记才会提供给此项目聊天中的 AI。每次都会读取最新内容，修改会从下一条消息起生效。";
 "sb_selected_notes" = "已选笔记";
 "sb_remove_title" = "移除 %1$s";
 "sb_filter_notes" = "筛选笔记";

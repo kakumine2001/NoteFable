@@ -7,7 +7,6 @@
     <string name="ask_notefable">Tanya NoteFable</string>
     <string name="quote">Kutipan</string>
     <string name="remove_quote">Hapus kutipan</string>
-    <string name="attach_pages_help">AI membaca halaman yang Anda lampirkan sebagai konteks untuk chat ini. Halaman dibaca ulang setiap kali pesan dikirim, sehingga editan terbaru Anda selalu digunakan.</string>
     <string name="attach_pages_submit">Lampirkan</string>
     <string name="err_pages_image_mode">Halaman tidak dapat dilampirkan saat membuat gambar. Hapus halaman tersebut atau matikan pembuatan gambar.</string>
     <string name="create_page">Rangkum jadi catatan</string>

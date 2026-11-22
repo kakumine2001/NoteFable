@@ -22,12 +22,11 @@
     <string name="settings_personalization">Kişiselleştirme</string>
     <string name="settings_unsaved">Kaydedilmemiş değişiklikler</string>
     <string name="acct_custom_instructions">Özel talimatlar</string>
-    <string name="acct_custom_instructions_help">Bir sonraki mesajdan itibaren tüm sohbetlerinize uygulanır. NoteFable\'a kendinizden ve nasıl yanıt vermesini istediğinizden bahsedin. Bir projenin içinde proje talimatları önceliklidir.</string>
-    <string name="acct_custom_instructions_placeholder">Örnek: JLPT N1 sınavına hazırlanıyorum. Dilbilgisini kısa örneklerle açıkla ve yanıtları öz tut.</string>
+    <string name="acct_custom_instructions_help">Kendinden ya da nasıl yanıt istediğinden bahset; bu tüm sohbetlerde geçerli olur.</string>
+    <string name="acct_custom_instructions_placeholder">Örneğin:\n- Sade ve samimi bir dille cevap ver\n- Önce sonucu söyle, kısa tut\n- Emin değilsen tahmin yürütme, bunu söyle</string>
     <string name="acct_err_load_custom_instructions">Özel talimatlarınız yüklenemedi.</string>
     <string name="acct_err_save_custom_instructions">Özel talimatlarınız kaydedilemedi. Lütfen tekrar deneyin.</string>
     <string name="app_icon_title">Simge</string>
-    <string name="app_icon_help">Sohbette, kenar çubuğunda ve notlardaki yapay zekâ düğmesinde gösterilir. Yalnızca bu cihaza kaydedilir.</string>
     <string name="app_icon_choose_character">Karakter seç</string>
     <string name="app_icon_upload_image">Görsel yükle</string>
     <string name="app_icon_could_not_save">Simge bu cihaza kaydedilemedi.</string>

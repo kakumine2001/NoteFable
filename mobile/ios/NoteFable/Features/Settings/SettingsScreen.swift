@@ -282,7 +282,7 @@ private struct CustomInstructionsSection: View {
     }
 }
 
-/// textarea.settings-textarea（手机）：上距 12、最小高 176、1px 深描边、圆角 10、内边距 10×12、16 / 行高 1.55；
+/// textarea.settings-textarea（手机）：上距 12、最小高 240、1px 深描边、圆角 10、内边距 10×12、16 / 行高 1.55；
 /// 聚焦时蓝边 + 外侧 3px 的 rgba(35,131,226,.16) 光圈。
 private struct SettingsInstructionsField: View {
     @Binding var text: String
@@ -305,7 +305,7 @@ private struct SettingsInstructionsField: View {
             // TextEditor 自带上下 8、左右 5 的留白，补到 10×12。
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
-            .frame(minHeight: 176, maxHeight: 360)
+            .frame(minHeight: 240, maxHeight: 480)
             .background(alignment: .topLeading) {
                 if text.isEmpty {
                     Text(placeholder)

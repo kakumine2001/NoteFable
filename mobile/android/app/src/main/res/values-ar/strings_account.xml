@@ -22,12 +22,11 @@
     <string name="settings_personalization">التخصيص</string>
     <string name="settings_unsaved">تغييرات غير محفوظة</string>
     <string name="acct_custom_instructions">تعليمات مخصصة</string>
-    <string name="acct_custom_instructions_help">تُطبَّق على جميع محادثاتك بدءاً من الرسالة التالية. أخبر NoteFable عن نفسك وعن الأسلوب الذي تفضّله في الإجابة. وتكون الأولوية لتعليمات المشروع داخل ذلك المشروع.</string>
-    <string name="acct_custom_instructions_placeholder">مثال: أستعد لاختبار JLPT N1. اشرح القواعد بأمثلة قصيرة، واجعل الإجابات موجزة.</string>
+    <string name="acct_custom_instructions_help">اكتب شيئًا عن نفسك أو عن الطريقة التي تفضّل بها الإجابات، وسيُطبَّق ذلك على كل المحادثات.</string>
+    <string name="acct_custom_instructions_placeholder">مثال:\n- أجب بلغة بسيطة وودية\n- ابدأ بالخلاصة واختصر\n- إن لم تكن متأكدًا فقل ذلك بدل التخمين</string>
     <string name="acct_err_load_custom_instructions">تعذّر تحميل تعليماتك المخصصة.</string>
     <string name="acct_err_save_custom_instructions">تعذّر حفظ تعليماتك المخصصة. يرجى المحاولة مرة أخرى.</string>
     <string name="app_icon_title">الأيقونة</string>
-    <string name="app_icon_help">تظهر في المحادثة، وفي الشريط الجانبي، وعلى زر الذكاء الاصطناعي داخل الملاحظات. وتُحفظ على هذا الجهاز فقط.</string>
     <string name="app_icon_choose_character">اختر شخصية</string>
     <string name="app_icon_upload_image">رفع صورة</string>
     <string name="app_icon_could_not_save">تعذّر حفظ الأيقونة على هذا الجهاز.</string>
