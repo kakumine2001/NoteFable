@@ -157,7 +157,12 @@ struct NFIconTile: View {
 
     var body: some View {
         Group {
-            if let emoji, !emoji.isEmpty {
+            if let image = NoteIcons.imagePath(emoji) {
+                // 笔记的上传图片图标：和表情一样大（1em 四方、圆角 3），带 App 的 Cookie 读。
+                RemoteImage(path: image)
+                    .frame(width: glyph, height: glyph)
+                    .clipShape(RoundedRectangle(cornerRadius: 3))
+            } else if let emoji, !emoji.isEmpty {
                 // 表情按字号画，行高收紧到 1（网页 line-height: 1）。
                 Text(emoji)
                     .font(.system(size: glyph))

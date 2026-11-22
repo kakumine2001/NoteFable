@@ -175,14 +175,7 @@ struct PageChip: View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         Button(action: action) {
             HStack(spacing: removable ? 8 : 4) {
-                if let icon = page.icon, !icon.isEmpty {
-                    Text(icon)
-                        .font(.system(size: 12))
-                        .lineLimit(1)
-                        .fixedSize()
-                } else {
-                    LucideIcon(Lucide.fileText, size: removable ? 13 : 12, color: Sm.muted)
-                }
+                NoteIconGlyph(page.icon, emojiSize: 12, iconSize: removable ? 13 : 12)
                 Text(title)
                     .font(.nf(12))
                     .foregroundStyle(Sm.muted)

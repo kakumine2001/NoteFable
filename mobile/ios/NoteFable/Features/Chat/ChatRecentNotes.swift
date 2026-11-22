@@ -71,14 +71,7 @@ private struct ChatRecentNoteCard: View {
         Button(action: onToggle) {
             VStack(alignment: .leading, spacing: 4) {
                 Group {
-                    if let icon = page.icon, !icon.isEmpty {
-                        Text(icon)
-                            .font(.system(size: 16))
-                            .lineLimit(1)
-                            .fixedSize()
-                    } else {
-                        LucideIcon(Lucide.fileText, size: 18, color: Sm.muted)
-                    }
+                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 18)
                 }
                 .frame(width: 32, height: 32)
                 .background(Sm.sidebar, in: RoundedRectangle(cornerRadius: 8))

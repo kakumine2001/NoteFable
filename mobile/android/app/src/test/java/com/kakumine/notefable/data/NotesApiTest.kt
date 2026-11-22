@@ -122,4 +122,14 @@ class NotesApiTest {
         assertNull(EmbedMessage.parse("""{"type":"ready"}"""))
         assertNull(EmbedMessage.parse("not json"))
     }
+
+    @Test
+    fun `reads uploaded image icons and keeps emoji icons as text`() {
+        val key = "upload:page-covers/user1/0e111e3a-9e25-4944-ade7-b460580fa921.png"
+        assertEquals("/api/pages/covers?key=page-covers%2Fuser1%2F0e111e3a-9e25-4944-ade7-b460580fa921.png", NoteIcons.imagePath(key))
+        assertEquals(null, NoteIcons.imagePath("📄"))
+        assertEquals(null, NoteIcons.imagePath("upload:page-covers/user1/../x.png"))
+        assertEquals(null, NoteIcons.text(key))
+        assertEquals("📄", NoteIcons.text("📄"))
+    }
 }

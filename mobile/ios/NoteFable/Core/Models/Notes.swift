@@ -3,6 +3,30 @@ import Foundation
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
 
+/// 笔记图标：表情一个，或者和封面同样形式的上传图片（`upload:page-covers/<所有者>/<UUID>.<扩展名>`，网页 src/lib/note-icon.ts、
+/// Android `NoteIcons`）。图片返回要读的相对路径（带 App 的 Cookie、服务端核对归属），表情返回 nil。
+enum NoteIcons {
+    static func imagePath(_ icon: String?) -> String? {
+        guard let icon, icon.hasPrefix("upload:") else { return nil }
+        let path = String(icon.dropFirst("upload:".count))
+        let parts = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard parts.count == 3, parts[0] == "page-covers" else { return nil }
+        let owner = parts[1]
+        guard (1...64).contains(owner.count), owner.allSatisfy({ ("a"..."z").contains($0) || ("0"..."9").contains($0) }) else { return nil }
+        let file = parts[2].split(separator: ".", omittingEmptySubsequences: false)
+        guard file.count == 2, file[0].count == 36, file[0].allSatisfy({ $0 == "-" || $0.isHexDigit && !$0.isUppercase }),
+              ["jpg", "png", "webp", "gif"].contains(String(file[1])) else { return nil }
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return "/api/pages/covers?key=" + (path.addingPercentEncoding(withAllowedCharacters: allowed) ?? path)
+    }
+
+    /// 只能用文字的地方：图片图标不显示。
+    static func text(_ icon: String?) -> String? {
+        imagePath(icon) == nil ? icon : nil
+    }
+}
+
 struct NotePageSummary: Encodable, Equatable, Sendable, Identifiable {
     var id: String
     var title: String = ""

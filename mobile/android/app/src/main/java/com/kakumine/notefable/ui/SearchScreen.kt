@@ -367,8 +367,8 @@ private fun ResultRow(hit: SearchHit, terms: List<String>, projectName: String?,
         Box(Modifier.padding(top = 0.8.dp).size(22.4.dp), Alignment.Center) {
             val icon = hit.icon
             when {
+                hit is SearchHit.Note -> NoteIcon(icon, 16.sp, 16.dp, Sm.Muted)
                 icon != null -> Text(icon, fontSize = 16.sp, lineHeight = 16.sp)
-                hit is SearchHit.Note -> LucideIcon(Lucide.FileText, 16.dp, Sm.Muted)
                 else -> LucideIcon(Lucide.MessageSquareText, 16.dp, Sm.Muted)
             }
         }

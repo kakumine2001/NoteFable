@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn() }));
+const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn(), claim: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
-vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst } } }));
+vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: {
+  notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst },
+  $transaction: async (run: (tx: unknown) => unknown) => run({ notePage: { updateMany: mocks.updateMany }, noteCoverAsset: { updateMany: mocks.claim } }),
+} }));
 import { PUT } from "./route";
 
 const context = { params: Promise.resolve({ pageId: "n1" }) };
@@ -30,6 +33,17 @@ describe("PUT /api/pages/:id/icon", () => {
   it("rejects anything that is not a single emoji without writing", async () => {
     for (const icon of ["abc", "", 5, ["📚"]]) expect((await call({ icon })).status).toBe(400);
     expect(mocks.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("accepts an uploaded image from the user's own folder and marks it in use", async () => {
+    const key = "upload:page-covers/mine/0e111e3a-9e25-4944-ade7-b460580fa921.png";
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.claim.mockResolvedValue({ count: 1 });
+    mocks.findFirst.mockResolvedValue({ id: "n1", icon: key, version: 6 });
+    expect((await call({ icon: key })).status).toBe(200);
+    expect(mocks.claim).toHaveBeenCalledWith({ where: { path: key.slice(7), userId: "mine", deletingAt: null }, data: { releasedAt: null } });
+    expect((await call({ icon: key.replace("/mine/", "/other/") })).status).toBe(400);
+    expect(mocks.updateMany).toHaveBeenCalledTimes(1);
   });
 
   it("answers 404 for another user's, a missing or a trashed note", async () => {

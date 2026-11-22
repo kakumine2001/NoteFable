@@ -188,6 +188,22 @@ interface NotesBackend {
     fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null): String
 }
 
+/**
+ * 笔记图标：表情一个，或者和封面同样形式的上传图片（`upload:page-covers/<所有者>/<UUID>.<扩展名>`，网页 src/lib/note-icon.ts）。
+ * 图片返回要读的相对路径（带登录 Cookie、服务端核对归属的 `/api/pages/covers?key=`），表情返回 null。
+ */
+object NoteIcons {
+    private val upload = Regex("^upload:(page-covers/[a-z0-9]{1,64}/[0-9a-f-]{36}\\.(?:jpg|png|webp|gif))$")
+
+    fun imagePath(icon: String?): String? {
+        val path = icon?.let { upload.matchEntire(it)?.groupValues?.get(1) } ?: return null
+        return "/api/pages/covers?key=" + java.net.URLEncoder.encode(path, "UTF-8")
+    }
+
+    /** 只能用文字的地方（标题前缀等）：图片图标不显示。 */
+    fun text(icon: String?): String? = icon?.takeIf { imagePath(it) == null }
+}
+
 /** 回收站里保留的天数，与 src/types/notes.ts 的 TRASH_RETENTION_DAYS 相同。 */
 const val TRASH_RETENTION_DAYS = 30
 
