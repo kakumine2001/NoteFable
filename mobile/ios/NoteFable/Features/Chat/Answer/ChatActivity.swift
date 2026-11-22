@@ -19,7 +19,10 @@ enum ChatActivityText {
     /// 标题行的"现在在做什么"：最后一步的一句话（网页 describeCurrent）。
     static func describeCurrent(_ steps: [ActivityStep], _ systemText: SystemTextTranslator) -> String {
         let thinking = L("activity_thinking")
-        guard let last = steps.last else { return thinking }
+        guard let last = steps.last(where: {
+            if case .web(_, let done, let action) = $0 { return !done || action != nil }
+            return true
+        }) else { return thinking }
         switch last {
         case .thought(_, let text):
             let title = Activity.splitThought(text).title
@@ -270,12 +273,12 @@ private struct ActivityStepRow: View {
                 }
             }
         case .web(_, let done, let action):
-            if done, let action {
-                webStep(action)
-            } else {
+            if !done {
                 ActivityStepShell(icon: Lucide.loaderCircle, spinning: true) {
                     ActivityStepTitle(L("activity_searching_web_running"))
                 }
+            } else if let action {
+                webStep(action)
             }
         case .failure, .proposal:
             // 提案和失败位置不进步骤列表（`progressSteps()` 已经去掉）。

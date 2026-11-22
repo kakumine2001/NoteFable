@@ -40,7 +40,7 @@ function sourceLabel(url: string) {
 
 // ヘッダーに出す「今やっていること」。最後のステップを短い一文にする。
 function describeCurrent(steps: ProgressStep[], t: Translate) {
-  const last = steps.at(-1);
+  const last = steps.findLast((step) => step.kind !== "web" || step.status === "running" || Boolean(step.action));
   if (!last) return t("Thinking");
   if (last.kind === "thought") return splitThought(last.text).title || t("Thinking");
   if (last.kind === "tool") return last.status === "done" && last.label ? localizeSystemText(last.label, t) : toolRunningLabel(last.name, t);
@@ -163,15 +163,6 @@ function StepRow({ step }: { step: ProgressStep }) {
   }
 
   const action = step.action;
-  if (!action) {
-    if (step.status !== "running") return null;
-    return (
-      <li className="chat-activity-step">
-        <span className="chat-activity-icon"><LoaderCircle size={13} strokeWidth={1.9} className="animate-spin" /></span>
-        <div className="chat-activity-title">{t("Searching the web…")}</div>
-      </li>
-    );
-  }
   if (step.status === "running") {
     return (
       <li className="chat-activity-step">
@@ -180,6 +171,7 @@ function StepRow({ step }: { step: ProgressStep }) {
       </li>
     );
   }
+  if (!action) return null;
 
   if (action.kind === "search") {
     return (

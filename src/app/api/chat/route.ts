@@ -96,9 +96,9 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
       ? [
           "Use web search when the answer depends on current, changing, niche, or uncertain information; skip it for stable knowledge you can answer reliably.",
         ]
-      : webSearchMode === "off"
-        ? ["Web search is unavailable in this request. Do not simulate web searches or invent search results. Be explicit when current information cannot be verified."]
-        : []),
+      : webSearchMode === "force"
+        ? ["Use web search before answering this request."]
+        : ["Web search is unavailable in this request. Do not simulate web searches or invent search results. Be explicit when current information cannot be verified."]),
     // 変わりやすい部分（カスタム指示・共通指示・参照ノート）は最後に置く。ここだけが変わっても、前の固定の文面はプロンプトキャッシュに残る。
     // 利用者のカスタム指示（すべてのチャット共通）。既定の言語・書式より優先し、プロジェクトの共通指示には譲る。
     ...(custom ? [custom] : []),
@@ -368,10 +368,9 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   // 検索非対応モデルでは、古いクライアントの指定も off に正規化する。
   // フィールド未指定でも検索対応モデルなら auto になる。
   // ノート用の送信は検索なし固定（ブラウザ側の指定に任せない）。
-  const deepSeekSearchTool = modelOption.provider === "deepseek" ? deepSeekWebSearchTool(upstreamModel) : null;
   const webSearchMode = normalizeWebSearchMode(
     noteId ? "off" : formData.get("webSearch"),
-    modelOption.supportsWebSearch && (modelOption.provider !== "deepseek" || deepSeekSearchTool !== null),
+    modelOption.supportsWebSearch,
   );
 
   // 発言の編集（edit = 書き直す自分の発言の ID）と回答の再生成（regenerate = 作り直す回答の ID）。
@@ -842,9 +841,9 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 body: {
                   ...buildDeepSeekResponsesRequest({ model: upstreamModel, instructions, input, effort: reasoning, stream: true }),
                   input,
-                  ...((webSearchMode !== "off" && deepSeekSearchTool) || pageTools.length
+                  ...(webSearchMode !== "off" || pageTools.length
                     ? {
-                        tools: [...(webSearchMode !== "off" && deepSeekSearchTool ? [deepSeekSearchTool] : []), ...toResponsesTools(pageTools)],
+                        tools: [...(webSearchMode !== "off" ? [deepSeekWebSearchTool(upstreamModel)] : []), ...toResponsesTools(pageTools)],
                         // DeepSeek のサーバー検索ツールは tool_choice での強制指定を受け付けないため auto を使う。
                         tool_choice: "auto",
                       }
