@@ -74,4 +74,16 @@ describe("note mentions", () => {
     expect(file.markdown).toContain("See @Day \\[1\\] @2026-11-05");
     expect(file.markdown).not.toContain("page:");
   });
+
+  it("keeps literal mention syntax in code and pipes in table mentions", () => {
+    const code = { id: "c", type: "codeBlock", props: {}, content: [{ type: "text", text: "[@Name](page:p1)", styles: {} }], children: [] };
+    expect(noteToMarkdownFile({ title: "T", blocks: [code] }).markdown).toContain("[@Name](page:p1)");
+    const cell = (content: unknown[]) => ({ type: "tableCell", props: {}, content });
+    const table = { id: "t", type: "table", props: {}, children: [], content: { type: "tableContent", rows: [
+      { cells: [cell([{ type: "text", text: "a", styles: {} }]), cell([{ type: "text", text: "b", styles: {} }])] },
+      { cells: [cell([pageMention("p1", "Sales | Q4")]), cell([{ type: "text", text: "x", styles: {} }])] },
+    ] } };
+    const back = markdownToBlocks(blocksToMarkdown([table]))[0].content as { rows: { cells: { content: unknown[] }[] }[] };
+    expect(back.rows[1].cells.map((c) => c.content)).toEqual([[pageMention("p1", "Sales | Q4")], [{ type: "text", text: "x", styles: {} }]]);
+  });
 });

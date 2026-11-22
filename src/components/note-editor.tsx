@@ -392,7 +392,8 @@ type NoteEditorProps = {
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (text: string) => void;
   // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
   // onOpenPage はその場で開けたら true。false なら（古いアプリの埋め込みなど）リンクを新しいウィンドウで開く。
-  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean;
+  // pageMentions が偽（openPage を処理できない古いアプリの埋め込み）のときは、ページのメンションを「@」の候補に出さない。
+  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean; pageMentions?: boolean;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -471,7 +472,7 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
   return { pages: given ?? fetched, loadPages };
 }
 
-function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, onAskAi, base, pages: givenPages, currentPageId, onOpenPage }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, onAskAi, base, pages: givenPages, currentPageId, onOpenPage, pageMentions = true }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
   const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
@@ -599,12 +600,14 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     const insert = (content: ReturnType<typeof pageMention> | ReturnType<typeof dateMention>) => () => {
       editor.insertInlineContent([content as never, " "]);
     };
+    // 打ちかけの日付（2026-1 など）の間も候補を残す。候補が空になると BlockNote がメニューを閉じ、日付を打ち終えられない。
+    const partialDate = /^\d{1,4}(?:-\d{0,2}(?:-\d{0,2})?)?$/.test(typed) && !isNoteDate(typed);
     const dates = [
       { key: "today", title: t("Today"), date: localDate(0) }, { key: "tomorrow", title: t("Tomorrow"), date: localDate(1) }, { key: "yesterday", title: t("Yesterday"), date: localDate(-1) },
       ...(isNoteDate(typed) ? [{ key: "typed", title: formatNoteDate(typed, locale), date: typed }] : []),
-    ].filter((item) => !q || item.key === "typed" || item.title.toLowerCase().includes(q) || item.key.includes(q))
+    ].filter((item) => !q || partialDate || item.key === "typed" || item.title.toLowerCase().includes(q) || item.key.includes(q))
       .map((item) => ({ key: `date:${item.key}`, title: item.title, subtext: formatNoteDate(item.date, locale), group: t("Date"), icon: <CalendarDays size={18} />, onItemClick: insert(dateMention(item.date)) }));
-    const pageItems = (pages ?? []).filter((page) => page.id !== currentPageId && (!q || (page.title || t("Untitled")).toLowerCase().includes(q)))
+    const pageItems = (pageMentions ? pages ?? [] : []).filter((page) => page.id !== currentPageId && (!q || (page.title || t("Untitled")).toLowerCase().includes(q)))
       .slice(0, 8).map((page) => ({ key: `page:${page.id}`, title: page.title || t("Untitled"), group: t("Link to page"),
         icon: page.icon ? <span className="notes-mention-menu-emoji">{page.icon}</span> : <FileText size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
     return [...pageItems, ...dates];

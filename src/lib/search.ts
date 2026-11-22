@@ -20,12 +20,19 @@ export const LATEX_PATH = 'strict $.** ? (@.type() == "object" && exists(@.latex
 export const MENTION_TITLE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "page").title';
 export const MENTION_DATE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "date").date';
 
+export const MENTION_PAGE_ID_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "page").pageId';
+
 // ノートの本文として検索する文字列の配列（SQL）：文字、行内・独立の数式の TeX、メンションの表示文字。
-export function noteBodyValues(blocks: Prisma.Sql) {
-  return Prisma.sql`jsonb_path_query_array(${blocks}, ${TEXT_PATH}::jsonpath)
-        || jsonb_path_query_array(${blocks}, ${LATEX_PATH}::jsonpath)
-        || jsonb_path_query_array(${blocks}, ${MENTION_TITLE_PATH}::jsonpath)
-        || jsonb_path_query_array(${blocks}, ${MENTION_DATE_PATH}::jsonpath)`;
+// ページのメンションは、エディターが表示する「いまのタイトル」でも見つかるよう、同じ持ち主の生きているページのタイトルも足す
+// （p は NotePage の別名。書いた時のタイトルも残すので、相手のページが消えていても見つかる）。
+export function noteBodyValues(notePageTable: Prisma.Sql) {
+  return Prisma.sql`jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath)
+        || jsonb_path_query_array(p."blocks", ${LATEX_PATH}::jsonpath)
+        || jsonb_path_query_array(p."blocks", ${MENTION_TITLE_PATH}::jsonpath)
+        || jsonb_path_query_array(p."blocks", ${MENTION_DATE_PATH}::jsonpath)
+        || COALESCE((SELECT jsonb_agg(m."title") FROM ${notePageTable} m
+          WHERE m."userId" = p."userId" AND m."deletedAt" IS NULL
+            AND m."id" IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${MENTION_PAGE_ID_PATH}::jsonpath)))), '[]'::jsonb)`;
 }
 // 一致したメッセージの抜粋として DB から受け取る範囲。語の 100 文字前から 600 文字。
 // 添付ファイルの抽出本文は、保存する時点で 120,000 文字に切られている（src/lib/files.ts の MAX_TEXT_CHARS）ので、DB 側ではさらに切らない。
@@ -89,7 +96,7 @@ async function searchNotesByKeyword(userId: string, needles: string[]): Promise<
     FROM ${table("NotePage")} p
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(${noteBodyValues(Prisma.sql`p."blocks"`)})
+      FROM jsonb_array_elements_text(${noteBodyValues(table("NotePage"))})
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
       AND ${Prisma.join(needles.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}

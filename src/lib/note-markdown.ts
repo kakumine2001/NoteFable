@@ -342,7 +342,7 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPre
       // ページは [@タイトル](page:ID)、日付は [@YYYY-MM-DD](date:YYYY-MM-DD)。parseInline が読み戻す。
       const props = entry.props as Record<string, unknown>;
       const text = mentionText(props);
-      return plain ? text : `[${escapeText(text)}](${mentionHref(props)})`;
+      return plain ? text : cell(`[${escapeText(text)}](${mentionHref(props)})`);
     }
     if (entry?.type !== "text" || typeof entry.text !== "string") return "";
     if (plain) return entry.text;
@@ -649,7 +649,8 @@ function parseInline(src: string, styles: Styles = {}, allowLinks = true, depth 
       const close = finder.find("]", i + 1);
       const paren = close > i + 1 && src[close + 1] === "(" ? finder.find(")", close + 2) : -1;
       const href = paren > close ? src.slice(close + 2, paren) : "";
-      const mention = href ? mentionFromHref(href, unescapeLabel(src.slice(i + 1, close))) : null;
+      // 宛先がメンションのときだけ表示文字の退避を外す（長い行で毎回ラベルを作り直さない）。
+      const mention = /^(?:page|date):/.test(href) ? mentionFromHref(href, unescapeLabel(src.slice(i + 1, close))) : null;
       if (mention) {
         flush();
         out.push(mention);

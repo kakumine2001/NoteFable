@@ -118,7 +118,7 @@ async function searchPagesByKeyword(userId: string, terms: string[]): Promise<Pa
     FROM ${table} p
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(${noteBodyValues(Prisma.sql`p."blocks"`)})
+      FROM jsonb_array_elements_text(${noteBodyValues(table)})
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL${filter}
     ORDER BY ${order}p."updatedAt" DESC

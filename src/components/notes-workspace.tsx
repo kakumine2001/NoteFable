@@ -137,7 +137,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
-          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId}
+          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId} pageMentions={!embedded || nativeCanOpenPage()}
           // 埋め込みでは、openPage を処理できるアプリにだけ送る。古いアプリ・ブラウザでは false を返し、エディターは元どおりリンクを新しいウィンドウで開く。
           onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           editorRef={editorRef} onFocusTitle={() => {
