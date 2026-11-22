@@ -18,7 +18,6 @@ export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefO
   const resolved = resolveAppIcon(icon);
   const selectedCharacterId: CharacterId | null = resolved.kind === "character" ? resolved.characterId : null;
   const labelId = useId();
-  const helpId = useId();
   const pickerLabelId = useId();
   const [picking, setPicking] = useState(false);
   const [hoveredId, setHoveredId] = useState<CharacterId | null>(null);
@@ -63,7 +62,6 @@ export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefO
       <div className="settings-row">
         <div className="settings-row-text">
           <span id={labelId} className="settings-row-title">{t("Icon")}</span>
-          <span id={helpId} className="settings-row-help">{t("Shown in chat, in the sidebar and on the AI button in notes. Saved on this device only.")}</span>
         </div>
         <span className="settings-app-icon-preview"><AppIcon size={24} icon={icon} animated /></span>
       </div>
@@ -72,7 +70,6 @@ export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefO
           type="button"
           className="settings-chip"
           aria-expanded={picking}
-          aria-describedby={helpId}
           onClick={() => setPicking((current) => !current)}
         >
           <Sparkles size={14} aria-hidden="true" />{t("Choose a character")}

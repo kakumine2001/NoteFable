@@ -184,12 +184,11 @@
 "settings_personalization" = "맞춤 설정";
 "settings_unsaved" = "저장되지 않은 변경사항";
 "acct_custom_instructions" = "맞춤 지침";
-"acct_custom_instructions_help" = "다음 메시지부터 모든 채팅에 적용됩니다. 자신에 대한 소개나 원하는 답변 방식을 NoteFable에 알려주세요. 프로젝트 안에서는 해당 프로젝트의 지침이 우선 적용됩니다.";
-"acct_custom_instructions_placeholder" = "예: JLPT N1을 준비 중입니다. 문법은 짧은 예문으로 설명해 주고 답변은 간결하게 해 주세요.";
+"acct_custom_instructions_help" = "자신에 대한 정보나 원하는 답변 방식을 적어 두면 모든 채팅에 반영돼요.";
+"acct_custom_instructions_placeholder" = "예:\n- 편하고 쉬운 말투로 답해 줘\n- 결론부터, 짧게\n- 확실하지 않으면 추측하지 말고 모른다고 말해 줘";
 "acct_err_load_custom_instructions" = "맞춤 지침을 불러오지 못했어요.";
 "acct_err_save_custom_instructions" = "맞춤 지침을 저장하지 못했어요. 다시 시도해 주세요.";
 "app_icon_title" = "아이콘";
-"app_icon_help" = "채팅, 사이드바, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.";
 "app_icon_choose_character" = "캐릭터 선택";
 "app_icon_upload_image" = "이미지 업로드";
 "app_icon_could_not_save" = "이 기기에 아이콘을 저장하지 못했어요.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "NoteFable에게 묻기";
 "quote" = "인용구";
 "remove_quote" = "인용 삭제";
-"attach_pages_help" = "첨부한 페이지는 이 채팅에서 AI가 참고 자료로 읽습니다. 메시지를 보낼 때마다 다시 읽으므로 항상 최신 수정 내용이 반영됩니다.";
 "attach_pages_submit" = "첨부";
 "err_pages_image_mode" = "이미지를 생성할 때는 페이지를 첨부할 수 없어요. 페이지를 제거하거나 이미지 생성을 꺼 주세요.";
 "create_page" = "노트로 정리";
@@ -470,10 +468,8 @@
 "sb_err_save_project" = "프로젝트를 저장하지 못했어요. 다시 시도해 주세요.";
 "sb_loading" = "불러오는 중…";
 "sb_instructions" = "지침";
-"sb_instructions_help" = "이 프로젝트의 모든 채팅에 적용됩니다. 프로젝트의 목적, 답변 언어, 원하는 답변 형식을 적어보세요.";
 "sb_instructions_placeholder" = "예: 일본어 비즈니스 이메일 작성을 도와주세요. 정중한 어조를 유지하고 짧은 초안부터 먼저 보여주세요.";
 "sb_reference_notes" = "참고 노트";
-"sb_reference_notes_help" = "여기서 선택한 노트만 이 프로젝트의 채팅에서 AI에게 공유됩니다. 실시간으로 읽어오므로 최신 수정 내용이 다음 메시지부터 바로 반영됩니다.";
 "sb_selected_notes" = "선택된 노트";
 "sb_remove_title" = "‘%1$s’ 제거";
 "sb_filter_notes" = "노트 필터링";

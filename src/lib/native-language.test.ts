@@ -3,11 +3,13 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   defaultStringXmlFileNames,
+  escapeAndroidString,
   GENERATED_NATIVE_LOCALES,
   NATIVE_DEFAULT_VALUES_DIR,
   NATIVE_LOCALE_RES_DIRS,
   NATIVE_RES_DIR,
   nativeLocaleStringFiles,
+  unescapeAndroidString,
 } from "../../scripts/native-strings";
 import { LOCALE_DEFINITIONS, LOCALES } from "./i18n/locale";
 
@@ -108,6 +110,17 @@ describe("enabled Web/native language data", { timeout: 60_000 }, () => {
           expect(extractSpecs(targetEntry.raw), `${resSubdir}/${fileName}:${name} format specs`).toEqual(extractSpecs(baseEntry.raw));
         }
       }
+    }
+  });
+});
+
+describe("Android string escaping", () => {
+  it("round-trips line breaks as \\n", () => {
+    const value = "Example:\n- It’s short\n- \"quoted\"";
+    for (const forceQuote of [false, true]) {
+      const raw = escapeAndroidString(value, forceQuote);
+      expect(raw).not.toContain("\n");
+      expect(unescapeAndroidString(raw).text).toBe(value);
     }
   });
 });

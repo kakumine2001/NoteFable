@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">プロジェクトを保存できませんでした。もう一度お試しください。</string>
     <string name="sb_loading">読み込み中…</string>
     <string name="sb_instructions">指示</string>
-    <string name="sb_instructions_help">このプロジェクト内のすべてのチャットに適用されます。プロジェクトの目的、回答の言語や形式を指定してください。</string>
     <string name="sb_instructions_placeholder">例：日本語のビジネスメール作成を手伝ってください。丁寧な表現を使い、最初に短い文案を出してください。</string>
     <string name="sb_reference_notes">参考ノート</string>
-    <string name="sb_reference_notes_help">ここで選んだノートだけを、このプロジェクトのチャットでAIに共有します。送信時に読み込むため、次のメッセージから最新の編集内容が反映されます。</string>
     <string name="sb_selected_notes">選択したノート</string>
     <string name="sb_remove_title">「%1$s」を削除</string>
     <string name="sb_filter_notes">ノートを絞り込む</string>

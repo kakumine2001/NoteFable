@@ -7,7 +7,6 @@
     <string name="ask_notefable">Demander à NoteFable</string>
     <string name="quote">Citation</string>
     <string name="remove_quote">Retirer la citation</string>
-    <string name="attach_pages_help">L’IA lit les pages que vous joignez comme contexte pour cette discussion. Elles sont relues à chaque message afin de prendre en compte vos dernières modifications.</string>
     <string name="attach_pages_submit">Joindre</string>
     <string name="err_pages_image_mode">Impossible de joindre des pages lors de la création d’une image. Retirez-les ou désactivez la création d’images.</string>
     <string name="create_page">Synthétiser en note</string>

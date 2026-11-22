@@ -7,7 +7,6 @@
     <string name="ask_notefable">NoteFable से पूछें</string>
     <string name="quote">उद्धरण</string>
     <string name="remove_quote">उद्धरण हटाएं</string>
-    <string name="attach_pages_help">आपके द्वारा अटैच किए गए पेजों को AI इस चैट के संदर्भ के रूप में पढ़ता है। हर संदेश के साथ उन्हें दोबारा पढ़ा जाता है, इसलिए आपके नवीनतम बदलाव ही उपयोग होते हैं।</string>
     <string name="attach_pages_submit">अटैच करें</string>
     <string name="err_pages_image_mode">इमेज बनाते समय पेज अटैच नहीं किए जा सकते। उन्हें हटाएँ या इमेज बनाना बंद करें।</string>
     <string name="create_page">नोट में समेटें</string>

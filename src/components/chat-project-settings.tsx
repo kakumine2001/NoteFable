@@ -27,7 +27,6 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
   const ref = useRef<HTMLDialogElement>(null);
   const locked = useRef(false);
   const titleId = useId();
-  const helpId = useId();
   const [attempt, setAttempt] = useState(0);
   const [loaded, setLoaded] = useState<{ initial: ChatProjectDetail; pages: NoteRef[] } | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -111,11 +110,8 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
               {t("Instructions")}
               <span className="project-settings-count" aria-live="polite">{instructions.length}/{MAX_PROJECT_INSTRUCTIONS}</span>
             </label>
-            <p id={helpId} className="project-settings-help">
-              {t("Applied to every chat in this project. Say what the project is for, which language to answer in, and how to format answers.")}
-            </p>
             <textarea id={`${titleId}-instructions`} autoFocus className="project-settings-textarea" value={instructions} disabled={busy}
-              maxLength={MAX_PROJECT_INSTRUCTIONS} aria-describedby={helpId}
+              maxLength={MAX_PROJECT_INSTRUCTIONS}
               placeholder={t("Example: Help me write Japanese business emails. Keep a polite tone and answer with a short draft first.")}
               onChange={(event) => setInstructions(event.target.value)} />
           </section>
@@ -124,9 +120,6 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
               {t("Reference notes")}
               <span className={`project-settings-count${full ? " is-full" : ""}`} aria-live="polite">{selected.length}/{MAX_PROJECT_NOTES}</span>
             </h3>
-            <p className="project-settings-help">
-              {t("Only the notes you choose here are shared with the AI in this project’s chats. They are read live, so your latest edits apply from the next message.")}
-            </p>
             {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected notes")}>
               {selected.map((note) => <li key={note.id} className="project-settings-chip">
                 <FileText size={13} aria-hidden="true" className="flex-none" />

@@ -22,12 +22,11 @@
     <string name="settings_personalization">Персонализация</string>
     <string name="settings_unsaved">Есть несохранённые изменения</string>
     <string name="acct_custom_instructions">Пользовательские инструкции</string>
-    <string name="acct_custom_instructions_help">Применяется ко всем вашим чатам со следующего сообщения. Расскажите NoteFable о себе и о том, как вам удобнее получать ответы. Внутри проекта приоритет имеют инструкции проекта.</string>
-    <string name="acct_custom_instructions_placeholder">Пример: Я готовлюсь к JLPT N1. Объясняй грамматику на коротких примерах и отвечай лаконично.</string>
+    <string name="acct_custom_instructions_help">Расскажите о себе или о том, какие ответы вам нравятся, — это будет учитываться во всех чатах.</string>
+    <string name="acct_custom_instructions_placeholder">Например:\n- Отвечай просто и по-дружески\n- Сначала вывод, коротко\n- Если не уверен, так и скажи, не гадай</string>
     <string name="acct_err_load_custom_instructions">Не удалось загрузить ваши пользовательские инструкции.</string>
     <string name="acct_err_save_custom_instructions">Не удалось сохранить ваши пользовательские инструкции. Пожалуйста, попробуйте ещё раз.</string>
     <string name="app_icon_title">Значок</string>
-    <string name="app_icon_help">Отображается в чате, на боковой панели и на кнопке ИИ в заметках. Сохраняется только на этом устройстве.</string>
     <string name="app_icon_choose_character">Выбрать персонажа</string>
     <string name="app_icon_upload_image">Загрузить изображение</string>
     <string name="app_icon_could_not_save">Не удалось сохранить значок на этом устройстве.</string>
