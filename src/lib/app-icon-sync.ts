@@ -76,7 +76,7 @@ async function send(icon: string | null, markPending: boolean): Promise<string> 
   const mine = generation;
   // 先に立てておく（返事の前にタブを閉じても、次に読むときに送り直せる）。いま送る値はこのアカウントで選んだもの
   // なので、持ち主はいまのアカウント（鍵がまだ分からなければ無し。次に読んだときにこのアカウントへ送る）。
-  if (markPending) remember(currentAccount, true);
+  if (markPending) remember(currentAccount ?? readOwner(), true); // 鍵がまだ分からないときは記録済みの持ち主を消さない。
   try {
     const response = await fetch(ENDPOINT, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ icon }) });
     const data: unknown = await response.json().catch(() => null);

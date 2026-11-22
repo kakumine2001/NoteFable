@@ -45,6 +45,22 @@ beforeEach(() => {
   setAppIconAccount(true);
 });
 
+describe("choosing before the account key is known", () => {
+  it("keeps the stored owner so another account never receives the pending choice", async () => {
+    storage.set(OWNER_KEY, "acct-a");
+    fetchMock.mockImplementation(offline);
+    await pushAppIconToAccount("data:image/png;base64,AAAA");
+    expect(storage.get(OWNER_KEY)).toBe("acct-a");
+    expect(storage.has(PENDING_KEY)).toBe(true);
+    fetchMock.mockReset();
+    server({ icon: null, updatedAt: null }, "acct-b");
+    local.value = "data:image/png;base64,AAAA";
+    await pullAppIconFromAccount();
+    expect(puts()).not.toContain("data:image/png;base64,AAAA");
+    expect(local.value).toBeNull();
+  });
+});
+
 describe("pulling the account icon", () => {
   it("ignores a slower, older read that answers after a newer one", async () => {
     const answers: Array<(response: Response) => void> = [];

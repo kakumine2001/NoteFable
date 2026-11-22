@@ -79,7 +79,7 @@ final class AppIconSync {
             guard let self else { return false }
             let mine = self.generation
             // 现在送的值是这个账号选的：owner 是现在的账号（键还不知道时为 nil，下次读到时送进这个账号）。
-            if markPending { self.remember(owner: self.currentAccount, pending: true) }
+            if markPending { self.remember(owner: self.currentAccount ?? self.memory.owner, pending: true) } // 键还不知道时不清掉已记的 owner。
             do {
                 let response = try await backend.saveAccountAppIcon(icon)
                 let account = response.account.flatMap { $0.isEmpty ? nil : $0 }

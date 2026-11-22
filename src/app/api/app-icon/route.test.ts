@@ -1,11 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ user: vi.fn(), updateMany: vi.fn(), read: vi.fn(), write: vi.fn(), del: vi.fn() }));
+const mocks = vi.hoisted(() => ({ user: vi.fn(), updateMany: vi.fn(), findUnique: vi.fn(), read: vi.fn(), write: vi.fn(), del: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   getOrCreateUser: mocks.user,
   isAccountUser: (user: { googleSub?: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { user: { updateMany: mocks.updateMany } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { user: { updateMany: mocks.updateMany, findUnique: mocks.findUnique } } }));
 vi.mock("@/lib/storage", () => ({
   StoredImageNotFoundError: class StoredImageNotFoundError extends Error {},
   getImageExtension: (type: string) => ({ "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp" })[type] ?? ".bin",
@@ -69,6 +69,17 @@ describe("reading the account icon", () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({ icon: null, updatedAt: "2026-11-22T00:00:00.000Z", account: MINE });
     expect(console.error).toHaveBeenCalled();
+  });
+
+  it("serves the newer image when another device replaced it while this read was running", async () => {
+    const NEW_IMAGE = "app-icons/mine/22222222-2222-2222-2222-222222222222.png";
+    mocks.user.mockResolvedValue(account({ appIcon: "image", appIconImage: OLD_IMAGE, appIconUpdatedAt: new Date("2026-11-22T00:00:00Z") }));
+    mocks.findUnique.mockResolvedValue({ appIcon: "image", appIconImage: NEW_IMAGE, appIconUpdatedAt: new Date("2026-11-22T00:00:05Z") });
+    mocks.read.mockImplementation(async (path: string) => {
+      if (path === OLD_IMAGE) throw new StoredImageNotFoundError("Stored image not found.");
+      return Buffer.from(PNG_BASE64, "base64");
+    });
+    expect(await (await GET()).json()).toEqual({ icon: PNG_URL, updatedAt: "2026-11-22T00:00:05.000Z", account: MINE });
   });
 
   it("answers 503 when the stored image cannot be read for now", async () => {

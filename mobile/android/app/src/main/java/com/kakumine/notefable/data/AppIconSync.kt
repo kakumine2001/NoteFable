@@ -85,7 +85,7 @@ class AppIconSync(
     private suspend fun send(icon: String?, markPending: Boolean): Boolean = sends.withLock {
         val mine = generation.get()
         // 现在送的值是这个账号选的：owner 是现在的账号（键还不知道时为 null，下次读到时送进这个账号）。
-        if (markPending) remember(currentAccount, true)
+        if (markPending) remember(currentAccount ?: runCatching { memory.owner }.getOrNull(), true) // 键还不知道时不清掉已记的 owner。
         try {
             val response = backend.saveAccountAppIcon(icon)
             val account = response.account?.takeIf { it.isNotEmpty() }

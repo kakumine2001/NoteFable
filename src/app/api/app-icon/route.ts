@@ -51,9 +51,21 @@ async function storedImageIcon(storagePath: string) {
 export async function GET() {
   try {
     const user = await signedInUser();
-    let icon = user.appIcon === APP_ICON_IMAGE ? null : user.appIcon;
-    if (user.appIcon === APP_ICON_IMAGE && user.appIconImage) icon = await storedImageIcon(user.appIconImage);
-    return NextResponse.json({ icon, updatedAt: user.appIconUpdatedAt?.toISOString() ?? null, account: appIconAccountKey(user.id) }, NO_STORE);
+    let row: { appIcon: string | null; appIconImage: string | null; appIconUpdatedAt: Date | null } = user;
+    let icon = row.appIcon === APP_ICON_IMAGE ? null : row.appIcon;
+    if (row.appIcon === APP_ICON_IMAGE && row.appIconImage) {
+      icon = await storedImageIcon(row.appIconImage);
+      if (icon === null) {
+        // 読んでいる間に別の端末が画像を置き換えると、古い画像はもう消えている。行を読み直し、変わっていれば新しい方を返す
+        // （古い状態の「既定」で新しい画像を上書きさせない）。
+        const fresh = await prisma.user.findUnique({ where: { id: user.id }, select: { appIcon: true, appIconImage: true, appIconUpdatedAt: true } });
+        if (fresh && fresh.appIconImage !== row.appIconImage) {
+          row = fresh;
+          icon = row.appIcon === APP_ICON_IMAGE ? (row.appIconImage ? await storedImageIcon(row.appIconImage) : null) : row.appIcon;
+        }
+      }
+    }
+    return NextResponse.json({ icon, updatedAt: row.appIconUpdatedAt?.toISOString() ?? null, account: appIconAccountKey(user.id) }, NO_STORE);
   } catch (error) {
     return failure(error, msg("Could not load your icon."));
   }
