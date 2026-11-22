@@ -14,11 +14,14 @@ export type NativeMessage =
   | { type: "saveState"; state: EmbedSaveState }
   | { type: "missing" }
   | { type: "trashed" }
+  // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
+  | { type: "openPage"; id: string }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
-export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string };
+// canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
+export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
@@ -79,6 +82,13 @@ export function readNativeAppIcon(target: BridgeWindow | undefined = browserWind
 
 // Read the native effective language after mounting; it can change while the
 // initial HTML is loading. Never accept an untranslated or invalid locale.
+// アプリがノートの中のページへのリンク（openPage）を開けるか。古いアプリや普通のブラウザでは false。
+export function nativeCanOpenPage(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canOpenPage !== "function") return false;
+  try { return native.canOpenPage() === true; } catch { return false; }
+}
+
 export function readNativeLanguage(target: BridgeWindow | undefined = browserWindow()): Locale | null {
   try {
     const value = host(target)?.language?.();

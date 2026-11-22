@@ -176,6 +176,8 @@ class NotesApiTest {
         assertEquals(EmbedMessage.SaveState("conflict"), EmbedMessage.parse("""{"type":"saveState","state":"conflict"}"""))
         assertEquals(EmbedMessage.Missing, EmbedMessage.parse("""{"type":"missing"}"""))
         assertEquals(EmbedMessage.Trashed, EmbedMessage.parse("""{"type":"trashed"}"""))
+        assertEquals(EmbedMessage.OpenPage("p2"), EmbedMessage.parse("""{"type":"openPage","id":"p2"}"""))
+        assertEquals(null, EmbedMessage.parse("""{"type":"openPage","id":""}"""))
         assertEquals(EmbedMessage.Flushed("r1", true), EmbedMessage.parse("""{"type":"flushed","requestId":"r1","ok":true}"""))
         assertEquals(EmbedMessage.Flushed("r2", false), EmbedMessage.parse("""{"type":"flushed","requestId":"r2","ok":false}"""))
         assertEquals(EmbedMessage.Flushed("r3", false, kept = true), EmbedMessage.parse("""{"type":"flushed","requestId":"r3","ok":false,"kept":true}"""))

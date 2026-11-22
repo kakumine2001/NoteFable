@@ -32,7 +32,12 @@ export function inlineText(content: unknown): string {
     return out;
   }
   if (!content || typeof content !== "object") return "";
-  const node = content as { type?: unknown; text?: unknown; props?: { latex?: unknown }; content?: unknown; rows?: unknown };
+  const node = content as { type?: unknown; text?: unknown; props?: { latex?: unknown; kind?: unknown; title?: unknown; date?: unknown }; content?: unknown; rows?: unknown };
+  // 「@」メンションは表示している文字（ページのタイトル、日付）。search.ts の MENTION_*_PATH と対。
+  if (node.type === "mention") {
+    const label = node.props?.kind === "date" ? node.props?.date : node.props?.title;
+    return typeof label === "string" ? label : "";
+  }
   // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
   if (Array.isArray(node.rows)) {
     return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");

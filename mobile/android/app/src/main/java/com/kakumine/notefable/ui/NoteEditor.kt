@@ -118,6 +118,10 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun language(): String = AppLanguage.uiLocale
 
+    /** 网页据此知道这个 App 会处理 `openPage`（笔记里的页面提及 / 页面链接）；旧版 App 没有这个方法，网页就照旧用新窗口打开链接。 */
+    @JavascriptInterface
+    fun canOpenPage(): Boolean = true
+
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
     fun pushLanguage(code: String) {
         webView?.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language(${JSONObject.quote(code)})})()", null)

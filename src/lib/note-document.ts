@@ -1,6 +1,7 @@
 import type { Block } from "@blocknote/core";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { validMention } from "@/lib/note-mention";
 import type { NoteContent } from "@/types/notes";
 import { msg, fmt } from "@/lib/i18n/translate";
 
@@ -79,6 +80,8 @@ function validInline(value: unknown, rich = true): boolean {
       return entry.content === undefined && Object.keys(entry).every((key) => ["type", "props", "content"].includes(key))
         && object(entry.props) && Object.entries(entry.props).every(([key, latex]) => key === "latex" && validLatex(latex));
     }
+    // 「@」メンション（ページ・日付）。リンクの中には置けない。
+    if (rich && entry.type === "mention") return validMention(entry);
     return false;
   });
 }

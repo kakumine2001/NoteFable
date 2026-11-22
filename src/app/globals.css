@@ -504,6 +504,22 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-callout-emoji:hover { background: rgba(var(--notion-ink-rgb), 0.08); }
 .notes-callout-text { flex: 1; min-width: 0; }
 
+/* 「@」メンション（Notion と同じ見た目）: ページはアイコン＋下線付きのタイトル、日付は薄い文字。 */
+.note-mention { border-radius: 3px; cursor: pointer; user-select: none; white-space: normal; }
+.note-mention:hover { background: var(--notes-hover); }
+.note-mention-page { display: inline; color: inherit; text-decoration: none; }
+.note-mention-icon { display: inline-flex; vertical-align: -0.12em; margin-inline-end: 0.2em; font-size: 0.95em; line-height: 1; color: var(--notes-muted); }
+.note-mention-title { font-weight: 500; border-bottom: 1px solid currentColor; border-bottom-color: color-mix(in srgb, currentColor 30%, transparent); }
+.note-mention-page.is-missing { cursor: default; opacity: 0.55; }
+.note-mention-page.is-missing .note-mention-title { text-decoration: line-through; }
+.note-mention-date { position: relative; color: var(--notes-muted); }
+.note-mention-at { opacity: 0.8; }
+/* 日付を変える入力欄。メンションの上に透明で重ね、押すと（タップすると）日付の選択画面が出る。 */
+.note-mention-date-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; -webkit-appearance: none; appearance: none; }
+.notes-workspace.is-locked .note-mention-date-input, .public-note-shell .note-mention-date-input { pointer-events: none; }
+.note-mention-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; }
+.notes-mention-menu-emoji { font-size: 16px; line-height: 1; }
+
 /* 表: 細い灰色の罫線、見出しの行・列は薄い灰色地。 */
 .notes-block-editor .bn-block-content[data-content-type="table"] th,
 .notes-block-editor .bn-block-content[data-content-type="table"] td { border: 1px solid #e9e9e7; padding: 7px 9px; font-size: 14px; line-height: 1.5; vertical-align: top; }
@@ -2797,6 +2813,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   color: #1d4ed8;
 }
 
+/* ノートの「@」メンション（履歴のプレビューなど）。リンクにはせず、メンションらしく少し強く出す。 */
+.markdown-mention { font-weight: 500; color: inherit; }
 .markdown-inline-code {
   /* 文中コード用の軽い強調。ブロックコードとは背景と余白を分ける。 */
   direction: ltr;
@@ -3759,6 +3777,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .public-note-file-download {
   display: inline-flex; flex: none; align-items: center; gap: 0.3rem; font-size: 0.8125rem; color: var(--notion-muted);
 }
+.public-note-mention { font-weight: 500; color: inherit; }
 .public-note-link { color: var(--notion-blue); text-decoration: underline; text-underline-offset: 2px; }
 .public-note-inline-code {
   padding: 0.1em 0.35em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;

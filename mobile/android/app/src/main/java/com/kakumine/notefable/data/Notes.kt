@@ -219,6 +219,8 @@ sealed interface EmbedMessage {
     data class SaveState(val state: String) : EmbedMessage
     data object Missing : EmbedMessage
     data object Trashed : EmbedMessage
+    /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
+    data class OpenPage(val id: String) : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
     data class Flushed(val requestId: String, val ok: Boolean, val kept: Boolean = false) : EmbedMessage
 
@@ -236,6 +238,7 @@ sealed interface EmbedMessage {
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)
                 "missing" -> Missing
                 "trashed" -> Trashed
+                "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,

@@ -90,10 +90,11 @@ enum NoteEmbedScripts {
     /// `appIcon()` / `language()` / `theme()` 要同步返回，所以值写死在脚本里：每次加载前用当时的值重新生成这段脚本；
     /// 开着的时候换了图标 / 语言 / 外观走 [appIcon] / [language] / [theme] 推过去。默认标志是空字符串。
     /// [theme] 是 App 现在显示的外观（light / dark）；nil 时不定义 `theme()`，网页按地址里的 theme= 或自己存的值。
+    /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）。
     static func bootstrap(handler: String, appIcon: String?, language: String, theme: String? = nil) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
-            "appIcon:function(){return icon},language:function(){return lang}" +
+            "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }

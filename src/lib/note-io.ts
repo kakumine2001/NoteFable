@@ -1,5 +1,6 @@
 import { answerFileName, extractLeadingHeadingTitle, fitMarkdownBlocksToNote } from "@/lib/answer-export";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { mentionText } from "@/lib/note-mention";
 import type { NoteContent } from "@/types/notes";
 
 // 1 回の取り込みで受け付ける Markdown ファイル数と容量の上限（Vercel の 4.5 MB リクエスト上限の内側に収める）。
@@ -26,12 +27,24 @@ const LIST_BLOCK_TYPES = new Set(["bulletListItem", "numberedListItem", "checkLi
 // blocksToMarkdown はモデル向けにブロックを 1 行ずつ詰めて書く。そのままファイルにすると、他のアプリでは
 // 続く段落が 1 つにまとまり、段落直後の --- が見出しになる。書き出しでは最上位のブロックを空行で区切り、
 // 同じリストの項目が続く所だけ詰める。
+// 「@」メンションの [@名前](page:ID) は他のアプリでは開けないリンクになるので、書き出しではメンションの要素だけを「@名前」の文字にする
+// （本文やコードに書かれた同じ形の文字はそのまま）。
+function mentionsAsText(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(mentionsAsText);
+  if (!value || typeof value !== "object") return value;
+  const node = value as Record<string, unknown>;
+  if (node.type === "mention" && node.props && typeof node.props === "object") {
+    return { type: "text", text: mentionText(node.props as Record<string, unknown>), styles: {} };
+  }
+  return Object.fromEntries(Object.entries(node).map(([key, entry]) => [key, key === "props" ? entry : mentionsAsText(entry)]));
+}
+
 function portableMarkdown(blocks: unknown): string {
   if (!Array.isArray(blocks)) return "";
   let out = "";
   let previousType: unknown;
   for (const block of blocks) {
-    const text = blocksToMarkdown([block]).trimEnd();
+    const text = blocksToMarkdown([mentionsAsText(block)]).trimEnd();
     if (!text) continue;
     const type = (block as { type?: unknown } | null)?.type;
     const sameList = LIST_BLOCK_TYPES.has(type as string) && type === previousType;

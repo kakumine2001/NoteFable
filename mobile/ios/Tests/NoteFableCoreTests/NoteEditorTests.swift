@@ -242,6 +242,7 @@ final class NoteEditorTests: XCTestCase {
         XCTAssertTrue(script.contains(#"window.webkit.messageHandlers["notefable"].postMessage(String(json))"#))
         XCTAssertTrue(script.contains("appIcon:function(){return icon}"))
         XCTAssertTrue(script.contains("language:function(){return lang}"))
+        XCTAssertTrue(script.contains("canOpenPage:function(){return true}"))
         XCTAssertTrue(NoteEmbedScripts.bootstrap(handler: "h", appIcon: "character:piko", language: "en").contains(#"var icon="character:piko""#))
     }
 
