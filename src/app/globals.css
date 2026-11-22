@@ -3578,7 +3578,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-share-url-row { display: flex; align-items: center; gap: 0.45rem; }
 .notes-share-url-input {
   min-width: 0; flex: 1; height: 2.15rem; padding: 0 0.6rem; border: 1px solid var(--notion-border-strong);
-  border-radius: 6px; background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+  border-radius: 6px; background: var(--notion-surface); color: var(--notion-text); font-size: 0.8125rem;
 }
 .notes-share-copy { display: inline-flex; align-items: center; gap: 0.35rem; height: 2.15rem; white-space: nowrap; }
 .notes-share-active { display: flex; flex-direction: column; gap: 0.75rem; }
@@ -3592,13 +3592,13 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-share-expiry-label { font-size: 0.875rem; color: var(--notion-text); }
 .notes-share-select {
   height: 2rem; padding: 0 0.55rem; border: 1px solid var(--notion-border-strong); border-radius: 6px;
-  background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+  background: var(--notion-surface); color: var(--notion-text); font-size: 0.8125rem;
 }
 .notes-share-expiry-meta { margin: 0; font-size: 0.75rem; color: var(--notion-muted); }
 .notes-share-custom-row { display: flex; align-items: center; gap: 0.5rem; }
 .notes-share-datetime {
   min-width: 0; flex: 1; height: 2.1rem; padding: 0 0.55rem; border: 1px solid var(--notion-border-strong);
-  border-radius: 6px; background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+  border-radius: 6px; background: var(--notion-surface); color: var(--notion-text); font-size: 0.8125rem;
 }
 .notes-share-footer { display: flex; justify-content: flex-end; padding-top: 0.4rem; border-top: 1px solid var(--notion-border); }
 
@@ -3663,11 +3663,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .public-note-callout-body { min-width: 0; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
 .public-note-code {
   margin: 0.35rem 0; border-radius: 10px; background: #f7f6f3; overflow: hidden;
-  border: 1px solid rgba(55, 53, 47, 0.08);
+  border: 1px solid rgba(var(--notion-ink-rgb), 0.08);
 }
 .public-note-code-bar {
   display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.85rem;
-  font-size: 0.75rem; color: var(--notion-muted); border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+  font-size: 0.75rem; color: var(--notion-muted); border-bottom: 1px solid rgba(var(--notion-ink-rgb), 0.06);
 }
 .public-note-code-lang { font-family: var(--font-geist-mono), monospace; }
 .public-note-code-copy {
@@ -3722,3 +3722,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .public-note-unavailable-card h1 { margin: 0; font-size: 1.25rem; font-weight: 650; color: var(--nf-ink); }
 .public-note-unavailable-card p { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--notion-muted); }
+
+/* 公開ページ：上のバーとコードブロックはライト用の色で書かれているので、ダークでは地を暗くする。 */
+:root[data-theme="dark"] .public-note-topbar { background: rgba(25, 25, 25, 0.92); }
+:root[data-theme="dark"] .public-note-code { background: #1f1f22; }
+:root[data-theme="dark"] .notes-share-expired { color: #f0b46a; }
