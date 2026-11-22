@@ -482,5 +482,17 @@ describe("answerToNoteContent", () => {
     expectValid(unclosedBeforeTilde);
     expect(unclosedBeforeTilde.blocks.some((b) => b.type === "codeBlock")).toBe(true);
     expect(textOf(unclosedBeforeTilde.blocks.find((b) => b.type === "paragraph" && textOf(b) === "After")!)).toBe("After");
+
+    // 金額の $ とリンク先 URL の $、\verb 内のバッククォート、ネスト引用の独立数式を正しく保存する。
+    const edgeCases = build("It costs $5; [details](https://example.org/$shop).\n\n$\\verb|a`b`|$\n\n> > $$\n> > x+1\n> > $$");
+    expectValid(edgeCases);
+    expect(inline(edgeCases.blocks[0])).toEqual([
+      { type: "text", text: "It costs $5; ", styles: {} },
+      { type: "link", href: "https://example.org/$shop", content: [{ type: "text", text: "details", styles: {} }] },
+      { type: "text", text: ".", styles: {} },
+    ]);
+    expect(edgeCases.blocks[1].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|a`b`|" } }]);
+    expect(edgeCases.blocks[2].type).toBe("mathBlock");
+    expect(edgeCases.blocks[2].props).toEqual({ latex: "x+1" });
   });
 });

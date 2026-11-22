@@ -191,6 +191,8 @@ export function hasDollarMath(markdown: string) {
     }
     const open = FENCE_OPEN.exec(line);
     if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
+      // ```math フェンスの数式ブロック（中に $$ を含むため ```math で退避されたもの）も KaTeX 描画の対象にする。
+      if (open[2].trim().toLowerCase() === "math") return true;
       fence = { char: open[1][0], length: open[1].length };
       continue;
     }

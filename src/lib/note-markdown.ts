@@ -50,10 +50,57 @@ function findBacktickRun(text: string, from: number, run: number) {
   return -1;
 }
 
-// from 以降で、バックスラッシュでエスケープされていない mark の最初の位置（コードスパンの中は飛ばす）。無ければ -1。
+// LaTeX の \verb|...| / \verb*|...| の終わり（閉じ区切りの直後）。該当しなければ -1。
+// 中のバッククォートや $ は TeX の文字リテラルなので、Markdown のコードスパンや数式区切りと誤認しない。
+function latexVerbEnd(text: string, index: number) {
+  if (!text.startsWith("\\verb", index)) return -1;
+  let cursor = index + 5;
+  if (text[cursor] === "*") cursor++;
+  const delim = text[cursor];
+  if (!delim || /[\sA-Za-z*]/.test(delim)) return -1;
+  const close = text.indexOf(delim, cursor + 1);
+  return close > cursor ? close + 1 : -1;
+}
+
+// Markdown リンク [label](href) または自動リンク <https://...> の終わり。該当しなければ -1。
+function linkSpanEnd(text: string, index: number) {
+  if (text[index] === "[") {
+    const close = findUnescaped(text, "]", index + 1);
+    if (close > index && text[close + 1] === "(") {
+      const paren = findUnescaped(text, ")", close + 2);
+      if (paren > close + 2) {
+        const rawHref = text.slice(close + 2, paren).trim();
+        const href = rawHref.startsWith("<") && rawHref.endsWith(">") ? rawHref.slice(1, -1) : rawHref.split(/\s/)[0];
+        if (safeHref(href)) return paren + 1;
+      }
+    }
+    return -1;
+  }
+  if (text[index] === "<") {
+    const match = /^<https?:\/\/[^\s<>]+>/i.exec(text.slice(index));
+    if (match) return index + match[0].length;
+  }
+  return -1;
+}
+
+// 裸の URL（https://...）の終わり。該当しなければ -1。URL 中の $ を数式の区切りと誤認しないため。
+function bareUrlEnd(text: string, index: number) {
+  if ((text[index] !== "h" && text[index] !== "H") || (index > 0 && /[A-Za-z0-9]/.test(text[index - 1]))) return -1;
+  const match = /^https?:\/\/[^\s<>(){}]+/i.exec(text.slice(index));
+  return match ? index + match[0].length : -1;
+}
+
+// from 以降で、バックスラッシュでエスケープされていない mark の最初の位置（コードスパン・リンク・URL の中は飛ばす）。無ければ -1。
 function findUnescaped(text: string, mark: string, from: number, stopAtCode = false) {
   for (let index = from; index < text.length; index++) {
-    if (text[index] === "\\") { index++; continue; }
+    if (text[index] === "\\") {
+      if (stopAtCode) {
+        const verbEnd = latexVerbEnd(text, index);
+        if (verbEnd > 0) { index = verbEnd - 1; continue; }
+      }
+      index++;
+      continue;
+    }
     if (stopAtCode && text[index] === "`") {
       let open = index;
       while (text[open] === "`") open++;
@@ -62,6 +109,11 @@ function findUnescaped(text: string, mark: string, from: number, stopAtCode = fa
       index = open - 1;
       continue;
     }
+    if (stopAtCode) {
+      if (linkSpanEnd(text, index) > 0) return -1;
+      const urlEnd = bareUrlEnd(text, index);
+      if (urlEnd > 0) { index = urlEnd - 1; continue; }
+    }
     if (text.startsWith(mark, index)) return index;
   }
   return -1;
@@ -69,7 +121,7 @@ function findUnescaped(text: string, mark: string, from: number, stopAtCode = fa
 
 // text[index] が $ のとき、そこから始まる行内の数式の終わり（閉じの区切りの直後の位置）。数式でなければ -1。
 // $…$ は Pandoc の決まり（開く $ の直後と閉じる $ の直前が空白でなく、閉じる $ の直後が数字でない）。「$5 と $10」のような金額は数式にしない。
-// 2 個以上の $ の並び（$$…$$、$$$…$$$ など）は同じ長さの $ の並びで閉じる（中に $$ を含む TeX も往返できる）。コードスパンはまたがない。
+// 2 個以上の $ の並び（$$…$$、$$$…$$$ など）は同じ長さの $ の並びで閉じる（中に $$ を含む TeX も往返できる）。コードスパンやリンクはまたがない。
 export function inlineMathEnd(text: string, index: number) {
   if (text[index] !== "$") return -1;
   let open = index;
@@ -78,7 +130,12 @@ export function inlineMathEnd(text: string, index: number) {
   if (run >= 2) {
     // ちょうど run 個の $ で閉じる。
     for (let j = open; j < text.length; j++) {
-      if (text[j] === "\\") { j++; continue; }
+      if (text[j] === "\\") {
+        const verbEnd = latexVerbEnd(text, j);
+        if (verbEnd > 0) { j = verbEnd - 1; continue; }
+        j++;
+        continue;
+      }
       if (text[j] === "`") {
         let codeOpen = j;
         while (text[codeOpen] === "`") codeOpen++;
@@ -86,6 +143,9 @@ export function inlineMathEnd(text: string, index: number) {
         j = codeOpen - 1;
         continue;
       }
+      if (linkSpanEnd(text, j) > 0) return -1;
+      const urlEnd = bareUrlEnd(text, j);
+      if (urlEnd > 0) { j = urlEnd - 1; continue; }
       if (text[j] !== "$") continue;
       let end = j;
       while (text[end] === "$") end++;
@@ -265,8 +325,10 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPre
       const latex = (entry.props as { latex?: unknown } | undefined)?.latex;
       if (plain) return typeof latex === "string" ? latex : "";
       const rendered = inlineMath(latex, startsWithDigit(items[index + 1]), forPreview);
-      const nextIsMath = items[index + 1]?.type === "mathInline";
-      return rendered && forPreview && nextIsMath ? `${rendered} ` : rendered;
+      const next = items[index + 1];
+      const nextLatex = next?.type === "mathInline" ? (next.props as { latex?: unknown } | undefined)?.latex : undefined;
+      const nextIsMath = typeof nextLatex === "string" && nextLatex.trim().length > 0;
+      return rendered && nextIsMath ? `${rendered} ` : rendered;
     }
     if (entry?.type !== "text" || typeof entry.text !== "string") return "";
     if (plain) return entry.text;
@@ -376,27 +438,43 @@ class Finder {
 
   private lone?: number[];
   private dollars?: number[];
-  private codeStarts?: number[];
+  private blockedStarts?: number[];
   private runs?: { pos: number; len: number }[];
   private runIndex = new Map<number, number>();
 
-  // from 以降で、コードスパンをまたがずに最初に来るエスケープされていない $ の位置。
+  // from 以降で、コードスパンやリンクをまたがずに最初に来るエスケープされていない $ の位置。
   nextDollar(from: number) {
     if (!this.dollars) {
       this.dollars = [];
-      this.codeStarts = [];
+      this.blockedStarts = [];
       for (let j = 0; j < this.src.length; j++) {
-        if (this.src[j] === "\\") { j++; continue; }
+        if (this.src[j] === "\\") {
+          const verbEnd = latexVerbEnd(this.src, j);
+          if (verbEnd > 0) { j = verbEnd - 1; continue; }
+          j++;
+          continue;
+        }
         if (this.src[j] === "`") {
           let open = j;
           while (this.src[open] === "`") open++;
           const close = this.backtickRun(open - j, open);
           if (close > open) {
-            this.codeStarts.push(j);
+            this.blockedStarts.push(j);
             j = close + (open - j) - 1;
             continue;
           }
           j = open - 1;
+          continue;
+        }
+        const linkEnd = linkSpanEnd(this.src, j);
+        if (linkEnd > 0) {
+          this.blockedStarts.push(j);
+          j = linkEnd - 1;
+          continue;
+        }
+        const urlEnd = bareUrlEnd(this.src, j);
+        if (urlEnd > 0) {
+          j = urlEnd - 1;
           continue;
         }
         if (this.src[j] === "$") this.dollars.push(j);
@@ -414,9 +492,9 @@ class Finder {
     };
     const pos = lowerBound(this.dollars, from);
     if (pos < 0) return -1;
-    // 開き $ と閉じ $ の間にコードスパンが挟まる場合は、数式として閉じない（例: Pay $5; run `$HOME` next.）。
-    const codePos = lowerBound(this.codeStarts!, from);
-    return codePos >= 0 && codePos < pos ? -1 : pos;
+    // 開き $ と閉じ $ の間にコードスパンやリンクが挟まる場合は、数式として閉じない（例: Pay $5; run `$HOME` next.）。
+    const blockedPos = lowerBound(this.blockedStarts!, from);
+    return blockedPos >= 0 && blockedPos < pos ? -1 : pos;
   }
 
   // 単独の * （前後が * でない）の位置。コードスパンや数式の中にある * は飛ばす。前から順に一度だけ数える。
@@ -731,9 +809,20 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       const startsList = siblings[siblings.length - 1]?.type !== "numberedListItem";
       add("numberedListItem", startsList && number > 1 && Number.isSafeInteger(number) ? { start: number } : {}, parseInline(match[2] ?? ""));
     } else if ((match = /^>\s?(.*)$/.exec(text))) {
-      // 引用の中の複数行 $$ ブロック（prepareMath が > $$ ... > $$ にそろえたもの）を mathBlock として取り込む。
+      // 引用の中の複数行 $$ ブロック（ネストした > > $$ を含む）を mathBlock として取り込む。
       // 1 行の > $$…$$ は引用内の行内数式のまま保つ。
-      const inner = match[1].trim();
+      const nested = /^((?:>\s?)+)(.*)$/.exec(text)!;
+      const quoteDepth = (nested[1].match(/>/g) ?? []).length;
+      const stripQuote = (raw: string) => {
+        let rest = raw.trim();
+        for (let d = 0; d < quoteDepth; d++) {
+          const step = /^>\s?(.*)$/.exec(rest);
+          if (!step) return null;
+          rest = step[1];
+        }
+        return rest;
+      };
+      const inner = nested[2].trim();
       let quotedLatex: string | null = null;
       if (inner.startsWith("$$")) {
         const rest = inner.slice(2);
@@ -741,12 +830,12 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
         if (first < 0) {
           const body = rest.trim() ? [rest.trim()] : [];
           for (let k = index + 1; k < lines.length; k++) {
-            const q = /^>\s?(.*)$/.exec(lines[k].trim());
-            if (!q) break;
-            const next = q[1].trim();
+            const stripped = stripQuote(lines[k]);
+            if (stripped === null) break;
+            const next = stripped.trim();
             if (!next || FENCE.test(next)) break;
             const close = findUnescaped(next, "$$", 0);
-            if (close < 0) { body.push(q[1].trimEnd()); continue; }
+            if (close < 0) { body.push(stripped.trimEnd()); continue; }
             if (close + 2 === next.length) {
               if (next.slice(0, close).trim()) body.push(next.slice(0, close).trimEnd());
               quotedLatex = body.join("\n").trim();

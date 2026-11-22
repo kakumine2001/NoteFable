@@ -134,5 +134,9 @@ describe("note history dollar-only math mode", () => {
     );
     expect(count(adjacentHtml, 'class="katex"')).toBe(2);
     expect(adjacentHtml).not.toContain("katex-error");
+
+    // $$ を含む mathBlock（```math フェンスで出力される）だけでも、履歴プレビューの KaTeX ローダーが起動する。
+    const fencedPreview = previewMarkdown([{ id: "m1", type: "mathBlock", props: { latex: "\\verb|$$|" }, children: [] }]);
+    expect(hasDollarMath(fencedPreview)).toBe(true);
   });
 });

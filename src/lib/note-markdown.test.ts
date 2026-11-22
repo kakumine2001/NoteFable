@@ -364,6 +364,39 @@ describe("math blocks and inline math", () => {
     expect(verbBack.map((b) => b.type)).toEqual(["paragraph", "mathBlock"]);
     expect(verbBack[0].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|$$|" } }]);
     expect(verbBack[1].props).toEqual({ latex: "\\verb|$$|" });
+
+    // リンク先の $ を手前の $5 と組ませず、リンクのまま保つ。
+    const linkWithDollar = markdownToBlocks("It costs $5; [details](https://example.org/$shop).");
+    expect(linkWithDollar[0].content).toEqual([
+      { type: "text", text: "It costs $5; ", styles: {} },
+      { type: "link", href: "https://example.org/$shop", content: [{ type: "text", text: "details", styles: {} }] },
+      { type: "text", text: ".", styles: {} },
+    ]);
+
+    // 隣接する行内数式（$$…$$ と $…$）が編集用 Markdown の往返で $$$ に結合されない。
+    const adjacentBlocks = [{
+      id: "adj", type: "paragraph", props: {}, children: [],
+      content: [
+        { type: "mathInline", props: { latex: "\\text{where $x$ is positive}" } },
+        { type: "mathInline", props: { latex: "y" } },
+      ],
+    }];
+    const adjacentBack = markdownToBlocks(blocksToMarkdown(adjacentBlocks));
+    expect(adjacentBack[0].content).toEqual([
+      { type: "mathInline", props: { latex: "\\text{where $x$ is positive}" } },
+      { type: "text", text: " ", styles: {} },
+      { type: "mathInline", props: { latex: "y" } },
+    ]);
+
+    // \verb|a`b`| の中のバッククォートをコードスパンと誤認しない。
+    const verbBacktick = markdownToBlocks("$\\verb|a`b`|$");
+    expect(verbBacktick[0].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|a`b`|" } }]);
+
+    // ネストした引用（> > $$）も mathBlock として取り込む。
+    const nestedQuoteMath = markdownToBlocks("> > $$\n> > x+1\n> > $$");
+    expect(nestedQuoteMath).toHaveLength(1);
+    expect(nestedQuoteMath[0].type).toBe("mathBlock");
+    expect(nestedQuoteMath[0].props).toEqual({ latex: "x+1" });
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {
