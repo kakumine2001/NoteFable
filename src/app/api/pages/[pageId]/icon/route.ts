@@ -10,6 +10,8 @@ import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
+class NoteMissing extends Error {}
+
 // 開いていないノートのアイコンを、サイドバーから変える（null で外す）。
 // アイコンは自動保存の PATCH にも含まれるので、版を 1 つ進める：古い内容を持つ別のタブの保存は 409 になり、アイコンを元に戻さない。
 export async function PUT(request: Request, context: Context) {
@@ -19,16 +21,21 @@ export async function PUT(request: Request, context: Context) {
     const user = await getOrCreateUser();
     assertCoverOwner(icon as string | null, user.id, "icon");
     const { pageId } = await context.params;
-    // ページが見つかったときだけ画像を「使用中」にする（見つからない 404 では資産に触れない。失敗すれば更新ごと取り消す）。
-    const result = await prisma.$transaction(async (tx) => {
-      const updated = await tx.notePage.updateMany({
-        where: { id: pageId, userId: user.id, deletedAt: null },
-        data: { icon: icon as string | null, version: { increment: 1 } },
+    // 自動保存（PATCH）と同じ順で、画像の資産 → ノートの行の順にロックする（逆順だと同時の保存とデッドロックしうる）。
+    // ノートが見つからないときは例外で取り消し、資産を「使用中」にしたままにしない。
+    try {
+      await prisma.$transaction(async (tx) => {
+        await claimCover(tx, icon as string | null, user.id, "icon");
+        const updated = await tx.notePage.updateMany({
+          where: { id: pageId, userId: user.id, deletedAt: null },
+          data: { icon: icon as string | null, version: { increment: 1 } },
+        });
+        if (!updated.count) throw new NoteMissing();
       });
-      if (updated.count) await claimCover(tx, icon as string | null, user.id, "icon");
-      return updated;
-    });
-    if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    } catch (error) {
+      if (error instanceof NoteMissing) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      throw error;
+    }
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
     return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }

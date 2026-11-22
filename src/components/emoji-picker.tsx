@@ -111,6 +111,24 @@ export function EmojiPopover({ current, className, style, trigger, allowUpload =
   );
 }
 
+// アイコンは最大でも 70px ほどで表示するので、長辺 280px に縮めてから送る（一覧で何 MB もの元画像を読まない）。
+// GIF（動き）と、縮められないもの・縮めると大きくなるものは元のまま送る。
+const ICON_IMAGE_SIDE = 280;
+async function shrinkIconImage(file: File): Promise<File> {
+  if (file.type === "image/gif" || typeof createImageBitmap !== "function") return file;
+  try {
+    const bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, ICON_IMAGE_SIDE / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    bitmap.close();
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
+    return blob && blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, "") + ".png", { type: "image/png" }) : file;
+  } catch { return file; }
+}
+
 // アイコン用の画像をアップロードする。カバーと同じ API・同じ保存先（形式と 4 MB の上限も同じ）。
 function IconUploadBody({ hasImage, onChange, onClose }: { hasImage: boolean; onChange: (icon: string | null) => void; onClose: () => void }) {
   const t = useT();
@@ -130,7 +148,7 @@ function IconUploadBody({ hasImage, onChange, onClose }: { hasImage: boolean; on
     setUploading(true);
     try {
       const body = new FormData();
-      body.append("file", file);
+      body.append("file", await shrinkIconImage(file));
       const response = await fetch("/api/pages/covers", { method: "POST", body, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
       if (!response.ok || typeof data.cover !== "string") throw new Error(data.error || msg("Upload failed. Try again."));

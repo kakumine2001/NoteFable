@@ -10,6 +10,7 @@ import { isPresetCover, NOTE_COVERS, uploadedCoverPath } from "@/lib/note-docume
 import { mentionText } from "@/lib/note-mention";
 import { rewriteBlocksForShare, shareCoverUrl, shareIconUrl, sharePagePath } from "@/lib/note-share";
 import { NoteIcon } from "@/components/note-icon";
+import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
 
 // BlockNote のカラー名と Notion の色対応（テキスト色・背景色）。
@@ -428,12 +429,12 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
                 {index > 0 ? <ChevronRight size={14} className="public-note-crumb-sep rtl-mirror" aria-hidden="true" /> : null}
                 {isCurrent ? (
                   <span className="public-note-crumb is-current">
-                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={crumb.icon} imageUrl={shareIconUrl(token, crumb.id)} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
+                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={noteIconText(crumb.icon)} imageUrl={isUploadedNoteIcon(crumb.icon) ? shareIconUrl(token, crumb.id) : null} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
                     <span className="truncate">{title}</span>
                   </span>
                 ) : (
                   <Link href={href} className="public-note-crumb">
-                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={crumb.icon} imageUrl={shareIconUrl(token, crumb.id)} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
+                    {crumb.icon ? <span className="public-note-crumb-icon" aria-hidden="true"><NoteIcon icon={noteIconText(crumb.icon)} imageUrl={isUploadedNoteIcon(crumb.icon) ? shareIconUrl(token, crumb.id) : null} /></span> : <FileText size={14} className="public-note-crumb-icon" aria-hidden="true" />}
                     <span className="truncate">{title}</span>
                   </Link>
                 )}
@@ -458,7 +459,7 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
           <div className="notes-column notes-header-inner">
             {page.icon ? (
               <div className="notes-icon-wrap">
-                <div className="notes-icon public-note-icon" aria-hidden="true"><NoteIcon icon={page.icon} imageUrl={shareIconUrl(token, page.id)} /></div>
+                <div className="notes-icon public-note-icon" aria-hidden="true"><NoteIcon icon={noteIconText(page.icon)} imageUrl={isUploadedNoteIcon(page.icon) ? shareIconUrl(token, page.id) : null} /></div>
               </div>
             ) : null}
             <h1 className="notes-title public-note-title">{page.title.trim() || t("Untitled")}</h1>
@@ -477,7 +478,7 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
                 <li key={child.id}>
                   <Link href={sharePagePath(token, child.id)} className="public-note-subpage-link">
                     <span className="public-note-subpage-icon" aria-hidden="true">
-                      <NoteIcon icon={child.icon} imageUrl={shareIconUrl(token, child.id)} fallback={<FileText size={16} />} />
+                      <NoteIcon icon={noteIconText(child.icon)} imageUrl={isUploadedNoteIcon(child.icon) ? shareIconUrl(token, child.id) : null} fallback={<FileText size={16} />} />
                     </span>
                     <span className="min-w-0 flex-1 truncate">{child.title.trim() || t("Untitled")}</span>
                     <ChevronRight size={15} className="public-note-subpage-arrow rtl-mirror" aria-hidden="true" />

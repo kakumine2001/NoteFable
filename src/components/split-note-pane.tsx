@@ -94,7 +94,7 @@ export function SplitNotePane({
             onClick={() => { setQuery(""); setPickerOpen((open) => !open); }}
           >
             <span className="shrink-0 text-[15px] leading-none" aria-hidden="true">
-              {currentIcon ?? <FileText size={15} />}
+              <NoteIcon icon={currentIcon} fallback={<FileText size={15} />} />
             </span>
             <span className="truncate">{currentTitle}</span>
             <ChevronDown size={14} className="shrink-0 text-[var(--notion-faint)]" aria-hidden="true" />
