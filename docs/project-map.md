@@ -93,7 +93,7 @@ Google 登录时：Google 从 App 上的章算出编号，和 Google Cloud 里 N
 - **APK**：手机能直接安装的文件，像电脑上的 `.exe` 安装包。
 - **AAB**：专门交给 Play 的打包文件，手机不能直接装。Play 按每台手机的型号把它做成 APK，顺便盖上 Google 的章。
 
-普通改动可以直接通过 PR 合入 main。需要发封闭测试时，在 PR 中提高 versionCode（Play 使用的版本流水号）并更新 versionName（给用户看的版本号）。合并后，GitHub Actions 构建签名 AAB 并上传到 Play 的 alpha 封闭测试轨道。测试人员收到邀请后从 Play 安装。
+普通改动可以直接通过 PR 合入 main。需要发封闭测试时，在 PR 中提高 versionCode（Play 使用的版本流水号）并更新 versionName（给用户看的版本号）。合并后，GitHub Actions 构建签名 AAB 并同时发布到 Play 的内部测试和 alpha 封闭测试轨道。测试人员收到邀请后从 Play 安装。
 
 Drive 安装包交付当前暂停。发布条件和 Play 签名规则见 [Android 应用](architecture/android.md)。
 

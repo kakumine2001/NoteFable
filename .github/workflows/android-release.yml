@@ -1,4 +1,4 @@
-name: Android release to Play alpha
+name: Android release to Play internal and alpha
 
 on:
   pull_request_target:
@@ -139,13 +139,13 @@ jobs:
             echo "::notice::This release PR did not change $source, so the release has no What's new text."
           fi
 
-      - name: Upload AAB to Google Play closed testing
+      - name: Upload AAB to Google Play internal and closed testing
         if: steps.current.outputs.publish == 'true'
         uses: r0adkll/upload-google-play@e738b9dd8f2476ea806d921b64aacd24f34515a5
         with:
           serviceAccountJsonPlainText: ${{ secrets.ALPHA_PLAY_SERVICE_ACCOUNT_JSON }}
           packageName: com.kakumine.notefable
           releaseFiles: mobile/android/app/build/outputs/bundle/release/app-release.aab
-          tracks: alpha
+          tracks: internal,alpha
           status: completed
           whatsNewDirectory: ${{ steps.notes.outputs.directory }}
