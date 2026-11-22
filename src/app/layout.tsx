@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./motion.css";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Telemetry } from "@/components/telemetry";
 import { siteOrigin } from "@/lib/i18n/routing";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
@@ -39,7 +38,7 @@ export default function RootLayout({
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <body>{children}<Analytics /><SpeedInsights /></body>
+      <body>{children}<Telemetry /></body>
     </html>
   );
 }

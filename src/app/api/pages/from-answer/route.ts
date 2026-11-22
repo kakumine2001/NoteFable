@@ -5,6 +5,7 @@ import { readFromAnswer, savedAtFrom } from "@/lib/answer-export-server";
 import { noteApiError } from "@/lib/note-api";
 import { createNotePage } from "@/lib/note-create";
 import { readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     const body = readFromAnswer(await readNoteRequest(request));
     const user = await getOrCreateUser();
     const session = await prisma.session.findFirst({
-      where: { id: body.sessionId, userId: user.id, noteId: null },
+      where: { id: body.sessionId, userId: user.id },
       select: { title: true },
     });
     if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
@@ -30,6 +31,7 @@ export async function POST(request: Request) {
     const { title, blocks } = answerToNoteContent(body.markdown, source);
     const content = validateNoteContent({ title, icon: null, cover: null, coverPosition: null, blocks });
     const page = await createNotePage(user.id, content);
+    scheduleNoteEmbeddingSync(user.id, [page.id]);
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

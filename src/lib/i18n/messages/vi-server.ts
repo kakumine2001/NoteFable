@@ -226,4 +226,7 @@ export const viServer: Record<string, string> = {
   "Could not load your icon.": "Không thể tải biểu tượng của bạn.",
   "Could not save your icon. Please try again.": "Không thể lưu biểu tượng của bạn. Vui lòng thử lại.",
   "Your icon changed somewhere else. Try again.": "Biểu tượng của bạn đã được thay đổi ở nơi khác. Hãy thử lại.",
+  "Invalid request body.": "Nội dung yêu cầu không hợp lệ.",
+  "Invalid share settings.": "Cài đặt chia sẻ không hợp lệ.",
+  "Expiration time must be in the future.": "Thời gian hết hạn phải ở trong tương lai.",
 };

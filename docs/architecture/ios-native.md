@@ -91,6 +91,7 @@ mobile/ios/
 | 保存生成的图片 | MediaStore | `PHPhotoLibrary`（只申请“添加”权限） |
 | 笔记编辑器 | `WebView` + `addJavascriptInterface` | `WKWebView` + `WKScriptMessageHandler`；用落盘的默认数据存储（网页的本地草稿和 Android 一样跨 App 重启保留），每次加载前把它的 Cookie 换成 App 的（所有编辑器排成一条链依次换） |
 | Google 登录 | Credential Manager | GoogleSignIn SDK |
+| 系统分享接收 | `MainActivity` 的 `ACTION_SEND` / `ACTION_SEND_MULTIPLE` | 独立扩展 `NoteFableShareExtension`（`ShareExtension/ShareViewController.swift`）把内容写入 App Group（`group.com.kakumine.notefable`）共享目录（`ShareInboxStore`），尝试经 `extensionContext.open` 打开 `notefable://share?id=…`；若系统拒绝直接拉起主 App，则展示已保存勾标后收起，用户回到 NoteFable 时由 `AppRouter.consumePendingShares` 按顺序自动取走全部待处理分享 |
 | 返回键 | 系统返回键、预测性返回 | 没有返回键：抽屉、面板、编辑页用边缘滑动或各自的关闭按钮 |
 
 设置里的“图标”和 Android 一样先存在本机（`UserDefaults` 的 `app_icon.icon`，`AppIconStore`），登录时随账号同步（`Core/Support/AppIconSync.swift`，Android `AppIconSync.kt` 的移植；`AppEnvironment.start()` 跟着登录状态读，`Features/Settings/AppIconSettings.swift` 打开时读、选了以后送；图标属于哪个账号和待发送存在 `UserDefaults` 的 `app_icon.owner` / `app_icon.pending`，退出登录 / 删除账号后由 `AppEnvironment.onSignedOut` 调 `forgetAccount`），规则见 [image-flow.md](image-flow.md) 的“设置里的图标”。单元测试 `AppIconSyncTests`。

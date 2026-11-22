@@ -226,4 +226,7 @@ export const frServer: Record<string, string> = {
   "Could not load your icon.": "Impossible de charger votre icône.",
   "Could not save your icon. Please try again.": "Impossible d’enregistrer votre icône. Réessayez.",
   "Your icon changed somewhere else. Try again.": "Votre icône a été modifiée ailleurs. Réessayez.",
+  "Invalid request body.": "Le corps de la requête est invalide.",
+  "Invalid share settings.": "Les paramètres de partage sont invalides.",
+  "Expiration time must be in the future.": "La date d'expiration doit être dans le futur.",
 };

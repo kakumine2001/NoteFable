@@ -226,4 +226,7 @@ export const deServer: Record<string, string> = {
   "Could not load your icon.": "Dein Icon konnte nicht geladen werden.",
   "Could not save your icon. Please try again.": "Dein Icon konnte nicht gespeichert werden. Bitte versuche es erneut.",
   "Your icon changed somewhere else. Try again.": "Dein Icon wurde an anderer Stelle geändert. Versuche es erneut.",
+  "Invalid request body.": "Ungültiger Anfragetext.",
+  "Invalid share settings.": "Ungültige Freigabeeinstellungen.",
+  "Expiration time must be in the future.": "Das Ablaufdatum muss in der Zukunft liegen.",
 };

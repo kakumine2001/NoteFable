@@ -226,4 +226,7 @@ export const itServer: Record<string, string> = {
   "Could not load your icon.": "Impossibile caricare la tua icona.",
   "Could not save your icon. Please try again.": "Impossibile salvare la tua icona. Riprova.",
   "Your icon changed somewhere else. Try again.": "La tua icona è stata modificata altrove. Riprova.",
+  "Invalid request body.": "Corpo della richiesta non valido.",
+  "Invalid share settings.": "Impostazioni di condivisione non valide.",
+  "Expiration time must be in the future.": "La data di scadenza deve essere nel futuro.",
 };

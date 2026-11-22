@@ -226,4 +226,7 @@ export const koServer: Record<string, string> = {
   "Could not load your icon.": "아이콘을 불러오지 못했어요.",
   "Could not save your icon. Please try again.": "아이콘을 저장하지 못했어요. 다시 시도해 주세요.",
   "Your icon changed somewhere else. Try again.": "다른 곳에서 아이콘이 변경되었어요. 다시 시도해 주세요.",
+  "Invalid request body.": "요청 본문이 올바르지 않습니다.",
+  "Invalid share settings.": "공유 설정이 올바르지 않습니다.",
+  "Expiration time must be in the future.": "만료 시간은 현재 시간 이후여야 합니다.",
 };

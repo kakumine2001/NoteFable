@@ -226,4 +226,7 @@ export const esServer: Record<string, string> = {
   "Could not load your icon.": "No se pudo cargar tu icono.",
   "Could not save your icon. Please try again.": "No se pudo guardar tu icono. Inténtalo de nuevo.",
   "Your icon changed somewhere else. Try again.": "Tu icono se modificó en otro lugar. Inténtalo de nuevo.",
+  "Invalid request body.": "El contenido de la solicitud no es válido.",
+  "Invalid share settings.": "La configuración de uso compartido no es válida.",
+  "Expiration time must be in the future.": "La fecha de vencimiento debe ser futura.",
 };

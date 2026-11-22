@@ -226,4 +226,7 @@ export const arServer: Record<string, string> = {
   "Could not load your icon.": "تعذّر تحميل أيقونتك.",
   "Could not save your icon. Please try again.": "تعذّر حفظ أيقونتك. حاول مرة أخرى.",
   "Your icon changed somewhere else. Try again.": "تغيّرت أيقونتك من مكان آخر. حاول مرة أخرى.",
+  "Invalid request body.": "محتوى الطلب غير صالح.",
+  "Invalid share settings.": "إعدادات المشاركة غير صالحة.",
+  "Expiration time must be in the future.": "يجب أن يكون وقت انتهاء الصلاحية في المستقبل.",
 };

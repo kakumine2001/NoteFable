@@ -32,7 +32,55 @@ data class NotePageSummary(
     val font: String = "default",
     /** 锁定：编辑器只读（界面上的防误改，不是权限）。 */
     val locked: Boolean = false,
+    /** 公开分享状态（用于顶栏分享按钮高亮）。 */
+    val shareEnabled: Boolean = false,
+    val shareExpiresAt: String? = null,
 )
+
+fun NotePageSummary.isShared(nowMillis: Long = System.currentTimeMillis()): Boolean {
+    if (!shareEnabled) return false
+    val expires = shareExpiresAt ?: return true
+    val parsed = runCatching { java.time.Instant.parse(expires).toEpochMilli() }.getOrNull() ?: return false
+    return parsed > nowMillis
+}
+
+@Serializable
+data class NoteShareAncestor(
+    val id: String,
+    val title: String = "",
+    val icon: String? = null,
+    val token: String,
+    val url: String,
+    val expiresAt: String? = null,
+)
+
+@Serializable
+data class NoteShareState(
+    val enabled: Boolean = false,
+    val active: Boolean = false,
+    val expired: Boolean = false,
+    val token: String? = null,
+    val url: String? = null,
+    val includeSubpages: Boolean = true,
+    val expiresAt: String? = null,
+    val excludeFromParent: Boolean = false,
+    val hasParent: Boolean = false,
+    val inheritedFrom: NoteShareAncestor? = null,
+    val inheritedUrl: String? = null,
+)
+
+data class NoteSharePatch(
+    val enabled: Boolean? = null,
+    val includeSubpages: Boolean? = null,
+    val setExpiresAt: Boolean = false,
+    val expiresAt: String? = null,
+    val excludeFromParent: Boolean? = null,
+)
+
+@Serializable
+internal data class ShareStateResponse(val share: NoteShareState, val page: NotePageSummary? = null)
+
+data class ShareUpdateResult(val share: NoteShareState, val page: NotePageSummary?)
 
 /** 页面设置的改动（PUT /api/pages/:id/settings 只改送去的项）。 */
 data class NotePageSettings(val fullWidth: Boolean? = null, val smallText: Boolean? = null, val font: String? = null, val locked: Boolean? = null)
@@ -112,6 +160,8 @@ interface NotesBackend {
 
     suspend fun setFavorite(id: String, favorite: Boolean): NotePageSummary
     suspend fun updateSettings(id: String, settings: NotePageSettings): NotePageSummary
+    suspend fun getShare(id: String): NoteShareState = error("unused")
+    suspend fun updateShare(id: String, patch: NoteSharePatch): ShareUpdateResult = error("unused")
 
     /** 复制这一篇和子页面（网页"Duplicate"）。 */
     suspend fun duplicate(id: String): DuplicateResult

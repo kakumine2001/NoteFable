@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { trashCutoff } from "@/lib/note-trash";
 import { descendantIds, lockNoteOrder, PAGE_SUMMARY_SELECT, setSubtreeGroup } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
@@ -48,7 +49,9 @@ export async function POST(_request: Request, context: Context) {
       const pages = await tx.notePage.findMany({ where: { id: { in: ids }, userId: user.id, deletedAt: null }, select: PAGE_SUMMARY_SELECT });
       return { page: pages.find((row) => row.id === pageId), pages };
     });
-    return result.page ? NextResponse.json(result) : notFound();
+    if (!result.page) return notFound();
+    scheduleNoteEmbeddingSync(user.id, result.pages.map((p) => p.id));
+    return NextResponse.json(result);
   } catch (error) {
     if (error instanceof NoteValidationError && error.status === 404) return notFound();
     return noteApiError(error);

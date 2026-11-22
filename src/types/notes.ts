@@ -18,9 +18,39 @@ export type NotePageSummary = {
   favoritedAt?: string | null;
   // ページの表示設定（「…」メニュー）。本文の版とは別に保存される。古い応答にはない。
 } & Partial<NotePageSettings> & {
+  // 公開共有の状態（トップバーの共有ボタンの強調表示に使う）。古い応答にはない。
+  shareEnabled?: boolean;
+  shareExpiresAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };
+export type NoteShareAncestor = {
+  id: string;
+  title: string;
+  icon: string | null;
+  token: string;
+  url: string;
+  expiresAt: string | null;
+};
+export type NoteShareState = {
+  enabled: boolean;
+  active: boolean;
+  expired: boolean;
+  token: string | null;
+  url: string | null;
+  includeSubpages: boolean;
+  expiresAt: string | null;
+  excludeFromParent: boolean;
+  hasParent: boolean;
+  inheritedFrom: NoteShareAncestor | null;
+  inheritedUrl: string | null;
+};
+export function isPageShared(page: Pick<NotePageSummary, "shareEnabled" | "shareExpiresAt"> | undefined, now = Date.now()): boolean {
+  if (!page?.shareEnabled) return false;
+  if (!page.shareExpiresAt) return true;
+  const expires = Date.parse(page.shareExpiresAt);
+  return Number.isFinite(expires) && expires > now;
+}
 export type NotePageFont = "default" | "serif" | "mono";
 export type NotePageSettings = { fullWidth: boolean; smallText: boolean; font: NotePageFont; locked: boolean };
 // 一覧の 1 件から表示設定を取り出す（未設定・不明な値は既定値）。

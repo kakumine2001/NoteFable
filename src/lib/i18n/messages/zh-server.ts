@@ -226,4 +226,7 @@ export const zhServer: Record<string, string> = {
   "Could not load your icon.": "无法加载你的图标。",
   "Could not save your icon. Please try again.": "无法保存你的图标，请重试。",
   "Your icon changed somewhere else. Try again.": "你的图标已在别处更改，请重试。",
+  "Invalid request body.": "请求内容无效。",
+  "Invalid share settings.": "分享设置无效。",
+  "Expiration time must be in the future.": "过期时间必须晚于当前时间。",
 };

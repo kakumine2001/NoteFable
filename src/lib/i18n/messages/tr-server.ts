@@ -226,4 +226,7 @@ export const trServer: Record<string, string> = {
   "Could not load your icon.": "Simgen yüklenemedi.",
   "Could not save your icon. Please try again.": "Simgen kaydedilemedi. Lütfen tekrar dene.",
   "Your icon changed somewhere else. Try again.": "Simgen başka bir yerde değiştirildi. Tekrar dene.",
+  "Invalid request body.": "Geçersiz istek gövdesi.",
+  "Invalid share settings.": "Geçersiz paylaşım ayarları.",
+  "Expiration time must be in the future.": "Son kullanma tarihi gelecekte olmalıdır.",
 };

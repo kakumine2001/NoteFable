@@ -226,4 +226,7 @@ export const jaServer: Record<string, string> = {
   "Could not load your icon.": "アイコンを読み込めませんでした。",
   "Could not save your icon. Please try again.": "アイコンを保存できませんでした。もう一度お試しください。",
   "Your icon changed somewhere else. Try again.": "アイコンが別の場所で変更されました。もう一度お試しください。",
+  "Invalid request body.": "リクエストの形式が正しくありません。",
+  "Invalid share settings.": "共有設定が正しくありません。",
+  "Expiration time must be in the future.": "有効期限は現在より後の日時を指定してください。",
 };

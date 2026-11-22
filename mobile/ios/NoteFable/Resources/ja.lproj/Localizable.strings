@@ -436,6 +436,33 @@
 "search_speaker_notefable" = "NoteFable：";
 "search_in_file" = "%1$s内";
 
+/* strings_share.xml */
+"share_action" = "共有";
+"share_publish_to_web" = "ウェブに公開";
+"share_publish" = "公開";
+"share_republish" = "再公開";
+"share_unpublish" = "公開を停止";
+"share_desc" = "公開すると、リンクを知っている人なら誰でも閲覧できます。";
+"share_expired" = "この共有リンクは期限切れです。";
+"share_public_link" = "公開リンク";
+"share_copy_link" = "リンクをコピー";
+"share_open_link" = "リンクを開く";
+"share_include_subpages" = "サブページを含める";
+"share_link_expires" = "リンクの有効期限";
+"share_never" = "無期限";
+"share_1h" = "1 時間";
+"share_1d" = "1 日";
+"share_7d" = "7 日間";
+"share_30d" = "30 日間";
+"share_custom_date" = "日時を指定…";
+"share_set" = "設定";
+"share_expires_time" = "期限: %1$s";
+"share_via_parent" = "親ページ経由で公開中（%1$s）";
+"share_excluded_parent" = "親ページの共有から除外中（%1$s）";
+"share_exclude_from_parent" = "親ページの共有から除外";
+"share_load_failed" = "共有設定を読み込めませんでした。";
+"share_update_failed" = "共有設定を更新できませんでした。";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "固定済み";
 "sb_close_sidebar" = "サイドバーを閉じる";

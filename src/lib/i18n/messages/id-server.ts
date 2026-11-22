@@ -226,4 +226,7 @@ export const idServer: Record<string, string> = {
   "Could not load your icon.": "Tidak dapat memuat ikon Anda.",
   "Could not save your icon. Please try again.": "Tidak dapat menyimpan ikon Anda. Coba lagi.",
   "Your icon changed somewhere else. Try again.": "Ikon Anda telah diubah di tempat lain. Coba lagi.",
+  "Invalid request body.": "Isi permintaan tidak valid.",
+  "Invalid share settings.": "Pengaturan berbagi tidak valid.",
+  "Expiration time must be in the future.": "Waktu kedaluwarsa harus di masa mendatang.",
 };

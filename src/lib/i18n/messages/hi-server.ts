@@ -226,4 +226,7 @@ export const hiServer: Record<string, string> = {
   "Could not load your icon.": "आपका आइकन लोड नहीं किया जा सका।",
   "Could not save your icon. Please try again.": "आपका आइकन सेव नहीं किया जा सका। फिर से प्रयास करें।",
   "Your icon changed somewhere else. Try again.": "आपका आइकन कहीं और से बदल दिया गया है। फिर से प्रयास करें।",
+  "Invalid request body.": "अनुरोध सामग्री अमान्य है।",
+  "Invalid share settings.": "साझाकरण सेटिंग्स अमान्य हैं।",
+  "Expiration time must be in the future.": "समाप्ति समय भविष्य में होना चाहिए।",
 };

@@ -226,4 +226,7 @@ export const ptBRServer: Record<string, string> = {
   "Could not load your icon.": "Não foi possível carregar seu ícone.",
   "Could not save your icon. Please try again.": "Não foi possível salvar seu ícone. Tente novamente.",
   "Your icon changed somewhere else. Try again.": "Seu ícone foi alterado em outro lugar. Tente novamente.",
+  "Invalid request body.": "Corpo da solicitação inválido.",
+  "Invalid share settings.": "Configurações de compartilhamento inválidas.",
+  "Expiration time must be in the future.": "A data de expiração deve estar no futuro.",
 };

@@ -226,4 +226,7 @@ export const thServer: Record<string, string> = {
   "Could not load your icon.": "ไม่สามารถโหลดไอคอนของคุณได้",
   "Could not save your icon. Please try again.": "ไม่สามารถบันทึกไอคอนของคุณได้ กรุณาลองอีกครั้ง",
   "Your icon changed somewhere else. Try again.": "ไอคอนของคุณถูกเปลี่ยนจากที่อื่น กรุณาลองอีกครั้ง",
+  "Invalid request body.": "ข้อมูลคำขอไม่ถูกต้อง",
+  "Invalid share settings.": "การตั้งค่าการแชร์ไม่ถูกต้อง",
+  "Expiration time must be in the future.": "เวลาหมดอายุต้องอยู่ในอนาคต",
 };

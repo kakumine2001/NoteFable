@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_action">共有</string>
+    <string name="share_publish_to_web">ウェブに公開</string>
+    <string name="share_publish">公開</string>
+    <string name="share_republish">再公開</string>
+    <string name="share_unpublish">公開を停止</string>
+    <string name="share_desc">公開すると、リンクを知っている人なら誰でも閲覧できます。</string>
+    <string name="share_expired">この共有リンクは期限切れです。</string>
+    <string name="share_public_link">公開リンク</string>
+    <string name="share_copy_link">リンクをコピー</string>
+    <string name="share_open_link">リンクを開く</string>
+    <string name="share_include_subpages">サブページを含める</string>
+    <string name="share_link_expires">リンクの有効期限</string>
+    <string name="share_never">無期限</string>
+    <string name="share_1h">1 時間</string>
+    <string name="share_1d">1 日</string>
+    <string name="share_7d">7 日間</string>
+    <string name="share_30d">30 日間</string>
+    <string name="share_custom_date">日時を指定…</string>
+    <string name="share_set">設定</string>
+    <string name="share_expires_time">期限: %1$s</string>
+    <string name="share_via_parent">親ページ経由で公開中（%1$s）</string>
+    <string name="share_excluded_parent">親ページの共有から除外中（%1$s）</string>
+    <string name="share_exclude_from_parent">親ページの共有から除外</string>
+    <string name="share_load_failed">共有設定を読み込めませんでした。</string>
+    <string name="share_update_failed">共有設定を更新できませんでした。</string>
+</resources>

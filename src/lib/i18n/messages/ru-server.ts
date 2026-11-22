@@ -226,4 +226,7 @@ export const ruServer: Record<string, string> = {
   "Could not load your icon.": "Не удалось загрузить ваш значок.",
   "Could not save your icon. Please try again.": "Не удалось сохранить ваш значок. Попробуйте ещё раз.",
   "Your icon changed somewhere else. Try again.": "Ваш значок был изменён на другом устройстве. Попробуйте ещё раз.",
+  "Invalid request body.": "Некорректное тело запроса.",
+  "Invalid share settings.": "Некорректные настройки доступа.",
+  "Expiration time must be in the future.": "Срок действия должен быть в будущем.",
 };
