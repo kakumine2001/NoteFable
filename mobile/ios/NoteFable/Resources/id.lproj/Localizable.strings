@@ -435,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "di %1$s";
 
+/* strings_share.xml */
+"share_action" = "Bagikan";
+"share_publish_to_web" = "Publikasikan ke web";
+"share_publish" = "Publikasikan";
+"share_republish" = "Publikasikan ulang";
+"share_unpublish" = "Batalkan publikasi";
+"share_desc" = "Publikasikan catatan ini agar siapa pun yang memiliki tautan dapat melihatnya.";
+"share_expired" = "Tautan berbagi ini telah kedaluwarsa.";
+"share_public_link" = "Tautan publik";
+"share_copy_link" = "Salin tautan";
+"share_open_link" = "Buka tautan";
+"share_include_subpages" = "Sertakan subhalaman";
+"share_link_expires" = "Tautan kedaluwarsa";
+"share_never" = "Tidak pernah";
+"share_1h" = "1 jam";
+"share_1d" = "1 hari";
+"share_7d" = "7 hari";
+"share_30d" = "30 hari";
+"share_custom_date" = "Tanggal kustom…";
+"share_set" = "Atur";
+"share_expires_time" = "Kedaluwarsa %1$s";
+"share_via_parent" = "Dibagikan melalui halaman induk (%1$s)";
+"share_excluded_parent" = "Dikecualikan dari berbagi halaman induk (%1$s)";
+"share_exclude_from_parent" = "Kecualikan dari berbagi induk";
+"share_load_failed" = "Gagal memuat pengaturan berbagi.";
+"share_update_failed" = "Gagal memperbarui pengaturan berbagi.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Disematkan";
 "sb_close_sidebar" = "Tutup bilah samping";

@@ -17,7 +17,7 @@ export async function reorderList(request: Request, kind: "chat" | "note") {
     const items=await prisma.$transaction(async tx=>{
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`${kind}-order:${user.id}`}))`;
       const rows=kind==="chat"
-        ? await tx.session.findMany({where:{userId:user.id,noteId:null},orderBy:[{position:"asc"},{updatedAt:"desc"},{id:"desc"}],select:{id:true,position:true,projectId:true,pinned:true}})
+        ? await tx.session.findMany({where:{userId:user.id},orderBy:[{position:"asc"},{updatedAt:"desc"},{id:"desc"}],select:{id:true,position:true,projectId:true,pinned:true}})
         : await tx.notePage.findMany({where:{userId:user.id,deletedAt:null},orderBy:[{position:"asc"},{createdAt:"desc"},{id:"desc"}],select:{id:true,position:true,groupId:true,parentId:true}});
       const source=rows.find(row=>row.id===move.id), target=rows.find(row=>row.id===move.targetId);
       if(!source || !target) throw new NoteValidationError(msg("Item not found."),404);

@@ -221,4 +221,7 @@ export const jaServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "この提案はもう使えません。もう一度頼んで新しい提案を作ってください。",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "提案のあとでノートが変更されました。もう一度頼んで新しい提案を作ってください。",
   "Upload up to {max} files at a time.": "一度にアップロードできるファイルは {max} 個までです。",
+  "Invalid request body.": "リクエストの形式が正しくありません。",
+  "Invalid share settings.": "共有設定が正しくありません。",
+  "Expiration time must be in the future.": "有効期限は現在より後の日時を指定してください。",
 };

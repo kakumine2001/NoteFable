@@ -4,6 +4,7 @@ import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { claimCover } from "@/lib/note-covers";
 import { NoteValidationError } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { duplicateTitle, MAX_DUPLICATE_PAGES } from "@/lib/note-tree";
 import { descendantIds, liveOrderIds, lockNoteOrder, PAGE_SUMMARY_SELECT, writeOrder } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
@@ -40,6 +41,7 @@ export async function POST(_request: Request, context: Context) {
               coverPosition: source.coverPosition, blocks: source.blocks as Prisma.InputJsonValue, groupId: source.groupId,
               parentId: source.id === root.id ? root.parentId : copies.get(source.parentId!)!,
               fullWidth: source.fullWidth, smallText: source.smallText, font: source.font, locked: source.locked,
+              shareExcludeFromParent: source.shareExcludeFromParent,
             },
             select: { id: true },
           });
@@ -56,6 +58,7 @@ export async function POST(_request: Request, context: Context) {
       // 並びを書き直したので、一覧の全件の新しい位置も返す（画面の並びを並べ替えと同じ方法で更新する）。
       return { page, pages, items: next.map((id, index) => ({ id, position: index + 1 })) };
     });
+    scheduleNoteEmbeddingSync(user.id, result.pages.map((p) => p.id));
     return NextResponse.json(result, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

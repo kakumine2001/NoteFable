@@ -435,6 +435,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "%1$s में";
 
+/* strings_share.xml */
+"share_action" = "साझा करें";
+"share_publish_to_web" = "वेब पर प्रकाशित करें";
+"share_publish" = "प्रकाशित करें";
+"share_republish" = "पुनः प्रकाशित करें";
+"share_unpublish" = "प्रकाशन रद्द करें";
+"share_desc" = "इस नोट को प्रकाशित करें ताकि लिंक वाला कोई भी व्यक्ति इसे देख सके।";
+"share_expired" = "यह साझाकरण लिंक समाप्त हो गया है।";
+"share_public_link" = "सार्वजनिक लिंक";
+"share_copy_link" = "लिंक कॉपी करें";
+"share_open_link" = "लिंक खोलें";
+"share_include_subpages" = "उप-पृष्ठ शामिल करें";
+"share_link_expires" = "लिंक समाप्ति";
+"share_never" = "कभी नहीं";
+"share_1h" = "1 घंटा";
+"share_1d" = "1 दिन";
+"share_7d" = "7 दिन";
+"share_30d" = "30 दिन";
+"share_custom_date" = "कस्टम तिथि…";
+"share_set" = "सेट करें";
+"share_expires_time" = "समाप्ति: %1$s";
+"share_via_parent" = "मूल पृष्ठ के माध्यम से साझा (%1$s)";
+"share_excluded_parent" = "मूल पृष्ठ साझाकरण से बाहर (%1$s)";
+"share_exclude_from_parent" = "मूल पृष्ठ साझाकरण से बाहर रखें";
+"share_load_failed" = "साझाकरण सेटिंग्स लोड नहीं हो सकीं।";
+"share_update_failed" = "साझाकरण सेटिंग्स अपडेट नहीं हो सकीं।";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "पिन किया गया";
 "sb_close_sidebar" = "साइडबार बंद करें";

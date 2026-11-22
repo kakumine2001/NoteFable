@@ -42,7 +42,8 @@ const LOCALE_APP_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/app\/?$/;
 const LOCALE_EMBED_PATH = /^\/[A-Za-z]{2}(?:-[A-Za-z]{2,4})?\/note-embed\/?$/;
 
 // 保存済みの会話・ノートへの古いリンク（/?chat=… など）は、指定を保ったままワークスペースへ送る。
-const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page"];
+// share: システムの「共有」から届いた内容の受け取り口（/app?share=<id>、src/lib/share-target.ts）。
+const LEGACY_WORKSPACE_KEYS = ["chat", "message", "view", "page", "share"];
 
 // hint: ワークスペースを使った目印の Cookie を書く。noindex: 検索エンジンに載せない（ワークスペースのホスト）。
 // carryLocale: 紹介サイトからワークスペースのホストへ送るとき、このホストだけの言語 Cookie を両ホスト共通の Domain にも書く。

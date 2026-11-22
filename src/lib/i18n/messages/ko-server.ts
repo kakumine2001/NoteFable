@@ -221,4 +221,7 @@ export const koServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "이 제안은 더 이상 유효하지 않아요. 다시 요청해 새 제안을 받아 주세요.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "제안이 생성된 뒤 노트가 변경되었어요. 다시 요청해 새 제안을 받아 주세요.",
   "Upload up to {max} files at a time.": "한 번에 최대 {max}개의 파일까지 업로드할 수 있어요.",
+  "Invalid request body.": "요청 본문이 올바르지 않습니다.",
+  "Invalid share settings.": "공유 설정이 올바르지 않습니다.",
+  "Expiration time must be in the future.": "만료 시간은 현재 시간 이후여야 합니다.",
 };

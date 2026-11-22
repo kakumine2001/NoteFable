@@ -14,7 +14,7 @@ export function toTrashItem(row: { id: string; title: string; icon: string | nul
   return { id: row.id, title: row.title, icon: row.icon, deletedAt: row.deletedAt.toISOString(), purgeAt: trashPurgeAt(row.deletedAt).toISOString() };
 }
 
-// 保持期間を過ぎた自分のノートを完全に削除する（履歴・紐付いたチャット・プロジェクトの参照は外部キーで一緒に消える）。
+// 保持期間を過ぎた自分のノートを完全に削除する（履歴・プロジェクトの参照は外部キーで一緒に消える。このノートで始めたチャットは残り、ノートとの結び付きだけが外れる）。
 export async function purgeExpiredNotes(userId: string, now = Date.now()) {
   const result = await prisma.notePage.deleteMany({ where: { userId, deletedAt: { lt: trashCutoff(now) } } });
   return result.count;

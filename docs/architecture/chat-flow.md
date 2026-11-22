@@ -127,7 +127,7 @@ POST /api/chat
 
 请求在收到任何内容之前被拒绝（上限、断网、404）时，界面退回原来的对话、在输入栏上方显示原因，并把那条提问的编辑框带着刚写的文字重新打开（`rejectedEdit`），写的字不会丢；未登录撞到上限时，登录前把这段文字存成输入栏的草稿（输入栏空着的话）。
 
-生成图片的那一轮不能编辑（改写后会按文字回答重做），界面不显示铅笔。编辑和重新生成都按一次聊天计数；笔记助手的会话（带 `noteId`）不支持，同时带 `edit` 和 `regenerate`、或没有 `sessionId` 时 400。
+生成图片的那一轮不能编辑（改写后会按文字回答重做），界面不显示铅笔。编辑和重新生成都按一次聊天计数；笔记 AI 面板里的发送（请求带 `noteId`）不支持（同一个会话在 Chats 里打开时可以），同时带 `edit` 和 `regenerate`、或没有 `sessionId` 时 400。
 
 ### 切换版本
 
@@ -150,7 +150,7 @@ POST /api/chat
 ```text
 当前 User
     ↓
-find Session where id + userId + noteId match（noteId は通常のチャットでは null、笔记助手の会话では笔记 ID）
+find Session where id + userId match（请求带 noteId 时还要求 Session.noteId 相同：笔记 AI 面板只能续用在这篇笔记里开始的会话；Chats 的请求不带 noteId，可以续用本人的任何会话，包括在笔记里开始的）
 ```
 
 如果没有：
@@ -282,7 +282,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 所有聊天模型都可以通过 NoteFable 自己执行的工具读取当前用户的 Notes，并提议修改或新建笔记。能力开关为 `src/lib/models.ts` 的 `supportsPageTools`；工具定义与执行在 `src/lib/page-tools.ts`，并行执行、单轮上限、轮次上限和参数解析在 `src/lib/chat-tools.ts`，均与 provider 无关。
 
-- `search_notes({ query })`：在数据库内搜索该用户的全部笔记（不含 Trash 里的，SQL 带 `"deletedAt" IS NULL`）。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。不做同义词或翻译，工具说明会提示模型换说法重试。
+- `search_notes({ query })`：在数据库内搜索该用户的全部活笔记（不含 Trash，`p."deletedAt" IS NULL`），支持**表记折叠关键词匹配 + 语义检索混合召回**。关键词部分与站内搜索共用 `src/lib/search-fold.ts`（`termMatcher` + `buildSearchSnippet`，不区分大小写、全半角、平片假名、弯引号/破折号），用 JSONPath 只取正文的 inline `text` 并经 `jsonb_array_elements_text` 解码；语义部分并行调用 `semanticSearchNotes`（`src/lib/note-embeddings.ts`，阈值 0.32，带有限度惰性回填），换说法或跨语言也能命中。关键词命中优先（按标题命中词数、更新时间排序），再去重追加语义命中，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。系统指令允许模型在用户提到笔记或询问可能记录在笔记里的个人事项时主动调用，通用问题则跳过。
 - `read_note({ noteId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断；Trash 里的笔记视为不存在（返回 Note not found）。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回笔记 `version`。
 - `list_chat_attachments()`：列出当前聊天里的附件（最新在前，最多 30 个，包含用户上传和助手生成的图片），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MiB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
 - `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###` 与折叠标题 `# ▸`、`-` 列表、`1.`、`- [ ]`、折叠列表 `▸`、`>` 引用、Callout `> [!💡]`、代码围栏、`---`、GFM 表格、笔记图片 `![说明](/api/pages/files?...)` 或 `attachment:ID`，以及粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套），`src/lib/page-edit.ts` 把编辑应用到笔记块上（表格替换表格时经 `carryTableLayout` 继承表头行/列与列宽），再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
@@ -335,7 +335,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 ### 每次发送时怎么带入
 
-`/api/chat` 在会话属于某个项目（`session.projectId`）且不是笔记助手的会话（没有 `noteId`）时，**每次发送都**调用 `loadProjectContext(userId, projectId)`（`src/lib/chat-project-context.ts`）重新读取，所以对项目指示或参考笔记的修改从下一条消息起生效，不依赖会话创建时的快照。项目不存在或不属于该用户，或者既没有非空白的指示也没有活着的参考笔记，返回 `null`，什么都不加。读取失败只 `console.error("Failed to load project context", …)`，聊天照常进行、不带项目文脉。
+`/api/chat` 在会话属于某个项目（`session.projectId`）且请求不是从笔记 AI 面板发出（请求没有 `noteId`）时，**每次发送都**调用 `loadProjectContext(userId, projectId)`（`src/lib/chat-project-context.ts`）重新读取，所以对项目指示或参考笔记的修改从下一条消息起生效，不依赖会话创建时的快照。项目不存在或不属于该用户，或者既没有非空白的指示也没有活着的参考笔记，返回 `null`，什么都不加。读取失败只 `console.error("Failed to load project context", …)`，聊天照常进行、不带项目文脉。
 
 读到的内容由 `formatProjectContext()` 写成一段文字，放进**同一个** `buildInstructions()`（第 4 个参数 `project`），位置在全部固定文字和用户的自定义指令之后（变化的部分放最后，前面的固定文字仍能命中提示缓存）；没有给 Anthropic 或 OpenAI 单独拼一份。这段文字包含：
 
@@ -381,7 +381,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 - `q` 去掉首尾空白后必须是 1–100 字符。先按下文“表记折叠”折叠，再按空白（含全角空格）切成词，去重后最多 8 个，**所有词**都要命中。`%`、`_` 按字面处理：折叠发生在 LIKE 转义之前，所以全角 `％` 先变成 `%`。NUL 会被去掉，否则 PostgreSQL 会报错。
 - `projectId` 可省略，只对 Chats 生效，Notes 不受影响（`scope=notes` 根本不查会话）。空串等于不过滤；其他值必须匹配 `/^[A-Za-z0-9_-]{1,64}$/`（`SEARCH_PROJECT_ID_PATTERN`），否则 400 `Project id is not valid.`。不属于当前用户的项目 ID 不报错，只是没有会话命中。
 - 响应 `{ query, notes, chats }`，每类最多 15 条，没请求的那一类是空数组；全部限定在当前用户，`Cache-Control: no-store`，数据库不可用返回 503（正文里仍带空的 `notes`、`chats`）。
-- 仍是关键词搜索，不做同义词、翻译或语义检索；能容忍的只有下面的表记差异。
+- Notes 支持关键词（含表记折叠）与语义检索混合召回；Chats 仍是关键词搜索，不做同义词、翻译或语义检索，只容忍下面的表记差异。
 
 ### 表记折叠
 
@@ -395,21 +395,23 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
 
+当配置了 `OPENAI_API_KEY`（且未通过 `NOTEFABLE_SEMANTIC_SEARCH=false` 关闭）、查询去掉空白后至少 2 个字符且关键词命中未满 15 条时，`searchNotes` 会继续执行语义检索（`src/lib/note-embeddings.ts`，阈值 0.34，总超时 2.5 秒，每次最多扫当前用户最近 2,000 个与当前 `NotePage.version` 一致的块；若当前用户尚无已索引的活笔记则跳过外部嵌入调用，未索引或旧版笔记仅在响应后通过 `after()` 后台补齐，不阻塞站内搜索响应；检索与索引调用均通过 `UsageCounter` 按用户共享每日上限各 200 次，且搜索词不跨请求缓存；笔记新建、保存、恢复历史、套用提案、复制、从 Trash 复原也在响应后经 `after()` 增量更新索引）。结果按“关键词命中在前、语义命中去重后在后”合并，最多 15 条；语义命中按命中的 `chunkIndex` 从对应笔记当前的 `blocks` 实时重建该段摘录并带回 `blockId`。外部嵌入接口失败、超时、超额或未配置时静默降级为纯关键词搜索，不影响搜索接口可用性。Web、Android、iOS 共用 `GET /api/search`，三端同步生效。
+
 ### Chats
 
-每个会话最多一条结果。只看普通聊天（`noteId` 为空，笔记助手的对话不搜），只看 `USER` / `ASSISTANT` 消息。**词可以分散在同一个会话的不同地方**：每个词出现在会话标题、任一条消息、或任一条消息的附件抽取文本（`Attachment.extractedText`，入库时已截到 120,000 字符）里即可。实现是一次扫描：对标题、每条消息和每个附件各算一个“每个词占一位”的位掩码，按消息合并（`bit_or`，消息和它的附件算同一条），再按会话合并，所有位都立起来才算命中。
+每个会话最多一条结果。在笔记 AI 面板里开始的会话也是 Chats 的会话，同样会被搜到；只看 `USER` / `ASSISTANT` 消息。**词可以分散在同一个会话的不同地方**：每个词出现在会话标题、任一条消息、或任一条消息的附件抽取文本（`Attachment.extractedText`，入库时已截到 120,000 字符）里即可。实现是一次扫描：对标题、每条消息和每个附件各算一个“每个词占一位”的位掩码，按消息合并（`bit_or`，消息和它的附件算同一条），再按会话合并，所有位都立起来才算命中。
 
 排序先按档：① 全部词都在标题里；② 有一条消息（含它的附件）同时含全部词；③ 词散落在多条消息里。同档内标题含的词多的在前，然后最近命中的消息（没有则会话更新时间）新的在前。
 
 摘录和跳转目标是会话里**含不同词最多的那条消息**（同数取最新的），`messageId` 指向它；摘录取该消息的正文，附件含的词更多时取该附件。DB 只带回从第一个命中前 100 字符起的 600 字符，再由 JS 切成约 160 字符的 `snippet`。结果字段：`id`、`title`、`icon`、`snippet`、`messageId`、`role`、`attachmentName`（只有摘录取自附件时才有文件名，此时 `messageId` 是附件所属的消息，跳转照常）、`projectId`、`titleMatch`（全部词都在标题里）、`updatedAt`。没有任何消息或附件含搜索词（只有标题命中）时 `snippet` 为空、`messageId` 为 `null`。
 
-AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，仍是不区分大小写的子串匹配，没有这里的表记折叠。
+AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）现在与站内搜索共用同一套 `search-fold.ts` 表记折叠与 `note-embeddings.ts` 语义检索。
 
 ### 没有做到的
 
-- 繁体与简体：`會議紀要` 找不到 `会议纪要`，需要转换词典。
-- 不加空格连写的中文词：`特征值特征向量` 找不到 `特征值与特征向量`，需要分词。
-- 同义词、翻译、跨语言（`email` 与 `メール`）。
+- 繁体与简体（精确关键词部分）：`會議紀要` 的字面查询找不到 `会议纪要`（Notes 可由语义检索补齐，Chats 不支持）。
+- 不加空格连写的中文词（精确关键词部分）：`特征值特征向量` 的字面查询找不到 `特征值与特征向量`（Notes 可由语义检索补齐，Chats 不支持）。
+- Chats 的同义词、翻译、跨语言（`email` 与 `メール`；Notes 已由语义检索覆盖）。
 - NFKC 会展开成多个字符的兼容字符（`㌔`→`キロ`、`㈱`→`(株)`）和 BMP 以外的兼容字符，DB 匹配不到；高亮和摘录用 JS 折叠，所以显示不受影响。叠了多个组合符、或词以组合符开头时，SQL 与 JS 的判断可能不一致。
 - 索引：现在是线性扫描，没有 trigram 索引。要近乎瞬时，需要已折叠的列加 `pg_trgm` GIN 索引，那是 schema 改动，没有做。
 
@@ -498,7 +500,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 服务端（`src/app/api/sessions/[sessionId]/page/route.ts`，`maxDuration = 300`）：
 
-1. 会话必须属于当前用户且 `noteId` 为 null，否则 404；body 和其他笔记 API 一样最多读 1 MiB（超出 413），不是 JSON 对象返回 400。
+1. 会话必须属于当前用户，否则 404；body 和其他笔记 API 一样最多读 1 MiB（超出 413），不是 JSON 对象返回 400。
 2. 只读 USER / ASSISTANT 消息的正文和用户消息的附件文件名（不读 SYSTEM、`providerContext`、附件内容或图片；助手的附件是生成的图片，不列出）。按时间倒序最多读 400 条（`MAX_TRANSCRIPT_MESSAGES`），更早的消息算作省略。`buildTranscript`（`src/lib/chat-page.ts`）从最新的消息往前取：每条最多 12,000 字符，合计最多 60,000 字符，放不下的更早消息被省略并注明；空消息跳过。会话标题也放在 `<conversation>` 里。正文和标题里的 `<conversation>` / `<user>` / `<assistant>` 标签被替换掉，不能提前结束对话块。没有可用内容返回 400 “This chat has nothing to turn into a page yet.”，不计数。
 3. `consumeUsage(user, "chat")` 预占一次聊天额度，满额 429（与 `/api/chat` 相同的 `usage_limit` 响应）。
 4. 用 body 里的模型（经 `normalizeModel` 和 `getModelRegistry()`，未知值回到默认模型；上游模型名由 `upstreamModelFor` 解析，与 `/api/chat` 共用）发一次非流式请求，推理强度固定为该模型的默认值（Luna / Haiku `medium`，DeepSeek `high`），避免用户选的高强度把单次请求拖过时限。不带搜索、Notes 工具、压缩和缓存。系统指令（`PAGE_INSTRUCTIONS`）要求用对话的主要语言写一篇以 `# 标题` 开头的 Markdown 笔记，只保留对话里的事实、解释、例子、代码和出处链接，不加新事实，不提“用户 / 助手 / 对话”，并说明 `<conversation>` 里的标题和对话是要改写的材料、不是指令。输出上限是 32,000 token 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。请求格式见 [provider-requests.md](provider-requests.md#整理成笔记的请求)。240 秒超时或客户端断开时中止。
@@ -537,3 +539,11 @@ ASSISTANT Message
 用户点了停止时，已经流出的正文原样保存、不加错误信息，见上文“停止生成”。
 
 如果上游中途失败，已经向用户流出的文本会连同英文错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。服务端在现有 `Message.activity` JSON 和 SSE 里另加 `failure` 元数据（错误文的 `offset` 与 `detail`）；客户端只据此翻译系统追加的错误后缀，不改写正常 AI 正文。该元数据不进入可视时间线，不回传给模型；没有元数据的旧记录显示原文，复制与导出也保留原文。
+
+## 系统分享接收（Web / Android / iOS）
+
+三端均支持从其他应用通过系统「分享」向 NoteFable 传入文字、链接、图片或支持的文档，统一落在**新聊天的输入栏**（不自动发送；已有未发送草稿时追加在后面，不静默覆盖；附件走现有的格式/大小校验与上传链路）：
+
+- **Web（PWA Web Share Target）**：`src/app/[locale]/app/layout.tsx` 仅在工作区声明 `public/manifest.webmanifest`（`share_target` 为 `POST /share-target`，`multipart/form-data`，避免介绍页主机 `notefable.com` 误注册无 Service Worker 的目标），`public/sw.js` 仅拦截该路径（不缓存页面或 API），把表单里的标题/正文/链接与文件暂存在 Cache Storage（`notefable-share-v1`，10 分钟过期自动清理）后 303 跳转到 `/app?share=<id>`；工作区（`src/app/[locale]/app/page.tsx`）启动时顺手清理过期缓存，并通过 `src/lib/share-target.ts`（`consumeWebShare`、`composeSharedText`、`mergeDraftWithShare`、`pruneExpiredWebShares`）一次性取出并删掉缓存，清空 URL 参数后填入输入栏。
+- **Android**：`MainActivity` 接入 `ACTION_SEND` / `ACTION_SEND_MULTIPLE`（`ui/ShareIntent.kt`、`data/ShareIntake.kt`，见 [android-native.md](android-native.md#系统分享接收)）。
+- **iOS**：独立 `NoteFableShareExtension` 经 App Group（`group.com.kakumine.notefable`）与 `notefable://share?id=…` 交接给主 App（`Core/Chat/ShareIntake.swift`、`Features/Chat/ShareInboxBridge.swift`，见 [ios-native.md](ios-native.md)）。

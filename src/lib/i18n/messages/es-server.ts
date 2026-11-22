@@ -221,4 +221,7 @@ export const esServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Esta propuesta ya no es válida. Vuelve a pedirlo para obtener una propuesta nueva.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Esta nota cambió después de que se creara la propuesta. Vuelve a pedirlo para obtener una propuesta nueva.",
   "Upload up to {max} files at a time.": "Puedes subir hasta {max} archivos a la vez.",
+  "Invalid request body.": "El contenido de la solicitud no es válido.",
+  "Invalid share settings.": "La configuración de uso compartido no es válida.",
+  "Expiration time must be in the future.": "La fecha de vencimiento debe ser futura.",
 };

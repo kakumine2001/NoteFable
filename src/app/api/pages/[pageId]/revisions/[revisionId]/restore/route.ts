@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readSmallJson } from "@/lib/note-groups";
 import { createRevision } from "@/lib/note-revisions";
@@ -62,6 +63,7 @@ export async function POST(request: Request, context: Context) {
       const latest = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
       return latest ? NextResponse.json({ error: msg("This note was changed in another tab."), page: latest }, { status: 409 }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     }
+    scheduleNoteEmbeddingSync(user.id, [pageId]);
     return NextResponse.json({ page: outcome.page });
   } catch (error) { return noteApiError(error); }
 }

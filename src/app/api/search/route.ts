@@ -27,7 +27,7 @@ export async function GET(request: Request) {
     const user = await getOrCreateUser();
     const terms = parseSearchTerms(query);
     const [notes, chats] = await Promise.all([
-      scope === "chats" ? [] : searchNotes(user.id, terms),
+      scope === "chats" ? [] : searchNotes(user.id, terms, { rawQuery: query, signal: request.signal }),
       scope === "notes" ? [] : searchChats(user.id, terms, { projectId }),
     ]);
     return NextResponse.json({ query, notes, chats }, { headers });

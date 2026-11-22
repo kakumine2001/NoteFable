@@ -38,7 +38,7 @@ describe("GET /api/sessions/:id/export", () => {
 
   it("reads only the owner's chat and only USER and ASSISTANT messages, without provider context", async () => {
     await GET(get(), context);
-    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine", noteId: null }, select: { title: true } });
+    expect(mocks.session).toHaveBeenCalledWith({ where: { id: sessionId, userId: "mine" }, select: { title: true } });
     const query = mocks.messages.mock.calls[0][0];
     // 表示中の枝だけを書き出す（編集・再生成で置き換えられた版は含めない）。
     expect(query.where).toEqual({ sessionId, active: true, role: { in: ["USER", "ASSISTANT"] } });

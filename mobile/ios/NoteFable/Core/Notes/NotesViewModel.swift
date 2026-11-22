@@ -584,6 +584,36 @@ final class NotesViewModel {
         }
     }
 
+    func loadShare(_ pageId: String) async throws -> NoteShareState {
+        try await backend.getShare(id: pageId)
+    }
+
+    func updateShare(_ pageId: String, _ patch: NoteSharePatch) async throws -> NoteShareState {
+        let owner = identity
+        if patch.enabled == true {
+            let includeSubpages = patch.includeSubpages ?? true
+            let scope = includeSubpages ? state.descendants(pageId).union([pageId]) : Set([pageId])
+            if let open = state.open, scope.contains(open.id), !(await flushOpen()).ok {
+                throw ApiException(status: 409, message: "Failed to update share settings.")
+            }
+        }
+        let result = try await backend.updateShare(id: pageId, patch: patch)
+        if let updated = result.page, owner == identity {
+            update { s in
+                s.pages = s.pages.map {
+                    if $0.id == updated.id {
+                        var copy = $0
+                        copy.shareEnabled = updated.shareEnabled
+                        copy.shareExpiresAt = updated.shareExpiresAt
+                        return copy
+                    }
+                    return $0
+                }
+            }
+        }
+        return result.share
+    }
+
     /// 复制这一篇和子页面（网页 Duplicate），复制完打开复制件。服务端复制的是已保存的内容，
     /// 所以打开着的是它或它的子页面时先保存，保存不了就不复制。
     func duplicate(_ pageId: String) {

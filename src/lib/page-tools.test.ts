@@ -1,7 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { termMatcher } from "./search-fold";
 
-const mocks = vi.hoisted(() => ({ queryRaw: vi.fn(), findFirst: vi.fn(), createProposal: vi.fn() }));
+const mocks = vi.hoisted(() => ({ queryRaw: vi.fn(), findFirst: vi.fn(), createProposal: vi.fn(), semanticSearch: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { $queryRaw: mocks.queryRaw, notePage: { findFirst: mocks.findFirst }, noteProposal: { create: mocks.createProposal } } }));
+vi.mock("@/lib/note-embeddings", () => ({
+  AI_SEMANTIC_THRESHOLD: 0.32,
+  scheduleNoteEmbeddingBackfill: vi.fn(),
+  semanticSearchNotes: mocks.semanticSearch,
+}));
 import { blocksToMarkdown, buildSnippet, likePattern, MAX_READ_CHARS, runPageTool } from "./page-tools";
 
 const text = (value: string, styles = {}) => ({ type: "text", text: value, styles });
@@ -11,8 +17,13 @@ const updatedAt = new Date("2026-10-01T00:00:00Z");
 describe("page tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.semanticSearch.mockResolvedValue({ hits: [], hasMoreBackfill: false });
     // 保存した提案をそのまま行として返す。
     mocks.createProposal.mockImplementation(async ({ data }: { data: { kind: string; payload: unknown } }) => ({ id: "prop1", kind: data.kind, status: "PENDING", payload: data.payload, appliedPageId: null }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it("converts note blocks to Markdown", () => {
@@ -41,18 +52,35 @@ describe("page tools", () => {
     expect(likePattern("100%_a!")).toBe("%100!%!_a!!%");
   });
 
-  it("searches only the requesting user's pages in the database and returns snippets", async () => {
-    mocks.queryRaw.mockResolvedValue([{ id: "p1", title: "Biology", updatedAt, body: "cell division and mitosis" }]);
-    const result = await runPageTool("search_notes", { query: "Mitosis  cell" }, "mine", "s1");
+  it("searches only the requesting user's pages with spelling folding and returns snippets", async () => {
+    mocks.queryRaw.mockResolvedValue([{ id: "p1", title: "Biology", updatedAt, body: "ＲＥＳＴ ＡＰＩ の でーた" }]);
+    const result = await runPageTool("search_notes", { query: "api データ 期待値" }, "mine", "s1");
     const sql = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
     expect(sql.sql).toContain('FROM "notefable"."NotePage"');
     expect(sql.sql).toContain("jsonb_array_elements_text");
     expect(sql.values).toContain("mine");
-    // ゴミ箱のノートは検索に出さない。
+    // ゴミ箱のノートは検索に出さない。本文の列は SQL 側で畳み込まない。
     expect(sql.sql).toContain(`WHERE p."userId" = ? AND p."deletedAt" IS NULL`);
-    expect(sql.values).toEqual(expect.arrayContaining(["%mitosis%", "%cell%"]));
-    expect(JSON.parse(result.content).results).toEqual([{ id: "p1", title: "Biology", snippet: "cell division and mitosis", updatedAt: updatedAt.toISOString() }]);
-    expect(result.label).toBe("Searched notes for “Mitosis  cell”");
+    expect(sql.sql).not.toMatch(/normalize\(|translate\(|lower\(/i);
+    expect(sql.values).toEqual(expect.arrayContaining([termMatcher("api").regex, termMatcher("データ").regex, "%期待値%"]));
+    expect(JSON.parse(result.content).results).toEqual([{ id: "p1", title: "Biology", snippet: "ＲＥＳＴ ＡＰＩ の でーた", updatedAt: updatedAt.toISOString() }]);
+    expect(result.label).toBe("Searched notes for “api データ 期待値”");
+  });
+
+  it("merges semantic matches after keyword matches and deduplicates by note id", async () => {
+    mocks.queryRaw.mockResolvedValue([{ id: "p1", title: "装修清单", updatedAt, body: "装修坑汇总" }]);
+    mocks.semanticSearch.mockResolvedValue({
+      hits: [
+        { id: "p1", title: "装修清单", icon: null, blockId: "b1", chunkText: "装修坑汇总", score: 0.85, updatedAt },
+        { id: "p2", title: "新房验收踩雷记录", icon: null, blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.62, updatedAt },
+      ],
+      hasMoreBackfill: false,
+    });
+    const result = await runPageTool("search_notes", { query: "装修坑" }, "mine", "s1");
+    expect(JSON.parse(result.content).results).toEqual([
+      { id: "p1", title: "装修清单", snippet: "装修坑汇总", updatedAt: updatedAt.toISOString() },
+      { id: "p2", title: "新房验收踩雷记录", snippet: "水电改造一定要拍照留底", updatedAt: updatedAt.toISOString() },
+    ]);
   });
 
   it("only reads pages owned by the requesting user", async () => {
