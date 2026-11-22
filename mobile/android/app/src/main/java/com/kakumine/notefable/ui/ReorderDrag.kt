@@ -51,9 +51,9 @@ import androidx.compose.ui.window.Popup
 //   rgba(35,131,226,.12) 底加 1px 蓝框、圆角 4。手指在列表上下边 30 内移动时每次移动滚 12（手指不动就不滚）。
 // - 失败提示 .list-reorder-error：行下方，宽 min(220, 90vw)、内边距 6、白底、1px 细线、12 红字，点一下关闭。
 
-internal val DropBlue = Color(0xFF2383E2)
-private val DropFill = Color(0x1F2383E2) // rgba(35,131,226,.12)
-private val ReorderErrorRed = Color(0xFFB91C1C)
+internal val DropBlue: Color get() = Sm.Blue
+private val DropFill: Color get() = Sm.pick(Color(0x1F2383E2), Sm.AccentSoft) // rgba(35,131,226,.12)
+private val ReorderErrorRed: Color get() = Sm.pick(Color(0xFFB91C1C), Sm.ErrorText) // 深色 .list-reorder-error：--nf-error-text
 
 /** 拖动时手指下的目标：某一行的前 / 后，或某个容器（项目；null = 无项目）。 */
 internal sealed interface DropTarget {
@@ -179,7 +179,7 @@ internal fun ReorderErrorPopup(text: String, onDismiss: () -> Unit, rowHeight: a
         Text(
             text,
             color = ReorderErrorRed, fontSize = 12.sp, lineHeight = 16.sp,
-            modifier = Modifier.widthIn(max = 220.dp).border(1.dp, Sm.Border).background(Color.White).clickable(onClick = onDismiss)
+            modifier = Modifier.widthIn(max = 220.dp).border(1.dp, Sm.Border).background(Sm.Surface).background(Sm.pick(Color.Transparent, Sm.ErrorBg)).clickable(onClick = onDismiss)
                 .padding(6.dp).semantics { liveRegion = LiveRegionMode.Assertive },
         )
     }

@@ -5,13 +5,16 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Copy, FileText, Heading1, Lightbulb, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Copy, FileText, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
+import { normalizeQuote } from "@/lib/chat-quote";
+import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
 import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
+import { MathEditorProvider, canInsertInlineMath, convertSelectionToInlineMath, createMathBlockSpec, markNextMathBlockAutoOpen, markNextMathInlineAutoOpen, mathInlineSpec } from "@/components/note-math";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
 import { useI18n, useT } from "@/components/i18n-provider";
@@ -52,26 +55,35 @@ const quoteSpec: typeof defaultBlockSpecs.quote = { ...defaultBlockSpecs.quote, 
   inputRules: [{ find: /^["“”|｜]\s$/, replace: () => ({ type: "quote", props: {} }) }],
 })] };
 
-const schema = BlockNoteSchema.create({ blockSpecs: {
-  paragraph: defaultBlockSpecs.paragraph,
-  // 見出しは Notion と同じく折りたたみ（トグル見出し）にもできる。
-  heading: createHeadingBlockSpec({ levels: [1, 2, 3], allowToggleHeadings: true }),
-  bulletListItem: defaultBlockSpecs.bulletListItem,
-  numberedListItem: defaultBlockSpecs.numberedListItem,
-  checkListItem: defaultBlockSpecs.checkListItem,
-  toggleListItem: toggleSpec,
-  quote: quoteSpec,
-  callout: createCalloutBlockSpec(),
-  // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
-  codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
-  divider: defaultBlockSpecs.divider,
-  table: defaultBlockSpecs.table,
-  // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
-  image: defaultBlockSpecs.image,
-  file: defaultBlockSpecs.file,
-}, inlineContentSpecs: { ...defaultInlineContentSpecs, mention: createMentionSpec } });
+const schema = BlockNoteSchema.create({
+  blockSpecs: {
+    paragraph: defaultBlockSpecs.paragraph,
+    // 見出しは Notion と同じく折りたたみ（トグル見出し）にもできる。
+    heading: createHeadingBlockSpec({ levels: [1, 2, 3], allowToggleHeadings: true }),
+    bulletListItem: defaultBlockSpecs.bulletListItem,
+    numberedListItem: defaultBlockSpecs.numberedListItem,
+    checkListItem: defaultBlockSpecs.checkListItem,
+    toggleListItem: toggleSpec,
+    quote: quoteSpec,
+    callout: createCalloutBlockSpec(),
+    // 言語選択とシンタックスハイライト付きのコードブロック。未指定は Plain Text。
+    codeBlock: createCodeBlockSpec({ defaultLanguage: "text", supportedLanguages: SAFE_CODE_LANGUAGES, indentLineWithTab: true }),
+    divider: defaultBlockSpecs.divider,
+    table: defaultBlockSpecs.table,
+    // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
+    image: defaultBlockSpecs.image,
+    file: defaultBlockSpecs.file,
+    mathBlock: createMathBlockSpec(),
+  },
+  inlineContentSpecs: {
+    ...defaultInlineContentSpecs,
+    mathInline: mathInlineSpec,
+    mention: createMentionSpec,
+  },
+});
 
 type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
+type NotePartialBlock = PartialBlock<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
 export type NoteEditorHandle = { focusStart: () => void; focusEnd: () => void };
 
 function convertBlocks(editor: Editor, target: NoteBlockTarget, blocks = editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block]) {
@@ -89,7 +101,7 @@ function convertBlocks(editor: Editor, target: NoteBlockTarget, blocks = editor.
       const update = target.type === "codeBlock"
         ? { type: "codeBlock", content: [{ type: "text", text: codeBlockText(block), styles: {} }] }
         : { type: target.type, props: { ...targetProps(target), ...recolor } };
-      editor.updateBlock(block, update as PartialBlock<typeof schema.blockSchema>);
+      editor.updateBlock(block, update as NotePartialBlock);
     }
   });
 }
@@ -99,7 +111,7 @@ function duplicateBlocks(editor: Editor, blocks = editor.getSelection()?.blocks 
   if (!roots.length) return;
   editor.focus();
   editor.transact(() => {
-    const copies = editor.insertBlocks(copyNoteBlocks(roots) as PartialBlock<typeof schema.blockSchema>[], roots.at(-1)!, "after");
+    const copies = editor.insertBlocks(copyNoteBlocks(roots) as NotePartialBlock[], roots.at(-1)!, "after");
     editor.setTextCursorPosition(copies[0], "end");
   });
 }
@@ -137,6 +149,8 @@ const SLASH_LOOK: Record<string, { icon: ReactNode; hint?: string }> = {
   code_block: { icon: <Code2 size={18} />, hint: "```" },
   quote: { icon: <Quote size={18} />, hint: '"' },
   divider: { icon: <Minus size={18} />, hint: "---" },
+  math_block: { icon: <Sigma size={18} />, hint: "$$" },
+  math_inline: { icon: <Radical size={18} />, hint: "$" },
 };
 
 function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<SlashItem>) {
@@ -174,7 +188,7 @@ function commandItems(editor: Editor, t: ReturnType<typeof useT>): SlashItem[] {
   const paint = (prop: "textColor" | "backgroundColor", color: string) => () => {
     const block = current();
     // 区切り線など、その色を持てないブロックには何もしない。
-    if (prop in editor.schema.blockSchema[block.type].propSchema) editor.updateBlock(block, { props: { [prop]: color } } as PartialBlock<typeof schema.blockSchema>);
+    if (prop in editor.schema.blockSchema[block.type].propSchema) editor.updateBlock(block, { props: { [prop]: color } } as NotePartialBlock);
   };
   const swatch = (prop: "textColor" | "backgroundColor", color: (typeof BLOCK_COLORS)[number]["key"]) => {
     const value = color === "default" ? undefined : COLORS_DEFAULT[color][prop === "textColor" ? "text" : "background"];
@@ -296,10 +310,30 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
   );
 }
 
+const NoteAskAiContext = createContext<((text: string) => void) | null>(null);
+function InlineMathToolbarButton() {
+  const editor = useBlockNoteEditor(schema);
+  const Components = useComponentsContext()!;
+  const t = useT();
+  const allowed = useEditorState({ editor, selector: () => canInsertInlineMath(editor) });
+  if (!allowed) return null;
+  return (
+    <Components.FormattingToolbar.Button
+      className="bn-button"
+      label={t("Inline equation")}
+      mainTooltip={t("Inline equation")}
+      secondaryTooltip={`${MOD}+Shift+E`}
+      icon={<Radical size={16} />}
+      onClick={() => convertSelectionToInlineMath(editor)}
+    />
+  );
+}
+
 function NoteFormattingToolbar() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
+  const onAskAi = useContext(NoteAskAiContext);
   const selected = useEditorState({ editor, selector: () => editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block] });
   // 画像・ファイルのブロックを選んでいるときは、文字の装飾ではなくファイル用の操作を出す。
   const media = selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file");
@@ -320,6 +354,18 @@ function NoteFormattingToolbar() {
     <FileDeleteButton />
   </FormattingToolbar>;
   return <FormattingToolbar>
+    {onAskAi && <>
+      <button type="button" className="notes-toolbar-ask-ai"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          const text = normalizeQuote(editor.getSelectedText() || window.getSelection()?.toString() || "");
+          if (text) onAskAi(text);
+        }}>
+        <Sparkles size={14} aria-hidden="true" />
+        <span>{t("Ask AI")}</span>
+      </button>
+      <span className="notes-toolbar-sep" />
+    </>}
     {/* 区切り線など対応する種類がない選択では、BlockNote 標準と同じく種類の選択を出さない（Select が落ちるため）。 */}
     {typeItems.some((item) => item.isSelected) && <>
       <Components.FormattingToolbar.Select className="bn-select" portalElement={portalElement} items={typeItems} />
@@ -333,6 +379,7 @@ function NoteFormattingToolbar() {
     <BasicTextStyleButton basicTextStyle="underline" />
     <BasicTextStyleButton basicTextStyle="strike" />
     <BasicTextStyleButton basicTextStyle="code" />
+    <InlineMathToolbarButton />
     <span className="notes-toolbar-sep" />
     <ColorStyleButton />
     {/* 表で複数のセルを選んだ時だけ出る。 */}
@@ -342,7 +389,7 @@ function NoteFormattingToolbar() {
 
 type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
-  editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
+  editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (text: string) => void;
   // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
   // onOpenPage はその場で開けたら true。false なら（古いアプリの埋め込みなど）リンクを新しいウィンドウで開く。
   pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean;
@@ -424,8 +471,9 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
   return { pages: given ?? fetched, loadPages };
 }
 
-function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, base, pages: givenPages, currentPageId, onOpenPage }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, onAskAi, base, pages: givenPages, currentPageId, onOpenPage }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
+  const { resolved: resolvedTheme } = useTheme();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
   const openPage = useCallback((id: string) => {
     if (onOpenPage?.(id)) return;
@@ -468,7 +516,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     },
     domAttributes: { editor: { "aria-label": t("Note content") } },
     dictionary: { ...base, placeholders: { ...base.placeholders, emptyDocument: t("Press '/' for commands…"), default: t("Press '/' for commands…"), heading: t("Heading") } },
-    initialContent: blocks.length ? normalizeCodeLanguages(blocks) as PartialBlock<typeof schema.blockSchema>[] : undefined,
+    initialContent: blocks.length ? normalizeCodeLanguages(blocks) as NotePartialBlock[] : undefined,
   });
   function focusStart() {
     const first = editor.document[0];
@@ -530,8 +578,10 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     const mod = event.ctrlKey || event.metaKey;
     if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "d") {
       event.preventDefault(); event.stopPropagation(); duplicateBlocks(editor);
-    } else if (mod && !event.altKey && event.key.toLowerCase() === "e") {
+    } else if (mod && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "e") {
       event.preventDefault(); event.stopPropagation(); editor.toggleStyles({ code: true });
+    } else if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "e") {
+      event.preventDefault(); event.stopPropagation(); convertSelectionToInlineMath(editor);
     } else if (mod && event.shiftKey && !event.altKey && event.key.toLowerCase() === "s") {
       event.preventDefault(); event.stopPropagation(); editor.toggleStyles({ strike: true });
     } else if ((event.ctrlKey && event.shiftKey && !event.altKey && !event.metaKey) || (event.metaKey && event.altKey && !event.ctrlKey && !event.shiftKey)) {
@@ -573,8 +623,9 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     event.stopPropagation();
   }
 
-  return <NoteMentionContext.Provider value={mentionContext}><div className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
-    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
+  return <NoteMentionContext.Provider value={mentionContext}><NoteAskAiContext.Provider value={onAskAi ?? null}><div className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+    <MathEditorProvider editor={editor} editable={editable}>
+    <BlockNoteView editor={editor} theme={resolvedTheme} editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
       const visit = (list: typeof editor.document) => list.forEach((block) => {
@@ -603,17 +654,36 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
               : item?.onItemClick ?? (() => { insertOrUpdateBlockForSlashMenu(editor, { type: "callout", props: { backgroundColor: "gray" } }); }) };
         });
         if (turning) return filterSuggestionItems(textItems, query.replace(/^turn\s*/i, ""));
-        const blockItems = [...textItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
+        const mathItems: SlashItem[] = [
+          {
+            key: "math_block", title: t("Block equation"), group: t("Basic blocks"),
+            aliases: ["equation", "math", "block equation", "latex", "tex", "katex", "formula", "$$", "公式", "数学", "块级公式", "数式", "ブロック数式"],
+            onItemClick: () => {
+              markNextMathBlockAutoOpen();
+              insertOrUpdateBlockForSlashMenu(editor, { type: "mathBlock", props: { latex: "" } });
+            },
+          },
+          {
+            key: "math_inline", title: t("Inline equation"), group: t("Basic blocks"),
+            aliases: ["inline equation", "inline math", "math", "latex", "tex", "katex", "formula", "$", "行内公式", "インライン数式"],
+            onItemClick: () => {
+              markNextMathInlineAutoOpen();
+              editor.insertInlineContent([{ type: "mathInline", props: { latex: "" } }, " "]);
+            },
+          },
+        ];
+        const blockItems = [...textItems, ...mathItems, ...defaults.filter((item) => !NOTE_TEXT_BLOCKS.some((target) => target.key === item.key))];
         // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
         return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />
       <SuggestionMenuController triggerCharacter="@" suggestionMenuComponent={MentionMenu} getItems={async (query) => mentionItems(query)} />
     </BlockNoteView>
+    </MathEditorProvider>
     {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
       aria-label={copiedId === codeHover.id ? t("Copied") : t("Copy code")} title={copiedId === codeHover.id ? t("Copied") : t("Copy code")}
       onMouseDown={(event) => event.preventDefault()} onClick={() => void copyCode(codeHover.id)}>
       {copiedId === codeHover.id ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={1.8} />}
     </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={focusEnd} />
-  </div></NoteMentionContext.Provider>;
+  </div></NoteAskAiContext.Provider></NoteMentionContext.Provider>;
 }

@@ -154,7 +154,7 @@ fun SearchScreen(
                 translationY = (1f - t) * 32.dp.toPx()
             }
             .pointerInput(Unit) { awaitPointerEventScope { while (true) awaitPointerEvent() } }
-            .background(Color.White).statusBarsPadding()
+            .background(Sm.Background).statusBarsPadding()
             .windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
     ) {
         // 输入行
@@ -299,7 +299,7 @@ private fun ProjectFilter(options: List<ChatProjectSummary>, selected: String, m
                 LucideIcon(Lucide.ChevronDown, 14.dp, Sm.Muted)
             }
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Color.White) {
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Sm.Surface) {
             (listOf("" to allLabel) + options.map { it.id to it.name }).forEach { (id, name) ->
                 DropdownMenuItem(
                     text = { Text(name, color = Sm.Text, fontSize = 16.sp, fontWeight = if (id == selected) FontWeight.SemiBold else FontWeight.Normal) },

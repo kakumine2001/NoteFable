@@ -81,7 +81,7 @@ sealed interface ChatAction {
     data class DeleteProject(val project: ChatProjectSummary) : ChatAction
 }
 
-private val DangerRed = Color(0xFFB91C1C) // .chat-menu-item.is-danger / .notes-delete
+private val DangerRed: Color get() = Sm.Danger // .chat-menu-item.is-danger / .notes-delete
 private val MenuShadow = Color(0x22000000) // .chat-actions-menu box-shadow 0 8px 32px #0002
 
 /** 显示错误：服务端原句经系统文词典翻译，没有就用网页同一处的 msg() 句子。 */
@@ -194,7 +194,7 @@ internal fun ActionsMenu(anchor: IntRect, label: String, onClose: () -> Unit, wi
                 }
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = MenuShadow, spotColor = MenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .clip(RoundedCornerShape(12.dp)).background(Sm.Surface)
                 .verticalScroll(rememberScrollState())
                 .padding(5.6.dp)
                 .semantics { contentDescription = label },

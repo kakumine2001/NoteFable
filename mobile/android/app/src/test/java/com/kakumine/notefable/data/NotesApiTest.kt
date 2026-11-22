@@ -106,6 +106,67 @@ class NotesApiTest {
             api.noteEmbedUrl("abc", "zh", "gpt-5.5", "high"),
         )
         assertEquals("https://example.test/note-embed?page=abc&model=a%26b", api.noteEmbedUrl("abc", null, "a&b", null))
+        // 外观（App 实际的 light / dark）放在最后。
+        assertEquals("https://example.test/note-embed?page=abc&lang=ja&theme=dark", api.noteEmbedUrl("abc", "ja", theme = "dark"))
+    }
+
+    @Test
+    fun `exports a note as a markdown file`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setBody("""{"fileName":"Cell structure.md","markdown":"# Cell structure\n\nBody\n"}"""))
+            assertEquals(ExportedNote("Cell structure.md", "# Cell structure\n\nBody\n"), server.api().exportNote("a/b"))
+            val request = server.next()
+            assertEquals("GET", request.method)
+            assertEquals("/api/pages/a%2Fb/export", request.path)
+        }
+    }
+
+    @Test
+    fun `a missing note fails the export with the server's sentence`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Note not found."}"""))
+            val error = runCatching { server.api().exportNote("gone") }.exceptionOrNull() as ApiException
+            assertEquals("Note not found.", error.message)
+        }
+    }
+
+    @Test
+    fun `imports markdown files with the same body as the web`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(201).setBody(
+                """{"pages":[{"id":"n1","title":"Plan","icon":null,"version":0,"groupId":null},{"id":"n2","title":"ideas","icon":null,"version":0,"groupId":null}]}""",
+            ))
+            val created = server.api().importMarkdown(listOf(ImportMarkdownFile("Plan.md", "# Plan\n\n日本語 \"quoted\""), ImportMarkdownFile("ideas.txt", "")))
+            assertEquals(listOf("n1", "n2"), created.map { it.id })
+            val request = server.next()
+            assertEquals("POST", request.method)
+            assertEquals("/api/pages/import", request.path)
+            val body = Json.parseToJsonElement(request.body.readUtf8()).jsonObject
+            assertEquals(setOf("files"), body.keys)
+            assertEquals(
+                """[{"name":"Plan.md","markdown":"# Plan\n\n日本語 \"quoted\""},{"name":"ideas.txt","markdown":""}]""",
+                body["files"].toString(),
+            )
+        }
+    }
+
+    @Test
+    fun `importing into a project sends its groupId`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(201).setBody("""{"pages":[{"id":"n1","title":"Plan","icon":null,"version":0,"groupId":"g1"}]}"""))
+            val created = server.api().importMarkdown(listOf(ImportMarkdownFile("Plan.md", "# Plan")), "g1")
+            assertEquals(listOf("g1"), created.map { it.groupId })
+            assertEquals("""{"files":[{"name":"Plan.md","markdown":"# Plan"}],"groupId":"g1"}""", server.next().body.readUtf8())
+        }
+    }
+
+    @Test
+    fun `an import the server rejects keeps its reason`() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(413).setBody("""{"error":"Note content exceeds 1 MiB."}"""))
+            val error = runCatching { server.api().importMarkdown(listOf(ImportMarkdownFile("a.md", "x"))) }.exceptionOrNull() as ApiException
+            assertEquals("Note content exceeds 1 MiB.", error.message)
+        }
     }
 
     @Test

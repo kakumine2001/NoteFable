@@ -84,7 +84,8 @@ struct AnswerTable: View, Equatable {
             .padding(.vertical, CGFloat(AnswerTableLayout.cellPaddingV))
             .frame(width: width, alignment: .topLeading)
             .frame(maxHeight: .infinity, alignment: .topLeading)
-            .background(row == 0 ? Sm.userBubble : Color.clear)
+            // 表头的底：--nf-user-bubble；深色是 rgba(255,255,255,.05)。
+            .background(row == 0 ? Color(light: 0xFFF3F5F9, dark: 0x0DFFFFFF) : Color.clear)
             .overlay(alignment: .trailing) { NFDivider(.vertical, color: Sm.borderStrong) }
             .overlay(alignment: .bottom) { NFDivider(.horizontal, color: Sm.borderStrong) }
     }

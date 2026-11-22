@@ -22,9 +22,10 @@ ASK ANYTHING
 
 KEEP WHAT MATTERS
 • Save any answer to Notes with one tap, or turn a whole chat into a page.
-• A clean block editor with headings, lists, to-dos, code, images and files.
+• A clean block editor with headings, lists, to-dos, code, math equations, images and files.
 • Organize notes with sub-pages, groups, favorites and emoji icons.
 • Edit history and a trash bin, so nothing is lost by accident.
+• Import Markdown files as notes, and export any note as Markdown.
 
 LET AI WORK ON YOUR NOTES
 • Attach notes to a chat and the AI reads them as context.
@@ -38,6 +39,7 @@ FIND IT AGAIN
 
 WORKS EVERYWHERE
 • Try it without an account. Sign in with Google or an email code to keep your chats and notes in sync between the app and notefable.com.
+• Light and dark mode: follow your system or pick one.
 • Available in English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe and Русский.
 
 Free to use with daily and monthly limits on AI messages and images. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 2,000 messages and 60 images a month (up to 10 images a day), and your first 30 days are free. No ads.
@@ -62,9 +64,10 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 
 留住重要的内容
 • 一键把回答保存到笔记，或把整段对话整理成一页笔记。
-• 简洁的块编辑器：标题、列表、待办、代码、图片和文件。
+• 简洁的块编辑器：标题、列表、待办、代码、数学公式、图片和文件。
 • 用子页面、分组、收藏和表情图标整理笔记。
 • 编辑历史和回收站，误删也能找回。
+• 把 Markdown 文件导入成笔记，也可以把笔记导出为 Markdown。
 
 让 AI 帮你改笔记
 • 把笔记添加到对话里，AI 会把它作为参考内容。
@@ -78,6 +81,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 
 多端同步
 • 不注册也能直接试用。用 Google 或邮箱验证码登录后，对话和笔记在 App 和 notefable.com 之间同步。
+• 支持浅色和深色模式，可跟随系统或自行选择。
 • 支持 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
 免费使用，AI 消息和图片有每天、每月的使用上限。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 2,000 条消息和 60 张图片（每天最多 10 张），首次订阅前 30 天免费。没有广告。
@@ -102,9 +106,10 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 
 留住重要的內容
 • 一鍵把回答儲存到筆記，或把整段對話整理成一頁筆記。
-• 簡潔的區塊編輯器：標題、清單、待辦、程式碼、圖片和檔案。
+• 簡潔的區塊編輯器：標題、清單、待辦、程式碼、數學公式、圖片和檔案。
 • 用子頁面、群組、收藏和表情符號圖示整理筆記。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
+• 把 Markdown 檔案匯入成筆記，也可以把筆記匯出為 Markdown。
 
 讓 AI 幫你改筆記
 • 把筆記加入對話，AI 會把它當作參考內容。
@@ -118,6 +123,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 
 多裝置同步
 • 不註冊也能直接試用。用 Google 或電子郵件驗證碼登入後，對話和筆記會在 App 和 notefable.com 之間同步。
+• 支援淺色與深色模式，可跟隨系統或自行選擇。
 • 支援 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
 免費使用，AI 訊息和圖片有每天、每月的使用上限。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 2,000 則訊息和 60 張圖片（每天最多 10 張），首次訂閱前 30 天免費。沒有廣告。
@@ -142,9 +148,10 @@ NoteFable は AI チャットとノートをひとつにまとめたアプリで
 
 大事なことを残す
 • 回答をワンタップでノートに保存。チャット全体を 1 ページにまとめることもできます。
-• 見出し・リスト・ToDo・コード・画像・ファイルが使えるシンプルなブロックエディタ。
+• 見出し・リスト・ToDo・コード・数式・画像・ファイルが使えるシンプルなブロックエディタ。
 • サブページ・グループ・お気に入り・絵文字アイコンでノートを整理。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
+• Markdown ファイルをノートとして読み込み、ノートを Markdown で書き出せます。
 
 AI がノートを手伝う
 • ノートをチャットに添付すると、AI がそれを参考にして答えます。
@@ -158,6 +165,7 @@ AI がノートを手伝う
 
 どこでも使える
 • アカウントなしですぐに試せます。Google またはメールの確認コードでログインすると、チャットとノートがアプリと notefable.com で同期されます。
+• ライトモードとダークモードに対応。システム設定に合わせるか、好きなほうを選べます。
 • English・简体中文・繁體中文・日本語・한국어・Español・Français・Deutsch・Português (Brasil)・Italiano・Bahasa Indonesia・Tiếng Việt・ไทย・हिन्दी・العربية・Türkçe・Русскийに対応。
 
 無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで（1 日 10 枚まで）使えます。初めての方は最初の 30 日間無料です。広告はありません。

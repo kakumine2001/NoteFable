@@ -87,6 +87,20 @@ describe("findMatchingBlock", () => {
     expect(findMatchingBlock(blocks, ["division"])).toEqual({ blockId: "code", text: "def division():\n    return 1" });
   });
 
+  it("finds TeX inside math blocks and inline math without matching media props", () => {
+    const blocks = [
+      { id: "img", type: "image", props: { name: "euler.png", caption: "euler" }, children: [] },
+      { id: "m1", type: "mathBlock", props: { latex: "\\int_0^\\infty e^{-x^2}\\,dx" }, children: [] },
+      { id: "p1", type: "paragraph", props: {}, content: [text("Euler: "), { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } }], children: [] },
+    ];
+    expect(findMatchingBlock(blocks, ["infty"])).toEqual({ blockId: "m1", text: "\\int_0^\\infty e^{-x^2}\\,dx" });
+    expect(findMatchingBlock(blocks, ["pi"])).toEqual({ blockId: "p1", text: "Euler: e^{i\\pi} + 1 = 0" });
+    expect(findMatchingBlock([blocks[0]], ["euler"])).toBeNull();
+    // テキストの直後に数式が並んでも、語境界を保って 2 文字語（pi）を見つけられる。
+    const tight = [{ id: "p2", type: "paragraph", props: {}, content: [text("angle"), { type: "mathInline", props: { latex: "pi" } }], children: [] }];
+    expect(findMatchingBlock(tight, ["pi"])).toEqual({ blockId: "p2", text: "angle pi" });
+  });
+
   it("returns null when nothing matches or the input is unusable", () => {
     const blocks = [block("a", "paragraph", [text("hello")]), block("b", "divider", undefined), block("c", "paragraph", [])];
     expect(findMatchingBlock(blocks, ["absent"])).toBeNull();

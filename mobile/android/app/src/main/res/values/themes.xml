@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 网页只有浅色主题，原生版也只做浅色。MainActivity 是 AppCompatActivity（应用内切换语言），所以主题要继承 AppCompat。 -->
+    <!-- 界面颜色由 Compose 的色板（ui/Theme.kt）决定，跟着设置里的"外观"走；这里只管冷启动时的预览窗口底色
+         （window_background：系统是深色时用 values-night 的值，之后 MainActivity 再按"外观"设一次）。
+         MainActivity 是 AppCompatActivity（应用内切换语言），所以主题要继承 AppCompat。 -->
     <style name="Theme.NoteFable" parent="Theme.AppCompat.Light.NoActionBar">
-        <item name="android:windowBackground">@android:color/white</item>
+        <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
     </style>

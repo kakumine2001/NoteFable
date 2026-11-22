@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,11 +48,12 @@ import com.kakumine.notefable.BuildConfig
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.AppLanguage
 
-private enum class HelpOpen { Help, Language }
+private enum class HelpOpen { Help, Language, Theme }
 
 /**
  * 侧栏底部的"?"（网页 help-menu.tsx 的 .sidebar-help-trigger）：手机宽度下 44×44、圆角 6.4，17 的 CircleHelp，--notion-faint 色，
- * 打开时底色 --notion-hover、图标 --notion-text。点了在按钮上方开帮助菜单；未登录时（[guest]）菜单里多一项界面语言，点了换成语言菜单。
+ * 打开时底色 --notion-hover、图标 --notion-text。点了在按钮上方开帮助菜单；未登录时（[guest]）菜单里多两项：界面语言（点了换成语言菜单）
+ * 和外观（点了换成三个选项的菜单）。登录后这两项在设置的"通用"页。
  */
 @Composable
 fun HelpMenuButton(guest: Boolean) {
@@ -73,25 +75,20 @@ fun HelpMenuButton(guest: Boolean) {
     }
     val anchor = bounds ?: return
     when (open) {
-        HelpOpen.Help -> HelpMenu(anchor, guest, onClose = { open = null }, onLanguage = { open = HelpOpen.Language })
+        HelpOpen.Help -> HelpMenu(anchor, guest, onClose = { open = null }, onLanguage = { open = HelpOpen.Language }, onTheme = { open = HelpOpen.Theme })
         HelpOpen.Language -> LanguageMenu(anchor, current = currentPreference(), alignEnd = true, onClose = { open = null }) { choice ->
             open = null
             chooseLanguageOnDevice(choice)
         }
+        HelpOpen.Theme -> ThemeMenu(anchor, onClose = { open = null })
         null -> Unit
     }
 }
 
-/**
- * 帮助菜单（.chat-actions-menu.help-menu）：宽 228、内边距 5.6、圆角 12、1px 细线、白底、阴影；右边和按钮对齐，开在按钮上方（放不下就下方），
- * 离窗口边至少 8。项是 .chat-menu-item（最小高 44、内边距 9.6×12、间距 12、14 字），左边 16 的灰色图标。
- * 介绍页指定用浏览器打开，免得用户把站点链接设为由本 App 打开时又回到 App。
- */
+/** 帮助菜单的外框和位置（.chat-actions-menu.help-menu）：右边和按钮对齐，开在按钮上方（放不下就下方），离窗口边至少 8。 */
 @Composable
-private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLanguage: () -> Unit) {
+private fun HelpPanel(anchor: IntRect, onClose: () -> Unit, content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
     val density = LocalDensity.current
-    val uri = LocalUriHandler.current
-    val context = LocalContext.current
     val provider = remember(anchor, density) {
         object : PopupPositionProvider {
             override fun calculatePosition(anchorBounds: IntRect, windowSize: IntSize, layoutDirection: LayoutDirection, popupContentSize: IntSize): IntOffset {
@@ -114,25 +111,67 @@ private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLan
             Modifier.width(228.dp)
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = LanguageMenuShadow, spotColor = LanguageMenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .clip(RoundedCornerShape(12.dp)).background(Sm.Surface)
                 .padding(5.6.dp)
                 .semantics { contentDescription = label },
-        ) {
-            // 介绍页和法律页面在介绍页的主机（SITE_URL），不是工作区的主机（BASE_URL）。
-            HelpItem(Lucide.Info, stringResource(R.string.visit_website)) { onClose(); openInBrowser(context, BuildConfig.SITE_URL + "/?intro") }
-            HelpItem(Lucide.Shield, stringResource(R.string.privacy)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/privacy") }
-            HelpItem(Lucide.FileText, stringResource(R.string.terms)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/terms") }
-            HelpItem(Lucide.Scale, stringResource(R.string.commercial_disclosure)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/legal-notice") }
-            if (guest) {
-                // .chat-menu-divider：上下 4.8、左右 8 的 1px 线。
-                Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
-                HelpItem(
-                    Lucide.Languages, stringResource(R.string.language),
-                    // Web と同じ短い値：Auto は「自動検出」だけ（実際の言語は画面の言語そのもの）、それ以外は言語名。
-                    value = currentPreference().let { if (it == AppLanguage.Preference.Auto) stringResource(R.string.language_auto) else languageLabel(it) },
-                    chevron = true, onClick = onLanguage,
-                )
+            content = content,
+        )
+    }
+}
+
+/**
+ * 外观菜单（网页 help-menu.tsx 的 theme 面板，和帮助菜单同一个外框）：跟随系统 / 浅色 / 深色三项，
+ * 左边 16 的图标、名字占满中间、选中的右边 15 的蓝色对勾；点了保存（只存在这台设备上）并关闭。
+ */
+@Composable
+private fun ThemeMenu(anchor: IntRect, onClose: () -> Unit) {
+    val store = appThemeStore()
+    val preference = currentThemePreference()
+    HelpPanel(anchor, onClose) {
+        ThemeOptions.forEach { option ->
+            val checked = option.value == preference
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp))
+                    .selectable(selected = checked, role = Role.RadioButton) { store?.save(option.value); onClose() }
+                    .padding(horizontal = 12.dp, vertical = 9.6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                LucideIcon(option.icon, 16.dp, Sm.Muted)
+                Text(stringResource(option.label), Modifier.weight(1f), color = Sm.Text, fontSize = 14.sp)
+                if (checked) LucideIcon(Lucide.Check, 15.dp, Sm.Blue)
             }
+        }
+    }
+}
+
+/**
+ * 帮助菜单（.chat-actions-menu.help-menu）：宽 228、内边距 5.6、圆角 12、1px 细线、白底、阴影；右边和按钮对齐，开在按钮上方（放不下就下方），
+ * 离窗口边至少 8。项是 .chat-menu-item（最小高 44、内边距 9.6×12、间距 12、14 字），左边 16 的灰色图标。
+ * 介绍页指定用浏览器打开，免得用户把站点链接设为由本 App 打开时又回到 App。
+ */
+@Composable
+private fun HelpMenu(anchor: IntRect, guest: Boolean, onClose: () -> Unit, onLanguage: () -> Unit, onTheme: () -> Unit) {
+    val uri = LocalUriHandler.current
+    val context = LocalContext.current
+    HelpPanel(anchor, onClose) {
+        // 介绍页和法律页面在介绍页的主机（SITE_URL），不是工作区的主机（BASE_URL）。
+        HelpItem(Lucide.Info, stringResource(R.string.visit_website)) { onClose(); openInBrowser(context, BuildConfig.SITE_URL + "/?intro") }
+        HelpItem(Lucide.Shield, stringResource(R.string.privacy)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/privacy") }
+        HelpItem(Lucide.FileText, stringResource(R.string.terms)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/terms") }
+        HelpItem(Lucide.Scale, stringResource(R.string.commercial_disclosure)) { onClose(); uri.openUri(BuildConfig.SITE_URL + "/legal-notice") }
+        if (guest) {
+            // .chat-menu-divider：上下 4.8、左右 8 的 1px 线。
+            Box(Modifier.padding(horizontal = 8.dp, vertical = 4.8.dp).fillMaxWidth().height(1.dp).background(Sm.Border))
+            HelpItem(
+                Lucide.Languages, stringResource(R.string.language),
+                // Web と同じ短い値：Auto は「自動検出」だけ（実際の言語は画面の言語そのもの）、それ以外は言語名。
+                value = currentPreference().let { if (it == AppLanguage.Preference.Auto) stringResource(R.string.language_auto) else languageLabel(it) },
+                chevron = true, onClick = onLanguage,
+            )
+            // 外观：图标是现在选的那一项的（Monitor / Sun / Moon），下面小字是它的名字。
+            val theme = themeOption(currentThemePreference())
+            HelpItem(theme.icon, stringResource(R.string.appearance), value = stringResource(theme.label), chevron = true, onClick = onTheme)
         }
     }
 }

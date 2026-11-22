@@ -3,6 +3,7 @@ import { validateNoteContent } from "@/lib/note-document";
 import { blocksToMarkdown, markdownToBlocks } from "@/lib/note-markdown";
 import { codeBlockText } from "@/lib/note-block-actions";
 import { inlineText } from "@/lib/note-text";
+import { noteToMarkdownFile } from "@/lib/note-io";
 import { nativeCanOpenPage } from "@/lib/native-bridge";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention, validMention } from "@/lib/note-mention";
 
@@ -66,5 +67,11 @@ describe("note mentions", () => {
     expect(nativeCanOpenPage({ NoteFableNative: { postMessage: post, canOpenPage: () => true } })).toBe(true);
     expect(nativeCanOpenPage({ NoteFableNative: { postMessage: post, canOpenPage: () => { throw new Error("x"); } } })).toBe(false);
     expect(nativeCanOpenPage({})).toBe(false);
+  });
+
+  it("writes mentions as plain @text in exported Markdown", () => {
+    const file = noteToMarkdownFile({ title: "T", blocks: [paragraph([{ type: "text", text: "See ", styles: {} }, pageMention("cm1", "Day [1]"), { type: "text", text: " ", styles: {} }, dateMention("2026-11-05")])] });
+    expect(file.markdown).toContain("See @Day \\[1\\] @2026-11-05");
+    expect(file.markdown).not.toContain("page:");
   });
 });

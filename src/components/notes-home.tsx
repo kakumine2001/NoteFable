@@ -1,5 +1,5 @@
-import { ChevronDown, ChevronRight, Clock3, FileText, FolderInput, FolderPlus, Plus } from "lucide-react";
-import { useState } from "react";
+import { ChevronDown, ChevronRight, Clock3, FileText, FolderInput, FolderPlus, Plus, Upload } from "lucide-react";
+import { useRef, useState } from "react";
 import { ReorderRowButton } from "@/components/reorder-row-button";
 import type { ReorderRequest } from "@/lib/list-order";
 import { GroupNameDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
@@ -13,7 +13,7 @@ import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 
 // Notes のホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつと「最近編集したノート」のカードを出す（スマホ幅は一覧だけ）。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
@@ -22,11 +22,13 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   busy: boolean;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
   onCreateGroup: (name: string) => Promise<NoteGroupSummary | null>;
 }) {
   const { t, tag } = useI18n();
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [moving, setMoving] = useState<NotePageSummary | null>(null);
   const [creatingGroup, setCreatingGroup] = useState(false);
   // ホームを開いた時刻。あいさつと相対時刻の基準にする。
@@ -111,6 +113,15 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       <div className="notes-home-actions">
         <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />{t("New note")}</button>
         <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />{t("New project")}</button>
+        {onImport && <>
+          <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
+            onChange={(event) => {
+              const picked = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (picked.length) onImport(picked);
+            }} />
+          <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => importInputRef.current?.click()}><Upload size={16} />{t("Import Markdown")}</button>
+        </>}
       </div>
       {moving && <MoveNoteDialog page={pages.find((page) => page.id === moving.id) ?? moving} groups={groups} error={groupError}
         onMove={onMoveNote} onCreateGroup={onCreateGroup} onClose={() => setMoving(null)} pages={pages} onMoveToPage={onMoveToPage} />}

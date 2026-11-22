@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 外观（跟随系统 / 浅色 / 深色）和笔记的 Markdown 导出 / 导入：网页 theme-settings.tsx、help-menu.tsx、note-page-menu.tsx、
+     notes-home / notes-sidebar / notes-workspace、use-note-pages.ts 的原句。values / values-zh / values-ja 三份的键一一对应。 -->
+<resources>
+    <string name="appearance">外观</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="export_markdown">导出 Markdown</string>
+    <string name="import_markdown">导入 Markdown</string>
+    <string name="note_export_failed">无法导出此页面。</string>
+    <string name="note_export_unsaved">请先处理未保存的草稿，再导出此页面。</string>
+    <string name="note_import_failed">无法导入 Markdown 文件。</string>
+    <string name="note_import_too_many">一次最多可导入 %1$d 个文件。</string>
+    <string name="note_import_bad_type">只能导入 Markdown 文件（.md、.markdown、.txt）。</string>
+    <string name="note_import_file_too_large">笔记内容超过 1 MiB。</string>
+    <string name="note_import_too_large">导入内容超过 4 MB。</string>
+    <string name="import_to">导入到</string>
+</resources>

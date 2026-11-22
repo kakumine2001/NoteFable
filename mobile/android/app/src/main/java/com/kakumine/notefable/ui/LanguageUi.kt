@@ -41,6 +41,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -179,7 +180,7 @@ fun LanguageSettings(user: AccountUser, onChoose: (String?) -> Unit) {
                             )
                         }
                     }
-                    .heightIn(min = 40.dp).clip(shape).background(Color.White).border(1.dp, if (anchor != null) Sm.Blue else Sm.BorderStrong, shape)
+                    .heightIn(min = 40.dp).clip(shape).background(Sm.Surface).border(1.dp, if (anchor != null) Sm.Blue else Sm.BorderStrong, shape)
                     .clickable(role = Role.DropdownList) { anchor = bounds }
                     .semantics(mergeDescendants = true) { contentDescription = label }
                     .padding(start = 12.dp, end = 10.dp, top = 5.6.dp, bottom = 5.6.dp),
@@ -277,7 +278,7 @@ internal fun LanguageMenu(
             Modifier.width(minOf(320, configuration.screenWidthDp - 16).dp).heightIn(max = minOf(368, configuration.screenHeightDp - 16).dp)
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = LanguageMenuShadow, spotColor = LanguageMenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .clip(RoundedCornerShape(12.dp)).background(Sm.Surface)
                 .padding(5.6.dp)
                 .selectableGroup()
                 .semantics { contentDescription = label },
@@ -285,6 +286,7 @@ internal fun LanguageMenu(
             Row(Modifier.fillMaxWidth().padding(4.dp).border(1.dp, Sm.Border, RoundedCornerShape(6.4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(query, onValueChange = { query = it }, singleLine = true,
                     textStyle = LocalTextStyle.current.copy(color = Sm.Text, fontSize = 14.sp),
+                    cursorBrush = SolidColor(Sm.Text),
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = searchLabel },
                     decorationBox = { inner -> if (query.isEmpty()) Text(searchLabel, color = Sm.Muted, fontSize = 14.sp); inner() })
             }

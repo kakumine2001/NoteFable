@@ -306,7 +306,8 @@ struct SheetDoneButton: View {
         Button(action: action) {
             Text(title)
                 .font(.nf(16, weight: 600))
-                .foregroundStyle(.white)
+                // .model-sheet-done：--notion-text 底上的字，深色时是 --nf-on-ink。
+                .foregroundStyle(Sm.onInk)
                 .frame(maxWidth: .infinity)
                 .frame(minHeight: 48)
         }
@@ -325,8 +326,8 @@ struct NFPanelStyle {
     var rise: CGFloat = 32
     var animation: Animation = NFMotion.cssEaseOut(0.2)
 
-    /// 搜索（网页手机宽度的 `.search-panel`）：白底，`model-sheet-up` 200ms ease-out，从下方 32。
-    static let search = NFPanelStyle()
+    /// 搜索（网页手机宽度的 `.search-panel`）：页面底 `--notion-bg`（白，深色 #191919），`model-sheet-up` 200ms ease-out，从下方 32。
+    static let search = NFPanelStyle(background: Sm.background)
 
     /// 设置（`dialog.settings-dialog` 手机宽度）：灰底 `--notion-sidebar`，`settings-slide` 220ms cubic-bezier(.2,.8,.2,1)，从下方 16。
     static let settings = NFPanelStyle(background: Sm.sidebar, rise: 16, animation: NFMotion.emphasized(0.22))

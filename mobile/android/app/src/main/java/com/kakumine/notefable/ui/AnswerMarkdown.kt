@@ -77,7 +77,7 @@ import org.intellij.markdown.MarkdownTokenTypes
 //  - 代码块：带语言名和复制键的外框与高亮，见 CodeBlock.kt；
 //  - 表格：单元格 1px --notion-border-strong 边框、内边距 7.2×11.2、左上对齐、最窄 88（手机），
 //    表头 --nf-user-bubble 底、--nf-ink、600；列宽按内容自动分配，放不下时横向滚动（见 [AnswerTable]）。
-private val Body = TextStyle(fontSize = 16.sp, lineHeight = 27.52.sp, color = Sm.Text, letterSpacing = 0.sp)
+private val Body get() = TextStyle(fontSize = 16.sp, lineHeight = 27.52.sp, color = Sm.Text, letterSpacing = 0.sp)
 
 private fun heading(size: Float, rtl: Boolean) = TextStyle(
     fontSize = size.sp,
@@ -87,9 +87,9 @@ private fun heading(size: Float, rtl: Boolean) = TextStyle(
     color = Sm.Ink,
 )
 
-private val Code = Body.copy(color = Color(0xFF111827), fontFamily = FontFamily.Monospace, fontSize = 15.2.sp, lineHeight = 25.08.sp)
-private val InlineCode = Body.copy(color = Color(0xFF0F172A), fontFamily = FontFamily.Monospace, fontSize = 13.6.sp)
-private val LinkStyle = SpanStyle(color = Sm.Blue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)
+private val Code get() = Body.copy(color = Sm.pick(Color(0xFF111827), Sm.Text), fontFamily = FontFamily.Monospace, fontSize = 15.2.sp, lineHeight = 25.08.sp)
+private val InlineCode get() = Body.copy(color = Sm.pick(Color(0xFF0F172A), Color(0xFFF3F4F6)), fontFamily = FontFamily.Monospace, fontSize = 13.6.sp)
+private val LinkStyle get() = SpanStyle(color = Sm.Blue, fontWeight = FontWeight.Medium, textDecoration = TextDecoration.Underline)
 
 private val ListIndent = 24.dp // ul/ol 的 padding-left 21.6 + li 的 padding-left 2.4
 
@@ -109,7 +109,7 @@ private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, mut
     val colors = markdownColor(
         text = if (muted) Sm.Muted else Sm.Text,
         codeBackground = Sm.CodeBackground,
-        inlineCodeBackground = Color(0xFFE2E8F0),
+        inlineCodeBackground = Sm.pick(Color(0xFFE2E8F0), Color(0x1AFFFFFF)),
         dividerColor = Sm.Border,
     )
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -139,7 +139,8 @@ private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, mut
         listItemBottom = 0.64.dp,
         listIndent = ListIndent,
     )
-    val components = remember(muted, formulas) {
+    // body 带着当前主题的颜色（表格、有序列表的编号在用）：换浅色 / 深色时要重新建。
+    val components = remember(muted, formulas, body) {
         markdownComponents(
             // 整段只有一个独立公式的，画成居中的公式；其余段落照常。
             paragraph = { model ->
@@ -240,7 +241,7 @@ private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, mut
 
 /** 网页的 .katex 是正文的 1.21 倍（16 → 19.36）。颜色跟正文（引用里是灰色）。 */
 @Composable
-private fun mathConfig(muted: Boolean) = remember(muted) {
+private fun mathConfig(muted: Boolean) = remember(muted, Sm.isDark) {
     LatexConfig(fontSize = 19.36.sp, theme = LatexTheme.light(color = if (muted) Sm.Muted else Sm.Text, backgroundColor = Color.Transparent))
 }
 
@@ -295,6 +296,8 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
     val cells = rows.map { row -> row.children.filter { it.type == GFMTokenTypes.CELL } }
     val columnCount = cells.maxOf { it.size }.coerceAtLeast(1)
     val headerStyle = body.copy(color = Sm.Ink, fontWeight = FontWeight.SemiBold)
+    // 表头底色：--nf-user-bubble；深色 rgba(255,255,255,.05)（:root[data-theme="dark"] .markdown-body table th）。
+    val headerFill = Sm.pick(Sm.UserBubble, Color(0x0DFFFFFF))
     val settings = annotatorSettings()
     val inline = LocalMarkdownInlineContent.current.inlineContent
     val geometry = remember { TableGeometry() }
@@ -333,7 +336,7 @@ private fun AnswerTable(content: String, node: ASTNode, body: TextStyle) {
                     val width = geometry.columns.sum().toFloat()
                     val height = geometry.rows.sum().toFloat()
                     if (rows.first().type == GFMElementTypes.HEADER && geometry.rows.isNotEmpty()) {
-                        drawRect(Sm.UserBubble, size = Size(width, geometry.rows[0].toFloat()))
+                        drawRect(headerFill, size = Size(width, geometry.rows[0].toFloat()))
                     }
                     var y = 0f
                     for (i in 0..geometry.rows.size) {

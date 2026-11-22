@@ -115,9 +115,10 @@ struct ProfileSettings: View {
             Circle()
                 .fill(Sm.text)
                 .frame(width: 16, height: 16)
-                .overlay { LucideIcon(Lucide.pencil, size: 11, color: .white) }
+                // .profile-avatar-badge：--notion-text 底、--nf-on-ink 的笔、2px 的 --notion-surface 边。
+                .overlay { LucideIcon(Lucide.pencil, size: 11, color: Sm.onInk) }
                 .padding(2)
-                .background(Color.white, in: Circle())
+                .background(Sm.surface, in: Circle())
                 .padding(.trailing, -2)
                 .padding(.bottom, -2)
                 .allowsHitTesting(false)
@@ -210,6 +211,9 @@ struct ProfileSettings: View {
                     onClose: { model.setEditor(.closed) },
                     onPick: { icon in app.account.setIcon(icon) }
                 )
+                // 网页的表情面板固定用浅色主题（Theme.LIGHT）：深色外观下也是白底的一块。
+                .background(Sm.surface)
+                .environment(\.colorScheme, .light)
             }
         }
         .frame(maxWidth: .infinity)
@@ -241,7 +245,7 @@ private struct ProfileEditorTabs: View {
         } label: {
             Text(label)
                 .font(.nf(14, weight: active ? 500 : 400))
-                .foregroundStyle(active ? Sm.text : Color(argb: 0xA637352F))
+                .foregroundStyle(active ? Sm.text : Color(light: 0xA637352F, dark: 0xA6E6E5E3))
                 .lineLimit(1)
                 .padding(.horizontal, 6)
                 .padding(.top, 10)

@@ -57,15 +57,17 @@ class NotePageMenuActions(
     val onDuplicate: () -> Unit,
     val onAddInside: () -> Unit,
     val onMove: () -> Unit,
+    /** "Export Markdown"：把这一篇存成 .md 文件。 */
+    val onExport: () -> Unit,
     val onTrash: () -> Unit,
 )
 
-private val MenuDivider = Sm.Border
+private val MenuDivider: Color get() = Sm.Border
 
 // 网页上部栏的"…"（.notes-page-menu = .chat-actions-menu 宽 248）：
 // "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
 // "Ag" 22、标签 12 灰，选中的蓝色）；分隔线（上下 4.8、左右 8）；Small text / Full width / Lock page 三个开关（右侧 26×14 的开关）；
-// 分隔线；收藏、复制、添加子页面、移动到；分隔线；移到回收站（红字）。
+// 分隔线；收藏、复制、添加子页面、移动到、导出 Markdown（Download 16）；分隔线；移到回收站（红字）。
 @Composable
 fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
     var anchor by remember { mutableStateOf<IntRect?>(null) }
@@ -116,11 +118,12 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             MenuItem(stringResource(R.string.pg_duplicate), Lucide.Copy, onClick = run(actions.onDuplicate))
             MenuItem(stringResource(R.string.pg_add_page_inside), Lucide.FilePlus2, onClick = run(actions.onAddInside))
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
+            MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
             Divider()
             MenuItem(stringResource(R.string.move_to_trash), Lucide.Trash2, danger = true, onClick = run(actions.onTrash))
             actions.error?.let {
                 // .answer-menu-error：上下 5.6、左右 12、13/18.2、#933b34。
-                Text(notesErrorText(it), color = Color(0xFF933B34), fontSize = 13.sp, lineHeight = 18.2.sp,
+                Text(notesErrorText(it), color = Sm.ErrorText, fontSize = 13.sp, lineHeight = 18.2.sp,
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.6.dp))
             }
         }
@@ -148,7 +151,7 @@ private fun ToggleItem(text: String, icon: List<String>?, checked: Boolean, onTo
         }
         Text(text, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.weight(1f))
         Box(
-            Modifier.size(26.dp, 14.dp).clip(CircleShape).background(if (checked) Sm.Blue else Color(0x3337352F)),
+            Modifier.size(26.dp, 14.dp).clip(CircleShape).background(if (checked) Sm.Blue else Sm.pick(Color(0x3337352F), Color(0x3DFFFFFF))),
         ) {
             Box(Modifier.offset(x = if (checked) 14.dp else 2.dp, y = 2.dp).size(10.dp).clip(CircleShape).background(Color.White))
         }

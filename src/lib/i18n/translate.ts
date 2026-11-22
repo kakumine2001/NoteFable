@@ -14,6 +14,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Claude response stopped: {reason}. Please retry.",
   "Enter 1 to {max} characters to search for.",
   "File is too large: {name}",
+  "File is too long for one note: {name}",
   "Group names can have at most {max} characters.",
   "Instructions can have at most {max} characters.",
   "Model {model} does not support image uploads. Use GPT-6 Luna for images.",
@@ -31,6 +32,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Upload failed: {name}. Please try again.",
   "Upload up to {max} files at a time.",
   "You can have at most {max} groups.",
+  "You can import up to {max} files at once.",
 ] as const;
 
 // 第 1 引数は上のシステム文のキー。返す文字列は英語で、翻訳が必要な場所だけ localizeSystemText を使う。

@@ -1,7 +1,7 @@
 // ノートのブロック JSON から文字列を取り出す純粋な関数（prisma を読み込まない）。
 // 検索（search.ts）と意味検索の索引（note-embeddings.ts）が同じ取り出し方を使う。
 
-export type BlockLike = { id?: unknown; content?: unknown; children?: unknown; type?: unknown };
+export type BlockLike = { id?: unknown; props?: unknown; content?: unknown; children?: unknown; type?: unknown };
 
 // 文書の順（親 → 子 → 次の兄弟）にブロックを返す。深さに依存しないよう再帰は使わない。
 export function* walkBlocks(blocks: unknown): Generator<BlockLike> {
@@ -15,22 +15,43 @@ export function* walkBlocks(blocks: unknown): Generator<BlockLike> {
   }
 }
 
-// そのブロック自身の文字列（リンクの文字を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
+// そのブロック自身の文字列（リンクの文字・数式の TeX を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
+// 数式ノードの前後だけ空白で区切り、SQL の string_agg(value, ' ') と同じ語境界を保つ。
 export function inlineText(content: unknown): string {
-  if (Array.isArray(content)) return content.map(inlineText).join("");
+  if (Array.isArray(content)) {
+    let out = "";
+    let prevMath = false;
+    for (const entry of content) {
+      const piece = inlineText(entry);
+      if (!piece) continue;
+      const isMath = typeof entry === "object" && entry !== null && (entry as { type?: unknown }).type === "mathInline";
+      if ((isMath || prevMath) && out && !/\s$/.test(out) && !/^\s/.test(piece)) out += " ";
+      out += piece;
+      prevMath = isMath;
+    }
+    return out;
+  }
   if (!content || typeof content !== "object") return "";
-  const node = content as { type?: unknown; text?: unknown; content?: unknown; rows?: unknown; props?: unknown };
+  const node = content as { type?: unknown; text?: unknown; props?: { latex?: unknown; kind?: unknown; title?: unknown; date?: unknown }; content?: unknown; rows?: unknown };
   // 「@」メンションは表示している文字（ページのタイトル、日付）。search.ts の MENTION_*_PATH と対。
   if (node.type === "mention") {
-    const props = (node.props ?? {}) as { kind?: unknown; title?: unknown; date?: unknown };
-    const label = props.kind === "date" ? props.date : props.title;
+    const label = node.props?.kind === "date" ? node.props?.date : node.props?.title;
     return typeof label === "string" ? label : "";
   }
   // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
   if (Array.isArray(node.rows)) {
     return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");
   }
+  if (node.type === "mathInline" && typeof node.props?.latex === "string") return node.props.latex;
   return (typeof node.text === "string" ? node.text : "") + inlineText(node.content);
+}
+
+export function blockText(block: BlockLike): string {
+  if (block.type === "mathBlock") {
+    const latex = (block.props as { latex?: unknown } | null)?.latex;
+    return typeof latex === "string" ? latex : "";
+  }
+  return inlineText(block.content);
 }
 
 const LEADING_CHARS = 400;
@@ -39,7 +60,7 @@ const LEADING_CHARS = 400;
 export function leadingText(blocks: unknown, limit = LEADING_CHARS) {
   let text = "";
   for (const block of walkBlocks(blocks)) {
-    const own = inlineText(block.content).trim();
+    const own = blockText(block).trim();
     if (!own) continue;
     text += (text ? " " : "") + own;
     if (text.length >= limit) break;
@@ -57,7 +78,7 @@ export function excerptFromBlock(blocks: unknown, blockId: string | null, limit 
       if (block.id !== blockId) continue;
       found = true;
     }
-    const own = inlineText(block.content).trim();
+    const own = blockText(block).trim();
     if (!own) continue;
     text += (text ? " " : "") + own;
     if (text.length >= limit) break;
@@ -112,7 +133,7 @@ export function extractNoteChunks(title: string, blocks: unknown): NoteTextChunk
     currentLength = 0;
   };
   for (const block of walkBlocks(blocks)) {
-    const own = inlineText(block.content).trim();
+    const own = blockText(block).trim();
     if (!own) continue;
     const blockId = typeof block.id === "string" && block.id ? block.id : null;
     const isHeading = block.type === "heading";

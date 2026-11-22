@@ -6,12 +6,14 @@ import { AppIcon } from "@/components/app-icon";
 import { CharacterGraphic } from "@/components/character-avatar";
 import { useT } from "@/components/i18n-provider";
 import { imageFileToIcon, resolveAppIcon, saveAppIcon, toCharacterIcon, useAppIcon } from "@/lib/app-icon";
+import { pullAppIconFromAccount, pushAppIconToAccount } from "@/lib/app-icon-sync";
 import { CHARACTER_DEFINITIONS, type CharacterId } from "@/lib/characters";
 import { msg } from "@/lib/i18n/translate";
 
 // 設定画面「一般 → アイコン」。
 // プリセットの AI キャラクター（7 種、既定は Quill）を選ぶボタンと、任意の画像をアップロードするボタンを提供する。
 // 選んだその場でこのブラウザに保存し、チャット・サイドバー・ノートの AI ボタン全体へ即座に反映する。
+// ログイン中はアカウントにも送り、開いたときにアカウントの値を読み直す（app-icon-sync.ts）。
 export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefObject<() => boolean> }) {
   const t = useT();
   const icon = useAppIcon();
@@ -36,8 +38,14 @@ export function AppIconSettings({ closeGuardRef }: { closeGuardRef?: MutableRefO
     };
   }, [closeGuardRef, picking]);
 
+  // 開いたときにアカウントの値を読み直す（別の端末で替えていたら、ここにも反映する）。
+  useEffect(() => { void pullAppIconFromAccount(); }, []);
+
   function apply(next: string | null) {
-    setError(saveAppIcon(next) ? "" : msg("Could not save the icon on this device."));
+    if (!saveAppIcon(next)) return setError(msg("Could not save the icon on this device."));
+    setError("");
+    // この端末には保存済み。アカウントに送れなかったときだけ知らせる。
+    void pushAppIconToAccount(next).then((failure) => { if (failure) setError(failure); });
   }
 
   function selectCharacter(id: CharacterId) {

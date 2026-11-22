@@ -59,6 +59,7 @@ FormData
 ├── sessionId       optional
 ├── webSearch       optional mode（/app 省略，由服务端默认 auto；笔记助手固定发 "off"）
 ├── noteId          optional（仅笔记内 AI 助手发送）
+├── noteSelection   optional（"1"：笔记助手带着编辑器里选中的文字提问；只在有 noteId 时生效）
 ├── uploads         optional signed references (JSON string；兼容旧客户端的 files)
 ├── pages           optional attached note IDs (JSON string)
 ├── edit            optional：要改写的自己那条发言的 ID（见“停止、编辑、重新生成与分支”）
@@ -87,7 +88,7 @@ POST /api/chat
 ### 消息树
 
 - `Message.parentId`：上一条消息的 ID；会话的第一条是字符串 `"root"`（`ROOT_PARENT`）。`null` 表示“没有记录”，按创建顺序的前一条当父节点——这一列之前的旧数据都是这样，所以迁移不改写已有数据。写着不存在的 ID、或比自己晚创建的 ID 时，同样按创建顺序处理（不会成环）。**新建消息的代码都要写 `parentId`。**
-- `Message.active`（默认 `true`）：在不在当前显示的这一枝上。**所有读取对话内容的地方都只读 `active: true`**：发给模型的历史与原生压缩状态、`GET /api/sessions/:id/messages`、搜索、导出、Create page、发言附加的笔记、`list_chat_attachments`、图片生成的上下文。新增读取 `Message` 的代码必须带这个条件（和笔记的 `deletedAt: null` 是同一类规则）。
+- `Message.active`（默认 `true`）：在不在当前显示的这一枝上。**所有读取对话内容的地方都只读 `active: true`**：发给模型的历史与原生压缩状态、`GET /api/sessions/:id/messages`（`src/lib/session-messages.ts`）、搜索、导出、Create page、发言附加的笔记、`list_chat_attachments`、图片生成的上下文。新增读取 `Message` 的代码必须带这个条件（和笔记的 `deletedAt: null` 是同一类规则）。
 - `Message.selectedAt`：切换版本时记下“选了这个版本”的时间，见“切换版本”。
 - 新消息的父节点：普通发送和图片生成是“当前显示的最后一条”（`loadActiveLeafId`，只读一行；普通发送在锁住会话的事务里读它并写入提问，同时发出的两条不会挂到同一个父节点下变成“两个版本”），回答是它所回答的那条提问。回答保存时，如果那条提问已经不在显示的枝上（生成期间别处切换了版本），回答也存成 `active: false`，不会冒到别的枝的末尾。
 - “同一位置的别的版本”= 同一个父节点下的兄弟。`GET /api/sessions/:id/messages` 给有兄弟的消息加 `versions: { index, total, prevId, nextId }`（从 1 数起，按创建顺序），界面据此显示 `‹ 2/3 ›`。
@@ -285,7 +286,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 - `search_notes({ query })`：在数据库内搜索该用户的全部活笔记（不含 Trash，`p."deletedAt" IS NULL`），支持**表记折叠关键词匹配 + 语义检索混合召回**。关键词部分与站内搜索共用 `src/lib/search-fold.ts`（`termMatcher` + `buildSearchSnippet`，不区分大小写、全半角、平片假名、弯引号/破折号），用 JSONPath 只取正文的 inline `text` 并经 `jsonb_array_elements_text` 解码；语义部分并行调用 `semanticSearchNotes`（`src/lib/note-embeddings.ts`，阈值 0.32，带有限度惰性回填），换说法或跨语言也能命中。关键词命中优先（按标题命中词数、更新时间排序），再去重追加语义命中，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。系统指令允许模型在用户提到笔记或询问可能记录在笔记里的个人事项时主动调用，通用问题则跳过。
 - `read_note({ noteId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断；Trash 里的笔记视为不存在（返回 Note not found）。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回笔记 `version`。
 - `list_chat_attachments()`：列出当前聊天里的附件（最新在前，最多 30 个，包含用户上传和助手生成的图片），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MiB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
-- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###` 与折叠标题 `# ▸`、`-` 列表、`1.`、`- [ ]`、折叠列表 `▸`、`>` 引用、Callout `> [!💡]`、代码围栏、`---`、GFM 表格、笔记图片 `![说明](/api/pages/files?...)` 或 `attachment:ID`，以及粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套），`src/lib/page-edit.ts` 把编辑应用到笔记块上（表格替换表格时经 `carryTableLayout` 继承表头行/列与列宽），再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
+- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###` 与折叠标题 `# ▸`、`-` 列表、`1.`、`- [ ]`、折叠列表 `▸`、`>` 引用、Callout `> [!💡]`、代码围栏、`---`、GFM 表格、块级数学公式 `$$`、笔记图片 `![说明](/api/pages/files?...)` 或 `attachment:ID`，以及粗体/斜体/删除线/行内代码/行内数学公式 `$…$`/链接，两个空格缩进表示嵌套），`src/lib/page-edit.ts` 把编辑应用到笔记块上（表格替换表格时经 `carryTableLayout` 继承表头行/列与列宽），再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`$`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
 
 两条循环实现：
 
@@ -320,7 +321,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 - 存在 `User.customInstructions`，最多 4,000 字符（`MAX_CUSTOM_INSTRUCTIONS`），校验沿用项目共通指示的 `validProjectInstructions`（换行统一为 `\n`、去掉首尾空白、空白存为 null、不允许换行和制表符以外的控制字符）。
 - 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google 或邮箱登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
-- 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），分 4 个标签页（通用 / 个性化 / 方案 / 账号，手机宽度为两级导航，`src/lib/settings-navigation.ts`），汇总语言、AI 角色图标、自定义指令、方案用量与订阅、个人资料、退出登录和删除账号，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取自定义指令，文字变动后下方出现“未保存的更改”浮条（放弃 / 保存），保存中或未放弃修改前不能关闭（Esc、返回键、点外面都不关），免得丢失修改或保存失败无处提示；裁剪/上传头像期间禁用退出与删除账号并阻止离开。Android 为 `ui/SettingsDialog.kt`（[android-native.md](android-native.md)），iOS 为 `Features/Settings/SettingsScreen.swift`（[ios-native.md](ios-native.md)）。
+- 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），分 4 个标签页（通用 / 个性化 / 方案 / 账号，手机宽度为两级导航，`src/lib/settings-navigation.ts`），汇总语言、外观（跟随系统 / 浅色 / 深色，只存本机）、AI 角色图标、自定义指令、方案用量与订阅、个人资料、退出登录和删除账号，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取自定义指令，文字变动后下方出现“未保存的更改”浮条（放弃 / 保存），保存中或未放弃修改前不能关闭（Esc、返回键、点外面都不关），免得丢失修改或保存失败无处提示；裁剪/上传头像期间禁用退出与删除账号并阻止离开。Android 为 `ui/SettingsDialog.kt`（[android-native.md](android-native.md)），iOS 为 `Features/Settings/SettingsScreen.swift`（[ios-native.md](ios-native.md)）。
 - `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `isAccountUser()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
 - 不影响标题生成（`chat-title.ts`）和图片生成，不产生 `context` 途中经过事件，也不写进 `Message`。
 
@@ -393,7 +394,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ### Notes
 
-只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
+只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text` 以及 `mathBlock`/`mathInline` 的 `props.latex`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
 
 当配置了 `OPENAI_API_KEY`（且未通过 `NOTEFABLE_SEMANTIC_SEARCH=false` 关闭）、查询去掉空白后至少 2 个字符且关键词命中未满 15 条时，`searchNotes` 会继续执行语义检索（`src/lib/note-embeddings.ts`，阈值 0.34，总超时 2.5 秒，每次最多扫当前用户最近 2,000 个与当前 `NotePage.version` 一致的块；若当前用户尚无已索引的活笔记则跳过外部嵌入调用，未索引或旧版笔记仅在响应后通过 `after()` 后台补齐，不阻塞站内搜索响应；检索与索引调用均通过 `UsageCounter` 按用户共享每日上限各 200 次，且搜索词不跨请求缓存；笔记新建、保存、恢复历史、套用提案、复制、从 Trash 复原也在响应后经 `after()` 增量更新索引）。结果按“关键词命中在前、语义命中去重后在后”合并，最多 15 条；语义命中按命中的 `chunkIndex` 从对应笔记当前的 `blocks` 实时重建该段摘录并带回 `blockId`。外部嵌入接口失败、超时、超额或未配置时静默降级为纯关键词搜索，不影响搜索接口可用性。Web、Android、iOS 共用 `GET /api/search`，三端同步生效。
 
@@ -442,12 +443,12 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）现在与站内搜索�
 - **Download conversation**：点击时从现有的 `GET /api/sessions/:sessionId/messages` 获取完整已保存历史（同一套所有权校验，`cache: no-store`，30 秒超时），不受点选的回答位置影响。`conversationToMarkdownFile` 按 API 返回的时间顺序写出所有 USER / ASSISTANT 消息，以 `## You` / `## NoteFable` 区分，不导出内部 SYSTEM 消息或压缩状态。正文不截断，保留代码和出处链接；附件保留名称，图片链接转成本站绝对 URL，仍需原账号或设备权限查看，不打包二进制文件。文件以会话标题命名（沿用 `answerFileName` 的安全文件名规则），末尾附原会话链接，不带单条消息锚点。下载期间菜单显示 Downloading… 并阻止重复点击；读取失败保留菜单并显示可重试错误，离开会话后不触发迟到的下载。文件通过 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。Android App 不在本机拼 Markdown，而是读 `GET /api/sessions/:sessionId/export?date=YYYY-MM-DD`（同一套所有权校验，只读 USER / ASSISTANT，服务端用同一个 `conversationToMarkdownFile` / `answerFileName`，返回 `{ fileName, markdown }`），见 [android-native.md](android-native.md)。
 - **Save to page**：在三个点菜单里直接新建一篇笔记，不再弹出确认。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `notefable:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；菜单项变成 “Saved to page”，下面出现 “Open saved page” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `notefable:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时菜单项变成 “Retry saving to page”，菜单内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to Notes. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。Android App 没有浏览器端的转换，改用 `POST /api/pages/from-answer`（`{ markdown, sessionId, messageId, savedOn }`）：服务端核对会话归属（取标题和链接），用同一个 `answerToNoteContent` 生成块，再经 `validateNoteContent` 和与 `POST /api/pages` 共用的 `createNotePage` 新建。保存后又被移进 Trash 的笔记，“Open saved page” 仍在，点开会走既有的笔记打开失败处理。
 
-- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板的回复使用客户端临时 UUID 且不拉取服务端消息 ID，因此 `ReportAnswerButton` 实际不显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportAnswerDialog.kt`）。
+- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板里，刚生成的回复用的是客户端临时 UUID，不显示这个按钮；面板打开时从服务端恢复的历史回复带数据库 ID，会显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportAnswerDialog.kt`）。
 
 ### 保存出来的笔记
 
 - **标题**：回答里（代码围栏之外）第一个标题；没有就取第一个非空行（去掉 Markdown 符号）；再没有就用会话标题；最后是 `Untitled`。最长 80 个字素、且不超过 200 个 UTF-16 单位（笔记标题上限），截断时加 `…`。标题来自开头的标题时，正文里去掉那一行以免重复；标题来自第一行普通文字时，正文保留它（所以一行的回答会同时出现在标题和正文里）。
-- **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
+- **正文**：先经 `prepareMath` 规范化数学公式，再由 `markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；块级与行内 LaTeX 公式保存成 `mathBlock` 与 `mathInline` 节点（在笔记编辑器与历史预览中由 KaTeX 渲染）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里（行内与块级公式内部的 `[a](b)` 不被改写）；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
 - **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/c/<会话 ID>?message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
 - **上限**：最多 2,000 个块，整篇 JSON 不超过 1 MiB 减 2 KiB 余量。超出时在块的边界处二分截断正文，来源段落追加 “The answer was too long to save in full, so the end was left out.”
 
@@ -471,11 +472,24 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）现在与站内搜索�
 - **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
 - **上传附件期间**：引用不能移除或替换（发出的内容已定）。
 - **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
+- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask AI” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#笔记里的-ai-助手)）；在桌面分屏的笔记面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
 - Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
 
 ## 拖放添加文件
 
 有鼠标的设备上，把文件拖到聊天视图（`.notion-page` 整块，含顶栏和输入框）时显示虚线框的 “Drop files to attach”，放下后与 “＋” 选择文件、粘贴图片走同一个 `addUploadFiles`（同样的数量、大小、类型校验和错误提示）。只处理拖进来的是文件（`dataTransfer.types` 含 `Files`）的情况，拖文字不受影响；上传中不接收。拖到受理范围外（侧栏等）放下时，窗口级的 `dragover` / `drop` 只阻止浏览器打开文件、离开页面。Android 不适用。
+
+## 聊天与笔记分屏
+
+视口宽度 1100px 以上（`SPLIT_VIEW_MEDIA_QUERY`，`src/lib/split-view.ts`）时，Chat 视图的顶栏在搜索按钮旁多一个分屏按钮（`aria-pressed`）。打开后工作区（`.workspace-split-shell`）分成左边的聊天、一条分隔线和右边的笔记面板 `SplitNotePane`（`src/components/split-note-pane.tsx`）。窄于 1100px 时按钮和面板都不出现（保存的开关不变，变宽后恢复）；手机宽度和原生 App 没有这个功能。
+
+- **同一份笔记状态。** `page.tsx` 的 `useNotePages` 在 Notes 视图或分屏打开时启用，右侧面板和 Notes 视图共用它和 `NotesWorkspace`（`split`）：自动保存、冲突处理、编辑历史、页面设置都与 Notes 视图相同；左边聊天里 Apply 提案后，右边的编辑器经 `notefable:page-updated` 立即更新。分屏里打开或新建笔记不改 URL（`view` 不是 `pages` 时，`useNotePages` 不读也不写 `page=`）。
+- **面板顶栏。** 笔记切换（按标题筛选，最多列 60 篇，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与 Notes 顶栏相同，含 Export Markdown）、“Open in full view”（切到 Notes 视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
+- **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
+- **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
+- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”）。其他情况仍切到 Notes 视图。
+- **Ask AI 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask AI，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
+- **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时，发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
 ## 回答里的数学公式
 
@@ -489,7 +503,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）现在与站内搜索�
   - ```` ```math ```` 代码块是独立公式（由 rehype-katex 画）。回答还在生成、公式没写完时保持原样显示。
 - **加载**：`remark-math`、`rehype-katex` 和 KaTeX 的样式、字体只在某条回答里真的有公式时才动态加载（`hasMath`；只有金额的 `$` 不算）。加载完成前公式按原文显示，加载完所有回答一起重新渲染；加载失败 5 秒后可以再试。重新渲染改变了回答的高度，所以这时派发 `notefable:answer-resized`，聊天页和笔记助手面板在跟随最新内容时保持在底部。没有公式的对话不加载这些文件。
 - **出错的公式**不抛异常（`throwOnError: false`），按原文显示，回答其余部分照常。很长的独立公式在公式内部横向滚动（`.markdown-body .katex-display`）。
-- **不受影响的部分**：保存的仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 存进笔记的也是这段文字——笔记编辑器（BlockNote）没有公式块，在笔记里不渲染，所以笔记历史的预览也不渲染公式（`<AssistantMarkdown math={false}>`）。回答里写成 `\$` 的金额符号，存进笔记（`src/lib/note-markdown.ts`）和导出成纯文字（`src/lib/answer-export.ts`）时还原成 `$`。
+- **笔记与导出**：保存的聊天记录仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 先经 `prepareMath` 规范化，再由 `markdownToBlocks` 转成笔记里的 `mathBlock`（块级公式）与 `mathInline`（行内公式）节点，在笔记编辑器与编辑历史预览（`<AssistantMarkdown math="dollars">`）中均以 KaTeX 渲染。回答里写成 `\$` 的金额符号，存进笔记（`src/lib/note-markdown.ts`）和导出成纯文字（`src/lib/answer-export.ts`）时还原成普通 `$`。
 - **Android / iOS 原生 App**：Android 的 `data/MathMarkdown.kt` 与 iOS 的 `Core/Chat/MathMarkdown.swift` 是 `prepareMath` 的移植（同样的输入认出同样的公式，测试用例一一对应；改规则时三端一起改），排版分别见 [android-native.md](android-native.md#回答体验) 与 [ios-native.md](ios-native.md#ios-上换了做法的地方)。
 
 ## 整理成笔记（Create page）

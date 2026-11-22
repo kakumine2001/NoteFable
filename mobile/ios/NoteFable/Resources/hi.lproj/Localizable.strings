@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "कैरेक्टर चुनें";
 "app_icon_upload_image" = "इमेज अपलोड करें";
 "app_icon_could_not_save" = "इस डिवाइस पर आइकन सेव नहीं किया जा सका।";
+"app_icon_could_not_sync" = "आपका आइकन सेव नहीं किया जा सका। फिर से प्रयास करें।";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "खाता हटाएँ";
@@ -375,6 +376,22 @@
 "pg_search_pages" = "पेज खोजें";
 "pg_no_matching_pages" = "कोई मेल खाता पेज नहीं मिला।";
 "pg_subpages_to_trash" = "इसके सब-पेज भी इसके साथ ट्रैश में चले जाएँगे।";
+
+/* strings_personal.xml */
+"appearance" = "दिखावट";
+"theme_system" = "सिस्टम";
+"theme_light" = "लाइट";
+"theme_dark" = "डार्क";
+"export_markdown" = "Markdown एक्सपोर्ट करें";
+"import_markdown" = "Markdown इंपोर्ट करें";
+"note_export_failed" = "पेज एक्सपोर्ट नहीं हो सका।";
+"note_export_unsaved" = "इस पेज को एक्सपोर्ट करने से पहले बिना सहेजे ड्राफ़्ट को सुलझाएं।";
+"note_import_failed" = "Markdown फ़ाइलें इंपोर्ट नहीं हो सकीं।";
+"note_import_too_many" = "आप एक बार में अधिकतम %1$d फ़ाइलें इंपोर्ट कर सकते हैं।";
+"note_import_bad_type" = "केवल Markdown (.md, .markdown, .txt) फ़ाइलें इंपोर्ट की जा सकती हैं।";
+"note_import_file_too_large" = "नोट की सामग्री 1 MiB से अधिक है।";
+"note_import_too_large" = "इंपोर्ट 4 MB से अधिक है।";
+"import_to" = "यहाँ आयात करें";
 
 /* strings_plan.xml */
 "plan_title" = "प्लान";

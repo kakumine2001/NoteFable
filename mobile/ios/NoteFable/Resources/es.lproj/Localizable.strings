@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Elegir un personaje";
 "app_icon_upload_image" = "Subir una imagen";
 "app_icon_could_not_save" = "No se pudo guardar el icono en este dispositivo.";
+"app_icon_could_not_sync" = "No se pudo guardar tu icono. Inténtalo de nuevo.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Eliminar cuenta";
@@ -375,6 +376,22 @@
 "pg_search_pages" = "Buscar páginas";
 "pg_no_matching_pages" = "No hay páginas coincidentes.";
 "pg_subpages_to_trash" = "Sus subpáginas se moverán a la papelera junto con ella.";
+
+/* strings_personal.xml */
+"appearance" = "Apariencia";
+"theme_system" = "Sistema";
+"theme_light" = "Claro";
+"theme_dark" = "Oscuro";
+"export_markdown" = "Exportar Markdown";
+"import_markdown" = "Importar Markdown";
+"note_export_failed" = "No se pudo exportar la página.";
+"note_export_unsaved" = "Resuelve el borrador sin guardar antes de exportar esta página.";
+"note_import_failed" = "No se pudieron importar los archivos Markdown.";
+"note_import_too_many" = "Puedes importar hasta %1$d archivos a la vez.";
+"note_import_bad_type" = "Solo se pueden importar archivos Markdown (.md, .markdown, .txt).";
+"note_import_file_too_large" = "El contenido de la nota supera 1 MiB.";
+"note_import_too_large" = "La importación supera 4 MB.";
+"import_to" = "Importar en";
 
 /* strings_plan.xml */
 "plan_title" = "Plan";

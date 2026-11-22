@@ -3,11 +3,12 @@ import { deletedAccountKeys, DELETED_ACCOUNT_RETENTION_DAYS } from "@/lib/delete
 import { prisma } from "@/lib/prisma";
 import { deleteStoredImage, deleteStoredPrefix } from "@/lib/storage";
 import { AVATAR_ROOT } from "@/lib/user-profile";
+import { APP_ICON_ROOT } from "@/lib/account-app-icon";
 
 // 利用者ごとのフォルダ（保存先のパスに利用者 ID を含むもの）。チャットの画像だけは日付フォルダなので行から集める。
 // 新しく利用者ごとのフォルダを作ったら、ここにも足す。
 export function userStoragePrefixes(userId: string) {
-  return [`note-files/${userId}/`, `page-covers/${userId}/`, `${AVATAR_ROOT}/${userId}/`, `chat-uploads/${userId}/`];
+  return [`note-files/${userId}/`, `page-covers/${userId}/`, `${AVATAR_ROOT}/${userId}/`, `chat-uploads/${userId}/`, `${APP_ICON_ROOT}/${userId}/`];
 }
 
 // アカウントを完全に削除する（Google Play のアカウント削除要件）。利用者の行を消すと、チャット・メッセージ・ノート・

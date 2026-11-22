@@ -146,7 +146,7 @@ private struct ToastBubble: View {
         let shape = RoundedRectangle(cornerRadius: 14)
         Text(text)
             .font(.nf(14, weight: 500))
-            .foregroundStyle(.white)
+            .foregroundStyle(Sm.onInk)
             .multilineTextAlignment(.center)
             .lineLimit(4)
             .padding(.horizontal, 16)

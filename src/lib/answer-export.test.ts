@@ -402,4 +402,97 @@ describe("answerToNoteContent", () => {
     expect(result.title).toBe("小見出し");
     expect(textOf(result.blocks[0])).toBe("本文は重要です。");
   });
+
+  it("converts chat math (\\(...\\), \\[...\\], $$...$$, ```math) into note math blocks and inline math while keeping prices and LaTeX brackets intact", () => {
+    const result = build([
+      "$$",
+      "E = mc^2",
+      "$$",
+      "",
+      "Euler \\( e^{i\\pi} + 1 = 0 \\) costs $5 and $10, with $f[0,1](x)$.",
+      "",
+      "\\[",
+      "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}",
+      "\\]",
+      "",
+      "```math",
+      "a^2 + b^2 = c^2",
+      "```",
+    ].join("\n"));
+    expectValid(result);
+    // 裸の $$ はタイトルにしない。
+    expect(result.title).not.toBe("$$");
+    expect(result.blocks.slice(0, 4).map((b) => b.type)).toEqual(["mathBlock", "paragraph", "mathBlock", "mathBlock"]);
+    expect(result.blocks[0].props).toEqual({ latex: "E = mc^2" });
+    expect(result.blocks[1].content).toEqual([
+      { type: "text", text: "Euler ", styles: {} },
+      { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } },
+      { type: "text", text: " costs $5 and $10, with ", styles: {} },
+      { type: "mathInline", props: { latex: "f[0,1](x)" } },
+      { type: "text", text: ".", styles: {} },
+    ]);
+    expect(result.blocks[2].props).toEqual({ latex: "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}" });
+    expect(result.blocks[3].props).toEqual({ latex: "a^2 + b^2 = c^2" });
+
+    // URL の中の $user$ を数式として切らず、リンク・裸 URL とも保持する。
+    const withUrl = build("See <https://example.com/$user$/profile>, [docs](https://example.com/$a$/$b$), and https://example.com/$bare$/1.");
+    expectValid(withUrl);
+    const links = inline(withUrl.blocks[0]).filter((entry) => entry.type === "link").map((entry) => entry.href);
+    expect(links).toEqual(["https://example.com/$user$/profile", "https://example.com/$a$/$b$"]);
+    expect(textOf(withUrl.blocks[0])).toContain("https://example.com/$bare$/1.");
+    expect(inline(withUrl.blocks[0]).some((entry) => entry.type === "mathInline")).toBe(false);
+
+    // 引用内の \[x^2\]（中の ![point](url) を書き換えない）、引用内の行内 \(\\$100\)、数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
+    const quotedAndDigit = build("> \\[\\text{![point](https://example.com)}\\]\n\n> \\(\\$100\\)\n\n\\(x\\)2\n\n\\(\\$100\\)");
+    expectValid(quotedAndDigit);
+    expect(quotedAndDigit.blocks[0].type).toBe("mathBlock");
+    expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "\\text{![point](https://example.com)}" });
+    expect(quotedAndDigit.blocks[1].type).toBe("quote");
+    expect(quotedAndDigit.blocks[1].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
+    expect(quotedAndDigit.blocks[2].content).toEqual([
+      { type: "mathInline", props: { latex: "x" } },
+      { type: "text", text: "2", styles: {} },
+    ]);
+    expect(quotedAndDigit.blocks[3].type).toBe("paragraph");
+    expect(quotedAndDigit.blocks[3].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
+
+    // チャットの表: 金額の |、セル単体の $$E=mc^2$$、TeX の $\|x\|$ をすべて正しく保つ。
+    const priceTable = build("| A | B |\n| --- | --- |\n| $5|$ USD |\n| $$E=mc^2$$ | $\\|x\\|$ |");
+    expectValid(priceTable);
+    expect(priceTable.blocks[0].type).toBe("table");
+    const pt = priceTable.blocks[0].content as unknown as { rows: { cells: { content: (Inline & { props?: { latex?: string } })[] }[] }[] };
+    expect(pt.rows).toHaveLength(3);
+    expect(pt.rows[1].cells.map((c) => c.content.map((e) => e.text).join(""))).toEqual(["$5", "$ USD"]);
+    expect(pt.rows[1].cells.some((c) => c.content.some((e) => e.type === "mathInline"))).toBe(false);
+    expect(pt.rows[2].cells[0].content).toEqual([{ type: "mathInline", props: { latex: "E=mc^2" } }]);
+    expect(pt.rows[2].cells[1].content).toEqual([{ type: "mathInline", props: { latex: "\\|x\\|" } }]);
+
+    // コードラベルのリンクや 4 スペース字下げコードの中の $x$ を壊さない。
+    const codeAndLink = build("[`<https://example.com>`](https://other.example/docs)\n\n    echo '$x$'");
+    expectValid(codeAndLink);
+    expect(inline(codeAndLink.blocks[0])).toEqual([{
+      type: "link", href: "https://other.example/docs",
+      content: [{ type: "text", text: "<https://example.com>", styles: { code: true } }],
+    }]);
+    expect(codeAndLink.blocks[1].type).toBe("codeBlock");
+    expect(textOf(codeAndLink.blocks[1])).toBe("echo '$x$'");
+
+    // 未閉じの $$ の後に ~~~ コードブロックがあっても、コード内の $$ を閉じと誤認しない。
+    const unclosedBeforeTilde = build("$$\n[ref](<https://example.com/a b>)\n~~~tex\n$$\n~~~\nAfter");
+    expectValid(unclosedBeforeTilde);
+    expect(unclosedBeforeTilde.blocks.some((b) => b.type === "codeBlock")).toBe(true);
+    expect(textOf(unclosedBeforeTilde.blocks.find((b) => b.type === "paragraph" && textOf(b) === "After")!)).toBe("After");
+
+    // 金額の $ とリンク先 URL の $、\verb 内のバッククォート、ネスト引用の独立数式を正しく保存する。
+    const edgeCases = build("It costs $5; [details](https://example.org/$shop).\n\n$\\verb|a`b`|$\n\n> > $$\n> > x+1\n> > $$");
+    expectValid(edgeCases);
+    expect(inline(edgeCases.blocks[0])).toEqual([
+      { type: "text", text: "It costs $5; ", styles: {} },
+      { type: "link", href: "https://example.org/$shop", content: [{ type: "text", text: "details", styles: {} }] },
+      { type: "text", text: ".", styles: {} },
+    ]);
+    expect(edgeCases.blocks[1].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|a`b`|" } }]);
+    expect(edgeCases.blocks[2].type).toBe("mathBlock");
+    expect(edgeCases.blocks[2].props).toEqual({ latex: "x+1" });
+  });
 });

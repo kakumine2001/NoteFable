@@ -81,7 +81,7 @@ fun cleanLoginCode(input: String): String = buildString(6) {
 }
 
 private val SignInShadow = Color(0x1F0F0F0F) // --notion-shadow
-private val SignInRing = Color(0x0D0F0F0F)
+private val SignInRing: Color get() = Sm.Ring
 
 /**
  * "登录"按钮（网页 SignInButton / .signin-open-button 的手机尺寸）：整行、高 44、圆角 6、--nf-ink 底、白字 15/600。
@@ -94,7 +94,7 @@ fun SignInButton(onClick: () -> Unit, modifier: Modifier = Modifier, shape: Shap
             .clickable(onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 12.dp),
         Alignment.Center,
     ) {
-        Text(stringResource(R.string.sign_in), color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+        Text(stringResource(R.string.sign_in), color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
     }
 }
 
@@ -170,13 +170,13 @@ fun SignInDialog(
 
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        LaunchedEffect(window) { window?.setDimAmount(0.2f) }
+        LaunchedEffect(window, Sm.isDark) { window?.setDimAmount(dialogDim()) }
         val shape = RoundedCornerShape(8.dp)
         Box(
             Modifier.padding(horizontal = 19.dp).widthIn(max = 400.dp).fillMaxWidth()
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp - 38).coerceAtLeast(200).dp)
                 .shadow(14.dp, shape, ambientColor = SignInShadow, spotColor = SignInShadow)
-                .border(1.dp, SignInRing, shape).clip(shape).background(Color.White),
+                .border(1.dp, SignInRing, shape).clip(shape).background(Sm.Surface),
         ) {
             Column(Modifier.verticalScroll(rememberScrollState()).padding(start = 28.dp, end = 28.dp, top = 32.dp, bottom = 24.dp)) {
                 val feedback: @Composable () -> Unit = {
@@ -328,5 +328,5 @@ private fun SignInSubmit(text: String, enabled: Boolean, onClick: () -> Unit) {
         Modifier.padding(top = 12.dp).fillMaxWidth().heightIn(min = 44.dp).alpha(if (enabled) 1f else 0.45f).clip(shape).background(Sm.Ink)
             .clickable(enabled = enabled, onClick = onClick).semantics { role = Role.Button }.padding(horizontal = 12.dp),
         Alignment.Center,
-    ) { Text(text, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
+    ) { Text(text, color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1) }
 }

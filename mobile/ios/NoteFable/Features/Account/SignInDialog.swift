@@ -363,7 +363,7 @@ private struct SignInSubmit: View {
         Button(action: action) {
             Text(text)
                 .font(.nf(15, weight: 600))
-                .foregroundStyle(.white)
+                .foregroundStyle(Sm.onInk)
                 .lineLimit(1)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)

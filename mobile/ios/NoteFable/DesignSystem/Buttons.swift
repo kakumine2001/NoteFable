@@ -184,7 +184,7 @@ private struct NotionButtonBody: View {
 
     private var foreground: Color {
         switch kind {
-        case .primary: return .white
+        case .primary: return Sm.onInk
         case .danger: return Sm.danger.opacity(isEnabled ? 1 : 0.6)
         case .plain, .quiet: return Sm.text.opacity(isEnabled ? 1 : 0.6)
         }
@@ -286,10 +286,10 @@ struct SidebarPrimaryButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                LucideIcon(icon, size: 16, color: .white)
+                LucideIcon(icon, size: 16, color: Sm.onInk)
                 Text(title)
                     .font(.nf(16, weight: 550))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(Sm.onInk)
                     .lineLimit(1)
                 Spacer(minLength: 0)
             }

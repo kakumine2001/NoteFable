@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Chọn nhân vật";
 "app_icon_upload_image" = "Tải hình ảnh lên";
 "app_icon_could_not_save" = "Không thể lưu biểu tượng trên thiết bị này.";
+"app_icon_could_not_sync" = "Không thể lưu biểu tượng của bạn. Vui lòng thử lại.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Xóa tài khoản";
@@ -375,6 +376,22 @@
 "pg_search_pages" = "Tìm kiếm trang";
 "pg_no_matching_pages" = "Không có trang nào khớp.";
 "pg_subpages_to_trash" = "Các trang con bên trong cũng sẽ được chuyển vào Thùng rác.";
+
+/* strings_personal.xml */
+"appearance" = "Giao diện";
+"theme_system" = "Hệ thống";
+"theme_light" = "Sáng";
+"theme_dark" = "Tối";
+"export_markdown" = "Xuất Markdown";
+"import_markdown" = "Nhập Markdown";
+"note_export_failed" = "Không thể xuất trang.";
+"note_export_unsaved" = "Hãy xử lý bản nháp chưa lưu trước khi xuất trang này.";
+"note_import_failed" = "Không thể nhập các tệp Markdown.";
+"note_import_too_many" = "Bạn có thể nhập tối đa %1$d tệp mỗi lần.";
+"note_import_bad_type" = "Chỉ có thể nhập tệp Markdown (.md, .markdown, .txt).";
+"note_import_file_too_large" = "Nội dung ghi chú vượt quá 1 MiB.";
+"note_import_too_large" = "Nội dung nhập vượt quá 4 MB.";
+"import_to" = "Nhập vào";
 
 /* strings_plan.xml */
 "plan_title" = "Gói dịch vụ";

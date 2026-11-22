@@ -27,7 +27,13 @@ enum AnswerInk: Hashable {
         }
     }
 
-    var uiColor: UIColor { UIColor(color) }
+    var uiColor: UIColor {
+        switch self {
+        case .text: return SmUI.text
+        case .muted: return SmUI.muted
+        case .ink: return SmUI.ink
+        }
+    }
 }
 
 /// 一段文字的基础样式（字号 / 行高 / 字重 / 颜色 / 字距）。
@@ -54,8 +60,11 @@ struct AnswerTextStyle: Equatable {
     static let tableHeader = AnswerTextStyle(weight: 600, ink: .ink)
 }
 
-private let inlineCodeBackground = Color(argb: 0xFFE2E8F0)
-private let inlineCodeInk = Color(argb: 0xFF0F172A)
+// .markdown-inline-code：#e2e8f0 底、#0f172a 字；深色是 rgba(255,255,255,.1) 底、#f3f4f6 字。
+private let inlineCodeBackgroundUI = UIColor(light: 0xFFE2E8F0, dark: 0x1AFFFFFF)
+private let inlineCodeInkUI = UIColor(light: 0xFF0F172A, dark: 0xFFF3F4F6)
+private let inlineCodeBackground = Color(uiColor: inlineCodeBackgroundUI)
+private let inlineCodeInk = Color(uiColor: inlineCodeInkUI)
 
 // MARK: - 摊平
 
@@ -181,7 +190,8 @@ enum AnswerInlineRenderer {
 
     // ---- SwiftUI ----
 
-    static func text(_ pieces: [AnswerInlinePiece], style: AnswerTextStyle, links: AnswerLinkResolver) -> Text {
+    /// `dark`：所在界面现在是不是深色（公式的图片按它选；文字的颜色自己跟着外观变）。
+    static func text(_ pieces: [AnswerInlinePiece], style: AnswerTextStyle, links: AnswerLinkResolver, dark: Bool) -> Text {
         var out = Text(verbatim: "")
         // 相邻的文字攒成一个 AttributedString 再变成 Text，少拼几次。
         var pending = AttributedString()
@@ -197,7 +207,9 @@ enum AnswerInlineRenderer {
                 pending.append(attributed(alt, AnswerInlineAttributes(link: link), style: style, links: links))
                 hasPending = true
             case .math(let latex, let attributes):
-                guard let render = MathImageCache.shared.render(latex, fontSize: style.size * mathScale, ink: style.ink, display: false) else {
+                guard let render = MathImageCache.shared.render(
+                    latex, fontSize: style.size * mathScale, ink: style.ink, display: false, dark: dark
+                ) else {
                     // 排不出来的公式（写错、还没写完、库不支持）：原处显示 LaTeX 源码。
                     pending.append(attributed(latex, attributes, style: style, links: links))
                     hasPending = true
@@ -262,9 +274,20 @@ enum AnswerInlineRenderer {
         return style.ink.color
     }
 
+    /// `foreground` 的 UIKit 版本（同一套规则、同一组动态颜色）。
+    private static func uiForeground(_ attributes: AnswerInlineAttributes, _ style: AnswerTextStyle, isLink: Bool) -> UIColor {
+        if isLink { return SmUI.blue }
+        if attributes.code { return inlineCodeInkUI }
+        if attributes.strong, style.ink == .muted { return SmUI.text }
+        return style.ink.uiColor
+    }
+
     // ---- UIKit ----
 
-    static func attributedString(_ pieces: [AnswerInlinePiece], style: AnswerTextStyle, links: AnswerLinkResolver) -> NSAttributedString {
+    /// `dark` 同 `text`；只量尺寸时（表格的列宽）不用给。
+    static func attributedString(
+        _ pieces: [AnswerInlinePiece], style: AnswerTextStyle, links: AnswerLinkResolver, dark: Bool = false
+    ) -> NSAttributedString {
         let out = NSMutableAttributedString()
         let baseFont = uiFont(size: style.size, weight: style.weight, monospaced: false, italic: false)
         let paragraph = NSMutableParagraphStyle()
@@ -285,8 +308,8 @@ enum AnswerInlineRenderer {
                 monospaced: attributes.code,
                 italic: attributes.emphasis
             )
-            values[.foregroundColor] = UIColor(foreground(attributes, style, isLink: url != nil))
-            if attributes.code { values[.backgroundColor] = UIColor(inlineCodeBackground) }
+            values[.foregroundColor] = uiForeground(attributes, style, isLink: url != nil)
+            if attributes.code { values[.backgroundColor] = inlineCodeBackgroundUI }
             if attributes.strikethrough { values[.strikethroughStyle] = NSUnderlineStyle.single.rawValue }
             if let url {
                 values[.link] = url
@@ -302,7 +325,9 @@ enum AnswerInlineRenderer {
             case .image(_, let alt, let link):
                 if !alt.isEmpty { append(alt, AnswerInlineAttributes(link: link)) }
             case .math(let latex, let attributes):
-                guard let render = MathImageCache.shared.render(latex, fontSize: style.size * mathScale, ink: style.ink, display: false) else {
+                guard let render = MathImageCache.shared.render(
+                    latex, fontSize: style.size * mathScale, ink: style.ink, display: false, dark: dark
+                ) else {
                     append(latex, attributes)
                     continue
                 }
@@ -412,21 +437,23 @@ struct AnswerRichText: View {
 
     @Environment(\.answerSelectable) private var selectable
     @Environment(\.answerQuote) private var quote
+    @Environment(\.colorScheme) private var colorScheme
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
 
     var body: some View {
         let links = AnswerLinkResolver(baseURL: app.config.baseURL)
+        let dark = colorScheme == .dark
         if selectable {
             SelectableText(
-                text: AnswerInlineRenderer.attributedString(pieces, style: style, links: links),
-                content: SelectableTextContent(pieces: pieces, style: style, baseURL: app.config.baseURL),
+                text: AnswerInlineRenderer.attributedString(pieces, style: style, links: links, dark: dark),
+                content: SelectableTextContent(pieces: pieces, style: style, baseURL: app.config.baseURL, dark: dark),
                 minHeight: style.lineHeight,
                 quote: quote,
                 onOpenLink: { url in openLink(url) }
             )
         } else {
-            AnswerInlineRenderer.text(pieces, style: style, links: links)
+            AnswerInlineRenderer.text(pieces, style: style, links: links, dark: dark)
                 .nfLineHeight(style.lineHeight, fontSize: style.size)
                 .tint(Sm.blue)
                 .environment(\.openURL, OpenURLAction { url in

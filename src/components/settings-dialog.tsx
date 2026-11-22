@@ -7,11 +7,13 @@ import "@/components/chat-project-settings.css";
 import "@/components/settings-dialog.css";
 import { AppIconSettings } from "@/components/app-icon-settings";
 import { LanguageMenuPanel, useLanguageMenuAnchor } from "@/components/language-menu";
+import { ThemeSettings } from "@/components/theme-settings";
 import { PlanSettings } from "@/components/plan-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
 import { UserAvatar } from "@/components/user-avatar";
 import { saveProfile, settled, uploadPhoto, useAccount } from "@/lib/account-store";
+import { forgetAccountAppIcon } from "@/lib/app-icon-sync";
 import { settingsButtonStep, settingsDismissStep, type SettingsStep, type SettingsTab } from "@/lib/settings-navigation";
 import { LOCALE_NAMES } from "@/lib/i18n/locale";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
@@ -77,6 +79,8 @@ function DeleteAccount({ disabled, onBusyChange }: { disabled: boolean; onBusyCh
       const data = await readJson(response);
       if (!response.ok) throw new Error(errorOf(data, msg("Could not delete your account. Please try again.")));
       forgetLocaleChoice();
+      // 消したアカウントのアイコンは、この端末に残さない（既定に戻す）。
+      forgetAccountAppIcon();
       window.location.replace(siteHref(INTRO_HREF));
     } catch (reason) {
       setError(reason instanceof Error && reason.message ? reason.message : msg("Could not delete your account. Please try again."));
@@ -334,6 +338,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
             <h3 className="settings-group-label">{t("General")}</h3>
             <div className="settings-card">
               <LanguageSettings user={user} />
+              <ThemeSettings />
               <AppIconSettings closeGuardRef={iconGuard} />
             </div>
           </section>

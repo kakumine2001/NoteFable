@@ -56,7 +56,9 @@ class NoteIconTest {
         override suspend fun restoreNote(id: String) = error("unused")
         override suspend fun deleteForever(id: String) = listOf(id)
         override suspend fun emptyTrash(before: String) = Unit
-        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) = ""
+        override suspend fun exportNote(id: String): com.kakumine.notefable.data.ExportedNote = error("unused")
+        override suspend fun importMarkdown(files: List<com.kakumine.notefable.data.ImportMarkdownFile>, groupId: String?):List<NotePageSummary> = error("unused")
+        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) = ""
     }
 
     @Test

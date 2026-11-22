@@ -27,6 +27,7 @@ import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -56,6 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -81,6 +83,9 @@ import kotlin.coroutines.resume
 /**
  * 原生和网页编辑器（/note-embed）之间的 JS 桥。约定见 src/lib/native-bridge.ts：
  * 网页 → 原生：`window.NoteFableNative.postMessage(json)`；原生 → 网页：`window.notefableEmbed.flush(id)` / `openHistory()` / `pageUpdated(pageJson)`。
+ * 外观：网页打开时读 `window.NoteFableNative.theme()`，之后变了由 App 调 `window.notefableEmbed.theme(value)`。
+ * 传的是 App 现在实际的外观（`light` / `dark`），不传 `system`：WebView 自己的 prefers-color-scheme 跟的是 Activity 的主题
+ * （固定浅色）和系统设置，和 App 里选的"外观"不一定一致，交给它解析的话编辑器会和原生顶栏、侧栏不同色。
  */
 class NoteEmbedBridge(
     /** 设置里现在选的图标（null 是默认标志）。会在 WebView 的 JS 线程上调用，所以要能在任何线程读。 */
@@ -91,6 +96,20 @@ class NoteEmbedBridge(
     private val pending = ConcurrentHashMap<String, CompletableDeferred<FlushResult>>()
     private val mounting = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
     var webView: WebView? = null
+
+    /** App 现在实际的外观（`light` / `dark`）。界面在主线程写，[theme] 在 WebView 的 JS 线程读。 */
+    @Volatile
+    var currentTheme: String = THEME_LIGHT
+
+    /** 网页打开时读外观（`window.NoteFableNative.theme()`，src/lib/native-bridge.ts 的 readNativeTheme）。在 WebView 的 JS 线程上调用。 */
+    @JavascriptInterface
+    fun theme(): String = currentTheme
+
+    /** 编辑器开着时外观变了（设置里换了，或跟随系统时系统切了深色）：交给网页（`window.notefableEmbed.theme`），不重新加载。 */
+    fun pushTheme(value: String) {
+        currentTheme = value
+        webView?.evaluateJavascript(themeScript(value), null)
+    }
 
     /** 网页打开时读图标（`window.NoteFableNative.appIcon()`）：表情或图片的 data URL，默认标志是空字符串。在 WebView 的 JS 线程上调用。 */
     @JavascriptInterface
@@ -122,7 +141,11 @@ class NoteEmbedBridge(
             return
         }
         main.post {
-            if (message is EmbedMessage.Ready) pushLanguage(AppLanguage.uiLocale)
+            if (message is EmbedMessage.Ready) {
+                pushLanguage(AppLanguage.uiLocale)
+                // 页面加载期间外观变了的话，地址里带的那个值已经旧了。
+                pushTheme(currentTheme)
+            }
             onMessage(message)
         }
     }
@@ -189,6 +212,15 @@ class NoteEmbedBridge(
         fun appIconScript(icon: String?) =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.appIcon==='function')e.appIcon(${icon?.let(JSONObject::quote) ?: "null"})})()"
 
+        const val THEME_LIGHT = "light"
+        const val THEME_DARK = "dark"
+
+        /** App 实际的外观在桥上用的值（网页 ThemePreference 的 "light" / "dark"）。 */
+        fun themeValue(dark: Boolean) = if (dark) THEME_DARK else THEME_LIGHT
+
+        fun themeScript(value: String) =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(${JSONObject.quote(value)})})()"
+
         private const val FLUSH_TIMEOUT_MS = 15_000L
     }
 }
@@ -221,7 +253,8 @@ fun NoteEditorScreen(
     open: OpenNote,
     saveState: String?,
     notice: String?,
-    embedUrl: (lang: String) -> String,
+    /** [theme] 是 App 现在实际的外观（`light` / `dark`），放进地址让网页第一帧就按它画。 */
+    embedUrl: (lang: String, theme: String) -> String,
     baseUrl: String,
     cookieJar: CookieJar,
     drawerOpen: Boolean,
@@ -253,6 +286,16 @@ fun NoteEditorScreen(
     }
     val appIcon = currentAppIcon()
     LaunchedEffect(bridge, appIcon) { bridge.pushAppIcon(appIcon) }
+    // 外观：编辑器和原生界面用同一个结果（设置里选的，跟随系统时看系统）。先写进桥（网页加载时读），变了再推过去；
+    // WebView 自己的底色也跟着换，网页画出来之前不闪白（深色是网页的 --notion-bg #191919）。
+    val dark = Sm.isDark
+    val theme = NoteEmbedBridge.themeValue(dark)
+    val webBackground = Sm.Background.toArgb()
+    remember(bridge) { bridge.currentTheme = theme }
+    LaunchedEffect(bridge, theme) {
+        bridge.webView?.setBackgroundColor(webBackground)
+        bridge.pushTheme(theme)
+    }
     // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
     var generation by remember(open.editor) { mutableIntStateOf(0) }
     val fileCallback = remember(open.editor) { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
@@ -282,7 +325,7 @@ fun NoteEditorScreen(
         }
     }
 
-    Column(Modifier.fillMaxSize()) {
+    Column(Modifier.fillMaxSize().background(Sm.Background)) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -347,7 +390,7 @@ fun NoteEditorScreen(
                 WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
                 WebView(ctx).apply {
                     layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    setBackgroundColor(android.graphics.Color.WHITE)
+                    setBackgroundColor(webBackground)
                     settings.javaScriptEnabled = true
                     settings.domStorageEnabled = true
                     settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
@@ -418,7 +461,7 @@ fun NoteEditorScreen(
         LaunchedEffect(bridge, lang) { bridge.pushLanguage(lang) }
         LaunchedEffect(bridge, generation) {
             syncCookies(baseUrl, cookieJar)
-            bridge.webView?.loadUrl(currentEmbedUrl(lang))
+            bridge.webView?.loadUrl(currentEmbedUrl(lang, bridge.currentTheme))
         }
     }
 }

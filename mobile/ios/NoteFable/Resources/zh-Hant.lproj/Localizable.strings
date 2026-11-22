@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "選擇角色";
 "app_icon_upload_image" = "上傳圖片";
 "app_icon_could_not_save" = "無法在這臺裝置上儲存圖示。";
+"app_icon_could_not_sync" = "無法儲存你的圖示，請重試。";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "刪除賬號";
@@ -375,6 +376,22 @@
 "pg_search_pages" = "搜尋頁面";
 "pg_no_matching_pages" = "沒有匹配的頁面。";
 "pg_subpages_to_trash" = "其中的子頁面也會一起移入回收站。";
+
+/* strings_personal.xml */
+"appearance" = "外觀";
+"theme_system" = "跟隨系統";
+"theme_light" = "淺色";
+"theme_dark" = "深色";
+"export_markdown" = "匯出 Markdown";
+"import_markdown" = "匯入 Markdown";
+"note_export_failed" = "無法匯出此頁面。";
+"note_export_unsaved" = "請先處理未儲存的草稿，再匯出此頁面。";
+"note_import_failed" = "無法匯入 Markdown 檔案。";
+"note_import_too_many" = "一次最多可匯入 %1$d 個檔案。";
+"note_import_bad_type" = "只能匯入 Markdown 檔案（.md、.markdown、.txt）。";
+"note_import_file_too_large" = "筆記內容超過 1 MiB。";
+"note_import_too_large" = "匯入內容超過 4 MB。";
+"import_to" = "匯入到";
 
 /* strings_plan.xml */
 "plan_title" = "方案";

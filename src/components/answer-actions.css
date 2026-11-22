@@ -75,7 +75,7 @@
   margin: 0.35rem 0.75rem;
   font-size: 0.8125rem;
   line-height: 1.4;
-  color: #933b34;
+  color: var(--nf-error-text, #933b34);
 }
 
 .answer-actions .answer-actions-error {
@@ -84,7 +84,7 @@
   margin-inline-start: 0.5rem;
   font-size: 0.8125rem;
   line-height: 1.4;
-  color: #933b34;
+  color: var(--nf-error-text, #933b34);
 }
 
 /* スマホでもコピーと「…」を押しやすい大きさにする。メニューの文字は省略しない。 */

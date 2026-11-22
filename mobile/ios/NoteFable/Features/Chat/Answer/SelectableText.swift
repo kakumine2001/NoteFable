@@ -34,6 +34,8 @@ struct SelectableTextContent: Equatable {
     let pieces: [AnswerInlinePiece]
     let style: AnswerTextStyle
     let baseURL: String
+    /// 拼的时候界面是不是深色：外观变了要重拼（公式的图片换成另一种颜色的）。
+    let dark: Bool
 }
 
 /// 一段可以选中的富文本。宽度跟内容（最宽到外面给的宽度），高度跟着折行后的内容。
@@ -64,7 +66,7 @@ struct SelectableText: UIViewRepresentable {
         view.textDragInteraction?.isEnabled = false
         // .markdown-body a：蓝色、下划线（字重在文字的属性里）。
         view.linkTextAttributes = [
-            .foregroundColor: UIColor(Sm.blue),
+            .foregroundColor: SmUI.blue,
             .underlineStyle: NSUnderlineStyle.single.rawValue,
         ]
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)

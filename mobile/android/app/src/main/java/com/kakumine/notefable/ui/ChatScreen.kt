@@ -195,7 +195,7 @@ fun ChatScreen(
     val isEmptyChat = state.messages.isEmpty() && !state.messagesLoading && !state.messagesFailed
 
     Scaffold(
-        containerColor = Color.White,
+        containerColor = Sm.Background,
         // 底部的系统栏/键盘留白交给输入栏自己处理，这样键盘弹出时输入栏贴着键盘。
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
@@ -580,8 +580,8 @@ private fun ScrollToBottomButton(visible: Boolean, modifier: Modifier = Modifier
         }
             .size(40.dp)
             .shadow(6.dp, shape, ambientColor = Color(0x1F0F0F0F), spotColor = Color(0x1F0F0F0F))
-            .background(Color.White, shape)
-            .border(1.dp, Color(0x0D0F0F0F), shape)
+            .background(Sm.Surface, shape)
+            .border(1.dp, Sm.Ring, shape)
             .clip(shape)
             .clickable(enabled = visible, onClick = onClick)
             .semantics { contentDescription = label; role = Role.Button },
@@ -638,7 +638,7 @@ private fun EmptyState(
 }
 
 // 角色标签：12sp 等宽、大写、字距 .06em、灰色，和下面的内容隔 7.2。
-internal val RoleLabelBase = TextStyle(
+internal val RoleLabelBase get() = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontSize = 12.sp,
     lineHeight = 18.sp,
@@ -648,7 +648,7 @@ internal val RoleLabelBase = TextStyle(
 )
 
 // 回答头部的模型名：网页 .notion-role-model，正文字体 13px、500、无字距、灰色。
-internal val AssistantModelLabel = RoleLabelBase.copy(fontFamily = FontFamily.Default, fontSize = 13.sp, letterSpacing = 0.sp)
+internal val AssistantModelLabel get() = RoleLabelBase.copy(fontFamily = FontFamily.Default, fontSize = 13.sp, letterSpacing = 0.sp)
 
 // 网页的等宽字体（Geist Mono）没有非拉丁字形，这些字回落到普通 UI 字体；原生版的系统等宽字体回落时会出现倾斜字形，
 // 且阿拉伯字母有非零字距时会断开连写，因此非拉丁脚本用默认字体，阿拉伯字母字距归零。
@@ -839,7 +839,7 @@ private fun Composer(
         Column(
             Modifier.fillMaxWidth()
                 .shadow(8.dp, shape, ambientColor = Sm.ComposerShadow, spotColor = Sm.ComposerShadow)
-                .background(Color.White, shape)
+                .background(Sm.Surface, shape)
                 .drawBehind {
                     // 聚焦：3px 的浅蓝光圈（--nf-accent-soft）。
                     if (focused) {
@@ -954,9 +954,9 @@ private fun SendButton(sending: Boolean, enabled: Boolean, onClick: () -> Unit, 
         Alignment.Center,
     ) {
         if (sending) {
-            Box(Modifier.size(12.dp).background(Color.White, RoundedCornerShape(1.3.dp)))
+            Box(Modifier.size(12.dp).background(Sm.OnInk, RoundedCornerShape(1.3.dp)))
         } else {
-            LucideIcon(Lucide.ArrowUp, 24.dp, if (enabled) Color.White else Sm.Faint, strokeWidth = 2.1f)
+            LucideIcon(Lucide.ArrowUp, 24.dp, if (enabled) Sm.OnInk else Sm.Faint, strokeWidth = 2.1f)
         }
     }
 }
@@ -980,9 +980,9 @@ private fun ModelSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = Sm.Surface,
         shape = RoundedCornerShape(topStart = 17.6.dp, topEnd = 17.6.dp),
-        scrimColor = Color(0x590F0F0F),
+        scrimColor = Sm.scrim(Color(0x590F0F0F)),
         tonalElevation = 0.dp,
         dragHandle = {
             Box(Modifier.padding(top = 12.dp, bottom = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Sm.SheetGrab))
@@ -1059,7 +1059,7 @@ private fun ModelSheet(
                     },
                 Alignment.Center,
             ) {
-                Text(stringResource(R.string.done), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.done), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             }
         }
     }

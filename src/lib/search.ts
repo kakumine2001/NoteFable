@@ -1,7 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { scheduleNoteEmbeddingBackfill, semanticSearchNotes, UI_SEMANTIC_THRESHOLD } from "@/lib/note-embeddings";
-import { inlineText, leadingText, walkBlocks } from "@/lib/note-text";
+import { blockText, leadingText, walkBlocks } from "@/lib/note-text";
 import { buildSearchSnippet, countMatchedTerms, foldSearchText, likePattern, termMatcher } from "@/lib/search-fold";
 import { MAX_SEARCH_TERMS, parseSearchTerms, SEARCH_RESULT_LIMIT, type ChatSearchResult, type NoteSearchResult } from "@/types/search";
 
@@ -13,15 +13,19 @@ export { parseSearchTerms };
 // JS には上位 15 件ぶんだけを持ち込む。Notes は全部の語がタイトルか本文にあるもの。Chats は全部の語がタイトル、またはメッセージ
 // （と添付ファイルの本文）のどこかにあるもの（同じメッセージに揃っている必要はない）。
 
-// 本文中の文字列（inline の text）だけを集める JSONPath。page-tools.ts の searchPages と同じ。
+// 本文中の文字列（inline の text）と数式（mathBlock / mathInline の props.latex）を集める JSONPath。page-tools.ts の searchPages と同じ。
 export const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
+export const LATEX_PATH = 'strict $.** ? (@.type() == "object" && exists(@.latex)).latex';
 // 「@」メンションの表示文字（ページのタイトル、日付）。本文の文字と同じく検索の対象にする（note-text.ts の inlineText と対）。
 export const MENTION_TITLE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "page").title';
 export const MENTION_DATE_PATH = 'strict $.** ? (@.type() == "object" && @.type == "mention" && exists(@.props)).props ? (@.kind == "date").date';
 
-// ノートの本文として検索する文字列の配列（SQL）。
+// ノートの本文として検索する文字列の配列（SQL）：文字、行内・独立の数式の TeX、メンションの表示文字。
 export function noteBodyValues(blocks: Prisma.Sql) {
-  return Prisma.sql`jsonb_path_query_array(${blocks}, ${TEXT_PATH}::jsonpath) || jsonb_path_query_array(${blocks}, ${MENTION_TITLE_PATH}::jsonpath) || jsonb_path_query_array(${blocks}, ${MENTION_DATE_PATH}::jsonpath)`;
+  return Prisma.sql`jsonb_path_query_array(${blocks}, ${TEXT_PATH}::jsonpath)
+        || jsonb_path_query_array(${blocks}, ${LATEX_PATH}::jsonpath)
+        || jsonb_path_query_array(${blocks}, ${MENTION_TITLE_PATH}::jsonpath)
+        || jsonb_path_query_array(${blocks}, ${MENTION_DATE_PATH}::jsonpath)`;
 }
 // 一致したメッセージの抜粋として DB から受け取る範囲。語の 100 文字前から 600 文字。
 // 添付ファイルの抽出本文は、保存する時点で 120,000 文字に切られている（src/lib/files.ts の MAX_TEXT_CHARS）ので、DB 側ではさらに切らない。
@@ -35,7 +39,7 @@ export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: 
   let best: { blockId: string; text: string; count: number } | null = null;
   for (const block of walkBlocks(blocks)) {
     if (typeof block.id !== "string" || !block.id) continue;
-    const text = inlineText(block.content);
+    const text = blockText(block);
     const count = countMatchedTerms(text, needles);
     if (count > (best?.count ?? 0)) best = { blockId: block.id, text, count };
     if (count === needles.length) break;
