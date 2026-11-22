@@ -228,6 +228,11 @@ export const viServer: Record<string, string> = {
   "Invalid request body.": "Nội dung yêu cầu không hợp lệ.",
   "Invalid share settings.": "Cài đặt chia sẻ không hợp lệ.",
   "Expiration time must be in the future.": "Thời gian hết hạn phải ở trong tương lai.",
+  "Import exceeds 4 MB.": "Nội dung nhập vượt quá 4 MB.",
+  "Select at least one Markdown file to import.": "Hãy chọn ít nhất một tệp Markdown để nhập.",
+  "You can import up to {max} files at once.": "Bạn có thể nhập tối đa {max} tệp mỗi lần.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Chỉ có thể nhập tệp Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "Tệp quá dài cho một ghi chú: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Biểu tượng ghi chú phải là một emoji hoặc một ảnh đã tải lên.",
   "This icon image is no longer available. Choose another icon.": "Ảnh biểu tượng này không còn dùng được. Hãy chọn biểu tượng khác.",
 };

@@ -10,6 +10,7 @@ import { AttachMenu } from "@/components/attach-sheet";
 import { ChatMessage } from "@/components/chat-message";
 import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
+import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -41,6 +42,17 @@ const QUICK_ACTIONS = [
   { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
 
+// ノート内の選択テキストに対する定型操作。選択中の抜粋だけに絞って依頼する。
+const SELECTION_ACTIONS = [
+  { label: msg("Improve writing"), prompt: "Improve the writing of the quoted excerpt: make it clearer and smoother while keeping the meaning and language." },
+  { label: msg("Fix spelling & grammar"), prompt: "Fix spelling and grammar mistakes in the quoted excerpt. Do not change the wording otherwise." },
+  { label: msg("Make it shorter"), prompt: "Make the quoted excerpt shorter without losing the key points." },
+  { label: msg("Explain"), prompt: "Explain the quoted excerpt clearly in the same language. Do not edit the note unless asked." },
+  { label: msg("Translate"), prompt: "Translate the quoted excerpt naturally into English (or into the note's main language if it is already English). Do not edit the note unless asked." },
+] as const;
+
+const ACTION_LABEL_BY_PROMPT = new Map<string, string>([...QUICK_ACTIONS, ...SELECTION_ACTIONS].map((action) => [action.prompt, action.label]));
+
 // ノートの AI パネルで会話が増えた・進んだことを、Chats の一覧（/app のサイドバー）へ知らせるイベント。
 export const NOTE_CHAT_SAVED_EVENT = "notefable:note-chat-saved";
 
@@ -48,10 +60,13 @@ export const NOTE_CHAT_SAVED_EVENT = "notefable:note-chat-saved";
 type NoteChat = { id: string; title: string; updatedAt: string };
 
 // 保存された会話を読み直すとき、定型ボタンで送った長い指示文は、送ったときと同じ短い名前に戻して見せる。
+// 選んだ範囲に対するボタンは「引用 + 指示文」で保存されるので、引用は残して指示文だけ戻す。
 export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string): Message[] {
   return messages.map((message) => {
-    const action = message.role === "USER" ? QUICK_ACTIONS.find((item) => item.prompt === message.content) : undefined;
-    return action ? { ...message, content: t(action.label) } : message;
+    if (message.role !== "USER") return message;
+    const { quote, body } = splitQuotedMessage(message.content);
+    const label = ACTION_LABEL_BY_PROMPT.get(body.trim());
+    return label ? { ...message, content: composeQuotedMessage(quote, t(label)) } : message;
   });
 }
 
@@ -123,7 +138,7 @@ async function streamChat(
 // ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
 // ノートは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。
 // 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ノートの編集には使わない）。
-export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false }: {
+export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false }: {
   noteId: string;
   noteTitle: string;
   model: string;
@@ -135,6 +150,13 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   flush: () => Promise<boolean>;
   // Android アプリの /note-embed。アプリ内ではウェブの決済（Stripe）に誘導しない（Google Play のルール）。
   embedded?: boolean;
+  // エディターの書式ツールバー「Ask AI」から渡された選択テキスト。
+  selection?: string | null;
+  onClearSelection?: () => void;
+  // 増えるたびにパネルを開いて入力欄へフォーカスする。
+  openSignal?: number;
+  // 分割表示（チャットと並べて表示）時は右下の丸いボタンを隠す。
+  hidden?: boolean;
 }) {
   const { t, tag } = useI18n();
   const [open, setOpen] = useState(false);
@@ -194,7 +216,13 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const guestLimitHitRef = useRef(false);
   const inputValueRef = useRef("");
   inputValueRef.current = input;
-  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? inputValueRef.current : null));
+  // 選んだ範囲はこの画面の状態で、再読み込みやノートの切り替えで消える。預けるときは引用として本文に入れ、
+  // 戻したあと「これを書き直して」がノート全体に向かないようにする。
+  const selectionRef = useRef(selection);
+  selectionRef.current = selection;
+  const draftToKeep = (text: string) => (text.trim() ? composeQuotedMessage(selectionRef.current, text) : "");
+  const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null));
+  const lastOpenSignalRef = useRef(openSignal);
   const [seconds, setSeconds] = useState(0);
   const sessionId = useRef("");
   // 保存の完了待ちも含めて、送信中は次の送信を受け付けない（連打で会話が 2 つできないように）。
@@ -268,9 +296,21 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // スマホでは、持ち手を下へ引いて閉じられる。
   const { attach, bind } = useSwipeDismiss<HTMLDivElement>({ axis: "y", direction: 1, onDismiss: close });
 
+  // 「Ask AI」で範囲が渡されたら、パネルを開いて入力欄へ。
+  useEffect(() => {
+    if (openSignal !== lastOpenSignalRef.current) {
+      lastOpenSignalRef.current = openSignal;
+      if (openSignal > 0 && !hidden) {
+        setOpen(true);
+        setHistoryOpen(false);
+        if (!phone) queueMicrotask(() => inputRef.current?.focus());
+      }
+    }
+  }, [openSignal, hidden, phone]);
+
   useEffect(() => {
     if (open && !phone) inputRef.current?.focus();
-  }, [open, phone]);
+  }, [open, phone, selection]);
 
   // 新しい発言や回答が増えたら下へ送る。ただし、読み返すために上へ戻っている間は動かさない。
   useEffect(() => {
@@ -296,12 +336,18 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // 待っている間の秒数表示。
   useEffect(() => {
     // 上限の案内からログインして戻ってきたら、このノートで送れなかった本文を入力欄へ戻す。
+    // 分割表示で隠れている間は取り出さない（見えない入力欄に入れると、預けた本文が失われる）。
+    if (hidden) return;
     const pending = takePendingDraft(`note:${noteId}`);
     if (!pending) return;
     // 戻した本文は、送るか消すまで次に離れるときも預け続ける。
     guestLimitHitRef.current = true;
+    // 預けた本文に引用として入っている範囲が画面にも残っていたら（パネルを閉じて開き直したとき）、二重に送らないよう画面の方を外す。
+    const kept = selectionRef.current?.trim();
+    if (kept && pending.startsWith(composeQuotedMessage(kept, ""))) onClearSelection?.();
     queueMicrotask(() => setInput((current) => current || pending));
-  }, [noteId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ノートが変わったとき（と、隠れていたパネルが出たとき）に 1 回だけ取り出す。
+  }, [noteId, hidden]);
 
   useEffect(() => {
     if (!streaming) return;
@@ -380,6 +426,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     resetChat();
     setError("");
     setHistoryOpen(false);
+    onClearSelection?.();
     if (!phone) inputRef.current?.focus();
   }
 
@@ -456,10 +503,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   async function send(text: string, display?: string) {
     const content = text.trim();
     if (!content || sending.current || loadingRef.current) return;
+    // 選んだ範囲があれば、引用として発言の先頭に付けて送る。
+    const activeSelection = selection?.trim() || "";
+    const payloadText = activeSelection ? composeQuotedMessage(activeSelection, content) : content;
+    const displayText = activeSelection ? composeQuotedMessage(activeSelection, display ?? content) : (display ?? content);
     const sentFiles = display === undefined ? files : [];
     const sentPages = display === undefined ? attachedPages : [];
     const rawFiles = sentFiles.map(({ file }) => file);
-    const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
+    const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, payloadText, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
     if (problem) { setError(problem); flashOutcome("error"); return; }
     // この会話が Chats で回答を待っている間は、ここからは送らない（2 つの発言が同じ枝で重なる）。
@@ -506,7 +557,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     setMessages((current) => [
       ...current,
       {
-        id: crypto.randomUUID(), role: "USER", content: display ?? content,
+        id: crypto.randomUUID(), role: "USER", content: displayText,
         attachments: sentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
         ...(sentPages.length ? { pages: sentPages } : {}),
       },
@@ -517,11 +568,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     setSeconds(0);
     setStreaming(true);
     const body = new FormData();
-    body.append("message", content);
+    body.append("message", payloadText);
     body.append("model", model);
     body.append("reasoning", reasoning);
     body.append("webSearch", "off");
     body.append("noteId", noteId);
+    if (activeSelection) body.append("noteSelection", "1");
     if (sessionId.current) body.append("sessionId", sessionId.current);
     if (tickets.length) body.append("uploads", JSON.stringify(tickets));
     if (sentPages.length) body.append("pages", JSON.stringify(sentPages.map((page) => page.id)));
@@ -538,6 +590,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           savedId = id;
           notePanelTurns.add(id);
           accepted = true;
+          if (activeSelection) onClearSelection?.();
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
             setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));
@@ -560,7 +613,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       if (limited && caught.tier === "member" && !embedded) { guestLimitHitRef.current = true; setUpgradeLimit(true); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
-      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, text);
+      if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text);
       if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
       setMessages((current) => current.map((message) => message.id === assistantId
@@ -644,11 +697,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         {loadingChat ? <p className="note-ai-history-empty" role="status">{t("Loading…")}</p> : messages.length === 0 ? (
           <div className="note-ai-empty">
             <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
-            <div className="note-ai-chips">
+            {/* 範囲を選んでいる間は、範囲用のボタン（入力欄の上）だけを出す。 */}
+            {!selection && <div className="note-ai-chips">
               {QUICK_ACTIONS.map((action) => (
                 <button key={action.label} type="button" className="note-ai-chip" disabled={busy || loadingChat} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
-            </div>
+            </div>}
           </div>
         ) : messages.map((message) => (
           <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
@@ -657,11 +711,28 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       </div>
       )}
 
-      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, input)} />}
-      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
+      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">
+        {selection && (
+          <div className="note-ai-selection">
+            <div className="chat-quote note-ai-quote" role="group" aria-label={t("Selected text")}>
+              <span className="chat-quote-text">{selection}</span>
+              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => onClearSelection?.()}
+                aria-label={t("Remove selection")} title={t("Remove selection")}>
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="note-ai-chips note-ai-selection-chips">
+              {SELECTION_ACTIONS.map((action) => (
+                <button key={action.label} type="button" className="note-ai-chip is-compact" disabled={busy || loadingChat}
+                  onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {(attachedPages.length > 0 || files.length > 0) && (
           // 添付したノートとファイル。押すと外れる（チャットの入力欄と同じ）。
           <ul className="note-ai-attachments" aria-label={t("Attached pages")}>
@@ -711,6 +782,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       {pageDialogOpen && <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)} onAttach={(pages) => { setError(""); setAttachedPages(pages); }} />}
     </div>
   );
+
+  if (hidden) return null;
 
   return (
     <>

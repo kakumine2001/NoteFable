@@ -228,6 +228,11 @@ export const idServer: Record<string, string> = {
   "Invalid request body.": "Isi permintaan tidak valid.",
   "Invalid share settings.": "Pengaturan berbagi tidak valid.",
   "Expiration time must be in the future.": "Waktu kedaluwarsa harus di masa mendatang.",
+  "Import exceeds 4 MB.": "Impor melebihi 4 MB.",
+  "Select at least one Markdown file to import.": "Pilih setidaknya satu file Markdown untuk diimpor.",
+  "You can import up to {max} files at once.": "Anda dapat mengimpor maksimal {max} file sekaligus.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.",
+  "File is too long for one note: {name}": "File terlalu panjang untuk satu catatan: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Ikon catatan harus berupa satu emoji atau gambar yang diunggah.",
   "This icon image is no longer available. Choose another icon.": "Gambar ikon ini sudah tidak tersedia. Pilih ikon lain.",
 };

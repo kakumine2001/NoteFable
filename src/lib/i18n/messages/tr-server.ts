@@ -228,6 +228,11 @@ export const trServer: Record<string, string> = {
   "Invalid request body.": "Geçersiz istek gövdesi.",
   "Invalid share settings.": "Geçersiz paylaşım ayarları.",
   "Expiration time must be in the future.": "Son kullanma tarihi gelecekte olmalıdır.",
+  "Import exceeds 4 MB.": "İçe aktarma 4 MB sınırını aşıyor.",
+  "Select at least one Markdown file to import.": "İçe aktarmak için en az bir Markdown dosyası seçin.",
+  "You can import up to {max} files at once.": "Tek seferde en fazla {max} dosya içe aktarabilirsiniz.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Yalnızca Markdown (.md, .markdown, .txt) dosyaları içe aktarılabilir.",
+  "File is too long for one note: {name}": "Dosya tek bir not için çok uzun: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Not simgesi tek bir emoji veya yüklenmiş bir görsel olmalıdır.",
   "This icon image is no longer available. Choose another icon.": "Bu simge görseli artık kullanılamıyor. Başka bir simge seçin.",
 };

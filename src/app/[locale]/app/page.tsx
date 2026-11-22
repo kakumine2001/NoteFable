@@ -12,6 +12,8 @@ import {
   Menu,
   Paperclip,
   PanelLeft,
+  PanelRight,
+  PanelRightClose,
   Plus,
   Search,
   Square,
@@ -38,7 +40,7 @@ import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
 import { NoteShareDialog } from "@/components/note-share-dialog";
-import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
+import { ConfirmDialog, ImportTargetDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { ancestorsOf, descendantIdsOf } from "@/lib/note-tree";
 import { isPageShared, pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
@@ -47,6 +49,9 @@ import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
 import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { SplitNotePane } from "@/components/split-note-pane";
+import { recentPages } from "@/lib/notes-home-text";
+import { clampSplitRatio, DEFAULT_SPLIT_RATIO, loadSplitPreference, saveSplitPreference, SPLIT_VIEW_MEDIA_QUERY } from "@/lib/split-view";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent } from "@/lib/chat-activity";
@@ -152,7 +157,15 @@ export default function Home() {
   const { t, dir } = useI18n();
   const { defaultModel, getModelOption, options: modelOptions } = useModels();
   const [workspaceView, setWorkspaceView] = useState<WorkspaceView>("chat");
-  const notes = useNotePages(workspaceView === "pages");
+  // デスクトップ幅（1100px 以上）でのチャット＋ノート分割表示。初期値は静的描画とずれないよう描画後に localStorage から復元する。
+  const isSplitViewport = useMediaQuery(SPLIT_VIEW_MEDIA_QUERY);
+  const [splitOpen, setSplitOpen] = useState(false);
+  const [splitRatio, setSplitRatio] = useState(DEFAULT_SPLIT_RATIO);
+  const [splitHydrated, setSplitHydrated] = useState(false);
+  const splitPageIdRef = useRef<string | null>(null);
+  const splitShellRef = useRef<HTMLDivElement>(null);
+  const splitActive = workspaceView === "chat" && isSplitViewport && splitOpen;
+  const notes = useNotePages(workspaceView === "pages" || splitActive);
   // Notes でノートを開いていない間は、ホーム（NotesHome：最近のノートと一覧）を出す。URL に page= が無いことと対応させる。
   const [notesList, setNotesList] = useState(false);
 
@@ -278,6 +291,20 @@ export default function Home() {
     void notes.create(false, typeof parentId === "string" ? parentId : null).then(syncNotesList);
   }
 
+  // プロジェクトがある人には、取り込み先を尋ねてから取り込む（尋ねる前にファイルを確かめ、合わないものは先に断る）。
+  const [importingFiles, setImportingFiles] = useState<File[] | null>(null);
+  async function importMarkdownFiles(fileList: File[], groupId?: string | null) {
+    setSidebarOpen(false);
+    // 一覧の読み込みに失敗したままだと groups は空で、プロジェクトがあっても尋ねずに取り込んでしまう。読めるまで取り込まない。
+    if (groupId === undefined && !notes.ensureListLoaded()) return;
+    if (groupId === undefined && notes.groups.length > 0) {
+      if (fileList.length && notes.checkImportFiles(fileList)) setImportingFiles(fileList);
+      return;
+    }
+    const created = await notes.importMarkdown(fileList, groupId ?? null);
+    if (created.length) openNote(created[0].id);
+  }
+
   // 動かす予約を取り消す。別の会話・ノートを開いたときに、前の予約が後から効かないようにする。
   function cancelReveal() {
     revealRef.current = null;
@@ -290,8 +317,41 @@ export default function Home() {
     setRevealTick((value) => value + 1);
   }
 
-  // 検索結果・プロジェクトの参照元から、Chat と Notes のどちらにいても指定のノートを開く。blockId があればそのブロックまで動かす。
-  function openNoteFromLink(id: string, blockId?: string) {
+  useEffect(() => {
+    const pref = loadSplitPreference();
+    splitPageIdRef.current = pref.pageId;
+    queueMicrotask(() => {
+      setSplitOpen(pref.open);
+      setSplitRatio(pref.ratio);
+      setSplitHydrated(true);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!splitHydrated) return;
+    const remembered = notes.activeId ?? splitPageIdRef.current;
+    if (notes.activeId) splitPageIdRef.current = notes.activeId;
+    saveSplitPreference({ open: splitOpen, pageId: remembered, ratio: splitRatio });
+  }, [splitHydrated, splitOpen, splitRatio, notes.activeId]);
+
+  // 分割表示を開いた直後、まだノートが選ばれていなければ前回開いていたノート（無ければ最近編集したノート）を開く。
+  // 同じノートを開こうとするのは 1 回だけ。読み込みに失敗しても loading が戻るたびに取り直し続けない（分割表示を開き直すとまた試す）。
+  const splitAutoOpenedRef = useRef<string | null>(null);
+  const selectNote = notes.select;
+  useEffect(() => {
+    if (!splitActive) { splitAutoOpenedRef.current = null; return; }
+    if (notes.activeId || notes.loading || !notes.pages.length) return;
+    const preferred = splitPageIdRef.current && notes.pages.some((page) => page.id === splitPageIdRef.current)
+      ? splitPageIdRef.current
+      : recentPages(notes.pages, 1)[0]?.id;
+    if (preferred && splitAutoOpenedRef.current !== preferred) {
+      splitAutoOpenedRef.current = preferred;
+      splitPageIdRef.current = preferred;
+      void selectNote(preferred, "none");
+    }
+  }, [splitActive, notes.activeId, notes.loading, notes.pages, selectNote]);
+
+  function openNoteFullView(id: string, blockId?: string) {
     cancelReveal();
     const url = new URL(window.location.href);
     url.searchParams.set("view", "pages");
@@ -314,6 +374,63 @@ export default function Home() {
       void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
+  }
+
+  function openNoteInSplit(id: string, blockId?: string) {
+    cancelReveal();
+    splitPageIdRef.current = id;
+    setSplitOpen(true);
+    if (notes.activeId !== id) {
+      void notes.select(id, "none");
+    }
+    if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
+  }
+
+  function toggleSplitView() {
+    if (splitOpen) {
+      void notes.active?.flush();
+      setSplitOpen(false);
+      return;
+    }
+    setSplitOpen(true);
+  }
+
+  function createNoteInSplit(parentId?: string) {
+    cancelReveal();
+    void notes.create(false, typeof parentId === "string" ? parentId : null);
+  }
+
+  // 分割表示の仕切りをドラッグして幅の比率を変える。RTL では左右の方向を反転する。
+  function onSplitDividerPointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0 || !splitShellRef.current) return;
+    event.preventDefault();
+    const target = event.currentTarget;
+    target.setPointerCapture(event.pointerId);
+    const shell = splitShellRef.current;
+    const onMove = (moveEvent: PointerEvent) => {
+      const rect = shell.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const fromEnd = dir === "rtl" ? moveEvent.clientX - rect.left : rect.right - moveEvent.clientX;
+      setSplitRatio(clampSplitRatio(fromEnd / rect.width));
+    };
+    const onEnd = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onEnd);
+      window.removeEventListener("pointercancel", onEnd);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onEnd);
+    window.addEventListener("pointercancel", onEnd);
+  }
+
+  // 検索結果・プロジェクトの参照元から、Chat と Notes のどちらにいても指定のノートを開く。blockId があればそのブロックまで動かす。
+  // 広いデスクトップ画面でチャットを見ているときは、会話を閉じずに右側の分割パネルで開く。
+  function openNoteFromLink(id: string, blockId?: string) {
+    if (workspaceView === "chat" && isSplitViewport) {
+      openNoteInSplit(id, blockId);
+      return;
+    }
+    openNoteFullView(id, blockId);
   }
 
   // 検索結果・プロジェクトの参照元から会話を開く。messageId があれば、読み込み後にそのメッセージまで動かす。
@@ -817,6 +934,24 @@ export default function Home() {
     inputRef.current?.focus();
   }
 
+  // 分割表示の右側ノートで「Ask AI」を押したとき：選択抜粋を左チャットの引用に入れ、そのノートも添付する。
+  function askSplitNoteSelectionInChat(text: string) {
+    // 添付の送信中は引用も入らない（quoteSelection）。ノートだけ添付に足さない。
+    if (uploadProgress) return;
+    quoteSelection(text);
+    // 画像の作成はノートを添付できない（送信時に断られる）ので、引用だけ入れる。
+    if (imageGenerationMode) return;
+    const id = notes.activeId;
+    if (!id) return;
+    const summary = notes.pages.find((page) => page.id === id);
+    const title = notes.active?.content.title.trim() || summary?.title || "Untitled";
+    const icon = notes.active?.content.icon ?? summary?.icon ?? null;
+    setAttachedPages((current) => {
+      if (current.some((item) => item.id === id) || current.length >= MAX_MESSAGE_NOTES) return current;
+      return [...current, { id, title, icon }];
+    });
+  }
+
   function hasDraggedFiles(event: React.DragEvent) {
     return Array.from(event.dataTransfer.types).includes("Files");
   }
@@ -1265,8 +1400,14 @@ export default function Home() {
     stopRequestedRef.current.delete(requestSessionKey);
     submittingSessionKeysRef.current.add(requestSessionKey);
 
-    let uploadedTickets: string[] = [];
+    // 保存を待つ間に別の会話へ移ったことも下の確認で分かるよう、待つ前に控える。
     const navigationIntent = sessionNavigationIntentRef.current;
+    // 分割表示の右側ノートに未保存の編集があれば、AI が最新の本文を読めるよう先に保存する（失敗しても送信は止めない）。
+    if (splitActive && notes.active?.dirty) {
+      await notes.active.flush().catch(() => {});
+    }
+
+    let uploadedTickets: string[] = [];
     try {
       if (submittedFiles.length) setUploadProgress(msg("Preparing attachments…"));
       uploadedTickets = await uploadChatFiles(submittedFiles.map(({ file }) => file), (name, index, total, percentage) => {
@@ -1918,7 +2059,7 @@ export default function Home() {
     }
     if (request.kind === "chat") {
       if (workspaceView !== "chat" || activeSessionId !== request.sessionId) return;
-    } else if (workspaceView !== "pages" || notesList || notes.loading || !notes.active || notes.activeId !== request.noteId) return;
+    } else if ((!splitActive && (workspaceView !== "pages" || notesList)) || notes.loading || !notes.active || notes.activeId !== request.noteId) return;
     revealRef.current = null;
     revealAbortRef.current?.abort();
     const controller = new AbortController();
@@ -1932,7 +2073,7 @@ export default function Home() {
       const scroller = chatScrollRef.current;
       if (!found && !controller.signal.aborted && scroller) scroller.scrollTop = scroller.scrollHeight;
     });
-  }, [revealTick, workspaceView, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
+  }, [revealTick, workspaceView, splitActive, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
 
   // プロジェクトの参照ノートのチップなどが投げる "notefable:open-note" / "notefable:open-chat" を、検索結果と同じ開き方に流す。
   // ノートの AI パネルで会話が増えた・進んだとき。一覧を読み直し、その会話をここでも開いていたら（読み込み済みなら）発言も読み直す。
@@ -2091,7 +2232,7 @@ export default function Home() {
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notesList ? null : notes.activeId} busy={notes.busy || notes.loading}
       home={notesList} onHome={() => { setSidebarOpen(false); openNotesList(); }}
-      onCreate={(parentId) => { setSidebarOpen(false); createNote(parentId); }} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onCreate={(parentId) => { setSidebarOpen(false); createNote(parentId); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
@@ -2123,7 +2264,7 @@ export default function Home() {
   const trashingNote = trashingNoteId ? notes.pages.find((page) => page.id === trashingNoteId) : undefined;
 
   // 履歴の小窓は、開いたノートが今も表示中のときだけ出す。復元は、このノートの保存キュー（版を持つ）を通して行う。
-  const historyQueue = workspaceView === "pages" && historyNoteId === notes.activeId ? notes.active : undefined;
+  const historyQueue = (workspaceView === "pages" || splitActive) && historyNoteId === notes.activeId ? notes.active : undefined;
 
   // メッセージがない時は中央を空け、入力フォームを下部に大きく見せる。
   const emptyState = messages.length === 0;
@@ -2188,7 +2329,8 @@ export default function Home() {
         </div>
       )}
 
-      <section className="notion-page" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
+      <div ref={splitShellRef} className="workspace-split-shell" style={splitActive ? ({ "--split-ratio": String(splitRatio) } as React.CSSProperties) : undefined}>
+      <section className="notion-page workspace-split-chat" inert={sidebarOpen} {...(workspaceView === "chat" ? fileDropHandlers : {})}>
         {fileDragActive && workspaceView === "chat" && (
           <div className="chat-drop-overlay" aria-hidden="true">
             <div><Paperclip size={22} /><span>{t("Drop files to attach")}</span></div>
@@ -2245,6 +2387,12 @@ export default function Home() {
               aria-label={t("Search chats and notes")} title={t("Search (Ctrl+K)")} aria-haspopup="dialog">
               <Search size={20} />
             </button>
+            {workspaceView === "chat" && isSplitViewport && (
+              <button type="button" className={`notion-icon-button grid${splitOpen ? " is-active" : ""}`} onClick={toggleSplitView}
+                aria-pressed={splitOpen} aria-label={splitOpen ? t("Close split view") : t("Split view")} title={splitOpen ? t("Close split view") : t("Split view")}>
+                {splitOpen ? <PanelRightClose size={20} className="rtl-mirror" /> : <PanelRight size={20} className="rtl-mirror" />}
+              </button>
+            )}
             {workspaceView === "chat" && !emptyState && (
               <button type="button" className="notion-icon-button grid lg:hidden" onClick={() => void createSession()}
                 aria-label={t("New chat")} title={t("New chat")}>
@@ -2282,13 +2430,15 @@ export default function Home() {
                 onDuplicate={() => void notes.duplicate(activeSummary.id)}
                 onAddSubpage={() => createNote(activeSummary.id)}
                 onMove={() => setMovingNoteId(activeSummary.id)}
+                onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => setTrashingNoteId(activeSummary.id)} />
             )}
           </div>
         </header>
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
-          <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onWorkspaceChange={changeWorkspace} />
+          {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}
@@ -2368,7 +2518,7 @@ export default function Home() {
             <button
               type="button"
               onClick={scrollChatToBottom}
-              className="notion-icon-button grid bg-white shadow-[var(--notion-shadow)]"
+              className="notion-icon-button grid bg-[var(--notion-surface)] shadow-[var(--notion-shadow)]"
               aria-label={t("Scroll to bottom")}
               title={t("Scroll to bottom")}
             >
@@ -2625,6 +2775,43 @@ export default function Home() {
         </div>
         </div>
       </section>
+      {splitActive && (
+        <>
+          <div
+            role="separator"
+            tabIndex={0}
+            aria-orientation="vertical"
+            aria-label={t("Resize split view")}
+            aria-valuemin={30}
+            aria-valuemax={65}
+            aria-valuenow={Math.round(splitRatio * 100)}
+            className="workspace-split-divider"
+            onPointerDown={onSplitDividerPointerDown}
+            onDoubleClick={() => setSplitRatio(DEFAULT_SPLIT_RATIO)}
+            onKeyDown={(event) => {
+              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+              event.preventDefault();
+              const delta = (event.key === "ArrowLeft" ? 0.03 : -0.03) * (dir === "rtl" ? -1 : 1);
+              setSplitRatio((current) => clampSplitRatio(current + delta));
+            }}
+          />
+          <SplitNotePane
+            notes={notes}
+            model={model}
+            reasoning={reasoning}
+            onSelectNote={(id) => openNoteInSplit(id)}
+            onCreateNote={createNoteInSplit}
+            onOpenFullView={(id) => openNoteFullView(id)}
+            onOpenHistory={(id) => setHistoryNoteId(id)}
+            onMoveNote={(id) => setMovingNoteId(id)}
+            onExportNote={(id) => void notes.exportPage(id)}
+            onTrashNote={(id) => setTrashingNoteId(id)}
+            onAskSelectionInChat={askSplitNoteSelectionInChat}
+            onClose={() => { void notes.active?.flush(); setSplitOpen(false); }}
+          />
+        </>
+      )}
+      </div>
 
       <SearchDialog open={searchOpen} onClose={() => setSearchOpen(false)} view={workspaceView}
         onOpenChat={(id, messageId) => void openChatFromLink(id, messageId)} onOpenNote={openNoteFromLink}
@@ -2633,6 +2820,8 @@ export default function Home() {
         <CreatePageDialog key={createPageSessionId} sessionId={createPageSessionId} model={model}
           busy={createPageSessionId === activeSession?.id && isActiveSessionBusy} onClose={() => setCreatePageSessionId(null)} />
       )}
+      {importingFiles && <ImportTargetDialog groups={notes.groups} onClose={() => setImportingFiles(null)}
+        onChoose={(groupId) => { const files = importingFiles; setImportingFiles(null); void importMarkdownFiles(files, groupId); }} />}
       {movingNote && <MoveNoteDialog page={movingNote} groups={notes.groups} error={notes.groupError} pages={notes.pages}
         onMove={notes.moveNote} onMoveToPage={notes.moveToPage} onCreateGroup={notes.createGroup} onClose={() => setMovingNoteId(null)} />}
       {trashingNote && <ConfirmDialog title={t("Move note to Trash?")} confirmLabel={t("Move to Trash")} error={notes.error} onClose={() => setTrashingNoteId(null)}

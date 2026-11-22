@@ -289,8 +289,8 @@ fun ComposerError(text: String, modifier: Modifier = Modifier) {
     Text(
         text,
         modifier = modifier.fillMaxWidth().padding(bottom = 12.dp).clip(RoundedCornerShape(4.8.dp))
-            .background(Color(0xA6FFE2DD)).padding(horizontal = 10.4.dp, vertical = 8.8.dp),
-        color = Color(0xFF933B34),
+            .background(Sm.ErrorBg).padding(horizontal = 10.4.dp, vertical = 8.8.dp),
+        color = Sm.ErrorText,
         fontSize = 12.8.sp,
         lineHeight = 19.2.sp,
     )
@@ -363,7 +363,7 @@ fun ComposerStatus(files: List<LocalFile>, upload: UploadProgress?, modifier: Mo
 fun ImageModeChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
     val label = stringResource(R.string.image_mode_off)
     Row(
-        modifier.padding(start = 4.dp).height(32.dp).clip(CircleShape).background(Color(0x1F2383E2))
+        modifier.padding(start = 4.dp).height(32.dp).clip(CircleShape).background(Sm.pick(Color(0x1F2383E2), Sm.AccentSoft))
             .clickable(onClick = onClick).padding(horizontal = 11.2.dp)
             .semantics(mergeDescendants = true) { contentDescription = label; role = Role.Button },
         verticalAlignment = Alignment.CenterVertically,
@@ -453,9 +453,9 @@ fun AttachSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
-        containerColor = Color.White,
+        containerColor = Sm.Surface,
         shape = RoundedCornerShape(topStart = 17.6.dp, topEnd = 17.6.dp),
-        scrimColor = Color(0x590F0F0F),
+        scrimColor = Sm.scrim(Color(0x590F0F0F)),
         tonalElevation = 0.dp,
         dragHandle = {
             Box(Modifier.padding(top = 12.dp, bottom = 8.dp).size(width = 40.dp, height = 4.dp).clip(CircleShape).background(Sm.SheetGrab))
@@ -534,7 +534,7 @@ private fun AttachRow(
 fun GeneratingImagePreview(modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(5.6.dp)
     val motion = rememberInfiniteTransition(label = "generating-image")
-    Column(modifier.widthIn(max = 448.dp).fillMaxWidth().clip(shape).background(Color.White).border(1.dp, Sm.BorderStrong, shape)) {
+    Column(modifier.widthIn(max = 448.dp).fillMaxWidth().clip(shape).background(Sm.Surface).border(1.dp, Sm.BorderStrong, shape)) {
         Row(
             Modifier.fillMaxWidth().heightIn(min = 56.dp)
                 .drawBehind { drawLine(Sm.Border, Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx()) }
@@ -583,7 +583,7 @@ fun GeneratingImagePreview(modifier: Modifier = Modifier) {
                 val sheen = -size.width + sweep * 2 * size.width
                 drawRect(
                     Brush.linearGradient(
-                        0.28f to Color.Transparent, 0.48f to Color(0xB3FFFFFF), 0.68f to Color.Transparent,
+                        0.28f to Color.Transparent, 0.48f to Sm.pick(Color(0xB3FFFFFF), Color(0x14FFFFFF)), 0.68f to Color.Transparent,
                         start = Offset(sheen, 0f), end = Offset(sheen + size.width, size.height * 0.18f),
                     ),
                 )

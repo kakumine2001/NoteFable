@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "No matching pages.";
 "pg_subpages_to_trash" = "Its sub-pages move to Trash with it.";
 
+/* strings_personal.xml */
+"appearance" = "Appearance";
+"theme_system" = "System";
+"theme_light" = "Light";
+"theme_dark" = "Dark";
+"export_markdown" = "Export Markdown";
+"import_markdown" = "Import Markdown";
+"note_export_failed" = "Could not export the page.";
+"note_export_unsaved" = "Resolve the unsaved draft before exporting this page.";
+"note_import_failed" = "Could not import Markdown files.";
+"note_import_too_many" = "You can import up to %1$d files at once.";
+"note_import_bad_type" = "Only Markdown (.md, .markdown, .txt) files can be imported.";
+"note_import_file_too_large" = "Note content exceeds 1 MiB.";
+"note_import_too_large" = "Import exceeds 4 MB.";
+"import_to" = "Import to";
+
 /* strings_plan.xml */
 "plan_title" = "Plan";
 "plan_pro" = "Pro";

@@ -1,6 +1,7 @@
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { MAX_MATH_LATEX } from "@/lib/note-document";
 import { isNoteImageUrl, noteFileUrlName } from "@/lib/note-file-keys";
+import { mentionFromHref, mentionHref, mentionText, type MentionProps } from "@/lib/note-mention";
 // BlockNote のブロック JSON と Markdown の相互変換。チャットのツールがページを読む（JSON → Markdown）、
 // 編集案を作る（Markdown → JSON）ために使う。対応するのは note-document.ts が検証する範囲のブロックだけ。
 
@@ -15,7 +16,8 @@ export type NoteBlock = {
 type InlineNode =
   | { type: "text"; text: string; styles: Record<string, boolean> }
   | { type: "link"; href: string; content: InlineNode[] }
-  | { type: "mathInline"; props: { latex: string } };
+  | { type: "mathInline"; props: { latex: string } }
+  | { type: "mention"; props: MentionProps };
 type Styles = Record<string, boolean>;
 
 type Inline = { type?: unknown; text?: unknown; styles?: unknown; content?: unknown; href?: unknown; props?: unknown };
@@ -336,6 +338,12 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPre
       const nextIsMath = typeof nextLatex === "string" && nextLatex.trim().length > 0;
       return rendered && nextIsMath ? `${rendered} ` : rendered;
     }
+    if (entry?.type === "mention" && entry.props && typeof entry.props === "object") {
+      // ページは [@タイトル](page:ID)、日付は [@YYYY-MM-DD](date:YYYY-MM-DD)。parseInline が読み戻す。
+      const props = entry.props as Record<string, unknown>;
+      const text = mentionText(props);
+      return plain ? text : cell(`[${escapeText(text)}](${mentionHref(props)})`);
+    }
     if (entry?.type !== "text" || typeof entry.text !== "string") return "";
     if (plain) return entry.text;
     if (!entry.text.trim()) return cell(entry.text);
@@ -368,8 +376,13 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       const code = inlineToMarkdown(block.content, true);
       const language = typeof props.language === "string" ? props.language : "";
       // 本文に ``` が含まれても閉じられないよう、中のバッククォート列より長い囲みにする。
-      const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map((run) => run[0].length + 1)));
-      lines.push(`${indent}${label}${fence}${language}`, ...code.split("\n").map((line) => indent + line), `${indent}${fence}`);
+      // 何十万行にもなるコードがあるので、行やバッククォート列を引数に展開しない（引数の数の上限で RangeError になる）。
+      let longest = 0;
+      for (const run of code.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
+      const fence = "`".repeat(Math.max(3, longest + 1));
+      lines.push(`${indent}${label}${fence}${language}`);
+      for (const line of code.split("\n")) lines.push(indent + line);
+      lines.push(`${indent}${fence}`);
     } else if (block.type === "divider") {
       lines.push(`${indent}${label}---`);
     } else if (block.type === "mathBlock") {
@@ -592,6 +605,11 @@ const WRAPPERS: { mark: string; styles: Styles }[] = [
 const UNESCAPE = /[\\`*~[\]()#>.+_$▸-]/;
 const MAX_INLINE_DEPTH = 6;
 
+// メンションの表示文字（[ ] の中）から \ の退避を外す。
+function unescapeLabel(text: string) {
+  return text.replace(/\\(.)/g, "$1");
+}
+
 // **太字** *斜体* ***両方*** ~~取り消し~~ `コード` [リンク](URL) だけを解釈する。それ以外は文字のまま残す。
 function parseInline(src: string, styles: Styles = {}, allowLinks = true, depth = 0): InlineNode[] {
   const out: InlineNode[] = [];
@@ -631,6 +649,14 @@ function parseInline(src: string, styles: Styles = {}, allowLinks = true, depth 
       const close = finder.find("]", i + 1);
       const paren = close > i + 1 && src[close + 1] === "(" ? finder.find(")", close + 2) : -1;
       const href = paren > close ? src.slice(close + 2, paren) : "";
+      // 宛先がメンションのときだけ表示文字の退避を外す（長い行で毎回ラベルを作り直さない）。
+      const mention = /^(?:page|date):/.test(href) ? mentionFromHref(href, unescapeLabel(src.slice(i + 1, close))) : null;
+      if (mention) {
+        flush();
+        out.push(mention);
+        i = paren + 1;
+        continue;
+      }
       if (href && !/\s/.test(href) && safeHref(href)) {
         flush();
         out.push({ type: "link", href, content: parseInline(src.slice(i + 1, close), styles, false, depth + 1) });

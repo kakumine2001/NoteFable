@@ -112,10 +112,10 @@ struct NotesInkButton: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                LucideIcon(Lucide.plus, size: 16, color: .white)
+                LucideIcon(Lucide.plus, size: 16, color: Sm.onInk)
                 Text(title)
                     .font(.nf(14, weight: 550))
-                    .foregroundStyle(Color.white)
+                    .foregroundStyle(Sm.onInk)
                     .lineLimit(1)
             }
             .padding(.horizontal, 12)

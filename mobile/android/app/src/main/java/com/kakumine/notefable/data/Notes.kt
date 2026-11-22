@@ -88,6 +88,14 @@ data class NotePageSettings(val fullWidth: Boolean? = null, val smallText: Boole
 /** POST /api/pages/:id/duplicate：复制后的最上层页面、所有复制件、全部笔记的新 position。 */
 data class DuplicateResult(val page: NotePageSummary, val pages: List<NotePageSummary>, val order: List<NoteOrderUpdate>)
 
+/** GET /api/pages/:id/export：一篇笔记的 Markdown 文件（"# 标题 + 正文"），和 /api/sessions/:id/export 同一形状。 */
+@Serializable
+data class ExportedNote(val fileName: String = "", val markdown: String = "")
+
+/** POST /api/pages/import 的一个文件：文件名（没有一级标题时去掉扩展名当标题）和全文。 */
+@Serializable
+data class ImportMarkdownFile(val name: String, val markdown: String)
+
 @Serializable
 data class NoteGroupSummary(val id: String, val name: String, val position: Int = 0)
 
@@ -181,11 +189,21 @@ interface NotesBackend {
     /** 清空回收站；[before] 是确认时看到的最新一条的 deletedAt，确认后别处新扔的不会被删。 */
     suspend fun emptyTrash(before: String)
 
+    /** 导出一篇笔记的 Markdown（`GET /api/pages/:id/export`，读的是已保存的内容）。 */
+    suspend fun exportNote(id: String): ExportedNote
+
     /**
-     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…`）。
-     * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
+     * 把 Markdown 文件导入成笔记（`POST /api/pages/import`，每个文件一篇，放在最上层），返回新建的笔记。
+     * [groupId] 是放进哪个项目，null 表示不进项目；不是自己的项目时服务端回 404。
      */
-    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null): String
+    suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String? = null): List<NotePageSummary>
+
+    /**
+     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
+     * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
+     * [theme] 是 App 现在实际的外观（`light` / `dark`），网页第一帧就按它画（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
+     */
+    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null): String
 }
 
 /**
@@ -217,6 +235,8 @@ sealed interface EmbedMessage {
     data class SaveState(val state: String) : EmbedMessage
     data object Missing : EmbedMessage
     data object Trashed : EmbedMessage
+    /** 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。 */
+    data class OpenPage(val id: String) : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
     data class Flushed(val requestId: String, val ok: Boolean, val kept: Boolean = false) : EmbedMessage
 
@@ -234,6 +254,7 @@ sealed interface EmbedMessage {
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)
                 "missing" -> Missing
                 "trashed" -> Trashed
+                "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,

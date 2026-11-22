@@ -59,7 +59,7 @@ internal fun ChatRecentNotes(
                 Box {
                     Column(
                         Modifier.width(152.dp).heightIn(min = 101.dp).alpha(if (canToggle) 1f else .55f)
-                            .shadow(1.dp, shape).background(Color.White)
+                            .shadow(1.dp, shape).background(Sm.Surface)
                             .background(if (attached) Sm.AccentSoft else Color.Transparent)
                             .border(1.dp, if (attached) Sm.AccentLine else Sm.Border, shape)
                             .toggleable(value = attached, enabled = canToggle, role = Role.Checkbox) {

@@ -3,13 +3,14 @@ import SwiftUI
 // 笔记首页（网页 NotesHome，手机；Android ui/NotesUi.kt 的 NotesHome）：没有打开笔记时显示。左右 24、下 96；顶部 Chat / Note 切换（上距 4）；
 // “Notes”32 / 750、行高 48、字距 −0.04em，上 8 下 12；项目小标题 13 / 600 灰 + 数量 13 浅灰，外边距 20 / 4 / 4；
 // 每行最小高 56、下边 1px 线；图标区 28（表情 20 / 文件图标 20 浅灰）、间距 13.6、标题 17 / 500、日期 13 灰；
-// 右侧 44×48 的“移到项目”（图标 18 浅灰）。下面“新笔记”（高 40、圆角 8、墨色）和“新项目”（高 40 文字按钮）。
+// 右侧 44×48 的“移到项目”（图标 18 浅灰）。下面“新笔记”（高 40、圆角 8、墨色）、“新项目”和“导入 Markdown”（高 40 文字按钮），放不下就换行。
 // 笔记行长按后可以拖动排序；标题“Notes”和“No project”小标题是“移出项目”的投放区，项目小标题是“移进项目”的。
 
 @MainActor
 struct NotesHomeView: View {
     @Binding private var dialog: NotesDialogState?
     @State private var reorder = ReorderDragController()
+    @State private var importing = false
     @Environment(AppEnvironment.self) private var app
 
     init(dialog: Binding<NotesDialogState?>) {
@@ -37,10 +38,10 @@ struct NotesHomeView: View {
                         .padding(.bottom, 16)
                 } else if nothing {
                     if state.error == nil && state.loaded {
-                        NotesEmptyView(busy: busy) { notes.createNote() }
+                        NotesEmptyView(busy: busy, onCreate: { notes.createNote() }, onImport: { importing = true })
                     }
                 } else {
-                    NotesHomeList(busy: busy, reorder: reorder, dialog: $dialog)
+                    NotesHomeList(busy: busy, reorder: reorder, onImport: { importing = true }, dialog: $dialog)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -54,6 +55,7 @@ struct NotesHomeView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .noteMarkdownImporter(isPresented: $importing)
     }
 }
 
@@ -63,6 +65,7 @@ struct NotesHomeView: View {
 private struct NotesHomeList: View {
     let busy: Bool
     let reorder: ReorderDragController
+    let onImport: () -> Void
     @Binding var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
     @Environment(\.layoutDirection) private var layoutDirection
@@ -136,27 +139,16 @@ private struct NotesHomeList: View {
         }
     }
 
-    /// “新笔记”和“新项目”：上距 8、间距 8。
+    /// “新笔记”“新项目”“导入 Markdown”（.notes-home-actions）：上距 8、间距 8，一行放不下就换行（flex-wrap）。
     private var buttons: some View {
         let notes = app.notes
-        return HStack(spacing: 8) {
+        return ChatFlowLayout(spacing: 8, lineSpacing: 8) {
             NotesInkButton(L("new_note"), height: 40) { notes.createNote() }
                 .disabled(busy)
-            Button {
-                dialog = .newGroup
-            } label: {
-                HStack(spacing: 6.4) {
-                    LucideIcon(Lucide.folderPlus, size: 16, color: Sm.text)
-                    Text(L("new_project"))
-                        .font(.nf(12.8, weight: 500))
-                        .foregroundStyle(Sm.text)
-                        .lineLimit(1)
-                }
-                .padding(.horizontal, 12)
-                .frame(height: 40)
-            }
-            .buttonStyle(.pressable(scale: 0.97))
-            .disabled(busy)
+            NotesHomeTextButton(icon: Lucide.folderPlus, title: L("new_project")) { dialog = .newGroup }
+                .disabled(busy)
+            NotesHomeTextButton(icon: Lucide.upload, title: L("import_markdown"), action: onImport)
+                .disabled(busy)
         }
         .padding(.top, 8)
     }
@@ -346,11 +338,13 @@ private struct NotesHomeFavoriteItem: View {
 
 /// 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
 /// “Notes”40 / 750、行高 50、字距 −0.04em，上距 16；说明 15 / 24 灰（“/”是等宽小键帽），上距 8；
-/// “新笔记”高 32、圆角 8、上距 24；最下面 12 / 20 浅灰的存储说明，上距 40、最宽 384。
+/// “新笔记”（高 32、圆角 8）和“导入 Markdown”（高 40 文字按钮）并排居中、间距 10、上距 24，一行放不下就上下排；
+/// 最下面 12 / 20 浅灰的存储说明，上距 40、最宽 384。
 @MainActor
 private struct NotesEmptyView: View {
     let busy: Bool
     let onCreate: () -> Void
+    let onImport: () -> Void
     @Environment(\.layoutDirection) private var layoutDirection
 
     var body: some View {
@@ -369,9 +363,17 @@ private struct NotesEmptyView: View {
                 .foregroundStyle(Sm.muted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
-            NotesInkButton(L("new_note"), height: 32, action: onCreate)
-                .disabled(busy)
-                .padding(.top, 24)
+            // 网页：flex flex-wrap items-center justify-center gap-2.5。
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 10) {
+                    actions
+                }
+                VStack(spacing: 10) {
+                    actions
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 24)
             Text(L("notes_storage_hint"))
                 .font(.nf(12))
                 .nfLineHeight(20, fontSize: 12)
@@ -381,6 +383,14 @@ private struct NotesEmptyView: View {
                 .padding(.top, 40)
         }
         .padding(.top, 120)
+    }
+
+    @ViewBuilder
+    private var actions: some View {
+        NotesInkButton(L("new_note"), height: 32, action: onCreate)
+            .disabled(busy)
+        NotesHomeTextButton(icon: Lucide.upload, title: L("import_markdown"), action: onImport)
+            .disabled(busy)
     }
 
     /// 说明文里的占位符换成“/”键帽：等宽 13、浅灰底（--notes-code-bg）。

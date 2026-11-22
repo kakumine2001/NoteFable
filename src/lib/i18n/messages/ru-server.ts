@@ -228,6 +228,11 @@ export const ruServer: Record<string, string> = {
   "Invalid request body.": "Некорректное тело запроса.",
   "Invalid share settings.": "Некорректные настройки доступа.",
   "Expiration time must be in the future.": "Срок действия должен быть в будущем.",
+  "Import exceeds 4 MB.": "Импорт превышает 4 МБ.",
+  "Select at least one Markdown file to import.": "Выберите хотя бы один файл Markdown для импорта.",
+  "You can import up to {max} files at once.": "За раз можно импортировать не более {max} файлов.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Импортировать можно только файлы Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "Файл слишком длинный для одной заметки: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Значок заметки должен быть одним эмодзи или загруженным изображением.",
   "This icon image is no longer available. Choose another icon.": "Это изображение значка больше недоступно. Выберите другой значок.",
 };

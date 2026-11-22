@@ -348,14 +348,17 @@ private struct ReorderErrorBubble: View {
             Text(text)
                 .font(.nf(12))
                 .nfLineHeight(16, fontSize: 12)
-                .foregroundStyle(Sm.danger)
+                // .list-reorder-error：--notion-surface 底、--nf-danger 的字；深色是 --nf-error-bg 底、--nf-error-text 的字
+                // （半透明的红底垫在 --notion-surface 上，免得透出下面的行）。
+                .foregroundStyle(Color(light: 0xFFB91C1C, dark: 0xFFFCA5A5))
                 .multilineTextAlignment(.leading)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(6)
                 .frame(width: 220)
-                .background(Color.white)
+                .background(Color(light: 0x00FFFFFF, dark: 0x29EF4444))
+                .background(Sm.surface)
                 .overlay { Rectangle().strokeBorder(Sm.border, lineWidth: 1) }
         }
         .buttonStyle(.plain)

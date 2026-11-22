@@ -2,7 +2,7 @@ import Foundation
 
 // 原生和网页编辑器（/note-embed）之间的 JS 桥（Android ui/NoteEditor.kt 的 NoteEmbedBridge）。约定见 src/lib/native-bridge.ts：
 // 网页 → 原生：`window.NoteFableNative.postMessage(json)`；原生 → 网页：`window.notefableEmbed.flush(id)` / `openHistory()` /
-// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)`。
+// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)` / `theme(value)`。
 // WKWebView 本身在界面层，经 [NoteEditorBridge] 和这里说话；这里管消息的分发和"保存后再离开"的等待。
 
 /// 界面层的编辑器（WKWebView 的包装）要实现的几个调用，都是对网页执行一段脚本（[NoteEmbedScripts]）。
@@ -16,6 +16,7 @@ protocol NoteEditorBridge: AnyObject {
     func pageSettings(_ pageJson: String)
     func appIcon(_ value: String?)
     func language(_ code: String)
+    func theme(_ value: String)
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -74,6 +75,11 @@ enum NoteEmbedScripts {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language(\(quote(code)))})()"
     }
 
+    /// 换外观（light / dark）：网页就地换 data-theme，不重新加载笔记（src/lib/native-bridge.ts 的 theme）。
+    static func theme(_ value: String) -> String {
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(\(quote(value)))})()"
+    }
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -81,12 +87,16 @@ enum NoteEmbedScripts {
 
     /// 页面开始加载前注入（WKUserScript，document start，只进主框架）：WKWebView 没有 Android 的 @JavascriptInterface，
     /// 这里把 `window.NoteFableNative` 定义成转发给 `window.webkit.messageHandlers.<handler>` 的对象。
-    /// `appIcon()` / `language()` 要同步返回，所以值写死在脚本里：每次加载前用当时的值重新生成这段脚本；
-    /// 开着的时候换了图标 / 语言走 [appIcon] / [language] 推过去。默认标志是空字符串。
-    static func bootstrap(handler: String, appIcon: String?, language: String) -> String {
+    /// `appIcon()` / `language()` / `theme()` 要同步返回，所以值写死在脚本里：每次加载前用当时的值重新生成这段脚本；
+    /// 开着的时候换了图标 / 语言 / 外观走 [appIcon] / [language] / [theme] 推过去。默认标志是空字符串。
+    /// [theme] 是 App 现在显示的外观（light / dark）；nil 时不定义 `theme()`，网页按地址里的 theme= 或自己存的值。
+    /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）。
+    static func bootstrap(handler: String, appIcon: String?, language: String, theme: String? = nil) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
-            "appIcon:function(){return icon},language:function(){return lang}}})()"
+            "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}" +
+            (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
+            "}})()"
     }
 }
 
@@ -98,6 +108,8 @@ final class NoteEmbedBridge {
     nonisolated static let FLUSH_TIMEOUT: Duration = .seconds(15)
 
     private(set) weak var editor: NoteEditorBridge?
+    /// App 现在显示的外观（light / dark），由界面用 [pushTheme] 给；还没给过是 nil。
+    private(set) var theme: String?
     private var pending: [String: NoteDeferred<FlushResult>] = [:]
 
     private let currentLanguage: @MainActor () -> String
@@ -138,7 +150,11 @@ final class NoteEmbedBridge {
             return
         }
         // 页面读好时再对一次语言：网页读初始 HTML 期间 App 的语言可能换过。
-        if case .ready = message { pushLanguage(currentLanguage()) }
+        if case .ready = message {
+            pushLanguage(currentLanguage())
+            // 外观同理：加载期间在设置里换过、或系统刚好切了深色。
+            if let theme { editor?.theme(theme) }
+        }
         onMessage(message)
     }
 
@@ -197,6 +213,13 @@ final class NoteEmbedBridge {
     /// 换界面语言：就地换字典，不重新加载笔记。
     func pushLanguage(_ code: String) {
         editor?.language(code)
+    }
+
+    /// App 显示的外观变了（设置里换了，或跟随系统时系统切了深浅）：记下来并推给网页，就地换色。
+    /// 传的是已经算好的 light / dark，不传 system：网页编辑器和 App 的界面总是同一个外观。
+    func pushTheme(_ value: String) {
+        theme = value
+        editor?.theme(value)
     }
 }
 

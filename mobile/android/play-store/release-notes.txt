@@ -1,1 +1,3 @@
-Settings is now organised into pages: General, Personalization, Plan and Account.
+Dark mode: follow your system or pick Light or Dark.
+Import Markdown files as notes (choose the project), and export any note as Markdown.
+Notes: equations, saved AI chats per note, and share a note as a public link.

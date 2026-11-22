@@ -249,12 +249,12 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
     val shape = RoundedCornerShape(12.dp)
     val limits = rememberProLimits()
     Column(
-        Modifier.padding(top = 16.dp).fillMaxWidth().clip(shape).background(Color.White)
+        Modifier.padding(top = 16.dp).fillMaxWidth().clip(shape).background(Sm.Surface)
             .drawBehind {
                 val d = 0.70710677f
                 val half = (size.width + size.height) * d / 2f
                 val c = Offset(size.width / 2f, size.height / 2f)
-                drawRect(Brush.linearGradient(listOf(Sm.AccentSoft, Color(0x29FFE27A)), c - Offset(d, d) * half, c + Offset(d, d) * half))
+                drawRect(Brush.linearGradient(listOf(Sm.AccentSoft, Color(0x24FFE27A)), c - Offset(d, d) * half, c + Offset(d, d) * half))
             }
             .border(1.dp, Sm.AccentLine, shape).padding(horizontal = 16.dp, vertical = 14.dp),
     ) {
@@ -272,7 +272,7 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
         ) {
             Text(
                 upgradeLabel(busy, product),
-                color = Color.White.copy(alpha = if (busy) 0.6f else 1f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+                color = Sm.OnInk.copy(alpha = if (busy) 0.6f else 1f), fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             )
         }
     }

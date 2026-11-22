@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2 } from "lucide-react";
+import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -33,14 +33,15 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // parentId を渡すと、そのページの中にサブページを作る。
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
+  const importInputRef = useRef<HTMLInputElement>(null);
   const [deleting, setDeleting] = useState<NotePageSummary | null>(null);
   // ゴミ箱の小窓。復元したノートは "notefable:page-created" で一覧に戻るので、開閉の状態だけここで持つ。
   const [trashOpen, setTrashOpen] = useState(false);
@@ -185,6 +186,15 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         {!pages.length && <p className="px-2 py-3 text-xs leading-5 text-[var(--notion-muted)]">{t("Your notes will appear here.")}</p>}
       </div>
       <div className="shrink-0 px-2 pb-1">
+        <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
+          onChange={(event) => {
+            const picked = Array.from(event.target.files ?? []);
+            event.target.value = "";
+            if (picked.length) onImport(picked);
+          }} />
+        <button type="button" className="notion-sidebar-action" disabled={busy} onClick={() => importInputRef.current?.click()}>
+          <Upload size={16} /><span>{t("Import Markdown")}</span>
+        </button>
         <button type="button" className="notion-sidebar-action" aria-haspopup="dialog" onClick={() => setTrashOpen(true)}><Trash2 size={16} /><span>{t("Trash")}</span></button>
       </div>
       {deleting && <dialog ref={dialog} onCancel={() => setDeleting(null)} aria-labelledby="delete-page-title" aria-describedby="delete-page-description" className="notes-dialog">

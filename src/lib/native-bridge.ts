@@ -1,5 +1,6 @@
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@/lib/app-icon";
+import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -13,15 +14,19 @@ export type NativeMessage =
   | { type: "saveState"; state: EmbedSaveState }
   | { type: "missing" }
   | { type: "trashed" }
+  // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
+  | { type: "openPage"; id: string }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
-export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string };
+// canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
+export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
   language: (locale: unknown) => Promise<boolean>;
+  theme: (value: unknown) => boolean;
   flush: (requestId?: unknown) => Promise<boolean>;
   openHistory: () => void;
   pageUpdated: (page: unknown) => boolean;
@@ -77,10 +82,25 @@ export function readNativeAppIcon(target: BridgeWindow | undefined = browserWind
 
 // Read the native effective language after mounting; it can change while the
 // initial HTML is loading. Never accept an untranslated or invalid locale.
+// アプリがノートの中のページへのリンク（openPage）を開けるか。古いアプリや普通のブラウザでは false。
+export function nativeCanOpenPage(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canOpenPage !== "function") return false;
+  try { return native.canOpenPage() === true; } catch { return false; }
+}
+
 export function readNativeLanguage(target: BridgeWindow | undefined = browserWindow()): Locale | null {
   try {
     const value = host(target)?.language?.();
     return isLocale(value) ? value : null;
+  } catch { return null; }
+}
+
+// Read the native effective theme ("light" / "dark" / "system") after mounting.
+export function readNativeTheme(target: BridgeWindow | undefined = browserWindow()): ThemePreference | null {
+  try {
+    const value = host(target)?.theme?.();
+    return parseThemePreference(value) ?? null;
   } catch { return null; }
 }
 
@@ -141,9 +161,10 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, language, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, language, post }: {
   flush: () => Promise<boolean>;
   language?: (locale: Locale) => Promise<boolean>;
+  theme?: (value: ThemePreference) => unknown;
   draftKept?: () => boolean;
   openHistory: () => void;
   pageUpdated?: (page: NotePage) => void;
@@ -156,6 +177,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
     async language(value) {
       if (!isLocale(value) || !language) return false;
       try { return await language(value); } catch { return false; }
+    },
+    theme(value) {
+      const parsed = parseThemePreference(value);
+      if (!parsed) return false;
+      theme(parsed);
+      return true;
     },
     async flush(requestId) {
       let ok = false;

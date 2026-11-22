@@ -228,6 +228,11 @@ export const ptBRServer: Record<string, string> = {
   "Invalid request body.": "Corpo da solicitação inválido.",
   "Invalid share settings.": "Configurações de compartilhamento inválidas.",
   "Expiration time must be in the future.": "A data de expiração deve estar no futuro.",
+  "Import exceeds 4 MB.": "A importação excede 4 MB.",
+  "Select at least one Markdown file to import.": "Selecione pelo menos um arquivo Markdown para importar.",
+  "You can import up to {max} files at once.": "Você pode importar até {max} arquivos por vez.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Só é possível importar arquivos Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "O arquivo é longo demais para uma única nota: {name}",
   "Note icon must be a single emoji or an uploaded image.": "O ícone da nota deve ser um único emoji ou uma imagem enviada.",
   "This icon image is no longer available. Choose another icon.": "Esta imagem de ícone não está mais disponível. Escolha outro ícone.",
 };

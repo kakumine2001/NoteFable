@@ -1,14 +1,14 @@
 # 原生 iOS 界面（Swift / SwiftUI）
 
-> 目录：`mobile/ios/`。Bundle ID `com.kakumine.notefable`，最低 iOS 17，只支持 iPhone 竖屏、浅色。PR 检查、TestFlight 自动上传和签名见 [ios.md](ios.md)；目录约定和本机命令见 [mobile/ios/README.md](../../mobile/ios/README.md)。
+> 目录：`mobile/ios/`。Bundle ID `com.kakumine.notefable`，最低 iOS 17，只支持 iPhone 竖屏。PR 检查、TestFlight 自动上传和签名见 [ios.md](ios.md)；目录约定和本机命令见 [mobile/ios/README.md](../../mobile/ios/README.md)。
 
 ## 定位
 
 iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）的对照移植，两端是同一套行为：
 
 - 只通过服务器 API 工作（REST + SSE，默认主机 `https://app.notefable.com`），不改后端。模型列表来自 `GET /api/models`，读不到时用和 Android 共用的 `models.json`。
-- 界面是网页手机视口（412×915）的复刻：尺寸、颜色、文案、动效时长都取自网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计，只做浅色。
-- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
+- 界面是网页手机视口（412×915）的复刻：尺寸、颜色、文案、动效时长都取自网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计。浅色、深色两套颜色分别取自网页的 `:root` 和 `:root[data-theme="dark"]`。
+- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
 
 **功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
 
@@ -90,6 +90,10 @@ mobile/ios/
 | 选文件 / 照片 / 拍照 | 系统选择器 | `PhotosPicker`、`fileImporter`、`UIImagePickerController` |
 | 保存生成的图片 | MediaStore | `PHPhotoLibrary`（只申请“添加”权限） |
 | 笔记编辑器 | `WebView` + `addJavascriptInterface` | `WKWebView` + `WKScriptMessageHandler`；用落盘的默认数据存储（网页的本地草稿和 Android 一样跨 App 重启保留），每次加载前把它的 Cookie 换成 App 的（所有编辑器排成一条链依次换） |
+| 外观（跟随系统 / 浅色 / 深色） | `Sm` 按当前色板取值；偏好在 SharedPreferences `app_theme` 的 `theme` | `Sm.*` 和 `Color(light:dark:)` 是 UIKit 动态颜色，跟着所在界面的外观自己换（`DesignSystem/Theme.swift`；UIKit 视图用 `SmUI`）。偏好（`Core/Support/AppTheme.swift` 的 `AppThemeStore`）存在 UserDefaults 的 `app_theme.theme`；`NoteFableWindow` 用 `preferredColorScheme` 并把每个窗口的 `overrideUserInterfaceStyle` 定成浅色 / 深色，“跟随系统”时不指定。画成图片的公式按浅色、深色各画一张 |
+| 编辑器的外观 | 地址的 `theme=`、`NoteFableNative.theme()`、`notefableEmbed.theme(value)` | 相同的三处（`NoteEmbedScripts.bootstrap` / `.theme`，`NoteEmbedBridge.pushTheme`）：只传算好的 `light` / `dark`，变了就地推送、`ready` 后再推一次。`WKWebView` 自己不画底（透明），网页画出来之前露出编辑页的底色，深色下不会先白一下 |
+| 笔记导出 Markdown | SAF `CreateDocument` | 页面“…”菜单 → 先让网页保存（存不上就不导出）→ `GET /api/pages/:id/export` → 系统的“存储到文件”（`.fileExporter`，UTF-8 的 `.md`，与下载对话共用 `MarkdownExportDocument`）。规则在 `Core/Notes/NoteIO.swift` 和 `NotesViewModel.exportPage` |
+| 笔记导入 Markdown | SAF `OpenMultipleDocuments` | `fileImporter`（可多选；`Features/Notes/NoteMarkdownIO.swift`）：带访问权限的地址逐个申请、用完就还，iCloud 里没下载的由 `NSFileCoordinator` 等它下载。发请求前按 20 个 / 每个 1 MiB / 合计 4 MiB / 扩展名查一遍（`noteImportProblem`），读完按实际要发的文字和 JSON 请求体再查一遍（`noteImportPayloadProblem`，`groupId` 也算在内）。没有项目时直接导入（请求体不带 `groupId`）；至少有一个项目时本机检查通过后先显示“Import to”对话框（`NotesViewModel.beginImport` 决定，`NoteImportTargetDialog`，用“移到”窗口同一套 `.nfDialog` / `NFOptionRow`）：第一项 “No project”，后面按项目顺序，点一项就导入到那里（带 `groupId`），“Cancel” 不导入。`POST /api/pages/import` 后合并进列表并打开第一篇 |
 | Google 登录 | Credential Manager | GoogleSignIn SDK |
 | 系统分享接收 | `MainActivity` 的 `ACTION_SEND` / `ACTION_SEND_MULTIPLE` | 独立扩展 `NoteFableShareExtension`（`ShareExtension/ShareViewController.swift`）把内容写入 App Group（`group.com.kakumine.notefable`）共享目录（`ShareInboxStore`），尝试经 `extensionContext.open` 打开 `notefable://share?id=…`；若系统拒绝直接拉起主 App，则展示已保存勾标后收起，用户回到 NoteFable 时由 `AppRouter.consumePendingShares` 按顺序自动取走全部待处理分享 |
 | 返回键 | 系统返回键、预测性返回 | 没有返回键：抽屉、面板、编辑页用边缘滑动或各自的关闭按钮 |
@@ -105,6 +109,9 @@ mobile/ios/
 - **笔记里的文件**：下载到临时目录后打开分享面板（存到“文件”或用别的 App 打开），不是直接存进下载目录。
 - **撞到上限时的提示**：游客只有登录提示；已登录的免费用户不显示升级提示（Android 的 `UpgradeLimitPrompt` 没有移植）。
 - **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
+- **表情选择器**在深色外观下仍是浅色的一块（和网页的 `Theme.LIGHT` 一样；Android 的跟着变深）。
+- **启动画面的底色**（`LaunchBackground`）跟随系统的深浅，不看 App 里选的外观：选的和系统不一样时，启动瞬间的底色与进入后的界面不同。
+- **导出笔记**：存好以后不另外提示；写入失败弹 “Could not export the page.” 的提示（Android 显示在笔记顶栏下面的提示条里）。导出、导入的其他错误和 Android 一样分别显示在编辑页顶栏下面和笔记的错误条里。
 
 ## 生成的文件
 

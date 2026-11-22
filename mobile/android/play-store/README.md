@@ -9,10 +9,10 @@
 | `screenshots/01-…05-*.png` | 手机屏幕截图 | 1080×1920（9:16），按文件名顺序上传 |
 | `release-notes.txt` | 版本说明（`whatsnew-en-US`） | UTF-8 纯文本；仅在发版 PR 修改该文件时由 `.github/workflows/android-release.yml` 随 AAB 上传 |
 
-截图来自原生 App（`Medium_Phone_API_37` 模拟器，1080×2400，英文界面，演示账号的聊天和笔记），再放进带标题的手机外框里。外框模板是一个临时 HTML 页面（未入仓库），用 Chrome 无头模式截成 PNG。界面改版后重新截图：
+截图来自原生 App（`Medium_Phone_API_37.0` 模拟器，1080×2400，英文界面，演示账号的聊天和笔记），再放进带标题的手机外框里。外框模板是一个临时 HTML 页面（未入仓库），用 Chrome 无头模式截成 PNG。界面改版后重新截图：
 
 1. 模拟器装 debug 包（`-Pnotefable.baseUrl=http://10.0.2.2:<端口> -Pnotefable.siteUrl=http://10.0.2.2:<端口>` 指向本机开发服务器；若截笔记编辑器，改用 `adb reverse` + `localhost`），用演示邮箱登录，准备聊天和笔记。
 2. `adb exec-out screencap -p > shots/<名字>.png`（状态栏用系统 demo 模式固定时间和信号）。
-3. 外框：标题区 + 800px 宽的手机，截图上方裁掉状态栏；本地准备 `frame.html` 后执行 `chrome --headless=new --window-size=1080,1920 --screenshot=… frame.html?s=<名字>&e=<小标题>&t=<标题>`。
+3. 外框：标题区 + 800px 宽的手机，截图上方裁掉状态栏（原图上方 109px）。底色 `#f7f6f2`，小标题 `#2383e2`、30px、字距 0.14em、全大写，标题 `#0f172a`、79px 粗体、字距 -0.045em，字体都是 Segoe UI Variable Display；手机从 (140, 520) 起，18px 的 `#111` 边框、圆角 70px，带柔和的阴影，下端超出画面。本地准备 `frame.html` 后执行 `chrome --headless=new --window-size=1080,1920 --screenshot=… frame.html?s=<名字>&e=<小标题>&t=<标题>`。
 
 Play 的截图长宽比不能超过 2:1，模拟器原图（20:9）不能直接上传。

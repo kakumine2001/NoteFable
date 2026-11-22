@@ -1,6 +1,7 @@
 import type { Block } from "@blocknote/core";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { validMention } from "@/lib/note-mention";
 import type { NoteContent } from "@/types/notes";
 import { msg, fmt } from "@/lib/i18n/translate";
 
@@ -79,6 +80,8 @@ function validInline(value: unknown, rich = true): boolean {
       return entry.content === undefined && Object.keys(entry).every((key) => ["type", "props", "content"].includes(key))
         && object(entry.props) && Object.entries(entry.props).every(([key, latex]) => key === "latex" && validLatex(latex));
     }
+    // 「@」メンション（ページ・日付）。リンクの中には置けない。
+    if (rich && entry.type === "mention") return validMention(entry);
     return false;
   });
 }
@@ -179,7 +182,7 @@ export function noteContentOf(page: NoteContent): NoteContent {
   return { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, coverPosition: page.coverPosition ?? null, blocks: page.blocks };
 }
 
-export async function readNoteRequest(request: Request) {
+export async function readNoteRequest(request: Request, maxBytes = MAX_NOTE_BYTES, tooLargeMessage: string = msg("Note content exceeds 1 MiB.")) {
   // 実際の受信量も制限し、Content-Length がない場合も巨大な本文を読まない。
   const reader = request.body?.getReader();
   if (!reader) throw new NoteValidationError(msg("Request body is required."));
@@ -190,9 +193,9 @@ export async function readNoteRequest(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > MAX_NOTE_BYTES) {
+      if (size > maxBytes) {
         await reader.cancel();
-        throw new NoteValidationError(msg("Note content exceeds 1 MiB."), 413);
+        throw new NoteValidationError(tooLargeMessage, 413);
       }
       chunks.push(value);
     }

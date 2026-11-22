@@ -60,9 +60,9 @@ import kotlinx.coroutines.launch
 //  - 代码：内边距 15.2 / 24 / 21.6，等宽 15.2、行高 1.65、#111827，不折行，横向滚动；
 //  - 高亮颜色与网页 highlight.js 主题一致（下面的 [CodeHighlighter]）。
 
-private val CodeBorder = Color(0xFFE5E7EB)
-private val CodeInk = Color(0xFF111827)
-private val CodeText = TextStyle(
+private val CodeBorder: Color get() = Sm.pick(Color(0xFFE5E7EB), Sm.BorderStrong)
+private val CodeInk: Color get() = Sm.pick(Color(0xFF111827), Color(0xFFE6E5E3))
+private val CodeText get() = TextStyle(
     fontFamily = FontFamily.Monospace,
     fontSize = 15.2.sp,
     lineHeight = 25.08.sp,
@@ -86,31 +86,36 @@ internal fun CodeBlock(code: String, language: String?) {
     val result = remember(text, language) { CodeHighlighter.highlight(text, language) }
     val label = if (result.language == CodeHighlighter.PLAIN) stringResource(R.string.code_label_plain)
     else LanguageLabels[result.language] ?: result.language
-    val annotated = remember(result) { result.annotated(text) }
+    // 深色（:root[data-theme="dark"] .markdown-code-*）：外框 #1f1f22 + --notion-border-strong，头部白 .04 + 下边线 --notion-border，
+    // 语言名 #e6e5e3，复制键 rgba(230,229,227,.72)，高亮换成深色那一组。
+    val dark = Sm.isDark
+    val annotated = remember(result, dark) { result.annotated(text, dark) }
+    val headerLine = Sm.pick(Color(0xFFE5E7EB), Sm.Border)
+    val labelInk = Sm.pick(Color(0xFF0F172A), Color(0xFFE6E5E3))
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         Column(
             Modifier.padding(vertical = ShellExtraMargin).fillMaxWidth()
                 .clip(RoundedCornerShape(5.6.dp))
-                .background(Sm.Sidebar)
+                .background(Sm.pick(Sm.Sidebar, Color(0xFF1F1F22)))
                 .border(1.dp, CodeBorder, RoundedCornerShape(5.6.dp)),
         ) {
             Row(
                 Modifier.fillMaxWidth().heightIn(min = 48.dp)
-                    .background(Color.White.copy(alpha = 0.72f))
+                    .background(Sm.pick(Color.White.copy(alpha = 0.72f), Color(0x0AFFFFFF)))
                     .drawBehind {
                         val y = size.height - 0.5.dp.toPx()
-                        drawLine(CodeBorder, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
+                        drawLine(headerLine, Offset(0f, y), Offset(size.width, y), 1.dp.toPx())
                     }
                     .padding(start = 16.dp, end = 12.8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    LucideIcon(Lucide.Code2, 15.dp, Color(0xFF0F172A), strokeWidth = 2.2f)
+                    LucideIcon(Lucide.Code2, 15.dp, labelInk, strokeWidth = 2.2f)
                     Text(
                         label,
-                        style = TextStyle(fontSize = 14.72.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF0F172A), letterSpacing = 0.sp),
+                        style = TextStyle(fontSize = 14.72.sp, fontWeight = FontWeight.SemiBold, color = labelInk, letterSpacing = 0.sp),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
@@ -155,7 +160,9 @@ private fun CopyCodeButton(code: String) {
             .semantics { contentDescription = description; role = Role.Button },
         Alignment.Center,
     ) {
-        if (copied) LucideIcon(Lucide.Check, 18.dp, CodeInk) else LucideIcon(Lucide.Copy, 20.dp, CodeInk)
+        // .markdown-code-copy：#111827；深色 rgba(230,229,227,.72)。
+        val ink = Sm.pick(CodeInk, Color(0xB8E6E5E3))
+        if (copied) LucideIcon(Lucide.Check, 18.dp, ink) else LucideIcon(Lucide.Copy, 20.dp, ink)
     }
 }
 
@@ -165,22 +172,22 @@ enum class CodeTokenKind { Keyword, BuiltIn, Title, String, Number, Variable, Co
 data class CodeToken(val start: Int, val end: Int, val kind: CodeTokenKind)
 
 data class HighlightResult(val language: String, val tokens: List<CodeToken>) {
-    fun annotated(code: String): AnnotatedString = buildAnnotatedString {
+    fun annotated(code: String, dark: Boolean = false): AnnotatedString = buildAnnotatedString {
         append(code)
-        tokens.forEach { addStyle(styleOf(it.kind), it.start, it.end) }
+        tokens.forEach { addStyle(styleOf(it.kind, dark), it.start, it.end) }
     }
 }
 
-// globals.css 的 .hljs-* 颜色。
-private fun styleOf(kind: CodeTokenKind): SpanStyle = when (kind) {
-    CodeTokenKind.Keyword, CodeTokenKind.BuiltIn -> SpanStyle(color = Color(0xFF7C3AED))
-    CodeTokenKind.Title -> SpanStyle(color = Color(0xFF0369A1), fontWeight = FontWeight(650))
-    CodeTokenKind.String -> SpanStyle(color = Color(0xFF047857))
-    CodeTokenKind.Number -> SpanStyle(color = Color(0xFFB45309))
-    CodeTokenKind.Variable -> SpanStyle(color = Color(0xFFBE123C))
-    CodeTokenKind.Comment -> SpanStyle(color = Color(0xFF64748B), fontStyle = FontStyle.Italic)
-    CodeTokenKind.Meta -> SpanStyle(color = Color(0xFF475569))
-    CodeTokenKind.Tag -> SpanStyle(color = Color(0xFF1D4ED8))
+// globals.css 的 .hljs-* 颜色；深色是 :root[data-theme="dark"] .hljs-* 的那一组。
+private fun styleOf(kind: CodeTokenKind, dark: Boolean): SpanStyle = when (kind) {
+    CodeTokenKind.Keyword, CodeTokenKind.BuiltIn -> SpanStyle(color = if (dark) Color(0xFFC084FC) else Color(0xFF7C3AED))
+    CodeTokenKind.Title -> SpanStyle(color = if (dark) Color(0xFF60A5FA) else Color(0xFF0369A1), fontWeight = FontWeight(650))
+    CodeTokenKind.String -> SpanStyle(color = if (dark) Color(0xFF34D399) else Color(0xFF047857))
+    CodeTokenKind.Number -> SpanStyle(color = if (dark) Color(0xFFFBBF24) else Color(0xFFB45309))
+    CodeTokenKind.Variable -> SpanStyle(color = if (dark) Color(0xFFFB7185) else Color(0xFFBE123C))
+    CodeTokenKind.Comment -> SpanStyle(color = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B), fontStyle = FontStyle.Italic)
+    CodeTokenKind.Meta -> SpanStyle(color = if (dark) Color(0xFFA1A1AA) else Color(0xFF475569))
+    CodeTokenKind.Tag -> SpanStyle(color = if (dark) Color(0xFF7DD3FC) else Color(0xFF1D4ED8))
 }
 
 /**

@@ -83,7 +83,7 @@ import kotlin.math.roundToInt
 /** 回答里"打开笔记"（项目参考笔记、提案的 Open the note）的去处。由 NoteFableRoot 接到笔记页。 */
 val LocalOpenNote = staticCompositionLocalOf<(String) -> Unit> { {} }
 
-private val ActionErrorText = TextStyle(fontSize = 13.sp, lineHeight = 18.2.sp, color = Color(0xFF933B34), letterSpacing = 0.sp)
+private val ActionErrorText get() = TextStyle(fontSize = 13.sp, lineHeight = 18.2.sp, color = Sm.ErrorText, letterSpacing = 0.sp)
 
 @Composable
 internal fun AssistantTurn(
@@ -283,7 +283,7 @@ private fun GeneratedImage(image: GeneratedImageDto, onSave: () -> Unit) {
             contentDescription = stringResource(R.string.generated_image),
             contentScale = ContentScale.Fit,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(4.8.dp))
-                .background(Color(0xFFF8FAFC)).border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(4.8.dp)),
+                .background(Sm.pick(Color(0xFFF8FAFC), Sm.Sidebar)).border(1.dp, Sm.pick(Color(0xFFE2E8F0), Sm.BorderStrong), RoundedCornerShape(4.8.dp)),
         )
         Box(
             Modifier.align(Alignment.BottomEnd).padding(end = 14.4.dp, bottom = 14.4.dp).size(44.dp)

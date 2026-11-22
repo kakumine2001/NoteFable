@@ -30,7 +30,7 @@ mobile/ios/
 - **同一个模块**：Core 的源码直接编进 App 模块，所以都用默认的 internal，不写 `public`。
 - **ViewModel**：`@MainActor @Observable final class`，状态是一个值类型（如 `ChatUiState`），放在 Core，依赖经初始化参数注入（协议或闭包），时间用注入的 sleep / clock，测试不真等。
 - **文案**：`L("键", 参数…)`（`Core/Text/L10n.swift`），键 = Android 字符串资源名，占位符保留 `%1$s` / `%1$d`。`Localizable.strings` 由 `npx tsx scripts/gen-ios-strings.ts` 从 Android 资源生成，不手改；新文案先加到 Android 的 `res/values`（及 zh、ja），再跑两端的生成脚本。服务端发来的英文句子用 `SystemText` 翻译。
-- **样式**：颜色用 `Sm.*`，字体 `Font.nf(字号, weight: CSS 字重)`，尺寸直接写网页的 CSS px 数值（1pt = 1px）。图标用 `Lucide`（和网页同一份路径），不用 SF Symbols。只做浅色。
+- **样式**：颜色用 `Sm.*`，字体 `Font.nf(字号, weight: CSS 字重)`，尺寸直接写网页的 CSS px 数值（1pt = 1px）。图标用 `Lucide`（和网页同一份路径），不用 SF Symbols。每个颜色有浅色、深色两个值（网页 `:root` 和 `:root[data-theme="dark"]`）：`Sm.*` 和 `Color(light:dark:)` 是跟着外观自己换的动态颜色，不要写死 `Color.white` / `.black`（墨色底上的字用 `Sm.onInk`，页面底用 `Sm.background`，卡片 / 对话框底用 `Sm.surface`）；画成图片的东西（公式）要按 `colorScheme` 各画一张。
 - **并发**：Swift 5 语言模式；async/await，不用 Combine；UI 状态只在主线程改。
 - **注释**：和 Android 端一样用中文，写“为什么”和对应的网页 / Android 出处，不写显而易见的。
 

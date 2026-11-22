@@ -228,6 +228,11 @@ export const itServer: Record<string, string> = {
   "Invalid request body.": "Corpo della richiesta non valido.",
   "Invalid share settings.": "Impostazioni di condivisione non valide.",
   "Expiration time must be in the future.": "La data di scadenza deve essere nel futuro.",
+  "Import exceeds 4 MB.": "L’importazione supera 4 MB.",
+  "Select at least one Markdown file to import.": "Seleziona almeno un file Markdown da importare.",
+  "You can import up to {max} files at once.": "Puoi importare fino a {max} file alla volta.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Si possono importare solo file Markdown (.md, .markdown, .txt).",
+  "File is too long for one note: {name}": "Il file è troppo lungo per una sola nota: {name}",
   "Note icon must be a single emoji or an uploaded image.": "L’icona della nota deve essere una singola emoji o un’immagine caricata.",
   "This icon image is no longer available. Choose another icon.": "Questa immagine dell’icona non è più disponibile. Scegli un’altra icona.",
 };

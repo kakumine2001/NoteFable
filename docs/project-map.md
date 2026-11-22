@@ -66,6 +66,8 @@ Google 登录要在 Google Cloud 登记“谁可以用我的登录”，这叫 *
 - **界面**：照着网页的样子重新画了一遍。网页改了界面，安卓和 iOS 也要在同一次修改里一起改。
 - **笔记编辑器例外**：编辑笔记的那一页是在 App 里嵌了一个小浏览器（Android `WebView` / iOS `WKWebView`），打开工作区的 `/note-embed`。编辑器太复杂，原生重写工作量太大，各端也一定会不一致。
 - **模型列表**：能选哪些 AI 模型由服务器决定，App 每次打开时去要，不写死在 App 里。
+- **外观和 Markdown**：网页、安卓和 iOS 都能选“跟随系统 / 浅色 / 深色”（只记在当前这台设备上，不跟着账号走），也都能把一篇笔记导出成 Markdown 文件、把 Markdown 文件导入成笔记。
+- **只有网页才有的**：电脑宽度下在聊天旁边并排打开一篇笔记的“分屏”。手机屏幕放不下，所以两个 App 没有。
 - **iOS 现状**：代码已在 CI 上跑通 Core 单元测试和模拟器构建，并配有 GitHub Actions 自动上传 TestFlight 的流程；目前尚未注册 Apple Developer 账号，因此还未真机实测，也未接 App Store 内购（见 [ios.md](architecture/ios.md) 和 [ios-native.md](architecture/ios-native.md)）。
 
 ## 签名（用印章来理解）

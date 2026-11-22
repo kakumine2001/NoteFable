@@ -10,6 +10,7 @@ const { mockLocale, createBlockNoteSpy, sideMenuControllerSpy } = vi.hoisted(() 
 
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
+  useCallback: vi.fn((fn: unknown) => fn),
   useEffect: vi.fn(),
   useImperativeHandle: vi.fn(),
   useMemo: vi.fn((fn: () => unknown) => fn()),
@@ -30,6 +31,9 @@ vi.mock("@blocknote/react", async (importOriginal) => {
 vi.mock("@/components/i18n-provider", () => ({
   useI18n: () => ({ locale: mockLocale.current, dir: mockLocale.current === "ar" ? "rtl" : "ltr", t: (key: string) => key }),
   useT: () => (key: string) => key,
+}));
+vi.mock("@/lib/theme", () => ({
+  useTheme: () => ({ preference: "light", resolved: "light", setPreference: vi.fn() }),
 }));
 
 import NoteEditor from "./note-editor";

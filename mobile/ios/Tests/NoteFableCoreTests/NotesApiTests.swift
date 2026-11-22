@@ -88,6 +88,8 @@ final class NotesApiTests: XCTestCase {
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"saveState","state":"conflict"}"#), .saveState(state: "conflict"))
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"missing"}"#), .missing)
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"trashed"}"#), .trashed)
+        XCTAssertEqual(EmbedMessage.parse(#"{"type":"openPage","id":"p2"}"#), .openPage(id: "p2"))
+        XCTAssertNil(EmbedMessage.parse(#"{"type":"openPage","id":""}"#))
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"flushed","requestId":"r1","ok":true}"#), .flushed(requestId: "r1", ok: true))
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"flushed","requestId":"r2","ok":false}"#), .flushed(requestId: "r2", ok: false))
         XCTAssertEqual(EmbedMessage.parse(#"{"type":"flushed","requestId":"r3","ok":false,"kept":true}"#), .flushed(requestId: "r3", ok: false, kept: true))

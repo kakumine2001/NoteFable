@@ -43,6 +43,8 @@ final class NotesViewModel {
     @ObservationIgnored private var trashTask: Task<Void, Never>?
     @ObservationIgnored private var trashActionTasks: [Int: Task<Void, Never>] = [:]
     @ObservationIgnored private var nextTrashAction = 0
+    /// 有一次导出还没完：连点不会重复导出（网页 exportPage 的 actionBusy）。
+    @ObservationIgnored private var exporting = false
 
     /// 每次换身份加一。旧身份下发出、换身份后才回来的改动结果直接丢掉，不写进新身份的列表。
     @ObservationIgnored private var identity = 0
@@ -306,8 +308,11 @@ final class NotesViewModel {
         }
     }
 
+    /// 点了编辑页顶栏下面的提示条：收起正显示的那一条（界面显示的是 `notice ?? error`，导入失败写在 error 里）。
     func dismissNotice() {
-        update { $0.notice = nil }
+        update {
+            if $0.notice != nil { $0.notice = nil } else { $0.error = nil }
+        }
     }
 
     // ---- 网页编辑器发来的消息 ----
@@ -320,6 +325,7 @@ final class NotesViewModel {
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
+        case .openPage(let id): openNoteFromLink(id)
         case .flushed: break
         }
     }
@@ -651,6 +657,109 @@ final class NotesViewModel {
                         $0.busy = false
                         if !cancelled { $0.groupError = errorOf(.group, error) }
                     }
+                }
+            }
+        }
+    }
+
+    // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----
+
+    /// 导出这一篇的 Markdown（`{ fileName, markdown }`），交给界面去存成文件。服务端导出的是已保存的内容，
+    /// 所以打开着的是它时先让网页保存；存不上（冲突、断网）就不导出，提示先处理草稿。
+    /// 失败返回 nil，原因显示在编辑页顶栏下面（[NotesUiState.notice]；网页写在"…"菜单里，这边菜单已经关了）。
+    func exportPage(_ id: String) async -> ExportedNote? {
+        if exporting || state.busy { return nil }
+        exporting = true
+        defer { exporting = false }
+        let owner = identity
+        update {
+            $0.groupError = nil
+            // 上一次导出的提示不留着。
+            if $0.notice?.kind == .export || $0.notice?.kind == .exportUnsaved { $0.notice = nil }
+        }
+        if state.open?.id == id, !(await flushOpen()).ok {
+            if owner == identity { update { $0.notice = NotesError(.exportUnsaved) } }
+            return nil
+        }
+        // 保存期间换了身份：不用新身份去读旧身份的笔记。
+        guard owner == identity else { return nil }
+        do {
+            let note = try await backend.exportNote(id: id)
+            return owner == identity ? note : nil
+        } catch {
+            if owner == identity, !isCancellation(error) { update { $0.notice = errorOf(.export, error) } }
+            return nil
+        }
+    }
+
+    /// 选好文件以后（网页 page.tsx 的 importMarkdownFiles 没带 groupId 的那一支）：一个项目都没有就直接导入（"无项目"）；
+    /// 有项目就先查文件（[checkImportFiles]，不合格的先拒绝，不让人选完去处再被拒），合格返回 true，
+    /// 由界面问"导入到"哪里，选好后再调 [importMarkdown]。返回 false 表示不用问（已经导入、已经提示，或什么也没选）。
+    func beginImport(_ sources: [NoteImportSource]) async -> Bool {
+        // 列表（含项目）还没读到时不知道有没有项目：不直接导入到"无项目"，先重新读列表（读不到会显示加载失败），读到后再导入。
+        if !state.loaded {
+            refresh()
+            return false
+        }
+        if state.groups.isEmpty {
+            await importMarkdown(sources)
+            return false
+        }
+        // 别的操作还在进行时不问（[importMarkdown] 那时也不导入）：不让人选完去处以后什么都没发生。
+        return !state.busy && !sources.isEmpty && checkImportFiles(sources)
+    }
+
+    /// 发请求之前在本机查数量、扩展名和大小（网页 use-note-pages.ts 的 checkImportFiles）：
+    /// 不合格就把原因显示出来并返回 false；合格就收掉上一次的提示。
+    private func checkImportFiles(_ sources: [NoteImportSource]) -> Bool {
+        let problem = noteImportProblem(sources.map { (name: $0.name, size: $0.size) })
+        update { $0.error = problem.map { NotesError($0) } }
+        return problem == nil
+    }
+
+    /// 导入用户选的 Markdown 文件，建好后打开第一篇（网页 use-note-pages.ts 的 importMarkdown）。
+    /// [groupId] 是导入到哪个项目，nil 是"无项目"。
+    /// 发请求前先在本机查数量、扩展名和大小（[noteImportProblem]），不合格就只提示、不读也不传。
+    /// 文件在后台线程读；读完按要发的内容再查一遍（[noteImportPayloadProblem]：选完又改了、系统没给出大小、
+    /// 转成文字和 JSON 以后变大），读的期间换了身份就不传。
+    func importMarkdown(_ sources: [NoteImportSource], groupId: String? = nil) async {
+        if state.busy || sources.isEmpty { return }
+        if !checkImportFiles(sources) { return }
+        let owner = identity
+        update {
+            $0.busy = true
+            $0.error = nil
+        }
+        do {
+            let contents = try await Task.detached(priority: .userInitiated) {
+                try sources.map { (name: $0.name, data: try $0.read()) }
+            }.value
+            // 读文件期间换了身份（登录 / 退出）：旧身份选的文件不传给新身份。忙碌状态已经由换身份清掉了。
+            guard owner == identity else { return }
+            let files = contents.map { ImportMarkdownFile(name: $0.name, markdown: noteImportText($0.data)) }
+            if let problem = noteImportPayloadProblem(files, groupId: groupId) {
+                update {
+                    $0.busy = false
+                    $0.error = NotesError(problem)
+                }
+                return
+            }
+            let created = try await backend.importMarkdown(files: files, groupId: groupId)
+            let applied = commit(owner) {
+                update { state in
+                    let ids = Set(created.map(\.id))
+                    let merged = created + state.pages.filter { !ids.contains($0.id) }
+                    state.pages = notesStableSorted(merged) { Self.byPosition($0, $1, tieOnId: false) }
+                    state.busy = false
+                }
+            }
+            if applied, let first = created.first { openNote(first.id, title: first.title, icon: first.icon) }
+        } catch {
+            if owner == identity {
+                let cancelled = isCancellation(error)
+                update {
+                    $0.busy = false
+                    if !cancelled { $0.error = errorOf(.importFailed, error) }
                 }
             }
         }

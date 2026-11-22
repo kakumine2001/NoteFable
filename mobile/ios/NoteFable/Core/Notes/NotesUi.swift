@@ -14,6 +14,13 @@ func notesErrorText(_ error: NotesError, _ system: SystemTextTranslator) -> Stri
     case .trashLoad: return L("err_trash_load")
     case .trashAction: return L("err_trash_request")
     case .unsavedDraft: return L("err_save_draft")
+    case .export: return L("note_export_failed")
+    case .exportUnsaved: return L("note_export_unsaved")
+    case .importFailed: return L("note_import_failed")
+    case .importTooMany: return L("note_import_too_many", MAX_IMPORT_FILES)
+    case .importBadType: return L("note_import_bad_type")
+    case .importFileTooLarge: return L("note_import_file_too_large")
+    case .importTooLarge: return L("note_import_too_large")
     }
 }
 

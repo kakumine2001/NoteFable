@@ -228,6 +228,11 @@ export const arServer: Record<string, string> = {
   "Invalid request body.": "محتوى الطلب غير صالح.",
   "Invalid share settings.": "إعدادات المشاركة غير صالحة.",
   "Expiration time must be in the future.": "يجب أن يكون وقت انتهاء الصلاحية في المستقبل.",
+  "Import exceeds 4 MB.": "يتجاوز الاستيراد 4 MB.",
+  "Select at least one Markdown file to import.": "اختر ملف Markdown واحدًا على الأقل للاستيراد.",
+  "You can import up to {max} files at once.": "يمكنك استيراد ما يصل إلى {max} ملفات في المرة الواحدة.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "يمكن استيراد ملفات Markdown (.md و.markdown و.txt) فقط.",
+  "File is too long for one note: {name}": "الملف طويل جدًا بالنسبة لملاحظة واحدة: {name}",
   "Note icon must be a single emoji or an uploaded image.": "يجب أن تكون أيقونة الملاحظة رمزًا تعبيريًا واحدًا أو صورة مرفوعة.",
   "This icon image is no longer available. Choose another icon.": "لم تعد صورة الأيقونة هذه متاحة. اختر أيقونة أخرى.",
 };

@@ -13,7 +13,7 @@ dialog.chat-project-settings { width: min(calc(100% - 1.5rem), 34rem); padding: 
 .project-settings-count { font-size: 0.75rem; font-weight: 400; font-variant-numeric: tabular-nums; color: var(--notion-muted); }
 .project-settings-count.is-full { color: #b45309; }
 .project-settings-help { margin: 0.25rem 0 0; font-size: 0.8125rem; line-height: 1.5; color: var(--notion-muted); }
-.project-settings-body textarea.project-settings-textarea { display: block; width: 100%; min-height: 9rem; margin-top: 0.5rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: #fff; }
+.project-settings-body textarea.project-settings-textarea { display: block; width: 100%; min-height: 9rem; margin-top: 0.5rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: var(--notion-surface, #fff); }
 .project-settings-body textarea.project-settings-textarea:focus { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
 
 .project-settings-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.6rem 0 0; padding: 0; list-style: none; }
@@ -23,7 +23,7 @@ dialog.chat-project-settings { width: min(calc(100% - 1.5rem), 34rem); padding: 
 .project-settings-chip button:hover:not(:disabled) { background: var(--notion-hover); color: var(--notion-text); }
 .project-settings-chip button:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 
-.project-settings-search { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.6rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0 0.6rem; color: var(--notion-muted); background: #fff; }
+.project-settings-search { display: flex; align-items: center; gap: 0.45rem; margin-top: 0.6rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0 0.6rem; color: var(--notion-muted); background: var(--notion-surface, #fff); }
 .project-settings-search:focus-within { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
 .project-settings-search input { min-width: 0; flex: 1; border: 0; padding: 0.5rem 0; font-size: 0.9375rem; color: var(--notion-text); background: transparent; outline: none; }
 .project-settings-list { max-height: 14rem; margin: 0.4rem 0 0; padding: 0; overflow-y: auto; list-style: none; overscroll-behavior: contain; }
@@ -34,7 +34,7 @@ dialog.chat-project-settings { width: min(calc(100% - 1.5rem), 34rem); padding: 
 .project-settings-note-icon { display: grid; width: 1.25rem; flex: none; place-items: center; color: var(--notion-muted); }
 .project-settings-note-title { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .project-settings-empty { margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--notion-muted); }
-.project-settings-error { margin: 0.75rem 0 0; font-size: 0.875rem; color: #b91c1c; }
+.project-settings-error { margin: 0.75rem 0 0; font-size: 0.875rem; color: var(--nf-danger, #b91c1c); }
 @media (hover: hover) { .project-settings-option:not(.is-disabled):hover { background: var(--notion-hover); } }
 
 @media (max-width: 639px) {

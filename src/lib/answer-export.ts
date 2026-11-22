@@ -1,6 +1,6 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
 import { prepareMath } from "@/lib/math-markdown";
-import { TABLE_SEPARATOR, escapeCellPipes, inlineMathEnd, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
+import { MAX_PARSED_TABLE_CELLS, TABLE_SEPARATOR, escapeCellPipes, inlineMathEnd, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
 // 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
@@ -97,7 +97,8 @@ function closesFence(line: string, fence: Fence) {
 }
 
 type Analysis = {
-  heading: { text: string; line: number; leading: boolean } | null;
+  // raw は見出し行の「# 」より後ろをそのまま（書式を外す前）。取り込むファイルの題名に使う。
+  heading: { text: string; raw: string; line: number; leading: boolean } | null;
   firstLine: string;
 };
 
@@ -123,7 +124,7 @@ function analyze(lines: string[]): Analysis {
     const heading = /^#{1,6}\s+(.*?)(?:\s+#+)?$/.exec(text);
     if (heading) {
       const label = stripInline(heading[1]);
-      if (label) return { heading: { text: label, line: index, leading: !seenContent }, firstLine };
+      if (label) return { heading: { text: label, raw: heading[1].trim(), line: index, leading: !seenContent }, firstLine };
       seenContent = true;
       continue;
     }
@@ -344,9 +345,13 @@ const INDENTED_CODE = /^(?: {4,}| {0,3}\t)\s*\S/;
 const LIST_ITEM_LINE = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
 function emitCodeFence(out: string[], indent: string, language: string, body: string[]) {
-  const longest = Math.max(0, ...body.flatMap((text) => [...text.matchAll(/`+/g)].map((run) => run[0].length)));
+  // 取り込むファイルは何十万行にもなるので、行を引数に展開しない（引数の数の上限で RangeError になる）。
+  let longest = 0;
+  for (const text of body) for (const run of text.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
   const quote = "`".repeat(Math.max(3, longest + 1));
-  out.push(`${indent}${quote}${language}`, ...body, `${indent}${quote}`);
+  out.push(`${indent}${quote}${language}`);
+  for (const text of body) out.push(text);
+  out.push(`${indent}${quote}`);
 }
 
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
@@ -355,6 +360,44 @@ function emitCodeFence(out: string[], indent: string, language: string, body: st
 // - 表以外の本文は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる
 // - 出典などのリンクを通常の形へ
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
+export function prepareNoteMarkdown(markdown: string) {
+  return prepareMarkdown(markdown);
+}
+
+// ブロックの入れ子の深さをノート保存の上限内に収め、必要なら先頭から切り詰める。
+export function fitMarkdownBlocksToNote(title: string, markdown: string): { blocks: NoteBlockNode[]; truncated: boolean } {
+  const body = clampDepth(markdownToBlocks(prepareMarkdown(markdown)));
+  const fits = (blocks: NoteBlockNode[]) =>
+    countBlocks(blocks) <= MAX_BLOCKS
+    && new TextEncoder().encode(JSON.stringify({ title, icon: null, cover: null, coverPosition: null, blocks })).byteLength <= MAX_NOTE_BYTES - BYTE_MARGIN;
+  const total = countBlocks(body);
+  if (fits(body)) return { blocks: body, truncated: false };
+  let low = 0;
+  let high = total - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(takeBlocks(body, middle))) low = middle;
+    else high = middle - 1;
+  }
+  return { blocks: takeBlocks(body, low), truncated: true };
+}
+
+// 取り込むファイルの題名。回答の題名（80 文字）と違い、書き出したノートの題名がそのまま戻るよう、ノートの上限（200 文字）まで残す。
+export function extractLeadingHeadingTitle(markdown: string, fallback: string): { title: string; body: string } {
+  const lines = normalizeNewlines(markdown).split("\n");
+  const found = analyze(lines);
+  if (found.heading?.leading) {
+    // 題名は書式を持たない文字列。「1. 手順」や「**太字** 案」のような題名が書き出し → 取り込みで変わらないよう、
+    // 回答の題名のように書式を外さず、書き出し側（noteToMarkdownFile）が付けた \ のエスケープだけを戻す。
+    const title = shorten(found.heading.raw.replace(/\\([\\`*_[\]<>~#])/g, "$1"), MAX_NOTE_TITLE);
+    lines.splice(found.heading.line, 1);
+    return { title: title || shorten(fallback, MAX_NOTE_TITLE) || "Untitled", body: lines.join("\n") };
+  }
+  const cleanFallback = shorten(fallback, MAX_NOTE_TITLE);
+  if (cleanFallback) return { title: cleanFallback, body: lines.join("\n") };
+  return { title: pickTitle(found, "Untitled"), body: lines.join("\n") };
+}
+
 function prepareMarkdown(markdown: string) {
   const rawLines = normalizeNewlines(markdown).split("\n");
   const out: string[] = [];
@@ -414,17 +457,26 @@ function prepareMarkdown(markdown: string) {
     }
     if (startsTable(rawLines, index)) {
       flushProse();
+      const start = index;
       const rows = [splitRow(line, { protectMath: false, unescapePipes: false })];
       index++;
       while (index + 1 < rawLines.length && rawLines[index + 1].trim() && rawLines[index + 1].includes("|")) {
         rows.push(splitRow(rawLines[++index], { protectMath: false, unescapePipes: false }));
       }
       const columns = rows[0].length;
+      // 列をそろえた後のセル数が取り込み側の上限を超える表は、そろえずに元の行のまま渡す（取り込み側も表にしない）。
+      // 先にそろえると、行数 × 見出しの列数のセルを作ってメモリを使い切る。
+      if (rows.length * columns > MAX_PARSED_TABLE_CELLS) {
+        for (let at = start; at <= index; at++) out.push(rewriteLine(rawLines[at]));
+        afterBreak = false;
+        continue;
+      }
       const cell = (value: string) => escapeCellPipes(rewriteLine(
         unescapeNonMathPipes(prepareMath(value, { doubleBeforeDigit: true, inlineOnly: true }).text).replace(/\n/g, " "),
       ));
       const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => cell(cells[column] ?? "")).join(" | ")} |`;
-      out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
+      out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`);
+      for (let at = 1; at < rows.length; at++) out.push(row(rows[at]));
       afterBreak = false;
       continue;
     }

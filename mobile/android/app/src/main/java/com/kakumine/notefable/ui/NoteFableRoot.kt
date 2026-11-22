@@ -95,6 +95,13 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
     // 回答"…"的"下载对话"的保存位置选择器：在根上注册，选择器开着时进程被杀后结果也有人接。
     val conversationDownloader = rememberConversationDownloader()
+    // 笔记的 Markdown 导出（页面菜单）和导入（侧栏、笔记首页）用的系统文件选择器，同样注册在根上。
+    val exportNote = rememberNoteExporter(notesViewModel)
+    val pickMarkdownImport = rememberMarkdownImportPicker({ notesViewModel.identityGeneration }) { files ->
+        // 网页 importMarkdownFiles：先关侧栏；有项目时先问导入到哪里（下面的 ImportTargetDialog），导入后打开第一篇。
+        scope.launch { drawerState.close() }
+        notesViewModel.pickedForImport(files)
+    }
     val closeDrawer: () -> Unit = { scope.launch { drawerState.close() } }
     // 「整理成笔记」窗口开着的聊天（网页 createPageSessionId）。
     var createPageSessionId by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<String?>(null) }
@@ -255,6 +262,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onToggleExpanded = notesViewModel::toggleExpanded,
                         onCreateInside = { page -> closeDrawer(); notesViewModel.createNote(page.id) },
                         onUnfavorite = { page -> scope.launch { notesViewModel.setFavorite(page.id, false) } },
+                        onImport = pickMarkdownImport,
                     )
                 } else {
                     ChatDrawerBody(
@@ -357,7 +365,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     saveState = notes.saveState,
                     notice = (notes.notice ?: notes.error)?.let { notesErrorText(it) },
                     // 编辑器里的 AI 助手用 App 里选的模型和推理强度（网页按服务端的模型列表核对）。
-                    embedUrl = { lang -> app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning) },
+                    embedUrl = { lang, theme -> app.api.noteEmbedUrl(open.id, lang, state.selectedModel?.id, state.selectedReasoning, theme) },
                     onDownload = downloadNoteFile,
                     baseUrl = BuildConfig.BASE_URL,
                     cookieJar = app.cookieJar,
@@ -372,6 +380,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
                             EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
+                            is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
                             is EmbedMessage.Flushed -> Unit
                         }
                     },
@@ -393,12 +402,13 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onDuplicate = { notesViewModel.duplicate(open.id) },
                         onAddInside = { notesViewModel.createNote(open.id) },
                         onMove = { dialog = NotesDialogState.Move(open.id) },
+                        onExport = { exportNote(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
                     onShare = { dialog = NotesDialogState.Share(open.id) },
                 )
             }
-            else -> Column(Modifier.fillMaxSize().background(Color.White)) {
+            else -> Column(Modifier.fillMaxSize().background(Sm.Background)) {
                 // 笔记列表的顶栏：网页手机版是左边菜单、右边搜索。
                 Row(Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp), verticalAlignment = Alignment.CenterVertically) {
                     TopIconButton(Lucide.Menu, stringResource(R.string.open_menu), { scope.launch { drawerState.open() } })
@@ -415,12 +425,14 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onRetry = notesViewModel::refresh,
                     reorder = noteReorder,
                     onToggleExpanded = notesViewModel::toggleExpanded,
+                    onImport = pickMarkdownImport,
                 )
             }
         }
     }
 
     NotesDialogs(dialog, notes, notesViewModel) { dialog = null }
+    if (notes.importTarget) ImportTargetDialog(notes.groups, notesViewModel::chooseImportTarget, notesViewModel::cancelImportTarget)
 
     createPageSessionId?.let { sessionId ->
         androidx.compose.runtime.key(sessionId) {

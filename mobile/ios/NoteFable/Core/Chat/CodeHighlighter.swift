@@ -21,6 +21,20 @@ enum CodeTokenKind: Equatable, Sendable, CaseIterable {
         }
     }
 
+    /// 深色外观的颜色（globals.css 的 :root[data-theme="dark"] .hljs-*）。
+    var darkColor: UInt32 {
+        switch self {
+        case .keyword, .builtIn: return 0xFFC0_84FC
+        case .title: return 0xFF60_A5FA
+        case .string: return 0xFF34_D399
+        case .number: return 0xFFFB_BF24
+        case .variable: return 0xFFFB_7185
+        case .comment: return 0xFF94_A3B8
+        case .meta: return 0xFFA1_A1AA
+        case .tag: return 0xFF7D_D3FC
+        }
+    }
+
     /// 声明名（.hljs-title）是 650，其余跟随代码的字重。
     var fontWeight: Int? { self == .title ? 650 : nil }
 

@@ -11,6 +11,10 @@ enum Workspace: Equatable, Sendable {
 struct NotesError: Equatable, Sendable {
     enum Kind: Equatable, Sendable {
         case load, create, trash, trashUnsaved, group, trashLoad, trashAction, unsavedDraft
+        /// 导出失败；打开着的这一篇有存不上的草稿，所以不导出（网页 exportPage）。
+        case export, exportUnsaved
+        /// 导入失败（请求）；选的文件太多 / 不是 Markdown / 单个太大 / 总共太大（网页 importMarkdown 发请求前的检查）。
+        case importFailed, importTooMany, importBadType, importFileTooLarge, importTooLarge
     }
 
     var kind: Kind

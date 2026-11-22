@@ -121,14 +121,14 @@ import kotlinx.coroutines.withContext
  * - 点表情：选中并关闭（记入"最近使用"）；Random：随便换一个，不关；Remove：去掉图标并关闭。
  */
 
-private val PickerText = Sm.Text                    // --epr-text-color = --notes-text
-private val CategoryActive = Color(0xFF3371B7)      // --epr-category-icon-active-color
+private val PickerText: Color get() = Sm.Text                    // --epr-text-color = --notes-text
+private val CategoryActive: Color get() = Sm.pick(Color(0xFF3371B7), Sm.Blue)      // --epr-category-icon-active-color
 private val CategoryInactive = Color(0xFF868686)    // --epr-category-icon-inactive-color
-private val SearchBackground = Color(0xFFF6F6F6)    // --epr-search-input-bg-color
-private val Highlight = Color(0xFF007AEB)           // --epr-highlight-color（搜索框聚焦、选中的肤色）
-private val VariationIndicator = Color(0xFFE7E7E7)  // --epr-emoji-variation-indicator-color
-private val ToneBorder = Color(0xFF555555)          // --epr-skin-tone-outer-border-color
-private val PickerBorder = Color(0xFFE7E7E7)        // --epr-picker-border-color
+private val SearchBackground: Color get() = Sm.pick(Color(0xFFF6F6F6), Sm.Hover)    // --epr-search-input-bg-color
+private val Highlight: Color get() = Sm.pick(Color(0xFF007AEB), Sm.Blue)           // --epr-highlight-color（搜索框聚焦、选中的肤色）
+private val VariationIndicator: Color get() = Sm.pick(Color(0xFFE7E7E7), Sm.BorderStrong)  // --epr-emoji-variation-indicator-color
+private val ToneBorder: Color get() = Sm.pick(Color(0xFF555555), Sm.Muted)          // --epr-skin-tone-outer-border-color
+private val PickerBorder: Color get() = Sm.pick(Color(0xFFE7E7E7), Sm.Border)        // --epr-picker-border-color
 
 private val EmojiCell = 34.dp
 private val ToneItem = 28.dp
@@ -198,9 +198,9 @@ fun EmojiPopover(current: String?, onChange: (String?) -> Unit, onClose: () -> U
                 scaleY = scale
             }.width(size.width)
                 .shadow(14.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0F0F0F), spotColor = Color(0x1F0F0F0F))
-                .border(1.dp, Color(0x0D0F0F0F), RoundedCornerShape(8.dp))
+                .border(1.dp, Sm.Ring, RoundedCornerShape(8.dp))
                 .clip(RoundedCornerShape(8.dp))
-                .background(Color.White)
+                .background(Sm.Surface)
                 .semantics { contentDescription = label },
         ) {
             EmojiPickerBody(current, onChange, onClose, pickerHeight = size.pickerHeight, removeLabel = removeLabel)
@@ -488,7 +488,7 @@ private fun SkinTonePicker(tone: SkinTone, open: Boolean, onToggle: () -> Unit, 
                 Box(
                     Modifier.size(15.dp).scale(grow).alpha(alpha).clip(RoundedCornerShape(4.dp)).background(Color(item.color))
                         .border(1.dp, if (open && active) Highlight else ToneBorder, RoundedCornerShape(4.dp))
-                        .padding(1.dp).border(1.dp, Color.White, RoundedCornerShape(3.dp)),
+                        .padding(1.dp).border(1.dp, Sm.Surface, RoundedCornerShape(3.dp)),
                 )
             }
         }
@@ -537,7 +537,7 @@ private fun categoryNames(): Map<String, String> = mapOf(
 @Composable
 private fun CategoryLabel(category: String) {
     val name = categoryNames()[category].orEmpty()
-    Box(Modifier.fillMaxWidth().height(40.dp).background(Color(0xE6FFFFFF)).padding(horizontal = 10.dp), Alignment.CenterStart) {
+    Box(Modifier.fillMaxWidth().height(40.dp).background(Sm.Surface.copy(alpha = 0.9f)).padding(horizontal = 10.dp), Alignment.CenterStart) {
         Text(name, color = Sm.Muted, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, maxLines = 1)
     }
 }
@@ -589,7 +589,7 @@ private fun EmojiButton(unified: String, item: EmojiItem, showVariations: Boolea
             },
         Alignment.Center,
     ) {
-        Text(unifiedToEmoji(unified), fontSize = 24.sp, lineHeight = 30.sp, color = Color.Black)
+        Text(unifiedToEmoji(unified), fontSize = 24.sp, lineHeight = 30.sp, color = Sm.pick(Color.Black, Color.White))
     }
 }
 
@@ -614,7 +614,7 @@ private fun VariationBar(item: EmojiItem, cell: IntRect, body: IntRect, onPick: 
             Modifier.offset { IntOffset(inset, y) }
                 .width(with(density) { (body.width).toDp() } - 30.dp).height(45.dp)
                 .shadow(5.dp, RoundedCornerShape(3.dp), ambientColor = Color(0x33000000), spotColor = Color(0x33000000))
-                .clip(RoundedCornerShape(3.dp)).background(Color.White).border(1.dp, PickerBorder, RoundedCornerShape(3.dp))
+                .clip(RoundedCornerShape(3.dp)).background(Sm.Surface).border(1.dp, PickerBorder, RoundedCornerShape(3.dp))
                 .pointerInput(Unit) { detectTapGestures { } }
                 .padding(5.dp),
             horizontalArrangement = Arrangement.SpaceAround,

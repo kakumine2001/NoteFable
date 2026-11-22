@@ -134,9 +134,11 @@ struct ChatQuoteText: View {
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.leading, 12.4)
+            // 深色（:root[data-theme="dark"] .chat-quote）：--notion-sidebar 的底、竖线换成 --notion-border-strong。
+            .background(Color(light: 0x00FFFFFF, dark: 0xFF202020))
             .overlay(alignment: .leading) {
                 Rectangle()
-                    .fill(Sm.border)
+                    .fill(Color(light: 0x1737352F, dark: 0x2EFFFFFF))
                     .frame(width: 2)
                     .accessibilityHidden(true)
             }

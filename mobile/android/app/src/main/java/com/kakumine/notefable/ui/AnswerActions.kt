@@ -79,8 +79,8 @@ import java.time.LocalDate
 val LocalAnswerSessionId = staticCompositionLocalOf<String?> { null }
 
 private val MenuShadow = Color(0x22000000)
-private val ErrorRed = Color(0xFF933B34) // .answer-menu-error / .answer-actions-error
-private val ErrorText = TextStyle(fontSize = 13.sp, lineHeight = 18.2.sp, color = ErrorRed, letterSpacing = 0.sp)
+private val ErrorRed: Color get() = Sm.ErrorText // --nf-error-text（浅色 #933b34） // .answer-menu-error / .answer-actions-error
+private val ErrorText get() = TextStyle(fontSize = 13.sp, lineHeight = 18.2.sp, color = ErrorRed, letterSpacing = 0.sp)
 
 // 存到笔记的状态放在 App 级（网页模块级的 Map）：只在主线程读写。
 private var exportStore: AnswerExportStore? = null
@@ -282,7 +282,7 @@ private fun AnswerMenu(state: AnswerMoreState, save: AnswerSave?, onSave: () -> 
             Modifier.width(228.dp)
                 .shadow(16.dp, RoundedCornerShape(12.dp), ambientColor = MenuShadow, spotColor = MenuShadow)
                 .border(1.dp, Sm.Border, RoundedCornerShape(12.dp))
-                .clip(RoundedCornerShape(12.dp)).background(Color.White)
+                .clip(RoundedCornerShape(12.dp)).background(Sm.Surface)
                 .verticalScroll(rememberScrollState())
                 .padding(5.6.dp)
                 .semantics { contentDescription = menuLabel },

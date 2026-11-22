@@ -228,6 +228,11 @@ export const koServer: Record<string, string> = {
   "Invalid request body.": "요청 본문이 올바르지 않습니다.",
   "Invalid share settings.": "공유 설정이 올바르지 않습니다.",
   "Expiration time must be in the future.": "만료 시간은 현재 시간 이후여야 합니다.",
+  "Import exceeds 4 MB.": "가져올 내용이 4 MB를 초과해요.",
+  "Select at least one Markdown file to import.": "가져올 Markdown 파일을 하나 이상 선택해 주세요.",
+  "You can import up to {max} files at once.": "한 번에 최대 {max}개의 파일까지 가져올 수 있어요.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Markdown(.md, .markdown, .txt) 파일만 가져올 수 있어요.",
+  "File is too long for one note: {name}": "파일이 너무 길어 노트 하나로 가져올 수 없어요: {name}",
   "Note icon must be a single emoji or an uploaded image.": "노트 아이콘은 이모지 하나 또는 업로드한 이미지여야 합니다.",
   "This icon image is no longer available. Choose another icon.": "이 아이콘 이미지는 더 이상 사용할 수 없습니다. 다른 아이콘을 선택하세요.",
 };

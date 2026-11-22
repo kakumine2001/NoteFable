@@ -2,15 +2,19 @@ import SwiftUI
 import UIKit
 import WebKit
 
-// 笔记编辑页里的网页编辑器（Android ui/NoteEditor.kt 的 WebView 部分）：WKWebView 打开 `<baseUrl>/note-embed?page=…&lang=…&model=…&reasoning=…`，
+// 笔记编辑页里的网页编辑器（Android ui/NoteEditor.kt 的 WebView 部分）：WKWebView 打开 `<baseUrl>/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`，
 // 和原生之间走 JS 桥（Core 的 NoteEmbedBridge / NoteEmbedScripts，约定见 src/lib/native-bridge.ts）。规则见 docs/architecture/android-native.md 的“笔记”：
 // - 加载前先清空 WebView 的 Cookie，再把 App 的 Cookie 拷进去：身份和 API 相同，退出登录后网页也不会沿用旧会话。
 // - 只有本站的 /note-embed 在 WebView 里打开；本站的聊天链接在 App 里打开；笔记文件由 App 带着 Cookie 下载；其它链接交给系统浏览器。
 // - 网页进程被系统杀掉或崩溃时重新加载，没保存的编辑由网页的本地草稿恢复。
 // - 图片 / 文件块的“上传”（<input type="file">）WKWebView 自己会弹系统的选择器，不用另接。
+// - 外观：把 App 现在显示的外观（light / dark，已经按“跟随系统”算好）经地址的 theme=、`NoteFableNative.theme()` 交给网页，
+//   开着的时候变了再用 `notefableEmbed.theme(value)` 推一次。不传 system：网页自己再去问系统的话，结果要看 WKWebView 的
+//   prefers-color-scheme 跟不跟窗口的外观覆盖，传算好的值就和 App 的界面一定一致。WebView 自己不画底（透明），
+//   网页画出来之前露出的是编辑页的底色，深色下不会先白一下。
 
 /// 网页编辑器。按 `OpenNote.editor` 建一个（外面用 `.id(open.editor)`）：冲突后“另存为新笔记”换到副本时不重新加载。
-/// `appIcon` / `language` 是设置里现在的图标和界面语言，开着的时候变了就推给网页。
+/// `appIcon` / `language` / `theme` 是设置里现在的图标、界面语言和 App 显示着的外观（light / dark），开着的时候变了就推给网页。
 @MainActor
 struct NoteEditorWebView: UIViewRepresentable {
     let editor: String
@@ -18,17 +22,18 @@ struct NoteEditorWebView: UIViewRepresentable {
     let router: AppRouter
     let appIcon: String?
     let language: String
+    let theme: String
 
     func makeCoordinator() -> NoteEditorController {
         NoteEditorController(editor: editor, app: app, router: router)
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        context.coordinator.makeWebView(appIcon: appIcon, language: language)
+        context.coordinator.makeWebView(appIcon: appIcon, language: language, theme: theme)
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.sync(appIcon: appIcon, language: language)
+        context.coordinator.sync(appIcon: appIcon, language: language, theme: theme)
     }
 
     static func dismantleUIView(_ webView: WKWebView, coordinator: NoteEditorController) {
@@ -59,6 +64,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     private var loadRun = 0
     private var pushedIcon: String?
     private var pushedLanguage = ""
+    /// 交给网页的外观（light / dark）；重新加载时地址和 `NoteFableNative.theme()` 用它。
+    private var pushedTheme = ""
     private var edgePan: UIScreenEdgePanGestureRecognizer?
     /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：离开编辑页时关掉，网页不会一直等着。
     private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
@@ -77,9 +84,12 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     // MARK: - 建立和销毁
 
-    func makeWebView(appIcon: String?, language: String) -> WKWebView {
+    func makeWebView(appIcon: String?, language: String, theme: String) -> WKWebView {
         pushedIcon = appIcon
         pushedLanguage = language
+        pushedTheme = theme
+        // 网页读好（ready）时桥会再推一次。
+        bridge.pushTheme(theme)
 
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = Self.dataStore
@@ -90,8 +100,12 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = self
         webView.uiDelegate = self
-        webView.backgroundColor = .white
-        webView.scrollView.backgroundColor = .white
+        // 自己不画底：网页画出来之前露出编辑页的底色（--notion-bg，跟着外观变），深色下不会先白一下。
+        webView.isOpaque = false
+        webView.backgroundColor = .clear
+        webView.scrollView.backgroundColor = .clear
+        // 滚到头回弹时露出来的地方也用页面底色。
+        webView.underPageBackgroundColor = SmUI.background
         // 长按链接不弹预览：预览里会加载任意网页。
         webView.allowsLinkPreview = false
         #if DEBUG
@@ -115,8 +129,12 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         return webView
     }
 
-    /// 设置里换了图标 / 界面语言：推给网页（就地换，不重新加载笔记）。
-    func sync(appIcon: String?, language: String) {
+    /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
+    func sync(appIcon: String?, language: String, theme: String) {
+        if theme != pushedTheme {
+            pushedTheme = theme
+            bridge.pushTheme(theme)
+        }
         if appIcon != pushedIcon {
             pushedIcon = appIcon
             bridge.pushAppIcon(appIcon)
@@ -163,7 +181,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         if let open = app.notes.state.open, open.editor == editor { pageId = open.id }
         let chat = app.chat.state
         let address = app.api.noteEmbedUrl(
-            pageId: pageId, lang: app.language.uiLocale, model: chat.selectedModel?.id, reasoning: chat.selectedReasoning
+            pageId: pageId, lang: app.language.uiLocale, model: chat.selectedModel?.id, reasoning: chat.selectedReasoning,
+            theme: pushedTheme.isEmpty ? nil : pushedTheme
         )
         return URL(string: address)
     }
@@ -174,12 +193,13 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         loadRun += 1
         let current = loadRun
 
-        // `NoteFableNative.appIcon()` / `language()` 要同步返回，值写在脚本里：每次加载前用当时的值重新生成。
+        // `NoteFableNative.appIcon()` / `language()` / `theme()` 要同步返回，值写在脚本里：每次加载前用当时的值重新生成。
         let content = webView.configuration.userContentController
         content.removeAllUserScripts()
         content.addUserScript(WKUserScript(
             source: NoteEmbedScripts.bootstrap(
-                handler: Self.handlerName, appIcon: app.appIcon.icon, language: app.language.uiLocale
+                handler: Self.handlerName, appIcon: app.appIcon.icon, language: app.language.uiLocale,
+                theme: pushedTheme.isEmpty ? nil : pushedTheme
             ),
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
@@ -248,6 +268,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
     func language(_ code: String) {
         run(NoteEmbedScripts.language(code))
+    }
+
+    func theme(_ value: String) {
+        run(NoteEmbedScripts.theme(value))
     }
 
     private func run(_ script: String) {

@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "일치하는 페이지가 없어요.";
 "pg_subpages_to_trash" = "하위 페이지도 함께 휴지통으로 이동합니다.";
 
+/* strings_personal.xml */
+"appearance" = "화면 스타일";
+"theme_system" = "시스템";
+"theme_light" = "라이트";
+"theme_dark" = "다크";
+"export_markdown" = "Markdown 내보내기";
+"import_markdown" = "Markdown 가져오기";
+"note_export_failed" = "페이지를 내보내지 못했어요.";
+"note_export_unsaved" = "이 페이지를 내보내기 전에 저장되지 않은 초안을 먼저 해결해 주세요.";
+"note_import_failed" = "Markdown 파일을 가져오지 못했어요.";
+"note_import_too_many" = "한 번에 최대 %1$d개의 파일까지 가져올 수 있어요.";
+"note_import_bad_type" = "Markdown(.md, .markdown, .txt) 파일만 가져올 수 있어요.";
+"note_import_file_too_large" = "노트 내용이 1 MiB를 초과해요.";
+"note_import_too_large" = "가져올 내용이 4 MB를 초과해요.";
+"import_to" = "가져올 위치";
+
 /* strings_plan.xml */
 "plan_title" = "플랜";
 "plan_pro" = "Pro";

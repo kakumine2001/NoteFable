@@ -7,6 +7,7 @@ import "@/components/chat-project-settings.css";
 import "@/components/settings-dialog.css";
 import { AppIconSettings } from "@/components/app-icon-settings";
 import { LanguageMenuPanel, useLanguageMenuAnchor } from "@/components/language-menu";
+import { ThemeSettings } from "@/components/theme-settings";
 import { PlanSettings } from "@/components/plan-settings";
 import { forgetLocaleChoice, useI18n } from "@/components/i18n-provider";
 import { ProfileSettings } from "@/components/profile-settings";
@@ -337,6 +338,7 @@ export function SettingsDialog({ user, onSignOut, onClose }: { user: AccountUser
             <h3 className="settings-group-label">{t("General")}</h3>
             <div className="settings-card">
               <LanguageSettings user={user} />
+              <ThemeSettings />
               <AppIconSettings closeGuardRef={iconGuard} />
             </div>
           </section>

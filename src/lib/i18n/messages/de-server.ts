@@ -228,6 +228,11 @@ export const deServer: Record<string, string> = {
   "Invalid request body.": "Ungültiger Anfragetext.",
   "Invalid share settings.": "Ungültige Freigabeeinstellungen.",
   "Expiration time must be in the future.": "Das Ablaufdatum muss in der Zukunft liegen.",
+  "Import exceeds 4 MB.": "Der Import überschreitet 4 MB.",
+  "Select at least one Markdown file to import.": "Wähle mindestens eine Markdown-Datei zum Importieren aus.",
+  "You can import up to {max} files at once.": "Du kannst höchstens {max} Dateien gleichzeitig importieren.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Es können nur Markdown-Dateien (.md, .markdown, .txt) importiert werden.",
+  "File is too long for one note: {name}": "Die Datei ist zu lang für eine einzelne Notiz: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Das Notizsymbol muss ein einzelnes Emoji oder ein hochgeladenes Bild sein.",
   "This icon image is no longer available. Choose another icon.": "Dieses Symbolbild ist nicht mehr verfügbar. Wähle ein anderes Symbol.",
 };

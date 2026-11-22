@@ -46,6 +46,8 @@ final class AppEnvironment {
 
     /// 设置里选的图标（存在这台设备上；登录时由 [appIconSync] 和账号同步）。
     let appIcon: AppIconStore
+    /// 设置里选的外观（跟随系统 / 浅色 / 深色，只存在这台设备上）。
+    let appTheme: AppThemeStore
     /// 登录时让图标跟着账号走（AppIconSync.swift）。
     let appIconSync: AppIconSync
     /// AI 笔记提案的应用 / 放弃状态。
@@ -115,7 +117,7 @@ final class AppEnvironment {
 
     /// - Parameters:
     ///   - resources: 打包资源所在的包（测试里给一个临时目录）。
-    ///   - defaults: 本机设置（模型选择、草稿、语言、图标、笔记侧栏的折叠状态、最近的表情）。
+    ///   - defaults: 本机设置（模型选择、草稿、语言、图标、外观、笔记侧栏的折叠状态、最近的表情）。
     ///   - dataDirectory: 放 Cookie 文件的目录；nil 用 Application Support。不存在就建。
     ///   - transport: 网络传输；测试里换成假的。
     ///   - systemLanguages: 系统的语言列表（"自动"时按它选界面语言）。
@@ -190,6 +192,7 @@ final class AppEnvironment {
         let appIcon = AppIconDefaults.store(defaults)
         self.appIcon = appIcon
         appIconSync = AppIconSync(store: appIcon, backend: accountApi, memory: UserDefaultsAppIconSyncMemory(defaults: defaults))
+        appTheme = AppThemeDefaults.store(defaults)
         proposals = ProposalStore(backend: proposalApi)
         let answerExports = AnswerExportStore(backend: exportApi)
         self.answerExports = answerExports
