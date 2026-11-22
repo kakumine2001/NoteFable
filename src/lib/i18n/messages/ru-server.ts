@@ -221,4 +221,8 @@ export const ruServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Это предложение больше недействительно. Повторите запрос, чтобы получить новое предложение.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Эта заметка изменилась после создания предложения. Повторите запрос, чтобы получить новое предложение.",
   "Upload up to {max} files at a time.": "Можно загрузить не более {max} файлов за раз.",
+  "Import exceeds 4 MB.": "Импорт превышает 4 МБ.",
+  "Select at least one Markdown file to import.": "Выберите хотя бы один файл Markdown для импорта.",
+  "You can import up to {max} files at once.": "За раз можно импортировать не более {max} файлов.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Импортировать можно только файлы Markdown (.md, .markdown, .txt).",
 };

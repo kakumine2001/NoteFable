@@ -221,4 +221,8 @@ export const hiServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "यह सुझाव अब मान्य नहीं है। नया सुझाव पाने के लिए फिर से पूछें।",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "सुझाव बनने के बाद इस नोट में बदलाव हुआ है। नया सुझाव पाने के लिए फिर से पूछें।",
   "Upload up to {max} files at a time.": "एक बार में अधिकतम {max} फ़ाइलें अपलोड करें।",
+  "Import exceeds 4 MB.": "इंपोर्ट 4 MB से अधिक है।",
+  "Select at least one Markdown file to import.": "इंपोर्ट करने के लिए कम से कम एक Markdown फ़ाइल चुनें।",
+  "You can import up to {max} files at once.": "आप एक बार में अधिकतम {max} फ़ाइलें इंपोर्ट कर सकते हैं।",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "केवल Markdown (.md, .markdown, .txt) फ़ाइलें इंपोर्ट की जा सकती हैं।",
 };

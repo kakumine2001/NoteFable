@@ -5,14 +5,16 @@
   --background: #ffffff;
   --foreground: #0c1730;
   --notion-bg: #ffffff;
+  --notion-surface: #ffffff;
+  --notion-ink-rgb: 55, 53, 47;
   --notion-sidebar: #f7f7f5;
-  --notion-text: #37352f;
-  --notion-muted: rgba(55, 53, 47, 0.62);
-  --notion-faint: rgba(55, 53, 47, 0.36);
-  --notion-hover: rgba(55, 53, 47, 0.08);
-  --notion-active: rgba(55, 53, 47, 0.12);
-  --notion-border: rgba(55, 53, 47, 0.09);
-  --notion-border-strong: rgba(55, 53, 47, 0.18);
+  --notion-text: rgb(var(--notion-ink-rgb));
+  --notion-muted: rgba(var(--notion-ink-rgb), 0.62);
+  --notion-faint: rgba(var(--notion-ink-rgb), 0.36);
+  --notion-hover: rgba(var(--notion-ink-rgb), 0.08);
+  --notion-active: rgba(var(--notion-ink-rgb), 0.12);
+  --notion-border: rgba(var(--notion-ink-rgb), 0.09);
+  --notion-border-strong: rgba(var(--notion-ink-rgb), 0.18);
   --notion-blue: #2383e2;
   --notion-blue-hover: #1a73c7;
   --notion-shadow: 0 4px 14px rgba(15, 15, 15, 0.12), 0 0 0 1px rgba(15, 15, 15, 0.05);
@@ -20,11 +22,16 @@
      見出し・主ボタンは墨、選択中の目印は青、黄は強調だけに使う。 */
   --nf-ink: #0c1730;
   --nf-ink-hover: #1d2a47;
+  --nf-on-ink: #ffffff;
   --nf-accent: #2383e2;
   --nf-accent-soft: rgba(35, 131, 226, 0.1);
   --nf-accent-line: rgba(35, 131, 226, 0.45);
   --nf-marker: #ffe27a;
   --nf-user-bubble: #f3f5f9;
+  --nf-model-pill: #f1f1ef;
+  --nf-error-bg: rgba(255, 226, 221, 0.65);
+  --nf-error-text: #933b34;
+  --nf-danger: #b91c1c;
   --nf-composer-shadow: 0 1px 2px rgba(12, 23, 48, 0.04), 0 8px 28px rgba(12, 23, 48, 0.07);
   /* UI テキスト用フォント。日本語/中国語環境でも崩れにくい CJK フォントを優先する。
      Geist は欧文だけなので、和欧混在のタイトルで字形と基線が揃わないよう UI には使わない。 */
@@ -86,11 +93,11 @@ button:disabled {
 
 /* ===== Pages: Notion に寄せたページ・エディター表示 ===== */
 .notes-workspace {
-  --notes-text: #37352f;
-  --notes-muted: rgba(55, 53, 47, 0.65);
-  --notes-faint: rgba(55, 53, 47, 0.45);
-  --notes-hover: rgba(55, 53, 47, 0.08);
-  --notes-divider: rgba(55, 53, 47, 0.16);
+  --notes-text: rgb(var(--notion-ink-rgb));
+  --notes-muted: rgba(var(--notion-ink-rgb), 0.65);
+  --notes-faint: rgba(var(--notion-ink-rgb), 0.45);
+  --notes-hover: rgba(var(--notion-ink-rgb), 0.08);
+  --notes-divider: rgba(var(--notion-ink-rgb), 0.16);
   --notes-code-bg: #f7f6f3;
   --notes-menu-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
   color: var(--notes-text);
@@ -106,13 +113,13 @@ button:disabled {
 .notes-cover { position: relative; height: 30vh; min-height: 160px; max-height: 280px; }
 .notes-cover-actions {
   position: absolute; inset-inline-end: max(24px, calc((100% - 708px) / 2)); bottom: 12px;
-  display: flex; overflow: hidden; border-radius: 4px; background: #fff;
+  display: flex; overflow: hidden; border-radius: 4px; background: var(--notion-surface);
   box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
   opacity: 0; transition: opacity 120ms ease;
 }
 .notes-cover:hover .notes-cover-actions, .notes-cover:focus-within .notes-cover-actions { opacity: 1; }
 .notes-cover-actions button { padding: 4px 8px; font-size: 12px; color: var(--notes-muted); white-space: nowrap; }
-.notes-cover-actions button + button { border-inline-start: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-cover-actions button + button { border-inline-start: 1px solid rgba(var(--notion-ink-rgb), 0.09); }
 .notes-cover-actions button:hover { background: var(--notes-hover); }
 .notes-header-inner { position: relative; padding-top: 80px; }
 .notes-page-header.has-cover .notes-header-inner { padding-top: 0; }
@@ -139,19 +146,19 @@ button:disabled {
   resize: none; overflow: hidden; background: transparent;
   font-size: 40px; font-weight: 750; letter-spacing: -0.03em; line-height: 1.2; color: var(--nf-ink);
 }
-.notes-title::placeholder { color: rgba(55, 53, 47, 0.2); }
+.notes-title::placeholder { color: rgba(var(--notion-ink-rgb), 0.2); }
 
 /* アイコン・カバー選択ポップオーバー */
 .notes-popover {
   --notes-text: var(--notion-text); --notes-muted: var(--notion-muted); --notes-hover: var(--notion-hover); --notes-menu-shadow: var(--notion-shadow);
-  position: absolute; z-index: 60; overflow: hidden; border-radius: 8px; background: #fff;
+  position: absolute; z-index: 60; overflow: hidden; border-radius: 8px; background: var(--notion-surface);
   box-shadow: var(--notes-menu-shadow); animation: motion-menu-enter 120ms ease-out;
 }
 .notes-icon-picker { top: calc(100% + 4px); inset-inline-start: 0; width: min(408px, calc(100vw - 32px)); }
 .notes-cover-picker { inset-inline-end: max(24px, calc((100% - 708px) / 2)); top: calc(100% - 4px); width: min(420px, calc(100vw - 32px)); }
 .notes-picker-bar {
   display: flex; min-height: 36px; align-items: center; justify-content: space-between; padding-inline: 12px 8px;
-  border-bottom: 1px solid rgba(55, 53, 47, 0.09); font-size: 14px; font-weight: 500; color: var(--notes-text);
+  border-bottom: 1px solid rgba(var(--notion-ink-rgb), 0.09); font-size: 14px; font-weight: 500; color: var(--notes-text);
 }
 .notes-picker-bar button {
   display: inline-flex; height: 28px; align-items: center; gap: 4px; padding: 0 8px;
@@ -177,12 +184,12 @@ button:disabled {
 /* 空状態 */
 .notes-empty { padding-top: 120px; padding-bottom: 96px; }
 .notes-kbd {
-  padding: 1px 6px; border: 1px solid rgba(55, 53, 47, 0.16); border-radius: 4px;
+  padding: 1px 6px; border: 1px solid rgba(var(--notion-ink-rgb), 0.16); border-radius: 4px;
   background: var(--notes-code-bg); font-family: var(--font-geist-mono), monospace; font-size: 13px;
 }
 .notes-empty-new {
   display: inline-flex; height: 32px; align-items: center; gap: 6px; margin-top: 24px; padding: 0 12px;
-  border-radius: 8px; background: var(--nf-ink); font-size: 14px; font-weight: 550; color: #fff;
+  border-radius: 8px; background: var(--nf-ink); font-size: 14px; font-weight: 550; color: var(--nf-on-ink);
 }
 .notes-empty-new:hover { background: var(--nf-ink-hover); }
 .notes-row-icon { display: grid; width: 20px; height: 20px; flex-shrink: 0; place-items: center; font-size: 15px; line-height: 1; color: var(--notion-muted); }
@@ -233,7 +240,7 @@ button:disabled {
 /* ログイン。サイドバーと上限の案内には「Sign in」ボタンだけを置き、押すと方法を選ぶ窓が開く（主流のサービスと同じ形）。 */
 .signin-open-button {
   display: flex; width: 100%; height: 40px; align-items: center; justify-content: center; padding: 0 12px;
-  border-radius: 6px; background: var(--nf-ink); color: #fff; font-size: 14px; font-weight: 600;
+  border-radius: 6px; background: var(--nf-ink); color: var(--nf-on-ink); font-size: 14px; font-weight: 600;
   transition: background-color 150ms ease;
 }
 .signin-open-button:hover { background: var(--nf-ink-hover); }
@@ -269,7 +276,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .guest-limit-prompt {
   position: relative; display: flex; align-items: flex-start; gap: 12px; padding-block: 14px; padding-inline: 14px 40px;
   border: 1px solid var(--nf-accent-line); border-radius: 12px;
-  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
+  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), var(--notion-surface);
   box-shadow: var(--nf-composer-shadow);
   animation: guest-limit-enter 420ms cubic-bezier(0.2, 0.9, 0.3, 1.15) both;
 }
@@ -328,18 +335,18 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   background: var(--notion-active); color: var(--notion-muted); font-weight: 600; line-height: 1;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", var(--font-ui), sans-serif;
 }
-.user-avatar.is-emoji { background: rgba(55, 53, 47, 0.06); font-weight: 400; }
+.user-avatar.is-emoji { background: rgba(var(--notion-ink-rgb), 0.06); font-weight: 400; }
 .user-avatar img { width: 100%; height: 100%; object-fit: cover; }
 .profile-menu-head { display: flex; align-items: center; gap: 12px; }
 .profile-avatar-button { position: relative; flex-shrink: 0; border-radius: 9999px; }
 .profile-avatar-badge {
   position: absolute; inset-inline-end: -2px; bottom: -2px; display: grid; width: 20px; height: 20px; place-items: center;
-  border: 2px solid #fff; border-radius: 9999px; background: var(--notion-text); color: #fff;
+  border: 2px solid var(--notion-surface); border-radius: 9999px; background: var(--notion-text); color: var(--nf-on-ink);
 }
 .profile-label { display: block; margin-bottom: 2px; font-size: 12px; color: var(--notion-muted); }
 .profile-name-input {
   width: 100%; height: 34px; padding: 0 10px; border: 1px solid var(--notion-border-strong); border-radius: 6px;
-  background: #fff; font-size: 15px; color: var(--notion-text);
+  background: var(--notion-surface); font-size: 15px; color: var(--notion-text);
 }
 .profile-name-input:focus { border-color: var(--notion-blue); outline: 2px solid rgba(35, 131, 226, 0.2); }
 .profile-email { margin-top: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; color: var(--notion-muted); }
@@ -368,7 +375,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .avatar-crop-actions { display: flex; width: 100%; justify-content: flex-end; gap: 8px; }
 .avatar-crop-actions button { height: 34px; padding: 0 14px; border-radius: 6px; font-size: 14px; color: var(--notion-text); }
 .avatar-crop-actions button:hover:not(:disabled) { background: var(--notion-hover); }
-.avatar-crop-actions .is-primary { background: var(--nf-ink); color: #fff; }
+.avatar-crop-actions .is-primary { background: var(--nf-ink); color: var(--nf-on-ink); }
 .avatar-crop-actions .is-primary:hover:not(:disabled) { background: var(--nf-ink-hover); }
 .avatar-crop-actions button:disabled { opacity: 0.55; }
 /* 設定で替えられるワークスペースのアイコン（絵文字・画像）。設定画面の見た目は settings-dialog.css。 */
@@ -409,7 +416,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-block-editor .bn-inline-content { line-height: 1.5; }
 .notes-block-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after,
 .notes-block-editor .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
-  font-style: normal; color: rgba(55, 53, 47, 0.35);
+  font-style: normal; color: rgba(var(--notion-ink-rgb), 0.35);
 }
 
 /* 見出し: Notion と同じ文字サイズと上側の余白 */
@@ -442,7 +449,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   border-color: #2383e2; background: #2383e2 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.3 5.8 10 11 4' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 12px no-repeat;
 }
 .notes-block-editor [data-content-type="checkListItem"]:has(input:checked) .bn-inline-content {
-  color: rgba(55, 53, 47, 0.65); text-decoration: line-through; text-decoration-color: rgba(55, 53, 47, 0.25);
+  color: rgba(var(--notion-ink-rgb), 0.65); text-decoration: line-through; text-decoration-color: rgba(var(--notion-ink-rgb), 0.25);
 }
 
 /* 引用: 左に 3px の黒線、文字は通常色で少し大きく */
@@ -467,7 +474,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   font-family: SFMono-Regular, Menlo, Consolas, "Liberation Mono", var(--font-geist-mono), monospace; font-size: 85%;
 }
 .notes-block-editor .bn-inline-content a {
-  color: inherit; text-decoration: underline; text-decoration-color: rgba(55, 53, 47, 0.4); text-underline-offset: 2px; opacity: 0.85;
+  color: inherit; text-decoration: underline; text-decoration-color: rgba(var(--notion-ink-rgb), 0.4); text-underline-offset: 2px; opacity: 0.85;
 }
 .notes-block-editor .bn-inline-content a:hover { text-decoration-color: currentColor; }
 .notes-block-editor [data-content-type="divider"] hr { border: 0; border-top: 1px solid var(--notes-divider); margin: 6px 0; }
@@ -481,7 +488,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-block-editor .bn-block-content .bn-toggle-button:hover { background: var(--notes-hover); }
 /* 見出しのトグルは、1 行目の高さ（見出しの文字の大きさ × 行の高さ 1.3）の中央に三角を置く。 */
 .notes-block-editor .bn-block-content[data-content-type="heading"] .bn-toggle-button { margin-top: calc((1.3em - 24px) / 2); }
-.notes-block-editor .bn-block-content .bn-toggle-add-block-button { margin-inline-start: 26px; padding: 3px 2px; font-size: 16px; color: rgba(55, 53, 47, 0.45); }
+.notes-block-editor .bn-block-content .bn-toggle-add-block-button { margin-inline-start: 26px; padding: 3px 2px; font-size: 16px; color: rgba(var(--notion-ink-rgb), 0.45); }
 
 /* コールアウト: 角丸の色付きの枠に、絵文字と本文を横に並べる。既定は灰色、色を「Default」にすると枠線だけ。 */
 .notes-block-editor .bn-block-content[data-content-type="callout"] {
@@ -494,7 +501,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   display: grid; flex-shrink: 0; width: 24px; height: 24px; place-items: center; padding: 0; border: 0; border-radius: 4px;
   background: transparent; font-size: 18px; line-height: 1; cursor: pointer; user-select: none;
 }
-.notes-callout-emoji:hover { background: rgba(55, 53, 47, 0.08); }
+.notes-callout-emoji:hover { background: rgba(var(--notion-ink-rgb), 0.08); }
 .notes-callout-text { flex: 1; min-width: 0; }
 
 /* 表: 細い灰色の罫線、見出しの行・列は薄い灰色地。 */
@@ -508,7 +515,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 /* スラッシュメニューの色見本 */
 .notes-slash-swatch {
-  display: grid; width: 20px; height: 20px; place-items: center; border-radius: 4px; border: 1px solid rgba(55, 53, 47, 0.12);
+  display: grid; width: 20px; height: 20px; place-items: center; border-radius: 4px; border: 1px solid rgba(var(--notion-ink-rgb), 0.12);
   font-size: 13px; font-weight: 600; line-height: 1;
 }
 .notes-editor-tail { display: block; width: 100%; min-height: 180px; background: transparent; border: 0; cursor: text; }
@@ -517,56 +524,56 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-block-editor .bn-side-menu { gap: 0; }
 .notes-block-editor .bn-side-menu .bn-ak-button {
   display: grid; width: 24px; height: 24px; place-items: center; padding: 0; border-radius: 4px;
-  background: transparent; box-shadow: none; color: rgba(55, 53, 47, 0.35);
+  background: transparent; box-shadow: none; color: rgba(var(--notion-ink-rgb), 0.35);
 }
-.notes-block-editor .bn-side-menu .bn-ak-button:hover { background: var(--notes-hover); color: rgba(55, 53, 47, 0.65); }
+.notes-block-editor .bn-side-menu .bn-ak-button:hover { background: var(--notes-hover); color: rgba(var(--notion-ink-rgb), 0.65); }
 .notes-block-editor .bn-side-menu .bn-ak-button svg { width: 18px; height: 18px; }
 
 /* スラッシュメニュー */
 .notes-slash-menu {
   width: 324px; max-height: min(40vh, 360px); overflow-y: auto; padding: 4px 0;
-  border-radius: 10px; background: #fff; box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
-  font-family: var(--font-ui); color: #37352f;
+  border-radius: 10px; background: var(--notion-surface); box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
+  font-family: var(--font-ui); color: rgb(var(--notion-ink-rgb));
 }
-.notes-slash-group { padding: 6px 14px 4px; font-size: 12px; font-weight: 500; color: rgba(55, 53, 47, 0.65); }
+.notes-slash-group { padding: 6px 14px 4px; font-size: 12px; font-weight: 500; color: rgba(var(--notion-ink-rgb), 0.65); }
 .notes-slash-item {
   display: flex; width: calc(100% - 8px); height: 28px; align-items: center; gap: 8px; margin: 0 4px; padding-inline: 8px 10px;
   border-radius: 6px; font-size: 14px; text-align: start; color: inherit;
 }
-.notes-slash-item:hover { background: rgba(55, 53, 47, 0.06); }
-.notes-slash-item[aria-selected="true"] { background: rgba(55, 53, 47, 0.08); }
-.notes-slash-icon { display: grid; width: 20px; flex-shrink: 0; place-items: center; color: rgba(55, 53, 47, 0.75); }
+.notes-slash-item:hover { background: rgba(var(--notion-ink-rgb), 0.06); }
+.notes-slash-item[aria-selected="true"] { background: rgba(var(--notion-ink-rgb), 0.08); }
+.notes-slash-icon { display: grid; width: 20px; flex-shrink: 0; place-items: center; color: rgba(var(--notion-ink-rgb), 0.75); }
 .notes-slash-icon svg { width: 18px; height: 18px; }
 .notes-slash-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.notes-slash-hint { flex-shrink: 0; font-size: 12px; color: rgba(55, 53, 47, 0.45); font-family: var(--font-geist-mono), monospace; }
-.notes-slash-empty { padding: 6px 14px; font-size: 14px; color: rgba(55, 53, 47, 0.45); }
+.notes-slash-hint { flex-shrink: 0; font-size: 12px; color: rgba(var(--notion-ink-rgb), 0.45); font-family: var(--font-geist-mono), monospace; }
+.notes-slash-empty { padding: 6px 14px; font-size: 14px; color: rgba(var(--notion-ink-rgb), 0.45); }
 
 /* ブロックメニュー・書式ツールバー（BlockNote 標準の青いハイライトを Notion の灰色に置き換える） */
 .bn-ariakit .bn-ak-menu, .bn-ariakit .bn-ak-popover {
-  min-width: 220px; padding: 4px; border: 0; border-radius: 10px; background: #fff; color: #37352f;
+  min-width: 220px; padding: 4px; border: 0; border-radius: 10px; background: var(--notion-surface); color: var(--notion-text);
   box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
   font-family: var(--font-ui); font-size: 14px;
 }
-.bn-ariakit .bn-ak-menu-item { min-height: 28px; gap: 8px; padding: 0 8px; border-radius: 6px; font-size: 14px; color: #37352f; }
-.bn-ariakit .bn-ak-menu-item svg { width: 16px; height: 16px; color: rgba(55, 53, 47, 0.75); }
+.bn-ariakit .bn-ak-menu-item { min-height: 28px; gap: 8px; padding: 0 8px; border-radius: 6px; font-size: 14px; color: rgb(var(--notion-ink-rgb)); }
+.bn-ariakit .bn-ak-menu-item svg { width: 16px; height: 16px; color: rgba(var(--notion-ink-rgb), 0.75); }
 .bn-ariakit .bn-ak-menu-item:hover, .bn-ariakit .bn-ak-menu-item[data-active-item], .bn-ariakit .bn-ak-menu-item[aria-selected="true"],
-.bn-ariakit .bn-ak-menu .bn-ak-menu-item[aria-expanded="true"] { background: rgba(55, 53, 47, 0.08); color: #37352f; }
-.bn-ariakit .bn-ak-menu-item:active, .bn-ariakit .bn-ak-menu-item[data-active] { padding-block: 0; background: rgba(55, 53, 47, 0.12); }
-.bn-ariakit .bn-ak-menu .bn-ak-separator { margin: 4px 0; border-color: rgba(55, 53, 47, 0.09); }
-.bn-ariakit .bn-ak-group-label { padding: 6px 8px 4px; font-size: 12px; opacity: 1; color: rgba(55, 53, 47, 0.65); }
+.bn-ariakit .bn-ak-menu .bn-ak-menu-item[aria-expanded="true"] { background: rgba(var(--notion-ink-rgb), 0.08); color: rgb(var(--notion-ink-rgb)); }
+.bn-ariakit .bn-ak-menu-item:active, .bn-ariakit .bn-ak-menu-item[data-active] { padding-block: 0; background: rgba(var(--notion-ink-rgb), 0.12); }
+.bn-ariakit .bn-ak-menu .bn-ak-separator { margin: 4px 0; border-color: rgba(var(--notion-ink-rgb), 0.09); }
+.bn-ariakit .bn-ak-group-label { padding: 6px 8px 4px; font-size: 12px; opacity: 1; color: rgba(var(--notion-ink-rgb), 0.65); }
 .bn-ariakit .bn-ak-toolbar {
-  gap: 0; padding: 2px; border-radius: 8px; background: #fff;
+  gap: 0; padding: 2px; border-radius: 8px; background: var(--notion-surface);
   box-shadow: rgba(15, 15, 15, 0.05) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 3px 6px, rgba(15, 15, 15, 0.2) 0 9px 24px;
 }
 .bn-ariakit .bn-toolbar .bn-ak-button {
   height: 28px; min-width: 28px; padding: 0 6px; border-radius: 4px; background: transparent; box-shadow: none;
-  font-size: 14px; color: #37352f;
+  font-size: 14px; color: rgb(var(--notion-ink-rgb));
 }
-.bn-ariakit .bn-toolbar .bn-ak-button:hover { background: rgba(55, 53, 47, 0.08); }
+.bn-ariakit .bn-toolbar .bn-ak-button:hover { background: rgba(var(--notion-ink-rgb), 0.08); }
 .bn-ariakit .bn-toolbar .bn-ak-button[data-selected] { padding-top: 0; box-shadow: none; color: #2383e2; }
-.bn-ariakit .bn-toolbar .bn-ak-button:active, .bn-ariakit .bn-toolbar .bn-ak-button[data-active] { padding-top: 0; box-shadow: none; background: rgba(55, 53, 47, 0.12); }
+.bn-ariakit .bn-toolbar .bn-ak-button:active, .bn-ariakit .bn-toolbar .bn-ak-button[data-active] { padding-top: 0; box-shadow: none; background: rgba(var(--notion-ink-rgb), 0.12); }
 .bn-ariakit .bn-toolbar .bn-ak-button svg { width: 16px; height: 16px; }
-.bn-ariakit .bn-ak-toolbar .bn-ak-separator { height: 20px; margin: 0 2px; border-color: rgba(55, 53, 47, 0.09); }
+.bn-ariakit .bn-ak-toolbar .bn-ak-separator { height: 20px; margin: 0 2px; border-color: rgba(var(--notion-ink-rgb), 0.09); }
 .bn-ariakit .bn-ak-tooltip {
   padding: 4px 8px; border: 0; border-radius: 4px; background: rgba(15, 15, 15, 0.9); color: #fff;
   font-size: 12px; line-height: 1.4; box-shadow: none;
@@ -585,7 +592,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   .notes-block-editor .bn-side-menu { margin-inline-start: 4px; }
 }
 
-.notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: white; color: var(--notion-text); box-shadow: var(--notion-shadow); }
+.notes-dialog { width: min(calc(100% - 3rem), 25rem); margin: auto; padding: 1.5rem; border: 0; border-radius: 8px; background: var(--notion-surface); color: var(--notion-text); box-shadow: var(--notion-shadow); }
 .notes-dialog::backdrop { background: rgba(15, 15, 15, 0.2); }
 .notes-delete { color: #b91c1c; border-color: rgba(185, 28, 28, 0.2); }
 
@@ -667,7 +674,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   border-radius: 0.5rem;
   padding: 0 0.7rem;
   background: var(--nf-ink);
-  color: #fff;
+  color: var(--nf-on-ink);
   font-size: 0.875rem;
   font-weight: 550;
   box-shadow: 0 1px 2px rgba(12, 23, 48, 0.12);
@@ -700,7 +707,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   transition: background 100ms ease, color 100ms ease;
 }
 .notion-segment.is-active {
-  background: #fff;
+  background: var(--notion-surface);
   color: var(--nf-ink);
   box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.08) 0 1px 2px;
 }
@@ -711,7 +718,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notion-segment.is-active svg { color: var(--nf-accent); }
 
 /* ノートのグループ操作ダイアログとサイドバーのグループ表示。 */
-.notes-dialog-input { display: block; width: 100%; margin-top: 0.75rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 1rem; color: var(--notion-text); background: #fff; }
+.notes-dialog-input { display: block; width: 100%; margin-top: 0.75rem; border: 1px solid var(--notion-border-strong); border-radius: 6px; padding: 0.55rem 0.7rem; font-size: 1rem; color: var(--notion-text); background: var(--notion-surface); }
 .notes-dialog-input:focus { outline: 2px solid var(--notion-blue); outline-offset: -1px; }
 .notes-dialog-option { display: flex; width: 100%; min-height: 2.5rem; align-items: center; justify-content: space-between; gap: 0.5rem; border-radius: 6px; padding: 0 0.6rem; text-align: start; font-size: 0.9375rem; color: var(--notion-text); }
 .notes-dialog-option[aria-checked="true"] { background: var(--notion-hover); font-weight: 600; }
@@ -773,7 +780,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-menu-font[aria-checked="true"] .notes-menu-font-sample { color: var(--notion-blue); }
 .notes-menu-font.notes-font-serif .notes-menu-font-sample { font-family: var(--notes-font-serif); }
 .notes-menu-font.notes-font-mono .notes-menu-font-sample { font-family: var(--notes-font-mono); }
-.notes-menu-switch { position: relative; direction: ltr; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(55, 53, 47, 0.2); transition: background-color 120ms ease; }
+.notes-menu-switch { position: relative; direction: ltr; width: 26px; height: 14px; flex: none; border-radius: 999px; background: rgba(var(--notion-ink-rgb), 0.2); transition: background-color 120ms ease; }
 .notes-menu-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; transition: transform 120ms ease; }
 .notes-menu-switch[data-on="true"] { background: var(--notion-blue); }
 .notes-menu-switch[data-on="true"]::after { transform: translateX(12px); }
@@ -793,11 +800,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .model-sheet-backdrop { position: absolute; inset: 0; background: rgba(15, 15, 15, 0.35); animation: motion-fade-in 150ms ease-out both; }
 .model-sheet {
   position: relative; width: 100%; max-height: 88dvh; overflow-y: auto; border-radius: 1.1rem 1.1rem 0 0;
-  background: #fff; padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
+  background: var(--notion-surface); padding: 0.5rem 1rem calc(1rem + env(safe-area-inset-bottom));
   box-shadow: rgba(15, 15, 15, 0.2) 0 -8px 24px; animation: model-sheet-up 200ms ease-out both;
 }
 @keyframes model-sheet-up { from { transform: translateY(32px); opacity: 0; } to { transform: none; opacity: 1; } }
-.model-sheet-grab { width: 2.5rem; height: 0.25rem; margin: 0.25rem auto 0.5rem; border-radius: 999px; background: rgba(55, 53, 47, 0.2); }
+.model-sheet-grab { width: 2.5rem; height: 0.25rem; margin: 0.25rem auto 0.5rem; border-radius: 999px; background: rgba(var(--notion-ink-rgb), 0.2); }
 .model-sheet-title { margin: 0.75rem 0.25rem 0.35rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
 .model-sheet-list { display: grid; gap: 2px; }
 .model-sheet-row {
@@ -814,7 +821,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .model-sheet-hint { margin: 0.65rem 0.25rem 0; font-size: 0.875rem; color: var(--notion-muted); }
 .model-sheet-done {
   width: 100%; min-height: 3rem; margin-top: 1rem; border-radius: 0.75rem; background: var(--notion-text);
-  color: #fff; font-size: 1rem; font-weight: 600;
+  color: var(--nf-on-ink); font-size: 1rem; font-weight: 600;
 }
 
 /* スマホの「＋」シートの行（ファイルを追加 / 画像を作る）。 */
@@ -929,7 +936,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 [data-order-drop="before"]::before, [data-order-drop="after"]::after { content: ""; position: absolute; left: 0; right: 0; height: 2px; background: #2383e2; pointer-events: none; z-index: 3; }
 [data-order-drop="before"]::before { top: 0; }
 [data-order-drop="after"]::after { bottom: 0; }
-.list-reorder-error { position: absolute; z-index: 5; top: 100%; inset-inline-start: 0; width: min(220px, 90vw); padding: 6px; background: #fff; color: #b91c1c; border: 1px solid var(--notion-border); font-size: 12px; }
+.list-reorder-error { position: absolute; z-index: 5; top: 100%; inset-inline-start: 0; width: min(220px, 90vw); padding: 6px; background: var(--notion-surface); color: var(--nf-danger); border: 1px solid var(--notion-border); font-size: 12px; }
 .chat-more-button:hover { color: var(--notion-text); }
 .chat-section-label, .chat-project-heading { padding: .9rem .5rem .3rem; color: var(--notion-muted); font-family: var(--font-geist-mono), ui-monospace, monospace; font-size: .75rem; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; }
 .chat-project-heading .notion-icon-button { margin-block: -.3rem; }
@@ -1339,7 +1346,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
     gap: 0.4rem;
     border: 1px solid var(--notion-border-strong);
     border-radius: 999px;
-    background: #fff;
+    background: var(--notion-surface);
     padding: 0 0.8rem;
     color: var(--notion-muted);
     font-size: 0.8125rem;
@@ -1363,7 +1370,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   overflow: visible;
   border: 1px solid var(--notion-border-strong);
   border-radius: 1rem;
-  background: #fff;
+  background: var(--notion-surface);
   box-shadow: var(--nf-composer-shadow);
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
@@ -1464,7 +1471,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .codex-model-menu {
   overflow: hidden;
-  border: 1px solid rgba(55, 53, 47, 0.1);
+  border: 1px solid rgba(var(--notion-ink-rgb), 0.1);
   border-radius: 0.75rem;
   background: #f9f9f7;
   box-shadow:
@@ -1496,7 +1503,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   align-items: center;
   justify-content: space-between;
   height: 2rem;
-  color: rgba(55, 53, 47, 0.58);
+  color: rgba(var(--notion-ink-rgb), 0.58);
   font-size: 0.875rem;
   line-height: 1.25rem;
   opacity: 0;
@@ -1510,7 +1517,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   display: flex;
   align-items: center;
   justify-content: center;
-  color: rgba(55, 53, 47, 0.78);
+  color: rgba(var(--notion-ink-rgb), 0.78);
   font-size: 0.875rem;
   font-weight: 500;
   line-height: 1.25rem;
@@ -1638,7 +1645,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   left: calc(var(--reasoning-progress) + var(--reasoning-edge-offset));
   width: 1.75rem;
   height: 1.75rem;
-  border: 0.5px solid rgba(55, 53, 47, 0.16);
+  border: 0.5px solid rgba(var(--notion-ink-rgb), 0.16);
   border-radius: 999px;
   background: #ffffff;
   box-shadow: 0 0 2px rgba(15, 15, 15, 0.1);
@@ -1733,7 +1740,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   place-items: center;
   border-radius: 999px;
   background: var(--nf-ink);
-  color: white;
+  color: var(--nf-on-ink);
   transition: background 100ms ease;
 }
 
@@ -1749,7 +1756,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notion-menu {
   overflow: hidden;
   border-radius: 0.45rem;
-  background: white;
+  background: var(--notion-surface);
   box-shadow: var(--notion-shadow);
 }
 
@@ -1779,7 +1786,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   width: min(100%, 32rem);
   height: 100%;
   flex-direction: column;
-  background: white;
+  background: var(--notion-bg);
   box-shadow: -8px 0 24px rgba(15, 15, 15, 0.1);
 }
 
@@ -1793,7 +1800,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   width: 100%;
   border: 1px solid var(--notion-border-strong);
   border-radius: 0.3rem;
-  background: white;
+  background: var(--notion-surface);
   padding-inline: 0.6rem;
   color: var(--notion-text);
   font-size: 0.875rem;
@@ -1824,7 +1831,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .notion-button-primary {
   background: var(--nf-ink);
-  color: white;
+  color: var(--nf-on-ink);
 }
 
 .notion-button-primary:hover:not(:disabled) {
@@ -1838,7 +1845,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 /* 描画が例外で止まったときの画面（app-error-screen.tsx）。見た目はダイアログ（.notes-dialog）に揃える。 */
 /* body は overflow: hidden なので、カードが画面より高いとき（横向きのスマホ、大きな文字）はこの要素自身をスクロールさせる。 */
 .app-error-screen { display: grid; height: 100dvh; overflow-y: auto; place-items: center; padding: 1.5rem; background: var(--background); color: var(--notion-text); }
-.app-error-card { width: min(100%, 25rem); border-radius: 8px; padding: 1.5rem; background: white; box-shadow: var(--notion-shadow); }
+.app-error-card { width: min(100%, 25rem); border-radius: 8px; padding: 1.5rem; background: var(--notion-surface); box-shadow: var(--notion-shadow); }
 .app-error-card h1 { margin: 0; font-size: 1rem; font-weight: 600; }
 .app-error-card p { margin: 0.5rem 0 0; font-size: 0.875rem; line-height: 1.55; color: var(--notion-muted); }
 .app-error-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
@@ -1957,7 +1964,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   place-items: center;
   overflow: hidden;
   border-radius: 0.25rem;
-  background: white;
+  background: var(--notion-surface);
   color: var(--notion-faint);
 }
 
@@ -1970,7 +1977,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .notion-button-quiet {
   border: 1px solid var(--notion-border-strong);
-  background: white;
+  background: var(--notion-surface);
 }
 
 .notion-progress {
@@ -2442,7 +2449,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   overflow: hidden;
   border: 1px solid var(--notion-border-strong);
   border-radius: 0.35rem;
-  background: #fff;
+  background: var(--notion-surface);
 }
 
 .generated-image-placeholder-header {
@@ -2771,24 +2778,29 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 /* ブロックメニューの補助表示（ショートカット・区切り・Color のアイコン） */
-.notes-menu-shortcut { margin-inline-start: auto; padding-inline-start: 16px; font-size: 12px; color: rgba(55, 53, 47, 0.45); }
-.bn-ariakit .bn-ak-menu .bn-ak-separator { width: auto; height: 0; margin: 4px 0; border: 0; border-top: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-menu-shortcut { margin-inline-start: auto; padding-inline-start: 16px; font-size: 12px; color: rgba(var(--notion-ink-rgb), 0.45); }
+.bn-ariakit .bn-ak-menu .bn-ak-separator { width: auto; height: 0; margin: 4px 0; border: 0; border-top: 1px solid rgba(var(--notion-ink-rgb), 0.09); }
 .bn-ariakit .bn-drag-handle-menu > .bn-ak-menu-item:nth-child(2)::before {
-  content: ""; width: 16px; height: 16px; flex-shrink: 0; background: rgba(55, 53, 47, 0.75);
+  content: ""; width: 16px; height: 16px; flex-shrink: 0; background: rgba(var(--notion-ink-rgb), 0.75);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z'/%3E%3Ccircle cx='13.5' cy='6.5' r='.5' fill='black'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5' fill='black'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5' fill='black'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z'/%3E%3Ccircle cx='13.5' cy='6.5' r='.5' fill='black'/%3E%3Ccircle cx='17.5' cy='10.5' r='.5' fill='black'/%3E%3Ccircle cx='6.5' cy='12.5' r='.5' fill='black'/%3E%3Ccircle cx='8.5' cy='7.5' r='.5' fill='black'/%3E%3C/svg%3E") center / contain no-repeat;
 }
-.notes-toolbar-sep { width: 1px; height: 20px; margin: 0 2px; flex-shrink: 0; background: rgba(55, 53, 47, 0.09); }
-.bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-inline-start: auto; color: rgba(55, 53, 47, 0.45); }
+.notes-toolbar-ask-ai {
+  display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 9px; border-radius: 5px;
+  font-size: 13px; font-weight: 500; color: var(--notion-blue); background: transparent; white-space: nowrap;
+}
+.notes-toolbar-ask-ai:hover { background: var(--nf-accent-soft); }
+.notes-toolbar-sep { width: 1px; height: 20px; margin: 0 2px; flex-shrink: 0; background: var(--notion-border); }
+.bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child { margin-inline-start: auto; color: rgba(var(--notion-ink-rgb), 0.45); }
 
 /* コードブロック: 明るい配色のハイライト、言語ラベル、Copy ボタン */
 .notes-block-editor { position: relative; }
 .notes-block-editor .shiki, .notes-block-editor .shiki span { color: var(--shiki-light); }
 .notes-block-editor .bn-block-content[data-content-type="codeBlock"] > div > select {
   top: 6px; right: 42px; left: auto; z-index: 2; height: 28px; padding: 0 24px 0 10px; border-radius: 6px;
-  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2337352f' stroke-opacity='.55' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 7px center / 12px;
+  background: var(--notion-surface) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2337352f' stroke-opacity='.55' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E") no-repeat right 7px center / 12px;
   box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
-  font-family: var(--font-ui); font-size: 12px; color: rgba(55, 53, 47, 0.65);
+  font-family: var(--font-ui); font-size: 12px; color: rgba(var(--notion-ink-rgb), 0.65);
   opacity: 0; transition: opacity 0.12s; transition-delay: 0s;
 }
 .notes-block-editor .bn-block-content[data-content-type="codeBlock"]:hover > div > select,
@@ -2800,8 +2812,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 .notes-code-copy {
   position: absolute; z-index: 5; display: inline-grid; width: 28px; height: 28px; place-items: center;
-  border-radius: 6px; background: #fff; box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
-  color: rgba(55, 53, 47, 0.65);
+  border-radius: 6px; background: var(--notion-surface); box-shadow: rgba(15, 15, 15, 0.1) 0 0 0 1px, rgba(15, 15, 15, 0.1) 0 2px 4px;
+  color: rgba(var(--notion-ink-rgb), 0.65);
 }
 .notes-code-copy:hover { background: #f1f1ef; }
 .notes-code-copy.is-copied { color: #448361; }
@@ -2816,20 +2828,20 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   position: absolute; top: 50%; left: 50%; z-index: 1; padding: 4px 10px; border-radius: 4px; transform: translate(-50%, -50%);
   background: rgba(15, 15, 15, 0.55); font-size: 12px; color: #fff; pointer-events: none;
 }
-.notes-picker-tabs { display: flex; gap: 4px; padding: 0 8px; border-bottom: 1px solid rgba(55, 53, 47, 0.09); }
+.notes-picker-tabs { display: flex; gap: 4px; padding: 0 8px; border-bottom: 1px solid rgba(var(--notion-ink-rgb), 0.09); }
 .notes-picker-tabs button {
-  position: relative; padding: 10px 6px 8px; font-size: 14px; color: rgba(55, 53, 47, 0.65);
+  position: relative; padding: 10px 6px 8px; font-size: 14px; color: rgba(var(--notion-ink-rgb), 0.65);
 }
-.notes-picker-tabs button:hover { color: #37352f; }
-.notes-picker-tabs button.is-active { color: #37352f; font-weight: 500; }
-.notes-picker-tabs button.is-active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: #37352f; }
+.notes-picker-tabs button:hover { color: rgb(var(--notion-ink-rgb)); }
+.notes-picker-tabs button.is-active { color: rgb(var(--notion-ink-rgb)); font-weight: 500; }
+.notes-picker-tabs button.is-active::after { content: ""; position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; background: rgb(var(--notion-ink-rgb)); }
 .notes-cover-upload { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 16px; text-align: center; }
 .notes-cover-upload button {
   display: inline-flex; width: 100%; height: 32px; align-items: center; justify-content: center; gap: 6px;
-  border: 1px solid rgba(55, 53, 47, 0.16); border-radius: 6px; font-size: 14px; color: #37352f;
+  border: 1px solid rgba(var(--notion-ink-rgb), 0.16); border-radius: 6px; font-size: 14px; color: rgb(var(--notion-ink-rgb));
 }
-.notes-cover-upload button:hover:not(:disabled) { background: rgba(55, 53, 47, 0.06); }
-.notes-cover-upload p { font-size: 12px; line-height: 1.5; color: rgba(55, 53, 47, 0.55); }
+.notes-cover-upload button:hover:not(:disabled) { background: rgba(var(--notion-ink-rgb), 0.06); }
+.notes-cover-upload p { font-size: 12px; line-height: 1.5; color: rgba(var(--notion-ink-rgb), 0.55); }
 .notes-cover-upload .notes-cover-error { color: #b91c1c; }
 
 /* タッチ端末ではホバーがないため、ページ見出しの操作ボタンを常に表示する。 */
@@ -2977,7 +2989,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 
 .page-edit-apply {
   background: var(--nf-ink);
-  color: #ffffff;
+  color: var(--nf-on-ink);
 }
 
 .page-edit-apply:not(:disabled):hover {
@@ -3016,7 +3028,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .note-upload { display: grid; gap: 0.5rem; padding: 0.25rem; min-width: 14rem; }
 .note-upload-button {
   display: inline-flex; min-height: 2.5rem; align-items: center; justify-content: center; gap: 0.5rem; padding: 0 1rem;
-  border-radius: 8px; background: var(--nf-ink); color: #fff; font-size: 14px; font-weight: 500; cursor: pointer;
+  border-radius: 8px; background: var(--nf-ink); color: var(--nf-on-ink); font-size: 14px; font-weight: 500; cursor: pointer;
 }
 .note-upload-button:hover { background: var(--nf-ink-hover); }
 .note-upload-button.is-busy { opacity: 0.7; cursor: progress; }
@@ -3204,4 +3216,329 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 :lang(ar) :is(h1, h2, h3, h4, h5, h6, .notes-title, .signin-title, .chat-section-label, .chat-project-heading, .notion-role-label, .nf-logo span, .notes-home-title, .notes-home-greeting) {
   letter-spacing: 0;
+}
+
+/* ===== Desktop Chat + Note Split View ===== */
+.workspace-split-shell {
+  display: flex;
+  flex: 1 1 0%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+.workspace-split-chat {
+  flex: 1 1 0%;
+  min-width: 0;
+}
+.workspace-split-divider {
+  position: relative;
+  width: 1px;
+  flex-shrink: 0;
+  background: var(--notion-border);
+  cursor: col-resize;
+  touch-action: none;
+  outline: none;
+}
+.workspace-split-divider::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: -4px;
+  z-index: 10;
+}
+.workspace-split-divider::after {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline: -1px;
+  background: var(--notion-blue);
+  opacity: 0;
+  transition: opacity 120ms ease;
+  pointer-events: none;
+}
+.workspace-split-divider:hover::after,
+.workspace-split-divider:active::after,
+.workspace-split-divider:focus-visible::after {
+  opacity: 0.7;
+}
+.workspace-split-note {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: calc(var(--split-ratio, 0.46) * 100%);
+  min-width: 320px;
+  min-height: 0;
+  background: var(--notion-bg);
+}
+.workspace-split-header {
+  gap: 0.5rem;
+}
+.workspace-split-picker-trigger {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  height: 2rem;
+  padding: 0 0.5rem;
+  border-radius: 0.4rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--notion-text);
+  background: transparent;
+}
+.workspace-split-picker-trigger:hover {
+  background: var(--notion-hover);
+}
+.workspace-split-picker {
+  position: absolute;
+  top: calc(100% + 4px);
+  inset-inline-start: 0;
+  z-index: 50;
+  width: min(19rem, calc(100vw - 2rem));
+  padding: 0.35rem;
+  border-radius: 0.65rem;
+  border: 1px solid var(--notion-border-strong);
+  background: var(--notion-surface, var(--notion-bg));
+  box-shadow: var(--notion-shadow);
+}
+.workspace-split-picker-search {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 0.35rem 0.55rem;
+  margin-bottom: 0.25rem;
+  border-radius: 0.45rem;
+  background: var(--notion-sidebar);
+}
+.workspace-split-picker-list {
+  max-height: 16rem;
+  overflow-y: auto;
+}
+.workspace-split-picker-list .chat-menu-item.is-selected {
+  background: var(--nf-accent-soft);
+  color: var(--notion-blue);
+  font-weight: 500;
+}
+.workspace-split-empty {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  overflow-y: auto;
+}
+.workspace-split-recent {
+  width: 100%;
+  max-width: 22rem;
+  margin-top: 1.75rem;
+  text-align: start;
+}
+.notes-workspace.is-split .notes-column {
+  width: 100%;
+  max-width: 100%;
+  padding-inline: 36px;
+}
+.notes-workspace.is-split .notes-header {
+  padding-top: 1.75rem;
+}
+.notion-icon-button.is-active {
+  background: var(--nf-accent-soft);
+  color: var(--notion-blue);
+}
+
+/* ===== Dark Mode ([data-theme="dark"]) ===== */
+:root[data-theme="dark"] {
+  --background: #191919;
+  --foreground: #eef1f6;
+  --notion-bg: #191919;
+  --notion-surface: #242424;
+  --notion-ink-rgb: 230, 229, 227;
+  --notion-sidebar: #202020;
+  --notion-text: #e6e5e3;
+  --notion-muted: rgba(230, 229, 227, 0.65);
+  --notion-faint: rgba(230, 229, 227, 0.42);
+  --notion-hover: rgba(255, 255, 255, 0.06);
+  --notion-active: rgba(255, 255, 255, 0.11);
+  --notion-border: rgba(255, 255, 255, 0.1);
+  --notion-border-strong: rgba(255, 255, 255, 0.18);
+  --notion-blue: #529cca;
+  --notion-blue-hover: #6cb4e0;
+  --notion-shadow: 0 6px 20px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --nf-ink: #eef1f6;
+  --nf-ink-hover: #d8dfea;
+  --nf-on-ink: #121620;
+  --nf-accent: #529cca;
+  --nf-accent-soft: rgba(82, 156, 202, 0.16);
+  --nf-accent-line: rgba(82, 156, 202, 0.55);
+  --nf-marker: rgba(255, 226, 122, 0.28);
+  --nf-user-bubble: #26282e;
+  --nf-model-pill: #2a2a28;
+  --nf-error-bg: rgba(239, 68, 68, 0.16);
+  --nf-error-text: #fca5a5;
+  --nf-danger: #f87171;
+  --nf-composer-shadow: 0 2px 8px rgba(0, 0, 0, 0.32), 0 10px 30px rgba(0, 0, 0, 0.42);
+}
+
+:root[data-theme="dark"] .notes-workspace {
+  --notes-text: #e6e5e3;
+  --notes-muted: rgba(230, 229, 227, 0.65);
+  --notes-faint: rgba(230, 229, 227, 0.44);
+  --notes-hover: rgba(255, 255, 255, 0.07);
+  --notes-divider: rgba(255, 255, 255, 0.14);
+  --notes-code-bg: #232322;
+  --notes-menu-shadow: rgba(0, 0, 0, 0.45) 0 8px 28px, rgba(255, 255, 255, 0.08) 0 0 0 1px;
+}
+
+/* 主ボタン・塗りボタンの文字色をダーク時の墨文字（--nf-on-ink）へそろえる */
+:root[data-theme="dark"] .sidebar-primary-action,
+:root[data-theme="dark"] .notion-send:not(:disabled),
+:root[data-theme="dark"] .notion-button-primary,
+:root[data-theme="dark"] .notes-empty-new,
+:root[data-theme="dark"] .page-edit-apply,
+:root[data-theme="dark"] .model-sheet-done,
+:root[data-theme="dark"] .guest-limit-signin {
+  color: var(--nf-on-ink);
+}
+
+:root[data-theme="dark"] .notion-composer,
+:root[data-theme="dark"] .notion-segment.is-active,
+:root[data-theme="dark"] .notes-dialog,
+:root[data-theme="dark"] .notes-dialog-input,
+:root[data-theme="dark"] .model-sheet,
+:root[data-theme="dark"] .chat-actions-menu,
+:root[data-theme="dark"] .app-error-card,
+:root[data-theme="dark"] .notes-cover-panel,
+:root[data-theme="dark"] .notes-emoji-popover,
+:root[data-theme="dark"] .notes-slash-menu,
+:root[data-theme="dark"] .codex-model-menu,
+:root[data-theme="dark"] .codex-model-panel,
+:root[data-theme="dark"] .attach-menu,
+:root[data-theme="dark"] .notes-recent-card,
+:root[data-theme="dark"] .chat-recent-card,
+:root[data-theme="dark"] .notes-code-copy {
+  background: var(--notion-surface);
+  color: var(--notion-text);
+}
+
+:root[data-theme="dark"] .notion-topbar,
+:root[data-theme="dark"] .notion-composer-wrap {
+  background: var(--notion-bg);
+}
+:root[data-theme="dark"] .notion-topbar {
+  background: rgba(25, 25, 25, 0.92);
+}
+:root[data-theme="dark"] .codex-model-trigger,
+:root[data-theme="dark"] .notes-code-copy:hover {
+  background: var(--nf-model-pill);
+}
+:root[data-theme="dark"] .notion-error,
+:root[data-theme="dark"] .list-reorder-error {
+  background: var(--nf-error-bg);
+  color: var(--nf-error-text);
+}
+:root[data-theme="dark"] .notes-delete,
+:root[data-theme="dark"] .chat-menu-item.is-danger,
+:root[data-theme="dark"] .page-edit-error {
+  color: var(--nf-danger);
+}
+:root[data-theme="dark"] .notes-dialog::backdrop,
+:root[data-theme="dark"] .model-sheet-backdrop {
+  background: rgba(0, 0, 0, 0.56);
+}
+:root[data-theme="dark"] .model-sheet-grab,
+:root[data-theme="dark"] .notes-menu-switch:not([data-on="true"]) {
+  background: rgba(255, 255, 255, 0.24);
+}
+:root[data-theme="dark"] .chat-quote {
+  background: var(--notion-sidebar);
+  border-color: var(--notion-border-strong);
+}
+
+/* チャット回答のコードブロックとハイライト */
+:root[data-theme="dark"] .markdown-code-shell {
+  border-color: var(--notion-border-strong);
+  background: #1f1f22;
+}
+:root[data-theme="dark"] .markdown-code-header {
+  border-bottom-color: var(--notion-border);
+  background: rgba(255, 255, 255, 0.04);
+}
+:root[data-theme="dark"] .markdown-code-language { color: #e6e5e3; }
+:root[data-theme="dark"] .markdown-code-copy { color: rgba(230, 229, 227, 0.72); }
+:root[data-theme="dark"] .markdown-code-copy:hover { background: rgba(255, 255, 255, 0.1); color: #ffffff; }
+:root[data-theme="dark"] .markdown-inline-code { background: rgba(255, 255, 255, 0.1); color: #f3f4f6; }
+:root[data-theme="dark"] .markdown-body table th { background: rgba(255, 255, 255, 0.05); }
+:root[data-theme="dark"] .markdown-body table td,
+:root[data-theme="dark"] .markdown-body table th { border-color: var(--notion-border-strong); }
+:root[data-theme="dark"] .hljs-keyword,
+:root[data-theme="dark"] .hljs-selector-tag,
+:root[data-theme="dark"] .hljs-built_in { color: #c084fc; }
+:root[data-theme="dark"] .hljs-title,
+:root[data-theme="dark"] .hljs-title.class_,
+:root[data-theme="dark"] .hljs-title.function_,
+:root[data-theme="dark"] .hljs-name { color: #60a5fa; }
+:root[data-theme="dark"] .hljs-string,
+:root[data-theme="dark"] .hljs-template-variable,
+:root[data-theme="dark"] .hljs-symbol { color: #34d399; }
+:root[data-theme="dark"] .hljs-number,
+:root[data-theme="dark"] .hljs-literal,
+:root[data-theme="dark"] .hljs-type { color: #fbbf24; }
+:root[data-theme="dark"] .hljs-variable,
+:root[data-theme="dark"] .hljs-variable.language_,
+:root[data-theme="dark"] .hljs-attr,
+:root[data-theme="dark"] .hljs-attribute { color: #fb7185; }
+:root[data-theme="dark"] .hljs-comment,
+:root[data-theme="dark"] .hljs-quote { color: #94a3b8; }
+:root[data-theme="dark"] .hljs-meta,
+:root[data-theme="dark"] .hljs-doctag { color: #a1a1aa; }
+:root[data-theme="dark"] .hljs-tag { color: #7dd3fc; }
+
+/* BlockNote エディターのダークモード上書き（BlockNote CSS より詳細度を高く保つ） */
+:root[data-theme="dark"] .notes-block-editor .bn-container[data-color-scheme="dark"],
+:root[data-theme="dark"] .notes-block-editor .bn-editor {
+  --bn-colors-editor-background: #191919;
+  --bn-colors-editor-text: #e6e5e3;
+  --bn-colors-menu-background: #252525;
+  --bn-colors-menu-text: #e6e5e3;
+  --bn-colors-hovered-background: rgba(255, 255, 255, 0.07);
+  --bn-colors-selected-background: rgba(255, 255, 255, 0.12);
+  --bn-colors-border: rgba(255, 255, 255, 0.12);
+  background: var(--notion-bg);
+  color: var(--notes-text);
+}
+:root[data-theme="dark"] .notes-block-editor .shiki,
+:root[data-theme="dark"] .notes-block-editor .shiki span {
+  color: var(--shiki-dark);
+}
+:root[data-theme="dark"] .notes-block-editor .bn-block-content[data-content-type="callout"]:not([data-background-color]) {
+  background: rgba(255, 255, 255, 0.05);
+}
+:root[data-theme="dark"] .notes-block-editor .bn-block-content[data-content-type="table"] th:not([data-background-color]) {
+  background: rgba(255, 255, 255, 0.06);
+}
+:root[data-theme="dark"] .notes-block-editor .bn-block-content[data-content-type="checkListItem"] input[type="checkbox"]:not(:checked) {
+  background: transparent;
+}
+:root[data-theme="dark"] .bn-ariakit .bn-ak-menu,
+:root[data-theme="dark"] .bn-ariakit .bn-ak-toolbar,
+:root[data-theme="dark"] .bn-ariakit .bn-ak-popover {
+  background: var(--notion-surface);
+  color: var(--notion-text);
+  border-color: var(--notion-border-strong);
+}
+:root[data-theme="dark"] .bn-ariakit .bn-ak-menu-item > span[aria-hidden="true"]:last-child {
+  color: var(--notion-faint);
+}
+:root[data-theme="dark"] .page-edit-before {
+  background: rgba(248, 113, 113, 0.16);
+  text-decoration-color: rgba(248, 113, 113, 0.55);
+}
+:root[data-theme="dark"] .page-edit-after {
+  background: rgba(52, 211, 153, 0.16);
+}
+:root[data-theme="dark"] .notes-block-editor .bn-block-content[data-content-type="codeBlock"] select {
+  background-color: var(--notion-surface);
+  color: var(--notion-text);
 }

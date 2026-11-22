@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, Paperclip, X } from "lucide-react";
+import { ArrowUp, FileText, LoaderCircle, Paperclip, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -12,6 +12,7 @@ import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
+import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
 import { GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import "@/components/note-assistant.css";
@@ -37,6 +38,23 @@ const QUICK_ACTIONS = [
   { label: msg("Make it shorter"), prompt: "Make this note shorter without losing the key points." },
   { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
+
+// ノート内の選択テキストに対する定型操作。選択中の抜粋だけに絞って依頼する。
+const SELECTION_ACTIONS = [
+  { label: msg("Improve writing"), prompt: "Improve the writing of the quoted excerpt: make it clearer and smoother while keeping the meaning and language." },
+  { label: msg("Fix spelling & grammar"), prompt: "Fix spelling and grammar mistakes in the quoted excerpt. Do not change the wording otherwise." },
+  { label: msg("Make it shorter"), prompt: "Make the quoted excerpt shorter without losing the key points." },
+  { label: msg("Explain"), prompt: "Explain the quoted excerpt clearly in the same language. Do not edit the note unless asked." },
+  { label: msg("Translate"), prompt: "Translate the quoted excerpt naturally into English (or into the note's main language if it is already English). Do not edit the note unless asked." },
+] as const;
+
+// 定型ボタンで送った発言は、AI へ渡す英語の依頼文で保存される。会話を読み戻したときは、送信時と同じ短い名前で出す。
+const ACTION_LABEL_BY_PROMPT = new Map<string, string>([...QUICK_ACTIONS, ...SELECTION_ACTIONS].map((action) => [action.prompt, action.label]));
+function storedUserText(content: string, t: (text: string) => string) {
+  const { quote, body } = splitQuotedMessage(content);
+  const label = ACTION_LABEL_BY_PROMPT.get(body.trim());
+  return label ? composeQuotedMessage(quote, t(label)) : content;
+}
 
 // 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。rem は 1rem の px（ボタンとパネルの大きさは CSS で rem 指定なので、ブラウザーの文字サイズ設定に合わせる）。
 const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16 });
@@ -106,7 +124,7 @@ async function streamChat(
 // ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
 // ノートは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。
 // 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ノートの編集には使わない）。
-export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false }: {
+export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false }: {
   noteId: string;
   noteTitle: string;
   model: string;
@@ -118,10 +136,23 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   flush: () => Promise<boolean>;
   // Android アプリの /note-embed。アプリ内ではウェブの決済（Stripe）に誘導しない（Google Play のルール）。
   embedded?: boolean;
+  // エディターの書式ツールバー「Ask AI」から渡された選択テキスト。
+  selection?: string | null;
+  onClearSelection?: () => void;
+  // 増えるたびにパネルを開いて入力欄へフォーカスする。
+  openSignal?: number;
+  // 分割表示（チャットと並べて表示）時は右下の丸いボタンを隠す。
+  hidden?: boolean;
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [historyState, setHistoryState] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [historyAttempt, setHistoryAttempt] = useState(0);
+  const historyAbortRef = useRef<AbortController | null>(null);
+  // 取得を始めた試行番号。同じ試行で二度取得しない（「もう一度試す」で番号が進む）。
+  const historyAttemptRef = useRef(-1);
+  const lastOpenSignalRef = useRef(openSignal);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   // 保存待ちから返答の終わりまで true。チャットのボタンを無効にするのに使う。
@@ -239,8 +270,64 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const { attach, bind } = useSwipeDismiss<HTMLDivElement>({ axis: "y", direction: 1, onDismiss: close });
 
   useEffect(() => {
+    if (openSignal !== lastOpenSignalRef.current) {
+      lastOpenSignalRef.current = openSignal;
+      if (openSignal > 0 && !hidden) {
+        setOpen(true);
+        if (!phone) queueMicrotask(() => inputRef.current?.focus());
+      }
+    }
+  }, [openSignal, hidden, phone]);
+
+  useEffect(() => {
     if (open && !phone) inputRef.current?.focus();
-  }, [open, phone]);
+  }, [open, phone, selection]);
+
+  // 初めてパネルを開いたときに、このノートの直近のアシスタント会話をサーバーから復元する。
+  // 依存に historyState を入れない：読み込み中へ変えた直後に後始末が走り、自分の取得を中断してしまう。
+  useEffect(() => {
+    if (!open || hidden || historyAttemptRef.current === historyAttempt) return;
+    historyAttemptRef.current = historyAttempt;
+    const controller = new AbortController();
+    historyAbortRef.current = controller;
+    setHistoryState("loading");
+    void fetch(`/api/pages/${encodeURIComponent(noteId)}/assistant`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Failed to load");
+        return response.json() as Promise<{ sessionId?: string | null; messages?: Message[] }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted || sending.current) return;
+        sessionId.current = typeof data.sessionId === "string" ? data.sessionId : "";
+        setMessages(Array.isArray(data.messages) ? data.messages.map((message) => (message.role === "USER" ? { ...message, content: storedUserText(message.content, t) } : message)) : []);
+        setHistoryState("loaded");
+      })
+      .catch(() => {
+        if (controller.signal.aborted) return;
+        setHistoryState("error");
+      });
+  }, [open, hidden, noteId, historyAttempt, t]);
+
+  // パネルごと外れるときだけ取得を中断する（ノートを切り替えると key が変わって作り直される）。
+  // 番号も戻しておく：開発時の StrictMode は後始末のあとに効果をもう一度走らせるので、そこで取り直せるようにする。
+  useEffect(() => () => {
+    historyAbortRef.current?.abort();
+    historyAttemptRef.current = -1;
+  }, []);
+
+  function startNewChat() {
+    if (busy) return;
+    historyAbortRef.current?.abort();
+    sessionId.current = "";
+    setMessages([]);
+    setHistoryState("loaded");
+    setError("");
+    setGuestLimit(false);
+    setUpgradeLimit(false);
+    flashOutcome(null);
+    onClearSelection?.();
+    if (!phone) inputRef.current?.focus();
+  }
 
   // 新しい発言や回答が増えたら下へ送る。ただし、読み返すために上へ戻っている間は動かさない。
   useEffect(() => {
@@ -304,11 +391,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // display は画面に出す発言（ボタンの短い名前など）。AI へは text をそのまま送る。添付は入力欄から送ったときだけ付ける。
   async function send(text: string, display?: string) {
     const content = text.trim();
-    if (!content || sending.current) return;
+    if (!content || sending.current || historyState === "loading") return;
+    const activeSelection = selection?.trim() || "";
+    const payloadText = activeSelection ? composeQuotedMessage(activeSelection, content) : content;
+    const displayText = activeSelection ? composeQuotedMessage(activeSelection, display ?? content) : (display ?? content);
     const sentFiles = display === undefined ? files : [];
     const sentPages = display === undefined ? attachedPages : [];
     const rawFiles = sentFiles.map(({ file }) => file);
-    const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
+    const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, payloadText, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
     if (problem) { setError(problem); flashOutcome("error"); return; }
     const assistantId = crypto.randomUUID();
@@ -347,7 +437,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     setMessages((current) => [
       ...current,
       {
-        id: crypto.randomUUID(), role: "USER", content: display ?? content,
+        id: crypto.randomUUID(), role: "USER", content: displayText,
         attachments: sentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
         ...(sentPages.length ? { pages: sentPages } : {}),
       },
@@ -358,11 +448,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     setSeconds(0);
     setStreaming(true);
     const body = new FormData();
-    body.append("message", content);
+    body.append("message", payloadText);
     body.append("model", model);
     body.append("reasoning", reasoning);
     body.append("webSearch", "off");
     body.append("noteId", noteId);
+    if (activeSelection) body.append("noteSelection", "1");
     if (sessionId.current) body.append("sessionId", sessionId.current);
     if (tickets.length) body.append("uploads", JSON.stringify(tickets));
     if (sentPages.length) body.append("pages", JSON.stringify(sentPages.map((page) => page.id)));
@@ -375,6 +466,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         (id) => {
           sessionId.current = id;
           accepted = true;
+          if (activeSelection) onClearSelection?.();
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
             setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));
@@ -442,23 +534,44 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       <header className="note-ai-header">
         <AppIcon size={18} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
         <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
+        {messages.length > 0 && (
+          <button type="button" className="notion-icon-button grid" disabled={busy || historyState === "loading"} onClick={startNewChat}
+            aria-label={t("New chat")} title={t("New chat")}><SquarePen size={15} /></button>
+        )}
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
 
       <div ref={listRef} className="note-ai-list" onScroll={onListScroll}>
-        {messages.length === 0 ? (
-          <div className="note-ai-empty">
-            <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
-            <div className="note-ai-chips">
-              {QUICK_ACTIONS.map((action) => (
-                <button key={action.label} type="button" className="note-ai-chip" disabled={busy} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
-              ))}
-            </div>
+        {historyState === "loading" && messages.length === 0 ? (
+          <div className="note-ai-loading" role="status">
+            <LoaderCircle size={15} className="animate-spin" aria-hidden="true" />
+            <span>{t("Loading…")}</span>
           </div>
-        ) : messages.map((message) => (
-          <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
-            characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
-        ))}
+        ) : (
+          <>
+            {historyState === "error" && messages.length === 0 && (
+              <div className="note-ai-history-error" role="alert">
+                <span>{t("Could not load previous conversation.")}</span>
+                <button type="button" className="notion-button" onClick={() => { setHistoryState("idle"); setHistoryAttempt((n) => n + 1); }}>{t("Try again")}</button>
+              </div>
+            )}
+            {messages.length === 0 ? (
+              <div className="note-ai-empty">
+                <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
+                {!selection && (
+                  <div className="note-ai-chips">
+                    {QUICK_ACTIONS.map((action) => (
+                      <button key={action.label} type="button" className="note-ai-chip" disabled={busy} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : messages.map((message) => (
+              <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
+                characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
+            ))}
+          </>
+        )}
       </div>
 
       {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, input)} />}
@@ -466,6 +579,23 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">
+        {selection && (
+          <div className="note-ai-selection">
+            <div className="chat-quote note-ai-quote" role="group" aria-label={t("Selected text")}>
+              <span className="chat-quote-text">{selection}</span>
+              <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => onClearSelection?.()}
+                aria-label={t("Remove selection")} title={t("Remove selection")}>
+                <X size={14} aria-hidden="true" />
+              </button>
+            </div>
+            <div className="note-ai-chips note-ai-selection-chips">
+              {SELECTION_ACTIONS.map((action) => (
+                <button key={action.label} type="button" className="note-ai-chip is-compact" disabled={busy || historyState === "loading"}
+                  onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
+              ))}
+            </div>
+          </div>
+        )}
         {(attachedPages.length > 0 || files.length > 0) && (
           // 添付したノートとファイル。押すと外れる（チャットの入力欄と同じ）。
           <ul className="note-ai-attachments" aria-label={t("Attached pages")}>
@@ -507,7 +637,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             <AttachMenu className="relative" backToClose={phone} disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
               onAttachPages={() => setPageDialogOpen(true)} />
             {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
-            <button type="submit" className="note-ai-send" disabled={busy || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
+            <button type="submit" className="note-ai-send" disabled={busy || historyState === "loading" || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
           </div>
         </div>
         {uploadProgress && <div role="status" className="note-ai-progress">{t(uploadProgress.key, uploadProgress.vars)}</div>}
@@ -515,6 +645,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       {pageDialogOpen && <AttachPageDialog initial={attachedPages} onClose={() => setPageDialogOpen(false)} onAttach={(pages) => { setError(""); setAttachedPages(pages); }} />}
     </div>
   );
+
+  if (hidden) return null;
 
   return (
     <>

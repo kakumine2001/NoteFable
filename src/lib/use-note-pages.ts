@@ -6,8 +6,9 @@ import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-qu
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
+import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
-import { msg } from "@/lib/i18n/translate";
+import { fmt, msg } from "@/lib/i18n/translate";
 
 const DRAFT_PREFIX = "notefable:page-draft:v1:";
 
@@ -162,14 +163,15 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       createdWhileLoading.current = [];
       setPages(extra.length ? [...extra, ...data.pages].sort(byPosition) : data.pages);
       setGroups(data.groups ?? []);
-      const requested = new URL(window.location.href).searchParams.get("page");
+      const url = new URL(window.location.href);
+      const inPagesView = url.searchParams.get("view") === "pages";
+      const requested = inPagesView ? url.searchParams.get("page") : null;
       const id = data.pages.find((page: NotePageSummary) => page.id === requested)?.id;
       if (id) await select(id, "replace");
-      else {
+      else if (inPagesView) {
         displayedId.current = null; setActiveId(null); setActive(undefined);
         if (requested) {
           // 存在しない（削除済みなど）ノートを指す URL を開いた：指定を外して Notes のホームに戻す。
-          const url = new URL(window.location.href);
           url.searchParams.delete("page");
           window.history.replaceState(null, "", url);
           window.dispatchEvent(new Event("popstate"));
@@ -285,10 +287,15 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       setActive(queue);
       setLoading(false);
       const url = new URL(window.location.href);
-      url.searchParams.set("page", page.id);
       // アプリに埋め込んだ 1 ページだけの画面（/note-embed）は戻る履歴を持たないので、積まずに置き換える。
-      if (embedded) window.history.replaceState(null, "", url);
-      else window.history.pushState(null, "", url);
+      // チャットの分割表示から作成した場合はチャットの URL に ?page= を足さない。
+      if (embedded) {
+        url.searchParams.set("page", page.id);
+        window.history.replaceState(null, "", url);
+      } else if (url.searchParams.get("view") === "pages") {
+        url.searchParams.set("page", page.id);
+        window.history.pushState(null, "", url);
+      }
     } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to create note.")); }
     finally { actionBusy.current = false; setBusy(false); }
   }
@@ -450,9 +457,83 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     } finally {reorderBusy.current=false;}
   }
 
+  async function exportPage(id: string): Promise<boolean> {
+    if (actionBusy.current) return false;
+    actionBusy.current = true;
+    setGroupError("");
+    try {
+      const queue = queues.current.get(id);
+      if (queue && queue.dirty && !(await queue.flush())) {
+        throw new Error(msg("Resolve the unsaved draft before exporting this page."));
+      }
+      const data = await pageRequest(`/api/pages/${encodeURIComponent(id)}/export`);
+      const blob = new Blob([String(data.markdown ?? "")], { type: "text/markdown;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = typeof data.fileName === "string" && data.fileName ? data.fileName : "note.md";
+      link.style.display = "none";
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      return true;
+    } catch (caught) {
+      setGroupError(caught instanceof Error && caught.message ? caught.message : msg("Could not export the page."));
+      return false;
+    } finally {
+      actionBusy.current = false;
+    }
+  }
+
+  async function importMarkdown(fileList: File[]): Promise<NotePageSummary[]> {
+    if (actionBusy.current || !fileList.length) return [];
+    if (fileList.length > MAX_IMPORT_FILES) {
+      setError(fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES }));
+      return [];
+    }
+    let totalBytes = 0;
+    for (const file of fileList) {
+      if (!isImportableMarkdownFile(file.name)) {
+        setError(msg("Only Markdown (.md, .markdown, .txt) files can be imported."));
+        return [];
+      }
+      if (file.size > MAX_IMPORT_FILE_BYTES) {
+        setError(msg("Note content exceeds 1 MiB."));
+        return [];
+      }
+      totalBytes += file.size;
+    }
+    if (totalBytes > MAX_IMPORT_TOTAL_BYTES) {
+      setError(msg("Import exceeds 4 MB."));
+      return [];
+    }
+    actionBusy.current = true;
+    setBusy(true);
+    setError("");
+    try {
+      const files = await Promise.all(fileList.map(async (file) => ({ name: file.name, markdown: await file.text() })));
+      const data = await pageRequest("/api/pages/import", "POST", { files });
+      const created = (data.pages ?? []) as NotePageSummary[];
+      if (created.length) {
+        runTransition(() => setPages((current) => {
+          const ids = new Set(created.map((item) => item.id));
+          return [...created, ...current.filter((item) => !ids.has(item.id))].sort(byPosition);
+        }), "list");
+      }
+      return created;
+    } catch (caught) {
+      setError(caught instanceof Error && caught.message ? caught.message : msg("Could not import Markdown files."));
+      return [];
+    } finally {
+      actionBusy.current = false;
+      setBusy(false);
+    }
+  }
+
   function loadLatest() {
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

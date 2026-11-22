@@ -221,4 +221,8 @@ export const deServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Dieser Vorschlag ist nicht mehr gültig. Bitte frage erneut nach einem neuen Vorschlag.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Diese Notiz wurde nach dem Erstellen des Vorschlags geändert. Bitte frage erneut nach einem neuen Vorschlag.",
   "Upload up to {max} files at a time.": "Lade höchstens {max} Dateien gleichzeitig hoch.",
+  "Import exceeds 4 MB.": "Der Import überschreitet 4 MB.",
+  "Select at least one Markdown file to import.": "Wähle mindestens eine Markdown-Datei zum Importieren aus.",
+  "You can import up to {max} files at once.": "Du kannst höchstens {max} Dateien gleichzeitig importieren.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Es können nur Markdown-Dateien (.md, .markdown, .txt) importiert werden.",
 };

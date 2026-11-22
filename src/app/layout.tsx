@@ -5,6 +5,7 @@ import "./motion.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { siteOrigin } from "@/lib/i18n/routing";
+import { THEME_INIT_SCRIPT } from "@/lib/theme";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
 const geistSans = Geist({
@@ -39,6 +40,9 @@ export default function RootLayout({
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
       <body>{children}<Analytics /><SpeedInsights /></body>
     </html>
   );

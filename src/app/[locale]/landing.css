@@ -19,6 +19,28 @@
   font-size: 16px;
   line-height: 1.6;
 }
+:root[data-theme="dark"] .tl-page {
+  --tl-text: var(--notion-text);
+  --tl-muted: var(--notion-muted);
+  --tl-line: var(--notion-border-strong);
+  --tl-soft: var(--notion-sidebar);
+  --tl-blue-deep: var(--notion-blue-hover);
+  background: var(--notion-bg);
+}
+:root[data-theme="dark"] .tl-page .tl-card,
+:root[data-theme="dark"] .tl-page .tl-composer,
+:root[data-theme="dark"] .tl-page .tl-models li,
+:root[data-theme="dark"] .tl-page .tl-proposal {
+  background: var(--notion-surface);
+}
+:root[data-theme="dark"] .tl-page .tl-proposal-actions .tl-proposal-apply,
+:root[data-theme="dark"] .tl-page .tl-skip {
+  color: var(--nf-on-ink) !important;
+}
+:root[data-theme="dark"] .tl-page .tl-footer-end .language-menu-error {
+  color: var(--nf-danger);
+}
+
 .tl-page a { color: inherit; text-decoration: none; }
 .tl-page a:focus-visible { outline: 3px solid var(--tl-blue); outline-offset: 4px; border-radius: 8px; }
 :where(.tl-page) :where(h1, h2, h3, h4, h5, p, ul, ol, dl, dd) { margin: 0; padding: 0; }

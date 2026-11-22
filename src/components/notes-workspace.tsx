@@ -1,9 +1,9 @@
 "use client";
 
 import type { Block } from "@blocknote/core";
-import { FileText, Plus, RefreshCw } from "lucide-react";
+import { FileText, Plus, RefreshCw, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
@@ -43,7 +43,7 @@ function isUnchanged(next: Block[], current: Block[]) {
   return current.length === 0 && next.length === 1 && only.type === "paragraph" && Array.isArray(only.content) && only.content.length === 0 && only.children.length === 0;
 }
 
-export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onWorkspaceChange, embedded = false }: {
+export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
   // ノートの AI アシスタントが使うモデルと推論強度（チャットで選んでいるものと同じ）。
@@ -54,20 +54,30 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onReasoningChange?: (reasoning: string) => void;
   onOpen: (id: string) => void;
   onCreate: () => void;
+  onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
   embedded?: boolean;
+  // デスクトップの分割表示（チャットと並べて表示）。余白を詰め、右下の AI ボタンは隠す。
+  split?: boolean;
+  // 分割表示中にエディターで「Ask AI」を押したとき、左のチャットへ引用を渡す。
+  onAskSelectionInChat?: (text: string) => void;
 }) {
   const { t, locale } = useI18n();
   const { active, activeId, loading, busy, error, backupError } = notes;
+  // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
+  const [aiAsk, setAiAsk] = useState<{ noteId: string; text: string | null; signal: number } | null>(null);
+  const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.text : null;
+  const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
+  const emptyImportRef = useRef<HTMLInputElement>(null);
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
   // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
   const settings = pageSettingsOf(activeId ? notes.pages.find((page) => page.id === activeId) : undefined);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
-    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}`
+    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}${split ? " is-split" : ""}`
     : "";
   useLayoutEffect(() => {
     if (!titleRef.current) return;
@@ -100,7 +110,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
-      <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate}
+      <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div> : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
@@ -128,16 +138,33 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             const end = titleRef.current?.value.length ?? 0;
             titleRef.current?.setSelectionRange(end, end);
           }}
+          onAskAi={(text) => {
+            if (split && onAskSelectionInChat) { onAskSelectionInChat(text); return; }
+            setAiAsk((current) => ({ noteId: activeId, text, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+          }}
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
-      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded} />
+      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
+        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
       <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Notes")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
-      <button type="button" disabled={busy} className="notes-empty-new" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
+        <button type="button" disabled={busy} className="notes-empty-new !mt-0" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+        {onImport && <>
+          <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
+            onChange={(event) => {
+              const picked = Array.from(event.target.files ?? []);
+              event.target.value = "";
+              if (picked.length) onImport(picked);
+            }} />
+          <button type="button" disabled={busy} className="notion-button notes-home-new-group" onClick={() => emptyImportRef.current?.click()}><Upload size={16} />{t("Import Markdown")}</button>
+        </>}
+      </div>
       <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.")}</p>
     </div></>}
   </div>;

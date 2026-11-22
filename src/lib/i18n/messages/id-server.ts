@@ -221,4 +221,8 @@ export const idServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Usulan ini sudah tidak berlaku. Minta lagi untuk mendapatkan usulan baru.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Catatan ini berubah setelah usulan dibuat. Minta lagi untuk mendapatkan usulan baru.",
   "Upload up to {max} files at a time.": "Unggah maksimal {max} file sekaligus.",
+  "Import exceeds 4 MB.": "Impor melebihi 4 MB.",
+  "Select at least one Markdown file to import.": "Pilih setidaknya satu file Markdown untuk diimpor.",
+  "You can import up to {max} files at once.": "Anda dapat mengimpor maksimal {max} file sekaligus.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.",
 };

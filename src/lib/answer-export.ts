@@ -286,6 +286,41 @@ function startsTable(lines: string[], index: number) {
 // - 出典などのリンクを通常の形へ
 // - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
+export function prepareNoteMarkdown(markdown: string) {
+  return prepareMarkdown(markdown);
+}
+
+// ブロックの入れ子の深さをノート保存の上限内に収め、必要なら先頭から切り詰める。
+export function fitMarkdownBlocksToNote(title: string, markdown: string): { blocks: NoteBlockNode[]; truncated: boolean } {
+  const body = clampDepth(markdownToBlocks(prepareMarkdown(markdown)));
+  const fits = (blocks: NoteBlockNode[]) =>
+    countBlocks(blocks) <= MAX_BLOCKS
+    && new TextEncoder().encode(JSON.stringify({ title, icon: null, cover: null, coverPosition: null, blocks })).byteLength <= MAX_NOTE_BYTES - BYTE_MARGIN;
+  const total = countBlocks(body);
+  if (fits(body)) return { blocks: body, truncated: false };
+  let low = 0;
+  let high = total - 1;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    if (fits(takeBlocks(body, middle))) low = middle;
+    else high = middle - 1;
+  }
+  return { blocks: takeBlocks(body, low), truncated: true };
+}
+
+export function extractLeadingHeadingTitle(markdown: string, fallback: string): { title: string; body: string } {
+  const lines = normalizeNewlines(markdown).split("\n");
+  const found = analyze(lines);
+  if (found.heading?.leading) {
+    const title = shorten(found.heading.text, TITLE_CHARS);
+    lines.splice(found.heading.line, 1);
+    return { title: title || shorten(fallback, MAX_NOTE_TITLE) || "Untitled", body: lines.join("\n") };
+  }
+  const cleanFallback = shorten(fallback, MAX_NOTE_TITLE);
+  if (cleanFallback) return { title: cleanFallback, body: lines.join("\n") };
+  return { title: pickTitle(found, "Untitled"), body: lines.join("\n") };
+}
+
 function prepareMarkdown(markdown: string) {
   const lines = normalizeNewlines(markdown).split("\n");
   const out: string[] = [];

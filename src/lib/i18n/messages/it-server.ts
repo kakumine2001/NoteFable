@@ -221,4 +221,8 @@ export const itServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Questa proposta non è più valida. Chiedi di nuovo per ricevere una nuova proposta.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Questa nota è cambiata dopo la creazione della proposta. Chiedi di nuovo per ricevere una nuova proposta.",
   "Upload up to {max} files at a time.": "Carica fino a {max} file alla volta.",
+  "Import exceeds 4 MB.": "L’importazione supera 4 MB.",
+  "Select at least one Markdown file to import.": "Seleziona almeno un file Markdown da importare.",
+  "You can import up to {max} files at once.": "Puoi importare fino a {max} file alla volta.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Si possono importare solo file Markdown (.md, .markdown, .txt).",
 };

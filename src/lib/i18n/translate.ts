@@ -31,6 +31,7 @@ export const SYSTEM_TEXT_TEMPLATES = [
   "Upload failed: {name}. Please try again.",
   "Upload up to {max} files at a time.",
   "You can have at most {max} groups.",
+  "You can import up to {max} files at once.",
 ] as const;
 
 // 第 1 引数は上のシステム文のキー。返す文字列は英語で、翻訳が必要な場所だけ localizeSystemText を使う。

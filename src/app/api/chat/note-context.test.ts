@@ -121,4 +121,15 @@ describe("chat requests made from inside a note", () => {
     expect((await send({ noteId: "note1", sessionId: "plain-chat" })).status).toBe(404);
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
+
+  it("focuses edits on the selected excerpt only when noteSelection=1 is sent with a noteId", async () => {
+    await send({ noteId: "note1", noteSelection: "1" });
+    const withNote = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(withNote).toContain("selected a specific excerpt");
+
+    mocks.fetch.mockClear();
+    await send({ noteSelection: "1" });
+    const withoutNote = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(withoutNote).not.toContain("selected a specific excerpt");
+  });
 });

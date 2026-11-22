@@ -221,4 +221,8 @@ export const thServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "ข้อเสนอนี้ใช้ไม่ได้แล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "โน้ตนี้ถูกแก้ไขหลังจากสร้างข้อเสนอแล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
   "Upload up to {max} files at a time.": "อัปโหลดได้สูงสุดครั้งละ {max} ไฟล์",
+  "Import exceeds 4 MB.": "ข้อมูลที่นำเข้ามีขนาดเกิน 4 MB",
+  "Select at least one Markdown file to import.": "โปรดเลือกไฟล์ Markdown ที่จะนำเข้าอย่างน้อยหนึ่งไฟล์",
+  "You can import up to {max} files at once.": "นำเข้าได้สูงสุดครั้งละ {max} ไฟล์",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "นำเข้าได้เฉพาะไฟล์ Markdown (.md, .markdown, .txt) เท่านั้น",
 };

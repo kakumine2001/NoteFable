@@ -57,7 +57,7 @@ dialog.settings-dialog .settings-save-error { margin: 0 0 0.75rem; }
 dialog.settings-dialog .settings-home { display: none; }
 
 /* カードと行。 */
-dialog.settings-dialog .settings-card { overflow: hidden; border: 1px solid var(--notion-border-strong); border-radius: 12px; background: #fff; }
+dialog.settings-dialog .settings-card { overflow: hidden; border: 1px solid var(--notion-border-strong); border-radius: 12px; background: var(--notion-surface, #fff); }
 dialog.settings-dialog .settings-card-padded { padding: 1rem; }
 dialog.settings-dialog .settings-card > * + * { border-top: 1px solid var(--notion-border); }
 dialog.settings-dialog .settings-card-padded > * + * { border-top: 0; }
@@ -69,7 +69,7 @@ dialog.settings-dialog .settings-row-note { padding: 0 1rem 0.75rem; }
 dialog.settings-dialog .settings-row-note .project-settings-error { margin-top: 0; }
 dialog.settings-dialog .settings-row-button { justify-content: flex-start; gap: 0.75rem; color: var(--notion-text); transition: background-color 120ms ease; }
 dialog.settings-dialog .settings-row-button svg { flex: none; color: var(--notion-muted); }
-dialog.settings-dialog .settings-row-button.is-danger, dialog.settings-dialog .settings-row-button.is-danger svg, dialog.settings-dialog .settings-row-button.is-danger .settings-row-title { color: #b91c1c; }
+dialog.settings-dialog .settings-row-button.is-danger, dialog.settings-dialog .settings-row-button.is-danger svg, dialog.settings-dialog .settings-row-button.is-danger .settings-row-title { color: var(--nf-danger, #b91c1c); }
 dialog.settings-dialog .settings-row-button:disabled { opacity: 0.55; }
 dialog.settings-dialog .settings-row-button:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: -2px; }
 @media (hover: hover) { dialog.settings-dialog .settings-row-button:hover:not(:disabled) { background: var(--notion-hover); } }
@@ -77,7 +77,7 @@ dialog.settings-dialog .settings-row-button:focus-visible { outline: 2px solid v
 /* 行の右端の選択ボタン（言語）。押すと一覧が開く。 */
 dialog.settings-dialog .settings-select {
   display: inline-flex; height: 2.25rem; max-width: 60%; flex: none; align-items: center; gap: 0.5rem; padding-inline: 0.75rem 0.625rem;
-  border: 1px solid var(--notion-border-strong); border-radius: 8px; background: #fff; font-size: 0.875rem; color: var(--notion-text);
+  border: 1px solid var(--notion-border-strong); border-radius: 8px; background: var(--notion-surface, #fff); font-size: 0.875rem; color: var(--notion-text);
   transition: background-color 120ms ease, border-color 120ms ease;
 }
 dialog.settings-dialog .settings-select > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -86,11 +86,31 @@ dialog.settings-dialog .settings-select[aria-expanded="true"] { border-color: va
 dialog.settings-dialog .settings-select:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 @media (hover: hover) { dialog.settings-dialog .settings-select:hover { background: var(--notion-sidebar); } }
 
+/* 外観（システム / ライト / ダーク）のセグメント選択。 */
+dialog.settings-dialog .settings-theme-row { flex-wrap: wrap; gap: 0.625rem 1rem; }
+dialog.settings-dialog .settings-theme-group {
+  display: inline-flex; flex: none; align-items: center; gap: 2px; padding: 2px;
+  border-radius: 8px; border: 1px solid var(--notion-border); background: var(--notion-sidebar);
+}
+dialog.settings-dialog .settings-theme-option {
+  display: inline-flex; min-height: 2rem; align-items: center; gap: 0.35rem; padding: 0 0.65rem;
+  border-radius: 6px; font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted);
+  transition: background-color 120ms ease, color 120ms ease;
+}
+dialog.settings-dialog .settings-theme-option.is-selected {
+  background: var(--notion-surface, #fff); color: var(--nf-ink);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08), 0 0 0 1px var(--notion-border);
+}
+dialog.settings-dialog .settings-theme-option:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
+@media (hover: hover) {
+  dialog.settings-dialog .settings-theme-option:not(.is-selected):hover { color: var(--notion-text); }
+}
+
 /* 小さな操作ボタン（絵文字を選ぶ・画像をアップロード・購読の管理など）。 */
 dialog.settings-dialog .settings-chip-row { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 1rem 0.875rem; }
 dialog.settings-dialog .settings-chip {
   display: inline-flex; min-height: 2rem; align-items: center; gap: 0.4rem; padding: 0 0.75rem; border: 1px solid var(--notion-border-strong);
-  border-radius: 999px; background: #fff; font-size: 0.8125rem; font-weight: 500; color: var(--notion-text); transition: background-color 120ms ease;
+  border-radius: 999px; background: var(--notion-surface, #fff); font-size: 0.8125rem; font-weight: 500; color: var(--notion-text); transition: background-color 120ms ease;
 }
 dialog.settings-dialog .settings-chip svg { flex: none; color: var(--notion-muted); }
 dialog.settings-dialog .settings-chip:disabled { opacity: 0.55; }
@@ -115,7 +135,7 @@ dialog.settings-dialog .settings-character-picker {
 }
 dialog.settings-dialog .settings-character-picker-head {
   display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding-block: 0.5rem; padding-inline: 0.875rem 0.625rem;
-  border-bottom: 1px solid var(--notion-border); background: #fff;
+  border-bottom: 1px solid var(--notion-border); background: var(--notion-surface, #fff);
 }
 dialog.settings-dialog .settings-character-picker-title { font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
 dialog.settings-dialog .settings-character-picker-close { width: 1.75rem; height: 1.75rem; border-radius: 6px; color: var(--notion-muted); }
@@ -124,11 +144,11 @@ dialog.settings-dialog .settings-character-grid {
 }
 dialog.settings-dialog .settings-character-card {
   position: relative; display: flex; min-height: 5.5rem; flex-direction: column; align-items: center; justify-content: center; gap: 0.25rem;
-  padding: 0.625rem 0.375rem 0.5rem; border: 1px solid var(--notion-border-strong); border-radius: 10px; background: #fff;
+  padding: 0.625rem 0.375rem 0.5rem; border: 1px solid var(--notion-border-strong); border-radius: 10px; background: var(--notion-surface, #fff);
   color: var(--notion-text); text-align: center; transition: border-color 120ms ease, background-color 120ms ease, box-shadow 120ms ease;
 }
 dialog.settings-dialog .settings-character-card.is-selected {
-  border-color: var(--notion-blue); background: #fff; box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
+  border-color: var(--notion-blue); background: var(--notion-surface, #fff); box-shadow: 0 0 0 2px rgba(35, 131, 226, 0.18);
 }
 dialog.settings-dialog .settings-character-card:focus-visible { outline: 2px solid var(--notion-blue); outline-offset: 1px; }
 @media (hover: hover) {
@@ -159,7 +179,7 @@ dialog.settings-dialog .settings-plan-bar > span { display: block; height: 100%;
 dialog.settings-dialog .settings-plan-bar.is-full > span { background: #b45309; }
 dialog.settings-dialog .settings-plan-offer {
   margin-top: 1rem; padding: 0.875rem 1rem; border: 1px solid var(--nf-accent-line); border-radius: 12px;
-  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.16)), #fff;
+  background: linear-gradient(135deg, var(--nf-accent-soft), rgba(255, 226, 122, 0.14)), var(--notion-surface, #fff);
 }
 dialog.settings-dialog .settings-plan-offer-title { display: flex; align-items: center; gap: 0.375rem; margin: 0; color: var(--nf-ink); font-size: 0.9375rem; font-weight: 600; }
 dialog.settings-dialog .settings-plan-offer-title svg { color: var(--nf-accent); }
@@ -170,34 +190,34 @@ dialog.settings-dialog .settings-plan-manage { margin-top: 1rem; }
 dialog.settings-dialog .project-settings-label { font-size: 0.9375rem; font-weight: 500; }
 dialog.settings-dialog textarea.settings-textarea {
   display: block; width: 100%; min-height: 11rem; margin-top: 0.75rem; resize: vertical; border: 1px solid var(--notion-border-strong); border-radius: 10px;
-  padding: 0.625rem 0.75rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: #fff;
+  padding: 0.625rem 0.75rem; font: inherit; font-size: 0.9375rem; line-height: 1.55; color: var(--notion-text); background: var(--notion-surface, #fff);
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
 dialog.settings-dialog textarea.settings-textarea:focus { border-color: var(--notion-blue); outline: none; box-shadow: 0 0 0 3px rgba(35, 131, 226, 0.16); }
 dialog.settings-dialog .settings-saved { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.75rem; font-weight: 500; color: #15803d; }
 
 /* アカウントの削除。押すとその場に確認を出す（ダイアログを重ねない）。 */
-dialog.settings-dialog .settings-delete-confirm { padding: 0.875rem 1rem; background: rgba(185, 28, 28, 0.04); font-size: 0.875rem; line-height: 1.5; }
+dialog.settings-dialog .settings-delete-confirm { padding: 0.875rem 1rem; background: rgba(185, 28, 28, 0.08); font-size: 0.875rem; line-height: 1.5; }
 dialog.settings-dialog .settings-delete-actions { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.75rem; }
 /* .notion-button が文字色を上書きするので、確認の「完全に削除」を赤に戻す。 */
-dialog.settings-dialog .settings-delete-actions .notion-button.notes-delete { color: #b91c1c; border: 1px solid rgba(185, 28, 28, 0.2); }
+dialog.settings-dialog .settings-delete-actions .notion-button.notes-delete { color: var(--nf-danger, #b91c1c); border: 1px solid rgba(185, 28, 28, 0.28); }
 
 /* 「未保存の変更」のバー。カスタム指示を書き換えた間だけ下に浮かぶ。 */
 dialog.settings-dialog .settings-unsaved {
   position: absolute; right: 1rem; bottom: 1rem; left: 1rem; display: flex; min-height: 3.25rem; align-items: center; gap: 0.5rem; padding-block: 0.5rem; padding-inline: 1rem 0.5rem;
-  border-radius: 14px; background: var(--nf-ink); color: #fff; box-shadow: 0 8px 28px rgba(12, 23, 48, 0.28);
+  border-radius: 14px; background: var(--nf-ink); color: var(--nf-on-ink, #fff); box-shadow: 0 8px 28px rgba(12, 23, 48, 0.28);
   animation: settings-slide 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 dialog.settings-dialog .settings-unsaved.is-attention { animation: settings-shake 360ms ease both; }
 dialog.settings-dialog .settings-unsaved-text { min-width: 0; flex: 1; font-size: 0.875rem; font-weight: 500; }
 dialog.settings-dialog .settings-unsaved button { min-height: 2.25rem; flex: none; padding: 0 0.875rem; border-radius: 10px; font-size: 0.875rem; font-weight: 550; transition: background-color 120ms ease; }
 dialog.settings-dialog .settings-unsaved button:disabled { opacity: 0.6; }
-dialog.settings-dialog .settings-unsaved button:focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
-dialog.settings-dialog .settings-unsaved-discard { color: rgba(255, 255, 255, 0.82); }
-dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--nf-ink); }
+dialog.settings-dialog .settings-unsaved button:focus-visible { outline: 2px solid currentColor; outline-offset: 1px; }
+dialog.settings-dialog .settings-unsaved-discard { color: var(--nf-on-ink, #fff); opacity: 0.82; }
+dialog.settings-dialog .settings-unsaved-save { background: var(--nf-on-ink, #fff); color: var(--nf-ink); }
 @media (hover: hover) {
-  dialog.settings-dialog .settings-unsaved-discard:hover:not(:disabled) { background: rgba(255, 255, 255, 0.12); color: #fff; }
-  dialog.settings-dialog .settings-unsaved-save:hover:not(:disabled) { background: rgba(255, 255, 255, 0.9); }
+  dialog.settings-dialog .settings-unsaved-discard:hover:not(:disabled) { opacity: 1; background: rgba(127, 127, 127, 0.18); }
+  dialog.settings-dialog .settings-unsaved-save:hover:not(:disabled) { opacity: 0.9; }
 }
 
 /* スマホ幅: 全画面（地は灰色、カードは白）。最初は入口の一覧、行を押すとその欄だけの画面。 */
@@ -212,7 +232,7 @@ dialog.settings-dialog .settings-unsaved-save { background: #fff; color: var(--n
   }
   dialog.settings-dialog .settings-title { grid-column: 2; text-align: center; }
   dialog.settings-dialog .settings-back, dialog.settings-dialog .settings-close {
-    grid-column: 1; grid-row: 1; width: 2.5rem; height: 2.5rem; border: 1px solid var(--notion-border); border-radius: 999px; background: #fff; color: var(--notion-text);
+    grid-column: 1; grid-row: 1; width: 2.5rem; height: 2.5rem; border: 1px solid var(--notion-border); border-radius: 999px; background: var(--notion-surface, #fff); color: var(--notion-text);
   }
   dialog.settings-dialog .settings-back { display: grid; }
   dialog.settings-dialog .settings-shell[data-home="true"] .settings-back, dialog.settings-dialog .settings-shell[data-home="false"] .settings-close { display: none; }

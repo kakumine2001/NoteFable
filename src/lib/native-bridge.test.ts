@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NotePage } from "@/types/notes";
-import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSettings, parseUpdatedPage, postToNative, readNativeAppIcon, readNativeLanguage, toEmbedSaveState, type NativeMessage } from "./native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, parseAppIcon, parsePageSettings, parseUpdatedPage, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState, type NativeMessage } from "./native-bridge";
 
 describe("readNativeAppIcon", () => {
   const postMessage = () => {};
@@ -223,5 +223,25 @@ describe("readNativeLanguage", () => {
     expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => "nl" } })).toBeNull();
     expect(readNativeLanguage({ NoteFableNative: { postMessage } })).toBeNull();
     expect(readNativeLanguage({ NoteFableNative: { postMessage, language: () => { throw new Error("gone"); } } })).toBeNull();
+  });
+});
+
+describe("native theme bridge", () => {
+  it("reads valid native theme preferences and updates theme via embed api", () => {
+    const postMessage = () => {};
+    expect(readNativeTheme({ NoteFableNative: { postMessage, theme: () => "dark" } })).toBe("dark");
+    expect(readNativeTheme({ NoteFableNative: { postMessage, theme: () => "light" } })).toBe("light");
+    expect(readNativeTheme({ NoteFableNative: { postMessage, theme: () => "system" } })).toBe("system");
+    expect(readNativeTheme({ NoteFableNative: { postMessage, theme: () => "invalid" } })).toBeNull();
+    expect(readNativeTheme({ NoteFableNative: { postMessage } })).toBeNull();
+
+    const theme = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {}, theme });
+    expect(api.theme("dark")).toBe(true);
+    expect(api.theme("light")).toBe(true);
+    expect(api.theme("system")).toBe(true);
+    expect(api.theme("unknown")).toBe(false);
+    expect(api.theme(null)).toBe(false);
+    expect(theme).toHaveBeenCalledTimes(3);
   });
 });

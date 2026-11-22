@@ -221,4 +221,8 @@ export const arServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "لم يعد هذا التعديل المقترح صالحاً. اطلب مرة أخرى للحصول على اقتراح جديد.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "تغيّرت هذه الملاحظة بعد إنشاء الاقتراح. اطلب مرة أخرى للحصول على اقتراح جديد.",
   "Upload up to {max} files at a time.": "ارفع ما يصل إلى {max} ملفات في المرة الواحدة.",
+  "Import exceeds 4 MB.": "يتجاوز الاستيراد 4 MB.",
+  "Select at least one Markdown file to import.": "اختر ملف Markdown واحدًا على الأقل للاستيراد.",
+  "You can import up to {max} files at once.": "يمكنك استيراد ما يصل إلى {max} ملفات في المرة الواحدة.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "يمكن استيراد ملفات Markdown (.md و.markdown و.txt) فقط.",
 };

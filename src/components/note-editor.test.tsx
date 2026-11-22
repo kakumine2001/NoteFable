@@ -31,6 +31,9 @@ vi.mock("@/components/i18n-provider", () => ({
   useI18n: () => ({ locale: mockLocale.current, dir: mockLocale.current === "ar" ? "rtl" : "ltr", t: (key: string) => key }),
   useT: () => (key: string) => key,
 }));
+vi.mock("@/lib/theme", () => ({
+  useTheme: () => ({ preference: "light", resolved: "light", setPreference: vi.fn() }),
+}));
 
 import NoteEditor from "./note-editor";
 import { cachedBlockNoteDictionary, loadBlockNoteDictionary } from "@/lib/i18n/blocknote-locales";

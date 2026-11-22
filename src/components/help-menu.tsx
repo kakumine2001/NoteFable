@@ -1,15 +1,17 @@
 "use client";
 
-import { ChevronRight, CircleHelp, FileText, Info, Languages, Scale, Shield } from "lucide-react";
+import { Check, ChevronRight, CircleHelp, FileText, Info, Languages, Monitor, Moon, Scale, Shield, Sun } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from "react";
 import { LanguageMenuPanel, useLanguageChoice } from "@/components/language-menu";
+import { THEME_OPTIONS } from "@/components/theme-settings";
 import { useI18n } from "@/components/i18n-provider";
 import { LOCALE_DIRS, LOCALE_NAMES, LOCALE_TAGS } from "@/lib/i18n/locale";
 import { siteHref } from "@/lib/hosts";
 import { msg } from "@/lib/i18n/translate";
 import { INTRO_HREF } from "@/lib/i18n/routing";
+import { useTheme } from "@/lib/theme";
 import { afterSheetHistory, useBackToClose } from "@/lib/use-back-to-close";
 
 // 紹介サイト（/?intro は回訪者でもワークスペースへ戻されない）と法律のページ。紹介サイトとワークスペースを別ホストにしたときは
@@ -28,8 +30,9 @@ export function HelpMenu({ guest }: { guest: boolean }) {
   const { t, locale, preference } = useI18n();
   const router = useRouter();
   const language = useLanguageChoice();
+  const theme = useTheme();
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const [open, setOpen] = useState<null | { kind: "help" | "language"; anchor: DOMRect }>(null);
+  const [open, setOpen] = useState<null | { kind: "help" | "language" | "theme"; anchor: DOMRect }>(null);
   const refocus = useRef(false);
   useEffect(() => {
     if (open || !refocus.current) return;
@@ -37,6 +40,8 @@ export function HelpMenu({ guest }: { guest: boolean }) {
     triggerRef.current?.focus();
   }, [open]);
   const close = () => { refocus.current = true; setOpen(null); };
+  const activeThemeOption = THEME_OPTIONS.find((item) => item.value === theme.preference) ?? THEME_OPTIONS[0];
+  const ThemeIcon = theme.preference === "dark" ? Moon : theme.preference === "light" ? Sun : Monitor;
 
   return (
     <>
@@ -47,7 +52,7 @@ export function HelpMenu({ guest }: { guest: boolean }) {
       </button>
       {language.failed && <span role="alert" className="language-menu-error">{t(language.failed)}</span>}
       {open?.kind === "help" && (
-        <HelpPanel anchor={open.anchor} items={links().length + (guest ? 1 : 0)} onClose={close}>
+        <HelpPanel anchor={open.anchor} items={links().length + (guest ? 2 : 0)} onClose={close}>
           {links().map(({ href, label, icon: Icon }) => (
             // メニューを閉じると履歴の目印を外す history.back() が走るので、それが済んでから移る（先に移ると戻されることがある）。
             // 新しいタブで開くなどの修飾付きクリックはブラウザに任せる。
@@ -77,12 +82,36 @@ export function HelpMenu({ guest }: { guest: boolean }) {
               </span>
               <ChevronRight size={15} aria-hidden="true" className="help-menu-icon rtl-mirror" />
             </button>
+            <button type="button" role="menuitem" className="chat-menu-item" aria-haspopup="menu"
+              onClick={() => setOpen({ kind: "theme", anchor: open.anchor })}>
+              <ThemeIcon size={16} aria-hidden="true" className="help-menu-icon" />
+              <span className="help-menu-label">
+                {t("Appearance")}
+                <small className="help-menu-value">{t(activeThemeOption.label)}</small>
+              </span>
+              <ChevronRight size={15} aria-hidden="true" className="help-menu-icon rtl-mirror" />
+            </button>
           </>}
         </HelpPanel>
       )}
       {open?.kind === "language" && (
         <LanguageMenuPanel anchor={open.anchor} current={language.current} align="end"
           onChoose={(next) => { close(); language.choose(next); }} onClose={close} />
+      )}
+      {open?.kind === "theme" && (
+        <HelpPanel anchor={open.anchor} items={THEME_OPTIONS.length} onClose={close}>
+          {THEME_OPTIONS.map(({ value, label, icon: Icon }) => {
+            const checked = theme.preference === value;
+            return (
+              <button key={value} type="button" role="menuitemradio" aria-checked={checked} className="chat-menu-item"
+                onClick={() => { theme.setPreference(value); close(); }}>
+                <Icon size={16} aria-hidden="true" className="help-menu-icon" />
+                <span className="flex-1">{t(label)}</span>
+                {checked && <Check size={15} aria-hidden="true" className="text-[var(--notion-blue)]" />}
+              </button>
+            );
+          })}
+        </HelpPanel>
       )}
     </>
   );
