@@ -46,6 +46,19 @@ beforeEach(() => {
 });
 
 describe("pulling the account icon", () => {
+  it("ignores a slower, older read that answers after a newer one", async () => {
+    const answers: Array<(response: Response) => void> = [];
+    fetchMock.mockImplementation(() => new Promise<Response>((resolve) => answers.push(resolve)));
+    const older = pullAppIconFromAccount();
+    const newer = pullAppIconFromAccount();
+    await vi.waitFor(() => expect(answers).toHaveLength(2));
+    answers[1](json({ icon: "character:loop", updatedAt: UPDATED, account: "acct-a" }));
+    await newer;
+    answers[0](json({ icon: "character:sora", updatedAt: UPDATED, account: "acct-a" }));
+    await older;
+    expect(local.value).toBe("character:loop");
+  });
+
   it("applies the account value on this device and remembers its owner", async () => {
     server({ icon: "character:sora", updatedAt: UPDATED });
     local.value = "character:loop";

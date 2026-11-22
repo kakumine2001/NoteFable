@@ -66,6 +66,9 @@ class AppIconSync(
 
     // 退出登录时加一：在那之前发出的请求回来后不再改 owner / pending。
     private val generation = AtomicInteger(0)
+
+    // 读的次数：读重叠时只用最后开始的那次的结果（先开始的读晚回来也不会把新值盖回去）。
+    private val pulls = AtomicInteger(0)
     private val sends = Mutex()
 
     private fun remember(owner: String?, pending: Boolean) {
@@ -114,6 +117,7 @@ class AppIconSync(
         if (!signedIn) return
         val before = edits.get()
         val started = generation.get()
+        val mine = pulls.incrementAndGet()
         // 还有没送完的选择，等它们送完再读。
         sends.withLock { }
         val remote = try {
@@ -123,7 +127,7 @@ class AppIconSync(
         } catch (_: Throwable) {
             return
         }
-        if (!signedIn || edits.get() != before || generation.get() != started) return
+        if (!signedIn || edits.get() != before || generation.get() != started || pulls.get() != mine) return
         val account = remote.account?.takeIf { it.isNotEmpty() }
         if (account != null) currentAccount = account
         val owner = runCatching { memory.owner }.getOrNull()

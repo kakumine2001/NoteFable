@@ -25,6 +25,8 @@ let currentAccount: string | null = null;
 let edits = 0;
 // ログアウトで増やす。それより前に送った分の返事では、持ち主・送信待ちを書き換えない。
 let generation = 0;
+// 読んだ回数。読みが重なったとき、最後に始めた読みの結果だけを使う（先に始めた読みの遅い返事で新しい値を巻き戻さない）。
+let pulls = 0;
 let chain: Promise<unknown> = Promise.resolve();
 
 function readOwner(): string | null {
@@ -115,6 +117,7 @@ export async function pullAppIconFromAccount(): Promise<void> {
   if (!signedIn) return;
   const before = edits;
   const started = generation;
+  const mine = ++pulls;
   // 送信待ちの選択があれば、それが届いてから読む。
   await chain;
   let data: { icon?: unknown; updatedAt?: unknown };
@@ -125,7 +128,7 @@ export async function pullAppIconFromAccount(): Promise<void> {
   } catch {
     return;
   }
-  if (!signedIn || edits !== before || generation !== started || !data || typeof data !== "object") return;
+  if (!signedIn || edits !== before || generation !== started || mine !== pulls || !data || typeof data !== "object") return;
   const account = accountOf(data);
   if (account) currentAccount = account;
   const owner = readOwner();

@@ -53,6 +53,8 @@ final class AppIconSync {
     private var edits = 0
     /// 退出登录时加一：在那之前发出的请求回来后不再改 owner / pending。
     private var generation = 0
+    /// 读的次数：读重叠时只用最后开始的那次的结果（先开始的读晚回来也不会把新值盖回去）。
+    private var pulls = 0
     /// 最后一个送出的请求：下一个等它送完再送。
     private var lastSend: Task<Bool, Never>?
 
@@ -112,10 +114,12 @@ final class AppIconSync {
         guard signedIn else { return }
         let before = edits
         let started = generation
+        pulls += 1
+        let mine = pulls
         // 还有没送完的选择，等它们送完再读。
         _ = await lastSend?.value
         guard let remote = try? await backend.accountAppIcon() else { return }
-        guard signedIn, edits == before, generation == started else { return }
+        guard signedIn, edits == before, generation == started, pulls == mine else { return }
         let account = remote.account.flatMap { $0.isEmpty ? nil : $0 }
         if let account { currentAccount = account }
         if let account, let owner = memory.owner, owner != account {
