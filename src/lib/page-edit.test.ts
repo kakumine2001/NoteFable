@@ -117,4 +117,17 @@ describe("applyPageEdits", () => {
     applyPageEdits(original, [{ op: "delete", block: 1, markdown: null }]);
     expect(JSON.stringify(original)).toBe(snapshot);
   });
+
+  it("edits math blocks and inline math without false formatting warnings and carries mathBlock colors", () => {
+    const blocks = markdownToBlocks("Formula $x^2$\n$$\na + b\n$$") as NoteBlock[];
+    blocks[1].props = { ...blocks[1].props, backgroundColor: "blue" };
+    const edited = applyPageEdits(blocks, [
+      { op: "replace", block: 1, markdown: "Formula $x^3$" },
+      { op: "replace", block: 2, markdown: "$$\nc + d\n$$" },
+    ]);
+    expect(edited.changes[0].dropsFormatting).toBeUndefined();
+    expect(edited.changes[1].dropsFormatting).toBeUndefined();
+    expect(edited.blocks[1].props).toEqual({ latex: "c + d", backgroundColor: "blue" });
+    expect(() => validateNoteContent({ title: "Math", blocks: edited.blocks })).not.toThrow();
+  });
 });
