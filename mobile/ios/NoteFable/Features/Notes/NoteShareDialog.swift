@@ -24,7 +24,7 @@ struct NoteShareDialog: View {
             HStack(spacing: 8) {
                 LucideIcon(Lucide.globe, size: 17, color: Sm.text)
                 Text(L("share_publish_to_web"))
-                    .font(.nf(16, weight: .semibold))
+                    .font(.nf(16, weight: 600))
                     .foregroundStyle(Sm.text)
                     .frame(maxWidth: .infinity, alignment: .leading)
                 NFIconButton(Lucide.x, label: L("close"), iconSize: 18) { close() }
@@ -39,7 +39,7 @@ struct NoteShareDialog: View {
                     VStack(alignment: .leading, spacing: 8) {
                         let title = inherited.title.isEmpty ? L("sb_untitled") : inherited.title
                         Text(s.excludeFromParent ? L("share_excluded_parent", title) : L("share_via_parent", title))
-                            .font(.nf(13, weight: .medium))
+                            .font(.nf(13, weight: 500))
                             .foregroundStyle(Sm.text)
                         if let inheritedUrl = s.inheritedUrl, !inheritedUrl.isEmpty {
                             urlRow(url: inheritedUrl, key: "inherited")
@@ -81,7 +81,7 @@ struct NoteShareDialog: View {
                         save(NoteSharePatch(enabled: true, includeSubpages: draftIncludeSubpages))
                     } label: {
                         Text(s.expired ? L("share_republish") : L("share_publish"))
-                            .font(.nf(14, weight: .medium))
+                            .font(.nf(14, weight: 500))
                             .foregroundStyle(Color.white)
                             .frame(maxWidth: .infinity)
                             .frame(height: 38)
@@ -123,7 +123,7 @@ struct NoteShareDialog: View {
                                     save(NoteSharePatch(setExpiresAt: true, expiresAt: iso))
                                 } label: {
                                     Text(L("share_set"))
-                                        .font(.nf(12, weight: .medium))
+                                        .font(.nf(12, weight: 500))
                                         .foregroundStyle(Color.white)
                                         .padding(.horizontal, 12)
                                         .frame(height: 30)
@@ -147,7 +147,7 @@ struct NoteShareDialog: View {
                             save(NoteSharePatch(enabled: false))
                         } label: {
                             Text(L("share_unpublish"))
-                                .font(.nf(13, weight: .medium))
+                                .font(.nf(13, weight: 500))
                                 .foregroundStyle(Color(argb: 0xFFB91C1C))
                                 .padding(.horizontal, 12)
                                 .frame(minHeight: 34)
@@ -188,7 +188,7 @@ struct NoteShareDialog: View {
                 HStack(spacing: 4) {
                     LucideIcon(copiedKey == key ? Lucide.check : Lucide.copy, size: 14, color: Sm.text)
                     Text(copiedKey == key ? L("answer_copied") : L("share_copy_link"))
-                        .font(.nf(12, weight: .medium))
+                        .font(.nf(12, weight: 500))
                         .foregroundStyle(Sm.text)
                 }
                 .padding(.horizontal, 10)
@@ -255,7 +255,7 @@ struct NoteShareDialog: View {
                         save(NoteSharePatch(setExpiresAt: true, expiresAt: nextIso))
                     } label: {
                         Text(preset.0)
-                            .font(.nf(12, weight: selected ? .semibold : .regular))
+                            .font(.nf(12, weight: selected ? 600 : 400))
                             .foregroundStyle(Sm.text)
                             .padding(.horizontal, 10)
                             .frame(height: 30)
@@ -270,7 +270,7 @@ struct NoteShareDialog: View {
                     customMode = true
                 } label: {
                     Text(L("share_custom_date"))
-                        .font(.nf(12, weight: customMode ? .semibold : .regular))
+                        .font(.nf(12, weight: customMode ? 600 : 400))
                         .foregroundStyle(Sm.text)
                         .padding(.horizontal, 10)
                         .frame(height: 30)
@@ -321,7 +321,7 @@ struct NoteShareDialog: View {
 
     private func localizedError(_ err: Error, fallback: String) -> String {
         if let api = err as? ApiException, !api.message.isEmpty {
-            return app.systemText.translator(app.language.uiLocale).localize(api.message)
+            return app.systemText.localize(api.message)
         }
         return fallback
     }
