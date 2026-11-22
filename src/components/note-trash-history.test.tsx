@@ -60,6 +60,13 @@ describe("history preview markdown", () => {
     expect(previewMarkdown([block("paragraph", "before"), code, block("paragraph", "after")])).toBe("before\n\n```python\nx = 1\n\ny = 2\n```\n\nafter");
   });
 
+  it("keeps multi-line and nested $$ math blocks together without turning them into code blocks", () => {
+    const math = { id: "m", type: "mathBlock", props: { latex: "a &= b \\\\\nc &= d" }, children: [] };
+    const nested = block("bulletListItem", "item", {}, [math]);
+    expect(previewMarkdown([block("paragraph", "before"), nested, block("paragraph", "after")]))
+      .toBe("before\n\n- item\n\n$$\na &= b \\\\\nc &= d\n$$\n\nafter");
+  });
+
   it("is empty for an empty note", () => {
     expect(previewMarkdown([])).toBe("");
     expect(previewMarkdown(null)).toBe("");

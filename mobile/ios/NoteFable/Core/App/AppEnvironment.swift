@@ -44,10 +44,12 @@ final class AppEnvironment {
 
     // MARK: - App 级的 Store
 
-    /// 设置里选的图标（只存在这台设备上）。
+    /// 设置里选的图标（存在这台设备上；登录时由 [appIconSync] 和账号同步）。
     let appIcon: AppIconStore
     /// 设置里选的外观（跟随系统 / 浅色 / 深色，只存在这台设备上）。
     let appTheme: AppThemeStore
+    /// 登录时让图标跟着账号走（AppIconSync.swift）。
+    let appIconSync: AppIconSync
     /// AI 笔记提案的应用 / 放弃状态。
     let proposals: ProposalStore
     /// 回答的"存到笔记"、"整理成笔记"、下载对话。
@@ -107,6 +109,7 @@ final class AppEnvironment {
     @ObservationIgnored private var listeners: [Task<Void, Never>] = []
     @ObservationIgnored private var started = false
     @ObservationIgnored private var lastLocaleSyncKey: AccountLocaleSyncKey?
+    @ObservationIgnored private var lastAppIconSignedIn: Bool?
     @ObservationIgnored private var imageCache = DataCache()
     @ObservationIgnored private var imageLoads: [String: Task<Data, Error>] = [:]
     /// 换身份时加一：旧身份发出的图片请求回来后不进缓存。
@@ -186,7 +189,9 @@ final class AppEnvironment {
         usageLimits = Self.resourceData("usage-limits", "json", in: resources).flatMap { try? UsageLimits.parse($0) }
 
         // ---- App 级的 Store ----
-        appIcon = AppIconDefaults.store(defaults)
+        let appIcon = AppIconDefaults.store(defaults)
+        self.appIcon = appIcon
+        appIconSync = AppIconSync(store: appIcon, backend: accountApi, memory: UserDefaultsAppIconSyncMemory(defaults: defaults))
         appTheme = AppThemeDefaults.store(defaults)
         proposals = ProposalStore(backend: proposalApi)
         let answerExports = AnswerExportStore(backend: exportApi)
@@ -301,6 +306,8 @@ final class AppEnvironment {
 
     private func onSignedOut() {
         language.forgetChoice()
+        // 账号的图标也不留给下一个用这台设备的人（恢复成默认）。
+        appIconSync.forgetAccount()
         onIdentityChanged()
     }
 
@@ -317,7 +324,8 @@ final class AppEnvironment {
     /// App 启动后调一次（多调无妨）：
     /// - 回答"存到笔记" / 「整理成笔记」建好了笔记 → 刷新笔记列表（网页 notefable:page-created）；
     /// - 应用了提案 → 刷新笔记列表；改动的笔记正开在编辑器里时把新版本交给网页编辑器（不然下次保存会 409）；
-    /// - 界面语言跟着账号上的语言走（AccountLocaleSync，整个 App 只这一处，界面不用再做）。
+    /// - 界面语言跟着账号上的语言走（AccountLocaleSync，整个 App 只这一处，界面不用再做）；
+    /// - 设置里的图标跟着账号走（网页 AccountAppIconSync，只在登录时）。
     func start() {
         if started { return }
         started = true
@@ -333,6 +341,7 @@ final class AppEnvironment {
             },
         ]
         syncLanguageWithAccount()
+        syncAppIconWithAccount()
     }
 
     /// 停掉 [start] 开的监听（测试收尾用；App 里不用调）。
@@ -341,6 +350,7 @@ final class AppEnvironment {
         listeners.forEach { $0.cancel() }
         listeners = []
         lastLocaleSyncKey = nil
+        lastAppIconSignedIn = nil
     }
 
     private func onProposalChange(_ change: ProposalChangeEvent) {
@@ -361,6 +371,23 @@ final class AppEnvironment {
         if key != lastLocaleSyncKey {
             lastLocaleSyncKey = key
             language.syncWithAccount(account.state)
+        }
+    }
+
+    /// 登录状态变了就同步一次图标：登录后（含启动时已登录）读账号上的图标；未登录或正在退出时只存在这台设备上。
+    private func syncAppIconWithAccount() {
+        guard started else { return }
+        let signedIn = withObservationTracking {
+            account.state.user != nil && !account.state.signingOut
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in self?.syncAppIconWithAccount() }
+        }
+        guard signedIn != lastAppIconSignedIn else { return }
+        lastAppIconSignedIn = signedIn
+        appIconSync.signedIn = signedIn
+        if signedIn {
+            let sync = appIconSync
+            Task { @MainActor in await sync.pull() }
         }
     }
 

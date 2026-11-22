@@ -22,7 +22,7 @@ ASK ANYTHING
 
 KEEP WHAT MATTERS
 • Save any answer to Notes with one tap, or turn a whole chat into a page.
-• A clean block editor with headings, lists, to-dos, code, images and files.
+• A clean block editor with headings, lists, to-dos, code, math equations, images and files.
 • Organize notes with sub-pages, groups, favorites and emoji icons.
 • Edit history and a trash bin, so nothing is lost by accident.
 • Import Markdown files as notes, and export any note as Markdown.
@@ -64,7 +64,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 
 留住重要的内容
 • 一键把回答保存到笔记，或把整段对话整理成一页笔记。
-• 简洁的块编辑器：标题、列表、待办、代码、图片和文件。
+• 简洁的块编辑器：标题、列表、待办、代码、数学公式、图片和文件。
 • 用子页面、分组、收藏和表情图标整理笔记。
 • 编辑历史和回收站，误删也能找回。
 • 把 Markdown 文件导入成笔记，也可以把笔记导出为 Markdown。
@@ -106,7 +106,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 
 留住重要的內容
 • 一鍵把回答儲存到筆記，或把整段對話整理成一頁筆記。
-• 簡潔的區塊編輯器：標題、清單、待辦、程式碼、圖片和檔案。
+• 簡潔的區塊編輯器：標題、清單、待辦、程式碼、數學公式、圖片和檔案。
 • 用子頁面、群組、收藏和表情符號圖示整理筆記。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
 • 把 Markdown 檔案匯入成筆記，也可以把筆記匯出為 Markdown。
@@ -148,7 +148,7 @@ NoteFable は AI チャットとノートをひとつにまとめたアプリで
 
 大事なことを残す
 • 回答をワンタップでノートに保存。チャット全体を 1 ページにまとめることもできます。
-• 見出し・リスト・ToDo・コード・画像・ファイルが使えるシンプルなブロックエディタ。
+• 見出し・リスト・ToDo・コード・数式・画像・ファイルが使えるシンプルなブロックエディタ。
 • サブページ・グループ・お気に入り・絵文字アイコンでノートを整理。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
 • Markdown ファイルをノートとして読み込み、ノートを Markdown で書き出せます。

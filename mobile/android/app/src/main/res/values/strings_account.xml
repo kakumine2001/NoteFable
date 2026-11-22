@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">Choose a character</string>
     <string name="app_icon_upload_image">Upload an image</string>
     <string name="app_icon_could_not_save">Could not save the icon on this device.</string>
+    <string name="app_icon_could_not_sync">Could not save your icon. Please try again.</string>
 </resources>

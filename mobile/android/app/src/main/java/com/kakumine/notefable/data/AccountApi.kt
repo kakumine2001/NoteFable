@@ -65,7 +65,7 @@ interface AccountProfileBackend {
     suspend fun claimPlayPurchase(purchaseToken: String): PlayClaim = throw UnsupportedOperationException()
 }
 
-class AccountApi internal constructor(private val http: NoteFableHttp) : AccountProfileBackend {
+class AccountApi internal constructor(private val http: NoteFableHttp) : AccountProfileBackend, AppIconBackend {
     override suspend fun updateProfile(edit: ProfileEdit): AccountUser {
         val body = buildJsonObject {
             if (edit.setDisplayName) put("displayName", edit.displayName?.let(::JsonPrimitive) ?: JsonNull)
@@ -99,6 +99,15 @@ class AccountApi internal constructor(private val http: NoteFableHttp) : Account
             Request.Builder().url(http.absoluteUrl("/api/billing/google")).post(body.toRequestBody(NoteFableHttp.JSON)),
         )
         return if (response.pending || response.plan != "pro") PlayClaim.Pending else PlayClaim.Subscribed
+    }
+
+    override suspend fun accountAppIcon(): AppIconResponse = http.getJson<AppIconResponse>("/api/app-icon")
+
+    override suspend fun saveAccountAppIcon(icon: String?): AppIconResponse {
+        val body = buildJsonObject { put("icon", icon?.let(::JsonPrimitive) ?: JsonNull) }.toString()
+        return http.send<AppIconResponse>(
+            Request.Builder().url(http.absoluteUrl("/api/app-icon")).put(body.toRequestBody(NoteFableHttp.JSON)),
+        )
     }
 
     override suspend fun customInstructions(): String? =

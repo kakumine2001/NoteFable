@@ -1,5 +1,6 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
-import { MAX_PARSED_TABLE_CELLS, TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
+import { prepareMath } from "@/lib/math-markdown";
+import { MAX_PARSED_TABLE_CELLS, TABLE_SEPARATOR, escapeCellPipes, inlineMathEnd, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
 // 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
@@ -131,7 +132,7 @@ function analyze(lines: string[]): Analysis {
     if (!firstLine) {
       const label = stripInline(text);
       // 区切り線や表の罫線のように、記号だけの行は題名にしない。
-      if (!/^[\s\-_*=#>|:~`+.]*$/.test(label)) firstLine = label;
+      if (!/^[\s\-_*=#>|:~`+.$]*$/.test(label)) firstLine = label;
     }
   }
   return { heading: null, firstLine };
@@ -261,31 +262,103 @@ function encodeHref(href: string) {
 }
 
 // 回答の出典は [タイトル](<URL>) の形で終わるが、取り込み側は <…> を読めない。通常の [タイトル](URL) に書き直す。
+function rewriteSingleLink(text: string) {
+  return text.replace(LINK, (_match, bang: string, label: string, destination: string) => {
+    const href = encodeHref(destination.startsWith("<") ? destination.slice(1, -1) : destination);
+    // 画像はノートの画像ブロックにできない（外部の URL）ので、リンクにする。
+    return `[${label || (bang ? "Image" : href)}](${href})`;
+  });
+}
+
 function rewriteLinks(text: string) {
-  return text
-    .replace(LINK, (_match, bang: string, label: string, destination: string) => {
-      const href = encodeHref(destination.startsWith("<") ? destination.slice(1, -1) : destination);
-      // 画像はノートの画像ブロックにできない（外部の URL）ので、リンクにする。
-      return `[${label || (bang ? "Image" : href)}](${href})`;
-    })
+  return rewriteSingleLink(text)
     .replace(/<(https?:\/\/[^\s<>]+)>/g, (_match, url: string) => `[${url}](${encodeHref(url)})`);
 }
 
-// コードの範囲（`…`）には手を入れずに、それ以外の部分だけ書き直す。
+const LINK_AT = new RegExp(LINK.source, "y");
+const AUTOLINK_AT = /<https?:\/\/[^\s<>]+>/y;
+const BARE_URL_AT = /https?:\/\/[^\s<>]+/y;
+
+// コードの範囲（`…`）と行内の数式（$…$、$$…$$）には手を入れずに、それ以外の部分だけ書き直す。
+// URL やリンク先の中の $ は数式として切らない（<https://example.com/$user$/profile> を壊さないため）。
 function rewriteLine(line: string) {
-  return line.split(/(`[^`]*`)/).map((part, index) => (index % 2 ? part : rewriteLinks(part))).join("");
+  let out = "";
+  let plain = "";
+  const flush = () => { out += rewriteLinks(plain); plain = ""; };
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    if (char === "\\" && index + 1 < line.length) {
+      plain += char + line[++index];
+    } else if (char === "`") {
+      const code = /`[^`]*`/y;
+      code.lastIndex = index;
+      const hit = code.exec(line);
+      if (hit) { flush(); out += hit[0]; index += hit[0].length - 1; } else plain += char;
+    } else if (char === "[" || char === "!") {
+      LINK_AT.lastIndex = index;
+      const hit = LINK_AT.exec(line);
+      // リンクのラベル内（例: [`<https://example.com>`](https://other.com)）には自動リンク変換をかけない。
+      if (hit) { flush(); out += rewriteSingleLink(hit[0]); index += hit[0].length - 1; } else plain += char;
+    } else if (char === "<") {
+      AUTOLINK_AT.lastIndex = index;
+      const hit = AUTOLINK_AT.exec(line);
+      if (hit) { flush(); out += rewriteLinks(hit[0]); index += hit[0].length - 1; } else plain += char;
+    } else if (char === "h") {
+      BARE_URL_AT.lastIndex = index;
+      const hit = BARE_URL_AT.exec(line);
+      // 裸の URL に含まれる $（例: https://example.com/$user$/profile）は、markdownToBlocks が数式と誤認しないよう退避する。
+      if (hit) { flush(); out += hit[0].replace(/\$/g, "\\$"); index += hit[0].length - 1; } else plain += char;
+    } else if (char === "$" && inlineMathEnd(line, index) > 0) {
+      const end = inlineMathEnd(line, index);
+      flush();
+      out += line.slice(index, end);
+      index = end - 1;
+    } else plain += char;
+  }
+  flush();
+  return out;
 }
 
 function startsTable(lines: string[], index: number) {
   const header = lines[index];
   const separator = lines[index + 1];
   return header.includes("|") && separator !== undefined && separator.includes("|") && TABLE_SEPARATOR.test(separator)
-    && splitRow(header).length === splitRow(separator).length;
+    && splitRow(header, { protectMath: false }).length === splitRow(separator, { protectMath: false }).length;
+}
+
+// 表のセル内の \| を | に戻す。ただし数式（$…$、$$…$$）の中の \|（ノルム記号など）はそのまま保つ。
+function unescapeNonMathPipes(text: string) {
+  let out = "";
+  for (let index = 0; index < text.length; index++) {
+    if (text[index] === "\\" && text[index + 1] === "|") { out += "|"; index++; continue; }
+    if (text[index] === "\\" && index + 1 < text.length) { out += text[index] + text[++index]; continue; }
+    if (text[index] === "$") {
+      const end = inlineMathEnd(text, index);
+      if (end > 0) { out += text.slice(index, end); index = end - 1; continue; }
+    }
+    out += text[index];
+  }
+  return out;
+}
+
+const INDENTED_CODE = /^(?: {4,}| {0,3}\t)\s*\S/;
+const LIST_ITEM_LINE = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+
+function emitCodeFence(out: string[], indent: string, language: string, body: string[]) {
+  // 取り込むファイルは何十万行にもなるので、行を引数に展開しない（引数の数の上限で RangeError になる）。
+  let longest = 0;
+  for (const text of body) for (const run of text.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
+  const quote = "`".repeat(Math.max(3, longest + 1));
+  out.push(`${indent}${quote}${language}`);
+  for (const text of body) out.push(text);
+  out.push(`${indent}${quote}`);
 }
 
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
+// - 表は GFM のセル境界で先に分けてから各セルごとに inlineOnly で prepareMath をかける（金額の | や $$E=mc^2$$ で行が割れないようにする）
+// - 4 スペース字下げのコードブロック（リスト外）はコード囲みにして、中の $x$ が数式として解釈されないようにする
+// - 表以外の本文は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる
 // - 出典などのリンクを通常の形へ
-// - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
 export function prepareNoteMarkdown(markdown: string) {
   return prepareMarkdown(markdown);
@@ -326,44 +399,94 @@ export function extractLeadingHeadingTitle(markdown: string, fallback: string): 
 }
 
 function prepareMarkdown(markdown: string) {
-  const lines = normalizeNewlines(markdown).split("\n");
+  const rawLines = normalizeNewlines(markdown).split("\n");
   const out: string[] = [];
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
+  let prose: string[] = [];
+  const flushProse = () => {
+    if (!prose.length) return;
+    const prepared = prepareMath(prose.join("\n"), { doubleBeforeDigit: true }).text.split("\n");
+    prose = [];
+    for (let i = 0; i < prepared.length; i++) {
+      const line = prepared[i];
+      // 「$$ だけの行」または引用内の「> $$」で囲まれたブロックの数式は、そのまま通す（空行やコード囲みで打ち切る）。
+      const quoteMatch = /^(\s*(?:>\s?)*)\$\$\s*$/.exec(line);
+      if (quoteMatch) {
+        const quoted = quoteMatch[1].includes(">");
+        let close = -1;
+        for (let k = i + 1; k < prepared.length; k++) {
+          const inner = quoted ? (/^\s*>\s?(.*)$/.exec(prepared[k])?.[1] ?? null) : prepared[k];
+          if (inner === null || !inner.trim() || openFence(inner)) break;
+          if (inner.trim() === "$$") { close = k; break; }
+        }
+        if (close > i) {
+          out.push(...prepared.slice(i, close + 1));
+          i = close;
+          continue;
+        }
+      }
+      out.push(rewriteLine(line));
+    }
+  };
+  let afterBreak = true;
+  let inList = false;
+  for (let index = 0; index < rawLines.length; index++) {
+    const line = rawLines[index];
     const opened = openFence(line);
     if (opened) {
+      flushProse();
       const body: string[] = [];
-      while (++index < lines.length && !closesFence(lines[index], opened)) body.push(lines[index]);
-      // 中身に ``` があっても閉じられないよう、中の最長のバッククォート列より長い囲みにする。
-      // 取り込むファイルは何十万行にもなるので、行を引数に展開しない（引数の数の上限で RangeError になる）。
-      let longest = 0;
-      for (const text of body) for (const run of text.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
-      const quote = "`".repeat(Math.max(3, longest + 1));
+      while (++index < rawLines.length && !closesFence(rawLines[index], opened)) body.push(rawLines[index]);
       const language = (opened.info.trim().split(/\s+/)[0] ?? "").replace(/[^\w+#.-]/g, "").slice(0, 80);
-      out.push(`${opened.indent}${quote}${language}`);
-      for (const text of body) out.push(text);
-      out.push(`${opened.indent}${quote}`);
+      emitCodeFence(out, opened.indent, language, body);
+      afterBreak = true;
       continue;
     }
-    if (startsTable(lines, index)) {
+    // CommonMark の 4 スペース字下げコードブロックをコード囲みにそろえ、markdownToBlocks の字下げ除去で数式化されるのを防ぐ。
+    if (afterBreak && !inList && INDENTED_CODE.test(line)) {
+      flushProse();
+      const body: string[] = [];
+      while (index < rawLines.length && (rawLines[index].trim() === "" || INDENTED_CODE.test(rawLines[index]))) {
+        body.push(rawLines[index].replace(/^(?: {4}| {0,3}\t)/, ""));
+        index++;
+      }
+      while (body.length && !body[body.length - 1].trim()) body.pop();
+      emitCodeFence(out, "", "", body);
+      index--;
+      afterBreak = true;
+      continue;
+    }
+    if (startsTable(rawLines, index)) {
+      flushProse();
       const start = index;
-      const rows = [splitRow(line)];
+      const rows = [splitRow(line, { protectMath: false, unescapePipes: false })];
       index++;
-      while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) rows.push(splitRow(lines[++index]));
+      while (index + 1 < rawLines.length && rawLines[index + 1].trim() && rawLines[index + 1].includes("|")) {
+        rows.push(splitRow(rawLines[++index], { protectMath: false, unescapePipes: false }));
+      }
       const columns = rows[0].length;
       // 列をそろえた後のセル数が取り込み側の上限を超える表は、そろえずに元の行のまま渡す（取り込み側も表にしない）。
       // 先にそろえると、行数 × 見出しの列数のセルを作ってメモリを使い切る。
       if (rows.length * columns > MAX_PARSED_TABLE_CELLS) {
-        for (let at = start; at <= index; at++) out.push(rewriteLine(lines[at]));
+        for (let at = start; at <= index; at++) out.push(rewriteLine(rawLines[at]));
+        afterBreak = false;
         continue;
       }
-      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => rewriteLine(cells[column] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`;
+      const cell = (value: string) => escapeCellPipes(rewriteLine(
+        unescapeNonMathPipes(prepareMath(value, { doubleBeforeDigit: true, inlineOnly: true }).text).replace(/\n/g, " "),
+      ));
+      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => cell(cells[column] ?? "")).join(" | ")} |`;
       out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`);
       for (let at = 1; at < rows.length; at++) out.push(row(rows[at]));
+      afterBreak = false;
       continue;
     }
-    out.push(rewriteLine(line));
+    const blank = line.trim() === "";
+    if (LIST_ITEM_LINE.test(line)) inList = true;
+    else if (/^ ?\S/.test(line)) inList = false;
+    afterBreak = blank;
+    prose.push(line);
   }
+  flushProse();
   return out.join("\n");
 }
 

@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Karakter seç";
 "app_icon_upload_image" = "Görsel yükle";
 "app_icon_could_not_save" = "Simge bu cihaza kaydedilemedi.";
+"app_icon_could_not_sync" = "Simgen kaydedilemedi. Lütfen tekrar dene.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Hesabı sil";

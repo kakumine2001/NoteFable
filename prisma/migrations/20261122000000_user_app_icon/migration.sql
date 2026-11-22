@@ -1,0 +1,3 @@
+ALTER TABLE "User" ADD COLUMN "appIcon" TEXT,
+ADD COLUMN "appIconImage" TEXT,
+ADD COLUMN "appIconUpdatedAt" TIMESTAMP(3);

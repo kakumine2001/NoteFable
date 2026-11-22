@@ -61,7 +61,7 @@ function onPopState(event: PopStateEvent) {
 
 // シートが開いているときの Esc は一番上の 1 枚だけを閉じる。capture で受けて止めるので、同じ Esc でポップオーバーなどが重ねて閉じない。
 function onKeyDown(event: KeyboardEvent) {
-  if (event.key !== "Escape") return;
+  if (event.key !== "Escape" || event.isComposing) return;
   const top = openSheets[openSheets.length - 1];
   if (!top) return;
   event.stopPropagation();

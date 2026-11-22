@@ -24,7 +24,7 @@ import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { prepareMath } from "@/lib/math-markdown";
+import { hasDollarMath, prepareMath } from "@/lib/math-markdown";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useT } from "@/components/i18n-provider";
 
@@ -281,12 +281,31 @@ function subscribeMath(listener: () => void) {
   return () => { mathListeners.delete(listener); };
 }
 
+// 履歴プレビューの表セル内の数式にある | を、GFM のセル分割から守るための一時文字。remark-math が数式ノードにした直後に | へ戻す。
+export const PREVIEW_MATH_PIPE = "\uE000";
+
+export function remarkRestorePreviewMathPipes() {
+  type MdastNode = { type?: string; value?: string; data?: { hChildren?: { value?: string }[] }; children?: MdastNode[] };
+  return (tree: MdastNode) => {
+    const walk = (node: MdastNode) => {
+      if ((node.type === "inlineMath" || node.type === "math") && typeof node.value === "string" && node.value.includes(PREVIEW_MATH_PIPE)) {
+        node.value = node.value.replaceAll(PREVIEW_MATH_PIPE, "|");
+        node.data?.hChildren?.forEach((child) => {
+          if (typeof child.value === "string") child.value = child.value.replaceAll(PREVIEW_MATH_PIPE, "|");
+        });
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
 function loadMathPlugins() {
   if (mathPlugins || mathLoading) return;
   mathLoading = Promise.all([import("remark-math"), import("rehype-katex"), import("katex/dist/katex.min.css")])
     .then(([remarkMath, rehypeKatex]) => {
       mathPlugins = {
-        remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }]],
+        remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }], remarkRestorePreviewMathPipes],
         // 書き間違いの数式は例外にせず、書かれたままの文字を出す（回答の残りは読めるように）。
         rehype: [[rehypeKatex.default, { throwOnError: false, strict: false, errorColor: "currentColor" }]],
       };
@@ -301,12 +320,17 @@ function loadMathPlugins() {
 
 const plainRemarkPlugins = [remarkGfm];
 
-// math を false にすると数式として読まない（ノートの履歴の表示用：ノートの Markdown は [ や ( を \[ \( と書き出すので、
-// 数式と紛れる。ノートの編集画面も数式を描かない）。
-export function AssistantMarkdown({ content, math: mathEnabled = true }: { content: string; math?: boolean }) {
-  // \( … \)・\[ … \] を $ … $ にそろえ、独立した数式を $$ の行で囲み、数式ではない「$」をエスケープする。
-  const prepared = useMemo(() => (mathEnabled ? prepareMath(content) : null), [content, mathEnabled]);
-  const needsMath = prepared?.hasMath ?? false;
+// math:
+// - true（既定）: チャットの回答用。prepareMath で \( \)・\[ \] も $…$・$$ ブロックにそろえて描く。
+// - "dollars": ノートの履歴プレビュー用。ノートの Markdown は [ や ( を \[ \( とエスケープし、数式だけを $…$ と $$ ブロックで書くので、
+//   prepareMath を通さず、$ の数式だけを描く。
+// - false: 数式として読まない。
+export function AssistantMarkdown({ content, math: mathEnabled = true }: { content: string; math?: boolean | "dollars" }) {
+  const prepared = useMemo(() => (mathEnabled === true ? prepareMath(content) : null), [content, mathEnabled]);
+  const needsMath = useMemo(
+    () => (mathEnabled === "dollars" ? hasDollarMath(content) : (prepared?.hasMath ?? false)),
+    [content, mathEnabled, prepared],
+  );
   // 数式のある回答だけが読み込みの完了を待つ（無い回答は、読み込まれても描き直さない）。
   const math = useSyncExternalStore(needsMath ? subscribeMath : subscribeNothing, () => mathPlugins, () => null);
   useEffect(() => {

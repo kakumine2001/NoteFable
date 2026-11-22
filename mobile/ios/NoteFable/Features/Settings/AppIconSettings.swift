@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 // - 两个可换行的小按钮：「选择角色」（展开 7 款预设角色的 3 列网格）与「上传图片」；
 // - 选中的角色带蓝色勾标，默认的 Quill 标出"默认"，点选 Quill 即恢复默认。
 // 「上传图片」：系统的照片选择器，选好后按 EXIF 摆正、居中裁成正方形、缩到 96×96、存成 PNG 的 data URL（网页 imageFileToIcon）。
-// 选了就存，只存在这台设备上（`app.appIcon`），不随账号同步。
+// 选了就先存在这台设备上（`app.appIcon`）；登录时再送到账号，打开时重新读账号上的值（`app.appIconSync`）。
 
 /// "图标"一栏的出错提示（网页 app-icon-settings.tsx 的 error）。
 private enum AppIconSettingsError {
@@ -15,6 +15,8 @@ private enum AppIconSettingsError {
     case notSaved
     /// acct_choose_image
     case notImage
+    /// app_icon_could_not_sync
+    case notSynced
 }
 
 struct AppIconSettings: View {
@@ -62,7 +64,7 @@ struct AppIconSettings: View {
             .padding(.bottom, 14)
 
             if let error {
-                SettingsErrorLine(error == .notSaved ? L("app_icon_could_not_save") : L("acct_choose_image"))
+                SettingsErrorLine(errorText(error))
                     .padding(.horizontal, 16)
                     .padding(.bottom, 12)
             }
@@ -79,6 +81,8 @@ struct AppIconSettings: View {
                 .padding(.bottom, 16)
             }
         }
+        // 打开设置时重新读账号上的图标（别的设备换过的话这里也跟着变）。
+        .task { await app.appIconSync.pull() }
         .photosPicker(isPresented: $pickerShown, selection: $pickedItem, matching: .images)
         .onChange(of: pickerShown) { _, shown in
             // 选择器开着时设置不关（网页 filePickerOpen）。
@@ -105,8 +109,26 @@ struct AppIconSettings: View {
         return nil
     }
 
+    private func errorText(_ error: AppIconSettingsError) -> String {
+        switch error {
+        case .notSaved: return L("app_icon_could_not_save")
+        case .notImage: return L("acct_choose_image")
+        case .notSynced: return L("app_icon_could_not_sync")
+        }
+    }
+
+    /// 先存到这台设备、再在登录时送到账号（网页 app-icon-settings.tsx 的 apply）。送不上只提示，本机的选择保留。
     private func save(_ next: AppIconValue?) {
-        error = app.appIcon.save(next) ? nil : .notSaved
+        guard app.appIcon.save(next) else {
+            error = .notSaved
+            return
+        }
+        error = nil
+        let sync = app.appIconSync
+        Task { @MainActor in
+            let synced = await sync.push(next)
+            if !synced { error = .notSynced }
+        }
     }
 
     private func load(_ item: PhotosPickerItem) async {
