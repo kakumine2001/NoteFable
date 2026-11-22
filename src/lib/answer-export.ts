@@ -261,13 +261,16 @@ function encodeHref(href: string) {
 }
 
 // 回答の出典は [タイトル](<URL>) の形で終わるが、取り込み側は <…> を読めない。通常の [タイトル](URL) に書き直す。
+function rewriteSingleLink(text: string) {
+  return text.replace(LINK, (_match, bang: string, label: string, destination: string) => {
+    const href = encodeHref(destination.startsWith("<") ? destination.slice(1, -1) : destination);
+    // 画像はノートの画像ブロックにできない（外部の URL）ので、リンクにする。
+    return `[${label || (bang ? "Image" : href)}](${href})`;
+  });
+}
+
 function rewriteLinks(text: string) {
-  return text
-    .replace(LINK, (_match, bang: string, label: string, destination: string) => {
-      const href = encodeHref(destination.startsWith("<") ? destination.slice(1, -1) : destination);
-      // 画像はノートの画像ブロックにできない（外部の URL）ので、リンクにする。
-      return `[${label || (bang ? "Image" : href)}](${href})`;
-    })
+  return rewriteSingleLink(text)
     .replace(/<(https?:\/\/[^\s<>]+)>/g, (_match, url: string) => `[${url}](${encodeHref(url)})`);
 }
 
@@ -293,7 +296,8 @@ function rewriteLine(line: string) {
     } else if (char === "[" || char === "!") {
       LINK_AT.lastIndex = index;
       const hit = LINK_AT.exec(line);
-      if (hit) { flush(); out += rewriteLinks(hit[0]); index += hit[0].length - 1; } else plain += char;
+      // リンクのラベル内（例: [`<https://example.com>`](https://other.com)）には自動リンク変換をかけない。
+      if (hit) { flush(); out += rewriteSingleLink(hit[0]); index += hit[0].length - 1; } else plain += char;
     } else if (char === "<") {
       AUTOLINK_AT.lastIndex = index;
       const hit = AUTOLINK_AT.exec(line);
@@ -321,8 +325,33 @@ function startsTable(lines: string[], index: number) {
     && splitRow(header, { protectMath: false }).length === splitRow(separator, { protectMath: false }).length;
 }
 
+// 表のセル内の \| を | に戻す。ただし数式（$…$、$$…$$）の中の \|（ノルム記号など）はそのまま保つ。
+function unescapeNonMathPipes(text: string) {
+  let out = "";
+  for (let index = 0; index < text.length; index++) {
+    if (text[index] === "\\" && text[index + 1] === "|") { out += "|"; index++; continue; }
+    if (text[index] === "\\" && index + 1 < text.length) { out += text[index] + text[++index]; continue; }
+    if (text[index] === "$") {
+      const end = inlineMathEnd(text, index);
+      if (end > 0) { out += text.slice(index, end); index = end - 1; continue; }
+    }
+    out += text[index];
+  }
+  return out;
+}
+
+const INDENTED_CODE = /^(?: {4,}| {0,3}\t)\s*\S/;
+const LIST_ITEM_LINE = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
+
+function emitCodeFence(out: string[], indent: string, language: string, body: string[]) {
+  const longest = Math.max(0, ...body.flatMap((text) => [...text.matchAll(/`+/g)].map((run) => run[0].length)));
+  const quote = "`".repeat(Math.max(3, longest + 1));
+  out.push(`${indent}${quote}${language}`, ...body, `${indent}${quote}`);
+}
+
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
-// - 表は GFM のセル境界で先に分けてから各セルごとに prepareMath をかける（| $5|$ USD | のような金額がセルをまたいで数式化されるのを防ぐ）
+// - 表は GFM のセル境界で先に分けてから各セルごとに inlineOnly で prepareMath をかける（金額の | や $$E=mc^2$$ で行が割れないようにする）
+// - 4 スペース字下げのコードブロック（リスト外）はコード囲みにして、中の $x$ が数式として解釈されないようにする
 // - 表以外の本文は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる
 // - 出典などのリンクを通常の形へ
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
@@ -352,6 +381,8 @@ function prepareMarkdown(markdown: string) {
       out.push(rewriteLine(line));
     }
   };
+  let afterBreak = true;
+  let inList = false;
   for (let index = 0; index < rawLines.length; index++) {
     const line = rawLines[index];
     const opened = openFence(line);
@@ -359,26 +390,45 @@ function prepareMarkdown(markdown: string) {
       flushProse();
       const body: string[] = [];
       while (++index < rawLines.length && !closesFence(rawLines[index], opened)) body.push(rawLines[index]);
-      // 中身に ``` があっても閉じられないよう、中の最長のバッククォート列より長い囲みにする。
-      const longest = Math.max(0, ...body.flatMap((text) => [...text.matchAll(/`+/g)].map((run) => run[0].length)));
-      const quote = "`".repeat(Math.max(3, longest + 1));
       const language = (opened.info.trim().split(/\s+/)[0] ?? "").replace(/[^\w+#.-]/g, "").slice(0, 80);
-      out.push(`${opened.indent}${quote}${language}`, ...body, `${opened.indent}${quote}`);
+      emitCodeFence(out, opened.indent, language, body);
+      afterBreak = true;
+      continue;
+    }
+    // CommonMark の 4 スペース字下げコードブロックをコード囲みにそろえ、markdownToBlocks の字下げ除去で数式化されるのを防ぐ。
+    if (afterBreak && !inList && INDENTED_CODE.test(line)) {
+      flushProse();
+      const body: string[] = [];
+      while (index < rawLines.length && (rawLines[index].trim() === "" || INDENTED_CODE.test(rawLines[index]))) {
+        body.push(rawLines[index].replace(/^(?: {4}| {0,3}\t)/, ""));
+        index++;
+      }
+      while (body.length && !body[body.length - 1].trim()) body.pop();
+      emitCodeFence(out, "", "", body);
+      index--;
+      afterBreak = true;
       continue;
     }
     if (startsTable(rawLines, index)) {
       flushProse();
-      const rows = [splitRow(line, { protectMath: false })];
+      const rows = [splitRow(line, { protectMath: false, unescapePipes: false })];
       index++;
       while (index + 1 < rawLines.length && rawLines[index + 1].trim() && rawLines[index + 1].includes("|")) {
-        rows.push(splitRow(rawLines[++index], { protectMath: false }));
+        rows.push(splitRow(rawLines[++index], { protectMath: false, unescapePipes: false }));
       }
       const columns = rows[0].length;
-      const cell = (value: string) => escapeCellPipes(rewriteLine(prepareMath(value, { doubleBeforeDigit: true }).text));
+      const cell = (value: string) => escapeCellPipes(rewriteLine(
+        unescapeNonMathPipes(prepareMath(value, { doubleBeforeDigit: true, inlineOnly: true }).text).replace(/\n/g, " "),
+      ));
       const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => cell(cells[column] ?? "")).join(" | ")} |`;
       out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
+      afterBreak = false;
       continue;
     }
+    const blank = line.trim() === "";
+    if (LIST_ITEM_LINE.test(line)) inList = true;
+    else if (/^ ?\S/.test(line)) inList = false;
+    afterBreak = blank;
     prose.push(line);
   }
   flushProse();
@@ -440,7 +490,7 @@ export function answerToNoteContent(markdown: string, source: AnswerSource): { t
   const found = analyze(lines);
   const title = pickTitle(found, source.conversationTitle);
   if (found.heading?.leading && title === found.heading.text) lines.splice(found.heading.line, 1);
-  const body = clampDepth(markdownToBlocks(prepareMarkdown(lines.join("\n")), { singleLineDisplayMath: false }));
+  const body = clampDepth(markdownToBlocks(prepareMarkdown(lines.join("\n"))));
 
   const build = (keep: number, truncated: boolean) => [...takeBlocks(body, keep), ...sourceBlocks(source, truncated)];
   const fits = (blocks: NoteBlockNode[]) =>

@@ -281,12 +281,31 @@ function subscribeMath(listener: () => void) {
   return () => { mathListeners.delete(listener); };
 }
 
+// 履歴プレビューの表セル内の数式にある | を、GFM のセル分割から守るための一時文字。remark-math が数式ノードにした直後に | へ戻す。
+export const PREVIEW_MATH_PIPE = "\uE000";
+
+export function remarkRestorePreviewMathPipes() {
+  type MdastNode = { type?: string; value?: string; data?: { hChildren?: { value?: string }[] }; children?: MdastNode[] };
+  return (tree: MdastNode) => {
+    const walk = (node: MdastNode) => {
+      if ((node.type === "inlineMath" || node.type === "math") && typeof node.value === "string" && node.value.includes(PREVIEW_MATH_PIPE)) {
+        node.value = node.value.replaceAll(PREVIEW_MATH_PIPE, "|");
+        node.data?.hChildren?.forEach((child) => {
+          if (typeof child.value === "string") child.value = child.value.replaceAll(PREVIEW_MATH_PIPE, "|");
+        });
+      }
+      node.children?.forEach(walk);
+    };
+    walk(tree);
+  };
+}
+
 function loadMathPlugins() {
   if (mathPlugins || mathLoading) return;
   mathLoading = Promise.all([import("remark-math"), import("rehype-katex"), import("katex/dist/katex.min.css")])
     .then(([remarkMath, rehypeKatex]) => {
       mathPlugins = {
-        remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }]],
+        remark: [remarkGfm, [remarkMath.default, { singleDollarTextMath: true }], remarkRestorePreviewMathPipes],
         // 書き間違いの数式は例外にせず、書かれたままの文字を出す（回答の残りは読めるように）。
         rehype: [[rehypeKatex.default, { throwOnError: false, strict: false, errorColor: "currentColor" }]],
       };

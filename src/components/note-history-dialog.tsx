@@ -2,7 +2,7 @@
 
 import { ArrowLeft, History, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { AssistantMarkdown } from "@/components/assistant-markdown";
+import { AssistantMarkdown, PREVIEW_MATH_PIPE } from "@/components/assistant-markdown";
 import { TABLE_SEPARATOR, blocksToMarkdown, inlineMathEnd, splitTableRow } from "@/lib/note-markdown";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
@@ -31,7 +31,7 @@ export function relativeTime(iso: string, now = Date.now(), t: Translate = engli
 }
 
 // 履歴プレビューの表セル内にある | を、GFM にセル区切りとして読まれない形へ直す。
-// 数式の中の | は \vert、\| は \Vert に置き換えて KaTeX の見た目をそのまま保ち、数式の外の | だけを \| にする。
+// 数式の中の | は TeX を書き換えずに一時文字（PREVIEW_MATH_PIPE）へ退避し、AssistantMarkdown の remark プラグインで KaTeX 描画前に | へ戻す。
 function previewTableCell(cell: string) {
   let out = "";
   for (let index = 0; index < cell.length; index++) {
@@ -42,12 +42,7 @@ function previewTableCell(cell: string) {
     if (cell[index] === "$") {
       const end = inlineMathEnd(cell, index);
       if (end > 0) {
-        const span = cell.slice(index, end);
-        out += span.replace(/(\\)?\|/g, (_match, slash: string | undefined, offset: number) => {
-          const macro = slash ? "\\Vert" : "\\vert";
-          const next = span[offset + (slash ? 2 : 1)] ?? "";
-          return /[A-Za-z]/.test(next) ? `${macro} ` : macro;
-        });
+        out += cell.slice(index, end).replaceAll("|", PREVIEW_MATH_PIPE);
         index = end - 1;
         continue;
       }

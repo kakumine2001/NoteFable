@@ -6,6 +6,7 @@ import remarkMath from "remark-math";
 import { describe, expect, it } from "vitest";
 import { hasDollarMath, normalizeMath } from "./math-markdown";
 import { blocksToMarkdown, markdownToBlocks } from "./note-markdown";
+import { remarkRestorePreviewMathPipes } from "@/components/assistant-markdown";
 import { previewMarkdown } from "@/components/note-history-dialog";
 
 // 画面と同じ変換（assistant-markdown.tsx）に通して、整えた Markdown が意図どおりの数式になるかを見る。
@@ -93,19 +94,17 @@ describe("note history dollar-only math mode", () => {
     expect(html).not.toContain("katex-error");
     expect(blocksToMarkdown(blocks)).toContain("\\[note\\]");
 
-    // 表のセルに | や \| を含む数式（$|x|$、$\|x\|$）があっても、履歴プレビューで列が増えず、| は単線、\| は二重線のまま描かれる。
-    const tableBlocks = markdownToBlocks("| Norm | Escaped |\n| --- | --- |\n| $|x|$ | $\\|x\\|$ |");
-    const tableMd = previewMarkdown(tableBlocks);
-    expect(tableMd).toContain("\\vert");
-    expect(tableMd).toContain("\\Vert");
+    // 表のセルに |、\|、\text{a|b} を含む数式があっても、履歴プレビューで列が増えず TeX も書き換わらない。
+    const tableBlocks = markdownToBlocks("| Norm | Escaped | Text |\n| --- | --- | --- |\n| $|x|$ | $\\|x\\|$ | $\\text{a|b}$ |");
     const tableHtml = renderToStaticMarkup(
-      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }], remarkRestorePreviewMathPipes]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
-        {tableMd}
+        {previewMarkdown(tableBlocks)}
       </ReactMarkdown>,
     );
-    expect(count(tableHtml, "<td>")).toBe(2);
-    expect(count(tableHtml, 'class="katex"')).toBe(2);
+    expect(count(tableHtml, "<td>")).toBe(3);
+    expect(count(tableHtml, 'class="katex"')).toBe(3);
+    expect(tableHtml).toContain("a|b");
     expect(tableHtml).not.toContain("katex-error");
 
     // 履歴プレビューで \$ を含む行内数式もエラーにならず描かれる。

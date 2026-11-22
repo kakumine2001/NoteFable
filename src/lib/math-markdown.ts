@@ -42,10 +42,10 @@ const TOKENS = new RegExp(
 // 独立した数式。行頭（字下げ・引用の「>」だけの後）から始まり行末で終わるものは「$$ だけの行」で囲む：remark-math は
 // そうなっていない $$ をブロックとして閉じられず、後ろの本文まで数式に飲み込む。字下げと「>」（リストや引用の中）は保つ。
 // 文の途中にあるものは 1 行のインラインの数式にする。
-function displayMath(text: string, offset: number, length: number, rawBody: string) {
+function displayMath(text: string, offset: number, length: number, rawBody: string, inlineOnly = false) {
   const lineStart = text.lastIndexOf("\n", offset - 1) + 1;
   const prefix = text.slice(lineStart, offset);
-  const ownLines = /^[ \t>]*$/.test(prefix) && /^[ \t]*(?:\n|$)/.test(text.slice(offset + length));
+  const ownLines = !inlineOnly && /^[ \t>]*$/.test(prefix) && /^[ \t]*(?:\n|$)/.test(text.slice(offset + length));
   // 数式の各行から取るのは、行頭の字下げと、囲んでいる引用の「>」（前置きにある数だけ）。数式の中の「>」（不等号）は残す。
   const quotes = prefix.split(">").length - 1;
   const strip = new RegExp(String.raw`^[ \t]*(?:>[ \t]*){0,${quotes}}`);
@@ -56,7 +56,7 @@ function displayMath(text: string, offset: number, length: number, rawBody: stri
     : `$$${lines.join(" ")}$$`;
 }
 
-function prepareText(text: string, found: { math: boolean }, doubleBeforeDigit: boolean) {
+function prepareText(text: string, found: { math: boolean }, doubleBeforeDigit: boolean, inlineOnly: boolean) {
   return text.replace(TOKENS, (match, ...groups: unknown[]) => {
     const [escapedBackslash, code, , link, bracket, paren, dollars, escapedDollar, inline, lone] = groups as (string | undefined)[];
     const offset = groups[groups.length - 2] as number;
@@ -64,7 +64,7 @@ function prepareText(text: string, found: { math: boolean }, doubleBeforeDigit: 
     if (bracket !== undefined) {
       // \[ \]・\[x\] は、エスケープされたチェックボックスの書き方。数式にしない。
       if (/^[ xX]?$/.test(bracket)) return match;
-      const display = displayMath(text, offset, match.length, bracket);
+      const display = displayMath(text, offset, match.length, bracket, inlineOnly);
       if (!display) return match;
       found.math = true;
       return display;
@@ -79,7 +79,7 @@ function prepareText(text: string, found: { math: boolean }, doubleBeforeDigit: 
       return body.includes("$") || nextDigit ? `$$${body}$$` : `$${body}$`;
     }
     if (dollars !== undefined) {
-      const display = displayMath(text, offset, match.length, dollars);
+      const display = displayMath(text, offset, match.length, dollars, inlineOnly);
       if (!display) return match;
       found.math = true;
       return display;
@@ -100,15 +100,16 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const INDENTED = /^(?: {4,}| {0,3}\t)\s*\S/;
 const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
-export function prepareMath(markdown: string, options?: { doubleBeforeDigit?: boolean }): PreparedMath {
+export function prepareMath(markdown: string, options?: { doubleBeforeDigit?: boolean; inlineOnly?: boolean }): PreparedMath {
   if (!/\$|\\\(|\\\[|^ {0,3}(?:`{3,}|~{3,})\s*math\b/m.test(markdown)) return { text: markdown, hasMath: false };
   const doubleBeforeDigit = options?.doubleBeforeDigit === true;
+  const inlineOnly = options?.inlineOnly === true;
   const found = { math: false };
   const output: string[] = [];
   let pending: string[] = [];
   let fence: { char: string; length: number } | null = null;
   const flush = () => {
-    if (pending.length) output.push(prepareText(pending.join("\n"), found, doubleBeforeDigit));
+    if (pending.length) output.push(prepareText(pending.join("\n"), found, doubleBeforeDigit, inlineOnly));
     pending = [];
   };
   // 字下げのコードブロックを始められる位置か（直前が空行・文頭・コードブロックの終わり）。

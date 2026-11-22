@@ -278,9 +278,9 @@ describe("math blocks and inline math", () => {
     expect(markdownToBlocks(blocksToMarkdown(blocks)).map((b) => b.type)).toEqual(["paragraph", "mathBlock", "bulletListItem", "table"]);
   });
 
-  it("handles single-line $$ blocks, ```math fences, two inline $$ on one line, and unclosed $$ safely", () => {
+  it("handles ```math fences, standalone inline $$ (preserving round-trip), two inline $$ on one line, and unclosed $$ safely", () => {
     const blocks = markdownToBlocks([
-      "$$E = mc^2$$",
+      "$$\\text{$x$}$$",
       "```math",
       "\\frac{1}{2}",
       "```",
@@ -289,8 +289,9 @@ describe("math blocks and inline math", () => {
       "next line",
     ].join("\n"));
     expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
-    expect(blocks.map((b) => b.type)).toEqual(["mathBlock", "mathBlock", "paragraph", "paragraph", "paragraph"]);
-    expect(blocks[0].props).toEqual({ latex: "E = mc^2" });
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph", "mathBlock", "paragraph", "paragraph", "paragraph"]);
+    expect(blocks[0].content).toEqual([{ type: "mathInline", props: { latex: "\\text{$x$}" } }]);
+    expect(blocksToMarkdown([blocks[0]])).toBe("$$\\text{$x$}$$");
     expect(blocks[1].props).toEqual({ latex: "\\frac{1}{2}" });
     expect(blocks[2].content).toEqual([
       { type: "mathInline", props: { latex: "a" } },

@@ -442,24 +442,40 @@ describe("answerToNoteContent", () => {
     expect(textOf(withUrl.blocks[0])).toContain("https://example.com/$bare$/1.");
     expect(inline(withUrl.blocks[0]).some((entry) => entry.type === "mathInline")).toBe(false);
 
-    // 引用内の \[x^2\] と数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
-    const quotedAndDigit = build("> \\[x^2\\]\n\n\\(x\\)2\n\n\\(\\$100\\)");
+    // 引用内の \[x^2\]、引用内の行内 \(\\$100\)、数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
+    const quotedAndDigit = build("> \\[x^2\\]\n\n> \\(\\$100\\)\n\n\\(x\\)2\n\n\\(\\$100\\)");
     expectValid(quotedAndDigit);
     expect(quotedAndDigit.blocks[0].type).toBe("mathBlock");
     expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "x^2" });
-    expect(quotedAndDigit.blocks[1].content).toEqual([
+    expect(quotedAndDigit.blocks[1].type).toBe("quote");
+    expect(quotedAndDigit.blocks[1].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
+    expect(quotedAndDigit.blocks[2].content).toEqual([
       { type: "mathInline", props: { latex: "x" } },
       { type: "text", text: "2", styles: {} },
     ]);
-    expect(quotedAndDigit.blocks[2].type).toBe("paragraph");
-    expect(quotedAndDigit.blocks[2].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
+    expect(quotedAndDigit.blocks[3].type).toBe("paragraph");
+    expect(quotedAndDigit.blocks[3].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
 
-    // チャットの表で | $5|$ USD | のような金額がセル境界をまたいで数式化されない。
-    const priceTable = build("| Amount | Currency |\n| --- | --- |\n| $5|$ USD |");
+    // チャットの表: 金額の |、セル単体の $$E=mc^2$$、TeX の $\|x\|$ をすべて正しく保つ。
+    const priceTable = build("| A | B |\n| --- | --- |\n| $5|$ USD |\n| $$E=mc^2$$ | $\\|x\\|$ |");
     expectValid(priceTable);
-    const pt = priceTable.blocks[0].content as unknown as { rows: { cells: { content: Inline[] }[] }[] };
+    expect(priceTable.blocks[0].type).toBe("table");
+    const pt = priceTable.blocks[0].content as unknown as { rows: { cells: { content: (Inline & { props?: { latex?: string } })[] }[] }[] };
+    expect(pt.rows).toHaveLength(3);
     expect(pt.rows[1].cells.map((c) => c.content.map((e) => e.text).join(""))).toEqual(["$5", "$ USD"]);
     expect(pt.rows[1].cells.some((c) => c.content.some((e) => e.type === "mathInline"))).toBe(false);
+    expect(pt.rows[2].cells[0].content).toEqual([{ type: "mathInline", props: { latex: "E=mc^2" } }]);
+    expect(pt.rows[2].cells[1].content).toEqual([{ type: "mathInline", props: { latex: "\\|x\\|" } }]);
+
+    // コードラベルのリンクや 4 スペース字下げコードの中の $x$ を壊さない。
+    const codeAndLink = build("[`<https://example.com>`](https://other.example/docs)\n\n    echo '$x$'");
+    expectValid(codeAndLink);
+    expect(inline(codeAndLink.blocks[0])).toEqual([{
+      type: "link", href: "https://other.example/docs",
+      content: [{ type: "text", text: "<https://example.com>", styles: { code: true } }],
+    }]);
+    expect(codeAndLink.blocks[1].type).toBe("codeBlock");
+    expect(textOf(codeAndLink.blocks[1])).toBe("echo '$x$'");
 
     // 未閉じの $$ の後に ~~~ コードブロックがあっても、コード内の $$ を閉じと誤認しない。
     const unclosedBeforeTilde = build("$$\n[ref](<https://example.com/a b>)\n~~~tex\n$$\n~~~\nAfter");

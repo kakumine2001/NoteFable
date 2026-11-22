@@ -71,8 +71,9 @@ export const MAX_PARSED_TABLE_CELLS = 20_000;
 
 // 表の 1 行をセルに分ける。\| とコードの中の | では区切らない。行内の数式の中の | も区切りにせず、数式はそのまま残す（\| も書かれたまま）。
 // コードは同じ長さのバッククォート列で閉じる（`` a`b `` も 1 つのコード）。コードの外の \` はコードを開かない。
-export function splitTableRow(line: string, options?: { protectMath?: boolean }) {
+export function splitTableRow(line: string, options?: { protectMath?: boolean; unescapePipes?: boolean }) {
   const protectMath = options?.protectMath !== false;
+  const unescapePipes = options?.unescapePipes !== false;
   const cells: string[] = [];
   let cell = "";
   // 開いているコードのバッククォートの数。0 はコードの外。
@@ -80,7 +81,7 @@ export function splitTableRow(line: string, options?: { protectMath?: boolean })
   for (let index = 0; index < line.length; index++) {
     const char = line[index];
     if (char === "\\" && line[index + 1] === "|") {
-      cell += "|";
+      cell += unescapePipes ? "|" : "\\|";
       index++;
     } else if (char === "\\" && !fence && index + 1 < line.length) {
       // 退避された記号はそのまま残し、後のインライン解析に任せる。
@@ -522,11 +523,9 @@ function stripIndent(line: string, width: number) {
 const FENCE = /^(`{3,})([\w+#.-]*)\s*$/;
 
 // 1 行 1 ブロック。行頭の記号で種類を決め、半角 2 スペース（またはタブ）のインデントで入れ子にする。
-// 対応: # ～ ###、- / 1. / - [ ]、>、``` コード、---、▸ トグル（# ▸ はトグル見出し）、> [!絵文字] コールアウト、GFM の表、$$ 数式。
-// 連続する通常の行はそれぞれ別の段落になる。
-// singleLineDisplayMath が偽のとき（answerToNoteContent から呼ぶとき）、1 行の $$…$$ は行内数式のまま保つ（独立した数式は prepareMath が複数行の $$ ブロックにそろえているため）。
-export function markdownToBlocks(markdown: string, options?: { singleLineDisplayMath?: boolean }): NewBlock[] {
-  const singleLineDisplayMath = options?.singleLineDisplayMath !== false;
+// 対応: # ～ ###、- / 1. / - [ ]、>、``` コード、---、▸ トグル（# ▸ はトグル見出し）、> [!絵文字] コールアウト、GFM の表、複数行 $$ 数式。
+// 連続する通常の行はそれぞれ別の段落になる。1 行の $$…$$ は行内数式（段落）のまま保つ（独立数式は複数行 $$ で表すため往返が曖昧にならない）。
+export function markdownToBlocks(markdown: string): NewBlock[] {
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const root: NewBlock[] = [];
   const parents: { indent: number; block: NewBlock }[] = [];
@@ -557,15 +556,13 @@ export function markdownToBlocks(markdown: string, options?: { singleLineDisplay
       else add("codeBlock", fence[2] ? { language: fence[2].slice(0, 80) } : {}, body ? [{ type: "text", text: body, styles: {} }] : []);
       continue;
     }
-    // ブロックの数式: 「$$ 数式 $$」の 1 行、または $$ だけの行で囲んだ複数行。閉じていなければ段落のまま（後ろの本文を飲み込まない）。
+    // ブロックの数式: $$ で始まり別行の $$ で閉じる複数行ブロック。1 行の $$…$$ は行内数式として段落に任せる。
+    // 閉じていなければ段落のまま（後ろの本文やコードブロックを飲み込まない）。
     if (text.startsWith("$$")) {
       const rest = text.slice(2);
       const first = findUnescaped(rest, "$$", 0);
       let latex: string | null = null;
-      if (first >= 0) {
-        // 閉じの後ろに文字が続くものは、行内の数式を含む段落。singleLineDisplayMath が偽のときも 1 行 $$…$$ は行内数式のまま。
-        if (singleLineDisplayMath && first + 2 === rest.length && rest.slice(0, first).trim()) latex = rest.slice(0, first).trim();
-      } else {
+      if (first < 0) {
         const body = rest.trim() ? [rest.trim()] : [];
         for (let k = index + 1; k < lines.length; k++) {
           const next = lines[k].trim();
@@ -628,15 +625,14 @@ export function markdownToBlocks(markdown: string, options?: { singleLineDisplay
       const startsList = siblings[siblings.length - 1]?.type !== "numberedListItem";
       add("numberedListItem", startsList && number > 1 && Number.isSafeInteger(number) ? { start: number } : {}, parseInline(match[2] ?? ""));
     } else if ((match = /^>\s?(.*)$/.exec(text))) {
-      // 引用の中の独立した数式（prepareMath が > $$ ... > $$ にそろえたもの）を mathBlock として取り込む。
+      // 引用の中の複数行 $$ ブロック（prepareMath が > $$ ... > $$ にそろえたもの）を mathBlock として取り込む。
+      // 1 行の > $$…$$ は引用内の行内数式のまま保つ。
       const inner = match[1].trim();
       let quotedLatex: string | null = null;
       if (inner.startsWith("$$")) {
         const rest = inner.slice(2);
         const first = findUnescaped(rest, "$$", 0);
-        if (first >= 0 && first + 2 === rest.length && rest.slice(0, first).trim()) {
-          quotedLatex = rest.slice(0, first).trim();
-        } else if (first < 0) {
+        if (first < 0) {
           const body = rest.trim() ? [rest.trim()] : [];
           for (let k = index + 1; k < lines.length; k++) {
             const q = /^>\s?(.*)$/.exec(lines[k].trim());
