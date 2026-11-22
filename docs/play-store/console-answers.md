@@ -53,7 +53,7 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 | 数据类型 | 是否可选 | 是否只在设备上临时处理 | 用途 |
 | --- | --- | --- | --- |
-| 个人信息 → 姓名 | 可选（只在 Google 登录时） | 否 | 应用功能、账号管理 |
+| 个人信息 → 姓名 | 可选（Google 登录同步，或已登录用户在设置中自定义显示名） | 否 | 应用功能、账号管理 |
 | 个人信息 → 电子邮件地址 | 可选（只在登录时） | 否 | 应用功能、账号管理 |
 | 个人信息 → 用户 ID | 必需 | 否 | 应用功能、账号管理 |
 | 财务信息 → 购买记录（订阅状态、期间、Google Play 购买令牌） | 可选（只在购买 Pro 时） | 否 | 应用功能、账号管理 |
@@ -66,9 +66,9 @@ Play Console → 应用内容（App content）里各个声明的填写方式。�
 
 ## 应用内购买（订阅）
 
-- 商品：订阅 `notefable_pro`，基础方案 `monthly`（按月自动续订，宽限期 7 天，日本 ¥300，其他国家按汇率换算）。服务端配置和测试方法见 [billing.md](../architecture/billing.md#androidgoogle-play-结算)。
+- 商品：订阅 `notefable_pro`，基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），附带首次订阅 30 天免费试用优惠 `free-trial-30d`（资格“新客户获取”）。服务端配置和测试方法见 [billing.md](../architecture/billing.md#androidgoogle-play-结算)。
 - 订阅条款（价格、自动续订、解约、退款）写在 [服务条款](https://notefable.com/terms) 第 3 节和 [特定商取引法に基づく表記](https://notefable.com/legal-notice)；App 的购买窗口由 Play 显示价格和续订说明。
-- 改价格、额度或解约规则时，同时改 `usage-plans.ts`、服务条款、特商法页面、[listing.md](listing.md) 和 Play Console 的商品。
+- 改价格、额度或解约规则时，同时改 `src/lib/usage-plans.ts`、重跑 `npx tsx scripts/gen-native-usage-limits.ts`（更新 Android/iOS 共用的 `assets/usage-limits.json`）、更新 `src/components/legal-page.tsx` 的 `LEGAL_UPDATED_ISO`（条款与特商法页面直接读取 `usage-plans.ts` 的数值，文案改动时一并修改）、[listing.md](listing.md) 和 Play Console 的商品。
 
 ## AI 生成内容
 
@@ -86,14 +86,14 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 
 已完成（2026-11-17）：开发者账号、创建应用（NoteFable，`com.kakumine.notefable`）、订阅商品 `notefable_pro` 的创建、RTDN 和服务端环境变量（见 [billing.md](../architecture/billing.md#配置google-play)）、商店文字和图片、隐私政策 / 服务条款 / 特商法页面里的订阅说明。
 
-已完成（2026-11-20）：1.0.12（versionCode 22）在内部测试和封闭测试（Alpha 轨道）完全发布。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
+已完成（2026-11-20–22）：1.0.12（versionCode 22）起在内部测试和封闭测试（Alpha 轨道）完全发布，当前 Alpha 为 1.0.14（versionCode 24）；订阅 `notefable_pro` 的基础方案 `monthly` 与 30 天免费试用 `free-trial-30d` 已启用；Play Console 的应用内容声明和商店介绍已填写；封闭测试已于 2026-11-22 通过 Testers Community 启动（15 名测试人员，16 天，见 `AGENTS.md`）。之后提高 versionCode 的 PR 合入 main 时，GitHub Actions 自动同时发布到内部测试和 Alpha（见 [android.md](../architecture/android.md#正式签名与-google-play)），不用再手动上传 AAB。
 
-剩下的（都要在 Play Console / Google Cloud 上由所有者操作）：
+剩下的（都要在 Play Console 上由所有者操作）：
 
 1. ~~Play 应用签名~~：已完成（Google 生成的应用签名密钥，使用中）。首次上传 AAB 时选"使用 Google 生成的应用签名密钥"（`bundleRelease`，用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。每次上传前 `versionCode` 加 1。
 2. ~~在 Google Cloud 新建 Android OAuth 客户端~~：已完成：`NoteFable-Android`（Play 应用签名的 SHA-1）是唯一的 Android 客户端，登记 debug 签名和上传密钥的旧客户端已删除（见 [android.md](../architecture/android.md#正式签名与-google-play)）。
-3. 启用订阅 `notefable_pro` 的基础方案 `monthly`。
-4. 按本文件填写应用内容的各项声明（数据安全要包括"购买记录"，IARC 的"数字商品购买"选"是"），按 [listing.md](listing.md) 填写商店信息并上传 `mobile/android/play-store/` 的图片。
+3. ~~启用订阅 `notefable_pro` 的基础方案 `monthly`~~：已完成（连同 `free-trial-30d` 优惠一并启用）。
+4. ~~填写应用内容声明与商店信息~~：已完成；后续改动文案或图片（见 [listing.md](listing.md) 和 `mobile/android/play-store/`）时再到 Console 同步。
 5. 把测试账号加到"许可测试"，从测试轨道安装 App，真机走一遍：购买 → 报告（设置里变成 Pro）→ RTDN 到达 → 在 Play 里取消（到期前仍是 Pro）→ 删除账号停止续费。许可测试的订阅按几分钟一个周期续订，便于看续费和到期。
-6. 新的个人开发者账号要先做"封闭测试"：至少 12 名测试人员连续参与 14 天，之后才能申请正式版（以 Console 当时的要求为准）。这一步最花时间，应尽早开始；第 3–5 步可以在这期间并行做。
-7. 正式版：国家 / 地区选全部或指定，提交审核。
+6. 封闭测试进行中（2026-11-22 启动，目标满足 12 名以上测试人员连续 14 天；期间按计划向 Alpha 发 2–3 次更新）。
+7. 正式版：封闭测试满 14 天后在 Play Console（Reports → Production Access Report）申请正式版权限，选择国家 / 地区并提交审核。

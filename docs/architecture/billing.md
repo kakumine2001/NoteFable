@@ -1,6 +1,6 @@
 # 付费方案（Pro）与用量上限
 
-NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込），第一次订阅先免费试用 30 天（见“免费试用”）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
+NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込），第一次订阅先免费试用 30 天（见“免费试用”）。目标是用订阅费大致抵消 API 费用，不追求利润。网页用 Stripe（Checkout 与 Customer Portal），Android App 用 Google Play 结算（见下面的“Android”）；iOS 端尚未接入 App Store 内购，设置中的方案卡片为只读（见 [ios-native.md](ios-native.md)）。服务端只保存客户 ID、订阅 ID / 购买令牌和订阅状态，不接触卡号。
 
 ## 档位与上限
 
@@ -25,13 +25,13 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - Pro 用满（2,000 条 + 60 张）最坏约 ¥440–1,480（聊天 ¥200–1,000 + 图片 ¥240–480），高于到手的 ¥287；平均用量远低于此，初期允许亏损。web search 的额外费用未计入。
 - 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
-改上限或价格只改 `usage-plans.ts`，然后重新生成 Android 的 `assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。服务条款第 3 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+改上限或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。服务条款第 3 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
 
 ## 免费试用
 
 第一次订阅 Pro 的用户先免费用 30 天（`PRO_TRIAL_DAYS`），要先登记付款方式，到期自动开始按月扣费；试用期间解约不扣费，Pro 用到试用结束。每个账号一次。
 
-- **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（两种来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 和 `GET /api/account` 返回 `trialDays`（有资格是 30，否则 0），界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
+- **资格**：`isTrialEligible`（`src/lib/billing.ts`）= 用户行的 `subscriptionStatus` 为 null（两种来源都没订阅过；订阅过一次这个字段就一直留着）。`GET /api/billing` 返回 `trialDays`（有资格是 30，否则 0）；`GET /api/account` 只在 Stripe 计费已配置且有资格时返回 30（否则 0）。界面据此把按钮写成“开始 30 天免费试用”并加一行“前 30 天免费，之后每月 ¥300。试用结束前取消就不会扣费。”
 - **网页（Stripe）**：建 Checkout Session 时，有资格且这个 Stripe 客户没有任何过往订阅，就在 `subscription_data` 里加 `trial_period_days` 和 `trial_settings.end_behavior.missing_payment_method = cancel`。Checkout 默认要求登记付款方式，并在页面上显示“30 天免费，之后每月 ¥300”。试用中的订阅状态是 `trialing`（算 Pro），账期就是试用期，月上限按它计；设置里显示“免费试用将于…结束，之后 Pro 每月 ¥300”。
 - **Android（Google Play）**：试用是 Play Console 里基础方案 `monthly` 上的“免费试用”优惠（30 天）。资格必须选“新客户获取”（Play 保证每个 Google 账号只给一次）；不要选“开发者指定”：那种优惠 Play 不检查资格，服务端也不核对购买用的是哪个 offer，改过的客户端就能反复试用。App 读商品时，服务端说有资格（`trialDays > 0`）就优先选第一阶段价格为 0 的 offer，试用天数取自这个阶段的计费周期（`isoPeriodDays`）；没有这种 offer（Console 里没建，或 Play 判断这个 Google 账号没资格）就照常显示“升级到 Pro”。服务端说没资格时只用不带试用的基础方案。Play 的试用期间状态是 `ACTIVE`。
 - 已知的漏洞，暂时接受：删除账号后重新注册、或换一个邮箱注册，同一张卡可以再试用一次（不按卡去重）；试用结束时扣款失败的订阅在 Stripe 重试期间是 `past_due`，仍算 Pro 并拿到新一期的额度。后者靠 Stripe 后台把重试期设短（Billing → 订阅与邮件）来限制。用量出现这类滥用时再做按卡指纹去重。
@@ -41,8 +41,8 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 
 代码在 `src/lib/billing.ts`（服务端）、`src/lib/billing-client.ts`（网页）、`src/app/api/billing/`。
 
-1. **申请**：设置的“方案”或上限提示（`UpgradePrompt`）里的“升级到 Pro” → `POST /api/billing/checkout`（同源、已登录）。没有 Stripe 客户就先建一个（幂等键 `notefable-customer-<userId>`，只在 `stripeCustomerId` 为空时写回，并发也只有一个客户）。库里的状态可能还没同步，所以再向 Stripe 列出这个客户的订阅：有还在扣费的（`canceled`、`incomplete_expired` 以外）就同步它并返回 409；没有就先让这个客户开着的旧 Checkout Session 过期（避免两个页面都付款），再创建 `mode: subscription` 的 Checkout Session 并返回 URL。被拒的草稿先存进 `sessionStorage`，回来后放回输入栏；附件不保留，提示里会说明。
-2. **回来**：Stripe 跳回 `/app?billing=success`。`BillingReturnNotice` 去掉地址里的参数，调 `GET /api/billing?refresh=1`：服务端直接向 Stripe 列出这个客户的订阅并同步，不等 Webhook；显示“欢迎使用 Pro”或“正在确认付款”。
+1. **申请**：设置的“方案”或上限提示（`UpgradePrompt`）里的“升级到 Pro” → `POST /api/billing/checkout`（同源、已登录）。在按用户的账务锁（`withUserBillingLock`）内重读用户行，没有 Stripe 客户就先建一个（幂等键 `notefable-customer-<userId>`）并写回 `stripeCustomerId`。随后**先让这个客户开着的旧 Checkout Session 过期**（避免两个页面同时付款），**再向 Stripe 列出这个客户的订阅**：有还在扣费的（`canceled`、`incomplete_expired` 以外，包括刚在过期前完成付款的）就同步它并返回 409；没有才创建 `mode: subscription` 的 Checkout Session 并返回 URL。被拒的草稿先存进 `sessionStorage`，回来后放回输入栏；附件不保留，提示里会说明。
+2. **回来**：Stripe 跳回 `/app?billing=success`。`BillingReturnNotice` 去掉地址里的参数，调 `GET /api/billing?refresh=1`：服务端向外部刷新当前用户的订阅状态并同步（有 Stripe 客户时向 Stripe 列出订阅同步；有 Google Play 购买令牌且已配置 Play 结算时也会重新同步 Play 订阅），不等 Webhook；显示“欢迎使用 Pro”或“正在确认付款”。
 3. **Webhook**：`POST /api/billing/webhook` 校验 `stripe-signature` 后，对 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 和 `customer.subscription.created|updated|deleted|paused|resumed`，用事件里的订阅 ID **重新向 Stripe 取订阅**再写库（`syncSubscription`），所以事件乱序或重发都只会写最新状态。同步失败返回 500，让 Stripe 重试。
 4. **状态 → 方案**：`active`、`trialing`、`past_due` 视为 Pro（`past_due` 是 Stripe 在重试扣款；后台必须设成重试用尽后取消订阅，否则会一直停在 `past_due`、一直是 Pro）；其他状态回到 FREE。用户有另一份有效订阅时，旧订阅的结束通知不会把他降回 FREE。预约解约（`cancel_at`，或 `cancel_at_period_end` 时取账期结束）期间仍是 Pro，日期存在 `subscriptionCancelAt`，设置里显示“Pro 将于…结束”。收到持有者已删除（找不到行）但还在扣费的 NoteFable 订阅（`metadata.userId`）时，直接取消它。
 5. **管理**：Pro 用户（或有过订阅的用户）在设置里点“管理订阅” → `POST /api/billing/portal` → Stripe Customer Portal（解约、换卡、收据），返回 `/app?billing=portal`。Portal 用后台的默认构成（Stripe 邮件里的“管理订阅”链接也用它），但解约方式由代码保证：打开 Portal 前（每个实例每 10 分钟最多一次）读默认构成，解约不是“在计费周期结束时取消”或被关掉时，用 API 改回（`ensurePortalCancelsAtPeriodEnd`，只改解约这一项，其他项目照后台设置）。一并把 `proration_behavior` 设成 `none`（即时解约用的按比例结算值留着时，Stripe 会拒绝改 mode）；这两个请求各自最多等 5 秒、不重试。读或改失败时照常打开 Portal，不让用户失去解约手段，1 分钟后再试。这是服务条款第 3 节和特商法标示的承诺。
@@ -77,8 +77,8 @@ Google Play 要求 App 内的数字订阅走 Play 结算，不能引导去网页
 1. **购买**（`data/PlayBilling.kt`，billing-ktx 9.1.0）：设置的“方案”（`ui/PlanSettings.kt`）和上限提示（`UpgradeLimitPrompt`）在 `GET /api/billing` 的 `googlePlay` 为 true、且能读到 Play 商品时显示“升级到 Pro”，价格用 Play 返回的本地化价格。购买窗口带上 `accountId`（`setObfuscatedAccountId`，就是 `User.id`）。不是从 Play 安装的 APK（例如 Drive 发的）连不上 Play 结算，不显示购买按钮。
 2. **报告**：买到后 App 把购买令牌发到 `POST /api/billing/google`。服务端用 Play Developer API（`purchases.subscriptionsv2.get`）核对：令牌上的 `obfuscatedExternalAccountId`（Play 商店里重新购买时是原购买的）必须是当前用户；没有这个 ID 时，只认已经记录在当前用户上的令牌（或它的前一个令牌）；令牌也不能已被别的用户用过。有效就确认（acknowledge）并写入，返回 Pro。付款还在处理（`PENDING`）时返回 202。网页（Stripe）已经是 Pro 时不确认这笔购买，Google 3 天后自动退款，返回 409。App 打开设置时会把没报告成功的购买（还没确认的）再报告一次。
 3. **RTDN**：Play 的 Real-time developer notifications 经 Pub/Sub push 到 `POST /api/billing/google/notify`。Pub/Sub 在 `Authorization` 里带一个用推送服务账号签名的 Google ID 令牌（OIDC），服务端校验签名、发行者、audience（这个地址）和发送者邮箱（`GOOGLE_PLAY_PUSH_SERVICE_ACCOUNT`），不在地址里放口令（`verifyPushToken`）。只取通知里的购买令牌，状态每次向 Google 重新读取（`syncPlayPurchase`）；按令牌、被替换的旧令牌（`linkedPurchaseToken`）、再按 `accountId` 找用户。App 没报告到的有效购买在这里确认。持有者已删除时停止续费。失败返回 500 让 Pub/Sub 重发。
-4. **状态对应**：`ACTIVE` → active；`CANCELED`（已取消续费）到期前仍是 active，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → past_due（仍是 Pro）；`ON_HOLD` → unpaid、`PAUSED` → paused、`PENDING` → incomplete、`EXPIRED` → canceled（都不是 Pro）。Play 不返回账期开始日：第一次按到期前一个月计，之后同一份订阅只在真正续费（状态为 ACTIVE 且到期时间往后推了一天以上）时把上一期的到期时间作为新的开始日；宽限期里 Google 每天延长到期时间，这时开始日不变（否则月上限的计数会被重置）。
-5. **管理**：Play 买的 Pro 在网页和 App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 App 里没有管理入口。
+4. **状态对应**：`ACTIVE`（未到期）→ `active`（已到期则 `canceled`）；`CANCELED`（已取消续费）到期前仍是 `active`，`subscriptionCancelAt` = 到期时间；`IN_GRACE_PERIOD` → `past_due`（仍是 Pro）；`ON_HOLD` → `unpaid`、`PAUSED` → `paused`、`PENDING` → `incomplete`、`PENDING_PURCHASE_CANCELED` → `incomplete_expired`、`EXPIRED` → `canceled`（都不是 Pro）。Play 不返回账期开始日：第一次按到期前一个月计，之后同一份订阅只在真正续费（状态为 ACTIVE 且到期时间往后推了一天以上）时把上一期的到期时间作为新的开始日；宽限期里 Google 每天延长到期时间，这时开始日不变（否则月上限的计数会被重置）。
+5. **管理**：Play 买的 Pro 在网页和 Android App 的设置里都显示“在 Google Play 上管理订阅”，打开 Play 的订阅页面。网页（Stripe）买的订阅在 Android App 里没有管理入口；iOS 端方案卡片为只读，两种来源均不显示购买或管理按钮。
 6. **删除账号**：先停止 Play 订阅的续费（`purchases.subscriptions.cancel`，已付的期限内 Google 侧仍有效，之后不再扣费），失败就不删除。
 
 并发：同一个用户的所有计费处理（结账、Stripe / Play 的同步、购买报告、删除账号）都在按用户的 Postgres advisory lock 里一次只做一个（`withUserBillingLock`，锁里重新读用户行，库操作走同一个事务连接）。所以并发的通知不会用旧状态盖掉新状态；两个页面同时结账，后一个会先让前一个的页面过期再检查订阅；等着结账的请求在删号之后拿到锁时，读不到用户行就放弃。
@@ -99,7 +99,7 @@ GOOGLE_PLAY_PRODUCT_ID            # 可选，默认 notefable_pro
 
 已经建好的（2026-11-17）：
 
-- Play Console：App `NoteFable`（`com.kakumine.notefable`），1.0.12（versionCode 22）已在内部测试和封闭测试（Alpha）完全发布（2026-11-20），之后的版本由 GitHub Actions 同时发布到内部测试和 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
+- Play Console：App `NoteFable`（`com.kakumine.notefable`），已不再是草稿应用（2026-11-20 发布 1.0.12 至内部测试与 Alpha，当前 Alpha 为 1.0.14 / versionCode 24），之后的版本由 GitHub Actions 同时发布到内部测试和 Alpha（见 [android.md](android.md#正式签名与-google-play)）；订阅 `notefable_pro` 的基础方案 `monthly`（按月自动续订、宽限期 7 天、日本 ¥300，其他国家按汇率换算），已启用；上面有免费试用优惠 `free-trial-30d`（资格“新客户获取：没用过这个订阅”，30 天，已启用）；收益化设置里开了实时通知，主题 `projects/studymate-511413/topics/play-rtdn`。
 - Play Console 用户：`play-billing@studymate-511413.iam.gserviceaccount.com`，权限“查看销售数据…”和“管理订单和订阅”。
 - Google Cloud 项目 `studymate-511413`：开了 Google Play Android Developer API 和 Pub/Sub；服务账号 `play-billing`（JSON 密钥已下载，只放 Vercel）、`pubsub-push`（无密钥，Pub/Sub 服务代理有它的 Token Creator）；主题 `play-rtdn`（`google-play-developer-notifications@system.gserviceaccount.com` 是发布者）；push 订阅 `play-rtdn-push` → `https://app.notefable.com/api/billing/google/notify`，用 `pubsub-push` 做 OIDC 认证，audience 同地址。
 - 测试：把测试账号加到“许可测试”，App 必须从 Play 的测试轨道安装（Drive 的 APK 不能购买）。

@@ -68,6 +68,7 @@ erDiagram
     User ||--o{ NoteCoverAsset : uploads
     User ||--o{ NoteGroup : owns
     NoteGroup ||--o{ NotePage : groups
+    NotePage ||--o{ NotePage : "sub-pages (set null)"
     User ||--o{ NoteRevision : owns
     NotePage ||--o{ NoteRevision : "history (cascade)"
     NotePage ||--o{ Session : "note assistant (cascade)"
@@ -80,7 +81,7 @@ erDiagram
 
     User {
         string id PK
-        string deviceId
+        string deviceId "unique"
         string googleSub "nullable, unique"
         string verifiedEmail "nullable, unique"
         string email "nullable"
@@ -92,6 +93,14 @@ erDiagram
         string customInstructions "nullable"
         string locale "nullable"
         UserPlan plan
+        string subscriptionProvider "nullable"
+        string stripeCustomerId "nullable, unique"
+        string stripeSubscriptionId "nullable, unique"
+        string googlePurchaseToken "nullable, unique"
+        string subscriptionStatus "nullable"
+        datetime subscriptionPeriodStart "nullable"
+        datetime subscriptionPeriodEnd "nullable"
+        datetime subscriptionCancelAt "nullable"
         datetime createdAt
         datetime updatedAt
     }
@@ -111,6 +120,7 @@ erDiagram
         string userId FK
         datetime releasedAt
         datetime deletingAt
+        datetime checkedAt
         datetime createdAt
     }
 
@@ -200,6 +210,7 @@ erDiagram
         string projectId FK "nullable"
         string userId FK
         string noteId FK "nullable"
+        datetime stopRequestedAt "nullable"
         datetime createdAt
         datetime updatedAt
     }
@@ -207,13 +218,13 @@ erDiagram
     Message {
         string id PK
         string sessionId FK
-        string role
+        MessageRole role
         string content
         string providerContext
         string activity
         int thinkingMs
         string model
-        string reasoningEffort
+        ReasoningEffort reasoningEffort "nullable"
         string parentId
         boolean active
         datetime selectedAt
@@ -238,6 +249,11 @@ erDiagram
         int count
         datetime updatedAt
     }
+
+    DeletedAccount {
+        string key PK
+        datetime deletedAt
+    }
 ```
 
 ## Table Responsibilities
@@ -257,21 +273,21 @@ erDiagram
 - `email` / `name` / `image`：可空，登录时从 Google 同步的资料（邮箱登录的用户只有 `email`）
 - `displayName` / `avatarIcon` / `avatarImage`：可空，用户在“设置”的个人资料部分自己设的显示名（1–40 个字符）、emoji 图标、上传的头像照片（存储路径）。为空就用 Google 的名字和头像。头像照片和 emoji 图标二选一：上传照片会清掉图标，选图标或“恢复 Google”会清掉照片并删除旧文件。它们和上一行是两组字段：每次登录会用 Google 的资料覆盖 `name` / `image`，但不会动这三个字段。照片在浏览器里先裁成 512×512 再上传，存到 `avatars/<用户 ID>/<UUID>.<扩展名>`（私有 Blob；本地开发在配置了 Blob token 时也写同一个 Blob，不是本地磁盘），`GET /api/account/avatar?v=<UUID>` 只返回当前登录用户自己的照片（版本对上才长缓存），`POST` 上传（只收 JPEG/PNG/WebP/GIF，按内容识别，≤ 2 MB；选照片时上限 10 MB、短边至少 200px，数值参照 Slack / LinkedIn / X 等主流产品）。`GET/PATCH /api/account` 读写名字和图标，只有已登录（Google 或邮箱）的本人能改；新增字段通过 `20261014200100_user_profile`、`20261014200200_user_avatar_image` migration 部署
 - `customInstructions`：可空，用户在“设置”里写的自定义指令（最多 4,000 字符，校验与项目的共通指示相同，空白存为 null）。只有已登录的用户能通过 `GET/PUT /api/custom-instructions` 读写，聊天时也只对已登录用户带入，见 [chat-flow.md](chat-flow.md) 的“自定义指令”。字段通过 `20261114130000_custom_instructions` migration 部署
-- `locale`：可空，已登录用户在“设置”里选的界面语言（`en` / `zh` / `zh-Hant` / `ja`，没有“自动”）。null 表示没选过，按浏览器语言和地区显示。`PATCH /api/account` 的 `locale` 只接受这四个值；读出时不认识的值当作 null。浏览器端把它同步到语言 Cookie，见 [i18n.md](i18n.md)。字段通过 `20261116200000_user_locale` migration 部署
+- `locale`：可空，已登录用户在“设置”里选的界面语言（`src/lib/i18n/locale.ts` 的全部 17 种已启用内部代码之一）。`null` 表示明确的自动检测（按浏览器语言和地区显示）。`PATCH /api/account` 的 `locale` 接受这 17 个代码或 `null`（显式恢复自动）；读出时不认识的值当作 `null`。浏览器端把它同步到语言 Cookie，见 [i18n.md](i18n.md)。字段通过 `20261116200000_user_locale` migration 部署
 
-- `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe 订阅同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
+- `plan`：`FREE`（默认）或 `PRO`。决定用量上限的档位（见下方 `UsageCounter`）。`PRO` 由 Stripe 或 Google Play 订阅经 `src/lib/subscription-state.ts` 同步写入（有效订阅期间），也可以手动改库设置；见 [billing.md](billing.md)。字段通过 `20261113000000_usage_limits` migration 部署
 - `subscriptionProvider`：可空，当前订阅在哪里买的（`stripe` = 网页、`google` = Android 的 Google Play）；下面的状态和账期都属于这份订阅。`googlePurchaseToken`：可空且唯一，Google Play 订阅的购买令牌。
-- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 是 Stripe 的订阅状态原文（`active`、`past_due`、`canceled` 等；null 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（null 为没有预约）。都由 `src/lib/billing.ts`（Stripe）或 `src/lib/google-play-billing.ts`（Google Play）从外部取回后经 `src/lib/subscription-state.ts` 写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
+- `stripeCustomerId` / `stripeSubscriptionId`：可空且唯一，Stripe 的客户和当前（或最近一次）订阅。`subscriptionStatus` 保存订阅状态（Stripe 的状态原文，或 Google Play 经 `playStatus` 映射后的等价状态，如 `active`、`past_due`、`canceled` 等；`null` 表示没订阅过），`subscriptionPeriodStart` / `subscriptionPeriodEnd` 是当前账期（Pro 的月上限按它计），`subscriptionCancelAt` 是预约解约的日期（`null` 为没有预约）。都由 `src/lib/billing.ts`（Stripe）或 `src/lib/google-play-billing.ts`（Google Play）从外部取回后经 `src/lib/subscription-state.ts` 写入，不由用户直接修改。字段通过 `20261118000000_subscription` migration 部署
 
 关系：
 
 ```text
-User 1 -> N Session
+User 1 -> N Session / ChatProject / NotePage / NoteCoverAsset / NoteProposal / NoteGroup / NoteRevision
 ```
 
-删除用户会级联删除 Session。
+删除用户会级联删除上述全部关联记录。
 
-**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/lib/account-deletion.ts` 先收集这个用户聊天附件的存储路径和头像路径，有 Stripe 订阅时先立即取消（失败就 502、不删除，见 [billing.md](billing.md)），然后在一个事务里删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：附件和头像逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/app/api/account/route.ts` 在按用户的账务锁（`withUserBillingLock`）内先停止计费：有 Stripe 客户时立即取消订阅、过期未完成结账并删掉 Stripe 客户（`cancelCustomerBilling`），有 Google Play 购买令牌时停止自动续费（`cancelPlayRenewal`），任一步失败就返回 502、不删除（见 [billing.md](billing.md)）；随后调用 `deleteAccount`（`src/lib/account-deletion.ts`）在同一事务里收集聊天附件图片路径，删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：聊天附件图片逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
 
 ### DeletedAccount
 
@@ -291,11 +307,11 @@ User 1 -> N Session
 
 ### EmailLoginCode
 
-邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是发送方 IP 的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后把这个邮箱所有还能用的验证码标成已使用（`attempts` 设为 1000 并过期；不删除，否则限流的计数会被清零；用 `attempts` 而不是时间来判断，所以同一个码同时提交两次只有一次成功）；任何一个未过期、还有剩余次数的验证码都能用，所以别人替你再要一个新码不会让你手上的码失效；输错时这些码的次数一起加 1；过期 1 小时以上的行在发新码时顺带删除（没有定时任务）。没有外键。
+邮箱登录的验证码（`src/lib/email-login.ts`）。只存 `codeHash`（`AUTH_SECRET` 为密钥的 HMAC），不存验证码本身；`expiresAt` 为发出后 10 分钟，`attempts` 记错误次数（满 5 次作废），`requesterHash` 是对 `clientNetworkKey`（IPv4 或 IPv6 前 64 位的 HMAC）再用 `AUTH_SECRET` 做的 HMAC，只用来限流（同一邮箱每分钟 1 次、每小时 5 次；同一 IP 每小时 20 次）。验证成功后把这个邮箱所有还能用的验证码标成已使用（`attempts` 设为 1000 并过期；不删除，否则限流的计数会被清零；用 `attempts` 而不是时间来判断，所以同一个码同时提交两次只有一次成功）；任何一个未过期、还有剩余次数的验证码都能用，所以别人替你再要一个新码不会让你手上的码失效；输错时这些码的次数一起加 1；过期 1 小时以上的行在发新码时以 5% 的概率顺带删除（没有定时任务）。没有外键。
 
 ### NotePage
 
-站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个emoji，`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面登记在 `NoteCoverAsset`（`path` 主键、`userId`、`releasedAt`、`deletingAt`）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`），行已不存在则拒绝保存。`collectUnusedCovers()`（`src/lib/note-covers.ts`）先给不再被引用的行记录 `releasedAt`，记录后再次确认引用，避免与保存同时发生时误记。连续未使用 7 天后用条件更新设置 `deletingAt`（此后不能再被引用），删除存储中的图片成功后才删除该行，失败的在下次运行重试；目前没有定时任务调用它（Vercel Cron 已移除），未引用的封面图片会留在存储中，需要时再接入；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。只处理本数据库登记的封面，因此与本地开发共享 Blob 存储也不会误删。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
+站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个emoji，`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面登记在 `NoteCoverAsset`（`path` 主键、`userId`、`releasedAt`、`deletingAt`、`checkedAt`（有索引））：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`），行已不存在则拒绝保存。`collectUnusedCovers()`（`src/lib/note-covers.ts`）按 `checkedAt` 从旧到新巡查，先给不再被引用的行记录 `releasedAt`，记录后再次确认引用，避免与保存同时发生时误记。连续未使用 7 天后用条件更新设置 `deletingAt`（此后不能再被引用），删除存储中的图片成功后才删除该行，失败的在下次运行重试；目前没有定时任务调用它（Vercel Cron 已移除），未引用的封面图片会留在存储中，需要时再接入；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。只处理本数据库登记的封面，因此与本地开发共享 Blob 存储也不会误删。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、当前用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引仍保留；页面列表现按 `position` 升序、`createdAt` 降序和 `id` 降序返回。所有页面读写限制在当前用户（匿名设备或已登录账号）。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 
@@ -307,7 +323,7 @@ User 1 -> N Session
 
 ### NoteGroup
 
-Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面只改 `groupId`，不增加 `version`。
+Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时级联删除；`position` 决定排列顺序（新分组排在最后），索引 `(userId, position)`。每个用户最多 50 个分组，名称最长 60 字符。`NotePage.groupId` 可空，指向所属分组；删除分组时页面保留并把 `groupId` 置空（`SetNull`），索引 `(userId, groupId)`。移动页面到分组（`PUT /api/pages/:id/group`）会把页面脱离父页面（`parentId = null`）并同步更新整棵子树的 `groupId`，不增加 `version`。
 
 ### NoteRevision
 
@@ -351,6 +367,7 @@ AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记
 - `pinned`（置顶）、`projectId`（可空，独立聊天项目）、`titleManual`（手动标题不再被自动标题覆盖）
 - `userId`
 - `noteId`（可空；有值表示这是“笔记里的 AI 助手”的对话，关联 `NotePage`。笔记放进 Trash 时对话原样保留，复原后仍在；笔记被永久删除（手动、清空 Trash 或过期清理）时一起级联删除）
+- `stopRequestedAt`（可空；用户点击“停止”时的时间戳，生成中的 `/api/chat` 每秒轮询该值以停止上游请求并保存已生成正文）
 - `createdAt`
 - `updatedAt`
 
@@ -446,6 +463,15 @@ ReasoningEffort
 - XHIGH
 - MAX
 
+NoteProposalKind
+- EDIT
+- CREATE
+
+NoteProposalStatus
+- PENDING
+- APPLIED
+- DISCARDED
+
 NoteRevisionReason
 - AUTO
 - AI_EDIT
@@ -502,6 +528,6 @@ Schema 变更应同时更新：
 
 `20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。
 
-聊天行右侧固定显示三点按钮（左）和图钉按钮（右）。图钉负责置顶/取消置顶；三点菜单只提供重命名、移动项目和删除确认。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
+聊天行右侧显示三点按钮，置顶/取消置顶、重命名、移动项目和删除确认均在三点菜单内。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 
-`Session.position` 和 `NotePage.position` 由 `20261015001000_manual_list_order` 追加并按此前显示顺序回填。新项目/分组不影响正文结构。`POST /api/sessions/reorder`、`POST /api/pages/reorder` 在用户级事务锁中读取最新完整列表，以目标行确定插入位置，保存全部 `position` 并将移动项放进目标行所属项目/分组（拖入置顶区只改变置顶状态，保留原项目；置顶区内部排序也保留项目归属）。排序 SQL 明确限定 schema 和 userId，参数化行 ID；不触发 Prisma 的 `@updatedAt` 或笔记版本更新。
+`Session.position` 和 `NotePage.position` 由 `20261015001000_manual_list_order` 追加并按此前显示顺序回填。新项目/分组不影响正文结构。`POST /api/sessions/reorder`、`POST /api/pages/reorder` 在用户级事务锁中读取最新完整列表，以目标行确定插入位置，保存全部 `position` 并将移动项放进目标行所属项目/分组（聊天拖入置顶区只改变置顶状态，保留原项目；置顶区内部排序也保留项目归属；笔记重排同时把 `parentId` 设为目标行的 `parentId`、同步整棵子树的 `groupId`，并拒绝移到自身子孙旁）。排序 SQL 明确限定 schema 和 userId，参数化行 ID；不触发 Prisma 的 `@updatedAt` 或笔记版本更新。

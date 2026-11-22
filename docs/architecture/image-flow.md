@@ -53,9 +53,9 @@ Claude 使用独立的模型输入副本（`src/lib/claude-image.ts`、Sharp）�
 
 ## 2. 图片生成
 
-`/api/images` 使用独立的每日生图额度，与聊天次数分开统计。在调用 OpenAI 前预占一次，满额时返回 `429`（`code: "usage_limit"`）；游客看到登录引导。生成或保存失败、没有交付图片时退还次数。档位与重置规则见[用量计数](database.md#usagecounter)。
+`/api/images` 使用独立的双层生图额度（月 / 账期总量 + 每日张数，与聊天次数分开统计）：未登录 10 张/月且 3 张/天（同网络另共享 30 张/月）、免费登录 20 张/月且 5 张/天、Pro 60 张/账期且 10 张/天。在调用 OpenAI 前在同一事务内预占两层计数，任一层满额即返回 `429`（`{ error, code: "usage_limit", tier, kind: "image" }`）；游客看到登录引导，已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。设置的“方案”页里 Pro 同时显示本期与今日两条进度条，免费方案平时只显示今日条、仅在月上限用满时补显示满额的本月条。生成或保存失败、没有交付图片时退还次数。档位与重置规则见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。
 
-默认使用 `gpt-image-2.6-sunburst`，可通过 `OPENAI_IMAGE_MODEL` 覆盖。图片生成和编辑与 GPT-6 Luna 聊天共用服务端 `OPENAI_API_KEY`，接入点为 `https://api.openai.com/v1`。模型访问权限取决于 OpenAI 项目设置。
+默认使用 `gpt-image-2.6-sunburst`，可通过 `OPENAI_IMAGE_MODEL` 覆盖。图片生成和编辑与 GPT-6 Luna 聊天共用服务端 `OPENAI_API_KEY`，默认接入点为 `https://api.openai.com/v1`（可通过 `OPENAI_BASE_URL` 覆盖）。单次 prompt 最多 4,000 字符（超出返回 413），可选 `size`（`1024x1024 | 1024x1536 | 1536x1024 | auto`，默认 `auto`）与 `quality`（`low | medium | high | auto`，默认 `auto`），固定 `output_format: "png"`、`n: 1`，上游临时失败自动重试一次（最多 2 次尝试）；当前上传参考图只接受 PNG / JPEG / WebP（其他格式返回 400）。模型访问权限取决于 OpenAI 项目设置。
 
 前端开启：
 
@@ -165,7 +165,7 @@ data/storage/
     └── YYYY/
         └── MM/
             └── DD/
-                └── <uuid>.png
+                └── <uuid>.<ext>   # 按 MIME 决定（.png / .jpg / .webp / .gif / .bin）
 ```
 
 PostgreSQL 只存：
@@ -205,26 +205,21 @@ Neon PostgreSQL
 ### 当前完成度
 
 - Vercel Blob Store：已启用（`notefable-images`）
-- NoteFable production 代码：通过 `put()` / `get()` 读写私有 Blob
+- NoteFable production 代码：通过 `@vercel/blob` 的 `put()` / `get()` / `del()` / `list()` 与 `issueSignedToken()` / `presignUrl()` 读写、删除并签发私有 Blob 单图短时读取链接
 - `@vercel/blob`：已加入 `package.json`
 - Storage Layer 接线：已完成
 
 ## 6. Storage Layer 约束
 
-业务层只调用 Storage Layer：
-
-```text
-writeStoredImage()
-readStoredImage()
-```
-
-上层 `/api/chat`、`/api/images` 和 Attachment 模型尽量不要感知具体供应商。
-
-当前接口：
+业务层只调用 Storage Layer（`src/lib/storage.ts`）：
 
 ```ts
 writeStoredImage(buffer, mimeType): Promise<string>
-readStoredImage(storagePath): Promise<Buffer>
+writeStoredImageAt(storagePath, buffer, mimeType): Promise<string>
+readStoredImage(storagePath, maxBytes?): Promise<Buffer>
+deleteStoredImage(storagePath): Promise<void>
+deleteStoredPrefix(prefix): Promise<void>
+getStoredImageReadUrl(storagePath): Promise<string | null>
 ```
 
-这样未来从 Vercel Blob 换 S3 / R2，也不需要重写业务流程。
+上层 `/api/chat`、`/api/images`、封面/笔记文件/头像路由与账号删除等逻辑尽量不直接依赖具体供应商，这样未来从 Vercel Blob 换 S3 / R2 时不需要重写业务流程。

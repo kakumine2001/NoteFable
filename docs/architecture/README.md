@@ -27,32 +27,37 @@
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [ios.md](ios.md) — iOS PR 检查、App Store Connect / TestFlight 自动打包上传与云端签名
     - [ios-native.md](ios-native.md) — Swift / SwiftUI 客户端的结构、与 Android 的对应、现状与上线前还缺的部分
-11. [i18n.md](i18n.md) — 英/简中/繁中/日界面、语言选择 Cookie、浏览器和地区回退
-12. [billing.md](billing.md) — 月额 Pro（Stripe 订阅）、各档位的用量上限和定价依据
+11. [i18n.md](i18n.md) — 17 种界面语言（含阿拉伯语 RTL）、自动检测、语言 Cookie、账号同步与原生多语言生成
+12. [billing.md](billing.md) — 月额 Pro（Stripe 与 Google Play 订阅、30 天免费试用）、各档位用量上限和定价依据
 
 ## 一张图先记住整个项目
 
 ```mermaid
 flowchart LR
     Browser["Browser"]
+    Native["Android / iOS Apps"]
     App["Next.js on Vercel"]
     Chat["Chat API"]
     Images["Image API"]
     Sessions["Session APIs"]
     Pages["Page APIs"]
     Search["Search API"]
+    Billing["Billing & Account APIs"]
     Neon["Neon PostgreSQL"]
     Blob["Private Vercel Blob"]
     OpenAI["OpenAI APIs"]
     DeepSeek["DeepSeek API"]
     Anthropic["Anthropic Messages API"]
+    External["Stripe / Google Play / Resend"]
 
     Browser --> App
+    Native --> App
     App --> Chat
     App --> Images
     App --> Sessions
     App --> Pages
     App --> Search
+    App --> Billing
     Chat --> Neon
     Chat --> OpenAI
     Chat --> DeepSeek
@@ -64,6 +69,8 @@ flowchart LR
     Sessions --> Neon
     Pages --> Neon
     Search --> Neon
+    Billing --> Neon
+    Billing --> External
 ```
 
 ## 最重要的源文件
@@ -72,32 +79,38 @@ flowchart LR
 | --- | --- |
 | `src/app/[locale]/page.tsx`、`src/components/thread-landing.tsx`、`src/app/[locale]/landing.css` | `/` 产品介绍主页（"一根线"滚动叙事）；旧的根路径会话与笔记链接保留查询参数转到 `/app` |
 | `src/app/[locale]/app/page.tsx` | `/app` 聊天与 Notes 工作区、输入框、附件、发送、图片生成模式 |
+| `src/app/[locale]/note-embed/page.tsx`、`src/components/note-embed.tsx`、`src/lib/native-bridge.ts` | Android / iOS 内嵌笔记编辑器页面与 JS 桥接约定 |
 | `src/lib/hosts.ts`、`src/proxy.ts`、`src/lib/i18n/routing.ts` | 介绍页（`notefable.com`）与工作区（`app.notefable.com`）分域：按主机分流、旧链接转发、共享提示 Cookie（[deployment.md](deployment.md)） |
-| `src/app/api/chat/route.ts` | 普通聊天主流程 |
+| `src/lib/i18n/locale.ts`、`src/app/api/i18n/route.ts` | 17 种语言注册表、RTL 方向、回退规则与按需词典接口（[i18n.md](i18n.md)） |
+| `src/app/api/chat/route.ts` | 普通聊天主流程与共享 `buildInstructions()` |
+| `src/lib/chat-branches.ts`、`src/lib/chat-branch-store.ts` | 消息树（`parentId` / `active` / `selectedAt`）、编辑、重新生成、切换版本与分支 |
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
-| `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx` | 公开的隐私权政策、服务条款（Google 同意屏幕要填这两个链接）和特定商取引法に基づく表記（日文，Stripe / 日本法律要求） |
-| `src/app/api/sessions/*` | 会话列表、历史消息读取、会话图标 |
-| `src/app/api/pages/*` | 站内页面 CRUD、当前用户归属和版本检查；`trash/*` 是回收站，`[pageId]/revisions/*` 是编辑历史与恢复 |
-| `src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | Trash 保留期与惰性清理；编辑历史的快照 SQL、保留上限与裁剪 |
-| `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx` | Trash 对话框与编辑历史/恢复对话框 |
+| `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx`、`src/app/delete-account/page.tsx` | 公开的隐私权政策、服务条款、特定商取引法に基づく表記（日文）与账号删除说明页 |
+| `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
+| `src/app/api/pages/*` | 站内页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、封面与附件、原生回答保存（`from-answer`）、回收站（`trash`）与编辑历史（`revisions`） |
+| `src/lib/page-tools.ts`、`src/lib/note-proposals.ts`、`src/app/api/proposals/*` | AI 的 Notes 读写/提案工具定义与提案应用/放弃接口 |
+| `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
+| `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/note-assistant.tsx` | Trash 对话框、编辑历史/恢复对话框与笔记内 AI 助手面板 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
-| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx` | 已登录用户的自定义指令（适用于所有聊天）：校验、写入系统指令；设置对话框还集中了个人资料（`profile-settings.tsx`）、界面语言和退出登录 |
+| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
+| `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |
-| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/clipboard.ts` | 回答下方的 Copy / Save to Notes / Markdown 操作：回答转笔记块与 .md 文件，`/c/<会话>?message=` 会话链接（`src/proxy.ts` 转到工作区的 `?chat=&message=`，由 `src/app/[locale]/app/page.tsx` 打开会话；以前的 `/?chat=` 链接也能开） |
+| `src/components/answer-actions.tsx`、`src/lib/answer-export.ts`、`src/lib/answer-export-server.ts`、`src/lib/clipboard.ts`、`src/app/api/reports/route.ts`、`src/lib/answer-report.ts` | 回答操作行与菜单（Regenerate / Branch / Copy / Save to page / Download conversation / Report answer）及 `/c/<会话>?message=` 会话链接 |
 | `src/app/api/attachments/[attachmentId]/image/route.ts` | 保存图片的受控读取入口 |
-| `src/lib/auth.ts` | 匿名设备 Cookie / 用户识别；Google 或邮箱登录时返回对应账号的用户 |
+| `src/lib/auth.ts`、`src/app/api/account/*`、`src/lib/account-deletion.ts`、`src/lib/deleted-accounts.ts` | 匿名设备 Cookie 与账号识别、个人资料与头像接口、账号删除与旧登录 Cookie 作废 |
 | `src/lib/google-auth.ts`、`src/app/api/auth/[...nextauth]/route.ts` | Auth.js（JWT 会话）的 Google 登录；未配置环境变量时停用 |
 | `src/lib/email-login.ts`、`src/app/api/auth/email/*`、`src/components/sign-in-dialog.tsx` | 邮箱验证码登录（发码、校验、签发同样的会话 Cookie）和登录弹窗（Google / 邮箱）；配置见 [deployment.md](deployment.md) |
-| `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)） |
-| `src/lib/models.ts` | 模型能力、推理档位 |
+| `src/lib/native-google-login.ts`、`src/app/api/native-auth/*` | Android / iOS 原生 App 内的 Google 登录：校验端侧 ID 令牌后签发同样的会话 Cookie（见 [android.md](android.md)、[ios-native.md](ios-native.md)） |
+| `src/lib/usage-plans.ts`、`src/lib/usage-limits.ts`、`src/lib/billing.ts`、`src/lib/google-play-billing.ts`、`src/lib/subscription-state.ts`、`src/app/api/billing/*` | 各档位用量上限计数、Stripe 网页订阅、Google Play 订阅与 RTDN 同步（[billing.md](billing.md)） |
+| `src/lib/models.ts`、`src/lib/model-registry.ts`、`src/app/api/models/route.ts` | 内置模型能力、推理档位与 `NOTEFABLE_MODELS` 服务端模型注册表 |
 | `src/lib/claude-image.ts` | Claude 模型图片副本压缩与尺寸控制，原图保留 |
 | `src/lib/files.ts` | 文件校验、PDF/文本抽取、图片预处理 |
-| `src/lib/chat-upload-ticket.ts`, `src/lib/chat-uploads.ts`, `src/app/api/uploads/*` | 聊天附件私有 Blob 直传凭证、归属验证、大小检查、临时文件读取与清理 |
+| `src/lib/chat-upload-ticket.ts`、`src/lib/chat-uploads.ts`、`src/app/api/uploads/*` | 聊天附件私有 Blob 直传凭证、归属验证、大小检查、临时文件读取与清理 |
 | `src/lib/storage.ts` | Vercel Blob 图片存储（本地开发可回退到文件系统） |
 | `src/lib/prisma.ts` | Prisma + PostgreSQL adapter、schema 选择 |
-| `src/lib/deepseek-responses.ts` | DeepSeek Responses 兼容处理 |
+| `src/lib/anthropic-messages.ts`、`src/lib/deepseek-responses.ts` | Anthropic Messages API 与 DeepSeek Responses 兼容处理 |
 | `prisma/schema.prisma` | 数据模型 |
 | `prisma/migrations/` | 数据库变更历史 |
 
@@ -115,4 +128,4 @@ Vercel Function
 
 ## 文档更新时间
 
-本轮文档与主分支代码核对：**2026-11-15**，覆盖产品定位、登录、Notes、Android、请求示例和图片读取。源码仓库、Vercel 项目名和域名同日核对。生产数据库连接方式与本地数据库的运行核验仍为 **2026-09-16**，Neon 项目资源核验为 **2026-09-05**；文档同步不代表重新验证了所有线上功能或已交付 APK。
+本轮文档与主分支代码核对：**2026-11-22**，覆盖产品定位、分域、17 语言、计费与用量、登录与删号、Notes、Android / iOS 客户端、上游请求示例和图片读取。生产数据库连接方式与本地数据库的运行核验仍为 **2026-09-16**，Neon 项目资源核验为 **2026-09-05**；文档同步不代表重新验证了所有线上功能或已交付安装包。

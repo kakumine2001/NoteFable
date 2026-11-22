@@ -16,7 +16,7 @@ NoteFable puts AI chat and your notes in one place, so what you learn doesn't ge
 
 ASK ANYTHING
 • Chat with several AI models (OpenAI GPT, Anthropic Claude and DeepSeek) and pick how hard each one thinks.
-• Turn on web search for up-to-date answers with sources.
+• Built-in web search automatically pulls in up-to-date answers with sources when needed (supported models).
 • Attach photos, PDFs and text files and ask about them.
 • Create and edit images from a text description.
 
@@ -40,7 +40,7 @@ WORKS EVERYWHERE
 • Try it without an account. Sign in with Google or an email code to keep your chats and notes in sync between the app and notefable.com.
 • Available in English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe and Русский.
 
-Free to use with daily and monthly limits on AI messages and images. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 2,000 messages and 60 images a month, and your first 30 days are free. No ads.
+Free to use with daily and monthly limits on AI messages and images. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 2,000 messages and 60 images a month (up to 10 images a day), and your first 30 days are free. No ads.
 
 Privacy policy: https://notefable.com/privacy
 
@@ -56,7 +56,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 
 随时提问
 • 可以和多个 AI 模型对话（OpenAI GPT、Anthropic Claude、DeepSeek），还能选择思考强度。
-• 打开联网搜索，获得带来源的最新回答。
+• 支持的模型会在需要时自动联网搜索，提供带来源的最新回答。
 • 添加照片、PDF 和文本文件，直接针对内容提问。
 • 用文字描述生成或修改图片。
 
@@ -80,7 +80,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 • 不注册也能直接试用。用 Google 或邮箱验证码登录后，对话和笔记在 App 和 notefable.com 之间同步。
 • 支持 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
-免费使用，AI 消息和图片有每天、每月的使用上限。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 2,000 条消息和 60 张图片，首次订阅前 30 天免费。没有广告。
+免费使用，AI 消息和图片有每天、每月的使用上限。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 2,000 条消息和 60 张图片（每天最多 10 张），首次订阅前 30 天免费。没有广告。
 
 隐私政策：https://notefable.com/privacy
 
@@ -96,7 +96,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 
 隨時提問
 • 可以和多個 AI 模型對話（OpenAI GPT、Anthropic Claude、DeepSeek），還能選擇思考強度。
-• 開啟網路搜尋，取得附來源的最新回答。
+• 支援的模型會在需要時自動進行網路搜尋，提供附來源的最新回答。
 • 加入照片、PDF 和文字檔，直接針對內容提問。
 • 用文字描述產生或修改圖片。
 
@@ -120,7 +120,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 • 不註冊也能直接試用。用 Google 或電子郵件驗證碼登入後，對話和筆記會在 App 和 notefable.com 之間同步。
 • 支援 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
-免費使用，AI 訊息和圖片有每天、每月的使用上限。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 2,000 則訊息和 60 張圖片，首次訂閱前 30 天免費。沒有廣告。
+免費使用，AI 訊息和圖片有每天、每月的使用上限。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 2,000 則訊息和 60 張圖片（每天最多 10 張），首次訂閱前 30 天免費。沒有廣告。
 
 隱私權政策：https://notefable.com/privacy
 
@@ -136,7 +136,7 @@ NoteFable は AI チャットとノートをひとつにまとめたアプリで
 
 なんでも質問
 • 複数の AI モデル（OpenAI GPT、Anthropic Claude、DeepSeek）とチャットでき、考える深さも選べます。
-• Web 検索をオンにすると、出典つきの最新の回答が得られます。
+• 対応モデルが必要なときに自動で Web 検索を行い、出典つきの最新の回答を届けます。
 • 写真・PDF・テキストファイルを添付して、その内容について質問できます。
 • テキストから画像を生成・編集できます。
 
@@ -160,7 +160,7 @@ AI がノートを手伝う
 • アカウントなしですぐに試せます。Google またはメールの確認コードでログインすると、チャットとノートがアプリと notefable.com で同期されます。
 • English・简体中文・繁體中文・日本語・한국어・Español・Français・Deutsch・Português (Brasil)・Italiano・Bahasa Indonesia・Tiếng Việt・ไทย・हिन्दी・العربية・Türkçe・Русскийに対応。
 
-無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで使えます。初めての方は最初の 30 日間無料です。広告はありません。
+無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで（1 日 10 枚まで）使えます。初めての方は最初の 30 日間無料です。広告はありません。
 
 プライバシーポリシー：https://notefable.com/privacy
 

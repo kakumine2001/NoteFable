@@ -27,7 +27,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 - **真机验证**。第一次装机后要按 [android-native.md](android-native.md) 的各节逐项对照网页检查，预计会有一批界面细节要修。
 - **Sign in with Apple**。App Store 审核规则 4.8 要求提供第三方登录（Google）的 App 同时提供一个等价的隐私登录方式；现在只有 Google 和邮箱验证码。上架前要么加 Sign in with Apple（后端要支持 Apple 账号关联，属于认证改动），要么确认邮箱验证码登录满足该条。
 - **Google 登录的 iOS 客户端**。要在 Google Cloud 给 `com.kakumine.notefable` 登记 iOS OAuth 客户端，把客户端 ID 填进 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID`；留空时登录窗口不显示 Google，只有邮箱验证码。服务端校验的 audience 仍是 Web 客户端 ID（`serverClientID`）。
-- **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），游客上限提示里没有升级入口。
+- **购买**。iOS 没有接 App Store 内购，设置里的方案卡片只读（显示方案和用量，没有购买 / 管理按钮），已登录的免费用户撞到上限时也没有升级提示。
 - **通用链接**。`Support/NoteFable.entitlements` 声明了 `applinks:app.notefable.com`，但网站还没有提供 `/.well-known/apple-app-site-association`，所以点网页链接暂时不会打开 App。
 
 ## 结构
@@ -37,6 +37,7 @@ mobile/ios/
   project.yml            XcodeGen 工程定义（版本号在这里；.xcodeproj 不进仓库）
   Package.swift          只用来单独编译、测试 Core
   Config/  Support/      xcconfig、Info.plist、entitlements
+  scripts/               core-check.sh（Linux 容器里编译 / 测试 Core）、ci-core-tests.sh（CI 上跑 Core 测试）
   NoteFable/
     App/                 @main 入口
     Core/                不依赖 SwiftUI / UIKit：网络、接口、DTO、解析、ViewModel
@@ -48,7 +49,7 @@ mobile/ios/
 
 分层规则：
 
-- **Core 只 import Foundation**（加 `Observation` 和 swift-markdown），所以能在没有 Mac 的机器上用 Linux 的 Swift 编译和测试。SwiftUI、UIKit、WebKit、Photos、GoogleSignIn 只出现在 `DesignSystem/`、`Features/`、`App/`。Core 需要平台能力的地方留接口，由界面层装上：Google 登录（`AppEnvironment.requestGoogleIdToken` ← `GoogleSignInBridge`）、表情字形判断（`emojiGlyphSupported` ← `EmojiGlyphs`）、笔记编辑器（`NoteEditorBridge` ← `NoteEditorWebView`）。
+- **Core 只 import Foundation**（加 `Observation` 和 swift-markdown，以及按 `#if canImport` 条件导入的 `CoreGraphics` / `FoundationNetworking`），所以能在没有 Mac 的机器上用 Linux 的 Swift 编译和测试。SwiftUI、UIKit、WebKit、Photos、GoogleSignIn 只出现在 `DesignSystem/`、`Features/`、`App/`。Core 需要平台能力的地方留接口，由界面层装上：Google 登录（`AppEnvironment.requestGoogleIdToken` ← `GoogleSignInBridge`）、表情字形判断（`emojiGlyphSupported` ← `EmojiGlyphs`）、笔记编辑器（`NoteEditorBridge` ← `NoteEditorWebView`）。
 - **Core 的源码直接编进 App 模块**（不是单独的包），所以类型都是 internal；`Package.swift` 只是为了测试把同一批文件当成一个库来编译。
 - **ViewModel** 是 `@MainActor @Observable final class`，状态是一个值类型（`ChatUiState`、`NotesUiState`…），依赖从初始化参数注入，时间用注入的 sleep / clock，所以测试不真等。
 - **依赖装配**在 `Core/App/AppEnvironment.swift`（接口、ViewModel、各种 Store 都在这里创建一次），**导航**在 `Core/App/AppRouter.swift`（抽屉、搜索、设置、登录、打开笔记 / 聊天、处理外部链接）。界面只从环境里取这两个对象：
@@ -99,7 +100,7 @@ mobile/ios/
 - **下载会话**：用系统的“存储到文件”（`.fileExporter`）；下载途中 App 被杀不会像 Android 那样恢复。
 - **保存生成的图片**：存进相册后只提示“已保存”，不打开图片。没有权限时提示去“设置”里允许。
 - **笔记里的文件**：下载到临时目录后打开分享面板（存到“文件”或用别的 App 打开），不是直接存进下载目录。
-- **提示用户升级的地方**（游客 / 免费用户撞到上限）只保留登录入口。
+- **撞到上限时的提示**：游客只有登录提示；已登录的免费用户不显示升级提示（Android 的 `UpgradeLimitPrompt` 没有移植）。
 - **系统权限说明**（相机、存相册，`Info.plist`）目前只有英文，没有按语言的 `InfoPlist.strings`。
 
 ## 生成的文件
