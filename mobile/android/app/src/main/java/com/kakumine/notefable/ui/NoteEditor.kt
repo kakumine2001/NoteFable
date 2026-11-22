@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
+import com.kakumine.notefable.data.isShared
 
 import android.annotation.SuppressLint
 import android.content.ActivityNotFoundException
@@ -233,6 +234,7 @@ fun NoteEditorScreen(
     /** 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有"…"菜单。 */
     page: com.kakumine.notefable.data.NotePageSummary? = null,
     menu: NotePageMenuActions? = null,
+    onShare: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -303,6 +305,16 @@ fun NoteEditorScreen(
                         .padding(horizontal = 8.dp).semantics { contentDescription = unlock; role = Role.Button },
                     Alignment.Center,
                 ) { LucideIcon(Lucide.Lock, 14.dp, Sm.Muted) }
+                Spacer(Modifier.width(8.dp))
+            }
+            if (page != null && onShare != null) {
+                val shareLabel = stringResource(R.string.share_action)
+                val isShared = page.isShared()
+                Box(
+                    Modifier.height(32.dp).clip(RoundedCornerShape(6.dp)).clickable(onClick = onShare)
+                        .padding(horizontal = 8.dp).semantics { contentDescription = shareLabel; role = Role.Button },
+                    Alignment.Center,
+                ) { LucideIcon(Lucide.Globe, 15.dp, if (isShared) Sm.Blue else Sm.Muted) }
                 Spacer(Modifier.width(8.dp))
             }
             TopIconButton(Lucide.History, stringResource(R.string.version_history), bridge::openHistory)

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 笔记公开分享（网页 note-share-dialog）。文案与网页词典一致。 -->
+<resources>
+    <string name="share_action">Share</string>
+    <string name="share_publish_to_web">Publish to web</string>
+    <string name="share_publish">Publish</string>
+    <string name="share_republish">Republish</string>
+    <string name="share_unpublish">Unpublish</string>
+    <string name="share_desc">Publish this note so anyone with the link can view it.</string>
+    <string name="share_expired">This share link has expired.</string>
+    <string name="share_public_link">Public link</string>
+    <string name="share_copy_link">Copy link</string>
+    <string name="share_open_link">Open link</string>
+    <string name="share_include_subpages">Include sub-pages</string>
+    <string name="share_link_expires">Link expires</string>
+    <string name="share_never">Never</string>
+    <string name="share_1h">1 hour</string>
+    <string name="share_1d">1 day</string>
+    <string name="share_7d">7 days</string>
+    <string name="share_30d">30 days</string>
+    <string name="share_expires_time">Expires %1$s</string>
+    <string name="share_via_parent">Shared via parent page (%1$s)</string>
+    <string name="share_excluded_parent">Excluded from parent share (%1$s)</string>
+    <string name="share_exclude_from_parent">Exclude from parent share</string>
+    <string name="share_load_failed">Failed to load share settings.</string>
+    <string name="share_update_failed">Failed to update share settings.</string>
+</resources>

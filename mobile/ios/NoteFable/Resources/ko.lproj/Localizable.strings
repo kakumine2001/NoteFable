@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "%1$s 내";
 
+/* strings_share.xml */
+"share_action" = "공유";
+"share_publish_to_web" = "웹에 게시";
+"share_publish" = "게시";
+"share_republish" = "다시 게시";
+"share_unpublish" = "게시 취소";
+"share_desc" = "이 노트를 게시하면 링크가 있는 누구나 볼 수 있습니다.";
+"share_expired" = "이 공유 링크가 만료되었습니다.";
+"share_public_link" = "공개 링크";
+"share_copy_link" = "링크 복사";
+"share_open_link" = "링크 열기";
+"share_include_subpages" = "하위 페이지 포함";
+"share_link_expires" = "링크 만료";
+"share_never" = "만료 없음";
+"share_1h" = "1시간";
+"share_1d" = "1일";
+"share_7d" = "7일";
+"share_30d" = "30일";
+"share_expires_time" = "만료: %1$s";
+"share_via_parent" = "상위 페이지를 통해 공유됨 (%1$s)";
+"share_excluded_parent" = "상위 페이지 공유에서 제외됨 (%1$s)";
+"share_exclude_from_parent" = "상위 페이지 공유에서 제외";
+"share_load_failed" = "공유 설정을 불러오지 못했습니다.";
+"share_update_failed" = "공유 설정을 업데이트하지 못했습니다.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "고정됨";
 "sb_close_sidebar" = "사이드바 닫기";

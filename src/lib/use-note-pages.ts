@@ -62,10 +62,17 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
       const changedLocally = since !== undefined && (metaChanged.current.get(page.id) ?? 0) > since;
       const meta = local || changedLocally || page.locked === undefined
-        ? { favoritedAt: existing.favoritedAt, fullWidth: existing.fullWidth, smallText: existing.smallText, font: existing.font, locked: existing.locked }
-        : { favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked };
+        ? {
+            favoritedAt: existing.favoritedAt, fullWidth: existing.fullWidth, smallText: existing.smallText, font: existing.font, locked: existing.locked,
+            shareEnabled: existing.shareEnabled, shareExpiresAt: existing.shareExpiresAt,
+          }
+        : {
+            favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
+            shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null,
+          };
       if (existing.title === page.title && existing.icon === page.icon && existing.version === page.version && existing.updatedAt === page.updatedAt
-        && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked) return current;
+        && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked
+        && existing.shareEnabled === meta.shareEnabled && existing.shareExpiresAt === meta.shareExpiresAt) return current;
       // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
       return current.map((entry) => entry.id === page.id ? { ...page, ...meta, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
     });
@@ -380,6 +387,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const applyMeta = (page: NotePageSummary) => { markMeta(page.id); applyMetaRows(page); };
   const applyMetaRows = (page: NotePageSummary) => setPages((current) => current.map((entry) => entry.id === page.id ? {
     ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
+    ...(page.shareEnabled !== undefined ? { shareEnabled: page.shareEnabled, shareExpiresAt: page.shareExpiresAt ?? null } : {}),
   } : entry));
 
   // 1 ページのお気に入り・表示設定は 1 つずつ送る（続けて切り替えたとき、古い応答が後から届いて新しい設定を戻さないように）。
@@ -454,5 +462,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "%1$s içinde";
 
+/* strings_share.xml */
+"share_action" = "Paylaş";
+"share_publish_to_web" = "Web'de yayınla";
+"share_publish" = "Yayınla";
+"share_republish" = "Yeniden yayınla";
+"share_unpublish" = "Yayından kaldır";
+"share_desc" = "Bağlantıya sahip herkesin görebilmesi için bu notu yayınlayın.";
+"share_expired" = "Bu paylaşım bağlantısının süresi doldu.";
+"share_public_link" = "Genel bağlantı";
+"share_copy_link" = "Bağlantıyı kopyala";
+"share_open_link" = "Bağlantıyı aç";
+"share_include_subpages" = "Alt sayfaları dahil et";
+"share_link_expires" = "Bağlantı süresi";
+"share_never" = "Asla";
+"share_1h" = "1 saat";
+"share_1d" = "1 gün";
+"share_7d" = "7 gün";
+"share_30d" = "30 gün";
+"share_expires_time" = "Bitiş: %1$s";
+"share_via_parent" = "Üst sayfa üzerinden paylaşıldı (%1$s)";
+"share_excluded_parent" = "Üst sayfa paylaşımından hariç tutuldu (%1$s)";
+"share_exclude_from_parent" = "Üst sayfa paylaşımından hariç tut";
+"share_load_failed" = "Paylaşım ayarları yüklenemedi.";
+"share_update_failed" = "Paylaşım ayarları güncellenemedi.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Sabitlendi";
 "sb_close_sidebar" = "Kenar çubuğunu kapat";

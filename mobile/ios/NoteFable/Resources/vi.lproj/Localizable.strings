@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "trong %1$s";
 
+/* strings_share.xml */
+"share_action" = "Chia sẻ";
+"share_publish_to_web" = "Xuất bản lên web";
+"share_publish" = "Xuất bản";
+"share_republish" = "Xuất bản lại";
+"share_unpublish" = "Hủy xuất bản";
+"share_desc" = "Xuất bản ghi chú này để bất kỳ ai có liên kết đều có thể xem.";
+"share_expired" = "Liên kết chia sẻ này đã hết hạn.";
+"share_public_link" = "Liên kết công khai";
+"share_copy_link" = "Sao chép liên kết";
+"share_open_link" = "Mở liên kết";
+"share_include_subpages" = "Bao gồm trang con";
+"share_link_expires" = "Hết hạn liên kết";
+"share_never" = "Không bao giờ";
+"share_1h" = "1 giờ";
+"share_1d" = "1 ngày";
+"share_7d" = "7 ngày";
+"share_30d" = "30 ngày";
+"share_expires_time" = "Hết hạn: %1$s";
+"share_via_parent" = "Đang chia sẻ qua trang cha (%1$s)";
+"share_excluded_parent" = "Đã loại trừ khỏi chia sẻ trang cha (%1$s)";
+"share_exclude_from_parent" = "Loại trừ khỏi chia sẻ trang cha";
+"share_load_failed" = "Không thể tải cài đặt chia sẻ.";
+"share_update_failed" = "Không thể cập nhật cài đặt chia sẻ.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Đã ghim";
 "sb_close_sidebar" = "Đóng thanh bên";

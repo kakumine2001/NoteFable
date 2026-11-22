@@ -139,6 +139,11 @@ erDiagram
         boolean smallText
         string font "default, serif, mono"
         boolean locked
+        string shareToken "nullable, unique"
+        boolean shareEnabled
+        boolean shareIncludeSubpages
+        datetime shareExpiresAt "nullable"
+        boolean shareExcludeFromParent
         json blocks
         int version
         datetime deletedAt "nullable, in Trash when set"

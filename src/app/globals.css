@@ -3205,3 +3205,175 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 :lang(ar) :is(h1, h2, h3, h4, h5, h6, .notes-title, .signin-title, .chat-section-label, .chat-project-heading, .notion-role-label, .nf-logo span, .notes-home-title, .notes-home-greeting) {
   letter-spacing: 0;
 }
+
+/* ノート公開共有（Share → Publish ダイアログとトップバーのボタン）。 */
+.notes-share-button {
+  display: inline-flex; height: 2rem; align-items: center; gap: 0.375rem; border-radius: 6px; padding: 0 0.5rem;
+  font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted);
+}
+.notes-share-button.is-shared { color: var(--notion-blue); }
+@media (hover: hover) {
+  .notes-share-button:hover:not(:disabled) { background: var(--notion-hover); color: var(--notion-text); }
+  .notes-share-button.is-shared:hover:not(:disabled) { color: var(--notion-blue); }
+}
+
+.notes-share-dialog { width: min(calc(100% - 2rem), 27.5rem); padding: 1.25rem 1.35rem; }
+.notes-share-head { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.notes-share-title { display: flex; align-items: center; gap: 0.5rem; color: var(--notion-text); }
+.notes-share-title h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+.notes-share-body { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.9rem; }
+.notes-share-desc { font-size: 0.875rem; line-height: 1.5; color: var(--notion-muted); margin: 0 0 0.85rem; }
+.notes-share-expired {
+  margin: 0 0 0.85rem; padding: 0.6rem 0.75rem; border-radius: 6px;
+  background: rgba(217, 115, 13, 0.1); color: #9a5209; font-size: 0.8125rem;
+}
+.notes-share-inherited {
+  padding: 0.75rem; border-radius: 8px; border: 1px solid var(--notion-border); background: var(--notion-sidebar);
+  display: flex; flex-direction: column; gap: 0.6rem;
+}
+.notes-share-inherited-text { margin: 0; font-size: 0.8125rem; font-weight: 500; color: var(--notion-text); }
+.notes-share-url-row { display: flex; align-items: center; gap: 0.45rem; }
+.notes-share-url-input {
+  min-width: 0; flex: 1; height: 2.15rem; padding: 0 0.6rem; border: 1px solid var(--notion-border-strong);
+  border-radius: 6px; background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+}
+.notes-share-copy { display: inline-flex; align-items: center; gap: 0.35rem; height: 2.15rem; white-space: nowrap; }
+.notes-share-active { display: flex; flex-direction: column; gap: 0.75rem; }
+.notes-share-toggle {
+  display: flex; width: 100%; min-height: 2.25rem; align-items: center; gap: 0.5rem; padding: 0.35rem 0.25rem;
+  border-radius: 6px; font-size: 0.875rem; color: var(--notion-text);
+}
+@media (hover: hover) { .notes-share-toggle:hover:not(:disabled) { background: var(--notion-hover); } }
+.notes-share-expiry { display: flex; flex-direction: column; gap: 0.45rem; padding-top: 0.2rem; border-top: 1px solid var(--notion-border); }
+.notes-share-expiry-row { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding-top: 0.35rem; }
+.notes-share-expiry-label { font-size: 0.875rem; color: var(--notion-text); }
+.notes-share-select {
+  height: 2rem; padding: 0 0.55rem; border: 1px solid var(--notion-border-strong); border-radius: 6px;
+  background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+}
+.notes-share-expiry-meta { margin: 0; font-size: 0.75rem; color: var(--notion-muted); }
+.notes-share-custom-row { display: flex; align-items: center; gap: 0.5rem; }
+.notes-share-datetime {
+  min-width: 0; flex: 1; height: 2.1rem; padding: 0 0.55rem; border: 1px solid var(--notion-border-strong);
+  border-radius: 6px; background: #fff; color: var(--notion-text); font-size: 0.8125rem;
+}
+.notes-share-footer { display: flex; justify-content: flex-end; padding-top: 0.4rem; border-top: 1px solid var(--notion-border); }
+
+/* 公開ノート閲覧ページ（/s/:token）。 */
+.public-note-shell { min-height: 100dvh; background: var(--notion-bg); color: var(--notion-text); display: flex; flex-direction: column; }
+.public-note-topbar {
+  position: sticky; top: 0; z-index: 20; display: flex; height: 3rem; align-items: center; justify-content: space-between; gap: 0.75rem;
+  padding: 0 1rem; border-bottom: 1px solid var(--notion-border); background: rgba(255, 255, 255, 0.92); backdrop-filter: blur(8px);
+}
+.public-note-breadcrumbs { display: flex; min-width: 0; flex: 1; align-items: center; gap: 0.15rem; overflow: hidden; }
+.public-note-crumb-item { display: inline-flex; min-width: 0; align-items: center; gap: 0.15rem; }
+.public-note-crumb-sep { flex: none; color: var(--notion-faint); }
+.public-note-crumb {
+  display: inline-flex; max-width: 14rem; min-width: 0; align-items: center; gap: 0.3rem; padding: 0.25rem 0.4rem;
+  border-radius: 5px; font-size: 0.875rem; color: var(--notion-muted); text-decoration: none;
+}
+.public-note-crumb.is-current { color: var(--notion-text); font-weight: 500; }
+@media (hover: hover) { a.public-note-crumb:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.public-note-crumb-icon { flex: none; line-height: 1; color: var(--notion-muted); }
+.public-note-brand {
+  display: inline-flex; flex: none; align-items: center; gap: 0.35rem; padding: 0.3rem 0.6rem; border-radius: 6px;
+  font-size: 0.8125rem; font-weight: 500; color: var(--notion-muted); text-decoration: none;
+}
+@media (hover: hover) { .public-note-brand:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.public-note-main { flex: 1; padding-bottom: 5rem; }
+.public-note-icon { display: inline-flex; align-items: center; justify-content: center; cursor: default; }
+.public-note-title { margin: 0; font-weight: 700; word-break: break-word; }
+.public-note-body { display: flex; flex-direction: column; gap: 0.3rem; font-size: 1rem; line-height: 1.65; }
+.public-note-shell.is-small-text .public-note-body { font-size: 0.875rem; line-height: 1.6; }
+.public-note-shell.is-full-width .notes-column { max-width: min(100%, 72rem); }
+.public-note-block { min-width: 0; }
+.public-note-paragraph p { margin: 0; min-height: 1.5em; white-space: pre-wrap; overflow-wrap: anywhere; }
+.public-note-h1 { margin: 1.25rem 0 0.25rem; font-size: 1.875em; font-weight: 700; line-height: 1.3; letter-spacing: -0.02em; }
+.public-note-h2 { margin: 1rem 0 0.2rem; font-size: 1.5em; font-weight: 650; line-height: 1.35; letter-spacing: -0.015em; }
+.public-note-h3 { margin: 0.75rem 0 0.15rem; font-size: 1.25em; font-weight: 600; line-height: 1.4; }
+.public-note-list-row { display: flex; align-items: flex-start; gap: 0.5rem; }
+.public-note-bullet, .public-note-number { flex: none; min-width: 1.25rem; text-align: center; color: var(--notion-text); user-select: none; }
+.public-note-list-text { min-width: 0; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.public-note-checkbox { margin-top: 0.32rem; width: 1rem; height: 1rem; flex: none; accent-color: var(--notion-blue); pointer-events: none; }
+.public-note-check-item.is-checked > .public-note-list-row > .public-note-list-text { text-decoration: line-through; color: var(--notion-muted); }
+.public-note-children { padding-inline-start: 1.5rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.25rem; }
+.public-note-toggle-row { display: flex; align-items: flex-start; gap: 0.25rem; }
+.public-note-toggle-btn {
+  display: inline-flex; width: 1.5rem; height: 1.5rem; margin-top: 0.1rem; flex: none; align-items: center; justify-content: center;
+  border-radius: 4px; color: var(--notion-muted); transition: transform 140ms ease, background-color 120ms ease;
+}
+@media (hover: hover) { .public-note-toggle-btn:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.public-note-toggle.is-open > .public-note-toggle-row > .public-note-toggle-btn svg { transform: rotate(90deg); }
+.public-note-toggle-header { min-width: 0; flex: 1; }
+.public-note-toggle-header :is(.public-note-h1, .public-note-h2, .public-note-h3) { margin: 0; }
+.public-note-quote {
+  margin: 0.25rem 0; padding: 0.15rem 0 0.15rem 0.9rem; border-inline-start: 3px solid var(--notion-text);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+}
+.public-note-callout {
+  display: flex; align-items: flex-start; gap: 0.7rem; padding: 0.9rem 1rem; border-radius: 6px; margin: 0.25rem 0;
+}
+.public-note-callout.is-outlined { border: 1px solid var(--notion-border); background: transparent; }
+.public-note-callout-emoji { flex: none; font-size: 1.2rem; line-height: 1.4; }
+.public-note-callout-body { min-width: 0; flex: 1; white-space: pre-wrap; overflow-wrap: anywhere; }
+.public-note-code {
+  margin: 0.35rem 0; border-radius: 10px; background: #f7f6f3; overflow: hidden;
+  border: 1px solid rgba(55, 53, 47, 0.08);
+}
+.public-note-code-bar {
+  display: flex; align-items: center; justify-content: space-between; padding: 0.45rem 0.85rem;
+  font-size: 0.75rem; color: var(--notion-muted); border-bottom: 1px solid rgba(55, 53, 47, 0.06);
+}
+.public-note-code-lang { font-family: var(--font-geist-mono), monospace; }
+.public-note-code-copy {
+  display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.45rem; border-radius: 4px;
+  font-size: 0.75rem; color: var(--notion-muted);
+}
+@media (hover: hover) { .public-note-code-copy:hover { background: var(--notion-hover); color: var(--notion-text); } }
+.public-note-code pre {
+  margin: 0; padding: 0.9rem 1rem; overflow-x: auto; font-family: var(--font-geist-mono), monospace;
+  font-size: 0.85em; line-height: 1.6; white-space: pre-wrap; word-break: break-word;
+}
+.public-note-divider { border: 0; border-top: 1px solid var(--notion-border); margin: 0.75rem 0; }
+.public-note-table-wrap { overflow-x: auto; margin: 0.35rem 0; }
+.public-note-table { border-collapse: collapse; width: 100%; font-size: 0.9em; }
+.public-note-table :is(th, td) {
+  border: 1px solid var(--notion-border-strong); padding: 0.45rem 0.65rem; vertical-align: top; text-align: start;
+  min-width: 5rem; overflow-wrap: anywhere;
+}
+.public-note-table th { background: var(--notion-sidebar); font-weight: 600; }
+.public-note-figure { margin: 0.5rem 0; }
+.public-note-image { display: block; max-width: 100%; height: auto; border-radius: 4px; }
+.public-note-caption { margin-top: 0.35rem; font-size: 0.8125rem; color: var(--notion-muted); }
+.public-note-file {
+  display: flex; align-items: center; gap: 0.65rem; padding: 0.65rem 0.85rem; border: 1px solid var(--notion-border);
+  border-radius: 6px; color: var(--notion-text); text-decoration: none; font-size: 0.9rem;
+}
+@media (hover: hover) { .public-note-file:hover { background: var(--notion-hover); } }
+.public-note-file-download {
+  display: inline-flex; flex: none; align-items: center; gap: 0.3rem; font-size: 0.8125rem; color: var(--notion-muted);
+}
+.public-note-link { color: var(--notion-blue); text-decoration: underline; text-underline-offset: 2px; }
+.public-note-inline-code {
+  padding: 0.1em 0.35em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;
+  font-family: var(--font-geist-mono), monospace; font-size: 0.86em;
+}
+.public-note-highlight { padding: 0.05em 0.2em; border-radius: 3px; }
+.public-note-subpages { margin-top: 2.25rem; padding-top: 1.25rem; border-top: 1px solid var(--notion-border); }
+.public-note-subpages-heading { margin: 0 0 0.6rem; font-size: 0.8125rem; font-weight: 600; color: var(--notion-muted); }
+.public-note-subpages-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.15rem; }
+.public-note-subpage-link {
+  display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 6px;
+  color: var(--notion-text); text-decoration: none; font-size: 0.95rem; font-weight: 500;
+}
+@media (hover: hover) { .public-note-subpage-link:hover { background: var(--notion-hover); } }
+.public-note-subpage-icon { display: inline-flex; width: 1.25rem; justify-content: center; flex: none; color: var(--notion-muted); }
+.public-note-subpage-arrow { flex: none; color: var(--notion-faint); }
+.public-note-unavailable {
+  min-height: 100dvh; display: grid; place-items: center; padding: 1.5rem; background: var(--notion-bg);
+}
+.public-note-unavailable-card {
+  display: flex; max-width: 24rem; flex-direction: column; align-items: center; gap: 0.75rem; text-align: center;
+}
+.public-note-unavailable-card h1 { margin: 0; font-size: 1.25rem; font-weight: 650; color: var(--nf-ink); }
+.public-note-unavailable-card p { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--notion-muted); }

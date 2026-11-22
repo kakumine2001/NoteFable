@@ -24,6 +24,20 @@ struct NotePageSummary: Encodable, Equatable, Sendable, Identifiable {
     var font: String = "default"
     /// 锁定：编辑器只读（界面上的防误改，不是权限）。
     var locked: Bool = false
+    /// 公开分享状态（用于顶栏分享按钮高亮）。
+    var shareEnabled: Bool = false
+    var shareExpiresAt: String? = nil
+
+    func isShared(now: Date = Date()) -> Bool {
+        guard shareEnabled else { return false }
+        guard let expires = shareExpiresAt else { return true }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = formatter.date(from: expires) { return date > now }
+        formatter.formatOptions = [.withInternetDateTime]
+        guard let date = formatter.date(from: expires) else { return false }
+        return date > now
+    }
 }
 
 extension NotePageSummary: Decodable {
@@ -34,9 +48,94 @@ extension NotePageSummary: Decodable {
             groupId: try f.opt("groupId"), position: try f.or("position", 0), createdAt: try f.or("createdAt", ""),
             updatedAt: try f.or("updatedAt", ""), parentId: try f.opt("parentId"), favoritedAt: try f.opt("favoritedAt"),
             fullWidth: try f.or("fullWidth", false), smallText: try f.or("smallText", false),
-            font: try f.or("font", "default"), locked: try f.or("locked", false)
+            font: try f.or("font", "default"), locked: try f.or("locked", false),
+            shareEnabled: try f.or("shareEnabled", false), shareExpiresAt: try f.opt("shareExpiresAt")
         )
     }
+}
+
+struct NoteShareAncestor: Equatable, Sendable, Decodable {
+    var id: String
+    var title: String = ""
+    var icon: String? = nil
+    var token: String
+    var url: String
+    var expiresAt: String? = nil
+
+    init(id: String, title: String = "", icon: String? = nil, token: String, url: String, expiresAt: String? = nil) {
+        self.id = id
+        self.title = title
+        self.icon = icon
+        self.token = token
+        self.url = url
+        self.expiresAt = expiresAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let f = try DtoFields(decoder)
+        self.init(
+            id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"),
+            token: try f.req("token"), url: try f.req("url"), expiresAt: try f.opt("expiresAt")
+        )
+    }
+}
+
+struct NoteShareState: Equatable, Sendable, Decodable {
+    var enabled: Bool = false
+    var active: Bool = false
+    var expired: Bool = false
+    var token: String? = nil
+    var url: String? = nil
+    var includeSubpages: Bool = true
+    var expiresAt: String? = nil
+    var excludeFromParent: Bool = false
+    var inheritedFrom: NoteShareAncestor? = nil
+    var inheritedUrl: String? = nil
+
+    init(
+        enabled: Bool = false, active: Bool = false, expired: Bool = false, token: String? = nil, url: String? = nil,
+        includeSubpages: Bool = true, expiresAt: String? = nil, excludeFromParent: Bool = false,
+        inheritedFrom: NoteShareAncestor? = nil, inheritedUrl: String? = nil
+    ) {
+        self.enabled = enabled
+        self.active = active
+        self.expired = expired
+        self.token = token
+        self.url = url
+        self.includeSubpages = includeSubpages
+        self.expiresAt = expiresAt
+        self.excludeFromParent = excludeFromParent
+        self.inheritedFrom = inheritedFrom
+        self.inheritedUrl = inheritedUrl
+    }
+
+    init(from decoder: Decoder) throws {
+        let f = try DtoFields(decoder)
+        self.init(
+            enabled: try f.or("enabled", false), active: try f.or("active", false), expired: try f.or("expired", false),
+            token: try f.opt("token"), url: try f.opt("url"), includeSubpages: try f.or("includeSubpages", true),
+            expiresAt: try f.opt("expiresAt"), excludeFromParent: try f.or("excludeFromParent", false),
+            inheritedFrom: try f.opt("inheritedFrom"), inheritedUrl: try f.opt("inheritedUrl")
+        )
+    }
+}
+
+struct NoteSharePatch: Equatable, Sendable {
+    var enabled: Bool? = nil
+    var includeSubpages: Bool? = nil
+    var setExpiresAt: Bool = false
+    var expiresAt: String? = nil
+    var excludeFromParent: Bool? = nil
+}
+
+struct ShareStateResponse: Decodable {
+    var share: NoteShareState
+    var page: NotePageSummary? = nil
+}
+
+struct ShareUpdateResult: Equatable, Sendable {
+    var share: NoteShareState
+    var page: NotePageSummary? = nil
 }
 
 /// 页面设置的改动（PUT /api/pages/:id/settings 只改送去的项）。
@@ -196,6 +295,8 @@ protocol NotesBackend {
 
     func setFavorite(id: String, favorite: Bool) async throws -> NotePageSummary
     func updateSettings(id: String, settings: NotePageSettings) async throws -> NotePageSummary
+    func getShare(id: String) async throws -> NoteShareState
+    func updateShare(id: String, patch: NoteSharePatch) async throws -> ShareUpdateResult
 
     /// 复制这一篇和子页面（网页"Duplicate"）。
     func duplicate(id: String) async throws -> DuplicateResult
@@ -223,6 +324,14 @@ protocol NotesBackend {
 extension NotesBackend {
     func createNote() async throws -> NotePageSummary {
         try await createNote(parentId: nil)
+    }
+
+    func getShare(id: String) async throws -> NoteShareState {
+        fatalError("unused")
+    }
+
+    func updateShare(id: String, patch: NoteSharePatch) async throws -> ShareUpdateResult {
+        fatalError("unused")
     }
 
     func noteEmbedUrl(pageId: String, lang: String?) -> String {

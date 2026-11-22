@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable : ";
 "search_in_file" = "dans %1$s";
 
+/* strings_share.xml */
+"share_action" = "Partager";
+"share_publish_to_web" = "Publier sur le web";
+"share_publish" = "Publier";
+"share_republish" = "Republier";
+"share_unpublish" = "Annuler la publication";
+"share_desc" = "Publiez cette note afin que toute personne disposant du lien puisse la consulter.";
+"share_expired" = "Ce lien de partage a expiré.";
+"share_public_link" = "Lien public";
+"share_copy_link" = "Copier le lien";
+"share_open_link" = "Ouvrir le lien";
+"share_include_subpages" = "Inclure les sous-pages";
+"share_link_expires" = "Expiration du lien";
+"share_never" = "Jamais";
+"share_1h" = "1 heure";
+"share_1d" = "1 jour";
+"share_7d" = "7 jours";
+"share_30d" = "30 jours";
+"share_expires_time" = "Expire le %1$s";
+"share_via_parent" = "Partagée via la page parente (%1$s)";
+"share_excluded_parent" = "Exclue du partage parent (%1$s)";
+"share_exclude_from_parent" = "Exclure du partage parent";
+"share_load_failed" = "Impossible de charger les paramètres de partage.";
+"share_update_failed" = "Impossible de mettre à jour les paramètres de partage.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Épinglées";
 "sb_close_sidebar" = "Fermer la barre latérale";

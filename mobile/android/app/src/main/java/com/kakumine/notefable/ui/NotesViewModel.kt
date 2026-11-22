@@ -574,6 +574,20 @@ class NotesViewModel(
         } ?: false
     }
 
+    suspend fun loadShare(pageId: String): com.kakumine.notefable.data.NoteShareState = backend.getShare(pageId)
+
+    suspend fun updateShare(pageId: String, patch: com.kakumine.notefable.data.NoteSharePatch): com.kakumine.notefable.data.NoteShareState {
+        val owner = identity
+        val result = backend.updateShare(pageId, patch)
+        val updated = result.page
+        if (updated != null && owner == identity) {
+            _state.update { s ->
+                s.copy(pages = s.pages.map { if (it.id == updated.id) it.copy(shareEnabled = updated.shareEnabled, shareExpiresAt = updated.shareExpiresAt) else it })
+            }
+        }
+        return result.share
+    }
+
     /**
      * 复制这一篇和子页面（网页 Duplicate），复制完打开复制件。服务端复制的是已保存的内容，
      * 所以打开着的是它或它的子页面时先保存，保存不了就不复制。

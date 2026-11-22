@@ -140,9 +140,16 @@ model NotePage {
   // "default" / "serif" / "mono"
   font          String    @default("default")
   // ロック中は画面での編集を止める（権限ではなく、うっかり編集の防止）。
-  locked        Boolean   @default(false)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  locked                 Boolean   @default(false)
+  // 公開共有（Notion の Share → Publish）。token は初回公開時に発行し、非公開後も保持する。
+  shareToken             String?   @unique
+  shareEnabled           Boolean   @default(false)
+  shareIncludeSubpages   Boolean   @default(true)
+  shareExpiresAt         DateTime?
+  // 親ページが公開中でも、このサブページ（とその配下）を公開対象から外す。
+  shareExcludeFromParent Boolean   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
 
   user     User       @relation(fields: [userId], references: [id], onDelete: Cascade)
   group    NoteGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)

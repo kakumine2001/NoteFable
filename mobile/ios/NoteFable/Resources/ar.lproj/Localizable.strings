@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "في %1$s";
 
+/* strings_share.xml */
+"share_action" = "مشاركة";
+"share_publish_to_web" = "النشر على الويب";
+"share_publish" = "نشر";
+"share_republish" = "إعادة النشر";
+"share_unpublish" = "إلغاء النشر";
+"share_desc" = "انشر هذه الملاحظة ليتمكن أي شخص لديه الرابط من عرضها.";
+"share_expired" = "انتهت صلاحية رابط المشاركة هذا.";
+"share_public_link" = "الرابط العام";
+"share_copy_link" = "نسخ الرابط";
+"share_open_link" = "فتح الرابط";
+"share_include_subpages" = "تضمين الصفحات الفرعية";
+"share_link_expires" = "انتهاء صلاحية الرابط";
+"share_never" = "أبداً";
+"share_1h" = "ساعة واحدة";
+"share_1d" = "يوم واحد";
+"share_7d" = "7 أيام";
+"share_30d" = "30 يوماً";
+"share_expires_time" = "تنتهي الصلاحية: %1$s";
+"share_via_parent" = "مشتركة عبر الصفحة الرئيسية (%1$s)";
+"share_excluded_parent" = "مستثناة من مشاركة الصفحة الرئيسية (%1$s)";
+"share_exclude_from_parent" = "استثناء من مشاركة الصفحة الرئيسية";
+"share_load_failed" = "تعذر تحميل إعدادات المشاركة.";
+"share_update_failed" = "تعذر تحديث إعدادات المشاركة.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "مثبّتة";
 "sb_close_sidebar" = "إغلاق الشريط الجانبي";

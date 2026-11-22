@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "в %1$s";
 
+/* strings_share.xml */
+"share_action" = "Поделиться";
+"share_publish_to_web" = "Опубликовать в интернете";
+"share_publish" = "Опубликовать";
+"share_republish" = "Опубликовать снова";
+"share_unpublish" = "Снять с публикации";
+"share_desc" = "Опубликуйте заметку, чтобы её мог просмотреть любой, у кого есть ссылка.";
+"share_expired" = "Срок действия этой ссылки истёк.";
+"share_public_link" = "Публичная ссылка";
+"share_copy_link" = "Копировать ссылку";
+"share_open_link" = "Открыть ссылку";
+"share_include_subpages" = "Включить подстраницы";
+"share_link_expires" = "Срок действия ссылки";
+"share_never" = "Бессрочно";
+"share_1h" = "1 час";
+"share_1d" = "1 день";
+"share_7d" = "7 дней";
+"share_30d" = "30 дней";
+"share_expires_time" = "Истекает: %1$s";
+"share_via_parent" = "Доступна через родительскую страницу (%1$s)";
+"share_excluded_parent" = "Исключена из доступа родительской страницы (%1$s)";
+"share_exclude_from_parent" = "Исключить из доступа родительской страницы";
+"share_load_failed" = "Не удалось загрузить настройки доступа.";
+"share_update_failed" = "Не удалось обновить настройки доступа.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Закреплено";
 "sb_close_sidebar" = "Закрыть боковую панель";

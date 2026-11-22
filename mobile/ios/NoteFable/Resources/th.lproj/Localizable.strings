@@ -435,6 +435,31 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "ใน %1$s";
 
+/* strings_share.xml */
+"share_action" = "แชร์";
+"share_publish_to_web" = "เผยแพร่ไปยังเว็บ";
+"share_publish" = "เผยแพร่";
+"share_republish" = "เผยแพร่อีกครั้ง";
+"share_unpublish" = "ยกเลิกการเผยแพร่";
+"share_desc" = "เผยแพร่โน้ตนี้เพื่อให้ทุกคนที่มีลิงก์สามารถดูได้";
+"share_expired" = "ลิงก์แชร์นี้หมดอายุแล้ว";
+"share_public_link" = "ลิงก์สาธารณะ";
+"share_copy_link" = "คัดลอกลิงก์";
+"share_open_link" = "เปิดลิงก์";
+"share_include_subpages" = "รวมหน้าย่อย";
+"share_link_expires" = "ลิงก์หมดอายุ";
+"share_never" = "ไม่หมดอายุ";
+"share_1h" = "1 ชั่วโมง";
+"share_1d" = "1 วัน";
+"share_7d" = "7 วัน";
+"share_30d" = "30 วัน";
+"share_expires_time" = "หมดอายุ %1$s";
+"share_via_parent" = "แชร์ผ่านหน้าหลัก (%1$s)";
+"share_excluded_parent" = "ยกเว้นจากการแชร์ของหน้าหลัก (%1$s)";
+"share_exclude_from_parent" = "ยกเว้นจากการแชร์หน้าหลัก";
+"share_load_failed" = "ไม่สามารถโหลดการตั้งค่าการแชร์ได้";
+"share_update_failed" = "ไม่สามารถอัปเดตการตั้งค่าการแชร์ได้";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "ปักหมุดแล้ว";
 "sb_close_sidebar" = "ปิดแถบด้านข้าง";

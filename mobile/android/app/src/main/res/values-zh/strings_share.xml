@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="share_action">分享</string>
+    <string name="share_publish_to_web">公开到网页</string>
+    <string name="share_publish">公开</string>
+    <string name="share_republish">重新公开</string>
+    <string name="share_unpublish">取消公开</string>
+    <string name="share_desc">公开这篇笔记后，拥有链接的人即可在线查看。</string>
+    <string name="share_expired">此分享链接已过期。</string>
+    <string name="share_public_link">公开链接</string>
+    <string name="share_copy_link">复制链接</string>
+    <string name="share_open_link">打开链接</string>
+    <string name="share_include_subpages">包含子页面</string>
+    <string name="share_link_expires">链接有效期</string>
+    <string name="share_never">永不过期</string>
+    <string name="share_1h">1 小时</string>
+    <string name="share_1d">1 天</string>
+    <string name="share_7d">7 天</string>
+    <string name="share_30d">30 天</string>
+    <string name="share_expires_time">到期时间：%1$s</string>
+    <string name="share_via_parent">正随上级页面公开（%1$s）</string>
+    <string name="share_excluded_parent">已从上级分享中排除（%1$s）</string>
+    <string name="share_exclude_from_parent">不随上级页面公开</string>
+    <string name="share_load_failed">无法加载分享设置。</string>
+    <string name="share_update_failed">无法更新分享设置。</string>
+</resources>

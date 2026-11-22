@@ -5,6 +5,7 @@ import {
   ArrowUp,
   ChevronLeft,
   FileText,
+  Globe,
   History,
   ImagePlus,
   Lock,
@@ -36,10 +37,11 @@ import { ChatRecentNotes } from "@/components/chat-recent-notes";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
 import { ModelSelect } from "@/components/model-controls";
 import { NoteHistoryDialog } from "@/components/note-history-dialog";
+import { NoteShareDialog } from "@/components/note-share-dialog";
 import { ConfirmDialog, MoveNoteDialog } from "@/components/note-group-dialogs";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { ancestorsOf, descendantIdsOf } from "@/lib/note-tree";
-import { pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
+import { isPageShared, pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
@@ -157,6 +159,7 @@ export default function Home() {
   // 検索の小窓（Ctrl/Cmd+K）。履歴の小窓は、開いた時点のノート ID を持ち、別のノートに移ったら出さない。
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
+  const [shareNoteId, setShareNoteId] = useState<string | null>(null);
   // 「Create page」の窓を開いている会話。
   const [createPageSessionId, setCreatePageSessionId] = useState<string | null>(null);
   // 上部バーの「…」メニューから開く「移動」と「ゴミ箱へ」の確認。
@@ -2167,6 +2170,13 @@ export default function Home() {
                 <Lock size={14} /><span className="hidden sm:inline">{t("Locked")}</span>
               </button>
             )}
+            {workspaceView === "pages" && !notesList && activeSummary && (
+              <button type="button" className={`notes-share-button${isPageShared(activeSummary) ? " is-shared" : ""}`} disabled={notes.busy}
+                onClick={() => setShareNoteId(activeSummary.id)}
+                aria-label={t("Share")} title={t("Share")} aria-haspopup="dialog">
+                <Globe size={15} aria-hidden="true" /><span className="hidden sm:inline">{t("Share")}</span>
+              </button>
+            )}
             {workspaceView === "pages" && !notesList && notes.active && notes.activeId && (
               <button type="button" className="notion-icon-button grid" disabled={notes.busy} onClick={() => setHistoryNoteId(notes.activeId)}
                 aria-label={t("Version history")} title={t("Version history")} aria-haspopup="dialog">
@@ -2544,6 +2554,9 @@ export default function Home() {
       {historyQueue && historyNoteId && (
         <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
+      )}
+      {workspaceView === "pages" && shareNoteId && (
+        <NoteShareDialog key={shareNoteId} pageId={shareNoteId} onUpdated={notes.applyShareMeta} onClose={() => setShareNoteId(null)} />
       )}
     </main>
   );
