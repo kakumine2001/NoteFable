@@ -728,7 +728,6 @@ export const th: Record<string, string> = {
   "Appearance": "ลักษณะที่ปรากฏ",
   "Explain": "อธิบาย",
   "Translate": "แปล",
-  "Could not load previous conversation.": "ไม่สามารถโหลดการสนทนาก่อนหน้าได้",
   "Selected text": "ข้อความที่เลือก",
   "Remove selection": "ยกเลิกการเลือก",
   "Export Markdown": "ส่งออก Markdown",

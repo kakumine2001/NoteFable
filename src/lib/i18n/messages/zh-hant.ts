@@ -185,7 +185,6 @@ export const zhHant: Record<string, string> = {
   "Could not export the page.": "無法匯出頁面。",
   "Could not import Markdown files.": "無法匯入 Markdown 檔案。",
   "Could not load emoji.": "無法載入表情。",
-  "Could not load previous conversation.": "無法載入之前的對話。",
   "Could not load projects. Refresh to retry.": "無法載入專案，請重新整理重試。",
   "Could not load the history.": "無法載入歷史記錄。",
   "Could not load the project settings.": "無法載入專案設定。",

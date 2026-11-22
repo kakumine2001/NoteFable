@@ -705,6 +705,11 @@ class NotesViewModel(
      * 有项目时先在本机查个数、扩展名和大小，不合规定只显示原因、不出窗口，通过了才打开 "Import to" 窗口让用户选放哪里。
      */
     fun pickedForImport(files: List<ImportCandidate>) {
+        // 列表（含项目）还没读到时不知道有没有项目：不直接导入到"无项目"，先重新读列表（读不到会显示加载失败），读到后再导入。
+        if (!_state.value.loaded) {
+            refresh()
+            return
+        }
         if (_state.value.groups.isEmpty()) {
             importMarkdown(files)
             return

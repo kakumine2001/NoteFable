@@ -737,7 +737,6 @@ export const zh: Record<string, string> = {
   "Appearance": "外观",
   "Explain": "解释",
   "Translate": "翻译",
-  "Could not load previous conversation.": "无法加载之前的对话。",
   "Selected text": "选中的文字",
   "Remove selection": "移除选中内容",
   "Export Markdown": "导出 Markdown",

@@ -728,7 +728,6 @@ export const it: Record<string, string> = {
   "Appearance": "Aspetto",
   "Explain": "Spiega",
   "Translate": "Traduci",
-  "Could not load previous conversation.": "Impossibile caricare la conversazione precedente.",
   "Selected text": "Testo selezionato",
   "Remove selection": "Rimuovi selezione",
   "Export Markdown": "Esporta Markdown",

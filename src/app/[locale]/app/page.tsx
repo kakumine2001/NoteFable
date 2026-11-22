@@ -938,6 +938,8 @@ export default function Home() {
     // 添付の送信中は引用も入らない（quoteSelection）。ノートだけ添付に足さない。
     if (uploadProgress) return;
     quoteSelection(text);
+    // 画像の作成はノートを添付できない（送信時に断られる）ので、引用だけ入れる。
+    if (imageGenerationMode) return;
     const id = notes.activeId;
     if (!id) return;
     const summary = notes.pages.find((page) => page.id === id);

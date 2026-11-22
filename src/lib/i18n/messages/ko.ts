@@ -728,7 +728,6 @@ export const ko: Record<string, string> = {
   "Appearance": "화면 스타일",
   "Explain": "설명",
   "Translate": "번역",
-  "Could not load previous conversation.": "이전 대화를 불러오지 못했어요.",
   "Selected text": "선택한 텍스트",
   "Remove selection": "선택 해제",
   "Export Markdown": "Markdown 내보내기",

@@ -57,7 +57,7 @@ describe("note Markdown export and import helpers", () => {
 
   it("keeps a note's own title through export and import", () => {
     const long = "T".repeat(150);
-    for (const title of [long, "Release #", "#"]) {
+    for (const title of [long, "Release #", "#", "1. First steps", "**Bold** plan", "a_b_c `code` [x](y) <z> ~~s~~", "C:\\temp \\* star", "- [ ] not a task", "> quote"]) {
       const exported = noteToMarkdownFile({ title, blocks: [] });
       expect(markdownFileToNoteContent("x.md", exported.markdown).content.title).toBe(title);
     }
@@ -68,6 +68,8 @@ describe("note Markdown export and import helpers", () => {
     const code = markdownFileToNoteContent("log.md", log).content;
     expect(code.blocks).toHaveLength(1);
     expect(code.blocks[0]?.type).toBe("codeBlock");
+    // 取り込めたノートは、そのまま書き出せる。
+    expect(noteToMarkdownFile({ title: "Log", blocks: code.blocks }).markdown.split("\n").length).toBeGreaterThan(200_000);
 
     // 見出しが 5000 列、本文が 1 列だけの 5000 行。そろえると 2500 万セルになるので、表にしない。
     const header = `|${"a|".repeat(5000)}`;

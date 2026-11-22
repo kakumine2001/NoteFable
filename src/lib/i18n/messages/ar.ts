@@ -728,7 +728,6 @@ export const ar: Record<string, string> = {
   "Appearance": "المظهر",
   "Explain": "اشرح",
   "Translate": "ترجم",
-  "Could not load previous conversation.": "تعذّر تحميل المحادثة السابقة.",
   "Selected text": "النص المحدد",
   "Remove selection": "إزالة التحديد",
   "Export Markdown": "تصدير Markdown",

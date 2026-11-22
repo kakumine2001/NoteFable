@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
   findGroup: vi.fn(),
   createPage: vi.fn(),
+  schedule: vi.fn(),
 }));
 
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "user-1" }) }));
+vi.mock("@/lib/note-embeddings", () => ({ scheduleNoteEmbeddingSync: mocks.schedule }));
 vi.mock("@/lib/prisma", () => {
   const prisma: Record<string, unknown> = {
     noteGroup: { findFirst: mocks.findGroup },
@@ -58,6 +60,8 @@ describe("POST /api/pages/import", () => {
     const body = await response.json();
     expect(body.pages.map((p: { title: string }) => p.title)).toEqual(["Great Ideas", "todo"]);
     expect(mocks.createPage).toHaveBeenCalledTimes(2);
+    // 取り込んだノートも意味検索に出るよう、索引の作成を頼む。
+    expect(mocks.schedule).toHaveBeenCalledWith("user-1", ["page-Great Ideas", "page-todo"]);
   });
 
   it("rejects empty file lists, too many files, and non-markdown extensions", async () => {

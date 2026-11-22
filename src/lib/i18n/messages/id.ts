@@ -728,7 +728,6 @@ export const id: Record<string, string> = {
   "Appearance": "Tampilan",
   "Explain": "Jelaskan",
   "Translate": "Terjemahkan",
-  "Could not load previous conversation.": "Tidak dapat memuat percakapan sebelumnya.",
   "Selected text": "Teks yang dipilih",
   "Remove selection": "Hapus pilihan",
   "Export Markdown": "Ekspor Markdown",

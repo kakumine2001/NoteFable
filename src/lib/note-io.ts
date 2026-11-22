@@ -46,7 +46,9 @@ export function noteToMarkdownFile(note: { title: string; blocks: unknown }): { 
   const cleanTitle = note.title.replace(/[\r\n]+/g, " ").trim() || "Untitled";
   const body = portableMarkdown(note.blocks);
   // 見出しの末尾の # は「閉じる記号」として読まれて消える。題名が # で終わるときは、閉じる記号を 1 つ足して題名の # を残す。
-  const heading = cleanTitle.endsWith("#") ? `# ${cleanTitle} #` : `# ${cleanTitle}`;
+  // 題名の中の * や _ などは、他のアプリで書式として読まれないよう \ を付ける（取り込みで外す）。
+  const escaped = cleanTitle.replace(/[\\`*_[\]<>~]/g, "\\$&");
+  const heading = escaped.endsWith("#") ? `# ${escaped} #` : `# ${escaped}`;
   const markdown = body ? `${heading}\n\n${body}\n` : `${heading}\n`;
   return {
     fileName: answerFileName(cleanTitle || "note"),

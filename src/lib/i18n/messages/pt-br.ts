@@ -728,7 +728,6 @@ export const ptBR: Record<string, string> = {
   "Appearance": "Aparência",
   "Explain": "Explicar",
   "Translate": "Traduzir",
-  "Could not load previous conversation.": "Não foi possível carregar a conversa anterior.",
   "Selected text": "Texto selecionado",
   "Remove selection": "Remover seleção",
   "Export Markdown": "Exportar Markdown",

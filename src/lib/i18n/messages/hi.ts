@@ -728,7 +728,6 @@ export const hi: Record<string, string> = {
   "Appearance": "दिखावट",
   "Explain": "समझाएं",
   "Translate": "अनुवाद करें",
-  "Could not load previous conversation.": "पिछली बातचीत लोड नहीं हो सकी।",
   "Selected text": "चुना गया टेक्स्ट",
   "Remove selection": "चयन हटाएं",
   "Export Markdown": "Markdown एक्सपोर्ट करें",

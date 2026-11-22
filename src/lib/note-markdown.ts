@@ -150,8 +150,13 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       const code = inlineToMarkdown(block.content, true);
       const language = typeof props.language === "string" ? props.language : "";
       // 本文に ``` が含まれても閉じられないよう、中のバッククォート列より長い囲みにする。
-      const fence = "`".repeat(Math.max(3, ...[...code.matchAll(/`+/g)].map((run) => run[0].length + 1)));
-      lines.push(`${indent}${label}${fence}${language}`, ...code.split("\n").map((line) => indent + line), `${indent}${fence}`);
+      // 何十万行にもなるコードがあるので、行やバッククォート列を引数に展開しない（引数の数の上限で RangeError になる）。
+      let longest = 0;
+      for (const run of code.matchAll(/`+/g)) longest = Math.max(longest, run[0].length);
+      const fence = "`".repeat(Math.max(3, longest + 1));
+      lines.push(`${indent}${label}${fence}${language}`);
+      for (const line of code.split("\n")) lines.push(indent + line);
+      lines.push(`${indent}${fence}`);
     } else if (block.type === "divider") {
       lines.push(`${indent}${label}---`);
     } else if (block.type === "table") {

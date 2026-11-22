@@ -728,7 +728,6 @@ export const ru: Record<string, string> = {
   "Appearance": "Оформление",
   "Explain": "Объяснить",
   "Translate": "Перевести",
-  "Could not load previous conversation.": "Не удалось загрузить предыдущий диалог.",
   "Selected text": "Выделенный текст",
   "Remove selection": "Снять выделение",
   "Export Markdown": "Экспорт в Markdown",

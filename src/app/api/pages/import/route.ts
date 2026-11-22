@@ -3,6 +3,7 @@ import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import {
   isImportableMarkdownFile,
@@ -89,8 +90,11 @@ export async function POST(request: Request) {
         );
       }
       return created;
-    });
+      // 1 MiB 近いノートを 20 件まで続けて書くので、既定の 5 秒では足りないことがある。
+    }, { timeout: 30_000 });
 
+    // 新規作成（POST /api/pages）と同じく、意味検索用の索引を作る。
+    scheduleNoteEmbeddingSync(user.id, pages.map((page) => page.id));
     return NextResponse.json({ pages }, { status: 201 });
   } catch (error) {
     return noteApiError(error);

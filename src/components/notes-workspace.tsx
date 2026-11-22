@@ -148,7 +148,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       </div>
       <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
+        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />

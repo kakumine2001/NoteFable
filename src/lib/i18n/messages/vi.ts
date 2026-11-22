@@ -728,7 +728,6 @@ export const vi: Record<string, string> = {
   "Appearance": "Giao diện",
   "Explain": "Giải thích",
   "Translate": "Dịch",
-  "Could not load previous conversation.": "Không thể tải cuộc trò chuyện trước đó.",
   "Selected text": "Văn bản đã chọn",
   "Remove selection": "Bỏ chọn",
   "Export Markdown": "Xuất Markdown",

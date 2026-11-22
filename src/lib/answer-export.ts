@@ -96,7 +96,8 @@ function closesFence(line: string, fence: Fence) {
 }
 
 type Analysis = {
-  heading: { text: string; line: number; leading: boolean } | null;
+  // raw は見出し行の「# 」より後ろをそのまま（書式を外す前）。取り込むファイルの題名に使う。
+  heading: { text: string; raw: string; line: number; leading: boolean } | null;
   firstLine: string;
 };
 
@@ -122,7 +123,7 @@ function analyze(lines: string[]): Analysis {
     const heading = /^#{1,6}\s+(.*?)(?:\s+#+)?$/.exec(text);
     if (heading) {
       const label = stripInline(heading[1]);
-      if (label) return { heading: { text: label, line: index, leading: !seenContent }, firstLine };
+      if (label) return { heading: { text: label, raw: heading[1].trim(), line: index, leading: !seenContent }, firstLine };
       seenContent = true;
       continue;
     }
@@ -313,7 +314,9 @@ export function extractLeadingHeadingTitle(markdown: string, fallback: string): 
   const lines = normalizeNewlines(markdown).split("\n");
   const found = analyze(lines);
   if (found.heading?.leading) {
-    const title = shorten(found.heading.text, MAX_NOTE_TITLE);
+    // 題名は書式を持たない文字列。「1. 手順」や「**太字** 案」のような題名が書き出し → 取り込みで変わらないよう、
+    // 回答の題名のように書式を外さず、書き出し側（noteToMarkdownFile）が付けた \ のエスケープだけを戻す。
+    const title = shorten(found.heading.raw.replace(/\\([\\`*_[\]<>~#])/g, "$1"), MAX_NOTE_TITLE);
     lines.splice(found.heading.line, 1);
     return { title: title || shorten(fallback, MAX_NOTE_TITLE) || "Untitled", body: lines.join("\n") };
   }

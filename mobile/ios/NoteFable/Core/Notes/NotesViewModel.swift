@@ -695,6 +695,11 @@ final class NotesViewModel {
     /// 有项目就先查文件（[checkImportFiles]，不合格的先拒绝，不让人选完去处再被拒），合格返回 true，
     /// 由界面问"导入到"哪里，选好后再调 [importMarkdown]。返回 false 表示不用问（已经导入、已经提示，或什么也没选）。
     func beginImport(_ sources: [NoteImportSource]) async -> Bool {
+        // 列表（含项目）还没读到时不知道有没有项目：不直接导入到"无项目"，先重新读列表（读不到会显示加载失败），读到后再导入。
+        if !state.loaded {
+            refresh()
+            return false
+        }
         if state.groups.isEmpty {
             await importMarkdown(sources)
             return false

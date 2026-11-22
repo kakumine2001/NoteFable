@@ -728,7 +728,6 @@ export const tr: Record<string, string> = {
   "Appearance": "Görünüm",
   "Explain": "Açıkla",
   "Translate": "Çevir",
-  "Could not load previous conversation.": "Önceki konuşma yüklenemedi.",
   "Selected text": "Seçili metin",
   "Remove selection": "Seçimi kaldır",
   "Export Markdown": "Markdown dışa aktar",

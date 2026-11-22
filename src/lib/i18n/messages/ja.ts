@@ -729,7 +729,6 @@ export const ja: Record<string, string> = {
   "Appearance": "外観",
   "Explain": "解説",
   "Translate": "翻訳",
-  "Could not load previous conversation.": "前回の会話を読み込めませんでした。",
   "Selected text": "選択したテキスト",
   "Remove selection": "選択を解除",
   "Export Markdown": "Markdown を書き出す",

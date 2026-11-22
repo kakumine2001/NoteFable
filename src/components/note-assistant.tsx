@@ -335,6 +335,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // 待っている間の秒数表示。
   useEffect(() => {
     // 上限の案内からログインして戻ってきたら、このノートで送れなかった本文を入力欄へ戻す。
+    // 分割表示で隠れている間は取り出さない（見えない入力欄に入れると、預けた本文が失われる）。
+    if (hidden) return;
     const pending = takePendingDraft(`note:${noteId}`);
     if (!pending) return;
     // 戻した本文は、送るか消すまで次に離れるときも預け続ける。
@@ -343,8 +345,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const kept = selectionRef.current?.trim();
     if (kept && pending.startsWith(composeQuotedMessage(kept, ""))) onClearSelection?.();
     queueMicrotask(() => setInput((current) => current || pending));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- ノートが変わったときに 1 回だけ取り出す。
-  }, [noteId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ノートが変わったとき（と、隠れていたパネルが出たとき）に 1 回だけ取り出す。
+  }, [noteId, hidden]);
 
   useEffect(() => {
     if (!streaming) return;
