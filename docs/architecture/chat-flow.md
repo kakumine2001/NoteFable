@@ -395,7 +395,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
 
-当配置了 `OPENAI_API_KEY`（且未通过 `NOTEFABLE_SEMANTIC_SEARCH=false` 关闭）且查询去掉空白后至少 2 个字符时，`searchNotes` 会与关键词查询**并行执行语义检索**（`src/lib/note-embeddings.ts`，阈值 0.34，总超时 2.5 秒，每次最多扫当前用户最近 2,000 个与当前 `NotePage.version` 一致的块；若当前用户尚无已索引的活笔记则跳过外部嵌入调用，未索引或旧版笔记仅在响应后通过 `after()` 后台补齐，不阻塞站内搜索响应；单用户未命中缓存的语义查询每分钟限 20 次；笔记新建、保存、恢复历史、套用提案、复制、从 Trash 复原也在响应后经 `after()` 增量更新索引）。结果按“关键词命中在前、语义命中去重后在后”合并，最多 15 条；语义命中从对应笔记当前的 `blocks` 实时生成摘录并带回 `blockId`。外部嵌入接口失败、超时、超额或未配置时静默降级为纯关键词搜索，不影响搜索接口可用性。Web、Android、iOS 共用 `GET /api/search`，三端同步生效。
+当配置了 `OPENAI_API_KEY`（且未通过 `NOTEFABLE_SEMANTIC_SEARCH=false` 关闭）、查询去掉空白后至少 2 个字符且关键词命中未满 15 条时，`searchNotes` 会继续执行语义检索（`src/lib/note-embeddings.ts`，阈值 0.34，总超时 2.5 秒，每次最多扫当前用户最近 2,000 个与当前 `NotePage.version` 一致的块；若当前用户尚无已索引的活笔记则跳过外部嵌入调用，未索引或旧版笔记仅在响应后通过 `after()` 后台补齐，不阻塞站内搜索响应；检索与索引调用均通过 `UsageCounter` 按用户共享每日上限各 200 次，且搜索词不跨请求缓存；笔记新建、保存、恢复历史、套用提案、复制、从 Trash 复原也在响应后经 `after()` 增量更新索引）。结果按“关键词命中在前、语义命中去重后在后”合并，最多 15 条；语义命中按命中的 `chunkIndex` 从对应笔记当前的 `blocks` 实时重建该段摘录并带回 `blockId`。外部嵌入接口失败、超时、超额或未配置时静默降级为纯关键词搜索，不影响搜索接口可用性。Web、Android、iOS 共用 `GET /api/search`，三端同步生效。
 
 ### Chats
 

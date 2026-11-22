@@ -29,7 +29,6 @@ vi.mock("@/lib/prisma", () => ({
 }));
 
 import {
-  clearQueryEmbeddingCacheForTest,
   computeContentHash,
   decodeVector,
   DEFAULT_EMBEDDING_MODEL,
@@ -39,12 +38,14 @@ import {
   embedQuery,
   embedTexts,
   encodeVector,
+  HAS_NON_WHITESPACE_TEXT,
   isSemanticSearchEnabled,
   normalizeVector,
+  resetEmbeddingStateForTest,
   semanticSearchNotes,
   syncNoteEmbeddingsForIds,
 } from "./note-embeddings";
-import { extractNoteChunks } from "./note-text";
+import { extractNoteChunks, MAX_CHUNK_CHARS } from "./note-text";
 
 function makeUnitVector(axis: number, dims = EMBEDDING_DIMENSIONS): number[] {
   const arr = new Array<number>(dims).fill(0);
@@ -65,12 +66,18 @@ describe("note-embeddings", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.unstubAllEnvs();
-    clearQueryEmbeddingCacheForTest();
+    resetEmbeddingStateForTest();
+    mocks.executeRaw.mockResolvedValue(1);
     mocks.transaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
       callback({
         $executeRaw: mocks.executeRaw,
         notePage: { findFirst: mocks.notePageFindFirst },
-        noteEmbedding: { deleteMany: mocks.noteEmbeddingDeleteMany, createMany: mocks.noteEmbeddingCreateMany },
+        noteEmbedding: {
+          findMany: mocks.noteEmbeddingFindMany,
+          deleteMany: mocks.noteEmbeddingDeleteMany,
+          updateMany: mocks.noteEmbeddingUpdateMany,
+          createMany: mocks.noteEmbeddingCreateMany,
+        },
       }));
   });
 
@@ -93,6 +100,10 @@ describe("note-embeddings", () => {
     expect(decoded).not.toBeNull();
     expect(dotProduct(normalized!, decoded!)).toBeCloseTo(1, 5);
     expect(decodeVector(encoded, 3)).toBeNull();
+  });
+
+  it("uses double-escaped \\\\S in PostgreSQL JSONPath regex for non-whitespace text", () => {
+    expect(HAS_NON_WHITESPACE_TEXT).toContain('like_regex "\\\\S"');
   });
 
   it("computes deterministic content hashes that change with title or body", () => {
@@ -118,23 +129,22 @@ describe("note-embeddings", () => {
     expect(isSemanticSearchEnabled()).toBe(false);
   });
 
-  it("calls OpenAI /embeddings with dimensions and caches by exact trimmed text", async () => {
+  it("calls OpenAI /embeddings without retaining raw queries and enforces shared daily budget", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     vi.stubEnv("OPENAI_BASE_URL", "https://example.openai.test/v1/");
-    const fetchMock = vi.fn()
-      .mockResolvedValueOnce(mockEmbeddingsResponse([makeUnitVector(0)]))
-      .mockResolvedValueOnce(mockEmbeddingsResponse([makeUnitVector(1)]));
+    const fetchMock = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0)]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const first = await embedQuery("US");
-    const second = await embedQuery("  US ");
-    const lower = await embedQuery("us");
-    expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(fetchMock.mock.calls[0][0]).toBe("https://example.openai.test/v1/embeddings");
+    const vec = await embedQuery("装修坑", { userId: "u1" });
+    expect(vec).not.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
     const body = JSON.parse(String((fetchMock.mock.calls[0][1] as RequestInit).body));
-    expect(body).toEqual({ model: "text-embedding-3-small", input: ["US"], dimensions: EMBEDDING_DIMENSIONS });
-    expect(dotProduct(first!, second!)).toBeCloseTo(1, 5);
-    expect(dotProduct(first!, lower!)).toBeCloseTo(0, 5);
+    expect(body).toEqual({ model: "text-embedding-3-small", input: ["装修坑"], dimensions: EMBEDDING_DIMENSIONS });
+
+    // Shared UsageCounter budget exhausted (0 rows updated) -> skips OpenAI call.
+    mocks.executeRaw.mockResolvedValueOnce(0);
+    expect(await embedQuery("装修坑", { userId: "u1" })).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it("rejects failed or malformed embedding responses", async () => {
@@ -143,7 +153,7 @@ describe("note-embeddings", () => {
     await expect(embedTexts(["hello"])).rejects.toThrow("status 500");
   });
 
-  it("skips unchanged notes via contentHash (updating noteVersion), deletes blank notes, and guards version races", async () => {
+  it("locks and version-checks every mutation (blank delete, sameContent version update, rebuild)", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const blocks = [{ id: "b1", type: "paragraph", content: [{ type: "text", text: "水电改造拍照留底" }] }];
     const chunks = extractNoteChunks("新房验收", blocks);
@@ -155,25 +165,33 @@ describe("note-embeddings", () => {
       { id: "changed", title: "新房验收踩雷记录", blocks, version: 3 },
       { id: "raced", title: "竞态笔记", blocks, version: 5 },
     ]);
-    mocks.noteEmbeddingFindMany.mockResolvedValue([
-      { noteId: "same", contentHash: sameHash, model: "text-embedding-3-small", dimensions: EMBEDDING_DIMENSIONS, noteVersion: 2 },
-      { noteId: "blank", contentHash: "old", model: "text-embedding-3-small", dimensions: EMBEDDING_DIMENSIONS, noteVersion: 1 },
-    ]);
+    mocks.noteEmbeddingFindMany
+      .mockResolvedValueOnce([
+        { noteId: "same", contentHash: sameHash, model: "text-embedding-3-small", dimensions: EMBEDDING_DIMENSIONS, noteVersion: 2 },
+        { noteId: "blank", contentHash: "old", model: "text-embedding-3-small", dimensions: EMBEDDING_DIMENSIONS, noteVersion: 1 },
+      ])
+      // Inside locked sameContent tx re-check:
+      .mockResolvedValueOnce([
+        { contentHash: sameHash, model: "text-embedding-3-small", dimensions: EMBEDDING_DIMENSIONS },
+      ]);
     const fetchMock = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0), makeUnitVector(1)]));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
+    // Order of mutateNoteIndexIfCurrent calls: same (v4), blank (v1), changed (v3), raced (moved to v6).
     mocks.notePageFindFirst
+      .mockResolvedValueOnce({ version: 4 })
+      .mockResolvedValueOnce({ version: 1 })
       .mockResolvedValueOnce({ version: 3 })
       .mockResolvedValueOnce({ version: 6 });
 
     const synced = await syncNoteEmbeddingsForIds("u1", ["same", "blank", "changed", "raced"]);
     expect(synced).toBe(1);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(mocks.transaction).toHaveBeenCalledTimes(4);
     expect(mocks.noteEmbeddingUpdateMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { noteId: "same", userId: "u1" },
       data: expect.objectContaining({ noteVersion: 4 }),
     }));
     expect(mocks.noteEmbeddingDeleteMany).toHaveBeenCalledWith({ where: { noteId: "blank", userId: "u1" } });
-    expect(mocks.executeRaw).toHaveBeenCalledTimes(2);
     expect(mocks.noteEmbeddingCreateMany).toHaveBeenCalledTimes(1);
     expect(mocks.noteEmbeddingCreateMany.mock.calls[0][0].data[0]).toMatchObject({ noteId: "changed", userId: "u1", blockId: "b1", noteVersion: 3 });
   });
@@ -183,51 +201,48 @@ describe("note-embeddings", () => {
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
     mocks.queryRaw
-      .mockResolvedValueOnce([]) // live indexed chunks
-      .mockResolvedValueOnce([]); // stale notes check
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
 
     const result = await semanticSearchNotes("anon", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
     expect(result).toEqual({ hits: [], hasMoreBackfill: false });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("scores version-matched live chunks, derives snippets from current blocks, and degrades cleanly on failure", async () => {
+  it("builds excerpts from the exact matching chunkIndex even when multiple chunks share one blockId", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const updatedAt = new Date("2026-11-01T00:00:00Z");
-    const fetchMock = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0)]));
-    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0)])) as unknown as typeof fetch;
 
     const matchVec = encodeVector(normalizeVector(makeUnitVector(0))!);
     const weakVec = encodeVector(normalizeVector(makeUnitVector(1))!);
-    const mid = makeUnitVector(0);
-    mid[1] = 1;
-    const midVec = encodeVector(normalizeVector(mid)!); // score ~0.707
+    const longBlockText = `${"开头的无关内容".repeat(Math.ceil(MAX_CHUNK_CHARS / 7))}第二段的关键水电验收细节`;
 
     mocks.queryRaw
       .mockResolvedValueOnce([
-        { noteId: "n1", blockId: "b1", noteVersion: 2, vector: weakVec, title: "新房验收踩雷记录", icon: "🏠", updatedAt },
-        { noteId: "n1", blockId: "b2", noteVersion: 2, vector: matchVec, title: "新房验收踩雷记录", icon: "🏠", updatedAt },
-        { noteId: "n2", blockId: "b3", noteVersion: 1, vector: midVec, title: "装修预算", icon: null, updatedAt },
-        { noteId: "n3", blockId: "b4", noteVersion: 1, vector: weakVec, title: "菜谱", icon: null, updatedAt },
+        { noteId: "n1", chunkIndex: 0, blockId: "b1", noteVersion: 2, vector: weakVec, title: "长笔记", icon: "🏠", updatedAt },
+        { noteId: "n1", chunkIndex: 1, blockId: "b1", noteVersion: 2, vector: matchVec, title: "长笔记", icon: "🏠", updatedAt },
       ])
-      .mockResolvedValueOnce([]); // stale notes check
+      .mockResolvedValueOnce([]);
     mocks.notePageFindMany.mockResolvedValue([
-      { id: "n1", version: 2, blocks: [{ id: "b1", type: "paragraph", content: [{ type: "text", text: "intro" }] }, { id: "b2", type: "paragraph", content: [{ type: "text", text: "水电改造拍照留底" }] }] },
-      // n2 moved to version 2 mid-search -> excluded to never show stale version.
-      { id: "n2", version: 2, blocks: [{ id: "b3", type: "paragraph", content: [{ type: "text", text: "edited" }] }] },
+      { id: "n1", title: "长笔记", version: 2, blocks: [{ id: "b1", type: "paragraph", content: [{ type: "text", text: longBlockText }] }] },
     ]);
 
-    const { hits } = await semanticSearchNotes("u1", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
-    expect(hits.map((h) => ({ id: h.id, blockId: h.blockId, chunkText: h.chunkText }))).toEqual([
-      { id: "n1", blockId: "b2", chunkText: "水电改造拍照留底" },
-    ]);
-    // 1-char query skips semantic search completely.
+    const { hits } = await semanticSearchNotes("u1", "水电验收", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
+    expect(hits).toHaveLength(1);
+    expect(hits[0].chunkText).toContain("第二段的关键水电验收细节");
+    expect(hits[0].chunkText.startsWith("开头的无关内容开头的无关内容")).toBe(false);
+  });
+
+  it("degrades cleanly on API failure and skips 1-character queries", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    const updatedAt = new Date("2026-11-01T00:00:00Z");
+    const matchVec = encodeVector(normalizeVector(makeUnitVector(0))!);
+
     expect(await semanticSearchNotes("u1", "a", { limit: 10, minSimilarity: 0.34 })).toEqual({ hits: [], hasMoreBackfill: false });
 
-    // API failure degrades gracefully to empty hits without throwing.
-    clearQueryEmbeddingCacheForTest();
     mocks.queryRaw
-      .mockResolvedValueOnce([{ noteId: "n1", blockId: "b2", noteVersion: 2, vector: matchVec, title: "新房验收踩雷记录", icon: "🏠", updatedAt }])
+      .mockResolvedValueOnce([{ noteId: "n1", chunkIndex: 0, blockId: "b1", noteVersion: 1, vector: matchVec, title: "新房验收", icon: null, updatedAt }])
       .mockResolvedValueOnce([]);
     globalThis.fetch = vi.fn().mockRejectedValue(new Error("network down")) as unknown as typeof fetch;
     expect(await semanticSearchNotes("u1", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 })).toEqual({ hits: [], hasMoreBackfill: false });

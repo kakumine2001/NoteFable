@@ -126,14 +126,13 @@ async function searchPagesByKeyword(userId: string, terms: string[]): Promise<Pa
   return rows.map((row) => ({ id: row.id, title: row.title, snippet: buildSearchSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
 }
 
-// キーワード（表記ゆれを吸収した部分一致）で見つかったものを先に、意味が近いもの（別の言い回し・別の言語）を後ろに足す。
+// キーワード（表記ゆれを吸収した部分一致）で見つかったものを先に、枠が余っていれば意味が近いもの（別の言い回し・別の言語）を後ろに足す。
 export async function searchPages(userId: string, query: string): Promise<PageSearchResult[]> {
   const terms = parseSearchTerms(query);
   if (!terms.length) return searchPagesByKeyword(userId, []);
-  const [keyword, semantic] = await Promise.all([
-    searchPagesByKeyword(userId, terms),
-    semanticSearchNotes(userId, query, { limit: SEARCH_RESULT_LIMIT, minSimilarity: AI_SEMANTIC_THRESHOLD, maxBackfillNotes: 10, timeoutMs: 4000 }),
-  ]);
+  const keyword = await searchPagesByKeyword(userId, terms);
+  if (keyword.length >= SEARCH_RESULT_LIMIT) return keyword;
+  const semantic = await semanticSearchNotes(userId, query, { limit: SEARCH_RESULT_LIMIT, minSimilarity: AI_SEMANTIC_THRESHOLD, maxBackfillNotes: 10, timeoutMs: 4000 });
   if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
   const seen = new Set(keyword.map((page) => page.id));
   const extra = semantic.hits

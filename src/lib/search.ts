@@ -103,15 +103,17 @@ export type NoteSearchOptions = {
   signal?: AbortSignal;
 };
 
-// キーワードで見つかったノートを先に（順序・移動先・抜粋はそのまま）、意味が近いノートを後ろに足す（言い回しや言語が違っても見つかる）。
+// キーワードで見つかったノートを先に（順序・移動先・抜粋はそのまま）、枠が余っていれば意味が近いノートを後ろに足す。
 export async function searchNotes(userId: string, terms: string[], options: NoteSearchOptions = {}): Promise<NoteSearchResult[]> {
   const needles = prepareTerms(terms);
   const rawQuery = options.rawQuery?.trim() || needles.join(" ");
   if (!needles.length && !rawQuery) return [];
-  const [keyword, semantic] = await Promise.all([
-    needles.length ? searchNotesByKeyword(userId, needles) : [],
-    semanticSearchNotes(userId, rawQuery, { limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 0, timeoutMs: 2500, signal: options.signal }),
-  ]);
+  const keyword = needles.length ? await searchNotesByKeyword(userId, needles) : [];
+  // キーワード一致だけで上限件数が埋まっていれば、意味検索（外部 API）を待たずにそのまま返す。
+  if (keyword.length >= SEARCH_RESULT_LIMIT) return keyword;
+  const semantic = await semanticSearchNotes(userId, rawQuery, {
+    limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 0, timeoutMs: 2500, signal: options.signal,
+  });
   if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
   const seen = new Set(keyword.map((note) => note.id));
   const extra: NoteSearchResult[] = semantic.hits
