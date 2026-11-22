@@ -1,6 +1,6 @@
 # Google Play 商店信息
 
-Play Console → 发布 → 商店展示 → 主要商店详情。默认语言用 English (United States)，再加简体中文（zh-CN）、繁体中文（zh-TW）、日语（ja-JP）三个翻译。字数上限：应用名 30，简短说明 80，完整说明 4000。图片在 `mobile/android/play-store/`（[README](../../mobile/android/play-store/README.md)）。
+Play Console → 发布 → 商店展示 → 主要商店详情。默认语言用 English (United States)，翻译覆盖 App 的全部界面语言：简体中文（zh-CN）、繁体中文（zh-TW）、日语（ja-JP）、韩语（ko-KR）、西班牙语（es-419 和 es-ES 用同一份）、法语（fr-FR）、德语（de-DE）、葡萄牙语（pt-BR）、意大利语（it-IT）、印尼语（id）、越南语（vi）、泰语（th）、印地语（hi-IN）、阿拉伯语（ar）、土耳其语（tr-TR）、俄语（ru-RU）。字数上限：应用名 30，简短说明 80，完整说明 4000。图片在 `mobile/android/play-store/`（[README](../../mobile/android/play-store/README.md)）。
 
 内容只写已经上线的功能（见 [README.md](../../README.md)）；改了功能或额度后同步改这里。
 
@@ -171,6 +171,552 @@ AI がノートを手伝う
 無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで（1 日 10 枚まで）使えます。初めての方は最初の 30 日間無料です。広告はありません。
 
 プライバシーポリシー：https://notefable.com/privacy
+
+## 한국어 (ko-KR)
+
+**앱 이름**: NoteFable: AI 채팅 & 노트
+
+**간단한 설명**: AI와 대화하고 노트를 남기세요. 배운 것을 AI와 함께 공부하고 정리할 수 있어요.
+
+**자세한 설명**:
+
+NoteFable은 AI 채팅과 노트를 한곳에 모아, 배운 내용이 채팅 기록에 묻히지 않게 해 줍니다.
+
+무엇이든 질문하기
+• 여러 AI 모델(OpenAI GPT, Anthropic Claude, DeepSeek)과 대화하고, 모델마다 얼마나 깊이 생각할지 고를 수 있어요.
+• 필요할 때 웹 검색이 자동으로 실행되어 출처가 있는 최신 답변을 알려 줍니다(지원 모델).
+• 사진, PDF, 텍스트 파일을 첨부하고 그 내용에 대해 질문하세요.
+• 텍스트 설명으로 이미지를 만들고 편집할 수 있어요.
+
+중요한 것은 남기기
+• 답변을 탭 한 번으로 노트에 저장하거나, 채팅 전체를 한 페이지로 정리하세요.
+• 제목, 목록, 할 일, 코드, 수식, 이미지, 파일을 쓸 수 있는 깔끔한 블록 편집기.
+• 하위 페이지, 그룹, 즐겨찾기, 이모지 아이콘으로 노트를 정리하세요.
+• 편집 기록과 휴지통이 있어 실수로 지워도 되살릴 수 있어요.
+• Markdown 파일을 노트로 가져오고, 어떤 노트든 Markdown으로 내보낼 수 있어요.
+
+AI가 노트를 도와줘요
+• 노트를 채팅에 첨부하면 AI가 그 내용을 참고해 답해요.
+• 노트를 다시 쓰거나 보충해 달라고 하면 AI가 변경안을 제안하고, 적용할지는 직접 결정해요.
+• 프로젝트로 관련 채팅을 모으고 공통 지침과 참고 노트를 설정할 수 있어요.
+• 맞춤 지침으로 나에 대한 정보와 원하는 답변 방식을 알려 주세요.
+• 마음에 드는 AI 캐릭터를 고르거나 직접 아이콘을 올려 채팅과 노트에서 쓸 수 있어요.
+
+다시 찾기
+• 모든 채팅과 노트를 한 번에 검색하세요.
+
+어디서나 사용
+• 계정 없이 바로 써 볼 수 있어요. Google 또는 이메일 인증 코드로 로그인하면 앱과 notefable.com 사이에서 채팅과 노트가 동기화됩니다.
+• 라이트 모드와 다크 모드: 시스템 설정을 따르거나 직접 고르세요.
+• 지원 언어: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+무료로 쓸 수 있으며 AI 메시지와 이미지에는 일일·월간 한도가 있어요. 더 필요하다면 NoteFable Pro(월 구독, 언제든 해지 가능)로 한도가 한 달 메시지 2,000개, 이미지 60개(하루 최대 10개)까지 늘어나고, 처음 30일은 무료예요. 광고는 없습니다.
+
+개인정보처리방침: https://notefable.com/privacy
+
+## Español (es-419, es-ES)
+
+**Nombre de la app**: NoteFable: Chat IA y notas
+
+**Descripción breve**: Chatea con IA, toma notas y deja que la IA te ayude a estudiar y organizar.
+
+**Descripción completa**:
+
+NoteFable reúne el chat con IA y tus notas en un solo lugar, para que lo que aprendes no se pierda en el historial de chats.
+
+PREGUNTA LO QUE QUIERAS
+• Chatea con varios modelos de IA (OpenAI GPT, Anthropic Claude y DeepSeek) y elige cuánto razona cada uno.
+• La búsqueda web integrada aporta respuestas actualizadas con fuentes cuando hace falta (modelos compatibles).
+• Adjunta fotos, PDF y archivos de texto y pregunta sobre ellos.
+• Crea y edita imágenes a partir de una descripción.
+
+GUARDA LO IMPORTANTE
+• Guarda cualquier respuesta en Notas con un toque o convierte un chat completo en una página.
+• Un editor de bloques limpio con títulos, listas, tareas, código, ecuaciones, imágenes y archivos.
+• Organiza tus notas con subpáginas, grupos, favoritos e iconos emoji.
+• Historial de ediciones y papelera, para que nada se pierda por error.
+• Importa archivos Markdown como notas y exporta cualquier nota en Markdown.
+
+DEJA QUE LA IA TRABAJE EN TUS NOTAS
+• Adjunta notas a un chat y la IA las usa como contexto.
+• Pide a la IA que reescriba o amplíe una nota: propone el cambio y tú decides si aplicarlo.
+• Los proyectos agrupan chats relacionados con instrucciones y notas de referencia compartidas.
+• Las instrucciones personalizadas le cuentan a NoteFable quién eres y cómo prefieres las respuestas.
+• Elige un personaje de IA, o sube tu propio icono, para el chat y las notas.
+
+ENCUÉNTRALO DE NUEVO
+• Busca en todos tus chats y notas a la vez.
+
+FUNCIONA EN TODAS PARTES
+• Pruébalo sin cuenta. Inicia sesión con Google o con un código por correo para sincronizar tus chats y notas entre la app y notefable.com.
+• Modo claro y oscuro: sigue el sistema o elige uno.
+• Disponible en English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Uso gratuito con límites diarios y mensuales de mensajes e imágenes de IA. ¿Necesitas más? NoteFable Pro (suscripción mensual, cancela cuando quieras) sube los límites a 2.000 mensajes y 60 imágenes al mes (hasta 10 imágenes al día), y los primeros 30 días son gratis. Sin anuncios.
+
+Política de privacidad: https://notefable.com/privacy
+
+## Français (fr-FR)
+
+**Nom de l'application**: NoteFable : chat IA et notes
+
+**Description courte**: Discutez avec l'IA, prenez des notes et laissez l'IA vous aider à apprendre.
+
+**Description complète**:
+
+NoteFable réunit le chat IA et vos notes au même endroit, pour que ce que vous apprenez ne se perde pas dans l'historique des conversations.
+
+POSEZ VOS QUESTIONS
+• Discutez avec plusieurs modèles d'IA (OpenAI GPT, Anthropic Claude et DeepSeek) et choisissez leur niveau de réflexion.
+• La recherche web intégrée apporte des réponses à jour avec leurs sources quand c'est utile (modèles compatibles).
+• Joignez des photos, des PDF et des fichiers texte, et posez des questions dessus.
+• Créez et modifiez des images à partir d'une description.
+
+GARDEZ L'ESSENTIEL
+• Enregistrez une réponse dans vos notes en un geste, ou transformez toute une conversation en page.
+• Un éditeur par blocs épuré : titres, listes, tâches, code, équations, images et fichiers.
+• Organisez vos notes avec des sous-pages, des groupes, des favoris et des icônes emoji.
+• Historique des modifications et corbeille : rien ne se perd par erreur.
+• Importez des fichiers Markdown comme notes et exportez n'importe quelle note en Markdown.
+
+L'IA TRAVAILLE SUR VOS NOTES
+• Joignez des notes à une conversation : l'IA s'en sert comme contexte.
+• Demandez à l'IA de réécrire ou de compléter une note : elle propose la modification, vous décidez de l'appliquer.
+• Les projets regroupent les conversations liées avec des instructions et des notes de référence communes.
+• Les instructions personnalisées indiquent à NoteFable qui vous êtes et comment vous aimez les réponses.
+• Choisissez un personnage IA, ou importez votre propre icône, pour le chat et les notes.
+
+RETROUVEZ TOUT
+• Recherchez dans toutes vos conversations et notes à la fois.
+
+PARTOUT
+• Essayez sans compte. Connectez-vous avec Google ou un code reçu par e-mail pour synchroniser vos conversations et notes entre l'application et notefable.com.
+• Mode clair et sombre : suivez le système ou choisissez.
+• Disponible en English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Gratuit, avec des limites quotidiennes et mensuelles sur les messages et images IA. Besoin de plus ? NoteFable Pro (abonnement mensuel, résiliable à tout moment) porte les limites à 2 000 messages et 60 images par mois (jusqu'à 10 images par jour), et les 30 premiers jours sont offerts. Sans publicité.
+
+Politique de confidentialité : https://notefable.com/privacy
+
+## Deutsch (de-DE)
+
+**App-Name**: NoteFable: KI-Chat & Notizen
+
+**Kurzbeschreibung**: Mit KI chatten, Notizen machen und mit KI lernen und Gelerntes ordnen.
+
+**Vollständige Beschreibung**:
+
+NoteFable bringt KI-Chat und deine Notizen an einen Ort, damit dein Wissen nicht im Chatverlauf verloren geht.
+
+FRAG, WAS DU WILLST
+• Chatte mit mehreren KI-Modellen (OpenAI GPT, Anthropic Claude und DeepSeek) und wähle, wie gründlich jedes nachdenkt.
+• Die integrierte Websuche liefert bei Bedarf automatisch aktuelle Antworten mit Quellen (unterstützte Modelle).
+• Hänge Fotos, PDFs und Textdateien an und stelle Fragen dazu.
+• Erstelle und bearbeite Bilder anhand einer Beschreibung.
+
+BEHALTE, WAS ZÄHLT
+• Speichere jede Antwort mit einem Tipp in Notizen oder mache aus einem ganzen Chat eine Seite.
+• Ein übersichtlicher Block-Editor mit Überschriften, Listen, To-dos, Code, Formeln, Bildern und Dateien.
+• Ordne Notizen mit Unterseiten, Gruppen, Favoriten und Emoji-Symbolen.
+• Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
+• Importiere Markdown-Dateien als Notizen und exportiere jede Notiz als Markdown.
+
+LASS DIE KI AN DEINEN NOTIZEN ARBEITEN
+• Hänge Notizen an einen Chat an, und die KI nutzt sie als Kontext.
+• Bitte die KI, eine Notiz umzuschreiben oder zu ergänzen: Sie schlägt die Änderung vor, und du entscheidest, ob sie übernommen wird.
+• Projekte bündeln zusammengehörige Chats mit gemeinsamen Anweisungen und Referenznotizen.
+• Mit eigenen Anweisungen erzählst du NoteFable, wer du bist und wie du Antworten magst.
+• Wähle eine KI-Figur als Begleiter – oder lade dein eigenes Symbol hoch – für Chat und Notizen.
+
+SCHNELL WIEDERFINDEN
+• Durchsuche alle Chats und Notizen auf einmal.
+
+ÜBERALL NUTZBAR
+• Ohne Konto ausprobieren. Melde dich mit Google oder einem Code per E-Mail an, um Chats und Notizen zwischen App und notefable.com zu synchronisieren.
+• Heller und dunkler Modus: wie im System oder selbst gewählt.
+• Verfügbar auf English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Kostenlos nutzbar mit täglichen und monatlichen Limits für KI-Nachrichten und -Bilder. Du brauchst mehr? NoteFable Pro (Monatsabo, jederzeit kündbar) erhöht die Limits auf 2.000 Nachrichten und 60 Bilder im Monat (bis zu 10 Bilder pro Tag), und die ersten 30 Tage sind kostenlos. Keine Werbung.
+
+Datenschutzerklärung: https://notefable.com/privacy
+
+## Português (pt-BR)
+
+**Nome do app**: NoteFable: chat com IA e notas
+
+**Descrição curta**: Converse com IA, faça anotações e deixe a IA ajudar você a estudar e organizar.
+
+**Descrição completa**:
+
+O NoteFable reúne o chat com IA e suas notas em um só lugar, para que o que você aprende não se perca no histórico de conversas.
+
+PERGUNTE O QUE QUISER
+• Converse com vários modelos de IA (OpenAI GPT, Anthropic Claude e DeepSeek) e escolha o quanto cada um pensa.
+• A busca na web integrada traz respostas atualizadas com fontes quando necessário (modelos compatíveis).
+• Anexe fotos, PDFs e arquivos de texto e faça perguntas sobre eles.
+• Crie e edite imagens a partir de uma descrição.
+
+GUARDE O QUE IMPORTA
+• Salve qualquer resposta nas Notas com um toque ou transforme uma conversa inteira em uma página.
+• Um editor de blocos simples com títulos, listas, tarefas, código, equações, imagens e arquivos.
+• Organize as notas com subpáginas, grupos, favoritos e ícones de emoji.
+• Histórico de edições e lixeira, para nada se perder por engano.
+• Importe arquivos Markdown como notas e exporte qualquer nota em Markdown.
+
+DEIXE A IA TRABALHAR NAS SUAS NOTAS
+• Anexe notas a uma conversa e a IA usa o conteúdo como contexto.
+• Peça à IA para reescrever ou ampliar uma nota: ela sugere a mudança e você decide se aplica.
+• Projetos reúnem conversas relacionadas com instruções e notas de referência em comum.
+• Instruções personalizadas contam ao NoteFable quem você é e como prefere as respostas.
+• Escolha um personagem de IA, ou envie seu próprio ícone, para o chat e as notas.
+
+ENCONTRE DE NOVO
+• Pesquise em todas as suas conversas e notas de uma vez.
+
+FUNCIONA EM TODO LUGAR
+• Experimente sem conta. Entre com o Google ou com um código por e-mail para sincronizar conversas e notas entre o app e o notefable.com.
+• Modo claro e escuro: siga o sistema ou escolha um.
+• Disponível em English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Uso gratuito com limites diários e mensais de mensagens e imagens de IA. Precisa de mais? O NoteFable Pro (assinatura mensal, cancele quando quiser) aumenta os limites para 2.000 mensagens e 60 imagens por mês (até 10 imagens por dia), e os primeiros 30 dias são grátis. Sem anúncios.
+
+Política de privacidade: https://notefable.com/privacy
+
+## Italiano (it-IT)
+
+**Nome dell'app**: NoteFable: chat IA e note
+
+**Descrizione breve**: Chatta con l'IA, prendi appunti e lascia che l'IA ti aiuti a studiare.
+
+**Descrizione completa**:
+
+NoteFable riunisce la chat con l'IA e le tue note in un unico posto, così ciò che impari non si perde nella cronologia delle chat.
+
+CHIEDI QUALSIASI COSA
+• Chatta con diversi modelli di IA (OpenAI GPT, Anthropic Claude e DeepSeek) e scegli quanto ragiona ciascuno.
+• La ricerca web integrata fornisce risposte aggiornate con le fonti quando serve (modelli supportati).
+• Allega foto, PDF e file di testo e fai domande sul loro contenuto.
+• Crea e modifica immagini a partire da una descrizione.
+
+CONSERVA CIÒ CHE CONTA
+• Salva qualsiasi risposta nelle Note con un tocco, o trasforma un'intera chat in una pagina.
+• Un editor a blocchi pulito con titoli, elenchi, attività, codice, equazioni, immagini e file.
+• Organizza le note con sottopagine, gruppi, preferiti e icone emoji.
+• Cronologia delle modifiche e cestino, così niente va perso per errore.
+• Importa file Markdown come note ed esporta qualsiasi nota in Markdown.
+
+LASCIA CHE L'IA LAVORI SULLE TUE NOTE
+• Allega le note a una chat e l'IA le usa come contesto.
+• Chiedi all'IA di riscrivere o ampliare una nota: propone la modifica e decidi tu se applicarla.
+• I progetti raccolgono le chat correlate con istruzioni e note di riferimento condivise.
+• Le istruzioni personalizzate dicono a NoteFable chi sei e come preferisci le risposte.
+• Scegli un personaggio IA, o carica la tua icona, per chat e note.
+
+RITROVA TUTTO
+• Cerca in tutte le chat e le note in una volta.
+
+FUNZIONA OVUNQUE
+• Provalo senza account. Accedi con Google o con un codice via email per sincronizzare chat e note tra l'app e notefable.com.
+• Modalità chiara e scura: segui il sistema o scegline una.
+• Disponibile in English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Gratuito con limiti giornalieri e mensili per messaggi e immagini IA. Ti serve di più? NoteFable Pro (abbonamento mensile, disdici quando vuoi) porta i limiti a 2.000 messaggi e 60 immagini al mese (fino a 10 immagini al giorno), e i primi 30 giorni sono gratuiti. Nessuna pubblicità.
+
+Informativa sulla privacy: https://notefable.com/privacy
+
+## Bahasa Indonesia (id)
+
+**Nama aplikasi**: NoteFable: Chat AI & Catatan
+
+**Deskripsi singkat**: Chat dengan AI, simpan catatan, dan biarkan AI membantu Anda belajar.
+
+**Deskripsi lengkap**:
+
+NoteFable menyatukan chat AI dan catatan Anda di satu tempat, sehingga apa yang Anda pelajari tidak tenggelam di riwayat chat.
+
+TANYA APA SAJA
+• Chat dengan beberapa model AI (OpenAI GPT, Anthropic Claude, dan DeepSeek) dan pilih seberapa dalam masing-masing berpikir.
+• Penelusuran web bawaan otomatis memberi jawaban terbaru beserta sumbernya saat diperlukan (model yang didukung).
+• Lampirkan foto, PDF, dan file teks, lalu tanyakan isinya.
+• Buat dan edit gambar dari deskripsi teks.
+
+SIMPAN YANG PENTING
+• Simpan jawaban ke Catatan dengan sekali ketuk, atau ubah seluruh chat menjadi satu halaman.
+• Editor blok yang rapi dengan judul, daftar, tugas, kode, persamaan, gambar, dan file.
+• Atur catatan dengan subhalaman, grup, favorit, dan ikon emoji.
+• Riwayat edit dan tempat sampah, jadi tidak ada yang hilang karena salah hapus.
+• Impor file Markdown sebagai catatan, dan ekspor catatan apa pun sebagai Markdown.
+
+BIARKAN AI MENGERJAKAN CATATAN ANDA
+• Lampirkan catatan ke chat dan AI memakainya sebagai konteks.
+• Minta AI menulis ulang atau melengkapi catatan: AI mengusulkan perubahan, Anda yang memutuskan untuk menerapkannya.
+• Proyek mengelompokkan chat terkait dengan instruksi dan catatan referensi bersama.
+• Instruksi khusus memberi tahu NoteFable tentang Anda dan gaya jawaban yang Anda sukai.
+• Pilih karakter AI, atau unggah ikon Anda sendiri, untuk chat dan catatan.
+
+TEMUKAN KEMBALI
+• Cari di semua chat dan catatan sekaligus.
+
+BISA DI MANA SAJA
+• Coba tanpa akun. Masuk dengan Google atau kode email untuk menyinkronkan chat dan catatan antara aplikasi dan notefable.com.
+• Mode terang dan gelap: ikuti sistem atau pilih sendiri.
+• Tersedia dalam English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Gratis digunakan dengan batas harian dan bulanan untuk pesan dan gambar AI. Perlu lebih? NoteFable Pro (langganan bulanan, bisa dibatalkan kapan saja) menaikkan batas menjadi 2.000 pesan dan 60 gambar per bulan (hingga 10 gambar per hari), dan 30 hari pertama gratis. Tanpa iklan.
+
+Kebijakan privasi: https://notefable.com/privacy
+
+## Tiếng Việt (vi)
+
+**Tên ứng dụng**: NoteFable: Chat AI & Ghi chú
+
+**Mô tả ngắn**: Trò chuyện với AI, ghi chú và để AI giúp bạn học tập, sắp xếp kiến thức.
+
+**Mô tả đầy đủ**:
+
+NoteFable gom chat AI và ghi chú của bạn về một nơi, để những gì bạn học không bị chìm trong lịch sử trò chuyện.
+
+HỎI BẤT CỨ ĐIỀU GÌ
+• Trò chuyện với nhiều mô hình AI (OpenAI GPT, Anthropic Claude và DeepSeek) và chọn mức độ suy nghĩ của từng mô hình.
+• Tìm kiếm web tích hợp tự động mang lại câu trả lời mới nhất kèm nguồn khi cần (các mô hình được hỗ trợ).
+• Đính kèm ảnh, PDF và tệp văn bản rồi hỏi về nội dung.
+• Tạo và chỉnh sửa hình ảnh từ mô tả bằng chữ.
+
+GIỮ LẠI ĐIỀU QUAN TRỌNG
+• Lưu câu trả lời vào Ghi chú chỉ với một chạm, hoặc biến cả cuộc trò chuyện thành một trang.
+• Trình soạn thảo khối gọn gàng với tiêu đề, danh sách, việc cần làm, mã, công thức toán, hình ảnh và tệp.
+• Sắp xếp ghi chú bằng trang con, nhóm, mục yêu thích và biểu tượng emoji.
+• Lịch sử chỉnh sửa và thùng rác, để không mất gì vì lỡ tay.
+• Nhập tệp Markdown thành ghi chú và xuất bất kỳ ghi chú nào ra Markdown.
+
+ĐỂ AI LÀM VIỆC VỚI GHI CHÚ
+• Đính kèm ghi chú vào cuộc trò chuyện và AI dùng chúng làm ngữ cảnh.
+• Nhờ AI viết lại hoặc bổ sung ghi chú: AI đề xuất thay đổi, bạn quyết định có áp dụng hay không.
+• Dự án gom các cuộc trò chuyện liên quan với chỉ dẫn và ghi chú tham khảo chung.
+• Chỉ dẫn tùy chỉnh cho NoteFable biết về bạn và cách bạn muốn được trả lời.
+• Chọn một nhân vật AI, hoặc tải lên biểu tượng của riêng bạn, cho chat và ghi chú.
+
+TÌM LẠI DỄ DÀNG
+• Tìm kiếm trong mọi cuộc trò chuyện và ghi chú cùng lúc.
+
+DÙNG Ở MỌI NƠI
+• Dùng thử không cần tài khoản. Đăng nhập bằng Google hoặc mã qua email để đồng bộ chat và ghi chú giữa ứng dụng và notefable.com.
+• Chế độ sáng và tối: theo hệ thống hoặc tự chọn.
+• Hỗ trợ English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Miễn phí với giới hạn hằng ngày và hằng tháng cho tin nhắn và hình ảnh AI. Cần nhiều hơn? NoteFable Pro (gói tháng, hủy bất cứ lúc nào) nâng giới hạn lên 2.000 tin nhắn và 60 hình ảnh mỗi tháng (tối đa 10 hình ảnh mỗi ngày), và 30 ngày đầu miễn phí. Không có quảng cáo.
+
+Chính sách quyền riêng tư: https://notefable.com/privacy
+
+## ไทย (th)
+
+**ชื่อแอป**: NoteFable: แชท AI และโน้ต
+
+**คำอธิบายแบบย่อ**: แชทกับ AI จดโน้ต และให้ AI ช่วยคุณเรียนรู้และจัดระเบียบสิ่งที่ได้เรียน
+
+**คำอธิบายแบบเต็ม**:
+
+NoteFable รวมแชท AI และโน้ตของคุณไว้ในที่เดียว สิ่งที่คุณเรียนรู้จะไม่จมหายไปในประวัติแชท
+
+ถามได้ทุกเรื่อง
+• แชทกับโมเดล AI หลายตัว (OpenAI GPT, Anthropic Claude และ DeepSeek) และเลือกได้ว่าแต่ละตัวจะคิดลึกแค่ไหน
+• การค้นหาเว็บในตัวจะดึงคำตอบล่าสุดพร้อมแหล่งที่มาให้อัตโนมัติเมื่อจำเป็น (เฉพาะโมเดลที่รองรับ)
+• แนบรูปภาพ PDF และไฟล์ข้อความ แล้วถามเกี่ยวกับเนื้อหาได้เลย
+• สร้างและแก้ไขรูปภาพจากคำอธิบาย
+
+เก็บสิ่งสำคัญไว้
+• บันทึกคำตอบลงโน้ตได้ในแตะเดียว หรือเปลี่ยนแชททั้งหมดเป็นหนึ่งหน้า
+• ตัวแก้ไขแบบบล็อกที่เรียบง่าย มีหัวข้อ รายการ สิ่งที่ต้องทำ โค้ด สมการ รูปภาพ และไฟล์
+• จัดระเบียบโน้ตด้วยหน้าย่อย กลุ่ม รายการโปรด และไอคอนอีโมจิ
+• มีประวัติการแก้ไขและถังขยะ ไม่ต้องกลัวลบผิด
+• นำเข้าไฟล์ Markdown เป็นโน้ต และส่งออกโน้ตใดก็ได้เป็น Markdown
+
+ให้ AI ช่วยทำงานกับโน้ต
+• แนบโน้ตเข้าแชท แล้ว AI จะใช้เป็นบริบทในการตอบ
+• ขอให้ AI เขียนใหม่หรือเพิ่มเติมโน้ต: AI จะเสนอการเปลี่ยนแปลง และคุณเป็นคนตัดสินใจว่าจะใช้หรือไม่
+• โปรเจกต์รวมแชทที่เกี่ยวข้องกันไว้ พร้อมคำสั่งและโน้ตอ้างอิงที่ใช้ร่วมกัน
+• คำสั่งที่กำหนดเองช่วยบอก NoteFable ว่าคุณเป็นใครและชอบคำตอบแบบไหน
+• เลือกตัวละคร AI หรืออัปโหลดไอคอนของคุณเองสำหรับแชทและโน้ต
+
+ค้นหาได้ทุกเมื่อ
+• ค้นหาในแชทและโน้ตทั้งหมดได้ในครั้งเดียว
+
+ใช้ได้ทุกที่
+• ลองใช้ได้โดยไม่ต้องมีบัญชี ลงชื่อเข้าใช้ด้วย Google หรือรหัสทางอีเมลเพื่อซิงค์แชทและโน้ตระหว่างแอปกับ notefable.com
+• โหมดสว่างและโหมดมืด: ตามระบบหรือเลือกเอง
+• รองรับ English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский
+
+ใช้ฟรีโดยมีขีดจำกัดรายวันและรายเดือนสำหรับข้อความและรูปภาพ AI ต้องการมากกว่านี้? NoteFable Pro (สมัครรายเดือน ยกเลิกได้ทุกเมื่อ) เพิ่มขีดจำกัดเป็น 2,000 ข้อความและ 60 รูปต่อเดือน (สูงสุด 10 รูปต่อวัน) และใช้ฟรี 30 วันแรก ไม่มีโฆษณา
+
+นโยบายความเป็นส่วนตัว: https://notefable.com/privacy
+
+## हिन्दी (hi-IN)
+
+**ऐप का नाम**: NoteFable: AI चैट और नोट्स
+
+**छोटा विवरण**: AI से चैट करें, नोट्स बनाएं और AI की मदद से पढ़ाई करें और सीखी बातें संभालें।
+
+**पूरा विवरण**:
+
+NoteFable AI चैट और आपके नोट्स को एक ही जगह रखता है, ताकि आपने जो सीखा वह चैट हिस्ट्री में खो न जाए।
+
+कुछ भी पूछें
+• कई AI मॉडल (OpenAI GPT, Anthropic Claude और DeepSeek) से चैट करें और चुनें कि हर मॉडल कितना गहराई से सोचे।
+• ज़रूरत पड़ने पर बिल्ट-इन वेब सर्च अपने-आप स्रोतों के साथ ताज़ा जवाब लाता है (समर्थित मॉडल)।
+• फ़ोटो, PDF और टेक्स्ट फ़ाइलें जोड़ें और उनके बारे में सवाल पूछें।
+• टेक्स्ट में बताकर इमेज बनाएं और बदलें।
+
+ज़रूरी चीज़ें सहेजें
+• किसी भी जवाब को एक टैप में नोट्स में सहेजें, या पूरी चैट को एक पेज बना दें।
+• हेडिंग, सूची, टू-डू, कोड, गणित के समीकरण, इमेज और फ़ाइलों वाला साफ़-सुथरा ब्लॉक एडिटर।
+• सब-पेज, ग्रुप, पसंदीदा और इमोजी आइकन से नोट्स व्यवस्थित करें।
+• एडिट हिस्ट्री और ट्रैश, ताकि गलती से कुछ न खोए।
+• Markdown फ़ाइलों को नोट्स के रूप में इंपोर्ट करें और किसी भी नोट को Markdown में एक्सपोर्ट करें।
+
+AI आपके नोट्स पर काम करे
+• नोट्स को चैट में जोड़ें, AI उन्हें संदर्भ के रूप में पढ़ता है।
+• AI से किसी नोट को दोबारा लिखने या बढ़ाने को कहें: वह बदलाव सुझाता है और लागू करना है या नहीं, यह आप तय करते हैं।
+• प्रोजेक्ट मिलती-जुलती चैट को साझा निर्देशों और संदर्भ नोट्स के साथ एक जगह रखते हैं।
+• कस्टम निर्देशों से NoteFable को बताएं कि आप कौन हैं और कैसे जवाब पसंद करते हैं।
+• चैट और नोट्स के लिए कोई AI किरदार चुनें या अपना आइकन अपलोड करें।
+
+फिर से ढूंढें
+• अपनी सभी चैट और नोट्स में एक साथ खोजें।
+
+हर जगह काम करे
+• बिना खाते के आज़माएं। ऐप और notefable.com के बीच चैट और नोट्स सिंक करने के लिए Google या ईमेल कोड से साइन इन करें।
+• लाइट और डार्क मोड: सिस्टम के हिसाब से या खुद चुनें।
+• उपलब्ध भाषाएं: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский।
+
+AI संदेशों और इमेज की दैनिक और मासिक सीमाओं के साथ मुफ़्त। और चाहिए? NoteFable Pro (मासिक सदस्यता, कभी भी रद्द करें) सीमा को हर महीने 2,000 संदेश और 60 इमेज (रोज़ 10 इमेज तक) तक बढ़ाता है, और पहले 30 दिन मुफ़्त हैं। कोई विज्ञापन नहीं।
+
+गोपनीयता नीति: https://notefable.com/privacy
+
+## العربية (ar)
+
+**اسم التطبيق**: NoteFable: دردشة AI وملاحظات
+
+**الوصف المختصر**: تحدّث مع الذكاء الاصطناعي ودوّن ملاحظاتك ودعه يساعدك في الدراسة والتنظيم.
+
+**الوصف الكامل**:
+
+يجمع NoteFable دردشة الذكاء الاصطناعي وملاحظاتك في مكان واحد، فلا يضيع ما تتعلمه في سجل المحادثات.
+
+اسأل عن أي شيء
+• تحدّث مع عدة نماذج ذكاء اصطناعي (OpenAI GPT وAnthropic Claude وDeepSeek) واختر مدى عمق تفكير كل منها.
+• يجلب البحث المدمج على الويب تلقائيًا إجابات حديثة مع مصادرها عند الحاجة (النماذج المدعومة).
+• أرفق صورًا وملفات PDF وملفات نصية واسأل عن محتواها.
+• أنشئ الصور وعدّلها من وصف نصي.
+
+احتفظ بما يهمك
+• احفظ أي إجابة في الملاحظات بلمسة واحدة، أو حوّل محادثة كاملة إلى صفحة.
+• محرر كتل بسيط يدعم العناوين والقوائم والمهام والشيفرات والمعادلات والصور والملفات.
+• نظّم ملاحظاتك بالصفحات الفرعية والمجموعات والمفضلة وأيقونات الرموز التعبيرية.
+• سجل للتعديلات وسلة مهملات، فلا يضيع شيء بالخطأ.
+• استورد ملفات Markdown كملاحظات، وصدّر أي ملاحظة بصيغة Markdown.
+
+دع الذكاء الاصطناعي يعمل على ملاحظاتك
+• أرفق الملاحظات بالمحادثة ليستخدمها الذكاء الاصطناعي كسياق.
+• اطلب من الذكاء الاصطناعي إعادة كتابة ملاحظة أو توسيعها: يقترح التغيير وأنت تقرر تطبيقه.
+• تجمع المشاريع المحادثات المترابطة مع تعليمات وملاحظات مرجعية مشتركة.
+• تخبر التعليمات المخصصة NoteFable بمن تكون وكيف تفضّل الإجابات.
+• اختر شخصية ذكاء اصطناعي، أو ارفع أيقونتك الخاصة، للدردشة والملاحظات.
+
+اعثر عليه مجددًا
+• ابحث في كل محادثاتك وملاحظاتك دفعة واحدة.
+
+يعمل في كل مكان
+• جرّبه دون حساب. سجّل الدخول عبر Google أو برمز عبر البريد الإلكتروني لمزامنة المحادثات والملاحظات بين التطبيق وnotefable.com.
+• الوضع الفاتح والداكن: اتبع إعدادات النظام أو اختر بنفسك.
+• متاح باللغات: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+مجاني مع حدود يومية وشهرية لرسائل وصور الذكاء الاصطناعي. تحتاج إلى المزيد؟ يرفع NoteFable Pro (اشتراك شهري يمكن إلغاؤه في أي وقت) الحدود إلى 2,000 رسالة و60 صورة شهريًا (حتى 10 صور يوميًا)، وأول 30 يومًا مجانية. بلا إعلانات.
+
+سياسة الخصوصية: https://notefable.com/privacy
+
+## Türkçe (tr-TR)
+
+**Uygulama adı**: NoteFable: Yapay Zekâ ve Not
+
+**Kısa açıklama**: Yapay zekâyla sohbet et, not al ve öğrendiklerini yapay zekâyla düzenle.
+
+**Tam açıklama**:
+
+NoteFable yapay zekâ sohbetini ve notlarını tek bir yerde toplar; öğrendiklerin sohbet geçmişinde kaybolmaz.
+
+HER ŞEYİ SOR
+• Birden fazla yapay zekâ modeliyle (OpenAI GPT, Anthropic Claude ve DeepSeek) sohbet et ve her birinin ne kadar derin düşüneceğini seç.
+• Yerleşik web araması gerektiğinde kaynaklarıyla birlikte güncel yanıtlar getirir (desteklenen modeller).
+• Fotoğraf, PDF ve metin dosyası ekleyip içerikleri hakkında soru sor.
+• Metin açıklamasından görsel oluştur ve düzenle.
+
+ÖNEMLİ OLANI SAKLA
+• Herhangi bir yanıtı tek dokunuşla Notlar'a kaydet ya da bütün bir sohbeti sayfaya dönüştür.
+• Başlık, liste, yapılacaklar, kod, denklem, görsel ve dosya içeren sade bir blok düzenleyici.
+• Notlarını alt sayfalar, gruplar, favoriler ve emoji simgeleriyle düzenle.
+• Düzenleme geçmişi ve çöp kutusu sayesinde yanlışlıkla hiçbir şey kaybolmaz.
+• Markdown dosyalarını not olarak içe aktar, istediğin notu Markdown olarak dışa aktar.
+
+YAPAY ZEKÂ NOTLARINDA ÇALIŞSIN
+• Notları bir sohbete ekle, yapay zekâ onları bağlam olarak kullansın.
+• Yapay zekâdan bir notu yeniden yazmasını veya genişletmesini iste: Değişikliği önerir, uygulayıp uygulamamaya sen karar verirsin.
+• Projeler, ilgili sohbetleri ortak talimatlar ve referans notlarla bir arada tutar.
+• Özel talimatlarla NoteFable'a kim olduğunu ve nasıl yanıtlar istediğini anlat.
+• Sohbet ve notlar için bir yapay zekâ karakteri seç ya da kendi simgeni yükle.
+
+TEKRAR BUL
+• Tüm sohbet ve notlarında aynı anda ara.
+
+HER YERDE ÇALIŞIR
+• Hesap açmadan dene. Sohbet ve notlarını uygulama ile notefable.com arasında eşitlemek için Google ya da e-posta koduyla giriş yap.
+• Açık ve koyu mod: sistemi takip et ya da birini seç.
+• Desteklenen diller: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Yapay zekâ mesajları ve görselleri için günlük ve aylık sınırlarla ücretsiz. Daha fazlası mı lazım? NoteFable Pro (aylık abonelik, istediğin zaman iptal) sınırları ayda 2.000 mesaj ve 60 görsele (günde en fazla 10 görsel) çıkarır ve ilk 30 gün ücretsizdir. Reklam yok.
+
+Gizlilik politikası: https://notefable.com/privacy
+
+## Русский (ru-RU)
+
+**Название приложения**: NoteFable: ИИ-чат и заметки
+
+**Краткое описание**: Общайтесь с ИИ, ведите заметки и учитесь вместе с ИИ, упорядочивая знания.
+
+**Полное описание**:
+
+NoteFable объединяет ИИ-чат и ваши заметки в одном месте, чтобы узнанное не терялось в истории переписки.
+
+СПРАШИВАЙТЕ О ЧЁМ УГОДНО
+• Общайтесь с несколькими ИИ-моделями (OpenAI GPT, Anthropic Claude и DeepSeek) и выбирайте, насколько глубоко каждая рассуждает.
+• Встроенный веб-поиск при необходимости сам находит актуальные ответы с источниками (поддерживаемые модели).
+• Прикрепляйте фото, PDF и текстовые файлы и задавайте вопросы по ним.
+• Создавайте и редактируйте изображения по текстовому описанию.
+
+СОХРАНЯЙТЕ ВАЖНОЕ
+• Сохраняйте любой ответ в заметки одним нажатием или превращайте весь чат в страницу.
+• Удобный блочный редактор: заголовки, списки, задачи, код, формулы, изображения и файлы.
+• Упорядочивайте заметки с помощью подстраниц, групп, избранного и значков-эмодзи.
+• История правок и корзина — ничего не пропадёт по ошибке.
+• Импортируйте файлы Markdown как заметки и экспортируйте любую заметку в Markdown.
+
+ПУСТЬ ИИ РАБОТАЕТ С ЗАМЕТКАМИ
+• Прикрепите заметки к чату, и ИИ будет опираться на них.
+• Попросите ИИ переписать или дополнить заметку: он предложит изменение, а применять ли его — решаете вы.
+• Проекты объединяют связанные чаты с общими инструкциями и справочными заметками.
+• Пользовательские инструкции расскажут NoteFable о вас и о том, какие ответы вам нравятся.
+• Выберите ИИ-персонажа или загрузите свой значок для чата и заметок.
+
+НАХОДИТЕ СНОВА
+• Ищите сразу по всем чатам и заметкам.
+
+РАБОТАЕТ ВЕЗДЕ
+• Попробуйте без аккаунта. Войдите через Google или по коду из письма, чтобы синхронизировать чаты и заметки между приложением и notefable.com.
+• Светлая и тёмная тема: как в системе или на ваш выбор.
+• Доступно на языках: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
+
+Бесплатно, с дневными и месячными лимитами на сообщения и изображения ИИ. Нужно больше? NoteFable Pro (ежемесячная подписка, отмена в любой момент) повышает лимиты до 2000 сообщений и 60 изображений в месяц (до 10 изображений в день), а первые 30 дней бесплатны. Без рекламы.
+
+Политика конфиденциальности: https://notefable.com/privacy
 
 ## 其他字段
 
