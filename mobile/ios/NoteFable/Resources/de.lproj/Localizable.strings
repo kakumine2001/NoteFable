@@ -184,12 +184,11 @@
 "settings_personalization" = "Personalisierung";
 "settings_unsaved" = "Ungespeicherte Änderungen";
 "acct_custom_instructions" = "Benutzerdefinierte Anweisungen";
-"acct_custom_instructions_help" = "Gilt ab der nächsten Nachricht für alle deine Chats. Erzähl NoteFable etwas über dich und wie es antworten soll. In einem Projekt haben dessen Anweisungen Vorrang.";
-"acct_custom_instructions_placeholder" = "Beispiel: Ich bereite mich auf den JLPT N1 vor. Erkläre Grammatik mit kurzen Beispielen und halte die Antworten knapp.";
+"acct_custom_instructions_help" = "Erzähl etwas über dich oder wie du Antworten magst – das gilt dann für alle Chats.";
+"acct_custom_instructions_placeholder" = "Zum Beispiel:\n- Antworte locker und verständlich\n- Fang mit dem Ergebnis an und fass dich kurz\n- Wenn du dir nicht sicher bist, sag es, statt zu raten";
 "acct_err_load_custom_instructions" = "Deine benutzerdefinierten Anweisungen konnten nicht geladen werden.";
 "acct_err_save_custom_instructions" = "Deine benutzerdefinierten Anweisungen konnten nicht gespeichert werden. Bitte versuche es erneut.";
 "app_icon_title" = "Icon";
-"app_icon_help" = "Wird im Chat, in der Seitenleiste und auf der KI-Schaltfläche in Notizen angezeigt. Nur auf diesem Gerät gespeichert.";
 "app_icon_choose_character" = "Charakter auswählen";
 "app_icon_upload_image" = "Bild hochladen";
 "app_icon_could_not_save" = "Das Icon konnte auf diesem Gerät nicht gespeichert werden.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "NoteFable fragen";
 "quote" = "Zitat";
 "remove_quote" = "Zitat entfernen";
-"attach_pages_help" = "Die KI liest die angehängten Seiten als Kontext für diesen Chat. Sie werden bei jeder Nachricht neu gelesen, sodass immer deine neuesten Änderungen berücksichtigt werden.";
 "attach_pages_submit" = "Anhängen";
 "err_pages_image_mode" = "Beim Erstellen eines Bildes können keine Seiten angehängt werden. Entferne sie oder deaktiviere die Bilderstellung.";
 "create_page" = "Als Notiz zusammenfassen";
@@ -486,10 +484,8 @@
 "sb_err_save_project" = "Das Projekt konnte nicht gespeichert werden. Bitte versuche es erneut.";
 "sb_loading" = "Wird geladen…";
 "sb_instructions" = "Anweisungen";
-"sb_instructions_help" = "Gilt für jeden Chat in diesem Projekt. Beschreibe, wofür das Projekt gedacht ist, in welcher Sprache geantwortet werden soll und wie Antworten formatiert sein sollen.";
 "sb_instructions_placeholder" = "Beispiel: Hilf mir beim Schreiben japanischer Geschäfts-E-Mails. Achte auf einen höflichen Ton und gib mir zuerst einen kurzen Entwurf.";
 "sb_reference_notes" = "Referenznotizen";
-"sb_reference_notes_help" = "Nur die hier ausgewählten Notizen werden in den Chats dieses Projekts mit der KI geteilt. Sie werden live eingelesen, sodass deine neuesten Änderungen ab der nächsten Nachricht gelten.";
 "sb_selected_notes" = "Ausgewählte Notizen";
 "sb_remove_title" = "„%1$s“ entfernen";
 "sb_filter_notes" = "Notizen filtern";

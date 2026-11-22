@@ -40,12 +40,6 @@ struct AppIconSettings: View {
                     Text(L("app_icon_title"))
                         .font(.nf(16, weight: 500))
                         .foregroundStyle(Sm.text)
-                    Text(L("app_icon_help"))
-                        .font(.nf(13))
-                        .nfLineHeight(19.5, fontSize: 13)
-                        .foregroundStyle(Sm.muted)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.top, 2)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 AppIconView(icon: icon, size: 24, animated: true)

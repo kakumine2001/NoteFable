@@ -135,7 +135,6 @@ struct ProjectSettingsDialog: View {
 
         // 共通指示
         ProjectSettingsLabel(L("sb_instructions"), count: model.instructionsCount, full: false)
-        ProjectSettingsHelp(L("sb_instructions_help"))
         ProjectInstructionsField(
             text: Binding(get: { model.state.instructions }, set: { model.setInstructions($0) }),
             enabled: !state.busy,
@@ -146,7 +145,6 @@ struct ProjectSettingsDialog: View {
         // 参考笔记
         ProjectSettingsLabel(L("sb_reference_notes"), count: model.notesCount, full: model.full)
             .padding(.top, 20)
-        ProjectSettingsHelp(L("sb_reference_notes_help"))
         if !state.selected.isEmpty {
             let chips = ProjectChipFlow(spacing: 5.6)
             chips {
@@ -220,24 +218,6 @@ private struct ProjectSettingsLabel: View {
                 .monospacedDigit()
         }
         .frame(minHeight: 21)
-    }
-}
-
-/// `.project-settings-help`：13 / 行高 1.5 灰，上距 4。
-private struct ProjectSettingsHelp: View {
-    private let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.nf(13))
-            .nfLineHeight(19.5, fontSize: 13)
-            .foregroundStyle(Sm.muted)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 4)
     }
 }
 

@@ -34,10 +34,8 @@
     <string name="sb_err_save_project">無法儲存專案，請重試。</string>
     <string name="sb_loading">正在載入…</string>
     <string name="sb_instructions">指示</string>
-    <string name="sb_instructions_help">適用於此專案的每個聊天。可說明專案用途、回答語言和格式要求。</string>
     <string name="sb_instructions_placeholder">例如：幫我寫日語商務郵件。保持禮貌，先給出一份簡短草稿。</string>
     <string name="sb_reference_notes">參考筆記</string>
-    <string name="sb_reference_notes_help">只有在這裡選中的筆記才會提供給此專案聊天中的 AI。每次都會讀取最新內容，修改會從下一條訊息起生效。</string>
     <string name="sb_selected_notes">已選筆記</string>
     <string name="sb_remove_title">移除 %1$s</string>
     <string name="sb_filter_notes">篩選筆記</string>

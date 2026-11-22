@@ -184,7 +184,6 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                     else -> {
                         // 共通指示
                         SettingsSectionLabel(stringResource(R.string.sb_instructions), "${instructions.length}/$MAX_PROJECT_INSTRUCTIONS", full = false)
-                        SettingsHelpText(stringResource(R.string.sb_instructions_help))
                         InstructionsField(instructions, { instructions = clipInstructions(it, MAX_PROJECT_INSTRUCTIONS) }, enabled = !busy,
                             label = stringResource(R.string.sb_instructions), placeholder = stringResource(R.string.sb_instructions_placeholder))
 
@@ -192,7 +191,6 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                         val full = selected.size >= MAX_PROJECT_NOTES
                         Spacer(Modifier.size(20.dp))
                         SettingsSectionLabel(stringResource(R.string.sb_reference_notes), "${selected.size}/$MAX_PROJECT_NOTES", full)
-                        SettingsHelpText(stringResource(R.string.sb_reference_notes_help))
                         if (selected.isNotEmpty()) {
                             val selectedLabel = stringResource(R.string.sb_selected_notes)
                             FlowRow(

@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Could not save the project. Please try again.</string>
     <string name="sb_loading">Loading…</string>
     <string name="sb_instructions">Instructions</string>
-    <string name="sb_instructions_help">Applied to every chat in this project. Say what the project is for, which language to answer in, and how to format answers.</string>
     <string name="sb_instructions_placeholder">Example: Help me write Japanese business emails. Keep a polite tone and answer with a short draft first.</string>
     <string name="sb_reference_notes">Reference notes</string>
-    <string name="sb_reference_notes_help">Only the notes you choose here are shared with the AI in this project’s chats. They are read live, so your latest edits apply from the next message.</string>
     <string name="sb_selected_notes">Selected notes</string>
     <string name="sb_remove_title">Remove %1$s</string>
     <string name="sb_filter_notes">Filter your notes</string>

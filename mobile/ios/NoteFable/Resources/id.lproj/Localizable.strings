@@ -184,12 +184,11 @@
 "settings_personalization" = "Personalisasi";
 "settings_unsaved" = "Perubahan belum disimpan";
 "acct_custom_instructions" = "Instruksi khusus";
-"acct_custom_instructions_help" = "Diterapkan ke semua chat Anda mulai pesan berikutnya. Ceritakan tentang diri Anda dan bagaimana Anda ingin NoteFable menjawab. Di dalam proyek, instruksi proyek lebih diutamakan.";
-"acct_custom_instructions_placeholder" = "Contoh: Saya sedang mempersiapkan JLPT N1. Jelaskan tata bahasa dengan contoh singkat, dan buat jawaban tetap ringkas.";
+"acct_custom_instructions_help" = "Tulis tentang diri Anda atau gaya jawaban yang Anda suka, dan itu berlaku di semua chat.";
+"acct_custom_instructions_placeholder" = "Contoh:\n- Jawab dengan bahasa santai yang mudah dipahami\n- Mulai dari kesimpulan, singkat saja\n- Kalau tidak yakin, bilang saja, jangan menebak";
 "acct_err_load_custom_instructions" = "Tidak dapat memuat instruksi khusus Anda.";
 "acct_err_save_custom_instructions" = "Tidak dapat menyimpan instruksi khusus Anda. Silakan coba lagi.";
 "app_icon_title" = "Ikon";
-"app_icon_help" = "Ditampilkan di obrolan, di bilah samping, dan pada tombol AI di dalam catatan. Hanya disimpan di perangkat ini.";
 "app_icon_choose_character" = "Pilih karakter";
 "app_icon_upload_image" = "Unggah gambar";
 "app_icon_could_not_save" = "Tidak dapat menyimpan ikon di perangkat ini.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Tanya NoteFable";
 "quote" = "Kutipan";
 "remove_quote" = "Hapus kutipan";
-"attach_pages_help" = "AI membaca halaman yang Anda lampirkan sebagai konteks untuk chat ini. Halaman dibaca ulang setiap kali pesan dikirim, sehingga editan terbaru Anda selalu digunakan.";
 "attach_pages_submit" = "Lampirkan";
 "err_pages_image_mode" = "Halaman tidak dapat dilampirkan saat membuat gambar. Hapus halaman tersebut atau matikan pembuatan gambar.";
 "create_page" = "Rangkum jadi catatan";
@@ -486,10 +484,8 @@
 "sb_err_save_project" = "Tidak dapat menyimpan proyek. Silakan coba lagi.";
 "sb_loading" = "Memuat…";
 "sb_instructions" = "Instruksi";
-"sb_instructions_help" = "Diterapkan ke setiap chat dalam proyek ini. Jelaskan tujuan proyek, bahasa jawaban yang diinginkan, serta format jawabannya.";
 "sb_instructions_placeholder" = "Contoh: Bantu saya menulis email bisnis bahasa Jepang. Gunakan nada sopan dan berikan draf singkat terlebih dahulu.";
 "sb_reference_notes" = "Catatan referensi";
-"sb_reference_notes_help" = "Hanya catatan yang Anda pilih di sini yang dibagikan ke AI dalam chat proyek ini. Catatan dibaca secara langsung, sehingga perubahan terbaru Anda berlaku mulai pesan berikutnya.";
 "sb_selected_notes" = "Catatan terpilih";
 "sb_remove_title" = "Hapus %1$s";
 "sb_filter_notes" = "Filter catatan Anda";

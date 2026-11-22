@@ -147,7 +147,6 @@ private struct AttachPagesDialogBody: View {
         let untitled = L("sb_untitled")
         return VStack(alignment: .leading, spacing: 0) {
             AttachPagesLabel(L("sb_your_notes"), count: "\(selected.count)/\(MAX_MESSAGE_NOTES)", full: full)
-            AttachPagesHelp(L("attach_pages_help"))
             if !selected.isEmpty {
                 ChatFlowLayout(spacing: 5.6, lineSpacing: 5.6) {
                     ForEach(selected) { note in
@@ -248,24 +247,6 @@ private struct AttachPagesLabel: View {
                 .monospacedDigit()
         }
         .frame(minHeight: 21)
-    }
-}
-
-/// `.project-settings-help`：13 / 行高 1.5 灰，上距 4。
-private struct AttachPagesHelp: View {
-    private let text: String
-
-    init(_ text: String) {
-        self.text = text
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.nf(13))
-            .nfLineHeight(19.5, fontSize: 13)
-            .foregroundStyle(Sm.muted)
-            .fixedSize(horizontal: false, vertical: true)
-            .padding(.top, 4)
     }
 }
 

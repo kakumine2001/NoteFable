@@ -184,12 +184,11 @@
 "settings_personalization" = "Personnalisation";
 "settings_unsaved" = "Modifications non enregistrées";
 "acct_custom_instructions" = "Instructions personnalisées";
-"acct_custom_instructions_help" = "S’applique à toutes vos discussions dès le prochain message. Parlez de vous à NoteFable et indiquez comment vous souhaitez qu’il réponde. Dans un projet, les instructions du projet sont prioritaires.";
-"acct_custom_instructions_placeholder" = "Exemple : Je prépare le JLPT N1. Expliquez la grammaire avec des exemples courts et gardez des réponses concises.";
+"acct_custom_instructions_help" = "Parlez de vous ou de vos préférences de réponse : cela s’appliquera à toutes les discussions.";
+"acct_custom_instructions_placeholder" = "Par exemple :\n- Réponds simplement, sur un ton détendu\n- Commence par la conclusion et reste bref\n- Si tu n’es pas sûr, dis-le au lieu de deviner";
 "acct_err_load_custom_instructions" = "Impossible de charger vos instructions personnalisées.";
 "acct_err_save_custom_instructions" = "Impossible d’enregistrer vos instructions personnalisées. Veuillez réessayer.";
 "app_icon_title" = "Icône";
-"app_icon_help" = "Affiché dans le chat, dans la barre latérale et sur le bouton IA des notes. Enregistré uniquement sur cet appareil.";
 "app_icon_choose_character" = "Choisir un personnage";
 "app_icon_upload_image" = "Importer une image";
 "app_icon_could_not_save" = "Impossible d’enregistrer l’icône sur cet appareil.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Demander à NoteFable";
 "quote" = "Citation";
 "remove_quote" = "Retirer la citation";
-"attach_pages_help" = "L’IA lit les pages que vous joignez comme contexte pour cette discussion. Elles sont relues à chaque message afin de prendre en compte vos dernières modifications.";
 "attach_pages_submit" = "Joindre";
 "err_pages_image_mode" = "Impossible de joindre des pages lors de la création d’une image. Retirez-les ou désactivez la création d’images.";
 "create_page" = "Synthétiser en note";
@@ -486,10 +484,8 @@
 "sb_err_save_project" = "Impossible d’enregistrer le projet. Veuillez réessayer.";
 "sb_loading" = "Chargement…";
 "sb_instructions" = "Instructions";
-"sb_instructions_help" = "S’applique à chaque discussion de ce projet. Précisez l’objectif du projet, la langue de réponse et la mise en forme souhaitée.";
 "sb_instructions_placeholder" = "Exemple : Aidez-moi à rédiger des e-mails professionnels en japonais. Gardez un ton poli et proposez d’abord un court brouillon.";
 "sb_reference_notes" = "Notes de référence";
-"sb_reference_notes_help" = "Seules les notes sélectionnées ici sont partagées avec l’IA dans les discussions de ce projet. Elles sont lues en direct : vos dernières modifications s’appliquent dès le prochain message.";
 "sb_selected_notes" = "Notes sélectionnées";
 "sb_remove_title" = "Retirer « %1$s »";
 "sb_filter_notes" = "Filtrer vos notes";

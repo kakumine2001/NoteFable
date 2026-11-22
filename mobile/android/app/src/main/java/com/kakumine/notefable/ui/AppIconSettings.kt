@@ -237,7 +237,6 @@ internal fun AppIconSettings(editor: AppIconEditor, onPickImage: () -> Unit) {
         ) {
             Column(Modifier.weight(1f)) {
                 Text(stringResource(R.string.app_icon_title), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                Text(stringResource(R.string.app_icon_help), color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, modifier = Modifier.padding(top = 2.dp))
             }
             Box(Modifier.size(40.dp).clip(CircleShape).background(Sm.Surface).border(1.dp, Sm.BorderStrong, CircleShape), Alignment.Center) {
                 AppIcon(24.dp, Sm.Ink, icon, animated = true)

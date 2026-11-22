@@ -7,7 +7,6 @@
     <string name="ask_notefable">اسأل NoteFable</string>
     <string name="quote">اقتباس</string>
     <string name="remove_quote">إزالة الاقتباس</string>
-    <string name="attach_pages_help">يقرأ الذكاء الاصطناعي الصفحات التي ترفقها كسياق لهذه المحادثة. وتُقرأ من جديد مع كل رسالة، لذا تُستخدم دائماً أحدث تعديلاتك.</string>
     <string name="attach_pages_submit">إرفاق</string>
     <string name="err_pages_image_mode">لا يمكن إرفاق صفحات عند إنشاء صورة. أزِل الصفحات أو أوقف وضع إنشاء الصور.</string>
     <string name="create_page">تنظيم في ملاحظة</string>

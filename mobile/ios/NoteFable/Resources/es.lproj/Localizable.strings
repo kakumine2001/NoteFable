@@ -184,12 +184,11 @@
 "settings_personalization" = "Personalización";
 "settings_unsaved" = "Cambios sin guardar";
 "acct_custom_instructions" = "Instrucciones personalizadas";
-"acct_custom_instructions_help" = "Se aplica a todos tus chats a partir del próximo mensaje. Cuéntale a NoteFable sobre ti y cómo quieres que responda. Dentro de un proyecto, las instrucciones de ese proyecto tienen prioridad.";
-"acct_custom_instructions_placeholder" = "Ejemplo: Me estoy preparando para el JLPT N1. Explica la gramática con ejemplos cortos y mantén respuestas breves.";
+"acct_custom_instructions_help" = "Cuéntale algo sobre ti o cómo prefieres las respuestas, y se aplicará en todos los chats.";
+"acct_custom_instructions_placeholder" = "Por ejemplo:\n- Responde con un tono sencillo y cercano\n- Empieza por la conclusión y sé breve\n- Si no estás seguro, dilo en vez de suponer";
 "acct_err_load_custom_instructions" = "No se pudieron cargar tus instrucciones personalizadas.";
 "acct_err_save_custom_instructions" = "No se pudieron guardar tus instrucciones personalizadas. Inténtalo de nuevo.";
 "app_icon_title" = "Icono";
-"app_icon_help" = "Se muestra en el chat, en la barra lateral y en el botón de IA de las notas. Solo se guarda en este dispositivo.";
 "app_icon_choose_character" = "Elegir un personaje";
 "app_icon_upload_image" = "Subir una imagen";
 "app_icon_could_not_save" = "No se pudo guardar el icono en este dispositivo.";
@@ -273,7 +272,6 @@
 "ask_notefable" = "Preguntar a NoteFable";
 "quote" = "Cita";
 "remove_quote" = "Quitar cita";
-"attach_pages_help" = "La IA lee las páginas que adjuntas como contexto para este chat. Vuelven a leerse con cada mensaje, así que siempre se usan tus últimos cambios.";
 "attach_pages_submit" = "Adjuntar";
 "err_pages_image_mode" = "No se pueden adjuntar páginas al crear una imagen. Quítalas o desactiva la creación de imágenes.";
 "create_page" = "Crear nota";
@@ -486,10 +484,8 @@
 "sb_err_save_project" = "No se pudo guardar el proyecto. Inténtalo de nuevo.";
 "sb_loading" = "Cargando…";
 "sb_instructions" = "Instrucciones";
-"sb_instructions_help" = "Se aplica a todos los chats de este proyecto. Indica para qué es el proyecto, en qué idioma debe responder y qué formato usar.";
 "sb_instructions_placeholder" = "Ejemplo: Ayúdame a redactar correos comerciales en japonés. Mantén un tono cortés y responde primero con un borrador breve.";
 "sb_reference_notes" = "Notas de referencia";
-"sb_reference_notes_help" = "Solo las notas que elijas aquí se comparten con la IA en los chats de este proyecto. Se leen en tiempo real, así que tus últimos cambios se aplican desde el próximo mensaje.";
 "sb_selected_notes" = "Notas seleccionadas";
 "sb_remove_title" = "Quitar %1$s";
 "sb_filter_notes" = "Filtrar tus notas";

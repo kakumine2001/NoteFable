@@ -77,9 +77,6 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
             {t("Your notes")}
             <span className={`project-settings-count${full ? " is-full" : ""}`} aria-live="polite">{selected.length}/{MAX_MESSAGE_NOTES}</span>
           </h3>
-          <p className="project-settings-help">
-            {t("The AI reads the pages you attach as context for this chat. They are read again with every message, so your latest edits are used.")}
-          </p>
           {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected notes")}>
             {selected.map((page) => <li key={page.id} className="project-settings-chip">
               <FileText size={13} aria-hidden="true" className="flex-none" />

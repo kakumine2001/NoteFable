@@ -184,12 +184,11 @@
 "settings_personalization" = "個性化";
 "settings_unsaved" = "有未儲存的更改";
 "acct_custom_instructions" = "自定義指令";
-"acct_custom_instructions_help" = "從下一條訊息起適用於你的所有聊天。可以介紹你自己，以及希望 NoteFable 怎樣回答。在專案內，專案的指示優先。";
-"acct_custom_instructions_placeholder" = "例如：我正在備考 JLPT N1。請用簡短的例句講解語法，回答儘量簡潔。";
+"acct_custom_instructions_help" = "寫下你的情況或喜歡的回答方式，所有聊天都會參考。";
+"acct_custom_instructions_placeholder" = "例如：\n- 用輕鬆自然的語氣回答\n- 先說結論，儘量簡短\n- 不確定就直接說，不要瞎猜";
 "acct_err_load_custom_instructions" = "無法載入你的自定義指令。";
 "acct_err_save_custom_instructions" = "無法儲存你的自定義指令，請重試。";
 "app_icon_title" = "圖示";
-"app_icon_help" = "顯示在聊天、側欄和筆記裡的 AI 按鈕上。只儲存在這臺裝置上。";
 "app_icon_choose_character" = "選擇角色";
 "app_icon_upload_image" = "上傳圖片";
 "app_icon_could_not_save" = "無法在這臺裝置上儲存圖示。";
@@ -273,7 +272,6 @@
 "ask_notefable" = "問 NoteFable";
 "quote" = "引用";
 "remove_quote" = "移除引用";
-"attach_pages_help" = "AI 會把你新增的頁面作為這段對話的參考內容。每次傳送都會重新讀取，所以總是使用最新的內容。";
 "attach_pages_submit" = "新增";
 "err_pages_image_mode" = "生成圖片時不能新增頁面。請移除頁面或關閉圖片生成。";
 "create_page" = "整理成筆記";
@@ -486,10 +484,8 @@
 "sb_err_save_project" = "無法儲存專案，請重試。";
 "sb_loading" = "正在載入…";
 "sb_instructions" = "指示";
-"sb_instructions_help" = "適用於此專案的每個聊天。可說明專案用途、回答語言和格式要求。";
 "sb_instructions_placeholder" = "例如：幫我寫日語商務郵件。保持禮貌，先給出一份簡短草稿。";
 "sb_reference_notes" = "參考筆記";
-"sb_reference_notes_help" = "只有在這裡選中的筆記才會提供給此專案聊天中的 AI。每次都會讀取最新內容，修改會從下一條訊息起生效。";
 "sb_selected_notes" = "已選筆記";
 "sb_remove_title" = "移除 %1$s";
 "sb_filter_notes" = "篩選筆記";
