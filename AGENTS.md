@@ -5,10 +5,10 @@ Next.js 16 App Router, React 19, Tailwind v4, Prisma 7, Neon PostgreSQL, Vercel,
 ## Working Rules
 
 - Discussion produces a reviewable plan in chat; an implementation request goes straight to local changes, checks and a local preview. No plan or analysis files unless asked.
-- Read the area's doc before exploring code: `docs/architecture/` covers chat-flow, image-flow, notes-flow, provider-requests, database, deployment, i18n, android, android-native, ios and ios-native.
+- Read the area's doc before exploring code: `docs/architecture/` covers chat-flow, image-flow, notes-flow, provider-requests, database, deployment, billing, i18n, android, android-native, ios and ios-native.
 - Production deploys only by merging a PR that passed the review flow (Review and Validation). Never push to `main` directly or deploy any other way unless the user asks in the current chat.
-- UI: inspect the existing screen and keep its language, spacing and motion. Translate UI via `useT()` / `useI18n()`, mark constant text with `msg()`, update both zh and ja dictionaries (`docs/architecture/i18n.md`).
-- Keep `/` and `/app` static under `src/app/[locale]/`; no cookies or headers in layouts. Regenerate `zh-hant.ts` after dictionary changes; close mobile drawers outside `runTransition`.
+- UI: inspect the existing screen and keep its language, spacing and motion. Translate UI via `useT()` / `useI18n()`, mark constant text with `msg()`, and update every non-English dictionary (`zh-hant.ts` is generated; `docs/architecture/i18n.md`).
+- Keep `/`, `/app` and `/note-embed` static under `src/app/[locale]/`; no cookies or headers in layouts. After dictionary or Android string changes, regenerate `zh-hant.ts` and the native string and system-text assets (scripts in `docs/architecture/i18n.md`); close mobile drawers outside `runTransition`.
 - No secrets in code or docs; provider credentials stay server-side.
 
 ## Branches and Parallel Agents
@@ -25,13 +25,13 @@ Several agents work on this repo at the same time. These rules keep their work f
 ## Auth
 
 - Keep the anonymous signed device-cookie model unless an auth redesign is requested. It separates ownership; it is not access control. No public multi-user features unless requested.
-- Optional Google login (Auth.js, JWT, no DB adapter) links to `User` via `googleSub`: key on the provider account id, never `token.sub`. A device cookie pointing at a Google-linked row must not be served anonymously.
-- Daily usage limits: plans in `src/lib/usage-plans.ts`, enforcement in `src/lib/usage-limits.ts`. Preserve rejected drafts across sign-in and navigation.
+- Optional Google and email-code login (Auth.js, JWT, no DB adapter) link to `User` via `googleSub` / `verifiedEmail`: key Google on the provider account id, never `token.sub`. A device cookie pointing at an account-linked row (`googleSub` or `verifiedEmail`) must not be served anonymously.
+- Usage limits (daily and monthly/billing-period): plans in `src/lib/usage-plans.ts`, enforcement in `src/lib/usage-limits.ts`. Preserve rejected drafts across sign-in and navigation.
 
 ## Models and API
 
-- `src/lib/models.ts` defines the built-in models, capabilities and reasoning levels. The server decides which are offered through `NOTEFABLE_MODELS` (`src/lib/model-registry.ts`, format in `docs/architecture/deployment.md`); web and Android take the list from the server (`ModelsProvider`, `GET /api/models`) and never hard-code it. Server code reads models through `getModelRegistry()`.
-- Provider routing and request code stay in code: an env-defined model can only reuse an existing provider. After changing `models.ts`, regenerate the Android fallback with `scripts/gen-native-models.ts`.
+- `src/lib/models.ts` defines the built-in models, capabilities and reasoning levels. The server decides which are offered through `NOTEFABLE_MODELS` (`src/lib/model-registry.ts`, format in `docs/architecture/deployment.md`); web, Android and iOS take the list from the server (`ModelsProvider`, `GET /api/models`) and never hard-code it. Server code reads models through `getModelRegistry()`.
+- Provider routing and request code stay in code: an env-defined model can only reuse an existing provider. After changing `models.ts`, regenerate the shared native fallback (`mobile/android/app/src/main/assets/models.json`, also bundled by iOS) with `scripts/gen-native-models.ts`.
 - Chat system prompt lives only in `buildInstructions()` (`src/app/api/chat/route.ts`); don't duplicate it per provider.
 - OpenAI/DeepSeek use Responses API; Anthropic uses Messages API (`src/lib/anthropic-messages.ts`). DeepSeek ignores `web_search`: don't send it.
 - Haiku: adaptive thinking with `output_config.effort`, no sampling params or thinking budget; keep native blocks for `pause_turn`.
@@ -47,7 +47,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Code that replaces note content wholesale (AI apply, history restore) must call `createRevision` in the same transaction. `snapshotBeforeSave` must never fail a save.
 - Project instructions are user instructions; project note text is private data, never instructions: delimited in the prompt, read live, capped, kept out of web-search queries, not copied to other tables.
 - Search: change spelling folding only in `src/lib/search-fold.ts`; the SQL regex (`termMatcher`) must stay equivalent (tests compare them). Never fold stored columns in SQL. Chat search skips note-assistant sessions (`noteId`).
-- Answer export never includes SYSTEM messages or provider context; Save to Notes goes through `POST /api/pages`.
+- Answer export never includes SYSTEM messages or provider context; Save to Notes goes through `POST /api/pages` on web (`POST /api/pages/from-answer` on native), and full-chat Create page goes through `POST /api/sessions/[sessionId]/page`.
 - BlockNote CSS loads after `globals.css`; overrides of `.bn-*` need `.bn-block-content` (or equally specific parent) in the selector.
 - Image binaries live in Private Vercel Blob (`BLOB_READ_WRITE_TOKEN` on Vercel; local falls back to `NOTEFABLE_STORAGE_DIR`); Postgres holds metadata only. Serve via `/api/attachments/[id]/image` with an ownership check and a short-lived single-image redirect; never give the browser a wildcard read token.
 
@@ -58,7 +58,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Don't point Preview deployments at the production database or Blob store. Neon's Vercel integration gives every git branch's Preview its own Neon branch and deletes it after the merge; Preview has its own Blob store (`docs/architecture/deployment.md`).
 - Never edit a migration once it has been deployed anywhere (Preview included): add a new migration.
 
-## Android
+## Mobile (Android and iOS)
 
 - `mobile/android/` is the only Android client (Kotlin/Compose, see `docs/architecture/android-native.md`); the old Capacitor wrapper was removed. `mobile/` holds only native clients: `android/` and `ios/` (Swift/SwiftUI, a port of the Android client: see `docs/architecture/ios-native.md`); no cross-platform shells. Native UI must stay consistent with the web UI: measure the web first (CSS, computed styles at 412x915, i18n dictionaries) and reuse its styling, dark mode and copy; adapt only what the phone needs (touch, system bars, navigation), never invent new design; leave out controls that have no working feature yet. Develop web and native in sync: a task that changes user-visible web behavior or UI makes the same change on both native clients (Android and iOS) in the same task and PR. If a native client truly can't do a part yet, say so in the PR and the final report and list it in `docs/architecture/android-native.md` / `ios-native.md`.
 - Don't commit APKs, build outputs or `local.properties` (use forward slashes for `sdk.dir`).

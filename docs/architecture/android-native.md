@@ -11,7 +11,7 @@
 - 笔记编辑器是 BlockNote（自定义块、图片/文件块、拖拽、历史版本）。原生重写工作量大、很难和网页保持一致，收益远低于聊天，所以保留 WebView，只把列表、导航、顶栏做成原生（见路线图）。
 - 全部重写会让 Android 和网页两套界面长期各自维护，并且失去"网站更新后 App 不用重新打包"这一点。聊天界面稳定后再接受这个代价，笔记编辑器不接受。
 
-## 现状（0.6.0，阶段 3）
+## 现状
 
 已有：聊天列表抽屉、历史消息、流式回答（SSE，约 40ms 合并一次刷新）、Markdown 渲染、复制回答、模型与推理强度选择（`GET /api/models`，服务器用 `NOTEFABLE_MODELS` 决定开放哪些，见 [deployment.md](deployment.md)；读不到接口时用安装包自带的内置列表）、停止生成、与网页一致的 17 种界面语言 + 自动检测（含阿拉伯语 RTL，见下文“界面语言”）、持久化 Cookie（匿名设备身份）。
 
@@ -72,14 +72,21 @@ Markdown 异步解析下一段流式内容时保留上一帧，避免反复显�
 ```
 mobile/android/
   app/src/main/java/com/kakumine/notefable/
+    MainActivity（唯一的 Activity：语言、外部链接）、NoteFableApp（Application：Cookie jar、接口、App 级的 Store）
+    auth/   GoogleIdToken（Credential Manager 取 Google ID 令牌）
     data/   NoteFableApi（各接口）、NoteFableHttp（共用的 OkHttp 客户端、JSON 请求、ApiException）、PersistentCookieJar、
-            ChatStreamParser、DTO、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
-            IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、AccountApi（改资料、上传头像）
+            ChatStream（ChatStreamParser）、Dto、ChatBackend / AccountBackend（ViewModel 依赖的接口）、SystemText（服务端系统文的译文）、Activity（回答的过程与提案）、ProposalApi（提案的应用 / 放弃与状态）、ExportApi（回答存到笔记、下载对话）、ImageSaver（生成图片存相册）、Notes（笔记 DTO、NotesBackend、JS 桥消息）、
+            IdentityGate（身份确定前只放一个请求）、NoteFiles（笔记文件链接与下载）、AccountApi（改资料、上传头像）、
+            AppLanguage（界面语言）、AppIcon / Characters（图标与预设角色）、Attachments（附件限制）、UsageLimits、PlayBilling（Play 结算）、ReportApi（报告回答）、
+            SessionsApi / ProjectsApi（侧栏的聊天与项目）、NoteIconApi、SearchApi / SearchFold / ChatLink（搜索与聊天链接）、ChatQuote（引用追问）、MathMarkdown（公式）、EmojiCatalog（表情数据）
     ui/     ChatViewModel（状态与流式逻辑）、NotesViewModel（列表、项目、拖动排序、回收站、离开前保存）、NoteFableRoot（抽屉、模式切换）、
-            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerActions（回答的"…"菜单，含“报告回答”ReportAnswerDialog）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
-            NotesUi（侧栏笔记部分、首页、对话框、回收站）、AccountUi / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、SettingsDialog（自定义指令；底部的“删除账号”在 DeleteAccountSection）、NoteEditor（顶栏 + WebView + JS 桥）、Lucide、Theme
+            ChatScreen（顶栏、消息列表、输入栏、模型抽屉）、GuestLimitPrompt（上限登录提示）、AssistantTurn（一条回答）、AnswerMarkdown（正文、表格、公式）、AnswerActions（回答的"…"菜单）、ReportAnswerDialog（“报告回答”）、ChatActivity（过程面板）、ProposalCard、CodeBlock（代码块与高亮）、ChatSidebar（侧栏的聊天部分）、ReorderDrag（聊天和笔记列表共用的拖动排序）、
+            AttachUi / AttachPagesDialog / CreatePageDialog / ChatRecentNotes（“＋”抽屉、添加页面、整理成笔记、最近编辑）、TurnActions（编辑、重新生成、版本切换、分支）、QuoteSelection（引用追问）、ChatFollow（跟随底部的规则）、
+            ChatActions / ProjectSettings / SidebarViewModel / SessionIconSync（侧栏菜单、项目设置、聊天图标）、SearchScreen / SearchViewModel、EmojiPicker、
+            NotesUi（侧栏笔记部分、首页、对话框、回收站）、NotePageMenu（编辑页“…”菜单）、NoteFileDownloads、AccountUi / AccountViewModel / AvatarCropper（账号行、个人资料、头像裁剪）、SignInDialog（Google / 邮箱验证码）、
+            SettingsDialog / SettingsNav / SettingsParts（两级设置）、LanguageUi、AppIconSettings、PlanSettings（方案与购买）、DeleteAccountSection（删除账号）、HelpMenuUi（帮助菜单）、NoteEditor（顶栏 + WebView + JS 桥）、Mascot、SystemTextUi、Lucide、Theme
   app/src/main/assets/   models.json、system-text.json、usage-limits.json、emoji.json（都由 scripts/ 下的脚本从网页源码生成，不手改）
-  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SystemText、ApiException、Activity、ProposalStore、代码高亮与表格列宽、表情与图标、笔记接口与桥消息的单元测试（假后端 / MockWebServer，不联网）
+  app/src/test/   ChatStreamParser、ChatViewModel、NotesViewModel、SidebarViewModel、SearchViewModel、AccountViewModel、SystemText、ApiException、Activity、ProposalStore、AppLanguage、PlayBilling、代码高亮与表格列宽、表情与图标、笔记接口与桥消息等的单元测试（假后端 / MockWebServer，不联网）
 ```
 
 - 应用 ID（`applicationId`）和 Kotlin 包 / `namespace` 都是 `com.kakumine.notefable`，名称 "NoteFable"。Google 登录用 Google Cloud 里登记的 Android 客户端 `NoteFable-Android`（按应用 ID + Play 应用签名登记），所以只有 Play 签名的包能用 Google 登录。服务器地址（`gradle.properties` 的 `notefable.baseUrl`）是工作区的主机 `https://app.notefable.com`；帮助菜单打开的介绍页和法律页面用 `notefable.siteUrl`（`https://notefable.com`，`BuildConfig.SITE_URL`）。服务端只在工作区主机提供 `/api/*` 和 `/note-embed`（[deployment.md](deployment.md)）。1.0.10 及以前的包（没有公开发布过）连的是 `notefable.com`，已经连不上，要更新；从那些版本升级上来不搬 Cookie，要重新登录，匿名数据从新身份开始。聊天链接（`ChatLink`）把 `app.notefable.com`、`notefable.com` 和 `www.notefable.com` 当成同一个站。
@@ -91,11 +98,11 @@ mobile/android/
 - 请求：`POST /api/chat` 用 multipart 表单，字段与网页的 FormData 相同（`message`、`sessionId`、`model`、`reasoning`、`webSearch`）。读不到模型列表时不带 `model` / `reasoning`，由服务端用默认值。
 - 响应：`text/event-stream`，`data: "文本"` 是增量，`data: {"activity":…}` 是过程事件，新聊天的会话 ID 在响应头 `X-Session-Id`。解析规则与 `src/lib/chat-stream.ts` 保持一致。
 - 错误文与系统文：服务端 API 返回的是英文原句（`msg()` / `fmt()` 只做标记，网页端拿它当键用 `t()` / `localizeSystemText` 翻译）。原生端用安装包里的 `assets/system-text.json` 做同样的事（`data/SystemText.kt`，界面里用 `rememberSystemText()`）：整句命中词典就换成译文；命中 `SYSTEM_TEXT_TEMPLATES` 的句型（如 `Read “{title}”`、`Request failed: {detail}`）只翻译句型，标题、文件名、搜索词原样保留，`{detail}` 再翻一次；都不命中就显示英文原句。回答中途失败时服务端把"Request failed: …"接在正文后面，并在 activity 里记下位置（`failure`：offset + detail），原生端和网页一样只替换那个位置上的那句话，不从措辞猜测。连不上服务器（断网、域名解析失败、连接被拒或超时、TLS 握手失败）时，回答下方的失败原因不用 OkHttp 的英文原句（还带着主机地址），换成网页字典里的 "Check your connection and try again."（`chatFailureDetail`，显示为"请求失败：请检查网络连接后重试。"；网页这里接的是浏览器自己的英文 "Failed to fetch"）；服务端返回的错误照旧显示原句。目前用在回答的失败文、笔记与账号的错误提示，以及 429 使用上限：和网页（`chat-message.tsx` 的 `usageLimit` 分支）一样，上限句子替换回答正文、只用 `t` 翻译，按普通回答显示，不套「请求失败：」也不标红（`UiMessage.usageLimit`）。上限时恢复被拒的草稿和登录提示见“输入栏与使用上限”；笔记工具的完成标签在过程面板里同样经词典翻译。
-  - 词典由 `npx tsx scripts/gen-native-system-text.ts` 生成：从 `src/app/api` 的路由沿 import 收集 `msg()` / `fmt()` 的句子，加上 `zh-server.ts` 的全部键和 `SYSTEM_TEXT_TEMPLATES`，译文取自网页的中 / 日字典（缺译文时生成失败）。改了服务端的句子或字典后重新生成；`src/lib/native-system-text-asset.test.ts` 在资源过期时失败。
+  - 词典由 `npx tsx scripts/gen-native-system-text.ts` 生成：从 `src/app/api` 的路由沿 import 收集 `msg()` / `fmt()` 的句子，加上 `zh-server.ts` 的全部键和 `SYSTEM_TEXT_TEMPLATES`，译文取自网页的全部 16 种非英文语言的字典（缺译文时生成失败）。改了服务端的句子或字典后重新生成；`src/lib/native-system-text-asset.test.ts` 在资源过期时失败。
   - 错误响应解析成 `ApiException`（`data/NoteFableHttp.kt`）：`message` 是服务端原句（读不到时 "HTTP <状态码>"），429 使用上限另有 `code`（`usage_limit`）、`tier`、`kind`（`src/lib/usage-limits.ts`），`isUsageLimit` 判断是否是上限。
 - 首次启动、登录、退出后：设备 Cookie 由第一个到达服务端的请求签发（退出后设备 Cookie 指向已绑定 Google 的用户，服务端会重新签发匿名身份）。几个请求同时发出的话会各签发一个身份，后到的 Cookie 覆盖先到的，前面那个身份下建的聊天 / 笔记就读不回来。所以 `NoteFableHttp` 的 OkHttp 客户端装了 `IdentityGate`（`data/IdentityGate.kt`，聊天、笔记、账号、附件图片、笔记文件下载共用）：身份未确定时第一个本站请求单独走，其它请求等它拿到响应（Set-Cookie 已存进 Cookie jar）再走；之后并行。登录成功和退出时 `reset()`，下一个请求又单独走；网络错误不算确定；`/api/models` 不读也不签发身份，不排队也不算确定（否则启动时它先回来就把闸门打开了）。聊天发送前另外还会等会话列表请求结束（`awaitSessionsRequest`）。
 - 同一时刻只认最新一次会话列表刷新和历史读取，被取消的在途请求结果会被丢弃；历史加载中不能发送。
-- 流式请求不设读超时，思考型模型可能很久没有输出。停止生成会取消底层网络请求（只停当前聊天）；切换聊天不停回答，见下文“后台生成”。停止后不用服务器版本覆盖屏幕，只有正常结束才对账。
+- 流式请求不设读超时，思考型模型可能很久没有输出。停止生成只停当前聊天：先请求 `POST /api/sessions/:id/stop`，由服务端结束流后按正常结束对账，请求不成功才取消底层网络请求（见下文“回答体验”）；切换聊天不停回答，见下文“后台生成”。
 
 ## 后台生成（每个聊天各自的回答）
 
@@ -123,7 +130,7 @@ mobile/android/
 - **阿拉伯语 RTL**：`AndroidManifest.xml` 开启 `android:supportsRtl="true"`；切到 `ar` 时 Compose `LocalLayoutDirection` 变为 `Rtl`，`ModalNavigationDrawer` 从右侧抽入；`Lucide.kt` 自动水平镜像方向性图标（返回、前进、折叠箭头、收起侧栏、移入文件夹、退出登录），过程面板与提案卡片展开箭头按方向旋转，侧栏激活蓝条、子页面竖线及浮动菜单位置随 `LayoutDirection` 镜像；阿拉伯脚本标题和标签设 `letterSpacing = 0.sp` 保护连写，代码块、独立数学公式和 6 位验证码输入框固定 `LayoutDirection.Ltr`。
 - `AccountLocaleSync` 只随账号状态变化；账号 `null` 是权威 Auto，缺字段（`LOCALE_UNKNOWN`）保持不动，未登录保留本机选择。退出 / 删除账号后清空本机偏好。
 - 资源生成：繁体由 `npx tsx scripts/gen-native-zh-hant.ts` 从 `values-zh` 生成；新增的 13 种语言由 `npx tsx scripts/gen-native-strings.ts` 从 `res/values` 与 Web 字典生成（印尼语使用 Android 标准资源目录 `values-in`，巴西葡语使用 `values-pt-rBR`）；服务端系统文由 `npx tsx scripts/gen-native-system-text.ts` 生成。
-- 验证限制：沙盒受限环境无法下载 Gradle 分发包，已通过 `native-language.test.ts`（255 份 XML 格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试验证，Android Gradle 编译 / JUnit 运行与真机 RTL 手感待可联网构建环境验证。
+- 验证：`native-language.test.ts`（255 份 XML 格式、键集合、占位符与 `locales_config.xml` 校验）及资源一致性测试；Android 的 JUnit 由 PR 检查（`android-pr.yml`）运行；真机 RTL 手感待验证。
 
 ## 侧栏：置顶、聊天项目与整理
 
@@ -215,7 +222,7 @@ mobile/android/
 - 子页面、收藏、页面菜单（网页 notes-sidebar / notes-home / note-page-menu，规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)）：`NotePageSummary` 带 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`。侧栏和首页只按项目列最上层的页面，子页面在展开的父页面下缩进（侧栏左距 12 + 1px 竖线，首页左距 24）；每行都有展开箭头（侧栏 20×28 Chevron 14，首页 28×48 Chevron 18，浅灰），没有子页面时展开显示 “No pages inside”；展开状态存在本机（`NotesPrefs.expandedPages`），打开着的笔记的祖先总是展开。侧栏行多一个 “+”（Add a page inside，`POST /api/pages` 带 `parentId`）；项目和 “No project” 后的数字含子页面。收藏在 Projects 上面（侧栏 FAVORITES 标签 + 平铺的行，右侧 StarOff 移除；首页 “Favorites” 小标题 + 行）。移到回收站时子页面一起移进去（`DELETE` 返回的 `ids`），恢复时一起回来，永久删除时回收站里的子页面一起删；确认框加一句 “Its sub-pages move to Trash with it.”。移动对话框在项目下面列页面树（可筛选；自己和子孙不列），走 `PUT /api/pages/:id/parent`；移进项目会脱离父页面。
 - 编辑页顶栏最右边是 “…”（`NotePageMenu.kt`，菜单外框与聊天的 `ActionsMenu` 相同，宽 248）：Style（Default / Serif / Mono）、Small text、Full width、Lock page 开关，Add to / Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置走 `PUT /api/pages/:id/settings`、收藏走 `/favorite`，成功后调 `window.notefableEmbed.pageSettings(<一览项 JSON>)` 让编辑器立即变宽、换字体、变成只读；锁定时顶栏多一个锁的按钮（高 32，Lock 14），点一下解锁。Duplicate 先 flush（打开的是它或它的子页面时），再 `POST /api/pages/:id/duplicate`，按返回的新顺序放进列表并打开复制件。单元测试见 `NotesViewModelTest` 里子页面、移动、设置、复制的几条。
 
-编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<zh|ja|en>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
+编辑器仍是网页的 BlockNote：编辑页的 WebView 打开 `<baseUrl>/note-embed?page=<id>&lang=<界面语言代码>&model=<id>&reasoning=<effort>`（网页只渲染笔记正文，没有网页的顶栏和侧栏）。`model` / `reasoning` 是聊天里选的模型和推理强度（模型列表读到之后才带），编辑器里的 AI 助手用它们；网页按服务端的模型列表核对，列表里没有的模型不用，选不了的强度换成默认。加载前先清空 WebView 的 Cookie，再把 App 的 Cookie（`notefable_device`、Auth.js 会话）拷进 `CookieManager`，所以身份与 API 相同，退出登录后网页也不会沿用旧会话。JS 桥约定见 `src/lib/native-bridge.ts`，两边一起改：
 
 - 网页 → App：`window.NoteFableNative.postMessage(json)`，消息 `ready`（页面数据读好；带页面 id，冲突后"另存为新笔记"时网页换到副本并用副本的 id 再发一次，App 把打开的笔记换成副本，WebView 不重新加载）、`meta`（标题 / 图标变了，原生顶栏和列表即时更新）、`saveState`（`saved / saving / unsaved / error / conflict`，顶栏显示"已保存 / 正在保存… / 未保存 / 保存冲突"）、`missing`（笔记不存在或已在回收站，或编辑中保存返回 404：直接关闭并刷新列表，草稿留在 WebView）、`trashed`、`flushed`。
 - App → 网页：`window.notefableEmbed.flush("<requestId>")`，网页保存后回 `{type:"flushed", requestId, ok, kept?}`；`openHistory()` 打开网页的版本历史。聊天里应用了编辑提案、被改的笔记正开着时，App 调 `pageUpdated(<page JSON>)`，把 apply 返回的新版本交给网页（走网页 `notefable:page-updated` 的同一条路：没有未保存的编辑就换成新版本，有就提示冲突），不然下次保存会 409。
@@ -224,7 +231,7 @@ mobile/android/
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。
 - 聊天输入栏的草稿放在 `ChatViewModel.draft`（Compose 状态），切到笔记再切回来还在；消息真正发出去后才清空。
-- 编辑页按"最初打开的页面"分（`OpenNote.editor`），消息也按它转发；副本替换后 `OpenNote.id` 变成副本，换语言重新加载时用副本的地址。
+- 编辑页按"最初打开的页面"分（`OpenNote.editor`），消息也按它转发；副本替换后 `OpenNote.id` 变成副本，WebView 重新加载（渲染进程被杀后）时用副本的地址；换语言不重新加载，见“界面语言”。
 - WebView 的渲染进程被系统杀掉或崩溃时（`onRenderProcessGone`）不让整个 App 退出：丢掉这个 WebView，换一个新的重新加载，没保存的编辑由网页的本地草稿恢复。
 - 返回键先交给网页：WebView 能后退就后退；有打开的 `<dialog>`（版本历史等）就发 `cancel` 事件关最上面一层（原生调用打开的面板没有用户手势，浏览器不一定为它留历史记录）；都没有才保存并回列表。返回顺序：笔记 → 列表 → 聊天 → 退出。
 - WebView：开 JS 和 DOM Storage、禁止混合内容、不允许 file/content 访问；只有本站的 `/note-embed` 在 WebView 里打开，其它链接交给系统浏览器；图片 / 文件块用系统文件选择器（`onShowFileChooser`）；只有 debug 包能用 Chrome 调试 WebView。
@@ -272,7 +279,7 @@ cd mobile/android
 ## 路线图
 
 1. ✅ 聊天（本阶段）。
-2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的中 / 日译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
+2. 附件与图片：✅ 文件选择上传、拍照、粘贴图片和「生成图片」模式；✅ 服务端错误文的各语言译文（系统文词典）；✅ 上限时恢复草稿与登录提示；✅ 生成图片的保存、推理 / 搜索 / 笔记工具的进度面板、笔记提案卡片（见“回答体验”）。
 3. ✅ 笔记：原生笔记列表、项目（分组）、回收站、拖动排序（0.4.0）；编辑器用 WebView 加载网页的 `/note-embed`，通过 JS 桥同步标题、保存状态、离开前保存和返回键。还差：侧栏里给正打开着的笔记改图标（要先给编辑器加桥接口）。（搜索见“搜索与跳转”。）
 4. 账号：已有统一登录弹窗、Credential Manager Google 登录、邮箱验证码登录、退出，以及设置（显示名和头像（照片 / 表情）、存到账号的界面语言、自定义指令）。Google 沿用 `/api/native-auth/*`（受众仍是 Web 客户端 ID），邮箱用 `/api/auth/email/*`；仍需完成真实账号流程验证。Google Cloud 只登记 `NoteFable-Android`（包名 + Play 应用签名），本机签名的包没有 Google 登录。
 5. ✅ 替换 Capacitor 外壳：外壳代码已删除。

@@ -10,13 +10,14 @@ mobile/ios/
   Package.swift        只用来单独编译、测试 NoteFable/Core（macOS / Linux）
   Config/              xcconfig：服务器地址、Google 客户端 ID、签名
   Support/             Info.plist、entitlements
+  scripts/             core-check.sh（Linux 容器里编译 / 测试 Core）、ci-core-tests.sh（CI 上跑 Core 测试）
   NoteFable/
     App/               入口（@main）
     Core/              不依赖 SwiftUI / UIKit 的一层：网络、接口、DTO、解析、ViewModel
       App/（依赖装配 AppEnvironment、导航 AppRouter）  Support/  Networking/  Models/  API/
       Chat/  Notes/  Sidebar/  Search/  Account/  Text/
     DesignSystem/      Theme（Sm 颜色）、Lucide 图标、Mascot、通用控件
-    Features/          各界面：Root、Chat、Sidebar、Notes、Search、Account、Settings
+    Features/          各界面：Root、Chat、Sidebar、Notes、Search、Account、Settings、Shared
     Resources/         Assets.xcassets、<语言>.lproj/Localizable.strings
                        （打包的 JSON 资源和 Android 共用，project.yml 直接引用 mobile/android/app/src/main/assets/，不另存一份）
   Tests/NoteFableCoreTests/   Core 的单元测试（XCTest）

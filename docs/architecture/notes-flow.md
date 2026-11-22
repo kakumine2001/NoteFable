@@ -30,7 +30,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序与 Chat 一致：New note → Projects → Notes；Projects 可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序：New note → Home → Search → Favorites（有收藏时）→ Projects → Notes（底部另有 Trash）；Projects 可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New project。笔记项目与聊天项目仍独立存储。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
@@ -42,10 +42,10 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 仿 Notion 的页面层级和页面菜单（`src/lib/note-tree.ts` 是前端用的纯函数，`src/lib/note-tree-server.ts` 是服务端的递归查询和元数据写入）。
 
-- **子页面。** `NotePage.parentId` 指向父页面（null 为最上位），层数不限。子页面的 `groupId` 始终与最上位的祖先相同：移入页面、移入/移出项目、拖动重排、从 Trash 复原时，整棵子树的 `groupId` 一起改。不能把页面移到自己或自己的子孙之下（400 `A page cannot be moved into its own sub-page.`）。父页面不在列表里（例如在 Trash）时，子页面当作最上位显示。
+- **子页面。** `NotePage.parentId` 指向父页面（null 为最上位），层数不限。子页面的 `groupId` 始终与最上位的祖先相同：移入页面、移入/移出项目、拖动重排、从 Trash 复原时，整棵子树的 `groupId` 一起改。不能把页面移到自己（400 `A page cannot be moved into itself.`）或自己的子孙之下（400 `A page cannot be moved into its own sub-page.`）。父页面不在列表里（例如在 Trash）时，子页面当作最上位显示。
 - **侧栏与手机首页。** 每个项目和 Notes 区只列最上位的页面，子页面缩进在父页面下（与项目内的缩进和细线相同）。每行都有展开箭头，没有子页面时展开显示 “No pages inside”；展开状态存在本机（`notefable:note-pages-expanded:v1`，侧栏与手机首页共用），打开的页面的祖先总会展开。侧栏行在悬停时多一个 “+”（Add a page inside），在该页面里新建子页面并打开。拖动重排时，放下的页面成为目标页面的兄弟（同一父页面、同一项目）。
 - **收藏。** `favoritedAt` 非空即为收藏，侧栏和手机首页最上方的 Favorites 按收藏时间列出；从页面菜单或 Favorites 行的按钮移除。
-- **页面菜单（上部栏的 “…”）。** 字体（Default / Serif / Mono）、Small text、Full width、Lock page，以及 Add to/Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置存在 `fullWidth`、`smallText`、`font`、`locked` 列，由 `PUT /api/pages/:id/settings` 单独保存，不增加 `version`，不会和自动保存冲突；`NotesWorkspace` 根据一览里这篇的设置给 `.notes-workspace` 加 `is-full-width`、`is-small-text`、`font-serif`/`font-mono`，`/note-embed` 同样生效。
+- **页面菜单（上部栏的 “…”）。** 字体（Default / Serif / Mono）、Small text、Full width、Lock page，以及 Add to/Remove from Favorites、Duplicate、Add a page inside、Move to、Move to Trash。设置存在 `fullWidth`、`smallText`、`font`、`locked` 列，由 `PUT /api/pages/:id/settings` 单独保存，不增加 `version`，不会和自动保存冲突；`NotesWorkspace` 根据一览里这篇的设置给 `.notes-workspace` 加 `is-full-width`、`is-small-text`、`notes-font-serif`/`notes-font-mono` 和 `is-locked`，`/note-embed` 同样生效。
 - **锁定。** 锁定后编辑器、标题、图标和封面在界面上不可编辑，上部栏显示 “Locked” 按钮，点击即解锁。这是防止误改的界面保护，不是权限：服务端的保存接口、AI 编辑案的适用都不检查它。
 - **移动（Move to）。** 移动对话框列出项目（移到该项目的最上层，并脱离父页面）和页面树（移到该页面之下；自己和自己的子孙不列出，可按标题筛选）。
 - **复制（Duplicate）。** 先保存这篇及其子页面未保存的编辑，再由 `POST /api/pages/:id/duplicate` 在一个事务里复制整棵子树（最多 100 篇，超过返回 400）：标题、图标、封面、正文、页面设置和项目照抄，最上位的标题加 “ (1)”，收藏、历史和 AI 对话不复制；复制件排在原页面的后面，响应带回全部页面的新 `position`。
@@ -55,10 +55,10 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列。只含不在 Trash 里的笔记 |
+| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
 | `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面），也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
 | `POST /api/sessions/:id/page` | 输入栏 “＋” 菜单里的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page, partial }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
-| `POST /api/pages/from-answer` | Android App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
+| `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404） |
 | `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404 |
 | `DELETE /api/pages/:id` | **移入 Trash**（软删除）：给这篇和全部子页面写同一个 `deletedAt`，响应 `{ ok: true, ids }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
@@ -113,7 +113,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 笔记里的 AI 助手
 
-打开笔记时，右下角有一个圆形的 AI 按钮（`src/components/note-assistant.tsx`，电脑 52px、手机 56px，里面的角色 34px；面板里回答上方的角色 24px，聊天里是 32px）：显示当前所选的 AI 角色（默认 Quill）或上传图标，预设角色带有轻量待机及输入 / 思考 / 回答 / 完成 / 报错状态反馈动画（悬浮按钮尺寸固定，不挤压或移动笔记正文；系统开启“减少动态效果”时静止）。电脑上点开是浮在按钮上方的小面板，手机上是底部弹出的面板（端上的“返回”键可以关闭）。面板里可以输入要求，或点常用按钮（Improve writing、Fix spelling & grammar、Summarize、Make it shorter、Continue writing）。发送前先把正在输入的内容保存（`NoteSaveQueue.flush`），保存不了（例如有冲突）就不发送。
+打开笔记时，右下角有一个可自由拖动到视口任意位置的圆形 AI 按钮（`src/components/note-assistant.tsx`，电脑 52px、手机 56px，里面的角色 34px；面板里回答上方的角色 24px，聊天里是 32px；位置持久化在当前浏览器 `localStorage` 的 `notefable:note-ai-fab`，`src/lib/fab-position.ts`）：显示当前所选的 AI 角色（默认 Quill）或上传图标，预设角色带有轻量待机及输入 / 思考 / 回答 / 完成 / 报错状态反馈动画（悬浮按钮尺寸固定，不挤压或移动笔记正文；系统开启“减少动态效果”时静止）。电脑上点开后按按钮所在位置经 `panelPlacement()` 动态浮在上方或下方，手机上是底部弹出的面板（端上的“返回”键可以关闭）。面板里可以输入要求，或点常用按钮（Improve writing、Fix spelling & grammar、Summarize、Make it shorter、Continue writing）；输入栏提供 “＋” 菜单（添加文件或照片、添加页面，支持粘贴图片，发送 `uploads` 与 `pages`）、网页端内联模型/推理选择（`/note-embed` 隐藏，改用 App 传入的模型）以及网页端撞上限时的 `UpgradePrompt`（`/note-embed` 不显示）。发送前先把正在输入的内容保存（`NoteSaveQueue.flush`），保存不了（例如有冲突）就不发送。
 
 面板直接调用 `/api/chat`，额外带上 `noteId`（并固定 `webSearch=off`），使用聊天里当前选的模型和推理强度。服务端确认该笔记属于当前用户（否则 404），新建的会话写入 `Session.noteId`，并在共享的 `buildInstructions()` 里加一行说明“用户正在这篇笔记里提问”，要求先 `read_note` 再 `propose_note_edit`。带 `noteId` 的请求只能续用 `noteId` 相同的会话，普通聊天也不能续用笔记会话（否则 404）；这些会话不会出现在 Chats 列表里，也不会被跨 Chats/Notes 搜索命中。笔记放进 Trash 时这些会话保留（`Session.noteId` 不动），只有笔记被永久删除时才随笔记一起级联删除；笔记在 Trash 期间不能再向它发送助手请求（`/api/chat` 的笔记校验带 `deletedAt: null`，返回 404）。面板只在页面打开期间保留这段对话，刷新后重新开始。
 
@@ -131,23 +131,23 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。`20260930150000_note_pages` 迁移只增加 NotePage 表、归属外键和列表索引；`20261006120000_note_page_icon_cover` 只追加可空的 `icon`、`cover` 列；`20261006130000_note_page_cover_position` 只追加可空的 `coverPosition` 列；`20261006140000_note_cover_assets` 新增 `NoteCoverAsset` 表；`20261006150000_note_cover_asset_deleting` 追加 `deletingAt` 列，并把已有的上传封面登记为使用中；`20261014120000_note_groups` 新增 `NoteGroup` 表和可空的 `NotePage.groupId`；`20261015100000_note_trash_and_revisions` 新增可空的 `NotePage.deletedAt`（及 `(userId, deletedAt)` 索引）、枚举 `NoteRevisionReason` 和 `NoteRevision` 表（均为追加，不改动已有数据）；`20261116000000_note_page_tree_settings` 追加 `NotePage.parentId`（自引用外键，`SetNull`）、`favoritedAt` 和带默认值的 `fullWidth`、`smallText`、`font`、`locked`，同样只追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）和 `20261116100000_message_notes`（`MessageNote`），均为非破坏追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
 桌面侧栏和手机 Notes 首页没有单独的拖动柄：直接拖动整行（触屏长按后拖），拖动时显示插入线；焦点在行上时 Alt+↑/↓ 也可移动。`POST /api/pages/reorder` 接受 `{ id, targetId, after }`，服务端在用户级事务锁内验证两个页面归属并保存完整顺序；拖到其他分组的页面旁会随之移动分组。排序只更新列表元数据，不改变正文、版本或保存时间；编辑器保存响应沿用当前列表的顺序与分组。刷新请求若早于排序完成，不会把顺序恢复成旧值。排序只涉及不在 Trash 里的笔记；放进 Trash 的笔记保留自己的 `position` 值，复原后按这个值和创建时间重新参与排序（期间其他笔记被重排过的话，不保证回到完全相同的位置）。
 
-## Android 应用内嵌编辑器（`/note-embed`）
+## 原生应用内嵌编辑器（`/note-embed`）
 
-原生 Android 应用（`mobile/android`）自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=en|zh|zh-Hant|ja`，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，由 `src/proxy.ts` 像 `/app` 一样 rewrite；要打开的页面 ID 在浏览器端从 URL 读取。
+原生 Android（`mobile/android`，`WebView`）与 iOS（`mobile/ios`，`WKWebView`）应用自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=<locale>`，支持全部 17 种已启用语言，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，在工作区主机由 `src/proxy.ts` 像 `/app` 一样 rewrite（分域后从主域 `notefable.com` 访问 `/note-embed` 或 `/<locale>/note-embed` 会 307 重定向到工作区主机 `app.notefable.com`）；要打开的页面 ID 在浏览器端从 URL 读取。
 
-- **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、版本历史和保存状态由应用的原生顶栏负责（与网页手机顶栏一样没有“更多”菜单）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
+- **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、锁定按钮、版本历史、保存状态和“…”页面菜单（字体 / 小字号 / 全宽 / 锁定 / 收藏 / 复制 / 新建子页面 / 移动 / 移入回收站）由应用的原生顶栏负责（与网页端顶栏一致）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
 - **保存与恢复照旧。** 一秒防抖自动保存、`notefable:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
-- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）写入 WebView 的 `CookieManager`。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
+- **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）同步到 WebView（Android 为 `CookieManager`，iOS 为 `WKWebsiteDataStore.httpCookieStore`）。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
 - **AI 按钮的图标。** 页面打开时，`window.NoteFableNative.appIcon` 存在就调用它，拿到应用设置里选的角色或图片（预设角色 `character:<id>` 或图片的 data URL，默认角色 Quill 是空字符串；`readNativeAppIcon`），用 `saveAppIcon` 写进这个 WebView 的 `localStorage`（`notefable:app-icon`），AI 按钮和面板标题随之显示它。读到的值不是预设角色也不是图片（如旧版表情）时按默认角色 Quill 处理；没有这个方法的旧版应用不改已有的值。
 - **AI 模型。** 右下角 AI 助手用 URL 里的 `model` / `reasoning`（`readEmbedModelPreference`，再用 `resolveModelPreference` 按服务端模型列表核对：没有的模型不用，选不了的强度换成默认）；没带或无效时用这个 WebView 里最后一次的选择（localStorage），再没有就用服务端默认。
 
-**网页 → 应用**：存在 `window.NoteFableNative`（`@JavascriptInterface`）时，调用 `window.NoteFableNative.postMessage(JSON.stringify(msg))`，`msg` 为：
+**网页 → 应用**：存在 `window.NoteFableNative`（Android 为 `@JavascriptInterface`，iOS 由 `NoteEditorWebView` 注入转发到 `window.webkit.messageHandlers` 的垫片）时，调用 `window.NoteFableNative.postMessage(JSON.stringify(msg))`，`msg` 为：
 
 | 消息 | 时机 |
 | --- | --- |
@@ -166,6 +166,6 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `pageSettings(page)`：应用在原生的 “…” 菜单里改了字体、Small text、Full width、锁定或收藏后，把 `PUT /api/pages/:id/settings` / `favorite` 返回的 `page`（一览的摘要，JSON 字符串或对象）传进来。网页校验 `id`、把未知的设置值换成默认值，发出 `notefable:page-meta`，`useNotePages` 用它替换这篇的设置，编辑器随即变宽、换字体或变为只读。没有 `id` 时返回 false。
 - `appIcon(icon)`：编辑器开着时应用在设置里换了角色或图片，把新值（预设角色 `character:<id>` 或 `<id>`、图片的 data URL；`null`、`character:quill` 或空字符串是默认角色 Quill）传进来，网页用 `saveAppIcon` 存下并立刻换掉 AI 按钮上的角色或图片。不是预设角色也不是图片时返回 false、什么也不做。
 
-消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改应用端和 [android-native.md](android-native.md)。
+消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 
-语言切换也通过桥就地更新：`window.NoteFableNative.language()` 返回原生当前生效的内部语言代码，`window.notefableEmbed.language(code)` 返回 `Promise<boolean>`。网页校验已启用的代码，复用 `I18nProvider` 的取消、回滚与错误重试。Android 首次加载 / 渲染进程重建才调用 `loadUrl`，语言变化只推送 `language`；网页刚加载完时再发送当前语言，覆盖加载过程中发生的变化。此操作不 flush、不重载、不替换页面正文或编辑器，未保存编辑与笔记 AI 流保持原状。
+语言切换也通过桥就地更新：`window.NoteFableNative.language()` 返回原生当前生效的内部语言代码，`window.notefableEmbed.language(code)` 返回 `Promise<boolean>`。网页校验已启用的代码，复用 `I18nProvider` 的取消、回滚与错误重试。原生端仅在首次加载或渲染进程重建时调用加载 URL，语言变化只推送 `language`；网页刚加载完时再读取/推送当前语言，覆盖加载过程中发生的变化。此操作不 flush、不重载、不替换页面正文或编辑器，未保存编辑与笔记 AI 流保持原状。
