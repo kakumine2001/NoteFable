@@ -13,6 +13,8 @@ export type NativeMessage =
   | { type: "saveState"; state: EmbedSaveState }
   | { type: "missing" }
   | { type: "trashed" }
+  // ノートの中のページのメンションを押した。アプリはそのページを開く（自分のページか、無いかはアプリ側で確かめる）。
+  | { type: "openPage"; id: string }
   // kept: 保存できなかったが、下書きはこの WebView の localStorage に残っていて後で送り直す（衝突ではない）。アプリはこのとき離れてよい。
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 

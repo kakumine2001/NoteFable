@@ -245,6 +245,8 @@ enum EmbedMessage: Equatable, Sendable {
     case saveState(state: String)
     case missing
     case trashed
+    /// 笔记里的页面提及被点了：打开那一页（和回答里的笔记链接一样走 openNoteFromLink）。
+    case openPage(id: String)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
 
@@ -265,6 +267,9 @@ enum EmbedMessage: Equatable, Sendable {
                 return .missing
             case "trashed":
                 return .trashed
+            case "openPage":
+                guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
+                return .openPage(id: id)
             case "flushed":
                 return .flushed(
                     requestId: try text(fields["requestId"]) ?? "",

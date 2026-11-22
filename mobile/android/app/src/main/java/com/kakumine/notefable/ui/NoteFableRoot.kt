@@ -341,6 +341,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
                             EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
+                            is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
                             is EmbedMessage.Flushed -> Unit
                         }
                     },

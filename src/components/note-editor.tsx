@@ -1,15 +1,17 @@
 "use client";
 
-import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, createHeadingBlockSpec, defaultBlockSpecs, type BlockNoteEditor, type Dictionary, type PartialBlock } from "@blocknote/core";
+import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, createHeadingBlockSpec, defaultBlockSpecs, defaultInlineContentSpecs, type BlockNoteEditor, type Dictionary, type PartialBlock } from "@blocknote/core";
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { Check, CheckSquare, ChevronRight, Code2, Copy, Heading1, Lightbulb, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Copy, FileText, Heading1, Lightbulb, Loader2, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { createCalloutBlockSpec } from "@/components/note-callout";
+import { NoteMentionContext, createMentionSpec, formatNoteDate, type MentionPage } from "@/components/note-mention";
+import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention } from "@/lib/note-mention";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
 import type { NoteContent } from "@/types/notes";
 import { useI18n, useT } from "@/components/i18n-provider";
@@ -67,7 +69,7 @@ const schema = BlockNoteSchema.create({ blockSpecs: {
   // Notion の /image /file に相当。アップロードしたものだけを置ける（外部 URL の埋め込みは受け付けない）。
   image: defaultBlockSpecs.image,
   file: defaultBlockSpecs.file,
-} });
+}, inlineContentSpecs: { ...defaultInlineContentSpecs, mention: createMentionSpec } });
 
 type Editor = BlockNoteEditor<typeof schema.blockSchema, typeof schema.inlineContentSchema, typeof schema.styleSchema>;
 export type NoteEditorHandle = { focusStart: () => void; focusEnd: () => void };
@@ -341,6 +343,8 @@ function NoteFormattingToolbar() {
 type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
+  // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
+  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => void;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -380,8 +384,50 @@ export default function NoteEditor(props: NoteEditorProps) {
   return <NoteEditorBody key={locale} {...props} editorRef={innerRef} base={dictionary} />;
 }
 
-function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, base }: NoteEditorProps & { base: Dictionary }) {
-  const { t, dir } = useI18n();
+type MentionItem = DefaultReactSuggestionItem & { key?: string };
+
+function MentionMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<MentionItem>) {
+  const t = useT();
+  const listRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: "nearest" });
+  }, [selectedIndex]);
+  if (!items.length) return <div className="notes-slash-menu"><div className="notes-slash-empty">{t("No results")}</div></div>;
+  return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">
+    {items.map((item, index) => <div key={item.key ?? index}>
+      {item.group && item.group !== items[index - 1]?.group && <div className="notes-slash-group">{item.group}</div>}
+      <button type="button" role="option" aria-selected={index === selectedIndex} className="notes-slash-item"
+        onMouseDown={(event) => event.preventDefault()} onClick={() => onItemClick?.(item)}>
+        <span className="notes-slash-icon">{item.icon}</span>
+        <span className="notes-slash-title">{item.title}</span>
+        {item.subtext && <span className="notes-slash-hint">{item.subtext}</span>}
+      </button>
+    </div>)}
+  </div>;
+}
+
+// /note-embed は一覧を持たないので、「@」やメンションのために自分で読む。
+function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["blocks"]) {
+  const [fetched, setFetched] = useState<MentionPage[] | null>(null);
+  const started = useRef(false);
+  const loadPages = useCallback(() => {
+    if (given || started.current) return;
+    started.current = true;
+    void fetch("/api/pages", { cache: "no-store" }).then((response) => response.ok ? response.json() : null)
+      .then((data: { pages?: MentionPage[] } | null) => { if (data?.pages) setFetched(data.pages.map(({ id, title, icon }) => ({ id, title, icon }))); else started.current = false; })
+      .catch(() => { started.current = false; });
+  }, [given]);
+  // ページのメンションがあるノートは、開いた時にタイトルを最新にするため読む。
+  const hasPageMention = useMemo(() => JSON.stringify(blocks).includes('"kind":"page"'), [blocks]);
+  useEffect(() => { if (hasPageMention) loadPages(); }, [hasPageMention, loadPages]);
+  return { pages: given ?? fetched, loadPages };
+}
+
+function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, base, pages: givenPages, currentPageId, onOpenPage }: NoteEditorProps & { base: Dictionary }) {
+  const { t, dir, locale } = useI18n();
+  const { pages, loadPages } = useMentionPages(givenPages, blocks);
+  const openPage = useCallback((id: string) => onOpenPage?.(id), [onOpenPage]);
+  const mentionContext = useMemo(() => ({ pages, loadPages, openPage }), [pages, loadPages, openPage]);
   const sideMenuFloatingOptions = useMemo(
     () => ({ useFloatingOptions: { placement: sideMenuPlacementFor(dir) } }),
     [dir],
@@ -479,7 +525,37 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     }
   }
 
-  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+  // 「@」の候補: 自分のページと日付（今日・明日・昨日、YYYY-MM-DD を打てばその日）。
+  function mentionItems(query: string): MentionItem[] {
+    loadPages();
+    const typed = query.trim();
+    const q = typed.toLowerCase();
+    const insert = (content: ReturnType<typeof pageMention> | ReturnType<typeof dateMention>) => () => {
+      editor.insertInlineContent([content as never, " "]);
+    };
+    const dates = [
+      { key: "today", title: t("Today"), date: localDate(0) }, { key: "tomorrow", title: t("Tomorrow"), date: localDate(1) }, { key: "yesterday", title: t("Yesterday"), date: localDate(-1) },
+      ...(isNoteDate(typed) ? [{ key: "typed", title: formatNoteDate(typed, locale), date: typed }] : []),
+    ].filter((item) => !q || item.key === "typed" || item.title.toLowerCase().includes(q) || item.key.includes(q))
+      .map((item) => ({ key: `date:${item.key}`, title: item.title, subtext: formatNoteDate(item.date, locale), group: t("Date"), icon: <CalendarDays size={18} />, onItemClick: insert(dateMention(item.date)) }));
+    const pageItems = (pages ?? []).filter((page) => page.id !== currentPageId && (!q || (page.title || t("Untitled")).toLowerCase().includes(q)))
+      .slice(0, 8).map((page) => ({ key: `page:${page.id}`, title: page.title || t("Untitled"), group: t("Link to page"),
+        icon: page.icon ? <span className="notes-mention-menu-emoji">{page.icon}</span> : <FileText size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
+    return [...pageItems, ...dates];
+  }
+
+  // アプリ内のページへのリンク（?view=pages&page=ID）は新しいタブではなく、その場でページを切り替える。
+  function onClickCapture(event: MouseEvent<HTMLDivElement>) {
+    const anchor = (event.target as HTMLElement).closest?.("a[href]");
+    if (!anchor || anchor.classList.contains("note-mention") || !onOpenPage || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    const id = notePageIdFromUrl(anchor.getAttribute("href") ?? "", window.location.origin);
+    if (!id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    onOpenPage(id);
+  }
+
+  return <NoteMentionContext.Provider value={mentionContext}><div className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
     <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
@@ -513,6 +589,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
         // 一覧が長くなるので、色と操作のコマンド（Notion の /red、/blue background、/duplicate、/delete）は文字を打った時だけ候補に出す。
         return filterSuggestionItems(query.trim() ? [...blockItems, ...commandItems(editor, t)] : blockItems, query);
       }} />
+      <SuggestionMenuController triggerCharacter="@" suggestionMenuComponent={MentionMenu} getItems={async (query) => mentionItems(query)} />
     </BlockNoteView>
     {codeHover && <button type="button" className={`notes-code-copy ${copiedId === codeHover.id ? "is-copied" : ""}`} style={{ top: codeHover.top, right: codeHover.right }}
       aria-label={copiedId === codeHover.id ? t("Copied") : t("Copy code")} title={copiedId === codeHover.id ? t("Copied") : t("Copy code")}
@@ -520,5 +597,5 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
       {copiedId === codeHover.id ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={1.8} />}
     </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={focusEnd} />
-  </div>;
+  </div></NoteMentionContext.Provider>;
 }

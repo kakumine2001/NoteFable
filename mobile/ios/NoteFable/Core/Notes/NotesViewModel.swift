@@ -320,6 +320,7 @@ final class NotesViewModel {
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
+        case .openPage(let id): openNoteFromLink(id)
         case .flushed: break
         }
     }

@@ -1,3 +1,4 @@
+import { mentionText } from "@/lib/note-mention";
 import { msg } from "@/lib/i18n/translate";
 
 export const NOTE_TEXT_BLOCKS = [
@@ -48,7 +49,8 @@ export function selectedRootBlocks<T extends TreeBlock<T>>(blocks: T[]): T[] {
 // コードへの変換では表示文字を残し、保存できないリンクや装飾を外す。
 export function codeBlockText(block: { content?: unknown }): string {
   if (!Array.isArray(block.content)) return "";
-  type Inline = { type?: unknown; text?: unknown; content?: unknown };
+  type Inline = { type?: unknown; text?: unknown; content?: unknown; props?: unknown };
   return (block.content as Inline[]).map((entry) => entry.type === "text" ? String(entry.text ?? "")
-    : entry.type === "link" && Array.isArray(entry.content) ? (entry.content as Inline[]).map((text) => String(text.text ?? "")).join("") : "").join("");
+    : entry.type === "link" && Array.isArray(entry.content) ? (entry.content as Inline[]).map((text) => String(text.text ?? "")).join("")
+      : entry.type === "mention" && entry.props && typeof entry.props === "object" ? mentionText(entry.props as Record<string, unknown>) : "").join("");
 }

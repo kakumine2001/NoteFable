@@ -12,6 +12,7 @@ import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav"
 import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
+import { postToNative } from "@/lib/native-bridge";
 import { pageSettingsOf } from "@/types/notes";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
@@ -123,6 +124,9 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           </div>
         </div>}
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
+          // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
+          pages={embedded ? undefined : notes.pages} currentPageId={activeId}
+          onOpenPage={(id) => { if (!embedded) onOpen(id); else if (!postToNative({ type: "openPage", id })) window.location.assign(`/app?view=pages&page=${encodeURIComponent(id)}`); }}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();
             const end = titleRef.current?.value.length ?? 0;
