@@ -41,7 +41,7 @@ describe("localized routing", () => {
     expect(target(route("/app", { language: "ja", cookies: { notefable_device: "x" } }))).toBe("rewrite /ja/app");
   });
 
-  it.each(["chat", "message", "view", "page"])("sends legacy %s links to the workspace", (key) => {
+  it.each(["chat", "message", "view", "page", "share"])("sends legacy %s links to the workspace", (key) => {
     expect(target(route(`/?${key}=existing-id`))).toBe(`redirect /app?${key}=existing-id`);
   });
 

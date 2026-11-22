@@ -495,6 +495,16 @@ final class ChatViewModel {
         externalLinks.yield(link)
     }
 
+    /// 把系统「分享」交来的内容放进一个新聊天的输入栏（不自动发送，用户补一句再发；Android 的 `applyIncomingShare`）。
+    /// 已经在空的新聊天里时不换，输入栏里写了一半的话保留、分享的文字接在后面；换聊天时旧聊天的引用不带过来。
+    func applyIncomingShare(text: String, loadFiles: (@MainActor () async throws -> [LocalFile])? = nil) {
+        let switched = state.activeSessionId != nil || !state.messages.isEmpty
+        newChat()
+        if switched { clearQuote() }
+        if !text.isEmpty { updateDraft(ShareIntake.mergeDraft(existing: draft, shared: text)) }
+        if let loadFiles { importFiles(loadFiles) }
+    }
+
     /// 界面处理完（滚到了、或消息已不存在）后清掉这次定位请求。
     func consumeReveal(_ token: Int) {
         update { if $0.reveal?.token == token { $0.reveal = nil } }

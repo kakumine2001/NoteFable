@@ -15,6 +15,8 @@ struct NoteFableApp: App {
         let router = AppRouter(app: app)
         // 画不出来的表情不进表情面板（要用 CoreText，所以在界面层接上）。
         app.emojiGlyphSupported = { emoji in EmojiGlyphs.isSupported(emoji) }
+        // 系统「分享」：分享扩展写进 App Group 共享目录的内容，在这里取走（Android 的 SEND intent）。
+        app.consumeSharePayload = { id in await ShareInboxBridge.consume(id: id) }
         GoogleSignInBridge.install(into: app)
         app.start()
         router.start()
@@ -56,10 +58,16 @@ private struct NoteFableWindow: View {
                 if let url = activity.webpageURL { open(url) }
             }
             // 回到前台时系统语言可能改过（Android 的 onConfigurationChanged）：按“自动”显示着的话重新解析。
+            // 同时取走分享扩展留下的、还没取的分享（扩展没能唤起 App 时的兜底）。
             .onChange(of: scenePhase) { _, phase in
-                if phase == .active { app.language.systemLanguagesChanged() }
+                if phase == .active {
+                    app.language.systemLanguagesChanged()
+                    router.consumePendingShares()
+                }
             }
             .task {
+                // 冷启动：上次分享扩展留下的分享。
+                router.consumePendingShares()
                 // App 开着的时候改系统语言 / 地区。
                 for await _ in NotificationCenter.default.notifications(named: NSLocale.currentLocaleDidChangeNotification) {
                     app.language.systemLanguagesChanged()

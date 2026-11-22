@@ -21,6 +21,7 @@ final class AppRouter {
     var createPageSessionId: String?
 
     private var linkTask: Task<Void, Never>?
+    private var shareTask: Task<Void, Never>?
 
     init(app: AppEnvironment) {
         self.app = app
@@ -76,12 +77,41 @@ final class AppRouter {
         }
     }
 
-    /// 系统交来的网址（`onOpenURL` / `NSUserActivity`）。不是本站的聊天链接返回 false。
+    /// 系统交来的网址（`onOpenURL` / `NSUserActivity`）。不是本站的聊天链接、也不是分享扩展的 `notefable://share` 返回 false。
     @discardableResult
     func handleIncomingURL(_ url: URL) -> Bool {
+        if let shareId = ShareIntake.parseShareURL(url) {
+            enqueueShare(id: shareId)
+            return true
+        }
         guard let link = ChatLink.parse(url.absoluteString, baseUrl: app.config.baseURL) else { return false }
         app.chat.requestLink(link)
         return true
+    }
+
+    /// App 启动或回到前台时：取走分享扩展留在共享目录里、还没取的分享（扩展没能唤起 App 时的兜底）。
+    func consumePendingShares() {
+        enqueueShare(id: nil)
+    }
+
+    /// 取分享排成一条队：`onOpenURL` 和回到前台几乎同时来，不能两个同时去取（同一份分享会被放进输入栏两次）。
+    private func enqueueShare(id: String?) {
+        let previous = shareTask
+        shareTask = Task { [weak self] in
+            await previous?.value
+            await self?.openIncomingShare(id: id)
+        }
+    }
+
+    /// 取走一份分享，切到聊天、放进新聊天的输入栏（不自动发送）。先关掉检索面板、抽屉和设置。
+    private func openIncomingShare(id: String?) async {
+        guard let payload = await app.consumeSharePayload(id), !payload.text.isEmpty || !payload.files.isEmpty else { return }
+        dismissOverlays()
+        settingsOpen = false
+        let files = payload.files
+        app.notes.setWorkspace(.chat) { [app] in
+            app.chat.applyIncomingShare(text: payload.text, loadFiles: files.isEmpty ? nil : { files })
+        }
     }
 
     /// 登录 / 退出后：旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。

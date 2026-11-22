@@ -44,7 +44,9 @@
 
 1. 注册付费 **Apple Developer Program**，记下 10 位 **Team ID**。
 2. 在 Apple Developer / App Store Connect 中：
-   - 登记 App ID / Bundle ID：`com.kakumine.notefable`，并开启 **Associated Domains**（匹配 `Support/NoteFable.entitlements` 中的 `applinks:app.notefable.com`）。
+   - 登记 App Group：`group.com.kakumine.notefable`（主 App 与分享扩展共享待接收内容）。
+   - 登记 App ID / Bundle ID：`com.kakumine.notefable`，并开启 **Associated Domains**（匹配 `Support/NoteFable.entitlements` 中的 `applinks:app.notefable.com`）与 **App Groups**（勾选 `group.com.kakumine.notefable`）。
+   - 登记分享扩展的 App ID / Bundle ID：`com.kakumine.notefable.ShareExtension`，并开启 **App Groups**（勾选 `group.com.kakumine.notefable`，匹配 `ShareExtension/Support/ShareExtension.entitlements`）。
    - 在 App Store Connect 新建对应的 iOS App 记录。
    - 在 **Users and Access → Integrations → App Store Connect API** 生成 API Key，**权限必须选 `Admin`**（Apple Cloud Signing 需要云端分发证书权限，`App Manager` 会报 `Cloud signing permission error`，且 Key 创建后不能修改权限），下载一次性的 `.p8` 私钥，记下 **Key ID** 和 **Issuer ID**。
 3. 在 GitHub 仓库创建仅允许 `main` 分支部署的 Environment `appstore-publish`，配置 Secrets：

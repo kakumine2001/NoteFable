@@ -136,6 +136,17 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         }
     }
 
+    // 系统分享（MainActivity 的 SEND intent）：同样先关掉检索面板和抽屉，再切到聊天、放进新聊天的输入栏。
+    LaunchedEffect(viewModel) {
+        viewModel.shareRequests.collect { share ->
+            searchOpen = false
+            closeDrawer()
+            notesViewModel.setWorkspace(Workspace.Chat) {
+                viewModel.applyIncomingShare(share)
+            }
+        }
+    }
+
     // 界面语言跟着账号上的语言走（网页 /app 里唯一的 AccountLocaleSync）。
     AccountLocaleSync(account)
 

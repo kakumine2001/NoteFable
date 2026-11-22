@@ -21,6 +21,8 @@ import com.kakumine.notefable.data.selectionError
 import com.kakumine.notefable.data.ChatBackend
 import com.kakumine.notefable.data.ChatLink
 import com.kakumine.notefable.data.ChatProjectNote
+import com.kakumine.notefable.data.IncomingShareRequest
+import com.kakumine.notefable.data.mergeDraftWithShare
 import com.kakumine.notefable.data.MAX_MESSAGE_NOTES
 import com.kakumine.notefable.data.ChatRequest
 import com.kakumine.notefable.data.ChatStreamEvent
@@ -637,6 +639,27 @@ class ChatViewModel(
 
     fun requestLink(link: ChatLink) {
         externalLinks.trySend(link)
+    }
+
+    // 系统「分享」交来的内容（MainActivity 的 SEND intent）：同样交给 NoteFableRoot，先关掉检索面板和抽屉再放进新聊天。
+    private val externalShares = Channel<IncomingShareRequest>(Channel.UNLIMITED)
+    val shareRequests: Flow<IncomingShareRequest> = externalShares.receiveAsFlow()
+
+    fun requestShare(share: IncomingShareRequest) {
+        externalShares.trySend(share)
+    }
+
+    /**
+     * 把分享来的内容放进一个新聊天的输入栏（不自动发送，用户补一句再发）。
+     * 已经在空的新聊天里时不换，输入栏里写了一半的话保留、分享的文字接在后面；换聊天时旧聊天的引用不带过来。
+     */
+    fun applyIncomingShare(share: IncomingShareRequest) {
+        val current = _state.value
+        val switched = current.activeSessionId != null || current.messages.isNotEmpty()
+        newChat()
+        if (switched) clearQuote()
+        if (share.text.isNotEmpty()) updateDraft(mergeDraftWithShare(draft, share.text))
+        share.loadFiles?.let { importFiles(it) }
     }
 
     /** 界面处理完（滚到了、或消息已不存在）后清掉这次定位请求。 */
