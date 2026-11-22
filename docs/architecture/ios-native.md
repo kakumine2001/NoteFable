@@ -8,7 +8,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 - 只通过服务器 API 工作（REST + SSE，默认主机 `https://app.notefable.com`），不改后端。模型列表来自 `GET /api/models`，读不到时用和 Android 共用的 `models.json`。
 - 界面是网页手机视口（412×915）的复刻：尺寸、颜色、文案、动效时长都取自网页和 Android 代码里记的测量值（1pt = 1 CSS px），不自创设计，只做浅色。
-- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`。
+- 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。
 
 **功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
 

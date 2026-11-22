@@ -10,6 +10,7 @@ const { mockLocale, createBlockNoteSpy, sideMenuControllerSpy } = vi.hoisted(() 
 
 vi.mock("react", async (original) => ({
   ...await original<typeof import("react")>(),
+  useCallback: vi.fn((fn: unknown) => fn),
   useEffect: vi.fn(),
   useImperativeHandle: vi.fn(),
   useMemo: vi.fn((fn: () => unknown) => fn()),
