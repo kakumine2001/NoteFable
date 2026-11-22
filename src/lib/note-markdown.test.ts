@@ -230,9 +230,196 @@ describe("toggles, callouts and tables", () => {
     expect(back.rows[1].cells[0].content[0].styles).toEqual({ code: true });
   });
 
-  it("leaves \\| inside ordinary text as written", () => {
-    const [paragraph] = markdownToBlocks("norm $\\|x\\|$");
-    expect((paragraph.content as { text: string }[]).map((entry) => entry.text).join("")).toBe("norm $\\|x\\|$");
+  it("leaves \\| inside ordinary text as written and parses inline math with \\|", () => {
+    const [plain] = markdownToBlocks("norm \\|x\\|");
+    expect((plain.content as { text: string }[]).map((entry) => entry.text).join("")).toBe("norm \\|x\\|");
+    const [math] = markdownToBlocks("norm $\\|x\\|$");
+    expect(math.content).toEqual([
+      { type: "text", text: "norm ", styles: {} },
+      { type: "mathInline", props: { latex: "\\|x\\|" } },
+    ]);
+  });
+});
+
+describe("math blocks and inline math", () => {
+  it("parses block math ($$ fences, single-line $$, ```math) and inline math ($...$, $$...$$) and round-trips", () => {
+    const source = [
+      "Euler's identity $e^{i\\pi} + 1 = 0$ and price \\$5 and \\$10.",
+      "$$",
+      "\\begin{aligned}",
+      "a &= b \\\\",
+      "c &= d",
+      "\\end{aligned}",
+      "$$",
+      "- Nested formula:",
+      "  $$",
+      "  E = mc^2",
+      "  $$",
+      "| Norm | Value |",
+      "| --- | --- |",
+      "| $|x|$ | $x^2$ |",
+    ].join("\n");
+    const blocks = markdownToBlocks(source);
+    expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
+    expect(shape(blocks as unknown as Shape[])).toEqual([
+      ["paragraph", []],
+      ["mathBlock", []],
+      ["bulletListItem", [["mathBlock", []]]],
+      ["table", []],
+    ]);
+    expect(blocks[0].content).toEqual([
+      { type: "text", text: "Euler's identity ", styles: {} },
+      { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } },
+      { type: "text", text: " and price $5 and $10.", styles: {} },
+    ]);
+    expect(blocks[1].props).toEqual({ latex: "\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}" });
+    expect(blocks[2].children[0].props).toEqual({ latex: "E = mc^2" });
+    expect(blocksToMarkdown(blocks)).toBe(source);
+    expect(markdownToBlocks(blocksToMarkdown(blocks)).map((b) => b.type)).toEqual(["paragraph", "mathBlock", "bulletListItem", "table"]);
+  });
+
+  it("handles ```math fences, standalone inline $$ (preserving round-trip), two inline $$ on one line, and unclosed $$ safely", () => {
+    const blocks = markdownToBlocks([
+      "$$\\text{$x$}$$",
+      "```math",
+      "\\frac{1}{2}",
+      "```",
+      "$$a$$ and $$b$$",
+      "$$ unclosed",
+      "next line",
+    ].join("\n"));
+    expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
+    expect(blocks.map((b) => b.type)).toEqual(["paragraph", "mathBlock", "paragraph", "paragraph", "paragraph"]);
+    expect(blocks[0].content).toEqual([{ type: "mathInline", props: { latex: "\\text{$x$}" } }]);
+    expect(blocksToMarkdown([blocks[0]])).toBe("$$\\text{$x$}$$");
+    expect(blocks[1].props).toEqual({ latex: "\\frac{1}{2}" });
+    expect(blocks[2].content).toEqual([
+      { type: "mathInline", props: { latex: "a" } },
+      { type: "text", text: " and ", styles: {} },
+      { type: "mathInline", props: { latex: "b" } },
+    ]);
+  });
+
+  it("preserves literal brackets, dollar prices, inline math followed by digits, standalone escaped-$ math, and code fences after unclosed $$", () => {
+    const blocks = [
+      { id: "p1", type: "paragraph", props: {}, content: [{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }], children: [] },
+      { id: "p2", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "\\$100 \\times 2" } }], children: [] },
+      { id: "p3", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x" } }, { type: "text", text: "2", styles: {} }], children: [] },
+    ];
+    const md = blocksToMarkdown(blocks);
+    expect(md).toContain("\\[hello\\]");
+    expect(md).toContain("\\$5");
+    expect(md).toContain("$$x$$2");
+    const back = markdownToBlocks(md);
+    expect(back.map((b) => b.type)).toEqual(["paragraph", "paragraph", "paragraph"]);
+    expect(back[0].content).toEqual([{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }]);
+    expect(back[1].content).toEqual([{ type: "mathInline", props: { latex: "\\$100 \\times 2" } }]);
+    expect(back[2].content).toEqual([{ type: "mathInline", props: { latex: "x" } }, { type: "text", text: "2", styles: {} }]);
+
+    // 未閉じの $$ の後にコードブロックがあっても、コード内の $$ を閉じとして吸い込まない。
+    const fenced = markdownToBlocks(["$$ unclosed", "```tex", "$$", "```", "after"].join("\n"));
+    expect(fenced.map((b) => b.type)).toEqual(["paragraph", "codeBlock", "paragraph"]);
+    expect(fenced[2].content).toEqual([{ type: "text", text: "after", styles: {} }]);
+
+    // 強調（*...*）の中の数式に含まれる * で強調が途中で閉じない。
+    const emph = markdownToBlocks("*Value $x*y$*");
+    expect(emph[0].content).toEqual([
+      { type: "text", text: "Value ", styles: { italic: true } },
+      { type: "mathInline", props: { latex: "x*y" } },
+    ]);
+
+    // 引用の中の $$ ブロックも mathBlock にする。上限超えはコードブロックに退避して本文を失わない。
+    const quoted = markdownToBlocks(["> $$", "> x^2", "> $$"].join("\n"));
+    expect(quoted.map((b) => b.type)).toEqual(["mathBlock"]);
+    expect(quoted[0].props).toEqual({ latex: "x^2" });
+    const hugeQuoted = markdownToBlocks(["> $$", `> ${"x".repeat(10_005)}`, "> $$"].join("\n"));
+    expect(hugeQuoted[0].type).toBe("codeBlock");
+    expect((hugeQuoted[0].content as { text: string }[])[0].text.length).toBe(10_005);
+
+    // コードスパン内の $ が強調の閉じ記号（**）や手前の $ の閉じ記号にならない。
+    const boldCode = markdownToBlocks("**Run `$HOME`** ($x$)\nPay $5; run `$HOME` next.");
+    expect(boldCode[0].content).toEqual([
+      { type: "text", text: "Run ", styles: { bold: true } },
+      { type: "text", text: "$HOME", styles: { bold: true, code: true } },
+      { type: "text", text: " (", styles: {} },
+      { type: "mathInline", props: { latex: "x" } },
+      { type: "text", text: ")", styles: {} },
+    ]);
+    expect(boldCode[1].content).toEqual([
+      { type: "text", text: "Pay $5; run ", styles: {} },
+      { type: "text", text: "$HOME", styles: { code: true } },
+      { type: "text", text: " next.", styles: {} },
+    ]);
+
+    // 隣接する表セルの |$5|$HOME| は 2 列のまま保ち、$$ を含む数式（\verb|$$|）も往返できる。
+    const priceTable = markdownToBlocks("| A | B |\n| --- | --- |\n|$5|$HOME|");
+    const pt = priceTable[0].content as { rows: { cells: { content: { text: string }[] }[] }[] };
+    expect(pt.rows[1].cells.map((c) => c.content.map((e) => e.text).join(""))).toEqual(["$5", "$HOME"]);
+
+    const verbBlocks = [
+      { id: "v1", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "\\verb|$$|" } }], children: [] },
+      { id: "v2", type: "mathBlock", props: { latex: "\\verb|$$|" }, children: [] },
+    ];
+    const verbBack = markdownToBlocks(blocksToMarkdown(verbBlocks));
+    expect(verbBack.map((b) => b.type)).toEqual(["paragraph", "mathBlock"]);
+    expect(verbBack[0].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|$$|" } }]);
+    expect(verbBack[1].props).toEqual({ latex: "\\verb|$$|" });
+
+    // リンク先の $ を手前の $5 と組ませず、リンクのまま保つ。
+    const linkWithDollar = markdownToBlocks("It costs $5; [details](https://example.org/$shop).");
+    expect(linkWithDollar[0].content).toEqual([
+      { type: "text", text: "It costs $5; ", styles: {} },
+      { type: "link", href: "https://example.org/$shop", content: [{ type: "text", text: "details", styles: {} }] },
+      { type: "text", text: ".", styles: {} },
+    ]);
+
+    // 隣接する行内数式（$$…$$ と $…$）が編集用 Markdown の往返で $$$ に結合されない。
+    const adjacentBlocks = [{
+      id: "adj", type: "paragraph", props: {}, children: [],
+      content: [
+        { type: "mathInline", props: { latex: "\\text{where $x$ is positive}" } },
+        { type: "mathInline", props: { latex: "y" } },
+      ],
+    }];
+    const adjacentBack = markdownToBlocks(blocksToMarkdown(adjacentBlocks));
+    expect(adjacentBack[0].content).toEqual([
+      { type: "mathInline", props: { latex: "\\text{where $x$ is positive}" } },
+      { type: "text", text: " ", styles: {} },
+      { type: "mathInline", props: { latex: "y" } },
+    ]);
+
+    // \verb|a`b`| の中のバッククォートをコードスパンと誤認しない。
+    const verbBacktick = markdownToBlocks("$\\verb|a`b`|$");
+    expect(verbBacktick[0].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|a`b`|" } }]);
+
+    // ネストした引用（> > $$）も mathBlock として取り込む。
+    const nestedQuoteMath = markdownToBlocks("> > $$\n> > x+1\n> > $$");
+    expect(nestedQuoteMath).toHaveLength(1);
+    expect(nestedQuoteMath[0].type).toBe("mathBlock");
+    expect(nestedQuoteMath[0].props).toEqual({ latex: "x+1" });
+
+    // 数式の中の \text{[docs](https://example.org)} をリンクと誤認せず往返する。
+    const textLinkMath = markdownToBlocks("$\\text{[docs](https://example.org)}$");
+    expect(textLinkMath[0].content).toEqual([{ type: "mathInline", props: { latex: "\\text{[docs](https://example.org)}" } }]);
+
+    // 3 列の表の短い行 `| $|x|$ |` で絶対値の数式を 3 セルに割らない。
+    const shortTable = markdownToBlocks("| A | B | C |\n| --- | --- | --- |\n| $|x|$ |");
+    const st = shortTable[0].content as { rows: { cells: { content: { type: string; props?: { latex: string } }[] }[] }[] };
+    expect(st.rows[1].cells[0].content).toEqual([{ type: "mathInline", props: { latex: "|x|" } }]);
+    expect(st.rows[1].cells[1].content).toEqual([]);
+    expect(st.rows[1].cells[2].content).toEqual([]);
+
+    // 閉じた $$ ブロックの中の空行は 1 つの mathBlock として保つ。
+    const blankInsideMath = markdownToBlocks("$$\nx+y\n\n=z\n$$");
+    expect(blankInsideMath).toHaveLength(1);
+    expect(blankInsideMath[0].type).toBe("mathBlock");
+    expect(blankInsideMath[0].props).toEqual({ latex: "x+y\n\n=z" });
+  });
+
+  it("handles pathological dollar signs in roughly linear time", () => {
+    const started = performance.now();
+    markdownToBlocks("$a ".repeat(20_000));
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 

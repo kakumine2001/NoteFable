@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_NOTE_BYTES, readNoteRequest, validateNoteContent, validateNoteUpdate } from "./note-document";
+import { MAX_MATH_LATEX, MAX_NOTE_BYTES, readNoteRequest, validateNoteContent, validateNoteUpdate } from "./note-document";
 
 const paragraph = { id: "p1", type: "paragraph", props: { textColor: "default", backgroundColor: "default", textAlignment: "left" }, content: [{ type: "text", text: "中文 日本語", styles: { bold: true } }], children: [] };
 
@@ -22,6 +22,28 @@ describe("page document boundary", () => {
     expect(() => validateNoteContent({ title: "Test", blocks })).not.toThrow();
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, type: "callout", props: { emoji: "abc" } }] })).toThrow("unsupported");
     expect(() => validateNoteContent({ title: "Test", blocks: [{ ...paragraph, props: { emoji: "💡" } }] })).toThrow("unsupported");
+  });
+
+  it("validates math blocks and inline math nodes", () => {
+    const blocks = [
+      { id: "m1", type: "mathBlock", props: { latex: "\\int_0^1 x^2\\,dx = \\frac{1}{3}", textColor: "default", backgroundColor: "gray" }, children: [] },
+      { id: "m2", type: "paragraph", props: {}, content: [
+        { type: "text", text: "Euler: ", styles: {} },
+        { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } },
+      ], children: [] },
+    ];
+    expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
+    // mathBlock は content を持てない。
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad1", type: "mathBlock", props: { latex: "x" }, content: [], children: [] }] })).toThrow("unsupported");
+    // latex の上限と NUL 禁止。
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad2", type: "mathBlock", props: { latex: "x".repeat(MAX_MATH_LATEX + 1) }, children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad3", type: "mathBlock", props: { latex: "a\u0000b" }, children: [] }] })).toThrow("unsupported");
+    // mathInline はリンクやコードブロックの中には置けない。
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad4", type: "codeBlock", props: { language: "text" }, content: [{ type: "mathInline", props: { latex: "x" } }], children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad5", type: "paragraph", props: {}, content: [{ type: "link", href: "https://example.com", content: [{ type: "mathInline", props: { latex: "x" } }] }], children: [] }] })).toThrow("unsupported");
+    // mathInline に未知の props や content は不可。
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad6", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x", extra: true } }], children: [] }] })).toThrow("unsupported");
+    expect(() => validateNoteContent({ title: "Math", blocks: [{ id: "bad7", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x" }, content: [] }], children: [] }] })).toThrow("unsupported");
   });
 
   it("validates table content", () => {
