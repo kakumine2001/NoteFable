@@ -3,7 +3,7 @@
 import { ArrowLeft, History, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
-import { TABLE_SEPARATOR, blocksToMarkdown, splitTableRow } from "@/lib/note-markdown";
+import { TABLE_SEPARATOR, blocksToMarkdown, inlineMathEnd, splitTableRow } from "@/lib/note-markdown";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
 import "@/components/note-trash-history.css";
@@ -28,6 +28,33 @@ export function relativeTime(iso: string, now = Date.now(), t: Translate = engli
   const days = Math.floor(hours / 24);
   if (days < 7) return days === 1 ? t("Yesterday") : t("{count} days ago", { count: days });
   return new Date(time).toLocaleDateString(tag, { month: "short", day: "numeric", year: new Date(now).getFullYear() === new Date(time).getFullYear() ? undefined : "numeric" });
+}
+
+// 履歴プレビューの表セル内にある | を、GFM にセル区切りとして読まれない形へ直す。
+// 数式の中の | は \vert、\| は \Vert に置き換えて KaTeX の見た目をそのまま保ち、数式の外の | だけを \| にする。
+function previewTableCell(cell: string) {
+  let out = "";
+  for (let index = 0; index < cell.length; index++) {
+    if (cell[index] === "\\" && index + 1 < cell.length) {
+      out += cell[index] + cell[++index];
+      continue;
+    }
+    if (cell[index] === "$") {
+      const end = inlineMathEnd(cell, index);
+      if (end > 0) {
+        const span = cell.slice(index, end);
+        out += span.replace(/(\\)?\|/g, (_match, slash: string | undefined, offset: number) => {
+          const macro = slash ? "\\Vert" : "\\vert";
+          const next = span[offset + (slash ? 2 : 1)] ?? "";
+          return /[A-Za-z]/.test(next) ? `${macro} ` : macro;
+        });
+        index = end - 1;
+        continue;
+      }
+    }
+    out += cell[index] === "|" ? "\\|" : cell[index];
+  }
+  return out;
 }
 
 const LIST_ITEM = /^\s*(?:[-+*]|\d+[.)])\s/;
@@ -70,9 +97,8 @@ export function previewMarkdown(blocks: unknown) {
     const item = !opening && LIST_ITEM.test(line);
     const row = !opening && !item && line.trimStart().startsWith("|");
     if (out.length && !(item && previousItem) && !(row && previousRow)) out.push("");
-    // GFM の表パーサーは行内数式より先に | でセルを切るため、履歴プレビューの表セル内にある未退避の | だけを \| にする（TeX の \| は二重に退避しない）。
     const formatted = row && !TABLE_SEPARATOR.test(line)
-      ? `| ${splitTableRow(line).map((cell) => cell.replace(/(?<!\\)((?:\\\\)*)\|/g, "$1\\|")).join(" | ")} |`
+      ? `| ${splitTableRow(line).map(previewTableCell).join(" | ")} |`
       : item ? line : line.trimStart();
     out.push(formatted);
     previousItem = item;

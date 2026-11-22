@@ -442,8 +442,8 @@ describe("answerToNoteContent", () => {
     expect(textOf(withUrl.blocks[0])).toContain("https://example.com/$bare$/1.");
     expect(inline(withUrl.blocks[0]).some((entry) => entry.type === "mathInline")).toBe(false);
 
-    // 引用内の \[x^2\] と数字の直前の \(x\)2 も数式として保存する。
-    const quotedAndDigit = build("> \\[x^2\\]\n\n\\(x\\)2");
+    // 引用内の \[x^2\] と数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
+    const quotedAndDigit = build("> \\[x^2\\]\n\n\\(x\\)2\n\n\\(\\$100\\)");
     expectValid(quotedAndDigit);
     expect(quotedAndDigit.blocks[0].type).toBe("mathBlock");
     expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "x^2" });
@@ -451,5 +451,20 @@ describe("answerToNoteContent", () => {
       { type: "mathInline", props: { latex: "x" } },
       { type: "text", text: "2", styles: {} },
     ]);
+    expect(quotedAndDigit.blocks[2].type).toBe("paragraph");
+    expect(quotedAndDigit.blocks[2].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
+
+    // チャットの表で | $5|$ USD | のような金額がセル境界をまたいで数式化されない。
+    const priceTable = build("| Amount | Currency |\n| --- | --- |\n| $5|$ USD |");
+    expectValid(priceTable);
+    const pt = priceTable.blocks[0].content as unknown as { rows: { cells: { content: Inline[] }[] }[] };
+    expect(pt.rows[1].cells.map((c) => c.content.map((e) => e.text).join(""))).toEqual(["$5", "$ USD"]);
+    expect(pt.rows[1].cells.some((c) => c.content.some((e) => e.type === "mathInline"))).toBe(false);
+
+    // 未閉じの $$ の後に ~~~ コードブロックがあっても、コード内の $$ を閉じと誤認しない。
+    const unclosedBeforeTilde = build("$$\n[ref](<https://example.com/a b>)\n~~~tex\n$$\n~~~\nAfter");
+    expectValid(unclosedBeforeTilde);
+    expect(unclosedBeforeTilde.blocks.some((b) => b.type === "codeBlock")).toBe(true);
+    expect(textOf(unclosedBeforeTilde.blocks.find((b) => b.type === "paragraph" && textOf(b) === "After")!)).toBe("After");
   });
 });

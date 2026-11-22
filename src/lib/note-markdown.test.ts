@@ -327,10 +327,23 @@ describe("math blocks and inline math", () => {
       { type: "mathInline", props: { latex: "x*y" } },
     ]);
 
-    // 引用の中の $$ ブロックも mathBlock にする。
+    // 引用の中の $$ ブロックも mathBlock にする。上限超えはコードブロックに退避して本文を失わない。
     const quoted = markdownToBlocks(["> $$", "> x^2", "> $$"].join("\n"));
     expect(quoted.map((b) => b.type)).toEqual(["mathBlock"]);
     expect(quoted[0].props).toEqual({ latex: "x^2" });
+    const hugeQuoted = markdownToBlocks(["> $$", `> ${"x".repeat(10_005)}`, "> $$"].join("\n"));
+    expect(hugeQuoted[0].type).toBe("codeBlock");
+    expect((hugeQuoted[0].content as { text: string }[])[0].text.length).toBe(10_005);
+
+    // コードスパン内の $ が強調の閉じ記号（**）の探索を邪魔しない。
+    const boldCode = markdownToBlocks("**Run `$HOME`** ($x$)");
+    expect(boldCode[0].content).toEqual([
+      { type: "text", text: "Run ", styles: { bold: true } },
+      { type: "text", text: "$HOME", styles: { bold: true, code: true } },
+      { type: "text", text: " (", styles: {} },
+      { type: "mathInline", props: { latex: "x" } },
+      { type: "text", text: ")", styles: {} },
+    ]);
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {

@@ -318,23 +318,47 @@ function startsTable(lines: string[], index: number) {
   const header = lines[index];
   const separator = lines[index + 1];
   return header.includes("|") && separator !== undefined && separator.includes("|") && TABLE_SEPARATOR.test(separator)
-    && splitRow(header).length === splitRow(separator).length;
+    && splitRow(header, { protectMath: false }).length === splitRow(separator, { protectMath: false }).length;
 }
 
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
-// - 数式は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる（\( \)、\[ \] や、金額の $ も）
+// - 表は GFM のセル境界で先に分けてから各セルごとに prepareMath をかける（| $5|$ USD | のような金額がセルをまたいで数式化されるのを防ぐ）
+// - 表以外の本文は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる
 // - 出典などのリンクを通常の形へ
-// - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
 function prepareMarkdown(markdown: string) {
-  const lines = prepareMath(normalizeNewlines(markdown), { doubleBeforeDigit: true }).text.split("\n");
+  const rawLines = normalizeNewlines(markdown).split("\n");
   const out: string[] = [];
-  for (let index = 0; index < lines.length; index++) {
-    const line = lines[index];
+  let prose: string[] = [];
+  const flushProse = () => {
+    if (!prose.length) return;
+    const prepared = prepareMath(prose.join("\n"), { doubleBeforeDigit: true }).text.split("\n");
+    prose = [];
+    for (let i = 0; i < prepared.length; i++) {
+      const line = prepared[i];
+      // 「$$ だけの行」で囲まれたブロックの数式は、そのまま通す（空行やコード囲みで打ち切り、未閉じの $$ が後ろを飲み込まない）。
+      if (line.trim() === "$$") {
+        let close = -1;
+        for (let k = i + 1; k < prepared.length; k++) {
+          if (!prepared[k].trim() || openFence(prepared[k])) break;
+          if (prepared[k].trim() === "$$") { close = k; break; }
+        }
+        if (close > i) {
+          out.push(...prepared.slice(i, close + 1));
+          i = close;
+          continue;
+        }
+      }
+      out.push(rewriteLine(line));
+    }
+  };
+  for (let index = 0; index < rawLines.length; index++) {
+    const line = rawLines[index];
     const opened = openFence(line);
     if (opened) {
+      flushProse();
       const body: string[] = [];
-      while (++index < lines.length && !closesFence(lines[index], opened)) body.push(lines[index]);
+      while (++index < rawLines.length && !closesFence(rawLines[index], opened)) body.push(rawLines[index]);
       // 中身に ``` があっても閉じられないよう、中の最長のバッククォート列より長い囲みにする。
       const longest = Math.max(0, ...body.flatMap((text) => [...text.matchAll(/`+/g)].map((run) => run[0].length)));
       const quote = "`".repeat(Math.max(3, longest + 1));
@@ -342,26 +366,22 @@ function prepareMarkdown(markdown: string) {
       out.push(`${opened.indent}${quote}${language}`, ...body, `${opened.indent}${quote}`);
       continue;
     }
-    // 「$$ だけの行」で囲まれたブロックの数式は、そのまま通す（中の [a](b) などを書き換えない）。閉じる行が無ければ普通の行。
-    if (line.trim() === "$$") {
-      const close = lines.findIndex((text, at) => at > index && text.trim() === "$$");
-      if (close > index) {
-        out.push(...lines.slice(index, close + 1));
-        index = close;
-        continue;
-      }
-    }
-    if (startsTable(lines, index)) {
-      const rows = [splitRow(line)];
+    if (startsTable(rawLines, index)) {
+      flushProse();
+      const rows = [splitRow(line, { protectMath: false })];
       index++;
-      while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) rows.push(splitRow(lines[++index]));
+      while (index + 1 < rawLines.length && rawLines[index + 1].trim() && rawLines[index + 1].includes("|")) {
+        rows.push(splitRow(rawLines[++index], { protectMath: false }));
+      }
       const columns = rows[0].length;
-      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => escapeCellPipes(rewriteLine(cells[column] ?? ""))).join(" | ")} |`;
+      const cell = (value: string) => escapeCellPipes(rewriteLine(prepareMath(value, { doubleBeforeDigit: true }).text));
+      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => cell(cells[column] ?? "")).join(" | ")} |`;
       out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
       continue;
     }
-    out.push(rewriteLine(line));
+    prose.push(line);
   }
+  flushProse();
   return out.join("\n");
 }
 
@@ -420,7 +440,7 @@ export function answerToNoteContent(markdown: string, source: AnswerSource): { t
   const found = analyze(lines);
   const title = pickTitle(found, source.conversationTitle);
   if (found.heading?.leading && title === found.heading.text) lines.splice(found.heading.line, 1);
-  const body = clampDepth(markdownToBlocks(prepareMarkdown(lines.join("\n"))));
+  const body = clampDepth(markdownToBlocks(prepareMarkdown(lines.join("\n")), { singleLineDisplayMath: false }));
 
   const build = (keep: number, truncated: boolean) => [...takeBlocks(body, keep), ...sourceBlocks(source, truncated)];
   const fits = (blocks: NoteBlockNode[]) =>

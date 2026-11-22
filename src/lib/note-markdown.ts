@@ -71,7 +71,8 @@ export const MAX_PARSED_TABLE_CELLS = 20_000;
 
 // 表の 1 行をセルに分ける。\| とコードの中の | では区切らない。行内の数式の中の | も区切りにせず、数式はそのまま残す（\| も書かれたまま）。
 // コードは同じ長さのバッククォート列で閉じる（`` a`b `` も 1 つのコード）。コードの外の \` はコードを開かない。
-export function splitTableRow(line: string) {
+export function splitTableRow(line: string, options?: { protectMath?: boolean }) {
+  const protectMath = options?.protectMath !== false;
   const cells: string[] = [];
   let cell = "";
   // 開いているコードのバッククォートの数。0 はコードの外。
@@ -93,7 +94,7 @@ export function splitTableRow(line: string) {
       else if (run === fence) fence = 0;
       cell += line.slice(index, end + 1);
       index = end;
-    } else if (char === "$" && !fence && inlineMathEnd(line, index) > 0) {
+    } else if (protectMath && char === "$" && !fence && inlineMathEnd(line, index) > 0) {
       const end = inlineMathEnd(line, index);
       cell += line.slice(index, end);
       index = end - 1;
@@ -161,11 +162,12 @@ function inlineCode(body: string) {
 
 // 行内の数式。TeX の改行は空白にし、前後の空白は落とす（$ の直後と直前が空白だと、読み戻した時に数式にならない）。
 // 次の文字が数字（$x$2 が Pandoc 規則で数式とみなされない）・末尾が \・エスケープされていない $ を含む時は $$…$$ で書く。
-function inlineMath(latex: unknown, followedByDigit = false) {
+// 履歴プレビュー（forPreview）では remark-math が \$ でも $…$ を閉じてしまうため、$ を 1 つでも含む時は $$…$$ にする。
+function inlineMath(latex: unknown, followedByDigit = false, forPreview = false) {
   const raw = typeof latex === "string" ? latex.replace(/\r?\n/g, " ").trim() : "";
   if (!raw) return "";
-  const hasUnescapedDollar = findUnescaped(raw, "$", 0) >= 0;
-  return followedByDigit || hasUnescapedDollar || raw.endsWith("\\") ? `$$${raw}${raw.endsWith("\\") ? " " : ""}$$` : `$${raw}$`;
+  const hasDollar = forPreview ? raw.includes("$") : findUnescaped(raw, "$", 0) >= 0;
+  return followedByDigit || hasDollar || raw.endsWith("\\") ? `$$${raw}${raw.endsWith("\\") ? " " : ""}$$` : `$${raw}$`;
 }
 
 // 次のインライン要素の先頭文字が数字か（$x$2 のように直後に数字が続くと、$…$ では数式として読み戻せない）。
@@ -189,7 +191,7 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPre
     if (entry?.type === "mathInline") {
       const latex = (entry.props as { latex?: unknown } | undefined)?.latex;
       if (plain) return typeof latex === "string" ? latex : "";
-      const rendered = inlineMath(latex, startsWithDigit(items[index + 1]));
+      const rendered = inlineMath(latex, startsWithDigit(items[index + 1]), forPreview);
       const nextIsMath = items[index + 1]?.type === "mathInline";
       return rendered && forPreview && nextIsMath ? `${rendered} ` : rendered;
     }
@@ -320,12 +322,20 @@ class Finder {
     return low < this.dollars.length ? this.dollars[low] : -1;
   }
 
-  // 単独の * （前後が * でない）の位置。数式の中にある *（例: *Value $x*y$*）は飛ばす。前から順に一度だけ数える。
+  // 単独の * （前後が * でない）の位置。コードスパンや数式の中にある * は飛ばす。前から順に一度だけ数える。
   loneStar(from: number) {
     if (!this.lone) {
       this.lone = [];
       for (let j = 0; j < this.src.length; j++) {
         if (this.src[j] === "\\") { j++; continue; }
+        if (this.src[j] === "`") {
+          let open = j;
+          while (this.src[open] === "`") open++;
+          const close = this.backtickRun(open - j, open);
+          if (close > open) { j = close + (open - j) - 1; continue; }
+          j = open - 1;
+          continue;
+        }
         if (this.src[j] === "$") {
           const end = inlineMathEnd(this.src, j);
           if (end > 0) { j = end - 1; continue; }
@@ -365,6 +375,14 @@ class Finder {
     else {
       for (let j = from; j < this.src.length; j++) {
         if (this.src[j] === "\\") { j++; continue; }
+        if (skipMath && this.src[j] === "`") {
+          let open = j;
+          while (this.src[open] === "`") open++;
+          const close = this.backtickRun(open - j, open);
+          if (close > open) { j = close + (open - j) - 1; continue; }
+          j = open - 1;
+          continue;
+        }
         if (skipMath && this.src[j] === "$") {
           const end = inlineMathEnd(this.src, j);
           if (end > 0) { j = end - 1; continue; }
@@ -504,9 +522,11 @@ function stripIndent(line: string, width: number) {
 const FENCE = /^(`{3,})([\w+#.-]*)\s*$/;
 
 // 1 行 1 ブロック。行頭の記号で種類を決め、半角 2 スペース（またはタブ）のインデントで入れ子にする。
-// 対応: # ～ ###、- / 1. / - [ ]、>、``` コード、---、▸ トグル（# ▸ はトグル見出し）、> [!絵文字] コールアウト、GFM の表。
+// 対応: # ～ ###、- / 1. / - [ ]、>、``` コード、---、▸ トグル（# ▸ はトグル見出し）、> [!絵文字] コールアウト、GFM の表、$$ 数式。
 // 連続する通常の行はそれぞれ別の段落になる。
-export function markdownToBlocks(markdown: string): NewBlock[] {
+// singleLineDisplayMath が偽のとき（answerToNoteContent から呼ぶとき）、1 行の $$…$$ は行内数式のまま保つ（独立した数式は prepareMath が複数行の $$ ブロックにそろえているため）。
+export function markdownToBlocks(markdown: string, options?: { singleLineDisplayMath?: boolean }): NewBlock[] {
+  const singleLineDisplayMath = options?.singleLineDisplayMath !== false;
   const lines = markdown.replace(/\r\n?/g, "\n").split("\n");
   const root: NewBlock[] = [];
   const parents: { indent: number; block: NewBlock }[] = [];
@@ -543,8 +563,8 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       const first = findUnescaped(rest, "$$", 0);
       let latex: string | null = null;
       if (first >= 0) {
-        // 閉じの後ろに文字が続くものは、行内の数式を含む段落。
-        if (first + 2 === rest.length && rest.slice(0, first).trim()) latex = rest.slice(0, first).trim();
+        // 閉じの後ろに文字が続くものは、行内の数式を含む段落。singleLineDisplayMath が偽のときも 1 行 $$…$$ は行内数式のまま。
+        if (singleLineDisplayMath && first + 2 === rest.length && rest.slice(0, first).trim()) latex = rest.slice(0, first).trim();
       } else {
         const body = rest.trim() ? [rest.trim()] : [];
         for (let k = index + 1; k < lines.length; k++) {
@@ -634,8 +654,10 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
           }
         }
       }
-      if (quotedLatex !== null && quotedLatex.length <= MAX_MATH_LATEX) add("mathBlock", { latex: quotedLatex });
-      else add("quote", {}, parseInline(match[1]));
+      if (quotedLatex !== null) {
+        if (quotedLatex.length <= MAX_MATH_LATEX) add("mathBlock", { latex: quotedLatex });
+        else add("codeBlock", { language: "latex" }, [{ type: "text", text: quotedLatex, styles: {} }]);
+      } else add("quote", {}, parseInline(match[1]));
     } else if ((match = /^!\[([^\]\n]*)\]\((\/api\/pages\/files\?[^\s)]*)\)$/.exec(text)) && isNoteImageUrl(match[2])) {
       // 自分のアップロード画像だけを画像ブロックにする（外部 URL は通常の段落のまま）。保存時に所有者を確かめる。
       const caption = match[1].replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);
