@@ -369,7 +369,6 @@ export const vi: Record<string, string> = {
   "No reasoning": "Không suy luận",
   "No results": "Không có kết quả",
   "Change date": "Đổi ngày",
-  "This page is not available": "Không thể mở trang này",
   "Today": "Hôm nay",
   "Tomorrow": "Ngày mai",
   "Date": "Ngày",

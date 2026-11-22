@@ -369,7 +369,6 @@ export const id: Record<string, string> = {
   "No reasoning": "Tanpa penalaran",
   "No results": "Tidak ada hasil",
   "Change date": "Ubah tanggal",
-  "This page is not available": "Halaman ini tidak tersedia",
   "Today": "Hari ini",
   "Tomorrow": "Besok",
   "Date": "Tanggal",

@@ -253,7 +253,6 @@ export const ja: Record<string, string> = {
   "No project": "プロジェクトなし",
   "No results": "結果がありません",
   "Change date": "日付を変更",
-  "This page is not available": "このページは開けません",
   "Today": "今日",
   "Tomorrow": "明日",
   "Date": "日付",

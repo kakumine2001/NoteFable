@@ -369,7 +369,6 @@ export const hi: Record<string, string> = {
   "No reasoning": "बिना गहन सोच के",
   "No results": "कोई परिणाम नहीं",
   "Change date": "तारीख बदलें",
-  "This page is not available": "यह पेज उपलब्ध नहीं है",
   "Today": "आज",
   "Tomorrow": "कल",
   "Date": "तारीख",

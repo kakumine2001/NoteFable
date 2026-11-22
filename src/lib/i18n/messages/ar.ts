@@ -369,7 +369,6 @@ export const ar: Record<string, string> = {
   "No reasoning": "بدون تفكير",
   "No results": "لا توجد نتائج",
   "Change date": "تغيير التاريخ",
-  "This page is not available": "هذه الصفحة غير متاحة",
   "Today": "اليوم",
   "Tomorrow": "غدًا",
   "Date": "التاريخ",

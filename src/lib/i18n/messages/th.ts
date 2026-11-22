@@ -369,7 +369,6 @@ export const th: Record<string, string> = {
   "No reasoning": "ไม่ใช้การคิดวิเคราะห์",
   "No results": "ไม่พบผลลัพธ์",
   "Change date": "เปลี่ยนวันที่",
-  "This page is not available": "ไม่สามารถเปิดหน้านี้ได้",
   "Today": "วันนี้",
   "Tomorrow": "พรุ่งนี้",
   "Date": "วันที่",

@@ -3371,6 +3371,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .public-note-file-download {
   display: inline-flex; flex: none; align-items: center; gap: 0.3rem; font-size: 0.8125rem; color: var(--notion-muted);
 }
+.public-note-mention { font-weight: 500; color: rgba(55, 53, 47, 0.8); }
 .public-note-link { color: var(--notion-blue); text-decoration: underline; text-underline-offset: 2px; }
 .public-note-inline-code {
   padding: 0.1em 0.35em; border-radius: 4px; background: rgba(135, 131, 120, 0.15); color: #eb5757;

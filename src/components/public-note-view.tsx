@@ -7,6 +7,7 @@ import { localeDir, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 import { createTranslator } from "@/lib/i18n/translate";
 import { isPresetCover, NOTE_COVERS, uploadedCoverPath } from "@/lib/note-document";
+import { mentionText } from "@/lib/note-mention";
 import { rewriteBlocksForShare, shareCoverUrl, sharePagePath } from "@/lib/note-share";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
 
@@ -37,7 +38,8 @@ const BG_COLORS: Record<string, string> = {
 
 type InlineNode =
   | { type: "text"; text: string; styles?: Record<string, unknown> }
-  | { type: "link"; href: string; content: InlineNode[] };
+  | { type: "link"; href: string; content: InlineNode[] }
+  | { type: "mention"; props?: Record<string, unknown> };
 
 type TableCell =
   | InlineNode[]
@@ -97,6 +99,10 @@ function renderInline(nodes: unknown): ReactNode {
         </a>
       );
     }
+    if (node.type === "mention") {
+      // 「@」メンション。リンク先のページは公開されていないことがあるので、リンクにせず文字だけ出す（タイトルは書いた時のもの）。
+      return <span key={index} className="public-note-mention">{mentionText(node.props ?? {})}</span>;
+    }
     if (node.type !== "text") return null;
     const styles = node.styles ?? {};
     let element: ReactNode = node.text;
@@ -124,6 +130,7 @@ function plainText(nodes: unknown): string {
       const node = raw as InlineNode;
       if (node.type === "text") return node.text;
       if (node.type === "link") return plainText(node.content);
+      if (node.type === "mention") return mentionText(node.props ?? {});
       return "";
     })
     .join("");

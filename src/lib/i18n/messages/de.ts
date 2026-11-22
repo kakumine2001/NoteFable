@@ -369,7 +369,6 @@ export const de: Record<string, string> = {
   "No reasoning": "Ohne Nachdenken",
   "No results": "Keine Ergebnisse",
   "Change date": "Datum ändern",
-  "This page is not available": "Diese Seite ist nicht verfügbar",
   "Today": "Heute",
   "Tomorrow": "Morgen",
   "Date": "Datum",

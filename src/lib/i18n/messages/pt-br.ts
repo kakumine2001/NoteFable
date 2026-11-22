@@ -369,7 +369,6 @@ export const ptBR: Record<string, string> = {
   "No reasoning": "Sem raciocínio",
   "No results": "Sem resultados",
   "Change date": "Alterar data",
-  "This page is not available": "Esta página não está disponível",
   "Today": "Hoje",
   "Tomorrow": "Amanhã",
   "Date": "Data",

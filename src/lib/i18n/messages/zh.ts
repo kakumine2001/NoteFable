@@ -314,7 +314,6 @@ export const zh: Record<string, string> = {
   "No project": "未分组",
   "No results": "没有结果",
   "Change date": "更改日期",
-  "This page is not available": "无法打开此页面",
   "Today": "今天",
   "Tomorrow": "明天",
   "Date": "日期",

@@ -369,7 +369,6 @@ export const ko: Record<string, string> = {
   "No reasoning": "추론 없음",
   "No results": "검색 결과 없음",
   "Change date": "날짜 변경",
-  "This page is not available": "이 페이지를 열 수 없습니다",
   "Today": "오늘",
   "Tomorrow": "내일",
   "Date": "날짜",

@@ -369,7 +369,6 @@ export const tr: Record<string, string> = {
   "No reasoning": "Akıl yürütme yok",
   "No results": "Sonuç yok",
   "Change date": "Tarihi değiştir",
-  "This page is not available": "Bu sayfa kullanılamıyor",
   "Today": "Bugün",
   "Tomorrow": "Yarın",
   "Date": "Tarih",

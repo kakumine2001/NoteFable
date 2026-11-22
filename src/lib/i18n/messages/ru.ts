@@ -369,7 +369,6 @@ export const ru: Record<string, string> = {
   "No reasoning": "Без размышления",
   "No results": "Ничего не найдено",
   "Change date": "Изменить дату",
-  "This page is not available": "Эта страница недоступна",
   "Today": "Сегодня",
   "Tomorrow": "Завтра",
   "Date": "Дата",
