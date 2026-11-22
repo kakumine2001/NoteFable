@@ -160,25 +160,34 @@ function inlineCode(body: string) {
 }
 
 // 行内の数式。TeX の改行は空白にし、前後の空白は落とす（$ の直後と直前が空白だと、読み戻した時に数式にならない）。
-// $ を含む・末尾が \ のときは $$…$$ で書く（$…$ だと、中の $ や \$ で途中で閉じてしまう）。
-function inlineMath(latex: unknown) {
+// 次の文字が数字（$x$2 が Pandoc 規則で数式とみなされない）・末尾が \・エスケープされていない $ を含む時は $$…$$ で書く。
+function inlineMath(latex: unknown, followedByDigit = false) {
   const raw = typeof latex === "string" ? latex.replace(/\r?\n/g, " ").trim() : "";
   if (!raw) return "";
-  return raw.includes("$") || raw.endsWith("\\") ? `$$${raw}${raw.endsWith("\\") ? " " : ""}$$` : `$${raw}$`;
+  const hasUnescapedDollar = findUnescaped(raw, "$", 0) >= 0;
+  return followedByDigit || hasUnescapedDollar || raw.endsWith("\\") ? `$$${raw}${raw.endsWith("\\") ? " " : ""}$$` : `$${raw}$`;
+}
+
+// 次のインライン要素の先頭文字が数字か（$x$2 のように直後に数字が続くと、$…$ では数式として読み戻せない）。
+function startsWithDigit(entry: Inline | undefined): boolean {
+  if (!entry) return false;
+  if (entry.type === "text" && typeof entry.text === "string") return /^\d/.test(entry.text);
+  return false;
 }
 
 // pipes を真にすると、表のセルの中として | を \| にする（数式の中は除く）。
 function inlineToMarkdown(content: unknown, plain = false, pipes = false): string {
   if (!Array.isArray(content)) return "";
   const cell = (text: string) => (pipes ? escapeCellPipes(text) : text);
-  return (content as Inline[]).map((entry) => {
+  const items = content as Inline[];
+  return items.map((entry, index) => {
     if (entry?.type === "link" && typeof entry.href === "string") {
       const text = inlineToMarkdown(entry.content, plain);
       return cell(plain ? text : `[${text}](${entry.href.replace(/\s/g, encodeURIComponent).replace(/\)/g, "%29")})`);
     }
     if (entry?.type === "mathInline") {
       const latex = (entry.props as { latex?: unknown } | undefined)?.latex;
-      return plain ? (typeof latex === "string" ? latex : "") : inlineMath(latex);
+      return plain ? (typeof latex === "string" ? latex : "") : inlineMath(latex, startsWithDigit(items[index + 1]));
     }
     if (entry?.type !== "text" || typeof entry.text !== "string") return "";
     if (plain) return entry.text;
@@ -527,7 +536,8 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
         const body = rest.trim() ? [rest.trim()] : [];
         for (let k = index + 1; k < lines.length; k++) {
           const next = lines[k].trim();
-          if (!next) break;
+          // 空行またはコードフェンスの開始に当たったら閉じ探しを打ち切る（未閉じの $$ が後ろのコードブロックを巻き込まない）。
+          if (!next || FENCE.test(next)) break;
           const close = findUnescaped(next, "$$", 0);
           if (close < 0) { body.push(stripIndent(lines[k], indent).trimEnd()); continue; }
           if (close + 2 === next.length) {

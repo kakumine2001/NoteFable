@@ -433,5 +433,11 @@ describe("answerToNoteContent", () => {
     ]);
     expect(result.blocks[2].props).toEqual({ latex: "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}" });
     expect(result.blocks[3].props).toEqual({ latex: "a^2 + b^2 = c^2" });
+
+    // URL の中の $user$ を数式として切らず、リンクのまま保存する。
+    const withUrl = build("See <https://example.com/$user$/profile> and [docs](https://example.com/$a$/$b$).");
+    expectValid(withUrl);
+    const links = inline(withUrl.blocks[0]).filter((entry) => entry.type === "link").map((entry) => entry.href);
+    expect(links).toEqual(["https://example.com/$user$/profile", "https://example.com/$a$/$b$"]);
   });
 });

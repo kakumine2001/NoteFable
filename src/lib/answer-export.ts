@@ -271,8 +271,12 @@ function rewriteLinks(text: string) {
     .replace(/<(https?:\/\/[^\s<>]+)>/g, (_match, url: string) => `[${url}](${encodeHref(url)})`);
 }
 
+const LINK_AT = new RegExp(LINK.source, "y");
+const AUTOLINK_AT = /<https?:\/\/[^\s<>]+>/y;
+const BARE_URL_AT = /https?:\/\/[^\s<>]+/y;
+
 // コードの範囲（`…`）と行内の数式（$…$、$$…$$）には手を入れずに、それ以外の部分だけ書き直す。
-// （数式の中の [a](b) や <…> をリンクとして書き換えてしまわないため。）
+// URL やリンク先の中の $ は数式として切らない（<https://example.com/$user$/profile> を壊さないため）。
 function rewriteLine(line: string) {
   let out = "";
   let plain = "";
@@ -285,6 +289,18 @@ function rewriteLine(line: string) {
       const code = /`[^`]*`/y;
       code.lastIndex = index;
       const hit = code.exec(line);
+      if (hit) { flush(); out += hit[0]; index += hit[0].length - 1; } else plain += char;
+    } else if (char === "[" || char === "!") {
+      LINK_AT.lastIndex = index;
+      const hit = LINK_AT.exec(line);
+      if (hit) { flush(); out += rewriteLinks(hit[0]); index += hit[0].length - 1; } else plain += char;
+    } else if (char === "<") {
+      AUTOLINK_AT.lastIndex = index;
+      const hit = AUTOLINK_AT.exec(line);
+      if (hit) { flush(); out += rewriteLinks(hit[0]); index += hit[0].length - 1; } else plain += char;
+    } else if (char === "h") {
+      BARE_URL_AT.lastIndex = index;
+      const hit = BARE_URL_AT.exec(line);
       if (hit) { flush(); out += hit[0]; index += hit[0].length - 1; } else plain += char;
     } else if (char === "$" && inlineMathEnd(line, index) > 0) {
       const end = inlineMathEnd(line, index);

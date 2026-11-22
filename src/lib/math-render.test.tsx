@@ -92,5 +92,17 @@ describe("note history dollar-only math mode", () => {
     expect(html).toContain("See [note] costing $5 and ");
     expect(html).not.toContain("katex-error");
     expect(blocksToMarkdown(blocks)).toContain("\\[note\\]");
+
+    // 表のセルに | を含む数式（$|x|$）があっても、履歴プレビューで列が増えない。
+    const tableBlocks = markdownToBlocks("| Norm | Value |\n| --- | --- |\n| $|x|$ | $x^2$ |");
+    const tableHtml = renderToStaticMarkup(
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
+        {previewMarkdown(tableBlocks)}
+      </ReactMarkdown>,
+    );
+    expect(count(tableHtml, "<td>")).toBe(2);
+    expect(count(tableHtml, 'class="katex"')).toBe(2);
+    expect(tableHtml).not.toContain("katex-error");
   });
 });

@@ -58,10 +58,15 @@ function renderKatex(katex: KatexApi, latex: string, displayMode: boolean): { ht
     };
   } catch (caught) {
     const message = caught instanceof Error ? caught.message.replace(/^KaTeX parse error:\s*/i, "") : "Invalid equation";
-    return {
-      html: katex.renderToString(source, { displayMode, throwOnError: false, strict: false, trust: false, errorColor: "currentColor" }),
-      error: message,
-    };
+    try {
+      return {
+        html: katex.renderToString(source, { displayMode, throwOnError: false, strict: false, trust: false, errorColor: "currentColor" }),
+        error: message,
+      };
+    } catch {
+      // 深い入れ子などで throwOnError: false でも失敗した時は、元の TeX をそのまま文字で出す。
+      return { html: "", error: message };
+    }
   }
 }
 
@@ -89,12 +94,14 @@ type MathEditorContextValue = {
   session: MathSession | null;
   openBlock: (blockId: string, latex: string, anchor: HTMLElement | null) => void;
   openInline: (getPos: () => number | undefined, latex: string, anchor: HTMLElement | null) => void;
-  close: () => void;
+  close: (restoreFocus?: boolean) => void;
 };
 
 const MathEditorContext = createContext<MathEditorContextValue | null>(null);
 
-function mathPopoverPosition(anchor: DOMRect): FloatingPosition {
+type PopoverLayout = FloatingPosition & { maxHeight: number };
+
+function mathPopoverPosition(anchor: DOMRect, measuredHeight = 148): PopoverLayout {
   const margin = 12;
   const viewport = window.visualViewport;
   const viewportTop = viewport?.offsetTop ?? 0;
@@ -102,14 +109,15 @@ function mathPopoverPosition(anchor: DOMRect): FloatingPosition {
   const viewportHeight = viewport?.height ?? window.innerHeight;
   const viewportWidth = viewport?.width ?? window.innerWidth;
   const width = Math.min(420, Math.max(220, viewportWidth - margin * 2));
-  const estHeight = 148;
+  const maxHeight = Math.max(120, viewportHeight - margin * 2);
+  const height = Math.min(Math.max(measuredHeight, 96), maxHeight);
   const rtl = typeof document !== "undefined" && document.documentElement.dir === "rtl";
   const preferredLeft = rtl ? anchor.right - width : anchor.left;
   const left = Math.max(viewportLeft + margin, Math.min(preferredLeft, viewportLeft + viewportWidth - width - margin));
   const below = anchor.bottom + 6;
-  const preferredTop = below + estHeight <= viewportTop + viewportHeight - margin ? below : anchor.top - estHeight - 6;
-  const top = Math.max(viewportTop + margin, Math.min(preferredTop, viewportTop + viewportHeight - estHeight - margin));
-  return { top, left, width };
+  const preferredTop = below + height <= viewportTop + viewportHeight - margin ? below : anchor.top - height - 6;
+  const top = Math.max(viewportTop + margin, Math.min(preferredTop, viewportTop + viewportHeight - height - margin));
+  return { top, left, width, maxHeight };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -117,49 +125,58 @@ type AnyEditor = BlockNoteEditor<any, any, any>;
 
 export function MathEditorProvider({ editor, editable, children }: { editor: AnyEditor; editable: boolean; children: ReactNode }) {
   const [session, setSession] = useState<MathSession | null>(null);
+  const activeSession = editable ? session : null;
+  const sessionRef = useRef<MathSession | null>(null);
+  useEffect(() => { sessionRef.current = activeSession; }, [activeSession]);
 
   const openBlock = useCallback((blockId: string, latex: string, anchor: HTMLElement | null) => {
     if (!editable) return;
-    setSession({ kind: "block", blockId, latex, anchor });
+    const next: MathSession = { kind: "block", blockId, latex, anchor };
+    sessionRef.current = next;
+    setSession(next);
   }, [editable]);
 
   const openInline = useCallback((getPos: () => number | undefined, latex: string, anchor: HTMLElement | null) => {
     if (!editable) return;
-    setSession({ kind: "inline", getPos, latex, anchor });
+    const next: MathSession = { kind: "inline", getPos, latex, anchor };
+    sessionRef.current = next;
+    setSession(next);
   }, [editable]);
 
-  const close = useCallback(() => {
+  const close = useCallback((restoreFocus = true) => {
+    sessionRef.current = null;
     setSession(null);
-    window.setTimeout(() => { if (editor.isEditable) editor.focus(); }, 0);
+    // 外側クリック（タイトル欄など）で閉じた時は、クリック先のフォーカスを奪わない。
+    if (restoreFocus) window.setTimeout(() => { if (editor.isEditable) editor.focus(); }, 0);
   }, [editor]);
-
-  const activeSession = editable ? session : null;
 
   // モバイルの戻るキーはノートから離れる前にポップオーバーだけを閉じる。
   usePickerBackToClose(activeSession !== null, close);
 
   const updateLatex = useCallback((nextRaw: string) => {
-    setSession((current) => {
-      if (!current) return null;
-      const cleaned = (current.kind === "inline" ? nextRaw.replace(/\r?\n/g, " ") : nextRaw)
-        .replace(/\u0000/g, "")
-        .slice(0, MAX_MATH_LATEX);
-      if (current.kind === "block") {
-        if (editor.isEditable && editor.getBlock(current.blockId)) {
-          editor.updateBlock(current.blockId, { props: { latex: cleaned } });
-        }
-      } else {
-        const pos = current.getPos();
-        const view = editor.prosemirrorView;
-        if (editor.isEditable && pos !== undefined && view) {
-          const node = view.state.doc.nodeAt(pos);
-          if (node?.type.name === "mathInline") {
-            editor.transact((tr) => tr.setNodeMarkup(pos, undefined, { ...node.attrs, latex: cleaned }));
-          }
+    const current = sessionRef.current;
+    if (!current) return;
+    const cleaned = (current.kind === "inline" ? nextRaw.replace(/\r?\n/g, " ") : nextRaw)
+      .replace(/\u0000/g, "")
+      .slice(0, MAX_MATH_LATEX);
+    const next: MathSession = { ...current, latex: cleaned };
+    sessionRef.current = next;
+    setSession(next);
+    // ProseMirror の更新は state updater の外で 1 回だけ実行する（レンダー中の親更新や二重適用を防ぐ）。
+    if (current.kind === "block") {
+      if (editor.isEditable && editor.getBlock(current.blockId)) {
+        editor.updateBlock(current.blockId, { props: { latex: cleaned } });
+      }
+    } else {
+      const pos = current.getPos();
+      const view = editor.prosemirrorView;
+      if (editor.isEditable && pos !== undefined && view) {
+        const node = view.state.doc.nodeAt(pos);
+        if (node?.type.name === "mathInline") {
+          editor.transact((tr) => tr.setNodeMarkup(pos, undefined, { ...node.attrs, latex: cleaned }));
         }
       }
-      return { ...current, latex: cleaned };
-    });
+    }
   }, [editor]);
 
   const value = useMemo<MathEditorContextValue>(
@@ -178,14 +195,16 @@ export function MathEditorProvider({ editor, editable, children }: { editor: Any
 function MathEditorPopover({ session, onChange, onClose }: {
   session: MathSession;
   onChange: (latex: string) => void;
-  onClose: () => void;
+  onClose: (restoreFocus?: boolean) => void;
 }) {
   const t = useT();
   const katex = useKatex(session.latex.trim().length > 0);
   const popoverRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const [position, setPosition] = useState<FloatingPosition>(() =>
-    session.anchor?.isConnected ? mathPopoverPosition(session.anchor.getBoundingClientRect()) : { top: 80, left: 16, width: 320 },
+  const [position, setPosition] = useState<PopoverLayout>(() =>
+    session.anchor?.isConnected
+      ? mathPopoverPosition(session.anchor.getBoundingClientRect())
+      : { top: 80, left: 16, width: 320, maxHeight: 320 },
   );
 
   const parseError = useMemo(() => {
@@ -193,11 +212,14 @@ function MathEditorPopover({ session, onChange, onClose }: {
     return renderKatex(katex, session.latex, session.kind === "block").error;
   }, [katex, session.latex, session.kind]);
 
-  // 仮想キーボードの開閉やスクロールでは閉じず、アンカーに合わせて位置だけ追従する。
+  const reposition = useCallback(() => {
+    if (!session.anchor?.isConnected) return;
+    const measured = popoverRef.current?.offsetHeight || 148;
+    setPosition(mathPopoverPosition(session.anchor.getBoundingClientRect(), measured));
+  }, [session.anchor]);
+
+  // 仮想キーボードの開閉やスクロールでは閉じず、実測の高さに合わせて位置だけ追従する。
   useEffect(() => {
-    const reposition = () => {
-      if (session.anchor?.isConnected) setPosition(mathPopoverPosition(session.anchor.getBoundingClientRect()));
-    };
     reposition();
     window.addEventListener("resize", reposition);
     window.addEventListener("scroll", reposition, true);
@@ -209,15 +231,15 @@ function MathEditorPopover({ session, onChange, onClose }: {
       window.visualViewport?.removeEventListener("resize", reposition);
       window.visualViewport?.removeEventListener("scroll", reposition);
     };
-  }, [session.anchor]);
+  }, [reposition]);
 
-  // 外側クリックと Esc で閉じる。
+  // 外側クリックで閉じる（クリック先のフォーカスを保つ）。
   useEffect(() => {
     const onDown = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
       if (popoverRef.current?.contains(target)) return;
       if (session.anchor?.contains(target)) return;
-      onClose();
+      onClose(false);
     };
     document.addEventListener("mousedown", onDown);
     return () => document.removeEventListener("mousedown", onDown);
@@ -231,32 +253,33 @@ function MathEditorPopover({ session, onChange, onClose }: {
     el.setSelectionRange(el.value.length, el.value.length);
   }, [session.kind, session.anchor]);
 
-  // 内容の行数に合わせて高さを自動調整する。
+  // 内容の行数に合わせて高さを自動調整し、キーボード展開時も Done が見える位置に収める。
   useLayoutEffect(() => {
     const el = inputRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
-  }, [session.latex]);
+    reposition();
+  }, [session.latex, parseError, reposition]);
 
   function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (event.nativeEvent.isComposing) return;
     if (event.key === "Escape") {
       event.preventDefault();
-      onClose();
+      onClose(true);
       return;
     }
     if (event.key === "Enter") {
       if (session.kind === "inline") {
         event.preventDefault();
-        onClose();
+        onClose(true);
         return;
       }
       const touchPrimary = typeof window !== "undefined" && window.matchMedia("(hover: none) and (pointer: coarse)").matches;
       const mod = event.ctrlKey || event.metaKey;
       if (mod || (!touchPrimary && !event.shiftKey)) {
         event.preventDefault();
-        onClose();
+        onClose(true);
       }
     }
   }
@@ -267,7 +290,7 @@ function MathEditorPopover({ session, onChange, onClose }: {
       role="dialog"
       aria-label={t("Edit equation")}
       className="notes-popover notes-math-popover"
-      style={{ position: "fixed", top: position.top, left: position.left, width: position.width }}
+      style={{ position: "fixed", top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight }}
     >
       <textarea
         ref={inputRef}
@@ -287,7 +310,7 @@ function MathEditorPopover({ session, onChange, onClose }: {
         <span className="notes-math-error" role={parseError ? "alert" : undefined}>
           {parseError ?? ""}
         </span>
-        <button type="button" className="notes-math-done" onClick={onClose}>
+        <button type="button" className="notes-math-done" onClick={() => onClose(true)}>
           {t("Done")}
           <CornerDownLeft size={13} aria-hidden="true" />
         </button>
@@ -356,7 +379,7 @@ export const createMathBlockSpec = createReactBlockSpec(
               <Sigma size={16} aria-hidden="true" />
               {t("Add a TeX equation")}
             </span>
-          ) : rendered ? (
+          ) : rendered?.html ? (
             <div className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: rendered.html }} />
           ) : (
             <code className="notes-math-fallback">{latex}</code>
@@ -440,7 +463,7 @@ export const mathInlineSpec = createReactInlineContentSpec(
         >
           {!latex.trim() ? (
             <span className="notes-math-inline-placeholder">{t("New equation")}</span>
-          ) : rendered ? (
+          ) : rendered?.html ? (
             <span className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: rendered.html }} />
           ) : (
             <code className="notes-math-fallback">{latex}</code>
@@ -458,8 +481,11 @@ export const mathInlineSpec = createReactInlineContentSpec(
 export function canInsertInlineMath(editor: AnyEditor): boolean {
   const view = editor.prosemirrorView;
   if (!editor.isEditable || !view) return false;
-  const { $from, $to } = view.state.selection;
-  return $from.sameParent($to) && $from.parent.inlineContent && !$from.parent.type.spec.code;
+  const { from, to, $from, $to } = view.state.selection;
+  if (!$from.sameParent($to) || !$from.parent.inlineContent || $from.parent.type.spec.code) return false;
+  // 上限を超える選択範囲は切り捨てず、変換対象から外す。
+  const selected = view.state.doc.textBetween(from, to, " ").replace(/\r?\n/g, " ").trim();
+  return selected.length <= MAX_MATH_LATEX;
 }
 
 export function convertSelectionToInlineMath(editor: AnyEditor): boolean {
@@ -467,11 +493,12 @@ export function convertSelectionToInlineMath(editor: AnyEditor): boolean {
   if (!canInsertInlineMath(editor) || !view) return false;
   const nodeType = editor.pmSchema.nodes.mathInline;
   if (!nodeType) return false;
+  const { from, to } = view.state.selection;
+  const selected = view.state.doc.textBetween(from, to, " ").replace(/\r?\n/g, " ").trim();
+  if (selected.length > MAX_MATH_LATEX) return false;
   editor.transact((tr) => {
-    const { from, to } = tr.selection;
-    const selected = tr.doc.textBetween(from, to, " ").replace(/\r?\n/g, " ").trim().slice(0, MAX_MATH_LATEX);
     markNextMathInlineAutoOpen();
-    tr.replaceRangeWith(from, to, nodeType.create({ latex: selected }));
+    tr.replaceRangeWith(tr.selection.from, tr.selection.to, nodeType.create({ latex: selected }));
   });
   return true;
 }

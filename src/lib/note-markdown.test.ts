@@ -299,22 +299,26 @@ describe("math blocks and inline math", () => {
     ]);
   });
 
-  it("preserves literal brackets, dollar prices, and inline math containing $ across round-trips", () => {
+  it("preserves literal brackets, dollar prices, inline math followed by digits, standalone escaped-$ math, and code fences after unclosed $$", () => {
     const blocks = [
       { id: "p1", type: "paragraph", props: {}, content: [{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }], children: [] },
-      { id: "p2", type: "paragraph", props: {}, content: [{ type: "text", text: "Total: ", styles: {} }, { type: "mathInline", props: { latex: "\\$100 \\times 2" } }], children: [] },
+      { id: "p2", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "\\$100 \\times 2" } }], children: [] },
+      { id: "p3", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "x" } }, { type: "text", text: "2", styles: {} }], children: [] },
     ];
     const md = blocksToMarkdown(blocks);
     expect(md).toContain("\\[hello\\]");
     expect(md).toContain("\\$5");
-    expect(md).toContain("$$\\$100 \\times 2$$");
+    expect(md).toContain("$$x$$2");
     const back = markdownToBlocks(md);
-    expect(back[0].type).toBe("paragraph");
+    expect(back.map((b) => b.type)).toEqual(["paragraph", "paragraph", "paragraph"]);
     expect(back[0].content).toEqual([{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }]);
-    expect(back[1].content).toEqual([
-      { type: "text", text: "Total: ", styles: {} },
-      { type: "mathInline", props: { latex: "\\$100 \\times 2" } },
-    ]);
+    expect(back[1].content).toEqual([{ type: "mathInline", props: { latex: "\\$100 \\times 2" } }]);
+    expect(back[2].content).toEqual([{ type: "mathInline", props: { latex: "x" } }, { type: "text", text: "2", styles: {} }]);
+
+    // 未閉じの $$ の後にコードブロックがあっても、コード内の $$ を閉じとして吸い込まない。
+    const fenced = markdownToBlocks(["$$ unclosed", "```tex", "$$", "```", "after"].join("\n"));
+    expect(fenced.map((b) => b.type)).toEqual(["paragraph", "codeBlock", "paragraph"]);
+    expect(fenced[2].content).toEqual([{ type: "text", text: "after", styles: {} }]);
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {

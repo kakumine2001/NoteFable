@@ -3,7 +3,7 @@
 import { ArrowLeft, History, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AssistantMarkdown } from "@/components/assistant-markdown";
-import { blocksToMarkdown } from "@/lib/note-markdown";
+import { TABLE_SEPARATOR, blocksToMarkdown, splitTableRow } from "@/lib/note-markdown";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
 import "@/components/note-trash-history.css";
@@ -70,7 +70,11 @@ export function previewMarkdown(blocks: unknown) {
     const item = !opening && LIST_ITEM.test(line);
     const row = !opening && !item && line.trimStart().startsWith("|");
     if (out.length && !(item && previousItem) && !(row && previousRow)) out.push("");
-    out.push(item ? line : line.trimStart());
+    // GFM の表パーサーは行内数式より先に | でセルを切るため、履歴プレビューの表セル内にある | は \| に退避する。
+    const formatted = row && !TABLE_SEPARATOR.test(line)
+      ? `| ${splitTableRow(line).map((cell) => cell.replace(/\|/g, "\\|")).join(" | ")} |`
+      : item ? line : line.trimStart();
+    out.push(formatted);
     previousItem = item;
     previousRow = row;
     if (opening) fence = opening[1];
