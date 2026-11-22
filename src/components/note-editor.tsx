@@ -417,8 +417,8 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
       .then((data: { pages?: MentionPage[] } | null) => { if (data?.pages) setFetched(data.pages.map(({ id, title, icon }) => ({ id, title, icon }))); else started.current = false; })
       .catch(() => { started.current = false; });
   }, [given]);
-  // ページのメンションがあるノートは、開いた時にタイトルを最新にするため読む。
-  const hasPageMention = useMemo(() => JSON.stringify(blocks).includes('"kind":"page"'), [blocks]);
+  // ページのメンションがあるノートは、開いた時にタイトルを最新にするため読む。最初の内容だけを見る（入力のたびに全体を文字列にしない）。
+  const [hasPageMention] = useState(() => !given && JSON.stringify(blocks).includes('"kind":"page"'));
   useEffect(() => { if (hasPageMention) loadPages(); }, [hasPageMention, loadPages]);
   return { pages: given ?? fetched, loadPages };
 }
@@ -427,6 +427,9 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
   const { t, dir, locale } = useI18n();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
   const openPage = useCallback((id: string) => onOpenPage?.(id), [onOpenPage]);
+  // エディターの設定は最初の 1 回だけ作られるので、リンクのクリックからは最新の onOpenPage を参照で読む。
+  const openPageRef = useRef(onOpenPage);
+  useEffect(() => { openPageRef.current = onOpenPage; }, [onOpenPage]);
   const mentionContext = useMemo(() => ({ pages, loadPages, openPage }), [pages, loadPages, openPage]);
   const sideMenuFloatingOptions = useMemo(
     () => ({ useFloatingOptions: { placement: sideMenuPlacementFor(dir) } }),
@@ -439,6 +442,15 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     // 表: 見出しの行・列、セルの結合と分割、セルごとの文字色・背景色（いずれも BlockNote の既定では無効）。
     tables: { headers: true, splitCells: true, cellBackgroundColor: true, cellTextColor: true },
     uploadFile: uploadNoteFile,
+    // 編集中にリンクを押すと BlockNote は新しいウィンドウで開く。アプリ内のページへのリンクは、その場でページを切り替える。
+    links: { onClick: (event) => {
+      const anchor = (event.target as HTMLElement | null)?.closest?.("a[href]");
+      const href = anchor?.getAttribute("href") ?? "";
+      const id = notePageIdFromUrl(href, window.location.origin);
+      if (id && openPageRef.current && !event.metaKey && !event.ctrlKey && !event.shiftKey) { openPageRef.current(id); return true; }
+      if (href) window.open((anchor as HTMLAnchorElement).href, "_blank", "noopener,noreferrer");
+      return true;
+    } },
     // ウェブページからコピーした画像は外部 URL の画像ブロックになり、保存が拒否される。画像だけ含む HTML は文字だけ貼り付ける（スクリーンショットなどのファイルは uploadFile に回る）。
     pasteHandler: ({ event, editor: target, defaultPasteHandler }) => {
       const data = event.clipboardData;

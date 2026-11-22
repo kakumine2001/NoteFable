@@ -125,7 +125,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         </div>}
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
-          pages={embedded ? undefined : notes.pages} currentPageId={activeId}
+          // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
+          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId}
           onOpenPage={(id) => { if (!embedded) onOpen(id); else if (!postToNative({ type: "openPage", id })) window.location.assign(`/app?view=pages&page=${encodeURIComponent(id)}`); }}
           editorRef={editorRef} onFocusTitle={() => {
             titleRef.current?.focus();

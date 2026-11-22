@@ -56,7 +56,7 @@ export const createMentionSpec = createReactInlineContentSpec(
       // 一覧にない（ゴミ箱・削除済み・他の人のページ）ときは、作った時のタイトルを薄く出す。
       const missing = pages !== null && !page;
       const label = page?.title || title || t("Untitled");
-      return <a className={`note-mention note-mention-page${missing ? " is-missing" : ""}`} contentEditable={false} href={`?view=pages&page=${encodeURIComponent(pageId)}`}
+      return <a className={`note-mention note-mention-page${missing ? " is-missing" : ""}`} contentEditable={false} href={`/app?view=pages&page=${encodeURIComponent(pageId)}`}
         title={missing ? t("This page is not available") : label}
         onMouseDown={(event) => event.preventDefault()}
         onClick={(event) => { event.preventDefault(); if (!missing) openPage(pageId); }}>

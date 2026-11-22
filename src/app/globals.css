@@ -2740,6 +2740,8 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   color: #1d4ed8;
 }
 
+/* ノートの「@」メンション（履歴のプレビューなど）。リンクにはせず、メンションらしく少し強く出す。 */
+.markdown-mention { font-weight: 500; color: rgba(55, 53, 47, 0.8); }
 .markdown-inline-code {
   /* 文中コード用の軽い強調。ブロックコードとは背景と余白を分ける。 */
   direction: ltr;

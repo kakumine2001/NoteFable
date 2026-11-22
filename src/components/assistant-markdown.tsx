@@ -22,7 +22,7 @@ import yaml from "highlight.js/lib/languages/yaml";
 import { isValidElement, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
-import ReactMarkdown, { type Components, type Options } from "react-markdown";
+import ReactMarkdown, { defaultUrlTransform, type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { prepareMath } from "@/lib/math-markdown";
 import { writeClipboardText } from "@/lib/clipboard";
@@ -237,6 +237,8 @@ const markdownComponents: Components = {
   // 外部リンクは新規タブ、コードはインライン/ブロックで別スタイルにする。
   a: ({ node, ...props }) => {
     void node;
+    // ノートの「@」メンション（[@タイトル](page:ID)・[@日付](date:…)）。履歴のプレビューや、ノートを読んだ回答に出る。リンクにはしない。
+    if (typeof props.href === "string" && /^(page|date):/.test(props.href)) return <span className="markdown-mention">{props.children}</span>;
 
     return <a {...props} target="_blank" rel="noreferrer" />;
   },
@@ -323,11 +325,17 @@ export function AssistantMarkdown({ content, math: mathEnabled = true }: { conte
       remarkPlugins={useMath ? math.remark : plainRemarkPlugins}
       rehypePlugins={useMath ? math.rehype : undefined}
       components={markdownComponents}
+      urlTransform={keepMentionUrls}
       skipHtml
     >
       {useMath && prepared ? prepared.text : content}
     </ReactMarkdown>
   );
+}
+
+// 既定の変換は page: / date: を空にするので、メンションと見分けられるよう残す（a で文字として描く）。
+function keepMentionUrls(url: string) {
+  return /^(page|date):[\w-]+$/.test(url) ? url : defaultUrlTransform(url);
 }
 
 function subscribeNothing() {
