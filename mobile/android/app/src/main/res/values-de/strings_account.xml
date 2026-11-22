@@ -22,12 +22,10 @@
     <string name="settings_personalization">Personalisierung</string>
     <string name="settings_unsaved">Ungespeicherte Änderungen</string>
     <string name="acct_custom_instructions">Benutzerdefinierte Anweisungen</string>
-    <string name="acct_custom_instructions_help">Gilt ab der nächsten Nachricht für alle deine Chats. Erzähl NoteFable etwas über dich und wie es antworten soll. In einem Projekt haben dessen Anweisungen Vorrang.</string>
-    <string name="acct_custom_instructions_placeholder">Beispiel: Ich bereite mich auf den JLPT N1 vor. Erkläre Grammatik mit kurzen Beispielen und halte die Antworten knapp.</string>
+    <string name="acct_custom_instructions_placeholder">Zum Beispiel:\n- Antworte locker und verständlich\n- Fang mit dem Ergebnis an und fass dich kurz\n- Wenn du dir nicht sicher bist, sag es, statt zu raten</string>
     <string name="acct_err_load_custom_instructions">Deine benutzerdefinierten Anweisungen konnten nicht geladen werden.</string>
     <string name="acct_err_save_custom_instructions">Deine benutzerdefinierten Anweisungen konnten nicht gespeichert werden. Bitte versuche es erneut.</string>
     <string name="app_icon_title">Icon</string>
-    <string name="app_icon_help">Wird im Chat, in der Seitenleiste und auf der KI-Schaltfläche in Notizen angezeigt. Nur auf diesem Gerät gespeichert.</string>
     <string name="app_icon_choose_character">Charakter auswählen</string>
     <string name="app_icon_upload_image">Bild hochladen</string>
     <string name="app_icon_could_not_save">Das Icon konnte auf diesem Gerät nicht gespeichert werden.</string>

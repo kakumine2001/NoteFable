@@ -22,12 +22,10 @@
     <string name="settings_personalization">パーソナライズ</string>
     <string name="settings_unsaved">未保存の変更があります</string>
     <string name="acct_custom_instructions">カスタム指示</string>
-    <string name="acct_custom_instructions_help">次のメッセージから、すべてのチャットに適用されます。自分のことや、NoteFable にどう答えてほしいかを書いてください。プロジェクト内では、プロジェクトの指示が優先されます。</string>
-    <string name="acct_custom_instructions_placeholder">例: JLPT N1 の勉強中です。文法は短い例文で説明して、回答は簡潔にしてください。</string>
+    <string name="acct_custom_instructions_placeholder">例：\n・タメ口で、わかりやすく答えて\n・結論から先に、短めに\n・わからないことは推測せずにそう言って</string>
     <string name="acct_err_load_custom_instructions">カスタム指示を読み込めませんでした。</string>
     <string name="acct_err_save_custom_instructions">カスタム指示を保存できませんでした。もう一度お試しください。</string>
     <string name="app_icon_title">アイコン</string>
-    <string name="app_icon_help">チャット、サイドバー、ノートのAIボタンに表示されます。この端末にだけ保存されます。</string>
     <string name="app_icon_choose_character">キャラクターを選択</string>
     <string name="app_icon_upload_image">画像をアップロード</string>
     <string name="app_icon_could_not_save">この端末にアイコンを保存できませんでした。</string>

@@ -22,12 +22,10 @@
     <string name="settings_personalization">Cá nhân hóa</string>
     <string name="settings_unsaved">Có thay đổi chưa lưu</string>
     <string name="acct_custom_instructions">Hướng dẫn tùy chỉnh</string>
-    <string name="acct_custom_instructions_help">Áp dụng cho mọi đoạn chat của bạn từ tin nhắn tiếp theo. Hãy giới thiệu về bản thân và cách bạn muốn NoteFable trả lời. Trong dự án, hướng dẫn của dự án sẽ được ưu tiên.</string>
-    <string name="acct_custom_instructions_placeholder">Ví dụ: Tôi đang ôn thi JLPT N1. Hãy giải thích ngữ pháp bằng các ví dụ ngắn và trả lời súc tích.</string>
+    <string name="acct_custom_instructions_placeholder">Ví dụ:\n- Trả lời tự nhiên, dễ hiểu\n- Nói kết luận trước, ngắn gọn thôi\n- Nếu không chắc thì nói thẳng, đừng đoán</string>
     <string name="acct_err_load_custom_instructions">Không thể tải hướng dẫn tùy chỉnh của bạn.</string>
     <string name="acct_err_save_custom_instructions">Không thể lưu hướng dẫn tùy chỉnh của bạn. Vui lòng thử lại.</string>
     <string name="app_icon_title">Biểu tượng</string>
-    <string name="app_icon_help">Hiển thị trong trò chuyện, ở thanh bên và trên nút AI trong ghi chú. Chỉ lưu trên thiết bị này.</string>
     <string name="app_icon_choose_character">Chọn nhân vật</string>
     <string name="app_icon_upload_image">Tải hình ảnh lên</string>
     <string name="app_icon_could_not_save">Không thể lưu biểu tượng trên thiết bị này.</string>

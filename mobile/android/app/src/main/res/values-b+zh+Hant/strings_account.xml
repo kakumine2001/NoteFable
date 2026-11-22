@@ -23,12 +23,10 @@
     <string name="settings_personalization">個性化</string>
     <string name="settings_unsaved">有未儲存的更改</string>
     <string name="acct_custom_instructions">自定義指令</string>
-    <string name="acct_custom_instructions_help">從下一條訊息起適用於你的所有聊天。可以介紹你自己，以及希望 NoteFable 怎樣回答。在專案內，專案的指示優先。</string>
-    <string name="acct_custom_instructions_placeholder">例如：我正在備考 JLPT N1。請用簡短的例句講解語法，回答儘量簡潔。</string>
+    <string name="acct_custom_instructions_placeholder">例如：\n- 用輕鬆自然的語氣回答\n- 先說結論，儘量簡短\n- 不確定就直接說，不要瞎猜</string>
     <string name="acct_err_load_custom_instructions">無法載入你的自定義指令。</string>
     <string name="acct_err_save_custom_instructions">無法儲存你的自定義指令，請重試。</string>
     <string name="app_icon_title">圖示</string>
-    <string name="app_icon_help">顯示在聊天、側欄和筆記裡的 AI 按鈕上。只儲存在這臺裝置上。</string>
     <string name="app_icon_choose_character">選擇角色</string>
     <string name="app_icon_upload_image">上傳圖片</string>
     <string name="app_icon_could_not_save">無法在這臺裝置上儲存圖示。</string>

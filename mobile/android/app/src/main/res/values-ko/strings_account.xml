@@ -22,12 +22,10 @@
     <string name="settings_personalization">맞춤 설정</string>
     <string name="settings_unsaved">저장되지 않은 변경사항</string>
     <string name="acct_custom_instructions">맞춤 지침</string>
-    <string name="acct_custom_instructions_help">다음 메시지부터 모든 채팅에 적용됩니다. 자신에 대한 소개나 원하는 답변 방식을 NoteFable에 알려주세요. 프로젝트 안에서는 해당 프로젝트의 지침이 우선 적용됩니다.</string>
-    <string name="acct_custom_instructions_placeholder">예: JLPT N1을 준비 중입니다. 문법은 짧은 예문으로 설명해 주고 답변은 간결하게 해 주세요.</string>
+    <string name="acct_custom_instructions_placeholder">예:\n- 편하고 쉬운 말투로 답해 줘\n- 결론부터, 짧게\n- 확실하지 않으면 추측하지 말고 모른다고 말해 줘</string>
     <string name="acct_err_load_custom_instructions">맞춤 지침을 불러오지 못했어요.</string>
     <string name="acct_err_save_custom_instructions">맞춤 지침을 저장하지 못했어요. 다시 시도해 주세요.</string>
     <string name="app_icon_title">아이콘</string>
-    <string name="app_icon_help">채팅, 사이드바, 노트의 AI 버튼에 표시됩니다. 현재 기기에만 저장됩니다.</string>
     <string name="app_icon_choose_character">캐릭터 선택</string>
     <string name="app_icon_upload_image">이미지 업로드</string>
     <string name="app_icon_could_not_save">이 기기에 아이콘을 저장하지 못했어요.</string>

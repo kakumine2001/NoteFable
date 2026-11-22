@@ -22,12 +22,10 @@
     <string name="settings_personalization">Personalização</string>
     <string name="settings_unsaved">Alterações não salvas</string>
     <string name="acct_custom_instructions">Instruções personalizadas</string>
-    <string name="acct_custom_instructions_help">Aplicado a todos os seus chats a partir da próxima mensagem. Conte ao NoteFable sobre você e como prefere que ele responda. Dentro de um projeto, as instruções do projeto têm prioridade.</string>
-    <string name="acct_custom_instructions_placeholder">Exemplo: Estou me preparando para o JLPT N1. Explique a gramática com exemplos curtos e dê respostas breves.</string>
+    <string name="acct_custom_instructions_placeholder">Por exemplo:\n- Responda de forma simples e descontraída\n- Comece pela conclusão e seja breve\n- Se não tiver certeza, diga isso em vez de chutar</string>
     <string name="acct_err_load_custom_instructions">Não foi possível carregar suas instruções personalizadas.</string>
     <string name="acct_err_save_custom_instructions">Não foi possível salvar suas instruções personalizadas. Tente novamente.</string>
     <string name="app_icon_title">Ícone</string>
-    <string name="app_icon_help">Exibido no chat, na barra lateral e no botão de IA nas notas. Salvo apenas neste dispositivo.</string>
     <string name="app_icon_choose_character">Escolher um personagem</string>
     <string name="app_icon_upload_image">Enviar uma imagem</string>
     <string name="app_icon_could_not_save">Não foi possível salvar o ícone neste dispositivo.</string>

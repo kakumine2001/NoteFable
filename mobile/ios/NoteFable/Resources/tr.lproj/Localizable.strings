@@ -184,12 +184,10 @@
 "settings_personalization" = "Kişiselleştirme";
 "settings_unsaved" = "Kaydedilmemiş değişiklikler";
 "acct_custom_instructions" = "Özel talimatlar";
-"acct_custom_instructions_help" = "Bir sonraki mesajdan itibaren tüm sohbetlerinize uygulanır. NoteFable'a kendinizden ve nasıl yanıt vermesini istediğinizden bahsedin. Bir projenin içinde proje talimatları önceliklidir.";
-"acct_custom_instructions_placeholder" = "Örnek: JLPT N1 sınavına hazırlanıyorum. Dilbilgisini kısa örneklerle açıkla ve yanıtları öz tut.";
+"acct_custom_instructions_placeholder" = "Örneğin:\n- Sade ve samimi bir dille cevap ver\n- Önce sonucu söyle, kısa tut\n- Emin değilsen tahmin yürütme, bunu söyle";
 "acct_err_load_custom_instructions" = "Özel talimatlarınız yüklenemedi.";
 "acct_err_save_custom_instructions" = "Özel talimatlarınız kaydedilemedi. Lütfen tekrar deneyin.";
 "app_icon_title" = "Simge";
-"app_icon_help" = "Sohbette, kenar çubuğunda ve notlardaki yapay zekâ düğmesinde gösterilir. Yalnızca bu cihaza kaydedilir.";
 "app_icon_choose_character" = "Karakter seç";
 "app_icon_upload_image" = "Görsel yükle";
 "app_icon_could_not_save" = "Simge bu cihaza kaydedilemedi.";
@@ -273,7 +271,6 @@
 "ask_notefable" = "NoteFable'a sor";
 "quote" = "Alıntı";
 "remove_quote" = "Alıntıyı kaldır";
-"attach_pages_help" = "Yapay zekâ, eklediğiniz sayfaları bu sohbet için bağlam olarak okur. Sayfalar her mesajda yeniden okunduğu için en son düzenlemeleriniz kullanılır.";
 "attach_pages_submit" = "Ekle";
 "err_pages_image_mode" = "Görsel oluştururken sayfa eklenemez. Sayfaları kaldırın veya görsel oluşturmayı kapatın.";
 "create_page" = "Nota dönüştür";
@@ -470,10 +467,8 @@
 "sb_err_save_project" = "Proje kaydedilemedi. Lütfen tekrar deneyin.";
 "sb_loading" = "Yükleniyor…";
 "sb_instructions" = "Talimatlar";
-"sb_instructions_help" = "Bu projedeki her sohbete uygulanır. Projenin amacını, hangi dilde yanıt verileceğini ve yanıtların nasıl biçimlendirileceğini belirtin.";
 "sb_instructions_placeholder" = "Örnek: Japonca iş e-postaları yazmama yardımcı ol. Nazik bir üslup kullan ve önce kısa bir taslakla yanıt ver.";
 "sb_reference_notes" = "Referans notları";
-"sb_reference_notes_help" = "Bu projenin sohbetlerinde yapay zekâyla yalnızca burada seçtiğiniz notlar paylaşılır. Notlar anlık okunduğundan, en son düzenlemeleriniz bir sonraki mesajdan itibaren geçerli olur.";
 "sb_selected_notes" = "Seçilen notlar";
 "sb_remove_title" = "%1$s öğesini kaldır";
 "sb_filter_notes" = "Notlarınızı filtreleyin";

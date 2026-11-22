@@ -33,10 +33,8 @@
     <string name="sb_err_save_project">Không thể lưu dự án. Vui lòng thử lại.</string>
     <string name="sb_loading">Đang tải…</string>
     <string name="sb_instructions">Hướng dẫn</string>
-    <string name="sb_instructions_help">Áp dụng cho mọi đoạn chat trong dự án này. Hãy nêu mục đích của dự án, ngôn ngữ trả lời và định dạng câu trả lời mong muốn.</string>
     <string name="sb_instructions_placeholder">Ví dụ: Giúp tôi viết email công việc bằng tiếng Nhật. Giữ giọng văn lịch sự và đưa ra một bản nháp ngắn trước.</string>
     <string name="sb_reference_notes">Ghi chú tham khảo</string>
-    <string name="sb_reference_notes_help">Chỉ những ghi chú bạn chọn ở đây mới được chia sẻ với AI trong các đoạn chat của dự án này. Nội dung được đọc trực tiếp nên các chỉnh sửa mới nhất của bạn sẽ áp dụng ngay từ tin nhắn tiếp theo.</string>
     <string name="sb_selected_notes">Ghi chú đã chọn</string>
     <string name="sb_remove_title">Gỡ “%1$s”</string>
     <string name="sb_filter_notes">Lọc ghi chú</string>
