@@ -6,6 +6,7 @@ import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
 import { tryPurgeExpiredNotes } from "@/lib/note-trash";
 import { descendantIds, lockNoteOrder } from "@/lib/note-tree-server";
@@ -43,10 +44,11 @@ export async function PATCH(request: Request, context: Context) {
       const page = await tx.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
       // 応答だけ失われた保存の再送は、本文が一致する時に限り成功扱いにする。
       const alreadySaved = page && page.title === update.title && update.present.every((key) => page[key] === update[key]) && isDeepStrictEqual(page.blocks, update.blocks);
-      return { page, conflict: !changed.count && !alreadySaved };
+      return { page, conflict: !changed.count && !alreadySaved, changed: changed.count > 0 };
     });
     if (!result.page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     if (result.conflict) return NextResponse.json({ error: msg("This note was changed in another tab."), page: result.page }, { status: 409 });
+    if (result.changed) scheduleNoteEmbeddingSync(user.id, [result.page.id]);
     return NextResponse.json({ page: result.page });
   } catch (error) { return noteApiError(error); }
 }

@@ -150,6 +150,11 @@ export function buildSearchSnippet(body: string | null, terms: string[]) {
 }
 
 // ---- DB 側の照合（正規表現）----
+
+// LIKE の % と _ を文字として扱う。エスケープ文字は SQL 側の ESCAPE '!' と合わせる。
+export function likePattern(term: string) {
+  return `%${term.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+}
 // 本文を畳み込む代わりに、語のほうを「その語に畳み込まれる元の表記すべて」に広げる。語の 1 文字ごとに、
 //  ・同じ文字に畳み込まれる別の 1 文字（A/Ａ/ａ、2/２/²、ア/あ/ｱ、%/％ など）の集合
 //  ・「元の字 + 結合記号」の 2 文字で書かれた形（ガ ← カ+゛、ｶ+ﾞ、か+゛。é ← e+´）
