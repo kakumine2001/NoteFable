@@ -94,17 +94,18 @@ describe("note history dollar-only math mode", () => {
     expect(html).not.toContain("katex-error");
     expect(blocksToMarkdown(blocks)).toContain("\\[note\\]");
 
-    // 表のセルに |、\|、\text{a|b} を含む数式があっても、履歴プレビューで列が増えず TeX も書き換わらない。
-    const tableBlocks = markdownToBlocks("| Norm | Escaped | Text |\n| --- | --- | --- |\n| $|x|$ | $\\|x\\|$ | $\\text{a|b}$ |");
+    // 表のセルに |、\|、\text{a|b} を含む数式や `$a|b$` のコードスパンがあっても、履歴プレビューで正しく描かれる。
+    const tableBlocks = markdownToBlocks("| Norm | Escaped | Text | Code |\n| --- | --- | --- | --- |\n| $|x|$ | $\\|x\\|$ | $\\text{a|b}$ | `$a|b$` |");
     const tableHtml = renderToStaticMarkup(
       <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }], remarkRestorePreviewMathPipes]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
         {previewMarkdown(tableBlocks)}
       </ReactMarkdown>,
     );
-    expect(count(tableHtml, "<td>")).toBe(3);
+    expect(count(tableHtml, "<td>")).toBe(4);
     expect(count(tableHtml, 'class="katex"')).toBe(3);
     expect(tableHtml).toContain("a|b");
+    expect(tableHtml).toContain("<code>$a|b$</code>");
     expect(tableHtml).not.toContain("katex-error");
 
     // 履歴プレビューで \$ を含む行内数式もエラーにならず描かれる。

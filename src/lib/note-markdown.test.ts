@@ -336,8 +336,8 @@ describe("math blocks and inline math", () => {
     expect(hugeQuoted[0].type).toBe("codeBlock");
     expect((hugeQuoted[0].content as { text: string }[])[0].text.length).toBe(10_005);
 
-    // コードスパン内の $ が強調の閉じ記号（**）の探索を邪魔しない。
-    const boldCode = markdownToBlocks("**Run `$HOME`** ($x$)");
+    // コードスパン内の $ が強調の閉じ記号（**）や手前の $ の閉じ記号にならない。
+    const boldCode = markdownToBlocks("**Run `$HOME`** ($x$)\nPay $5; run `$HOME` next.");
     expect(boldCode[0].content).toEqual([
       { type: "text", text: "Run ", styles: { bold: true } },
       { type: "text", text: "$HOME", styles: { bold: true, code: true } },
@@ -345,6 +345,25 @@ describe("math blocks and inline math", () => {
       { type: "mathInline", props: { latex: "x" } },
       { type: "text", text: ")", styles: {} },
     ]);
+    expect(boldCode[1].content).toEqual([
+      { type: "text", text: "Pay $5; run ", styles: {} },
+      { type: "text", text: "$HOME", styles: { code: true } },
+      { type: "text", text: " next.", styles: {} },
+    ]);
+
+    // 隣接する表セルの |$5|$HOME| は 2 列のまま保ち、$$ を含む数式（\verb|$$|）も往返できる。
+    const priceTable = markdownToBlocks("| A | B |\n| --- | --- |\n|$5|$HOME|");
+    const pt = priceTable[0].content as { rows: { cells: { content: { text: string }[] }[] }[] };
+    expect(pt.rows[1].cells.map((c) => c.content.map((e) => e.text).join(""))).toEqual(["$5", "$HOME"]);
+
+    const verbBlocks = [
+      { id: "v1", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "\\verb|$$|" } }], children: [] },
+      { id: "v2", type: "mathBlock", props: { latex: "\\verb|$$|" }, children: [] },
+    ];
+    const verbBack = markdownToBlocks(blocksToMarkdown(verbBlocks));
+    expect(verbBack.map((b) => b.type)).toEqual(["paragraph", "mathBlock"]);
+    expect(verbBack[0].content).toEqual([{ type: "mathInline", props: { latex: "\\verb|$$|" } }]);
+    expect(verbBack[1].props).toEqual({ latex: "\\verb|$$|" });
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {

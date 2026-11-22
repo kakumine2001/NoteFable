@@ -38,10 +38,30 @@ function escapeBlockStart(text: string) {
 
 // ---- 行内の数式 ----
 
-// from 以降で、バックスラッシュでエスケープされていない mark の最初の位置。無ければ -1。
-function findUnescaped(text: string, mark: string, from: number) {
+// from 以降で、ちょうど run 個並んだバッククォートの列の位置。無ければ -1。
+function findBacktickRun(text: string, from: number, run: number) {
+  for (let index = from; index < text.length; index++) {
+    if (text[index] !== "`") continue;
+    let end = index;
+    while (text[end + 1] === "`") end++;
+    if (end - index + 1 === run) return index;
+    index = end;
+  }
+  return -1;
+}
+
+// from 以降で、バックスラッシュでエスケープされていない mark の最初の位置（コードスパンの中は飛ばす）。無ければ -1。
+function findUnescaped(text: string, mark: string, from: number, stopAtCode = false) {
   for (let index = from; index < text.length; index++) {
     if (text[index] === "\\") { index++; continue; }
+    if (stopAtCode && text[index] === "`") {
+      let open = index;
+      while (text[open] === "`") open++;
+      const close = findBacktickRun(text, open, open - index);
+      if (close > open) return -1;
+      index = open - 1;
+      continue;
+    }
     if (text.startsWith(mark, index)) return index;
   }
   return -1;
@@ -49,15 +69,33 @@ function findUnescaped(text: string, mark: string, from: number) {
 
 // text[index] が $ のとき、そこから始まる行内の数式の終わり（閉じの区切りの直後の位置）。数式でなければ -1。
 // $…$ は Pandoc の決まり（開く $ の直後と閉じる $ の直前が空白でなく、閉じる $ の直後が数字でない）。「$5 と $10」のような金額は数式にしない。
-// $$…$$ は中身が空でなければよい（中に $ を含められる）。どちらも 1 行の中だけ。
+// 2 個以上の $ の並び（$$…$$、$$$…$$$ など）は同じ長さの $ の並びで閉じる（中に $$ を含む TeX も往返できる）。コードスパンはまたがない。
 export function inlineMathEnd(text: string, index: number) {
   if (text[index] !== "$") return -1;
-  if (text.startsWith("$$", index)) {
-    const close = findUnescaped(text, "$$", index + 2);
-    return close > index + 2 && text.slice(index + 2, close).trim() ? close + 2 : -1;
+  let open = index;
+  while (text[open] === "$") open++;
+  const run = open - index;
+  if (run >= 2) {
+    // ちょうど run 個の $ で閉じる。
+    for (let j = open; j < text.length; j++) {
+      if (text[j] === "\\") { j++; continue; }
+      if (text[j] === "`") {
+        let codeOpen = j;
+        while (text[codeOpen] === "`") codeOpen++;
+        if (findBacktickRun(text, codeOpen, codeOpen - j) > codeOpen) return -1;
+        j = codeOpen - 1;
+        continue;
+      }
+      if (text[j] !== "$") continue;
+      let end = j;
+      while (text[end] === "$") end++;
+      if (end - j === run) return text.slice(open, j).trim() ? end : -1;
+      j = end - 1;
+    }
+    return -1;
   }
   if (index + 1 >= text.length || /\s/.test(text[index + 1])) return -1;
-  const close = findUnescaped(text, "$", index + 1);
+  const close = findUnescaped(text, "$", index + 1, true);
   return close > index + 1 && !/\s/.test(text[close - 1]) && !/\d/.test(text[close + 1] ?? "") ? close + 1 : -1;
 }
 
@@ -126,6 +164,37 @@ export function escapeCellPipes(text: string) {
   return out;
 }
 
+// セルの \| を | に戻す。ただし行内の数式の中の \|（$\|x\|$ など）は TeX の記法なのでそのまま保つ。
+function unescapeNonMathPipes(text: string) {
+  let out = "";
+  let fence = 0;
+  for (let index = 0; index < text.length; index++) {
+    const char = text[index];
+    if (char === "`") {
+      let end = index;
+      while (text[end + 1] === "`") end++;
+      const run = end - index + 1;
+      if (!fence) fence = closesLater(text, end + 1, run) ? run : 0;
+      else if (run === fence) fence = 0;
+      out += text.slice(index, end + 1);
+      index = end;
+    } else if (char === "\\" && text[index + 1] === "|") {
+      out += "|";
+      index++;
+    } else if (!fence && char === "\\" && text[index + 1] === "$") {
+      out += "\\$";
+      index++;
+    } else if (!fence && char === "$") {
+      const end = inlineMathEnd(text, index);
+      if (end > 0) {
+        out += text.slice(index, end);
+        index = end - 1;
+      } else out += char;
+    } else out += char;
+  }
+  return out;
+}
+
 // from 以降に、ちょうど run 個並んだバッククォートの列があるか。
 function closesLater(line: string, from: number, run: number) {
   for (let index = from; index < line.length; index++) {
@@ -162,13 +231,16 @@ function inlineCode(body: string) {
 }
 
 // 行内の数式。TeX の改行は空白にし、前後の空白は落とす（$ の直後と直前が空白だと、読み戻した時に数式にならない）。
-// 次の文字が数字（$x$2 が Pandoc 規則で数式とみなされない）・末尾が \・エスケープされていない $ を含む時は $$…$$ で書く。
-// 履歴プレビュー（forPreview）では remark-math が \$ でも $…$ を閉じてしまうため、$ を 1 つでも含む時は $$…$$ にする。
+// 次の文字が数字・末尾が \・$ を含む時は、中の最長の $ 列より長い囲み（2 個以上、履歴プレビュー時は remark-math 互換のため $$）で書く。
 function inlineMath(latex: unknown, followedByDigit = false, forPreview = false) {
   const raw = typeof latex === "string" ? latex.replace(/\r?\n/g, " ").trim() : "";
   if (!raw) return "";
   const hasDollar = forPreview ? raw.includes("$") : findUnescaped(raw, "$", 0) >= 0;
-  return followedByDigit || hasDollar || raw.endsWith("\\") ? `$$${raw}${raw.endsWith("\\") ? " " : ""}$$` : `$${raw}$`;
+  if (!followedByDigit && !hasDollar && !raw.endsWith("\\")) return `$${raw}$`;
+  const longest = forPreview ? 1 : Math.max(1, ...[...raw.matchAll(/\$+/g)].map((run) => run[0].length));
+  const fence = "$".repeat(Math.max(2, longest + 1));
+  const pad = raw.startsWith("$") || raw.endsWith("$") || raw.endsWith("\\") ? " " : "";
+  return `${fence}${pad}${raw}${pad}${fence}`;
 }
 
 // 次のインライン要素の先頭文字が数字か（$x$2 のように直後に数字が続くと、$…$ では数式として読み戻せない）。
@@ -233,10 +305,13 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
     } else if (block.type === "divider") {
       lines.push(`${indent}${label}---`);
     } else if (block.type === "mathBlock") {
-      // ブロックの数式は $$ だけの行で囲む（コードブロックと同じ作り）。TeX の空行は数式を途中で切るので落とす。
+      // ブロックの数式は $$ だけの行で囲む。中に $$ を含む行がある時は ```math 囲みにして衝突を避ける。
       const latex = typeof props.latex === "string" ? props.latex.replace(/\r\n?/g, "\n").trim() : "";
       const body = latex.split("\n").filter((line) => line.trim()).map((line) => indent + line.trimEnd());
-      if (counter || body.length) lines.push(`${indent}${label}$$`, ...body, `${indent}$$`);
+      if (body.some((line) => line.includes("$$"))) {
+        const fence = "`".repeat(Math.max(3, ...[...latex.matchAll(/`+/g)].map((run) => run[0].length + 1)));
+        lines.push(`${indent}${label}${fence}math`, ...body, `${indent}${fence}`);
+      } else if (counter || body.length) lines.push(`${indent}${label}$$`, ...body, `${indent}$$`);
     } else if (block.type === "table") {
       // 表は GFM の表として書く（1 行目を見出し行にする。行は番号を持たず、表全体が 1 ブロック）。
       const rows = tableRows(block.content);
@@ -301,26 +376,47 @@ class Finder {
 
   private lone?: number[];
   private dollars?: number[];
+  private codeStarts?: number[];
   private runs?: { pos: number; len: number }[];
   private runIndex = new Map<number, number>();
 
-  // from 以降で、エスケープされていない最初の $ の位置（前から順に一度だけ数える）。
+  // from 以降で、コードスパンをまたがずに最初に来るエスケープされていない $ の位置。
   nextDollar(from: number) {
     if (!this.dollars) {
       this.dollars = [];
+      this.codeStarts = [];
       for (let j = 0; j < this.src.length; j++) {
         if (this.src[j] === "\\") { j++; continue; }
+        if (this.src[j] === "`") {
+          let open = j;
+          while (this.src[open] === "`") open++;
+          const close = this.backtickRun(open - j, open);
+          if (close > open) {
+            this.codeStarts.push(j);
+            j = close + (open - j) - 1;
+            continue;
+          }
+          j = open - 1;
+          continue;
+        }
         if (this.src[j] === "$") this.dollars.push(j);
       }
     }
-    let low = 0;
-    let high = this.dollars.length;
-    while (low < high) {
-      const mid = (low + high) >> 1;
-      if (this.dollars[mid] < from) low = mid + 1;
-      else high = mid;
-    }
-    return low < this.dollars.length ? this.dollars[low] : -1;
+    const lowerBound = (arr: number[], target: number) => {
+      let low = 0;
+      let high = arr.length;
+      while (low < high) {
+        const mid = (low + high) >> 1;
+        if (arr[mid] < target) low = mid + 1;
+        else high = mid;
+      }
+      return low < arr.length ? arr[low] : -1;
+    };
+    const pos = lowerBound(this.dollars, from);
+    if (pos < 0) return -1;
+    // 開き $ と閉じ $ の間にコードスパンが挟まる場合は、数式として閉じない（例: Pay $5; run `$HOME` next.）。
+    const codePos = lowerBound(this.codeStarts!, from);
+    return codePos >= 0 && codePos < pos ? -1 : pos;
   }
 
   // 単独の * （前後が * でない）の位置。コードスパンや数式の中にある * は飛ばす。前から順に一度だけ数える。
@@ -453,20 +549,23 @@ function parseInline(src: string, styles: Styles = {}, allowLinks = true, depth 
         continue;
       }
     }
-    // 行内の数式: $…$（Pandoc の決まり）と $$…$$。中身は Markdown として読まず、TeX のまま持つ。リンクの中では使えない。
+    // 行内の数式: $…$（Pandoc の決まり）と 2 個以上の $ の並び（$$…$$、$$$…$$$ など）。中身は TeX のまま持つ。リンクの中では使えない。
     if (allowLinks && char === "$") {
       if (src.startsWith("$$", i)) {
-        const close = finder.find("$$", i + 2);
-        const inner = close > i + 2 ? src.slice(i + 2, close).trim() : "";
+        let open = i;
+        while (src[open] === "$") open++;
+        const end = inlineMathEnd(src, i);
+        const run = open - i;
+        const inner = end > open + run ? src.slice(open, end - run).trim() : "";
         if (inner && inner.length <= MAX_MATH_LATEX) {
           flush();
           out.push({ type: "mathInline", props: { latex: inner } });
-          i = close + 2;
+          i = end;
           continue;
         }
-        // 閉じていない・空・長すぎる $$ は文字のまま（1 つずつ読み直すと、後ろの $ を誤って開きにしてしまう）。
-        buffer += "$$";
-        i += 2;
+        // 閉じていない・空・長すぎる $ 列は文字のまま（1 つずつ読み直すと、後ろの $ を誤って開きにしてしまう）。
+        buffer += src.slice(i, open);
+        i = open;
         continue;
       }
       if (i + 1 < src.length && !/\s/.test(src[i + 1])) {
@@ -586,9 +685,16 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
     }
     // 表: | で始まる行の次が区切り行（| --- | --- |）のとき。大きさの上限はノート全体の 1 MiB だけ。
     if (text.startsWith("|") && index + 1 < lines.length && lines[index + 1].includes("|") && TABLE_SEPARATOR.test(lines[index + 1])) {
-      const rows = [splitTableRow(text)];
+      const headerCols = splitTableRow(lines[index + 1], { protectMath: false }).length;
+      // まず GFM の通常の区切りで列数が合うか確かめ（|$5|$HOME| を 2 列のまま保つ）、
+      // 列数があふれる行だけ数式内の | を保護して分割する（| $|x|$ | y |）。
+      const parseRow = (raw: string) => {
+        const plain = splitTableRow(raw, { protectMath: false, unescapePipes: false });
+        return plain.length <= headerCols ? plain.map(unescapeNonMathPipes) : splitTableRow(raw, { protectMath: true });
+      };
+      const rows = [parseRow(text)];
       let end = index + 1;
-      while (end + 1 < lines.length && lines[end + 1].trim().startsWith("|")) rows.push(splitTableRow(lines[++end]));
+      while (end + 1 < lines.length && lines[end + 1].trim().startsWith("|")) rows.push(parseRow(lines[++end]));
       const columns = rows.reduce((max, row) => Math.max(max, row.length), 1);
       // 埋めた後のセル数が多すぎるものは表にせず、下の通常の行として読む。
       if (rows.length * columns <= MAX_PARSED_TABLE_CELLS) {

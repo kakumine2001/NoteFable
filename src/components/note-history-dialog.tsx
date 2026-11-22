@@ -31,12 +31,33 @@ export function relativeTime(iso: string, now = Date.now(), t: Translate = engli
 }
 
 // 履歴プレビューの表セル内にある | を、GFM にセル区切りとして読まれない形へ直す。
-// 数式の中の | は TeX を書き換えずに一時文字（PREVIEW_MATH_PIPE）へ退避し、AssistantMarkdown の remark プラグインで KaTeX 描画前に | へ戻す。
+// コードスパン内の | は通常の \| のまま保ち、数式の中の | だけを一時文字（PREVIEW_MATH_PIPE）へ退避して KaTeX 描画前に戻す。
 function previewTableCell(cell: string) {
   let out = "";
   for (let index = 0; index < cell.length; index++) {
     if (cell[index] === "\\" && index + 1 < cell.length) {
       out += cell[index] + cell[++index];
+      continue;
+    }
+    if (cell[index] === "`") {
+      let open = index;
+      while (cell[open] === "`") open++;
+      const run = open - index;
+      let close = -1;
+      for (let j = open; j < cell.length; j++) {
+        if (cell[j] !== "`") continue;
+        let end = j;
+        while (cell[end] === "`") end++;
+        if (end - j === run) { close = end; break; }
+        j = end - 1;
+      }
+      if (close > open) {
+        out += cell.slice(index, close).replaceAll("|", "\\|");
+        index = close - 1;
+        continue;
+      }
+      out += cell.slice(index, open);
+      index = open - 1;
       continue;
     }
     if (cell[index] === "$") {

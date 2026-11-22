@@ -365,12 +365,15 @@ function prepareMarkdown(markdown: string) {
     prose = [];
     for (let i = 0; i < prepared.length; i++) {
       const line = prepared[i];
-      // 「$$ だけの行」で囲まれたブロックの数式は、そのまま通す（空行やコード囲みで打ち切り、未閉じの $$ が後ろを飲み込まない）。
-      if (line.trim() === "$$") {
+      // 「$$ だけの行」または引用内の「> $$」で囲まれたブロックの数式は、そのまま通す（空行やコード囲みで打ち切る）。
+      const quoteMatch = /^(\s*(?:>\s?)*)\$\$\s*$/.exec(line);
+      if (quoteMatch) {
+        const quoted = quoteMatch[1].includes(">");
         let close = -1;
         for (let k = i + 1; k < prepared.length; k++) {
-          if (!prepared[k].trim() || openFence(prepared[k])) break;
-          if (prepared[k].trim() === "$$") { close = k; break; }
+          const inner = quoted ? (/^\s*>\s?(.*)$/.exec(prepared[k])?.[1] ?? null) : prepared[k];
+          if (inner === null || !inner.trim() || openFence(inner)) break;
+          if (inner.trim() === "$$") { close = k; break; }
         }
         if (close > i) {
           out.push(...prepared.slice(i, close + 1));

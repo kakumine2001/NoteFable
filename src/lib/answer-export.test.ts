@@ -442,11 +442,11 @@ describe("answerToNoteContent", () => {
     expect(textOf(withUrl.blocks[0])).toContain("https://example.com/$bare$/1.");
     expect(inline(withUrl.blocks[0]).some((entry) => entry.type === "mathInline")).toBe(false);
 
-    // 引用内の \[x^2\]、引用内の行内 \(\\$100\)、数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
-    const quotedAndDigit = build("> \\[x^2\\]\n\n> \\(\\$100\\)\n\n\\(x\\)2\n\n\\(\\$100\\)");
+    // 引用内の \[x^2\]（中の ![point](url) を書き換えない）、引用内の行内 \(\\$100\)、数字の直前の \(x\)2、単一行の \(\\$100\) も意図どおりに保存する。
+    const quotedAndDigit = build("> \\[\\text{![point](https://example.com)}\\]\n\n> \\(\\$100\\)\n\n\\(x\\)2\n\n\\(\\$100\\)");
     expectValid(quotedAndDigit);
     expect(quotedAndDigit.blocks[0].type).toBe("mathBlock");
-    expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "x^2" });
+    expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "\\text{![point](https://example.com)}" });
     expect(quotedAndDigit.blocks[1].type).toBe("quote");
     expect(quotedAndDigit.blocks[1].content).toEqual([{ type: "mathInline", props: { latex: "\\$100" } }]);
     expect(quotedAndDigit.blocks[2].content).toEqual([
