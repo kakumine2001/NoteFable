@@ -57,6 +57,9 @@ targets:
         product: SwiftMath
       - package: GoogleSignIn
         product: GoogleSignIn
+      # 系统「分享」里的 NoteFable：随主 App 一起打包（见下面的 NoteFableShareExtension）。
+      - target: NoteFableShareExtension
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.kakumine.notefable
@@ -66,6 +69,27 @@ targets:
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         # 系统弹出的界面（提示框、确认菜单、选字光标）没单独设 tint 时用的强调色：AccentColor（#2383E2），不是系统蓝。
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
+        SWIFT_EMIT_LOC_STRINGS: NO
+
+  # 分享扩展（com.apple.share-services）：把分享来的文字、链接、图片、文件写进 App Group 的共享目录再唤起主 App。
+  # 版本号（MARKETING_VERSION / CURRENT_PROJECT_VERSION）用上面 settings.base 的，不在这里重复写
+  # （scripts/release/ios-version.sh 要求这两项在文件里各只出现一次）。ShareIntake.swift 只依赖 Foundation，所以能同时编进两边。
+  NoteFableShareExtension:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: ShareExtension
+      - path: NoteFable/Core/Chat/ShareIntake.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.kakumine.notefable.ShareExtension
+        PRODUCT_NAME: NoteFableShareExtension
+        INFOPLIST_FILE: ShareExtension/Support/Info.plist
+        CODE_SIGN_ENTITLEMENTS: ShareExtension/Support/ShareExtension.entitlements
+        APPLICATION_EXTENSION_API_ONLY: YES
+        SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "1"
         GENERATE_INFOPLIST_FILE: NO
         SWIFT_EMIT_LOC_STRINGS: NO

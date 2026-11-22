@@ -89,7 +89,7 @@ flowchart LR
 | `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
 | `src/app/api/pages/*` | 站内页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、封面与附件、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）、笔记助手的对话恢复（`assistant`） |
 | `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
-| `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的共用函数：`GET /api/sessions/:id/messages` 与 `GET /api/pages/:id/assistant` 共用 |
+| `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
 | `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |
 | `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客的入口在 `help-menu.tsx`） |
 | `src/lib/page-tools.ts`、`src/lib/note-proposals.ts`、`src/app/api/proposals/*` | AI 的 Notes 读写/提案工具定义与提案应用/放弃接口 |

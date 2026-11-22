@@ -99,6 +99,10 @@ struct NoteEditorScreen: View {
                 lockButton(actions)
                     .padding(.leading, 8)
             }
+            if let page {
+                shareButton(page)
+                    .padding(.leading, 8)
+            }
             NFIconButton(Lucide.history, label: L("version_history")) { app.editorBridge?.openHistory() }
                 .padding(.leading, 8)
             Text(noteSaveStateText(state.saveState))
@@ -114,6 +118,19 @@ struct NoteEditorScreen: View {
         }
         .padding(.horizontal, 10.4)
         .frame(height: 56)
+    }
+
+    private func shareButton(_ page: NotePageSummary) -> some View {
+        let dialogBinding = $dialog
+        return Button {
+            dialogBinding.wrappedValue = .share(pageId: page.id)
+        } label: {
+            LucideIcon(Lucide.globe, size: 15, color: page.isShared() ? Sm.blue : Sm.muted)
+                .padding(.horizontal, 8)
+                .frame(height: 32)
+        }
+        .buttonStyle(.pressable(cornerRadius: 6))
+        .accessibilityLabel(L("share_action"))
     }
 
     /// 锁定中（网页 .notes-locked-button，手机只有锁的图标）：高 32、左右 8、圆角 6、Lock 14 灰；点一下解锁。

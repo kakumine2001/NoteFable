@@ -451,6 +451,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "em %1$s";
 
+/* strings_share.xml */
+"share_action" = "Compartilhar";
+"share_publish_to_web" = "Publicar na web";
+"share_publish" = "Publicar";
+"share_republish" = "Publicar novamente";
+"share_unpublish" = "Cancelar publicação";
+"share_desc" = "Publique esta nota para que qualquer pessoa com o link possa visualizá-la.";
+"share_expired" = "Este link de compartilhamento expirou.";
+"share_public_link" = "Link público";
+"share_copy_link" = "Copiar link";
+"share_open_link" = "Abrir link";
+"share_include_subpages" = "Incluir subpáginas";
+"share_link_expires" = "O link expira em";
+"share_never" = "Nunca";
+"share_1h" = "1 hora";
+"share_1d" = "1 dia";
+"share_7d" = "7 dias";
+"share_30d" = "30 dias";
+"share_custom_date" = "Data personalizada…";
+"share_set" = "Definir";
+"share_expires_time" = "Expira em %1$s";
+"share_via_parent" = "Compartilhada pela página superior (%1$s)";
+"share_excluded_parent" = "Excluída do compartilhamento superior (%1$s)";
+"share_exclude_from_parent" = "Excluir do compartilhamento superior";
+"share_load_failed" = "Não foi possível carregar as configurações de compartilhamento.";
+"share_update_failed" = "Não foi possível atualizar as configurações de compartilhamento.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Fixado";
 "sb_close_sidebar" = "Fechar barra lateral";

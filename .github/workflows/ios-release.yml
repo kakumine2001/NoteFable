@@ -211,11 +211,33 @@ jobs:
             exit 1
           fi
 
-          # CODE_SIGNING_ALLOWED=NO skips embedding entitlements during archive; resolve the target's
+          # CODE_SIGNING_ALLOWED=NO skips embedding entitlements during archive; resolve each target's
           # configured CODE_SIGN_ENTITLEMENTS and attach it with an ad-hoc signature so exportArchive
-          # preserves capabilities (e.g. Associated Domains). Drain stdin completely so xcodebuild never hits SIGPIPE.
-          entitlements=$(xcodebuild -project NoteFable.xcodeproj -scheme NoteFable -configuration Release -showBuildSettings \
-            | awk -F ' = ' '!found && $1 ~ /^[[:space:]]*CODE_SIGN_ENTITLEMENTS$/ { val = $2; found = 1 } END { if (found) print val }')
+          # preserves capabilities (Associated Domains and the App Group the share extension hands content over through).
+          # Drain stdin completely so xcodebuild never hits SIGPIPE.
+          entitlements_of() {
+            xcodebuild -project NoteFable.xcodeproj -target "$1" -configuration Release -showBuildSettings \
+              | awk -F ' = ' '!found && $1 ~ /^[[:space:]]*CODE_SIGN_ENTITLEMENTS$/ { val = $2; found = 1 } END { if (found) print val }'
+          }
+          # The share extension is signed first: the app's signature seals the nested code.
+          appex_path="$app_path/PlugIns/NoteFableShareExtension.appex"
+          if [[ -d "$appex_path" ]]; then
+            appex_build=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$appex_path/Info.plist")
+            appex_marketing=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$appex_path/Info.plist")
+            if [[ "$appex_build" != "$EXPECTED_BUILD_NUMBER" || "$appex_marketing" != "$EXPECTED_MARKETING_VERSION" ]]; then
+              echo "::error::Share extension version $appex_marketing ($appex_build) does not match planned $EXPECTED_MARKETING_VERSION ($EXPECTED_BUILD_NUMBER)."
+              exit 1
+            fi
+            appex_entitlements=$(entitlements_of NoteFableShareExtension)
+            if [[ -z "$appex_entitlements" || ! -f "$appex_entitlements" ]]; then
+              echo "::error::Share extension entitlements file not found: ${appex_entitlements:-<unset>}"
+              exit 1
+            fi
+            codesign --force --sign "-" \
+              --entitlements "$appex_entitlements" \
+              "$appex_path"
+          fi
+          entitlements=$(entitlements_of NoteFable)
           if [[ -n "$entitlements" ]]; then
             if [[ ! -f "$entitlements" ]]; then
               echo "::error::Configured CODE_SIGN_ENTITLEMENTS file not found: $entitlements"

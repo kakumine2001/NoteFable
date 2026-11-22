@@ -253,6 +253,20 @@ class NoteFableApi(
         return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/settings")).put(body.toRequestBody(JSON))).page
     }
 
+    override suspend fun getShare(id: String): NoteShareState =
+        send<ShareStateResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/share")).get()).share
+
+    override suspend fun updateShare(id: String, patch: NoteSharePatch): ShareUpdateResult {
+        val body = buildJsonObject {
+            patch.enabled?.let { put("enabled", it) }
+            patch.includeSubpages?.let { put("includeSubpages", it) }
+            if (patch.setExpiresAt) put("expiresAt", patch.expiresAt)
+            patch.excludeFromParent?.let { put("excludeFromParent", it) }
+        }.toString()
+        val res = send<ShareStateResponse>(Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/share")).put(body.toRequestBody(JSON)))
+        return ShareUpdateResult(res.share, res.page)
+    }
+
     override suspend fun duplicate(id: String): DuplicateResult {
         val response = send<kotlinx.serialization.json.JsonObject>(
             Request.Builder().url(absoluteUrl("/api/pages/${segment(id)}/duplicate")).post(ByteArray(0).toRequestBody(null)),

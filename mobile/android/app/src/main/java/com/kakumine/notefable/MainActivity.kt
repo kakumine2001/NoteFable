@@ -34,6 +34,7 @@ import com.kakumine.notefable.ui.ChatViewModel
 import com.kakumine.notefable.ui.NotesViewModel
 import com.kakumine.notefable.ui.NoteFableRoot
 import com.kakumine.notefable.ui.NoteFableTheme
+import com.kakumine.notefable.ui.extractShareIntent
 
 // AppCompatActivity：应用内切换语言（AppCompatDelegate.setApplicationLocales）在 Android 12 及以下也能生效
 //（那里由 AppCompat 保存选择并就地更新 Resources，见 onConfigurationChanged）。
@@ -112,7 +113,7 @@ class MainActivity : AppCompatActivity() {
         // 从外部打开的聊天链接。重建 Activity 时不再重复打开；从"最近任务"重新进入时系统会带着当初的 VIEW intent
         //（FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY），那是旧链接，也不打开（网页处理完就把 ?chat= 从地址里去掉）。
         val fromHistory = (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0
-        if (savedInstanceState == null && !fromHistory) handleLink(intent)
+        if (savedInstanceState == null && !fromHistory) handleIncomingIntent(intent)
     }
 
     /**
@@ -125,11 +126,20 @@ class MainActivity : AppCompatActivity() {
         window.setBackgroundDrawable(ColorDrawable(if (dark) WINDOW_DARK else Color.WHITE))
     }
 
-    // singleTask：App 已在运行时，链接从这里进来。
+    // singleTask：App 已在运行时，链接和分享从这里进来。
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        handleLink(intent)
+        handleIncomingIntent(intent)
+    }
+
+    /** 外部交来的 Intent：聊天链接（VIEW）或系统分享（SEND / SEND_MULTIPLE）。别的不处理，照常打开 App。 */
+    private fun handleIncomingIntent(intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_VIEW -> handleLink(intent)
+            Intent.ACTION_SEND, Intent.ACTION_SEND_MULTIPLE ->
+                extractShareIntent(applicationContext, intent, lifecycleScope)?.let(viewModel::requestShare)
+        }
     }
 
     /** `https://<站点>/?chat=<会话>&message=<消息>`：在 App 里打开那段聊天（Batch 4）。别的链接不处理，照常打开 App。 */

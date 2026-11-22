@@ -95,15 +95,35 @@ describe("chat requests made from inside a note", () => {
     expect(mocks.fetch).not.toHaveBeenCalled();
   });
 
-  it("only continues a conversation that belongs to the same note, and keeps plain chats separate", async () => {
+  it("only continues a conversation that belongs to the same note from inside the note, and adds no note line to plain chats", async () => {
     await send({ noteId: "note1", sessionId: "session" });
     expect(mocks.findSession.mock.calls[0][0].where).toEqual({ id: "session", userId: "user", noteId: "note1" });
+    // Chats からは自分のどの会話も続けられる（ノートで始めた会話も一覧に出る）。
     await send({ sessionId: "session" });
-    expect(mocks.findSession.mock.calls[1][0].where).toEqual({ id: "session", userId: "user", noteId: null });
+    expect(mocks.findSession.mock.calls[1][0].where).toEqual({ id: "session", userId: "user" });
     // 通常のチャットにはノートの指示を足さない。
     const { instructions } = JSON.parse(mocks.fetch.mock.calls[1][1].body);
     expect(instructions).not.toContain("noteId:");
     expect(mocks.findNote).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps telling the model which note it is when a note chat is continued from Chats", async () => {
+    mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat", noteId: "note1" });
+    expect((await send({ sessionId: "session", webSearch: "auto", model: "gpt-6-luna" })).status).toBe(200);
+    // 会話のノートは、自分の生きたノートとして読み直す。
+    expect(mocks.findNote.mock.calls[0][0].where).toEqual({ id: "note1", userId: "user", deletedAt: null });
+    const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
+    expect(body.instructions).toContain("This conversation was started from inside the editor of the user's note");
+    expect(body.instructions).toContain("noteId: note1");
+    // Chats からの送信なので、検索は Chats の指定に従う。
+    expect((body.tools ?? []).map((tool: { type: string }) => tool.type)).toContain("web_search");
+  });
+
+  it("continues a note chat as a plain chat once its note is in the trash or gone", async () => {
+    mocks.findSession.mockResolvedValue({ id: "session", title: "Existing chat", noteId: "note1" });
+    mocks.findNote.mockResolvedValue(null);
+    expect((await send({ sessionId: "session" })).status).toBe(200);
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions).not.toContain("noteId:");
   });
 
   it("keeps web search off for note requests whatever the client asks for", async () => {

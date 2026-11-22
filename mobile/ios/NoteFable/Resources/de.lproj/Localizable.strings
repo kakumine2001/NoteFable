@@ -451,6 +451,33 @@
 "search_speaker_notefable" = "NoteFable: ";
 "search_in_file" = "in %1$s";
 
+/* strings_share.xml */
+"share_action" = "Teilen";
+"share_publish_to_web" = "Im Web veröffentlichen";
+"share_publish" = "Veröffentlichen";
+"share_republish" = "Erneut veröffentlichen";
+"share_unpublish" = "Veröffentlichung aufheben";
+"share_desc" = "Veröffentliche diese Notiz, damit jeder mit dem Link sie ansehen kann.";
+"share_expired" = "Dieser Freigabelink ist abgelaufen.";
+"share_public_link" = "Öffentlicher Link";
+"share_copy_link" = "Link kopieren";
+"share_open_link" = "Link öffnen";
+"share_include_subpages" = "Unterseiten einschließen";
+"share_link_expires" = "Link läuft ab";
+"share_never" = "Nie";
+"share_1h" = "1 Stunde";
+"share_1d" = "1 Tag";
+"share_7d" = "7 Tage";
+"share_30d" = "30 Tage";
+"share_custom_date" = "Benutzerdefiniertes Datum…";
+"share_set" = "Festlegen";
+"share_expires_time" = "Läuft ab: %1$s";
+"share_via_parent" = "Über übergeordnete Seite geteilt (%1$s)";
+"share_excluded_parent" = "Von übergeordneter Freigabe ausgeschlossen (%1$s)";
+"share_exclude_from_parent" = "Von übergeordneter Freigabe ausschließen";
+"share_load_failed" = "Freigabeeinstellungen konnten nicht geladen werden.";
+"share_update_failed" = "Freigabeeinstellungen konnten nicht aktualisiert werden.";
+
 /* strings_sidebar.xml */
 "sb_pinned" = "Angepinnt";
 "sb_close_sidebar" = "Seitenleiste schließen";

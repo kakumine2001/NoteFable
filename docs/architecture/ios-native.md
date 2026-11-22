@@ -95,6 +95,7 @@ mobile/ios/
 | 笔记导出 Markdown | SAF `CreateDocument` | 页面“…”菜单 → 先让网页保存（存不上就不导出）→ `GET /api/pages/:id/export` → 系统的“存储到文件”（`.fileExporter`，UTF-8 的 `.md`，与下载对话共用 `MarkdownExportDocument`）。规则在 `Core/Notes/NoteIO.swift` 和 `NotesViewModel.exportPage` |
 | 笔记导入 Markdown | SAF `OpenMultipleDocuments` | `fileImporter`（可多选；`Features/Notes/NoteMarkdownIO.swift`）：带访问权限的地址逐个申请、用完就还，iCloud 里没下载的由 `NSFileCoordinator` 等它下载。发请求前按 20 个 / 每个 1 MiB / 合计 4 MiB / 扩展名查一遍（`noteImportProblem`），读完按实际要发的文字和 JSON 请求体再查一遍（`noteImportPayloadProblem`，`groupId` 也算在内）。没有项目时直接导入（请求体不带 `groupId`）；至少有一个项目时本机检查通过后先显示“Import to”对话框（`NotesViewModel.beginImport` 决定，`NoteImportTargetDialog`，用“移到”窗口同一套 `.nfDialog` / `NFOptionRow`）：第一项 “No project”，后面按项目顺序，点一项就导入到那里（带 `groupId`），“Cancel” 不导入。`POST /api/pages/import` 后合并进列表并打开第一篇 |
 | Google 登录 | Credential Manager | GoogleSignIn SDK |
+| 系统分享接收 | `MainActivity` 的 `ACTION_SEND` / `ACTION_SEND_MULTIPLE` | 独立扩展 `NoteFableShareExtension`（`ShareExtension/ShareViewController.swift`）把内容写入 App Group（`group.com.kakumine.notefable`）共享目录（`ShareInboxStore`），尝试经 `extensionContext.open` 打开 `notefable://share?id=…`；若系统拒绝直接拉起主 App，则展示已保存勾标后收起，用户回到 NoteFable 时由 `AppRouter.consumePendingShares` 按顺序自动取走全部待处理分享 |
 | 返回键 | 系统返回键、预测性返回 | 没有返回键：抽屉、面板、编辑页用边缘滑动或各自的关闭按钮 |
 
 ### 和 Android 行为不同的地方

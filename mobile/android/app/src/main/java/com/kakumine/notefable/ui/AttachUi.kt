@@ -172,7 +172,7 @@ private const val ATTACHMENT_CACHE_MAX_AGE_MS = 24L * 60 * 60 * 1000
 private fun attachmentAuthority(context: Context) = context.packageName + ".attachments"
 
 /** 新建一个空的缓存文件并返回它的 content:// 地址；顺手删掉一天以前的旧副本。 */
-private fun newAttachmentCacheUri(context: Context, extension: String, baseName: String? = null): Uri {
+internal fun newAttachmentCacheUri(context: Context, extension: String, baseName: String? = null): Uri {
     val dir = File(context.cacheDir, ATTACHMENT_CACHE_DIR).apply { mkdirs() }
     val now = System.currentTimeMillis()
     dir.listFiles()?.forEach { old ->
@@ -207,7 +207,7 @@ fun copyPastedImage(context: Context, uri: Uri): LocalFile? = runCatching {
     LocalFile(target.toString(), "image.$extension", type, cachedSize(context, target))
 }.getOrNull()
 
-private fun cachedSize(context: Context, uri: Uri): Long =
+internal fun cachedSize(context: Context, uri: Uri): Long =
     context.contentResolver.openFileDescriptor(uri, "r")?.use { it.statSize } ?: 0L
 
 /**

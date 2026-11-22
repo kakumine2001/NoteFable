@@ -28,7 +28,7 @@ export async function loadActiveLeafId(sessionId: string, db: Db = prisma): Prom
 export async function lockSession(tx: Prisma.TransactionClient, sessionId: string, userId?: string) {
   const table = Prisma.raw(`"${databaseSchema}"."Session"`);
   const rows = await tx.$queryRaw<{ id: string }[]>(userId
-    ? Prisma.sql`SELECT "id" FROM ${table} WHERE "id" = ${sessionId} AND "userId" = ${userId} AND "noteId" IS NULL FOR UPDATE`
+    ? Prisma.sql`SELECT "id" FROM ${table} WHERE "id" = ${sessionId} AND "userId" = ${userId} FOR UPDATE`
     : Prisma.sql`SELECT "id" FROM ${table} WHERE "id" = ${sessionId} FOR UPDATE`);
   return rows.length > 0;
 }
@@ -68,7 +68,7 @@ export async function requestStop(userId: string, sessionId: string) {
 // プロバイダーの圧縮状態は元の発言 ID に結び付いているので写さない。複製した会話は本文の履歴から続ける。
 export async function forkSession(userId: string, sessionId: string, messageId: string, title: string) {
   return prisma.$transaction(async (tx) => {
-    const source = await tx.session.findFirst({ where: { id: sessionId, userId, noteId: null }, select: { icon: true, projectId: true } });
+    const source = await tx.session.findFirst({ where: { id: sessionId, userId }, select: { icon: true, projectId: true, noteId: true } });
     if (!source) return null;
     const tree = await loadBranchTree(sessionId, tx);
     const target = tree.order.find((node) => node.id === messageId);
@@ -84,8 +84,9 @@ export async function forkSession(userId: string, sessionId: string, messageId: 
     });
     if (!rows.length) return null;
     const session = await tx.session.create({
-      data: { userId, title, titleManual: true, icon: source.icon, projectId: source.projectId },
-      select: { id: true, title: true, icon: true, pinned: true, position: true, projectId: true, createdAt: true, updatedAt: true },
+      // ノートの AI パネルで始めた会話の複製は、同じノートの会話のままにする（パネルの履歴に出て、どのノートの話かも引き継ぐ）。
+      data: { userId, title, titleManual: true, icon: source.icon, projectId: source.projectId, noteId: source.noteId },
+      select: { id: true, title: true, icon: true, pinned: true, position: true, projectId: true, noteId: true, createdAt: true, updatedAt: true },
     });
     // 木の順（先頭から）に並べ、親を 1 つずつつなぐ。作成時刻は元のまま（日付を保つ）。
     const byId = new Map(rows.map((row) => [row.id, row]));

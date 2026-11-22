@@ -2,8 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./motion.css";
-import { Analytics } from "@vercel/analytics/next";
-import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Telemetry } from "@/components/telemetry";
 import { siteOrigin } from "@/lib/i18n/routing";
 import { ThemeSync } from "@/components/theme-sync";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init";
@@ -44,7 +43,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body>{children}<ThemeSync /><Analytics /><SpeedInsights /></body>
+      <body>{children}<ThemeSync /><Telemetry /></body>
     </html>
   );
 }

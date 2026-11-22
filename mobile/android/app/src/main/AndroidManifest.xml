@@ -52,6 +52,24 @@
                 <data android:host="${notefableHost}" />
                 <data android:pathPrefix="/c/" />
             </intent-filter>
+            <!-- 系统「分享」：从浏览器、X、相册、文件等 App 点分享选 NoteFable，文字、链接、图片、文件进到新聊天的输入栏（不自动发送）。
+                 文件类型只列附件能收的（和 ATTACHMENT_PICKER_TYPES 对应），收到后再逐个校验。 -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
+                <data android:mimeType="application/json" />
+            </intent-filter>
         </activity>
         <!-- Android 12 及以下：由 AppCompat 保存应用内选择的语言（Android 13+ 由系统保存）。 -->
         <service

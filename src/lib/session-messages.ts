@@ -15,7 +15,7 @@ function toPublicAttachment<T extends { imageStoragePath?: string | null; id: st
 }
 
 // 表示中の枝（active: true）のメッセージ・添付・添付ノート・AI 提案をまとめて整形する。
-// 通常チャット（/api/sessions/:id/messages）とノート内 AI 助手（/api/pages/:id/assistant）で共用する。
+// GET /api/sessions/:id/messages が返す形。ノートの AI パネルも同じ API で会話を読む。
 export async function loadPublicSessionMessages(
   userId: string,
   sessionId: string,

@@ -81,9 +81,17 @@ describe("creating a chat inside a project", () => {
 });
 
 describe("listing chats", () => {
-  it("leaves out the conversations that belong to a note's AI assistant", async () => {
+  it("lists every chat of the user, including the ones started in a note's AI panel", async () => {
     mocks.findMany.mockResolvedValue([]);
-    expect((await GET()).status).toBe(200);
-    expect(mocks.findMany.mock.calls[0][0].where).toEqual({ userId: "mine", noteId: null });
+    expect((await GET(new Request("http://localhost/api/sessions"))).status).toBe(200);
+    expect(mocks.findMany.mock.calls.at(-1)![0].where).toEqual({ userId: "mine" });
+    expect(mocks.findMany.mock.calls.at(-1)![0].select.noteId).toBe(true);
+  });
+
+  it("lists only the user's own chats of one note, newest first, when a note is given", async () => {
+    mocks.findMany.mockResolvedValue([]);
+    expect((await GET(new Request("http://localhost/api/sessions?noteId=note1"))).status).toBe(200);
+    expect(mocks.findMany.mock.calls.at(-1)![0].where).toEqual({ userId: "mine", noteId: "note1" });
+    expect(mocks.findMany.mock.calls.at(-1)![0].orderBy).toEqual([{ updatedAt: "desc" }, { id: "desc" }]);
   });
 });

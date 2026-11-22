@@ -298,6 +298,24 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         ).page
     }
 
+    func getShare(id: String) async throws -> NoteShareState {
+        try await http.send(
+            try http.request("GET", "/api/pages/\(segment(id))/share"), as: ShareStateResponse.self
+        ).share
+    }
+
+    func updateShare(id: String, patch: NoteSharePatch) async throws -> ShareUpdateResult {
+        var fields: [String: JSONValue] = [:]
+        if let enabled = patch.enabled { fields["enabled"] = .bool(enabled) }
+        if let includeSubpages = patch.includeSubpages { fields["includeSubpages"] = .bool(includeSubpages) }
+        if patch.setExpiresAt { fields["expiresAt"] = ApiJson.string(patch.expiresAt) }
+        if let excludeFromParent = patch.excludeFromParent { fields["excludeFromParent"] = .bool(excludeFromParent) }
+        let res = try await http.send(
+            try http.request("PUT", "/api/pages/\(segment(id))/share", json: .object(fields)), as: ShareStateResponse.self
+        )
+        return ShareUpdateResult(share: res.share, page: res.page)
+    }
+
     func duplicate(id: String) async throws -> DuplicateResult {
         let response = try await sendForObject(try http.request("POST", "/api/pages/\(segment(id))/duplicate"))
         guard let pageJson = response["page"] else { throw URLError(.cannotParseResponse) }

@@ -17,7 +17,7 @@ describe("owned list reordering",()=>{
     const response=await reorderList(req({id:"a",targetId:"b",after:true}),"chat");
     expect(response.status).toBe(200);
     expect((await response.json()).items).toEqual([{id:"b",position:1},{id:"a",position:2,pinned:true,projectId:null}]);
-    expect(mocks.find.mock.calls[0][0].where).toEqual({userId:"mine",noteId:null});
+    expect(mocks.find.mock.calls[0][0].where).toEqual({userId:"mine"});
   });
   it("reordering pinned chats from different projects does not change their project",async()=>{
     mocks.find.mockResolvedValue([{id:"a",position:1,pinned:true,projectId:"original"},{id:"b",position:2,pinned:true,projectId:"other"}]);
