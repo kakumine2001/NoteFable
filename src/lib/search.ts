@@ -110,7 +110,7 @@ export async function searchNotes(userId: string, terms: string[], options: Note
   if (!needles.length && !rawQuery) return [];
   const [keyword, semantic] = await Promise.all([
     needles.length ? searchNotesByKeyword(userId, needles) : [],
-    semanticSearchNotes(userId, rawQuery, { limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 10, timeoutMs: 3000, signal: options.signal }),
+    semanticSearchNotes(userId, rawQuery, { limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 0, timeoutMs: 2500, signal: options.signal }),
   ]);
   if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
   const seen = new Set(keyword.map((note) => note.id));

@@ -132,7 +132,7 @@ export async function searchPages(userId: string, query: string): Promise<PageSe
   if (!terms.length) return searchPagesByKeyword(userId, []);
   const [keyword, semantic] = await Promise.all([
     searchPagesByKeyword(userId, terms),
-    semanticSearchNotes(userId, query, { limit: SEARCH_RESULT_LIMIT, minSimilarity: AI_SEMANTIC_THRESHOLD, maxBackfillNotes: 20, timeoutMs: 5000 }),
+    semanticSearchNotes(userId, query, { limit: SEARCH_RESULT_LIMIT, minSimilarity: AI_SEMANTIC_THRESHOLD, maxBackfillNotes: 10, timeoutMs: 4000 }),
   ]);
   if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
   const seen = new Set(keyword.map((page) => page.id));

@@ -2,15 +2,16 @@ import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { optionalEnv } from "@/lib/env";
-import { extractNoteChunks, type NoteTextChunk } from "@/lib/note-text";
+import { excerptFromBlock, extractNoteChunks, type NoteTextChunk } from "@/lib/note-text";
 import { databaseSchema, prisma } from "@/lib/prisma";
 
 // ノートの意味検索（セマンティック検索）。ノート本文をチャンクに分け、埋め込み（意味を表すベクトル）にして NoteEmbedding に持つ。
-// 検索語も埋め込みにして、内積（ベクトルは L2 正規化済みなので = コサイン類似度）が高いチャンクのノートを返す。
+// 本文のコピーは索引に持たず、NotePage.version と一致するチャンクだけを使って、一致した上位ノートの現在の本文から抜粋を作る。
 // どの検索も利用者本人の分だけを対象にするので、pgvector は使わず、BYTEA の Float32 を JS で比べる（1 利用者ぶんは数千チャンクまで）。
 // OPENAI_API_KEY が無い、または NOTEFABLE_SEMANTIC_SEARCH が 0 / false のときは何もしない（キーワード検索だけが働く）。
 
 export const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
+export const SUPPORTED_EMBEDDING_MODELS = new Set(["text-embedding-3-small", "text-embedding-3-large"]);
 export const EMBEDDING_DIMENSIONS = 512;
 export const UI_SEMANTIC_THRESHOLD = 0.34;
 export const AI_SEMANTIC_THRESHOLD = 0.32;
@@ -20,9 +21,16 @@ const INDEX_TIMEOUT_MS = 10_000;
 const MAX_SCANNED_CHUNKS = 2000;
 const QUERY_CACHE_MAX = 64;
 const QUERY_CACHE_TTL_MS = 60_000;
+const QUERY_RATE_WINDOW_MS = 60_000;
+const MAX_UNCACHED_QUERIES_PER_WINDOW = 20;
 const MIN_QUERY_CHARS = 2;
 const BACKGROUND_BACKFILL_NOTES = 20;
 const BACKGROUND_BACKFILL_ROUNDS = 5;
+
+// 空白以外の文字を 1 文字以上含むテキストノードがあるか（extractNoteChunks の trim() と条件をそろえる）。
+const HAS_NON_WHITESPACE_TEXT = 'strict $.** ? (@.type() == "object" && exists(@.text) && @.text like_regex "\\S")';
+
+let warnedInvalidModel: string | null = null;
 
 export type EmbeddingConfig = { apiKey: string; baseUrl: string; model: string; dimensions: number };
 
@@ -31,10 +39,20 @@ export function embeddingConfig(): EmbeddingConfig | null {
   if (switchValue === "0" || switchValue === "false") return null;
   const apiKey = optionalEnv("OPENAI_API_KEY");
   if (!apiKey) return null;
+  const requested = optionalEnv("OPENAI_EMBEDDING_MODEL");
+  let model = DEFAULT_EMBEDDING_MODEL;
+  if (requested) {
+    if (SUPPORTED_EMBEDDING_MODELS.has(requested)) {
+      model = requested;
+    } else if (warnedInvalidModel !== requested) {
+      warnedInvalidModel = requested;
+      console.warn(`Unsupported OPENAI_EMBEDDING_MODEL "${requested}"; falling back to ${DEFAULT_EMBEDDING_MODEL}.`);
+    }
+  }
   return {
     apiKey,
     baseUrl: (optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1").replace(/\/$/, ""),
-    model: optionalEnv("OPENAI_EMBEDDING_MODEL") || DEFAULT_EMBEDDING_MODEL,
+    model,
     dimensions: EMBEDDING_DIMENSIONS,
   };
 }
@@ -83,7 +101,7 @@ export function computeContentHash(title: string, chunks: NoteTextChunk[]): stri
 
 // ---- 埋め込み API ----
 
-type EmbedOptions = { timeoutMs?: number; signal?: AbortSignal };
+type EmbedOptions = { timeoutMs?: number; signal?: AbortSignal; userId?: string };
 
 function signalFor(options: EmbedOptions, defaultTimeout: number) {
   const timeout = AbortSignal.timeout(options.timeoutMs ?? defaultTimeout);
@@ -94,7 +112,7 @@ async function embedBatch(config: EmbeddingConfig, texts: string[], signal: Abor
   const response = await fetch(`${config.baseUrl}/embeddings`, {
     method: "POST",
     headers: { Authorization: `Bearer ${config.apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model: config.model, input: texts, ...(config.model.startsWith("text-embedding-3") ? { dimensions: config.dimensions } : {}) }),
+    body: JSON.stringify({ model: config.model, input: texts, dimensions: config.dimensions }),
     signal,
   });
   if (!response.ok) throw new Error(`Embeddings request failed with status ${response.status}.`);
@@ -121,20 +139,46 @@ export async function embedTexts(texts: string[], options: EmbedOptions = {}): P
 }
 
 const queryCache = new Map<string, { at: number; vector: Float32Array }>();
-export const clearQueryEmbeddingCacheForTest = () => queryCache.clear();
+const queryRateHits = new Map<string, number[]>();
 
-// 検索語の埋め込み。同じ語を続けて検索したとき（入力中の再送や AI の再検索）に API を呼び直さない。
-export async function embedQuery(query: string, options: EmbedOptions = {}): Promise<Float32Array> {
+export function clearQueryEmbeddingCacheForTest() {
+  queryCache.clear();
+  queryRateHits.clear();
+  warnedInvalidModel = null;
+}
+
+function consumeQueryBudget(userId: string): boolean {
+  const now = Date.now();
+  const cutoff = now - QUERY_RATE_WINDOW_MS;
+  const recent = (queryRateHits.get(userId) ?? []).filter((ts) => ts > cutoff);
+  if (recent.length >= MAX_UNCACHED_QUERIES_PER_WINDOW) {
+    queryRateHits.set(userId, recent);
+    return false;
+  }
+  recent.push(now);
+  queryRateHits.set(userId, recent);
+  if (queryRateHits.size > 512) {
+    for (const [key, list] of queryRateHits) {
+      if (!list.some((ts) => ts > cutoff)) queryRateHits.delete(key);
+    }
+  }
+  return true;
+}
+
+// 検索語の埋め込み。API へ送る文字列そのものをキーにしてキャッシュする（大文字・小文字の違いで別ベクトルが混ざらない）。
+export async function embedQuery(query: string, options: EmbedOptions = {}): Promise<Float32Array | null> {
   const config = embeddingConfig();
   if (!config) throw new Error("Semantic search is not configured.");
-  const key = `${config.model}:${config.dimensions}:${query.trim().toLowerCase()}`;
+  const trimmed = query.trim();
+  const key = `${config.model}:${config.dimensions}:${trimmed}`;
   const cached = queryCache.get(key);
   if (cached && Date.now() - cached.at < QUERY_CACHE_TTL_MS) {
     queryCache.delete(key);
     queryCache.set(key, cached);
     return cached.vector;
   }
-  const [vector] = await embedTexts([query.trim()], { ...options, timeoutMs: options.timeoutMs ?? 3000 });
+  if (options.userId && !consumeQueryBudget(options.userId)) return null;
+  const [vector] = await embedTexts([trimmed], { ...options, timeoutMs: options.timeoutMs ?? 2500 });
   queryCache.set(key, { at: Date.now(), vector });
   while (queryCache.size > QUERY_CACHE_MAX) queryCache.delete(queryCache.keys().next().value as string);
   return vector;
@@ -152,7 +196,10 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
   try {
     const notes = await prisma.notePage.findMany({ where: { id: { in: ids }, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true } });
     if (!notes.length) return 0;
-    const existing = await prisma.noteEmbedding.findMany({ where: { noteId: { in: notes.map((note) => note.id) }, userId }, select: { noteId: true, contentHash: true, model: true, dimensions: true } });
+    const existing = await prisma.noteEmbedding.findMany({
+      where: { noteId: { in: notes.map((note) => note.id) }, userId },
+      select: { noteId: true, contentHash: true, model: true, dimensions: true, noteVersion: true },
+    });
     const rowsByNote = new Map<string, typeof existing>();
     for (const row of existing) rowsByNote.set(row.noteId, [...(rowsByNote.get(row.noteId) ?? []), row]);
 
@@ -165,10 +212,12 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
         continue;
       }
       const hash = computeContentHash(note.title, chunks);
-      const upToDate = rows.length === chunks.length && rows.every((row) => row.contentHash === hash && row.model === config.model && row.dimensions === config.dimensions);
-      if (upToDate) {
-        // 本文は同じ（アイコンの変更など）。ノートの更新日時に追いつかせ、遅延更新の対象から外す。
-        await prisma.noteEmbedding.updateMany({ where: { noteId: note.id, userId }, data: { updatedAt: new Date() } });
+      const sameContent = rows.length === chunks.length && rows.every((row) => row.contentHash === hash && row.model === config.model && row.dimensions === config.dimensions);
+      if (sameContent) {
+        // 本文は同じ（カバー変更など）。版番号だけ現在にそろえ、埋め込み API は呼ばない。
+        if (rows.some((row) => row.noteVersion !== note.version)) {
+          await prisma.noteEmbedding.updateMany({ where: { noteId: note.id, userId }, data: { noteVersion: note.version, updatedAt: new Date() } });
+        }
         continue;
       }
       pending.push({ id: note.id, version: note.version, hash, chunks });
@@ -188,7 +237,7 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
         await tx.noteEmbedding.deleteMany({ where: { noteId: note.id, userId } });
         await tx.noteEmbedding.createMany({
           data: note.chunks.map((chunk, index) => ({
-            noteId: note.id, userId, chunkIndex: chunk.chunkIndex, blockId: chunk.blockId, chunkText: chunk.chunkText,
+            noteId: note.id, userId, chunkIndex: chunk.chunkIndex, blockId: chunk.blockId, noteVersion: note.version,
             contentHash: note.hash, model: config.model, dimensions: config.dimensions, vector: encodeVector(noteVectors[index]),
           })),
         });
@@ -203,28 +252,33 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
   }
 }
 
-// 索引が無い・ノートの更新より古い通常のノートを新しい順に maxNotes 件だけ作り直す。まだ残りがあれば hasMore。
-export async function backfillStaleNoteEmbeddings(userId: string, maxNotes: number, options: { signal?: AbortSignal } = {}): Promise<{ synced: number; hasMore: boolean }> {
-  const config = embeddingConfig();
-  if (!config || maxNotes <= 0) return { synced: 0, hasMore: false };
+async function findStaleNoteIds(userId: string, config: EmbeddingConfig, limit: number): Promise<string[]> {
   const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
-  // 本文の文字もタイトルも無いノート（空のノート、画像だけのノート）は索引が作れないので数えない。
-  const hasText = 'strict $.** ? (@.type() == "object" && exists(@.text) && @.text != "")';
   const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT p."id"
     FROM ${table("NotePage")} p
     LEFT JOIN (
-      SELECT "noteId", max("updatedAt") AS "at",
+      SELECT "noteId",
+        min("noteVersion") AS "minVersion", max("noteVersion") AS "maxVersion",
         count(*) FILTER (WHERE "model" = ${config.model} AND "dimensions" = ${config.dimensions}) AS "current", count(*) AS "total"
       FROM ${table("NoteEmbedding")} WHERE "userId" = ${userId} GROUP BY "noteId"
     ) e ON e."noteId" = p."id"
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
-      AND ((btrim(p."title") <> '' AND p."title" <> 'Untitled') OR jsonb_path_exists(p."blocks", ${hasText}::jsonpath))
-      AND (e."noteId" IS NULL OR e."current" <> e."total" OR p."updatedAt" > e."at")
+      AND ((btrim(p."title") <> '' AND p."title" <> 'Untitled') OR jsonb_path_exists(p."blocks", ${HAS_NON_WHITESPACE_TEXT}::jsonpath))
+      AND (e."noteId" IS NULL OR e."current" <> e."total" OR e."minVersion" <> p."version" OR e."maxVersion" <> p."version")
     ORDER BY p."updatedAt" DESC, p."id" DESC
-    LIMIT ${maxNotes + 1}`);
-  const synced = await syncNoteEmbeddingsForIds(userId, rows.slice(0, maxNotes).map((row) => row.id), options);
-  return { synced, hasMore: rows.length > maxNotes };
+    LIMIT ${limit}`);
+  return rows.map((row) => row.id);
+}
+
+// 索引が無い・版が古い通常のノートを新しい順に maxNotes 件だけ作り直す。まだ残りがあれば hasMore。
+export async function backfillStaleNoteEmbeddings(userId: string, maxNotes: number, options: { signal?: AbortSignal } = {}): Promise<{ synced: number; hasMore: boolean }> {
+  const config = embeddingConfig();
+  if (!config || maxNotes <= 0) return { synced: 0, hasMore: false };
+  const ids = await findStaleNoteIds(userId, config, maxNotes + 1);
+  if (!ids.length) return { synced: 0, hasMore: false };
+  const synced = await syncNoteEmbeddingsForIds(userId, ids.slice(0, maxNotes), options);
+  return { synced, hasMore: ids.length > maxNotes };
 }
 
 function runAfterResponse(task: () => Promise<unknown>) {
@@ -256,54 +310,93 @@ export function scheduleNoteEmbeddingBackfill(userId: string) {
 export type SemanticNoteHit = { id: string; title: string; icon: string | null; blockId: string | null; chunkText: string; score: number; updatedAt: Date };
 export type SemanticSearchOptions = { limit: number; minSimilarity: number; maxBackfillNotes?: number; timeoutMs?: number; signal?: AbortSignal };
 
-type ChunkRow = { noteId: string; blockId: string | null; chunkText: string; vector: Uint8Array; title: string; icon: string | null; updatedAt: Date | string };
+type ChunkRow = { noteId: string; blockId: string | null; noteVersion: number; vector: Uint8Array; title: string; icon: string | null; updatedAt: Date | string };
 
-// query に意味が近い通常のノートを、ノートごとに一番近いチャンクで返す。使えないとき・失敗したときは空（キーワード検索に影響しない）。
+function withDeadline<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<T>((resolve) => { timer = setTimeout(() => resolve(fallback), ms); });
+  return Promise.race([promise.finally(() => { if (timer) clearTimeout(timer); }), timeout]);
+}
+
+async function runSemanticSearch(userId: string, query: string, config: EmbeddingConfig, options: SemanticSearchOptions): Promise<{ hits: SemanticNoteHit[]; hasMoreBackfill: boolean }> {
+  const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
+  const timeoutMs = options.timeoutMs ?? 2500;
+  let hasMoreBackfill = false;
+
+  if (options.maxBackfillNotes && options.maxBackfillNotes > 0) {
+    const backfill = await backfillStaleNoteEmbeddings(userId, options.maxBackfillNotes, {
+      signal: signalFor({ timeoutMs, signal: options.signal }, timeoutMs),
+    }).catch(() => ({ synced: 0, hasMore: false }));
+    hasMoreBackfill = backfill.hasMore;
+  }
+
+  const [rows, staleIds] = await Promise.all([
+    prisma.$queryRaw<ChunkRow[]>(Prisma.sql`
+      SELECT e."noteId", e."blockId", e."noteVersion", e."vector", p."title", p."icon", p."updatedAt"
+      FROM ${table("NoteEmbedding")} e
+      JOIN ${table("NotePage")} p ON p."id" = e."noteId"
+      WHERE e."userId" = ${userId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
+        AND e."noteVersion" = p."version"
+        AND e."model" = ${config.model} AND e."dimensions" = ${config.dimensions}
+      ORDER BY p."updatedAt" DESC, e."chunkIndex" ASC
+      LIMIT ${MAX_SCANNED_CHUNKS}`),
+    options.maxBackfillNotes ? [] : findStaleNoteIds(userId, config, 1).catch(() => []),
+  ]);
+  if (staleIds.length > 0) hasMoreBackfill = true;
+
+  // 検索できる通常のノートが 1 件も無ければ、埋め込み API を呼ばない（匿名検索での無駄な課金を防ぐ）。
+  if (!rows.length) return { hits: [], hasMoreBackfill };
+
+  const queryVector = await embedQuery(query, { userId, timeoutMs, signal: options.signal });
+  if (!queryVector) return { hits: [], hasMoreBackfill };
+
+  const best = new Map<string, { id: string; title: string; icon: string | null; blockId: string | null; noteVersion: number; score: number; updatedAt: Date }>();
+  for (const row of rows) {
+    const vector = decodeVector(row.vector, config.dimensions);
+    if (!vector) continue;
+    const score = dotProduct(queryVector, vector);
+    const current = best.get(row.noteId);
+    if (!current || score > current.score) {
+      best.set(row.noteId, { id: row.noteId, title: row.title, icon: row.icon, blockId: row.blockId, noteVersion: row.noteVersion, score, updatedAt: new Date(row.updatedAt) });
+    }
+  }
+  const ranked = [...best.values()]
+    .filter((hit) => hit.score >= options.minSimilarity)
+    .sort((a, b) => b.score - a.score || b.updatedAt.getTime() - a.updatedAt.getTime() || (a.id < b.id ? 1 : -1))
+    .slice(0, options.limit);
+  if (!ranked.length) return { hits: [], hasMoreBackfill };
+
+  // 抜粋は索引に複製せず、一致した上位ノートだけ現在の本文を読み、版が一致するものだけ返す。
+  const livePages = await prisma.notePage.findMany({
+    where: { id: { in: ranked.map((hit) => hit.id) }, userId, deletedAt: null },
+    select: { id: true, version: true, blocks: true },
+  });
+  const byId = new Map(livePages.map((page) => [page.id, page]));
+  const hits: SemanticNoteHit[] = [];
+  for (const hit of ranked) {
+    const page = byId.get(hit.id);
+    if (!page || page.version !== hit.noteVersion) continue;
+    hits.push({
+      id: hit.id,
+      title: hit.title,
+      icon: hit.icon,
+      blockId: hit.blockId,
+      chunkText: excerptFromBlock(page.blocks, hit.blockId),
+      score: hit.score,
+      updatedAt: hit.updatedAt,
+    });
+  }
+  return { hits, hasMoreBackfill };
+}
+
+// query に意味が近い通常のノートを、ノートごとに一番近いチャンクで返す。使えないとき・失敗したとき・期限を超えたときは空（キーワード検索に影響しない）。
 export async function semanticSearchNotes(userId: string, query: string, options: SemanticSearchOptions): Promise<{ hits: SemanticNoteHit[]; hasMoreBackfill: boolean }> {
   const config = embeddingConfig();
   const none = { hits: [], hasMoreBackfill: false };
   if (!config || query.replace(/\s+/g, "").length < MIN_QUERY_CHARS) return none;
-  const timeout = { timeoutMs: options.timeoutMs, signal: options.signal };
-  let queryVector: Float32Array;
-  let hasMoreBackfill = false;
+  const deadline = options.timeoutMs ?? 2500;
   try {
-    const [vector, backfill] = await Promise.all([
-      embedQuery(query, timeout),
-      options.maxBackfillNotes && options.maxBackfillNotes > 0
-        ? backfillStaleNoteEmbeddings(userId, options.maxBackfillNotes, { signal: options.signal ? AbortSignal.any([options.signal, AbortSignal.timeout(options.timeoutMs ?? 3000)]) : AbortSignal.timeout(options.timeoutMs ?? 3000) }).catch(() => ({ synced: 0, hasMore: false }))
-        : { synced: 0, hasMore: false },
-    ]);
-    queryVector = vector;
-    hasMoreBackfill = backfill.hasMore;
-  } catch (error) {
-    console.error("Semantic note search failed", error instanceof Error ? error.message : error);
-    return none;
-  }
-  try {
-    const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
-    const rows = await prisma.$queryRaw<ChunkRow[]>(Prisma.sql`
-      SELECT e."noteId", e."blockId", e."chunkText", e."vector", p."title", p."icon", p."updatedAt"
-      FROM ${table("NoteEmbedding")} e
-      JOIN ${table("NotePage")} p ON p."id" = e."noteId"
-      WHERE e."userId" = ${userId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
-        AND e."model" = ${config.model} AND e."dimensions" = ${config.dimensions}
-      ORDER BY p."updatedAt" DESC, e."chunkIndex" ASC
-      LIMIT ${MAX_SCANNED_CHUNKS}`);
-    const best = new Map<string, SemanticNoteHit>();
-    for (const row of rows) {
-      const vector = decodeVector(row.vector, config.dimensions);
-      if (!vector) continue;
-      const score = dotProduct(queryVector, vector);
-      const current = best.get(row.noteId);
-      if (!current || score > current.score) {
-        best.set(row.noteId, { id: row.noteId, title: row.title, icon: row.icon, blockId: row.blockId, chunkText: row.chunkText, score, updatedAt: new Date(row.updatedAt) });
-      }
-    }
-    const hits = [...best.values()]
-      .filter((hit) => hit.score >= options.minSimilarity)
-      .sort((a, b) => b.score - a.score || b.updatedAt.getTime() - a.updatedAt.getTime() || (a.id < b.id ? 1 : -1))
-      .slice(0, options.limit);
-    return { hits, hasMoreBackfill };
+    return await withDeadline(runSemanticSearch(userId, query, config, options), deadline, none);
   } catch (error) {
     console.error("Semantic note search failed", error instanceof Error ? error.message : error);
     return none;

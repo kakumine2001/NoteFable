@@ -5,7 +5,7 @@ CREATE TABLE "NoteEmbedding" (
     "userId" TEXT NOT NULL,
     "chunkIndex" INTEGER NOT NULL,
     "blockId" TEXT,
-    "chunkText" TEXT NOT NULL,
+    "noteVersion" INTEGER NOT NULL,
     "contentHash" TEXT NOT NULL,
     "model" TEXT NOT NULL,
     "dimensions" INTEGER NOT NULL,

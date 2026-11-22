@@ -192,8 +192,8 @@ model NoteEmbedding {
   chunkIndex  Int
   // このチャンクの先頭ブロック ID（検索結果から該当箇所へジャンプするために使う。タイトルのみのときは null）。
   blockId     String?
-  // 抜粋表示用のチャンク本文（最大約 1,200 文字）。
-  chunkText   String
+  // 埋め込みを作った時点の NotePage.version。検索時は現在の version と一致する行だけを使い、古い版の本文を出さない。
+  noteVersion Int
   // 埋め込みを作った時点のタイトル＋本文の SHA-256（先頭 32 hex 文字）。本文が変わっていなければ再計算しない。
   contentHash String
   // 生成に使ったモデルと次元（モデルを切り替えても古いベクトルと混ぜない）。

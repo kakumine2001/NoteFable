@@ -166,7 +166,7 @@ erDiagram
         string userId FK
         int chunkIndex "unique with noteId"
         string blockId "nullable"
-        string chunkText
+        int noteVersion "must match NotePage.version"
         string contentHash
         string model
         int dimensions
@@ -339,7 +339,7 @@ User 1 -> N Session / ChatProject / NotePage / NoteCoverAsset / NoteProposal / N
 
 ### NoteEmbedding
 
-笔记语义搜索的向量索引（`20261122120000_note_embeddings` 新增，`src/lib/note-embeddings.ts`）。按 `NotePage` 的标题和正文拆块（每块最多 1,000 字符、每篇最多 12 块），调用 OpenAI `/embeddings`（默认 `text-embedding-3-small`，512 维）生成 L2 归一化后的小端 `Float32Array` 存入 `BYTEA`（`vector`），不依赖 `pgvector` 扩展。`contentHash` 为标题与块内容的 SHA-256 前 32 位十六进制，正文未变时跳过外部调用；写入时以 `pg_advisory_xact_lock` 加锁并核对 `NotePage.version`，避免并发保存写入旧版向量。`(noteId, chunkIndex)` 唯一，索引 `(userId, model, dimensions)` 和 `(noteId)`；`noteId` 与 `userId` 均为 `ON DELETE CASCADE`。Trash 里的笔记保留索引行，但所有语义查询都连接 `NotePage` 并过滤 `p."deletedAt" IS NULL`，复原后无需重建即可命中。
+笔记语义搜索的向量索引（`20261122120000_note_embeddings` 新增，`src/lib/note-embeddings.ts`）。按 `NotePage` 的标题和正文拆块（每块最多 1,000 字符、每篇最多 12 块），调用 OpenAI `/embeddings`（默认 `text-embedding-3-small`，支持 `text-embedding-3-small` / `text-embedding-3-large`，512 维）生成 L2 归一化后的小端 `Float32Array` 存入 `BYTEA`（`vector`），不依赖 `pgvector` 扩展。**索引不复制笔记正文**：只记录 `blockId` 与 `noteVersion`（生成时的 `NotePage.version`），查询时必须同时满足 `p."deletedAt" IS NULL` 与 `e."noteVersion" = p."version"`，并仅对命中的上位笔记实时读取 `NotePage.blocks` 生成摘录，确保不会泄露已删除或旧版本正文。`contentHash` 为标题与块内容的 SHA-256 前 32 位十六进制，正文未变时只更新 `noteVersion`、不调用外部接口；写入时以 `pg_advisory_xact_lock` 加锁并核对 `NotePage.version`。`(noteId, chunkIndex)` 唯一，索引 `(userId, model, dimensions)` 和 `(noteId)`；`noteId` 与 `userId` 均为 `ON DELETE CASCADE`。Trash 里的笔记保留索引行，复原后无需重建即可命中。
 
 ### NoteGroup
 

@@ -41,6 +41,24 @@ export function leadingText(blocks: unknown, limit = LEADING_CHARS) {
   return text;
 }
 
+// 指定した blockId から始まる本文を抜き出す（意味検索で一致したチャンクの抜粋を、現在の本文から直接作るため）。
+export function excerptFromBlock(blocks: unknown, blockId: string | null, limit = LEADING_CHARS) {
+  if (!blockId) return leadingText(blocks, limit);
+  let found = false;
+  let text = "";
+  for (const block of walkBlocks(blocks)) {
+    if (!found) {
+      if (block.id !== blockId) continue;
+      found = true;
+    }
+    const own = inlineText(block.content).trim();
+    if (!own) continue;
+    text += (text ? " " : "") + own;
+    if (text.length >= limit) break;
+  }
+  return text || leadingText(blocks, limit);
+}
+
 // ---- 意味検索用のチャンク ----
 
 export type NoteTextChunk = {

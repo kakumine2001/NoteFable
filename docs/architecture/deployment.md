@@ -245,7 +245,7 @@ OPENAI_EMBEDDING_MODEL
 NOTEFABLE_SEMANTIC_SEARCH
 ```
 
-代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，笔记语义搜索嵌入模型为 `text-embedding-3-small`（512 维，均共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
+代码默认聊天模型为 `gpt-6-luna`，图片生成与编辑为 `gpt-image-2.6-sunburst`，笔记语义搜索嵌入模型为 `text-embedding-3-small`（可选 `text-embedding-3-small` / `text-embedding-3-large`，512 维，非法值会记录警告并回退默认；共用 `OPENAI_API_KEY` 与 `OPENAI_BASE_URL`）。`NOTEFABLE_SEMANTIC_SEARCH` 设为 `0` 或 `false` 时关闭语义搜索（退回纯关键词搜索）。Production 使用官方接入点 `https://api.openai.com/v1`。本地代码不代表已发布的线上版本；更换密钥或模型环境变量后，需要重新部署才能应用到运行中的函数。
 
 ### DeepSeek
 
