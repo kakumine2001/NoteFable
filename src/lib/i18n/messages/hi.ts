@@ -46,6 +46,7 @@ export const hi: Record<string, string> = {
   "Ask": "पूछें",
   "Ask AI": "AI से पूछें",
   "Ask AI about this note": "इस नोट के बारे में AI से पूछें",
+  "Chats in this note": "इस नोट की चैट",
   "Ask AI to edit this note…": "AI से इस नोट को संपादित करने के लिए कहें…",
   "Ask a question, work through your notes, or bring in a file.": "सवाल पूछें, अपने नोट्स को व्यवस्थित करें, या कोई फ़ाइल जोड़ें।",
   "Ask about the page you are writing without leaving it.": "जिस नोट को आप लिख रहे हैं, उसे छोड़े बिना उसी के बारे में AI से पूछें।",

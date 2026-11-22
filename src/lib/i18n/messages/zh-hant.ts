@@ -114,6 +114,7 @@ export const zhHant: Record<string, string> = {
   "Chat icon must be a single emoji.": "對話圖示只能是一個表情符號。",
   "Chat name": "聊天名稱",
   "Chats": "聊天",
+  "Chats in this note": "這篇筆記的聊天",
   "Check your connection and try again.": "請檢查網路連線後重試。",
   "Check your email": "檢視你的郵箱",
   "Choose a character": "選擇角色",

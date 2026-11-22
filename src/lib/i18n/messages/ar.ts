@@ -46,6 +46,7 @@ export const ar: Record<string, string> = {
   "Ask": "اسأل",
   "Ask AI": "اسأل الذكاء الاصطناعي",
   "Ask AI about this note": "اسأل الذكاء الاصطناعي عن هذه الملاحظة",
+  "Chats in this note": "محادثات هذه الملاحظة",
   "Ask AI to edit this note…": "اطلب من الذكاء الاصطناعي تعديل هذه الملاحظة…",
   "Ask a question, work through your notes, or bring in a file.": "اطرح سؤالاً، أو راجع ملاحظاتك، أو أضف ملفاً.",
   "Ask about the page you are writing without leaving it.": "اسأل عن الملاحظة التي تكتبها دون مغادرتها.",

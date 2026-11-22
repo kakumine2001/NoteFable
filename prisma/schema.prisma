@@ -204,7 +204,7 @@ model Session {
   titleManual Boolean  @default(false)
   projectId   String?
   userId      String
-  // ノートを開いたまま使う AI アシスタントの会話は、そのノートに結びつけて Chats の一覧から外す。ノートを消すと一緒に消える。
+  // ノートの AI パネルで始めた会話は、そのノートに結びつける（パネルの履歴に出す）。Chats の一覧にも出る普通の会話で、ノートを完全に消しても会話は残る。
   noteId      String?
   // 利用者が「停止」を押した時刻。生成中の応答はこの値が変わったのを見て止まり、そこまでの回答を保存する
   // （接続の切断はサーバーに伝わるとは限らないので、明示の要求で止める）。
@@ -214,7 +214,7 @@ model Session {
 
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   project       ChatProject?   @relation(fields: [projectId], references: [id], onDelete: SetNull)
-  note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  note          NotePage?      @relation(fields: [noteId], references: [id], onDelete: SetNull)
   messages      Message[]
   noteProposals NoteProposal[]
 

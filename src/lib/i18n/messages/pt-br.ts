@@ -46,6 +46,7 @@ export const ptBR: Record<string, string> = {
   "Ask": "Pergunte",
   "Ask AI": "Perguntar à IA",
   "Ask AI about this note": "Perguntar à IA sobre esta nota",
+  "Chats in this note": "Chats desta nota",
   "Ask AI to edit this note…": "Peça à IA para editar esta nota…",
   "Ask a question, work through your notes, or bring in a file.": "Faça uma pergunta, trabalhe nas suas notas ou traga um arquivo.",
   "Ask about the page you are writing without leaving it.": "Pergunte sobre a página que você está escrevendo sem sair dela.",

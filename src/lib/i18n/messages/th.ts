@@ -46,6 +46,7 @@ export const th: Record<string, string> = {
   "Ask": "ถาม",
   "Ask AI": "ถาม AI",
   "Ask AI about this note": "ถาม AI เกี่ยวกับโน้ตนี้",
+  "Chats in this note": "แชทในโน้ตนี้",
   "Ask AI to edit this note…": "สั่งให้ AI แก้ไขโน้ตนี้…",
   "Ask a question, work through your notes, or bring in a file.": "ถามคำถาม เรียบเรียงโน้ต หรือแนบไฟล์เข้ามาทำงานต่อ",
   "Ask about the page you are writing without leaving it.": "ถามเกี่ยวกับโน้ตที่คุณกำลังเขียนได้ทันทีโดยไม่ต้องออกจากหน้า",

@@ -46,6 +46,7 @@ export const fr: Record<string, string> = {
   "Ask": "Demander",
   "Ask AI": "Demander à l’IA",
   "Ask AI about this note": "Interroger l’IA sur cette note",
+  "Chats in this note": "Discussions de cette note",
   "Ask AI to edit this note…": "Demander à l’IA de modifier cette note…",
   "Ask a question, work through your notes, or bring in a file.": "Posez une question, retravaillez vos notes ou importez un fichier.",
   "Ask about the page you are writing without leaving it.": "Posez des questions sur la note que vous rédigez sans la quitter.",

@@ -46,6 +46,7 @@ export const ru: Record<string, string> = {
   "Ask": "Спросить",
   "Ask AI": "Спросить ИИ",
   "Ask AI about this note": "Спросить ИИ об этой заметке",
+  "Chats in this note": "Чаты этой заметки",
   "Ask AI to edit this note…": "Попросите ИИ отредактировать заметку…",
   "Ask a question, work through your notes, or bring in a file.": "Задайте вопрос, разберите свои заметки или загрузите файл.",
   "Ask about the page you are writing without leaving it.": "Задавайте вопросы по странице, над которой работаете, не покидая её.",

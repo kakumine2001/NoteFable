@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, Paperclip, X } from "lucide-react";
+import { ArrowUp, FileText, History, Paperclip, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -23,9 +23,10 @@ import { useDocumentHidden } from "@/lib/use-document-hidden";
 import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { MAX_MESSAGE_NOTES, type AttachedPage, type Message, type UploadFile } from "@/types/chat";
-import { useT } from "@/components/i18n-provider";
+import { useI18n } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
+import { relativeTime } from "@/lib/notes-home-text";
 import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { UsageLimitError, usageLimitErrorFrom } from "@/lib/usage-plans";
 
@@ -37,6 +38,20 @@ const QUICK_ACTIONS = [
   { label: msg("Make it shorter"), prompt: "Make this note shorter without losing the key points." },
   { label: msg("Continue writing"), prompt: "Continue writing this note from where it ends, in the same style and language." },
 ] as const;
+
+// ノートの AI パネルで会話が増えた・進んだことを、Chats の一覧（/app のサイドバー）へ知らせるイベント。
+export const NOTE_CHAT_SAVED_EVENT = "notefable:note-chat-saved";
+
+// このノートで始めた会話（パネルの履歴に出す分）。
+type NoteChat = { id: string; title: string; updatedAt: string };
+
+// 保存された会話を読み直すとき、定型ボタンで送った長い指示文は、送ったときと同じ短い名前に戻して見せる。
+export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string): Message[] {
+  return messages.map((message) => {
+    const action = message.role === "USER" ? QUICK_ACTIONS.find((item) => item.prompt === message.content) : undefined;
+    return action ? { ...message, content: t(action.label) } : message;
+  });
+}
 
 // 固定配置（position: fixed）の基準になる画面の大きさ。window.innerWidth と違い、スクロールバーの幅を含まない。rem は 1rem の px（ボタンとパネルの大きさは CSS で rem 指定なので、ブラウザーの文字サイズ設定に合わせる）。
 const viewportSize = () => ({ width: document.documentElement.clientWidth, height: document.documentElement.clientHeight, rem: parseFloat(getComputedStyle(document.documentElement).fontSize) || 16 });
@@ -119,9 +134,22 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // Android アプリの /note-embed。アプリ内ではウェブの決済（Stripe）に誘導しない（Google Play のルール）。
   embedded?: boolean;
 }) {
-  const t = useT();
+  const { t, tag } = useI18n();
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  // このノートで始めた会話の一覧（新しい順）と、いま開いている会話。会話はサーバーに保存され、Chats の一覧にも出る。
+  const [chats, setChats] = useState<NoteChat[] | null>(null);
+  const [chatId, setChatId] = useState("");
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historyOpenedAt, setHistoryOpenedAt] = useState(0);
+  const [loadingChat, setLoadingChat] = useState(false);
+  // 送信の可否は ref で見る（読み込み開始の直後、描き直す前の送信も止める）。
+  const loadingRef = useRef(false);
+  const [chatsFailed, setChatsFailed] = useState(false);
+  const fabRef = useRef<HTMLButtonElement>(null);
+  // 会話の読み込みの通し番号。読み込み中に別の会話や新しい会話へ移ったら、遅れて届いた結果は捨てる。
+  const loadSeq = useRef(0);
+  const restored = useRef(false);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   // 保存待ちから返答の終わりまで true。チャットのボタンを無効にするのに使う。
@@ -246,7 +274,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   useEffect(() => {
     const list = listRef.current;
     if (list && stick.current) list.scrollTop = list.scrollHeight;
-  }, [messages, open]);
+  }, [messages, open, historyOpen]);
 
   // 回答の高さが後から変わったとき（数式の表示が読み込まれて描き直されたとき）も、最下部を見ているなら付いていく。
   useEffect(() => {
@@ -280,6 +308,121 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     return () => window.clearInterval(timer);
   }, [streaming]);
 
+  async function loadChats() {
+    try {
+      const response = await fetch(`/api/sessions?noteId=${encodeURIComponent(noteId)}`, { cache: "no-store" });
+      const data = response.ok ? await response.json().catch(() => null) : null;
+      if (!data || !Array.isArray(data.sessions)) { setChatsFailed(true); return null; }
+      const list = (data.sessions as NoteChat[]).map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
+      setChats(list);
+      setChatsFailed(false);
+      return list;
+    } catch {
+      setChatsFailed(true);
+      return null;
+    }
+  }
+
+  // 保存された会話の発言。消えた会話（404）は一時的な失敗（null）と区別する。
+  async function fetchChat(id: string) {
+    try {
+      const response = await fetch(`/api/sessions/${id}/messages`, { cache: "no-store" });
+      if (response.status === 404) return "missing" as const;
+      const data = response.ok ? await response.json().catch(() => null) : null;
+      return data && Array.isArray(data.messages) ? restoreNoteChatMessages(data.messages as Message[], t) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function setLoading(value: boolean) {
+    loadingRef.current = value;
+    setLoadingChat(value);
+  }
+
+  // 会話を持たない新しい状態にする（これまでの会話は保存されたまま）。
+  function resetChat() {
+    loadSeq.current += 1;
+    setLoading(false);
+    sessionId.current = "";
+    setChatId("");
+    setActiveTurnAssistantId(null);
+    setMessages([]);
+  }
+
+  // 保存された会話を開く。送信中は切り替えない（届いている回答の行き先が変わらないように）。
+  async function openChat(id: string) {
+    if (sending.current) return;
+    const seq = ++loadSeq.current;
+    setLoading(true);
+    setError("");
+    const loaded = await fetchChat(id);
+    if (seq !== loadSeq.current || sending.current) return;
+    setLoading(false);
+    if (!loaded || loaded === "missing") {
+      setError(msg("Failed to load conversation."));
+      if (loaded === "missing") void loadChats();
+      return;
+    }
+    sessionId.current = id;
+    setChatId(id);
+    setActiveTurnAssistantId(null);
+    stick.current = true;
+    setMessages(loaded);
+    setHistoryOpen(false);
+  }
+
+  // 新しい会話を始める。これまでの会話は保存されたまま、履歴から開き直せる。
+  function newChat() {
+    if (sending.current) return;
+    resetChat();
+    setError("");
+    setHistoryOpen(false);
+    if (!phone) inputRef.current?.focus();
+  }
+
+  // 開いている会話を、サーバーの今の状態に合わせ直す。このパネルは Chats を見ている間も残るので、
+  // その間に Chats で続けた・編集した・消した会話を、古いまま見せたり続けたりしないようにする。
+  async function syncChat() {
+    if (!restored.current || sending.current || loadingRef.current) return;
+    void loadChats();
+    const id = sessionId.current;
+    if (!id) return;
+    const seq = loadSeq.current;
+    const loaded = await fetchChat(id);
+    if (seq !== loadSeq.current || sending.current || sessionId.current !== id || !loaded) return;
+    if (loaded === "missing") resetChat();
+    else setMessages(loaded);
+  }
+  const syncChatRef = useRef(syncChat);
+  useEffect(() => { syncChatRef.current = syncChat; });
+
+  // 初めてパネルを開いたとき、このノートの直近の会話を続きから出す（前はページを開き直すたびに消えていた）。開き直したときは今の状態に合わせる。
+  useEffect(() => {
+    if (!open) return;
+    if (restored.current) { void syncChatRef.current(); return; }
+    restored.current = true;
+    void loadChats().then((list) => {
+      if (list?.length && !sessionId.current && !sending.current) void openChat(list[0].id);
+    });
+    // 開いたときだけ読む。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  // Chats から戻ってきてノートがまた表示されたとき（丸いボタンが見えるようになったとき）も合わせ直す。
+  useEffect(() => {
+    const fabElement = fabRef.current;
+    if (!fabElement || typeof IntersectionObserver === "undefined") return;
+    let seen = false;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.some((entry) => entry.isIntersecting);
+      if (visible && seen) void syncChatRef.current();
+      if (visible) seen = true;
+    });
+    observer.observe(fabElement);
+    return () => observer.disconnect();
+  }, []);
+
   function addFiles(incoming: File[]) {
     if (busy || !incoming.length) return;
     const current = files.map(({ file }) => file);
@@ -304,7 +447,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   // display は画面に出す発言（ボタンの短い名前など）。AI へは text をそのまま送る。添付は入力欄から送ったときだけ付ける。
   async function send(text: string, display?: string) {
     const content = text.trim();
-    if (!content || sending.current) return;
+    if (!content || sending.current || loadingRef.current) return;
     const sentFiles = display === undefined ? files : [];
     const sentPages = display === undefined ? attachedPages : [];
     const rawFiles = sentFiles.map(({ file }) => file);
@@ -313,6 +456,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (problem) { setError(problem); flashOutcome("error"); return; }
     const assistantId = crypto.randomUUID();
     sending.current = true;
+    // 履歴の一覧を開いたまま送ったら、会話の表示へ戻す（送った発言と回答が見えるように）。
+    setHistoryOpen(false);
     setActiveTurnAssistantId(assistantId);
     setBusy(true);
     setError("");
@@ -369,11 +514,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
     // サーバーが発言を受け付けたか。受け付ける前に断られたら、添付は入力欄に残し、上げたファイルは片付ける。
     let accepted = false;
+    let savedId = "";
     try {
       const { streamFailed } = await streamChat(
         body,
         (id) => {
           sessionId.current = id;
+          setChatId(id);
+          savedId = id;
           accepted = true;
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
@@ -409,6 +557,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       setStreaming(false);
       sending.current = false;
       setBusy(false);
+      // 会話ができた・進んだので、パネルの履歴と Chats の一覧を合わせる（題名は回答のあとに付く）。
+      if (accepted) {
+        void loadChats();
+        window.dispatchEvent(new CustomEvent(NOTE_CHAT_SAVED_EVENT, { detail: { id: savedId } }));
+      }
     }
   }
 
@@ -436,22 +589,47 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     hidden: docHidden,
   });
 
+  const chatTitle = chats?.find((chat) => chat.id === chatId)?.title;
+  const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
+
   const panel = (
     <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-modal={phone || undefined} aria-label={t("Ask AI about this note")}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
-        <AppIcon size={18} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
-        <span className="note-ai-title" title={noteTitle}>{t("Ask AI about this note")}</span>
+        <AppIcon size={24} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
+        <span className="note-ai-title" title={noteTitle}>{chatTitle || t("Ask AI about this note")}</span>
+        <button type="button" className={`notion-icon-button grid ${historyOpen ? "is-active" : ""}`} aria-label={t("Chats in this note")} title={t("Chats in this note")} aria-pressed={historyOpen}
+          onClick={() => { if (!historyOpen) { setHistoryOpenedAt(Date.now()); void loadChats(); } setHistoryOpen(!historyOpen); }}><History size={16} /></button>
+        <button type="button" className="notion-icon-button grid" disabled={busy || (!chatId && messages.length === 0 && !historyOpen && !loadingChat)} aria-label={t("New chat")} title={t("New chat")} onClick={newChat}><SquarePen size={16} /></button>
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
       </header>
 
+      {historyOpen ? (
+        <div className="note-ai-list note-ai-history">
+          <p className="note-ai-history-heading">{t("Chats in this note")}</p>
+          {!chats ? <p className="note-ai-history-empty" role="status">{t(chatsFailed ? "Could not load the history." : "Loading…")}</p>
+            : chats.length === 0 ? <p className="note-ai-history-empty">{t("No chats")}</p> : (
+            <ul>
+              {chats.map((chat) => (
+                <li key={chat.id}>
+                  <button type="button" className={`note-ai-history-item ${chat.id === chatId ? "is-current" : ""}`} disabled={busy} aria-current={chat.id === chatId || undefined}
+                    onClick={() => (chat.id === chatId ? setHistoryOpen(false) : void openChat(chat.id))}>
+                    <span className="note-ai-history-title">{chat.title}</span>
+                    <span className="note-ai-history-time">{relativeTime(chat.updatedAt, Math.max(historyOpenedAt, Date.parse(chat.updatedAt) || 0), relative)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ) : (
       <div ref={listRef} className="note-ai-list" onScroll={onListScroll}>
-        {messages.length === 0 ? (
+        {loadingChat ? <p className="note-ai-history-empty" role="status">{t("Loading…")}</p> : messages.length === 0 ? (
           <div className="note-ai-empty">
             <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
             <div className="note-ai-chips">
               {QUICK_ACTIONS.map((action) => (
-                <button key={action.label} type="button" className="note-ai-chip" disabled={busy} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
+                <button key={action.label} type="button" className="note-ai-chip" disabled={busy || loadingChat} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
             </div>
           </div>
@@ -460,6 +638,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
         ))}
       </div>
+      )}
 
       {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, input)} />}
       {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, input)} />}
@@ -507,7 +686,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
             <AttachMenu className="relative" backToClose={phone} disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
               onAttachPages={() => setPageDialogOpen(true)} />
             {onModelChange && onReasoningChange && <ModelSelect value={model} reasoning={reasoning} onModelChange={onModelChange} onReasoningChange={onReasoningChange} />}
-            <button type="submit" className="note-ai-send" disabled={busy || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
+            <button type="submit" className="note-ai-send" disabled={busy || loadingChat || !input.trim() || Boolean(uploadError)} aria-label={t("Send")}><ArrowUp size={16} /></button>
           </div>
         </div>
         {uploadProgress && <div role="status" className="note-ai-progress">{t(uploadProgress.key, uploadProgress.vars)}</div>}
@@ -518,12 +697,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
   return (
     <>
-      <button type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""}`}
+      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""}`}
         style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
         aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
-        <AppIcon size={34} state={noteCharacterState} animated />
+        <AppIcon size={phone ? 42 : 40} state={noteCharacterState} animated />
       </button>
       {open && (phone
         ? createPortal(

@@ -1,5 +1,5 @@
 /* ノートを開いたまま使う AI アシスタント（右下の丸いボタンと、そこから開くパネル）。 */
-/* 中のキャラクターがボタンの主役。34px のキャラクターを PC 52px・スマホ 56px（指で押しやすい大きさ）の丸に入れる。 */
+/* 中のキャラクターがボタンの主役。PC は 40px のキャラクターを 52px の丸に、スマホは 42px を 56px（指で押しやすい大きさ）の丸に入れる。 */
 .note-ai-fab {
   position: fixed; inset-inline-end: 1.25rem; bottom: 1.25rem; z-index: 40; display: grid; width: 3.25rem; height: 3.25rem; place-items: center;
   border-radius: 999px; border: 1px solid var(--notion-border-strong); background: var(--notion-bg); color: var(--notion-text);
@@ -30,6 +30,24 @@
 }
 .note-ai-header { display: flex; align-items: center; gap: 0.5rem; padding-block: 0.6rem; padding-inline: 0.9rem 0.6rem; border-bottom: 1px solid var(--notion-border); color: var(--notion-muted); }
 .note-ai-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; font-weight: 600; color: var(--notion-text); }
+.note-ai-header .notion-icon-button.is-active { background: var(--notion-active); color: var(--notion-text); }
+.note-ai-header .notion-icon-button:disabled { opacity: 0.4; }
+/* このノートで始めた会話の一覧（履歴ボタンで開く）。 */
+.note-ai-history ul { display: grid; gap: 0.1rem; margin: 0; padding: 0; list-style: none; }
+.note-ai-history-heading { margin: 0; padding: 0.5rem 0.5rem 0.35rem; font-size: 0.75rem; font-weight: 600; color: var(--notion-muted); }
+.note-ai-history-empty { margin: 0; padding: 0.75rem 0.5rem; font-size: 0.875rem; color: var(--notion-muted); }
+.note-ai-history-item {
+  display: flex; width: 100%; min-height: 2.25rem; align-items: center; gap: 0.75rem; border-radius: 0.4rem; padding: 0.35rem 0.5rem;
+  font-size: 0.875rem; text-align: start; color: var(--notion-text);
+}
+.note-ai-history-item:hover:not(:disabled) { background: var(--notion-hover); }
+.note-ai-history-item.is-current { background: var(--notion-active); }
+.note-ai-history-item:disabled { opacity: 0.5; }
+.note-ai-history-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.note-ai-history-time { flex: none; font-size: 0.75rem; color: var(--notion-faint); }
+@media (max-width: 639px) {
+  .note-ai-history-item { min-height: 2.75rem; font-size: 0.9375rem; }
+}
 .note-ai-list { flex: 1; min-height: 0; overflow-y: auto; padding: 0.5rem 0.9rem 0.75rem; }
 .note-ai-list .notion-turn { padding-top: 0.6rem; padding-bottom: 0.2rem; }
 .note-ai-empty { display: grid; gap: 0.9rem; padding-top: 0.75rem; font-size: 0.875rem; line-height: 1.5; color: var(--notion-muted); }

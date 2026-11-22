@@ -46,6 +46,7 @@ export const vi: Record<string, string> = {
   "Ask": "Hỏi",
   "Ask AI": "Hỏi AI",
   "Ask AI about this note": "Hỏi AI về ghi chú này",
+  "Chats in this note": "Đoạn chat trong ghi chú này",
   "Ask AI to edit this note…": "Nhờ AI chỉnh sửa ghi chú này…",
   "Ask a question, work through your notes, or bring in a file.": "Đặt câu hỏi, làm việc với ghi chú, hoặc đưa tệp tài liệu vào.",
   "Ask about the page you are writing without leaving it.": "Hỏi ngay về ghi chú bạn đang viết mà không cần rời khỏi trang.",

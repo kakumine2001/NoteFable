@@ -4,17 +4,19 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
-export async function GET() {
+export async function GET(request: Request) {
   // サイドバーに出すためのセッション一覧。
   // 匿名デバイス ID から利用者を決め、その利用者が所有する会話だけを更新順で返す。
   try {
     // Cookie から現在の匿名ユーザーを確定する。
     const user = await getOrCreateUser();
     // サイドバーに必要な最小限の情報だけ取得する。
+    // ノートの AI パネルで始めた会話（noteId あり）も普通の会話として一覧に入る。
+    // ?noteId= を付けると、そのノートで始めた会話だけを新しい順で返す（パネルの履歴用）。自分の会話しか見ないので、他人のノートの ID では空になる。
+    const noteId = new URL(request.url).searchParams.get("noteId")?.trim();
     const sessions = await prisma.session.findMany({
-      // ノートを開いたまま使う AI アシスタントの会話（noteId あり）は Chats の一覧に出さない。
-      where: { userId: user.id, noteId: null },
-      orderBy: [{ pinned: "desc" }, { position: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
+      where: { userId: user.id, ...(noteId ? { noteId } : {}) },
+      orderBy: noteId ? [{ updatedAt: "desc" }, { id: "desc" }] : [{ pinned: "desc" }, { position: "asc" }, { updatedAt: "desc" }, { id: "desc" }],
       select: {
         id: true,
         title: true,
@@ -22,6 +24,7 @@ export async function GET() {
         pinned: true,
         position: true,
         projectId: true,
+        noteId: true,
         createdAt: true,
         updatedAt: true,
       },
@@ -74,6 +77,7 @@ export async function POST(request: Request) {
         pinned: true,
         position: true,
         projectId: true,
+        noteId: true,
         createdAt: true,
         updatedAt: true,
       },

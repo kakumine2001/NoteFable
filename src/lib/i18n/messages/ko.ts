@@ -46,6 +46,7 @@ export const ko: Record<string, string> = {
   "Ask": "질문하기",
   "Ask AI": "AI에게 묻기",
   "Ask AI about this note": "이 노트에 대해 AI에게 묻기",
+  "Chats in this note": "이 노트의 채팅",
   "Ask AI to edit this note…": "AI에게 이 노트 편집 요청하기…",
   "Ask a question, work through your notes, or bring in a file.": "질문을 하거나, 노트를 정리하거나, 파일을 불러와 보세요.",
   "Ask about the page you are writing without leaving it.": "작성 중인 노트를 벗어나지 않고 바로 질문해 보세요.",

@@ -43,6 +43,7 @@ import { pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/notes";
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
+import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent } from "@/lib/chat-activity";
@@ -1922,9 +1923,15 @@ export default function Home() {
   }, [revealTick, workspaceView, activeSessionId, notesList, notes.loading, notes.active, notes.activeId]);
 
   // プロジェクトの参照ノートのチップなどが投げる "notefable:open-note" / "notefable:open-chat" を、検索結果と同じ開き方に流す。
-  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects });
+  // ノートの AI パネルで会話が増えた・進んだとき。一覧を読み直し、その会話をここでも開いていたら（読み込み済みなら）発言も読み直す。
+  function refreshAfterNoteChat(sessionId?: string) {
+    void loadSessions();
+    if (sessionId && sessionMessagesRef.current[sessionId] && !streamAbortsRef.current[sessionId]) void refreshSessionMessages(sessionId);
+  }
+
+  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: refreshAfterNoteChat });
   useEffect(() => {
-    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects };
+    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: refreshAfterNoteChat };
   });
   useEffect(() => {
     function detailOf(event: Event) {
@@ -1943,10 +1950,17 @@ export default function Home() {
     function onPageCreated() {
       linkOpenersRef.current.projects();
     }
+    function onNoteChatSaved(event: Event) {
+      const id = detailOf(event)?.id;
+      linkOpenersRef.current.sessions(typeof id === "string" ? id : undefined);
+    }
     window.addEventListener("notefable:open-note", onOpenNote);
     window.addEventListener("notefable:open-chat", onOpenChat);
     window.addEventListener("notefable:page-created", onPageCreated);
+    // ノートの AI パネルで会話が増えた・進んだら、Chats の一覧にもすぐ出す。
+    window.addEventListener(NOTE_CHAT_SAVED_EVENT, onNoteChatSaved);
     return () => {
+      window.removeEventListener(NOTE_CHAT_SAVED_EVENT, onNoteChatSaved);
       window.removeEventListener("notefable:open-note", onOpenNote);
       window.removeEventListener("notefable:open-chat", onOpenChat);
       window.removeEventListener("notefable:page-created", onPageCreated);

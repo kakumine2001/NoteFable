@@ -38,6 +38,7 @@ export const ja: Record<string, string> = {
   "Ask": "質問する",
   "Ask AI": "AIに聞く",
   "Ask AI about this note": "このノートについてAIに聞く",
+  "Chats in this note": "このノートのチャット",
   "Ask AI to edit this note…": "AIにノートの編集を依頼…",
   "Ask a question, work through your notes, or bring in a file.": "質問したり、ノートを整理したり、ファイルを読み込んだりできます。",
   "Ask about the page you are writing without leaving it.": "書いているノートを開いたまま、その内容をAIに質問できます。",

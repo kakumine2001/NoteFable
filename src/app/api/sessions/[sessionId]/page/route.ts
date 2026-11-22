@@ -22,7 +22,7 @@ const FAILED = msg("Could not create a page from this chat. Try again.");
 
 // 「Create page」：会話全体を AI が 1 つの読みやすいノートに書き直し、新しいページとして保存する。
 // body: { model?: string, savedOn?: "YYYY-MM-DD" } → 201 { page, partial }（partial: 長い会話で古い発言を使わなかった）
-// 会話は現在の利用者の Chats の会話だけ（ノート用アシスタントの会話は 404）。USER / ASSISTANT の本文と添付のファイル名だけを読み、
+// 会話は現在の利用者の 会話だけ。USER / ASSISTANT の本文と添付のファイル名だけを読み、
 // SYSTEM メッセージや providerContext は読まない。モデルは選択中のチャットモデル（推論強度はそのモデルの既定値）。
 // 送信 1 回分（chat）として数え、ページを作れなかったときは戻す。
 export async function POST(request: Request, context: RouteContext) {
@@ -42,7 +42,7 @@ export async function POST(request: Request, context: RouteContext) {
   let ticket: UsageTicket | undefined;
   try {
     const user = await getOrCreateUser();
-    const session = await prisma.session.findFirst({ where: { id: sessionId, userId: user.id, noteId: null }, select: { title: true } });
+    const session = await prisma.session.findFirst({ where: { id: sessionId, userId: user.id }, select: { title: true } });
     if (!session) return NextResponse.json({ error: msg("Session not found.") }, { status: 404 });
     // 使うのは新しい方の発言だけなので、新しい順に上限 + 1 件まで読み、時系列に戻す（1 件多ければ、もっと古い発言がある）。
     const newest = await prisma.message.findMany({

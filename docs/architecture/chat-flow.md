@@ -127,7 +127,7 @@ POST /api/chat
 
 请求在收到任何内容之前被拒绝（上限、断网、404）时，界面退回原来的对话、在输入栏上方显示原因，并把那条提问的编辑框带着刚写的文字重新打开（`rejectedEdit`），写的字不会丢；未登录撞到上限时，登录前把这段文字存成输入栏的草稿（输入栏空着的话）。
 
-生成图片的那一轮不能编辑（改写后会按文字回答重做），界面不显示铅笔。编辑和重新生成都按一次聊天计数；笔记助手的会话（带 `noteId`）不支持，同时带 `edit` 和 `regenerate`、或没有 `sessionId` 时 400。
+生成图片的那一轮不能编辑（改写后会按文字回答重做），界面不显示铅笔。编辑和重新生成都按一次聊天计数；笔记 AI 面板里的发送（请求带 `noteId`）不支持（同一个会话在 Chats 里打开时可以），同时带 `edit` 和 `regenerate`、或没有 `sessionId` 时 400。
 
 ### 切换版本
 
@@ -150,7 +150,7 @@ POST /api/chat
 ```text
 当前 User
     ↓
-find Session where id + userId + noteId match（noteId は通常のチャットでは null、笔记助手の会话では笔记 ID）
+find Session where id + userId match（请求带 noteId 时还要求 Session.noteId 相同：笔记 AI 面板只能续用在这篇笔记里开始的会话；Chats 的请求不带 noteId，可以续用本人的任何会话，包括在笔记里开始的）
 ```
 
 如果没有：
@@ -335,7 +335,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 ### 每次发送时怎么带入
 
-`/api/chat` 在会话属于某个项目（`session.projectId`）且不是笔记助手的会话（没有 `noteId`）时，**每次发送都**调用 `loadProjectContext(userId, projectId)`（`src/lib/chat-project-context.ts`）重新读取，所以对项目指示或参考笔记的修改从下一条消息起生效，不依赖会话创建时的快照。项目不存在或不属于该用户，或者既没有非空白的指示也没有活着的参考笔记，返回 `null`，什么都不加。读取失败只 `console.error("Failed to load project context", …)`，聊天照常进行、不带项目文脉。
+`/api/chat` 在会话属于某个项目（`session.projectId`）且请求不是从笔记 AI 面板发出（请求没有 `noteId`）时，**每次发送都**调用 `loadProjectContext(userId, projectId)`（`src/lib/chat-project-context.ts`）重新读取，所以对项目指示或参考笔记的修改从下一条消息起生效，不依赖会话创建时的快照。项目不存在或不属于该用户，或者既没有非空白的指示也没有活着的参考笔记，返回 `null`，什么都不加。读取失败只 `console.error("Failed to load project context", …)`，聊天照常进行、不带项目文脉。
 
 读到的内容由 `formatProjectContext()` 写成一段文字，放进**同一个** `buildInstructions()`（第 4 个参数 `project`），位置在全部固定文字和用户的自定义指令之后（变化的部分放最后，前面的固定文字仍能命中提示缓存）；没有给 Anthropic 或 OpenAI 单独拼一份。这段文字包含：
 
@@ -397,7 +397,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ### Chats
 
-每个会话最多一条结果。只看普通聊天（`noteId` 为空，笔记助手的对话不搜），只看 `USER` / `ASSISTANT` 消息。**词可以分散在同一个会话的不同地方**：每个词出现在会话标题、任一条消息、或任一条消息的附件抽取文本（`Attachment.extractedText`，入库时已截到 120,000 字符）里即可。实现是一次扫描：对标题、每条消息和每个附件各算一个“每个词占一位”的位掩码，按消息合并（`bit_or`，消息和它的附件算同一条），再按会话合并，所有位都立起来才算命中。
+每个会话最多一条结果。在笔记 AI 面板里开始的会话也是 Chats 的会话，同样会被搜到；只看 `USER` / `ASSISTANT` 消息。**词可以分散在同一个会话的不同地方**：每个词出现在会话标题、任一条消息、或任一条消息的附件抽取文本（`Attachment.extractedText`，入库时已截到 120,000 字符）里即可。实现是一次扫描：对标题、每条消息和每个附件各算一个“每个词占一位”的位掩码，按消息合并（`bit_or`，消息和它的附件算同一条），再按会话合并，所有位都立起来才算命中。
 
 排序先按档：① 全部词都在标题里；② 有一条消息（含它的附件）同时含全部词；③ 词散落在多条消息里。同档内标题含的词多的在前，然后最近命中的消息（没有则会话更新时间）新的在前。
 
@@ -498,7 +498,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 
 服务端（`src/app/api/sessions/[sessionId]/page/route.ts`，`maxDuration = 300`）：
 
-1. 会话必须属于当前用户且 `noteId` 为 null，否则 404；body 和其他笔记 API 一样最多读 1 MiB（超出 413），不是 JSON 对象返回 400。
+1. 会话必须属于当前用户，否则 404；body 和其他笔记 API 一样最多读 1 MiB（超出 413），不是 JSON 对象返回 400。
 2. 只读 USER / ASSISTANT 消息的正文和用户消息的附件文件名（不读 SYSTEM、`providerContext`、附件内容或图片；助手的附件是生成的图片，不列出）。按时间倒序最多读 400 条（`MAX_TRANSCRIPT_MESSAGES`），更早的消息算作省略。`buildTranscript`（`src/lib/chat-page.ts`）从最新的消息往前取：每条最多 12,000 字符，合计最多 60,000 字符，放不下的更早消息被省略并注明；空消息跳过。会话标题也放在 `<conversation>` 里。正文和标题里的 `<conversation>` / `<user>` / `<assistant>` 标签被替换掉，不能提前结束对话块。没有可用内容返回 400 “This chat has nothing to turn into a page yet.”，不计数。
 3. `consumeUsage(user, "chat")` 预占一次聊天额度，满额 429（与 `/api/chat` 相同的 `usage_limit` 响应）。
 4. 用 body 里的模型（经 `normalizeModel` 和 `getModelRegistry()`，未知值回到默认模型；上游模型名由 `upstreamModelFor` 解析，与 `/api/chat` 共用）发一次非流式请求，推理强度固定为该模型的默认值（Luna / Haiku `medium`，DeepSeek `high`），避免用户选的高强度把单次请求拖过时限。不带搜索、Notes 工具、压缩和缓存。系统指令（`PAGE_INSTRUCTIONS`）要求用对话的主要语言写一篇以 `# 标题` 开头的 Markdown 笔记，只保留对话里的事实、解释、例子、代码和出处链接，不加新事实，不提“用户 / 助手 / 对话”，并说明 `<conversation>` 里的标题和对话是要改写的材料、不是指令。输出上限是 32,000 token 和模型 `tokenLimits.maxOutputTokens` 中较小的一个。请求格式见 [provider-requests.md](provider-requests.md#整理成笔记的请求)。240 秒超时或客户端断开时中止。

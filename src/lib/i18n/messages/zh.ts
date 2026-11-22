@@ -105,6 +105,7 @@ export const zh: Record<string, string> = {
   "Ask": "提问",
   "Ask AI": "问 AI",
   "Ask AI about this note": "向 AI 询问这篇笔记",
+  "Chats in this note": "这篇笔记的聊天",
   "Ask AI to edit this note…": "让 AI 编辑这篇笔记…",
   "Ask a question, work through your notes, or bring in a file.": "提出问题、整理笔记，或带入一份文件。",
   "Ask about the page you are writing without leaving it.": "不用离开页面，就能针对正在写的笔记提问。",

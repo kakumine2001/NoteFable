@@ -46,6 +46,7 @@ export const id: Record<string, string> = {
   "Ask": "Tanya",
   "Ask AI": "Tanya AI",
   "Ask AI about this note": "Tanya AI tentang catatan ini",
+  "Chats in this note": "Chat di catatan ini",
   "Ask AI to edit this note…": "Minta AI mengedit catatan ini…",
   "Ask a question, work through your notes, or bring in a file.": "Ajukan pertanyaan, olah catatan Anda, atau lampirkan file.",
   "Ask about the page you are writing without leaving it.": "Tanyakan isi catatan yang sedang Anda tulis tanpa meninggalkan halaman.",

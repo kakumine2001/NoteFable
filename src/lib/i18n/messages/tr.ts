@@ -46,6 +46,7 @@ export const tr: Record<string, string> = {
   "Ask": "Sor",
   "Ask AI": "Yapay zekâya sor",
   "Ask AI about this note": "Bu not hakkında yapay zekâya sor",
+  "Chats in this note": "Bu nottaki sohbetler",
   "Ask AI to edit this note…": "Yapay zekâdan bu notu düzenlemesini iste…",
   "Ask a question, work through your notes, or bring in a file.": "Bir soru sorun, notlarınız üzerinde çalışın veya bir dosya ekleyin.",
   "Ask about the page you are writing without leaving it.": "Yazmakta olduğunuz nottan ayrılmadan içeriği hakkında soru sorun.",
