@@ -160,10 +160,9 @@ function renderBlock(
   const textAlign = alignStyle(props.textAlignment);
   const blockStyle: CSSProperties | undefined =
     colors || textAlign ? { ...colors, ...(textAlign ? { textAlign } : {}) } : undefined;
-  const childrenNode =
-    Array.isArray(block.children) && block.children.length > 0 ? (
-      <div className="public-note-children">{renderBlockList(block.children, labels)}</div>
-    ) : null;
+  const renderedChildren =
+    Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null;
+  const childrenNode = renderedChildren ? <div className="public-note-children">{renderedChildren}</div> : null;
 
   switch (block.type) {
     case "paragraph": {
@@ -189,9 +188,7 @@ function renderBlock(
       if (props.isToggleable) {
         return (
           <div key={block.id} className="public-note-block" style={blockStyle}>
-            <PublicToggleBlock header={headingEl}>
-              {Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null}
-            </PublicToggleBlock>
+            <PublicToggleBlock header={headingEl}>{renderedChildren}</PublicToggleBlock>
           </div>
         );
       }
@@ -238,7 +235,7 @@ function renderBlock(
       return (
         <div key={block.id} className="public-note-block" style={blockStyle}>
           <PublicToggleBlock header={<div className="public-note-list-text">{renderInline(block.content)}</div>}>
-            {Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null}
+            {renderedChildren}
           </PublicToggleBlock>
         </div>
       );

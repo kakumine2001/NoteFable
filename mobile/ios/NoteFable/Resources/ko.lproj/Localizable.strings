@@ -453,6 +453,8 @@
 "share_1d" = "1일";
 "share_7d" = "7일";
 "share_30d" = "30일";
+"share_custom_date" = "사용자 지정 날짜…";
+"share_set" = "설정";
 "share_expires_time" = "만료: %1$s";
 "share_via_parent" = "상위 페이지를 통해 공유됨 (%1$s)";
 "share_excluded_parent" = "상위 페이지 공유에서 제외됨 (%1$s)";

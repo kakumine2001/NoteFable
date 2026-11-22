@@ -18,6 +18,8 @@
     <string name="share_1d">يوم واحد</string>
     <string name="share_7d">7 أيام</string>
     <string name="share_30d">30 يوماً</string>
+    <string name="share_custom_date">تاريخ مخصص…</string>
+    <string name="share_set">تعيين</string>
     <string name="share_expires_time">تنتهي الصلاحية: %1$s</string>
     <string name="share_via_parent">مشتركة عبر الصفحة الرئيسية (%1$s)</string>
     <string name="share_excluded_parent">مستثناة من مشاركة الصفحة الرئيسية (%1$s)</string>

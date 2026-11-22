@@ -453,6 +453,8 @@
 "share_1d" = "1 วัน";
 "share_7d" = "7 วัน";
 "share_30d" = "30 วัน";
+"share_custom_date" = "กำหนดวันเวลา…";
+"share_set" = "ตั้งค่า";
 "share_expires_time" = "หมดอายุ %1$s";
 "share_via_parent" = "แชร์ผ่านหน้าหลัก (%1$s)";
 "share_excluded_parent" = "ยกเว้นจากการแชร์ของหน้าหลัก (%1$s)";

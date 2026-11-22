@@ -453,6 +453,8 @@
 "share_1d" = "1 день";
 "share_7d" = "7 дней";
 "share_30d" = "30 дней";
+"share_custom_date" = "Указать дату…";
+"share_set" = "Задать";
 "share_expires_time" = "Истекает: %1$s";
 "share_via_parent" = "Доступна через родительскую страницу (%1$s)";
 "share_excluded_parent" = "Исключена из доступа родительской страницы (%1$s)";

@@ -578,6 +578,13 @@ class NotesViewModel(
 
     suspend fun updateShare(pageId: String, patch: com.kakumine.notefable.data.NoteSharePatch): com.kakumine.notefable.data.NoteShareState {
         val owner = identity
+        if (patch.enabled == true) {
+            val includeSubpages = patch.includeSubpages ?: true
+            val scope = if (includeSubpages) _state.value.descendants(pageId) + pageId else setOf(pageId)
+            if (_state.value.open?.id in scope && !flushOpen().ok) {
+                throw IllegalStateException("Failed to update share settings.")
+            }
+        }
         val result = backend.updateShare(pageId, patch)
         val updated = result.page
         if (updated != null && owner == identity) {

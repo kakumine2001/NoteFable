@@ -17,6 +17,8 @@
     <string name="share_1d">1 日</string>
     <string name="share_7d">7 日間</string>
     <string name="share_30d">30 日間</string>
+    <string name="share_custom_date">日時を指定…</string>
+    <string name="share_set">設定</string>
     <string name="share_expires_time">期限: %1$s</string>
     <string name="share_via_parent">親ページ経由で公開中（%1$s）</string>
     <string name="share_excluded_parent">親ページの共有から除外中（%1$s）</string>

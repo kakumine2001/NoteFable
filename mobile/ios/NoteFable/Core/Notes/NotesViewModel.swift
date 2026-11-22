@@ -589,6 +589,13 @@ final class NotesViewModel {
 
     func updateShare(_ pageId: String, _ patch: NoteSharePatch) async throws -> NoteShareState {
         let owner = identity
+        if patch.enabled == true {
+            let includeSubpages = patch.includeSubpages ?? true
+            let scope = includeSubpages ? state.descendants(pageId).union([pageId]) : Set([pageId])
+            if let open = state.open, scope.contains(open.id), !(await flushOpen()).ok {
+                throw ApiException(status: 409, message: "Failed to update share settings.")
+            }
+        }
         let result = try await backend.updateShare(id: pageId, patch: patch)
         if let updated = result.page, owner == identity {
             update { s in

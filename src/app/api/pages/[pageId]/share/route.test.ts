@@ -69,7 +69,7 @@ describe("/api/pages/[pageId]/share", () => {
     expect(res.status).toBe(200);
     expect(mocks.updatePageShareMeta).toHaveBeenCalledWith("mine", "p1", {
       shareEnabled: true,
-      shareToken: "generated-token-123",
+      ensureToken: "generated-token-123",
     });
   });
 

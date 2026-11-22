@@ -453,6 +453,8 @@
 "share_1d" = "1 Tag";
 "share_7d" = "7 Tage";
 "share_30d" = "30 Tage";
+"share_custom_date" = "Benutzerdefiniertes Datum…";
+"share_set" = "Festlegen";
 "share_expires_time" = "Läuft ab: %1$s";
 "share_via_parent" = "Über übergeordnete Seite geteilt (%1$s)";
 "share_excluded_parent" = "Von übergeordneter Freigabe ausgeschlossen (%1$s)";

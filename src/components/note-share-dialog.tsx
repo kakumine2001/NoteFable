@@ -27,10 +27,12 @@ function formatExpiry(iso: string, locale: string): string {
 
 export function NoteShareDialog({
   pageId,
+  beforePublish,
   onUpdated,
   onClose,
 }: {
   pageId: string;
+  beforePublish?: (includeSubpages: boolean) => Promise<boolean>;
   onUpdated?: (page: NotePageSummary) => void;
   onClose: () => void;
 }) {
@@ -44,6 +46,7 @@ export function NoteShareDialog({
   const [customMode, setCustomMode] = useState(false);
   const [customValue, setCustomValue] = useState("");
   const [lastPreset, setLastPreset] = useState<ShareExpiryPreset | null>(null);
+  const [draftIncludeSubpages, setDraftIncludeSubpages] = useState(true);
 
   useBackToClose(true, onClose);
 
@@ -57,7 +60,11 @@ export function NoteShareDialog({
       .then(async (response) => {
         const data = await response.json().catch(() => null);
         if (!response.ok || !data?.share) throw new Error(data?.error || msg("Failed to load share settings."));
-        if (!cancelled) setShare(data.share as NoteShareState);
+        if (!cancelled) {
+          const loaded = data.share as NoteShareState;
+          setShare(loaded);
+          setDraftIncludeSubpages(loaded.includeSubpages);
+        }
       })
       .catch((caught) => {
         if (!cancelled) setError(caught instanceof Error ? caught.message : msg("Failed to load share settings."));
@@ -79,6 +86,13 @@ export function NoteShareDialog({
     setBusy(true);
     setError("");
     try {
+      if (patch.enabled === true && beforePublish) {
+        const flushed = await beforePublish(patch.includeSubpages ?? share?.includeSubpages ?? true);
+        if (!flushed) {
+          setError(msg("Failed to update share settings."));
+          return;
+        }
+      }
       const response = await fetch(`/api/pages/${encodeURIComponent(pageId)}/share`, {
         method: "PUT",
         cache: "no-store",
@@ -201,9 +215,20 @@ export function NoteShareDialog({
               )}
               <button
                 type="button"
+                role="switch"
+                aria-checked={draftIncludeSubpages}
+                disabled={busy}
+                className="notes-share-toggle mb-2"
+                onClick={() => setDraftIncludeSubpages((value) => !value)}
+              >
+                <span className="flex-1 text-start">{t("Include sub-pages")}</span>
+                <span className="notes-menu-switch" data-on={draftIncludeSubpages} aria-hidden="true" />
+              </button>
+              <button
+                type="button"
                 disabled={busy}
                 className="notion-button notion-button-primary w-full justify-center"
-                onClick={() => void save({ enabled: true })}
+                onClick={() => void save({ enabled: true, includeSubpages: draftIncludeSubpages })}
               >
                 {share.expired ? t("Republish") : t("Publish")}
               </button>

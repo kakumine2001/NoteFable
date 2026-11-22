@@ -2556,7 +2556,9 @@ export default function Home() {
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
       )}
       {workspaceView === "pages" && shareNoteId && (
-        <NoteShareDialog key={shareNoteId} pageId={shareNoteId} onUpdated={notes.applyShareMeta} onClose={() => setShareNoteId(null)} />
+        <NoteShareDialog key={shareNoteId} pageId={shareNoteId}
+          beforePublish={(includeSubpages) => notes.flushSubtree(shareNoteId, includeSubpages)}
+          onUpdated={notes.applyShareMeta} onClose={() => setShareNoteId(null)} />
       )}
     </main>
   );

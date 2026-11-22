@@ -458,9 +458,18 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     } finally {reorderBusy.current=false;}
   }
 
+  async function flushSubtree(id: string, includeSubpages: boolean): Promise<boolean> {
+    const ids = includeSubpages ? [id, ...descendantIdsOf(pages, id)] : [id];
+    for (const pageId of ids) {
+      const queue = queues.current.get(pageId);
+      if (queue && !(await queue.flush())) return false;
+    }
+    return true;
+  }
+
   function loadLatest() {
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

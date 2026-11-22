@@ -18,6 +18,8 @@
     <string name="share_1d">1 天</string>
     <string name="share_7d">7 天</string>
     <string name="share_30d">30 天</string>
+    <string name="share_custom_date">自定義時間…</string>
+    <string name="share_set">設定</string>
     <string name="share_expires_time">到期時間：%1$s</string>
     <string name="share_via_parent">正隨上級頁面公開（%1$s）</string>
     <string name="share_excluded_parent">已從上級分享中排除（%1$s）</string>

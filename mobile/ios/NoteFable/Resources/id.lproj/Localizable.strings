@@ -453,6 +453,8 @@
 "share_1d" = "1 hari";
 "share_7d" = "7 hari";
 "share_30d" = "30 hari";
+"share_custom_date" = "Tanggal kustom…";
+"share_set" = "Atur";
 "share_expires_time" = "Kedaluwarsa %1$s";
 "share_via_parent" = "Dibagikan melalui halaman induk (%1$s)";
 "share_excluded_parent" = "Dikecualikan dari berbagi halaman induk (%1$s)";

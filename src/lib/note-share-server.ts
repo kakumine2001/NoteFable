@@ -238,7 +238,8 @@ export async function resolveOwnerShareState(
 }
 
 export type ShareMetaUpdate = {
-  shareToken?: string | null;
+  // 初回公開時のトークン発行。既存トークンがある場合は上書きせず COALESCE で保持する。
+  ensureToken?: string;
   shareEnabled?: boolean;
   shareIncludeSubpages?: boolean;
   shareExpiresAt?: Date | null;
@@ -247,9 +248,14 @@ export type ShareMetaUpdate = {
 
 // 共有設定はメタデータなので、本文の version や updatedAt を変えない（自動保存と衝突させない）。
 export async function updatePageShareMeta(userId: string, pageId: string, data: ShareMetaUpdate) {
-  const sets = Object.entries(data)
-    .filter(([, value]) => value !== undefined)
-    .map(([key, value]) => Prisma.sql`${Prisma.raw(`"${key}"`)} = ${value}`);
+  const sets: Prisma.Sql[] = [];
+  if (data.ensureToken !== undefined) {
+    sets.push(Prisma.sql`"shareToken" = COALESCE("shareToken", ${data.ensureToken})`);
+  }
+  if (data.shareEnabled !== undefined) sets.push(Prisma.sql`"shareEnabled" = ${data.shareEnabled}`);
+  if (data.shareIncludeSubpages !== undefined) sets.push(Prisma.sql`"shareIncludeSubpages" = ${data.shareIncludeSubpages}`);
+  if (data.shareExpiresAt !== undefined) sets.push(Prisma.sql`"shareExpiresAt" = ${data.shareExpiresAt}`);
+  if (data.shareExcludeFromParent !== undefined) sets.push(Prisma.sql`"shareExcludeFromParent" = ${data.shareExcludeFromParent}`);
   if (!sets.length) return 0;
   return prisma.$executeRaw(
     Prisma.sql`UPDATE ${table()} SET ${Prisma.join(sets, ", ")} WHERE "id" = ${pageId} AND "userId" = ${userId} AND "deletedAt" IS NULL`,

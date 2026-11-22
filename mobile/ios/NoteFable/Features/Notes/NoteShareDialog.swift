@@ -12,6 +12,9 @@ struct NoteShareDialog: View {
     @Environment(\.openURL) private var openURL
 
     @State private var share: NoteShareState? = nil
+    @State private var draftIncludeSubpages = true
+    @State private var customMode = false
+    @State private var customDate = Date().addingTimeInterval(86400)
     @State private var loading = true
     @State private var error: String? = nil
     @State private var copiedKey: String? = nil
@@ -68,8 +71,14 @@ struct NoteShareDialog: View {
                             .foregroundStyle(Sm.muted)
                     }
 
+                    switchRow(
+                        label: L("share_include_subpages"),
+                        checked: draftIncludeSubpages,
+                        action: { draftIncludeSubpages.toggle() }
+                    )
+
                     Button {
-                        save(NoteSharePatch(enabled: true))
+                        save(NoteSharePatch(enabled: true, includeSubpages: draftIncludeSubpages))
                     } label: {
                         Text(s.expired ? L("share_republish") : L("share_publish"))
                             .font(.nf(14, weight: .medium))
@@ -98,7 +107,32 @@ struct NoteShareDialog: View {
                             .font(.nf(14))
                             .foregroundStyle(Sm.text)
                         expiryPresets(currentExpiresAt: s.expiresAt)
-                        if let expiresAt = s.expiresAt {
+                        if customMode {
+                            HStack(spacing: 8) {
+                                DatePicker(
+                                    "",
+                                    selection: $customDate,
+                                    in: Date().addingTimeInterval(60)...,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .labelsHidden()
+                                Spacer()
+                                Button {
+                                    customMode = false
+                                    let iso = ISO8601DateFormatter().string(from: customDate)
+                                    save(NoteSharePatch(setExpiresAt: true, expiresAt: iso))
+                                } label: {
+                                    Text(L("share_set"))
+                                        .font(.nf(12, weight: .medium))
+                                        .foregroundStyle(Color.white)
+                                        .padding(.horizontal, 12)
+                                        .frame(height: 30)
+                                        .background(Sm.text, in: RoundedRectangle(cornerRadius: 6))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(busy)
+                            }
+                        } else if let expiresAt = s.expiresAt {
                             Text(L("share_expires_time", formatExpiry(expiresAt)))
                                 .font(.nf(12))
                                 .foregroundStyle(Sm.muted)
@@ -214,6 +248,7 @@ struct NoteShareDialog: View {
                 ForEach(Array(presets.enumerated()), id: \.offset) { _, preset in
                     let selected = preset.1 == nil && currentExpiresAt == nil
                     Button {
+                        customMode = false
                         let nextIso = preset.1.map { seconds in
                             ISO8601DateFormatter().string(from: Date().addingTimeInterval(seconds))
                         }
@@ -230,6 +265,20 @@ struct NoteShareDialog: View {
                     .buttonStyle(.plain)
                     .disabled(busy)
                 }
+                Button {
+                    customDate = Date().addingTimeInterval(86400)
+                    customMode = true
+                } label: {
+                    Text(L("share_custom_date"))
+                        .font(.nf(12, weight: customMode ? .semibold : .regular))
+                        .foregroundStyle(Sm.text)
+                        .padding(.horizontal, 10)
+                        .frame(height: 30)
+                        .background(customMode ? Sm.hover : Color.white, in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(RoundedRectangle(cornerRadius: 6).stroke(customMode ? Sm.text : Sm.borderStrong, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .disabled(busy)
             }
         }
     }
@@ -238,7 +287,9 @@ struct NoteShareDialog: View {
         loading = true
         error = nil
         do {
-            share = try await app.notes.loadShare(pageId)
+            let loaded = try await app.notes.loadShare(pageId)
+            share = loaded
+            draftIncludeSubpages = loaded.includeSubpages
         } catch {
             self.error = localizedError(error, fallback: L("share_load_failed"))
         }

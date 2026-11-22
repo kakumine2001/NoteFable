@@ -453,6 +453,8 @@
 "share_1d" = "1 दिन";
 "share_7d" = "7 दिन";
 "share_30d" = "30 दिन";
+"share_custom_date" = "कस्टम तिथि…";
+"share_set" = "सेट करें";
 "share_expires_time" = "समाप्ति: %1$s";
 "share_via_parent" = "मूल पृष्ठ के माध्यम से साझा (%1$s)";
 "share_excluded_parent" = "मूल पृष्ठ साझाकरण से बाहर (%1$s)";

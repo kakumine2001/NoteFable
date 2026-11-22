@@ -18,6 +18,8 @@
     <string name="share_1d">1 jour</string>
     <string name="share_7d">7 jours</string>
     <string name="share_30d">30 jours</string>
+    <string name="share_custom_date">Date personnalisée…</string>
+    <string name="share_set">Définir</string>
     <string name="share_expires_time">Expire le %1$s</string>
     <string name="share_via_parent">Partagée via la page parente (%1$s)</string>
     <string name="share_excluded_parent">Exclue du partage parent (%1$s)</string>

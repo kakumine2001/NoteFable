@@ -32,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -66,6 +67,7 @@ fun NoteShareDialog(
     onClose: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
     val uriHandler = LocalUriHandler.current
     val systemText = rememberSystemText()
@@ -73,6 +75,7 @@ fun NoteShareDialog(
     val updateFailed = stringResource(R.string.share_update_failed)
 
     var share by remember(pageId) { mutableStateOf<NoteShareState?>(null) }
+    var draftIncludeSubpages by remember(pageId) { mutableStateOf(true) }
     var loading by remember(pageId) { mutableStateOf(true) }
     var busy by remember(pageId) { mutableStateOf(false) }
     var error by remember(pageId) { mutableStateOf<String?>(null) }
@@ -82,7 +85,9 @@ fun NoteShareDialog(
         loading = true
         error = null
         try {
-            share = vm.loadShare(pageId)
+            val loaded = vm.loadShare(pageId)
+            share = loaded
+            draftIncludeSubpages = loaded.includeSubpages
         } catch (e: Exception) {
             error = e.message?.takeIf { it.isNotBlank() }?.let { systemText.localize(it) } ?: loadFailed
         } finally {
@@ -196,13 +201,19 @@ fun NoteShareDialog(
                         } else {
                             Text(stringResource(R.string.share_desc), color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp)
                         }
+                        ShareSwitchRow(
+                            label = stringResource(R.string.share_include_subpages),
+                            checked = draftIncludeSubpages,
+                            enabled = !busy,
+                            onToggle = { draftIncludeSubpages = !draftIncludeSubpages },
+                        )
                         Box(
                             Modifier
                                 .fillMaxWidth()
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(6.dp))
                                 .background(if (busy) Sm.Text.copy(alpha = 0.5f) else Sm.Text)
-                                .clickable(enabled = !busy) { save(NoteSharePatch(enabled = true)) }
+                                .clickable(enabled = !busy) { save(NoteSharePatch(enabled = true, includeSubpages = draftIncludeSubpages)) }
                                 .semantics { role = Role.Button },
                             Alignment.Center,
                         ) {
@@ -265,6 +276,22 @@ fun NoteShareDialog(
                                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                         )
                                     }
+                                }
+                                Box(
+                                    Modifier
+                                        .height(30.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color.White)
+                                        .border(1.dp, Sm.BorderStrong, RoundedCornerShape(6.dp))
+                                        .clickable(enabled = !busy) {
+                                            pickCustomExpiry(context, s.expiresAt) { iso ->
+                                                save(NoteSharePatch(setExpiresAt = true, expiresAt = iso))
+                                            }
+                                        }
+                                        .padding(horizontal = 10.dp),
+                                    Alignment.Center,
+                                ) {
+                                    Text(stringResource(R.string.share_custom_date), color = Sm.Text, fontSize = 12.sp)
                                 }
                             }
                             s.expiresAt?.let { iso ->
@@ -370,6 +397,33 @@ private fun ShareSwitchRow(label: String, checked: Boolean, enabled: Boolean, on
             )
         }
     }
+}
+
+private fun pickCustomExpiry(context: android.content.Context, currentIso: String?, onPicked: (String) -> Unit) {
+    val initial = runCatching { currentIso?.let { Instant.parse(it) } }.getOrNull()
+        ?.takeIf { it.isAfter(Instant.now()) }
+        ?: Instant.now().plusSeconds(86_400)
+    val zoned = initial.atZone(ZoneId.systemDefault())
+    val picker = android.app.DatePickerDialog(
+        context,
+        { _, year, month, dayOfMonth ->
+            android.app.TimePickerDialog(
+                context,
+                { _, hourOfDay, minute ->
+                    val chosen = java.time.ZonedDateTime.of(year, month + 1, dayOfMonth, hourOfDay, minute, 0, 0, ZoneId.systemDefault()).toInstant()
+                    onPicked(chosen.toString())
+                },
+                zoned.hour,
+                zoned.minute,
+                true,
+            ).show()
+        },
+        zoned.year,
+        zoned.monthValue - 1,
+        zoned.dayOfMonth,
+    )
+    picker.datePicker.minDate = System.currentTimeMillis()
+    picker.show()
 }
 
 private fun formatShareExpiry(iso: String): String = runCatching {

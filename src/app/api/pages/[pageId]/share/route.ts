@@ -55,7 +55,7 @@ export async function PUT(request: Request, { params }: Params) {
     if ("enabled" in body) {
       if (typeof body.enabled !== "boolean") return NextResponse.json({ error: msg("Invalid share settings.") }, { status: 400 });
       update.shareEnabled = body.enabled;
-      if (body.enabled && !existing.shareToken) update.shareToken = generateShareToken();
+      if (body.enabled && !existing.shareToken) update.ensureToken = generateShareToken();
     }
 
     if ("includeSubpages" in body) {

@@ -453,6 +453,8 @@
 "share_1d" = "1 gün";
 "share_7d" = "7 gün";
 "share_30d" = "30 gün";
+"share_custom_date" = "Özel tarih…";
+"share_set" = "Ayarla";
 "share_expires_time" = "Bitiş: %1$s";
 "share_via_parent" = "Üst sayfa üzerinden paylaşıldı (%1$s)";
 "share_excluded_parent" = "Üst sayfa paylaşımından hariç tutuldu (%1$s)";

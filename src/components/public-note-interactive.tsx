@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronRight, Copy } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
 export function PublicToggleBlock({
   header,
@@ -13,6 +13,7 @@ export function PublicToggleBlock({
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
+  const headerId = useId();
   return (
     <div className={`public-note-toggle ${open ? "is-open" : ""} ${className}`}>
       <div className="public-note-toggle-row">
@@ -20,11 +21,12 @@ export function PublicToggleBlock({
           type="button"
           className="public-note-toggle-btn"
           aria-expanded={open}
+          aria-labelledby={headerId}
           onClick={() => setOpen((value) => !value)}
         >
           <ChevronRight size={16} aria-hidden="true" />
         </button>
-        <div className="public-note-toggle-header">{header}</div>
+        <div id={headerId} className="public-note-toggle-header">{header}</div>
       </div>
       {open && children ? <div className="public-note-children">{children}</div> : null}
     </div>
