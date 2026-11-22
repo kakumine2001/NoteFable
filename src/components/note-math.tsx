@@ -362,18 +362,9 @@ export const createMathBlockSpec = createReactBlockSpec(
           ref={ref}
           dir="ltr"
           contentEditable={false}
-          role={editor.isEditable ? "button" : undefined}
-          tabIndex={editor.isEditable ? 0 : undefined}
-          aria-label={t("Edit equation")}
-          className={`notes-math-block ${isOpen ? "is-open" : ""} ${!latex.trim() ? "is-empty" : ""}`}
+          className={`notes-math-block ${editor.isEditable ? "is-editable" : ""} ${isOpen ? "is-open" : ""} ${!latex.trim() ? "is-empty" : ""}`}
           onMouseDown={(event) => event.preventDefault()}
           onClick={open}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              open();
-            }
-          }}
         >
           {!latex.trim() ? (
             <span className="notes-math-placeholder">
@@ -384,6 +375,18 @@ export const createMathBlockSpec = createReactBlockSpec(
             <div className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: rendered.html }} />
           ) : (
             <code className="notes-math-fallback">{latex}</code>
+          )}
+          {editor.isEditable && (
+            <button
+              type="button"
+              className="notes-math-edit-trigger"
+              aria-label={t("Edit equation")}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                open();
+              }}
+            />
           )}
         </div>
       );
@@ -449,18 +452,9 @@ export const mathInlineSpec = createReactInlineContentSpec(
           ref={ref}
           dir="ltr"
           contentEditable={false}
-          role={editor.isEditable ? "button" : undefined}
-          tabIndex={editor.isEditable ? 0 : undefined}
-          aria-label={t("Edit equation")}
-          className={`notes-math-inline ${isOpen ? "is-open" : ""} ${!latex.trim() ? "is-empty" : ""}`}
+          className={`notes-math-inline ${editor.isEditable ? "is-editable" : ""} ${isOpen ? "is-open" : ""} ${!latex.trim() ? "is-empty" : ""}`}
           onMouseDown={(event) => event.preventDefault()}
           onClick={open}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === " ") {
-              event.preventDefault();
-              open();
-            }
-          }}
         >
           {!latex.trim() ? (
             <span className="notes-math-inline-placeholder">{t("New equation")}</span>
@@ -468,6 +462,18 @@ export const mathInlineSpec = createReactInlineContentSpec(
             <span className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: rendered.html }} />
           ) : (
             <code className="notes-math-fallback">{latex}</code>
+          )}
+          {editor.isEditable && (
+            <button
+              type="button"
+              className="notes-math-edit-trigger"
+              aria-label={t("Edit equation")}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={(event) => {
+                event.stopPropagation();
+                open();
+              }}
+            />
           )}
         </span>
       );

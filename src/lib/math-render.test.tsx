@@ -138,5 +138,16 @@ describe("note history dollar-only math mode", () => {
     // $$ を含む mathBlock（```math フェンスで出力される）だけでも、履歴プレビューの KaTeX ローダーが起動する。
     const fencedPreview = previewMarkdown([{ id: "m1", type: "mathBlock", props: { latex: "\\verb|$$|" }, children: [] }]);
     expect(hasDollarMath(fencedPreview)).toBe(true);
+
+    // $$ を含む行内数式（\verb|$$|）も、履歴プレビューで $$$…$$$ に囲まれてエラーなく描かれる。
+    const verbInlinePreview = previewMarkdown([{ id: "m2", type: "paragraph", props: {}, content: [{ type: "mathInline", props: { latex: "\\verb|$$|" } }], children: [] }]);
+    const verbInlineHtml = renderToStaticMarkup(
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
+        {verbInlinePreview}
+      </ReactMarkdown>,
+    );
+    expect(count(verbInlineHtml, 'class="katex"')).toBe(1);
+    expect(verbInlineHtml).not.toContain("katex-error");
   });
 });

@@ -92,6 +92,7 @@ function bareUrlEnd(text: string, index: number) {
 
 // from 以降で、バックスラッシュでエスケープされていない mark の最初の位置（コードスパン・リンク・URL の中は飛ばす）。無ければ -1。
 function findUnescaped(text: string, mark: string, from: number, stopAtCode = false) {
+  let braceDepth = 0;
   for (let index = from; index < text.length; index++) {
     if (text[index] === "\\") {
       if (stopAtCode) {
@@ -101,16 +102,18 @@ function findUnescaped(text: string, mark: string, from: number, stopAtCode = fa
       index++;
       continue;
     }
-    if (stopAtCode && text[index] === "`") {
-      let open = index;
-      while (text[open] === "`") open++;
-      const close = findBacktickRun(text, open, open - index);
-      if (close > open) return -1;
-      index = open - 1;
-      continue;
-    }
     if (stopAtCode) {
-      if (linkSpanEnd(text, index) > 0) return -1;
+      if (text[index] === "{") { braceDepth++; continue; }
+      if (text[index] === "}" && braceDepth > 0) { braceDepth--; continue; }
+      if (braceDepth === 0 && text[index] === "`") {
+        let open = index;
+        while (text[open] === "`") open++;
+        const close = findBacktickRun(text, open, open - index);
+        if (close > open) return -1;
+        index = open - 1;
+        continue;
+      }
+      if (braceDepth === 0 && linkSpanEnd(text, index) > 0) return -1;
       const urlEnd = bareUrlEnd(text, index);
       if (urlEnd > 0) { index = urlEnd - 1; continue; }
     }
@@ -129,6 +132,7 @@ export function inlineMathEnd(text: string, index: number) {
   const run = open - index;
   if (run >= 2) {
     // ちょうど run 個の $ で閉じる。
+    let braceDepth = 0;
     for (let j = open; j < text.length; j++) {
       if (text[j] === "\\") {
         const verbEnd = latexVerbEnd(text, j);
@@ -136,14 +140,16 @@ export function inlineMathEnd(text: string, index: number) {
         j++;
         continue;
       }
-      if (text[j] === "`") {
+      if (text[j] === "{") { braceDepth++; continue; }
+      if (text[j] === "}" && braceDepth > 0) { braceDepth--; continue; }
+      if (braceDepth === 0 && text[j] === "`") {
         let codeOpen = j;
         while (text[codeOpen] === "`") codeOpen++;
         if (findBacktickRun(text, codeOpen, codeOpen - j) > codeOpen) return -1;
         j = codeOpen - 1;
         continue;
       }
-      if (linkSpanEnd(text, j) > 0) return -1;
+      if (braceDepth === 0 && linkSpanEnd(text, j) > 0) return -1;
       const urlEnd = bareUrlEnd(text, j);
       if (urlEnd > 0) { j = urlEnd - 1; continue; }
       if (text[j] !== "$") continue;
@@ -291,13 +297,13 @@ function inlineCode(body: string) {
 }
 
 // 行内の数式。TeX の改行は空白にし、前後の空白は落とす（$ の直後と直前が空白だと、読み戻した時に数式にならない）。
-// 次の文字が数字・末尾が \・$ を含む時は、中の最長の $ 列より長い囲み（2 個以上、履歴プレビュー時は remark-math 互換のため $$）で書く。
+// 次の文字が数字・末尾が \・$ を含む時は、中の最長の $ 列より長い囲み（2 個以上）で書く。
 function inlineMath(latex: unknown, followedByDigit = false, forPreview = false) {
   const raw = typeof latex === "string" ? latex.replace(/\r?\n/g, " ").trim() : "";
   if (!raw) return "";
   const hasDollar = forPreview ? raw.includes("$") : findUnescaped(raw, "$", 0) >= 0;
   if (!followedByDigit && !hasDollar && !raw.endsWith("\\")) return `$${raw}$`;
-  const longest = forPreview ? 1 : Math.max(1, ...[...raw.matchAll(/\$+/g)].map((run) => run[0].length));
+  const longest = Math.max(1, ...[...raw.matchAll(/\$+/g)].map((run) => run[0].length));
   const fence = "$".repeat(Math.max(2, longest + 1));
   const pad = raw.startsWith("$") || raw.endsWith("$") || raw.endsWith("\\") ? " " : "";
   return `${fence}${pad}${raw}${pad}${fence}`;
@@ -447,6 +453,7 @@ class Finder {
     if (!this.dollars) {
       this.dollars = [];
       this.blockedStarts = [];
+      let braceDepth = 0;
       for (let j = 0; j < this.src.length; j++) {
         if (this.src[j] === "\\") {
           const verbEnd = latexVerbEnd(this.src, j);
@@ -454,7 +461,9 @@ class Finder {
           j++;
           continue;
         }
-        if (this.src[j] === "`") {
+        if (this.src[j] === "{") { braceDepth++; continue; }
+        if (this.src[j] === "}" && braceDepth > 0) { braceDepth--; continue; }
+        if (braceDepth === 0 && this.src[j] === "`") {
           let open = j;
           while (this.src[open] === "`") open++;
           const close = this.backtickRun(open - j, open);
@@ -466,11 +475,13 @@ class Finder {
           j = open - 1;
           continue;
         }
-        const linkEnd = linkSpanEnd(this.src, j);
-        if (linkEnd > 0) {
-          this.blockedStarts.push(j);
-          j = linkEnd - 1;
-          continue;
+        if (braceDepth === 0) {
+          const linkEnd = linkSpanEnd(this.src, j);
+          if (linkEnd > 0) {
+            this.blockedStarts.push(j);
+            j = linkEnd - 1;
+            continue;
+          }
         }
         const urlEnd = bareUrlEnd(this.src, j);
         if (urlEnd > 0) {
@@ -743,8 +754,10 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
         const body = rest.trim() ? [rest.trim()] : [];
         for (let k = index + 1; k < lines.length; k++) {
           const next = lines[k].trim();
-          // 空行またはコードフェンスの開始に当たったら閉じ探しを打ち切る（未閉じの $$ が後ろのコードブロックを巻き込まない）。
-          if (!next || FENCE.test(next)) break;
+          // コードフェンスの開始に当たったら閉じ探しを打ち切る（未閉じの $$ が後ろのコードブロックを巻き込まない）。
+          // 閉じた $$ の中の空行はそのまま保つ（KaTeX は空行を含んでいても 1 つの数式として描画できる）。
+          if (!next) { body.push(""); continue; }
+          if (FENCE.test(next)) break;
           const close = findUnescaped(next, "$$", 0);
           if (close < 0) { body.push(stripIndent(lines[k], indent).trimEnd()); continue; }
           if (close + 2 === next.length) {
@@ -764,11 +777,15 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
     // 表: | で始まる行の次が区切り行（| --- | --- |）のとき。大きさの上限はノート全体の 1 MiB だけ。
     if (text.startsWith("|") && index + 1 < lines.length && lines[index + 1].includes("|") && TABLE_SEPARATOR.test(lines[index + 1])) {
       const headerCols = splitTableRow(lines[index + 1], { protectMath: false }).length;
-      // まず GFM の通常の区切りで列数が合うか確かめ（|$5|$HOME| を 2 列のまま保つ）、
-      // 列数があふれる行だけ数式内の | を保護して分割する（| $|x|$ | y |）。
+      // 通常の GFM 分割がちょうど見出し列数と一致し、数式を途中で割った跡（末尾が $ のセル）が無いときだけ
+      // そのまま使う（|$5|$HOME| や | $5|$ USD | のような金額セルを保つ）。それ以外は数式内の | を保護して分割する。
       const parseRow = (raw: string) => {
         const plain = splitTableRow(raw, { protectMath: false, unescapePipes: false });
-        return plain.length <= headerCols ? plain.map(unescapeNonMathPipes) : splitTableRow(raw, { protectMath: true });
+        const mathAware = splitTableRow(raw, { protectMath: true });
+        if (plain.length === headerCols && mathAware.length < headerCols && !plain.some((c) => /(?<!\\)\$$/.test(c))) {
+          return plain.map(unescapeNonMathPipes);
+        }
+        return mathAware;
       };
       const rows = [parseRow(text)];
       let end = index + 1;
@@ -833,7 +850,8 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
             const stripped = stripQuote(lines[k]);
             if (stripped === null) break;
             const next = stripped.trim();
-            if (!next || FENCE.test(next)) break;
+            if (!next) { body.push(""); continue; }
+            if (FENCE.test(next)) break;
             const close = findUnescaped(next, "$$", 0);
             if (close < 0) { body.push(stripped.trimEnd()); continue; }
             if (close + 2 === next.length) {

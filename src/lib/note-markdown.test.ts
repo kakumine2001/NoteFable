@@ -397,6 +397,23 @@ describe("math blocks and inline math", () => {
     expect(nestedQuoteMath).toHaveLength(1);
     expect(nestedQuoteMath[0].type).toBe("mathBlock");
     expect(nestedQuoteMath[0].props).toEqual({ latex: "x+1" });
+
+    // 数式の中の \text{[docs](https://example.org)} をリンクと誤認せず往返する。
+    const textLinkMath = markdownToBlocks("$\\text{[docs](https://example.org)}$");
+    expect(textLinkMath[0].content).toEqual([{ type: "mathInline", props: { latex: "\\text{[docs](https://example.org)}" } }]);
+
+    // 3 列の表の短い行 `| $|x|$ |` で絶対値の数式を 3 セルに割らない。
+    const shortTable = markdownToBlocks("| A | B | C |\n| --- | --- | --- |\n| $|x|$ |");
+    const st = shortTable[0].content as { rows: { cells: { content: { type: string; props?: { latex: string } }[] }[] }[] };
+    expect(st.rows[1].cells[0].content).toEqual([{ type: "mathInline", props: { latex: "|x|" } }]);
+    expect(st.rows[1].cells[1].content).toEqual([]);
+    expect(st.rows[1].cells[2].content).toEqual([]);
+
+    // 閉じた $$ ブロックの中の空行は 1 つの mathBlock として保つ。
+    const blankInsideMath = markdownToBlocks("$$\nx+y\n\n=z\n$$");
+    expect(blankInsideMath).toHaveLength(1);
+    expect(blankInsideMath[0].type).toBe("mathBlock");
+    expect(blankInsideMath[0].props).toEqual({ latex: "x+y\n\n=z" });
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {
