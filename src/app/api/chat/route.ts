@@ -37,6 +37,7 @@ import { ToolMarkupGuard } from "@/lib/tool-markup-guard";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import {
   buildDeepSeekResponsesRequest,
+  deepSeekWebSearchTool,
   parseDeepSeekResponsesDelta,
 } from "@/lib/deepseek-responses";
 import {
@@ -367,9 +368,10 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   // 検索非対応モデルでは、古いクライアントの指定も off に正規化する。
   // フィールド未指定でも検索対応モデルなら auto になる。
   // ノート用の送信は検索なし固定（ブラウザ側の指定に任せない）。
+  const deepSeekSearchTool = modelOption.provider === "deepseek" ? deepSeekWebSearchTool(upstreamModel) : null;
   const webSearchMode = normalizeWebSearchMode(
     noteId ? "off" : formData.get("webSearch"),
-    modelOption.supportsWebSearch,
+    modelOption.supportsWebSearch && (modelOption.provider !== "deepseek" || deepSeekSearchTool !== null),
   );
 
   // 発言の編集（edit = 書き直す自分の発言の ID）と回答の再生成（regenerate = 作り直す回答の ID）。
@@ -840,10 +842,10 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
                 body: {
                   ...buildDeepSeekResponsesRequest({ model: upstreamModel, instructions, input, effort: reasoning, stream: true }),
                   input,
-                  ...(webSearchMode !== "off" || pageTools.length
+                  ...((webSearchMode !== "off" && deepSeekSearchTool) || pageTools.length
                     ? {
-                        tools: [...(webSearchMode !== "off" ? [{ type: "deepseek_web_search" }] : []), ...toResponsesTools(pageTools)],
-                        // DeepSeek のサーバー検索ツール（deepseek_web_search）は tool_choice での強制指定を受け付けないため auto を使う。
+                        tools: [...(webSearchMode !== "off" && deepSeekSearchTool ? [deepSeekSearchTool] : []), ...toResponsesTools(pageTools)],
+                        // DeepSeek のサーバー検索ツールは tool_choice での強制指定を受け付けないため auto を使う。
                         tool_choice: "auto",
                       }
                     : {}),

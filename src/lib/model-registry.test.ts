@@ -36,6 +36,15 @@ describe("model registry", () => {
     expect(registry.options[0]).toMatchObject({ id: "gpt-7", provider: "openai", defaultReasoning: "high" });
   });
 
+  it("keeps web search on for deepseek-v4-pro and turns it off for DeepSeek models without built-in search", () => {
+    const v4Pro = parseModelRegistry('[{"id":"deepseek-flash","upstreamModel":"deepseek-v4-pro"}]');
+    expect(v4Pro.options[0].supportsWebSearch).toBe(true);
+    const reasoner = parseModelRegistry('[{"id":"deepseek-flash","upstreamModel":"deepseek-reasoner"}]');
+    expect(reasoner.options[0].supportsWebSearch).toBe(false);
+    vi.stubEnv("DEEPSEEK_FLASH_MODEL", "deepseek-reasoner");
+    expect(getModelRegistry().options.find((m) => m.id === "deepseek-flash")?.supportsWebSearch).toBe(false);
+  });
+
   it("keeps valid token limits so the Anthropic request can use the model's output cap", () => {
     const registry = parseModelRegistry(JSON.stringify([{ id: "claude-haiku-5-5", tokenLimits: { contextWindow: 200000, maxOutputTokens: 8192 } }]));
     expect(registry.options[0].tokenLimits).toEqual({ contextWindow: 200000, maxOutputTokens: 8192 });

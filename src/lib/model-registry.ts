@@ -6,6 +6,7 @@ import {
   type ModelProvider,
   type ModelRegistry,
 } from "@/lib/models";
+import { deepSeekWebSearchTool } from "@/lib/deepseek-responses";
 import { optionalEnv } from "@/lib/env";
 
 // 「今どのモデルが使えるか」を決めるのはサーバーだけ。ここで環境変数 NOTEFABLE_MODELS を読み、画面（Web・Android）へは
@@ -87,8 +88,19 @@ function resolveEntry(entry: Entry): ModelOption | null {
   return { ...(next as ModelOption), id };
 }
 
+function withUpstreamCapabilities(registry: ModelRegistry): ModelRegistry {
+  let changed = false;
+  const options = registry.options.map((option) => {
+    if (option.provider !== "deepseek" || !option.supportsWebSearch) return option;
+    if (deepSeekWebSearchTool(upstreamModelFor(option.id, registry.options))) return option;
+    changed = true;
+    return { ...option, supportsWebSearch: false };
+  });
+  return changed ? { ...registry, options } : registry;
+}
+
 export function parseModelRegistry(raw: string | undefined): ModelRegistry {
-  if (!raw?.trim()) return BUILTIN_REGISTRY;
+  if (!raw?.trim()) return withUpstreamCapabilities(BUILTIN_REGISTRY);
   try {
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) throw new Error("must be a JSON array");
@@ -99,19 +111,22 @@ export function parseModelRegistry(raw: string | undefined): ModelRegistry {
       if (option && !options.some((existing) => existing.id === option.id)) options.push(option);
     }
     if (!options.length) throw new Error("no enabled model");
-    return { options, defaultModel: options[0].id };
+    return withUpstreamCapabilities({ options, defaultModel: options[0].id });
   } catch (error) {
     console.error("NOTEFABLE_MODELS ignored, using the built-in model list:", error instanceof Error ? error.message : error);
-    return BUILTIN_REGISTRY;
+    return withUpstreamCapabilities(BUILTIN_REGISTRY);
   }
 }
 
-let cached: { raw: string | undefined; registry: ModelRegistry } | null = null;
+let cached: { raw: string | undefined; deepseekFlashModel: string | undefined; registry: ModelRegistry } | null = null;
 
 // サーバー側の唯一の入口。環境変数が変わらない間は同じ結果を返す。
 export function getModelRegistry(): ModelRegistry {
   const raw = process.env.NOTEFABLE_MODELS;
-  if (!cached || cached.raw !== raw) cached = { raw, registry: parseModelRegistry(raw) };
+  const deepseekFlashModel = process.env.DEEPSEEK_FLASH_MODEL;
+  if (!cached || cached.raw !== raw || cached.deepseekFlashModel !== deepseekFlashModel) {
+    cached = { raw, deepseekFlashModel, registry: parseModelRegistry(raw) };
+  }
   return cached.registry;
 }
 

@@ -163,7 +163,16 @@ function StepRow({ step }: { step: ProgressStep }) {
   }
 
   const action = step.action;
-  if (step.status === "running" || !action) {
+  if (!action) {
+    if (step.status !== "running") return null;
+    return (
+      <li className="chat-activity-step">
+        <span className="chat-activity-icon"><LoaderCircle size={13} strokeWidth={1.9} className="animate-spin" /></span>
+        <div className="chat-activity-title">{t("Searching the web…")}</div>
+      </li>
+    );
+  }
+  if (step.status === "running") {
     return (
       <li className="chat-activity-step">
         <span className="chat-activity-icon"><LoaderCircle size={13} strokeWidth={1.9} className="animate-spin" /></span>
