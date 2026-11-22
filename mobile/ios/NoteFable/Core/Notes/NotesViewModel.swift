@@ -308,8 +308,11 @@ final class NotesViewModel {
         }
     }
 
+    /// 点了编辑页顶栏下面的提示条：收起正显示的那一条（界面显示的是 `notice ?? error`，导入失败写在 error 里）。
     func dismissNotice() {
-        update { $0.notice = nil }
+        update {
+            if $0.notice != nil { $0.notice = nil } else { $0.error = nil }
+        }
     }
 
     // ---- 网页编辑器发来的消息 ----
@@ -647,6 +650,8 @@ final class NotesViewModel {
             if owner == identity { update { $0.notice = NotesError(.exportUnsaved) } }
             return nil
         }
+        // 保存期间换了身份：不用新身份去读旧身份的笔记。
+        guard owner == identity else { return nil }
         do {
             let note = try await backend.exportNote(id: id)
             return owner == identity ? note : nil
@@ -658,7 +663,8 @@ final class NotesViewModel {
 
     /// 导入用户选的 Markdown 文件，建好后打开第一篇（网页 page.tsx 的 importMarkdownFiles）。
     /// 发请求前先在本机查数量、扩展名和大小（[noteImportProblem]），不合格就只提示、不读也不传。
-    /// 文件在后台线程读；读出来的大小和选的时候不一样（选完又改了、系统没给出大小）时再查一遍。
+    /// 文件在后台线程读；读完按要发的内容再查一遍（[noteImportPayloadProblem]：选完又改了、系统没给出大小、
+    /// 转成文字和 JSON 以后变大），读的期间换了身份就不传。
     func importMarkdown(_ sources: [NoteImportSource]) async {
         if state.busy || sources.isEmpty { return }
         if let problem = noteImportProblem(sources.map { (name: $0.name, size: $0.size) }) {
@@ -674,16 +680,16 @@ final class NotesViewModel {
             let contents = try await Task.detached(priority: .userInitiated) {
                 try sources.map { (name: $0.name, data: try $0.read()) }
             }.value
-            if let problem = noteImportProblem(contents.map { (name: $0.name, size: $0.data.count) }) {
-                if owner == identity {
-                    update {
-                        $0.busy = false
-                        $0.error = NotesError(problem)
-                    }
+            // 读文件期间换了身份（登录 / 退出）：旧身份选的文件不传给新身份。忙碌状态已经由换身份清掉了。
+            guard owner == identity else { return }
+            let files = contents.map { ImportMarkdownFile(name: $0.name, markdown: noteImportText($0.data)) }
+            if let problem = noteImportPayloadProblem(files) {
+                update {
+                    $0.busy = false
+                    $0.error = NotesError(problem)
                 }
                 return
             }
-            let files = contents.map { ImportMarkdownFile(name: $0.name, markdown: noteImportText($0.data)) }
             let created = try await backend.importMarkdown(files: files)
             let applied = commit(owner) {
                 update { state in

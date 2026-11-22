@@ -22,7 +22,7 @@ struct GeneratedImageGrid: View {
     }
 }
 
-/// .generated-image-shell + .generated-image-download：圆角 4.8、1px #e2e8f0、#f8fafc 底；
+/// .generated-image-shell + .generated-image-download：圆角 4.8、1px #e2e8f0、#f8fafc 底（深色是 --notion-border-strong、--notion-sidebar）；
 /// 右下角的下载键 44 圆形、#0f172a .72 底、白色 Download 20，离右下角各 14.4，阴影 0 12 30 .28。
 @MainActor
 private struct GeneratedImageView: View {
@@ -37,9 +37,9 @@ private struct GeneratedImageView: View {
         let shape = RoundedRectangle(cornerRadius: 4.8)
         picture
             .frame(maxWidth: .infinity)
-            .background(Color(argb: 0xFFF8FAFC))
+            .background(Color(light: 0xFFF8FAFC, dark: 0xFF202020))
             .clipShape(shape)
-            .overlay { shape.strokeBorder(Color(argb: 0xFFE2E8F0), lineWidth: 1) }
+            .overlay { shape.strokeBorder(Color(light: 0xFFE2E8F0, dark: 0x2EFFFFFF), lineWidth: 1) }
             .overlay(alignment: .bottomTrailing) {
                 Button {
                     GeneratedImageSaver.save(image, app: app)
@@ -272,10 +272,11 @@ private struct GeneratingImageSweep: View {
             let height = proxy.size.height
             let bar = width * 0.42
             ZStack(alignment: .topLeading) {
+                // 高光：白 .7，深色画布上是白 .08（Android AttachUi.kt 的 GeneratingImagePreview）。
                 LinearGradient(
                     stops: [
                         .init(color: Color.white.opacity(0), location: 0.28),
-                        .init(color: Color.white.opacity(0.7), location: 0.48),
+                        .init(color: Color(light: 0xB3FFFFFF, dark: 0x14FFFFFF), location: 0.48),
                         .init(color: Color.white.opacity(0), location: 0.68),
                     ],
                     startPoint: .leading,

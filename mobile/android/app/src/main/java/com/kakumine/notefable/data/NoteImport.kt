@@ -1,5 +1,10 @@
 package com.kakumine.notefable.data
 
+import kotlinx.serialization.json.addJsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+
 /**
  * Markdown 导入的规则，与网页 src/lib/note-io.ts 相同（服务端 POST /api/pages/import 会再查一遍）：
  * 一次最多 20 个文件、单个 1 MiB、合计 4 MB（留在 Vercel 4.5 MB 请求上限以内），扩展名只收 .md / .markdown / .txt。
@@ -41,6 +46,24 @@ object NoteImport {
         }
         return if (total > MAX_TOTAL_BYTES) Problem.TooLarge else null
     }
+
+    /** 发给 POST /api/pages/import 的请求体，与网页 use-note-pages.ts 的 importMarkdown() 相同：{ files: [{ name, markdown }] }。 */
+    fun requestBody(files: List<ImportMarkdownFile>): String = buildJsonObject {
+        putJsonArray("files") {
+            files.forEach { file ->
+                addJsonObject {
+                    put("name", file.name)
+                    put("markdown", file.markdown)
+                }
+            }
+        }
+    }.toString()
+
+    /**
+     * 服务端按整个 JSON 请求体的字节数拒绝（换行、引号转义后是 2 个字节），所以和网页一样按要发送的样子再量一次：
+     * 超过合计上限就不发。
+     */
+    fun requestTooLarge(files: List<ImportMarkdownFile>): Boolean = requestBody(files).toByteArray(Charsets.UTF_8).size > MAX_TOTAL_BYTES
 }
 
 /**

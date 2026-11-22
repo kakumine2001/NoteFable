@@ -5,6 +5,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { NotePageMenu } from "@/components/note-page-menu";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { localizeSystemText } from "@/lib/i18n/translate";
 import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { pageSettingsOf, type NotePageSummary } from "@/types/notes";
@@ -234,6 +235,9 @@ export function SplitNotePane({
         </div>
       ) : (
         <div className="workspace-split-empty">
+          {/* ノートを開いていない間は NotesWorkspace が無いので、読み込み・取り込みの失敗はここで出す。 */}
+          {notes.error && <div className="notion-error mb-4" role="alert">{localizeSystemText(notes.error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div>}
+          {notes.actionError && <div className="notion-error mb-4" role="alert">{localizeSystemText(notes.actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div>}
           <FileText size={26} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
           <p className="mt-3 text-sm text-[var(--notion-muted)]">
             {t("Open a note beside this chat to read and edit while talking with AI.")}

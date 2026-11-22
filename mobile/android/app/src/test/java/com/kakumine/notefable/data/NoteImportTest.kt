@@ -40,4 +40,18 @@ class NoteImportTest {
         assertEquals(NoteImport.Problem.FileTooLarge, NoteImport.check(listOf(file("a.md", NoteImport.MAX_FILE_BYTES + 1), file("b.docx"))))
         assertEquals(NoteImport.Problem.TooLarge, NoteImport.check(List(4) { file("n$it.md", NoteImport.MAX_FILE_BYTES) } + file("last.md", 1)))
     }
+
+    @Test
+    fun `the request is measured as the JSON that is sent`() {
+        assertEquals(
+            """{"files":[{"name":"a.md","markdown":"x\n\"y\""},{"name":"b.txt","markdown":""}]}""",
+            NoteImport.requestBody(listOf(ImportMarkdownFile("a.md", "x\n\"y\""), ImportMarkdownFile("b.txt", ""))),
+        )
+        // 换行转义后每个是 2 个字节：文件合计没超，请求体也可能超。
+        val half = NoteImport.MAX_FILE_BYTES.toInt() / 2
+        assertFalse(NoteImport.requestTooLarge(List(3) { ImportMarkdownFile("n$it.md", "x".repeat(half) + "\n".repeat(half / 2)) }))
+        assertTrue(NoteImport.requestTooLarge(List(4) { ImportMarkdownFile("n$it.md", "\n".repeat(NoteImport.MAX_FILE_BYTES.toInt())) }))
+        // 正好 4 个 1 MiB 的文件：加上 JSON 的外框就超了（网页、服务端也一样）。
+        assertTrue(NoteImport.requestTooLarge(List(4) { ImportMarkdownFile("n$it.md", "x".repeat(NoteImport.MAX_FILE_BYTES.toInt())) }))
+    }
 }

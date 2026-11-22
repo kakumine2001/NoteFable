@@ -403,7 +403,11 @@ class NotesViewModel(
         }
     }
 
-    fun dismissNotice() = _state.update { it.copy(notice = null) }
+    /**
+     * 点掉笔记顶栏下面的提示条。提示条显示的是 notice，没有时显示 error（开着笔记时导入失败的原因），
+     * 所以点掉的是正在显示的那一条。
+     */
+    fun dismissNotice() = _state.update { if (it.notice != null) it.copy(notice = null) else it.copy(error = null) }
 
     // ---- 网页编辑器发来的消息 ----
 
@@ -682,7 +686,9 @@ class NotesViewModel(
             try {
                 val payload = files.map { ImportMarkdownFile(it.name, it.read()) }
                 // 选择器报不出大小的文件，读完按实际的字节数再查一遍。
+                // 服务端量的是 JSON 请求体，转义后会比文件大：和网页一样按要发送的样子再量一次。
                 val problem = NoteImport.check(payload.map { NoteImport.Entry(it.name, it.markdown.toByteArray(Charsets.UTF_8).size.toLong()) })
+                    ?: NoteImport.Problem.TooLarge.takeIf { NoteImport.requestTooLarge(payload) }
                 if (problem != null) {
                     if (owner == identity) _state.update { it.copy(busy = false, error = importError(problem)) }
                     return@launch

@@ -305,18 +305,8 @@ class NoteFableApi(
 
     override suspend fun exportNote(id: String): ExportedNote = getJson("/api/pages/${segment(id)}/export")
 
-    // 与网页 use-note-pages.ts 的 importMarkdown() 发送的内容相同：{ files: [{ name, markdown }] }。
     override suspend fun importMarkdown(files: List<ImportMarkdownFile>): List<NotePageSummary> {
-        val body = buildJsonObject {
-            putJsonArray("files") {
-                files.forEach { file ->
-                    addJsonObject {
-                        put("name", file.name)
-                        put("markdown", file.markdown)
-                    }
-                }
-            }
-        }.toString()
+        val body = NoteImport.requestBody(files)
         return send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/import")).post(body.toRequestBody(JSON))).pages
     }
 

@@ -1,16 +1,16 @@
 import SwiftUI
 
 /// 设置的"账号"卡片里、"退出登录"下面的"删除账号"（网页 settings-dialog.tsx 的 DeleteAccount；Android ui/DeleteAccountSection.kt）。
-/// 外观照网页手机宽度：红色的一行（`SettingsRowButton`，Trash2）；点了在原地换成确认区（底 4% 红、内边距 14×16、14 / 行高 1.5），
-/// 右下角"取消"和红字、20% 红描边的"永久删除"（上距 12）。删除中两个按钮都不能点；失败留在确认区显示原因。
+/// 外观照网页手机宽度：红色的一行（`SettingsRowButton`，Trash2）；点了在原地换成确认区（底 8% 红、内边距 14×16、14 / 行高 1.5），
+/// 右下角"取消"和红字、28% 红描边的"永久删除"（上距 12）。删除中两个按钮都不能点；失败留在确认区显示原因。
 /// 状态在 `SettingsDialogModel`（confirmingDelete / deleting / deleteError）。
 struct DeleteAccountSection: View {
     let model: SettingsDialogModel
 
     @Environment(AppEnvironment.self) private var app
 
-    private static let dangerBorder = Color(argb: 0x33B91C1C) // rgba(185, 28, 28, 0.2)
-    private static let dangerFill = Color(argb: 0x0AB91C1C)   // rgba(185, 28, 28, 0.04)
+    private static let dangerBorder = Color(argb: 0x47B91C1C) // rgba(185, 28, 28, 0.28)
+    private static let dangerFill = Color(argb: 0x14B91C1C)   // rgba(185, 28, 28, 0.08)
 
     init(model: SettingsDialogModel) {
         self.model = model

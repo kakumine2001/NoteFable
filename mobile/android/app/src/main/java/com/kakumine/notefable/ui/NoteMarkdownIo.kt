@@ -88,13 +88,21 @@ internal fun rememberNoteExporter(notes: NotesViewModel): (pageId: String) -> Un
  * "Import Markdown"：系统的多选文件选择器（SAF OpenMultipleDocuments，类型见 [NoteImport.MIME_TYPES]），
  * 对应网页的 `<input type="file" multiple accept=".md,.markdown,.txt,…">`。选好的文件（文件名、大小、读全文的方法）交给 [onPicked]，
  * 什么都没选就不调用。返回的函数打开选择器。
+ * 文件名和大小要访问文件提供方（云盘可能很慢），放到后台线程问；选多了的不问，直接交出去报"太多"。
  */
 @Composable
 internal fun rememberMarkdownImportPicker(onPicked: (List<ImportCandidate>) -> Unit): () -> Unit {
     val context = LocalContext.current.applicationContext
     val currentOnPicked by rememberUpdatedState(onPicked)
+    val scope = rememberCoroutineScope()
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris: List<Uri> ->
-        if (uris.isNotEmpty()) currentOnPicked(uris.map { importCandidate(context, it) })
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            val candidates =
+                if (uris.size > NoteImport.MAX_FILES) uris.map { ImportCandidate(it.lastPathSegment.orEmpty(), null) { readImportText(context, it) } }
+                else withContext(Dispatchers.IO) { uris.map { importCandidate(context, it) } }
+            currentOnPicked(candidates)
+        }
     }
     return remember(picker) {
         {

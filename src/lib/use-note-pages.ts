@@ -35,6 +35,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // 書き出し・取り込みの失敗。一覧の読み込み失敗（error）と分けて、画面を隠さず、閉じられる帯で出す。
+  const [actionError, setActionError] = useState("");
   const [backupError, setBackupError] = useState("");
   const [editorEpoch, setEditorEpoch] = useState(0);
   const [, refresh] = useState(0);
@@ -177,7 +179,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
           window.dispatchEvent(new Event("popstate"));
         }
       }
-    } catch (caught) { setError(caught instanceof Error ? caught.message : msg("Failed to load notes.")); }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : msg("Failed to load notes."));
+      // 失敗したら、次にノートを開く（分割表示を開き直すなど）ときにもう一度読み込めるようにする。
+      started.current = false;
+    }
     finally { setLoading(false); }
   }, [select]);
 
@@ -460,7 +466,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   async function exportPage(id: string): Promise<boolean> {
     if (actionBusy.current) return false;
     actionBusy.current = true;
-    setGroupError("");
+    setActionError("");
     try {
       const queue = queues.current.get(id);
       if (queue && queue.dirty && !(await queue.flush())) {
@@ -479,7 +485,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
       return true;
     } catch (caught) {
-      setGroupError(caught instanceof Error && caught.message ? caught.message : msg("Could not export the page."));
+      // メニューは押した時点で閉じているので、メニューの中ではなくノートの上に出す。
+      setActionError(caught instanceof Error && caught.message ? caught.message : msg("Could not export the page."));
       return false;
     } finally {
       actionBusy.current = false;
@@ -489,28 +496,28 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   async function importMarkdown(fileList: File[]): Promise<NotePageSummary[]> {
     if (actionBusy.current || !fileList.length) return [];
     if (fileList.length > MAX_IMPORT_FILES) {
-      setError(fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES }));
+      setActionError(fmt("You can import up to {max} files at once.", { max: MAX_IMPORT_FILES }));
       return [];
     }
     let totalBytes = 0;
     for (const file of fileList) {
       if (!isImportableMarkdownFile(file.name)) {
-        setError(msg("Only Markdown (.md, .markdown, .txt) files can be imported."));
+        setActionError(msg("Only Markdown (.md, .markdown, .txt) files can be imported."));
         return [];
       }
       if (file.size > MAX_IMPORT_FILE_BYTES) {
-        setError(msg("Note content exceeds 1 MiB."));
+        setActionError(msg("Note content exceeds 1 MiB."));
         return [];
       }
       totalBytes += file.size;
     }
     if (totalBytes > MAX_IMPORT_TOTAL_BYTES) {
-      setError(msg("Import exceeds 4 MB."));
+      setActionError(msg("Import exceeds 4 MB."));
       return [];
     }
     actionBusy.current = true;
     setBusy(true);
-    setError("");
+    setActionError("");
     try {
       const files = await Promise.all(fileList.map(async (file) => ({ name: file.name, markdown: await file.text() })));
       // サーバーは JSON にした本文の大きさで断る（改行や引用符は 2 バイトになる）ので、送る形で測り直す。
@@ -525,7 +532,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       }
       return created;
     } catch (caught) {
-      setError(caught instanceof Error && caught.message ? caught.message : msg("Could not import Markdown files."));
+      setActionError(caught instanceof Error && caught.message ? caught.message : msg("Could not import Markdown files."));
       return [];
     } finally {
       actionBusy.current = false;
@@ -537,5 +544,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, activeId, active, loading, busy, error, backupError, editorEpoch, select, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, duplicate, changeIcon, exportPage, importMarkdown, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };
 }

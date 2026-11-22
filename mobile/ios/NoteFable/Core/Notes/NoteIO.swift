@@ -67,6 +67,23 @@ func noteImportProblem(_ files: [(name: String, size: Int)]) -> NotesError.Kind?
     return nil
 }
 
+/// `POST /api/pages/import` 的请求体：`{ files: [{ name, markdown }] }`（网页 importMarkdown 发的内容）。
+func noteImportBody(_ files: [ImportMarkdownFile]) -> JSONValue {
+    let items = files.map { file -> JSONValue in
+        ["name": .string(file.name), "markdown": .string(file.markdown)]
+    }
+    return ["files": .array(items)]
+}
+
+/// 读出文字以后、发请求之前再查一遍，量的是真正要发的东西（网页 importMarkdown 读完文件后的检查）：
+/// 服务端按 UTF-8 的文字查单个文件（坏掉的字节换成 U+FFFD 会变长），按 JSON 请求体查总量（换行、引号各占 2 字节）。
+/// 超了就在本机提示，不传上去让平台的请求上限拦下（那样只剩一句没有原因的失败）。
+func noteImportPayloadProblem(_ files: [ImportMarkdownFile]) -> NotesError.Kind? {
+    if let problem = noteImportProblem(files.map { (name: $0.name, size: $0.markdown.utf8.count) }) { return problem }
+    if noteImportBody(files).encodedString().utf8.count > MAX_IMPORT_TOTAL_BYTES { return .importTooLarge }
+    return nil
+}
+
 /// 文件的字节 → 文字（网页 `file.text()`）：按 UTF-8 读，坏掉的字节换成 U+FFFD，不因为编码不对而失败。
 /// 开头的 BOM 和 NUL 由服务端去掉（markdownFileToNoteContent）。
 func noteImportText(_ data: Data) -> String {

@@ -921,6 +921,8 @@ export default function Home() {
 
   // 分割表示の右側ノートで「Ask AI」を押したとき：選択抜粋を左チャットの引用に入れ、そのノートも添付する。
   function askSplitNoteSelectionInChat(text: string) {
+    // 添付の送信中は引用も入らない（quoteSelection）。ノートだけ添付に足さない。
+    if (uploadProgress) return;
     quoteSelection(text);
     const id = notes.activeId;
     if (!id) return;

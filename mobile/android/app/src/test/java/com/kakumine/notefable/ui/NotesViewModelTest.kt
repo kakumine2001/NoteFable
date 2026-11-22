@@ -885,6 +885,35 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `an import whose JSON request is over the limit is not sent`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        // 每个文件、文件合计都没超，但换行在 JSON 里是 2 个字节（网页也在发送前按请求体量）。
+        vm.importMarkdown(List(3) { markdownFile("n$it.md", "\n".repeat(NoteImport.MAX_FILE_BYTES.toInt())) })
+        advanceUntilIdle()
+        assertEquals(NotesError(NotesError.Kind.ImportTooLarge), vm.state.value.error)
+        assertFalse(vm.state.value.busy)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+    }
+
+    @Test
+    fun `an import error shown above an open note can be dismissed`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.importMarkdown(listOf(markdownFile("photo.png")))
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        // 提示条先显示 notice：点一次只去掉正在显示的那一条。
+        vm.exportFailed()
+        vm.dismissNotice()
+        assertNull(vm.state.value.notice)
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        vm.dismissNotice()
+        assertNull(vm.state.value.error)
+        assertEquals("a", vm.state.value.open?.id)
+    }
+
+    @Test
     fun `a failed import keeps the list and shows the reason`() = runTest(dispatcher) {
         val backend = FakeNotes()
         val vm = notesVm(backend)

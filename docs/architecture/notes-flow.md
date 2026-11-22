@@ -118,9 +118,9 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 按篇导出、按文件导入，转换都在服务端做（`src/lib/note-io.ts`），网页、Android 和 iOS 共用这两个接口。没有整个工作区的 ZIP 导出，也不导出子页面树。
 
-**导出**（`GET /api/pages/:id/export`）。`noteToMarkdownFile` 写出 `# 标题`、一个空行和正文；标题里的换行换成空格，空标题写 `Untitled`。正文用 AI 工具同一套 `blocksToMarkdown`（不带编号），但最上层的块之间用空行隔开，只有同一种列表的相邻项挨着写：`blocksToMarkdown` 是给模型看的紧凑写法，原样存成文件的话，别的 Markdown 应用会把相邻段落并成一段、把段落后面的 `---` 当成标题。空块不写。文件名是 `answerFileName(标题)`（与下载对话相同的安全文件名规则，以 `.md` 结尾）。不导出的内容：图标、封面、页面设置、子页面和编辑历史；上传的图片块和文件块只写成一行 `[Image: 名称 — 说明]` / `[File: 名称]`，不带地址，也不打包文件本身；折叠、Callout 用本应用自己的记法（`▸`、`> [!💡]`），表格单元格的颜色、对齐与合并以及行内下划线、文字色不保留。
+**导出**（`GET /api/pages/:id/export`）。`noteToMarkdownFile` 写出 `# 标题`、一个空行和正文；标题里的换行换成空格，空标题写 `Untitled`；标题以 `#` 结尾时在后面多写一个 ` #`（行尾的 `#` 会被当成标题的收尾记号去掉），导入时标题最长保留 200 字，所以自己导出的笔记再导入标题不变。正文用 AI 工具同一套 `blocksToMarkdown`（不带编号），但最上层的块之间用空行隔开，只有同一种列表的相邻项挨着写：`blocksToMarkdown` 是给模型看的紧凑写法，原样存成文件的话，别的 Markdown 应用会把相邻段落并成一段、把段落后面的 `---` 当成标题。空块不写。文件名是 `answerFileName(标题)`（与下载对话相同的安全文件名规则，以 `.md` 结尾）。不导出的内容：图标、封面、页面设置、子页面和编辑历史；上传的图片块和文件块只写成一行 `[Image: 名称 — 说明]` / `[File: 名称]`，不带地址，也不打包文件本身；折叠、Callout 用本应用自己的记法（`▸`、`> [!💡]`），表格单元格的颜色、对齐与合并以及行内下划线、文字色不保留。
 
-- 网页（`useNotePages().exportPage`）：入口是页面菜单的 “Export Markdown”（Notes 顶栏和分屏的笔记面板都有）。这篇有未保存的编辑时先 flush，存不上就不导出，菜单里提示 “Resolve the unsaved draft before exporting this page.”；其他失败显示服务端的句子或 “Could not export the page.”。文件经 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。
+- 网页（`useNotePages().exportPage`）：入口是页面菜单的 “Export Markdown”（Notes 顶栏和分屏的笔记面板都有）。这篇有未保存的编辑时先 flush，存不上就不导出，提示 “Resolve the unsaved draft before exporting this page.”；其他失败显示服务端的句子或 “Could not export the page.”。菜单在点击时已经关掉，所以提示出在笔记上方可关闭的错误条里（`actionError`，与列表加载失败的 `error` 分开）。文件经 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。
 
 **导入**（`POST /api/pages/import`）。上限在 `note-io.ts`：一次最多 20 个文件（`MAX_IMPORT_FILES`），每个文件的文字按 UTF-8 算最多 1 MiB（`MAX_IMPORT_FILE_BYTES`），整个请求体最多 4 MiB（`MAX_IMPORT_TOTAL_BYTES`，留在 Vercel 4.5 MB 请求上限以内；错误文案写作 “4 MB”），扩展名只收 `.md`、`.markdown`、`.txt`（不分大小写）。每个文件由 `markdownFileToNoteContent` 转成一篇笔记：去掉开头的 BOM 和 NUL；正文前面没有别的内容的第一个标题行（`#`–`######`）作为笔记标题并从正文里去掉，没有就用去掉扩展名的文件名（都没有则 `Untitled`）；正文经与 “Save to page” 相同的整理和 `markdownToBlocks` 转成块，超过 8 层的嵌套平铺。图标和封面为空。随后照常过 `validateNoteContent` 与 `assertNoteFilesOwner`（Markdown 里写的 `/api/pages/files?…` 图片只接受本人的）。`groupId` 可省略（网页和原生端都不发，导入到“无项目”）；给了就必须是本人的项目。
 
@@ -138,7 +138,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `groupId` 格式不对 / 不是本人的项目 | 400 / 404 `Project not found.` |
 | 内容没通过笔记校验 | `validateNoteContent` 的原错误 |
 
-- 网页（`useNotePages().importMarkdown`）：入口是 Notes 侧栏底部、笔记主页的按钮行和空状态里的 “Import Markdown”，打开可多选的文件选择框（`accept=".md,.markdown,.txt,text/markdown,text/plain"`）。发请求前先在浏览器里按同样的上限查个数、扩展名和大小，读出文字后再按实际要发的 JSON 大小查一次；不合格只在 Notes 的错误条里显示原因，不发请求。成功后新笔记加进列表，侧栏收起，并打开第一篇。导入期间和新建一样禁用列表操作。
+- 网页（`useNotePages().importMarkdown`）：入口是 Notes 侧栏底部、笔记主页的按钮行和空状态里的 “Import Markdown”，打开可多选的文件选择框（`accept=".md,.markdown,.txt,text/markdown,text/plain"`）。发请求前先在浏览器里按同样的上限查个数、扩展名和大小，读出文字后再按实际要发的 JSON 大小查一次；不合格只在 Notes 可关闭的错误条（`actionError`）里显示原因，不发请求；这条错误不遮住空状态和它的按钮，分屏面板没打开笔记时也显示。成功后新笔记加进列表，侧栏收起，并打开第一篇。导入期间和新建一样禁用列表操作。
 - Android 和 iOS：页面“…”菜单的 “Export Markdown” 与侧栏、笔记首页、空状态的 “Import Markdown”，用系统的文件选择器，本机检查与网页相同，见 [android-native.md](android-native.md#笔记) 与 [ios-native.md](ios-native.md#ios-上换了做法的地方)。
 
 ## 笔记里的 AI 助手

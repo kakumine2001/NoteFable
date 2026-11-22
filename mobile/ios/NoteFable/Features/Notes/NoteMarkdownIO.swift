@@ -96,9 +96,13 @@ private struct NoteMarkdownImporterModifier: ViewModifier {
                     // 取消选择什么也不做；系统打不开选择器（极少见）时也只是不导入。
                     guard case .success(let urls) = result, !urls.isEmpty else { return }
                     onPicked?()
-                    let notes = app.notes
+                    let environment = app
+                    let notes = environment.notes
+                    let generation = environment.identityGeneration
                     Task { @MainActor in
                         let sources = await NoteImportFiles.sources(urls)
+                        // 看文件大小的期间换了身份（登录 / 退出）：旧身份选的文件不交给新身份导入。
+                        guard environment.identityGeneration == generation else { return }
                         await notes.importMarkdown(sources)
                     }
                 }

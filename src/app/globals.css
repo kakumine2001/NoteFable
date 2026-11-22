@@ -167,7 +167,7 @@ button:disabled {
 .notes-picker-bar button:hover { background: var(--notes-hover); }
 .full-emoji-picker { --emoji-picker-height: min(380px, var(--emoji-picker-available-height, calc(100dvh - 100px))); width: 100%; }
 .full-emoji-picker .EmojiPickerReact {
-  --epr-bg-color: #fff;
+  --epr-bg-color: var(--notion-surface);
   --epr-hover-bg-color: var(--notes-hover);
   --epr-text-color: var(--notes-text);
   --epr-category-label-text-color: var(--notes-muted);
@@ -1689,7 +1689,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 .codex-model-option:hover {
-  background: #f1f1ef;
+  background: var(--nf-model-pill);
   color: var(--notion-text);
 }
 
@@ -1698,7 +1698,7 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 }
 
 .codex-model-option.is-selected {
-  background: #f1f1ef;
+  background: var(--nf-model-pill);
   color: var(--notion-text);
 }
 
@@ -3456,7 +3456,11 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
   border-color: var(--notion-border-strong);
 }
 
+/* 警告の帯は明るい地のままなので、中のボタンの文字もライトと同じ濃い色にする（--notion-text はダークで明るくなる）。 */
+:root[data-theme="dark"] .notion-warning .notion-button { color: #37352f; }
+
 /* チャット回答のコードブロックとハイライト */
+:root[data-theme="dark"] .markdown-body pre { color: var(--notion-text); }
 :root[data-theme="dark"] .markdown-code-shell {
   border-color: var(--notion-border-strong);
   background: #1f1f22;

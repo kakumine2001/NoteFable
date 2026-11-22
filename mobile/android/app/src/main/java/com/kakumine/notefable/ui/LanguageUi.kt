@@ -41,6 +41,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
@@ -285,6 +286,7 @@ internal fun LanguageMenu(
             Row(Modifier.fillMaxWidth().padding(4.dp).border(1.dp, Sm.Border, RoundedCornerShape(6.4.dp)).padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 BasicTextField(query, onValueChange = { query = it }, singleLine = true,
                     textStyle = LocalTextStyle.current.copy(color = Sm.Text, fontSize = 14.sp),
+                    cursorBrush = SolidColor(Sm.Text),
                     modifier = Modifier.fillMaxWidth().semantics { contentDescription = searchLabel },
                     decorationBox = { inner -> if (query.isEmpty()) Text(searchLabel, color = Sm.Muted, fontSize = 14.sp); inner() })
             }

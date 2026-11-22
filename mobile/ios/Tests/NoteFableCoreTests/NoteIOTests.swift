@@ -342,4 +342,86 @@ final class NoteIOTests: XCTestCase {
         XCTAssertNil(vm.state.open)
         XCTAssertFalse(vm.state.busy)
     }
+
+    @MainActor
+    func testFilesReadWhileTheIdentityChangesAreNotUploaded() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        // 读文件的线程停在这里，直到测试放行（iCloud 里的文件要等下载）。
+        let release = DispatchSemaphore(value: 0)
+        let data = Data("# One\n".utf8)
+        let slow = NoteImportSource(name: "one.md", size: data.count, read: {
+            release.wait()
+            return data
+        })
+        let running = Task { await vm.importMarkdown([slow]) }
+        await notesSettle()
+        XCTAssertTrue(vm.state.busy)
+        vm.onIdentityChanged()
+        await notesSettle()
+        release.signal()
+        await running.value
+        await notesSettle()
+        // 旧身份选的文件不用新身份的 Cookie 传上去。
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("import") })
+        XCTAssertEqual(vm.state.pages.map(\.id), ["a", "b"])
+        XCTAssertNil(vm.state.open)
+        XCTAssertNil(vm.state.error)
+        XCTAssertFalse(vm.state.busy)
+    }
+
+    @MainActor
+    func testExportIsNotRequestedWhenTheIdentityChangesWhileSaving() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        vm.openNote("a")
+        await notesSettle()
+        vm.flushEditor = {
+            vm.onIdentityChanged()
+            return FlushResult(true)
+        }
+        let note = await vm.exportPage("a")
+        XCTAssertNil(note)
+        XCTAssertFalse(backend.calls.contains("export:a"))
+        XCTAssertNil(vm.state.notice)
+    }
+
+    func testThePayloadIsMeasuredAsTheTextAndJsonActuallySent() {
+        // 坏掉的字节换成 U+FFFD（3 字节）：文件本身没超，转成文字后超了。
+        let lossy = noteImportText(Data(repeating: 0xFF, count: MAX_IMPORT_FILE_BYTES / 2))
+        XCTAssertEqual(noteImportPayloadProblem([ImportMarkdownFile(name: "a.txt", markdown: lossy)]), .importFileTooLarge)
+        // 换行在 JSON 里占 2 字节：每个文件、加起来都没超，请求体超了。
+        let lines = String(repeating: "\n", count: 1_000_000)
+        let heavy = (0..<4).map { ImportMarkdownFile(name: "n\($0).md", markdown: lines) }
+        XCTAssertNil(noteImportProblem(heavy.map { (name: $0.name, size: $0.markdown.utf8.count) }))
+        XCTAssertEqual(noteImportPayloadProblem(heavy), .importTooLarge)
+        XCTAssertNil(noteImportPayloadProblem(Array(heavy.prefix(2))))
+        XCTAssertNil(noteImportPayloadProblem([ImportMarkdownFile(name: "a.md", markdown: "# 标题\n")]))
+        // 量的就是发出去的请求体。
+        XCTAssertEqual(
+            noteImportBody([ImportMarkdownFile(name: "a.md", markdown: "x\n")]).encodedString(),
+            #"{"files":[{"markdown":"x\n","name":"a.md"}]}"#
+        )
+    }
+
+    @MainActor
+    func testAnImportTooLargeOnceEncodedFailsLocally() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        let lines = Data(String(repeating: "\n", count: 1_000_000).utf8)
+        await vm.importMarkdown((0..<4).map { NoteImportSource(name: "n\($0).md", size: lines.count, read: { lines }) })
+        XCTAssertEqual(vm.state.error, NotesError(.importTooLarge))
+        XCTAssertFalse(backend.calls.contains { $0.hasPrefix("import") })
+        XCTAssertFalse(vm.state.busy)
+    }
+
+    @MainActor
+    func testTappingTheBannerDismissesAnImportError() async {
+        let backend = NotesTestBackend()
+        let vm = await notesVm(backend)
+        await vm.importMarkdown([NoteImportSource(name: "photo.png", size: 1, read: { Data() })])
+        XCTAssertEqual(vm.state.error, NotesError(.importBadType))
+        vm.dismissNotice()
+        XCTAssertNil(vm.state.error)
+    }
 }

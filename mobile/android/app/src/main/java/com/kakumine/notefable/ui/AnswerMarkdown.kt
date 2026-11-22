@@ -139,7 +139,8 @@ private fun AnswerBlocks(text: String, formulas: List<MathMarkdown.Formula>, mut
         listItemBottom = 0.64.dp,
         listIndent = ListIndent,
     )
-    val components = remember(muted, formulas) {
+    // body 带着当前主题的颜色（表格、有序列表的编号在用）：换浅色 / 深色时要重新建。
+    val components = remember(muted, formulas, body) {
         markdownComponents(
             // 整段只有一个独立公式的，画成居中的公式；其余段落照常。
             paragraph = { model ->

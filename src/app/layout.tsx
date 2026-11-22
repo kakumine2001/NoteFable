@@ -5,6 +5,7 @@ import "./motion.css";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { siteOrigin } from "@/lib/i18n/routing";
+import { ThemeSync } from "@/components/theme-sync";
 import { THEME_INIT_SCRIPT } from "@/lib/theme-init";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
@@ -43,7 +44,7 @@ export default function RootLayout({
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
-      <body>{children}<Analytics /><SpeedInsights /></body>
+      <body>{children}<ThemeSync /><Analytics /><SpeedInsights /></body>
     </html>
   );
 }
