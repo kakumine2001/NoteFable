@@ -5,6 +5,7 @@ import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readSmallJson } from "@/lib/note-groups";
 import { createRevision } from "@/lib/note-revisions";
 import { prisma } from "@/lib/prisma";
@@ -38,6 +39,8 @@ export async function POST(request: Request, context: Context) {
         try {
           content = validateNoteContent({ title: revision.title, icon: revision.icon, blocks: revision.blocks });
           assertNoteFilesOwner(content.blocks, user.id);
+          assertCoverOwner(content.icon, user.id);
+          await claimCover(tx, content.icon, user.id);
         } catch (error) {
           if (error instanceof NoteValidationError) throw new NoteValidationError(fmt("This version cannot be restored. {detail}", { detail: error.message }), error.status);
           throw error;

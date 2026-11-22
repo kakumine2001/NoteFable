@@ -224,4 +224,5 @@ export const viServer: Record<string, string> = {
   "Invalid request body.": "Nội dung yêu cầu không hợp lệ.",
   "Invalid share settings.": "Cài đặt chia sẻ không hợp lệ.",
   "Expiration time must be in the future.": "Thời gian hết hạn phải ở trong tương lai.",
+  "Note icon must be a single emoji or an uploaded image.": "Biểu tượng ghi chú phải là một emoji hoặc một ảnh đã tải lên.",
 };

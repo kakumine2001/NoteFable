@@ -33,8 +33,17 @@ const COVER_SCAN_PAGES = 20;
 
 async function referencedPaths(paths: string[]) {
   if (!paths.length) return new Set<string>();
-  const pages = await prisma.notePage.findMany({ where: { cover: { in: paths.map((path) => `upload:${path}`) } }, select: { cover: true } });
-  return new Set(pages.map((page) => page.cover!.slice("upload:".length)));
+  // ページのアイコンにも同じ形の画像を使う。編集履歴のアイコンも、復元で使えるよう参照として数える。
+  const keys = paths.map((path) => `upload:${path}`);
+  const [pages, revisions] = await Promise.all([
+    prisma.notePage.findMany({ where: { OR: [{ cover: { in: keys } }, { icon: { in: keys } }] }, select: { cover: true, icon: true } }),
+    prisma.noteRevision.findMany({ where: { icon: { in: keys } }, select: { icon: true } }),
+  ]);
+  const found = new Set<string>();
+  for (const value of [...pages.flatMap((page) => [page.cover, page.icon]), ...revisions.map((revision) => revision.icon)]) {
+    if (value && keys.includes(value)) found.add(value.slice("upload:".length));
+  }
+  return found;
 }
 
 export async function collectUnusedCovers(now = Date.now()) {

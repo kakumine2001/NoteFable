@@ -224,4 +224,5 @@ export const ptBRServer: Record<string, string> = {
   "Invalid request body.": "Corpo da solicitação inválido.",
   "Invalid share settings.": "Configurações de compartilhamento inválidas.",
   "Expiration time must be in the future.": "A data de expiração deve estar no futuro.",
+  "Note icon must be a single emoji or an uploaded image.": "O ícone da nota deve ser um único emoji ou uma imagem enviada.",
 };

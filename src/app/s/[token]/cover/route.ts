@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 
 type Params = { params: Promise<{ token: string }> };
 
-// 公開ページ（またはその公開中のサブページ）に設定されているカバー画像だけを返す。
+// 公開ページ（またはその公開中のサブページ）に設定されているカバー画像・アイコン画像だけを返す。
 export async function GET(request: Request, { params }: Params) {
   try {
     const { token } = await params;
@@ -16,7 +16,9 @@ export async function GET(request: Request, { params }: Params) {
     const resolved = await resolvePublicShare(token, pageId);
     if (!resolved) return new NextResponse(null, { status: 404 });
 
-    const upload = uploadedCoverPath(resolved.page.cover);
+    // ?kind=icon はページのアイコン（アップロード画像のとき）。それ以外はカバー。
+    const kind = new URL(request.url).searchParams.get("kind");
+    const upload = uploadedCoverPath(kind === "icon" ? resolved.page.icon : resolved.page.cover);
     if (!upload || upload.ownerId !== resolved.page.userId) return new NextResponse(null, { status: 404 });
 
     let image: Buffer;

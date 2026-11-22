@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
 import { isEmojiIcon } from "@/lib/emoji-icon";
+import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { noteApiError } from "@/lib/note-api";
-import { NoteValidationError } from "@/lib/note-document";
+import { NoteValidationError, uploadedCoverPath } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
@@ -14,12 +15,16 @@ type Context = { params: Promise<{ pageId: string }> };
 export async function PUT(request: Request, context: Context) {
   try {
     const { icon } = await readSmallJson(request);
-    if (icon !== null && !isEmojiIcon(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji."));
+    if (icon !== null && !isEmojiIcon(icon) && !uploadedCoverPath(icon)) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
     const user = await getOrCreateUser();
+    assertCoverOwner(icon as string | null, user.id);
     const { pageId } = await context.params;
-    const result = await prisma.notePage.updateMany({
-      where: { id: pageId, userId: user.id, deletedAt: null },
-      data: { icon: icon as string | null, version: { increment: 1 } },
+    const result = await prisma.$transaction(async (tx) => {
+      await claimCover(tx, icon as string | null, user.id);
+      return tx.notePage.updateMany({
+        where: { id: pageId, userId: user.id, deletedAt: null },
+        data: { icon: icon as string | null, version: { increment: 1 } },
+      });
     });
     if (!result.count) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });

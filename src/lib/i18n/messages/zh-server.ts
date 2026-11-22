@@ -224,4 +224,5 @@ export const zhServer: Record<string, string> = {
   "Invalid request body.": "请求内容无效。",
   "Invalid share settings.": "分享设置无效。",
   "Expiration time must be in the future.": "过期时间必须晚于当前时间。",
+  "Note icon must be a single emoji or an uploaded image.": "笔记图标必须是一个表情符号或上传的图片。",
 };

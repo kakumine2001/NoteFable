@@ -8,6 +8,7 @@ import { useBackToClose } from "@/lib/use-back-to-close";
 import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectDetail, type ChatProjectSummary } from "@/types/chat";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
+import { NoteIcon } from "@/components/note-icon";
 
 type NoteRef = ChatProjectDetail["notes"][number];
 // 一覧に出すノートの上限。多いときは絞り込みで探す。
@@ -140,7 +141,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
                 return <li key={page.id}>
                   <label className={`project-settings-option${checked ? " is-selected" : ""}${blocked ? " is-disabled" : ""}`}>
                     <input type="checkbox" checked={checked} disabled={busy || blocked} onChange={() => toggle(page)} />
-                    <span className="project-settings-note-icon" aria-hidden="true">{page.icon ?? <FileText size={14} />}</span>
+                    <span className="project-settings-note-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={14} />} /></span>
                     <span className="project-settings-note-title">{page.title || t("Untitled")}</span>
                   </label>
                 </li>;

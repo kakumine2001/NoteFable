@@ -728,4 +728,6 @@ export const ru: Record<string, string> = {
   "This page is not available": "Эта страница недоступна",
   "It may have been unpublished, expired, or removed.": "Возможно, публикация отменена, срок действия истёк или страница удалена.",
   "Go to NoteFable": "Перейти в NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Лучше всего подходят квадратные изображения от 280 × 280 пикселей. JPEG, PNG, WebP или GIF, до 4 МБ.",
+  "Images must be 4 MB or smaller.": "Размер изображения не должен превышать 4 МБ.",
 };

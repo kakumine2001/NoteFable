@@ -224,4 +224,5 @@ export const jaServer: Record<string, string> = {
   "Invalid request body.": "リクエストの形式が正しくありません。",
   "Invalid share settings.": "共有設定が正しくありません。",
   "Expiration time must be in the future.": "有効期限は現在より後の日時を指定してください。",
+  "Note icon must be a single emoji or an uploaded image.": "ノートのアイコンは絵文字 1 つか、アップロードした画像にしてください。",
 };

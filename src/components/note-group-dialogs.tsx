@@ -6,6 +6,7 @@ import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { childrenByParent, descendantIdsOf } from "@/lib/note-tree";
+import { NoteIcon } from "@/components/note-icon";
 
 // 開いた瞬間にモーダルとして表示する <dialog>。Esc で閉じる。
 function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
@@ -141,7 +142,7 @@ export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onC
         {shown.map(({ page: target, depth }) => <button key={target.id} type="button" role="radio" aria-checked={page.parentId === target.id}
           disabled={busy} className="notes-dialog-option" style={{ paddingLeft: `${0.75 + depth * 1}rem` }} onClick={() => void moveInto(target.id)}>
           <span className="flex min-w-0 items-center gap-2">
-            <span className="notes-move-icon" aria-hidden="true">{target.icon ?? <FileText size={15} />}</span><span className="truncate">{target.title}</span>
+            <span className="notes-move-icon" aria-hidden="true"><NoteIcon icon={target.icon} fallback={<FileText size={15} />} /></span><span className="truncate">{target.title}</span>
           </span>{page.parentId === target.id && <Check size={16} />}
         </button>)}
         {!shown.length && <p className="px-3 py-2 text-sm text-[var(--notion-muted)]">{t("No matching pages.")}</p>}

@@ -224,4 +224,5 @@ export const koServer: Record<string, string> = {
   "Invalid request body.": "요청 본문이 올바르지 않습니다.",
   "Invalid share settings.": "공유 설정이 올바르지 않습니다.",
   "Expiration time must be in the future.": "만료 시간은 현재 시간 이후여야 합니다.",
+  "Note icon must be a single emoji or an uploaded image.": "노트 아이콘은 이모지 하나 또는 업로드한 이미지여야 합니다.",
 };

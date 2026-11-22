@@ -728,4 +728,6 @@ export const th: Record<string, string> = {
   "This page is not available": "ไม่พบหน้านี้",
   "It may have been unpublished, expired, or removed.": "หน้านี้อาจถูกยกเลิกการเผยแพร่ หมดอายุ หรือถูกลบแล้ว",
   "Go to NoteFable": "ไปที่ NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "แนะนำรูปสี่เหลี่ยมจัตุรัสขนาดอย่างน้อย 280 × 280 พิกเซล รองรับ JPEG, PNG, WebP หรือ GIF ไม่เกิน 4 MB",
+  "Images must be 4 MB or smaller.": "รูปภาพต้องมีขนาดไม่เกิน 4 MB",
 };

@@ -728,4 +728,6 @@ export const es: Record<string, string> = {
   "This page is not available": "Esta página no está disponible",
   "It may have been unpublished, expired, or removed.": "Es posible que se haya dejado de publicar, haya caducado o se haya eliminado.",
   "Go to NoteFable": "Ir a NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Funcionan mejor las imágenes cuadradas de al menos 280 × 280 píxeles. JPEG, PNG, WebP o GIF, hasta 4 MB.",
+  "Images must be 4 MB or smaller.": "Las imágenes deben pesar 4 MB o menos.",
 };

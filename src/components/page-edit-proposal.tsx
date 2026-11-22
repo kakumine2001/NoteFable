@@ -5,6 +5,7 @@ import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { ActivityStep } from "@/lib/chat-activity";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
+import { noteIconText } from "@/lib/note-icon";
 
 type EditProposal = Extract<ActivityStep, { kind: "proposal" }>;
 type CreateProposal = Extract<ActivityStep, { kind: "create_proposal" }>;
@@ -131,7 +132,7 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
   return (
     <Card proposal={proposal} state={state} label={t("Proposed new note")} applyLabel={t("Create note")} doneBadge={t("Created")}
       icon={<FilePlus2 size={14} strokeWidth={1.9} aria-hidden="true" />}
-      title={t("New note{icon} “{title}”", { icon: proposal.icon ? ` ${proposal.icon}` : "", title: proposal.title })}>
+      title={t("New note{icon} “{title}”", { icon: noteIconText(proposal.icon) ? ` ${noteIconText(proposal.icon)}` : "", title: proposal.title })}>
       <div className="page-edit-change">
         {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">{t("Empty note")}</div>}
       </div>

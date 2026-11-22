@@ -729,4 +729,6 @@ export const ja: Record<string, string> = {
   "This page is not available": "このページは表示できません",
   "It may have been unpublished, expired, or removed.": "公開が停止されたか、期限切れまたは削除された可能性があります。",
   "Go to NoteFable": "NoteFable へ",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "280 × 280 ピクセル以上の正方形の画像がおすすめ。JPEG・PNG・WebP・GIF、4 MB まで。",
+  "Images must be 4 MB or smaller.": "画像は4 MB以下にしてください。",
 };

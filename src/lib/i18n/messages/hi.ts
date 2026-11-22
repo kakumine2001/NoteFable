@@ -728,4 +728,6 @@ export const hi: Record<string, string> = {
   "This page is not available": "यह पृष्ठ उपलब्ध नहीं है",
   "It may have been unpublished, expired, or removed.": "यह अप्रकाशित, समाप्त या हटाया गया हो सकता है।",
   "Go to NoteFable": "NoteFable पर जाएं",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "कम से कम 280 × 280 पिक्सेल की वर्गाकार इमेज सबसे अच्छी रहती है। JPEG, PNG, WebP या GIF, 4 MB तक।",
+  "Images must be 4 MB or smaller.": "इमेज 4 MB या उससे छोटी होनी चाहिए।",
 };

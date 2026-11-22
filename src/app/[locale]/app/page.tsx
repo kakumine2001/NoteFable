@@ -74,6 +74,7 @@ import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage, type ImageGen
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
+import { NoteIcon } from "@/components/note-icon";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
@@ -2223,11 +2224,11 @@ export default function Home() {
                 {/* パンくず（Notion と同じく祖先のページを左から）。スマホは幅がないので今のページだけ。 */}
                 {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1.5 sm:flex">
                   <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)} title={page.title}>
-                    {page.icon && <span className="shrink-0 text-[15px] leading-none">{page.icon}</span>}<span className="truncate">{page.title}</span>
+                    {page.icon && <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
                   </button>
                   <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
                 </span>)}
-                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none">{notes.active.content.icon}</span> : <FileText size={15} className="shrink-0" />)}
+                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span> : <FileText size={15} className="shrink-0" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}
@@ -2415,7 +2416,7 @@ export default function Home() {
                       aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
                       className="motion-menu inline-flex max-w-full items-center gap-2 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2.5 py-1.5 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                     >
-                      {page.icon ? <span aria-hidden="true">{page.icon}</span> : <FileText size={13} aria-hidden="true" />}
+                      {page.icon ? <span aria-hidden="true"><NoteIcon icon={page.icon} /></span> : <FileText size={13} aria-hidden="true" />}
                       <span className="truncate">{page.title || t("Untitled")}</span>
                       <X size={13} aria-hidden="true" />
                     </button>

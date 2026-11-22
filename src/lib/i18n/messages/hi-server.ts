@@ -224,4 +224,5 @@ export const hiServer: Record<string, string> = {
   "Invalid request body.": "अनुरोध सामग्री अमान्य है।",
   "Invalid share settings.": "साझाकरण सेटिंग्स अमान्य हैं।",
   "Expiration time must be in the future.": "समाप्ति समय भविष्य में होना चाहिए।",
+  "Note icon must be a single emoji or an uploaded image.": "नोट का आइकन एक इमोजी या अपलोड की गई इमेज होना चाहिए।",
 };

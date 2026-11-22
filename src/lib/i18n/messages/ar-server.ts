@@ -224,4 +224,5 @@ export const arServer: Record<string, string> = {
   "Invalid request body.": "محتوى الطلب غير صالح.",
   "Invalid share settings.": "إعدادات المشاركة غير صالحة.",
   "Expiration time must be in the future.": "يجب أن يكون وقت انتهاء الصلاحية في المستقبل.",
+  "Note icon must be a single emoji or an uploaded image.": "يجب أن تكون أيقونة الملاحظة رمزًا تعبيريًا واحدًا أو صورة مرفوعة.",
 };

@@ -2,10 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   pages: { findMany: vi.fn(), count: vi.fn() },
+  revisions: { findMany: vi.fn() },
   assets: { findMany: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   remove: vi.fn(),
 }));
-vi.mock("@/lib/prisma", () => ({ prisma: { notePage: mocks.pages, noteCoverAsset: mocks.assets } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { notePage: mocks.pages, noteRevision: mocks.revisions, noteCoverAsset: mocks.assets } }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.remove }));
 import { COVER_GRACE_MS, assertCoverOwner, claimCover, collectUnusedCovers, sniffCoverImage } from "./note-covers";
 
@@ -30,7 +31,7 @@ describe("page cover uploads", () => {
 });
 
 describe("unused cover collection", () => {
-  beforeEach(() => { vi.resetAllMocks(); });
+  beforeEach(() => { vi.resetAllMocks(); mocks.revisions.findMany.mockResolvedValue([]); });
   const now = Date.UTC(2026, 9, 20);
   const cutoff = new Date(now - COVER_GRACE_MS);
   // findMany は 1. 使用中の走査 2. 期限切れ 3. 削除中 の順に呼ばれる。
@@ -38,8 +39,8 @@ describe("unused cover collection", () => {
     .mockResolvedValueOnce(held.map((path) => ({ path })))
     .mockResolvedValueOnce(expired.map((path) => ({ path })))
     .mockResolvedValueOnce(deleting.map((path) => ({ path })));
-  const referencing = (paths: string[]) => mocks.pages.findMany.mockImplementation(async ({ where }: { where: { cover: { in: string[] } } }) =>
-    where.cover.in.filter((cover) => paths.some((path) => cover === `upload:${path}`)).map((cover) => ({ cover })));
+  const referencing = (paths: string[]) => mocks.pages.findMany.mockImplementation(async ({ where }: { where: { OR: [{ cover: { in: string[] } }] } }) =>
+    where.OR[0].cover.in.filter((cover) => paths.some((path) => cover === `upload:${path}`)).map((cover) => ({ cover, icon: null })));
 
   it("starts the grace period when a cover stops being referenced and re-checks after marking", async () => {
     assetQueries(["a", "b", "c"], [], []);
@@ -67,6 +68,15 @@ describe("unused cover collection", () => {
     expect(mocks.assets.updateMany).toHaveBeenCalledWith({ where: { path: "reused", deletingAt: null }, data: { releasedAt: null } });
     expect(mocks.assets.updateMany).toHaveBeenCalledWith({ where: { path: "gone", releasedAt: { lt: cutoff }, deletingAt: null }, data: { deletingAt: new Date(now) } });
     expect(mocks.assets.deleteMany.mock.calls).toEqual([[{ where: { path: "gone", deletingAt: { not: null } } }]]);
+  });
+
+  it("counts page icons and revision icons as references", async () => {
+    assetQueries(["page-icon", "old-icon", "free"], [], []);
+    mocks.pages.findMany.mockResolvedValue([{ cover: null, icon: "upload:page-icon" }]);
+    mocks.revisions.findMany.mockResolvedValue([{ icon: "upload:old-icon" }]);
+    mocks.assets.updateMany.mockResolvedValue({ count: 1 });
+    await collectUnusedCovers(now);
+    expect(mocks.assets.updateMany).toHaveBeenNthCalledWith(2, { where: { path: { in: ["free"] }, releasedAt: null, deletingAt: null }, data: { releasedAt: new Date(now) } });
   });
 
   it("refuses to attach a cover that is gone or being deleted", async () => {

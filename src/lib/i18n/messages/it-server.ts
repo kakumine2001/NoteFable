@@ -224,4 +224,5 @@ export const itServer: Record<string, string> = {
   "Invalid request body.": "Corpo della richiesta non valido.",
   "Invalid share settings.": "Impostazioni di condivisione non valide.",
   "Expiration time must be in the future.": "La data di scadenza deve essere nel futuro.",
+  "Note icon must be a single emoji or an uploaded image.": "L’icona della nota deve essere una singola emoji o un’immagine caricata.",
 };

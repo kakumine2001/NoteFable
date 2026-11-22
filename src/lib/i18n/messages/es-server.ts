@@ -224,4 +224,5 @@ export const esServer: Record<string, string> = {
   "Invalid request body.": "El contenido de la solicitud no es válido.",
   "Invalid share settings.": "La configuración de uso compartido no es válida.",
   "Expiration time must be in the future.": "La fecha de vencimiento debe ser futura.",
+  "Note icon must be a single emoji or an uploaded image.": "El icono de la nota debe ser un solo emoji o una imagen subida.",
 };

@@ -224,4 +224,5 @@ export const thServer: Record<string, string> = {
   "Invalid request body.": "ข้อมูลคำขอไม่ถูกต้อง",
   "Invalid share settings.": "การตั้งค่าการแชร์ไม่ถูกต้อง",
   "Expiration time must be in the future.": "เวลาหมดอายุต้องอยู่ในอนาคต",
+  "Note icon must be a single emoji or an uploaded image.": "ไอคอนโน้ตต้องเป็นอีโมจิหนึ่งตัวหรือรูปภาพที่อัปโหลด",
 };

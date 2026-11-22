@@ -224,4 +224,5 @@ export const deServer: Record<string, string> = {
   "Invalid request body.": "Ungültiger Anfragetext.",
   "Invalid share settings.": "Ungültige Freigabeeinstellungen.",
   "Expiration time must be in the future.": "Das Ablaufdatum muss in der Zukunft liegen.",
+  "Note icon must be a single emoji or an uploaded image.": "Das Notizsymbol muss ein einzelnes Emoji oder ein hochgeladenes Bild sein.",
 };

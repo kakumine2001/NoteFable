@@ -737,4 +737,6 @@ export const zh: Record<string, string> = {
   "This page is not available": "该页面不可用",
   "It may have been unpublished, expired, or removed.": "它可能已取消公开、已过期或已被删除。",
   "Go to NoteFable": "前往 NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "建议使用不小于 280 × 280 像素的正方形图片。支持 JPEG、PNG、WebP 或 GIF，最大 4 MB。",
+  "Images must be 4 MB or smaller.": "图片需不超过 4 MB。",
 };

@@ -728,4 +728,6 @@ export const ar: Record<string, string> = {
   "This page is not available": "هذه الصفحة غير متاحة",
   "It may have been unpublished, expired, or removed.": "قد يكون قد تم إلغاء نشرها أو انتهت صلاحيتها أو تمت إزالتها.",
   "Go to NoteFable": "الانتقال إلى NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "تعمل الصور المربعة بحجم 280 × 280 بكسل على الأقل بشكل أفضل. JPEG أو PNG أو WebP أو GIF، حتى 4 ميغابايت.",
+  "Images must be 4 MB or smaller.": "يجب ألا يتجاوز حجم الصور 4 ميغابايت.",
 };

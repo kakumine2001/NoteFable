@@ -728,4 +728,6 @@ export const ko: Record<string, string> = {
   "This page is not available": "이 페이지를 사용할 수 없습니다",
   "It may have been unpublished, expired, or removed.": "게시가 취소되었거나 만료 또는 삭제되었을 수 있습니다.",
   "Go to NoteFable": "NoteFable로 이동",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "280 × 280픽셀 이상의 정사각형 이미지가 가장 좋습니다. JPEG, PNG, WebP 또는 GIF, 최대 4MB.",
+  "Images must be 4 MB or smaller.": "이미지는 4MB 이하여야 합니다.",
 };

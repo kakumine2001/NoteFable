@@ -7,6 +7,7 @@ import { MAX_COVER_BYTES, NOTE_COVERS, isPresetCover, uploadedCoverPath, type No
 import type { NoteContent } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
+import { NoteIcon } from "@/components/note-icon";
 
 const COVER_LABELS: Record<NoteCover, string> = {
   "gradient-sunset": msg("Sunset"), "gradient-peach": msg("Peach"), "gradient-mint": msg("Mint"), "gradient-ocean": msg("Ocean"),
@@ -85,9 +86,9 @@ export function NotePageHeader({ content, editable, titleRef, onPatch, onTitleKe
         {content.icon && (
           <div className="notes-icon-wrap">
             <button type="button" className="notes-icon" disabled={!editable} aria-label={t("Change icon")} data-popover-trigger
-              onClick={() => setPicker(picker === "icon" ? null : "icon")}>{content.icon}</button>
+              onClick={() => setPicker(picker === "icon" ? null : "icon")}><NoteIcon icon={content.icon} /></button>
             {picker === "icon" && (
-              <EmojiPopover className="notes-icon-picker" current={content.icon} onChange={(icon) => update({ icon })} onClose={close} />
+              <EmojiPopover className="notes-icon-picker" current={content.icon} allowUpload onChange={(icon) => update({ icon })} onClose={close} />
             )}
           </div>
         )}

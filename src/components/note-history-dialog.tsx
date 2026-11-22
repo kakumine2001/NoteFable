@@ -10,6 +10,7 @@ import "@/components/note-trash-history.css";
 import { useNow } from "@/lib/use-now";
 import { useI18n } from "@/components/i18n-provider";
 import { createTranslator, localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
+import { NoteIcon } from "@/components/note-icon";
 
 const english = createTranslator({});
 
@@ -265,7 +266,7 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
           {detail?.status === "loading" && <p role="status" className="note-history-preview-empty">{t("Loading version…")}</p>}
           {detail?.status === "error" && <p role="alert" className="note-history-footer-error">{t(detail.message)}</p>}
           {revision && <>
-            <h3 className="note-history-preview-title">{revision.icon && <span aria-hidden="true">{revision.icon}</span>}{revision.title}</h3>
+            <h3 className="note-history-preview-title">{revision.icon && <span aria-hidden="true"><NoteIcon icon={revision.icon} /></span>}{revision.title}</h3>
             <div className="markdown-body"><AssistantMarkdown math="dollars" content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
           </>}
         </div>

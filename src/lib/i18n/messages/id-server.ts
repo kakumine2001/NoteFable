@@ -224,4 +224,5 @@ export const idServer: Record<string, string> = {
   "Invalid request body.": "Isi permintaan tidak valid.",
   "Invalid share settings.": "Pengaturan berbagi tidak valid.",
   "Expiration time must be in the future.": "Waktu kedaluwarsa harus di masa mendatang.",
+  "Note icon must be a single emoji or an uploaded image.": "Ikon catatan harus berupa satu emoji atau gambar yang diunggah.",
 };

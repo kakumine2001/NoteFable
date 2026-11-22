@@ -224,4 +224,5 @@ export const ruServer: Record<string, string> = {
   "Invalid request body.": "Некорректное тело запроса.",
   "Invalid share settings.": "Некорректные настройки доступа.",
   "Expiration time must be in the future.": "Срок действия должен быть в будущем.",
+  "Note icon must be a single emoji or an uploaded image.": "Значок заметки должен быть одним эмодзи или загруженным изображением.",
 };

@@ -224,4 +224,5 @@ export const trServer: Record<string, string> = {
   "Invalid request body.": "Geçersiz istek gövdesi.",
   "Invalid share settings.": "Geçersiz paylaşım ayarları.",
   "Expiration time must be in the future.": "Son kullanma tarihi gelecekte olmalıdır.",
+  "Note icon must be a single emoji or an uploaded image.": "Not simgesi tek bir emoji veya yüklenmiş bir görsel olmalıdır.",
 };

@@ -728,4 +728,6 @@ export const vi: Record<string, string> = {
   "This page is not available": "Trang này không khả dụng",
   "It may have been unpublished, expired, or removed.": "Trang có thể đã bị hủy xuất bản, hết hạn hoặc bị xóa.",
   "Go to NoteFable": "Đi tới NoteFable",
+  "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Nên dùng ảnh vuông tối thiểu 280 × 280 pixel. JPEG, PNG, WebP hoặc GIF, tối đa 4 MB.",
+  "Images must be 4 MB or smaller.": "Ảnh phải từ 4 MB trở xuống.",
 };
