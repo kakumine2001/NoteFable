@@ -7,7 +7,8 @@ import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, toEmbedSaveState } from "@/lib/native-bridge";
+import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
+import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 
 const noop = () => {};
@@ -54,6 +55,9 @@ export function NoteEmbed() {
     if (icon !== undefined) saveAppIcon(icon);
     const nativeLocale = readNativeLanguage();
     if (nativeLocale) void setPreference(nativeLocale);
+    const urlTheme = parseThemePreference(new URL(window.location.href).searchParams.get("theme"));
+    const nativeTheme = readNativeTheme() ?? urlTheme;
+    if (nativeTheme) saveThemePreference(nativeTheme);
   }, [setPreference]);
 
   // アプリから呼ぶ window.notefableEmbed。flush は開いているノートの未保存の編集を送り切る。

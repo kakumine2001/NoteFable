@@ -83,6 +83,7 @@ import androidx.compose.ui.window.DialogWindowProvider
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.AppLanguage
 import com.kakumine.notefable.data.NoteGroupSummary
+import com.kakumine.notefable.data.NoteImport
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.TRASH_RETENTION_DAYS
@@ -95,11 +96,10 @@ import java.util.Locale
 // 网页笔记界面（notes-sidebar / notes-home / note-group-dialogs / note-trash-dialog）的复刻。
 // 数值来自网页在 412x915 手机视口下的实测，对照表见 docs/architecture/android-native.md。
 
-private val Faint = Sm.Faint
-private val DangerText = Color(0xFFB91C1C)          // .notes-delete
-private val DialogScrim = 0.2f                       // .notes-dialog::backdrop rgba(15,15,15,.2)
+private val Faint: Color get() = Sm.Faint
+private val DangerText: Color get() = Sm.Danger          // .notes-delete
 private val PanelShadow = Color(0x1F0F0F0F)          // --notion-shadow 0 4px 14px rgba(15,15,15,.12)
-private val PanelRing = Color(0x0D0F0F0F)            // --notion-shadow 0 0 0 1px rgba(15,15,15,.05)
+private val PanelRing: Color get() = Sm.Ring            // --notion-shadow 0 0 0 1px rgba(15,15,15,.05)
 
 // ---------------------------------------------------------------------------------------------
 // Chat / Note 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
@@ -125,7 +125,7 @@ private fun androidx.compose.foundation.layout.RowScope.Segment(text: String, ic
         Modifier.weight(1f).height(44.dp)
             .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F0F0F), spotColor = Color(0x140F0F0F)) else Modifier)
             .clip(shape)
-            .then(if (active) Modifier.background(Color.White).border(1.dp, Color(0x1A0F0F0F), shape) else Modifier)
+            .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x1A0F0F0F), Sm.Border), shape) else Modifier)
             .clickable(onClick = onClick)
             .semantics { role = Role.Button },
         verticalAlignment = Alignment.CenterVertically,
@@ -198,6 +198,8 @@ fun NotesDrawerBody(
     onCreateInside: (NotePageSummary) -> Unit = {},
     /** Favorites 行右侧的"从收藏中移除"。 */
     onUnfavorite: (NotePageSummary) -> Unit = {},
+    /** 回收站上面的 "Import Markdown"（网页 notes-sidebar：打开文件选择器）。 */
+    onImport: () -> Unit = {},
 ) {
     val busy = state.busy || state.loading
     val scroll = rememberScrollState()
@@ -214,9 +216,9 @@ fun NotesDrawerBody(
                 .padding(horizontal = 11.2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            LucideIcon(Lucide.Plus, 16.dp, Color.White)
+            LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
             Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.new_note), color = Color.White, fontSize = 16.sp, fontWeight = FontWeight(550))
+            Text(stringResource(R.string.new_note), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
         }
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
         SidebarSearchRow(onSearch)
@@ -287,16 +289,23 @@ fun NotesDrawerBody(
             }
         }
 
-        // 回收站（.notion-sidebar-action，手机）：高 44、左右 8、图标 16 + 间距 8.8、16/500。
-        Row(
-            Modifier.padding(start = 8.dp, end = 8.dp, bottom = 4.dp).fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
-                .clickable(onClick = onOpenTrash).padding(horizontal = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LucideIcon(Lucide.Trash2, 16.dp, Sm.Text)
-            Spacer(Modifier.width(8.8.dp))
-            Text(stringResource(R.string.trash), color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-        }
+        // 导入 Markdown、回收站（.notion-sidebar-action，手机）：高 44、左右 8、图标 16 + 间距 8.8、16/500；两行紧挨着，最下面留 4。
+        // 导入在新建 / 读取期间不能点（网页 disabled={busy}）。
+        SidebarAction(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+        SidebarAction(Lucide.Trash2, stringResource(R.string.trash), onClick = onOpenTrash, modifier = Modifier.padding(bottom = 4.dp))
+    }
+}
+
+@Composable
+private fun SidebarAction(icon: List<String>, text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+    Row(
+        modifier.padding(horizontal = 8.dp).fillMaxWidth().height(44.dp).clip(RoundedCornerShape(4.8.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LucideIcon(icon, 16.dp, Sm.Text)
+        Spacer(Modifier.width(8.8.dp))
+        Text(text, color = Sm.Text, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
@@ -543,6 +552,8 @@ fun NotesHome(
     onRetry: () -> Unit,
     reorder: NoteReorder = NoteReorder.None,
     onToggleExpanded: (String) -> Unit = {},
+    /** "Import Markdown"（列表下面的按钮、空状态的按钮）：打开文件选择器。 */
+    onImport: () -> Unit = {},
 ) {
     val busy = state.busy || state.loading
     val scroll = rememberScrollState()
@@ -558,12 +569,13 @@ fun NotesHome(
             state.loading && state.pages.isEmpty() && state.groups.isEmpty() ->
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 96.dp, bottom = 16.dp))
-            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(busy, onCreate)
-            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded)
+            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(busy, onCreate, onImport)
+            else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded, onImport)
         }
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun NotesHomeList(
     state: NotesUiState,
@@ -574,6 +586,7 @@ private fun NotesHomeList(
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
     onToggleExpanded: (String) -> Unit,
+    onImport: () -> Unit,
 ) {
     val drag = rowDrag.drag
     // 子页面的树（网页 notes-home）：最上层的页面按项目分组，子页面在展开的父页面下缩进 24。
@@ -621,16 +634,27 @@ private fun NotesHomeList(
     // "No project" 小标题的键是 " "（空白键都表示无项目），和标题 "Notes" 的 "" 分开登记、分开高亮。
     if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), state.looseCount, Modifier.zone(" "))
     if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { key(it.id) { Tree(it) } } }
-    Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+    // .notes-home-actions：上距 8、间距 8、放不下就换行（三个按钮在窄屏或长文案时会换）。
+    FlowRow(
+        Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
+        itemVerticalAlignment = Alignment.CenterVertically,
+    ) {
         InkButton(stringResource(R.string.new_note), 40.dp, enabled = !busy, onClick = onCreate)
-        Row(
-            Modifier.height(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(enabled = !busy, onClick = onNewGroup).padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LucideIcon(Lucide.FolderPlus, 16.dp, Sm.Text)
-            Spacer(Modifier.width(6.4.dp))
-            Text(stringResource(R.string.new_project), color = Sm.Text, fontSize = 12.8.sp, fontWeight = FontWeight.Medium)
-        }
+        HomeTextButton(Lucide.FolderPlus, stringResource(R.string.new_project), enabled = !busy, onClick = onNewGroup)
+        HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+    }
+}
+
+// .notion-button.notes-home-new-group：高 40、圆角 4.8、左右 12、图标 16 + 间距 6.4、12.8/500。"新项目"和"导入 Markdown"用。
+@Composable
+private fun HomeTextButton(icon: List<String>, text: String, enabled: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier.height(40.dp).clip(RoundedCornerShape(4.8.dp)).clickable(enabled = enabled, role = Role.Button, onClick = onClick).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LucideIcon(icon, 16.dp, Sm.Text)
+        Spacer(Modifier.width(6.4.dp))
+        Text(text, color = Sm.Text, fontSize = 12.8.sp, fontWeight = FontWeight.Medium, maxLines = 1)
     }
 }
 
@@ -726,9 +750,11 @@ private fun shortDate(iso: String): String {
 
 // 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
 // "Notes" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
-// "新笔记"高 32、圆角 8、上距 24；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
+// 按钮行上距 24、间距 10、放不下换行、整行水平居中（网页 mt-6 flex flex-wrap items-center justify-center gap-2.5）：
+// "新笔记"高 32、圆角 8，旁边"导入 Markdown"（高 40 的文字按钮）；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit) {
+private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(Modifier.padding(top = 120.dp)) {
         LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
@@ -744,7 +770,15 @@ private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit) {
             },
             modifier = Modifier.padding(top = 8.dp), color = Sm.Muted, fontSize = 15.sp, lineHeight = 24.sp,
         )
-        InkButton(stringResource(R.string.new_note), 32.dp, enabled = !busy, onClick = onCreate, modifier = Modifier.padding(top = 24.dp))
+        FlowRow(
+            Modifier.padding(top = 24.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterHorizontally),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+            itemVerticalAlignment = Alignment.CenterVertically,
+        ) {
+            InkButton(stringResource(R.string.new_note), 32.dp, enabled = !busy, onClick = onCreate)
+            HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
+        }
         Text(stringResource(R.string.notes_storage_hint), modifier = Modifier.padding(top = 40.dp).widthIn(max = 384.dp),
             color = Faint, fontSize = 12.sp, lineHeight = 20.sp)
     }
@@ -758,9 +792,9 @@ private fun InkButton(text: String, height: Dp, enabled: Boolean, onClick: () ->
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(Lucide.Plus, 16.dp, Color.White)
+        LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
         Spacer(Modifier.width(6.dp))
-        Text(text, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight(550))
+        Text(text, color = Sm.OnInk, fontSize = 14.sp, fontWeight = FontWeight(550))
     }
 }
 
@@ -768,16 +802,18 @@ private fun InkButton(text: String, height: Dp, enabled: Boolean, onClick: () ->
 @Composable
 fun ErrorBar(text: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier) {
     Row(
-        modifier.fillMaxWidth().clip(RoundedCornerShape(4.8.dp)).background(Color(0xA6FFE2DD)).padding(horizontal = 10.4.dp, vertical = 8.8.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(4.8.dp)).background(Sm.ErrorBg).padding(horizontal = 10.4.dp, vertical = 8.8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text, color = Color(0xFF933B34), fontSize = 12.8.sp, modifier = Modifier.weight(1f))
+        Text(text, color = Sm.ErrorText, fontSize = 12.8.sp, modifier = Modifier.weight(1f))
         if (onRetry != null) NotionButton(stringResource(R.string.retry), onClick = onRetry, modifier = Modifier.padding(start = 12.dp))
     }
 }
 
 @Composable
-fun notesErrorText(error: NotesError): String = error.detail?.let { rememberSystemText().localize(it) } ?: stringResource(
+fun notesErrorText(error: NotesError): String = error.detail?.let { rememberSystemText().localize(it) }
+    // 这一句带个数（网页 "You can import up to {max} files at once."）。
+    ?: if (error.kind == NotesError.Kind.ImportTooMany) stringResource(R.string.note_import_too_many, NoteImport.MAX_FILES) else stringResource(
     when (error.kind) {
         NotesError.Kind.Load -> R.string.err_load_notes
         NotesError.Kind.Create -> R.string.err_create_note
@@ -787,6 +823,12 @@ fun notesErrorText(error: NotesError): String = error.detail?.let { rememberSyst
         NotesError.Kind.TrashLoad -> R.string.err_trash_load
         NotesError.Kind.TrashAction -> R.string.err_trash_request
         NotesError.Kind.UnsavedDraft -> R.string.err_save_draft
+        NotesError.Kind.Export -> R.string.note_export_failed
+        NotesError.Kind.ExportUnsaved -> R.string.note_export_unsaved
+        NotesError.Kind.Import, NotesError.Kind.ImportTooMany -> R.string.note_import_failed
+        NotesError.Kind.ImportBadType -> R.string.note_import_bad_type
+        NotesError.Kind.ImportFileTooLarge -> R.string.note_import_file_too_large
+        NotesError.Kind.ImportTooLarge -> R.string.note_import_too_large
     },
 )
 
@@ -815,7 +857,7 @@ fun NotionButton(
         Alignment.Center,
     ) {
         val color = when {
-            primary -> Color.White
+            primary -> Sm.OnInk
             danger -> DangerText
             else -> Sm.Text
         }
@@ -841,14 +883,14 @@ fun NotionButton(
 fun NotesDialog(onDismiss: () -> Unit, content: @Composable () -> Unit) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         val window = (LocalView.current.parent as? DialogWindowProvider)?.window
-        LaunchedEffect(window) { window?.setDimAmount(DialogScrim) }
+        LaunchedEffect(window, Sm.isDark) { window?.setDimAmount(dialogDim()) }
         Box(
             // 高度上限同浏览器 <dialog> 的默认 max-height（视口减 2em + 6px）。
             Modifier.padding(horizontal = 24.dp).widthIn(max = 400.dp).fillMaxWidth()
                 .heightIn(max = (LocalConfiguration.current.screenHeightDp - 38).coerceAtLeast(200).dp)
                 .shadow(14.dp, RoundedCornerShape(8.dp), ambientColor = PanelShadow, spotColor = PanelShadow)
                 .border(1.dp, PanelRing, RoundedCornerShape(8.dp))
-                .clip(RoundedCornerShape(8.dp)).background(Color.White).padding(24.dp),
+                .clip(RoundedCornerShape(8.dp)).background(Sm.Surface).padding(24.dp),
         ) {
             // 网页的 <dialog> 高度不超过视口，内容多（项目多）时整个对话框滚动。这里同样：对话框窗口限住高度，内容可滚动。
             Column(Modifier.verticalScroll(rememberScrollState())) { content() }
@@ -961,6 +1003,28 @@ fun ConfirmDialog(
                     if (ok) onClose()
                 }
             })
+        }
+    }
+}
+
+/**
+ * 选择 Markdown 文件导入到哪里（网页 ImportTargetDialog）：只在至少有一个项目时出现。"No project" 在最前，后面是各个项目；
+ * 点一项就开始导入，"Cancel" 关掉不导入。样子和 [MoveNoteDialog] 的项目列表一样，没有打勾的当前项。
+ */
+@Composable
+fun ImportTargetDialog(groups: List<NoteGroupSummary>, onChoose: (String?) -> Unit, onClose: () -> Unit) {
+    NotesDialog(onClose) {
+        DialogTitle(stringResource(R.string.import_to))
+        // .notes-import-targets：最高 50dvh，项目多时列表自己滚动。
+        Column(
+            Modifier.padding(top = 12.dp).heightIn(max = (LocalConfiguration.current.screenHeightDp * 0.5f).dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            val options = listOf<Pair<String?, String>>(null to stringResource(R.string.no_project)) + groups.map { it.id to it.name }
+            options.forEach { (id, label) -> key(id) { DialogOption(label, checked = false, enabled = true, role = Role.Button) { onChoose(id) } } }
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.End) {
+            NotionButton(stringResource(R.string.cancel), onClick = onClose)
         }
     }
 }
@@ -1087,12 +1151,12 @@ fun MoveNoteDialog(
 
 // .notes-dialog-option：最小高 40、圆角 6、左右 9.6、15 字；当前所在项目灰底、600、右边 ✓ 16。
 @Composable
-private fun DialogOption(label: String, checked: Boolean, enabled: Boolean, onClick: () -> Unit) {
+private fun DialogOption(label: String, checked: Boolean, enabled: Boolean, role: Role = Role.RadioButton, onClick: () -> Unit) {
     Row(
         Modifier.fillMaxWidth().heightIn(min = 40.dp).clip(RoundedCornerShape(6.dp))
             .background(if (checked) Sm.Hover else Color.Transparent)
             .clickable(enabled = enabled, onClick = onClick).padding(horizontal = 9.6.dp)
-            .semantics { role = Role.RadioButton },
+            .semantics { this.role = role },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp,
@@ -1124,8 +1188,8 @@ fun TrashSheet(
         onDismissRequest = onClose,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp),
-        containerColor = Color.White,
-        scrimColor = Color(0x330F0F0F),
+        containerColor = Sm.Surface,
+        scrimColor = Sm.scrim(Color(0x330F0F0F)),
         dragHandle = null,
         tonalElevation = 0.dp,
     ) {

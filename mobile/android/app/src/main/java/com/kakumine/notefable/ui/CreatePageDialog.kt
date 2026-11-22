@@ -31,7 +31,7 @@ import com.kakumine.notefable.data.AnswerExportStore
 import com.kakumine.notefable.data.CreatePageJob
 import java.time.LocalDate
 
-private val CreatePageError = Color(0xFFB91C1C) // text-[#b91c1c]
+private val CreatePageError: Color get() = Sm.Danger // text-[#b91c1c]
 
 /**
  * 「整理成笔记」（网页 CreatePageDialog，.notes-dialog）：AI 把整段对话改写成一篇笔记（POST /api/sessions/:id/page）。

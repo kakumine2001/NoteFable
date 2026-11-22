@@ -66,6 +66,24 @@ export function ConfirmDialog({ title, body, confirmLabel, error, onConfirm, onC
   </Modal>;
 }
 
+// 取り込む Markdown ファイルの入れ先を選ぶ。プロジェクトを 1 つでも作っている人にだけ出す。選んだ時点で取り込みが始まる。
+export function ImportTargetDialog({ groups, onChoose, onClose }: {
+  groups: NoteGroupSummary[]; onChoose: (groupId: string | null) => void; onClose: () => void;
+}) {
+  const t = useT();
+  const options: { id: string | null; label: string }[] = [{ id: null, label: t("No project") }, ...groups.map((group) => ({ id: group.id, label: group.name }))];
+  return <Modal label={t("Import to")} onClose={onClose}>
+    <h2 className="text-base font-semibold">{t("Import to")}</h2>
+    <div className="notes-import-targets mt-3 grid gap-0.5">
+      {options.map((option, index) => <button key={option.id ?? "none"} type="button" autoFocus={index === 0}
+        className="notes-dialog-option" onClick={() => onChoose(option.id)}>
+        <span className="truncate">{option.label}</span>
+      </button>)}
+    </div>
+    <div className="mt-4 flex justify-end"><button type="button" className="notion-button" onClick={onClose}>{t("Cancel")}</button></div>
+  </Modal>;
+}
+
 // ノートの移動先を選ぶ。「グループなし」か既存のグループ（その最上位へ）、その場で作った新しいグループ、
 // または別のページの中（Notion の「Move to」）。自分自身と自分のサブページの中へは移せないので候補に出さない。
 export function MoveNoteDialog({ page, groups, error, onMove, onCreateGroup, onClose, pages = [], onMoveToPage }: {

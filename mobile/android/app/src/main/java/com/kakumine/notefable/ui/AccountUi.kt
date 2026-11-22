@@ -312,7 +312,7 @@ internal fun ProfileSettings(
                             }
                         }
                         .border(1.dp, if (editing) Sm.Blue else Sm.BorderStrong, fieldShape)
-                        .background(Color.White, fieldShape),
+                        .background(Sm.Surface, fieldShape),
                     decorationBox = { inner ->
                         Box(Modifier.padding(horizontal = 10.dp), Alignment.CenterStart) {
                             if (draft.isEmpty()) Text(user.googleName ?: stringResource(R.string.your_name), color = Sm.Faint, fontSize = 16.sp)
@@ -396,10 +396,10 @@ private fun AvatarButton(user: AccountUser, expanded: Boolean, onClick: () -> Un
         }
         Box(
             Modifier.align(Alignment.BottomEnd).offset(2.dp, 2.dp).size(20.dp).clip(CircleShape)
-                .background(Color.White).padding(2.dp).clip(CircleShape).background(Sm.Text),
+                .background(Sm.Surface).padding(2.dp).clip(CircleShape).background(Sm.Text),
             contentAlignment = Alignment.Center,
         ) {
-            LucideIcon(Lucide.Pencil, 11.dp, Color.White)
+            LucideIcon(Lucide.Pencil, 11.dp, Sm.Surface)
         }
     }
 }
@@ -438,8 +438,8 @@ private fun EditorTabs(editor: AvatarEditor, onEditor: (AvatarEditor) -> Unit) {
     }
 }
 
-private val PickerTabLine = Color(0x1737352F)
-private val PickerTabMuted = Color(0xA637352F)
+private val PickerTabLine: Color get() = Sm.Border // 浅色 rgba(55,53,47,.09)
+private val PickerTabMuted: Color get() = Sm.pick(Color(0xA637352F), Sm.Muted)
 
 // .profile-photo-pane：上传按钮、说明、移除照片、错误。
 @Composable
@@ -481,7 +481,7 @@ fun UserAvatar(user: AccountUser, size: Dp) {
     when {
         photo != null && photo !in broken ->
             AsyncImage(photo, null, modifier.background(Sm.Active), contentScale = ContentScale.Crop, onError = { broken = broken + photo })
-        user.icon != null -> Box(modifier.background(Color(0x0F37352F)), Alignment.Center) {
+        user.icon != null -> Box(modifier.background(Sm.pick(Color(0x0F37352F), Sm.Hover)), Alignment.Center) {
             Text(user.icon, fontSize = (size.value * 0.62f).sp)
         }
         user.image != null && user.image !in broken ->

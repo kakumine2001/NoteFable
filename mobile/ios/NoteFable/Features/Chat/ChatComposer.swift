@@ -162,7 +162,7 @@ private struct ChatModelPill: View {
             .frame(height: 40)
         }
         .buttonStyle(.pressable(
-            background: Sm.modelPill, pressedBackground: Color(argb: 0xFFE8E8E5), cornerRadius: 20, scale: 0.97
+            background: Sm.modelPill, pressedBackground: Sm.modelPillPressed, cornerRadius: 20, scale: 0.97
         ))
     }
 }
@@ -175,7 +175,7 @@ private struct ChatSendButton: View {
     let action: () -> Void
 
     var body: some View {
-        let foreground = enabled ? Color.white : Sm.faint
+        let foreground = enabled ? Sm.onInk : Sm.faint
         Button(action: action) {
             Group {
                 if sending {

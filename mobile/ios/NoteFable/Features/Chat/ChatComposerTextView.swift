@@ -93,8 +93,8 @@ struct ChatComposerTextView: UIViewRepresentable {
         view.layoutManager.delegate = coordinator
         view.backgroundColor = .clear
         view.font = UIFont.systemFont(ofSize: ChatComposerMetrics.fontSize)
-        view.textColor = UIColor(Sm.text)
-        view.tintColor = UIColor(Sm.ink)
+        view.textColor = SmUI.text
+        view.tintColor = SmUI.ink
         view.textContainer.lineFragmentPadding = 0
         view.contentInsetAdjustmentBehavior = .never
         view.isScrollEnabled = true

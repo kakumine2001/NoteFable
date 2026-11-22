@@ -56,12 +56,12 @@ import com.kakumine.notefable.data.ProposalState
 //  - 按钮行：上边线 --notion-border、内边距 8×12、间距 8；按钮圆角 6、内边距 4×11.2、13.12 / 500、图标 13、间距 4.8；
 //    应用键 --nf-ink 底白字；放弃键 1px --notion-border-strong 边框；忙时 .6 透明；链接 --notion-blue 带下划线。
 
-private val CardText = TextStyle(fontSize = 13.6.sp, lineHeight = 21.08.sp, color = Sm.Text, letterSpacing = 0.sp)
-private val OpText = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, color = Sm.Muted, letterSpacing = 0.sp)
-private val BeforeBg = Color(0x1AE03E3E)
-private val AfterBg = Color(0x24448361)
+private val CardText get() = TextStyle(fontSize = 13.6.sp, lineHeight = 21.08.sp, color = Sm.Text, letterSpacing = 0.sp)
+private val OpText get() = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, color = Sm.Muted, letterSpacing = 0.sp)
+private val BeforeBg: Color get() = Sm.pick(Color(0x1AE03E3E), Color(0x29F87171)) // 深色 rgba(248,113,113,.16)
+private val AfterBg: Color get() = Sm.pick(Color(0x24448361), Color(0x2934D399)) // 深色 rgba(52,211,153,.16)
 private val Warning = Color(0xFFCB912F)
-private val ErrorRed = Color(0xFFE03E3E)
+private val ErrorRed: Color get() = Sm.pick(Color(0xFFE03E3E), Sm.Danger)
 
 /** 提案卡片需要的操作：[onOpen] 打开改动 / 新建的笔记。 */
 @Composable
@@ -250,7 +250,7 @@ private fun Footer(content: @Composable () -> Unit) {
 @Composable
 private fun ActionButton(text: String, primary: Boolean, busy: Boolean, spinning: Boolean, icon: List<String>, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.dp)
-    val color = if (primary) Color.White else Sm.Text
+    val color = if (primary) Sm.OnInk else Sm.Text
     Row(
         Modifier.alpha(if (busy) 0.6f else 1f).clip(shape)
             .then(if (primary) Modifier.background(Sm.Ink) else Modifier.border(1.dp, Sm.BorderStrong, shape))

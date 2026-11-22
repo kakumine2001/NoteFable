@@ -80,7 +80,8 @@ struct UserAvatar: View {
                 .lineLimit(1)
                 .fixedSize()
                 .frame(width: size, height: size)
-                .background(Color(argb: 0x0F37352F))
+                // .user-avatar.is-emoji：rgba(var(--notion-ink-rgb), .06)。
+                .background(Color(light: 0x0F37352F, dark: 0x0FE6E5E3))
         case .initial(let letter):
             Text(letter)
                 .font(.nf(size * 0.55, weight: 600))

@@ -229,4 +229,9 @@ export const hiServer: Record<string, string> = {
   "Invalid request body.": "अनुरोध सामग्री अमान्य है।",
   "Invalid share settings.": "साझाकरण सेटिंग्स अमान्य हैं।",
   "Expiration time must be in the future.": "समाप्ति समय भविष्य में होना चाहिए।",
+  "Import exceeds 4 MB.": "इंपोर्ट 4 MB से अधिक है।",
+  "Select at least one Markdown file to import.": "इंपोर्ट करने के लिए कम से कम एक Markdown फ़ाइल चुनें।",
+  "You can import up to {max} files at once.": "आप एक बार में अधिकतम {max} फ़ाइलें इंपोर्ट कर सकते हैं।",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "केवल Markdown (.md, .markdown, .txt) फ़ाइलें इंपोर्ट की जा सकती हैं।",
+  "File is too long for one note: {name}": "फ़ाइल एक नोट के लिए बहुत लंबी है: {name}",
 };

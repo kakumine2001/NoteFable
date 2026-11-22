@@ -1,5 +1,6 @@
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@/lib/app-icon";
+import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
 import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
@@ -17,11 +18,12 @@ export type NativeMessage =
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
-export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string };
+export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string };
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
   language: (locale: unknown) => Promise<boolean>;
+  theme: (value: unknown) => boolean;
   flush: (requestId?: unknown) => Promise<boolean>;
   openHistory: () => void;
   pageUpdated: (page: unknown) => boolean;
@@ -84,6 +86,14 @@ export function readNativeLanguage(target: BridgeWindow | undefined = browserWin
   } catch { return null; }
 }
 
+// Read the native effective theme ("light" / "dark" / "system") after mounting.
+export function readNativeTheme(target: BridgeWindow | undefined = browserWindow()): ThemePreference | null {
+  try {
+    const value = host(target)?.theme?.();
+    return parseThemePreference(value) ?? null;
+  } catch { return null; }
+}
+
 // 保存キューの状態を、アプリへ渡す語に直す。pending（入力が止まるのを待っている）は unsaved。
 // web の上部バーは pending と saving のどちらも「Saving…」と出す。
 export function toEmbedSaveState(status: NoteSaveStatus): EmbedSaveState {
@@ -141,9 +151,10 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, language, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, language, post }: {
   flush: () => Promise<boolean>;
   language?: (locale: Locale) => Promise<boolean>;
+  theme?: (value: ThemePreference) => unknown;
   draftKept?: () => boolean;
   openHistory: () => void;
   pageUpdated?: (page: NotePage) => void;
@@ -156,6 +167,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
     async language(value) {
       if (!isLocale(value) || !language) return false;
       try { return await language(value); } catch { return false; }
+    },
+    theme(value) {
+      const parsed = parseThemePreference(value);
+      if (!parsed) return false;
+      theme(parsed);
+      return true;
     },
     async flush(requestId) {
       let ok = false;

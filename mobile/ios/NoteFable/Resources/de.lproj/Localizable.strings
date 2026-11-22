@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "Keine passenden Seiten gefunden.";
 "pg_subpages_to_trash" = "Unterseiten werden zusammen mit dieser Seite in den Papierkorb verschoben.";
 
+/* strings_personal.xml */
+"appearance" = "Darstellung";
+"theme_system" = "System";
+"theme_light" = "Hell";
+"theme_dark" = "Dunkel";
+"export_markdown" = "Markdown exportieren";
+"import_markdown" = "Markdown importieren";
+"note_export_failed" = "Die Seite konnte nicht exportiert werden.";
+"note_export_unsaved" = "Kläre den ungespeicherten Entwurf, bevor du diese Seite exportierst.";
+"note_import_failed" = "Die Markdown-Dateien konnten nicht importiert werden.";
+"note_import_too_many" = "Du kannst höchstens %1$d Dateien gleichzeitig importieren.";
+"note_import_bad_type" = "Es können nur Markdown-Dateien (.md, .markdown, .txt) importiert werden.";
+"note_import_file_too_large" = "Der Notizinhalt überschreitet 1 MiB.";
+"note_import_too_large" = "Der Import überschreitet 4 MB.";
+"import_to" = "Importieren nach";
+
 /* strings_plan.xml */
 "plan_title" = "Tarif";
 "plan_pro" = "Pro";

@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "ไม่พบหน้าที่ตรงกัน";
 "pg_subpages_to_trash" = "หน้าย่อยภายในจะถูกย้ายไปที่ถังขยะพร้อมกันด้วย";
 
+/* strings_personal.xml */
+"appearance" = "ลักษณะที่ปรากฏ";
+"theme_system" = "ระบบ";
+"theme_light" = "สว่าง";
+"theme_dark" = "มืด";
+"export_markdown" = "ส่งออก Markdown";
+"import_markdown" = "นำเข้า Markdown";
+"note_export_failed" = "ไม่สามารถส่งออกหน้าได้";
+"note_export_unsaved" = "โปรดจัดการฉบับร่างที่ยังไม่ได้บันทึกก่อนส่งออกหน้านี้";
+"note_import_failed" = "ไม่สามารถนำเข้าไฟล์ Markdown ได้";
+"note_import_too_many" = "นำเข้าได้สูงสุดครั้งละ %1$d ไฟล์";
+"note_import_bad_type" = "นำเข้าได้เฉพาะไฟล์ Markdown (.md, .markdown, .txt) เท่านั้น";
+"note_import_file_too_large" = "เนื้อหาโน้ตมีขนาดเกิน 1 MiB";
+"note_import_too_large" = "ข้อมูลที่นำเข้ามีขนาดเกิน 4 MB";
+"import_to" = "นำเข้าไปที่";
+
 /* strings_plan.xml */
 "plan_title" = "แผนการใช้งาน";
 "plan_pro" = "Pro";

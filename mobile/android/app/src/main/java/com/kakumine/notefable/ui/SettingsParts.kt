@@ -70,7 +70,7 @@ internal val SettingsFocusRing = Color(0x292383E2)
 @Composable
 internal fun SettingsBarButton(icon: List<String>, iconSize: Dp, label: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Box(
-        modifier.size(40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.Border, CircleShape)
+        modifier.size(40.dp).clip(CircleShape).background(Sm.Surface).border(1.dp, Sm.Border, CircleShape)
             .clickable(role = Role.Button, onClick = onClick).semantics { contentDescription = label },
         Alignment.Center,
     ) {
@@ -86,7 +86,7 @@ internal fun SettingsBarButton(icon: List<String>, iconSize: Dp, label: String, 
 @Composable
 internal fun SettingsIdentityRow(user: AccountUser, name: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
-        modifier.fillMaxWidth().clip(SettingsCardShape).background(Color.White).border(1.dp, Sm.Border, SettingsCardShape)
+        modifier.fillMaxWidth().clip(SettingsCardShape).background(Sm.Surface).border(1.dp, Sm.Border, SettingsCardShape)
             .clickable(role = Role.Button, onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -133,7 +133,7 @@ internal fun SettingsHomeRow(icon: List<String>, label: String, divider: Boolean
 @Composable
 internal fun SettingsCard(padded: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.fillMaxWidth().clip(SettingsCardShape).background(Color.White).border(1.dp, Sm.Border, SettingsCardShape)
+        Modifier.fillMaxWidth().clip(SettingsCardShape).background(Sm.Surface).border(1.dp, Sm.Border, SettingsCardShape)
             .then(if (padded) Modifier.padding(16.dp) else Modifier),
         content = content,
     )
@@ -164,7 +164,7 @@ internal fun SettingsRowButton(icon: List<String>, label: String, enabled: Boole
 @Composable
 internal fun SettingsChip(icon: List<String>, label: String, modifier: Modifier = Modifier, enabled: Boolean = true, onClick: () -> Unit) {
     Row(
-        modifier.heightIn(min = 40.dp).clip(CircleShape).background(Color.White).border(1.dp, Sm.BorderStrong, CircleShape)
+        modifier.heightIn(min = 40.dp).clip(CircleShape).background(Sm.Surface).border(1.dp, Sm.BorderStrong, CircleShape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.55f).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.4.dp),
@@ -212,7 +212,7 @@ internal fun UnsavedBar(attention: Int, busy: Boolean, onDiscard: () -> Unit, on
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Text(
-            stringResource(R.string.settings_unsaved), color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Medium,
+            stringResource(R.string.settings_unsaved), color = Sm.OnInk, fontSize = 14.sp, fontWeight = FontWeight.Medium,
             modifier = Modifier.weight(1f).then(if (attention > 0) Modifier.semantics { liveRegion = LiveRegionMode.Assertive } else Modifier),
         )
         UnsavedButton(stringResource(R.string.proposal_discard), enabled = !busy, filled = false, onClick = onDiscard)
@@ -224,10 +224,10 @@ internal fun UnsavedBar(attention: Int, busy: Boolean, onDiscard: () -> Unit, on
 private fun UnsavedButton(label: String, enabled: Boolean, filled: Boolean, onClick: () -> Unit) {
     val shape = RoundedCornerShape(10.dp)
     Box(
-        Modifier.heightIn(min = 40.dp).clip(shape).then(if (filled) Modifier.background(Color.White) else Modifier)
+        Modifier.heightIn(min = 40.dp).clip(shape).then(if (filled) Modifier.background(Sm.OnInk) else Modifier)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick).alpha(if (enabled) 1f else 0.6f).padding(horizontal = 14.dp),
         Alignment.Center,
     ) {
-        Text(label, color = if (filled) Sm.Ink else Color.White.copy(alpha = 0.82f), fontSize = 14.sp, fontWeight = FontWeight(550), maxLines = 1)
+        Text(label, color = if (filled) Sm.Ink else Sm.OnInk.copy(alpha = 0.82f), fontSize = 14.sp, fontWeight = FontWeight(550), maxLines = 1)
     }
 }

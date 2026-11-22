@@ -4,6 +4,8 @@ import "./globals.css";
 import "./motion.css";
 import { Telemetry } from "@/components/telemetry";
 import { siteOrigin } from "@/lib/i18n/routing";
+import { ThemeSync } from "@/components/theme-sync";
+import { THEME_INIT_SCRIPT } from "@/lib/theme-init";
 
 // UI 用の可変フォント。CSS 変数として Tailwind 側から参照する。
 const geistSans = Geist({
@@ -38,7 +40,10 @@ export default function RootLayout({
   // html にフォント変数クラスを付け、全ページで同じフォント設定を使えるようにする。
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
-      <body>{children}<Telemetry /></body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+      </head>
+      <body>{children}<ThemeSync /><Telemetry /></body>
     </html>
   );
 }

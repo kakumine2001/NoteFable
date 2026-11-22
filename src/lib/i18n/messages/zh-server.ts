@@ -229,4 +229,9 @@ export const zhServer: Record<string, string> = {
   "Invalid request body.": "请求内容无效。",
   "Invalid share settings.": "分享设置无效。",
   "Expiration time must be in the future.": "过期时间必须晚于当前时间。",
+  "Import exceeds 4 MB.": "导入内容超过 4 MB。",
+  "Select at least one Markdown file to import.": "请至少选择一个要导入的 Markdown 文件。",
+  "You can import up to {max} files at once.": "一次最多只能导入 {max} 个文件。",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "只能导入 Markdown（.md、.markdown、.txt）文件。",
+  "File is too long for one note: {name}": "文件太长，无法导入为一篇笔记：{name}",
 };

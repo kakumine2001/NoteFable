@@ -9,9 +9,17 @@ import UIKit
 //  - 高亮的颜色来自 `CodeHighlighter`（和网页的 highlight.js 主题同一套类别）。
 // 代码始终从左往右排（网页 direction: ltr）。
 
-private let codeBorder = Color(argb: 0xFFE5E7EB)
-private let codeInk = Color(argb: CodeHighlighter.ink)
-private let codeLabelInk = Color(argb: 0xFF0F172A)
+// 深色（:root[data-theme="dark"] .markdown-code-*）：外框 --notion-border-strong、底 #1f1f22、标题栏底 rgba(255,255,255,.04)、
+// 标题栏下的线 --notion-border、语言名 #e6e5e3、复制键 rgba(230,229,227,.72)（按下 rgba(255,255,255,.1)）。
+// 代码本身的字网页深色下没有另外的值（仍是 #111827，在深色底上看不见），这里用语言名的 #e6e5e3。
+private let codeBorder = Color(light: 0xFFE5E7EB, dark: 0x2EFFFFFF)
+private let codeHeaderLine = Color(light: 0xFFE5E7EB, dark: 0x1AFFFFFF)
+private let codeBackground = Color(light: 0xFFF7F7F5, dark: 0xFF1F1F22)
+private let codeHeaderBackground = Color(light: 0xB8FFFFFF, dark: 0x0AFFFFFF)
+private let codeInk = Color(light: CodeHighlighter.ink, dark: 0xFFE6E5E3)
+private let codeCopyInk = Color(light: CodeHighlighter.ink, dark: 0xB8E6E5E3)
+private let codeCopyPressed = Color(light: 0xFFECECF1, dark: 0x1AFFFFFF)
+private let codeLabelInk = Color(light: 0xFF0F172A, dark: 0xFFE6E5E3)
 private let codeFontSize: CGFloat = 15.2
 private let codeLineHeight: CGFloat = 25.08
 
@@ -46,7 +54,7 @@ struct CodeBlock: View, Equatable {
             .scrollBounceBehavior(.basedOnSize, axes: [.horizontal])
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Sm.sidebar)
+        .background(codeBackground)
         .clipShape(RoundedRectangle(cornerRadius: 5.6))
         .overlay {
             RoundedRectangle(cornerRadius: 5.6)
@@ -78,22 +86,22 @@ struct CodeBlock: View, Equatable {
             } label: {
                 Group {
                     if copied {
-                        LucideIcon(Lucide.check, size: 18, color: codeInk)
+                        LucideIcon(Lucide.check, size: 18, color: codeCopyInk)
                     } else {
-                        LucideIcon(Lucide.copy, size: 20, color: codeInk)
+                        LucideIcon(Lucide.copy, size: 20, color: codeCopyInk)
                     }
                 }
                 .frame(width: 32, height: 32)
             }
             // .markdown-code-copy:hover 的 #ececf1 放在按下的时候。
-            .buttonStyle(.pressable(pressedBackground: Color(argb: 0xFFECECF1), cornerRadius: 8.8))
+            .buttonStyle(.pressable(pressedBackground: codeCopyPressed, cornerRadius: 8.8))
             .accessibilityLabel(copied ? L("code_copied_code") : L("code_copy_code"))
         }
         .padding(.leading, 16)
         .padding(.trailing, 12.8)
         .frame(minHeight: 48)
-        .background(Color.white.opacity(0.72))
-        .overlay(alignment: .bottom) { NFDivider(.horizontal, color: codeBorder) }
+        .background(codeHeaderBackground)
+        .overlay(alignment: .bottom) { NFDivider(.horizontal, color: codeHeaderLine) }
     }
 }
 
@@ -117,7 +125,7 @@ private final class CodeBlockHighlighter {
         for run in highlighted.runs(code) {
             var part = AttributedString(run.text)
             if let kind = run.kind {
-                part.swiftUI.foregroundColor = Color(argb: kind.color)
+                part.swiftUI.foregroundColor = Color(light: kind.color, dark: kind.darkColor)
                 // 声明名（.hljs-title）650，注释斜体；其余跟着代码的字体。
                 if let weight = kind.fontWeight {
                     part.swiftUI.font = Font.nfMono(codeFontSize, weight: weight)

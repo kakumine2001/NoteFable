@@ -19,6 +19,45 @@
   font-size: 16px;
   line-height: 1.6;
 }
+:root[data-theme="dark"] .tl-page {
+  --tl-text: var(--notion-text);
+  --tl-muted: var(--notion-muted);
+  --tl-line: var(--notion-border-strong);
+  --tl-soft: var(--notion-sidebar);
+  --tl-blue-deep: var(--notion-blue-hover);
+  background: var(--notion-bg);
+}
+:root[data-theme="dark"] .tl-page .tl-card,
+:root[data-theme="dark"] .tl-page .tl-composer,
+:root[data-theme="dark"] .tl-page .tl-models li,
+:root[data-theme="dark"] .tl-page .tl-proposal {
+  background: var(--notion-surface);
+}
+:root[data-theme="dark"] .tl-page .tl-nav-cta,
+:root[data-theme="dark"] .tl-page .tl-file,
+:root[data-theme="dark"] .tl-page .tl-node {
+  background: var(--notion-surface);
+}
+:root[data-theme="dark"] .tl-page .tl-node { box-shadow: 0 0 0 5px var(--notion-bg); }
+/* ダークでは墨（--tl-ink）が明るくなる。墨の面に載る文字は白のままにせず --nf-on-ink にする。 */
+:root[data-theme="dark"] .tl-page .tl-proposal-actions .tl-proposal-apply,
+:root[data-theme="dark"] .tl-page .tl-skip,
+:root[data-theme="dark"] .tl-page .tl-composer-send,
+:root[data-theme="dark"] .tl-page .tl-bubble,
+:root[data-theme="dark"] .tl-page .tl-finale {
+  color: var(--nf-on-ink) !important;
+}
+/* 明るい墨の面に載るボタンは、地を暗く・文字を明るくして反転させる。 */
+:root[data-theme="dark"] .tl-page .tl-finale-cta { background: var(--nf-on-ink); }
+:root[data-theme="dark"] .tl-page .tl-finale-cta:focus-visible { outline-color: var(--nf-on-ink); }
+/* 見出しの後ろの白いぼかしは、ダークでは背景色（#191919）でぼかす。 */
+:root[data-theme="dark"] .tl-page .tl-hero::before {
+  background: radial-gradient(ellipse 75% 70% at 50% 42%, rgba(25, 25, 25, 0.9) 25%, rgba(25, 25, 25, 0.25) 70%, rgba(25, 25, 25, 0.7) 100%), linear-gradient(transparent 80%, var(--notion-bg));
+}
+:root[data-theme="dark"] .tl-page .tl-footer-end .language-menu-error {
+  color: var(--nf-danger);
+}
+
 .tl-page a { color: inherit; text-decoration: none; }
 .tl-page a:focus-visible { outline: 3px solid var(--tl-blue); outline-offset: 4px; border-radius: 8px; }
 :where(.tl-page) :where(h1, h2, h3, h4, h5, p, ul, ol, dl, dd) { margin: 0; padding: 0; }

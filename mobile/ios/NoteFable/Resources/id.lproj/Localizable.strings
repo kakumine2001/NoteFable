@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "Tidak ada halaman yang cocok.";
 "pg_subpages_to_trash" = "Subhalaman di dalamnya ikut dipindahkan ke Sampah.";
 
+/* strings_personal.xml */
+"appearance" = "Tampilan";
+"theme_system" = "Sistem";
+"theme_light" = "Terang";
+"theme_dark" = "Gelap";
+"export_markdown" = "Ekspor Markdown";
+"import_markdown" = "Impor Markdown";
+"note_export_failed" = "Tidak dapat mengekspor halaman.";
+"note_export_unsaved" = "Selesaikan draf yang belum disimpan sebelum mengekspor halaman ini.";
+"note_import_failed" = "Tidak dapat mengimpor file Markdown.";
+"note_import_too_many" = "Anda dapat mengimpor maksimal %1$d file sekaligus.";
+"note_import_bad_type" = "Hanya file Markdown (.md, .markdown, .txt) yang dapat diimpor.";
+"note_import_file_too_large" = "Isi catatan melebihi 1 MiB.";
+"note_import_too_large" = "Impor melebihi 4 MB.";
+"import_to" = "Impor ke";
+
 /* strings_plan.xml */
 "plan_title" = "Paket";
 "plan_pro" = "Pro";

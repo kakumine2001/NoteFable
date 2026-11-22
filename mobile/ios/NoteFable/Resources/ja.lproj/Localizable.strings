@@ -377,6 +377,22 @@
 "pg_no_matching_pages" = "一致するページはありません。";
 "pg_subpages_to_trash" = "中のサブページも一緒にゴミ箱へ移動します。";
 
+/* strings_personal.xml */
+"appearance" = "外観";
+"theme_system" = "システム";
+"theme_light" = "ライト";
+"theme_dark" = "ダーク";
+"export_markdown" = "Markdown を書き出す";
+"import_markdown" = "Markdown を読み込む";
+"note_export_failed" = "ページを書き出せませんでした。";
+"note_export_unsaved" = "このページを書き出す前に、未保存の下書きを処理してください。";
+"note_import_failed" = "Markdown ファイルを読み込めませんでした。";
+"note_import_too_many" = "一度に読み込めるファイルは %1$d 個までです。";
+"note_import_bad_type" = "読み込めるのは Markdown ファイル（.md、.markdown、.txt）だけです。";
+"note_import_file_too_large" = "ノートの内容が 1 MiB を超えています。";
+"note_import_too_large" = "読み込むファイルの合計が 4 MB を超えています。";
+"import_to" = "読み込み先";
+
 /* strings_plan.xml */
 "plan_title" = "プラン";
 "plan_pro" = "Pro";

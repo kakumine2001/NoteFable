@@ -27,7 +27,7 @@ struct NotesWorkspace: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Sm.surface)
+        .background(Sm.background)
         .notesDialogs($dialog)
         .noteTrashSheet()
         // 登录 / 退出后：旧身份的笔记对话框关掉（网页换身份会重新加载页面）。

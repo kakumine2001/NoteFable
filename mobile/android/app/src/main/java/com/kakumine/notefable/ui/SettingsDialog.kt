@@ -242,13 +242,14 @@ internal fun SettingsDialog(
     ) {
         val view = LocalView.current
         val window = (view.parent as? DialogWindowProvider)?.window
-        LaunchedEffect(window) {
+        val dark = Sm.isDark
+        LaunchedEffect(window, dark) {
             window ?: return@LaunchedEffect
-            window.setDimAmount(0.2f)
-            // 全屏的浅色画面：状态栏和导航栏的图标用深色。
+            window.setDimAmount(dialogDim())
+            // 全屏的画面：状态栏和导航栏的图标跟着外观走（浅色画面用深色图标，深色画面用浅色图标）。
             WindowCompat.getInsetsController(window, view).apply {
-                isAppearanceLightStatusBars = true
-                isAppearanceLightNavigationBars = true
+                isAppearanceLightStatusBars = !dark
+                isAppearanceLightNavigationBars = !dark
             }
         }
         // 进场（网页 settings-slide）：从下方 16 滑入并淡入，220ms。
@@ -350,6 +351,8 @@ internal fun SettingsDialog(
 
                         SettingsPage.General -> SettingsCard {
                             LanguageSettings(user, onChoose = profile::setLocale)
+                            SettingsRowDivider()
+                            ThemeSettings()
                             SettingsRowDivider()
                             AppIconSettings(appIcon, onPickImage = onPickAppIconImage)
                         }
@@ -499,7 +502,7 @@ private fun SettingsInstructionsField(value: String, onChange: (String) -> Unit,
                             )
                         }
                     }
-                    .background(Color.White, shape).border(1.dp, if (focused) Sm.Blue else Sm.BorderStrong, shape)
+                    .background(Sm.Surface, shape).border(1.dp, if (focused) Sm.Blue else Sm.BorderStrong, shape)
                     .padding(horizontal = 12.dp, vertical = 10.dp),
             ) {
                 if (value.isEmpty()) Text(placeholder, color = Sm.Faint, fontSize = 16.sp, lineHeight = 24.8.sp)

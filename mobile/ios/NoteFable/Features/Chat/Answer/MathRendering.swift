@@ -4,7 +4,8 @@ import UIKit
 
 // 数学公式的排版（网页用 KaTeX，Android 用 latex-renderer；这里用 SwiftMath，iosMath 的 Swift 版，自带 Latin Modern Math 字体）。
 // 用到 SwiftMath 的地方都在这个文件里：`MTMathUILabel` 负责解析和排版，排好的结果（`displayList`）画成一张图片，
-// 行内公式按基线嵌进文字，独立公式居中显示。同一个公式（源码、字号、颜色都相同）只排一次。
+// 行内公式按基线嵌进文字，独立公式居中显示。同一个公式（源码、字号、颜色、外观都相同）只排一次。
+// 图片里的颜色是画的时候定死的，所以浅色、深色各画一张：用到公式的视图读 `colorScheme`，外观变了换另一张。
 // LaTeX 源码原样交给 SwiftMath。Android 的 `MathMarkdown.typeset`（把 - 换成 `\minus` / U+2212）没有移植：那是给 latex-renderer 用的（它把 - 画成短横线），
 // SwiftMath 自己就把 - 排成减号 U+2212，并按 TeX 的规则把开头、运算符后面的 - 当负号（MTMathList.finalized）；
 // 它没有 `\minus` 命令（整个公式会报错），也不认 LaTeX 源码里的非 ASCII 字符 U+2212（直接丢掉，负号就没了）。
@@ -24,6 +25,7 @@ final class MathImageCache {
         let fontSize: CGFloat
         let ink: AnswerInk
         let display: Bool
+        let dark: Bool
     }
 
     /// 排不出来的也记着（值是 nil），不用每次重画都再试一遍。
@@ -34,12 +36,14 @@ final class MathImageCache {
 
     /// `display` 为 true 是独立公式的排法（分数、求和的上下限更大），false 是行内的排法。
     /// 排不出来（写错、还没写完、库不支持的命令）返回 nil：调用方在原处显示 LaTeX 源码。
-    func render(_ latex: String, fontSize: CGFloat, ink: AnswerInk, display: Bool) -> MathRender? {
-        let key = Key(latex: latex, fontSize: fontSize, ink: ink, display: display)
+    /// `dark` 是所在界面现在是不是深色：墨水颜色按它取值。
+    func render(_ latex: String, fontSize: CGFloat, ink: AnswerInk, display: Bool, dark: Bool) -> MathRender? {
+        let key = Key(latex: latex, fontSize: fontSize, ink: ink, display: display, dark: dark)
         if let cached = entries[key] { return cached }
         // 很长的对话里公式很多时整个清掉重来，比记谁最久没用简单。
         if entries.count >= limit { entries.removeAll(keepingCapacity: true) }
-        let result = Self.typeset(latex, fontSize: fontSize, color: ink.uiColor, display: display)
+        let color = ink.uiColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: dark ? .dark : .light))
+        let result = Self.typeset(latex, fontSize: fontSize, color: color, display: display)
         entries.updateValue(result, forKey: key)
         return result
     }
@@ -89,8 +93,14 @@ struct DisplayMath: View, Equatable {
     let latex: String
     let ink: AnswerInk
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    static func == (lhs: DisplayMath, rhs: DisplayMath) -> Bool {
+        lhs.latex == rhs.latex && lhs.ink == rhs.ink
+    }
+
     var body: some View {
-        if let render = MathImageCache.shared.render(latex, fontSize: 19.36, ink: ink, display: true) {
+        if let render = MathImageCache.shared.render(latex, fontSize: 19.36, ink: ink, display: true, dark: colorScheme == .dark) {
             ViewThatFits(in: .horizontal) {
                 formula(render)
                     .frame(maxWidth: .infinity)

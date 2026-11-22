@@ -317,12 +317,20 @@ class NoteFableApi(
         send<JsonObjectResponse>(Request.Builder().url(absoluteUrl("/api/pages/trash?before=" + URLEncoder.encode(before, "UTF-8"))).delete())
     }
 
-    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?): String =
+    override suspend fun exportNote(id: String): ExportedNote = getJson("/api/pages/${segment(id)}/export")
+
+    override suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String?): List<NotePageSummary> {
+        val body = NoteImport.requestBody(files, groupId)
+        return send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/import")).post(body.toRequestBody(JSON))).pages
+    }
+
+    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?): String =
         absoluteUrl(
             "/note-embed?page=" + segment(pageId) +
                 (lang?.let { "&lang=$it" } ?: "") +
                 (model?.let { "&model=" + segment(it) } ?: "") +
-                (reasoning?.let { "&reasoning=" + segment(it) } ?: ""),
+                (reasoning?.let { "&reasoning=" + segment(it) } ?: "") +
+                (theme?.let { "&theme=" + segment(it) } ?: ""),
         )
 
     /**

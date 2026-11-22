@@ -8,6 +8,7 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { useI18n } from "@/components/i18n-provider";
 import type { Locale } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
+import { useTheme } from "@/lib/theme";
 
 // 選んだ言語の検索用データだけを追加で読み込む。別言語を初期バンドルに含めない。
 // emoji-picker-react がデータを持たない言語（id / ar / tr）は UI 文言を翻訳したまま英語キーワードにフォールバックする。
@@ -51,6 +52,7 @@ export default function FullEmojiPicker({ current, removeLabel, onChange, onClos
   onClose: () => void;
 }) {
   const { t, locale } = useI18n();
+  const { resolved: resolvedTheme } = useTheme();
   // 毎回新しい設定を渡すと選択器が設定の変化とみなすので、言語（t）が変わるときだけ作り直す。
   const categories = useMemo(() => EMOJI_CATEGORIES.map((category) => ({ ...category, name: t(category.name) })), [t]);
   const labels = useMemo(() => ({
@@ -81,7 +83,7 @@ export default function FullEmojiPicker({ current, removeLabel, onChange, onClos
         <button type="button" onClick={() => { onChange(null); onClose(); }}>{removeLabel}</button>
       </div>
     </div>
-    <EmojiPicker width="100%" height="var(--emoji-picker-height)" theme={Theme.LIGHT}
+    <EmojiPicker width="100%" height="var(--emoji-picker-height)" theme={resolvedTheme === "dark" ? Theme.DARK : Theme.LIGHT}
       emojiStyle={EmojiStyle.NATIVE} suggestedEmojisMode={SuggestionMode.RECENT}
       previewConfig={{ showPreview: false }} emojiData={EMOJI_DATA[locale] ?? emojiData}
       categories={categories}

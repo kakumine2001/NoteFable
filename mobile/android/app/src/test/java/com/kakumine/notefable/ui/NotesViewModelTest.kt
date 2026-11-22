@@ -1,6 +1,10 @@
 package com.kakumine.notefable.ui
 
 import com.kakumine.notefable.data.ApiException
+import com.kakumine.notefable.data.ExportedNote
+import com.kakumine.notefable.data.ImportCandidate
+import com.kakumine.notefable.data.ImportMarkdownFile
+import com.kakumine.notefable.data.NoteImport
 import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
@@ -124,8 +128,24 @@ class NotesViewModelTest {
         }
         override suspend fun deleteForever(id: String): List<String> { calls += "forever:$id"; maybeFail(); return listOf(id) }
         override suspend fun emptyTrash(before: String) { calls += "empty:$before"; maybeFail() }
-        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
+        var exported = ExportedNote("Cell structure.md", "# Cell structure\n\nBody\n")
+        override suspend fun exportNote(id: String): ExportedNote { calls += "export:$id"; maybeFail(); return exported }
+        var imported: List<ImportMarkdownFile> = emptyList()
+        /** 最近一次导入请求带的 groupId；"unset" 表示还没导入过。 */
+        var importedGroup: String? = "unset"
+        /** 模拟服务端：每个文件一篇，新建的排在最前面（position 更小），放进请求指定的项目。 */
+        override suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String?): List<NotePageSummary> {
+            calls += "import:" + files.joinToString(",") { it.name }; maybeFail(); hold("import")
+            imported = files
+            importedGroup = groupId
+            return files.mapIndexed { index, file ->
+                NotePageSummary("imp$index", file.name.substringBeforeLast('.'), null, position = index - files.size, createdAt = "2026-11-20T00:00:0${index}Z", groupId = groupId)
+            }.also { pages.addAll(0, it) }
+        }
+        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
     }
+
+    private fun markdownFile(name: String, text: String = "# $name", size: Long? = text.toByteArray().size.toLong()) = ImportCandidate(name, size) { text }
 
     private fun TestScope.notesVm(backend: FakeNotes = FakeNotes(), prefs: NotesPrefs = MemoryPrefs()): NotesViewModel {
         val vm = NotesViewModel(backend, prefs)
@@ -757,5 +777,270 @@ class NotesViewModelTest {
         a.await(); b.await()
         assertEquals("mono", vm.state.value.pages.first { it.id == "a" }.font)
         assertEquals(2, backend.calls.count { it == "settings:a" })
+    }
+
+    // ---- Markdown 导出 / 导入（网页 use-note-pages.ts 的 exportPage / importMarkdown） ----
+
+    @Test
+    fun `exporting saves the open page first and refuses while its draft cannot be saved`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.flushEditor = { FlushResult(false) }
+        assertNull(vm.exportNote("a"))
+        assertFalse("export:a" in backend.calls)
+        assertEquals(NotesError(NotesError.Kind.ExportUnsaved), vm.state.value.notice)
+
+        var flushed = 0
+        vm.flushEditor = { flushed++; FlushResult(true) }
+        val exported = vm.exportNote("a")
+        assertEquals(1, flushed)
+        assertEquals(ExportedNote("Cell structure.md", "# Cell structure\n\nBody\n"), exported)
+        assertNull(vm.state.value.notice)
+        // 内容留给保存位置选择器：取走一次就没了，别的页面取不到。
+        assertNull(vm.takeExport("b"))
+        vm.exportNote("a")
+        assertEquals("# Cell structure\n\nBody\n", vm.takeExport("a"))
+        assertNull(vm.takeExport("a"))
+    }
+
+    @Test
+    fun `exporting a page that is not open does not touch the editor and falls back to note md`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply { exported = ExportedNote("", "# Untitled\n") }
+        val vm = notesVm(backend)
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.flushEditor = { error("must not flush another page") }
+        assertEquals("note.md", vm.exportNote("b")?.fileName)
+        assertEquals(listOf("export:b"), backend.calls.filter { it.startsWith("export") })
+    }
+
+    @Test
+    fun `a failed export shows the server's reason or the web sentence`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        backend.failNext = ApiException(404, "Note not found.")
+        assertNull(vm.exportNote("a"))
+        assertEquals(NotesError(NotesError.Kind.Export, "Note not found."), vm.state.value.notice)
+        backend.failNext = IOException("offline")
+        assertNull(vm.exportNote("a"))
+        assertEquals(NotesError(NotesError.Kind.Export), vm.state.value.notice)
+        // 写文件失败是同一句。读不到内容时重新读一次。
+        vm.dismissNotice()
+        vm.exportFailed()
+        assertEquals(NotesError(NotesError.Kind.Export), vm.state.value.notice)
+        assertEquals("kept", vm.exportedMarkdown("a", "kept"))
+        assertEquals("# Cell structure\n\nBody\n", vm.exportedMarkdown("a", null))
+    }
+
+    @Test
+    fun `importing adds the new notes to the list and opens the first one`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val wait = CompletableDeferred<Unit>()
+        backend.holds["import"] = wait
+        vm.importMarkdown(listOf(markdownFile("Plan.md", "# Plan\n\n- a"), markdownFile("ideas.TXT", "idea")))
+        runCurrent()
+        // 请求期间和新建一样禁用列表操作。
+        assertTrue(vm.state.value.busy)
+        wait.complete(Unit)
+        advanceUntilIdle()
+        assertEquals(listOf(ImportMarkdownFile("Plan.md", "# Plan\n\n- a"), ImportMarkdownFile("ideas.TXT", "idea")), backend.imported)
+        assertFalse(vm.state.value.busy)
+        assertNull(vm.state.value.error)
+        assertEquals(listOf("imp0", "imp1", "a", "b"), vm.state.value.pages.map { it.id })
+        assertEquals("imp0", vm.state.value.open?.id)
+        assertEquals(Workspace.Notes, vm.state.value.workspace)
+    }
+
+    @Test
+    fun `import limits are checked before anything is read or sent`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        fun unread(name: String, size: Long?) = ImportCandidate(name, size) { error("must not read") }
+
+        vm.importMarkdown(List(NoteImport.MAX_FILES + 1) { unread("n$it.md", 1) })
+        assertEquals(NotesError(NotesError.Kind.ImportTooMany), vm.state.value.error)
+        vm.importMarkdown(listOf(unread("a.md", 1), unread("photo.png", 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        vm.importMarkdown(listOf(unread("big.md", NoteImport.MAX_FILE_BYTES + 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportFileTooLarge), vm.state.value.error)
+        vm.importMarkdown(List(5) { unread("n$it.markdown", NoteImport.MAX_FILE_BYTES) })
+        assertEquals(NotesError(NotesError.Kind.ImportTooLarge), vm.state.value.error)
+        advanceUntilIdle()
+        assertFalse(vm.state.value.busy)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+        // 什么都没选：不动。
+        vm.importMarkdown(emptyList())
+        assertEquals(NotesError(NotesError.Kind.ImportTooLarge), vm.state.value.error)
+    }
+
+    @Test
+    fun `a file whose size the picker cannot tell is checked after reading`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.importMarkdown(listOf(markdownFile("huge.md", "x".repeat(NoteImport.MAX_FILE_BYTES.toInt() + 1), size = null)))
+        advanceUntilIdle()
+        assertEquals(NotesError(NotesError.Kind.ImportFileTooLarge), vm.state.value.error)
+        assertFalse(vm.state.value.busy)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+    }
+
+    @Test
+    fun `an import whose JSON request is over the limit is not sent`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        // 每个文件、文件合计都没超，但换行在 JSON 里是 2 个字节（网页也在发送前按请求体量）。
+        vm.importMarkdown(List(3) { markdownFile("n$it.md", "\n".repeat(NoteImport.MAX_FILE_BYTES.toInt())) })
+        advanceUntilIdle()
+        assertEquals(NotesError(NotesError.Kind.ImportTooLarge), vm.state.value.error)
+        assertFalse(vm.state.value.busy)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+    }
+
+    @Test
+    fun `an import error shown above an open note can be dismissed`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.openNote("a")
+        advanceUntilIdle()
+        vm.importMarkdown(listOf(markdownFile("photo.png")))
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        // 提示条先显示 notice：点一次只去掉正在显示的那一条。
+        vm.exportFailed()
+        vm.dismissNotice()
+        assertNull(vm.state.value.notice)
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        vm.dismissNotice()
+        assertNull(vm.state.value.error)
+        assertEquals("a", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `a failed import keeps the list and shows the reason`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        backend.failNext = ApiException(413, "Import exceeds 4 MB.")
+        vm.importMarkdown(listOf(markdownFile("a.md")))
+        advanceUntilIdle()
+        assertEquals(NotesError(NotesError.Kind.Import, "Import exceeds 4 MB."), vm.state.value.error)
+        assertEquals(listOf("a", "b"), vm.state.value.pages.map { it.id })
+        assertNull(vm.state.value.open)
+        assertFalse(vm.state.value.busy)
+        // 文件读不出来也是这句通用的提示，不发请求。
+        vm.importMarkdown(listOf(ImportCandidate("gone.md", 3) { throw IOException("revoked") }))
+        advanceUntilIdle()
+        assertEquals(NotesError(NotesError.Kind.Import), vm.state.value.error)
+        assertEquals(1, backend.calls.count { it.startsWith("import") })
+    }
+
+    // ---- 导入到哪个项目（网页 page.tsx 的 importMarkdownFiles + ImportTargetDialog） ----
+
+    @Test
+    fun `without any project the picked files are imported directly with no groupId`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply { groups.clear() }
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("Plan.md")))
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertEquals(listOf("import:Plan.md"), backend.calls.filter { it.startsWith("import") })
+        assertNull(backend.importedGroup)
+        assertEquals("imp0", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `with a project the picked files wait for a destination and the chosen project is sent`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("Plan.md"), markdownFile("ideas.txt")))
+        advanceUntilIdle()
+        // 窗口开着，还没读、没发。
+        assertTrue(vm.state.value.importTarget)
+        assertNull(vm.state.value.error)
+        assertTrue(backend.calls.none { it.startsWith("import") })
+
+        vm.chooseImportTarget("g1")
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertEquals(listOf("import:Plan.md,ideas.txt"), backend.calls.filter { it.startsWith("import") })
+        assertEquals("g1", backend.importedGroup)
+        assertEquals(listOf("imp0", "imp1", "a"), vm.state.value.members("g1").map { it.id })
+        assertEquals("imp0", vm.state.value.open?.id)
+    }
+
+    @Test
+    fun `choosing No project imports without a groupId and Cancel imports nothing`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("a.md")))
+        vm.cancelImportTarget()
+        assertFalse(vm.state.value.importTarget)
+        // 取消后文件不留着：再"选"也不会导入上一次的。
+        vm.chooseImportTarget("g1")
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
+
+        vm.pickedForImport(listOf(markdownFile("b.md")))
+        vm.chooseImportTarget(null)
+        advanceUntilIdle()
+        assertEquals(listOf("import:b.md"), backend.calls.filter { it.startsWith("import") })
+        assertNull(backend.importedGroup)
+        assertEquals(listOf("imp0", "b"), vm.state.value.loosePages.map { it.id })
+    }
+
+    @Test
+    fun `invalid files show the error and never open the destination dialog`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        fun unread(name: String, size: Long?) = ImportCandidate(name, size) { error("must not read") }
+
+        vm.pickedForImport(List(NoteImport.MAX_FILES + 1) { unread("n$it.md", 1) })
+        assertEquals(NotesError(NotesError.Kind.ImportTooMany), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        vm.pickedForImport(listOf(unread("photo.png", 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportBadType), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        vm.pickedForImport(listOf(unread("big.md", NoteImport.MAX_FILE_BYTES + 1)))
+        assertEquals(NotesError(NotesError.Kind.ImportFileTooLarge), vm.state.value.error)
+        assertFalse(vm.state.value.importTarget)
+        // 什么都没选：不出窗口。
+        vm.pickedForImport(emptyList())
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
+        // 合规定的一选，之前的提示清掉、窗口打开（网页 checkImportFiles）。
+        vm.pickedForImport(listOf(unread("ok.md", 1)))
+        assertNull(vm.state.value.error)
+        assertTrue(vm.state.value.importTarget)
+    }
+
+    @Test
+    fun `files waiting for a destination are dropped when the identity changes`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        vm.pickedForImport(listOf(markdownFile("a.md")))
+        assertTrue(vm.state.value.importTarget)
+        vm.onIdentityChanged()
+        assertFalse(vm.state.value.importTarget)
+        advanceUntilIdle()
+        vm.chooseImportTarget("g1")
+        advanceUntilIdle()
+        assertTrue(backend.calls.none { it.startsWith("import") })
+    }
+
+    @Test
+    fun `an import that finishes after the identity changed is dropped`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val wait = CompletableDeferred<Unit>()
+        backend.holds["import"] = wait
+        vm.importMarkdown(listOf(markdownFile("a.md")))
+        runCurrent()
+        backend.pages.clear()
+        vm.onIdentityChanged()
+        wait.complete(Unit)
+        advanceUntilIdle()
+        assertNull(vm.state.value.open)
+        assertFalse(vm.state.value.busy)
     }
 }

@@ -229,4 +229,9 @@ export const thServer: Record<string, string> = {
   "Invalid request body.": "ข้อมูลคำขอไม่ถูกต้อง",
   "Invalid share settings.": "การตั้งค่าการแชร์ไม่ถูกต้อง",
   "Expiration time must be in the future.": "เวลาหมดอายุต้องอยู่ในอนาคต",
+  "Import exceeds 4 MB.": "ข้อมูลที่นำเข้ามีขนาดเกิน 4 MB",
+  "Select at least one Markdown file to import.": "โปรดเลือกไฟล์ Markdown ที่จะนำเข้าอย่างน้อยหนึ่งไฟล์",
+  "You can import up to {max} files at once.": "นำเข้าได้สูงสุดครั้งละ {max} ไฟล์",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "นำเข้าได้เฉพาะไฟล์ Markdown (.md, .markdown, .txt) เท่านั้น",
+  "File is too long for one note: {name}": "ไฟล์ยาวเกินไปสำหรับโน้ตเดียว: {name}",
 };

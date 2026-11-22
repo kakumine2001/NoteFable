@@ -95,7 +95,7 @@ fun GuestLimitPrompt(
             }
             .shadow(8.dp, shape, ambientColor = Sm.ComposerShadow, spotColor = Sm.ComposerShadow)
             .clip(shape)
-            .background(Color.White)
+            .background(Sm.Surface)
             .drawBehind {
                 // linear-gradient(135deg, --nf-accent-soft, rgba(255,226,122,.16))：按 CSS 的角度算渐变线的起止点。
                 val d = 0.70710677f
@@ -202,7 +202,7 @@ private fun GuestLimitSignInButton(motion: GuestLimitMotion, label: String, onCl
     ) {
         Text(
             label,
-            color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+            color = Sm.OnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
         )
     }

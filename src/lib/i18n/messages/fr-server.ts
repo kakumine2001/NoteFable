@@ -229,4 +229,9 @@ export const frServer: Record<string, string> = {
   "Invalid request body.": "Le corps de la requête est invalide.",
   "Invalid share settings.": "Les paramètres de partage sont invalides.",
   "Expiration time must be in the future.": "La date d'expiration doit être dans le futur.",
+  "Import exceeds 4 MB.": "L’import dépasse 4 Mo.",
+  "Select at least one Markdown file to import.": "Sélectionnez au moins un fichier Markdown à importer.",
+  "You can import up to {max} files at once.": "Vous pouvez importer jusqu’à {max} fichiers à la fois.",
+  "Only Markdown (.md, .markdown, .txt) files can be imported.": "Seuls les fichiers Markdown (.md, .markdown, .txt) peuvent être importés.",
+  "File is too long for one note: {name}": "Le fichier est trop long pour une seule note : {name}",
 };

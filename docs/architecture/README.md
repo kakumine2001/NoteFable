@@ -17,12 +17,12 @@
 按这个顺序看：
 
 1. 本文件 — 系统有哪些组件
-2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考笔记、跨 Chats / Notes 搜索、回答的复制 / 保存到 Notes / Markdown 导出与会话链接
+2. [chat-flow.md](chat-flow.md) — 用户发一句话之后到底发生什么；也包含项目的共通指示与参考笔记、跨 Chats / Notes 搜索、回答的复制 / 保存到 Notes / Markdown 导出与会话链接、桌面端聊天与笔记分屏
 3. [image-flow.md](image-flow.md) — 图片上传、AI 生成图片、图片保存
 4. [provider-requests.md](provider-requests.md) — 三家模型的上游请求结构、工具循环与压缩续传
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合；Google / 邮箱登录配置
-7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史
+7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史、Markdown 导出 / 导入、笔记里的 AI 助手（选中文字提问与对话恢复）
 8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [ios.md](ios.md) — iOS PR 检查、App Store Connect / TestFlight 自动打包上传与云端签名
@@ -87,13 +87,17 @@ flowchart LR
 | `src/app/api/images/route.ts` | 图片生成 / 图片编辑主流程 |
 | `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`、`src/app/legal-notice/page.tsx`、`src/app/delete-account/page.tsx` | 公开的隐私权政策、服务条款、特定商取引法に基づく表記（日文）与账号删除说明页 |
 | `src/app/api/sessions/*` | 会话列表、历史消息、会话图标、拖动重排、停止生成（`stop`）、版本切换（`versions`）、分支（`branch`）、导出（`export`）与整理成笔记（`page`） |
-| `src/app/api/pages/*` | 站内页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、封面与附件、原生回答保存（`from-answer`）、回收站（`trash`）与编辑历史（`revisions`） |
+| `src/app/api/pages/*` | 站内页面 CRUD、版本检查、分组（`groups`）、拖动重排、子页面/收藏/页面设置/复制/图标、封面与附件、原生回答保存（`from-answer`）、回收站（`trash`）、编辑历史（`revisions`）、Markdown 导出（`export`）与导入（`import`）、笔记助手的对话恢复（`assistant`） |
+| `src/lib/note-io.ts` | 笔记的 Markdown 导出格式、导入的个数 / 大小 / 扩展名上限与标题提取（[notes-flow.md](notes-flow.md#markdown-导出与导入)） |
+| `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
+| `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |
+| `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客的入口在 `help-menu.tsx`） |
 | `src/lib/page-tools.ts`、`src/lib/note-proposals.ts`、`src/app/api/proposals/*` | AI 的 Notes 读写/提案工具定义与提案应用/放弃接口 |
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/note-assistant.tsx` | Trash 对话框、编辑历史/恢复对话框与笔记内 AI 助手面板 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
-| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
+| `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
 | `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
 | `src/lib/chat-project-context.ts`、`src/app/api/chat-projects/*`、`src/components/chat-project-settings.tsx` | 聊天项目的共通指示与参考笔记：读取、截断、写入系统指令，及设置界面 |
 | `src/app/api/search/route.ts`、`src/lib/search.ts`、`src/lib/search-fold.ts`、`src/components/search-dialog.tsx`、`src/lib/search-reveal.ts` | 跨 Chats / Notes 关键词搜索（表记折叠、附件文本、项目过滤）、搜索面板、跳到命中的消息或块 |

@@ -46,7 +46,7 @@ struct SignInButton: View {
         Button(action: action) {
             Text(L("sign_in"))
                 .font(.nf(15, weight: 600))
-                .foregroundStyle(.white)
+                .foregroundStyle(Sm.onInk)
                 .lineLimit(1)
                 .padding(.horizontal, 12)
                 .frame(maxWidth: .infinity)

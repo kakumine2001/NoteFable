@@ -5,10 +5,12 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { Check, CheckSquare, ChevronRight, Code2, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
-import { useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
+import { Check, CheckSquare, ChevronRight, Code2, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { createContext, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
+import { normalizeQuote } from "@/lib/chat-quote";
+import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
 import { MathEditorProvider, canInsertInlineMath, convertSelectionToInlineMath, createMathBlockSpec, markNextMathBlockAutoOpen, markNextMathInlineAutoOpen, mathInlineSpec } from "@/components/note-math";
 import { NOTE_TEXT_BLOCKS, blockMatchesTarget, codeBlockText, copyNoteBlocks, selectedRootBlocks, targetProps, type NoteBlockTarget } from "@/lib/note-block-actions";
@@ -305,6 +307,7 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
   );
 }
 
+const NoteAskAiContext = createContext<((text: string) => void) | null>(null);
 function InlineMathToolbarButton() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
@@ -327,6 +330,7 @@ function NoteFormattingToolbar() {
   const editor = useBlockNoteEditor(schema);
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
+  const onAskAi = useContext(NoteAskAiContext);
   const selected = useEditorState({ editor, selector: () => editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block] });
   // 画像・ファイルのブロックを選んでいるときは、文字の装飾ではなくファイル用の操作を出す。
   const media = selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file");
@@ -347,6 +351,18 @@ function NoteFormattingToolbar() {
     <FileDeleteButton />
   </FormattingToolbar>;
   return <FormattingToolbar>
+    {onAskAi && <>
+      <button type="button" className="notes-toolbar-ask-ai"
+        onMouseDown={(event) => event.preventDefault()}
+        onClick={() => {
+          const text = normalizeQuote(editor.getSelectedText() || window.getSelection()?.toString() || "");
+          if (text) onAskAi(text);
+        }}>
+        <Sparkles size={14} aria-hidden="true" />
+        <span>{t("Ask AI")}</span>
+      </button>
+      <span className="notes-toolbar-sep" />
+    </>}
     {/* 区切り線など対応する種類がない選択では、BlockNote 標準と同じく種類の選択を出さない（Select が落ちるため）。 */}
     {typeItems.some((item) => item.isSelected) && <>
       <Components.FormattingToolbar.Select className="bn-select" portalElement={portalElement} items={typeItems} />
@@ -370,7 +386,7 @@ function NoteFormattingToolbar() {
 
 type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
-  editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
+  editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void; onAskAi?: (text: string) => void;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -410,8 +426,9 @@ export default function NoteEditor(props: NoteEditorProps) {
   return <NoteEditorBody key={locale} {...props} editorRef={innerRef} base={dictionary} />;
 }
 
-function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, base }: NoteEditorProps & { base: Dictionary }) {
+function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, onAskAi, base }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir } = useI18n();
+  const { resolved: resolvedTheme } = useTheme();
   const sideMenuFloatingOptions = useMemo(
     () => ({ useFloatingOptions: { placement: sideMenuPlacementFor(dir) } }),
     [dir],
@@ -511,9 +528,9 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
     }
   }
 
-  return <div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
+  return <NoteAskAiContext.Provider value={onAskAi ?? null}><div className="notes-block-editor" onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>
     <MathEditorProvider editor={editor} editable={editable}>
-    <BlockNoteView editor={editor} theme="light" editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
+    <BlockNoteView editor={editor} theme={resolvedTheme} editable={editable} slashMenu={false} sideMenu={false} formattingToolbar={false} filePanel={false} onChange={() => {
       // 入力ルールで未知の言語が入った場合も、保存前に Plain Text へ直す。
       const unknown: string[] = [];
       const visit = (list: typeof editor.document) => list.forEach((block) => {
@@ -572,5 +589,5 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
       {copiedId === codeHover.id ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={1.8} />}
     </button>}
     <button type="button" className="notes-editor-tail" tabIndex={-1} aria-label={t("Continue writing at end of note")} disabled={!editable} onClick={focusEnd} />
-  </div>;
+  </div></NoteAskAiContext.Provider>;
 }
