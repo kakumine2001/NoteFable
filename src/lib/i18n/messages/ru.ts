@@ -622,6 +622,7 @@ export const ru: Record<string, string> = {
   "Very deep reasoning": "Очень глубокое размышление",
   "Wait for the previous move to finish.": "Дождитесь завершения предыдущего перемещения.",
   "Wait for the reply to finish before deleting this chat.": "Дождитесь завершения ответа, прежде чем удалять этот чат.",
+  "Wait for the current reply to finish.": "Дождитесь завершения текущего ответа.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "Мы отправили 6-значный код на адрес {email}. Он действителен 10 минут.",
   "We sent a new code.": "Мы отправили новый код.",
   "We'll email you a 6-digit code. No password needed.": "Мы отправим вам на почту 6-значный код. Пароль не нужен.",

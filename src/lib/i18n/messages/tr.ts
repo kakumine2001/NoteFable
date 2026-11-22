@@ -622,6 +622,7 @@ export const tr: Record<string, string> = {
   "Very deep reasoning": "Çok derin akıl yürütme",
   "Wait for the previous move to finish.": "Önceki taşıma işleminin tamamlanmasını bekleyin.",
   "Wait for the reply to finish before deleting this chat.": "Bu sohbeti silmeden önce yanıtın tamamlanmasını bekleyin.",
+  "Wait for the current reply to finish.": "Geçerli yanıtın bitmesini bekleyin.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "{email} adresine 6 haneli bir kod gönderdik. Kodun süresi 10 dakika içinde dolar.",
   "We sent a new code.": "Yeni bir kod gönderdik.",
   "We'll email you a 6-digit code. No password needed.": "E-posta adresinize 6 haneli bir kod göndereceğiz. Şifre gerekmez.",

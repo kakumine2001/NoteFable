@@ -469,6 +469,7 @@ export const ja: Record<string, string> = {
   "Version preview": "履歴のプレビュー",
   "Wait for the previous move to finish.": "前の移動が終わるまでお待ちください。",
   "Wait for the reply to finish before deleting this chat.": "回答が終わってからチャットを削除してください。",
+  "Wait for the current reply to finish.": "いまの回答が終わるまでお待ちください。",
   "What is the question you keep coming back to?": "ずっと気になる問いは、何ですか？",
   "Why is the ocean blue?": "海はなぜ青い？",
   "Why is the sunset red if the sky is blue?": "空は青いのに、夕焼けはなぜ赤い？",

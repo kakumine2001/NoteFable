@@ -27,6 +27,7 @@ import { useI18n } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 import { relativeTime } from "@/lib/notes-home-text";
+import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { UsageLimitError, usageLimitErrorFrom } from "@/lib/usage-plans";
 
@@ -402,8 +403,14 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     if (!open) return;
     if (restored.current) { void syncChatRef.current(); return; }
     restored.current = true;
+    // 一覧が届いて直近の会話を開き終えるまでは送らせない（届く前に送ると、続きではなく別の新しい会話になる）。
+    // その間に「新しいチャット」や履歴から選んだら（loadSeq が進む）、そちらを優先して自動では開かない。
+    const seq = ++loadSeq.current;
+    setLoading(true);
     void loadChats().then((list) => {
+      if (seq !== loadSeq.current) return;
       if (list?.length && !sessionId.current && !sending.current) void openChat(list[0].id);
+      else setLoading(false);
     });
     // 開いたときだけ読む。
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -454,7 +461,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     const problem = getUploadValidationError(rawFiles, uploadOptions, t) || getUploadRequestError(rawFiles, content, t)
       || (sentPages.length > MAX_MESSAGE_NOTES ? t("You can attach up to 5 pages to a message.") : "");
     if (problem) { setError(problem); flashOutcome("error"); return; }
+    // この会話が Chats で回答を待っている間は、ここからは送らない（2 つの発言が同じ枝で重なる）。
+    if (sessionId.current && chatsTurns.has(sessionId.current)) { setError(msg("Wait for the current reply to finish.")); flashOutcome("error"); return; }
     const assistantId = crypto.randomUUID();
+    const continued = sessionId.current;
+    if (continued) notePanelTurns.add(continued);
     sending.current = true;
     // 履歴の一覧を開いたまま送ったら、会話の表示へ戻す（送った発言と回答が見えるように）。
     setHistoryOpen(false);
@@ -466,6 +477,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       setError(msg("Resolve the note's unsaved changes first, then ask again."));
       setActiveTurnAssistantId(null);
       flashOutcome("error");
+      if (continued) notePanelTurns.delete(continued);
       sending.current = false;
       setBusy(false);
       return;
@@ -481,6 +493,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
       setActiveTurnAssistantId(null);
       flashOutcome("error");
+      if (continued) notePanelTurns.delete(continued);
       sending.current = false;
       setBusy(false);
       return;
@@ -522,6 +535,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           sessionId.current = id;
           setChatId(id);
           savedId = id;
+          notePanelTurns.add(id);
           accepted = true;
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
@@ -557,6 +571,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       setStreaming(false);
       sending.current = false;
       setBusy(false);
+      if (continued) notePanelTurns.delete(continued);
+      if (savedId) notePanelTurns.delete(savedId);
       // 会話ができた・進んだので、パネルの履歴と Chats の一覧を合わせる（題名は回答のあとに付く）。
       if (accepted) {
         void loadChats();

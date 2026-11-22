@@ -45,6 +45,7 @@ import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
 import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
 import { NotesWorkspace } from "@/components/notes-workspace";
+import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
 import { useNotePages } from "@/lib/use-note-pages";
 import { applyActivityEvent } from "@/lib/chat-activity";
 import { createUploadFile, formatUploadSize, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
@@ -662,8 +663,8 @@ export default function Home() {
   }
 
   function registerStop(sessionKey: string, controller: AbortController | null) {
-    if (controller) streamAbortsRef.current[sessionKey] = controller;
-    else delete streamAbortsRef.current[sessionKey];
+    if (controller) { streamAbortsRef.current[sessionKey] = controller; chatsTurns.add(sessionKey); }
+    else { delete streamAbortsRef.current[sessionKey]; chatsTurns.delete(sessionKey); }
     setStopStates((current) => {
       const next = { ...current };
       if (controller) next[sessionKey] = "ready";
@@ -1114,7 +1115,7 @@ export default function Home() {
   }
 
   async function deleteSession(sessionId: string) {
-    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) { throw new Error(msg("Wait for the reply to finish before deleting this chat.")); }
+    if (streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId) || notePanelTurns.has(sessionId)) { throw new Error(msg("Wait for the reply to finish before deleting this chat.")); }
     // 削除 API はサーバー側で現在ユーザーの所有セッションか確認する。
     let response: Response;
     try {
@@ -1223,6 +1224,11 @@ export default function Home() {
       streamingSessionsRef.current[requestSessionKey] ||
       submittingSessionKeysRef.current.has(requestSessionKey)
     ) {
+      return;
+    }
+    // この会話がノートの AI パネルで回答を待っている間は、ここからは送らない（2 つの発言が同じ枝で重なる）。
+    if (requestSessionId && notePanelTurns.has(requestSessionId)) {
+      setSendError(msg("Wait for the current reply to finish."));
       return;
     }
 
@@ -1544,6 +1550,7 @@ export default function Home() {
   async function rerunTurn(kind: "regenerate" | "edit", messageId: string, text = "") {
     const sessionId = activeSessionIdRef.current;
     if (!sessionId || uploadProgress || streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId)) return;
+    if (notePanelTurns.has(sessionId)) { setSendError(msg("Wait for the current reply to finish.")); return; }
     const before = sessionMessagesRef.current[sessionId] ?? [];
     const index = before.findIndex((message) => message.id === messageId);
     const target = before[index];
@@ -1924,14 +1931,20 @@ export default function Home() {
 
   // プロジェクトの参照ノートのチップなどが投げる "notefable:open-note" / "notefable:open-chat" を、検索結果と同じ開き方に流す。
   // ノートの AI パネルで会話が増えた・進んだとき。一覧を読み直し、その会話をここでも開いていたら（読み込み済みなら）発言も読み直す。
-  function refreshAfterNoteChat(sessionId?: string) {
+  // 読み直している間にここから送り始めたら、古い一覧で送信中の表示を上書きしない。
+  async function refreshAfterNoteChat(sessionId?: string) {
     void loadSessions();
-    if (sessionId && sessionMessagesRef.current[sessionId] && !streamAbortsRef.current[sessionId]) void refreshSessionMessages(sessionId);
+    if (!sessionId || !sessionMessagesRef.current[sessionId]) return;
+    const busy = () => Boolean(streamingSessionsRef.current[sessionId] || submittingSessionKeysRef.current.has(sessionId) || streamAbortsRef.current[sessionId]);
+    if (busy()) return;
+    const fetched = await fetchSessionMessages(sessionId);
+    if (!fetched || fetched === "missing" || busy()) return;
+    replaceCachedMessages(sessionId, fetched);
   }
 
-  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: refreshAfterNoteChat });
+  const linkOpenersRef = useRef({ note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) });
   useEffect(() => {
-    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: refreshAfterNoteChat };
+    linkOpenersRef.current = { note: openNoteFromLink, chat: openChatFromLink, projects: refreshChatProjects, sessions: (id?: string) => void refreshAfterNoteChat(id) };
   });
   useEffect(() => {
     function detailOf(event: Event) {

@@ -622,6 +622,7 @@ export const id: Record<string, string> = {
   "Very deep reasoning": "Penalaran sangat mendalam",
   "Wait for the previous move to finish.": "Tunggu hingga pemindahan sebelumnya selesai.",
   "Wait for the reply to finish before deleting this chat.": "Tunggu hingga balasan selesai sebelum menghapus chat ini.",
+  "Wait for the current reply to finish.": "Tunggu hingga jawaban saat ini selesai.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "Kami mengirim kode 6 digit ke {email}. Kode berlaku selama 10 menit.",
   "We sent a new code.": "Kami telah mengirim kode baru.",
   "We'll email you a 6-digit code. No password needed.": "Kami akan mengirimkan kode 6 digit lewat email. Tidak perlu kata sandi.",

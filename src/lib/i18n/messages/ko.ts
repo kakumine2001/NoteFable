@@ -622,6 +622,7 @@ export const ko: Record<string, string> = {
   "Very deep reasoning": "매우 깊이 추론",
   "Wait for the previous move to finish.": "이전 이동 작업이 끝날 때까지 잠시 기다려 주세요.",
   "Wait for the reply to finish before deleting this chat.": "답변이 완료된 후에 이 채팅을 삭제해 주세요.",
+  "Wait for the current reply to finish.": "현재 답변이 끝날 때까지 기다려 주세요.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "{email} 주소로 6자리 코드를 보냈어요. 코드는 10분 후 만료됩니다.",
   "We sent a new code.": "새 코드를 보냈어요.",
   "We'll email you a 6-digit code. No password needed.": "이메일로 6자리 인증 코드를 보내드려요. 비밀번호는 필요 없어요.",

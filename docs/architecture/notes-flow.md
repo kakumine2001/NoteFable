@@ -117,7 +117,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 面板直接调用 `/api/chat`，额外带上 `noteId`（并固定 `webSearch=off`），使用聊天里当前选的模型和推理强度。服务端确认该笔记属于当前用户（否则 404），新建的会话写入 `Session.noteId`，并在共享的 `buildInstructions()` 里加一行说明“用户正在这篇笔记里提问”，要求先 `read_note` 再 `propose_note_edit`。带 `noteId` 的请求只能续用 `noteId` 相同的会话（否则 404）。笔记在 Trash 期间不能再向它发送助手请求（`/api/chat` 的笔记校验带 `deletedAt: null`，返回 404）。
 
-**面板里的聊天是正式的聊天记录。** 在面板里开始的会话和普通聊天存在同一张 `Session` 表里，只多一个 `noteId`：它出现在 Chats 列表（网页发送结束后派发 `notefable:note-chat-saved`，`/app` 侧栏随即重新读取列表；Android / iOS 在打开抽屉时刷新）、能被搜索命中、可以导出、另存为笔记、编辑 / 重新生成和分支，也可以在 Chats 里接着聊。在 Chats 里续聊时请求不带 `noteId`，服务端按 `Session.noteId` 重新读取这篇笔记（本人、不在 Trash），在 `buildInstructions()` 里说明“这段对话是在这篇笔记的编辑器里开始的”；笔记在 Trash 或已被永久删除时按普通聊天继续。网页搜索只在面板里的发送固定关闭，Chats 里按 Chats 的选择。笔记放进 Trash 时会话不动；笔记被永久删除时会话保留，`Session.noteId` 置空（`ON DELETE SET NULL`）。
+**面板里的聊天是正式的聊天记录。** 在面板里开始的会话和普通聊天存在同一张 `Session` 表里，只多一个 `noteId`：它出现在 Chats 列表（网页发送结束后派发 `notefable:note-chat-saved`，`/app` 侧栏随即重新读取列表，这段会话在 Chats 里已读过时也重读消息；Android / iOS 在打开抽屉时刷新列表，从笔记切回聊天时用 `refreshActiveQuietly()` 重读当前会话）、能被搜索命中、可以导出、另存为笔记、编辑 / 重新生成和分支，也可以在 Chats 里接着聊。在 Chats 里续聊时请求不带 `noteId`，服务端按 `Session.noteId` 重新读取这篇笔记（本人、不在 Trash），在 `buildInstructions()` 里说明“这段对话是在这篇笔记的编辑器里开始的”；笔记在 Trash 或已被永久删除时按普通聊天继续。网页搜索只在面板里的发送固定关闭，Chats 里按 Chats 的选择。笔记放进 Trash 时会话不动；笔记被永久删除时会话保留，`Session.noteId` 置空（`ON DELETE SET NULL`）。同一个会话不能在面板和 Chats 两边同时发送：`src/lib/session-turns.ts` 记录两边各自正在等回答的会话，另一边发送时提示 “Wait for the current reply to finish.”（只在同一页面内协调，不跨标签页）。
 
 面板标题栏有三个按钮：这篇笔记的聊天（时钟图标，列出 `GET /api/sessions?noteId=` 返回的会话，按最近更新排序，点一条就读取 `GET /api/sessions/:id/messages` 接着聊）、新聊天（清空面板，下一次发送新建会话；旧会话仍在列表里）和关闭。第一次打开面板时自动接着这篇笔记最近的一段聊天；标题栏显示当前会话的标题。常用按钮发出的长指令在重新读取时显示回按钮的名称（`restoreNoteChatMessages`）。`/note-embed`（Android / iOS 的笔记编辑页）用的是同一个面板。
 

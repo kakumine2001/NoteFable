@@ -504,6 +504,12 @@ final class ChatViewModel {
         if let id = state.activeSessionId { loadMessages(id) }
     }
 
+    /// 从笔记回到聊天时安静地重读当前会话：笔记里的 AI 面板聊的也是 Chats 里的会话，可能刚给它加了内容。
+    func refreshActiveQuietly() {
+        guard let id = state.activeSessionId, !state.messagesLoading, streams[id] == nil else { return }
+        loadMessages(id, quiet: true)
+    }
+
     private func loadMessages(_ sessionId: String, quiet: Bool = false) {
         loadJob?.cancel()
         let job = ChatJob()

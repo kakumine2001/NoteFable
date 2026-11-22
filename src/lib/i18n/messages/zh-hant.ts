@@ -828,6 +828,7 @@ export const zhHant: Record<string, string> = {
   "Very deep reasoning": "更深入地思考",
   "Visit website": "訪問官網",
   "Wait a minute before requesting another code.": "請稍等一分鐘再重新獲取驗證碼。",
+  "Wait for the current reply to finish.": "請等待當前回答完成。",
   "Wait for the previous move to finish.": "請等待上一次移動完成。",
   "Wait for the reply to finish before deleting this chat.": "請等待回答完成後再刪除此聊天。",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "已向 {email} 傳送 6 位驗證碼，10 分鐘內有效。",

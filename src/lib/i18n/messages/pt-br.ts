@@ -622,6 +622,7 @@ export const ptBR: Record<string, string> = {
   "Very deep reasoning": "Raciocínio muito profundo",
   "Wait for the previous move to finish.": "Aguarde a conclusão da movimentação anterior.",
   "Wait for the reply to finish before deleting this chat.": "Aguarde o término da resposta antes de excluir este chat.",
+  "Wait for the current reply to finish.": "Aguarde a resposta atual terminar.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "Enviamos um código de 6 dígitos para {email}. Ele expira em 10 minutos.",
   "We sent a new code.": "Enviamos um novo código.",
   "We'll email you a 6-digit code. No password needed.": "Enviaremos um código de 6 dígitos por e-mail. Não precisa de senha.",

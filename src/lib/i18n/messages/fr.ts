@@ -622,6 +622,7 @@ export const fr: Record<string, string> = {
   "Very deep reasoning": "Réflexion très approfondie",
   "Wait for the previous move to finish.": "Attendez la fin du déplacement précédent.",
   "Wait for the reply to finish before deleting this chat.": "Attendez la fin de la réponse avant de supprimer cette discussion.",
+  "Wait for the current reply to finish.": "Attendez la fin de la réponse en cours.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "Nous avons envoyé un code à 6 chiffres à {email}. Il expire dans 10 minutes.",
   "We sent a new code.": "Nous avons envoyé un nouveau code.",
   "We'll email you a 6-digit code. No password needed.": "Nous vous enverrons un code à 6 chiffres par e-mail. Aucun mot de passe requis.",

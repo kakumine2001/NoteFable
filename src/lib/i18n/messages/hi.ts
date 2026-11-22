@@ -622,6 +622,7 @@ export const hi: Record<string, string> = {
   "Very deep reasoning": "बहुत गहरी सोच",
   "Wait for the previous move to finish.": "कृपया पिछले स्थानांतरण के पूरा होने की प्रतीक्षा करें।",
   "Wait for the reply to finish before deleting this chat.": "इस चैट को हटाने से पहले जवाब पूरा होने की प्रतीक्षा करें।",
+  "Wait for the current reply to finish.": "मौजूदा जवाब पूरा होने तक प्रतीक्षा करें।",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "हमने {email} पर 6 अंकों का कोड भेजा है। यह 10 मिनट में समाप्त हो जाएगा।",
   "We sent a new code.": "हमने नया कोड भेज दिया है।",
   "We'll email you a 6-digit code. No password needed.": "हम आपको ईमेल पर 6 अंकों का कोड भेजेंगे। पासवर्ड की ज़रूरत नहीं है।",

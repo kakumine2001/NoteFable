@@ -622,6 +622,7 @@ export const vi: Record<string, string> = {
   "Very deep reasoning": "Suy luận rất sâu",
   "Wait for the previous move to finish.": "Hãy đợi thao tác di chuyển trước đó hoàn tất.",
   "Wait for the reply to finish before deleting this chat.": "Hãy đợi câu trả lời hoàn tất trước khi xóa đoạn chat này.",
+  "Wait for the current reply to finish.": "Hãy đợi câu trả lời hiện tại hoàn tất.",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "Chúng tôi đã gửi mã 6 chữ số tới {email}. Mã sẽ hết hạn sau 10 phút.",
   "We sent a new code.": "Chúng tôi đã gửi mã mới.",
   "We'll email you a 6-digit code. No password needed.": "Chúng tôi sẽ gửi mã xác nhận 6 chữ số qua email của bạn. Không cần mật khẩu.",

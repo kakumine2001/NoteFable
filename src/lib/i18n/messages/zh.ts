@@ -532,6 +532,7 @@ export const zh: Record<string, string> = {
   "Version preview": "版本预览",
   "Wait for the previous move to finish.": "请等待上一次移动完成。",
   "Wait for the reply to finish before deleting this chat.": "请等待回答完成后再删除此聊天。",
+  "Wait for the current reply to finish.": "请等待当前回答完成。",
   "What is the question you keep coming back to?": "哪个问题，让你一直放不下？",
   "Why is the ocean blue?": "为什么海洋是蓝色的？",
   "Why is the sunset red if the sky is blue?": "为什么天空是蓝的，晚霞却是红的？",

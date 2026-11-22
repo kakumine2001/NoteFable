@@ -622,6 +622,7 @@ export const th: Record<string, string> = {
   "Very deep reasoning": "คิดวิเคราะห์อย่างลึกซึ้ง",
   "Wait for the previous move to finish.": "กรุณารอให้การย้ายก่อนหน้าเสร็จสิ้นก่อน",
   "Wait for the reply to finish before deleting this chat.": "กรุณารอให้ตอบกลับเสร็จสิ้นก่อนลบแชทนี้",
+  "Wait for the current reply to finish.": "โปรดรอให้คำตอบปัจจุบันเสร็จก่อน",
   "We sent a 6-digit code to {email}. It expires in 10 minutes.": "เราได้ส่งรหัส 6 หลักไปที่ {email} แล้ว รหัสจะหมดอายุใน 10 นาที",
   "We sent a new code.": "เราส่งรหัสใหม่ให้แล้ว",
   "We'll email you a 6-digit code. No password needed.": "เราจะส่งรหัสยืนยัน 6 หลักให้ทางอีเมล โดยไม่ต้องใช้รหัสผ่าน",

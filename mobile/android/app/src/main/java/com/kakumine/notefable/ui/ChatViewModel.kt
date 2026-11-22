@@ -650,6 +650,13 @@ class ChatViewModel(
         _state.value.activeSessionId?.let { loadMessages(it) }
     }
 
+    /** 从笔记回到聊天时安静地重读当前会话：笔记里的 AI 面板聊的也是 Chats 里的会话，可能刚给它加了内容。 */
+    fun refreshActiveQuietly() {
+        val id = _state.value.activeSessionId ?: return
+        if (_state.value.messagesLoading || id in streams) return
+        loadMessages(id, quiet = true)
+    }
+
     private fun loadMessages(sessionId: String, quiet: Boolean = false) {
         loadJob?.cancel()
         loadJob = viewModelScope.launch {
