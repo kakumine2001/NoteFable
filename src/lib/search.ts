@@ -1,7 +1,8 @@
 import { Prisma } from "@/generated/prisma/client";
-import { likePattern } from "@/lib/page-tools";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { buildSearchSnippet, countMatchedTerms, foldSearchText, termMatcher } from "@/lib/search-fold";
+import { scheduleNoteEmbeddingBackfill, semanticSearchNotes, UI_SEMANTIC_THRESHOLD } from "@/lib/note-embeddings";
+import { inlineText, leadingText, walkBlocks } from "@/lib/note-text";
+import { buildSearchSnippet, countMatchedTerms, foldSearchText, likePattern, termMatcher } from "@/lib/search-fold";
 import { MAX_SEARCH_TERMS, parseSearchTerms, SEARCH_RESULT_LIMIT, type ChatSearchResult, type NoteSearchResult } from "@/types/search";
 
 export { parseSearchTerms };
@@ -13,41 +14,11 @@ export { parseSearchTerms };
 // （と添付ファイルの本文）のどこかにあるもの（同じメッセージに揃っている必要はない）。
 
 // 本文中の文字列（inline の text）だけを集める JSONPath。page-tools.ts の searchPages と同じ。
-const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
+export const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
 // 一致したメッセージの抜粋として DB から受け取る範囲。語の 100 文字前から 600 文字。
 // 添付ファイルの抽出本文は、保存する時点で 120,000 文字に切られている（src/lib/files.ts の MAX_TEXT_CHARS）ので、DB 側ではさらに切らない。
 const EXCERPT_BEFORE = 100;
 const EXCERPT_CHARS = 600;
-// 一致するブロックが無いとき（タイトルだけの一致）に、スニペットの元にするノート冒頭の長さ。
-const LEADING_CHARS = 400;
-
-// ---- ノートのブロック ----
-
-type BlockLike = { id?: unknown; content?: unknown; children?: unknown };
-
-// 文書の順（親 → 子 → 次の兄弟）にブロックを返す。深さに依存しないよう再帰は使わない。
-function* walkBlocks(blocks: unknown): Generator<BlockLike> {
-  const stack: unknown[] = Array.isArray(blocks) ? [...blocks].reverse() : [];
-  while (stack.length) {
-    const block = stack.pop();
-    if (!block || typeof block !== "object") continue;
-    yield block as BlockLike;
-    const children = (block as BlockLike).children;
-    if (Array.isArray(children)) for (let index = children.length - 1; index >= 0; index--) stack.push(children[index]);
-  }
-}
-
-// そのブロック自身の文字列（リンクの文字を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
-function inlineText(content: unknown): string {
-  if (Array.isArray(content)) return content.map(inlineText).join("");
-  if (!content || typeof content !== "object") return "";
-  const node = content as { text?: unknown; content?: unknown; rows?: unknown };
-  // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
-  if (Array.isArray(node.rows)) {
-    return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");
-  }
-  return (typeof node.text === "string" ? node.text : "") + inlineText(node.content);
-}
 
 // 一致する語がいちばん多いブロック（同数なら文書の順で先）。ID の無いブロックは飛ばす（移動先にできない）。
 export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: string; text: string } | null {
@@ -64,18 +35,6 @@ export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: 
   return best ? { blockId: best.blockId, text: best.text } : null;
 }
 
-// ノート冒頭の本文（ブロックの文字列を空白でつないだもの）。一致するブロックが無いときのスニペットに使う。
-function leadingText(blocks: unknown, limit = LEADING_CHARS) {
-  let text = "";
-  for (const block of walkBlocks(blocks)) {
-    const own = inlineText(block.content).trim();
-    if (!own) continue;
-    text += (text ? " " : "") + own;
-    if (text.length >= limit) break;
-  }
-  return text;
-}
-
 // ---- SQL ----
 
 const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
@@ -83,13 +42,13 @@ const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
 const literal = (value: number) => Prisma.raw(String(Math.trunc(value)));
 
 // 呼び出し側が畳み込んでいない語でも一致するよう、ここでも畳み込む（畳み込みは何度かけても同じ）。
-function prepareTerms(terms: string[]) {
+export function prepareTerms(terms: string[]) {
   return [...new Set(terms.map(foldSearchText).filter(Boolean))].slice(0, MAX_SEARCH_TERMS);
 }
 
 // 列 column（利用者の入力ではない、自前の式）がその語を含む。他の表記が無い語（漢字など）は LIKE で、% と _ は文字として扱い、
 // エスケープは ESCAPE '!' と合わせる。それ以外（英数字・かな・記号）は、元の表記すべてに当たる正規表現で探す。
-function termHit(column: string, term: string) {
+export function termHit(column: string, term: string) {
   const matcher = termMatcher(term);
   return matcher.literal
     ? Prisma.sql`${Prisma.raw(column)} LIKE ${likePattern(term)} ESCAPE '!'`
@@ -112,9 +71,7 @@ type NoteRow = { id: string; title: string; icon: string | null; updatedAt: Date
 
 // ごみ箱のノート（deletedAt あり）は対象外。タイトルに一致した語が多いものを先に、次に更新が新しい順。
 // 一致した最大 15 件だけが blocks を持ち帰り、移動先のブロックと抜粋は JS で求める。
-export async function searchNotes(userId: string, terms: string[]): Promise<NoteSearchResult[]> {
-  const needles = prepareTerms(terms);
-  if (!needles.length) return [];
+async function searchNotesByKeyword(userId: string, needles: string[]): Promise<NoteSearchResult[]> {
   const rows = await prisma.$queryRaw<NoteRow[]>(Prisma.sql`
     SELECT p."id", p."title", p."icon", p."updatedAt", p."blocks"
     FROM ${table("NotePage")} p
@@ -138,6 +95,37 @@ export async function searchNotes(userId: string, terms: string[]): Promise<Note
       updatedAt: toIso(row.updatedAt),
     };
   });
+}
+
+export type NoteSearchOptions = {
+  // 利用者が打った検索語そのまま。意味検索はこちらを使う（空白で割った語ではなく、文として埋め込む）。
+  rawQuery?: string;
+  signal?: AbortSignal;
+};
+
+// キーワードで見つかったノートを先に（順序・移動先・抜粋はそのまま）、意味が近いノートを後ろに足す（言い回しや言語が違っても見つかる）。
+export async function searchNotes(userId: string, terms: string[], options: NoteSearchOptions = {}): Promise<NoteSearchResult[]> {
+  const needles = prepareTerms(terms);
+  const rawQuery = options.rawQuery?.trim() || needles.join(" ");
+  if (!needles.length && !rawQuery) return [];
+  const [keyword, semantic] = await Promise.all([
+    needles.length ? searchNotesByKeyword(userId, needles) : [],
+    semanticSearchNotes(userId, rawQuery, { limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 10, timeoutMs: 3000, signal: options.signal }),
+  ]);
+  if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
+  const seen = new Set(keyword.map((note) => note.id));
+  const extra: NoteSearchResult[] = semantic.hits
+    .filter((hit) => !seen.has(hit.id))
+    .map((hit) => ({
+      kind: "note",
+      id: hit.id,
+      title: hit.title,
+      icon: hit.icon,
+      snippet: hit.chunkText ? buildSearchSnippet(hit.chunkText, needles) : "",
+      blockId: hit.blockId,
+      updatedAt: toIso(hit.updatedAt),
+    }));
+  return [...keyword, ...extra].slice(0, SEARCH_RESULT_LIMIT);
 }
 
 // ---- Chats ----

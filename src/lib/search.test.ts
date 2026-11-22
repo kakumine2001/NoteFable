@@ -1,8 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { termMatcher } from "./search-fold";
 
-const mocks = vi.hoisted(() => ({ queryRaw: vi.fn() }));
+const mocks = vi.hoisted(() => ({ queryRaw: vi.fn(), semanticSearch: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: { $queryRaw: mocks.queryRaw } }));
+vi.mock("@/lib/note-embeddings", () => ({
+  UI_SEMANTIC_THRESHOLD: 0.34,
+  scheduleNoteEmbeddingBackfill: vi.fn(),
+  semanticSearchNotes: mocks.semanticSearch,
+}));
 import { findMatchingBlock, parseSearchTerms, searchChats, searchNotes } from "./search";
 
 const text = (value: string, styles = {}) => ({ type: "text", text: value, styles });
@@ -104,7 +109,10 @@ describe("findMatchingBlock", () => {
 });
 
 describe("searchNotes", () => {
-  beforeEach(() => { vi.clearAllMocks(); });
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.semanticSearch.mockResolvedValue({ hits: [], hasMoreBackfill: false });
+  });
 
   it("queries only the user's live notes, schema-qualified, with parameterised patterns and a limit", async () => {
     mocks.queryRaw.mockResolvedValue([]);
@@ -190,6 +198,22 @@ describe("searchNotes", () => {
     mocks.queryRaw.mockClear();
     expect(await searchNotes("mine", [])).toEqual([]);
     expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("appends deduplicated semantic matches with chunk blockId and snippet after keyword hits", async () => {
+    mocks.queryRaw.mockResolvedValue([{ id: "n1", title: "装修坑", icon: null, updatedAt, blocks: [block("p1", "paragraph", [text("装修坑记录")])] }]);
+    mocks.semanticSearch.mockResolvedValue({
+      hits: [
+        { id: "n1", title: "装修坑", icon: null, blockId: "p1", chunkText: "装修坑记录", score: 0.9, updatedAt },
+        { id: "n2", title: "新房验收踩雷记录", icon: "🏠", blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.65, updatedAt },
+      ],
+      hasMoreBackfill: false,
+    });
+    const results = await searchNotes("mine", ["装修坑"], { rawQuery: "装修坑" });
+    expect(results).toEqual([
+      { kind: "note", id: "n1", title: "装修坑", icon: null, snippet: "装修坑记录", blockId: "p1", updatedAt: updatedAt.toISOString() },
+      { kind: "note", id: "n2", title: "新房验收踩雷记录", icon: "🏠", snippet: "水电改造一定要拍照留底", blockId: "b2", updatedAt: updatedAt.toISOString() },
+    ]);
   });
 });
 

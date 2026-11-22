@@ -6,7 +6,11 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { blocksToMarkdown, type NoteBlock } from "@/lib/note-markdown";
 import { saveProposal } from "@/lib/note-proposals";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
+import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, semanticSearchNotes } from "@/lib/note-embeddings";
 import { databaseSchema, prisma } from "@/lib/prisma";
+import { TEXT_PATH, termHit } from "@/lib/search";
+import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fold";
+import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
 
 export { blocksToMarkdown };
@@ -17,7 +21,7 @@ export { blocksToMarkdown };
 export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "search_notes",
-    description: "Search all of the user's NoteFable notes by title and text. Every word must appear (case-insensitive substring match, no synonyms or translation), so try other wordings or languages if nothing matches. Returns up to 10 matches with note IDs and short snippets, title matches first. An empty query lists the most recently edited notes.",
+    description: "Search all of the user's NoteFable notes by keywords and by meaning. Notes whose title or text contain every word (ignoring case, full-width/half-width and hiragana/katakana differences) come first, then notes with a similar meaning even when they use different wording or another language. Returns up to 10 matches with note IDs and short snippets. An empty query lists the most recently edited notes.",
     parameters: {
       type: "object",
       properties: { query: { type: "string", description: "Words to look for in note titles and text. Use an empty string to list recent notes." } },
@@ -84,41 +88,30 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 const SEARCH_RESULT_LIMIT = 10;
-const MAX_SEARCH_TERMS = 8;
-const SNIPPET_CHARS = 160;
 export const MAX_READ_CHARS = 20_000;
-
-// 本文中の文字列（inline の text）だけを集める JSONPath。ブロック種別やスタイルのキーには一致させない。
-const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
 
 type SearchRow = { id: string; title: string; updatedAt: Date; body: string | null };
 
-// LIKE の % と _ を文字として扱う。エスケープ文字は SQL 側の ESCAPE '!' と合わせる。
-export function likePattern(term: string) {
-  return `%${term.replace(/[!%_]/g, (char) => `!${char}`)}%`;
+export { likePattern };
+
+// 一致した語の周辺だけを返す。語が本文になくタイトルだけで一致した場合は本文の先頭を返す。表記ゆれ（全角・半角、かな）を越えて一致した位置を探す。
+export function buildSnippet(body: string | null, terms: string[]) {
+  return buildSearchSnippet(body, terms.map(foldSearchText));
 }
 
-// 一致した語の周辺だけを返す。語が本文になくタイトルだけで一致した場合は本文の先頭を返す。
-export function buildSnippet(body: string | null, terms: string[]) {
-  const text = (body ?? "").replace(/\s+/g, " ").trim();
-  const lower = text.toLowerCase();
-  const at = terms.map((term) => lower.indexOf(term)).find((index) => index >= 0) ?? 0;
-  const start = Math.max(0, at - SNIPPET_CHARS / 4);
-  return (start > 0 ? "…" : "") + text.slice(start, start + SNIPPET_CHARS) + (start + SNIPPET_CHARS < text.length ? "…" : "");
-}
+type PageSearchResult = { id: string; title: string; snippet: string; updatedAt: string };
 
 // 所有者のページ（ゴミ箱のものを除く）を DB 側で検索する。全語を含むページだけを、タイトル一致の多い順、更新日の新しい順に返す。
+// 語は畳み込み（search-fold.ts）、DB 側は本文を畳み込まず語のほうを正規表現に広げる（サイト内検索と同じ）。
 // 本文は JSON 文字列をデコードしてから連結するため、\ や " を含む語もそのまま一致する。
-// 本文 JSON 全体は転送せず、一致した最大 10 件の本文文字列だけを受け取る。
-export async function searchPages(userId: string, query: string) {
-  const terms = [...new Set(query.toLowerCase().split(/\s+/).filter(Boolean))].slice(0, MAX_SEARCH_TERMS);
+// 本文 JSON 全体は転送せず、一致した最大 10 件の本文文字列だけを受け取る。語が空なら最近編集したノートを返す。
+async function searchPagesByKeyword(userId: string, terms: string[]): Promise<PageSearchResult[]> {
   const table = Prisma.raw(`"${databaseSchema}"."NotePage"`);
-  const titleMatches = (term: string) => Prisma.sql`lower(p."title") LIKE ${likePattern(term)} ESCAPE '!'`;
   const filter = terms.length
-    ? Prisma.sql` AND ${Prisma.join(terms.map((term) => Prisma.sql`(${titleMatches(term)} OR lower(t."body") LIKE ${likePattern(term)} ESCAPE '!')`), " AND ")}`
+    ? Prisma.sql` AND ${Prisma.join(terms.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}`
     : Prisma.empty;
   const order = terms.length
-    ? Prisma.sql`${Prisma.join(terms.map((term) => Prisma.sql`(CASE WHEN ${titleMatches(term)} THEN 1 ELSE 0 END)`), " + ")} DESC, `
+    ? Prisma.sql`${Prisma.join(terms.map((term) => Prisma.sql`(CASE WHEN ${termHit('p."title"', term)} THEN 1 ELSE 0 END)`), " + ")} DESC, `
     : Prisma.empty;
   const rows = await prisma.$queryRaw<SearchRow[]>(Prisma.sql`
     SELECT p."id", p."title", p."updatedAt", t."body"
@@ -130,9 +123,24 @@ export async function searchPages(userId: string, query: string) {
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL${filter}
     ORDER BY ${order}p."updatedAt" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
-  return rows.map((row) => ({ id: row.id, title: row.title, snippet: buildSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
+  return rows.map((row) => ({ id: row.id, title: row.title, snippet: buildSearchSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
 }
 
+// キーワード（表記ゆれを吸収した部分一致）で見つかったものを先に、意味が近いもの（別の言い回し・別の言語）を後ろに足す。
+export async function searchPages(userId: string, query: string): Promise<PageSearchResult[]> {
+  const terms = parseSearchTerms(query);
+  if (!terms.length) return searchPagesByKeyword(userId, []);
+  const [keyword, semantic] = await Promise.all([
+    searchPagesByKeyword(userId, terms),
+    semanticSearchNotes(userId, query, { limit: SEARCH_RESULT_LIMIT, minSimilarity: AI_SEMANTIC_THRESHOLD, maxBackfillNotes: 20, timeoutMs: 5000 }),
+  ]);
+  if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
+  const seen = new Set(keyword.map((page) => page.id));
+  const extra = semantic.hits
+    .filter((hit) => !seen.has(hit.id))
+    .map((hit) => ({ id: hit.id, title: hit.title, snippet: buildSearchSnippet(hit.chunkText || hit.title, terms), updatedAt: hit.updatedAt.toISOString() }));
+  return [...keyword, ...extra].slice(0, SEARCH_RESULT_LIMIT);
+}
 function input(value: unknown, key: string) {
   const raw = value && typeof value === "object" ? (value as Record<string, unknown>)[key] : undefined;
   return typeof raw === "string" ? raw.trim().slice(0, 200) : null;

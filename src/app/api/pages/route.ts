@@ -3,6 +3,7 @@ import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { createNotePage } from "@/lib/note-create";
 import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { CHAT_RECENT_COUNT } from "@/types/notes";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
@@ -39,6 +40,7 @@ export async function POST(request: Request) {
     if (parentId !== null && (typeof parentId !== "string" || !parentId || parentId.length > 64)) throw new NoteValidationError("parentId must be a note ID or null.");
     const user = await getOrCreateUser();
     const page = await createNotePage(user.id, content, { parentId });
+    scheduleNoteEmbeddingSync(user.id, [page.id]);
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }
