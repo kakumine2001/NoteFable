@@ -47,10 +47,10 @@ NEXT_PUBLIC_APP_ORIGIN=https://app.notefable.com
 | `notefable.com/app`、`notefable.com/?chat=…` 等旧链接 | 307 转到 `app.notefable.com/`，保留全部查询参数 |
 | `notefable.com/note-embed`、`notefable.com/<语言>/note-embed` | 307 转到 `app.notefable.com` 的同一路径，保留查询参数（编辑器用的接口只在工作区主机） |
 | `app.notefable.com/` | 工作区（rewrite 到 `/{locale}/app`），`X-Robots-Tag: noindex`，写入 `Domain=notefable.com` 的提示 Cookie `notefable_app=1`（只是“用过工作区”的标记，不是登录凭证） |
-| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`） |
+| 两个主机的 `/c/<会话>?message=…` | 会话的分享链接（保存到笔记、导出的 Markdown 里写的），转到工作区 `app.notefable.com/?chat=…&message=…`；其中 `app.notefable.com/c/…` 在装了 Android App 时由 App Links 直接在 App 里打开（`public/.well-known/assetlinks.json`，`AndroidManifest.xml` 仅匹配工作区主机） |
 | `notefable.com/{locale}/app` | 转到 `app.notefable.com/`，保留查询参数 |
 | `app.notefable.com/app` | 转到 `app.notefable.com/`（Stripe 付款后的返回地址 `/app?billing=…` 走这里） |
-| `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
+| `app.notefable.com/api/*` | 接口只在工作区主机提供。Android App 的 `BASE_URL`、iOS App 的 `NOTEFABLE_BASE_URL`、Stripe Webhook、Google Play RTDN（Pub/Sub push 和 `GOOGLE_PLAY_PUSH_AUDIENCE`）都登记这个主机（[billing.md](billing.md)） |
 | `notefable.com/api/*` | 421（JSON，`code: "wrong_host"`；不跳转：Webhook 和 App 不跟随跳转，登记错了要马上看得出来；不用 404，因为界面把 404 当成“笔记或会话已删除”）。例外只有 `/api/i18n`（介绍页的语言菜单取词典）；介绍页的语言菜单在这个主机上不向账号保存（没有登录，选择靠共用的语言 Cookie 带到工作区）。规则是 `next.config.ts` 的 rewrite（`siteApiBlockRewrites`，`src/lib/hosts.ts`），按主机名匹配，转到 `/api/unavailable`；没分域的环境、两个主机名相同只差端口的配置和 `*.vercel.app` 别名不受影响 |
 
 Cookie 和浏览器存储按主机分开：匿名设备 Cookie、登录会话 Cookie 和 `localStorage`（草稿、模型选择等）不会从 `notefable.com` 带到 `app.notefable.com`。分域时的决定（2026-11-19）是不迁移：旧的匿名数据留在数据库里，在新主机上从新的匿名身份开始；登录用户在新主机重新登录后数据照常可见。界面语言 Cookie（`notefable-locale`）在分域后写到 `Domain=notefable.com`，两个主机共用。
@@ -99,11 +99,13 @@ flowchart LR
     Local["Local development"] --> GitHub["GitHub main"]
     GitHub --> Vercel["Vercel production"]
     Vercel --> Browser["Browser"]
+    Vercel --> Mobile["Android / iOS Apps"]
     Vercel --> Neon["Neon PostgreSQL"]
     Vercel --> Blob["Private Vercel Blob"]
     Vercel --> OpenAI["OpenAI"]
     Vercel --> DeepSeek["DeepSeek"]
     Vercel --> Anthropic["Anthropic API"]
+    Vercel --> External["Google / Stripe / Resend"]
 ```
 
 ## Build
@@ -177,6 +179,15 @@ DATABASE_URL
 COOKIE_SECRET
 ```
 
+### 官网与工作区分域（可选）
+
+```text
+NEXT_PUBLIC_SITE_ORIGIN
+NEXT_PUBLIC_APP_ORIGIN
+```
+
+两者同时设置时启用分域（见上方「官网与工作区分域」）。未配置分域时，`src/lib/i18n/routing.ts` 的 `siteOrigin()` 会回退读取 Vercel 内置环境变量 `VERCEL_PROJECT_PRODUCTION_URL`（用于 `robots.ts`、`sitemap.ts` 和根布局的 `metadataBase`）。
+
 ### Stripe 订阅（可选）
 
 ```text
@@ -209,7 +220,7 @@ AUTH_GOOGLE_SECRET
 
 三项都配置才启用；在 Google Cloud 的 OAuth 客户端中登记重定向 URI `https://<域名>/api/auth/callback/google`（分域后登录在 `app.notefable.com` 进行，登记这个主机的回调；`notefable.com` 的回调不登记；回退到单主机时要重新登记）（本地为 `http://localhost:3000/api/auth/callback/google`）。
 
-**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在聊天 / 笔记侧栏底部（网页和 Android）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记了 `https://notefable.com/api/auth/callback/google` 和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
+**Google 同意屏幕（品牌塑造页）**：公开页面是 `/privacy`（隐私权政策）和 `/terms`（服务条款），页面内容在 `src/app/privacy/page.tsx`、`src/app/terms/page.tsx`，联系邮箱和更新日期（`LEGAL_UPDATED_ISO`）在 `src/components/legal-page.tsx`；这两个链接和特商法标示 `/legal-notice` 也放在聊天 / 笔记侧栏底部的帮助菜单（网页、Android 与 iOS）和介绍页页脚。Google Cloud → Google Auth Platform → 品牌塑造里填：应用主页 `https://notefable.com`，隐私权政策 `https://notefable.com/privacy`，服务条款 `https://notefable.com/terms`；已授权网域登记 `notefable.com`，OAuth 客户端的重定向 URI 登记 `https://app.notefable.com/api/auth/callback/google`（分域后的工作区主机；主域 `notefable.com/api/*` 返回 421）和本地 `http://localhost:3000/api/auth/callback/google`（其他域名会报 `redirect_uri_mismatch`）。应用名是 NoteFable。当前只用 `openid` / `email` / `profile` 基础权限，不需要 Google 的敏感权限审核；OAuth 同意屏幕已于 2026-10-14 发布为“正式版”（Google Auth Platform → 对象 页可随时“改回测试”）；网站所有权已在 Search Console 用 `public/googlebbfeef8de1d165ef.html` 验证（**这个文件不能删**）；“品牌验证”（让同意屏幕显示应用名和链接）是可选步骤，尚未提交；改了数据处理方式（比如新增第三方服务）时要同步更新这两个页面，并改 `LEGAL_UPDATED_ISO`。
 
 ### 邮箱验证码登录（可选）
 
@@ -219,9 +230,9 @@ RESEND_API_KEY
 EMAIL_FROM
 ```
 
-用户输入邮箱，收到 6 位验证码后登录（`/api/auth/email/start`、`/api/auth/email/verify`），不设密码。发信用 [Resend](https://resend.com)；`EMAIL_FROM` 是发件人，生产为 `NoteFable <login@notefable.com>`。`notefable.com` 已在 Resend（东京区域）添加，验证用的 DKIM（`resend._domainkey` TXT）、发信（`send`、`rsend` CNAME）和 DMARC（`_dmarc` TXT）记录加在 Vercel 的 DNS 里。没验证域名时 Resend 只能用 `onboarding@resend.dev` 发给注册账号本人，`*.vercel.app` 也不能验证，所以正式开放需要自己的域名。本地开发（非 production）没配 `RESEND_API_KEY` 时也能用：验证码不发信，打印在开发服务器日志里（`[email-login] code for …`）。production 没配齐时不显示邮箱登录。登录成功后签发和 Google 登录同一种 Auth.js 会话 Cookie（`loginEmail`），账号合并规则见 [database.md](database.md) 的 `verifiedEmail`。
+用户输入邮箱，收到 6 位验证码后登录（`/api/auth/email/start`、`/api/auth/email/verify`），不设密码。发信用 [Resend](https://resend.com)；`EMAIL_FROM` 是发件人，生产为 `NoteFable <login@notefable.com>`。生产环境的回答举报（`POST /api/reports`，`src/lib/answer-report.ts`）也共用 `RESEND_API_KEY` 和 `EMAIL_FROM` 给开发者发信，未配置时返回 502。`notefable.com` 已在 Resend（东京区域）添加，验证用的 DKIM（`resend._domainkey` TXT）、发信（`send`、`rsend` CNAME）和 DMARC（`_dmarc` TXT）记录加在 Vercel 的 DNS 里。没验证域名时 Resend 只能用 `onboarding@resend.dev` 发给注册账号本人，`*.vercel.app` 也不能验证，所以正式开放需要自己的域名。本地开发（非 production）没配 `RESEND_API_KEY` 时也能用：验证码不发信，打印在开发服务器日志里（`[email-login] code for …`）。production 没配齐时不显示邮箱登录。登录成功后签发和 Google 登录同一种 Auth.js 会话 Cookie（`loginEmail`），账号合并规则见 [database.md](database.md) 的 `verifiedEmail`。
 
-Android App 内的登录复用同一个 Web 客户端 ID（`AUTH_GOOGLE_ID`）校验令牌，不需要新增环境变量；另需在同一个 Google Cloud 项目里建一个 Android 类型客户端（包名 + 签名 SHA-1），详见 [android.md](android.md)。
+Android 和 iOS 原生 App 内的 Google 登录都复用同一个 Web 客户端 ID（`AUTH_GOOGLE_ID`）作为令牌受众，服务端不需要新增环境变量；另需在同一个 Google Cloud 项目里登记对应平台的客户端（Android 为包名 + Play 应用签名 SHA-1，见 [android.md](android.md)；iOS 为 Bundle ID 对应的 iOS 客户端并通过 `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_IOS_REVERSED_CLIENT_ID` 注入构建，见 [ios.md](ios.md) 与 [ios-native.md](ios-native.md)）。
 
 ### OpenAI
 
@@ -254,7 +265,7 @@ ANTHROPIC_HAIKU_MODEL
 
 ### 可用模型（`NOTEFABLE_MODELS`，可选）
 
-`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS` 决定现在开放哪些，网页和 Android 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
+`src/lib/models.ts` 定义内置模型和每个模型的能力；服务器用 `NOTEFABLE_MODELS` 决定现在开放哪些，网页、Android 和 iOS 都从服务器拿这份结果（`src/lib/model-registry.ts`、`GET /api/models`）。不设置时使用全部内置模型。
 
 值是一个 JSON 数组。只有写在里面的模型可用，顺序就是选择器里的顺序，第一个是默认模型：
 
@@ -267,20 +278,20 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 - 新 id：必须写全 `label`、`provider`（`openai` / `anthropic` / `deepseek`）、`supportsImageInput`、`supportsWebSearch`、`supportsCompaction`、`supportsPageTools`、`reasoningEfforts`、`defaultReasoning`。每个 provider 的接入代码是固定的，新 id 只能复用已有的三种。
 - 上游模型名的优先级：`upstreamModel` > 旧的单模型变量（`OPENAI_TEXT_MODEL` 等）> id 本身。
 - 内容无法解析或不合法时，服务器记一条日志并退回内置列表，不会让模型选择器失效。
-- `/` 和 `/app` 是静态页面，模型列表在构建时确定；修改这个变量后必须重新部署。
+- `/`、`/app` 和 `/note-embed` 是静态页面，模型列表在构建时确定；修改这个变量后必须重新部署。
 
-### Image Storage
+### File & Image Storage
 
-生产环境使用私有 Vercel Blob：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）和用户头像（`avatars/<userId>/`）：
 
 ```text
-Vercel Function
-  -> @vercel/blob.put / get
-  -> Private Vercel Blob (notefable-images)
-  -> PostgreSQL 保存 imageStoragePath
+Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）
+Vercel Function -> @vercel/blob (put / get / head / list / del) -> Private Vercel Blob
+/api/attachments/[id]/image -> getStoredImageReadUrl()（5 分钟单图签名 URL 302 重定向）
+PostgreSQL -> 仅保存 storage path / 元数据
 ```
 
-Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`（Preview 用单独的 store `notefable-preview`，见上面「Preview 数据库与图片」）。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`；Vercel 环境缺少 token 会直接报错。
+Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`（Preview 用单独的 store `notefable-preview`，见上面「Preview 数据库与图片」）。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`（未设时默认 `data/storage`），上传走 `PUT /api/uploads/local`；Vercel 环境缺少 token 会直接报错。
 
 ## Production Debug Checklist
 
