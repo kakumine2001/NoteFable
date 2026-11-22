@@ -101,7 +101,9 @@ export function NoteShareDialog({
       });
       const data = await response.json().catch(() => null);
       if (!response.ok || !data?.share) throw new Error(data?.error || msg("Failed to update share settings."));
-      setShare(data.share as NoteShareState);
+      const updated = data.share as NoteShareState;
+      setShare(updated);
+      setDraftIncludeSubpages(updated.includeSubpages);
       if (data.page && onUpdated) onUpdated(data.page as NotePageSummary);
       setCustomMode(false);
     } catch (caught) {
@@ -204,6 +206,18 @@ export function NoteShareDialog({
                 <span className="notes-menu-switch" data-on={share.excludeFromParent} aria-hidden="true" />
               </button>
             </div>
+          ) : share.hasParent ? (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={share.excludeFromParent}
+              disabled={busy}
+              className="notes-share-toggle"
+              onClick={() => void save({ excludeFromParent: !share.excludeFromParent })}
+            >
+              <span className="flex-1 text-start">{t("Exclude from parent share")}</span>
+              <span className="notes-menu-switch" data-on={share.excludeFromParent} aria-hidden="true" />
+            </button>
           ) : null}
 
           {!share.active ? (

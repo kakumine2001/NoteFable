@@ -64,6 +64,7 @@ data class NoteShareState(
     val includeSubpages: Boolean = true,
     val expiresAt: String? = null,
     val excludeFromParent: Boolean = false,
+    val hasParent: Boolean = false,
     val inheritedFrom: NoteShareAncestor? = null,
     val inheritedUrl: String? = null,
 )

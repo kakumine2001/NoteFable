@@ -101,7 +101,9 @@ fun NoteShareDialog(
             busy = true
             error = null
             try {
-                share = vm.updateShare(pageId, patch)
+                val updated = vm.updateShare(pageId, patch)
+                share = updated
+                draftIncludeSubpages = updated.includeSubpages
             } catch (e: Exception) {
                 error = e.message?.takeIf { it.isNotBlank() }?.let { systemText.localize(it) } ?: updateFailed
             } finally {
@@ -184,6 +186,13 @@ fun NoteShareDialog(
                                 onToggle = { save(NoteSharePatch(excludeFromParent = !s.excludeFromParent)) },
                             )
                         }
+                    } else if (s.hasParent) {
+                        ShareSwitchRow(
+                            label = stringResource(R.string.share_exclude_from_parent),
+                            checked = s.excludeFromParent,
+                            enabled = !busy,
+                            onToggle = { save(NoteSharePatch(excludeFromParent = !s.excludeFromParent)) },
+                        )
                     }
 
                     if (!s.active) {

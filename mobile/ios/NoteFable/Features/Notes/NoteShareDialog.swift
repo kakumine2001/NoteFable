@@ -54,6 +54,12 @@ struct NoteShareDialog: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Sm.sidebar, in: RoundedRectangle(cornerRadius: 8))
                     .overlay(RoundedRectangle(cornerRadius: 8).stroke(Sm.border, lineWidth: 1))
+                } else if s.hasParent {
+                    switchRow(
+                        label: L("share_exclude_from_parent"),
+                        checked: s.excludeFromParent,
+                        action: { save(NoteSharePatch(excludeFromParent: !s.excludeFromParent)) }
+                    )
                 }
 
                 if !s.active {
@@ -303,7 +309,9 @@ struct NoteShareDialog: View {
         Task { @MainActor in
             defer { busy = false }
             do {
-                share = try await app.notes.updateShare(pageId, patch)
+                let updated = try await app.notes.updateShare(pageId, patch)
+                share = updated
+                draftIncludeSubpages = updated.includeSubpages
             } catch {
                 self.error = localizedError(error, fallback: L("share_update_failed"))
             }

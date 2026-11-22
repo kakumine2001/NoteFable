@@ -41,6 +41,7 @@ export type NoteShareState = {
   includeSubpages: boolean;
   expiresAt: string | null;
   excludeFromParent: boolean;
+  hasParent: boolean;
   inheritedFrom: NoteShareAncestor | null;
   inheritedUrl: string | null;
 };

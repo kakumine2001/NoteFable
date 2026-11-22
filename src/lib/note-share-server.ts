@@ -7,7 +7,43 @@ import { databaseSchema, prisma } from "@/lib/prisma";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
 const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
-const MAX_TREE_DEPTH = 64;
+
+type AncestorRow = {
+  id: string;
+  parentId: string | null;
+  title: string;
+  icon: string | null;
+  shareToken: string | null;
+  shareEnabled: boolean;
+  shareIncludeSubpages: boolean;
+  shareExpiresAt: Date | null;
+  shareExcludeFromParent: boolean;
+  depth: number;
+};
+
+// 再帰 CTE で任意階層の祖先鎖（親→祖父→…）を循環安全に取得する。
+async function fetchAncestors(userId: string, startParentId: string): Promise<AncestorRow[]> {
+  return prisma.$queryRaw<AncestorRow[]>(Prisma.sql`
+    WITH RECURSIVE chain AS (
+      SELECT p."id", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
+             p."shareIncludeSubpages", p."shareExpiresAt", p."shareExcludeFromParent",
+             1 AS depth, ARRAY[p."id"]::text[] AS seen
+      FROM ${table()} p
+      WHERE p."id" = ${startParentId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
+      UNION ALL
+      SELECT p."id", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
+             p."shareIncludeSubpages", p."shareExpiresAt", p."shareExcludeFromParent",
+             c.depth + 1, c.seen || p."id"
+      FROM ${table()} p
+      JOIN chain c ON p."id" = c."parentId"
+      WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL AND NOT (p."id" = ANY(c.seen))
+    )
+    SELECT "id", "parentId", "title", "icon", "shareToken", "shareEnabled",
+           "shareIncludeSubpages", "shareExpiresAt", "shareExcludeFromParent", depth
+    FROM chain
+    ORDER BY depth ASC
+  `);
+}
 
 export function generateShareToken(): string {
   return randomBytes(16).toString("base64url");
@@ -101,23 +137,19 @@ export async function resolvePublicShare(
 
     // 要求ページから親をたどり、すべての途中ページが未削除かつ非除外で root に到達するか確かめる。
     const chain: PublicShareCrumb[] = [{ id: requested.id, title: requested.title, icon: requested.icon }];
-    const visited = new Set<string>([requested.id]);
-    let parentId = requested.parentId;
     let reachedRoot = false;
-    for (let depth = 0; depth < MAX_TREE_DEPTH && parentId; depth++) {
-      if (parentId === root.id) {
-        reachedRoot = true;
-        break;
+    if (requested.parentId === root.id) {
+      reachedRoot = true;
+    } else if (requested.parentId) {
+      const ancestors = await fetchAncestors(root.userId, requested.parentId);
+      for (const ancestor of ancestors) {
+        if (ancestor.id === root.id) {
+          reachedRoot = true;
+          break;
+        }
+        if (ancestor.shareExcludeFromParent) return null;
+        chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon });
       }
-      if (visited.has(parentId)) return null;
-      visited.add(parentId);
-      const ancestor = await prisma.notePage.findFirst({
-        where: { id: parentId, userId: root.userId, deletedAt: null },
-        select: { id: true, parentId: true, title: true, icon: true, shareExcludeFromParent: true },
-      });
-      if (!ancestor || ancestor.shareExcludeFromParent) return null;
-      chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon });
-      parentId = ancestor.parentId;
     }
     if (!reachedRoot) return null;
     chain.reverse();
@@ -184,41 +216,23 @@ export async function resolveOwnerShareState(
   if (!page) return null;
 
   let inheritedFrom: NoteShareAncestor | null = null;
-  const visited = new Set<string>([page.id]);
-  let parentId = page.parentId;
-  for (let depth = 0; depth < MAX_TREE_DEPTH && parentId; depth++) {
-    if (visited.has(parentId)) break;
-    visited.add(parentId);
-    const ancestor = await prisma.notePage.findFirst({
-      where: { id: parentId, userId, deletedAt: null },
-      select: {
-        id: true,
-        parentId: true,
-        title: true,
-        icon: true,
-        deletedAt: true,
-        shareToken: true,
-        shareEnabled: true,
-        shareIncludeSubpages: true,
-        shareExpiresAt: true,
-        shareExcludeFromParent: true,
-      },
-    });
-    if (!ancestor) break;
-    if (isShareRowActive(ancestor, now) && ancestor.shareIncludeSubpages && ancestor.shareToken) {
-      inheritedFrom = {
-        id: ancestor.id,
-        title: ancestor.title,
-        icon: ancestor.icon,
-        token: ancestor.shareToken,
-        url: sharePageUrl(ancestor.shareToken, origin),
-        expiresAt: ancestor.shareExpiresAt ? ancestor.shareExpiresAt.toISOString() : null,
-      };
-      break;
+  if (page.parentId) {
+    const ancestors = await fetchAncestors(userId, page.parentId);
+    for (const ancestor of ancestors) {
+      if (isShareRowActive(ancestor, now) && ancestor.shareIncludeSubpages && ancestor.shareToken) {
+        inheritedFrom = {
+          id: ancestor.id,
+          title: ancestor.title,
+          icon: ancestor.icon,
+          token: ancestor.shareToken,
+          url: sharePageUrl(ancestor.shareToken, origin),
+          expiresAt: ancestor.shareExpiresAt ? ancestor.shareExpiresAt.toISOString() : null,
+        };
+        break;
+      }
+      // 途中の親がすでに「親の共有から除外」されているなら、さらに上の公開は降りてこない。
+      if (ancestor.shareExcludeFromParent) break;
     }
-    // 途中の親がすでに「親の共有から除外」されているなら、さらに上の公開は降りてこない。
-    if (ancestor.shareExcludeFromParent) break;
-    parentId = ancestor.parentId;
   }
 
   const active = isShareRowActive(page, now);
@@ -232,6 +246,7 @@ export async function resolveOwnerShareState(
     includeSubpages: page.shareIncludeSubpages,
     expiresAt: page.shareExpiresAt ? page.shareExpiresAt.toISOString() : null,
     excludeFromParent: page.shareExcludeFromParent,
+    hasParent: Boolean(page.parentId),
     inheritedFrom,
     inheritedUrl: inheritedFrom && !page.shareExcludeFromParent ? sharePageUrl(inheritedFrom.token, origin, page.id) : null,
   };

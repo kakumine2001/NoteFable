@@ -273,7 +273,12 @@ function renderBlock(
       );
     }
     case "divider":
-      return <hr key={block.id} className="public-note-divider" />;
+      return (
+        <div key={block.id} className="public-note-block">
+          <hr className="public-note-divider" />
+          {childrenNode}
+        </div>
+      );
     case "table": {
       const table = block.content as TableContent | undefined;
       if (!table || table.type !== "tableContent" || !Array.isArray(table.rows)) return null;
@@ -322,8 +327,25 @@ function renderBlock(
     }
     case "image": {
       const url = typeof props.url === "string" ? props.url : "";
-      if (!url) return null;
+      if (!url) return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
       const caption = typeof props.caption === "string" ? props.caption : "";
+      const name = typeof props.name === "string" && props.name ? props.name : "image";
+      if (props.showPreview === false) {
+        return (
+          <div key={block.id} className="public-note-block">
+            <a href={url} target="_blank" rel="noopener noreferrer" className="public-note-file">
+              <FileText size={18} aria-hidden="true" className="shrink-0 text-[var(--notion-muted)]" />
+              <span className="min-w-0 flex-1 truncate">{name}</span>
+              <span className="public-note-file-download">
+                <Download size={15} aria-hidden="true" />
+                <span>{labels.download}</span>
+              </span>
+            </a>
+            {caption ? <p className="public-note-caption">{caption}</p> : null}
+            {childrenNode}
+          </div>
+        );
+      }
       const width = typeof props.previewWidth === "number" ? props.previewWidth : undefined;
       return (
         <figure key={block.id} className="public-note-block public-note-figure">
@@ -336,7 +358,7 @@ function renderBlock(
     }
     case "file": {
       const url = typeof props.url === "string" ? props.url : "";
-      if (!url) return null;
+      if (!url) return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
       const name = typeof props.name === "string" && props.name ? props.name : "file";
       const caption = typeof props.caption === "string" ? props.caption : "";
       return (

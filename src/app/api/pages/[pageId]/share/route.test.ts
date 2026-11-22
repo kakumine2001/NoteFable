@@ -41,6 +41,7 @@ const sampleShare = {
   includeSubpages: true,
   expiresAt: null,
   excludeFromParent: false,
+  hasParent: false,
   inheritedFrom: null,
   inheritedUrl: null,
 };

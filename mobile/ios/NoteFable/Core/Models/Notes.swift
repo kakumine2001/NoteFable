@@ -89,13 +89,14 @@ struct NoteShareState: Equatable, Sendable, Decodable {
     var includeSubpages: Bool = true
     var expiresAt: String? = nil
     var excludeFromParent: Bool = false
+    var hasParent: Bool = false
     var inheritedFrom: NoteShareAncestor? = nil
     var inheritedUrl: String? = nil
 
     init(
         enabled: Bool = false, active: Bool = false, expired: Bool = false, token: String? = nil, url: String? = nil,
         includeSubpages: Bool = true, expiresAt: String? = nil, excludeFromParent: Bool = false,
-        inheritedFrom: NoteShareAncestor? = nil, inheritedUrl: String? = nil
+        hasParent: Bool = false, inheritedFrom: NoteShareAncestor? = nil, inheritedUrl: String? = nil
     ) {
         self.enabled = enabled
         self.active = active
@@ -105,6 +106,7 @@ struct NoteShareState: Equatable, Sendable, Decodable {
         self.includeSubpages = includeSubpages
         self.expiresAt = expiresAt
         self.excludeFromParent = excludeFromParent
+        self.hasParent = hasParent
         self.inheritedFrom = inheritedFrom
         self.inheritedUrl = inheritedUrl
     }
@@ -115,7 +117,8 @@ struct NoteShareState: Equatable, Sendable, Decodable {
             enabled: try f.or("enabled", false), active: try f.or("active", false), expired: try f.or("expired", false),
             token: try f.opt("token"), url: try f.opt("url"), includeSubpages: try f.or("includeSubpages", true),
             expiresAt: try f.opt("expiresAt"), excludeFromParent: try f.or("excludeFromParent", false),
-            inheritedFrom: try f.opt("inheritedFrom"), inheritedUrl: try f.opt("inheritedUrl")
+            hasParent: try f.or("hasParent", false), inheritedFrom: try f.opt("inheritedFrom"),
+            inheritedUrl: try f.opt("inheritedUrl")
         )
     }
 }
