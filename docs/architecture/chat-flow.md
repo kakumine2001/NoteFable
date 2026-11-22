@@ -59,6 +59,7 @@ FormData
 ├── sessionId       optional
 ├── webSearch       optional mode（/app 省略，由服务端默认 auto；笔记助手固定发 "off"）
 ├── noteId          optional（仅笔记内 AI 助手发送）
+├── noteSelection   optional（"1"：笔记助手带着编辑器里选中的文字提问；只在有 noteId 时生效）
 ├── uploads         optional signed references (JSON string；兼容旧客户端的 files)
 ├── pages           optional attached note IDs (JSON string)
 ├── edit            optional：要改写的自己那条发言的 ID（见“停止、编辑、重新生成与分支”）
@@ -87,7 +88,7 @@ POST /api/chat
 ### 消息树
 
 - `Message.parentId`：上一条消息的 ID；会话的第一条是字符串 `"root"`（`ROOT_PARENT`）。`null` 表示“没有记录”，按创建顺序的前一条当父节点——这一列之前的旧数据都是这样，所以迁移不改写已有数据。写着不存在的 ID、或比自己晚创建的 ID 时，同样按创建顺序处理（不会成环）。**新建消息的代码都要写 `parentId`。**
-- `Message.active`（默认 `true`）：在不在当前显示的这一枝上。**所有读取对话内容的地方都只读 `active: true`**：发给模型的历史与原生压缩状态、`GET /api/sessions/:id/messages`、搜索、导出、Create page、发言附加的笔记、`list_chat_attachments`、图片生成的上下文。新增读取 `Message` 的代码必须带这个条件（和笔记的 `deletedAt: null` 是同一类规则）。
+- `Message.active`（默认 `true`）：在不在当前显示的这一枝上。**所有读取对话内容的地方都只读 `active: true`**：发给模型的历史与原生压缩状态、`GET /api/sessions/:id/messages` 与笔记助手的 `GET /api/pages/:id/assistant`（两者共用 `src/lib/session-messages.ts`）、搜索、导出、Create page、发言附加的笔记、`list_chat_attachments`、图片生成的上下文。新增读取 `Message` 的代码必须带这个条件（和笔记的 `deletedAt: null` 是同一类规则）。
 - `Message.selectedAt`：切换版本时记下“选了这个版本”的时间，见“切换版本”。
 - 新消息的父节点：普通发送和图片生成是“当前显示的最后一条”（`loadActiveLeafId`，只读一行；普通发送在锁住会话的事务里读它并写入提问，同时发出的两条不会挂到同一个父节点下变成“两个版本”），回答是它所回答的那条提问。回答保存时，如果那条提问已经不在显示的枝上（生成期间别处切换了版本），回答也存成 `active: false`，不会冒到别的枝的末尾。
 - “同一位置的别的版本”= 同一个父节点下的兄弟。`GET /api/sessions/:id/messages` 给有兄弟的消息加 `versions: { index, total, prevId, nextId }`（从 1 数起，按创建顺序），界面据此显示 `‹ 2/3 ›`。
@@ -320,7 +321,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 - 存在 `User.customInstructions`，最多 4,000 字符（`MAX_CUSTOM_INSTRUCTIONS`），校验沿用项目共通指示的 `validProjectInstructions`（换行统一为 `\n`、去掉首尾空白、空白存为 null、不允许换行和制表符以外的控制字符）。
 - 接口 `GET /api/custom-instructions` 返回 `{ instructions }`，`PUT` 以 `{ instructions }` 整体替换（`""` 或 `null` 清空）。两者都先确认当前用户已登录（`isAccountUser()`，`src/lib/auth.ts`：Google 或邮箱登录的用户行），否则不看请求内容直接 401 `Sign in to use custom instructions.`；响应 `Cache-Control: no-store`。
-- 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），分 4 个标签页（通用 / 个性化 / 方案 / 账号，手机宽度为两级导航，`src/lib/settings-navigation.ts`），汇总语言、AI 角色图标、自定义指令、方案用量与订阅、个人资料、退出登录和删除账号，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取自定义指令，文字变动后下方出现“未保存的更改”浮条（放弃 / 保存），保存中或未放弃修改前不能关闭（Esc、返回键、点外面都不关），免得丢失修改或保存失败无处提示；裁剪/上传头像期间禁用退出与删除账号并阻止离开。Android 为 `ui/SettingsDialog.kt`（[android-native.md](android-native.md)），iOS 为 `Features/Settings/SettingsScreen.swift`（[ios-native.md](ios-native.md)）。
+- 入口是设置对话框（`src/components/settings-dialog.tsx`，点侧栏底部登录后的账号行打开，`account-button.tsx`），分 4 个标签页（通用 / 个性化 / 方案 / 账号，手机宽度为两级导航，`src/lib/settings-navigation.ts`），汇总语言、外观（跟随系统 / 浅色 / 深色，只存本机）、AI 角色图标、自定义指令、方案用量与订阅、个人资料、退出登录和删除账号，挂在 `body` 下（侧栏会随宽度隐藏）。打开时读取自定义指令，文字变动后下方出现“未保存的更改”浮条（放弃 / 保存），保存中或未放弃修改前不能关闭（Esc、返回键、点外面都不关），免得丢失修改或保存失败无处提示；裁剪/上传头像期间禁用退出与删除账号并阻止离开。Android 为 `ui/SettingsDialog.kt`（[android-native.md](android-native.md)），iOS 为 `Features/Settings/SettingsScreen.swift`（[ios-native.md](ios-native.md)）。
 - `/api/chat` 每次发送都从刚取得的用户行读 `customInstructions`（不另查库），所以修改从下一条消息起生效；只对已登录的用户行（同一个 `isAccountUser()`）使用。`formatCustomInstructions()` 把它夹在 `=== User's custom instructions ===` 与 `=== End of user's custom instructions ===` 之间（结尾带换行，后面的项目文脉不会接在分隔行上），经**同一个** `buildInstructions()`（第 5 个参数）放在固定文字之后、项目文脉之前。它是用户自己的指示：覆盖默认的语言/语气/格式几行，当前聊天里另有要求时以聊天为准；与项目的共通指示冲突时项目优先。笔记里的 AI 助手会话同样带入。
 - 不影响标题生成（`chat-title.ts`）和图片生成，不产生 `context` 途中经过事件，也不写进 `Message`。
 
@@ -440,7 +441,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 - **Download conversation**：点击时从现有的 `GET /api/sessions/:sessionId/messages` 获取完整已保存历史（同一套所有权校验，`cache: no-store`，30 秒超时），不受点选的回答位置影响。`conversationToMarkdownFile` 按 API 返回的时间顺序写出所有 USER / ASSISTANT 消息，以 `## You` / `## NoteFable` 区分，不导出内部 SYSTEM 消息或压缩状态。正文不截断，保留代码和出处链接；附件保留名称，图片链接转成本站绝对 URL，仍需原账号或设备权限查看，不打包二进制文件。文件以会话标题命名（沿用 `answerFileName` 的安全文件名规则），末尾附原会话链接，不带单条消息锚点。下载期间菜单显示 Downloading… 并阻止重复点击；读取失败保留菜单并显示可重试错误，离开会话后不触发迟到的下载。文件通过 Markdown Blob 和隐藏的 `<a download>` 下载，10 秒后释放对象 URL。Android App 不在本机拼 Markdown，而是读 `GET /api/sessions/:sessionId/export?date=YYYY-MM-DD`（同一套所有权校验，只读 USER / ASSISTANT，服务端用同一个 `conversationToMarkdownFile` / `answerFileName`，返回 `{ fileName, markdown }`），见 [android-native.md](android-native.md)。
 - **Save to page**：在三个点菜单里直接新建一篇笔记，不再弹出确认。浏览器里 `answerToNoteContent` 把回答转成 `{ title, blocks }`，再 `POST /api/pages`（body `{ title, icon: null, cover: null, coverPosition: null, blocks }`，与手动新建同一个接口，服务端照常用 `validateNoteContent` 重新校验），成功返回 201 `{ page }`。随后派发 `notefable:page-created`（detail 是返回的页面），`use-note-pages.ts` 据此把新笔记加进侧栏；菜单项变成 “Saved to page”，下面出现 “Open saved page” 链接（`/?view=pages&page=<id>`：普通左键点击派发 `notefable:open-note` `{ id }` 在页面内打开，带修饰键或中键点击走 href）。失败时菜单项变成 “Retry saving to page”，菜单内显示原因：413 “This answer is too large to save as a note.”，400 显示服务端消息，其余（503、网络错误、响应不是 JSON）显示 “Could not save to Notes. Try again.”。保存中、已保存的状态放在模块级 Map（键 `${sessionId}\n${messageId}`），切换会话或重新挂载都保留，所以不会重复新建；**刷新页面就丢了**，再点一次会建第二篇——服务端没有去重，也没有记录“这条回答已存过”。Android App 没有浏览器端的转换，改用 `POST /api/pages/from-answer`（`{ markdown, sessionId, messageId, savedOn }`）：服务端核对会话归属（取标题和链接），用同一个 `answerToNoteContent` 生成块，再经 `validateNoteContent` 和与 `POST /api/pages` 共用的 `createNotePage` 新建。保存后又被移进 Trash 的笔记，“Open saved page” 仍在，点开会走既有的笔记打开失败处理。
 
-- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板的回复使用客户端临时 UUID 且不拉取服务端消息 ID，因此 `ReportAnswerButton` 实际不显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportAnswerDialog.kt`）。
+- **Report answer**（Google Play 的 AI 生成内容政策：应用内可以把冒犯性的 AI 输出报告给开发者）：菜单最后一项，打开对话框（理由选填，最多 1000 字），`POST /api/reports { messageId, reason }`。服务端只接受当前用户自己会话里的 ASSISTANT 消息（否则 404），每人每天 10 次、未登录时同一网络每天 20 次（`REPORT_LIMITS`，`UsageCounter` 的 `kind = report`，超出 429；邮件发送失败退还），然后用 Resend 把理由、用户 ID、会话 / 消息 ID、模型、时间、前一条用户消息（截到 4000 字）和回答（截到 20000 字）发到 `LEGAL_CONTACT_EMAIL`（`src/lib/answer-report.ts`）。报告不入库；邮件发送失败返回 502，本地没有 Resend 密钥时打印到服务器日志。成功后对话框换成“已发送”和“完成”。只有已保存到服务端的回答（cuid）才显示这一项，流式输出刚结束、还是临时 ID 的回答不显示。没有操作行的已保存 AI 输出（例如只有生成图片的回答）在下面单独显示一个旗子按钮（`ReportAnswerButton`；Android 为 `ReportOnlyAction`，iOS 为 `AnswerReportOnlyAction`），报告邮件里附上回答中图片的存储路径（笔记 AI 助手面板里，刚生成的回复用的是客户端临时 UUID，不显示这个按钮；面板打开时从服务端恢复的历史回复带数据库 ID，会显示）。Android 和 iOS 原生 App 的回答菜单有同样的一项（Android 为 `ui/ReportAnswerDialog.kt`）。
 
 ### 保存出来的笔记
 
@@ -469,11 +470,24 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 - **显示**：`splitQuotedMessage` 只在发言开头是引用块、后面隔一个空行还有正文时才分开；提问气泡里引用灰字在上（全文，不折叠），正文在下。自己手写的引用开头的发言也会这样显示。编辑发言时编辑框里是完整原文（含 `> `）。服务端的临时标题（`/api/chat` 与 `/api/images` 的 `makeTitle`）用引用后面的提问。
 - **上传附件期间**：引用不能移除或替换（发出的内容已定）。
 - **被拒绝时**：放回输入框的是提问，引用回到输入框上方（等待期间已经选了别的引用时保留它，被拒的提问连同引用块整段放回输入框）；没有引用时放回打的原文；登录前暂存的草稿（`savePendingDraft`）带着引用块，回来时同样拆开。
+- **同一格式的其他用法**：笔记编辑器里选中文字的 “Ask AI” 也用 `normalizeQuote` 和 `composeQuotedMessage`。在笔记助手面板里发送时另带 `noteSelection=1`（[notes-flow.md](notes-flow.md#笔记里的-ai-助手)）；在桌面分屏的笔记面板里则直接成为聊天输入框上方的引用条，按普通发言发送（见“聊天与笔记分屏”）。
 - Android：`ui/QuoteSelection.kt`，见 [android-native.md](android-native.md#回答体验)。
 
 ## 拖放添加文件
 
 有鼠标的设备上，把文件拖到聊天视图（`.notion-page` 整块，含顶栏和输入框）时显示虚线框的 “Drop files to attach”，放下后与 “＋” 选择文件、粘贴图片走同一个 `addUploadFiles`（同样的数量、大小、类型校验和错误提示）。只处理拖进来的是文件（`dataTransfer.types` 含 `Files`）的情况，拖文字不受影响；上传中不接收。拖到受理范围外（侧栏等）放下时，窗口级的 `dragover` / `drop` 只阻止浏览器打开文件、离开页面。Android 不适用。
+
+## 聊天与笔记分屏
+
+视口宽度 1100px 以上（`SPLIT_VIEW_MEDIA_QUERY`，`src/lib/split-view.ts`）时，Chat 视图的顶栏在搜索按钮旁多一个分屏按钮（`aria-pressed`）。打开后工作区（`.workspace-split-shell`）分成左边的聊天、一条分隔线和右边的笔记面板 `SplitNotePane`（`src/components/split-note-pane.tsx`）。窄于 1100px 时按钮和面板都不出现（保存的开关不变，变宽后恢复）；手机宽度和原生 App 没有这个功能。
+
+- **同一份笔记状态。** `page.tsx` 的 `useNotePages` 在 Notes 视图或分屏打开时启用，右侧面板和 Notes 视图共用它和 `NotesWorkspace`（`split`）：自动保存、冲突处理、编辑历史、页面设置都与 Notes 视图相同；左边聊天里 Apply 提案后，右边的编辑器经 `notefable:page-updated` 立即更新。分屏里打开或新建笔记不改 URL（`view` 不是 `pages` 时，`useNotePages` 不读也不写 `page=`）。
+- **面板顶栏。** 笔记切换（按标题筛选，最多列 60 篇，带 New note）、锁定时的解锁按钮、版本历史、保存状态、“…”页面菜单（与 Notes 顶栏相同，含 Export Markdown）、“Open in full view”（切到 Notes 视图打开这一篇）和关闭。还没有打开笔记时显示说明、New note 和最近编辑的 8 篇。刚打开分屏时自动打开上次在这里开着的笔记，没有或已不存在就打开最近编辑的一篇（每次打开分屏只试一次）。
+- **分隔线。** `role="separator"`：拖动改变比例，比例是笔记面板占工作区的份额，限制在 0.3–0.65（`clampSplitRatio`），默认 0.46，面板最窄 320px；双击恢复默认；聚焦后 ←/→ 每次 0.03；RTL 下方向相反。
+- **本机保存。** `localStorage` 的 `notefable:split-view:v1` 存 `{ open, pageId, ratio }`（`loadSplitPreference` / `saveSplitPreference`），只按浏览器保存，不随账号同步。`/app` 是静态页面，所以在页面显示后才读取。
+- **笔记链接在右侧打开。** Chat 视图且宽度够时，`openNoteFromLink` 不切到 Notes，而是在分屏里打开（分屏关着就顺便打开）：搜索结果（带 `blockId` 时照常滚到命中的块并高亮）、空对话页最近笔记卡片的 ↗，以及所有派发 `notefable:open-note` 的地方（项目参考笔记和发言附加笔记的标签、Save to page 的 “Open saved page”、Create page 的 “Open page”）。其他情况仍切到 Notes 视图。
+- **Ask AI 进聊天。** 分屏的笔记面板不显示笔记助手的悬浮按钮和面板。在这里选中文字点格式工具栏的 Ask AI，文字成为聊天输入框上方的引用条（与“引用回答追问”同一个引用条和发送格式），同时把这篇笔记加进这条发言的附加笔记（已附加或已满 5 篇时不加）。之后就是一条普通的聊天发言：不带 `noteId` / `noteSelection`，AI 通过附加的笔记和 Notes 工具读到内容。
+- **发送前保存。** 分屏打开且右侧笔记有未保存的编辑时，发送聊天消息前先 `flush()`，让 AI 读到最新的正文；保存失败不阻止发送。关闭分屏时也 flush 一次。
 
 ## 回答里的数学公式
 
