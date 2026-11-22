@@ -37,7 +37,7 @@ Accept: text/event-stream
 
 省略可选的 `compact_threshold`，使用厂商默认压缩阈值。`max_output_tokens` 延续既有代码，不额外设置。`reasoning.encrypted_content` 用于无状态续传原生推理项；不显示给浏览器。
 
-DeepSeek-V4.1-Flash（请求 `model` 为 `"deepseek-flash"`，可由 `DEEPSEEK_FLASH_MODEL` / `NOTEFABLE_MODELS` 覆盖）发往 `${DEEPSEEK_BASE_URL}/responses`，`reasoning` 只包含 `effort`，不发送 `summary`；本例使用 `{ "effort": "high" }`（支持 `low` / `high` / `max`，默认 `high`，`medium` 会回退到默认值）。因为 `supportsWebSearch: false` 会将 `webSearchMode` 归一化为 `"off"`，`instructions` 末尾的联网搜索说明替换为 `"Web search is unavailable in this request. Do not simulate web searches or invent search results. Be explicit when current information cannot be verified."`。其余沿用 Responses 结构，但不带 `web_search`、`context_management`、`include`、`safety_identifier` 和 `store`，`tools` 包含下文列出的五个 Notes `function` 工具（本例只展开两项），`tool_choice` 为 `auto`。
+DeepSeek-V4.1-Flash（请求 `model` 为 `"deepseek-flash"`，可由 `DEEPSEEK_FLASH_MODEL` / `NOTEFABLE_MODELS` 覆盖）发往 `${DEEPSEEK_BASE_URL}/responses`，`reasoning` 只包含 `effort`，不发送 `summary`；本例使用 `{ "effort": "high" }`（支持 `low` / `high` / `max`，默认 `high`，`medium` 会回退到默认值）。`instructions` 与上面完全相同；其余沿用 Responses 结构，但不带 `context_management`、`include`、`safety_identifier` 和 `store`，`tools` 第一项为 `{ "type": "deepseek_web_search" }`（DeepSeek-V4.1-Flash 的内置服务端联网搜索工具；`webSearchMode === "off"` 时不带），后面接下文列出的五个 Notes `function` 工具（本例只展开两项），`tool_choice` 为 `auto`（DeepSeek 不支持在 `tool_choice` 中强制指定 `deepseek_web_search`）。
 
 ## Anthropic Claude Haiku 5.5：聊天
 

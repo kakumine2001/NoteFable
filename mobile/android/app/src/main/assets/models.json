@@ -37,7 +37,7 @@
       "label": "DeepSeek-V4.1-Flash",
       "provider": "deepseek",
       "supportsImageInput": true,
-      "supportsWebSearch": false,
+      "supportsWebSearch": true,
       "reasoningEfforts": [
         "low",
         "high",

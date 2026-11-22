@@ -97,8 +97,8 @@ export default function PrivacyPage() {
             {" "}<a href="https://openai.com/policies/privacy-policy">OpenAI</a>,{" "}
             <a href="https://www.anthropic.com/legal/privacy">Anthropic</a> or{" "}
             <a href="https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html">DeepSeek</a> (DeepSeek is operated from China).
-            When the assistant looks at your notes, the note text it reads goes to that same provider. If you use web search, the search runs at OpenAI or Anthropic
-            (DeepSeek does not search the web). Image generation and image editing always go to OpenAI, whichever chat model is selected.
+            When the assistant looks at your notes, the note text it reads goes to that same provider; if the reply uses web search, that search also runs at
+            that provider. Image generation and image editing always go to OpenAI, whichever chat model is selected.
             For OpenAI chats we also send an internal account ID so OpenAI can apply its safety checks. Each provider handles the data under its own policy.
           </li>
           <li>

@@ -29,6 +29,15 @@ type DeepSeekResponsesEvent = {
   item?: { type?: string };
 };
 
+// DeepSeek の Responses API はモデルによって組み込み検索ツールの type が異なる：
+// deepseek-v4-pro は web_search、それ以外（deepseek-flash / DeepSeek-V4.1-Flash 等）は deepseek_web_search を送る。
+export function deepSeekWebSearchTool(model: string): { type: "deepseek_web_search" } | { type: "web_search" } {
+  const normalized = model.trim().toLowerCase();
+  return normalized === "deepseek-v4-pro" || normalized.startsWith("deepseek-v4-pro-")
+    ? { type: "web_search" }
+    : { type: "deepseek_web_search" };
+}
+
 export function buildDeepSeekResponsesRequest({
   model,
   instructions,

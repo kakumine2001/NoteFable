@@ -20,7 +20,7 @@ describe("chat activity", () => {
     expect(splitThought(steps[0].kind === "thought" ? steps[0].text : "")).toEqual({ title: "Plan", body: "Check docs." });
   });
 
-  it("turns a running web search into its finished action", () => {
+  it("turns a running web search into its finished action and clears failed page reads", () => {
     const running = parseActivityEvent({
       type: "response.output_item.added",
       item: { id: "ws", type: "web_search_call", status: "in_progress" },
@@ -29,10 +29,19 @@ describe("chat activity", () => {
       type: "response.output_item.done",
       item: { id: "ws", type: "web_search_call", action: { type: "open_page", url: "https://nextjs.org/docs" } },
     })!;
+    const failed = parseActivityEvent({
+      type: "response.output_item.done",
+      item: { id: "ws_fail", type: "web_search_call", status: "failed", action: { type: "open_page", url: "https://nextjs.org/broken" } },
+    })!;
 
-    expect([running, done].reduce(applyActivityEvent, [] as ActivityStep[])).toEqual([
+    const steps = [running, done, failed].reduce(applyActivityEvent, [] as ActivityStep[]);
+    expect(steps).toEqual([
       { id: "ws", kind: "web", status: "done", action: { kind: "open_page", url: "https://nextjs.org/docs" } },
+      { id: "ws_fail", kind: "web", status: "done", action: undefined },
     ]);
+    expect(serializeActivity(steps)).toBe(JSON.stringify([steps[0]]));
+    const summary = renderToStaticMarkup(createElement(ChatActivity, { steps: steps as ProgressStep[], isThinking: false, seconds: 1 }));
+    expect(summary).toContain("1 source");
   });
 
   it("turns a page edit proposal into a step and ignores malformed ones", () => {
