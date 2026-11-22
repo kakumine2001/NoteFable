@@ -113,13 +113,13 @@ struct ShareInboxStore: Sendable {
 
     private var inboxURL: URL { containerURL.appendingPathComponent("ShareInbox", isDirectory: true) }
 
-    /// 写一次分享。顺手清掉过期的旧分享。
+    /// 写一次分享。顺手清掉过期的旧分享。目录名带写入时间戳（`<unix秒>-<UUID>`），清过期目录时不用读文件系统的时间戳 API。
     @discardableResult
     func write(text: String, files: [SharedFileInput], now: Date = Date()) throws -> SharedPayload {
         let manager = FileManager.default
         try manager.createDirectory(at: inboxURL, withIntermediateDirectories: true)
         prune(now: now)
-        let id = UUID().uuidString
+        let id = "\(Int(now.timeIntervalSince1970))-\(UUID().uuidString)"
         let directory = inboxURL.appendingPathComponent(id, isDirectory: true)
         try manager.createDirectory(at: directory.appendingPathComponent("files", isDirectory: true), withIntermediateDirectories: true)
         var records: [SharedFileRecord] = []
@@ -149,16 +149,27 @@ struct ShareInboxStore: Sendable {
         return ConsumedShare(text: payload.text, files: payload.files.map { copy($0, from: directory, to: destinationDir) })
     }
 
-    /// 取走最新的一份没过期的分享（App 回到前台时用，不知道 id）。过期的顺手删掉。
-    func consumeLatest(copyFilesTo destinationDir: URL, maxAge: TimeInterval = ShareInboxStore.defaultMaxAge, now: Date = Date()) -> ConsumedShare? {
-        prune(now: now, maxAge: maxAge)
-        var newest: SharedPayload?
-        for directory in pendingDirectories() {
-            guard let payload = readPayload(in: directory) else { continue }
-            if newest == nil || payload.createdAt > newest!.createdAt { newest = payload }
+    /// 只读检查共享目录里有没有待取且未过期的分享（不删文件）。在笔记工作区回到前台时，只有真的有待取分享才尝试切回聊天。
+    func hasPending(id: String? = nil, maxAge: TimeInterval = ShareInboxStore.defaultMaxAge, now: Date = Date()) -> Bool {
+        if let id {
+            guard ShareIntake.isSafeId(id) else { return false }
+            let directory = inboxURL.appendingPathComponent(id, isDirectory: true)
+            guard let payload = readPayload(in: directory) else { return false }
+            return now.timeIntervalSince1970 - payload.createdAt <= maxAge
         }
-        guard let newest else { return nil }
-        return consume(id: newest.id, copyFilesTo: destinationDir, now: now)
+        return pendingDirectories().contains { directory in
+            guard let payload = readPayload(in: directory) else { return false }
+            return now.timeIntervalSince1970 - payload.createdAt <= maxAge
+        }
+    }
+
+    /// 按分享时间先后取走共享目录里全部没过期的分享（App 启动或回到前台时用）。过期的顺手删掉。
+    func consumeAllPending(copyFilesTo destinationDir: URL, maxAge: TimeInterval = ShareInboxStore.defaultMaxAge, now: Date = Date()) -> [ConsumedShare] {
+        prune(now: now, maxAge: maxAge)
+        let ordered = pendingDirectories()
+            .compactMap { readPayload(in: $0) }
+            .sorted { $0.createdAt < $1.createdAt }
+        return ordered.compactMap { consume(id: $0.id, copyFilesTo: destinationDir, now: now) }
     }
 
     // ---- 内部 ----
@@ -179,11 +190,17 @@ struct ShareInboxStore: Sendable {
                 if now.timeIntervalSince1970 - payload.createdAt > maxAge { try? FileManager.default.removeItem(at: directory) }
                 continue
             }
-            // payload.json 还没有，可能是别的进程（分享扩展）正在写：新的不碰，只删旧的。
-            let modified = (try? directory.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
-            if let modified, now.timeIntervalSince(modified) <= maxAge { continue }
+            // payload.json 还没有，可能是别的进程（分享扩展）正在写：从目录名开头的时间戳判断，不碰文件系统时间戳 API。
+            if let started = Self.timestampFromDirectoryName(directory.lastPathComponent), now.timeIntervalSince1970 - started <= maxAge {
+                continue
+            }
             try? FileManager.default.removeItem(at: directory)
         }
+    }
+
+    private static func timestampFromDirectoryName(_ name: String) -> TimeInterval? {
+        guard let dash = name.firstIndex(of: "-"), let seconds = TimeInterval(name[..<dash]), seconds > 0 else { return nil }
+        return seconds
     }
 
     private func copy(_ record: SharedFileRecord, from directory: URL, to destinationDir: URL) -> ConsumedSharedFile {

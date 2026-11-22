@@ -103,14 +103,28 @@ final class AppRouter {
         }
     }
 
-    /// 取走一份分享，切到聊天、放进新聊天的输入栏（不自动发送）。先关掉检索面板、抽屉和设置。
+    /// 取走分享并放进新聊天的输入栏（不自动发送）。先确保切到聊天工作区再从共享目录取走删除：
+    /// 如果当前笔记保存失败留在笔记里，分享内容继续安全留在共享目录，等用户切回聊天时再自动取走。
     private func openIncomingShare(id: String?) async {
-        guard let payload = await app.consumeSharePayload(id), !payload.text.isEmpty || !payload.files.isEmpty else { return }
-        dismissOverlays()
-        settingsOpen = false
-        let files = payload.files
-        app.notes.setWorkspace(.chat) { [app] in
-            app.chat.applyIncomingShare(text: payload.text, loadFiles: files.isEmpty ? nil : { files })
+        let deliver: @MainActor () async -> Void = { [weak self] in
+            guard let self else { return }
+            let payloads = await app.consumeSharePayloads(id).filter { !$0.text.isEmpty || !$0.files.isEmpty }
+            guard !payloads.isEmpty else { return }
+            dismissOverlays()
+            settingsOpen = false
+            for payload in payloads {
+                let files = payload.files
+                app.chat.applyIncomingShare(text: payload.text, loadFiles: files.isEmpty ? nil : { files })
+            }
+        }
+        if app.notes.state.workspace == .chat {
+            await deliver()
+            return
+        }
+        // 在笔记工作区时：只有真的有待取分享才尝试切回聊天；没切过去（例如笔记保存失败）就不删共享目录。
+        guard await app.hasPendingShare(id) else { return }
+        app.notes.setWorkspace(.chat) { [weak self] in
+            self?.enqueueShare(id: id)
         }
     }
 

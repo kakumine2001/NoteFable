@@ -25,8 +25,6 @@ export const metadata: Metadata = {
   title: "NoteFable",
   // Next.js の Metadata API へ渡すページ説明。
   description: "A personal space for AI conversations, notes, and ideas.",
-  // インストールした PWA がシステムの「共有」の宛先になるための定義（share_target）。受け取りは public/sw.js。
-  manifest: "/manifest.webmanifest",
 };
 
 // モバイルのキーボード表示時も本文の表示領域を追従させる。

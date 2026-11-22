@@ -65,7 +65,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
-import { consumeWebShare, mergeDraftWithShare } from "@/lib/share-target";
+import { consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares } from "@/lib/share-target";
 import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -1997,6 +1997,7 @@ export default function Home() {
   // 送信はしない。ユーザーが一言足してから送る。?chat= と同じく、先に指定を URL から外し、StrictMode の二重実行に備えて microtask に回す。
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
+    void pruneExpiredWebShares().catch(() => {});
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -2011,7 +2012,9 @@ export default function Home() {
       window.history.replaceState(window.history.state, "", url);
       setWorkspaceView("chat");
       setNotesList(false);
-      // 何も開いていない新しいチャットから始める。
+      // 何も開いていない新しいチャットから始める。読み込み中にユーザーが別の会話へ移ったら、そちらへは入れない。
+      const shareIntent = sessionNavigationIntentRef.current + 1;
+      sessionNavigationIntentRef.current = shareIntent;
       sessionLoadAbortRef.current?.abort();
       activeSessionIdRef.current = null;
       setActiveSessionId(null);
@@ -2020,7 +2023,7 @@ export default function Home() {
       quoteRef.current = null;
       setQuote(null);
       void consumeWebShare(shareId).then((shared) => {
-        if (cancelled || !shared) return;
+        if (cancelled || !shared || sessionNavigationIntentRef.current !== shareIntent || activeSessionIdRef.current !== null) return;
         if (shared.text) setInput((current) => mergeDraftWithShare(current, shared.text));
         if (shared.files.length) addUploadFilesRef.current(shared.files);
         inputRef.current?.focus();

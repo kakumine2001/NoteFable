@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { composeSharedText, consumeWebShare, mergeDraftWithShare, SHARE_CACHE_NAME, SHARE_CACHE_PREFIX } from "./share-target";
+import { composeSharedText, consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares, SHARE_CACHE_NAME, SHARE_CACHE_PREFIX, SHARE_MAX_AGE_MS } from "./share-target";
 
 describe("composeSharedText", () => {
   it("joins title, text and url on separate lines", () => {
@@ -36,9 +36,10 @@ describe("mergeDraftWithShare", () => {
 function fakeCaches() {
   const entries = new Map<string, Response>();
   const cache = {
-    match: async (key: string) => entries.get(key)?.clone(),
+    match: async (key: string | Request) => entries.get(typeof key === "string" ? key : key.url)?.clone(),
     put: async (key: string, response: Response) => void entries.set(key, response),
-    delete: async (key: string) => entries.delete(key),
+    delete: async (key: string | Request) => entries.delete(typeof key === "string" ? key : key.url),
+    keys: async () => Array.from(entries.keys(), (url) => ({ url }) as Request),
   };
   vi.stubGlobal("caches", { open: async (name: string) => (name === SHARE_CACHE_NAME ? cache : (() => { throw new Error(name); })()) });
   return entries;
@@ -57,7 +58,7 @@ describe("consumeWebShare", () => {
   }
 
   it("returns the text and files once, then removes them", async () => {
-    store("abcdef12", { createdAt: 1, title: "", text: "hi", url: "https://example.com", files: [{ index: 0, name: "a.txt", type: "text/plain", size: 3, truncated: false }] }, { 0: "abc" });
+    store("abcdef12", { createdAt: Date.now(), title: "", text: "hi", url: "https://example.com", files: [{ index: 0, name: "a.txt", type: "text/plain", size: 3, truncated: false }] }, { 0: "abc" });
     const shared = await consumeWebShare("abcdef12");
     expect(shared?.text).toBe("hi\nhttps://example.com");
     expect(shared?.files).toHaveLength(1);
@@ -67,16 +68,30 @@ describe("consumeWebShare", () => {
   });
 
   it("gives a second read of the same id (StrictMode) the same result", async () => {
-    store("repeat123", { createdAt: 1, title: "", text: "once", url: "", files: [] });
+    store("repeat123", { createdAt: Date.now(), title: "", text: "once", url: "", files: [] });
     const [first, second] = await Promise.all([consumeWebShare("repeat123"), consumeWebShare("repeat123")]);
     expect(first).toBe(second);
     expect(first?.text).toBe("once");
   });
 
   it("reports the real size of a file that was too large to keep", async () => {
-    store("toolarge1", { createdAt: 1, title: "", text: "", url: "", files: [{ index: 0, name: "big.pdf", type: "application/pdf", size: 30 * 1024 * 1024, truncated: true }] }, { 0: "" });
+    store("toolarge1", { createdAt: Date.now(), title: "", text: "", url: "", files: [{ index: 0, name: "big.pdf", type: "application/pdf", size: 30 * 1024 * 1024, truncated: true }] }, { 0: "" });
     const shared = await consumeWebShare("toolarge1");
     expect(shared?.files[0].size).toBe(30 * 1024 * 1024);
+  });
+
+  it("drops expired payloads on read and prunes them on startup", async () => {
+    const expiredAt = Date.now() - SHARE_MAX_AGE_MS - 1000;
+    store("expired01", { createdAt: expiredAt, title: "", text: "old", url: "", files: [{ index: 0, name: "a.txt", type: "text/plain", size: 1, truncated: false }] }, { 0: "x" });
+    expect(await consumeWebShare("expired01")).toBeNull();
+    expect(entries.size).toBe(0);
+
+    store("expired02", { createdAt: expiredAt, title: "", text: "stale", url: "", files: [{ index: 0, name: "b.txt", type: "text/plain", size: 1, truncated: false }] }, { 0: "y" });
+    store("fresh0001", { createdAt: Date.now(), title: "", text: "fresh", url: "", files: [] });
+    await pruneExpiredWebShares();
+    expect(entries.has(`${SHARE_CACHE_PREFIX}expired02/meta.json`)).toBe(false);
+    expect(entries.has(`${SHARE_CACHE_PREFIX}expired02/file-0`)).toBe(false);
+    expect(entries.has(`${SHARE_CACHE_PREFIX}fresh0001/meta.json`)).toBe(true);
   });
 
   it("returns null for a missing or malformed id", async () => {

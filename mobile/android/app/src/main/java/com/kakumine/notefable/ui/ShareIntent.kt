@@ -11,7 +11,9 @@ import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
 import com.kakumine.notefable.data.IncomingShareRequest
 import com.kakumine.notefable.data.LocalFile
+import com.kakumine.notefable.data.MAX_UPLOAD_FILES
 import com.kakumine.notefable.data.MAX_UPLOAD_FILE_BYTES
+import com.kakumine.notefable.data.MAX_UPLOAD_TOTAL_BYTES
 import com.kakumine.notefable.data.composeSharedText
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,9 +36,48 @@ fun extractShareIntent(context: Context, intent: Intent?, scope: CoroutineScope)
     if (text.isEmpty() && uris.isEmpty()) return null
     if (uris.isEmpty()) return IncomingShareRequest(text)
     val app = context.applicationContext
-    val files = scope.async(Dispatchers.IO) { uris.mapNotNull { readSharedFile(app, it) } }
+    val files = scope.async(Dispatchers.IO) { readSharedBatch(app, uris) }
     return IncomingShareRequest(text) { files.await() }
 }
+
+/**
+ * 批量拷进缓存：超过附件数量上限（10 个）或累计大小上限（100 MiB）时不把整批巨量文件落盘，
+ * 只带上足够让 `selectionError` 报出原有提示的占位信息。
+ */
+internal fun readSharedBatch(context: Context, uris: List<Uri>): List<LocalFile> {
+    if (uris.size > MAX_UPLOAD_FILES) {
+        return uris.mapIndexed { index, uri -> LocalFile(uri.toString(), "file-${index + 1}", "application/octet-stream", 1L) }
+    }
+    val out = mutableListOf<LocalFile>()
+    var cumulativeBytes = 0L
+    for (uri in uris) {
+        if (cumulativeBytes > MAX_UPLOAD_TOTAL_BYTES) {
+            out += readSharedMetadataOnly(context, uri) ?: continue
+            continue
+        }
+        val file = readSharedFile(context, uri) ?: continue
+        cumulativeBytes += file.size
+        out += file
+    }
+    return out
+}
+
+private fun readSharedMetadataOnly(context: Context, uri: Uri): LocalFile? = runCatching {
+    val resolver = context.contentResolver
+    var name = ""
+    var size = -1L
+    resolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+            name = cursor.getString(0).orEmpty()
+            if (!cursor.isNull(1)) size = cursor.getLong(1)
+        }
+    }
+    if (name.isEmpty()) name = uri.lastPathSegment?.substringAfterLast('/').orEmpty()
+    val type = (resolver.getType(uri)
+        ?: MimeTypeMap.getSingleton().getMimeTypeFromExtension(name.substringAfterLast('.', "").lowercase())
+        ?: "application/octet-stream").lowercase()
+    LocalFile(uri.toString(), name.ifEmpty { "file" }, type, if (size > 0) size else 1L)
+}.getOrNull()
 
 @Suppress("DEPRECATION")
 private fun shareUris(intent: Intent): List<Uri> {

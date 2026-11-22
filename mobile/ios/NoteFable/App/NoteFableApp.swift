@@ -15,8 +15,9 @@ struct NoteFableApp: App {
         let router = AppRouter(app: app)
         // 画不出来的表情不进表情面板（要用 CoreText，所以在界面层接上）。
         app.emojiGlyphSupported = { emoji in EmojiGlyphs.isSupported(emoji) }
-        // 系统「分享」：分享扩展写进 App Group 共享目录的内容，在这里取走（Android 的 SEND intent）。
-        app.consumeSharePayload = { id in await ShareInboxBridge.consume(id: id) }
+        // 系统「分享」：分享扩展写进 App Group 共享目录的内容，在这里检查并取走（Android 的 SEND intent）。
+        app.hasPendingShare = { id in await ShareInboxBridge.hasPending(id: id) }
+        app.consumeSharePayloads = { id in await ShareInboxBridge.consume(id: id) }
         GoogleSignInBridge.install(into: app)
         app.start()
         router.start()

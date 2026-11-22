@@ -246,9 +246,9 @@ final class AppEnvironmentTests: XCTestCase {
         router.drawerOpen = true
         let photo = LocalFile(uri: "file:///photo", name: "photo.png", mimeType: "image/png", size: 10)
         var requested: [String?] = []
-        environment.consumeSharePayload = { id in
+        environment.consumeSharePayloads = { id in
             requested.append(id)
-            return ("from share", [photo])
+            return [("from share", [photo])]
         }
 
         let handled = router.handleIncomingURL(try XCTUnwrap(URL(string: "notefable://share?id=abcdef12-3456")))
@@ -266,26 +266,26 @@ final class AppEnvironmentTests: XCTestCase {
         let environment = try makeEnvironment()
         let router = AppRouter(app: environment)
         var calls = 0
-        environment.consumeSharePayload = { _ in
+        environment.consumeSharePayloads = { _ in
             calls += 1
-            // 第一次取到，之后没有（取走就删）。
-            return calls == 1 ? ("only once", []) : nil
+            // 第一次取到两份按先后顺序排列的分享，之后没有（取走就删）。
+            return calls == 1 ? [("first share", []), ("second share", [])] : []
         }
 
         router.consumePendingShares()
         router.consumePendingShares()
         await eventually { calls == 2 }
         await settleMainActor()
-        XCTAssertEqual(environment.chat.draft, "only once")
+        XCTAssertEqual(environment.chat.draft, "first share\n\nsecond share")
     }
 
     func testShareUrlWithBadIdIsNotHandledAsAShare() async throws {
         let environment = try makeEnvironment()
         let router = AppRouter(app: environment)
         var called = false
-        environment.consumeSharePayload = { _ in
+        environment.consumeSharePayloads = { _ in
             called = true
-            return nil
+            return []
         }
         XCTAssertFalse(router.handleIncomingURL(try XCTUnwrap(URL(string: "notefable://share?id=../x"))))
         await settleMainActor()

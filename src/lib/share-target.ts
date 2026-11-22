@@ -5,6 +5,7 @@
 export const SHARE_CACHE_NAME = "notefable-share-v1";
 export const SHARE_CACHE_PREFIX = "/__notefable_share__/";
 export const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
+export const SHARE_MAX_AGE_MS = 10 * 60 * 1000;
 
 type ShareMeta = {
   createdAt: number;
@@ -54,16 +55,34 @@ async function readAndDelete(id: string): Promise<ConsumedWebShare | null> {
   const metaResponse = await cache.match(`${base}/meta.json`);
   if (!metaResponse) return null;
   const meta = (await metaResponse.json()) as ShareMeta;
+  const expired = typeof meta.createdAt !== "number" || Date.now() - meta.createdAt > SHARE_MAX_AGE_MS;
   const files: File[] = [];
-  for (const info of meta.files ?? []) {
-    const response = await cache.match(`${base}/file-${info.index}`);
-    const blob = response ? await response.blob() : new Blob([]);
-    const file = new File([blob], info.name, { type: info.type });
-    // 大きすぎて預けなかったファイルも、本当の大きさを名乗らせる。そうすると添付の検証が「20 MiB を超えています」と正しく断る。
-    if (info.truncated) Object.defineProperty(file, "size", { value: info.size });
-    files.push(file);
+  if (!expired) {
+    for (const info of meta.files ?? []) {
+      const response = await cache.match(`${base}/file-${info.index}`);
+      const blob = response ? await response.blob() : new Blob([]);
+      const file = new File([blob], info.name, { type: info.type });
+      // 大きすぎて預けなかったファイルも、本当の大きさを名乗らせる。そうすると添付の検証が「20 MiB を超えています」と正しく断る。
+      if (info.truncated) Object.defineProperty(file, "size", { value: info.size });
+      files.push(file);
+    }
   }
   await cache.delete(`${base}/meta.json`);
   for (const info of meta.files ?? []) await cache.delete(`${base}/file-${info.index}`);
-  return { text: composeSharedText(meta), files };
+  return expired ? null : { text: composeSharedText(meta), files };
+}
+
+// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュを掃除する。
+export async function pruneExpiredWebShares(now = Date.now()) {
+  if (typeof caches === "undefined") return;
+  const cache = await caches.open(SHARE_CACHE_NAME);
+  const keys = await cache.keys();
+  for (const key of keys) {
+    if (!key.url.endsWith("/meta.json")) continue;
+    const response = await cache.match(key);
+    const meta = response ? ((await response.json().catch(() => null)) as ShareMeta | null) : null;
+    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt <= SHARE_MAX_AGE_MS) continue;
+    const prefix = key.url.slice(0, -"meta.json".length);
+    for (const other of keys) if (other.url.startsWith(prefix)) await cache.delete(other);
+  }
 }

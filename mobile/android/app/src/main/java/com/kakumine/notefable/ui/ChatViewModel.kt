@@ -649,12 +649,19 @@ class ChatViewModel(
         externalShares.trySend(share)
     }
 
+    private val pendingShares = mutableListOf<IncomingShareRequest>()
+
     /**
      * 把分享来的内容放进一个新聊天的输入栏（不自动发送，用户补一句再发）。
      * 已经在空的新聊天里时不换，输入栏里写了一半的话保留、分享的文字接在后面；换聊天时旧聊天的引用不带过来。
+     * 如果当前正在上传附件，先排队等上传结束再放进输入栏，免得上传完成后清空输入栏把刚分享的内容冲掉。
      */
     fun applyIncomingShare(share: IncomingShareRequest) {
         val current = _state.value
+        if (current.upload != null) {
+            pendingShares += share
+            return
+        }
         val switched = current.activeSessionId != null || current.messages.isNotEmpty()
         newChat()
         if (switched) clearQuote()
@@ -1235,12 +1242,19 @@ class ChatViewModel(
         saveQuote()
     }
 
-    /** 上传结束了：放回等着的提问。 */
+    /** 上传结束了：放回等着的提问和排队中的系统分享。 */
     private fun flushRestores() {
-        if (pendingRestores.isEmpty() || _state.value.upload != null) return
-        val restores = pendingRestores.toList()
-        pendingRestores.clear()
-        restores.forEach(::restoreDraft)
+        if (_state.value.upload != null) return
+        if (pendingRestores.isNotEmpty()) {
+            val restores = pendingRestores.toList()
+            pendingRestores.clear()
+            restores.forEach(::restoreDraft)
+        }
+        if (pendingShares.isNotEmpty()) {
+            val shares = pendingShares.toList()
+            pendingShares.clear()
+            shares.forEach(::applyIncomingShare)
+        }
     }
 
     /**

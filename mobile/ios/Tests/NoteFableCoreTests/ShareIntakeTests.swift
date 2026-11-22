@@ -91,20 +91,23 @@ final class ShareIntakeTests: XCTestCase {
 
         // 取走就删：不能取第二次。
         XCTAssertNil(store.consume(id: payload.id, copyFilesTo: destination))
-        XCTAssertNil(store.consumeLatest(copyFilesTo: destination))
+        XCTAssertTrue(store.consumeAllPending(copyFilesTo: destination).isEmpty)
     }
 
-    func testConsumeLatestTakesTheNewestAndIgnoresExpired() throws {
+    func testConsumeAllPendingTakesEveryUnexpiredShareInOrder() throws {
         let now = Date()
-        try store.write(text: "old", files: [], now: now.addingTimeInterval(-30))
-        try store.write(text: "new", files: [], now: now.addingTimeInterval(-10))
+        try store.write(text: "first", files: [], now: now.addingTimeInterval(-30))
+        try store.write(text: "second", files: [], now: now.addingTimeInterval(-10))
+        XCTAssertTrue(store.hasPending(now: now))
 
-        XCTAssertEqual(store.consumeLatest(copyFilesTo: destination, now: now)?.text, "new")
-        XCTAssertEqual(store.consumeLatest(copyFilesTo: destination, now: now)?.text, "old")
-        XCTAssertNil(store.consumeLatest(copyFilesTo: destination, now: now))
+        let all = store.consumeAllPending(copyFilesTo: destination, now: now)
+        XCTAssertEqual(all.map(\.text), ["first", "second"])
+        XCTAssertFalse(store.hasPending(now: now))
+        XCTAssertTrue(store.consumeAllPending(copyFilesTo: destination, now: now).isEmpty)
 
         let stale = try store.write(text: "stale", files: [], now: now.addingTimeInterval(-11 * 60))
-        XCTAssertNil(store.consumeLatest(copyFilesTo: destination, now: now))
+        XCTAssertFalse(store.hasPending(now: now))
+        XCTAssertTrue(store.consumeAllPending(copyFilesTo: destination, now: now).isEmpty)
         XCTAssertNil(store.consume(id: stale.id, copyFilesTo: destination, now: now))
     }
 
