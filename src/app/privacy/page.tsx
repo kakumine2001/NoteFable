@@ -151,7 +151,8 @@ export default function PrivacyPage() {
 
       <LegalSection title="7. Security">
         <p>
-          Data is sent over HTTPS, the device cookie is signed, and each chat and note can be read only through the browser or Google account that created it.
+          Data is sent over HTTPS, the device cookie is signed, and each private chat and note can be read only through the browser or signed-in account that created it.
+          If you explicitly publish a note to the web, anyone with its share link can read that note (and its sub-pages, when included) until you unpublish it, it expires, or you delete it.
           No online service is perfectly secure, and anyone who can use your browser can use your anonymous data, so avoid using NoteFable without signing in on shared devices.
         </p>
       </LegalSection>

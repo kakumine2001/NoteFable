@@ -41,6 +41,7 @@ export async function POST(_request: Request, context: Context) {
               coverPosition: source.coverPosition, blocks: source.blocks as Prisma.InputJsonValue, groupId: source.groupId,
               parentId: source.id === root.id ? root.parentId : copies.get(source.parentId!)!,
               fullWidth: source.fullWidth, smallText: source.smallText, font: source.font, locked: source.locked,
+              shareExcludeFromParent: source.shareExcludeFromParent,
             },
             select: { id: true },
           });

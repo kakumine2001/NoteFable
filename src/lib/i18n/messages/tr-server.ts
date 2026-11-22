@@ -221,4 +221,7 @@ export const trServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Bu öneri artık geçerli değil. Yeni bir öneri almak için tekrar isteyin.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Öneri oluşturulduktan sonra bu not değişti. Yeni bir öneri almak için tekrar isteyin.",
   "Upload up to {max} files at a time.": "Tek seferde en fazla {max} dosya yükleyin.",
+  "Invalid request body.": "Geçersiz istek gövdesi.",
+  "Invalid share settings.": "Geçersiz paylaşım ayarları.",
+  "Expiration time must be in the future.": "Son kullanma tarihi gelecekte olmalıdır.",
 };

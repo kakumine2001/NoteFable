@@ -221,4 +221,7 @@ export const thServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "ข้อเสนอนี้ใช้ไม่ได้แล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "โน้ตนี้ถูกแก้ไขหลังจากสร้างข้อเสนอแล้ว กรุณาขอใหม่อีกครั้งเพื่อรับข้อเสนอใหม่",
   "Upload up to {max} files at a time.": "อัปโหลดได้สูงสุดครั้งละ {max} ไฟล์",
+  "Invalid request body.": "ข้อมูลคำขอไม่ถูกต้อง",
+  "Invalid share settings.": "การตั้งค่าการแชร์ไม่ถูกต้อง",
+  "Expiration time must be in the future.": "เวลาหมดอายุต้องอยู่ในอนาคต",
 };

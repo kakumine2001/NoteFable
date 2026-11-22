@@ -221,4 +221,7 @@ export const zhServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "这条修改建议已失效。请重新提问以获取新的建议。",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "提出修改建议后，这篇笔记已被修改。请重新提问以获取新的建议。",
   "Upload up to {max} files at a time.": "一次最多只能上传 {max} 个文件。",
+  "Invalid request body.": "请求内容无效。",
+  "Invalid share settings.": "分享设置无效。",
+  "Expiration time must be in the future.": "过期时间必须晚于当前时间。",
 };

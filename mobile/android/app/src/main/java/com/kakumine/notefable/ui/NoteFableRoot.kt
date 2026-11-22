@@ -69,6 +69,7 @@ private sealed interface NotesDialogState {
     data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
     data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
     data class TrashNote(val page: NotePageSummary) : NotesDialogState
+    data class Share(val pageId: String) : NotesDialogState
 }
 
 @Composable
@@ -364,6 +365,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onMove = { dialog = NotesDialogState.Move(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
+                    onShare = { dialog = NotesDialogState.Share(open.id) },
                 )
             }
             else -> Column(Modifier.fillMaxSize().background(Color.White)) {
@@ -474,6 +476,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
             onConfirm = { vm.trashNote(dialog.page.id) },
             onClose = close,
         )
+        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close)
     }
 }
 
