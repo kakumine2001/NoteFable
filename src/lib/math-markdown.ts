@@ -56,7 +56,7 @@ function displayMath(text: string, offset: number, length: number, rawBody: stri
     : `$$${lines.join(" ")}$$`;
 }
 
-function prepareText(text: string, found: { math: boolean }) {
+function prepareText(text: string, found: { math: boolean }, doubleBeforeDigit: boolean) {
   return text.replace(TOKENS, (match, ...groups: unknown[]) => {
     const [escapedBackslash, code, , link, bracket, paren, dollars, escapedDollar, inline, lone] = groups as (string | undefined)[];
     const offset = groups[groups.length - 2] as number;
@@ -73,8 +73,10 @@ function prepareText(text: string, found: { math: boolean }) {
       const body = paren.replace(/\s*\n\s*/g, " ").trim();
       if (!body) return match;
       found.math = true;
-      // 中に「$」（\$ も含む）があると $…$ では途中で閉じてしまうので、$$…$$ で囲む。
-      return body.includes("$") ? `$$${body}$$` : `$${body}$`;
+      const nextDigit = doubleBeforeDigit && /\d/.test(text[offset + match.length] ?? "");
+      // 中に「$」（\$ も含む）があるときは $…$ では途中で閉じてしまうので、$$…$$ で囲む。
+      // ノート保存時（doubleBeforeDigit）は、直後に数字が続くときも $$…$$ にして Pandoc 規則との衝突を避ける。
+      return body.includes("$") || nextDigit ? `$$${body}$$` : `$${body}$`;
     }
     if (dollars !== undefined) {
       const display = displayMath(text, offset, match.length, dollars);
@@ -98,14 +100,15 @@ const FENCE_OPEN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
 const INDENTED = /^(?: {4,}| {0,3}\t)\s*\S/;
 const LIST_ITEM = /^ {0,3}(?:[-*+]|\d{1,9}[.)])(?:[ \t]|$)/;
 
-export function prepareMath(markdown: string): PreparedMath {
+export function prepareMath(markdown: string, options?: { doubleBeforeDigit?: boolean }): PreparedMath {
   if (!/\$|\\\(|\\\[|^ {0,3}(?:`{3,}|~{3,})\s*math\b/m.test(markdown)) return { text: markdown, hasMath: false };
+  const doubleBeforeDigit = options?.doubleBeforeDigit === true;
   const found = { math: false };
   const output: string[] = [];
   let pending: string[] = [];
   let fence: { char: string; length: number } | null = null;
   const flush = () => {
-    if (pending.length) output.push(prepareText(pending.join("\n"), found));
+    if (pending.length) output.push(prepareText(pending.join("\n"), found, doubleBeforeDigit));
     pending = [];
   };
   // 字下げのコードブロックを始められる位置か（直前が空行・文頭・コードブロックの終わり）。

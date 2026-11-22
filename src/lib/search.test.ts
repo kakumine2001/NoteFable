@@ -91,6 +91,9 @@ describe("findMatchingBlock", () => {
     expect(findMatchingBlock(blocks, ["infty"])).toEqual({ blockId: "m1", text: "\\int_0^\\infty e^{-x^2}\\,dx" });
     expect(findMatchingBlock(blocks, ["pi"])).toEqual({ blockId: "p1", text: "Euler: e^{i\\pi} + 1 = 0" });
     expect(findMatchingBlock([blocks[0]], ["euler"])).toBeNull();
+    // テキストの直後に数式が並んでも、語境界を保って 2 文字語（pi）を見つけられる。
+    const tight = [{ id: "p2", type: "paragraph", props: {}, content: [text("angle"), { type: "mathInline", props: { latex: "pi" } }], children: [] }];
+    expect(findMatchingBlock(tight, ["pi"])).toEqual({ blockId: "p2", text: "angle pi" });
   });
 
   it("returns null when nothing matches or the input is unusable", () => {

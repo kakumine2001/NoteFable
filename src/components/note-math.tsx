@@ -5,9 +5,10 @@ import { createReactBlockSpec, createReactInlineContentSpec } from "@blocknote/r
 import { CornerDownLeft, Sigma } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
+import { type FloatingPosition } from "@/components/emoji-picker";
 import { useT } from "@/components/i18n-provider";
 import { MAX_MATH_LATEX } from "@/lib/note-document";
+import { useBackToClose } from "@/lib/use-back-to-close";
 
 // ---- KaTeX の遅延読み込み ----
 // 数式を含まないノートでは KaTeX 本体とスタイル・字体を読み込まない。
@@ -150,8 +151,8 @@ export function MathEditorProvider({ editor, editable, children }: { editor: Any
     if (restoreFocus) window.setTimeout(() => { if (editor.isEditable) editor.focus(); }, 0);
   }, [editor]);
 
-  // モバイルの戻るキーはノートから離れる前にポップオーバーだけを閉じる。
-  usePickerBackToClose(activeSession !== null, close);
+  // 端末の戻るキーは画面幅を問わず、ノートから離れる前にポップオーバーだけを閉じる。
+  useBackToClose(activeSession !== null, close);
 
   const updateLatex = useCallback((nextRaw: string) => {
     const current = sessionRef.current;
@@ -478,14 +479,20 @@ export const mathInlineSpec = createReactInlineContentSpec(
 );
 
 // ---- 選択テキストを行内数式に変換 / カーソル位置に挿入 ----
+function selectionLatex(view: NonNullable<AnyEditor["prosemirrorView"]>, from: number, to: number) {
+  return view.state.doc
+    .textBetween(from, to, " ", (leaf) => (leaf.type.name === "mathInline" ? String(leaf.attrs.latex ?? "") : ""))
+    .replace(/\r?\n/g, " ")
+    .trim();
+}
+
 export function canInsertInlineMath(editor: AnyEditor): boolean {
   const view = editor.prosemirrorView;
   if (!editor.isEditable || !view) return false;
   const { from, to, $from, $to } = view.state.selection;
   if (!$from.sameParent($to) || !$from.parent.inlineContent || $from.parent.type.spec.code) return false;
   // 上限を超える選択範囲は切り捨てず、変換対象から外す。
-  const selected = view.state.doc.textBetween(from, to, " ").replace(/\r?\n/g, " ").trim();
-  return selected.length <= MAX_MATH_LATEX;
+  return selectionLatex(view, from, to).length <= MAX_MATH_LATEX;
 }
 
 export function convertSelectionToInlineMath(editor: AnyEditor): boolean {
@@ -494,7 +501,7 @@ export function convertSelectionToInlineMath(editor: AnyEditor): boolean {
   const nodeType = editor.pmSchema.nodes.mathInline;
   if (!nodeType) return false;
   const { from, to } = view.state.selection;
-  const selected = view.state.doc.textBetween(from, to, " ").replace(/\r?\n/g, " ").trim();
+  const selected = selectionLatex(view, from, to);
   if (selected.length > MAX_MATH_LATEX) return false;
   editor.transact((tr) => {
     markNextMathInlineAutoOpen();

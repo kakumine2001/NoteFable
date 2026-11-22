@@ -319,6 +319,18 @@ describe("math blocks and inline math", () => {
     const fenced = markdownToBlocks(["$$ unclosed", "```tex", "$$", "```", "after"].join("\n"));
     expect(fenced.map((b) => b.type)).toEqual(["paragraph", "codeBlock", "paragraph"]);
     expect(fenced[2].content).toEqual([{ type: "text", text: "after", styles: {} }]);
+
+    // 強調（*...*）の中の数式に含まれる * で強調が途中で閉じない。
+    const emph = markdownToBlocks("*Value $x*y$*");
+    expect(emph[0].content).toEqual([
+      { type: "text", text: "Value ", styles: { italic: true } },
+      { type: "mathInline", props: { latex: "x*y" } },
+    ]);
+
+    // 引用の中の $$ ブロックも mathBlock にする。
+    const quoted = markdownToBlocks(["> $$", "> x^2", "> $$"].join("\n"));
+    expect(quoted.map((b) => b.type)).toEqual(["mathBlock"]);
+    expect(quoted[0].props).toEqual({ latex: "x^2" });
   });
 
   it("handles pathological dollar signs in roughly linear time", () => {

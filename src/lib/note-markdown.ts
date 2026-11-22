@@ -147,8 +147,8 @@ function tableRows(content: unknown): unknown[][] {
 }
 
 // GFM の表の 1 行。セルの中の改行は空白に、| は \| にする（行内の数式の中の | は、数式ごと残るのでそのまま）。
-function tableRowMarkdown(cells: unknown[], columns: number) {
-  const texts = Array.from({ length: columns }, (_, index) => inlineToMarkdown(cells[index], false, true).replace(/\n/g, " ").trim());
+function tableRowMarkdown(cells: unknown[], columns: number, forPreview = false) {
+  const texts = Array.from({ length: columns }, (_, index) => inlineToMarkdown(cells[index], false, true, forPreview).replace(/\n/g, " ").trim());
   return `| ${texts.join(" | ")} |`;
 }
 
@@ -176,18 +176,22 @@ function startsWithDigit(entry: Inline | undefined): boolean {
 }
 
 // pipes を真にすると、表のセルの中として | を \| にする（数式の中は除く）。
-function inlineToMarkdown(content: unknown, plain = false, pipes = false): string {
+// forPreview が真のときは、隣接する行内数式を空白で区切り（$x$ $y$）、履歴プレビューの remark-math が 1 つの壊れた数式と誤認しないようにする。
+function inlineToMarkdown(content: unknown, plain = false, pipes = false, forPreview = false): string {
   if (!Array.isArray(content)) return "";
   const cell = (text: string) => (pipes ? escapeCellPipes(text) : text);
   const items = content as Inline[];
   return items.map((entry, index) => {
     if (entry?.type === "link" && typeof entry.href === "string") {
-      const text = inlineToMarkdown(entry.content, plain);
+      const text = inlineToMarkdown(entry.content, plain, false, forPreview);
       return cell(plain ? text : `[${text}](${entry.href.replace(/\s/g, encodeURIComponent).replace(/\)/g, "%29")})`);
     }
     if (entry?.type === "mathInline") {
       const latex = (entry.props as { latex?: unknown } | undefined)?.latex;
-      return plain ? (typeof latex === "string" ? latex : "") : inlineMath(latex, startsWithDigit(items[index + 1]));
+      if (plain) return typeof latex === "string" ? latex : "";
+      const rendered = inlineMath(latex, startsWithDigit(items[index + 1]));
+      const nextIsMath = items[index + 1]?.type === "mathInline";
+      return rendered && forPreview && nextIsMath ? `${rendered} ` : rendered;
     }
     if (entry?.type !== "text" || typeof entry.text !== "string") return "";
     if (plain) return entry.text;
@@ -207,8 +211,9 @@ function inlineToMarkdown(content: unknown, plain = false, pipes = false): strin
 // 保存済みの BlockNote JSON を、モデルが読みやすい Markdown にする。不明なブロックは本文だけ残す。
 // counter を渡すと、全ブロックを深さ優先の順に 1 から番号付けして `[n] ` を行頭に付ける（空ブロックも 1 行出す）。
 // 編集ツールはこの番号でブロックを指す。
-export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: number }): string {
+export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: number }, options?: { forPreview?: boolean }): string {
   if (!Array.isArray(blocks) || depth > 8) return "";
+  const forPreview = options?.forPreview === true;
   const indent = "  ".repeat(depth);
   const lines: string[] = [];
   let previousType: unknown;
@@ -236,8 +241,8 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       if (rows.length) {
         // 表が続く時は空行で区切る（詰めて書くと、読み戻した時に 1 つの表になる）。番号付きの時は [n] が区切りになる。
         if (!counter && previousType === "table") lines.push("");
-        lines.push(`${indent}${label}${tableRowMarkdown(rows[0], columns)}`, `${indent}| ${Array.from({ length: columns }, () => "---").join(" | ")} |`,
-          ...rows.slice(1).map((row) => indent + tableRowMarkdown(row, columns)));
+        lines.push(`${indent}${label}${tableRowMarkdown(rows[0], columns, forPreview)}`, `${indent}| ${Array.from({ length: columns }, () => "---").join(" | ")} |`,
+          ...rows.slice(1).map((row) => indent + tableRowMarkdown(row, columns, forPreview)));
       } else if (counter) lines.push(`${indent}${label}`);
     } else if (block.type === "image" || block.type === "file") {
       // アップロードされた画像・ファイルは中身を読めないので、名前と説明だけを書いた目印にする（編集では置換・削除できる。その場合は提案の画面で警告する）。
@@ -245,7 +250,7 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
       const caption = typeof props.caption === "string" && props.caption ? ` — ${props.caption}` : "";
       lines.push(`${indent}${label}[${block.type === "image" ? "Image" : "File"}: ${name}${caption}]`);
     } else {
-      const text = inlineToMarkdown(block.content);
+      const text = inlineToMarkdown(block.content, false, false, forPreview);
       const start = Number(props.start);
       // 折りたたみ（トグル）は ▸、コールアウトは「> [!絵文字]」で表す。
       const prefix =
@@ -258,7 +263,7 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
         block.type === "quote" ? "> " : "";
       if (counter || text.trim() || prefix) lines.push(`${indent}${label}${prefix}${prefix ? text : escapeBlockStart(text)}`);
     }
-    const children = blocksToMarkdown(block.children, depth + 1, counter);
+    const children = blocksToMarkdown(block.children, depth + 1, counter, options);
     if (children) lines.push(children);
     previousType = block.type;
   }
@@ -315,12 +320,16 @@ class Finder {
     return low < this.dollars.length ? this.dollars[low] : -1;
   }
 
-  // 単独の * （前後が * でない）の位置。前から順に一度だけ数える。
+  // 単独の * （前後が * でない）の位置。数式の中にある *（例: *Value $x*y$*）は飛ばす。前から順に一度だけ数える。
   loneStar(from: number) {
     if (!this.lone) {
       this.lone = [];
       for (let j = 0; j < this.src.length; j++) {
         if (this.src[j] === "\\") { j++; continue; }
+        if (this.src[j] === "$") {
+          const end = inlineMathEnd(this.src, j);
+          if (end > 0) { j = end - 1; continue; }
+        }
         if (this.src[j] !== "*") continue;
         let end = j;
         while (this.src[end + 1] === "*") end++;
@@ -347,8 +356,8 @@ class Finder {
     return index < this.runs.length ? this.runs[index].pos : -1;
   }
 
-  find(mark: string, from: number, escaped = true) {
-    const key = `${escaped ? "e" : "r"}${mark}`;
+  find(mark: string, from: number, escaped = true, skipMath = false) {
+    const key = `${escaped ? "e" : "r"}${skipMath ? "m" : ""}${mark}`;
     const hit = this.cache.get(key);
     if (hit && hit.from <= from && (hit.pos === -1 || hit.pos >= from)) return hit.pos;
     let pos = -1;
@@ -356,6 +365,10 @@ class Finder {
     else {
       for (let j = from; j < this.src.length; j++) {
         if (this.src[j] === "\\") { j++; continue; }
+        if (skipMath && this.src[j] === "$") {
+          const end = inlineMathEnd(this.src, j);
+          if (end > 0) { j = end - 1; continue; }
+        }
         if (this.src.startsWith(mark, j)) { pos = j; break; }
       }
     }
@@ -451,7 +464,7 @@ function parseInline(src: string, styles: Styles = {}, allowLinks = true, depth 
       for (const { mark, styles: added } of WRAPPERS) {
         if (!src.startsWith(mark, i)) continue;
         const start = i + mark.length;
-        const end = mark === "*" ? finder.loneStar(start) : finder.find(mark, start);
+        const end = mark === "*" ? finder.loneStar(start) : finder.find(mark, start, true, true);
         const inner = end > start ? src.slice(start, end) : "";
         // 前後が空白の「2 * 3 * 4」のような箇所は強調にしない。
         if (!inner || inner !== inner.trim()) continue;
@@ -595,7 +608,34 @@ export function markdownToBlocks(markdown: string): NewBlock[] {
       const startsList = siblings[siblings.length - 1]?.type !== "numberedListItem";
       add("numberedListItem", startsList && number > 1 && Number.isSafeInteger(number) ? { start: number } : {}, parseInline(match[2] ?? ""));
     } else if ((match = /^>\s?(.*)$/.exec(text))) {
-      add("quote", {}, parseInline(match[1]));
+      // 引用の中の独立した数式（prepareMath が > $$ ... > $$ にそろえたもの）を mathBlock として取り込む。
+      const inner = match[1].trim();
+      let quotedLatex: string | null = null;
+      if (inner.startsWith("$$")) {
+        const rest = inner.slice(2);
+        const first = findUnescaped(rest, "$$", 0);
+        if (first >= 0 && first + 2 === rest.length && rest.slice(0, first).trim()) {
+          quotedLatex = rest.slice(0, first).trim();
+        } else if (first < 0) {
+          const body = rest.trim() ? [rest.trim()] : [];
+          for (let k = index + 1; k < lines.length; k++) {
+            const q = /^>\s?(.*)$/.exec(lines[k].trim());
+            if (!q) break;
+            const next = q[1].trim();
+            if (!next || FENCE.test(next)) break;
+            const close = findUnescaped(next, "$$", 0);
+            if (close < 0) { body.push(q[1].trimEnd()); continue; }
+            if (close + 2 === next.length) {
+              if (next.slice(0, close).trim()) body.push(next.slice(0, close).trimEnd());
+              quotedLatex = body.join("\n").trim();
+              index = k;
+            }
+            break;
+          }
+        }
+      }
+      if (quotedLatex !== null && quotedLatex.length <= MAX_MATH_LATEX) add("mathBlock", { latex: quotedLatex });
+      else add("quote", {}, parseInline(match[1]));
     } else if ((match = /^!\[([^\]\n]*)\]\((\/api\/pages\/files\?[^\s)]*)\)$/.exec(text)) && isNoteImageUrl(match[2])) {
       // 自分のアップロード画像だけを画像ブロックにする（外部 URL は通常の段落のまま）。保存時に所有者を確かめる。
       const caption = match[1].replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, 500);

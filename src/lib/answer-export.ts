@@ -301,7 +301,8 @@ function rewriteLine(line: string) {
     } else if (char === "h") {
       BARE_URL_AT.lastIndex = index;
       const hit = BARE_URL_AT.exec(line);
-      if (hit) { flush(); out += hit[0]; index += hit[0].length - 1; } else plain += char;
+      // 裸の URL に含まれる $（例: https://example.com/$user$/profile）は、markdownToBlocks が数式と誤認しないよう退避する。
+      if (hit) { flush(); out += hit[0].replace(/\$/g, "\\$"); index += hit[0].length - 1; } else plain += char;
     } else if (char === "$" && inlineMathEnd(line, index) > 0) {
       const end = inlineMathEnd(line, index);
       flush();
@@ -326,7 +327,7 @@ function startsTable(lines: string[], index: number) {
 // - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
 function prepareMarkdown(markdown: string) {
-  const lines = prepareMath(normalizeNewlines(markdown)).text.split("\n");
+  const lines = prepareMath(normalizeNewlines(markdown), { doubleBeforeDigit: true }).text.split("\n");
   const out: string[] = [];
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];

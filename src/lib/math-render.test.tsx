@@ -93,8 +93,8 @@ describe("note history dollar-only math mode", () => {
     expect(html).not.toContain("katex-error");
     expect(blocksToMarkdown(blocks)).toContain("\\[note\\]");
 
-    // 表のセルに | を含む数式（$|x|$）があっても、履歴プレビューで列が増えない。
-    const tableBlocks = markdownToBlocks("| Norm | Value |\n| --- | --- |\n| $|x|$ | $x^2$ |");
+    // 表のセルに | や \| を含む数式（$|x|$、$\|x\|$）があっても、履歴プレビューで列が増えずエラーも出ない。
+    const tableBlocks = markdownToBlocks("| Norm | Escaped |\n| --- | --- |\n| $|x|$ | $\\|x\\|$ |");
     const tableHtml = renderToStaticMarkup(
       <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
@@ -104,5 +104,19 @@ describe("note history dollar-only math mode", () => {
     expect(count(tableHtml, "<td>")).toBe(2);
     expect(count(tableHtml, 'class="katex"')).toBe(2);
     expect(tableHtml).not.toContain("katex-error");
+
+    // 隣接する 2 つの行内数式も、履歴プレビューでそれぞれ個別の数式として描かれる。
+    const adjacent = [{ id: "a1", type: "paragraph", props: {}, content: [
+      { type: "mathInline", props: { latex: "x" } },
+      { type: "mathInline", props: { latex: "y" } },
+    ], children: [] }];
+    const adjacentHtml = renderToStaticMarkup(
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
+        {previewMarkdown(adjacent)}
+      </ReactMarkdown>,
+    );
+    expect(count(adjacentHtml, 'class="katex"')).toBe(2);
+    expect(adjacentHtml).not.toContain("katex-error");
   });
 });

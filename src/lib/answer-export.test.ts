@@ -434,10 +434,22 @@ describe("answerToNoteContent", () => {
     expect(result.blocks[2].props).toEqual({ latex: "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}" });
     expect(result.blocks[3].props).toEqual({ latex: "a^2 + b^2 = c^2" });
 
-    // URL の中の $user$ を数式として切らず、リンクのまま保存する。
-    const withUrl = build("See <https://example.com/$user$/profile> and [docs](https://example.com/$a$/$b$).");
+    // URL の中の $user$ を数式として切らず、リンク・裸 URL とも保持する。
+    const withUrl = build("See <https://example.com/$user$/profile>, [docs](https://example.com/$a$/$b$), and https://example.com/$bare$/1.");
     expectValid(withUrl);
     const links = inline(withUrl.blocks[0]).filter((entry) => entry.type === "link").map((entry) => entry.href);
     expect(links).toEqual(["https://example.com/$user$/profile", "https://example.com/$a$/$b$"]);
+    expect(textOf(withUrl.blocks[0])).toContain("https://example.com/$bare$/1.");
+    expect(inline(withUrl.blocks[0]).some((entry) => entry.type === "mathInline")).toBe(false);
+
+    // 引用内の \[x^2\] と数字の直前の \(x\)2 も数式として保存する。
+    const quotedAndDigit = build("> \\[x^2\\]\n\n\\(x\\)2");
+    expectValid(quotedAndDigit);
+    expect(quotedAndDigit.blocks[0].type).toBe("mathBlock");
+    expect(quotedAndDigit.blocks[0].props).toEqual({ latex: "x^2" });
+    expect(quotedAndDigit.blocks[1].content).toEqual([
+      { type: "mathInline", props: { latex: "x" } },
+      { type: "text", text: "2", styles: {} },
+    ]);
   });
 });

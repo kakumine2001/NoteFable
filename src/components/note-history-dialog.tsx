@@ -41,7 +41,7 @@ export function previewMarkdown(blocks: unknown) {
   let previousItem = false;
   // 表の行（| で始まる行）は詰めたままにする。空行が入ると表として描かれない。表と表の間の空行は元のまま残る。
   let previousRow = false;
-  for (const line of blocksToMarkdown(blocks).split("\n")) {
+  for (const line of blocksToMarkdown(blocks, 0, undefined, { forPreview: true }).split("\n")) {
     if (fence) {
       out.push(line);
       if (line.trim() === fence) fence = null;
@@ -70,9 +70,9 @@ export function previewMarkdown(blocks: unknown) {
     const item = !opening && LIST_ITEM.test(line);
     const row = !opening && !item && line.trimStart().startsWith("|");
     if (out.length && !(item && previousItem) && !(row && previousRow)) out.push("");
-    // GFM の表パーサーは行内数式より先に | でセルを切るため、履歴プレビューの表セル内にある | は \| に退避する。
+    // GFM の表パーサーは行内数式より先に | でセルを切るため、履歴プレビューの表セル内にある未退避の | だけを \| にする（TeX の \| は二重に退避しない）。
     const formatted = row && !TABLE_SEPARATOR.test(line)
-      ? `| ${splitTableRow(line).map((cell) => cell.replace(/\|/g, "\\|")).join(" | ")} |`
+      ? `| ${splitTableRow(line).map((cell) => cell.replace(/(?<!\\)((?:\\\\)*)\|/g, "$1\\|")).join(" | ")} |`
       : item ? line : line.trimStart();
     out.push(formatted);
     previousItem = item;

@@ -39,8 +39,21 @@ function* walkBlocks(blocks: unknown): Generator<BlockLike> {
 }
 
 // そのブロック自身の文字列（リンクの文字・数式の TeX を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
+// 数式ノードの前後だけ空白で区切り、SQL の string_agg(value, ' ') と同じ語境界を保つ。
 function inlineText(content: unknown): string {
-  if (Array.isArray(content)) return content.map(inlineText).join("");
+  if (Array.isArray(content)) {
+    let out = "";
+    let prevMath = false;
+    for (const entry of content) {
+      const piece = inlineText(entry);
+      if (!piece) continue;
+      const isMath = typeof entry === "object" && entry !== null && (entry as { type?: unknown }).type === "mathInline";
+      if ((isMath || prevMath) && out && !/\s$/.test(out) && !/^\s/.test(piece)) out += " ";
+      out += piece;
+      prevMath = isMath;
+    }
+    return out;
+  }
   if (!content || typeof content !== "object") return "";
   const node = content as { type?: unknown; text?: unknown; props?: { latex?: unknown }; content?: unknown; rows?: unknown };
   // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
