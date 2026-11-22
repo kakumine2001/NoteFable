@@ -35,7 +35,7 @@ if (( after == before )); then
   # A PR branched before the client moved to mobile/android has no config at its merge base or head,
   # so it cannot have bumped this version.
   if ! git cat-file -e "$base:$config" 2> /dev/null || ! git cat-file -e "HEAD^2:$config" 2> /dev/null; then
-    echo "versionCode is unchanged ($after). No Play alpha release is planned."
+    echo "versionCode is unchanged ($after). No Play internal and alpha release is planned."
     exit 0
   fi
   pr_before=$(version_code "$base")
@@ -48,7 +48,7 @@ if (( after == before )); then
     echo "::error::This PR changes versionCode, but main already has versionCode $after. Raise it above $after or revert the version change."
     exit 1
   fi
-  echo "versionCode is unchanged ($after). No Play alpha release is planned."
+  echo "versionCode is unchanged ($after). No Play internal and alpha release is planned."
   exit 0
 fi
 old_name=$(version_name HEAD^1)
@@ -57,6 +57,6 @@ if [[ -z "$old_name" || -z "$new_name" || "$old_name" == *$'\n'* || "$new_name" 
   echo "::error::Update versionName when increasing versionCode."
   exit 1
 fi
-echo "versionCode $before -> $after. Play alpha release is planned for $(git rev-parse HEAD)."
+echo "versionCode $before -> $after. Play internal and alpha release is planned for $(git rev-parse HEAD)."
 echo "version_code=$after" >> "$GITHUB_OUTPUT"
 echo 'publish=true' >> "$GITHUB_OUTPUT"

@@ -265,7 +265,7 @@ cd mobile/android
 ./gradlew testDebugUnitTest assembleDebug          # 产物 app/build/outputs/apk/debug/app-debug.apk
 ```
 
-- 需要发布时，通过合入 main 的 PR 提高 versionCode，CI 会构建 AAB 并上传到 Play 的 alpha 封闭测试轨道。本机的 `assembleRelease` / `assembleDebug` 包只用于本机检查，没有 Google 登录（用邮箱验证码登录）。流程和 Drive 规则见 [android.md](android.md#安装包交付)。
+- 需要发布时，通过合入 main 的 PR 提高 versionCode，CI 会构建 AAB 并同时发布到 Play 的内部测试和 alpha 封闭测试轨道。本机的 `assembleRelease` / `assembleDebug` 包只用于本机检查，没有 Google 登录（用邮箱验证码登录）。流程和 Drive 规则见 [android.md](android.md#安装包交付)。
 - 默认连线上 `https://app.notefable.com`（`mobile/android/gradle.properties`）。连电脑上的开发服务器：`./gradlew assembleDebug -Pnotefable.baseUrl=http://10.0.2.2:3000 -Pnotefable.siteUrl=http://10.0.2.2:3000`（笔记编辑器要用上面"笔记"一节的 `adb reverse` + `localhost`）。明文 HTTP 只在 debug 包允许，且只限 `10.0.2.2` / `localhost`（`src/debug/res/xml/network_security_config.xml`）。
 - 模拟器里要先 `adb install -r app-debug.apk`。Windows 上用 `emulator -avd <名字>` 启动前设置 `ANDROID_AVD_HOME=C:\Users\<用户>\.android\avd`。
 
