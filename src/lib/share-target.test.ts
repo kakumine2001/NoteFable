@@ -87,10 +87,12 @@ describe("consumeWebShare", () => {
     expect(entries.size).toBe(0);
 
     store("expired02", { createdAt: expiredAt, title: "", text: "stale", url: "", files: [{ index: 0, name: "b.txt", type: "text/plain", size: 1, truncated: false }] }, { 0: "y" });
+    entries.set(`${SHARE_CACHE_PREFIX}orphan001/file-0`, new Response("orphan"));
     store("fresh0001", { createdAt: Date.now(), title: "", text: "fresh", url: "", files: [] });
     await pruneExpiredWebShares();
     expect(entries.has(`${SHARE_CACHE_PREFIX}expired02/meta.json`)).toBe(false);
     expect(entries.has(`${SHARE_CACHE_PREFIX}expired02/file-0`)).toBe(false);
+    expect(entries.has(`${SHARE_CACHE_PREFIX}orphan001/file-0`)).toBe(false);
     expect(entries.has(`${SHARE_CACHE_PREFIX}fresh0001/meta.json`)).toBe(true);
   });
 

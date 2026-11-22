@@ -46,6 +46,9 @@ final class ShareViewController: UIViewController {
                 } else if provider.hasItemConformingToTypeIdentifier(UTType.pdf.identifier),
                           let pdf = await loadFile(provider, type: .pdf, into: staging) {
                     files.append(pdf)
+                } else if provider.hasItemConformingToTypeIdentifier(UTType.json.identifier),
+                          let json = await loadFile(provider, type: .json, into: staging) {
+                    files.append(json)
                 } else if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier),
                           let file = await loadFileOrURL(provider, into: staging) {
                     files.append(file)
@@ -71,9 +74,9 @@ final class ShareViewController: UIViewController {
         }
         let opened = await openHostApp(ShareIntake.shareURL(id: payload.id))
         if !opened {
-            // iOS 拒绝分享扩展直接打开主 App 时，给用户一个清晰的“已存好”视觉反馈，切回 NoteFable 后会自动导入。
-            showSavedCheckmark()
-            try? await Task.sleep(nanoseconds: 650_000_000)
+            // iOS 不允许分享扩展直接拉起主 App：给出明确提示“已保存，打开 NoteFable 继续”，切回后自动导入。
+            showSavedConfirmation()
+            try? await Task.sleep(nanoseconds: 1_100_000_000)
         }
         extensionContext?.completeRequest(returningItems: nil)
     }
@@ -87,18 +90,57 @@ final class ShareViewController: UIViewController {
         }
     }
 
-    private func showSavedCheckmark() {
+    private func showSavedConfirmation() {
         spinner.stopAnimating()
         spinner.isHidden = true
         let config = UIImage.SymbolConfiguration(pointSize: 36, weight: .medium)
         let icon = UIImageView(image: UIImage(systemName: "checkmark.circle.fill", withConfiguration: config))
         icon.tintColor = UIColor(red: 35 / 255, green: 131 / 255, blue: 226 / 255, alpha: 1)
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(icon)
+        let label = UILabel()
+        label.text = Self.savedMessage()
+        label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
+        label.textColor = UIColor(red: 55 / 255, green: 53 / 255, blue: 47 / 255, alpha: 1)
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        let stack = UIStackView(arrangedSubviews: [icon, label])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 10
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(stack)
         NSLayoutConstraint.activate([
-            icon.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            stack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            stack.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
         ])
+    }
+
+    /// 17 种支持语言的“打开 NoteFable 继续”提示（分享扩展独立打包，不额外依赖主 App 的资源表）。
+    nonisolated private static func savedMessage() -> String {
+        for tag in Locale.preferredLanguages {
+            let lower = tag.lowercased().replacingOccurrences(of: "_", with: "-")
+            if lower.hasPrefix("zh-hant") || lower.hasPrefix("zh-tw") || lower.hasPrefix("zh-hk") || lower.hasPrefix("zh-mo") {
+                return "已儲存，開啟 NoteFable 繼續"
+            }
+            if lower.hasPrefix("zh") { return "已保存，打开 NoteFable 继续" }
+            if lower.hasPrefix("ja") { return "保存しました。NoteFable を開いて続けてください" }
+            if lower.hasPrefix("ko") { return "저장되었습니다. NoteFable을 열어 계속하세요" }
+            if lower.hasPrefix("es") { return "Guardado. Abre NoteFable para continuar" }
+            if lower.hasPrefix("fr") { return "Enregistré. Ouvrez NoteFable pour continuer" }
+            if lower.hasPrefix("de") { return "Gespeichert. Öffne NoteFable zum Fortfahren" }
+            if lower.hasPrefix("pt") { return "Salvo. Abra o NoteFable para continuar" }
+            if lower.hasPrefix("it") { return "Salvato. Apri NoteFable per continuare" }
+            if lower.hasPrefix("id") || lower.hasPrefix("in") { return "Tersimpan. Buka NoteFable untuk melanjutkan" }
+            if lower.hasPrefix("vi") { return "Đã lưu. Mở NoteFable để tiếp tục" }
+            if lower.hasPrefix("th") { return "บันทึกแล้ว เปิด NoteFable เพื่อดำเนินการต่อ" }
+            if lower.hasPrefix("hi") { return "सहेजा गया। जारी रखने के लिए NoteFable खोलें" }
+            if lower.hasPrefix("ar") { return "تم الحفظ. افتح NoteFable للمتابعة" }
+            if lower.hasPrefix("tr") { return "Kaydedildi. Devam etmek için NoteFable'ı açın" }
+            if lower.hasPrefix("ru") { return "Сохранено. Откройте NoteFable, чтобы продолжить" }
+            if lower.hasPrefix("en") { return "Saved. Open NoteFable to continue" }
+        }
+        return "Saved. Open NoteFable to continue"
     }
 
     private func loadWebURL(_ provider: NSItemProvider) async -> String? {

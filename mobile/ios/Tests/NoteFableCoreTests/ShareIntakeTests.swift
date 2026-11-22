@@ -105,7 +105,7 @@ final class ShareIntakeTests: XCTestCase {
         XCTAssertFalse(store.hasPending(now: now))
         XCTAssertTrue(store.consumeAllPending(copyFilesTo: destination, now: now).isEmpty)
 
-        let stale = try store.write(text: "stale", files: [], now: now.addingTimeInterval(-11 * 60))
+        let stale = try store.write(text: "stale", files: [], now: now.addingTimeInterval(-(25 * 60 * 60)))
         XCTAssertFalse(store.hasPending(now: now))
         XCTAssertTrue(store.consumeAllPending(copyFilesTo: destination, now: now).isEmpty)
         XCTAssertNil(store.consume(id: stale.id, copyFilesTo: destination, now: now))
@@ -113,9 +113,26 @@ final class ShareIntakeTests: XCTestCase {
 
     func testWritingPrunesExpiredShares() throws {
         let now = Date()
-        let stale = try store.write(text: "stale", files: [], now: now.addingTimeInterval(-11 * 60))
+        let stale = try store.write(text: "stale", files: [], now: now.addingTimeInterval(-(25 * 60 * 60)))
         try store.write(text: "fresh", files: [], now: now)
         XCTAssertNil(store.consume(id: stale.id, copyFilesTo: destination, now: now))
+    }
+
+    func testCopyFailureRetainsInboxForRetry() throws {
+        let payload = try store.write(
+            text: "keep me",
+            files: [SharedFileInput(name: "notes.txt", mimeType: "text/plain", size: 4, data: Data("abcd".utf8))]
+        )
+        // 用一个普通文件冒充目标目录，使拷贝必然失败。
+        let notADir = directory.appendingPathComponent("blocker")
+        try Data("x".utf8).write(to: notADir)
+
+        XCTAssertNil(store.consume(id: payload.id, copyFilesTo: notADir))
+        // 共享目录必须保留，换成正常目录后仍能成功取走。
+        XCTAssertTrue(store.hasPending(id: payload.id))
+        let retried = try XCTUnwrap(store.consume(id: payload.id, copyFilesTo: destination))
+        XCTAssertEqual(retried.text, "keep me")
+        XCTAssertEqual(retried.files.count, 1)
     }
 
     func testConsumeRejectsUnsafeIds() {

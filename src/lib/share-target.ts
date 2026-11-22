@@ -6,6 +6,27 @@ export const SHARE_CACHE_NAME = "notefable-share-v1";
 export const SHARE_CACHE_PREFIX = "/__notefable_share__/";
 export const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
 export const SHARE_MAX_AGE_MS = 10 * 60 * 1000;
+const SHARE_DRAFT_KEY = "notefable-share-draft";
+
+// Android PWA の共有は同じタブを /share-target へ遷移させるため、離れる直前の未送信下書きを sessionStorage へ退避する。
+export function saveShareDraft(text: string) {
+  try {
+    if (text.trim()) window.sessionStorage.setItem(SHARE_DRAFT_KEY, text);
+    else window.sessionStorage.removeItem(SHARE_DRAFT_KEY);
+  } catch {
+    // プライベートモード等で保存できない場合は何もしない。
+  }
+}
+
+export function takeShareDraft() {
+  try {
+    const text = window.sessionStorage.getItem(SHARE_DRAFT_KEY);
+    window.sessionStorage.removeItem(SHARE_DRAFT_KEY);
+    return text ?? "";
+  } catch {
+    return "";
+  }
+}
 
 type ShareMeta = {
   createdAt: number;
@@ -72,17 +93,22 @@ async function readAndDelete(id: string): Promise<ConsumedWebShare | null> {
   return expired ? null : { text: composeSharedText(meta), files };
 }
 
-// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュを掃除する。
+// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュや meta.json の無い孤立ファイルを掃除する。
 export async function pruneExpiredWebShares(now = Date.now()) {
   if (typeof caches === "undefined") return;
   const cache = await caches.open(SHARE_CACHE_NAME);
   const keys = await cache.keys();
+  const validPrefixes = new Set<string>();
   for (const key of keys) {
     if (!key.url.endsWith("/meta.json")) continue;
     const response = await cache.match(key);
     const meta = response ? ((await response.json().catch(() => null)) as ShareMeta | null) : null;
-    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt <= SHARE_MAX_AGE_MS) continue;
-    const prefix = key.url.slice(0, -"meta.json".length);
-    for (const other of keys) if (other.url.startsWith(prefix)) await cache.delete(other);
+    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt <= SHARE_MAX_AGE_MS) {
+      validPrefixes.add(key.url.slice(0, -"meta.json".length));
+    }
+  }
+  for (const key of keys) {
+    const keep = Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix));
+    if (!keep) await cache.delete(key);
   }
 }

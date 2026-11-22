@@ -164,16 +164,35 @@ private fun countUpTo(input: java.io.InputStream, limit: Long): Long {
     return total
 }
 
+private const val MAX_TRANSCODE_PIXEL_SIZE = 4096
+
 private fun decodeAsJpeg(context: Context, uri: Uri): ByteArray? = runCatching {
     val bitmap: Bitmap = if (Build.VERSION.SDK_INT >= 28) {
-        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, _, _ ->
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { decoder, info, _ ->
             decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            val width = info.size.width
+            val height = info.size.height
+            val longest = maxOf(width, height)
+            if (longest > MAX_TRANSCODE_PIXEL_SIZE) {
+                val scale = MAX_TRANSCODE_PIXEL_SIZE.toFloat() / longest.toFloat()
+                decoder.setTargetSize(maxOf(1, (width * scale).toInt()), maxOf(1, (height * scale).toInt()))
+            }
         }
     } else {
-        context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream) ?: return null
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
+        val longest = maxOf(bounds.outWidth, bounds.outHeight)
+        var sample = 1
+        while (longest > 0 && longest / sample > MAX_TRANSCODE_PIXEL_SIZE) sample *= 2
+        val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sample }
+        context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, decodeOptions) } ?: return null
     }
-    ByteArrayOutputStream().use { out ->
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
-        out.toByteArray()
+    try {
+        ByteArrayOutputStream().use { out ->
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            out.toByteArray()
+        }
+    } finally {
+        bitmap.recycle()
     }
 }.getOrNull()

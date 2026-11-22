@@ -20,37 +20,52 @@ self.addEventListener("fetch", (event) => {
 });
 
 async function handleShare(request) {
+  let cache = null;
+  const writtenKeys = [];
   try {
     const form = await request.formData();
     const text = (key) => (typeof form.get(key) === "string" ? form.get(key) : "");
     const picked = form.getAll("files").filter((value) => typeof value !== "string").slice(0, MAX_FILES);
     const id = crypto.randomUUID();
-    const cache = await caches.open(SHARE_CACHE);
+    cache = await caches.open(SHARE_CACHE);
     await prune(cache);
     const files = [];
     for (let index = 0; index < picked.length; index += 1) {
       const file = picked[index];
       const truncated = file.size > MAX_STORED_BYTES;
-      await cache.put(`${SHARE_PREFIX}${id}/file-${index}`, new Response(truncated ? new Blob([]) : file));
+      const key = `${SHARE_PREFIX}${id}/file-${index}`;
+      await cache.put(key, new Response(truncated ? new Blob([]) : file));
+      writtenKeys.push(key);
       files.push({ index, name: file.name, type: file.type, size: file.size, truncated });
     }
     const meta = { createdAt: Date.now(), title: text("title"), text: text("text"), url: text("url"), files };
-    await cache.put(`${SHARE_PREFIX}${id}/meta.json`, new Response(JSON.stringify(meta), { headers: { "Content-Type": "application/json" } }));
+    const metaKey = `${SHARE_PREFIX}${id}/meta.json`;
+    await cache.put(metaKey, new Response(JSON.stringify(meta), { headers: { "Content-Type": "application/json" } }));
+    writtenKeys.push(metaKey);
     return Response.redirect(`/app?share=${encodeURIComponent(id)}`, 303);
   } catch {
+    if (cache) {
+      for (const key of writtenKeys) await cache.delete(key).catch(() => {});
+    }
     return Response.redirect("/app", 303);
   }
 }
 
-// 10 分以上前に預かったまま使われなかったものを捨てる。
+// 10 分以上前に預かったまま使われなかったもの、および meta.json の無い孤立ファイルを捨てる。
 async function prune(cache) {
   const now = Date.now();
-  for (const key of await cache.keys()) {
+  const keys = await cache.keys();
+  const validPrefixes = new Set();
+  for (const key of keys) {
     if (!key.url.endsWith("/meta.json")) continue;
     const response = await cache.match(key);
     const meta = response ? await response.json().catch(() => null) : null;
-    if (meta && now - meta.createdAt < MAX_AGE_MS) continue;
-    const prefix = key.url.slice(0, -"meta.json".length);
-    for (const other of await cache.keys()) if (other.url.startsWith(prefix)) await cache.delete(other);
+    if (meta && typeof meta.createdAt === "number" && now - meta.createdAt < MAX_AGE_MS) {
+      validPrefixes.add(key.url.slice(0, -"meta.json".length));
+    }
+  }
+  for (const key of keys) {
+    const keep = Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix));
+    if (!keep) await cache.delete(key);
   }
 }

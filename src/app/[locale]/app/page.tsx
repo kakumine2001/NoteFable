@@ -65,7 +65,7 @@ import { useMediaQuery } from "@/lib/use-media-query";
 import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
-import { consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares } from "@/lib/share-target";
+import { consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares, saveShareDraft, takeShareDraft } from "@/lib/share-target";
 import { MAX_MESSAGE_NOTES, toggleAttachedPage, type AttachedPage, type ImageGenerationResult, type Message, type Session, type UploadFile } from "@/types/chat";
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/lib/i18n/translate";
@@ -1994,15 +1994,19 @@ export default function Home() {
   });
 
   // インストールした PWA がシステムの「共有」から受け取った内容（?share=<id>、public/sw.js が預かったもの）を、新しいチャットの入力欄へ入れる。
-  // 送信はしない。ユーザーが一言足してから送る。?chat= と同じく、先に指定を URL から外し、StrictMode の二重実行に備えて microtask に回す。
+  // 送信はしない。Android PWA は同じタブを遷移させるので、離れる前の下書きを退避し、共有で戻ったときだけ引き継いで後ろへ足す。
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
     void pruneExpiredWebShares().catch(() => {});
+    const onPageHide = () => saveShareDraft(composerTextRef.current);
+    window.addEventListener("pagehide", onPageHide);
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
       const url = new URL(window.location.href);
       const shareId = url.searchParams.get("share");
+      // 共有以外の通常の読み込みでは、前回退避した下書きは破棄する。
+      const savedDraft = takeShareDraft();
       if (!shareId) return;
       url.searchParams.delete("share");
       if (url.searchParams.get("view") === "pages") {
@@ -2024,13 +2028,15 @@ export default function Home() {
       setQuote(null);
       void consumeWebShare(shareId).then((shared) => {
         if (cancelled || !shared || sessionNavigationIntentRef.current !== shareIntent || activeSessionIdRef.current !== null) return;
-        if (shared.text) setInput((current) => mergeDraftWithShare(current, shared.text));
+        const combined = mergeDraftWithShare(savedDraft, shared.text);
+        if (combined) setInput((current) => mergeDraftWithShare(current, combined));
         if (shared.files.length) addUploadFilesRef.current(shared.files);
         inputRef.current?.focus();
       });
     });
     return () => {
       cancelled = true;
+      window.removeEventListener("pagehide", onPageHide);
     };
   }, []);
 

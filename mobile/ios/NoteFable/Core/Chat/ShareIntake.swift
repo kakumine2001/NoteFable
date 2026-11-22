@@ -100,10 +100,10 @@ struct ConsumedShare: Equatable, Sendable {
     var files: [ConsumedSharedFile]
 }
 
-/// 共享目录里的“待取”分享：`<container>/ShareInbox/<id>/payload.json` 加 `files/<序号>`。取走就删，超过 10 分钟没人取也删。
+/// 共享目录里的“待取”分享：`<container>/ShareInbox/<id>/payload.json` 加 `files/<序号>`。取走就删，超过 24 小时没人取也删。
 /// 生产里 `containerURL` 是 App Group 的容器；测试里是临时目录。
 struct ShareInboxStore: Sendable {
-    static let defaultMaxAge: TimeInterval = 10 * 60
+    static let defaultMaxAge: TimeInterval = 24 * 60 * 60
 
     let containerURL: URL
 
@@ -139,14 +139,32 @@ struct ShareInboxStore: Sendable {
         return payload
     }
 
-    /// 取走指定的分享（取完就删）：文件拷到 `destinationDir/<UUID>/<文件名>`。找不到、已过期、id 形状不对返回 nil。
+    /// 取走指定的分享（全部文件拷贝成功后才删）：文件拷到 `destinationDir/<UUID>/<文件名>`。
+    /// 若正常大小的文件拷贝失败，保留共享目录以便下次重试，返回 nil。找不到、已过期、id 形状不对也返回 nil。
     func consume(id: String, copyFilesTo destinationDir: URL, now: Date = Date()) -> ConsumedShare? {
         guard ShareIntake.isSafeId(id) else { return nil }
         let directory = inboxURL.appendingPathComponent(id, isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        guard let payload = readPayload(in: directory) else { return nil }
-        if now.timeIntervalSince1970 - payload.createdAt > Self.defaultMaxAge { return nil }
-        return ConsumedShare(text: payload.text, files: payload.files.map { copy($0, from: directory, to: destinationDir) })
+        guard let payload = readPayload(in: directory) else {
+            try? FileManager.default.removeItem(at: directory)
+            return nil
+        }
+        if now.timeIntervalSince1970 - payload.createdAt > Self.defaultMaxAge {
+            try? FileManager.default.removeItem(at: directory)
+            return nil
+        }
+        var copiedFiles: [ConsumedSharedFile] = []
+        var createdSlots: [URL] = []
+        for record in payload.files {
+            guard let (consumedFile, slot) = copy(record, from: directory, to: destinationDir) else {
+                // 正常附件拷贝失败：清理这次已拷出的副本，保留共享目录待下次重试。
+                for slot in createdSlots { try? FileManager.default.removeItem(at: slot) }
+                return nil
+            }
+            copiedFiles.append(consumedFile)
+            if let slot { createdSlots.append(slot) }
+        }
+        try? FileManager.default.removeItem(at: directory)
+        return ConsumedShare(text: payload.text, files: copiedFiles)
     }
 
     /// 只读检查共享目录里有没有待取且未过期的分享（不删文件）。在笔记工作区回到前台时，只有真的有待取分享才尝试切回聊天。
@@ -203,9 +221,12 @@ struct ShareInboxStore: Sendable {
         return seconds
     }
 
-    private func copy(_ record: SharedFileRecord, from directory: URL, to destinationDir: URL) -> ConsumedSharedFile {
-        let placeholder = ConsumedSharedFile(uri: "share-oversize:\(UUID().uuidString)", name: record.name, mimeType: record.mimeType, size: record.size)
-        guard !record.relativePath.isEmpty, !record.relativePath.contains("..") else { return placeholder }
+    /// 返回 `(取走后的文件, 新建的缓存子目录)`；超限占位不建目录（slot = nil）；正常附件拷贝失败返回 nil。
+    private func copy(_ record: SharedFileRecord, from directory: URL, to destinationDir: URL) -> (ConsumedSharedFile, URL?)? {
+        if record.relativePath.isEmpty {
+            return (ConsumedSharedFile(uri: "share-oversize:\(UUID().uuidString)", name: record.name, mimeType: record.mimeType, size: record.size), nil)
+        }
+        guard !record.relativePath.contains("..") else { return nil }
         let source = directory.appendingPathComponent(record.relativePath)
         let manager = FileManager.default
         let slot = destinationDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
@@ -216,8 +237,9 @@ struct ShareInboxStore: Sendable {
             try manager.createDirectory(at: slot, withIntermediateDirectories: true)
             try manager.copyItem(at: source, to: target)
         } catch {
-            return placeholder
+            try? manager.removeItem(at: slot)
+            return nil
         }
-        return ConsumedSharedFile(uri: target.absoluteString, name: record.name, mimeType: record.mimeType, size: record.size)
+        return (ConsumedSharedFile(uri: target.absoluteString, name: record.name, mimeType: record.mimeType, size: record.size), slot)
     }
 }
