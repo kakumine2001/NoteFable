@@ -19,7 +19,13 @@ export function* walkBlocks(blocks: unknown): Generator<BlockLike> {
 export function inlineText(content: unknown): string {
   if (Array.isArray(content)) return content.map(inlineText).join("");
   if (!content || typeof content !== "object") return "";
-  const node = content as { text?: unknown; content?: unknown; rows?: unknown };
+  const node = content as { type?: unknown; text?: unknown; content?: unknown; rows?: unknown; props?: unknown };
+  // 「@」メンションは表示している文字（ページのタイトル、日付）。search.ts の MENTION_*_PATH と対。
+  if (node.type === "mention") {
+    const props = (node.props ?? {}) as { kind?: unknown; title?: unknown; date?: unknown };
+    const label = props.kind === "date" ? props.date : props.title;
+    return typeof label === "string" ? label : "";
+  }
   // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
   if (Array.isArray(node.rows)) {
     return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");

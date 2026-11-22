@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { validateNoteContent } from "@/lib/note-document";
 import { blocksToMarkdown, markdownToBlocks } from "@/lib/note-markdown";
 import { codeBlockText } from "@/lib/note-block-actions";
+import { inlineText } from "@/lib/note-text";
+import { nativeCanOpenPage } from "@/lib/native-bridge";
 import { dateMention, isNoteDate, localDate, notePageIdFromUrl, pageMention, validMention } from "@/lib/note-mention";
 
 const paragraph = (content: unknown[]) => ({ id: "b1", type: "paragraph", props: {}, content, children: [] });
@@ -53,5 +55,16 @@ describe("note mentions", () => {
     expect(notePageIdFromUrl("?view=pages&page=cm2", origin)).toBe("cm2");
     expect(notePageIdFromUrl("https://evil.test/app?view=pages&page=cm1", origin)).toBeNull();
     expect(notePageIdFromUrl("https://app.notefable.com/app?view=chat&page=cm1", origin)).toBeNull();
+  });
+  it("exposes mention labels to search text", () => {
+    expect(inlineText([{ type: "text", text: "see ", styles: {} }, pageMention("p", "三分化"), dateMention("2026-11-05")])).toBe("see 三分化2026-11-05");
+  });
+
+  it("only routes page links to apps that say they can open them", () => {
+    const post = () => {};
+    expect(nativeCanOpenPage({ NoteFableNative: { postMessage: post } })).toBe(false);
+    expect(nativeCanOpenPage({ NoteFableNative: { postMessage: post, canOpenPage: () => true } })).toBe(true);
+    expect(nativeCanOpenPage({ NoteFableNative: { postMessage: post, canOpenPage: () => { throw new Error("x"); } } })).toBe(false);
+    expect(nativeCanOpenPage({})).toBe(false);
   });
 });

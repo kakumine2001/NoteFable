@@ -507,8 +507,10 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .note-mention-page.is-missing .note-mention-title { text-decoration: line-through; }
 .note-mention-date { position: relative; color: rgba(55, 53, 47, 0.65); }
 .note-mention-at { opacity: 0.8; }
-/* 日付ピッカーを開くための入力欄。見えないが、ピッカーの位置をメンションに合わせる。 */
-.note-mention-date-input { position: absolute; inset-inline-start: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+/* 日付を変える入力欄。メンションの上に透明で重ね、押すと（タップすると）日付の選択画面が出る。 */
+.note-mention-date-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; font-size: 16px; -webkit-appearance: none; appearance: none; }
+.notes-workspace.is-locked .note-mention-date-input, .public-note-shell .note-mention-date-input { pointer-events: none; }
+.note-mention-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; cursor: pointer; }
 .notes-mention-menu-emoji { font-size: 16px; line-height: 1; }
 
 /* 表: 細い灰色の罫線、見出しの行・列は薄い灰色地。 */

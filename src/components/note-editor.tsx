@@ -151,7 +151,7 @@ function SlashMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<Sl
       const look = item.key ? SLASH_LOOK[item.key] : undefined;
       return <div key={`${item.group}:${item.title}`}>
         {item.group && item.group !== items[index - 1]?.group && <div className="notes-slash-group">{item.group}</div>}
-        <button type="button" role="option" aria-selected={index === selectedIndex} className="notes-slash-item"
+        <button type="button" role="option" id={`bn-suggestion-menu-item-${index}`} aria-selected={index === selectedIndex} className="notes-slash-item"
           onMouseDown={(event) => event.preventDefault()} onClick={() => onItemClick?.(item)}>
           <span className="notes-slash-icon">{look?.icon ?? item.icon}</span>
           <span className="notes-slash-title">{item.title}</span>
@@ -344,7 +344,8 @@ type NoteEditorProps = {
   blocks: NoteContent["blocks"]; onChange: (blocks: NoteContent["blocks"]) => void; editable: boolean;
   editorRef: Ref<NoteEditorHandle>; onFocusTitle: () => void;
   // 「@」で選べる自分のページ（/note-embed では渡さず、「@」を打った時に読む）と、メンションやページのリンクを押した時に開く処理。
-  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => void;
+  // onOpenPage はその場で開けたら true。false なら（古いアプリの埋め込みなど）リンクを新しいウィンドウで開く。
+  pages?: MentionPage[]; currentPageId?: string; onOpenPage?: (id: string) => boolean;
 };
 
 export default function NoteEditor(props: NoteEditorProps) {
@@ -396,7 +397,7 @@ function MentionMenu({ items, selectedIndex, onItemClick }: SuggestionMenuProps<
   return <div ref={listRef} className="notes-slash-menu" role="listbox" id="bn-suggestion-menu">
     {items.map((item, index) => <div key={item.key ?? index}>
       {item.group && item.group !== items[index - 1]?.group && <div className="notes-slash-group">{item.group}</div>}
-      <button type="button" role="option" aria-selected={index === selectedIndex} className="notes-slash-item"
+      <button type="button" role="option" id={`bn-suggestion-menu-item-${index}`} aria-selected={index === selectedIndex} className="notes-slash-item"
         onMouseDown={(event) => event.preventDefault()} onClick={() => onItemClick?.(item)}>
         <span className="notes-slash-icon">{item.icon}</span>
         <span className="notes-slash-title">{item.title}</span>
@@ -426,7 +427,10 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
 function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, base, pages: givenPages, currentPageId, onOpenPage }: NoteEditorProps & { base: Dictionary }) {
   const { t, dir, locale } = useI18n();
   const { pages, loadPages } = useMentionPages(givenPages, blocks);
-  const openPage = useCallback((id: string) => onOpenPage?.(id), [onOpenPage]);
+  const openPage = useCallback((id: string) => {
+    if (onOpenPage?.(id)) return;
+    window.open(`/app?view=pages&page=${encodeURIComponent(id)}`, "_blank", "noopener,noreferrer");
+  }, [onOpenPage]);
   // エディターの設定は最初の 1 回だけ作られるので、リンクのクリックからは最新の onOpenPage を参照で読む。
   const openPageRef = useRef(onOpenPage);
   useEffect(() => { openPageRef.current = onOpenPage; }, [onOpenPage]);
@@ -447,7 +451,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
       const anchor = (event.target as HTMLElement | null)?.closest?.("a[href]");
       const href = anchor?.getAttribute("href") ?? "";
       const id = notePageIdFromUrl(href, window.location.origin);
-      if (id && openPageRef.current && !event.metaKey && !event.ctrlKey && !event.shiftKey) { openPageRef.current(id); return true; }
+      if (id && openPageRef.current && !event.metaKey && !event.ctrlKey && !event.shiftKey && openPageRef.current(id)) return true;
       if (href) window.open((anchor as HTMLAnchorElement).href, "_blank", "noopener,noreferrer");
       return true;
     } },
@@ -559,12 +563,14 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, b
   // アプリ内のページへのリンク（?view=pages&page=ID）は新しいタブではなく、その場でページを切り替える。
   function onClickCapture(event: MouseEvent<HTMLDivElement>) {
     const anchor = (event.target as HTMLElement).closest?.("a[href]");
-    if (!anchor || anchor.classList.contains("note-mention") || !onOpenPage || event.metaKey || event.ctrlKey || event.shiftKey) return;
+    // 編集できるときは BlockNote の links.onClick（上）が処理する。ここはロック中など読み取り専用のときだけ。
+    if (editable || !anchor || anchor.classList.contains("note-mention") || !onOpenPage || event.metaKey || event.ctrlKey || event.shiftKey) return;
     const id = notePageIdFromUrl(anchor.getAttribute("href") ?? "", window.location.origin);
     if (!id) return;
+    // 開けないとき（古いアプリの埋め込み）は何もしない：ブラウザ・BlockNote の元の動きに任せる。
+    if (!onOpenPage(id)) return;
     event.preventDefault();
     event.stopPropagation();
-    onOpenPage(id);
   }
 
   return <NoteMentionContext.Provider value={mentionContext}><div className="notes-block-editor" onClickCapture={onClickCapture} onKeyDownCapture={onKeyDown} onMouseMove={trackCodeHover} onFocus={trackCodeHover} onMouseLeave={() => setCodeHover(null)}>

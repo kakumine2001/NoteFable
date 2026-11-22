@@ -40,16 +40,15 @@ export const createMentionSpec = createReactInlineContentSpec(
       const dateInput = useRef<HTMLInputElement>(null);
       const { kind, pageId, title, date } = inlineContent.props;
       if (kind === "date") {
+        // 透明の日付入力欄をメンションに重ね、押されたのは入力欄そのものにする（iOS の WebView は showPicker が効かないことがあり、
+        // 入力欄を直接タップしたときだけ日付の選択画面を出す）。パソコンのブラウザでは押したときに showPicker で開く。
         return <span className="note-mention note-mention-date" contentEditable={false}
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            const input = dateInput.current;
-            if (!input || !editor.isEditable) return;
-            try { input.showPicker(); } catch { input.focus(); }
-          }}>
+          onMouseDown={(event) => { if (event.target !== dateInput.current) event.preventDefault(); }}>
           <span className="note-mention-at">@</span>{formatNoteDate(date, locale)}
-          <input ref={dateInput} type="date" className="note-mention-date-input" tabIndex={-1} aria-label={t("Change date")} value={isNoteDate(date) ? date : ""}
-            onChange={(event) => { if (isNoteDate(event.target.value)) updateInlineContent({ type: "mention", props: { ...inlineContent.props, date: event.target.value } }); }} />
+          {/* このインライン要素は editable の切り替えでは描き直されないので、入力欄は常に置き、変更の時に確かめる。ロック中は CSS で押せなくする。 */}
+          <input ref={dateInput} type="date" className="note-mention-date-input" aria-label={t("Change date")} value={isNoteDate(date) ? date : ""}
+            onClick={(event) => { if (!editor.isEditable) { event.preventDefault(); return; } try { event.currentTarget.showPicker(); } catch { /* 直接のタップで開く端末 */ } }}
+            onChange={(event) => { if (editor.isEditable && isNoteDate(event.target.value)) updateInlineContent({ type: "mention", props: { ...inlineContent.props, date: event.target.value } }); }} />
         </span>;
       }
       const page = pages?.find((entry) => entry.id === pageId);

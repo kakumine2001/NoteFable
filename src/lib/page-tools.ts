@@ -8,7 +8,7 @@ import { saveProposal } from "@/lib/note-proposals";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
 import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, semanticSearchNotes } from "@/lib/note-embeddings";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { TEXT_PATH, termHit } from "@/lib/search";
+import { noteBodyValues, termHit } from "@/lib/search";
 import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fold";
 import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
@@ -118,7 +118,7 @@ async function searchPagesByKeyword(userId: string, terms: string[]): Promise<Pa
     FROM ${table} p
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath))
+      FROM jsonb_array_elements_text(${noteBodyValues(Prisma.sql`p."blocks"`)})
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL${filter}
     ORDER BY ${order}p."updatedAt" DESC

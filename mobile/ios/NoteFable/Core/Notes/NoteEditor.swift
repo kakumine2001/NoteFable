@@ -83,10 +83,11 @@ enum NoteEmbedScripts {
     /// 这里把 `window.NoteFableNative` 定义成转发给 `window.webkit.messageHandlers.<handler>` 的对象。
     /// `appIcon()` / `language()` 要同步返回，所以值写死在脚本里：每次加载前用当时的值重新生成这段脚本；
     /// 开着的时候换了图标 / 语言走 [appIcon] / [language] 推过去。默认标志是空字符串。
+    /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）。
     static func bootstrap(handler: String, appIcon: String?, language: String) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
-            "appIcon:function(){return icon},language:function(){return lang}}})()"
+            "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}}})()"
     }
 }
 
