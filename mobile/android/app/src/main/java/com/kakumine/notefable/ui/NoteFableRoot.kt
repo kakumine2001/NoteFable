@@ -137,6 +137,27 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
         }
     }
 
+    // 系统分享（MainActivity 的 SEND intent）：先关掉检索面板和抽屉再切到聊天。
+    // 如果笔记保存失败暂时留在笔记里，把分享暂存下来，等真正回到聊天工作区时再放进输入栏，不丢用户的分享。
+    var deferredShares by remember { mutableStateOf<List<com.kakumine.notefable.data.IncomingShareRequest>>(emptyList()) }
+    LaunchedEffect(viewModel) {
+        viewModel.shareRequests.collect { share ->
+            searchOpen = false
+            closeDrawer()
+            deferredShares = deferredShares + share
+            if (notesViewModel.state.value.workspace != Workspace.Chat) {
+                notesViewModel.setWorkspace(Workspace.Chat)
+            }
+        }
+    }
+    LaunchedEffect(notes.workspace, deferredShares) {
+        if (notes.workspace == Workspace.Chat && deferredShares.isNotEmpty()) {
+            val pending = deferredShares
+            deferredShares = emptyList()
+            pending.forEach(viewModel::applyIncomingShare)
+        }
+    }
+
     // 界面语言跟着账号上的语言走（网页 /app 里唯一的 AccountLocaleSync）。
     AccountLocaleSync(account)
 

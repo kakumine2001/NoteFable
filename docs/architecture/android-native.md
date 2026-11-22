@@ -251,6 +251,13 @@ mobile/android/
 - 聊天链接 `https://<站点>/?chat=<会话>&message=<消息>`（也认 `/app?chat=`、`/<语言>/app?chat=`，规则在 `data/ChatLink.kt`，同网页 `LINK_ID`）：笔记 WebView 里点到时由 `shouldOverrideUrlLoading` 拦下在 App 里打开；外部的 VIEW intent 由 `MainActivity` 处理（`singleTask`，App 在运行时走 `onNewIntent`）。intent-filter 只有一组，`autoVerify="true"`：工作区主机（`BASE_URL` 的主机，正式为 `app.notefable.com`）上 `/c/` 开头的分享链接（`/c/<会话>?message=<消息>`，网页 `answerConversationUrl` 生成）。Android 用 `public/.well-known/assetlinks.json`（包名 + Play 应用签名证书的 SHA-256）验证后直接用 App 打开，可以用 `adb shell pm get-app-links com.kakumine.notefable` 查看验证状态。不认工作区的 `/` 和 `/app`（网页登录和 Stripe 付款后的返回地址，不能被 App 抢走），也不认 `notefable.com` / `www`（Android 11 及以下会验证 Manifest 里所有 http(s) 主机，`www` 是跳转、通不过）：以前保存的 `notefable.com/?chat=…` 旧链接由浏览器打开，转到网页工作区。外部链接经 `ChatViewModel.linkRequests` 交给 `NoteFableRoot`，先关掉检索面板和抽屉再打开；从"最近任务"重新进入（`FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）时不重放当初的链接。在笔记里时先保存笔记，存不上留在笔记里就不动聊天（`setWorkspace` 的 `then` 只在切过去后执行）。会话 ID 形式不对时和网页一样回到新聊天，输入栏上方显示 "Failed to load conversation."；形式对但读不到的会话沿用聊天页原有的加载失败界面。
 - 代码：`ui/SearchScreen.kt`（面板、定位与闪烁、抽屉 Search 行）、`ui/SearchViewModel.kt`（状态与防抖，`view()` 推出界面内容）、`data/SearchApi.kt`、`data/SearchFold.kt`、`data/ChatLink.kt`。单元测试：`SearchViewModelTest`、`SearchApiTest`、`SearchFoldParityTest`、`ChatLinkTest`、`ChatRevealTest`、`ChatRevealLayoutTest`。
 
+## 系统分享接收
+
+从浏览器、X、相册、文件等其他 App 点系统「分享」选 NoteFable 时，把文字、链接、图片或文件放进新聊天的输入栏（不自动发送，用户确认或补一句后再发）：
+
+- `AndroidManifest.xml` 在 `MainActivity` 上声明 `ACTION_SEND` 和 `ACTION_SEND_MULTIPLE`（`text/*`、`image/*`、`application/pdf`、`application/json`）。`MainActivity` 在 `onCreate`（排除重建和 `FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY`）与 `onNewIntent` 里交由 `ui/ShareIntent.kt`（`extractShareIntent`）解析，并立即在后台线程将外部临时 `content://` 文件拷贝到 `attachments/` 缓存目录（复用 `FileProvider` 缓存与 24 小时清理）；超限文件按 `MAX_UPLOAD_FILE_BYTES + 1` 截断计数后带真实大小交给附件校验提示超限；HEIC / GIF 等非直通图片在本地转码为 JPEG（质量 90）。
+- `data/ShareIntake.kt`（`composeSharedText`、`mergeDraftWithShare`）负责标题/正文去重与草稿拼接（与 Web、iOS 规则一致）。经 `ChatViewModel.shareRequests` 交给 `NoteFableRoot`，关闭检索面板和抽屉、切到聊天工作区后调用 `ChatViewModel.applyIncomingShare`：从已有聊天切入时开启新聊天并清掉旧引用，已在空新聊天时保留已有草稿并追加分享文字，文件走现有的 `importFiles` 与 `selectionError` 校验。单元测试：`ShareIntakeTest`、`ChatViewModelShareTest`。
+
 ## 账号头像（Batch 7b）
 
 和网页设置对话框里的个人资料（`settings-dialog.tsx` / `profile-settings.tsx`）、`avatar-cropper.tsx`、`user-avatar.tsx` 一致（数值取自 `globals.css` 的 `.profile-*` / `.avatar-*` 和 `settings-dialog.css` 的手机宽度规则，写在 `ui/AccountUi.kt`、`ui/AvatarCropper.kt` 开头的注释里；文案在 `strings_account.xml`）。设置要登录才出现，本机开发服务器登不进去，所以没有在浏览器里实测，按 CSS 源码照写。

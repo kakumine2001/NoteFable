@@ -24,6 +24,10 @@ struct RootView: View {
         .onChange(of: app.identityGeneration) { _, _ in
             router.onIdentityChanged()
         }
+        // 从笔记切回聊天时：如果之前笔记保存失败没能立即接收分享，这里自动取走。
+        .onChange(of: app.notes.state.workspace) { _, workspace in
+            if workspace == .chat { router.consumePendingShares() }
+        }
         .accountOverlays()
         .nfPanel(isPresented: $router.searchOpen, style: .search) {
             SearchScreen()

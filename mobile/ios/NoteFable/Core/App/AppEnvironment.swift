@@ -78,6 +78,13 @@ final class AppEnvironment {
     /// 本机字体能不能画出这个表情（要用 CoreText，界面层赋值）；画不出来的不进表情面板。默认都算能画。
     @ObservationIgnored var emojiGlyphSupported: @Sendable (String) -> Bool = { _ in true }
 
+    /// 只读检查 App Group 共享目录里有没有待取分享（不删文件）；在笔记工作区时据此决定是否切回聊天。
+    @ObservationIgnored var hasPendingShare: @MainActor (_ id: String?) async -> Bool = { _ in false }
+
+    /// 从 App Group 的共享目录取走系统「分享」交来的内容（界面层赋值：要用 App Group 的容器和附件缓存目录）。
+    /// 给了 id 就取那一份，没给就按时间先后取走全部没过期的分享；没有可取的返回空数组。
+    @ObservationIgnored var consumeSharePayloads: @MainActor (_ id: String?) async -> [(text: String, files: [LocalFile])] = { _ in [] }
+
     /// 当前打开着的网页编辑器的桥（没有打开笔记时为 nil）。用 [registerEditor] 设置。
     @ObservationIgnored private(set) var editorBridge: NoteEmbedBridge?
 

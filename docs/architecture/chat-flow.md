@@ -539,3 +539,11 @@ ASSISTANT Message
 用户点了停止时，已经流出的正文原样保存、不加错误信息，见上文“停止生成”。
 
 如果上游中途失败，已经向用户流出的文本会连同英文错误信息一起保存，尽量让 UI 展示与 DB 历史保持一致。服务端在现有 `Message.activity` JSON 和 SSE 里另加 `failure` 元数据（错误文的 `offset` 与 `detail`）；客户端只据此翻译系统追加的错误后缀，不改写正常 AI 正文。该元数据不进入可视时间线，不回传给模型；没有元数据的旧记录显示原文，复制与导出也保留原文。
+
+## 系统分享接收（Web / Android / iOS）
+
+三端均支持从其他应用通过系统「分享」向 NoteFable 传入文字、链接、图片或支持的文档，统一落在**新聊天的输入栏**（不自动发送；已有未发送草稿时追加在后面，不静默覆盖；附件走现有的格式/大小校验与上传链路）：
+
+- **Web（PWA Web Share Target）**：`src/app/[locale]/app/layout.tsx` 仅在工作区声明 `public/manifest.webmanifest`（`share_target` 为 `POST /share-target`，`multipart/form-data`，避免介绍页主机 `notefable.com` 误注册无 Service Worker 的目标），`public/sw.js` 仅拦截该路径（不缓存页面或 API），把表单里的标题/正文/链接与文件暂存在 Cache Storage（`notefable-share-v1`，10 分钟过期自动清理）后 303 跳转到 `/app?share=<id>`；工作区（`src/app/[locale]/app/page.tsx`）启动时顺手清理过期缓存，并通过 `src/lib/share-target.ts`（`consumeWebShare`、`composeSharedText`、`mergeDraftWithShare`、`pruneExpiredWebShares`）一次性取出并删掉缓存，清空 URL 参数后填入输入栏。
+- **Android**：`MainActivity` 接入 `ACTION_SEND` / `ACTION_SEND_MULTIPLE`（`ui/ShareIntent.kt`、`data/ShareIntake.kt`，见 [android-native.md](android-native.md#系统分享接收)）。
+- **iOS**：独立 `NoteFableShareExtension` 经 App Group（`group.com.kakumine.notefable`）与 `notefable://share?id=…` 交接给主 App（`Core/Chat/ShareIntake.swift`、`Features/Chat/ShareInboxBridge.swift`，见 [ios-native.md](ios-native.md)）。

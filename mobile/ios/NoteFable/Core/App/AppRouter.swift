@@ -21,6 +21,7 @@ final class AppRouter {
     var createPageSessionId: String?
 
     private var linkTask: Task<Void, Never>?
+    private var shareTask: Task<Void, Never>?
 
     init(app: AppEnvironment) {
         self.app = app
@@ -76,12 +77,55 @@ final class AppRouter {
         }
     }
 
-    /// 系统交来的网址（`onOpenURL` / `NSUserActivity`）。不是本站的聊天链接返回 false。
+    /// 系统交来的网址（`onOpenURL` / `NSUserActivity`）。不是本站的聊天链接、也不是分享扩展的 `notefable://share` 返回 false。
     @discardableResult
     func handleIncomingURL(_ url: URL) -> Bool {
+        if let shareId = ShareIntake.parseShareURL(url) {
+            enqueueShare(id: shareId)
+            return true
+        }
         guard let link = ChatLink.parse(url.absoluteString, baseUrl: app.config.baseURL) else { return false }
         app.chat.requestLink(link)
         return true
+    }
+
+    /// App 启动或回到前台时：取走分享扩展留在共享目录里、还没取的分享（扩展没能唤起 App 时的兜底）。
+    func consumePendingShares() {
+        enqueueShare(id: nil)
+    }
+
+    /// 取分享排成一条队：`onOpenURL` 和回到前台几乎同时来，不能两个同时去取（同一份分享会被放进输入栏两次）。
+    private func enqueueShare(id: String?) {
+        let previous = shareTask
+        shareTask = Task { [weak self] in
+            await previous?.value
+            await self?.openIncomingShare(id: id)
+        }
+    }
+
+    /// 取走分享并放进新聊天的输入栏（不自动发送）。先确保切到聊天工作区再从共享目录取走删除：
+    /// 如果当前笔记保存失败留在笔记里，分享内容继续安全留在共享目录，等用户切回聊天时再自动取走。
+    private func openIncomingShare(id: String?) async {
+        let deliver: @MainActor () async -> Void = { [weak self] in
+            guard let self else { return }
+            let payloads = await app.consumeSharePayloads(id).filter { !$0.text.isEmpty || !$0.files.isEmpty }
+            guard !payloads.isEmpty else { return }
+            dismissOverlays()
+            settingsOpen = false
+            for payload in payloads {
+                let files = payload.files
+                app.chat.applyIncomingShare(text: payload.text, loadFiles: files.isEmpty ? nil : { files })
+            }
+        }
+        if app.notes.state.workspace == .chat {
+            await deliver()
+            return
+        }
+        // 在笔记工作区时：只有真的有待取分享才尝试切回聊天；没切过去（例如笔记保存失败）就不删共享目录。
+        guard await app.hasPendingShare(id) else { return }
+        app.notes.setWorkspace(.chat) { [weak self] in
+            self?.enqueueShare(id: id)
+        }
     }
 
     /// 登录 / 退出后：旧身份整理好的笔记打不开了（网页登录 / 退出会重新加载页面）。
