@@ -33,10 +33,11 @@ export function relativeTime(iso: string, now = Date.now(), t: Translate = engli
 const LIST_ITEM = /^\s*(?:[-+*]|\d+[.)])\s/;
 
 // プレビュー用の Markdown。blocksToMarkdown は 1 行が 1 ブロックなので、そのままだと連続した段落が 1 つに繋がる。
-// コードの囲みの外では行の間に空行を入れて段落を分け、連続する箇条書きだけは詰めたままにする（4 つ以上の字下げがコード扱いにならないよう、箇条書き以外は字下げを外す）。
+// コードや数式（$$）の囲みの外では行の間に空行を入れて段落を分け、連続する箇条書きだけは詰めたままにする（4 つ以上の字下げがコード扱いにならないよう、箇条書き以外は字下げを外す）。
 export function previewMarkdown(blocks: unknown) {
   const out: string[] = [];
   let fence: string | null = null;
+  let mathIndent: number | null = null;
   let previousItem = false;
   // 表の行（| で始まる行）は詰めたままにする。空行が入ると表として描かれない。表と表の間の空行は元のまま残る。
   let previousRow = false;
@@ -46,7 +47,25 @@ export function previewMarkdown(blocks: unknown) {
       if (line.trim() === fence) fence = null;
       continue;
     }
+    if (mathIndent !== null) {
+      if (line.trim() === "$$") {
+        out.push("$$");
+        mathIndent = null;
+        previousItem = previousRow = false;
+      } else {
+        // 入れ子のリストの下にある $$ ブロックの字下げを外し、4 スペースのコードブロックに誤認されないようにする。
+        out.push(line.slice(Math.min(mathIndent, line.search(/\S|$/))));
+      }
+      continue;
+    }
     if (!line.trim()) { previousItem = previousRow = false; continue; }
+    if (line.trim() === "$$") {
+      if (out.length) out.push("");
+      out.push("$$");
+      mathIndent = line.search(/\S|$/);
+      previousItem = previousRow = false;
+      continue;
+    }
     const opening = /^\s*(`{3,})/.exec(line);
     const item = !opening && LIST_ITEM.test(line);
     const row = !opening && !item && line.trimStart().startsWith("|");
@@ -201,7 +220,7 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
           {detail?.status === "error" && <p role="alert" className="note-history-footer-error">{t(detail.message)}</p>}
           {revision && <>
             <h3 className="note-history-preview-title">{revision.icon && <span aria-hidden="true">{revision.icon}</span>}{revision.title}</h3>
-            <div className="markdown-body"><AssistantMarkdown math={false} content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
+            <div className="markdown-body"><AssistantMarkdown math="dollars" content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
           </>}
         </div>
         {revision && <div className="note-history-preview-footer">

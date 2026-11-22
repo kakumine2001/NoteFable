@@ -402,4 +402,36 @@ describe("answerToNoteContent", () => {
     expect(result.title).toBe("小見出し");
     expect(textOf(result.blocks[0])).toBe("本文は重要です。");
   });
+
+  it("converts chat math (\\(...\\), \\[...\\], $$...$$, ```math) into note math blocks and inline math while keeping prices and LaTeX brackets intact", () => {
+    const result = build([
+      "$$",
+      "E = mc^2",
+      "$$",
+      "",
+      "Euler \\( e^{i\\pi} + 1 = 0 \\) costs $5 and $10, with $f[0,1](x)$.",
+      "",
+      "\\[",
+      "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}",
+      "\\]",
+      "",
+      "```math",
+      "a^2 + b^2 = c^2",
+      "```",
+    ].join("\n"));
+    expectValid(result);
+    // 裸の $$ はタイトルにしない。
+    expect(result.title).not.toBe("$$");
+    expect(result.blocks.slice(0, 4).map((b) => b.type)).toEqual(["mathBlock", "paragraph", "mathBlock", "mathBlock"]);
+    expect(result.blocks[0].props).toEqual({ latex: "E = mc^2" });
+    expect(result.blocks[1].content).toEqual([
+      { type: "text", text: "Euler ", styles: {} },
+      { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } },
+      { type: "text", text: " costs $5 and $10, with ", styles: {} },
+      { type: "mathInline", props: { latex: "f[0,1](x)" } },
+      { type: "text", text: ".", styles: {} },
+    ]);
+    expect(result.blocks[2].props).toEqual({ latex: "\\int_0^1 [0,1](x)\\,dx = \\frac{1}{2}" });
+    expect(result.blocks[3].props).toEqual({ latex: "a^2 + b^2 = c^2" });
+  });
 });

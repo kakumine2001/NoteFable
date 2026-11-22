@@ -24,7 +24,7 @@ import { msg } from "@/lib/i18n/translate";
 import type { ReactNode } from "react";
 import ReactMarkdown, { type Components, type Options } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { prepareMath } from "@/lib/math-markdown";
+import { hasDollarMath, prepareMath } from "@/lib/math-markdown";
 import { writeClipboardText } from "@/lib/clipboard";
 import { useT } from "@/components/i18n-provider";
 
@@ -301,12 +301,17 @@ function loadMathPlugins() {
 
 const plainRemarkPlugins = [remarkGfm];
 
-// math を false にすると数式として読まない（ノートの履歴の表示用：ノートの Markdown は [ や ( を \[ \( と書き出すので、
-// 数式と紛れる。ノートの編集画面も数式を描かない）。
-export function AssistantMarkdown({ content, math: mathEnabled = true }: { content: string; math?: boolean }) {
-  // \( … \)・\[ … \] を $ … $ にそろえ、独立した数式を $$ の行で囲み、数式ではない「$」をエスケープする。
-  const prepared = useMemo(() => (mathEnabled ? prepareMath(content) : null), [content, mathEnabled]);
-  const needsMath = prepared?.hasMath ?? false;
+// math:
+// - true（既定）: チャットの回答用。prepareMath で \( \)・\[ \] も $…$・$$ ブロックにそろえて描く。
+// - "dollars": ノートの履歴プレビュー用。ノートの Markdown は [ や ( を \[ \( とエスケープし、数式だけを $…$ と $$ ブロックで書くので、
+//   prepareMath を通さず、$ の数式だけを描く。
+// - false: 数式として読まない。
+export function AssistantMarkdown({ content, math: mathEnabled = true }: { content: string; math?: boolean | "dollars" }) {
+  const prepared = useMemo(() => (mathEnabled === true ? prepareMath(content) : null), [content, mathEnabled]);
+  const needsMath = useMemo(
+    () => (mathEnabled === "dollars" ? hasDollarMath(content) : (prepared?.hasMath ?? false)),
+    [content, mathEnabled, prepared],
+  );
   // 数式のある回答だけが読み込みの完了を待つ（無い回答は、読み込まれても描き直さない）。
   const math = useSyncExternalStore(needsMath ? subscribeMath : subscribeNothing, () => mathPlugins, () => null);
   useEffect(() => {

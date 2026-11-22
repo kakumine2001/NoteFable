@@ -4,8 +4,9 @@ import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import { describe, expect, it } from "vitest";
-import { normalizeMath } from "./math-markdown";
-import { markdownToBlocks } from "./note-markdown";
+import { hasDollarMath, normalizeMath } from "./math-markdown";
+import { blocksToMarkdown, markdownToBlocks } from "./note-markdown";
+import { previewMarkdown } from "@/components/note-history-dialog";
 
 // 画面と同じ変換（assistant-markdown.tsx）に通して、整えた Markdown が意図どおりの数式になるかを見る。
 function render(markdown: string) {
@@ -59,5 +60,37 @@ describe("escaped dollars in notes", () => {
   it("stores \\$ from an answer as a plain dollar sign", () => {
     const blocks = markdownToBlocks("It costs \\$5 and \\$10") as { content: { text: string }[] }[];
     expect(blocks[0].content.map((node) => node.text).join("")).toBe("It costs $5 and $10");
+  });
+});
+
+describe("note history dollar-only math mode", () => {
+  it("detects unescaped dollar math while ignoring escaped dollars and code", () => {
+    expect(hasDollarMath("Price \\$5 and \\$10 and \\[brackets\\]")).toBe(false);
+    expect(hasDollarMath("`$x$`\n```\n$y$\n```")).toBe(false);
+    expect(hasDollarMath("Formula $x^2$")).toBe(true);
+    expect(hasDollarMath("$$\nE = mc^2\n$$")).toBe(true);
+  });
+
+  it("renders note math blocks and inline math in previewMarkdown while keeping literal brackets and prices as text", () => {
+    const blocks = [
+      { id: "p1", type: "paragraph", props: {}, content: [
+        { type: "text", text: "See [note] costing $5 and ", styles: {} },
+        { type: "mathInline", props: { latex: "e^{i\\pi} = -1" } },
+      ], children: [] },
+      { id: "m1", type: "mathBlock", props: { latex: "E = mc^2" }, children: [] },
+    ];
+    const md = previewMarkdown(blocks);
+    expect(hasDollarMath(md)).toBe(true);
+    const html = renderToStaticMarkup(
+      <ReactMarkdown remarkPlugins={[remarkGfm, [remarkMath, { singleDollarTextMath: true }]]}
+        rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]} skipHtml>
+        {md}
+      </ReactMarkdown>,
+    );
+    expect(count(html, 'class="katex"')).toBe(2);
+    expect(count(html, "katex-display")).toBe(1);
+    expect(html).toContain("See [note] costing $5 and ");
+    expect(html).not.toContain("katex-error");
+    expect(blocksToMarkdown(blocks)).toContain("\\[note\\]");
   });
 });

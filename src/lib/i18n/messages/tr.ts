@@ -688,4 +688,10 @@ export const tr: Record<string, string> = {
   "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Sohbette ya da notun içinde isteyin: toparlasın, bir bölümü yeniden yazsın, eksik olanı eklesin. Yapay zekâ notlarınızı okur ve değişikliği önerir. Siz onaylamadan hiçbir şey yazılmaz, önceki sürüm de geçmişte kalır.",
   "Add a one-line summary at the top.": "En üste tek satırlık bir özet ekle.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Kısacası: gün batımında ışık daha fazla havadan geçer, mavi dağılır, kırmızı kalır.",
+  "Block equation": "Blok denklem",
+  "Inline equation": "Satır içi denklem",
+  "Add a TeX equation": "TeX denklemi ekle",
+  "New equation": "Yeni denklem",
+  "Edit equation": "Denklemi düzenle",
+  "Enter a TeX equation…": "TeX denklemi girin…",
 };

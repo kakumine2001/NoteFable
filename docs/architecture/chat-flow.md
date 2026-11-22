@@ -285,7 +285,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 - `search_notes({ query })`：在数据库内搜索该用户的全部笔记（不含 Trash 里的，SQL 带 `"deletedAt" IS NULL`）。用 JSONPath 只取正文的 inline `text`（不匹配块类型或样式键），并经 `jsonb_array_elements_text` 解码后再拼接，因此含 `\` 或 `"` 的内容也能按原文匹配；LIKE 的 `%`、`_` 按字面处理。所有词都须以不区分大小写的子串出现在标题或正文中；按标题命中词数、更新时间排序，最多返回 10 条 ID、标题和摘要。空 query 列出最近笔记。不做同义词或翻译，工具说明会提示模型换说法重试。
 - `read_note({ noteId })`：把 BlockNote JSON 转为 Markdown 返回，超过 20,000 字符截断；Trash 里的笔记视为不存在（返回 Note not found）。每个块（含空块、嵌套块，深度优先）行首带 `[n]` 编号，并返回笔记 `version`。
 - `list_chat_attachments()`：列出当前聊天里的附件（最新在前，最多 30 个，包含用户上传和助手生成的图片），含附件 ID、文件名、类型、大小，以及是否能放进笔记（只有不超过 4 MiB 的图片可以）。之后在 `propose_note_edit` / `propose_note_create` 的 Markdown 里写 `![说明](attachment:ID)`，服务端按“笔记图片与文件”的规则复制并替换，见 [notes-flow.md](notes-flow.md)。
-- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###` 与折叠标题 `# ▸`、`-` 列表、`1.`、`- [ ]`、折叠列表 `▸`、`>` 引用、Callout `> [!💡]`、代码围栏、`---`、GFM 表格、笔记图片 `![说明](/api/pages/files?...)` 或 `attachment:ID`，以及粗体/斜体/删除线/行内代码/链接，两个空格缩进表示嵌套），`src/lib/page-edit.ts` 把编辑应用到笔记块上（表格替换表格时经 `carryTableLayout` 继承表头行/列与列宽），再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
+- `propose_note_edit({ noteId, version, title, edits })`：**只提议，不直接修改笔记**。`edits` 为 `replace`（用 Markdown 替换第 n 块及其子块）、`insert_after`（第 n 块之后插入，0 表示页首）、`delete`，每次最多 20 条、Markdown 合计最多 60,000 字符，编号都以那次 `read_note` 为准；`title` 用于改名（null 保持不变）。Markdown 由 `src/lib/note-markdown.ts` 转成块（标题 `#`～`###` 与折叠标题 `# ▸`、`-` 列表、`1.`、`- [ ]`、折叠列表 `▸`、`>` 引用、Callout `> [!💡]`、代码围栏、`---`、GFM 表格、块级数学公式 `$$`、笔记图片 `![说明](/api/pages/files?...)` 或 `attachment:ID`，以及粗体/斜体/删除线/行内代码/行内数学公式 `$…$`/链接，两个空格缩进表示嵌套），`src/lib/page-edit.ts` 把编辑应用到笔记块上（表格替换表格时经 `carryTableLayout` 继承表头行/列与列宽），再用保存笔记时同一个 `validateNoteContent` 校验。Markdown 与块之间的转换是往返一致的：行内的 `*`、`` ` ``、`[`、`$`、`~~` 和像标题/列表/引用的行首会被反斜杠转义，粗斜体写成 `***x***`，空列表项、标题和段落下的缩进子块、编号列表的起始号码、含 ``` 的代码块（用更长的围栏）和代码里的制表符都能保持不变。`replace` 只替换所指的块（连同子块），同一种类的单个块替换时保留块的文字色、背景色和对齐；Markdown 表达不了的行内下划线、文字色等会丢失，此时卡片上会提示。`version` 与当前笔记不一致、笔记不属于当前用户或在 Trash 里、编号越界、同一块被重复编辑或编辑落在被替换/删除的块内部、校验失败，都作为工具错误返回给模型，让它重新读取或修正。
 
 两条循环实现：
 
@@ -393,7 +393,7 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ### Notes
 
-只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
+只搜活着的笔记（`"deletedAt" IS NULL`，Trash 里的不会出现）。每个词须出现在标题或正文里（正文取 inline 的 `text` 以及 `mathBlock`/`mathInline` 的 `props.latex`，与 `search_notes` 同一套 JSONPath，按文本节点分别匹配，所以被加粗等样式拆开的词 DB 匹配不到）。按标题命中词数、更新时间排序。SQL 只对命中的这最多 15 篇带回 `blocks`，再在 JS 里按文档顺序（父、子、下一个兄弟）找出**自身文字**含不同词最多的块（同数取靠前的），得到 `blockId` 和以它为中心的 `snippet`；只有标题命中时 `blockId` 为 `null`，片段取笔记开头。
 
 ### Chats
 
@@ -445,7 +445,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
 ### 保存出来的笔记
 
 - **标题**：回答里（代码围栏之外）第一个标题；没有就取第一个非空行（去掉 Markdown 符号）；再没有就用会话标题；最后是 `Untitled`。最长 80 个字素、且不超过 200 个 UTF-16 单位（笔记标题上限），截断时加 `…`。标题来自开头的标题时，正文里去掉那一行以免重复；标题来自第一行普通文字时，正文保留它（所以一行的回答会同时出现在标题和正文里）。
-- **正文**：`markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
+- **正文**：先经 `prepareMath` 规范化数学公式，再由 `markdownToBlocks`（`src/lib/note-markdown.ts`，与 AI 的 `propose_note_create` 同一个转换）转成块。GFM 表格保存成表格块（第一行是表头）；块级与行内 LaTeX 公式保存成 `mathBlock` 与 `mathInline` 节点（在笔记编辑器与历史预览中由 KaTeX 渲染）；代码围栏统一成 ```（`~~~` 和语言后面的说明读不了）；Web 搜索的出处链接 `[标题](<URL>)` 改写成普通链接，URL 里的空格和圆括号做百分号编码，所以出处链接保留在正文里（行内与块级公式内部的 `[a](b)` 不被改写）；图片（外部 URL，做不成图片块）改成链接；嵌套超过 8 层的部分平铺到同一层。
 - **来源**：正文后是一个分隔线块和一个灰色段落：`Saved from the conversation "<会话标题>" on YYYY-MM-DD.`，标题带链接指向 `/c/<会话 ID>?message=<消息 ID>`（见下节）；链接不是 http/https 时只显示文字。
 - **上限**：最多 2,000 个块，整篇 JSON 不超过 1 MiB 减 2 KiB 余量。超出时在块的边界处二分截断正文，来源段落追加 “The answer was too long to save in full, so the end was left out.”
 
@@ -487,7 +487,7 @@ AI 的 `search_notes` 工具（`src/lib/page-tools.ts`）是另一套实现，�
   - ```` ```math ```` 代码块是独立公式（由 rehype-katex 画）。回答还在生成、公式没写完时保持原样显示。
 - **加载**：`remark-math`、`rehype-katex` 和 KaTeX 的样式、字体只在某条回答里真的有公式时才动态加载（`hasMath`；只有金额的 `$` 不算）。加载完成前公式按原文显示，加载完所有回答一起重新渲染；加载失败 5 秒后可以再试。重新渲染改变了回答的高度，所以这时派发 `notefable:answer-resized`，聊天页和笔记助手面板在跟随最新内容时保持在底部。没有公式的对话不加载这些文件。
 - **出错的公式**不抛异常（`throwOnError: false`），按原文显示，回答其余部分照常。很长的独立公式在公式内部横向滚动（`.markdown-body .katex-display`）。
-- **不受影响的部分**：保存的仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 存进笔记的也是这段文字——笔记编辑器（BlockNote）没有公式块，在笔记里不渲染，所以笔记历史的预览也不渲染公式（`<AssistantMarkdown math={false}>`）。回答里写成 `\$` 的金额符号，存进笔记（`src/lib/note-markdown.ts`）和导出成纯文字（`src/lib/answer-export.ts`）时还原成 `$`。
+- **笔记与导出**：保存的聊天记录仍是 Markdown 原文，Copy 和 Download conversation 得到的是带 `$` 的 LaTeX 源码；Save to page / Create page 先经 `prepareMath` 规范化，再由 `markdownToBlocks` 转成笔记里的 `mathBlock`（块级公式）与 `mathInline`（行内公式）节点，在笔记编辑器与编辑历史预览（`<AssistantMarkdown math="dollars">`）中均以 KaTeX 渲染。回答里写成 `\$` 的金额符号，存进笔记（`src/lib/note-markdown.ts`）和导出成纯文字（`src/lib/answer-export.ts`）时还原成普通 `$`。
 - **Android / iOS 原生 App**：Android 的 `data/MathMarkdown.kt` 与 iOS 的 `Core/Chat/MathMarkdown.swift` 是 `prepareMath` 的移植（同样的输入认出同样的公式，测试用例一一对应；改规则时三端一起改），排版分别见 [android-native.md](android-native.md#回答体验) 与 [ios-native.md](ios-native.md#ios-上换了做法的地方)。
 
 ## 整理成笔记（Create page）

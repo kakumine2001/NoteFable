@@ -688,4 +688,10 @@ export const it: Record<string, string> = {
   "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "Chiedilo in chat o dentro la nota: riordinarla, riscrivere una sezione, aggiungere ciò che manca. L’IA legge le tue note e propone la modifica. Nulla viene scritto finché non approvi, e la versione precedente resta nella cronologia.",
   "Add a one-line summary at the top.": "Aggiungi un riassunto di una riga all’inizio.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "In breve: al tramonto la luce attraversa più aria, il blu si disperde e resta il rosso.",
+  "Block equation": "Equazione a blocco",
+  "Inline equation": "Equazione in linea",
+  "Add a TeX equation": "Aggiungi un’equazione TeX",
+  "New equation": "Nuova equazione",
+  "Edit equation": "Modifica equazione",
+  "Enter a TeX equation…": "Inserisci un’equazione TeX…",
 };

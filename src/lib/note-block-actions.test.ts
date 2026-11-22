@@ -23,4 +23,19 @@ describe("note block operations", () => {
     const code = { ...parent, type: "codeBlock", props: { language: "text" }, content: [{ type: "text", text, styles: {} }] } as Block;
     expect(() => validateNoteContent({ title: "Test", blocks: [code] })).not.toThrow();
   });
+
+  it("preserves inline math latex when converting to code and clones math blocks cleanly", () => {
+    const withMath = validateNoteContent({
+      title: "Math",
+      blocks: [
+        { id: "p1", type: "paragraph", props: {}, content: [{ type: "text", text: "Area: ", styles: {} }, { type: "mathInline", props: { latex: "\\pi r^2" } }], children: [] },
+        { id: "m1", type: "mathBlock", props: { latex: "E = mc^2" }, children: [] },
+      ],
+    }).blocks;
+    expect(codeBlockText(withMath[0])).toBe("Area: \\pi r^2");
+    const copies = copyNoteBlocks(withMath);
+    expect(copies[1].id).not.toBe(withMath[1].id);
+    expect(copies[1].props).toEqual(withMath[1].props);
+    expect(() => validateNoteContent({ title: "Math", blocks: [...withMath, ...copies] })).not.toThrow();
+  });
 });

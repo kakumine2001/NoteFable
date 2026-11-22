@@ -230,9 +230,97 @@ describe("toggles, callouts and tables", () => {
     expect(back.rows[1].cells[0].content[0].styles).toEqual({ code: true });
   });
 
-  it("leaves \\| inside ordinary text as written", () => {
-    const [paragraph] = markdownToBlocks("norm $\\|x\\|$");
-    expect((paragraph.content as { text: string }[]).map((entry) => entry.text).join("")).toBe("norm $\\|x\\|$");
+  it("leaves \\| inside ordinary text as written and parses inline math with \\|", () => {
+    const [plain] = markdownToBlocks("norm \\|x\\|");
+    expect((plain.content as { text: string }[]).map((entry) => entry.text).join("")).toBe("norm \\|x\\|");
+    const [math] = markdownToBlocks("norm $\\|x\\|$");
+    expect(math.content).toEqual([
+      { type: "text", text: "norm ", styles: {} },
+      { type: "mathInline", props: { latex: "\\|x\\|" } },
+    ]);
+  });
+});
+
+describe("math blocks and inline math", () => {
+  it("parses block math ($$ fences, single-line $$, ```math) and inline math ($...$, $$...$$) and round-trips", () => {
+    const source = [
+      "Euler's identity $e^{i\\pi} + 1 = 0$ and price \\$5 and \\$10.",
+      "$$",
+      "\\begin{aligned}",
+      "a &= b \\\\",
+      "c &= d",
+      "\\end{aligned}",
+      "$$",
+      "- Nested formula:",
+      "  $$",
+      "  E = mc^2",
+      "  $$",
+      "| Norm | Value |",
+      "| --- | --- |",
+      "| $|x|$ | $x^2$ |",
+    ].join("\n");
+    const blocks = markdownToBlocks(source);
+    expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
+    expect(shape(blocks as unknown as Shape[])).toEqual([
+      ["paragraph", []],
+      ["mathBlock", []],
+      ["bulletListItem", [["mathBlock", []]]],
+      ["table", []],
+    ]);
+    expect(blocks[0].content).toEqual([
+      { type: "text", text: "Euler's identity ", styles: {} },
+      { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } },
+      { type: "text", text: " and price $5 and $10.", styles: {} },
+    ]);
+    expect(blocks[1].props).toEqual({ latex: "\\begin{aligned}\na &= b \\\\\nc &= d\n\\end{aligned}" });
+    expect(blocks[2].children[0].props).toEqual({ latex: "E = mc^2" });
+    expect(blocksToMarkdown(blocks)).toBe(source);
+    expect(markdownToBlocks(blocksToMarkdown(blocks)).map((b) => b.type)).toEqual(["paragraph", "mathBlock", "bulletListItem", "table"]);
+  });
+
+  it("handles single-line $$ blocks, ```math fences, two inline $$ on one line, and unclosed $$ safely", () => {
+    const blocks = markdownToBlocks([
+      "$$E = mc^2$$",
+      "```math",
+      "\\frac{1}{2}",
+      "```",
+      "$$a$$ and $$b$$",
+      "$$ unclosed",
+      "next line",
+    ].join("\n"));
+    expect(() => validateNoteContent({ title: "Math", blocks })).not.toThrow();
+    expect(blocks.map((b) => b.type)).toEqual(["mathBlock", "mathBlock", "paragraph", "paragraph", "paragraph"]);
+    expect(blocks[0].props).toEqual({ latex: "E = mc^2" });
+    expect(blocks[1].props).toEqual({ latex: "\\frac{1}{2}" });
+    expect(blocks[2].content).toEqual([
+      { type: "mathInline", props: { latex: "a" } },
+      { type: "text", text: " and ", styles: {} },
+      { type: "mathInline", props: { latex: "b" } },
+    ]);
+  });
+
+  it("preserves literal brackets, dollar prices, and inline math containing $ across round-trips", () => {
+    const blocks = [
+      { id: "p1", type: "paragraph", props: {}, content: [{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }], children: [] },
+      { id: "p2", type: "paragraph", props: {}, content: [{ type: "text", text: "Total: ", styles: {} }, { type: "mathInline", props: { latex: "\\$100 \\times 2" } }], children: [] },
+    ];
+    const md = blocksToMarkdown(blocks);
+    expect(md).toContain("\\[hello\\]");
+    expect(md).toContain("\\$5");
+    expect(md).toContain("$$\\$100 \\times 2$$");
+    const back = markdownToBlocks(md);
+    expect(back[0].type).toBe("paragraph");
+    expect(back[0].content).toEqual([{ type: "text", text: "[hello] costs $5 and $10 and $x$", styles: {} }]);
+    expect(back[1].content).toEqual([
+      { type: "text", text: "Total: ", styles: {} },
+      { type: "mathInline", props: { latex: "\\$100 \\times 2" } },
+    ]);
+  });
+
+  it("handles pathological dollar signs in roughly linear time", () => {
+    const started = performance.now();
+    markdownToBlocks("$a ".repeat(20_000));
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 });
 

@@ -688,4 +688,10 @@ export const hi: Record<string, string> = {
   "Ask in chat or inside the note: tidy it up, rewrite a section, add what is missing. The AI reads your notes and proposes the change. Nothing is written until you approve it, and the earlier version stays in history.": "चैट में या नोट के अंदर कहें: इसे व्यवस्थित करें, कोई हिस्सा दोबारा लिखें, जो छूट गया है उसे जोड़ें। AI आपके नोट पढ़कर बदलाव का प्रस्ताव देता है। आपकी मंज़ूरी से पहले कुछ नहीं लिखा जाता, और पिछला संस्करण इतिहास में बना रहता है।",
   "Add a one-line summary at the top.": "सबसे ऊपर एक पंक्ति का सारांश जोड़ें।",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "संक्षेप में: सूर्यास्त के समय प्रकाश ज़्यादा हवा से गुज़रता है, नीला बिखर जाता है और लाल बच रहता है।",
+  "Block equation": "ब्लॉक समीकरण",
+  "Inline equation": "इनलाइन समीकरण",
+  "Add a TeX equation": "TeX समीकरण जोड़ें",
+  "New equation": "नया समीकरण",
+  "Edit equation": "समीकरण संपादित करें",
+  "Enter a TeX equation…": "TeX समीकरण दर्ज करें…",
 };

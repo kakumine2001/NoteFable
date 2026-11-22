@@ -161,6 +161,48 @@ export function hasMath(markdown: string) {
   return prepareMath(markdown).hasMath;
 }
 
+// ノートの履歴プレビュー用。ノートの Markdown（note-markdown.ts の blocksToMarkdown）では、文字としての $ は \$ と書かれ、
+// 数式は $…$ と $$ の行で書かれる。そこで、コードの外に書かれた $（\$ ではないもの）が 1 つでもあれば数式がある、とみなす。
+// [ や ( は文字としてエスケープされているので、\[ … \] や \( … \) は数式として読まない（prepareMath は通さない）。
+export function hasDollarMath(markdown: string) {
+  if (!markdown.includes("$")) return false;
+  let fence: { char: string; length: number } | null = null;
+  let afterBreak = true;
+  let inList = false;
+  let indentedCode = false;
+  for (const line of markdown.split("\n")) {
+    if (fence) {
+      const closing = line.trim();
+      if (closing.length >= fence.length && [...closing].every((char) => char === fence!.char)) {
+        fence = null;
+        afterBreak = true;
+      }
+      continue;
+    }
+    const blank = line.trim() === "";
+    if (indentedCode) {
+      if (blank || INDENTED.test(line)) continue;
+      indentedCode = false;
+      afterBreak = true;
+    }
+    const open = FENCE_OPEN.exec(line);
+    if (open && !(open[1][0] === "`" && open[2].includes("`"))) {
+      fence = { char: open[1][0], length: open[1].length };
+      continue;
+    }
+    if (afterBreak && !inList && INDENTED.test(line)) {
+      indentedCode = true;
+      continue;
+    }
+    if (LIST_ITEM.test(line)) inList = true;
+    else if (/^ ?\S/.test(line)) inList = false;
+    afterBreak = blank;
+    // バックスラッシュのエスケープとインラインコードを除いて、残った $ を数える。
+    if (line.replace(/\\[\s\S]|(`+)[^`\n]*?\1/g, " ").includes("$")) return true;
+  }
+  return false;
+}
+
 export function normalizeMath(markdown: string) {
   return prepareMath(markdown).text;
 }

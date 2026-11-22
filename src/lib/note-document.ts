@@ -4,8 +4,10 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import type { NoteContent } from "@/types/notes";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file", "mathBlock"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
+// 数式（TeX）1 つのソースの長さの上限。ブロックの数式も行内の数式も同じ。
+export const MAX_MATH_LATEX = 10_000;
 export const MAX_NOTE_TITLE = 200;
 
 // Notion のカバーギャラリーに近いプリセット。任意 URL は受け付けず、キーだけを保存する。
@@ -56,16 +58,26 @@ function validStyles(value: unknown) {
   );
 }
 
-function validInline(value: unknown, links = true): boolean {
+function validLatex(value: unknown): value is string {
+  return typeof value === "string" && value.length <= MAX_MATH_LATEX && !value.includes("\u0000");
+}
+
+// rich が偽のとき（リンクの中・コードブロック・表のセル以外の「文字だけ」の場所）は、リンクも行内の数式も置けない。
+function validInline(value: unknown, rich = true): boolean {
   if (!Array.isArray(value)) return false;
   return value.every((entry) => {
     if (!object(entry)) return false;
     if (entry.type === "text") return typeof entry.text === "string" && validStyles(entry.styles);
-    if (links && entry.type === "link" && typeof entry.href === "string") {
+    if (rich && entry.type === "link" && typeof entry.href === "string") {
       try {
         const url = new URL(entry.href);
         return ["http:", "https:", "mailto:", "tel:"].includes(url.protocol) && validInline(entry.content, false);
       } catch { return false; }
+    }
+    // 行内の数式。本文は持たず、TeX は props.latex だけに入れる。
+    if (rich && entry.type === "mathInline") {
+      return entry.content === undefined && Object.keys(entry).every((key) => ["type", "props", "content"].includes(key))
+        && object(entry.props) && Object.entries(entry.props).every(([key, latex]) => key === "latex" && validLatex(latex));
     }
     return false;
   });
@@ -127,6 +139,7 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (key === "url") return media && parseNoteFileUrl(entry) !== null;
         if (key === "name" || key === "caption") return media && typeof entry === "string" && entry.length <= (key === "name" ? 200 : 500) && !/[\u0000-\u001f\u007f]/.test(entry);
         if (key === "showPreview") return block.type === "image" && typeof entry === "boolean";
+        if (key === "latex") return block.type === "mathBlock" && validLatex(entry);
         if (key === "previewWidth") return block.type === "image" && typeof entry === "number" && Number.isFinite(entry) && entry >= 16 && entry <= 4000;
         return false;
       });
@@ -136,7 +149,7 @@ export function validateNoteContent(value: unknown): NoteContent {
       } else if (block.type === "table") {
         // 表は子ブロックを持たない。
         if (!validTable(block.content) || (block.children !== undefined && !(Array.isArray(block.children) && !block.children.length))) return false;
-      } else if (block.type === "image" || block.type === "file") {
+      } else if (block.type === "image" || block.type === "file" || block.type === "mathBlock") {
         if (block.content !== undefined) return false;
       } else if (block.type === "codeBlock") {
         if (!validInline(block.content, false) || !Array.isArray(block.content) || block.content.some((entry) => Object.keys(entry.styles).length)) return false;

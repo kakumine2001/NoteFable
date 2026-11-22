@@ -12,8 +12,9 @@ export { parseSearchTerms };
 // JS には上位 15 件ぶんだけを持ち込む。Notes は全部の語がタイトルか本文にあるもの。Chats は全部の語がタイトル、またはメッセージ
 // （と添付ファイルの本文）のどこかにあるもの（同じメッセージに揃っている必要はない）。
 
-// 本文中の文字列（inline の text）だけを集める JSONPath。page-tools.ts の searchPages と同じ。
+// 本文中の文字列（inline の text）と数式（mathBlock / mathInline の props.latex）を集める JSONPath。page-tools.ts の searchPages と同じ。
 const TEXT_PATH = 'strict $.** ? (@.type() == "object" && exists(@.text)).text';
+const LATEX_PATH = 'strict $.** ? (@.type() == "object" && exists(@.latex)).latex';
 // 一致したメッセージの抜粋として DB から受け取る範囲。語の 100 文字前から 600 文字。
 // 添付ファイルの抽出本文は、保存する時点で 120,000 文字に切られている（src/lib/files.ts の MAX_TEXT_CHARS）ので、DB 側ではさらに切らない。
 const EXCERPT_BEFORE = 100;
@@ -23,7 +24,7 @@ const LEADING_CHARS = 400;
 
 // ---- ノートのブロック ----
 
-type BlockLike = { id?: unknown; content?: unknown; children?: unknown };
+type BlockLike = { id?: unknown; type?: unknown; props?: unknown; content?: unknown; children?: unknown };
 
 // 文書の順（親 → 子 → 次の兄弟）にブロックを返す。深さに依存しないよう再帰は使わない。
 function* walkBlocks(blocks: unknown): Generator<BlockLike> {
@@ -37,16 +38,25 @@ function* walkBlocks(blocks: unknown): Generator<BlockLike> {
   }
 }
 
-// そのブロック自身の文字列（リンクの文字を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
+// そのブロック自身の文字列（リンクの文字・数式の TeX を含み、子ブロックは含まない）。装飾で区切られた語もつなげて探せる。
 function inlineText(content: unknown): string {
   if (Array.isArray(content)) return content.map(inlineText).join("");
   if (!content || typeof content !== "object") return "";
-  const node = content as { text?: unknown; content?: unknown; rows?: unknown };
+  const node = content as { type?: unknown; text?: unknown; props?: { latex?: unknown }; content?: unknown; rows?: unknown };
   // 表ブロックの本文は rows[].cells[] にある。セルは空白でつなぐ。
   if (Array.isArray(node.rows)) {
     return node.rows.flatMap((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) ? cells.map(inlineText) : []; }).join(" ");
   }
+  if (node.type === "mathInline" && typeof node.props?.latex === "string") return node.props.latex;
   return (typeof node.text === "string" ? node.text : "") + inlineText(node.content);
+}
+
+function blockText(block: BlockLike): string {
+  if (block.type === "mathBlock") {
+    const latex = (block.props as { latex?: unknown } | null)?.latex;
+    return typeof latex === "string" ? latex : "";
+  }
+  return inlineText(block.content);
 }
 
 // 一致する語がいちばん多いブロック（同数なら文書の順で先）。ID の無いブロックは飛ばす（移動先にできない）。
@@ -56,7 +66,7 @@ export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: 
   let best: { blockId: string; text: string; count: number } | null = null;
   for (const block of walkBlocks(blocks)) {
     if (typeof block.id !== "string" || !block.id) continue;
-    const text = inlineText(block.content);
+    const text = blockText(block);
     const count = countMatchedTerms(text, needles);
     if (count > (best?.count ?? 0)) best = { blockId: block.id, text, count };
     if (count === needles.length) break;
@@ -68,7 +78,7 @@ export function findMatchingBlock(blocks: unknown, terms: string[]): { blockId: 
 function leadingText(blocks: unknown, limit = LEADING_CHARS) {
   let text = "";
   for (const block of walkBlocks(blocks)) {
-    const own = inlineText(block.content).trim();
+    const own = blockText(block).trim();
     if (!own) continue;
     text += (text ? " " : "") + own;
     if (text.length >= limit) break;
@@ -120,7 +130,10 @@ export async function searchNotes(userId: string, terms: string[]): Promise<Note
     FROM ${table("NotePage")} p
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath))
+      FROM jsonb_array_elements_text(
+        jsonb_path_query_array(p."blocks", ${TEXT_PATH}::jsonpath)
+        || jsonb_path_query_array(p."blocks", ${LATEX_PATH}::jsonpath)
+      )
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
       AND ${Prisma.join(needles.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}

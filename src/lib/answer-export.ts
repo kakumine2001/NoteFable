@@ -1,5 +1,6 @@
 import { MAX_NOTE_BYTES, MAX_NOTE_TITLE } from "@/lib/note-document";
-import { TABLE_SEPARATOR, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
+import { prepareMath } from "@/lib/math-markdown";
+import { TABLE_SEPARATOR, escapeCellPipes, inlineMathEnd, markdownToBlocks, splitTableRow as splitRow } from "@/lib/note-markdown";
 
 // 回答のコピー・ノート保存と、会話全体の Markdown 書き出しに使う純粋な変換。
 
@@ -130,7 +131,7 @@ function analyze(lines: string[]): Analysis {
     if (!firstLine) {
       const label = stripInline(text);
       // 区切り線や表の罫線のように、記号だけの行は題名にしない。
-      if (!/^[\s\-_*=#>|:~`+.]*$/.test(label)) firstLine = label;
+      if (!/^[\s\-_*=#>|:~`+.$]*$/.test(label)) firstLine = label;
     }
   }
   return { heading: null, firstLine };
@@ -270,9 +271,30 @@ function rewriteLinks(text: string) {
     .replace(/<(https?:\/\/[^\s<>]+)>/g, (_match, url: string) => `[${url}](${encodeHref(url)})`);
 }
 
-// コードの範囲（`…`）には手を入れずに、それ以外の部分だけ書き直す。
+// コードの範囲（`…`）と行内の数式（$…$、$$…$$）には手を入れずに、それ以外の部分だけ書き直す。
+// （数式の中の [a](b) や <…> をリンクとして書き換えてしまわないため。）
 function rewriteLine(line: string) {
-  return line.split(/(`[^`]*`)/).map((part, index) => (index % 2 ? part : rewriteLinks(part))).join("");
+  let out = "";
+  let plain = "";
+  const flush = () => { out += rewriteLinks(plain); plain = ""; };
+  for (let index = 0; index < line.length; index++) {
+    const char = line[index];
+    if (char === "\\" && index + 1 < line.length) {
+      plain += char + line[++index];
+    } else if (char === "`") {
+      const code = /`[^`]*`/y;
+      code.lastIndex = index;
+      const hit = code.exec(line);
+      if (hit) { flush(); out += hit[0]; index += hit[0].length - 1; } else plain += char;
+    } else if (char === "$" && inlineMathEnd(line, index) > 0) {
+      const end = inlineMathEnd(line, index);
+      flush();
+      out += line.slice(index, end);
+      index = end - 1;
+    } else plain += char;
+  }
+  flush();
+  return out;
 }
 
 function startsTable(lines: string[], index: number) {
@@ -283,11 +305,12 @@ function startsTable(lines: string[], index: number) {
 }
 
 // 取り込み側（markdownToBlocks）が読める形にそろえる。
+// - 数式は prepareMath で、チャットの画面と同じ書き方（$…$、$$ の行）にそろえる（\( \)、\[ \] や、金額の $ も）
 // - 出典などのリンクを通常の形へ
 // - 表は「| a | b |」と区切り行の形にそろえ、表ブロックとして取り込む
 // - コードの囲みは ``` に統一する（~~~ や言語の後ろの説明は読めず、閉じ忘れると以降が全部コードになる）
 function prepareMarkdown(markdown: string) {
-  const lines = normalizeNewlines(markdown).split("\n");
+  const lines = prepareMath(normalizeNewlines(markdown)).text.split("\n");
   const out: string[] = [];
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index];
@@ -302,12 +325,21 @@ function prepareMarkdown(markdown: string) {
       out.push(`${opened.indent}${quote}${language}`, ...body, `${opened.indent}${quote}`);
       continue;
     }
+    // 「$$ だけの行」で囲まれたブロックの数式は、そのまま通す（中の [a](b) などを書き換えない）。閉じる行が無ければ普通の行。
+    if (line.trim() === "$$") {
+      const close = lines.findIndex((text, at) => at > index && text.trim() === "$$");
+      if (close > index) {
+        out.push(...lines.slice(index, close + 1));
+        index = close;
+        continue;
+      }
+    }
     if (startsTable(lines, index)) {
       const rows = [splitRow(line)];
       index++;
       while (index + 1 < lines.length && lines[index + 1].trim() && lines[index + 1].includes("|")) rows.push(splitRow(lines[++index]));
       const columns = rows[0].length;
-      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => rewriteLine(cells[column] ?? "").replace(/\|/g, "\\|")).join(" | ")} |`;
+      const row = (cells: string[]) => `| ${Array.from({ length: columns }, (_, column) => escapeCellPipes(rewriteLine(cells[column] ?? ""))).join(" | ")} |`;
       out.push(row(rows[0]), `| ${Array.from({ length: columns }, () => "---").join(" | ")} |`, ...rows.slice(1).map(row));
       continue;
     }

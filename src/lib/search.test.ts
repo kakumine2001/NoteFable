@@ -82,6 +82,17 @@ describe("findMatchingBlock", () => {
     expect(findMatchingBlock(blocks, ["division"])).toEqual({ blockId: "code", text: "def division():\n    return 1" });
   });
 
+  it("finds TeX inside math blocks and inline math without matching media props", () => {
+    const blocks = [
+      { id: "img", type: "image", props: { name: "euler.png", caption: "euler" }, children: [] },
+      { id: "m1", type: "mathBlock", props: { latex: "\\int_0^\\infty e^{-x^2}\\,dx" }, children: [] },
+      { id: "p1", type: "paragraph", props: {}, content: [text("Euler: "), { type: "mathInline", props: { latex: "e^{i\\pi} + 1 = 0" } }], children: [] },
+    ];
+    expect(findMatchingBlock(blocks, ["infty"])).toEqual({ blockId: "m1", text: "\\int_0^\\infty e^{-x^2}\\,dx" });
+    expect(findMatchingBlock(blocks, ["pi"])).toEqual({ blockId: "p1", text: "Euler: e^{i\\pi} + 1 = 0" });
+    expect(findMatchingBlock([blocks[0]], ["euler"])).toBeNull();
+  });
+
   it("returns null when nothing matches or the input is unusable", () => {
     const blocks = [block("a", "paragraph", [text("hello")]), block("b", "divider", undefined), block("c", "paragraph", [])];
     expect(findMatchingBlock(blocks, ["absent"])).toBeNull();
