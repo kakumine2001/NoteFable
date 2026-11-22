@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Choisir un personnage";
 "app_icon_upload_image" = "Importer une image";
 "app_icon_could_not_save" = "Impossible d’enregistrer l’icône sur cet appareil.";
+"app_icon_could_not_sync" = "Impossible d’enregistrer votre icône. Réessayez.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Supprimer le compte";

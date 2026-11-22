@@ -192,6 +192,7 @@
 "app_icon_choose_character" = "Pilih karakter";
 "app_icon_upload_image" = "Unggah gambar";
 "app_icon_could_not_save" = "Tidak dapat menyimpan ikon di perangkat ini.";
+"app_icon_could_not_sync" = "Tidak dapat menyimpan ikon Anda. Coba lagi.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Hapus akun";

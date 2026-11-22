@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">選擇角色</string>
     <string name="app_icon_upload_image">上傳圖片</string>
     <string name="app_icon_could_not_save">無法在這臺裝置上儲存圖示。</string>
+    <string name="app_icon_could_not_sync">無法儲存你的圖示，請重試。</string>
 </resources>

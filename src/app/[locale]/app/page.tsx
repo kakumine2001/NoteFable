@@ -28,7 +28,7 @@ import { QuoteSelectionButton } from "@/components/quote-selection";
 import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
 import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
-import { AccountLocaleSync } from "@/components/account-button";
+import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
 import { BillingReturnNotice, GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -2172,6 +2172,8 @@ export default function Home() {
     <main className="notion-workspace flex h-dvh">
       {/* 表示言語をアカウントに合わせる（ワークスペースに 1 つだけ）。 */}
       <AccountLocaleSync />
+      {/* 設定の「アイコン」をアカウントと同期する（ログイン中だけ）。 */}
+      <AccountAppIconSync />
       {sidebarVisible && <div className="motion-desktop-sidebar hidden lg:block">{sidebar}</div>}
 
       {sidebarOpen && (
