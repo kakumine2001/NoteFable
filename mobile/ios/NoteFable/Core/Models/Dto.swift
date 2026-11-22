@@ -550,3 +550,16 @@ extension CustomInstructionsResponse: Decodable {
         self.init(instructions: try DtoFields(decoder).opt("instructions"))
     }
 }
+
+/// `GET / PUT /api/app-icon` 的回复（设置里的"图标"，见 AppIconSync.swift）。updatedAt 为 nil 表示账号上还没保存过。
+struct AppIconResponse: Encodable, Equatable, Sendable {
+    var icon: String? = nil
+    var updatedAt: String? = nil
+}
+
+extension AppIconResponse: Decodable {
+    init(from decoder: Decoder) throws {
+        let f = try DtoFields(decoder)
+        self.init(icon: try f.opt("icon"), updatedAt: try f.opt("updatedAt"))
+    }
+}

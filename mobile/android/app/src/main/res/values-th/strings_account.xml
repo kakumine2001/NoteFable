@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">เลือกตัวละคร</string>
     <string name="app_icon_upload_image">อัปโหลดรูปภาพ</string>
     <string name="app_icon_could_not_save">ไม่สามารถบันทึกไอคอนบนอุปกรณ์นี้ได้</string>
+    <string name="app_icon_could_not_sync">ไม่สามารถบันทึกไอคอนของคุณได้ กรุณาลองอีกครั้ง</string>
 </resources>

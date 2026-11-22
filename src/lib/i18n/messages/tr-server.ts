@@ -221,4 +221,9 @@ export const trServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Bu öneri artık geçerli değil. Yeni bir öneri almak için tekrar isteyin.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Öneri oluşturulduktan sonra bu not değişti. Yeni bir öneri almak için tekrar isteyin.",
   "Upload up to {max} files at a time.": "Tek seferde en fazla {max} dosya yükleyin.",
+  "Sign in to sync your icon.": "Simgeni eşitlemek için oturum aç.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Bir karakter ya da en fazla 64 KB boyutunda PNG, JPEG veya WebP görsel seç.",
+  "Could not load your icon.": "Simgen yüklenemedi.",
+  "Could not save your icon. Please try again.": "Simgen kaydedilemedi. Lütfen tekrar dene.",
+  "Your icon changed somewhere else. Try again.": "Simgen başka bir yerde değiştirildi. Tekrar dene.",
 };

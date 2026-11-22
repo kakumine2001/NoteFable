@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "เลือกตัวละคร";
 "app_icon_upload_image" = "อัปโหลดรูปภาพ";
 "app_icon_could_not_save" = "ไม่สามารถบันทึกไอคอนบนอุปกรณ์นี้ได้";
+"app_icon_could_not_sync" = "ไม่สามารถบันทึกไอคอนของคุณได้ กรุณาลองอีกครั้ง";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "ลบบัญชี";

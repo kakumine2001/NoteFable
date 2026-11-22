@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">اختر شخصية</string>
     <string name="app_icon_upload_image">رفع صورة</string>
     <string name="app_icon_could_not_save">تعذّر حفظ الأيقونة على هذا الجهاز.</string>
+    <string name="app_icon_could_not_sync">تعذّر حفظ أيقونتك. حاول مرة أخرى.</string>
 </resources>

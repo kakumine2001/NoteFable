@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "选择角色";
 "app_icon_upload_image" = "上传图片";
 "app_icon_could_not_save" = "无法在这台设备上保存图标。";
+"app_icon_could_not_sync" = "无法保存你的图标，请重试。";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "删除账号";

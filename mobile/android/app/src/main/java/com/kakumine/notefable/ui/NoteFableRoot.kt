@@ -138,6 +138,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
 
     // 界面语言跟着账号上的语言走（网页 /app 里唯一的 AccountLocaleSync）。
     AccountLocaleSync(account)
+    // 设置里的"图标"跟着账号走（网页 AccountAppIconSync，只在登录时）。
+    AccountAppIconSync(account)
 
     // 侧栏底部和上限登录提示（GuestLimitPrompt）的"登录"都只打开登录窗口（网页 SignInButton → SignInDialog）。
     var signInOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }

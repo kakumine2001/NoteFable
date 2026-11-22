@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">选择角色</string>
     <string name="app_icon_upload_image">上传图片</string>
     <string name="app_icon_could_not_save">无法在这台设备上保存图标。</string>
+    <string name="app_icon_could_not_sync">无法保存你的图标，请重试。</string>
 </resources>

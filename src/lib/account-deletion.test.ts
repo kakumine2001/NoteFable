@@ -87,5 +87,6 @@ describe("deleteAccount", () => {
     const prefixes = userStoragePrefixes("u9");
     for (const prefix of prefixes) expect(prefix).toMatch(/\/u9\/$/);
     expect(prefixes).toContain("chat-uploads/u9/");
+    expect(prefixes).toContain("app-icons/u9/");
   });
 });

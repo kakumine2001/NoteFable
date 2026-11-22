@@ -145,6 +145,18 @@ sequenceDiagram
 
 该 API 先检查当前用户归属，再签发单张图片的短时读取权限。Blob 模式下浏览器会看到签名后的读取 URL，但拿不到 Blob 写入密钥或其他图片的访问权限；本地模式直接返回文件字节。
 
+## 设置里的图标
+
+设置里的“图标”（7 个预设 AI 角色或上传的图片）和上面两条流程无关，不发给模型。上传的图片在端末上居中裁成正方形、缩到 96×96、存成 PNG 的 data URL（网页 `imageFileToIcon`，Android / iOS 同样），每个端末先存在本机（网页 `localStorage` 的 `notefable:app-icon`、Android `SharedPreferences`、iOS `UserDefaults`），所以离线和未登录也能用。
+
+已登录时随账号同步（网页 `src/lib/app-icon-sync.ts`，Android `data/AppIconSync.kt`，iOS `Core/Support/AppIconSync.swift`，规则相同）：
+
+- 启动（或登录）后和打开设置时 `GET /api/app-icon`。账号上有值（`updatedAt` 不为 `null`）就以账号为准写进本机；账号上还没有、而本机选过非默认的，就把本机的值 `PUT` 上去一次。读不到（离线等）时保留本机的值。
+- 在设置里选了就先写本机，再 `PUT /api/app-icon`；按选的顺序一个个送，读的途中又选了，读到的值不用。送不上时本机的选择保留，设置里显示“无法保存你的图标，请重试。”（网页显示服务端给的原因）。
+- 未登录（访客）不读也不送，只用本机的值；退出登录后本机的值留着。
+
+账号上的图片存在私有 Blob 的 `app-icons/<用户 ID>/`（本地开发是 `NOTEFABLE_STORAGE_DIR` 下同一路径），Postgres 只存路径（`User.appIconImage`，见 [database.md](database.md)）。
+
 ## 4. 当前图片实际存在哪里
 
 生产环境（Vercel）由 `src/lib/storage.ts` 通过 `@vercel/blob` 写入私有 Blob：

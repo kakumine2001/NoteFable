@@ -221,4 +221,9 @@ export const idServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Usulan ini sudah tidak berlaku. Minta lagi untuk mendapatkan usulan baru.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Catatan ini berubah setelah usulan dibuat. Minta lagi untuk mendapatkan usulan baru.",
   "Upload up to {max} files at a time.": "Unggah maksimal {max} file sekaligus.",
+  "Sign in to sync your icon.": "Masuk untuk menyinkronkan ikon Anda.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Pilih karakter atau gambar PNG, JPEG, atau WebP hingga 64 KB.",
+  "Could not load your icon.": "Tidak dapat memuat ikon Anda.",
+  "Could not save your icon. Please try again.": "Tidak dapat menyimpan ikon Anda. Coba lagi.",
+  "Your icon changed somewhere else. Try again.": "Ikon Anda telah diubah di tempat lain. Coba lagi.",
 };

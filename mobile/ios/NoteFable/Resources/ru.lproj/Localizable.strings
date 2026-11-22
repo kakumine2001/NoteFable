@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "Выбрать персонажа";
 "app_icon_upload_image" = "Загрузить изображение";
 "app_icon_could_not_save" = "Не удалось сохранить значок на этом устройстве.";
+"app_icon_could_not_sync" = "Не удалось сохранить ваш значок. Попробуйте ещё раз.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Удалить аккаунт";

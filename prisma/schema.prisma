@@ -69,6 +69,12 @@ model User {
   avatarImage        String?
   // すべてのチャットに渡す、利用者自身の指示（カスタム指示）。null は指示なし。ログインした利用者だけが設定でき、匿名の行では使わない。
   customInstructions String?
+  // 設定の「アイコン」（AI キャラクターかアップロード画像、src/lib/app-icon.ts）をアカウントで端末間に同期する。ログインした利用者だけが使い、匿名の行では使わない。
+  // appIcon は null（既定の Quill）、"character:<id>"、または "image"（appIconImage の画像）。appIconImage はストレージ内のパス
+  // （app-icons/<利用者 ID>/<UUID>.<拡張子>、画像の本体は Postgres に置かない）。appIconUpdatedAt が null なら一度も同期していない。
+  appIcon            String?
+  appIconImage       String?
+  appIconUpdatedAt   DateTime?
   // ログインした利用者が設定画面で選んだ表示言語（en / zh / zh-Hant / ja）。null は選んでいない（環境の言語に従う）。匿名の行では使わない。
   locale             String?
   plan               UserPlan @default(FREE)

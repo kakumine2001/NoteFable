@@ -221,4 +221,9 @@ export const itServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Questa proposta non è più valida. Chiedi di nuovo per ricevere una nuova proposta.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Questa nota è cambiata dopo la creazione della proposta. Chiedi di nuovo per ricevere una nuova proposta.",
   "Upload up to {max} files at a time.": "Carica fino a {max} file alla volta.",
+  "Sign in to sync your icon.": "Accedi per sincronizzare la tua icona.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Scegli un personaggio o un’immagine PNG, JPEG o WebP fino a 64 KB.",
+  "Could not load your icon.": "Impossibile caricare la tua icona.",
+  "Could not save your icon. Please try again.": "Impossibile salvare la tua icona. Riprova.",
+  "Your icon changed somewhere else. Try again.": "La tua icona è stata modificata altrove. Riprova.",
 };

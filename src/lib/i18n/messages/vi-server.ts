@@ -221,4 +221,9 @@ export const viServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Đề xuất này không còn hiệu lực. Hãy yêu cầu lại để nhận đề xuất mới.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Ghi chú này đã thay đổi sau khi tạo đề xuất. Hãy yêu cầu lại để nhận đề xuất mới.",
   "Upload up to {max} files at a time.": "Tải lên tối đa {max} tệp mỗi lần.",
+  "Sign in to sync your icon.": "Đăng nhập để đồng bộ biểu tượng của bạn.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Hãy chọn một nhân vật hoặc ảnh PNG, JPEG hay WebP tối đa 64 KB.",
+  "Could not load your icon.": "Không thể tải biểu tượng của bạn.",
+  "Could not save your icon. Please try again.": "Không thể lưu biểu tượng của bạn. Vui lòng thử lại.",
+  "Your icon changed somewhere else. Try again.": "Biểu tượng của bạn đã được thay đổi ở nơi khác. Hãy thử lại.",
 };

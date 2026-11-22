@@ -221,4 +221,9 @@ export const koServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "이 제안은 더 이상 유효하지 않아요. 다시 요청해 새 제안을 받아 주세요.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "제안이 생성된 뒤 노트가 변경되었어요. 다시 요청해 새 제안을 받아 주세요.",
   "Upload up to {max} files at a time.": "한 번에 최대 {max}개의 파일까지 업로드할 수 있어요.",
+  "Sign in to sync your icon.": "아이콘을 동기화하려면 로그인해 주세요.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "캐릭터나 64KB 이하의 PNG, JPEG, WebP 이미지를 선택해 주세요.",
+  "Could not load your icon.": "아이콘을 불러오지 못했어요.",
+  "Could not save your icon. Please try again.": "아이콘을 저장하지 못했어요. 다시 시도해 주세요.",
+  "Your icon changed somewhere else. Try again.": "다른 곳에서 아이콘이 변경되었어요. 다시 시도해 주세요.",
 };

@@ -221,4 +221,9 @@ export const deServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Dieser Vorschlag ist nicht mehr gültig. Bitte frage erneut nach einem neuen Vorschlag.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Diese Notiz wurde nach dem Erstellen des Vorschlags geändert. Bitte frage erneut nach einem neuen Vorschlag.",
   "Upload up to {max} files at a time.": "Lade höchstens {max} Dateien gleichzeitig hoch.",
+  "Sign in to sync your icon.": "Melde dich an, um dein Icon zu synchronisieren.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Wähle einen Charakter oder ein PNG-, JPEG- oder WebP-Bild bis 64 KB.",
+  "Could not load your icon.": "Dein Icon konnte nicht geladen werden.",
+  "Could not save your icon. Please try again.": "Dein Icon konnte nicht gespeichert werden. Bitte versuche es erneut.",
+  "Your icon changed somewhere else. Try again.": "Dein Icon wurde an anderer Stelle geändert. Versuche es erneut.",
 };

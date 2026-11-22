@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">Choisir un personnage</string>
     <string name="app_icon_upload_image">Importer une image</string>
     <string name="app_icon_could_not_save">Impossible d’enregistrer l’icône sur cet appareil.</string>
+    <string name="app_icon_could_not_sync">Impossible d’enregistrer votre icône. Réessayez.</string>
 </resources>

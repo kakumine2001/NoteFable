@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">Chọn nhân vật</string>
     <string name="app_icon_upload_image">Tải hình ảnh lên</string>
     <string name="app_icon_could_not_save">Không thể lưu biểu tượng trên thiết bị này.</string>
+    <string name="app_icon_could_not_sync">Không thể lưu biểu tượng của bạn. Vui lòng thử lại.</string>
 </resources>

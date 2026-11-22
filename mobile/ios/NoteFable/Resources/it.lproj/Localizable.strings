@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "Scegli un personaggio";
 "app_icon_upload_image" = "Carica un’immagine";
 "app_icon_could_not_save" = "Impossibile salvare l’icona su questo dispositivo.";
+"app_icon_could_not_sync" = "Impossibile salvare la tua icona. Riprova.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "Elimina account";

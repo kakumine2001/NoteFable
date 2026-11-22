@@ -221,4 +221,9 @@ export const hiServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "यह सुझाव अब मान्य नहीं है। नया सुझाव पाने के लिए फिर से पूछें।",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "सुझाव बनने के बाद इस नोट में बदलाव हुआ है। नया सुझाव पाने के लिए फिर से पूछें।",
   "Upload up to {max} files at a time.": "एक बार में अधिकतम {max} फ़ाइलें अपलोड करें।",
+  "Sign in to sync your icon.": "अपना आइकन सिंक करने के लिए साइन इन करें।",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "कोई कैरेक्टर या 64 KB तक की PNG, JPEG या WebP इमेज चुनें।",
+  "Could not load your icon.": "आपका आइकन लोड नहीं किया जा सका।",
+  "Could not save your icon. Please try again.": "आपका आइकन सेव नहीं किया जा सका। फिर से प्रयास करें।",
+  "Your icon changed somewhere else. Try again.": "आपका आइकन कहीं और से बदल दिया गया है। फिर से प्रयास करें।",
 };

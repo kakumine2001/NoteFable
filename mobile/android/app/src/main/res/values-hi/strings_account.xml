@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">कैरेक्टर चुनें</string>
     <string name="app_icon_upload_image">इमेज अपलोड करें</string>
     <string name="app_icon_could_not_save">इस डिवाइस पर आइकन सेव नहीं किया जा सका।</string>
+    <string name="app_icon_could_not_sync">आपका आइकन सेव नहीं किया जा सका। फिर से प्रयास करें।</string>
 </resources>

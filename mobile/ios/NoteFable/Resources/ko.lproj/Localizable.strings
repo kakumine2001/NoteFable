@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "캐릭터 선택";
 "app_icon_upload_image" = "이미지 업로드";
 "app_icon_could_not_save" = "이 기기에 아이콘을 저장하지 못했어요.";
+"app_icon_could_not_sync" = "아이콘을 저장하지 못했어요. 다시 시도해 주세요.";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "계정 삭제";

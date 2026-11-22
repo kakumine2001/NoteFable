@@ -221,4 +221,9 @@ export const ruServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "Это предложение больше недействительно. Повторите запрос, чтобы получить новое предложение.",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "Эта заметка изменилась после создания предложения. Повторите запрос, чтобы получить новое предложение.",
   "Upload up to {max} files at a time.": "Можно загрузить не более {max} файлов за раз.",
+  "Sign in to sync your icon.": "Войдите, чтобы синхронизировать значок.",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "Выберите персонажа или изображение PNG, JPEG или WebP размером до 64 КБ.",
+  "Could not load your icon.": "Не удалось загрузить ваш значок.",
+  "Could not save your icon. Please try again.": "Не удалось сохранить ваш значок. Попробуйте ещё раз.",
+  "Your icon changed somewhere else. Try again.": "Ваш значок был изменён на другом устройстве. Попробуйте ещё раз.",
 };

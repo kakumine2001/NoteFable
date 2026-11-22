@@ -1,52 +1,21 @@
 import { useSyncExternalStore } from "react";
-import { DEFAULT_CHARACTER_ID, isCharacterId, type CharacterId } from "@/lib/characters";
 
 // ワークスペース全体（空の会話のキャラクター、AI の返答のアイコン、サイドバー、ノートの AI ボタン、設定の見本）で使う
-// AI キャラクター／カスタム画像の設定。このブラウザの localStorage に保存し、アカウントには同期しない。
+// AI キャラクター／カスタム画像の設定。このブラウザの localStorage に保存する。ログインしていれば、アカウントにも保存して
+// 端末間で同期する（サーバーの値が優先。app-icon-sync.ts と /api/app-icon）。未ログインの端末ではこの端末だけの設定。
 // null（未設定）は既定キャラクターの Quill（D · Quill）。
 // プリセットは "character:<id>"（Quill は null に正規化）、アップロード画像は "data:image/..." のまま保持する。
 // 旧バージョンの絵文字や不明な値は自動で既定キャラクター（null -> Quill）へ移行する。
 const KEY = "notefable:app-icon";
 const CHANGE_EVENT = "notefable:app-icon-change";
-export const CHARACTER_ICON_PREFIX = "character:";
 // 保存する画像の一辺（px）。
 const ICON_IMAGE_SIZE = 96;
 
-export type ResolvedAppIcon =
-  | { kind: "character"; characterId: CharacterId }
-  | { kind: "image"; dataUrl: string };
+export { CHARACTER_ICON_PREFIX, isImageIcon, normalizeAppIcon, parseCharacterIcon, resolveAppIcon, toCharacterIcon, type ResolvedAppIcon } from "@/lib/app-icon-value";
+import { isImageIcon, normalizeAppIcon, parseCharacterIcon, resolveAppIcon, toCharacterIcon, type ResolvedAppIcon } from "@/lib/app-icon-value";
 
-export const isImageIcon = (icon: string) => icon.startsWith("data:image/");
-
-export function parseCharacterIcon(value: string): CharacterId | null {
-  if (value.startsWith(CHARACTER_ICON_PREFIX)) {
-    const id = value.slice(CHARACTER_ICON_PREFIX.length);
-    return isCharacterId(id) ? id : null;
-  }
-  return isCharacterId(value) ? value : null;
-}
-
-export function toCharacterIcon(characterId: CharacterId): string | null {
-  return characterId === DEFAULT_CHARACTER_ID ? null : `${CHARACTER_ICON_PREFIX}${characterId}`;
-}
-
-export function normalizeAppIcon(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw) return null;
-  if (isImageIcon(raw)) return raw;
-  const characterId = parseCharacterIcon(raw);
-  return characterId ? toCharacterIcon(characterId) : null;
-}
-
-export function resolveAppIcon(icon: string | null | undefined): ResolvedAppIcon {
-  const normalized = normalizeAppIcon(icon);
-  if (normalized && isImageIcon(normalized)) {
-    return { kind: "image", dataUrl: normalized };
-  }
-  const characterId = normalized ? parseCharacterIcon(normalized) : null;
-  return { kind: "character", characterId: characterId ?? DEFAULT_CHARACTER_ID };
-}
-
-function read(): string | null {
+// この端末に保存している値（正規化済み）。読めなければ null（既定）。
+export function readAppIcon(): string | null {
   try {
     return normalizeAppIcon(window.localStorage.getItem(KEY));
   } catch {
@@ -66,7 +35,7 @@ function subscribe(onChange: () => void) {
 
 // いまのアイコン設定（正規化済み）。サーバー側と初回描画は既定（null = Quill）にしてハイドレーションの不一致を避ける。
 export function useAppIcon() {
-  return useSyncExternalStore(subscribe, read, () => null);
+  return useSyncExternalStore(subscribe, readAppIcon, () => null);
 }
 
 export function useResolvedAppIcon(): ResolvedAppIcon {

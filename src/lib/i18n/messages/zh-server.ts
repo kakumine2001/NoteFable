@@ -221,4 +221,9 @@ export const zhServer: Record<string, string> = {
   "This proposal is no longer valid. Ask again to get a fresh proposal.": "这条修改建议已失效。请重新提问以获取新的建议。",
   "This note changed after the proposal was made. Ask again to get a fresh proposal.": "提出修改建议后，这篇笔记已被修改。请重新提问以获取新的建议。",
   "Upload up to {max} files at a time.": "一次最多只能上传 {max} 个文件。",
+  "Sign in to sync your icon.": "请先登录再同步图标。",
+  "Choose a character or a PNG, JPEG or WebP image up to 64 KB.": "请选择一个角色，或不超过 64 KB 的 PNG、JPEG 或 WebP 图片。",
+  "Could not load your icon.": "无法加载你的图标。",
+  "Could not save your icon. Please try again.": "无法保存你的图标，请重试。",
+  "Your icon changed somewhere else. Try again.": "你的图标已在别处更改，请重试。",
 };

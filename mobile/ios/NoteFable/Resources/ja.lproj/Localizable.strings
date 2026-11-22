@@ -193,6 +193,7 @@
 "app_icon_choose_character" = "キャラクターを選択";
 "app_icon_upload_image" = "画像をアップロード";
 "app_icon_could_not_save" = "この端末にアイコンを保存できませんでした。";
+"app_icon_could_not_sync" = "アイコンを保存できませんでした。もう一度お試しください。";
 
 /* strings_account_delete.xml */
 "acct_delete_account" = "アカウントを削除";

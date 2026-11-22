@@ -31,4 +31,5 @@
     <string name="app_icon_choose_character">Выбрать персонажа</string>
     <string name="app_icon_upload_image">Загрузить изображение</string>
     <string name="app_icon_could_not_save">Не удалось сохранить значок на этом устройстве.</string>
+    <string name="app_icon_could_not_sync">Не удалось сохранить ваш значок. Попробуйте ещё раз.</string>
 </resources>
