@@ -76,7 +76,8 @@ final class ShareViewController: UIViewController {
         if !opened {
             // iOS 不允许分享扩展直接拉起主 App：给出明确提示“已保存，打开 NoteFable 继续”，切回后自动导入。
             showSavedConfirmation()
-            try? await Task.sleep(nanoseconds: 1_100_000_000)
+            let delay: UInt64 = UIAccessibility.isVoiceOverRunning ? 2_500_000_000 : 1_100_000_000
+            try? await Task.sleep(nanoseconds: delay)
         }
         extensionContext?.completeRequest(returningItems: nil)
     }
@@ -96,8 +97,9 @@ final class ShareViewController: UIViewController {
         let config = UIImage.SymbolConfiguration(pointSize: 36, weight: .medium)
         let icon = UIImageView(image: UIImage(systemName: "checkmark.circle.fill", withConfiguration: config))
         icon.tintColor = UIColor(red: 35 / 255, green: 131 / 255, blue: 226 / 255, alpha: 1)
+        let message = Self.savedMessage()
         let label = UILabel()
-        label.text = Self.savedMessage()
+        label.text = message
         label.font = UIFont.systemFont(ofSize: 15, weight: .medium)
         label.textColor = UIColor(red: 55 / 255, green: 53 / 255, blue: 47 / 255, alpha: 1)
         label.textAlignment = .center
@@ -114,6 +116,7 @@ final class ShareViewController: UIViewController {
             stack.leadingAnchor.constraint(greaterThanOrEqualTo: view.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(lessThanOrEqualTo: view.trailingAnchor, constant: -24),
         ])
+        UIAccessibility.post(notification: .announcement, argument: message)
     }
 
     /// 17 种支持语言的“打开 NoteFable 继续”提示（分享扩展独立打包，不额外依赖主 App 的资源表）。

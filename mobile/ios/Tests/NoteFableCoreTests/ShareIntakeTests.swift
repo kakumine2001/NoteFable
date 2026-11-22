@@ -83,7 +83,7 @@ final class ShareIntakeTests: XCTestCase {
         XCTAssertEqual(consumed.files.map(\.size), [4, 9, 30 * 1024 * 1024])
         let first = try XCTUnwrap(URL(string: consumed.files[0].uri))
         XCTAssertEqual(try String(contentsOf: first, encoding: .utf8), "abcd")
-        XCTAssertEqual(first.lastPathComponent, "notes.txt")
+        XCTAssertEqual(first.pathExtension, "txt")
         XCTAssertTrue(first.path.hasPrefix(destination.path))
         XCTAssertEqual(try String(contentsOf: try XCTUnwrap(URL(string: consumed.files[1].uri)), encoding: .utf8), "from disk")
         // 太大没有拷贝的文件：不是能打开的文件，大小是真实的。

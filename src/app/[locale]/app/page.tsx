@@ -1998,7 +1998,10 @@ export default function Home() {
   useEffect(() => {
     if ("serviceWorker" in navigator) void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {});
     void pruneExpiredWebShares().catch(() => {});
-    const onPageHide = () => saveShareDraft(composerTextRef.current);
+    // 上限後のログイン復帰で下書きがすでに預けられる場合は重複保存しない。
+    const onPageHide = () => {
+      if (!guestLimitHitRef.current) saveShareDraft(composerTextRef.current);
+    };
     window.addEventListener("pagehide", onPageHide);
     let cancelled = false;
     queueMicrotask(() => {

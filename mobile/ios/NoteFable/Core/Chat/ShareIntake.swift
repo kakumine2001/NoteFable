@@ -230,9 +230,11 @@ struct ShareInboxStore: Sendable {
         let source = directory.appendingPathComponent(record.relativePath)
         let manager = FileManager.default
         let slot = destinationDir.appendingPathComponent(UUID().uuidString, isDirectory: true)
-        let trimmed = record.name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let safeName = trimmed.isEmpty || trimmed.contains("/") ? "file" : trimmed
-        let target = slot.appendingPathComponent(safeName, isDirectory: false)
+        // 磁盘上用短的安全文件名（免得超长原始文件名超出文件系统限制导致整次分享卡死重试）；展示与校验仍保留原始的 record.name。
+        let ext = (record.name as NSString).pathExtension.trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeExt = ext.count <= 12 && ext.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) } ? ext : ""
+        let diskName = safeExt.isEmpty ? "file" : "file.\(safeExt)"
+        let target = slot.appendingPathComponent(diskName, isDirectory: false)
         do {
             try manager.createDirectory(at: slot, withIntermediateDirectories: true)
             try manager.copyItem(at: source, to: target)

@@ -93,22 +93,44 @@ async function readAndDelete(id: string): Promise<ConsumedWebShare | null> {
   return expired ? null : { text: composeSharedText(meta), files };
 }
 
-// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュや meta.json の無い孤立ファイルを掃除する。
+function timestampFromShareKey(url: string) {
+  const index = url.indexOf(SHARE_CACHE_PREFIX);
+  if (index < 0) return null;
+  const rest = url.slice(index + SHARE_CACHE_PREFIX.length);
+  const slash = rest.indexOf("/");
+  const id = slash >= 0 ? rest.slice(0, slash) : rest;
+  const dash = id.indexOf("-");
+  if (dash <= 0) return null;
+  const ms = Number(id.slice(0, dash));
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
+// ワークスペース起動時に、取り出されないまま期限切れになった共有キャッシュや期限切れの孤立ファイルを掃除する（書き込み途中の新しいファイルは消さない）。
 export async function pruneExpiredWebShares(now = Date.now()) {
   if (typeof caches === "undefined") return;
   const cache = await caches.open(SHARE_CACHE_NAME);
   const keys = await cache.keys();
   const validPrefixes = new Set<string>();
+  const expiredPrefixes = new Set<string>();
   for (const key of keys) {
     if (!key.url.endsWith("/meta.json")) continue;
+    const prefix = key.url.slice(0, -"meta.json".length);
     const response = await cache.match(key);
     const meta = response ? ((await response.json().catch(() => null)) as ShareMeta | null) : null;
     if (meta && typeof meta.createdAt === "number" && now - meta.createdAt <= SHARE_MAX_AGE_MS) {
-      validPrefixes.add(key.url.slice(0, -"meta.json".length));
+      validPrefixes.add(prefix);
+    } else {
+      expiredPrefixes.add(prefix);
     }
   }
   for (const key of keys) {
-    const keep = Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix));
-    if (!keep) await cache.delete(key);
+    if (Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix))) continue;
+    if (Array.from(expiredPrefixes).some((prefix) => key.url.startsWith(prefix))) {
+      await cache.delete(key);
+      continue;
+    }
+    const started = timestampFromShareKey(key.url);
+    if (started !== null && now - started <= SHARE_MAX_AGE_MS) continue;
+    await cache.delete(key);
   }
 }

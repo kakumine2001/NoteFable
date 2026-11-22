@@ -26,7 +26,7 @@ async function handleShare(request) {
     const form = await request.formData();
     const text = (key) => (typeof form.get(key) === "string" ? form.get(key) : "");
     const picked = form.getAll("files").filter((value) => typeof value !== "string").slice(0, MAX_FILES);
-    const id = crypto.randomUUID();
+    const id = `${Date.now()}-${crypto.randomUUID()}`;
     cache = await caches.open(SHARE_CACHE);
     await prune(cache);
     const files = [];
@@ -51,21 +51,43 @@ async function handleShare(request) {
   }
 }
 
-// 10 分以上前に預かったまま使われなかったもの、および meta.json の無い孤立ファイルを捨てる。
+// 10 分以上前に預かったまま使われなかったもの、および期限切れの孤立ファイルを捨てる（書き込み途中の新しいファイルは消さない）。
+function timestampFromKeyUrl(url) {
+  const index = url.indexOf(SHARE_PREFIX);
+  if (index < 0) return null;
+  const rest = url.slice(index + SHARE_PREFIX.length);
+  const slash = rest.indexOf("/");
+  const id = slash >= 0 ? rest.slice(0, slash) : rest;
+  const dash = id.indexOf("-");
+  if (dash <= 0) return null;
+  const ms = Number(id.slice(0, dash));
+  return Number.isFinite(ms) && ms > 0 ? ms : null;
+}
+
 async function prune(cache) {
   const now = Date.now();
   const keys = await cache.keys();
   const validPrefixes = new Set();
+  const expiredPrefixes = new Set();
   for (const key of keys) {
     if (!key.url.endsWith("/meta.json")) continue;
+    const prefix = key.url.slice(0, -"meta.json".length);
     const response = await cache.match(key);
     const meta = response ? await response.json().catch(() => null) : null;
     if (meta && typeof meta.createdAt === "number" && now - meta.createdAt < MAX_AGE_MS) {
-      validPrefixes.add(key.url.slice(0, -"meta.json".length));
+      validPrefixes.add(prefix);
+    } else {
+      expiredPrefixes.add(prefix);
     }
   }
   for (const key of keys) {
-    const keep = Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix));
-    if (!keep) await cache.delete(key);
+    if (Array.from(validPrefixes).some((prefix) => key.url.startsWith(prefix))) continue;
+    if (Array.from(expiredPrefixes).some((prefix) => key.url.startsWith(prefix))) {
+      await cache.delete(key);
+      continue;
+    }
+    const started = timestampFromKeyUrl(key.url);
+    if (started !== null && now - started < MAX_AGE_MS) continue;
+    await cache.delete(key);
   }
 }
