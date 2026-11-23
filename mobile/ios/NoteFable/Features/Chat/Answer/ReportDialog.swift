@@ -1,6 +1,6 @@
 import SwiftUI
 
-// 报告 AI 的内容（网页 answer-actions.tsx 的 ReportDialog，Android `ReportAnswerDialog.kt`；应用商店对 AI 生成内容的要求）：
+// 报告 AI 的内容（网页 answer-actions.tsx 的 ReportDialog，Android `ReportDialog.kt`；应用商店对 AI 生成内容的要求）：
 // 回答（回答的"…"菜单、只有图片的回答的旗子）、提案卡片（标题行的旗子）、AI 写过的页面（页面的"…"菜单）。
 // .notes-dialog 外观；标题 16 / 600，说明 14 灰、上距 8；理由框是多行的 .notes-dialog-input（上距 12、最小高 96、1px 深描边、
 // 圆角 6、16 字），选填、最多 1000 字；按钮行上距 20：取消 + 黑底"发送报告"。发送成功后在同一个框里显示"已发送，谢谢"和"完成"。
