@@ -86,7 +86,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version` |
 | `GET /api/pages/:id/share` | 返回该笔记的公开分享状态 `{ share }`（含是否已发布、链接、是否包含子页面、过期时间、是否从上级分享排除、上级公开页面的继承信息） |
 | `PUT /api/pages/:id/share` | `{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
-| `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、块级与行内公式（服务器端 KaTeX）、子页面列表与面包屑。封面、图片图标（`/s/:token/cover?kind=icon`）与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
+| `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、块级与行内公式（服务器端 KaTeX）、子页面列表与面包屑。块、文字高亮、Callout、表格单元格与公式的颜色随浅色/深色外观切换（`globals.css` 的 `--public-note-<颜色>-text` / `-bg`，浅色为 Notion 配色，深色与编辑器的 BlockNote 深色配色一致）。封面、图片图标（`/s/:token/cover?kind=icon`）与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
 | `POST /api/pages/:id/duplicate` | 复制这篇及子页面，201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
 | `GET /api/pages/:id/export` | 把这一篇导出成 Markdown：`{ fileName, markdown }`（与 `GET /api/sessions/:id/export` 同形），`Cache-Control: no-store`；不存在、不是本人的或在 Trash 里返回 404。见“Markdown 导出与导入” |
 | `POST /api/pages/import` | `{ files: [{ name, markdown }], groupId? }`：每个文件新建一篇笔记，全部在一个事务里，201 `{ pages }`（摘要，顺序与文件相同）。上限和错误见“Markdown 导出与导入” |
