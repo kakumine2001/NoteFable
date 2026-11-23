@@ -58,8 +58,6 @@ struct NoteEditorScreen: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .background(Sm.background)
-        // 別のノートを開いたり編集画面を閉じたりしたら、前のノートでの容量の案内は消す。
-        .onDisappear { app.notes.dismissStorageLimit() }
         .fileExporter(
             isPresented: $exporting,
             document: exportDocument,

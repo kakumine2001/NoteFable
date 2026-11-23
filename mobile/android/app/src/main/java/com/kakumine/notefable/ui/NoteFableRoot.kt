@@ -88,7 +88,10 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
     // 笔记编辑器里上传因存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
-    var noteStorageLimit by remember { mutableStateOf<StorageLimitInfo?>(null) }
+    // 记下是哪个编辑器的提示：只在那个编辑器上显示，换笔记、关掉编辑器时清掉（晚到的旧编辑器的消息不收）。
+    var noteStorageLimit by remember { mutableStateOf<Pair<String, StorageLimitInfo>?>(null) }
+    val openEditor = notes.open?.editor
+    LaunchedEffect(openEditor) { if (noteStorageLimit?.first != openEditor) noteStorageLimit = null }
     // 全屏检索（Batch 4）：抽屉的 Search 行和顶栏的搜索按钮打开。
     var searchOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     val openSearch = { searchOpen = true }
@@ -363,8 +366,6 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
-                // 別のノートを開いたり編集画面を閉じたりしたら、前のノートでの容量の案内は消す。
-                androidx.compose.runtime.DisposableEffect(Unit) { onDispose { noteStorageLimit = null } }
                 NoteEditorScreen(
                     open = open,
                     saveState = notes.saveState,
@@ -386,7 +387,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                             EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
                             EmbedMessage.Trashed -> notesViewModel.onEditorTrashed(editor)
                             is EmbedMessage.OpenPage -> notesViewModel.openNoteFromLink(message.id)
-                            is EmbedMessage.StorageLimit -> noteStorageLimit = StorageLimitInfo(message.tier, message.used, message.limit)
+                            is EmbedMessage.StorageLimit -> if (notesViewModel.state.value.open?.editor == editor) {
+                                noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
+                            }
                             is EmbedMessage.Flushed -> Unit
                         }
                     },
@@ -412,11 +415,12 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
                     onShare = { dialog = NotesDialogState.Share(open.id) },
-                    prompt = noteStorageLimit?.let { limit ->
+                    prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->
                         {
+                            // 登录成功后编辑器会关掉（身份变了），提示随之消失；取消登录时提示留着。
                             StorageLimitPrompt(
                                 limit = limit, account = account, attachmentsLost = false,
-                                onSignIn = { noteStorageLimit = null; openSignIn() }, onClose = { noteStorageLimit = null },
+                                onSignIn = openSignIn, onClose = { noteStorageLimit = null },
                             )
                         }
                     },

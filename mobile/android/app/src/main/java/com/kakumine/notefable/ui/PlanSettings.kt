@@ -212,6 +212,8 @@ internal fun PlanSettings(state: PlanSettingsState) {
                         stringResource(R.string.plan_storage),
                         "${formatStorageSize(storage.used, locale)} / ${formatStorageSize(storage.limit, locale)}",
                         if (storage.limit > 0) (storage.used.toDouble() / storage.limit).toFloat().coerceIn(0f, 1f) else 1f,
+                        // 满不满用字节数比较（Float 的比例在上限附近会进位成 1）。
+                        full = storage.limit <= 0 || storage.used >= storage.limit,
                     )
                 }
             }
@@ -238,10 +240,13 @@ internal fun PlanSettings(state: PlanSettingsState) {
 
 @Composable
 private fun PlanMeter(label: String, usage: PlanUsage) =
-    PlanMeterRow(label, "${usage.used} / ${usage.limit}", if (usage.limit > 0) (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) else 1f)
+    PlanMeterRow(
+        label, "${usage.used} / ${usage.limit}", if (usage.limit > 0) (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) else 1f,
+        full = usage.limit <= 0 || usage.used >= usage.limit,
+    )
 
 @Composable
-private fun PlanMeterRow(label: String, count: String, ratio: Float) {
+private fun PlanMeterRow(label: String, count: String, ratio: Float, full: Boolean) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text(label, Modifier.weight(1f), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp)
@@ -251,7 +256,7 @@ private fun PlanMeterRow(label: String, count: String, ratio: Float) {
             )
         }
         Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp)).background(Sm.Hover)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(999.dp)).background(if (ratio >= 1f) MeterFull else Sm.Blue))
+            Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(999.dp)).background(if (full) MeterFull else Sm.Blue))
         }
     }
 }

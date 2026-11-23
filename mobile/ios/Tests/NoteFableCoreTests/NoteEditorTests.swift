@@ -176,6 +176,12 @@ final class NoteEditorTests: XCTestCase {
         bridge.postMessage(#"{"type":"meta","title":"Cells","icon":"🦠"}"#)
         XCTAssertEqual(vm.state.open, OpenNote("a", "Cells", "🦠"))
 
+        // 容量の案内は開いている編集器のものだけ。別の編集器から遅れて届いた分は受け取らない。
+        vm.onEditorMessage("b", .storageLimit(tier: "guest", used: 1, limit: 2))
+        XCTAssertNil(vm.state.storageLimit)
+        bridge.postMessage(#"{"type":"storageLimit","tier":"guest","used":104857600,"limit":104857600}"#)
+        XCTAssertEqual(vm.state.storageLimit, StorageLimitInfo(tier: "guest", used: 104_857_600, limit: 104_857_600))
+
         // 草稿留在 WebView 里：第一次提示并留下，第二次放行。
         vm.closeNote()
         await notesSettle()
@@ -192,6 +198,8 @@ final class NoteEditorTests: XCTestCase {
         vm.closeNote()
         await notesSettle()
         XCTAssertNil(vm.state.open)
+        // 編集器を閉じたら案内も消える（次に開いたノートに出さない）。
+        XCTAssertNil(vm.state.storageLimit)
 
         // 编辑器关掉后不再经它保存。
         vm.registerEditor(nil)
