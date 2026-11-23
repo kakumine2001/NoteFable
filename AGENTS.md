@@ -92,6 +92,8 @@ Every task that needs review goes through the same flow:
 4. Merge: once the cross-review has no open valid findings and the checks pass, merge the PR into `main` with a merge commit (`gh pr merge --merge`), then run `npm run git:cleanup`. Merging deploys production; this flow is the release approval, so don't push to `main` any other way.
 - Other cross-calls (questions, second opinions): Claude Code → Codex `codex exec -m gpt-6.2-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-opus-5-5 --effort high ...`.
 - Verify UI changes in a browser. No Playwright/E2E unless asked.
+- UI changes: send the owner the PR's Vercel Preview URL for the web, and screenshots for Android and iOS (an emulator or simulator is fine). If a platform can't be shown, say so and why.
+- Every final report states up front whether the self-review and the cross-review ran: for each, the tool, the effort and the result. If either was skipped, say why.
 
 ## Keep This File Small
 
