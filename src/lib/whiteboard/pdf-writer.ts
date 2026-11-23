@@ -90,6 +90,12 @@ export function buildPdf(pages: readonly PdfPage[], { title }: { title?: string 
   return out;
 }
 
+// 白の上に合成した RGB が、すべて真っ白か（何も描かれていないページ）。
+export function isBlankRgb(rgb: Uint8Array): boolean {
+  for (let index = 0; index < rgb.length; index++) if (rgb[index] !== 255) return false;
+  return true;
+}
+
 // RGBA の画素から、白の上に合成した RGB を作る（PDF の画像は透明を持たない）。
 export function rgbaToRgb(rgba: Uint8ClampedArray | Uint8Array): Uint8Array {
   const pixels = rgba.length / 4;

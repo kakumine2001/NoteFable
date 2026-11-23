@@ -15,10 +15,11 @@
 - `src/lib/whiteboard/excalidraw-bridge.ts`：公开 API 没有执行内置操作的入口。我们注册一个只用于“拿到编辑器本体”的操作（`keyTest` 总是返回 false），在容器里派发一次不存在的按键，从 `keyTest` 的参数拿到 App，之后用 `actionManager.executeAction` 按名字执行内置操作（对齐、等距分布、组合、层级、线色 / 背景 / 粗细 / 线型 / 字体 / 字号 / 对齐 / 不透明度 / 箭头、撤销重做、缩放、网格、吸附、锁定、复制、删除、翻转）。这样撤销历史、绑在形状上的文字和连接线都由 Excalidraw 自己处理。
 - 动作的参数格式（`changeStrokeColor` 的 `{ color }`、`changeStrokeWidth` 的 `thin` / `medium` / `bold`、`changeArrowhead` 的 `{ position, type }` 等）和 `appState` 的字段名（`currentItemStrokeWidthKey`、`currentItemStrokeVariability` 等）。
 - 荧光笔用手写线的 `extraBold` 宽度键（类型里没有，运行时有）。
+- 抓手的光标：Excalidraw 把 `cursor: grab` / `grabbing` 直接写在 `canvas.interactive` 的 style 上，`whiteboard.css` 按这个属性换成我们画的手（改了写法就会退回浏览器自带的白手）。
 
 ## 编辑器
 
-- **工具**：选择、套索、抓手、画笔（压感，`variability: variable`）、荧光笔（同是手写线，默认黄色、不透明度 40%、更粗）、橡皮、激光笔、矩形 / 菱形 / 椭圆、线、箭头（绑在形状上的箭头随形状移动；直线 / 曲线 / 折线）、文字、便签（Excalidraw 的 `stickynote`）、图片、框（Frame）。切换工具用 `api.setActiveTool`（不用强制的 `activeTool` 属性：那会让形状画完不回到选择、也不选中新形状）。画笔、荧光笔和其他图形各自记住颜色、粗细、不透明度，切换时互换（`switchStyle`），所以荧光笔的黄色不会染到矩形上。Excalidraw 的单键快捷键（V、H、P、E、R、D、O、L、A、T、S、I、F、K 等）照常有效，键盘切换工具时同样换色组。
+- **工具**：选择、套索、抓手、画笔（压感，`variability: variable`）、荧光笔（同是手写线，默认黄色、不透明度 40%、更粗）、橡皮、激光笔、矩形 / 菱形 / 椭圆、线、箭头（绑在形状上的箭头随形状移动；直线 / 曲线 / 折线）、文字、便签（Excalidraw 的 `stickynote`）、图片、框（Frame）。切换工具用 `api.setActiveTool`（不用强制的 `activeTool` 属性：那会让形状画完不回到选择、也不选中新形状）。画笔、荧光笔和其他图形各自记住颜色、粗细、不透明度，切换时互换（`switchStyle`），所以荧光笔的黄色不会染到矩形上。Excalidraw 的单键快捷键（V、H、P、E、R、D、O、L、A、T、S、I、F、K 等）照常有效，键盘切换工具时同样换色组。抓手的光标是自己画的（`whiteboard.css`：和工具栏一样的手，深色线条加白色描边，悬停张开、拖动握住）：Excalidraw 用 CSS 的 `grab` / `grabbing`，浏览器自带的是只有 1 像素黑边的白手，在浅色画布上几乎看不见，也不跟随 Windows 的指针颜色设置。其他工具的光标（系统的箭头 / 十字、Excalidraw 按主题换色的橡皮和激光笔）浅色、深色下都看得见。
 - **样式面板**（选中元素或拿着绘图工具时出现）：线色、背景 / 便签色（5 个常用色 + 调色板 + 色号）、粗细、压感、填充、线型、风格（整洁 / 手写 / 草图）、边角、箭头类型和两端、字体 / 字号 / 对齐、不透明度、层级、对齐与等距（多选时）、组合 / 取消组合、复制、翻转、链接、锁定、删除。深色模式下色块按 Excalidraw 的深色滤镜显示（`applyDarkModeFilter`），和画布上看到的一致；导出时一律是浅色。
 - **画布**：撤销重做、缩放、适应屏幕、小地图（自己画的：内容缩略图 + 视野框，点或拖跳到那里；元素超过 2,500 个时只画外框）、“回到内容”（视野里没有内容时出现）、网格、对象吸附、手写笔专用（检测到手写笔后可选，手指只拖动）、画布底色。每个设备记住每块白板的视野（`localStorage` 的 `notefable:whiteboard-viewport:v1:<id>`），小地图开关记在 `notefable:whiteboard-minimap:v1`。
 - **标题和图标**在左上角的小条里改（和笔记一样走自动保存）。
@@ -43,7 +44,7 @@
 ## 导入 PDF 与导出
 
 - **导入 PDF**（菜单或“更多工具”）：pdf.js（`pdfjs-dist`，Apache-2.0）在浏览器里逐页渲染成 JPEG（长边最多 2000px、约 350 万像素，超过 4 MiB 再压），逐页上传，每页放进一个框（“文件名 · 页码”），图片锁定以便直接在上面批注。最多 50 页、文件最多 50 MB；为了手机内存，一次只渲染一页、渲染完立刻释放画布。中途某一页失败（存储空间不够、网络）时，已经上传的页照样放进白板，并提示“只导入了前 N 页”。
-- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个框一页，按从上到下、从左到右排；没有框就整块一页）。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG；照片、导入的 PDF 这类 Flate 超过 2 MiB 且 JPEG 不到一半时改用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
+- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个有内容的框一页，按从上到下、从左到右排；不在任何框里的内容放在最后一页，空框跳过；没有框、或者只有空框时整块一页。`planPdfPages` 在 `export-utils.ts`，框的内容和 Excalidraw 的按框导出一致：框的子元素和与框重叠的散元素；只有一部分压在框上的散元素两页都有，不会被裁掉；图形和箭头里的文字跟着它的图形 / 箭头走；外接矩形碰到了框、实际却没画进去时，画出来是全白的那页框也跳过）。导出总是整块白板（选中的部分不影响），一律浅色。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG；照片、导入的 PDF 这类 Flate 超过 2 MiB 且 JPEG 不到一半时改用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
 
 ## 搜索、历史、公开链接
 
@@ -64,4 +65,4 @@
 
 ## 测试
 
-`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名与框的顺序、PDF 写入器）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
+`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。

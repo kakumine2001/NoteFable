@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildPdf, fitPageSize, MAX_PDF_PAGE_POINTS, pdfText, rgbaToRgb } from "@/lib/whiteboard/pdf-writer";
+import { buildPdf, fitPageSize, isBlankRgb, MAX_PDF_PAGE_POINTS, pdfText, rgbaToRgb } from "@/lib/whiteboard/pdf-writer";
 
 const decoder = new TextDecoder("latin1");
 
@@ -53,5 +53,15 @@ describe("fitPageSize", () => {
 describe("rgbaToRgb", () => {
   it("composites transparent pixels on white", () => {
     expect([...rgbaToRgb(new Uint8Array([0, 0, 0, 255, 0, 0, 0, 0, 255, 0, 0, 128]))]).toEqual([0, 0, 0, 255, 255, 255, 255, 127, 127]);
+  });
+});
+
+describe("isBlankRgb", () => {
+  it("is true only when every pixel is pure white", () => {
+    expect(isBlankRgb(new Uint8Array([255, 255, 255, 255, 255, 255]))).toBe(true);
+    expect(isBlankRgb(new Uint8Array([255, 255, 255, 255, 254, 255]))).toBe(false);
+    // 透明な画素は白に合成されるので白紙、薄くても描いた画素は白紙ではない。
+    expect(isBlankRgb(rgbaToRgb(new Uint8Array([30, 30, 30, 0, 0, 0, 0, 0])))).toBe(true);
+    expect(isBlankRgb(rgbaToRgb(new Uint8Array([30, 30, 30, 0, 0, 0, 0, 8])))).toBe(false);
   });
 });
