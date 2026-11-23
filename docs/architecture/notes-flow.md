@@ -17,7 +17,7 @@ Notes 是 NoteFable 内部的文字笔记模式，界面上叫 **Workspace**（�
 
 **检索用的文字。** 每次保存，服务端从本体里取出文字存进 `NoteCanvas.segments`（`[{ id, text }]`，`extractCanvasSegments`）：白板是没删除的元素的文字（`originalText` 或 `text`，绑在图形上的文字算到图形的 ID 下）和框（frame）的名字；幻灯片是每一页元素里所有 `text` 字段（含富文本 JSON）加演讲备注，ID 是页的 ID。合计最多 100,000 字符。站内搜索、AI 的 `search_notes`、语义搜索的索引、附加到聊天和项目参考笔记**只用这份文字**，SQL 只读 `c."segments"`，从不遍历本体（笔迹的点）。搜索结果的 `blockId` 对白板是命中的元素、对幻灯片是命中的页（编辑器做好后据此定位；现在网页和应用只打开页面开头）。
 
-**保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读；其他返回整页的接口——`GET`、改图标 `PUT /api/pages/:id/icon`、历史恢复及其 409——对白板 / 幻灯片都带 `data`，先读版本后读本体，网页收到不带 `data` 的页面时重新读取，不把新版本和旧本体拼在一起）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
+**保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读；其他返回整页的接口——`GET`、改图标 `PUT /api/pages/:id/icon`、历史恢复及其 409——对白板 / 幻灯片都带 `data`，先读版本后读本体，网页收到不带 `data` 的页面时重新读取，不把新版本和旧本体拼在一起）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。不带 `data` 的保存（只改标题 / 图标）版本不一致时一律 409（分不清期间本体是否被别的标签页改过）。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
 
 **历史少留。** 白板和幻灯片的历史本体存在 `NoteRevision.data`（`blocks` 为空数组），每页只留自动保存 5 份 + AI 编辑 / 恢复前 5 份（共 10 份，笔记是 30 + 20），自动快照最短间隔 30 分钟（笔记 10 分钟），见 `revisionLimits`。自动快照照样是 DB 内的 `INSERT … SELECT`（`LEFT JOIN NoteCanvas`），本体不进应用；空白板（没有元素）/ 空幻灯片（没有页）不留快照。
 

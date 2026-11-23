@@ -312,6 +312,22 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `the ready message corrects the kind of the list entry too, and a stale editor changes nothing`() = runTest(dispatcher) {
+        // 旧服务端没返回类型的列表（仍是 Note）也按网页 ready 带来的类型改正；别的编辑器的 ready 不改。
+        val backend = FakeNotes().apply { pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z")) }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w")
+        advanceUntilIdle()
+        vm.onEditorReady("other", "w", "Board", null, PageKind.Whiteboard)
+        assertEquals(PageKind.Note, vm.state.value.open?.kind)
+        assertEquals(PageKind.Note, vm.state.value.pages.single { it.id == "w" }.kind)
+        vm.onEditorReady("w", "w", "Board", null, PageKind.Whiteboard)
+        assertEquals(PageKind.Whiteboard, vm.state.value.open?.kind)
+        assertEquals(PageKind.Whiteboard, vm.state.value.pages.single { it.id == "w" }.kind)
+    }
+
+    @Test
     fun `missing page closes the editor without flushing and refreshes`() = runTest(dispatcher) {
         val backend = FakeNotes()
         val vm = notesVm(backend)

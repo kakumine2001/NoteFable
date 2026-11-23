@@ -102,10 +102,12 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
     });
     if (changed.count && canvas) await writeCanvas(tx, pageId, canvas);
     const page = await tx.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: PAGE_SUMMARY_SELECT });
+    // 本体つきの再送だけ、題名・アイコン・本体のハッシュがそろえば保存済みとみなす。本体なし（題名・アイコンだけ）の古い版は、
+    // 別のタブが本体を変えたのかどうか見分けられないので、いつも 409 にして読み直させる（古い本体のまま新しい版を持たせない）。
     let alreadySaved = false;
-    if (!changed.count && page && page.title === input.title && (!iconPresent || page.icon === input.icon)) {
-      const stored = canvas ? await tx.noteCanvas.findUnique({ where: { noteId: pageId }, select: { hash: true } }) : null;
-      alreadySaved = !canvas || stored?.hash === canvas.hash;
+    if (!changed.count && canvas && page && page.title === input.title && (!iconPresent || page.icon === input.icon)) {
+      const stored = await tx.noteCanvas.findUnique({ where: { noteId: pageId }, select: { hash: true } });
+      alreadySaved = stored?.hash === canvas.hash;
     }
     return { page, conflict: !changed.count && !alreadySaved, changed: changed.count > 0 };
   }, { timeout: 20_000 });

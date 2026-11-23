@@ -48,7 +48,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
       if (!detailResponse.ok) throw new Error(errorOf(detailData, msg("Could not load the project settings.")));
       if (!pagesResponse.ok || !Array.isArray(pagesData.pages)) throw new Error(errorOf(pagesData, msg("Could not load your notes.")));
       const initial = detailData.project as ChatProjectDetail;
-      setLoaded({ initial, pages: (pagesData.pages as NoteRef[]).map(({ id, title, icon }) => ({ id, title, icon })) });
+      setLoaded({ initial, pages: (pagesData.pages as NoteRef[]).map(({ id, kind, title, icon }) => ({ id, kind, title, icon })) });
       setInstructions(initial.instructions ?? "");
       setSelected(initial.notes);
     }).catch((reason: unknown) => {

@@ -2374,7 +2374,7 @@ export default function Home() {
                   </button>
                   <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>
                 </span>)}
-                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span> : <PageKindIcon kind={activeSummary?.kind} size={15} className="shrink-0" />)}
+                {workspaceView === "pages" && (!notesList && notes.active?.content.icon ? <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={notes.active.content.icon} /></span> : <PageKindIcon kind={notesList ? undefined : activeSummary?.kind} size={15} className="shrink-0" />)}
                 {workspaceView === "chat" && activeSession && (
                   <ChatTopbarIcon key={activeSession.id} icon={activeSession.icon} onChange={(icon) => changeSessionIcon(activeSession.id, icon)} />
                 )}

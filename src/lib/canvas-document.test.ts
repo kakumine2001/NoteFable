@@ -55,6 +55,8 @@ describe("whiteboard and slide data", () => {
       ["whiteboard", { elements: [{ type: "text" }] }], ["whiteboard", { elements: [{ id: "a" }] }],
       ["whiteboard", { elements: [{ id: "a", type: "text", isDeleted: "yes" }] }],
       ["whiteboard", { elements: [], files: { f: { dataURL: "https://example.com/x.png" } } }],
+      // もう一方の種類の外枠は持てない（種類を取り違えない）。
+      ["whiteboard", { elements: [], slides: [] }], ["slides", { slides: [], elements: [] }],
       ["slides", { slides: [{ id: "s" }, { id: "s" }] }], ["slides", { slides: [{ id: "s", notes: 5 }] }],
       ["slides", { slides: [{ id: "s", elements: [{ id: "e" }] }, { id: "t", elements: [{ id: "e" }] }] }],
       ["slides", { slides: Array.from({ length: MAX_SLIDES + 1 }, (_, index) => ({ id: `s${index}` })) }],
@@ -76,6 +78,11 @@ describe("whiteboard and slide data", () => {
     let deep: Record<string, unknown> = { leaf: true };
     for (let index = 0; index < 80; index++) deep = { next: deep };
     expect(status(() => validateCanvasData("whiteboard", { elements: [], appState: deep }))).toBe(400);
+    // JSON.stringify がスタックを使い切る深さでも、500 ではなく 400 で断る（深さを先に数える）。
+    let veryDeep: Record<string, unknown> = { leaf: true };
+    for (let index = 0; index < 20_000; index++) veryDeep = { a: veryDeep };
+    expect(status(() => validateCanvasData("whiteboard", { elements: [], appState: veryDeep }))).toBe(400);
+    expect(status(() => validateCanvasData("whiteboard", { elements: [{ id: "x", type: "image", link: " /api/pages/files?key=../../etc" }] }))).toBe(400);
   });
 
   it("refuses more than 2 MB with 413", () => {
@@ -129,6 +136,14 @@ describe("text for search, semantic search and chat", () => {
     const text = `${"a".repeat(7999)}😀tail`;
     const [segment] = extractCanvasSegments("whiteboard", { elements: [{ id: "t", type: "text", text }] });
     expect(segment.text).toBe("a".repeat(7999));
+  });
+
+  it("stays linear when one element or slide holds a huge number of texts", () => {
+    const leaves = Array.from({ length: 150_000 }, () => ({ type: "text", text: "a" }));
+    const started = Date.now();
+    const [segment] = extractCanvasSegments("slides", { slides: [{ id: "s", elements: [{ id: "e", type: "text", content: leaves }] }] });
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(segment.text.length).toBeLessThanOrEqual(8000);
   });
 
   it("caps the extracted text", () => {

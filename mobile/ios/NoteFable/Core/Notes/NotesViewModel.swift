@@ -348,8 +348,17 @@ final class NotesViewModel {
             refresh()
             return
         }
-        if let kind, let open = state.open, open.editor == editor, open.kind != kind {
-            update { $0.open?.kind = kind }
+        // 网页读到的类型，打开着的笔记和列表项两边都用（列表是旧服务端读的、没带类型时，顶栏、菜单、图标都以这里为准）。
+        if let kind, let open = state.open, open.editor == editor, open.id == pageId {
+            update { state in
+                state.open?.kind = kind
+                state.pages = state.pages.map { page in
+                    guard page.id == pageId, page.kind != kind else { return page }
+                    var next = page
+                    next.kind = kind
+                    return next
+                }
+            }
         }
         onEditorMeta(editor, title: title, icon: icon)
     }

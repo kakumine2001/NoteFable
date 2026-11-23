@@ -41,7 +41,7 @@ export function AttachPageDialog({ initial, onClose, onAttach }: {
         const error = data && typeof data === "object" ? (data as { error?: unknown }).error : undefined;
         throw new Error(typeof error === "string" && error ? error : msg("Could not load your notes."));
       }
-      const live = (list as AttachedPage[]).map(({ id, title, icon }) => ({ id, title, icon: icon ?? null }));
+      const live = (list as AttachedPage[]).map(({ id, kind, title, icon }) => ({ id, kind, title, icon: icon ?? null }));
       setPages(live);
       // 前に選んだノートは今のタイトルに揃える。その後ゴミ箱に入ったノートは外す（送っても断られるため）。
       const byId = new Map(live.map((page) => [page.id, page]));

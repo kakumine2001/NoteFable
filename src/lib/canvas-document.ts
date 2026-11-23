@@ -59,7 +59,8 @@ function scan(value: unknown, fileOwners: Set<string>) {
       // PostgreSQL の jsonb は NUL を入れられない（保存で 500 にならないよう、先に断る）。
       if (current.includes("\u0000") || LONE_SURROGATE.test(current)) throw invalid();
       if (INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
-      if (current.startsWith(FILE_URL_PREFIX)) {
+      // 先頭の空白も URL としては同じに読まれるので、空白を飛ばして見分ける（その形は parseNoteFileUrl が断る）。
+      if (current.trimStart().startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
         if (!parsed || parsed === "empty") throw invalid();
         fileOwners.add(parsed.ownerId);
@@ -94,6 +95,8 @@ function validItems(items: unknown, max: number, ids: Set<string>, { needsType =
 }
 
 function validWhiteboard(data: Record<string, unknown>) {
+  // もう一方の種類の外枠（slides）は持たない（種類を本体の形からも取り違えないように）。
+  if (data.slides !== undefined) return false;
   if (!validItems(data.elements, MAX_WHITEBOARD_ELEMENTS, new Set(), { needsType: true })) return false;
   if (data.appState !== undefined && !object(data.appState)) return false;
   if (data.files === undefined) return true;
@@ -108,6 +111,7 @@ function validWhiteboard(data: Record<string, unknown>) {
 }
 
 function validSlides(data: Record<string, unknown>) {
+  if (data.elements !== undefined) return false;
   if (!validItems(data.slides, MAX_SLIDES, new Set())) return false;
   if (data.theme !== undefined && !object(data.theme)) return false;
   const elementIds = new Set<string>();
@@ -121,10 +125,11 @@ function validSlides(data: Record<string, unknown>) {
 // 保存してよい本体か確かめる。大きさは JSON のバイト数。fileOwners は参照しているファイルの持ち主（保存時に本人だけか確かめる）。
 export function validateCanvasData(kind: CanvasKind, value: unknown): ValidatedCanvas {
   if (!object(value)) throw invalid();
-  const size = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(CANVAS_TOO_LARGE, 413);
+  // 深さを先に（再帰しない scan で）確かめる。深すぎる JSON は JSON.stringify がスタックを使い切って 503 になる。
   const fileOwners = new Set<string>();
   scan(value, fileOwners);
+  const size = new TextEncoder().encode(JSON.stringify(value)).byteLength;
+  if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(CANVAS_TOO_LARGE, 413);
   if (!(kind === "whiteboard" ? validWhiteboard(value) : validSlides(value))) throw invalid();
   return { data: value, size, fileOwners: [...fileOwners] };
 }
@@ -165,12 +170,17 @@ function collectText(value: unknown, out: string[]) {
 // スライド：ページごとに、要素の中の文字と演説者ノート。
 export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSegment[] {
   if (!object(data)) return [];
-  const byId = new Map<string, string[]>();
+  // 同じ ID に何万もの文字が付いても線形で済むよう、配列はその場で伸ばし、1 つの ID の上限を超えたら足さない。
+  const byId = new Map<string, { texts: string[]; length: number }>();
   const add = (id: string, text: unknown) => {
     if (typeof text !== "string") return;
     const value = clean(text);
     if (!value) return;
-    byId.set(id, [...(byId.get(id) ?? []), value]);
+    const entry = byId.get(id) ?? { texts: [], length: 0 };
+    if (!byId.has(id)) byId.set(id, entry);
+    if (entry.length >= MAX_SEGMENT_TEXT) return;
+    entry.texts.push(value);
+    entry.length += value.length + 1;
   };
   if (kind === "whiteboard") {
     const elements = Array.isArray(data.elements) ? data.elements.filter((element) => object(element) && validId(element.id) && element.isDeleted !== true) as Record<string, unknown>[] : [];
@@ -191,7 +201,7 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
   }
   const segments: CanvasSegment[] = [];
   let total = 0;
-  for (const [id, texts] of byId) {
+  for (const [id, { texts }] of byId) {
     const text = cut(texts.join(" "), MAX_SEGMENT_TEXT);
     if (total + text.length > MAX_CANVAS_TEXT) break;
     total += text.length;

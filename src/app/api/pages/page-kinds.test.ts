@@ -130,6 +130,15 @@ describe("reading and saving a whiteboard", () => {
     expect((await save(patch({ title: "Board", data: board(), version: 3 }), context)).status).toBe(200);
   });
 
+  it("answers a stale rename (no content sent) with 409, since it cannot tell whether the content changed meanwhile", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 0 });
+    mocks.findFirst.mockResolvedValueOnce({ kind: "whiteboard" }).mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Board", icon: null, version: 4 });
+    const response = await save(patch({ title: "Board", version: 3 }), context);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ version: 4 });
+    expect(mocks.canvasFindUnique).not.toHaveBeenCalled();
+  });
+
   it("refuses a note body from an old note editor, in the requester's language, without writing", async () => {
     mocks.findFirst.mockResolvedValue({ kind: "slides" });
     const response = await save(patch({ title: "x", blocks: [], version: 3 }, { "accept-language": "ko" }), context);

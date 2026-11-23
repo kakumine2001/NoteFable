@@ -438,8 +438,14 @@ class NotesViewModel(
             refresh()
             return
         }
-        if (kind != null) {
-            _state.update { state -> state.copy(open = state.open?.takeIf { it.editor == editor && it.id == pageId }?.copy(kind = kind) ?: state.open) }
+        // 网页读到的类型，打开着的笔记和列表项两边都用（列表是旧服务端读的、没带类型时，顶栏、菜单、图标都以这里为准）。
+        if (kind != null && open != null && open.editor == editor && open.id == pageId) {
+            _state.update { state ->
+                state.copy(
+                    open = state.open?.takeIf { it.editor == editor && it.id == pageId }?.copy(kind = kind) ?: state.open,
+                    pages = state.pages.map { if (it.id == pageId) it.copy(kind = kind) else it },
+                )
+            }
         }
         onEditorMeta(editor, title, icon)
     }

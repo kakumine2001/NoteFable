@@ -471,6 +471,22 @@ final class NotesViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testTheReadyMessageCorrectsTheKindOfTheListEntryToo() async {
+        // 旧服务端没返回类型的列表（仍是笔记）也按网页 ready 带来的类型改正；别的编辑器的 ready 不改。
+        let backend = NotesTestBackend()
+        backend.pages.append(NotePageSummary(id: "w", title: "Board", icon: nil, createdAt: "2026-11-13T00:00:00Z"))
+        let vm = await notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w")
+        await notesSettle()
+        vm.onEditorMessage("other", .ready(id: "w", title: "Board", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.pages.first { $0.id == "w" }?.kind, .note)
+        vm.onEditorMessage("w", .ready(id: "w", title: "Board", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.open?.kind, .whiteboard)
+        XCTAssertEqual(vm.state.pages.first { $0.id == "w" }?.kind, .whiteboard)
+    }
+
+    @MainActor
     func testIdentityChangeSavesTheOpenNoteFirstAndDropsAPendingNavigation() async {
         let vm = await notesVm()
         vm.openNote("a")

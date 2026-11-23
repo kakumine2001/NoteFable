@@ -78,4 +78,4 @@ export type NoteRevisionReason = "AUTO" | "AI_EDIT" | "RESTORE";
 // 一覧用（本文は含めない）。version は残した時点のノートの版、createdAt は残した時刻（ISO 文字列）。
 export type NoteRevisionSummary = { id: string; reason: NoteRevisionReason; title: string; version: number; createdAt: string };
 // data はホワイトボード・スライドの履歴の本体（ノートの履歴には無い）。
-export type NoteRevisionDetail = NoteRevisionSummary & { icon: string | null; blocks: Block[]; data?: Record<string, unknown> };
+export type NoteRevisionDetail = NoteRevisionSummary & { icon: string | null; blocks: Block[]; data?: Record<string, unknown>; kind?: PageKind };

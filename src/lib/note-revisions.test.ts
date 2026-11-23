@@ -35,7 +35,9 @@ describe("auto-save snapshot SQL", () => {
 
   it("copies a whiteboard or slide deck from its separate content row, skipping empty ones", () => {
     const text = flat(snapshotSql(input).sql);
-    expect(text).toContain(`(p."kind" <> 'note' AND c."data" IS NOT NULL AND COALESCE(c."data" -> 'elements', c."data" -> 'slides', '[]'::jsonb) <> '[]'::jsonb)`);
+    // 種類はページの kind で分ける（本体の外枠のキーから推測しない）。
+    expect(text).toContain(`(p."kind" = 'whiteboard' AND jsonb_typeof(c."data" -> 'elements') = 'array' AND (c."data" -> 'elements') <> '[]'::jsonb)`);
+    expect(text).toContain(`(p."kind" = 'slides' AND jsonb_typeof(c."data" -> 'slides') = 'array' AND (c."data" -> 'slides') <> '[]'::jsonb)`);
   });
 
   it("skips the copy when an auto revision of the note is newer than 10 minutes, comparing in UTC", () => {
@@ -141,8 +143,8 @@ describe("revision views for the browser", () => {
     expect(toRevisionDetail({ ...row, data: null })).not.toHaveProperty("data");
   });
 
-  it("adds the whiteboard or slide content as data", () => {
+  it("adds the whiteboard or slide content as data, with the page's kind", () => {
     const data = { slides: [{ id: "s1" }] };
-    expect(toRevisionDetail({ ...row, data })).toMatchObject({ blocks: [], data });
+    expect(toRevisionDetail({ ...row, data, note: { kind: "slides" } })).toMatchObject({ blocks: [], data, kind: "slides" });
   });
 });

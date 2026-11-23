@@ -15,7 +15,7 @@ export async function GET(_request: Request, context: Context) {
     const { pageId, revisionId } = await context.params;
     const revision = await prisma.noteRevision.findFirst({
       where: { id: revisionId, noteId: pageId, userId: user.id, note: { userId: user.id, deletedAt: null } },
-      select: { id: true, reason: true, title: true, icon: true, blocks: true, data: true, version: true, createdAt: true },
+      select: { id: true, reason: true, title: true, icon: true, blocks: true, data: true, version: true, createdAt: true, note: { select: { kind: true } } },
     });
     return revision ? NextResponse.json({ revision: toRevisionDetail(revision) }, { headers: { "Cache-Control": "no-store" } }) : NextResponse.json({ error: msg("Revision not found.") }, { status: 404 });
   } catch (error) { return noteApiError(error); }

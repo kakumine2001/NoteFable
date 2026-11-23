@@ -78,14 +78,17 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked
         && existing.shareEnabled === meta.shareEnabled && existing.shareExpiresAt === meta.shareExpiresAt) return current;
       // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
-      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
+      // 種類は変わらない。種類を持たない応答で消さない。
+      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
     });
   }, []);
 
   const install = useCallback((page: NotePage) => {
     let draft: NoteDraft | undefined;
     try {
-      const cached = localStorage.getItem(DRAFT_PREFIX + page.id);
+      // ホワイトボード・スライドにノートの下書きは無い（古い画面が残したものは、ノートの本文として送ると断られ続けるので捨てる）。
+      if (isCanvasKind(pageKindOf(page))) localStorage.removeItem(DRAFT_PREFIX + page.id);
+      const cached = isCanvasKind(pageKindOf(page)) ? null : localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
         // 新しい項目を持たない旧下書きは、保存済みページの値で補ってから検証する。
@@ -214,7 +217,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (!queue.dirty && queue.status !== "saving") {
         // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
         // 読み直してから替える。
-        if (isCanvasKind(pageKindOf(page)) && page.data === undefined) {
+        if (isCanvasKind(pageKindOf(page.kind ? page : queue.page)) && page.data === undefined) {
           void pageRequest(`/api/pages/${page.id}`).then((data) => {
             const current = queues.current.get(page.id);
             if (!current || current.dirty || current.status === "saving" || current.version === data.page.version) return;

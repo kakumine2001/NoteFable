@@ -50,7 +50,8 @@ export function snapshotSql({ noteId, userId, version }: { noteId: string; userI
     WHERE p."id" = ${noteId} AND p."userId" = ${userId} AND p."version" = ${version} AND p."deletedAt" IS NULL
       AND (
         (p."kind" = 'note' AND jsonb_typeof(p."blocks") = 'array' AND p."blocks" <> '[]'::jsonb)
-        OR (p."kind" <> 'note' AND c."data" IS NOT NULL AND COALESCE(c."data" -> 'elements', c."data" -> 'slides', '[]'::jsonb) <> '[]'::jsonb)
+        OR (p."kind" = 'whiteboard' AND jsonb_typeof(c."data" -> 'elements') = 'array' AND (c."data" -> 'elements') <> '[]'::jsonb)
+        OR (p."kind" = 'slides' AND jsonb_typeof(c."data" -> 'slides') = 'array' AND (c."data" -> 'slides') <> '[]'::jsonb)
       )
       AND NOT EXISTS (
         SELECT 1 FROM ${revision} r
@@ -114,9 +115,10 @@ export function toRevisionSummary(row: { id: string; reason: NoteRevisionReason;
 }
 
 // data はホワイトボード・スライドの本体（ノートの履歴には無い）。
-export function toRevisionDetail(row: { id: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; data?: unknown; version: number; createdAt: Date }): NoteRevisionDetail {
+// kind はページの種類（プレビューを種類ごとに出すため。本体の形からは推測しない）。
+export function toRevisionDetail(row: { id: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; data?: unknown; version: number; createdAt: Date; note?: { kind: PageKind } }): NoteRevisionDetail {
   return {
-    ...toRevisionSummary(row), icon: row.icon, blocks: row.blocks as NoteRevisionDetail["blocks"],
+    ...toRevisionSummary(row), icon: row.icon, blocks: row.blocks as NoteRevisionDetail["blocks"], ...(row.note ? { kind: row.note.kind } : {}),
     ...(row.data === undefined || row.data === null ? {} : { data: row.data as NoteRevisionDetail["data"] }),
   };
 }
