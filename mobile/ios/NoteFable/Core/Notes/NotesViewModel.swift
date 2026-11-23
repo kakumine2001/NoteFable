@@ -28,6 +28,9 @@ final class NotesViewModel {
     /// 编辑器随即变宽、换字体或变成只读。由界面在编辑器打开时设置。
     @ObservationIgnored var pushPageSettings: (@MainActor (NotePageSummary) -> Void)?
 
+    /// 幻灯片的放映 / 导出（"…"菜单、放映中的返回）：交给网页编辑器（window.notefableEmbed.slides）。由界面在编辑器打开时设置。
+    @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
+
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
     /// 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。
@@ -332,8 +335,22 @@ final class NotesViewModel {
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
             update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
-        case .flushed: break
+        case .presentation(let presentation, _, _):
+            // 放映中：顶栏收起、横屏、屏幕常亮（界面看 state.presenting）。已经关掉或换走的编辑器晚到的消息不收。
+            guard state.open?.editor == editor else { break }
+            update { $0.presenting = presentation != "end" }
+        case .flushed, .fileStart, .fileChunk, .fileEnd, .fileAbort: break
         }
+    }
+
+    /// 编辑器关掉了：放映也随之结束（顶栏、竖屏恢复）。
+    func presentationEnded() {
+        if state.presenting { update { $0.presenting = false } }
+    }
+
+    /// 幻灯片的放映 / 导出（"…"菜单）。命令是网页 `parseSlidesCommand` 认的 JSON。
+    func slidesCommand(_ command: String) {
+        sendSlidesCommand?(command)
     }
 
     func dismissStorageLimit() {

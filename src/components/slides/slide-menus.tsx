@@ -67,7 +67,7 @@ export function ColorPicker({ value, theme, onChange, allowNone = false }: { val
         <input type="color" value={/^#[0-9a-f]{6}$/i.test(custom) ? custom : "#000000"} onChange={(event) => { if (isColorRef(event.target.value)) onChange(event.target.value as ColorRef); }} />
         <span>{t("Custom")}</span>
       </label>
-      {allowNone && <button type="button" role="menuitemradio" aria-checked={value === null} className="slides-color-none" onClick={() => onChange(null)}>{t("None")}</button>}
+      {allowNone && <button type="button" role="menuitemradio" aria-checked={value === null} className="slides-color-none" onClick={() => onChange(null)}>{t("No color")}</button>}
     </div>
   </div>;
 }

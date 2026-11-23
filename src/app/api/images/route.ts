@@ -17,7 +17,6 @@ import {
   toDbReasoning,
 } from "@/lib/models";
 import { prisma } from "@/lib/prisma";
-import { stringifyJsonForProxy } from "@/lib/proxy-json";
 import { newChatImagePath } from "@/lib/storage";
 import { assertStorageRoom, discardStoredFiles, storageLimitResponse, storeFile } from "@/lib/stored-files";
 import { StorageLimitError } from "@/lib/usage-plans";

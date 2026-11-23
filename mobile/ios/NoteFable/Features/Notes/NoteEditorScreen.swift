@@ -33,8 +33,8 @@ struct NoteEditorScreen: View {
         // 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有“…”菜单。
         let page = state.pages.first(where: { $0.id == open.id })
         VStack(spacing: 0) {
-            topBar(state, page: page)
-            if let notice = state.notice ?? state.error {
+            if !state.presenting { topBar(state, page: page) }
+            if !state.presenting, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -45,7 +45,7 @@ struct NoteEditorScreen: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 8)
             }
-            if let storage = state.storageLimit {
+            if !state.presenting, let storage = state.storageLimit {
                 // 上传因存储空间不够被拒绝（网页 StorageLimitPrompt）：说明原因和用量，未登录时给登录入口。
                 GuestLimitPrompt(storage: storage, attachmentsLost: false) { notes.dismissStorageLimit() }
                     .padding(.horizontal, 16)
@@ -57,6 +57,19 @@ struct NoteEditorScreen: View {
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        // 幻灯片放映中：横屏、隐藏状态栏和主屏幕指示条、屏幕常亮（Android 的 PresentationMode）。
+        .background(state.presenting ? Color.black : Color.clear)
+        .statusBarHidden(state.presenting)
+        .persistentSystemOverlays(state.presenting ? .hidden : .automatic)
+        .ignoresSafeArea(edges: state.presenting ? .all : [])
+        .onChange(of: state.presenting, initial: true) { _, presenting in
+            OrientationLock.set(landscape: presenting)
+            UIApplication.shared.isIdleTimerDisabled = presenting
+        }
+        .onDisappear {
+            if OrientationLock.mask != .portrait { OrientationLock.set(landscape: false) }
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .background(Sm.background)
         .fileExporter(
@@ -178,7 +191,9 @@ struct NoteEditorScreen: View {
                 if let page = notes.state.pages.first(where: { $0.id == id }) {
                     dialogBinding.wrappedValue = .trashNote(page)
                 }
-            }
+            },
+            // 幻灯片的放映和导出（网页做，导出的文件再交回 App 保存）。
+            onSlides: { command in notes.slidesCommand(command) }
         )
     }
 }

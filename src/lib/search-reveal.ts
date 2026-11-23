@@ -98,7 +98,7 @@ function expandCollapsedAncestors(element: HTMLElement) {
 // スライドでは一致した ID が枚の ID なので、エディターにその枚を開いてもらい（notefable:reveal-canvas-item）、縮小図を強調する。
 export const canvasItemSelector = (itemId: string) => `.slides-editor [data-slide-id="${attributeValue(itemId)}"]`;
 export function revealNoteBlock(blockId: string, options: RevealOptions = {}) {
-  window.dispatchEvent(new CustomEvent<string>("notefable:reveal-canvas-item", { detail: blockId }));
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent<string>("notefable:reveal-canvas-item", { detail: blockId }));
   return reveal(
     () => {
       const element = document.querySelector<HTMLElement>(noteBlockSelector(blockId)) ?? document.querySelector<HTMLElement>(canvasItemSelector(blockId));

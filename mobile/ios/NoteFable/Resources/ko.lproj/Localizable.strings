@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "채팅을 이동하지 못했어요.";
 "sb_err_create_chat" = "데이터베이스에 연결할 수 없어요. 로컬 PostgreSQL을 시작한 후 다시 시도해 주세요.";
 
+/* strings_slides.xml */
+"slides_present" = "발표";
+"slides_export_pdf" = "PDF로 내보내기";
+"slides_export_pdf_notes" = "발표자 노트 포함 PDF로 내보내기";
+"slides_export_png" = "PNG 이미지로 내보내기";
+"slides_export_pptx" = "PowerPoint(PPTX)로 내보내기";
+"slides_file_saved" = "파일을 저장했습니다.";
+"slides_file_save_failed" = "파일을 저장할 수 없습니다.";
+
 /* strings_turns.xml */
 "regenerate" = "다시 생성";
 "branch_in_new_chat" = "새 채팅으로 분기";

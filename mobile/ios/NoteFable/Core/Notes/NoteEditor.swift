@@ -17,6 +17,8 @@ protocol NoteEditorBridge: AnyObject {
     func appIcon(_ value: String?)
     func language(_ code: String)
     func theme(_ value: String)
+    /// 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回）：交给网页（`window.notefableEmbed.slides`）。
+    func slides(_ command: String)
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -80,6 +82,11 @@ enum NoteEmbedScripts {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(\(quote(value)))})()"
     }
 
+    /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
+    static func slides(_ command: String) -> String {
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(\(quote(command)))})()"
+    }
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -96,7 +103,7 @@ enum NoteEmbedScripts {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
-            "canShowStorageLimit:function(){return true}" +
+            "canShowStorageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -113,6 +120,10 @@ final class NoteEmbedBridge {
     /// App 现在显示的外观（light / dark），由界面用 [pushTheme] 给；还没给过是 nil。
     private(set) var theme: String?
     private var pending: [String: NoteDeferred<FlushResult>] = [:]
+    /// 网页做好的导出文件（幻灯片的 PDF / PNG / PPTX）：块写进临时文件，收齐了交给 [onFileReady]。
+    private let exports = ExportFileAssembler()
+    /// 导出文件收齐了：界面打开系统的“存储到文件”。没设定时丢掉文件。
+    var onFileReady: (@MainActor (ExportFileAssembler.Ready) -> Void)?
 
     private let currentLanguage: @MainActor () -> String
     private let sleep: @Sendable (Duration) async throws -> Void
@@ -142,6 +153,7 @@ final class NoteEmbedBridge {
         guard self.editor === editor else { return }
         self.editor = nil
         for answer in pending.values { answer.complete(FlushResult(false)) }
+        exports.abortAll()
     }
 
     /// 网页发来的 JSON（`window.NoteFableNative.postMessage`）。不认识的消息忽略。
@@ -150,6 +162,25 @@ final class NoteEmbedBridge {
         if case .flushed(let requestId, let ok, let kept) = message {
             pending.removeValue(forKey: requestId)?.complete(FlushResult(ok, draftKept: kept))
             return
+        }
+        // 导出文件的分块：桥自己写进临时文件（不交给 ViewModel）。
+        switch message {
+        case .fileStart(let id, let name, let mime, _):
+            exports.start(id: id, name: name, mime: mime)
+            return
+        case .fileChunk(let id, let index, let data):
+            exports.append(id: id, index: index, base64: data)
+            return
+        case .fileEnd(let id):
+            if let ready = exports.finish(id: id) {
+                if let onFileReady { onFileReady(ready) } else { try? FileManager.default.removeItem(at: ready.url) }
+            }
+            return
+        case .fileAbort(let id):
+            exports.abort(id: id)
+            return
+        default:
+            break
         }
         // 页面读好时再对一次语言：网页读初始 HTML 期间 App 的语言可能换过。
         if case .ready = message {
@@ -192,6 +223,10 @@ final class NoteEmbedBridge {
         editor?.openHistory()
     }
 
+    func slides(_ command: String) {
+        editor?.slides(command)
+    }
+
     /// 别处（聊天里的提案）改了这篇笔记：把服务端返回的新版本交给网页，走网页 notefable:page-updated 的同一条路
     /// （没有未保存的编辑就换成新版本，有就提示冲突），否则编辑器还拿着旧版本，下次保存会 409。
     func pageUpdated(_ pageJson: String) {
@@ -232,9 +267,12 @@ extension NotesViewModel {
         guard let bridge else {
             flushEditor = nil
             pushPageSettings = nil
+            sendSlidesCommand = nil
+            presentationEnded()
             return
         }
         flushEditor = { await bridge.flush() }
         pushPageSettings = { bridge.pageSettings($0) }
+        sendSlidesCommand = { bridge.slides($0) }
     }
 }

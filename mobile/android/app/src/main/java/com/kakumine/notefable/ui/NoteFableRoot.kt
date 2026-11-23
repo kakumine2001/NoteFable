@@ -391,6 +391,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
                             }
                             is EmbedMessage.Flushed -> Unit
+                            // 放映（横屏、全屏、常亮）和导出文件的保存由编辑页自己处理（NoteEditorScreen）。
+                            is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk, is EmbedMessage.FileEnd, is EmbedMessage.FileAbort -> Unit
                         }
                     },
                     registerFlush = { bridge ->

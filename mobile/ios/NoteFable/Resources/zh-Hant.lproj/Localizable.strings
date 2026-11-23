@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "無法移動聊天。";
 "sb_err_create_chat" = "資料庫不可用，請啟動本地 PostgreSQL 後重試。";
 
+/* strings_slides.xml */
+"slides_present" = "放映";
+"slides_export_pdf" = "匯出 PDF";
+"slides_export_pdf_notes" = "匯出帶演講備註的 PDF";
+"slides_export_png" = "匯出 PNG 圖片";
+"slides_export_pptx" = "匯出 PowerPoint（PPTX）";
+"slides_file_saved" = "檔案已儲存。";
+"slides_file_save_failed" = "無法儲存檔案。";
+
 /* strings_turns.xml */
 "regenerate" = "重新生成";
 "branch_in_new_chat" = "在新聊天中分支";

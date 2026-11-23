@@ -21,10 +21,10 @@ import { msg } from "@/lib/i18n/translate";
 // 右側（スマホでは下）の設定欄。何も選んでいないときはその枚（版式・背景・隠す）、選んでいるときは要素の位置・書式・重なり。
 
 const FONT_ROLES: { key: FontRole; label: string }[] = [{ key: "heading", label: msg("Heading font") }, { key: "body", label: msg("Body font") }, { key: "mono", label: msg("Monospace") }];
-const CAPS: { key: LineCap; label: string }[] = [{ key: "none", label: msg("None") }, { key: "arrow", label: msg("Arrow") }, { key: "triangle", label: msg("Triangle") }, { key: "oval", label: msg("Dot") }];
+const CAPS: { key: LineCap; label: string }[] = [{ key: "none", label: msg("No arrow") }, { key: "arrow", label: msg("Arrow") }, { key: "triangle", label: msg("Triangle") }, { key: "oval", label: msg("Dot") }];
 const DASHES = [{ key: "solid", label: msg("Solid") }, { key: "dash", label: msg("Dashed") }, { key: "dot", label: msg("Dotted") }] as const;
 export const ELEMENT_LABELS: Record<SlideElement["type"], string> = {
-  text: msg("Text"), shape: msg("Shape"), line: msg("Line"), image: msg("Image"), table: msg("Table"), whiteboard: msg("Whiteboard frame"),
+  text: msg("Text box"), shape: msg("Shape"), line: msg("Line"), image: msg("Image"), table: msg("Table"), whiteboard: msg("Whiteboard frame"),
 };
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
@@ -57,7 +57,7 @@ function ColorField({ label, value, theme, onChange, allowNone = false }: { labe
   return <div className="slides-field">
     <span>{label}</span>
     <MenuButton label={label} className="slides-color-button" icon={<span className={`slides-color-chip${value === null ? " is-none" : ""}`} style={value === null ? undefined : { background: resolveColor(value, theme) }} />}
-      text={<span className="slides-color-name">{value === null ? t("None") : value.startsWith("#") ? value : t(TOKEN_NAME[value] ?? value)}</span>}>
+      text={<span className="slides-color-name">{value === null ? t("No color") : value.startsWith("#") ? value : t(TOKEN_NAME[value] ?? value)}</span>}>
       {(close) => <ColorPicker value={value} theme={theme} allowNone={allowNone} onChange={(next) => { onChange(next); close(); }} />}
     </MenuButton>
   </div>;

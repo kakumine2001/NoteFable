@@ -32,8 +32,11 @@ enum PageKind: String, CaseIterable, Sendable {
         switch self {
         case .note:
             return PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
-        case .whiteboard, .slides:
+        case .whiteboard:
             return PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
+        case .slides:
+            // 幻灯片（#149）：有编辑器和公开的放映页。AI 编辑在 #150。
+            return PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
         }
     }
 
@@ -470,6 +473,15 @@ enum EmbedMessage: Equatable, Sendable {
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
     /// 只有 bootstrap 里声明了 `canShowStorageLimit()` 的 App 才会收到。
     case storageLimit(tier: String, used: Int, limit: Int)
+    /// 幻灯片的放映：start（App 横屏、全屏、屏幕常亮）、slide（换了页，index 从 0 开始）、end（恢复）。
+    /// 只有 bootstrap 里声明了 `canPresent()` 的 App 才会收到。
+    case presentation(state: String, index: Int, count: Int)
+    /// 网页做好的导出文件分块交给 App 保存（fileStart → fileChunk（base64）… → fileEnd，出错时 fileAbort）。
+    /// 只有 bootstrap 里声明了 `canSaveFile()` 的 App 才会收到。桥自己处理（`ExportFileAssembler`），不交给 ViewModel。
+    case fileStart(id: String, name: String, mime: String, size: Int)
+    case fileChunk(id: String, index: Int, data: String)
+    case fileEnd(id: String)
+    case fileAbort(id: String)
 
     /// 不认识或格式不对的消息返回 nil（网页先加了新消息类型也不会让 App 出错）。
     static func parse(_ json: String) -> EmbedMessage? {
@@ -496,6 +508,21 @@ enum EmbedMessage: Equatable, Sendable {
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)
+            case "presentation":
+                guard let state = try text(fields["state"]), ["start", "slide", "end"].contains(state) else { return nil }
+                return .presentation(state: state, index: fields["index"]?.intValue ?? 0, count: fields["count"]?.intValue ?? 0)
+            case "fileStart":
+                guard let id = try text(fields["id"]), !id.isEmpty, let name = try text(fields["name"]), !name.isEmpty else { return nil }
+                return .fileStart(id: id, name: name, mime: try text(fields["mime"]) ?? "application/octet-stream", size: fields["size"]?.intValue ?? 0)
+            case "fileChunk":
+                guard let id = try text(fields["id"]), let index = fields["index"]?.intValue, let data = try text(fields["data"]) else { return nil }
+                return .fileChunk(id: id, index: index, data: data)
+            case "fileEnd":
+                guard let id = try text(fields["id"]) else { return nil }
+                return .fileEnd(id: id)
+            case "fileAbort":
+                guard let id = try text(fields["id"]) else { return nil }
+                return .fileAbort(id: id)
             case "flushed":
                 return .flushed(
                     requestId: try text(fields["requestId"]) ?? "",

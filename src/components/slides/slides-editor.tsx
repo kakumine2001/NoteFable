@@ -465,10 +465,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     <span className="slides-toolbar-spacer" />
     <MenuButton label={t("Export")} icon={<Download size={18} />} disabled={!deck.slides.length || !!exporting} text={exporting ? <span className="slides-tool-busy" aria-hidden="true" /> : null}>
       {(close) => <>
-        <MenuItem icon={<FileText size={16} />} label={t("PDF")} onClick={() => { close(); void runExport("pdf"); }} />
-        <MenuItem icon={<StickyNote size={16} />} label={t("PDF with speaker notes")} onClick={() => { close(); void runExport("pdf-notes"); }} />
-        <MenuItem icon={<FileImage size={16} />} label={t("PNG images")} onClick={() => { close(); void runExport("png"); }} />
-        <MenuItem icon={<Presentation size={16} />} label={t("PowerPoint (PPTX)")} onClick={() => { close(); void runExport("pptx"); }} />
+        <MenuItem icon={<FileText size={16} />} label={t("Export PDF")} onClick={() => { close(); void runExport("pdf"); }} />
+        <MenuItem icon={<StickyNote size={16} />} label={t("Export PDF with speaker notes")} onClick={() => { close(); void runExport("pdf-notes"); }} />
+        <MenuItem icon={<FileImage size={16} />} label={t("Export PNG images")} onClick={() => { close(); void runExport("png"); }} />
+        <MenuItem icon={<Presentation size={16} />} label={t("Export PowerPoint (PPTX)")} onClick={() => { close(); void runExport("pptx"); }} />
       </>}
     </MenuButton>
     <div className="slides-present">

@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "Tidak dapat memindahkan chat.";
 "sb_err_create_chat" = "Database tidak tersedia. Jalankan PostgreSQL lokal lalu coba lagi.";
 
+/* strings_slides.xml */
+"slides_present" = "Presentasikan";
+"slides_export_pdf" = "Ekspor PDF";
+"slides_export_pdf_notes" = "Ekspor PDF dengan catatan pembicara";
+"slides_export_png" = "Ekspor gambar PNG";
+"slides_export_pptx" = "Ekspor ke PowerPoint (PPTX)";
+"slides_file_saved" = "File disimpan.";
+"slides_file_save_failed" = "Tidak dapat menyimpan file.";
+
 /* strings_turns.xml */
 "regenerate" = "Buat ulang";
 "branch_in_new_chat" = "Cabangkan di chat baru";

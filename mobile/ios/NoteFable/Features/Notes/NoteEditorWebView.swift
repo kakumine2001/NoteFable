@@ -80,6 +80,26 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             notes.onEditorMessage(editor, message)
         })
         super.init()
+        // 幻灯片导出的文件：收齐后用系统的“存储到文件”让用户选位置（Android 是 SAF 的 CreateDocument）。
+        bridge.onFileReady = { [weak self] ready in self?.saveExport(ready) }
+    }
+
+    /// 导出的文件交给系统的“存储到文件”（拷贝过去，临时文件随后删掉）。
+    private func saveExport(_ ready: ExportFileAssembler.Ready) {
+        guard let presenter = webView?.window?.rootViewController.map(Self.topmost) else {
+            try? FileManager.default.removeItem(at: ready.url.deletingLastPathComponent())
+            return
+        }
+        let picker = UIDocumentPickerViewController(forExporting: [ready.url], asCopy: true)
+        picker.delegate = ExportPickerCleanup.shared
+        ExportPickerCleanup.shared.track(picker, folder: ready.url.deletingLastPathComponent())
+        presenter.present(picker, animated: true)
+    }
+
+    private static func topmost(_ controller: UIViewController) -> UIViewController {
+        var top = controller
+        while let presented = top.presentedViewController { top = presented }
+        return top
     }
 
     // MARK: - 建立和销毁
@@ -274,6 +294,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         run(NoteEmbedScripts.theme(value))
     }
 
+    func slides(_ command: String) {
+        run(NoteEmbedScripts.slides(command))
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
@@ -285,6 +309,11 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     func goBack() {
         if router.drawerOpen { return }
         let notes = app.notes
+        // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
+        if notes.state.presenting {
+            slides(#"{"action":"end"}"#)
+            return
+        }
         guard let webView else {
             notes.closeNote()
             return

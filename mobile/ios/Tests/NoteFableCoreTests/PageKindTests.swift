@@ -18,14 +18,13 @@ final class PageKindTests: XCTestCase {
         XCTAssertEqual(PageKind.allCases.map(\.wire), ["note", "whiteboard", "slides"])
     }
 
-    func testOnlyNotesHaveTypographyMarkdownExportAndPublicSharingLikeTheWebFeatureTable() {
+    func testFeaturesFollowTheWebFeatureTableAndSlidesHaveAnEditorAndAPublicPresentation() {
         XCTAssertEqual(
             PageKind.note.features,
             PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
         )
-        let canvas = PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
-        XCTAssertEqual(PageKind.whiteboard.features, canvas)
-        XCTAssertEqual(PageKind.slides.features, canvas)
+        XCTAssertEqual(PageKind.whiteboard.features, PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false))
+        XCTAssertEqual(PageKind.slides.features, PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false))
     }
 
     func testPageListsReadTheKindAndTreatMissingNullUnknownAndMalformedKindsAsNotes() async throws {

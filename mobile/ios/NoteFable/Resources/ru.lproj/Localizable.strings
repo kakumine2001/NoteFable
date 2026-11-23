@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "Не удалось переместить чат.";
 "sb_err_create_chat" = "База данных недоступна. Запустите локальный PostgreSQL и попробуйте ещё раз.";
 
+/* strings_slides.xml */
+"slides_present" = "Показать";
+"slides_export_pdf" = "Экспорт в PDF";
+"slides_export_pdf_notes" = "Экспорт в PDF с заметками докладчика";
+"slides_export_png" = "Экспорт в изображения PNG";
+"slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
+"slides_file_saved" = "Файл сохранён.";
+"slides_file_save_failed" = "Не удалось сохранить файл.";
+
 /* strings_turns.xml */
 "regenerate" = "Сгенерировать заново";
 "branch_in_new_chat" = "Ответвить в новый чат";
