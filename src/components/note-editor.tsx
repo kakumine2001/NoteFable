@@ -10,6 +10,7 @@ import { createContext, useCallback, useContext, useEffect, useImperativeHandle,
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
+import { StorageLimitError } from "@/lib/usage-plans";
 import { normalizeQuote } from "@/lib/chat-quote";
 import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
@@ -121,6 +122,9 @@ function duplicateBlocks(editor: Editor, blocks = editor.getSelection()?.blocks 
     editor.setTextCursorPosition(copies[0], "end");
   });
 }
+
+// ファイルの追加パネルから始めたアップロードのブロック。失敗してもブロックを残す（パネルが理由を出し、やり直せる）。
+const panelUploads = new Set<string>();
 
 // 画像・ファイルを自分のサービスへアップロードし、ブロックに入れる URL と表示名を返す。
 async function uploadNoteFile(file: File) {
@@ -298,6 +302,7 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
       return;
     }
     setState({ phase: "uploading" });
+    panelUploads.add(blockId);
     try {
       // editor.uploadFile を通すので、ブロック側の「読み込み中」表示も BlockNote に任せられる。
       const result = await editor.uploadFile?.(file, blockId);
@@ -305,6 +310,8 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
       if (result && editor.getBlock(blockId)) editor.updateBlock(blockId, typeof result === "string" ? { props: { url: result, name: file.name } } : result);
     } catch (error) {
       setState({ phase: "failed", message: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
+    } finally {
+      panelUploads.delete(blockId);
     }
   }
 
@@ -500,13 +507,31 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     () => ({ useFloatingOptions: { placement: sideMenuPlacementFor(dir) } }),
     [dir],
   );
+  // 下の uploadFile から、作ったエディターを参照する（設定は作る前に渡すため）。
+  const uploadEditorRef = useRef<{ getBlock: (id: string) => { props: unknown } | undefined; removeBlocks: (ids: string[]) => unknown } | null>(null);
   const editor = useCreateBlockNote({
     schema,
     extensions: [syntaxHighlighter],
     tabBehavior: "prefer-indent",
     // 表: 見出しの行・列、セルの結合と分割、セルごとの文字色・背景色（いずれも BlockNote の既定では無効）。
     tables: { headers: true, splitCells: true, cellBackgroundColor: true, cellTextColor: true },
-    uploadFile: uploadNoteFile,
+    uploadFile: async (file: File, blockId?: string) => {
+      try {
+        return await uploadNoteFile(file);
+      } catch (error) {
+        // 容量の上限で断られたとき、貼り付け・ドロップで作られた空のブロック（「Loading...」のまま）は残さない。理由はノートの上の案内に出る。
+        // BlockNote は貼り付け・ドロップのアップロードで投げた例外を受け止めないので、何も変えない結果を返してから、そのブロックを消す。
+        if (error instanceof StorageLimitError && blockId && !panelUploads.has(blockId)) {
+          setTimeout(() => {
+            const target = uploadEditorRef.current;
+            const props = target?.getBlock(blockId)?.props as { url?: unknown } | undefined;
+            if (target && props && !props.url) target.removeBlocks([blockId]);
+          }, 0);
+          return { props: {} };
+        }
+        throw error;
+      }
+    },
     // ブロックを他のブロックの左右へドラッグすると縦線を出し、離すと段組みにする（note-columns.ts）。
     dropCursor: { hooks: { computeDropPosition: computeColumnDropPosition } },
     // 編集中にリンクを押すと BlockNote は新しいウィンドウで開く。アプリ内のページへのリンクは、その場でページを切り替える。
@@ -533,6 +558,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     dictionary: { ...base, placeholders: { ...base.placeholders, emptyDocument: t("Press '/' for commands…"), default: t("Press '/' for commands…"), heading: t("Heading") } },
     initialContent: blocks.length ? normalizeCodeLanguages(blocks) as NotePartialBlock[] : undefined,
   });
+  useEffect(() => { uploadEditorRef.current = editor; }, [editor]);
   function focusStart() {
     const first = editor.document[0];
     editor.focus();
