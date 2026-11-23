@@ -165,6 +165,22 @@ export async function claimNoteFiles(tx: Db, blocks: unknown, userId: string) {
   await claimStoredFiles(tx, noteFilePaths(blocks), userId);
 }
 
+// ホワイトボード・スライドの本体（NoteCanvas.data）が参照するファイルを、DB の中で取り出して使用中に戻す（最大 2 MB の本体をアプリに読み込まない）。
+// 複製のように本体を DB の中で写すときに、写す前に呼ぶ（保存・作成・復元は validateCanvasData が集めたパスを claimStoredFiles に渡す）。
+// 行を書き換えるので、写している間に元のページからファイルが外されても、後片付けの「削除中」への切り替えはこの複製の確定を待つ。
+export async function claimCanvasFiles(tx: Db, noteIds: string[], userId: string) {
+  if (!noteIds.length) return;
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE ${table("StoredFile")} f SET "releasedAt" = NULL
+    WHERE f."userId" = ${userId} AND f."kind" = 'NOTE_FILE' AND f."deletingAt" IS NULL AND f."releasedAt" IS NOT NULL
+      AND lower(substring(f."path" from ${NOTE_FILE_ID_SQL})) IN (
+        SELECT lower(m[1]) FROM ${table("NoteCanvas")} c
+        JOIN ${table("NotePage")} p ON p."id" = c."noteId" AND p."userId" = ${userId}
+        CROSS JOIN LATERAL regexp_matches(c."data"::text, ${NOTE_FILE_REFERENCE}, 'gi') AS m
+        WHERE c."noteId" IN (${Prisma.join(noteIds)})
+      )`);
+}
+
 // ---------- 参照の確認 ----------
 
 type Candidate = { path: string; userId: string | null; kind: StoredFileKind };
@@ -175,6 +191,8 @@ const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
 // 本文の JSON を文字列として探す（エンコードの有無・大文字小文字を問わない）。UUID はファイルごとに違うので取り違えない。
 export const NOTE_FILE_REFERENCE = "note-files(?:%2F|/)[a-z0-9]{1,64}(?:%2F|/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
 const NOTE_FILE_ID = /^note-files\/[a-z0-9]{1,64}\/([0-9a-f-]{36})\./;
+// 同じ取り出しを SQL の substring(... from ...) で使う形（括弧の中が返る）。
+const NOTE_FILE_ID_SQL = "^note-files/[a-z0-9]{1,64}/([0-9a-f-]{36})\\.";
 
 // ノートのファイルを参照しうる場所（持ち主の行だけを見る。ゴミ箱のノートと編集履歴も、復元で戻るので参照に数える）。
 // 白板やスライドなど、別の表にファイルの URL を持つ内容を足したら、ここにその表を足す。

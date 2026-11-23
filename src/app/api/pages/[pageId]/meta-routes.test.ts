@@ -3,11 +3,11 @@ import { NoteValidationError } from "@/lib/note-document";
 
 const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(), summary: vi.fn(), resolveParent: vi.fn(), setGroup: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(),
-  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(), raw: vi.fn(), aggregate: vi.fn(),
+  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(), claimCanvas: vi.fn(), raw: vi.fn(), aggregate: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-covers", () => ({ claimCover: mocks.claim }));
-vi.mock("@/lib/stored-files", () => ({ claimNoteFiles: mocks.claimFiles }));
+vi.mock("@/lib/stored-files", () => ({ claimNoteFiles: mocks.claimFiles, claimCanvasFiles: mocks.claimCanvas }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, findMany: mocks.findMany, create: mocks.create };
   return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage, noteCanvas: { aggregate: mocks.aggregate }, $executeRaw: mocks.raw }) } };
@@ -139,6 +139,9 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect(copies[0].sql).toContain('INSERT INTO "notefable"."NoteCanvas"');
     expect(copies[0].sql).toContain('SELECT');
     expect(copies.map((copy) => copy.values)).toEqual([["copy1", "p1"], ["copy2", "c1"]]);
+    // 本体が参照するファイルも、写す前に DB の中で使用中に戻す（ストレージの後片付けに消させない）。
+    expect(mocks.claimCanvas).toHaveBeenCalledWith(expect.anything(), ["p1", "c1"], "mine");
+    expect(mocks.claimCanvas.mock.invocationCallOrder[0]).toBeLessThan(mocks.create.mock.invocationCallOrder[0]);
   });
 
   it("refuses to copy more than 32 MB of whiteboard and slide content at once", async () => {
@@ -158,6 +161,7 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect((await duplicate(new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(201);
     expect(mocks.raw).not.toHaveBeenCalled();
     expect(mocks.aggregate).not.toHaveBeenCalled();
+    expect(mocks.claimCanvas).not.toHaveBeenCalled();
   });
 
   it("refuses pages with more than 99 sub-pages", async () => {

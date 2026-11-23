@@ -67,7 +67,7 @@ AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：页
 
 AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]` 占位文字。`propose_note_edit` 可以像其他块一样替换或删除这些块；替换或删除到上传内容时，提案里该处会带 `dropsMedia`，提案卡片提示“上传的图片或文件会从笔记中移除”，用户批准后才会生效。AI 也可以把当前聊天里的图片放进笔记（含用户上传和助手生成的图片）：先用 `list_chat_attachments` 取得附件 ID，再在提案的 Markdown 中单独写一行 `![说明](attachment:ID)`。服务端（`src/lib/note-attachments.ts`）确认该附件属于本会话和本人（不按消息角色排除生成图）、是 PNG/JPEG/WebP/GIF 且不超过 4 MiB，把图片复制到 `note-files/<用户>/`，替换成指向它的图片块；每个提案最多 5 张，同一张只复制一次。聊天里的 PDF / 文本附件只保存了抽出的文字，没有原文件，所以不能作为文件块放进笔记。模型直接写 `![说明](/api/pages/files?...)` 时只接受本人目录下的图片，生成提案和适用提案时都会检查（`assertNoteFilesOwner`）。复制进笔记的图片也计入存储用量，放不下时工具向模型返回错误、不建立提案。
 
-**未引用文件的清理。** 每个上传的文件都登记在 `StoredFile`（[database.md](database.md#storedfile)）。保存笔记（自动保存、新建、导入、历史恢复、适用 AI 提案）时在同一事务里把正文引用的文件设为使用中（`claimNoteFiles`）；不再被任何笔记（含 Trash）、编辑历史和待确认的 AI 提案引用的文件，7 天后由文件清理任务删除（`collectUnusedFiles`，请求之后惰性运行，没有 Cron）。所以从笔记里删掉的图片要等它也不在编辑历史里（历史被裁剪或笔记被永久删除）之后约一周才真正删掉、释放空间。
+**未引用文件的清理。** 每个上传的文件都登记在 `StoredFile`（[database.md](database.md#storedfile)）。保存笔记（自动保存、新建、导入、复制、历史恢复、适用 AI 提案）时在同一事务里把正文引用的文件设为使用中（`claimNoteFiles`）；白板 / 幻灯片的图片也在 `note-files/`，保存、新建、历史恢复时用 `claimStoredFiles`（路径由 `validateCanvasData` 收集），复制时用 `claimCanvasFiles`（在数据库里从本体取出）。不再被任何页面（含 Trash；笔记读 `blocks`，白板 / 幻灯片读 `NoteCanvas.data`）、编辑历史（`NoteRevision.blocks` / `data`）和待确认的 AI 提案引用的文件，7 天后由文件清理任务删除（`collectUnusedFiles`，请求之后惰性运行，没有 Cron）。所以从笔记里删掉的图片要等它也不在编辑历史里（历史被裁剪或笔记被永久删除）之后约一周才真正删掉、释放空间。
 
 ## 分组
 

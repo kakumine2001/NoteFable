@@ -11,7 +11,7 @@ import { descendantIds, liveOrderIds, lockNoteOrder, PAGE_SUMMARY_SELECT, writeO
 import { isCanvasKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
-import { claimNoteFiles } from "@/lib/stored-files";
+import { claimCanvasFiles, claimNoteFiles } from "@/lib/stored-files";
 
 type Context = { params: Promise<{ pageId: string }> };
 
@@ -38,6 +38,8 @@ export async function POST(_request: Request, context: Context) {
       if (canvasIds.length) {
         const total = await tx.noteCanvas.aggregate({ where: { noteId: { in: canvasIds } }, _sum: { size: true } });
         if ((total._sum.size ?? 0) > MAX_DUPLICATE_CANVAS_BYTES) throw new NoteValidationError(msg("These pages are too large to duplicate at once."), 413);
+        // 本体は DB の中で写すので、参照しているファイルも DB の中で使用中に戻す（ノートの claimNoteFiles と同じく、ページを作る前に）。
+        await claimCanvasFiles(tx, canvasIds, user.id);
       }
       const order = await liveOrderIds(tx, user.id);
       // 親を先に作るため、元の並び順のまま、親が子より前に来るように並べる。

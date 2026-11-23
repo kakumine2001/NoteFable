@@ -19,7 +19,7 @@ vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: mocks.pris
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.remove, writeStoredImageAt: mocks.write, listStoredFiles: mocks.list, sharesForeignStorage: mocks.foreign }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 import {
-  FILE_GRACE_MS, NOTE_FILE_OWNERS_PER_BATCH, NOTE_FILE_REFERENCE, assertStorageRoom, collectUnusedFiles, inventoryStoredFiles, limitNoteFileOwners,
+  FILE_GRACE_MS, NOTE_FILE_OWNERS_PER_BATCH, NOTE_FILE_REFERENCE, assertStorageRoom, claimCanvasFiles, collectUnusedFiles, inventoryStoredFiles, limitNoteFileOwners,
   referencedPaths, reserveStoredFile, runStorageMaintenance, storeFile, storageLimitResponse,
 } from "./stored-files";
 import { STORAGE_LIMITS, StorageLimitError } from "./usage-plans";
@@ -125,6 +125,20 @@ describe("references", () => {
     const sql = (mocks.prisma.$queryRaw.mock.calls[0][0] as { sql: string }).sql;
     expect(sql).toContain('FROM "notefable"."NoteCanvas" c JOIN "notefable"."NotePage" p ON p."id" = c."noteId" WHERE p."userId" = ');
     expect(sql).toContain('SELECT "data"::text AS body FROM "notefable"."NoteRevision" WHERE "userId" = ');
+  });
+});
+
+describe("claiming the files of whiteboards and slide decks", () => {
+  it("finds the files inside the content in the database, for the owner's pages only, and claims only released rows", async () => {
+    const tx = { $executeRaw: vi.fn() };
+    await claimCanvasFiles(tx as never, [], "m1");
+    expect(tx.$executeRaw).not.toHaveBeenCalled();
+    await claimCanvasFiles(tx as never, ["w1", "w2"], "m1");
+    const query = tx.$executeRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(query.sql).toContain('UPDATE "notefable"."StoredFile" f SET "releasedAt" = NULL');
+    expect(query.sql).toContain('f."releasedAt" IS NOT NULL');
+    expect(query.sql).toContain('JOIN "notefable"."NotePage" p ON p."id" = c."noteId" AND p."userId" = ');
+    expect(query.values).toEqual(expect.arrayContaining(["m1", "w1", "w2", NOTE_FILE_REFERENCE]));
   });
 });
 
