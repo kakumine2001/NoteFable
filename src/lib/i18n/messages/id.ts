@@ -770,4 +770,5 @@ export const id: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.",
   "Storage": "Penyimpanan",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Ruang dari file yang Anda hapus akan kosong sekitar seminggu kemudian. File di Sampah atau riwayat versi tetap dihitung.",
+  "New page": "Halaman baru",
 };

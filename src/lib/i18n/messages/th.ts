@@ -770,4 +770,5 @@ export const th: Record<string, string> = {
   "Delete files you no longer need to free up space.": "ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง",
   "Storage": "พื้นที่จัดเก็บ",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "พื้นที่ของไฟล์ที่ลบจะว่างประมาณหนึ่งสัปดาห์หลังจากนั้น ไฟล์ในถังขยะหรือประวัติเวอร์ชันยังนับรวมอยู่",
+  "New page": "หน้าใหม่",
 };
