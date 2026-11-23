@@ -366,6 +366,8 @@
 "answer_download_failed" = "No se pudo descargar la conversación. Inténtalo de nuevo.";
 "answer_save_failed" = "No se pudo guardar como nota. Inténtalo de nuevo.";
 "answer_save_too_large" = "Esta respuesta es demasiado extensa para guardarla como nota.";
+"export_file_saved" = "Archivo guardado.";
+"export_file_failed" = "No se pudo guardar el archivo.";
 
 /* strings_i18n.xml */
 "ui_locale" = "es";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Exportar PDF con notas del orador";
 "slides_export_png" = "Exportar imágenes PNG";
 "slides_export_pptx" = "Exportar a PowerPoint (PPTX)";
-"slides_file_saved" = "Archivo guardado.";
-"slides_file_save_failed" = "No se pudo guardar el archivo.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerar";

@@ -366,6 +366,8 @@
 "answer_download_failed" = "ไม่สามารถดาวน์โหลดการสนทนาได้ กรุณาลองอีกครั้ง";
 "answer_save_failed" = "ไม่สามารถบันทึกเป็นโน้ตได้ กรุณาลองอีกครั้ง";
 "answer_save_too_large" = "คำตอบนี้ยาวเกินกว่าจะบันทึกเป็นโน้ตได้";
+"export_file_saved" = "บันทึกไฟล์แล้ว";
+"export_file_failed" = "บันทึกไฟล์ไม่ได้";
 
 /* strings_i18n.xml */
 "ui_locale" = "th";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "ส่งออก PDF พร้อมบันทึกผู้บรรยาย";
 "slides_export_png" = "ส่งออกรูปภาพ PNG";
 "slides_export_pptx" = "ส่งออกเป็น PowerPoint (PPTX)";
-"slides_file_saved" = "บันทึกไฟล์แล้ว";
-"slides_file_save_failed" = "บันทึกไฟล์ไม่ได้";
 
 /* strings_turns.xml */
 "regenerate" = "สร้างคำตอบใหม่";

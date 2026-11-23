@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { PublicNoteUnavailable, PublicNoteView } from "@/components/public-note-view";
+import { PublicNoteUnavailable, PublicNoteView, PublicWhiteboardView } from "@/components/public-note-view";
 import { PublicSlidesView } from "@/components/public-slides-view";
 import { LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
 import { resolvePublicShare } from "@/lib/note-share-server";
@@ -32,7 +32,8 @@ export default async function PublicSharedSubpage({ params }: Props) {
   const [{ token, pageId }, locale] = await Promise.all([params, requestLocale()]);
   const resolved = await resolvePublicShare(token, pageId);
   if (!resolved) return <PublicNoteUnavailable locale={locale} />;
-  // スライドは放映のビュー（読み取り専用）、ノートは本文のビュー。
+  // ホワイトボードは拡大縮小・移動だけができる読み取り専用のビュー、スライドは放映のビュー（読み取り専用）、ノートは本文のビュー。
+  if (resolved.page.kind === "whiteboard") return <PublicWhiteboardView data={resolved} locale={locale} />;
   if (resolved.page.kind === "slides") return <PublicSlidesView data={resolved} locale={locale} />;
   return <PublicNoteView data={resolved} locale={locale} />;
 }

@@ -366,6 +366,8 @@
 "answer_download_failed" = "無法下載聊天，請重試。";
 "answer_save_failed" = "無法儲存為筆記，請重試。";
 "answer_save_too_large" = "這條回答太長，無法儲存為筆記。";
+"export_file_saved" = "檔案已儲存。";
+"export_file_failed" = "無法儲存檔案。";
 
 /* strings_i18n.xml */
 "ui_locale" = "zh-Hant";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "匯出帶演講備註的 PDF";
 "slides_export_png" = "匯出 PNG 圖片";
 "slides_export_pptx" = "匯出 PowerPoint（PPTX）";
-"slides_file_saved" = "檔案已儲存。";
-"slides_file_save_failed" = "無法儲存檔案。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

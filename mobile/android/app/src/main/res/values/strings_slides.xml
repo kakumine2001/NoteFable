@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Export PDF with speaker notes</string>
     <string name="slides_export_png">Export PNG images</string>
     <string name="slides_export_pptx">Export PowerPoint (PPTX)</string>
-    <string name="slides_file_saved">File saved.</string>
-    <string name="slides_file_save_failed">Could not save the file.</string>
 </resources>

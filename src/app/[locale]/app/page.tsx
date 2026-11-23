@@ -69,6 +69,8 @@ import { useSwipeDismiss } from "@/lib/use-swipe-dismiss";
 import { runTransition } from "@/lib/view-transition";
 import { useModels } from "@/components/models-provider";
 import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
+import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
@@ -2090,7 +2092,9 @@ export default function Home() {
     const controller = new AbortController();
     revealAbortRef.current = controller;
     if (request.kind === "note") {
-      void revealNoteBlock(request.blockId, { signal: controller.signal });
+      // ホワイトボードは一致した要素まで動かす（エディターは動的に読み込むので、用意できた時に受け取る）。
+      if (pageKindOf(notes.active?.page) === "whiteboard") requestWhiteboardReveal(request.noteId, request.blockId);
+      else void revealNoteBlock(request.blockId, { signal: controller.signal });
       return;
     }
     void revealChatMessage(request.messageId, { signal: controller.signal }).then((found) => {
@@ -2867,7 +2871,7 @@ export default function Home() {
         body={`${t("“{title}” will be moved to Trash. You can restore it for {count} days.", { title: trashingNote.title, count: TRASH_RETENTION_DAYS })}${descendantIdsOf(notes.pages, trashingNote.id).size ? ` ${t("Its sub-pages move to Trash with it.")}` : ""}`}
         onConfirm={() => deleteNote(trashingNote.id)} />}
       {historyQueue && historyNoteId && (
-        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={() => historyQueue.flush()}
+        <NoteHistoryDialog key={historyNoteId} noteId={historyNoteId} getVersion={() => historyQueue.version} flush={async () => { await flushCanvasEditors(); return historyQueue.flush(); }}
           onRestored={() => setHistoryNoteId(null)} onClose={() => setHistoryNoteId(null)} />
       )}
       {workspaceView === "pages" && shareNoteId && (

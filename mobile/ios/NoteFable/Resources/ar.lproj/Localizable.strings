@@ -366,6 +366,8 @@
 "answer_download_failed" = "تعذّر تنزيل المحادثة. حاول مرة أخرى.";
 "answer_save_failed" = "تعذّر الحفظ كملاحظة. حاول مرة أخرى.";
 "answer_save_too_large" = "هذه الإجابة طويلة جداً ولا يمكن حفظها كملاحظة.";
+"export_file_saved" = "تم حفظ الملف.";
+"export_file_failed" = "تعذّر حفظ الملف.";
 
 /* strings_i18n.xml */
 "ui_locale" = "ar";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "تصدير PDF مع ملاحظات المتحدث";
 "slides_export_png" = "تصدير صور PNG";
 "slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
-"slides_file_saved" = "تم حفظ الملف.";
-"slides_file_save_failed" = "تعذّر حفظ الملف.";
 
 /* strings_turns.xml */
 "regenerate" = "إعادة التوليد";

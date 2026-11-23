@@ -383,13 +383,14 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         ).pages
     }
 
-    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?) -> String {
         absoluteUrl(
             "/note-embed?page=" + segment(pageId)
                 + (lang.map { "&lang=" + $0 } ?? "")
                 + (model.map { "&model=" + segment($0) } ?? "")
                 + (reasoning.map { "&reasoning=" + segment($0) } ?? "")
                 + (theme.map { "&theme=" + segment($0) } ?? "")
+                + (reveal.flatMap { $0.isEmpty ? nil : "&reveal=" + segment($0) } ?? "")
         )
     }
 

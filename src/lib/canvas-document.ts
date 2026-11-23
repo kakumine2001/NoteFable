@@ -3,6 +3,7 @@ import { MAX_NOTE_TITLE, NoteValidationError, uploadedCoverPath } from "@/lib/no
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { fmt, msg } from "@/lib/i18n/translate";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
+import { WHITEBOARD_ELEMENT_TYPES } from "@/lib/whiteboard/scene";
 
 // ホワイトボードとスライドの本体（NoteCanvas.data）の形、検証、検索用の文字の取り出し（docs/architecture/notes-flow.md の「白板和幻灯片的数据」）。
 // エディター（#152・#149）がまだ無いので、形は外枠だけを決める：
@@ -100,6 +101,8 @@ function validWhiteboard(data: Record<string, unknown>) {
   // もう一方の種類の外枠（slides）は持たない（種類を本体の形からも取り違えないように）。
   if (data.slides !== undefined) return false;
   if (!validItems(data.elements, MAX_WHITEBOARD_ELEMENTS, new Set(), { needsType: true })) return false;
+  // 置ける種類だけ（埋め込み・iframe などは保存させない。src/lib/whiteboard/scene.ts の WHITEBOARD_ELEMENT_TYPES）。
+  if (!(data.elements as Record<string, unknown>[]).every((element) => WHITEBOARD_ELEMENT_TYPES.has(element.type as string))) return false;
   if (data.appState !== undefined && !object(data.appState)) return false;
   if (data.files === undefined) return true;
   if (!object(data.files)) return false;

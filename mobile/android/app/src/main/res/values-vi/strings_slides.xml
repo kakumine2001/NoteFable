@@ -6,6 +6,4 @@
     <string name="slides_export_pdf_notes">Xuất PDF kèm ghi chú</string>
     <string name="slides_export_png">Xuất ảnh PNG</string>
     <string name="slides_export_pptx">Xuất PowerPoint (PPTX)</string>
-    <string name="slides_file_saved">Đã lưu tệp.</string>
-    <string name="slides_file_save_failed">Không thể lưu tệp.</string>
 </resources>

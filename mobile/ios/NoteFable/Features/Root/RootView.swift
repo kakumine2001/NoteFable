@@ -11,8 +11,8 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        // 幻灯片放映中不让抽屉跟着边缘滑动打开（和翻页、返回的手势冲突）。
-        AppDrawer(isOpen: $router.drawerOpen, gesturesEnabled: !app.notes.state.presenting) {
+        // 开着白板时（画笔从边缘开始画）、幻灯片放映中（和翻页、返回的手势冲突）不从屏幕边缘拉出抽屉：用顶栏的菜单键开。
+        AppDrawer(isOpen: $router.drawerOpen, edgeOpens: !app.notes.state.editorCapturesEdgeSwipes && !app.notes.state.presenting) {
             DrawerPanel()
         } content: {
             workspace
@@ -151,11 +151,12 @@ private struct SidebarFooter: View {
 /// - 打开：260ms（--dur-base）--ease-out；遮罩跟着淡入。
 /// - 关闭：点遮罩、头部的关闭键、选了一项；或者把抽屉往行首方向拖（`use-swipe-dismiss.ts`）：拖过宽度的 33%，
 ///   或松手够快（> 0.5 px/ms 且拖过 24）就关，200ms 滑出去；否则 340ms 带一点回弹地回到原位。
-/// - 从屏幕行首的边缘往里拖可以把它拉出来（Android 抽屉的手势；阈值同上）。
+/// - 从屏幕行首的边缘往里拖可以把它拉出来（Android 抽屉的手势；阈值同上）。`edgeOpens` 为 false 时（开着白板，
+///   `NotesUiState.editorCapturesEdgeSwipes`）不装这个手势，触摸全留给主内容；关的手势和菜单键照常。
 /// “减弱动态效果”时不做动画，直接到位。
 private struct AppDrawer<Panel: View, Content: View>: View {
     @Binding var isOpen: Bool
-    let gesturesEnabled: Bool
+    let edgeOpens: Bool
     let panel: Panel
     let content: Content
 
@@ -178,9 +179,9 @@ private struct AppDrawer<Panel: View, Content: View>: View {
     private static var edgeWidth: CGFloat { 24 }
     private static var scrim: Color { Color.black.opacity(0.15) }
 
-    init(isOpen: Binding<Bool>, gesturesEnabled: Bool = true, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
+    init(isOpen: Binding<Bool>, edgeOpens: Bool = true, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
         self._isOpen = isOpen
-        self.gesturesEnabled = gesturesEnabled
+        self.edgeOpens = edgeOpens
         self.panel = panel()
         self.content = content()
     }
@@ -194,7 +195,10 @@ private struct AppDrawer<Panel: View, Content: View>: View {
             ZStack(alignment: .leading) {
                 content
                     .frame(width: proxy.size.width, height: proxy.size.height)
-                    .simultaneousGesture(openGesture(width: width, containerWidth: proxy.size.width, rtl: rtl))
+                    .simultaneousGesture(
+                        openGesture(width: width, containerWidth: proxy.size.width, rtl: rtl),
+                        including: edgeOpens ? .all : .subviews
+                    )
                     .accessibilityHidden(shown > 0)
 
                 Self.scrim
@@ -275,7 +279,7 @@ private struct AppDrawer<Panel: View, Content: View>: View {
             .onChanged { value in
                 if drag == nil {
                     let fromEdge = rtl ? containerWidth - value.startLocation.x : value.startLocation.x
-                    let begins = gesturesEnabled && !isOpen && shown == 0 && fromEdge <= Self.edgeWidth
+                    let begins = edgeOpens && !isOpen && shown == 0 && fromEdge <= Self.edgeWidth
                         && isHorizontal(value) && inward(value, rtl: rtl) > 0 && !ReorderDragSession.isActive
                     drag = begins ? .opening : .ignored
                     if begins { hideKeyboard() }

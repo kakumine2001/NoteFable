@@ -329,13 +329,14 @@ class NoteFableApi(
         return send<PagesResponse>(Request.Builder().url(absoluteUrl("/api/pages/import")).post(body.toRequestBody(JSON))).pages
     }
 
-    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?): String =
+    override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?): String =
         absoluteUrl(
             "/note-embed?page=" + segment(pageId) +
                 (lang?.let { "&lang=$it" } ?: "") +
                 (model?.let { "&model=" + segment(it) } ?: "") +
                 (reasoning?.let { "&reasoning=" + segment(it) } ?: "") +
-                (theme?.let { "&theme=" + segment(it) } ?: ""),
+                (theme?.let { "&theme=" + segment(it) } ?: "") +
+                (reveal?.takeIf { it.isNotBlank() }?.let { "&reveal=" + segment(it) } ?: ""),
         )
 
     /**

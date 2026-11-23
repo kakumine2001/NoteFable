@@ -26,12 +26,16 @@ export type NativeMessage =
   // スライドの放映。start / end で、アプリは横向き・全画面・画面の常時点灯にする（戻す）。slide は見せている枚が替わった（index は 0 から、count は全体の枚数）。
   // canPresent を持つアプリにだけ送る。
   | { type: "presentation"; state: "start" | "slide" | "end"; index: number; count: number }
-  // 書き出したファイル（PDF・PNG・PPTX など）をアプリに渡して保存してもらう。大きいので base64 を 512 KiB ごとに分けて送る。
-  // canSaveFile を持つアプリにだけ送る。fileEnd で保存先を選ぶ画面を出す。途中で失敗したら fileAbort。
+  // 書き出したファイル（ホワイトボードの PNG・SVG・PDF、スライドの PDF・PNG・PPTX など）を、アプリに保存してもらう。canSaveFile を持つアプリにだけ送る。
+  // 大きいファイルを 1 つの文字列にしないよう分けて送る：fileStart → fileChunk（中身の base64、元のバイトで 512 KiB まで、index は 0 から）×n → fileEnd。
+  // fileEnd でアプリが保存先を選ばせる。途中でやめたら fileAbort（src/lib/export-file.ts）。
   | { type: "fileStart"; id: string; name: string; mime: string; size: number }
   | { type: "fileChunk"; id: string; index: number; data: string }
   | { type: "fileEnd"; id: string }
-  | { type: "fileAbort"; id: string };
+  | { type: "fileAbort"; id: string }
+  // ホワイトボードで描く道具（ペン・図形など）を使っているか。アプリはこの間、端の戻るジェスチャーを避ける（Android は端ごとに 200dp まで）。
+  // 古いアプリは知らない種類として無視する。
+  | { type: "drawing"; active: boolean };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
@@ -53,6 +57,9 @@ export type EmbedApi = {
   pageSettings: (page: unknown) => boolean;
   // アプリの設定でアイコンを替えたとき、その値（絵文字 1 つか画像の data URL。null か空文字は既定のロゴ）を渡す。
   appIcon: (icon: unknown) => boolean;
+  // 開いているページの中で、検索で一致したブロック（ノート）・要素（ホワイトボード）まで動かす（URL の reveal と同じ）。
+  // 開き直さずに済むよう、すでに開いているページの検索結果を選んだときにアプリが呼ぶ。ID の形でなければ false。
+  reveal: (target: unknown) => boolean;
   // スライドの操作（アプリの「…」メニュー・戻るボタン）：{ action: "present" | "end" | "next" | "previous" | "goto" | "export", index?, format? }（JSON 文字列でもよい）。
   slides: (command: unknown) => boolean;
 };
@@ -231,13 +238,17 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
+// 検索の一致先（ブロック・要素の ID）の形。
+export const REVEAL_TARGET = /^[A-Za-z0-9_-]{1,120}$/;
+
 // スライドのエディターへ操作を渡す（エディターは notefable:slides-command を聞いている。src/lib/slides/ai-context.ts）。
 export function dispatchSlidesCommand(command: SlidesCommand) {
   window.dispatchEvent(new CustomEvent<SlidesCommand>("notefable:slides-command", { detail: command }));
 }
 
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, language, post }: {
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
+  reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
   theme?: (value: ThemePreference) => unknown;
   draftKept?: () => boolean;
@@ -270,6 +281,11 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       return ok;
     },
     openHistory() { openHistory(); },
+    reveal(value) {
+      if (typeof value !== "string" || !REVEAL_TARGET.test(value)) return false;
+      reveal(value);
+      return true;
+    },
     pageUpdated(value) {
       const page = parseUpdatedPage(value);
       if (!page) return false;

@@ -244,7 +244,7 @@ export const ptBRServer: Record<string, string> = {
   "Unknown page kind.": "Tipo de página desconhecido.",
   "Only notes can be exported as Markdown.": "Só notas podem ser exportadas em Markdown.",
   "Font, text size and width can only be changed for notes.": "Fonte, tamanho do texto e largura só podem ser alterados em notas.",
-  "Whiteboards and slide decks can't be published yet.": "Quadros brancos e apresentações ainda não podem ser publicados.",
+  "This page type can't be published yet.": "Este tipo de página ainda não pode ser publicado.",
   "This page can't be edited in this version of NoteFable.": "Esta página não pode ser editada nesta versão do NoteFable.",
   "These pages are too large to duplicate at once.": "Estas páginas são grandes demais para duplicar de uma só vez.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Não há espaço de armazenamento suficiente. Entre para ter mais espaço ou exclua os arquivos de que você não precisa mais.",

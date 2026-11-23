@@ -495,6 +495,27 @@ final class NotesViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testASearchHitOpensThePageWithTheBlockToRevealOnlyForThatOpen() async {
+        let vm = await notesVm()
+        vm.flushEditor = { FlushResult(true) }
+        // 列表里有：标题、图标、类型取列表的，命中的块带着。
+        vm.openNote("a", title: "Old title", icon: nil, kind: .note, reveal: "block-7")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("a", "Cell structure", "🧬", reveal: "block-7"))
+        // 列表里没有（检索结果，列表可能还没读过）。
+        vm.openNote("w", title: "Board", icon: nil, kind: .whiteboard, reveal: "element-1")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("w", "Board", nil, kind: .whiteboard, reveal: "element-1"))
+        // 冲突后换到副本（不重新加载）、普通的打开都不再定位。
+        vm.onEditorMessage("w", .ready(id: "w-copy", title: "Board (1)", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.open, OpenNote("w-copy", "Board (1)", nil, editor: "w", kind: .whiteboard))
+        await notesSettle()
+        vm.openNote("b")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("b", "Japanese verbs", nil))
+    }
+
+    @MainActor
     func testTheReadyMessageCorrectsTheKindOfTheListEntryToo() async {
         // 旧服务端没返回类型的列表（仍是笔记）也按网页 ready 带来的类型改正；别的编辑器的 ready 不改。
         let backend = NotesTestBackend()

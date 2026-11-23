@@ -129,6 +129,24 @@ final class NoteIconTests: XCTestCase {
     }
 
     @MainActor
+    func testASearchHitOpenedWhileItsIconIsSavingStillRevealsItsBlock() async {
+        let gate = NoteDeferred<Bool>()
+        let vm = await notesVm(NotesTestIcons { id, icon in
+            _ = await gate.wait()
+            return NotePageSummary(id: id, title: "Bio", icon: icon, version: 4)
+        })
+
+        Task { _ = await vm.changeIcon("a", "🧬") }
+        await notesSettle()
+        vm.openNote("a", title: "Bio", icon: nil, reveal: "block-2")
+        await notesSettle()
+        gate.complete(true)
+        await notesSettle()
+        // 等完写入后改用列表里的新版本（新图标），检索命中的块照样带着。
+        XCTAssertEqual(vm.state.open, OpenNote("a", "Bio", "🧬", reveal: "block-2"))
+    }
+
+    @MainActor
     func testAnIconWriteFromTheOldIdentityIsDroppedAndDoesNotBlockTheNewOne() async {
         let gates = NotesTestBox<[NoteDeferred<Bool>]>([])
         let vm = await notesVm(NotesTestIcons { id, icon in

@@ -12,4 +12,7 @@
     <string name="answer_download_failed">Could not download the conversation. Try again.</string>
     <string name="answer_save_failed">Could not save to page. Try again.</string>
     <string name="answer_save_too_large">This answer is too large to save as a note.</string>
+    <!-- 白板（#152）：网页导出的文件（PNG / SVG / PDF）经桥接交给 App 保存后的提示。 -->
+    <string name="export_file_saved">File saved.</string>
+    <string name="export_file_failed">Could not save the file.</string>
 </resources>

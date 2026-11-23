@@ -16,6 +16,9 @@ export class NoteSaveQueue {
   latest?: NotePage;
   // 最後の保存が 404（別の端末でゴミ箱に入れた・完全に削除した）で失敗した。再送しても通らない。
   gone = false;
+  // サーバーの版で中身を置き換えた回数（loadLatest：最新の版を読む・版の復元・別の場所での変更）。置き換える前に開いていた
+  // エディターが閉じる時に渡してくる古い変更を、これで見分けて捨てる（NotesWorkspace）。
+  generation = 0;
   private revision = 0;
   private savedRevision = 0;
   private timer?: ReturnType<typeof setTimeout>;
@@ -105,6 +108,7 @@ export class NoteSaveQueue {
 
   loadLatest(page: NotePage) {
     clearTimeout(this.timer);
+    this.generation++;
     this.page = page;
     this.version = page.version;
     this.content = noteContentOf(page);

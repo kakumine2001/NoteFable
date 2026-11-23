@@ -7,6 +7,4 @@
     <string name="slides_export_pdf_notes">匯出帶演講備註的 PDF</string>
     <string name="slides_export_png">匯出 PNG 圖片</string>
     <string name="slides_export_pptx">匯出 PowerPoint（PPTX）</string>
-    <string name="slides_file_saved">檔案已儲存。</string>
-    <string name="slides_file_save_failed">無法儲存檔案。</string>
 </resources>

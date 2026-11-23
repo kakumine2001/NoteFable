@@ -23,6 +23,7 @@
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合；Google / 邮箱登录配置
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史、Markdown 导出 / 导入、笔记里的 AI 助手（选中文字提问与对话恢复）
+   - [whiteboard.md](whiteboard.md) — 白板：Excalidraw 开发版快照、自己的工具栏、保存与图片、PDF 导入、PNG / SVG / PDF 导出、公开只读链接、App 里的手势与文件保存
    - [slides.md](slides.md) — 幻灯片：数据形状、编辑器（版式、主题、富文本与公式、自由摆放）、图片（上传、聊天里的图片、AI 生成）、放映与演讲者视图、PDF / PNG / PPTX 导出、公开放映链接、App 里的放映与文件保存
 8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐

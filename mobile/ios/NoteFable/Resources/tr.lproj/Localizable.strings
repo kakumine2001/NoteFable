@@ -366,6 +366,8 @@
 "answer_download_failed" = "Konuşma indirilemedi. Tekrar deneyin.";
 "answer_save_failed" = "Not olarak kaydedilemedi. Tekrar deneyin.";
 "answer_save_too_large" = "Bu yanıt not olarak kaydedilemeyecek kadar uzun.";
+"export_file_saved" = "Dosya kaydedildi.";
+"export_file_failed" = "Dosya kaydedilemedi.";
 
 /* strings_i18n.xml */
 "ui_locale" = "tr";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Konuşmacı notlarıyla PDF olarak dışa aktar";
 "slides_export_png" = "PNG görseller olarak dışa aktar";
 "slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
-"slides_file_saved" = "Dosya kaydedildi.";
-"slides_file_save_failed" = "Dosya kaydedilemedi.";
 
 /* strings_turns.xml */
 "regenerate" = "Yeniden oluştur";

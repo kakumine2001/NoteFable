@@ -131,6 +131,8 @@ npm run build
 
 Vercel 的 `vercel.json` build command 会先运行 `npm run prisma:migrate`，再运行 `npm run build`；本地单独执行 `npm run build` 不会自动迁移数据库。
 
+`npm run build` 和 `npm run dev` 之前会先跑 `scripts/copy-whiteboard-assets.mjs`（`prebuild` / `predev`）：把白板用的 Excalidraw 字体和 pdf.js 的 worker 从 `node_modules` 写到 `public/whiteboard/`（不进仓库，随静态文件部署），白板不从 CDN 读字体（[whiteboard.md](whiteboard.md)）。没有新的环境变量。
+
 ### Migration
 
 代码库有 migration retry wrapper，用来处理 Neon 短暂连接问题。

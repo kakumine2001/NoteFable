@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Konuşma indirilemedi. Tekrar deneyin.</string>
     <string name="answer_save_failed">Not olarak kaydedilemedi. Tekrar deneyin.</string>
     <string name="answer_save_too_large">Bu yanıt not olarak kaydedilemeyecek kadar uzun.</string>
+    <string name="export_file_saved">Dosya kaydedildi.</string>
+    <string name="export_file_failed">Dosya kaydedilemedi.</string>
 </resources>

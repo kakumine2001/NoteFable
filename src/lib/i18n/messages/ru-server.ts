@@ -244,7 +244,7 @@ export const ruServer: Record<string, string> = {
   "Unknown page kind.": "Неизвестный тип страницы.",
   "Only notes can be exported as Markdown.": "В Markdown можно экспортировать только заметки.",
   "Font, text size and width can only be changed for notes.": "Шрифт, размер текста и ширину можно менять только у заметок.",
-  "Whiteboards and slide decks can't be published yet.": "Доски и презентации пока нельзя опубликовать.",
+  "This page type can't be published yet.": "Страницы этого типа пока нельзя опубликовать.",
   "This page can't be edited in this version of NoteFable.": "Эту страницу нельзя редактировать в этой версии NoteFable.",
   "These pages are too large to duplicate at once.": "Эти страницы слишком большие, чтобы скопировать их за один раз.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Осталось недостаточно места в хранилище. Войдите, чтобы получить больше места, или удалите ненужные файлы.",

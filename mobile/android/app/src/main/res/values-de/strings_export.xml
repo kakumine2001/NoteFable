@@ -12,4 +12,6 @@
     <string name="answer_download_failed">Die Unterhaltung konnte nicht heruntergeladen werden. Versuche es erneut.</string>
     <string name="answer_save_failed">Konnte nicht als Notiz gespeichert werden. Versuche es erneut.</string>
     <string name="answer_save_too_large">Diese Antwort ist zu umfangreich, um als Notiz gespeichert zu werden.</string>
+    <string name="export_file_saved">Datei gespeichert.</string>
+    <string name="export_file_failed">Die Datei konnte nicht gespeichert werden.</string>
 </resources>

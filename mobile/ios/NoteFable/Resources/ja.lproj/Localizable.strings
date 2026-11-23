@@ -366,6 +366,8 @@
 "answer_download_failed" = "会話をダウンロードできませんでした。もう一度お試しください。";
 "answer_save_failed" = "ノートとして保存できませんでした。もう一度お試しください。";
 "answer_save_too_large" = "回答が長すぎるため、ノートとして保存できません。";
+"export_file_saved" = "ファイルを保存しました。";
+"export_file_failed" = "ファイルを保存できませんでした。";
 
 /* strings_i18n.xml */
 "ui_locale" = "ja";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "発表者ノート付きの PDF に書き出す";
 "slides_export_png" = "PNG 画像に書き出す";
 "slides_export_pptx" = "PowerPoint（PPTX）に書き出す";
-"slides_file_saved" = "ファイルを保存しました。";
-"slides_file_save_failed" = "ファイルを保存できませんでした。";
 
 /* strings_turns.xml */
 "regenerate" = "回答を再生成";

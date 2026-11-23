@@ -366,6 +366,8 @@
 "answer_download_failed" = "Could not download the conversation. Try again.";
 "answer_save_failed" = "Could not save to page. Try again.";
 "answer_save_too_large" = "This answer is too large to save as a note.";
+"export_file_saved" = "File saved.";
+"export_file_failed" = "Could not save the file.";
 
 /* strings_i18n.xml */
 "ui_locale" = "en";
@@ -586,8 +588,6 @@
 "slides_export_pdf_notes" = "Export PDF with speaker notes";
 "slides_export_png" = "Export PNG images";
 "slides_export_pptx" = "Export PowerPoint (PPTX)";
-"slides_file_saved" = "File saved.";
-"slides_file_save_failed" = "Could not save the file.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerate";

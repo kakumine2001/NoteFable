@@ -244,7 +244,7 @@ export const thServer: Record<string, string> = {
   "Unknown page kind.": "ไม่รู้จักประเภทหน้านี้",
   "Only notes can be exported as Markdown.": "ส่งออกเป็น Markdown ได้เฉพาะโน้ตเท่านั้น",
   "Font, text size and width can only be changed for notes.": "เปลี่ยนแบบอักษร ขนาดตัวอักษร และความกว้างได้เฉพาะโน้ตเท่านั้น",
-  "Whiteboards and slide decks can't be published yet.": "ยังเผยแพร่ไวท์บอร์ดและชุดสไลด์ไม่ได้",
+  "This page type can't be published yet.": "ยังเผยแพร่หน้าประเภทนี้ไม่ได้",
   "This page can't be edited in this version of NoteFable.": "แก้ไขหน้านี้ใน NoteFable เวอร์ชันนี้ไม่ได้",
   "These pages are too large to duplicate at once.": "หน้าเหล่านี้ใหญ่เกินกว่าจะทำสำเนาในครั้งเดียว",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "พื้นที่จัดเก็บเหลือไม่พอ ลงชื่อเข้าใช้เพื่อรับพื้นที่เพิ่ม หรือลบไฟล์ที่ไม่ต้องการแล้ว",
