@@ -266,6 +266,31 @@
 "image_download" = "Скачать изображение";
 "generated_image" = "Сгенерированное изображение";
 "ai_reply" = "Ответ ИИ";
+"proposal_report" = "Пожаловаться на контент ИИ";
+"proposal_undo" = "Отменить";
+"proposal_undone" = "Отменено";
+"proposal_undo_failed" = "Не удалось отменить изменение.";
+"proposal_applied_auto" = "Применено автоматически";
+"proposal_created_auto" = "Создано автоматически";
+"proposal_moved_to_trash" = "Страница перемещена в корзину.";
+"proposal_open_page" = "Открыть страницу";
+"proposal_new_page_label" = "Предложенная новая страница";
+"proposal_edit_page_label" = "Предложенная правка страницы";
+"proposal_new_whiteboard_title" = "Новая доска «%1$s»";
+"proposal_new_slides_title" = "Новые слайды «%1$s»";
+"proposal_create_whiteboard" = "Создать доску";
+"proposal_create_slides" = "Создать слайды";
+"proposal_empty_page" = "Пустая страница";
+"proposal_inside" = "Внутри «%1$s»";
+"proposal_op_add" = "Добавить";
+"proposal_op_update" = "Изменить";
+"proposal_op_move" = "Переместить";
+"proposal_op_reorder" = "Изменить порядок";
+"proposal_op_slide" = "%1$s · слайд %2$s";
+"proposal_op_named" = "%1$s · «%2$s»";
+"proposal_op_elements" = "%1$s · элементов: %2$s";
+"proposal_before" = "До";
+"proposal_after" = "После";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Прикрепить страницы";
@@ -443,6 +468,8 @@
 "report_sending" = "Отправка…";
 "report_sent" = "Отчёт отправлен. Спасибо.";
 "report_failed" = "Не удалось отправить отчёт.";
+"report_ai_content" = "Пожаловаться на контент ИИ";
+"report_ai_help" = "Расскажите, что не так с этим контентом ИИ. Жалоба будет отправлена команде NoteFable вместе с контентом.";
 
 /* strings_search.xml */
 "search" = "Поиск";

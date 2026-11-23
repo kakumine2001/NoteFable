@@ -9,4 +9,6 @@
     <string name="report_sending">جارٍ الإرسال…</string>
     <string name="report_sent">تم إرسال البلاغ. شكراً لك.</string>
     <string name="report_failed">تعذّر إرسال البلاغ.</string>
+    <string name="report_ai_content">الإبلاغ عن محتوى الذكاء الاصطناعي</string>
+    <string name="report_ai_help">أخبرنا بما هو خطأ في محتوى الذكاء الاصطناعي هذا. يُرسَل البلاغ إلى فريق NoteFable مع المحتوى.</string>
 </resources>

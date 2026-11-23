@@ -266,6 +266,31 @@
 "image_download" = "इमेज डाउनलोड करें";
 "generated_image" = "बनाई गई इमेज";
 "ai_reply" = "AI का जवाब";
+"proposal_report" = "AI सामग्री की रिपोर्ट करें";
+"proposal_undo" = "पूर्ववत करें";
+"proposal_undone" = "पूर्ववत किया गया";
+"proposal_undo_failed" = "बदलाव पूर्ववत नहीं हो सका।";
+"proposal_applied_auto" = "अपने आप लागू किया गया";
+"proposal_created_auto" = "अपने आप बनाया गया";
+"proposal_moved_to_trash" = "पेज ट्रैश में भेज दिया गया।";
+"proposal_open_page" = "पेज खोलें";
+"proposal_new_page_label" = "नए पेज का सुझाव";
+"proposal_edit_page_label" = "पेज संपादन का सुझाव";
+"proposal_new_whiteboard_title" = "नया व्हाइटबोर्ड “%1$s”";
+"proposal_new_slides_title" = "नई स्लाइड “%1$s”";
+"proposal_create_whiteboard" = "व्हाइटबोर्ड बनाएँ";
+"proposal_create_slides" = "स्लाइड बनाएँ";
+"proposal_empty_page" = "खाली पेज";
+"proposal_inside" = "“%1$s” के अंदर";
+"proposal_op_add" = "जोड़ें";
+"proposal_op_update" = "अपडेट करें";
+"proposal_op_move" = "खिसकाएँ";
+"proposal_op_reorder" = "क्रम बदलें";
+"proposal_op_slide" = "%1$s · स्लाइड %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s तत्व";
+"proposal_before" = "पहले";
+"proposal_after" = "बाद में";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "पेज अटैच करें";
@@ -443,6 +468,8 @@
 "report_sending" = "भेजा जा रहा है…";
 "report_sent" = "रिपोर्ट भेज दी गई। धन्यवाद।";
 "report_failed" = "रिपोर्ट भेजी नहीं जा सकी।";
+"report_ai_content" = "AI सामग्री की रिपोर्ट करें";
+"report_ai_help" = "बताएँ कि इस AI सामग्री में क्या गलत है। यह सामग्री के साथ NoteFable टीम को भेजी जाएगी।";
 
 /* strings_search.xml */
 "search" = "खोजें";

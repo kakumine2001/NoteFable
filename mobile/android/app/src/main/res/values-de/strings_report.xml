@@ -9,4 +9,6 @@
     <string name="report_sending">Wird gesendet…</string>
     <string name="report_sent">Meldung gesendet. Vielen Dank.</string>
     <string name="report_failed">Die Meldung konnte nicht gesendet werden.</string>
+    <string name="report_ai_content">KI-Inhalt melden</string>
+    <string name="report_ai_help">Sag uns, was an diesem KI-Inhalt nicht stimmt. Die Meldung wird zusammen mit dem Inhalt an das NoteFable-Team gesendet.</string>
 </resources>

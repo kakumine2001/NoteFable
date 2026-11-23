@@ -266,6 +266,31 @@
 "image_download" = "Download image";
 "generated_image" = "Generated image";
 "ai_reply" = "AI reply";
+"proposal_report" = "Report AI content";
+"proposal_undo" = "Undo";
+"proposal_undone" = "Undone";
+"proposal_undo_failed" = "Could not undo the change.";
+"proposal_applied_auto" = "Applied automatically";
+"proposal_created_auto" = "Created automatically";
+"proposal_moved_to_trash" = "The page was moved to Trash.";
+"proposal_open_page" = "Open the page";
+"proposal_new_page_label" = "Proposed new page";
+"proposal_edit_page_label" = "Proposed page edit";
+"proposal_new_whiteboard_title" = "New whiteboard “%1$s”";
+"proposal_new_slides_title" = "New slide deck “%1$s”";
+"proposal_create_whiteboard" = "Create whiteboard";
+"proposal_create_slides" = "Create slide deck";
+"proposal_empty_page" = "Empty page";
+"proposal_inside" = "Inside “%1$s”";
+"proposal_op_add" = "Add";
+"proposal_op_update" = "Update";
+"proposal_op_move" = "Move";
+"proposal_op_reorder" = "Reorder";
+"proposal_op_slide" = "%1$s · slide %2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s elements";
+"proposal_before" = "Before";
+"proposal_after" = "After";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Attach pages";
@@ -443,6 +468,8 @@
 "report_sending" = "Sending…";
 "report_sent" = "Report sent. Thank you.";
 "report_failed" = "Could not send the report.";
+"report_ai_content" = "Report AI content";
+"report_ai_help" = "Tell us what’s wrong with this AI content. It is sent to the NoteFable team together with the content.";
 
 /* strings_search.xml */
 "search" = "Search";

@@ -9,4 +9,6 @@
     <string name="report_sending">Gönderiliyor…</string>
     <string name="report_sent">Bildiriminiz gönderildi. Teşekkürler.</string>
     <string name="report_failed">Bildirim gönderilemedi.</string>
+    <string name="report_ai_content">Yapay zekâ içeriğini bildir</string>
+    <string name="report_ai_help">Bu yapay zekâ içeriğinde neyin yanlış olduğunu bize söyleyin. İçerikle birlikte NoteFable ekibine gönderilir.</string>
 </resources>

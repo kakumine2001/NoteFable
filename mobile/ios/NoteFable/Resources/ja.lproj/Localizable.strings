@@ -266,6 +266,31 @@
 "image_download" = "画像をダウンロード";
 "generated_image" = "生成された画像";
 "ai_reply" = "AIの返答";
+"proposal_report" = "AI の内容を報告";
+"proposal_undo" = "元に戻す";
+"proposal_undone" = "元に戻しました";
+"proposal_undo_failed" = "変更を元に戻せませんでした。";
+"proposal_applied_auto" = "自動で適用済み";
+"proposal_created_auto" = "自動で作成済み";
+"proposal_moved_to_trash" = "ページをゴミ箱に移動しました。";
+"proposal_open_page" = "ページを開く";
+"proposal_new_page_label" = "新しいページの作成案";
+"proposal_edit_page_label" = "ページの編集案";
+"proposal_new_whiteboard_title" = "新しいホワイトボード「%1$s」";
+"proposal_new_slides_title" = "新しいスライド「%1$s」";
+"proposal_create_whiteboard" = "ホワイトボードを作成";
+"proposal_create_slides" = "スライドを作成";
+"proposal_empty_page" = "空のページ";
+"proposal_inside" = "「%1$s」の中";
+"proposal_op_add" = "追加";
+"proposal_op_update" = "更新";
+"proposal_op_move" = "移動";
+"proposal_op_reorder" = "並べ替え";
+"proposal_op_slide" = "%1$s・スライド %2$s";
+"proposal_op_named" = "%1$s・「%2$s」";
+"proposal_op_elements" = "%1$s・要素 %2$s 個";
+"proposal_before" = "変更前";
+"proposal_after" = "変更後";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "ページを添付";
@@ -443,6 +468,8 @@
 "report_sending" = "送信中…";
 "report_sent" = "報告を送信しました。ありがとうございます。";
 "report_failed" = "報告を送信できませんでした。";
+"report_ai_content" = "AI の内容を報告";
+"report_ai_help" = "この AI の内容のどこに問題があるか教えてください。内容と一緒に NoteFable チームに送信されます。";
 
 /* strings_search.xml */
 "search" = "検索";

@@ -9,4 +9,6 @@
     <string name="report_sending">Đang gửi…</string>
     <string name="report_sent">Đã gửi báo cáo. Cảm ơn bạn.</string>
     <string name="report_failed">Không thể gửi báo cáo.</string>
+    <string name="report_ai_content">Báo cáo nội dung AI</string>
+    <string name="report_ai_help">Hãy cho chúng tôi biết nội dung AI này có vấn đề gì. Báo cáo sẽ được gửi đến đội ngũ NoteFable cùng với nội dung đó.</string>
 </resources>

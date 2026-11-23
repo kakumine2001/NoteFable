@@ -266,6 +266,31 @@
 "image_download" = "Télécharger l’image";
 "generated_image" = "Image générée";
 "ai_reply" = "Réponse de l’IA";
+"proposal_report" = "Signaler un contenu d’IA";
+"proposal_undo" = "Annuler";
+"proposal_undone" = "Annulé";
+"proposal_undo_failed" = "Impossible d’annuler la modification.";
+"proposal_applied_auto" = "Appliqué automatiquement";
+"proposal_created_auto" = "Créé automatiquement";
+"proposal_moved_to_trash" = "La page a été déplacée dans la corbeille.";
+"proposal_open_page" = "Ouvrir la page";
+"proposal_new_page_label" = "Nouvelle page proposée";
+"proposal_edit_page_label" = "Modification de page proposée";
+"proposal_new_whiteboard_title" = "Nouveau tableau blanc « %1$s »";
+"proposal_new_slides_title" = "Nouvelles diapositives « %1$s »";
+"proposal_create_whiteboard" = "Créer un tableau blanc";
+"proposal_create_slides" = "Créer des diapositives";
+"proposal_empty_page" = "Page vide";
+"proposal_inside" = "Dans « %1$s »";
+"proposal_op_add" = "Ajouter";
+"proposal_op_update" = "Mettre à jour";
+"proposal_op_move" = "Déplacer";
+"proposal_op_reorder" = "Réorganiser";
+"proposal_op_slide" = "%1$s · diapositive %2$s";
+"proposal_op_named" = "%1$s · « %2$s »";
+"proposal_op_elements" = "%1$s · %2$s éléments";
+"proposal_before" = "Avant";
+"proposal_after" = "Après";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Joindre des pages";
@@ -443,6 +468,8 @@
 "report_sending" = "Envoi…";
 "report_sent" = "Signalement envoyé. Merci.";
 "report_failed" = "Impossible d’envoyer le signalement.";
+"report_ai_content" = "Signaler un contenu d’IA";
+"report_ai_help" = "Dites-nous ce qui ne va pas avec ce contenu d’IA. Il est envoyé à l’équipe NoteFable avec le contenu.";
 
 /* strings_search.xml */
 "search" = "Rechercher";
