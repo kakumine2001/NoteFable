@@ -22,12 +22,25 @@ export type NativeMessage =
   | { type: "flushed"; requestId: string; ok: boolean; kept?: boolean }
   // ファイル置き場の容量が足りず、画像・ファイル・カバーのアップロードが断られた（used / limit はバイト）。
   // アプリは自分の画面で理由と、ログイン・アップグレードの案内を出す。canShowStorageLimit を持つアプリにだけ送る。
-  | { type: "storageLimit"; tier: UsageTier; used: number; limit: number };
+  | { type: "storageLimit"; tier: UsageTier; used: number; limit: number }
+  // スライドの放映。start / end で、アプリは横向き・全画面・画面の常時点灯にする（戻す）。slide は見せている枚が替わった（index は 0 から、count は全体の枚数）。
+  // canPresent を持つアプリにだけ送る。
+  | { type: "presentation"; state: "start" | "slide" | "end"; index: number; count: number }
+  // 書き出したファイル（PDF・PNG・PPTX など）をアプリに渡して保存してもらう。大きいので base64 を 512 KiB ごとに分けて送る。
+  // canSaveFile を持つアプリにだけ送る。fileEnd で保存先を選ぶ画面を出す。途中で失敗したら fileAbort。
+  | { type: "fileStart"; id: string; name: string; mime: string; size: number }
+  | { type: "fileChunk"; id: string; index: number; data: string }
+  | { type: "fileEnd"; id: string }
+  | { type: "fileAbort"; id: string };
 
 // appIcon はアプリの設定で選んだアイコン（絵文字 1 つか画像の data URL、既定のロゴは空文字）を返す。古いアプリにはない。
 // canOpenPage は openPage を処理できるアプリだけが持つ（古いアプリは持たない。そのときは送らずに元のリンクの動きにする）。
 // canShowStorageLimit は storageLimit を処理できるアプリだけが持つ（古いアプリには送らず、WebView の中に理由だけを出す）。
-export type NativeHost = { postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean };
+// canPresent は放映（presentation）を、canSaveFile はファイルの保存（fileStart…fileEnd）を受け持てるアプリだけが持つ。
+export type NativeHost = {
+  postMessage: (json: string) => void; appIcon?: () => string; language?: () => string; theme?: () => string; canOpenPage?: () => boolean; canShowStorageLimit?: () => boolean;
+  canPresent?: () => boolean; canSaveFile?: () => boolean;
+};
 // アプリ → web。アプリは evaluateJavascript で window.notefableEmbed.flush("<requestId>") などを呼ぶ。
 // pageUpdated はアプリのチャットで編集案を適用したときに、サーバーが返した新しいページ（JSON 文字列かオブジェクト）を渡す。
 export type EmbedApi = {
@@ -40,6 +53,8 @@ export type EmbedApi = {
   pageSettings: (page: unknown) => boolean;
   // アプリの設定でアイコンを替えたとき、その値（絵文字 1 つか画像の data URL。null か空文字は既定のロゴ）を渡す。
   appIcon: (icon: unknown) => boolean;
+  // スライドの操作（アプリの「…」メニュー・戻るボタン）：{ action: "present" | "end" | "next" | "previous" | "goto" | "export", index?, format? }（JSON 文字列でもよい）。
+  slides: (command: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -100,6 +115,43 @@ export function nativeCanShowStorageLimit(target: BridgeWindow | undefined = bro
   const native = host(target);
   if (!native || typeof native.canShowStorageLimit !== "function") return false;
   try { return native.canShowStorageLimit() === true; } catch { return false; }
+}
+
+// アプリが放映（横向き・全画面・常時点灯）を受け持てるか。古いアプリや普通のブラウザでは false（そのときは WebView の中だけで放映する）。
+export function nativeCanPresent(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canPresent !== "function") return false;
+  try { return native.canPresent() === true; } catch { return false; }
+}
+
+// アプリが書き出したファイルを保存できるか。古いアプリや普通のブラウザでは false（ブラウザのダウンロードにする）。
+export function nativeCanSaveFile(target: BridgeWindow | undefined = browserWindow()): boolean {
+  const native = host(target);
+  if (!native || typeof native.canSaveFile !== "function") return false;
+  try { return native.canSaveFile() === true; } catch { return false; }
+}
+
+export type SlidesCommand = { action: "present" | "end" | "next" | "previous" | "goto" | "export"; index?: number; format?: "pdf" | "pdf-notes" | "png" | "pptx" };
+const SLIDES_ACTIONS = ["present", "end", "next", "previous", "goto", "export"];
+const EXPORT_FORMATS = ["pdf", "pdf-notes", "png", "pptx"];
+
+// アプリから渡されたスライドの操作を確かめる。知らない操作・形式は捨てる。
+export function parseSlidesCommand(value: unknown): SlidesCommand | null {
+  let command: unknown = value;
+  if (typeof command === "string") {
+    try { command = JSON.parse(command); } catch { command = { action: command }; }
+  }
+  if (!command || typeof command !== "object") return null;
+  const candidate = command as { action?: unknown; index?: unknown; format?: unknown };
+  if (typeof candidate.action !== "string" || !SLIDES_ACTIONS.includes(candidate.action)) return null;
+  const result: SlidesCommand = { action: candidate.action as SlidesCommand["action"] };
+  if (typeof candidate.index === "number" && Number.isSafeInteger(candidate.index) && candidate.index >= 0) result.index = candidate.index;
+  if (candidate.action === "goto" && result.index === undefined) return null;
+  if (candidate.action === "export") {
+    if (typeof candidate.format !== "string" || !EXPORT_FORMATS.includes(candidate.format)) return null;
+    result.format = candidate.format as SlidesCommand["format"];
+  }
+  return result;
 }
 
 export function readNativeLanguage(target: BridgeWindow | undefined = browserWindow()): Locale | null {
@@ -174,7 +226,12 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, language, post }: {
+// スライドのエディターへ操作を渡す（エディターは notefable:slides-command を聞いている。src/lib/slides/ai-context.ts）。
+export function dispatchSlidesCommand(command: SlidesCommand) {
+  window.dispatchEvent(new CustomEvent<SlidesCommand>("notefable:slides-command", { detail: command }));
+}
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, slides = dispatchSlidesCommand, language, post }: {
   flush: () => Promise<boolean>;
   language?: (locale: Locale) => Promise<boolean>;
   theme?: (value: ThemePreference) => unknown;
@@ -184,6 +241,7 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
   pageSettings?: (page: PageMetaUpdate) => void;
   // 既定では web の設定と同じ場所（この WebView の localStorage）に書き、表示中のアイコンをその場で替える。
   appIcon?: (icon: string | null) => unknown;
+  slides?: (command: SlidesCommand) => void;
   post: (message: NativeMessage) => void;
 }): EmbedApi {
   return {
@@ -223,6 +281,12 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       const icon = parseAppIcon(value);
       if (icon === undefined) return false;
       appIcon(icon);
+      return true;
+    },
+    slides(value) {
+      const command = parseSlidesCommand(value);
+      if (!command) return false;
+      slides(command);
       return true;
     },
   };
