@@ -1,6 +1,6 @@
 import Foundation
 
-// 回答前的过程（推理摘要、联网搜索、笔记工具、项目上下文）与 AI 的笔记提案。
+// 回答前的过程（推理摘要、联网搜索、笔记工具、项目上下文）与 AI 对页面（笔记、白板、幻灯片）的提案。
 // 移植自网页 src/lib/chat-activity.ts（Android data/Activity.kt）：applyActivityEvent 的合并规则、parseStoredActivity 的校验、
 // splitThought、hostOf，单元测试（ActivityTests）与 src/lib/chat-activity.test.ts、Android 的 ActivityTest 逐条对应。三边一起改。
 
@@ -24,19 +24,46 @@ struct ContextInfo: Equatable, Sendable {
     let notes: [ContextNote]
 }
 
-/// 笔记编辑提案里的一处改动（`src/lib/page-edit.ts` 的 PageEditChange）。
+/// 提案里一处改动的操作（网页 src/lib/page-ai/types.ts 的 ProposalOp）。笔记只用前三种，白板、幻灯片还用后四种。
+enum ProposalOp: String, CaseIterable, Sendable {
+    case replace
+    case insertAfter = "insert_after"
+    case delete
+    case add
+    case update
+    case move
+    case reorder
+
+    /// 不认识的操作（以后的服务端加的）按 update 显示。
+    static func of(_ value: String) -> ProposalOp {
+        ProposalOp(rawValue: value) ?? .update
+    }
+}
+
+/// 改动的对象（types.ts 的 ProposalTarget）：笔记用块编号（[ProposalChange.block]），没有它；
+/// 幻灯片是第几张（从 1 起），白板是元素（只有一个时 [name] 是它的文字，几个时只有个数）。
+enum ProposalChangeTarget: Equatable, Sendable {
+    case slide(number: Int)
+    case elements(count: Int, name: String? = nil)
+}
+
+/// 提案里的一处改动（types.ts 的 ProposalChange，服务端各页面类型的适配器做好的形状，卡片照着显示，不分类型）。
 struct ProposalChange: Equatable, Sendable {
-    /// `replace`、`insert_after` 或 `delete`。
-    let op: String
-    /// read_note 里看到的块编号；0 表示插在开头。
+    let op: ProposalOp
+    /// 笔记 read_note 里看到的块编号；0 表示插在开头。别的类型总是 0。
     let block: Int
+    var target: ProposalChangeTarget? = nil
+    /// 改前、改后的文字（笔记是 Markdown，别的类型是读得出的文字）。插入、添加没有改前，删除没有改后。
     var before: String? = nil
     var after: String? = nil
+    /// 改前、改后的缩略图（白板、幻灯片）：本站的相对地址 `/api/proposals/:id/image?change=n&side=…`，要带 App 的 Cookie 读。
+    var beforeImage: String? = nil
+    var afterImage: String? = nil
     var dropsFormatting: Bool = false
     var dropsMedia: Bool = false
 }
 
-/// AI 的笔记提案：编辑已有笔记或新建笔记。`status` 只有服务端保存过的提案才有。
+/// AI 对页面的提案：编辑已有页面或新建页面（笔记、白板、幻灯片同一个形状）。`status` 只有服务端保存过的提案才有。
 enum Proposal: Equatable, Identifiable, Sendable {
     case edit(Edit)
     case create(Create)
@@ -49,18 +76,34 @@ enum Proposal: Equatable, Identifiable, Sendable {
         var titleBefore: String? = nil
         var titleAfter: String? = nil
         var changes: [ProposalChange] = []
+        /// `pending` / `applied` / `discarded` / `undone`。
         var status: String? = nil
         var appliedPageId: String? = nil
+        /// 要改的页面的类型（旧服务端不给：笔记）。
+        var pageKind: PageKind = .note
+        /// 页面 AI 面板开着"自动应用"：没经确认就应用了。
+        var autoApplied: Bool = false
+        /// 服务端说能撤销（已应用、记着应用时的版本）。真能不能撤销，按下时服务端再查。
+        var undoable: Bool = false
     }
 
     struct Create: Equatable, Sendable {
         let id: String
         let title: String
         var icon: String? = nil
-        /// 要显示的正文 Markdown。
+        /// 要显示的正文（笔记是 Markdown，别的类型是读得出的文字）。
         let content: String
         var status: String? = nil
         var appliedPageId: String? = nil
+        /// 建成子页面时的父页面。[parentTitle] 有值（可以是空字符串）才显示"在“…”里"。
+        var parentId: String? = nil
+        var parentTitle: String? = nil
+        /// 正文以外要给人看的改动（白板、幻灯片的缩略图等）。
+        var changes: [ProposalChange] = []
+        /// 要建的页面的类型（旧服务端不给：笔记）。
+        var pageKind: PageKind = .note
+        var autoApplied: Bool = false
+        var undoable: Bool = false
     }
 
     var id: String {
@@ -81,6 +124,35 @@ enum Proposal: Equatable, Identifiable, Sendable {
         switch self {
         case .edit(let edit): return edit.appliedPageId
         case .create(let create): return create.appliedPageId
+        }
+    }
+
+    var pageKind: PageKind {
+        switch self {
+        case .edit(let edit): return edit.pageKind
+        case .create(let create): return create.pageKind
+        }
+    }
+
+    var autoApplied: Bool {
+        switch self {
+        case .edit(let edit): return edit.autoApplied
+        case .create(let create): return create.autoApplied
+        }
+    }
+
+    var undoable: Bool {
+        switch self {
+        case .edit(let edit): return edit.undoable
+        case .create(let create): return create.undoable
+        }
+    }
+
+    /// 卡片上的改动列表（新建提案是正文以外的那些）。
+    var changes: [ProposalChange] {
+        switch self {
+        case .edit(let edit): return edit.changes
+        case .create(let create): return create.changes
         }
     }
 }
@@ -314,12 +386,14 @@ enum Activity {
         }
     }
 
+    // `proposed.blocks` 现在总是空数组（应用只用服务端存着的内容），但仍然要求它是数组：旧版 App 靠它认提案，服务端一直会给。
     private static func hasProposed(_ json: JSONValue) -> Bool {
         guard let proposed = json["proposed"], proposed.objectValue != nil else { return false }
         return proposed["title"]?.stringValue != nil && proposed["blocks"]?.arrayValue != nil
     }
 
-    // 与网页 parseActivityEvent 的校验一致：承认卡片需要的字段都在才收。
+    // 与网页 parseActivityEvent 的校验一致：承认卡片需要的字段都在才收。后来加的字段（页面类型、自动应用、能否撤销、缩略图）
+    // 都是可选的：旧服务端不给时按笔记、没自动应用、不能撤销。
     static func parseEditProposal(_ json: JSONValue) -> Proposal.Edit? {
         guard let id = string(json, "id"), let pageId = string(json, "pageId"), let pageTitle = string(json, "pageTitle"),
               let baseVersion = json["baseVersion"]?.intValue, let changes = json["changes"]?.arrayValue, hasProposed(json)
@@ -332,19 +406,12 @@ enum Activity {
             baseVersion: baseVersion,
             titleBefore: title?["before"]?.stringValue,
             titleAfter: title?["after"]?.stringValue,
-            changes: changes.compactMap { change -> ProposalChange? in
-                guard change.objectValue != nil, let op = string(change, "op") else { return nil }
-                return ProposalChange(
-                    op: op,
-                    block: change["block"]?.intValue ?? 0,
-                    before: string(change, "before"),
-                    after: string(change, "after"),
-                    dropsFormatting: change["dropsFormatting"]?.boolValue == true,
-                    dropsMedia: change["dropsMedia"]?.boolValue == true
-                )
-            },
+            changes: parseChanges(changes),
             status: string(json, "status"),
-            appliedPageId: string(json, "appliedPageId")
+            appliedPageId: string(json, "appliedPageId"),
+            pageKind: PageKind.of(string(json, "pageKind")),
+            autoApplied: json["autoApplied"]?.boolValue == true,
+            undoable: json["undoable"]?.boolValue == true
         )
     }
 
@@ -357,8 +424,53 @@ enum Activity {
             icon: string(json, "icon"),
             content: content,
             status: string(json, "status"),
-            appliedPageId: string(json, "appliedPageId")
+            appliedPageId: string(json, "appliedPageId"),
+            parentId: string(json, "parentId"),
+            parentTitle: string(json, "parentTitle"),
+            changes: parseChanges(json["changes"]?.arrayValue ?? []),
+            pageKind: PageKind.of(string(json, "pageKind")),
+            autoApplied: json["autoApplied"]?.boolValue == true,
+            undoable: json["undoable"]?.boolValue == true
         )
+    }
+
+    /// 改动列表：不是对象或没有 op 的项丢掉，其它字段缺了或类型不对就当没有。
+    private static func parseChanges(_ array: [JSONValue]) -> [ProposalChange] {
+        array.compactMap { change -> ProposalChange? in
+            guard change.objectValue != nil, let op = string(change, "op") else { return nil }
+            return ProposalChange(
+                op: ProposalOp.of(op),
+                block: change["block"]?.intValue ?? 0,
+                target: parseChangeTarget(change["target"]),
+                before: string(change, "before"),
+                after: string(change, "after"),
+                beforeImage: proposalImagePath(change["beforeImage"]),
+                afterImage: proposalImagePath(change["afterImage"]),
+                dropsFormatting: change["dropsFormatting"]?.boolValue == true,
+                dropsMedia: change["dropsMedia"]?.boolValue == true
+            )
+        }
+    }
+
+    private static func parseChangeTarget(_ value: JSONValue?) -> ProposalChangeTarget? {
+        guard let value, value.objectValue != nil else { return nil }
+        switch string(value, "type") {
+        case "slide":
+            return value["number"]?.intValue.map { .slide(number: $0) }
+        case "elements":
+            guard let count = value["count"]?.intValue else { return nil }
+            // 空的名字和没有一样：显示个数（网页 target.name ? … : …）。
+            let name = string(value, "name").flatMap { $0.isEmpty ? nil : $0 }
+            return .elements(count: count, name: name)
+        default:
+            return nil
+        }
+    }
+
+    /// 缩略图要带着 App 的 Cookie 读，所以只收本站的相对地址（以一个 / 开头）；别的写法当没有。
+    private static func proposalImagePath(_ value: JSONValue?) -> String? {
+        guard let path = value?.stringValue, path.hasPrefix("/"), !path.hasPrefix("//") else { return nil }
+        return path
     }
 }
 
