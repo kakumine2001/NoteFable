@@ -108,8 +108,8 @@ export async function createResponsesToolStream({
           const runs = await runToolCalls(calls, runTool, send);
           if (abort.signal.aborted) return closeQuietly(controller);
           const results = runs.map((run, index) => ({ type: "function_call_output", call_id: calls[index].id, output: toResponsesToolOutput(run) }));
-          // 再送時に function_call だけが残らないよう、コンテキストにも結果を組で入れる。
-          context?.push(...results);
+          // 再送時に function_call だけが残らないよう、コンテキストにも結果を組で入れる。保存する文脈には予覧の画像を残さない（本文だけ）。
+          context?.push(...runs.map((run, index) => ({ type: "function_call_output", call_id: calls[index].id, output: storedToolText(run) })));
           if (round === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Tool round limit reached. Please retry."));
           separateNextText = answered;
           body = { ...body, ...(body.tools ? { tool_choice: "auto" } : {}), input: [...body.input, ...roundItems, ...results] };

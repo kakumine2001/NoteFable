@@ -267,8 +267,10 @@ export async function createAnthropicStream(
             const toolMessage: Message = { role: "user", content: runs.map((run, index) => ({
               type: "tool_result", tool_use_id: calls[index].id, content: toAnthropicToolContent(run), ...(run.isError ? { is_error: true } : {}),
             })) };
-            // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint.
-            compactedContext?.push(toolMessage);
+            // A replayed tool_use must be followed by its tool_result, so keep the pair in the checkpoint (text only: preview images are not stored).
+            compactedContext?.push({ role: "user", content: runs.map((run, index) => ({
+              type: "tool_result", tool_use_id: calls[index].id, content: storedToolText(run), ...(run.isError ? { is_error: true } : {}),
+            })) });
             if (attempt === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Claude tool round limit reached. Please retry."));
             separateNextText = Boolean(answerText.trim());
             body = { ...body, tool_choice: { type: "auto" }, messages: [...body.messages, { role: "assistant", content }, toolMessage] };
