@@ -219,7 +219,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const guestLimitHitRef = useRef(false);
   const showStorageLimit = (error: StorageLimitError) => {
     if (error.tier !== "pro") guestLimitHitRef.current = true;
-    if (embedded && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) return;
+    // アプリが案内を出すときも、パネルの中に理由を残す（案内はパネルの外、エディターの上に出る）。
+    if (embedded && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) {
+      setError(error.message);
+      return;
+    }
     setStorageLimit(error);
   };
   const inputValueRef = useRef("");

@@ -363,6 +363,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
             ) }
             // 按编辑器分，不按页面 id：冲突后"另存为新笔记"换到副本时，WebView 留着不重新加载。
             open != null -> androidx.compose.runtime.key(open.editor) {
+                // 別のノートを開いたり編集画面を閉じたりしたら、前のノートでの容量の案内は消す。
+                androidx.compose.runtime.DisposableEffect(Unit) { onDispose { noteStorageLimit = null } }
                 NoteEditorScreen(
                     open = open,
                     saveState = notes.saveState,

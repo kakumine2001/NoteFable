@@ -19,8 +19,8 @@ vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: mocks.pris
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.remove, writeStoredImageAt: mocks.write, listStoredFiles: mocks.list, sharesForeignStorage: mocks.foreign }));
 vi.mock("next/server", () => ({ after: mocks.after }));
 import {
-  FILE_GRACE_MS, NOTE_FILE_REFERENCE, assertStorageRoom, collectUnusedFiles, inventoryStoredFiles, referencedPaths,
-  reserveStoredFile, runStorageMaintenance, storeFile, storageLimitResponse,
+  FILE_GRACE_MS, NOTE_FILE_OWNERS_PER_BATCH, NOTE_FILE_REFERENCE, assertStorageRoom, collectUnusedFiles, inventoryStoredFiles, limitNoteFileOwners,
+  referencedPaths, reserveStoredFile, runStorageMaintenance, storeFile, storageLimitResponse,
 } from "./stored-files";
 import { STORAGE_LIMITS, StorageLimitError } from "./usage-plans";
 
@@ -161,6 +161,17 @@ describe("unused file collection", () => {
     expect(mocks.prisma.storedFile.deleteMany.mock.calls).toEqual([[{ where: { path: "images/2026/11/01/gone.png", deletingAt: { not: null } } }]]);
   });
 
+  it("checks note files of a limited number of owners per batch and leaves the rest unchecked for the next round", () => {
+    const rows = Array.from({ length: NOTE_FILE_OWNERS_PER_BATCH + 5 }, (_, i) => [
+      file(`note-files/u${i}/a`, "NOTE_FILE", `u${i}`), file(`note-files/u${i}/b`, "NOTE_FILE", `u${i}`), file(`images/x${i}.png`, "CHAT_IMAGE", `u${i}`),
+    ]).flat();
+    const kept = limitNoteFileOwners(rows as Parameters<typeof limitNoteFileOwners>[0]);
+    expect(new Set(kept.filter((row) => row.kind === "NOTE_FILE").map((row) => row.userId)).size).toBe(NOTE_FILE_OWNERS_PER_BATCH);
+    // 同じ持ち主のファイルはまとめて残り、ほかの種類は全部残る。
+    expect(kept.filter((row) => row.userId === "u0" && row.kind === "NOTE_FILE")).toHaveLength(2);
+    expect(kept.filter((row) => row.kind === "CHAT_IMAGE")).toHaveLength(NOTE_FILE_OWNERS_PER_BATCH + 5);
+  });
+
   it("stops at the deadline and leaves the rest for the next run", async () => {
     mocks.prisma.storedFile.findMany.mockResolvedValue([]);
     expect(await collectUnusedFiles(now, Date.now() - 1)).toEqual({ released: 0, started: 0, deleted: 0 });
@@ -223,6 +234,35 @@ describe("storage maintenance", () => {
       data: { lockedUntil: expect.any(Date) },
     });
     expect(mocks.list).not.toHaveBeenCalled();
+  });
+
+  it("still collects when listing the file store fails, and saves inventory progress page by page", async () => {
+    const now = Date.UTC(2026, 10, 23, 12);
+    mocks.foreign.mockReturnValue(false);
+    mocks.prisma.maintenanceJob.updateMany.mockResolvedValue({ count: 1 });
+    mocks.prisma.maintenanceJob.findUnique.mockResolvedValue({ state: null });
+    mocks.prisma.maintenanceJob.update.mockResolvedValue({});
+    mocks.prisma.storedFile.findMany.mockResolvedValue([]);
+    mocks.prisma.storedFile.deleteMany.mockResolvedValue({ count: 1 });
+    mocks.remove.mockResolvedValue(undefined);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    // 一時ファイルの一覧は失敗し、棚卸しは 1 ページ目のあとで失敗する。
+    mocks.list.mockImplementation(async (prefix: string, cursor?: string) => {
+      if (prefix === "chat-uploads/") throw new Error("list quota exceeded");
+      if (prefix === "note-files/" && !cursor) return { files: [], cursor: "page-2" };
+      throw new Error("list quota exceeded");
+    });
+    mocks.prisma.storedFile.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ path: "gone.png" }]);
+
+    expect(await runStorageMaintenance(now)).toEqual({ reaped: 0, released: 0, started: 0, deleted: 1 });
+    expect(mocks.prisma.maintenanceJob.update).toHaveBeenCalledWith({ where: { name: "storage" }, data: { state: { inventory: { index: 0, cursor: "page-2" } } } });
+    expect(mocks.prisma.maintenanceJob.update).toHaveBeenLastCalledWith({
+      where: { name: "storage" },
+      data: { lockedUntil: null, runAfter: new Date(now + 6 * 60 * 60 * 1000), state: { inventory: { index: 0, cursor: "page-2" } } },
+    });
   });
 
   it("reaps stale chat uploads, continues the inventory, collects, and schedules the next run", async () => {

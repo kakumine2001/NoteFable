@@ -120,6 +120,8 @@ export function StorageLimitPrompt({ limit, onClose, onBeforeSignIn, onBeforeUpg
   const { account } = useAccount();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  // 案内を出した後にログイン・ログアウトしたら、別の人（別の上限）の話なので出さない。
+  if (account && (limit.tier === "guest") === Boolean(account.user)) return null;
   const canSignIn = actions && limit.tier === "guest" && Boolean(account?.configured) && !account?.user;
   const canUpgrade = actions && limit.tier === "member" && Boolean(account?.billing) && Boolean(account?.user);
   const trialDays = account?.trialDays ?? 0;

@@ -258,6 +258,19 @@ export async function referencedPaths(candidates: Candidate[]) {
 const SCAN_PAGE = 500;
 const SCAN_PAGES = 4;
 const CLEANUP_LIMIT = 200;
+// ノートのファイルは持ち主ごとにノート・履歴の全文を調べるので、1 回にまとめて調べる持ち主の数を抑える（残りは次の巡回）。
+export const NOTE_FILE_OWNERS_PER_BATCH = 20;
+
+// 候補から、ノートのファイルの持ち主が NOTE_FILE_OWNERS_PER_BATCH 人に収まる分だけを残す（ほかの種類は全部残す）。
+export function limitNoteFileOwners<T extends Candidate>(rows: T[]) {
+  const owners = new Set<string>();
+  return rows.filter((row) => {
+    if (row.kind !== "NOTE_FILE" || !row.userId || owners.has(row.userId)) return true;
+    if (owners.size >= NOTE_FILE_OWNERS_PER_BATCH) return false;
+    owners.add(row.userId);
+    return true;
+  });
+}
 
 // どこからも参照されなくなったファイルを消す。ページの保存と同じ行を取り合って決めるので、消えるファイルを参照するページは残らない。
 // 1. 使用中の行を、確かめたのが古い順に巡回し、参照がなければ解放の時刻を記録する（猶予はここから数える）。
@@ -274,11 +287,13 @@ export async function collectUnusedFiles(now = Date.now(), deadline = Number.POS
 
   let released = 0;
   for (let page = 0; page < SCAN_PAGES && Date.now() < deadline; page += 1) {
-    const held = await prisma.storedFile.findMany({
+    const page_ = await prisma.storedFile.findMany({
       where: { releasedAt: null, deletingAt: null, OR: [{ checkedAt: null }, { checkedAt: { lt: nowDate } }] },
       select, orderBy: [{ checkedAt: { sort: "asc", nulls: "first" } }, { path: "asc" }], take: SCAN_PAGE,
     });
-    if (!held.length) break;
+    if (!page_.length) break;
+    // 確かめなかった行は確認時刻を付けないので、次の巡回の先頭に残る。
+    const held = limitNoteFileOwners(page_);
     await prisma.storedFile.updateMany({ where: { path: { in: held.map((file) => file.path) } }, data: { checkedAt: nowDate } });
     const referenced = await referencedPaths(held);
     const unused = held.filter((file) => !referenced.has(file.path));
@@ -288,15 +303,15 @@ export async function collectUnusedFiles(now = Date.now(), deadline = Number.POS
       if (reclaimed.length) await prisma.storedFile.updateMany({ where: { path: { in: reclaimed }, deletingAt: null }, data: { releasedAt: null } });
       released += Math.max(0, marked.count - reclaimed.length);
     }
-    if (held.length < SCAN_PAGE) break;
+    if (page_.length < SCAN_PAGE || held.length < page_.length) break;
   }
 
   const cutoff = new Date(now - FILE_GRACE_MS);
   let started = 0;
   if (Date.now() < deadline) {
-    const expired = await prisma.storedFile.findMany({
+    const expired = limitNoteFileOwners(await prisma.storedFile.findMany({
       where: { releasedAt: { lt: cutoff }, deletingAt: null }, select, orderBy: { releasedAt: "asc" }, take: CLEANUP_LIMIT,
-    });
+    }));
     const stillUsed = await referencedPaths(expired);
     for (const { path } of expired) {
       if (stillUsed.has(path)) {
@@ -373,7 +388,10 @@ async function adoptListedFiles(kind: StoredFileKind, files: StoredFileListing[]
 }
 
 // 種類のフォルダを 1 ページ（最大 1,000 件）ずつ見ていく。deadline を過ぎたら、どこまで見たかを返して次の実行で続ける。
-export async function inventoryStoredFiles(state: InventoryState | null | undefined, deadline: number, now = new Date()): Promise<InventoryState> {
+// onProgress は 1 ページ終わるごとに、そこまでの位置を受け取る（途中で止まっても、次の実行がそこから続けられるよう保存する）。
+export async function inventoryStoredFiles(
+  state: InventoryState | null | undefined, deadline: number, now = new Date(), onProgress?: (state: InventoryState) => Promise<void>,
+): Promise<InventoryState> {
   let index = state?.index ?? 0;
   let cursor = state?.cursor;
   while (index < KINDS.length && Date.now() < deadline) {
@@ -382,6 +400,7 @@ export async function inventoryStoredFiles(state: InventoryState | null | undefi
     await adoptListedFiles(kind, page.files, now);
     cursor = page.cursor;
     if (!cursor) index += 1;
+    if (index < KINDS.length) await onProgress?.({ index, cursor });
   }
   return index >= KINDS.length ? { index: 0, finishedAt: now.toISOString() } : { index, cursor };
 }
@@ -433,12 +452,30 @@ export async function runStorageMaintenance(now = Date.now()) {
   const job = await prisma.maintenanceJob.findUnique({ where: { name: JOB }, select: { state: true } });
   const state: JobState = job?.state && typeof job.state === "object" && !Array.isArray(job.state) ? job.state as JobState : {};
   const deadline = Date.now() + BUDGET_MS;
+  // 段階ごとに失敗を閉じ込める（一覧の取得が続けて失敗しても、使われなくなったファイルの回収は止めない）。
+  const attempt = async <T>(label: string, step: () => Promise<T>) => {
+    try {
+      return await step();
+    } catch (error) {
+      console.error(`Storage maintenance: ${label} failed`, error instanceof Error ? error.message : error);
+      return null;
+    }
+  };
+  const saveProgress = async (inventory: InventoryState) => {
+    await prisma.maintenanceJob.update({ where: { name: JOB }, data: { state: { ...state, inventory } as Prisma.InputJsonValue } });
+  };
   try {
-    const reaped = await reapStaleChatUploads(now, deadline);
+    const reaped = await attempt("reaping temporary uploads", () => reapStaleChatUploads(now, deadline));
     const finished = state.inventory?.finishedAt ? Date.parse(state.inventory.finishedAt) : Number.NaN;
-    if (!(now - finished < INVENTORY_EVERY_MS)) state.inventory = await inventoryStoredFiles(state.inventory, deadline, nowDate);
-    const collected = await collectUnusedFiles(now, deadline);
-    return { reaped, ...collected };
+    if (!(now - finished < INVENTORY_EVERY_MS)) {
+      const inventory = await attempt("inventory", () => inventoryStoredFiles(state.inventory, deadline, nowDate, async (progress) => {
+        state.inventory = progress;
+        await saveProgress(progress);
+      }));
+      if (inventory) state.inventory = inventory;
+    }
+    const collected = await attempt("collection", () => collectUnusedFiles(now, deadline));
+    return { reaped: reaped ?? 0, released: 0, started: 0, deleted: 0, ...collected };
   } finally {
     await prisma.maintenanceJob.update({
       where: { name: JOB },

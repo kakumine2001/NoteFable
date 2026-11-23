@@ -331,17 +331,23 @@ fun UpgradeLimitPrompt(
     val system = rememberSystemText()
     val limits = rememberProLimits()
     var offer by remember { mutableStateOf<Pair<PlayProduct, String>?>(null) }
+    // Play の商品を読み終えたか。読んでいる間は何も出さない（読めなかったときだけ unavailable を出す）。
+    var loaded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     val failedText = stringResource(R.string.plan_purchase_failed)
     val pendingText = stringResource(R.string.plan_pending)
 
     LaunchedEffect(Unit) {
-        val plan = runCatching { AccountApi(app.api.http).plan() }.getOrNull() ?: return@LaunchedEffect
-        val productId = plan.productId
-        val accountId = plan.accountId
-        if (!plan.googlePlay || plan.plan == "pro" || productId == null || accountId == null) return@LaunchedEffect
-        offer = billing.product(productId, plan.trialDays > 0)?.let { it to accountId }
+        try {
+            val plan = runCatching { AccountApi(app.api.http).plan() }.getOrNull() ?: return@LaunchedEffect
+            val productId = plan.productId
+            val accountId = plan.accountId
+            if (!plan.googlePlay || plan.plan == "pro" || productId == null || accountId == null) return@LaunchedEffect
+            offer = billing.product(productId, plan.trialDays > 0)?.let { it to accountId }
+        } finally {
+            loaded = true
+        }
     }
     LaunchedEffect(billing) {
         billing.events.collect { event ->
@@ -355,7 +361,7 @@ fun UpgradeLimitPrompt(
         }
     }
 
-    val (product, accountId) = offer ?: return unavailable()
+    val (product, accountId) = offer ?: return if (loaded) unavailable() else Unit
     val locale = uiLocale()
     GuestLimitPrompt(
         kind = kind,
