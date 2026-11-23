@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { termMatcher } from "../search-fold";
 
 const mocks = vi.hoisted(() => ({
-  queryRaw: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), canvas: vi.fn(), createProposal: vi.fn(), semanticSearch: vi.fn(), apply: vi.fn(), view: vi.fn(),
+  queryRaw: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), canvas: vi.fn(), createProposal: vi.fn(), semanticSearch: vi.fn(), apply: vi.fn(), view: vi.fn(), sync: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   databaseSchema: "notefable",
@@ -16,6 +16,7 @@ vi.mock("@/lib/page-ai/proposals", async (load) => ({ ...await load<object>(), a
 vi.mock("@/lib/note-embeddings", () => ({
   AI_SEMANTIC_THRESHOLD: 0.32,
   scheduleNoteEmbeddingBackfill: vi.fn(),
+  scheduleNoteEmbeddingSync: mocks.sync,
   semanticSearchNotes: mocks.semanticSearch,
 }));
 import { blocksToMarkdown, buildSnippet, likePattern, MAX_READ_CHARS, runPageTool } from "./tools";
@@ -274,6 +275,8 @@ describe("page tools", () => {
       mocks.view.mockResolvedValue({ kind: "proposal", id: "prop1", status: "applied", autoApplied: true, undoable: true, pageId: "p1", changes: [] });
       const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true });
       expect(mocks.apply).toHaveBeenCalledWith("mine", "prop1", { auto: true });
+      // 手動の適用と同じく、意味検索の索引を書き直す。
+      expect(mocks.sync).toHaveBeenCalledWith("mine", ["p1"]);
       expect(JSON.parse(result.content)).toMatchObject({ status: "applied", applied: true });
       expect(result.label).toBe("Applied edits to “Notes”");
       expect(result.events).toEqual([expect.objectContaining({ type: "notefable.proposal", status: "applied", autoApplied: true, undoable: true })]);
@@ -288,6 +291,17 @@ describe("page tools", () => {
       mocks.apply.mockClear();
       await runPageTool("propose_note_edit", edit, ctx);
       expect(mocks.apply).not.toHaveBeenCalled();
+    });
+
+    it("still shows the saved proposal when auto-apply throws", async () => {
+      mocks.findFirst.mockResolvedValue(stored());
+      mocks.apply.mockRejectedValue(new Error("db down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      const result = await runPageTool("propose_note_edit", edit, { ...ctx, autoApply: true });
+      expect(result.isError).toBeUndefined();
+      expect(JSON.parse(result.content)).toMatchObject({ status: "proposed", applied: false, autoApplyFailed: expect.any(String) });
+      expect(result.events).toEqual([expect.objectContaining({ type: "notefable.proposal", id: "prop1", status: "pending" })]);
+      expect(mocks.sync).not.toHaveBeenCalled();
     });
   });
 

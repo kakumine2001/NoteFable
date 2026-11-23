@@ -5,7 +5,7 @@ import { parseCanvasSegments } from "@/lib/canvas-document";
 import { readCanvasData } from "@/lib/canvas-store";
 import { listChatAttachments } from "@/lib/note-attachments";
 import { blocksToMarkdown } from "@/lib/note-markdown";
-import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, semanticSearchNotes } from "@/lib/note-embeddings";
+import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, scheduleNoteEmbeddingSync, semanticSearchNotes } from "@/lib/note-embeddings";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { isPageKind, PAGE_KINDS, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { canvasBodyValues, noteBodyValues, termHit } from "@/lib/search";
@@ -234,9 +234,19 @@ async function saveAndMaybeApply(ctx: ToolContext, save: () => Promise<ProposalV
     throw error;
   }
   if (!ctx.autoApply && !direct) return { view, applied: false as const };
-  const result = await applyProposal(ctx.userId, view.id, { auto: true });
+  // 適用に失敗しても（DB の一時的な失敗を含む）、保存した提案はカードとして出し、利用者が自分で適用・破棄できるようにする。
+  let result: Awaited<ReturnType<typeof applyProposal>>;
+  try {
+    result = await applyProposal(ctx.userId, view.id, { auto: true });
+  } catch (error) {
+    console.error("Failed to auto-apply a page proposal", error);
+    return { view, applied: false as const, failure: "The change could not be applied automatically." };
+  }
   if (!result.ok) return { view, applied: false as const, failure: result.error };
-  return { view: (await proposalView(ctx.userId, view.id)) ?? view, applied: true as const };
+  // 手動の適用（/api/proposals/:id/apply）と同じく、意味検索の索引を書き直す。
+  const pageId = (result.page as { id?: unknown } | null)?.id;
+  if (typeof pageId === "string") scheduleNoteEmbeddingSync(ctx.userId, [pageId]);
+  return { view: (await proposalView(ctx.userId, view.id).catch(() => null)) ?? view, applied: true as const };
 }
 
 function proposalResult(kind: "edit" | "create", outcome: { applied: boolean; failure?: string }) {

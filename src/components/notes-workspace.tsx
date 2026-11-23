@@ -184,7 +184,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
           onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
-          onAskAi={(selection) => setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }))} />
+          onAskAi={(selection) => {
+            // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
+            if (split && onAskSelectionInChat) { if (selection.text.trim()) onAskSelectionInChat(selection.text); return; }
+            setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+          }} />
       </div> : <>
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />

@@ -6,7 +6,7 @@ vi.mock("@/lib/prisma", () => ({
   databaseSchema: "notefable",
   prisma: { notePage: { findFirst: mocks.findFirst }, noteCanvas: { findFirst: mocks.canvas }, noteProposal: { create: mocks.createProposal } },
 }));
-vi.mock("@/lib/note-embeddings", () => ({ AI_SEMANTIC_THRESHOLD: 0.32, scheduleNoteEmbeddingBackfill: vi.fn(), semanticSearchNotes: vi.fn() }));
+vi.mock("@/lib/note-embeddings", () => ({ AI_SEMANTIC_THRESHOLD: 0.32, scheduleNoteEmbeddingBackfill: vi.fn(), scheduleNoteEmbeddingSync: vi.fn(), semanticSearchNotes: vi.fn() }));
 vi.mock("@/lib/page-ai/proposals", async (load) => ({ ...await load<object>(), applyProposal: mocks.apply, proposalView: mocks.view }));
 vi.mock("@/lib/page-ai/registry", async () => {
   const { noteAdapter } = await import("./note-adapter");

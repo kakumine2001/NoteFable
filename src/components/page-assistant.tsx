@@ -35,7 +35,7 @@ import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
 import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
-import type { PageSelection } from "@/lib/page-ai/types";
+import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
 
 type QuickAction = { label: string; prompt: string };
@@ -219,7 +219,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   useEffect(() => { queueMicrotask(() => setAutoApply(loadAutoApply(pageKind))); }, [pageKind]);
   const autoApplyOn = editable && autoApply;
   const selectionText = selection?.text.trim() || "";
-  const selectionIds = selection?.ids ?? [];
+  // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
+  const selectionIds = [...new Set((selection?.ids ?? []).filter((id) => id && id.length <= MAX_SELECTION_ID_LENGTH))].slice(0, MAX_SELECTION_IDS);
   const hasSelection = Boolean(selectionText || selectionIds.length);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
