@@ -38,7 +38,8 @@ export type PageKindFeatures = {
 // サーバーの拒否（設定・書き出し・共有）も画面のメニューも、この表だけを見る。
 export const PAGE_KIND_FEATURES: Record<PageKind, PageKindFeatures> = {
   note: { editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true },
-  whiteboard: { editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false },
+  // ホワイトボード（#152）：エディターと公開の読み取りビューがある。AI の操作は #153。
+  whiteboard: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false },
   slides: { editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false },
 };
 

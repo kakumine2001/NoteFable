@@ -6,6 +6,10 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
+import { CREATABLE_PAGE_KINDS, NEW_PAGE_LABELS } from "@/components/new-page-menu";
+import { PageKindIcon } from "@/components/page-kind-icon";
+import { WhiteboardPage } from "@/components/whiteboard/whiteboard-page";
+import type { WhiteboardEditorHandle } from "@/components/whiteboard/whiteboard-editor";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NotesHome } from "@/components/notes-home";
@@ -15,7 +19,7 @@ import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
-import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
 
@@ -77,7 +81,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onModelChange?: (model: string) => void;
   onReasoningChange?: (reasoning: string) => void;
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (kind?: PageKind) => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
@@ -95,6 +99,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
+  const whiteboardRef = useRef<WhiteboardEditorHandle>(null);
   const emptyImportRef = useRef<HTMLInputElement>(null);
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
   // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
@@ -104,7 +109,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
-    ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}${split ? " is-split" : ""}`
+    ? `${activeKind === "whiteboard" ? " is-whiteboard" : ""}${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}${split ? " is-split" : ""}`
     : "";
   useLayoutEffect(() => {
     if (!titleRef.current) return;
@@ -142,7 +147,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
-    // ホワイトボード・スライドは、エディターができるまで読み取り専用の仮の画面（ノートのエディター・AI ボタンは出さない。保存もしない）。
+    // ホワイトボードは自前のエディター（Excalidraw をもとにしたもの、動的に読み込む）。保存はノートと同じ NoteSaveQueue（本体は content.data）。
+    : active && activeId && !listMode && activeKind === "whiteboard" ? <WhiteboardPage queue={active} pageId={activeId} epoch={notes.editorEpoch}
+      editable={editable} embedded={embedded} busy={busy} backupError={backupError}
+      // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
+      pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages}
+      onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
+      onSaveAsNew={() => void notes.create(true)} onLoadLatest={notes.loadLatest} handleRef={whiteboardRef} />
+    // スライドは、エディター（#149）ができるまで読み取り専用の仮の画面（ノートのエディター・AI ボタンは出さない。保存もしない）。
     : active && activeId && !listMode && isCanvasKind(activeKind) ? <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
       title={active.content.title} icon={active.content.icon} data={active.page.data} />
     : active && activeId && !listMode ? <>
@@ -192,7 +204,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Workspace")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
-        <button type="button" disabled={busy} className="notes-empty-new !mt-0" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+        <button type="button" disabled={busy} className="notes-empty-new !mt-0" onClick={() => onCreate()}><Plus size={16} />{t("New note")}</button>
+        {CREATABLE_PAGE_KINDS.filter((kind) => kind !== "note").map((kind) => <button key={kind} type="button" disabled={busy} className="notion-button notes-home-new-group" onClick={() => onCreate(kind)}>
+          <PageKindIcon kind={kind} size={16} />{t(NEW_PAGE_LABELS[kind])}
+        </button>)}
         {onImport && <>
           <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
             onChange={(event) => {

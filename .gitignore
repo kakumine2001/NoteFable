@@ -53,3 +53,6 @@ next-env.d.ts
 
 # Local review screenshots and reports
 /artifacts/
+
+# whiteboard fonts and pdf.js worker copied from node_modules (scripts/copy-whiteboard-assets.mjs)
+/public/whiteboard/

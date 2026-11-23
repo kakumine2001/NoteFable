@@ -81,7 +81,7 @@ import { localizeSystemText, msg, type Translate, type TranslateVars } from "@/l
 import { failureText } from "@/lib/failure-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
+import { isPageKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 
 const INPUT_RESTORE_GUARD_MS = 5000;
 const NEW_SESSION_MESSAGES_KEY = "__new_session__";
@@ -284,13 +284,13 @@ export default function Home() {
     return true;
   }
 
-  // parentId を渡すと、そのページの中にサブページを作って開く。
-  function createNote(parentId?: string) {
+  // parentId を渡すと、そのページの中にサブページを作って開く。kind はページの種類（ノート・ホワイトボード）。
+  function createNote(parentId?: string, kind: PageKind = "note") {
     cancelReveal();
     runTransition(() => setNotesList(false), "forward");
     // ボタンの onClick に直接渡された場合のクリックイベントは親 ID にしない。
     // 作れなかったとき（URL に page= が付かない）は、ホームに戻す。
-    void notes.create(false, typeof parentId === "string" ? parentId : null).then(syncNotesList);
+    void notes.create(false, typeof parentId === "string" ? parentId : null, isPageKind(kind) ? kind : "note").then(syncNotesList);
   }
 
   // プロジェクトがある人には、取り込み先を尋ねてから取り込む（尋ねる前にファイルを確かめ、合わないものは先に断る）。
@@ -2252,7 +2252,7 @@ export default function Home() {
   const sidebar = workspaceView === "pages" ? (
     <NotesSidebar pages={notes.pages} activeId={notesList ? null : notes.activeId} busy={notes.busy || notes.loading}
       home={notesList} onHome={() => { setSidebarOpen(false); openNotesList(); }}
-      onCreate={(parentId) => { setSidebarOpen(false); createNote(parentId); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onCreate={(parentId, kind) => { setSidebarOpen(false); createNote(parentId, kind); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
@@ -2459,7 +2459,7 @@ export default function Home() {
 
         <div className={workspaceView === "pages" ? "flex min-h-0 flex-1 flex-col" : "hidden"}>
           {/* 分割表示の間は右側のペインが同じノートを開く。隠れたこちらにも編集画面を作ると、同じブロックが 2 つでき、検索結果の強調が見えない方に当たる。 */}
-          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={() => createNote()} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
+          {!splitActive && <NotesWorkspace notes={notes} listMode={notesList} model={model} reasoning={reasoning} onModelChange={changeModel} onReasoningChange={changeReasoning} onOpen={openNote} onCreate={(kind) => createNote(undefined, kind)} onImport={(files) => void importMarkdownFiles(files)} onWorkspaceChange={changeWorkspace} />}
         </div>
 
         <div className={workspaceView === "chat" ? `notion-chat-workspace${emptyState ? " is-empty" : ""}` : "hidden"}

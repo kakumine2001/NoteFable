@@ -10,7 +10,9 @@
     "postcss": "^8.5.10"
   },
   "scripts": {
+    "predev": "node scripts/copy-whiteboard-assets.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/copy-whiteboard-assets.mjs",
     "build": "prisma generate && next build",
     "start": "next start",
     "test": "vitest run",
@@ -25,6 +27,7 @@
     "@blocknote/code-block": "^0.55.0",
     "@blocknote/core": "0.55.0",
     "@blocknote/react": "0.55.0",
+    "@excalidraw/excalidraw": "0.18.0-2c3dcc0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "@tiptap/core": "3.31.4",
@@ -40,6 +43,7 @@
     "next": "16.2.6",
     "next-auth": "^5.0.0-beta.32",
     "pdf-parse": "^2.4.5",
+    "pdfjs-dist": "5.4.296",
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",

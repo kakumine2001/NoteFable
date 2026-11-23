@@ -1,5 +1,7 @@
 "use client";
 
+import type { PageKind } from "@/lib/page-kinds";
+import { NewPageKindMenu } from "@/components/new-page-menu";
 import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
@@ -39,7 +41,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // parentId を渡すと、そのページの中にサブページを作る。
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string, kind?: PageKind) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -135,7 +137,10 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
-        <button type="button" className="sidebar-primary-action" disabled={busy} onClick={() => onCreate()}><Plus size={16} /><span>{t("New note")}</span></button>
+        <div className="sidebar-primary-split">
+          <button type="button" className="sidebar-primary-action" disabled={busy} onClick={() => onCreate()}><Plus size={16} /><span>{t("New note")}</span></button>
+          <NewPageKindMenu busy={busy} className="sidebar-primary-action sidebar-primary-more" onCreate={(kind) => onCreate(undefined, kind)} />
+        </div>
         <button type="button" className={`notion-sidebar-action notes-sidebar-home ${home ? "is-active" : ""}`} aria-current={home ? "page" : undefined} onClick={onHome}>
           <House size={16} /><span>{t("Home")}</span>
         </button>

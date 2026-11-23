@@ -7,11 +7,35 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
-import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
 const DRAFT_PREFIX = "notefable:page-draft:v1:";
+// ホワイトボード・スライドの下書き（本体は最大 2 MB）。編集のたびではなく、保存に失敗した・衝突した・画面が隠れた時だけ残す。
+const CANVAS_DRAFT_PREFIX = "notefable:canvas-draft:v1:";
+
+function readCanvasDraft(page: NotePage): NoteDraft | undefined {
+  const cached = localStorage.getItem(CANVAS_DRAFT_PREFIX + page.id);
+  if (!cached) return undefined;
+  const parsed = JSON.parse(cached) as { title?: unknown; icon?: unknown; data?: unknown; version?: unknown };
+  if (!Number.isSafeInteger(parsed.version) || typeof parsed.title !== "string" || !parsed.data || typeof parsed.data !== "object" || Array.isArray(parsed.data)) {
+    localStorage.removeItem(CANVAS_DRAFT_PREFIX + page.id);
+    return undefined;
+  }
+  return {
+    title: parsed.title, icon: typeof parsed.icon === "string" ? parsed.icon : null, cover: null, coverPosition: null, blocks: [],
+    data: parsed.data as Record<string, unknown>, version: parsed.version as number,
+  };
+}
+
+// hidden: 画面が隠れた（アプリが裏に回った・タブを閉じる）。未保存なら失敗していなくても残す。
+function writeCanvasDraft(id: string, queue: NoteSaveQueue, hidden = false) {
+  if (!queue.dirty) { localStorage.removeItem(CANVAS_DRAFT_PREFIX + id); return; }
+  if (!hidden && queue.status !== "error" && queue.status !== "conflict") return;
+  const { title, icon, data, version } = queue.draft;
+  localStorage.setItem(CANVAS_DRAFT_PREFIX + id, JSON.stringify({ title, icon, data, version }));
+}
 
 async function pageRequest(url: string, method = "GET", body?: unknown) {
   const response = await fetch(url, {
@@ -85,10 +109,14 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   const install = useCallback((page: NotePage) => {
     let draft: NoteDraft | undefined;
+    const canvas = isCanvasKind(pageKindOf(page));
     try {
       // ホワイトボード・スライドにノートの下書きは無い（古い画面が残したものは、ノートの本文として送ると断られ続けるので捨てる）。
-      if (isCanvasKind(pageKindOf(page))) localStorage.removeItem(DRAFT_PREFIX + page.id);
-      const cached = isCanvasKind(pageKindOf(page)) ? null : localStorage.getItem(DRAFT_PREFIX + page.id);
+      if (canvas) {
+        localStorage.removeItem(DRAFT_PREFIX + page.id);
+        draft = readCanvasDraft(page);
+      }
+      const cached = canvas ? null : localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
         // 新しい項目を持たない旧下書きは、保存済みページの値で補ってから検証する。
@@ -97,6 +125,13 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     } catch { /* 壊れた端末キャッシュは DB の本文に影響させない。 */ }
     const queue = new NoteSaveQueue(page, async (content, version) => {
       const started = metaSequence.current;
+      if (canvas) {
+        // ホワイトボード・スライドは { title, icon, data?, version } を送り、応答は { version, page }（本体を送り返さない）。
+        const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { title: content.title, icon: content.icon, version, ...(content.data ? { data: content.data } : {}) });
+        upsertSummary(data.page, { since: started });
+        // 送った本体がそのまま保存された。版は応答のもの。
+        return { ...data.page, cover: null, coverPosition: null, blocks: [], data: content.data } as NotePage;
+      }
       const data = await pageRequest(`/api/pages/${page.id}`, "PATCH", { ...content, version });
       // 保存の間にこの画面でロックなどを変えていたら、応答の（変更前かもしれない）値で戻さない。変えていなければ別のタブ・アプリでの変更を拾う。
       upsertSummary(data.page, { since: started });
@@ -104,7 +139,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     }, () => {
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
       try {
-        if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
+        if (canvas) writeCanvasDraft(page.id, queue);
+        else if (queue.dirty) localStorage.setItem(DRAFT_PREFIX + page.id, JSON.stringify(queue.draft));
         else localStorage.removeItem(DRAFT_PREFIX + page.id);
         setBackupError("");
       } catch { setBackupError(msg("Browser draft backup is unavailable. Keep this tab open until Saved appears.")); }
@@ -277,7 +313,12 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if ([...queues.current.values()].some((queue) => queue.dirty)) { event.preventDefault(); }
     }
     function flushOnHide() {
-      if (document.visibilityState === "hidden") for (const queue of queues.current.values()) void queue.flush();
+      if (document.visibilityState !== "hidden") return;
+      for (const [id, queue] of queues.current) {
+        // ホワイトボード・スライドは編集のたびには下書きを残さないので、隠れる前に残す（保存が終わる前にアプリが止められても戻せる）。
+        if (queue.dirty && isCanvasKind(pageKindOf(queue.page))) { try { writeCanvasDraft(id, queue, true); } catch { /* 容量が足りなくても保存は続ける。 */ } }
+        void queue.flush();
+      }
     }
     window.addEventListener("beforeunload", beforeUnload);
     document.addEventListener("visibilitychange", flushOnHide);
@@ -289,19 +330,26 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     };
   }, []);
 
-  // parentId を渡すと、そのページの中にサブページを作る。
-  async function create(copy = false, parentId: string | null = null) {
+  // parentId を渡すと、そのページの中にサブページを作る。kind はページの種類（ノート・ホワイトボード）。
+  // copy は衝突した下書きを新しいページとして保存する（元のページと同じ種類で作る）。
+  async function create(copy = false, parentId: string | null = null, kind: PageKind = "note") {
     if (actionBusy.current) return;
     actionBusy.current = true;
     setBusy(true);
     setError("");
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
+      const currentKind = current ? pageKindOf(current.page) : "note";
+      const pageKind = copy && current ? currentKind : kind;
       const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
       const copyParent = copy && activeId ? pages.find((entry) => entry.id === activeId)?.parentId ?? null : null;
       const parent = copy ? copyParent : parentId;
-      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(parent ? { parentId: parent } : {}) });
+      // ホワイトボード・スライドは { kind, title, icon, data? }（本体を省くと空の本体で作られる）。
+      const body = isCanvasKind(pageKind)
+        ? { kind: pageKind, title: content.title, icon: content.icon, ...(copy && content.data ? { data: content.data } : {}) }
+        : content;
+      const { page } = await pageRequest("/api/pages", "POST", { ...body, ...(parent ? { parentId: parent } : {}) });
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);
         upsertSummary(current.page);
@@ -346,7 +394,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const removed = new Set<string>([id, ...(Array.isArray(data.ids) ? data.ids as string[] : [])]);
       for (const removedId of removed) {
         queues.current.delete(removedId);
-        try { localStorage.removeItem(DRAFT_PREFIX + removedId); } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
+        try {
+          localStorage.removeItem(DRAFT_PREFIX + removedId);
+          localStorage.removeItem(CANVAS_DRAFT_PREFIX + removedId);
+        } catch { /* ゴミ箱へ移した後の古い下書きは、復元後の本文に重ねない。 */ }
       }
       const remaining = pages.filter((page) => !removed.has(page.id));
       runTransition(() => setPages(remaining), "list");
@@ -587,7 +638,19 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }
 
   function loadLatest() {
-    if (active?.latest) { active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1); }
+    if (!active?.latest) return;
+    // ホワイトボード・スライドの 409 は本体を持たない（大きいので送り返さない）。読み直してから替える。
+    if (isCanvasKind(pageKindOf(active.page)) && active.latest.data === undefined) {
+      const queue = active;
+      void pageRequest(`/api/pages/${queue.page.id}`).then((data) => {
+        if (queues.current.get(queue.page.id) !== queue) return;
+        queue.loadLatest(data.page);
+        upsertSummary(queue.page);
+        if (displayedId.current === queue.page.id) setEditorEpoch((value) => value + 1);
+      }).catch((caught) => setActionError(caught instanceof Error ? caught.message : msg("Failed to open note.")));
+      return;
+    }
+    active.loadLatest(active.latest); upsertSummary(active.page); setEditorEpoch((value) => value + 1);
   }
 
   return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, create, remove, load, loadLatest };

@@ -1,3 +1,5 @@
+import { CREATABLE_PAGE_KINDS, NEW_PAGE_LABELS } from "@/components/new-page-menu";
+import type { PageKind } from "@/lib/page-kinds";
 import { ChevronDown, ChevronRight, Clock3, FileText, FolderInput, FolderPlus, Plus, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -23,7 +25,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   groupError: string;
   busy: boolean;
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  onCreate: (kind?: PageKind) => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
@@ -113,7 +115,10 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">{t("No project")}<span>{pages.filter((page) => !page.groupId || !known.has(page.groupId)).length}</span></h2>}
       {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
       <div className="notes-home-actions">
-        <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+        <button type="button" className="notes-empty-new" disabled={busy} onClick={() => onCreate()}><Plus size={16} />{t("New note")}</button>
+        {CREATABLE_PAGE_KINDS.filter((kind) => kind !== "note").map((kind) => <button key={kind} type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => onCreate(kind)}>
+          <PageKindIcon kind={kind} size={16} />{t(NEW_PAGE_LABELS[kind])}
+        </button>)}
         <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />{t("New project")}</button>
         {onImport && <>
           <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"

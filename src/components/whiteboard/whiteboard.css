@@ -1,0 +1,407 @@
+/* ホワイトボードのエディター（whiteboard-editor.tsx）。Excalidraw の既定の画面は出さず（ui={false}）、
+   NoteFable のツールバー・パネルをキャンバスの上に浮かべる。色は globals.css の変数（浅色・深色）を使う。
+   このファイルはホワイトボードを開いた時だけ読み込まれる（動的読み込みのチャンクに入る）。 */
+
+.whiteboard {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--notion-bg);
+  color: var(--notion-text);
+  font-family: var(--font-ui);
+  /* スマホのナビゲーションバー・キーボードの上に出す */
+  --wb-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  --wb-surface: var(--notion-surface);
+  --wb-radius: 12px;
+}
+.whiteboard .excalidraw { position: absolute; inset: 0; }
+.whiteboard .excalidraw .excalidraw-container { background: transparent; }
+/* ピンチで拡大縮小・2 本指で移動するので、ブラウザー自身のスクロールや拡大はさせない */
+.whiteboard, .whiteboard .excalidraw { touch-action: none; overscroll-behavior: none; }
+
+.whiteboard-floating,
+.whiteboard-title,
+.whiteboard-topbar-end > .whiteboard-tool,
+.whiteboard-toolbar,
+.whiteboard-group,
+.whiteboard-panel,
+.whiteboard-back-to-content,
+.whiteboard-busy,
+.whiteboard-minimap {
+  background: var(--wb-surface);
+  border-radius: var(--wb-radius);
+  box-shadow: var(--notion-shadow);
+}
+
+/* ---- 上：題名（開始側）とメニュー（終了側） ---- */
+.whiteboard-title {
+  position: absolute;
+  top: 12px;
+  inset-inline-start: 12px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: min(360px, calc(100% - 400px));
+  min-width: 140px;
+  height: 40px;
+  padding-inline: 4px 6px;
+}
+.whiteboard-title-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  font-size: 18px;
+  color: var(--notion-muted);
+}
+.whiteboard-title-icon:not(:disabled):hover { background: var(--notion-hover); }
+.whiteboard-title-input {
+  min-width: 0;
+  flex: 1;
+  height: 32px;
+  padding-inline: 6px;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--notion-text);
+  outline: none;
+  text-overflow: ellipsis;
+}
+.whiteboard-title-input:not([readonly]):hover { background: var(--notion-hover); }
+.whiteboard-title-input:focus { background: var(--notion-hover); }
+.whiteboard-title-input::placeholder { color: var(--notion-faint); }
+.whiteboard-icon-popover { position: absolute; top: 46px; inset-inline-start: 0; z-index: 30; }
+
+.whiteboard-topbar-end {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 12px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+}
+.whiteboard-topbar-end > .whiteboard-tool { width: 40px; height: 40px; }
+
+/* ---- 道具のボタン ---- */
+.whiteboard-tool {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 9px;
+  color: var(--notion-text);
+  transition: background-color .12s ease, color .12s ease;
+}
+.whiteboard-tool:hover { background: var(--notion-hover); }
+.whiteboard-tool:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 1px; }
+.whiteboard-tool.is-active { background: var(--nf-accent-soft); color: var(--nf-accent); }
+.whiteboard-tool:disabled { opacity: .4; }
+.whiteboard-tool.has-caret { width: 44px; padding-inline-end: 8px; }
+.whiteboard-caret {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: 12px;
+  display: grid;
+  place-items: center;
+}
+.whiteboard-caret::after {
+  content: "";
+  width: 0;
+  height: 0;
+  border-inline: 3px solid transparent;
+  border-top: 4px solid currentColor;
+  opacity: .55;
+}
+.whiteboard-kbd {
+  min-width: 20px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--notion-hover);
+  color: var(--notion-muted);
+  font-size: 11px;
+  font-family: var(--font-ui);
+  text-align: center;
+}
+
+/* ---- 下：道具のツールバー（中央） ---- */
+.whiteboard-toolbar {
+  position: absolute;
+  bottom: var(--wb-bottom);
+  left: 50%;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  max-width: calc(100% - 24px);
+  padding: 4px;
+  transform: translateX(-50%);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.whiteboard-toolbar::-webkit-scrollbar { display: none; }
+.whiteboard-toolbar-divider { flex: none; width: 1px; height: 22px; margin-inline: 4px; background: var(--notion-border-strong); }
+
+/* ---- 上（終了側、メニューの隣）：取り消し・拡大縮小。下の中央の道具と重ならないよう、どの幅でも上に置く ---- */
+.whiteboard-zoombar {
+  position: absolute;
+  top: 12px;
+  inset-inline-end: 60px;
+  z-index: 4;
+  display: flex;
+  gap: 8px;
+}
+.whiteboard-zoombar .whiteboard-group { height: 40px; }
+.whiteboard-group { display: flex; align-items: center; gap: 1px; padding: 2px; }
+.whiteboard-group .whiteboard-tool { width: 34px; height: 34px; }
+.whiteboard-zoom-value {
+  min-width: 52px;
+  height: 34px;
+  padding-inline: 4px;
+  border-radius: 9px;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--notion-text);
+}
+.whiteboard-zoom-value:hover { background: var(--notion-hover); }
+
+/* ---- 見た目のパネル（開始側、上から） ---- */
+.whiteboard-panel {
+  position: absolute;
+  top: 64px;
+  inset-inline-start: 12px;
+  z-index: 5;
+  width: 232px;
+  max-height: calc(100% - 136px);
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.whiteboard-section { margin: 0; padding: 0; border: 0; min-width: 0; }
+.whiteboard-section + .whiteboard-section { margin-top: 10px; }
+.whiteboard-section-label {
+  display: block;
+  margin-bottom: 5px;
+  padding: 0;
+  color: var(--notion-muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.whiteboard-row { display: flex; flex-wrap: wrap; gap: 4px; }
+.whiteboard-row + .whiteboard-row { margin-top: 4px; }
+.whiteboard-choice { display: flex; gap: 3px; padding: 2px; border-radius: 9px; background: var(--notion-hover); }
+.whiteboard-choice-item {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding-inline: 6px;
+  border-radius: 7px;
+  font-size: 12px;
+  color: var(--notion-muted);
+  display: grid;
+  place-items: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.whiteboard-choice-item:hover { color: var(--notion-text); }
+.whiteboard-choice-item.is-active { background: var(--wb-surface); color: var(--notion-text); box-shadow: 0 1px 2px rgba(15, 15, 15, .12); }
+.whiteboard-icon-action {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: var(--notion-text);
+  background: var(--notion-hover);
+}
+.whiteboard-icon-action:hover { background: var(--notion-active); }
+.whiteboard-icon-action.is-danger { color: var(--nf-danger); }
+.whiteboard-select {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding-inline: 6px;
+  border-radius: 8px;
+  background: var(--notion-hover);
+  color: var(--notion-text);
+  font-size: 12px;
+}
+.whiteboard-range { width: 100%; accent-color: var(--nf-accent); }
+
+.whiteboard-swatches { display: flex; flex-wrap: wrap; gap: 6px; }
+.whiteboard-swatch {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(15, 15, 15, .14);
+  color: var(--notion-muted);
+}
+.whiteboard-swatch.is-small { width: 20px; height: 20px; border-radius: 6px; }
+.whiteboard-swatch.is-active { box-shadow: inset 0 0 0 1px rgba(15, 15, 15, .14), 0 0 0 2px var(--wb-surface), 0 0 0 4px var(--nf-accent); }
+.whiteboard-swatch.is-transparent {
+  background: repeating-conic-gradient(var(--notion-hover) 0 25%, transparent 0 50%) 50% / 10px 10px;
+}
+.whiteboard-swatch.is-more { background: var(--notion-hover); }
+.whiteboard-palette {
+  margin-top: 8px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--notion-hover);
+  display: grid;
+  gap: 5px;
+}
+.whiteboard-palette-row { display: flex; flex-wrap: wrap; gap: 5px; }
+.whiteboard-hex { display: flex; gap: 6px; margin-top: 4px; }
+.whiteboard-hex-input {
+  flex: 1;
+  min-width: 0;
+  height: 30px;
+  padding-inline: 8px;
+  border-radius: 8px;
+  background: var(--wb-surface);
+  font-size: 12px;
+  font-family: var(--font-geist-mono, monospace);
+  direction: ltr;
+}
+.whiteboard-menu-swatches { padding: 4px 12px 8px; }
+.whiteboard-panel-expand {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  margin-top: 8px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--notion-muted);
+  font-size: 12px;
+}
+.whiteboard-panel-expand:hover { background: var(--notion-hover); }
+
+/* ---- 内容に戻る・処理中・お知らせ ---- */
+.whiteboard-back-to-content {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding-inline: 14px;
+  transform: translateX(-50%);
+  font-size: 13px;
+  color: var(--notion-text);
+}
+.whiteboard-back-to-content:hover { background: var(--notion-hover); }
+.whiteboard-busy {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 6;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding-inline: 14px;
+  transform: translateX(-50%);
+  font-size: 13px;
+}
+.whiteboard-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  border: 2px solid var(--notion-border-strong);
+  border-top-color: var(--nf-accent);
+  animation: whiteboard-spin .8s linear infinite;
+}
+@keyframes whiteboard-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .whiteboard-spinner { animation-duration: 2.4s; } }
+.whiteboard-notice {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: calc(100% - 24px);
+  padding: 8px 8px 8px 14px;
+  transform: translateX(-50%);
+  border-radius: var(--wb-radius);
+  background: var(--nf-error-bg);
+  color: var(--nf-error-text);
+  font-size: 13px;
+  box-shadow: var(--notion-shadow);
+  backdrop-filter: blur(8px);
+}
+
+/* ---- 小地図（開始側の下） ---- */
+.whiteboard-minimap {
+  position: absolute;
+  bottom: var(--wb-bottom);
+  inset-inline-start: 12px;
+  z-index: 4;
+  width: 200px;
+  height: 140px;
+  padding: 4px;
+  overflow: hidden;
+  cursor: pointer;
+}
+.whiteboard-minimap canvas { display: block; width: 100%; height: 100%; border-radius: 8px; }
+
+/* ---- 右下：AI ボタン（#153）用に空けておく場所 ---- */
+.whiteboard-ai-slot {
+  position: absolute;
+  bottom: var(--wb-bottom);
+  inset-inline-end: 12px;
+  z-index: 5;
+}
+
+/* ---- 読み取り専用（ロック中）：編集の道具は出さない ---- */
+.whiteboard.is-readonly .whiteboard-title-input { cursor: default; }
+
+/* ---- 少し狭いキャンバス：小地図は道具のツールバーの上へ ---- */
+.whiteboard.is-narrow .whiteboard-minimap { bottom: calc(var(--wb-bottom) + 56px); }
+
+/* ---- スマホ（キャンバスの幅 640px 未満・アプリの WebView） ---- */
+.whiteboard.is-compact .whiteboard-title { top: 8px; inset-inline-start: 8px; max-width: calc(100% - 64px); min-width: 0; height: 38px; }
+.whiteboard.is-compact .whiteboard-topbar-end { top: 8px; inset-inline-end: 8px; }
+.whiteboard.is-compact .whiteboard-topbar-end > .whiteboard-tool { width: 38px; height: 38px; }
+/* 下は道具のツールバーだけ（終了側の下は AI ボタン用に空ける）。取り消し・拡大縮小は上へ。 */
+.whiteboard.is-compact .whiteboard-toolbar { left: 8px; right: 72px; max-width: none; transform: none; justify-content: flex-start; }
+[dir="rtl"] .whiteboard.is-compact .whiteboard-toolbar { left: 72px; right: 8px; }
+.whiteboard.is-compact .whiteboard-toolbar .whiteboard-tool { width: 40px; height: 40px; }
+.whiteboard.is-compact .whiteboard-zoombar { top: 54px; inset-inline-start: 8px; inset-inline-end: auto; }
+.whiteboard.is-compact .whiteboard-zoombar .whiteboard-group { height: auto; }
+.whiteboard.is-compact .whiteboard-zoombar .whiteboard-tool { width: 36px; height: 36px; }
+.whiteboard.is-compact .whiteboard-panel {
+  top: auto;
+  bottom: calc(var(--wb-bottom) + 56px);
+  left: 8px;
+  right: 8px;
+  width: auto;
+  max-height: min(52vh, 420px);
+  padding: 8px 10px 6px;
+}
+.whiteboard.is-compact .whiteboard-panel.is-collapsed .whiteboard-section { display: inline-block; vertical-align: top; margin: 0 10px 4px 0; }
+[dir="rtl"] .whiteboard.is-compact .whiteboard-panel.is-collapsed .whiteboard-section { margin: 0 0 4px 10px; }
+.whiteboard.is-compact .whiteboard-minimap { bottom: auto; top: 100px; width: 160px; height: 112px; inset-inline-start: 8px; }
+.whiteboard.is-compact .whiteboard-back-to-content,
+.whiteboard.is-compact .whiteboard-busy,
+.whiteboard.is-compact .whiteboard-notice { top: 100px; }
+.whiteboard.is-compact .whiteboard-ai-slot { bottom: var(--wb-bottom); inset-inline-end: 8px; }
+
+/* 文字を編集しているときの Excalidraw のテキスト入力は、自前のパネルより下に置く */
+.whiteboard .excalidraw-textEditorContainer { z-index: 3; }
