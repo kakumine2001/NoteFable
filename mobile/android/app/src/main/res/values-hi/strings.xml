@@ -73,9 +73,10 @@
     <string name="err_some_more">आप %1$d और फ़ाइलें जोड़ सकते हैं (प्रति संदेश अधिकतम %2$d)। इन %3$d फ़ाइलों में से कोई भी नहीं जोड़ी गई। कृपया कम फ़ाइलें चुनें।</string>
     <string name="err_not_added">%1$s कोई नई फ़ाइल नहीं जोड़ी गई।</string>
     <string name="chat_mode">चैट</string>
-    <string name="note_mode">नोट</string>
-    <string name="workspace_mode">वर्कस्पेस मोड</string>
+    <string name="note_mode">वर्कस्पेस</string>
+    <string name="workspace_mode">चैट और वर्कस्पेस के बीच स्विच करें</string>
     <string name="notes">नोट्स</string>
+    <string name="workspace">वर्कस्पेस</string>
     <string name="new_note">नया नोट</string>
     <string name="projects">प्रोजेक्ट</string>
     <string name="new_project">नया प्रोजेक्ट</string>
@@ -127,7 +128,7 @@
     <string name="days_left">%1$d दिन शेष</string>
     <string name="loading_notes">नोट्स लोड हो रहे हैं…</string>
     <string name="notes_intro">ब्लॉक के साथ नोट्स लिखें — शीर्षक, सूचियाँ, कार्य सूची और कोड जोड़ने के लिए %1$s टाइप करें।</string>
-    <string name="notes_storage_hint">नोट्स सर्वर पर सेव होते हैं और इस डिवाइस से जुड़े रहते हैं। उन्हें दूसरे डिवाइस पर खोलने के लिए साइन इन करें। ऐप या साइट का डेटा मिटाने पर एक अलग वर्कस्पेस बन जाता है।</string>
+    <string name="notes_storage_hint">नोट्स सर्वर पर सेव होते हैं और इस डिवाइस से जुड़े रहते हैं। उन्हें दूसरे डिवाइस पर खोलने के लिए साइन इन करें। साइन इन करने से पहले ऐप या साइट का डेटा मिटाने पर आप उन्हें फिर नहीं खोल पाएँगे।</string>
     <string name="all_notes">सभी नोट्स</string>
     <string name="version_history">वर्ज़न इतिहास</string>
     <string name="save_saved">सेव किया गया</string>

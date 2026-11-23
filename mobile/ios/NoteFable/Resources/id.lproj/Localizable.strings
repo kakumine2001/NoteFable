@@ -73,9 +73,10 @@
 "err_some_more" = "Anda masih dapat menambahkan %1$d file lagi (maksimal %2$d per pesan). Tidak satu pun dari %3$d file ini ditambahkan. Pilih lebih sedikit file.";
 "err_not_added" = "%1$s Tidak ada file baru yang ditambahkan.";
 "chat_mode" = "Chat";
-"note_mode" = "Catatan";
-"workspace_mode" = "Mode ruang kerja";
+"note_mode" = "Ruang kerja";
+"workspace_mode" = "Beralih antara Chat dan Ruang kerja";
 "notes" = "Catatan";
+"workspace" = "Ruang kerja";
 "new_note" = "Catatan baru";
 "projects" = "Proyek";
 "new_project" = "Proyek baru";
@@ -127,7 +128,7 @@
 "days_left" = "Tersisa %1$d hari";
 "loading_notes" = "Memuat catatan…";
 "notes_intro" = "Tulis catatan dengan blok — ketik %1$s untuk judul, daftar, tugas, dan kode.";
-"notes_storage_hint" = "Catatan disimpan di server dan ditautkan ke perangkat ini. Masuk untuk membukanya di perangkat lain. Menghapus data aplikasi atau situs akan membuat ruang kerja terpisah.";
+"notes_storage_hint" = "Catatan disimpan di server dan ditautkan ke perangkat ini. Masuk untuk membukanya di perangkat lain. Jika Anda menghapus data aplikasi atau situs sebelum masuk, Anda tidak dapat membukanya lagi.";
 "all_notes" = "Semua catatan";
 "version_history" = "Riwayat versi";
 "save_saved" = "Tersimpan";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Halaman tidak dapat dilampirkan saat membuat gambar. Hapus halaman tersebut atau matikan pembuatan gambar.";
 "create_page" = "Rangkum jadi catatan";
 "create_page_title" = "Buat catatan dari chat ini";
-"create_page_body" = "NoteFable menyusun ulang percakapan ini menjadi catatan yang rapi di Catatan menggunakan model yang dipilih. Chat yang sangat panjang akan diringkas agar muat dengan mengutamakan pesan terbaru. Ini dihitung sebagai satu pesan dalam batas hari ini.";
-"create_page_working" = "Menulis catatan… Ini mungkin perlu waktu sekitar satu menit. Anda dapat menutup jendela ini; catatan akan muncul di Catatan saat sudah siap.";
-"create_page_done" = "“%1$s” dibuat di Catatan.";
+"create_page_body" = "NoteFable menyusun ulang percakapan ini menjadi catatan yang rapi di Ruang kerja menggunakan model yang dipilih. Chat yang sangat panjang akan diringkas agar muat dengan mengutamakan pesan terbaru. Ini dihitung sebagai satu pesan dalam batas hari ini.";
+"create_page_working" = "Menulis catatan… Ini mungkin perlu waktu sekitar satu menit. Anda dapat menutup jendela ini; catatan akan muncul di Ruang kerja saat sudah siap.";
+"create_page_done" = "“%1$s” dibuat di Ruang kerja.";
 "create_page_partial" = "Chat ini sangat panjang, sehingga sebagian isinya dilewati.";
 "open_page" = "Buka catatan";
 "language_current" = "Bahasa: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Opsi jawaban";
 "answer_more_options" = "Opsi jawaban lainnya";
-"answer_save_to_page" = "Simpan ke catatan";
-"answer_saved_to_page" = "Disimpan ke catatan";
-"answer_retry_save" = "Coba simpan lagi ke catatan";
+"answer_save_to_page" = "Simpan sebagai catatan";
+"answer_saved_to_page" = "Disimpan sebagai catatan";
+"answer_retry_save" = "Coba simpan lagi sebagai catatan";
 "answer_open_saved_page" = "Buka catatan yang disimpan";
 "answer_download_conversation" = "Unduh percakapan";
 "answer_conversation_downloaded" = "Percakapan diunduh";
 "answer_download_failed" = "Tidak dapat mengunduh percakapan. Coba lagi.";
-"answer_save_failed" = "Tidak dapat menyimpan ke Catatan. Coba lagi.";
+"answer_save_failed" = "Tidak dapat menyimpan sebagai catatan. Coba lagi.";
 "answer_save_too_large" = "Jawaban ini terlalu panjang untuk disimpan sebagai catatan.";
 
 /* strings_i18n.xml */

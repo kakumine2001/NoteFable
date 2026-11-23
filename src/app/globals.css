@@ -780,10 +780,11 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .sidebar-primary-action:disabled { opacity: 0.6; }
 .sidebar-primary-action:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
 
-/* サイドバー最上部の Chat / Notes 切替。選んでいる側が白く浮く。 */
+/* サイドバー最上部の Chat / Workspace 切替。選んでいる側が白く浮く。
+   幅は普段は半分ずつ。名前が半分に収まらない言語（日本語の「ワークスペース」など）だけ、その側が名前の幅まで広がる。 */
 .notion-segmented {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(max-content, 1fr));
   gap: 2px;
   padding: 2px;
   border-radius: 0.5rem;
@@ -795,10 +796,12 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  padding-inline: 0.25rem;
   border-radius: 0.4rem;
   color: var(--notion-muted);
   font-size: 0.875rem;
   font-weight: 500;
+  white-space: nowrap;
   transition: background 100ms ease, color 100ms ease;
 }
 .notion-segment.is-active {

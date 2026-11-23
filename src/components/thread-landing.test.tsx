@@ -37,18 +37,18 @@ describe("ThreadLanding hero English pinning", () => {
         '<h1 id="tl-title" lang="en" dir="ltr"><span class="tl-rise">Ask it.</span> <span class="tl-rise"><span class="tl-mark">Keep it.</span></span><br/><span class="tl-rise">Find it again.</span></h1>',
       );
       expect(html, `${locale}: lede`).toContain(
-        '<p class="tl-lede" lang="en" dir="ltr">NoteFable is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it.</p>',
+        '<p class="tl-lede" lang="en" dir="ltr">NoteFable is a study space where a question becomes an answer, the answer becomes a note in your workspace, and the note is still there when you need it.</p>',
       );
 
       if (locale !== "en") {
         expect(html, `${locale}: eyebrow translation excluded`).not.toContain(escapeHtmlText(dict["AI chat and notes, in one place"]));
         expect(html, `${locale}: lede translation excluded`).not.toContain(
-          escapeHtmlText(dict["NoteFable is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it."]),
+          escapeHtmlText(dict["NoteFable is a study space where a question becomes an answer, the answer becomes a note in your workspace, and the note is still there when you need it."]),
         );
       }
 
       // Neighbouring strings right above and below the hero (and throughout the page) still localize.
-      expect(html, `${locale}: nav CTA`).toContain(escapeHtmlText(t("Open workspace")));
+      expect(html, `${locale}: nav CTA`).toContain(escapeHtmlText(t("Open NoteFable")));
       expect(html, `${locale}: composer aria-label`).toContain(escapeHtmlText(t("Open NoteFable and ask a question")));
       expect(html, `${locale}: hero note`).toContain(escapeHtmlText(t("Click the box to start. No account needed.")));
       expect(html, `${locale}: revise station title`).toContain(escapeHtmlText(t("Let the AI edit the note itself.")));
@@ -65,7 +65,7 @@ describe("ThreadLanding hero English pinning", () => {
       const meta = await generateMetadata({ params: Promise.resolve({ locale }) });
       expect(meta.title, `${locale}: metadata.title`).toBe("NoteFable — Ask it. Keep it. Find it again.");
       expect(meta.description, `${locale}: metadata.description`).toBe(
-        t("AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later."),
+        t("AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later."),
       );
     }
   });

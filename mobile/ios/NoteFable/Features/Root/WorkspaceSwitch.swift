@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Chat / Note 切换（网页 `.notion-segmented`，Android `WorkspaceSwitch`）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
+/// Chat / Workspace 切换（网页 `.notion-segmented`，Android `WorkspaceSwitch`）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
 /// 每键高 44、圆角 6.4、16 / 500、图标 16 + 间距 6.4；选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影；按下缩到 .97。
 /// 抽屉里在头部下方（左右 8、上距 4），空白聊天页和笔记首页在顶栏下方（左右 24、上距 4）：外边距由用的地方加。
 /// 切换前先关抽屉（网页从抽屉里切换时先关）；在笔记里时先保存笔记，存不上就留在笔记里（`NotesViewModel.setWorkspace`）。

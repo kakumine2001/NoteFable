@@ -28,7 +28,7 @@ export default function DeleteAccountPage() {
         <ul>
           <li>Your account: Google account ID or email address, name, profile photo, display name and icon, language and custom instructions.</li>
           <li>All chats and messages, attached files and their extracted text, and generated images.</li>
-          <li>All notes, note history, groups, covers, note files and images, chat projects and note edit proposals.</li>
+          <li>Everything in your Workspace: all notes, note history, groups, covers, note files and images, plus chat projects and note edit proposals.</li>
           <li>Your daily usage counters and any pending email sign-in codes.</li>
           <li>
             Your Pro subscription: one bought on the website ends immediately and your customer record at Stripe is deleted; a Google Play subscription stops

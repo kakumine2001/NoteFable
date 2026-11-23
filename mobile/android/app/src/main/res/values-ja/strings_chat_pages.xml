@@ -10,9 +10,9 @@
     <string name="err_pages_image_mode">画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。</string>
     <string name="create_page">ノートにまとめる</string>
     <string name="create_page_title">このチャットをノートにまとめる</string>
-    <string name="create_page_body">選択中のモデルで、この会話を整理されたノートに書き直してノートに保存します。とても長い会話は、新しいメッセージを優先して短くします。今日の送信回数に 1 回として数えられます。</string>
-    <string name="create_page_working">ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとノートに追加されます。</string>
-    <string name="create_page_done">ノートに「%1$s」を作成しました。</string>
+    <string name="create_page_body">選択中のモデルで、この会話を整理されたノートに書き直してワークスペースに保存します。とても長い会話は、新しいメッセージを優先して短くします。今日の送信回数に 1 回として数えられます。</string>
+    <string name="create_page_working">ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとワークスペースに追加されます。</string>
+    <string name="create_page_done">ワークスペースに「%1$s」を作成しました。</string>
     <string name="create_page_partial">長い会話なので、一部を省きました。</string>
     <string name="open_page">ノートを開く</string>
     <string name="language_current">言語：%1$s</string>

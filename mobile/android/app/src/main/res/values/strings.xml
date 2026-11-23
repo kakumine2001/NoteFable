@@ -80,9 +80,10 @@
 
     <!-- 笔记（网页 notes-sidebar / notes-home / note-group-dialogs / note-trash-dialog 的原句）。 -->
     <string name="chat_mode">Chat</string>
-    <string name="note_mode">Note</string>
-    <string name="workspace_mode">Workspace mode</string>
+    <string name="note_mode">Workspace</string>
+    <string name="workspace_mode">Switch between Chat and Workspace</string>
     <string name="notes">Notes</string>
+    <string name="workspace">Workspace</string>
     <string name="new_note">New note</string>
     <string name="projects">Projects</string>
     <string name="new_project">New project</string>
@@ -134,7 +135,7 @@
     <string name="days_left">%1$d days left</string>
     <string name="loading_notes">Loading notes…</string>
     <string name="notes_intro">Write notes with blocks — type %1$s for headings, lists, to-dos and code.</string>
-    <string name="notes_storage_hint">Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.</string>
+    <string name="notes_storage_hint">Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.</string>
     <string name="all_notes">All notes</string>
     <string name="version_history">Version history</string>
     <string name="save_saved">Saved</string>

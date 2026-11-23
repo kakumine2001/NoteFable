@@ -73,9 +73,10 @@
     <string name="err_some_more">Anda masih dapat menambahkan %1$d file lagi (maksimal %2$d per pesan). Tidak satu pun dari %3$d file ini ditambahkan. Pilih lebih sedikit file.</string>
     <string name="err_not_added">%1$s Tidak ada file baru yang ditambahkan.</string>
     <string name="chat_mode">Chat</string>
-    <string name="note_mode">Catatan</string>
-    <string name="workspace_mode">Mode ruang kerja</string>
+    <string name="note_mode">Ruang kerja</string>
+    <string name="workspace_mode">Beralih antara Chat dan Ruang kerja</string>
     <string name="notes">Catatan</string>
+    <string name="workspace">Ruang kerja</string>
     <string name="new_note">Catatan baru</string>
     <string name="projects">Proyek</string>
     <string name="new_project">Proyek baru</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Tersisa %1$d hari</string>
     <string name="loading_notes">Memuat catatan…</string>
     <string name="notes_intro">Tulis catatan dengan blok — ketik %1$s untuk judul, daftar, tugas, dan kode.</string>
-    <string name="notes_storage_hint">Catatan disimpan di server dan ditautkan ke perangkat ini. Masuk untuk membukanya di perangkat lain. Menghapus data aplikasi atau situs akan membuat ruang kerja terpisah.</string>
+    <string name="notes_storage_hint">Catatan disimpan di server dan ditautkan ke perangkat ini. Masuk untuk membukanya di perangkat lain. Jika Anda menghapus data aplikasi atau situs sebelum masuk, Anda tidak dapat membukanya lagi.</string>
     <string name="all_notes">Semua catatan</string>
     <string name="version_history">Riwayat versi</string>
     <string name="save_saved">Tersimpan</string>

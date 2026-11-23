@@ -102,7 +102,7 @@ private val PanelShadow = Color(0x1F0F0F0F)          // --notion-shadow 0 4px 14
 private val PanelRing: Color get() = Sm.Ring            // --notion-shadow 0 0 0 1px rgba(15,15,15,.05)
 
 // ---------------------------------------------------------------------------------------------
-// Chat / Note 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
+// Chat / Workspace 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
 // 每键高 44、圆角 6.4、16/500、图标 16 + 间距 6.4；选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。
 
 @Composable
@@ -610,7 +610,7 @@ private fun NotesHomeList(
             else Column(Modifier.padding(start = 24.dp)) { kids.forEach { key(it.id) { Tree(it) } } }
         }
     }
-    // 标题 "Notes" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
+    // 标题 "Workspace" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
     fun Modifier.zone(key: String): Modifier =
         dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
     DisposableEffect(Unit) { onDispose { drag.zones.clear() } }
@@ -618,7 +618,7 @@ private fun NotesHomeList(
     DisposableEffect(hasLooseHeading) { onDispose { drag.zones.remove(" ") } }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Text(
-        stringResource(R.string.notes),
+        stringResource(R.string.workspace),
         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
         color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.28).sp,
     )
@@ -759,7 +759,7 @@ private fun shortDate(iso: String): String {
 }
 
 // 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
-// "Notes" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
+// "Workspace" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
 // 按钮行上距 24、间距 10、放不下换行、整行水平居中（网页 mt-6 flex flex-wrap items-center justify-center gap-2.5）：
 // "新笔记"高 32、圆角 8，旁边"导入 Markdown"（高 40 的文字按钮）；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
 @OptIn(ExperimentalLayoutApi::class)
@@ -768,7 +768,7 @@ private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(Modifier.padding(top = 120.dp)) {
         LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
-        Text(stringResource(R.string.notes), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
+        Text(stringResource(R.string.workspace), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
             lineHeight = 50.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.6).sp)
         val intro = stringResource(R.string.notes_intro).split("%1\$s")
         Text(

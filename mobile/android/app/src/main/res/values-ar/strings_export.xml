@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">خيارات الإجابة</string>
     <string name="answer_more_options">خيارات إضافية للإجابة</string>
-    <string name="answer_save_to_page">حفظ في الملاحظات</string>
-    <string name="answer_saved_to_page">تم الحفظ في الملاحظات</string>
-    <string name="answer_retry_save">إعادة محاولة الحفظ في الملاحظات</string>
+    <string name="answer_save_to_page">حفظ كملاحظة</string>
+    <string name="answer_saved_to_page">تم الحفظ كملاحظة</string>
+    <string name="answer_retry_save">إعادة محاولة الحفظ كملاحظة</string>
     <string name="answer_open_saved_page">فتح الملاحظة المحفوظة</string>
     <string name="answer_download_conversation">تنزيل المحادثة</string>
     <string name="answer_conversation_downloaded">تم تنزيل المحادثة</string>
     <string name="answer_download_failed">تعذّر تنزيل المحادثة. حاول مرة أخرى.</string>
-    <string name="answer_save_failed">تعذّر الحفظ في الملاحظات. حاول مرة أخرى.</string>
+    <string name="answer_save_failed">تعذّر الحفظ كملاحظة. حاول مرة أخرى.</string>
     <string name="answer_save_too_large">هذه الإجابة طويلة جداً ولا يمكن حفظها كملاحظة.</string>
 </resources>
