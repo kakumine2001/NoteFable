@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
+const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   getOrCreateUser: mocks.currentUser,
   isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
@@ -9,6 +9,8 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/answer-report", async (load) => ({
   ...(await load<typeof import("@/lib/answer-report")>()),
   findReportedAnswer: mocks.find,
+  findReportedProposal: mocks.findProposal,
+  findReportedPage: mocks.findPage,
   sendReport: mocks.send,
 }));
 vi.mock("@/lib/usage-limits", () => ({ clientNetworkKey: () => "ip:net", consumeReportQuota: mocks.consume, refundUsage: mocks.refund }));
@@ -58,6 +60,39 @@ describe("POST /api/reports", () => {
     expect((await POST(post({ messageId: "other" }))).status).toBe(404);
     expect(mocks.consume).not.toHaveBeenCalled();
     expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it("reports an AI proposal card with its before and after text", async () => {
+    mocks.findProposal.mockResolvedValue({
+      id: "prop1", sessionId: "s1", messageId: "m2", kind: "EDIT", status: "APPLIED", pageKind: "note", autoApplied: true, model: "luna",
+      createdAt: new Date("2026-11-20T00:00:00Z"), payload: { pageId: "p1", pageTitle: "Biology", changes: [{ op: "replace", block: 2, before: "old line", after: "rude line" }] },
+    });
+    expect((await POST(post({ proposalId: "prop1", reason: "Rude" }))).status).toBe(200);
+    expect(mocks.findProposal).toHaveBeenCalledWith("u1", "prop1");
+    const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(email.subject).toContain("prop1");
+    expect(email.text).toContain("Reason: Rude");
+    expect(email.text).toContain("applied automatically");
+    expect(email.text).toContain("old line");
+    expect(email.text).toContain("rude line");
+    mocks.findProposal.mockResolvedValueOnce(null);
+    expect((await POST(post({ proposalId: "other" }))).status).toBe(404);
+  });
+
+  it("reports a page the AI wrote with its current text and the AI changes applied to it", async () => {
+    mocks.findPage.mockResolvedValue({
+      id: "p1", kind: "note", title: "Biology", aiUpdatedAt: new Date("2026-11-20T00:00:00Z"), text: "Cells are rude",
+      proposals: [{ id: "prop1", sessionId: "s1", messageId: "m2", kind: "CREATE", status: "APPLIED", autoApplied: false, createdAt: new Date("2026-11-20T00:00:00Z") }],
+    });
+    expect((await POST(post({ pageId: "p1" }))).status).toBe(200);
+    expect(mocks.findPage).toHaveBeenCalledWith("u1", "p1");
+    const email = mocks.send.mock.calls[0][0] as { text: string };
+    expect(email.text).toContain("Cells are rude");
+    expect(email.text).toContain("prop1: created");
+    mocks.findPage.mockResolvedValueOnce(null);
+    expect((await POST(post({ pageId: "gone" }))).status).toBe(404);
+    // 対象は 1 つだけ。
+    expect((await POST(post({ pageId: "p1", messageId: "m2" }))).status).toBe(400);
   });
 
   it("rejects bad bodies, other sites and too many reports", async () => {

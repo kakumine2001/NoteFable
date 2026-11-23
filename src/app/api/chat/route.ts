@@ -77,6 +77,8 @@ function makeTitle(message: string) {
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
 
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
 // ページの種類の呼び名（システム指示の中だけで使う）。
 const KIND_NOUNS: Record<PageKind, { one: string; many: string; parts: string }> = {
   note: { one: "note", many: "notes", parts: "blocks" },
@@ -123,7 +125,7 @@ function buildInstructions({ webSearchMode, pageTools = false, note, project, cu
       ? [
           "You can search and read the user's own notes, kept in their NoteFable Workspace, with the search_notes and read_note tools (search_notes matches by meaning as well as keywords), and browse them with list_pages. Use them when the user refers to their notes or Workspace or asks about personal records, plans, or topics they may have saved in their notes; skip searching for general questions unrelated to their notes, and never guess what a note says.",
           // ワークスペースには 3 種類のページがある。種類ごとの操作はアダプター（src/lib/page-ai/）が持ち、無い種類は読むだけ。
-          `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note shows a whiteboard or slide deck as its text, with the IDs of its elements or slides.${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")}.` : ""}${readOnly.length ? ` ${readOnly.map((noun) => noun[0].toUpperCase() + noun.slice(1)).join(" and ")} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
+          `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note shows a whiteboard or slide deck as its text, with the IDs of its elements or slides.${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")}.` : ""}${readOnly.length ? ` ${capitalize(readOnly.join(" and "))} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
           autoApply
             // AI パネルの「自動適用」。提案はすぐ適用され、履歴にも残り、利用者はカードから元に戻せる。
             ? "To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your proposals are applied right away (the previous version stays in the page history and the user can undo the change from the card). Follow each tool result: say a page was changed or created only when the result says it was applied."

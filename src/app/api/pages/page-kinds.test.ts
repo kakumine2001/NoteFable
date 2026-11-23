@@ -39,6 +39,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.raw.mockResolvedValue(0);
   mocks.revisionFindMany.mockResolvedValue([]);
+  mocks.revisionCreate.mockResolvedValue({ id: "rev1" });
   mocks.create.mockImplementation(async ({ data }) => ({ id: "w1", version: 0, ...data }));
 });
 
