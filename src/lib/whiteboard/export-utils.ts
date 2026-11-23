@@ -25,11 +25,12 @@ export function frameOrder<T extends { x: number; y: number; height: number }>(f
 // 要素と枠の位置の関係（外接矩形で見る）：枠の中に収まる・一部が重なる・重ならない。
 export type FrameRelation = "inside" | "overlap" | "none";
 
-// 外接矩形 [x1, y1, x2, y2] どうしの関係（辺が接するだけでも重なりとみなす。Excalidraw の枠の書き出しと同じ）。
+// 外接矩形 [x1, y1, x2, y2] どうしの関係。辺が接するだけでは重ならない（Excalidraw の枠の書き出しの doBoundsIntersect と同じ。
+// 枠の辺の上に引いた水平・垂直の線は枠のページに描かれないので、最後のページに入れる必要がある）。
 export function boundsRelation(element: readonly [number, number, number, number], frame: readonly [number, number, number, number]): FrameRelation {
   const [ax1, ay1, ax2, ay2] = element;
   const [bx1, by1, bx2, by2] = frame;
-  if (ax2 < bx1 || ax1 > bx2 || ay2 < by1 || ay1 > by2) return "none";
+  if (ax2 <= bx1 || ax1 >= bx2 || ay2 <= by1 || ay1 >= by2) return "none";
   return ax1 >= bx1 && ay1 >= by1 && ax2 <= bx2 && ay2 <= by2 ? "inside" : "overlap";
 }
 
@@ -46,7 +47,9 @@ const isFrameLike = (element: { type: string }) => element.type === "frame" || e
 // 枠の中身は Excalidraw の枠の書き出しと同じ：その枠の子か、どの枠の子でもない要素で、枠に重なるもの（ほかの枠の子は、その枠で切り取られる）。
 // 枠の子でなくても枠の中に収まる要素は枠のページに描かれるので、最後のページには入れない。一部だけ重なるものは両方に入る（欠けない）。
 // 図形・矢印の中の文字は、入れ物と同じページに行く（入っている枠も位置も入れ物で見る）。
-// 外接矩形だけが重なって実際には何も描かれない枠もあるので、書き出す側は描いた結果が真っ白な枠のページを捨てる（export.ts）。
+// 矢印は Excalidraw でどの枠にも切り取られない（isFrameClippable）。枠の子でも枠の外まで描かれるので、どの枠の子でもないものと同じに扱う：
+// 重なる枠のページに描かれ、どの枠にも収まらなければ最後のページにも入る。
+// 外接矩形だけが重なって実際には何も描かれない枠もあるので、書き出す側は描いた結果が画布の色だけの枠のページを捨てる（export.ts）。
 export function planPdfPages<T extends PlannedElement>(elements: readonly T[], relation: (element: T, frame: T) => FrameRelation): PdfPagePlan<T>[] {
   const frames = frameOrder(elements.filter(isFrameLike));
   if (!frames.length) return [{ kind: "all" }];
@@ -54,18 +57,20 @@ export function planPdfPages<T extends PlannedElement>(elements: readonly T[], r
   const byId = new Map(elements.map((element) => [element.id, element]));
   // 入れ物の中の文字は入れ物で見る。
   const anchorOf = (element: T) => (element.containerId ? byId.get(element.containerId) : undefined) ?? element;
-  const frameOf = (element: T) => element.frameId && frameIds.has(element.frameId) ? element.frameId : null;
+  const unclipped = (anchor: T) => anchor.type === "arrow";
+  // 枠のページに描かれるか（Excalidraw の getElementsOverlappingFrame と同じ）：どの枠の子でもないか、この枠の子か、矢印で、枠に重なる。
+  // 消えた枠の子（frameId が残っている）はどの枠のページにも描かれない。
+  const drawnOn = (anchor: T, frame: T) => (!anchor.frameId || anchor.frameId === frame.id || unclipped(anchor)) && relation(anchor, frame) !== "none";
+  // 枠に切り取られる子は、見えている部分がその枠のページにあるので最後のページには入れない（画面でも枠の外は見えない）。
+  const clippedChild = (anchor: T) => !unclipped(anchor) && Boolean(anchor.frameId && frameIds.has(anchor.frameId));
   const content = elements.filter((element) => !isFrameLike(element));
   const pages: PdfPagePlan<T>[] = frames
-    .filter((frame) => content.some((element) => {
-      const anchor = anchorOf(element);
-      const owner = frameOf(anchor);
-      return (owner === null || owner === frame.id) && relation(anchor, frame) !== "none";
-    }))
+    .filter((frame) => content.some((element) => drawnOn(anchorOf(element), frame)))
     .map((frame) => ({ kind: "frame", frame }));
+  // 最後のページ：どの枠のページにも欠けずに描かれない要素。
   const rest = content.filter((element) => {
     const anchor = anchorOf(element);
-    return frameOf(anchor) === null && frames.every((frame) => relation(anchor, frame) !== "inside");
+    return !clippedChild(anchor) && !frames.some((frame) => drawnOn(anchor, frame) && relation(anchor, frame) === "inside");
   });
   if (rest.length) pages.push({ kind: "rest", elements: rest });
   return pages.length ? pages : [{ kind: "all" }];

@@ -90,9 +90,12 @@ export function buildPdf(pages: readonly PdfPage[], { title }: { title?: string 
   return out;
 }
 
-// 白の上に合成した RGB が、すべて真っ白か（何も描かれていないページ）。
-export function isBlankRgb(rgb: Uint8Array): boolean {
-  for (let index = 0; index < rgb.length; index++) if (rgb[index] !== 255) return false;
+// 白の上に合成した RGB が、すべて画布の色（既定は白）か（何も描かれていないページ）。
+export function isBlankRgb(rgb: Uint8Array, background: readonly [number, number, number] = [255, 255, 255]): boolean {
+  const [red, green, blue] = background;
+  for (let index = 0; index + 2 < rgb.length; index += 3) {
+    if (rgb[index] !== red || rgb[index + 1] !== green || rgb[index + 2] !== blue) return false;
+  }
   return true;
 }
 
