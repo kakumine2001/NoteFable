@@ -975,6 +975,7 @@ export const zhHant: Record<string, string> = {
   "{chat} messages and {image} image generations a month. Cancel anytime.": "每月 {chat} 條訊息、生成 {image} 張圖片。隨時可以取消。",
   "{color} background": "{color}背景",
   "{content}\n\nRequest failed: {detail}": "{content}\n\n請求失敗：{detail}",
+  "{count} columns": "{count} 欄",
   "{count} days ago": "{count} 天前",
   "{count} days left": "剩餘 {count} 天",
   "{count} emoji found. Use the up and down arrow keys to navigate.": "找到 {count} 個表情，使用上下方向鍵瀏覽。",

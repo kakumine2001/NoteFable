@@ -696,6 +696,7 @@ export const ko: Record<string, string> = {
   "Add a one-line summary at the top.": "맨 위에 한 줄 요약을 추가해 주세요.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "요약: 해 질 녘에는 빛이 더 많은 공기를 지나며 파란 빛은 흩어지고 붉은 빛이 남는다.",
   "Block equation": "블록 수식",
+  "{count} columns": "{count}단",
   "Inline equation": "인라인 수식",
   "Add a TeX equation": "TeX 수식 추가",
   "New equation": "새 수식",

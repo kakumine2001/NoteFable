@@ -237,6 +237,7 @@ mobile/android/
 - 编辑页按"最初打开的页面"分（`OpenNote.editor`），消息也按它转发；副本替换后 `OpenNote.id` 变成副本，WebView 重新加载（渲染进程被杀后）时用副本的地址；换语言不重新加载，见“界面语言”。
 - WebView 的渲染进程被系统杀掉或崩溃时（`onRenderProcessGone`）不让整个 App 退出：丢掉这个 WebView，换一个新的重新加载，没保存的编辑由网页的本地草稿恢复。
 - 返回键先交给网页：WebView 能后退就后退；有打开的 `<dialog>`（版本历史等）就发 `cancel` 事件关最上面一层（原生调用打开的面板没有用户手势，浏览器不一定为它留历史记录）；都没有才保存并回列表。返回顺序：笔记 → 列表 → 聊天 → 退出。
+- 编辑器里的分栏（`columnList` / `column`，见 [notes-flow.md](notes-flow.md)）由内嵌的网页编辑器处理，App 不读块的结构；手机宽度下栏竖着排，不能拖动调宽。
 - WebView：开 JS 和 DOM Storage、禁止混合内容、不允许 file/content 访问；只有本站的 `/note-embed` 在 WebView 里打开，其它链接交给系统浏览器；图片 / 文件块用系统文件选择器（`onShowFileChooser`）；只有 debug 包能用 Chrome 调试 WebView。
 - 笔记里的文件（本站 `/api/pages/files?key=…`）只给主人，系统浏览器没有 App 的 Cookie。`shouldOverrideUrlLoading` 和 `DownloadListener` 拦下这种地址，由 App 用 OkHttp（同一个 Cookie jar）下载：Android 10 及以上存进"下载"（MediaStore，不需要权限），更老的系统先让用户选保存位置（SAF `CreateDocument`），存好后用系统的"打开方式"打开。提示用网页的"正在下载…"，失败时显示"请求失败：<服务端原因>"。
 

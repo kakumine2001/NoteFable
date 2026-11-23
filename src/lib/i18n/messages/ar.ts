@@ -696,6 +696,7 @@ export const ar: Record<string, string> = {
   "Add a one-line summary at the top.": "أضف ملخصًا من سطر واحد في الأعلى.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "باختصار: عند الغروب يعبر الضوء هواءً أكثر، فيتشتت الأزرق ويبقى الأحمر.",
   "Block equation": "معادلة مستقلة",
+  "{count} columns": "{count} أعمدة",
   "Inline equation": "معادلة مضمّنة",
   "Add a TeX equation": "إضافة معادلة TeX",
   "New equation": "معادلة جديدة",

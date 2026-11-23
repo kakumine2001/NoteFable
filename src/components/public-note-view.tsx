@@ -12,6 +12,7 @@ import { rewriteBlocksForShare, shareCoverUrl, shareIconUrl, sharePagePath } fro
 import { NoteIcon } from "@/components/note-icon";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
+import { validColumnWidth } from "@/lib/note-columns";
 
 // BlockNote のカラー名と Notion の色対応（テキスト色・背景色）。
 const TEXT_COLORS: Record<string, string> = {
@@ -169,6 +170,21 @@ function renderBlock(
   const textAlign = alignStyle(props.textAlignment);
   const blockStyle: CSSProperties | undefined =
     colors || textAlign ? { ...colors, ...(textAlign ? { textAlign } : {}) } : undefined;
+  // 段組みは段ごとに中身を描く（下の共通の子ブロックの描画は使わない。両方で描くと入れ子の段組みで仕事が倍々になる）。
+  if (block.type === "columnList") {
+    return (
+      <div key={block.id} className="public-note-columns">
+        {(block.children ?? []).filter((column) => column.type === "column").map((column) => {
+          const width = column.props?.width;
+          return (
+            <div key={column.id} className="public-note-column" style={validColumnWidth(width) ? { flexGrow: width } : undefined}>
+              {renderBlockList(column.children ?? [], labels)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   const renderedChildren =
     Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null;
   const childrenNode = renderedChildren ? <div className="public-note-children">{renderedChildren}</div> : null;

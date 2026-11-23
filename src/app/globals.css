@@ -419,6 +419,18 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .notes-block-editor .bn-editor ::selection { background: rgba(35, 131, 226, 0.28); }
 .notes-block-editor .bn-block-content { padding: 3px 2px; }
 .notes-block-editor .bn-block-outer + .bn-block-outer { margin-top: 1px; }
+/* 段組み（note-columns.ts）。段の間は Notion と同じくらいの余白にし、段の中のブロックは段の幅いっぱいに使う。
+   段の左の余白を広めに取り、ブロックのハンドル（左に出る）が境目（幅の調整）と重ならないようにする。
+   狭い画面（スマホ・App の埋め込み）では段を縦に積む。幅の調整はそのとき無効（note-columns.ts が flex-direction を見る）。 */
+.notes-block-editor .bn-block-column-list > .bn-block-column { min-width: 0; padding-block: 2px; padding-inline: 30px 14px; }
+.notes-block-editor .bn-block-column-list > .bn-block-column:first-child { padding-inline-start: 0; }
+.notes-block-editor .bn-block-column-list > .bn-block-column:last-child { padding-inline-end: 0; }
+.notes-block-editor .bn-block-column > .bn-block-outer:first-child { margin-top: 0; }
+body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !important; user-select: none !important; }
+@media (max-width: 640px) {
+  .notes-block-editor .bn-block-column-list { flex-direction: column; }
+  .notes-block-editor .bn-block-column-list > .bn-block-column { flex-grow: 1 !important; padding: 0; overflow-x: visible; }
+}
 .notes-block-editor .bn-inline-content { line-height: 1.5; }
 .notes-block-editor .bn-block-content:has(.ProseMirror-trailingBreak:only-child)::after,
 .notes-block-editor .bn-inline-content:has(> .ProseMirror-trailingBreak:only-child)::before {
@@ -3727,6 +3739,12 @@ dialog.signin-dialog { position: relative; width: min(calc(100% - 2rem), 25rem);
 .public-note-checkbox { margin-top: 0.32rem; width: 1rem; height: 1rem; flex: none; accent-color: var(--notion-blue); pointer-events: none; }
 .public-note-check-item.is-checked > .public-note-list-row > .public-note-list-text { text-decoration: line-through; color: var(--notion-muted); }
 .public-note-children { padding-inline-start: 1.5rem; margin-top: 0.25rem; display: flex; flex-direction: column; gap: 0.25rem; }
+/* 段組み（エディターの .bn-block-column-list と同じく横並び。狭い画面では縦に積む） */
+.public-note-columns { display: flex; gap: 1.5rem; min-width: 0; }
+.public-note-column { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 0.25rem; }
+@media (max-width: 640px) {
+  .public-note-columns { flex-direction: column; gap: 0.25rem; }
+}
 .public-note-toggle-row { display: flex; align-items: flex-start; gap: 0.25rem; }
 .public-note-toggle-btn {
   display: inline-flex; width: 1.5rem; height: 1.5rem; margin-top: 0.1rem; flex: none; align-items: center; justify-content: center;

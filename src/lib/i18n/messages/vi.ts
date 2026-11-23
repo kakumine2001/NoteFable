@@ -696,6 +696,7 @@ export const vi: Record<string, string> = {
   "Add a one-line summary at the top.": "Thêm một dòng tóm tắt ở đầu.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Tóm lại: lúc hoàng hôn ánh sáng đi qua nhiều không khí hơn, ánh sáng xanh bị tán xạ hết và sắc đỏ còn lại.",
   "Block equation": "Công thức khối",
+  "{count} columns": "{count} cột",
   "Inline equation": "Công thức nội tuyến",
   "Add a TeX equation": "Thêm công thức TeX",
   "New equation": "Công thức mới",

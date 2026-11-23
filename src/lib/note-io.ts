@@ -1,5 +1,6 @@
 import { answerFileName, extractLeadingHeadingTitle, fitMarkdownBlocksToNote } from "@/lib/answer-export";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { unwrapColumns } from "@/lib/note-columns";
 import { mentionText } from "@/lib/note-mention";
 import type { NoteContent } from "@/types/notes";
 
@@ -43,7 +44,8 @@ function portableMarkdown(blocks: unknown): string {
   if (!Array.isArray(blocks)) return "";
   let out = "";
   let previousType: unknown;
-  for (const block of blocks) {
+  // 段組みは外し、段の中のブロックも最上位のブロックと同じように空行で区切る。
+  for (const block of unwrapColumns(blocks)) {
     const text = blocksToMarkdown([mentionsAsText(block)]).trimEnd();
     if (!text) continue;
     const type = (block as { type?: unknown } | null)?.type;
