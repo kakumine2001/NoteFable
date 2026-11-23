@@ -62,7 +62,7 @@ describe("creating whiteboards and slide decks", () => {
     expect((await create(json({ kind: "slides", title: "Deck", icon: "📊", parentId: "n1", data }))).status).toBe(201);
     expect(mocks.resolveParent).toHaveBeenCalledWith(expect.anything(), "mine", null, "n1");
     expect(mocks.create.mock.calls[0][0].data).toMatchObject({ kind: "slides", parentId: "n1", groupId: "g1", icon: "📊" });
-    expect(mocks.canvasUpsert.mock.calls[0][0].create.segments).toEqual([{ id: "s1", text: "Title Speaker" }]);
+    expect(mocks.canvasUpsert.mock.calls[0][0].create.segments).toEqual([{ id: "s1", text: "Title Speaker", index: 0 }]);
   });
 
   it("rejects unknown kinds, embedded images and other users' files without creating anything", async () => {

@@ -131,7 +131,7 @@ describe("text for search, semantic search and chat", () => {
         { id: "c", elements: [{ id: "e3", type: "text", text: "Plain" }] },
       ],
     };
-    expect(extractCanvasSegments("slides", data)).toEqual([{ id: "a", text: "Title here remember" }, { id: "c", text: "Plain" }]);
+    expect(extractCanvasSegments("slides", data)).toEqual([{ id: "a", text: "Title here remember", index: 0 }, { id: "c", text: "Plain", index: 2 }]);
   });
 
   it("never cuts an emoji in half when a long text is shortened", () => {
@@ -168,5 +168,7 @@ describe("text for search, semantic search and chat", () => {
   it("reads as a bullet list (whiteboard) or numbered slides for the AI and chat context", () => {
     expect(canvasReadableText("whiteboard", [{ id: "a", text: "One" }, { id: "b", text: "Two" }])).toBe("- One\n- Two");
     expect(canvasReadableText("slides", [{ id: "a", text: "Intro" }, { id: "b", text: "End" }])).toBe("Slide 1: Intro\nSlide 2: End");
+    // 文字の無いスライドがあっても、番号は実際の何枚目か。
+    expect(canvasReadableText("slides", [{ id: "a", text: "Intro", index: 0 }, { id: "c", text: "End", index: 2 }])).toBe("Slide 1: Intro\nSlide 3: End");
   });
 });
