@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findReportedAnswer, parseReport, reportEmail, sendReport } from "@/lib/answer-report";
+import { findReportedAnswer, parseReport, reportEmail, sendReport, slideImageReportEmail } from "@/lib/answer-report";
+import { readCanvasData } from "@/lib/canvas-store";
+import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { normalizeDeck } from "@/lib/slides/model";
 import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { EmailSendError } from "@/lib/email-login";
 import { msg } from "@/lib/i18n/translate";
@@ -16,8 +19,25 @@ export async function POST(request: NextRequest) {
   if (!parsed.ok) return NextResponse.json({ error: msg("Could not send the report.") }, { status: 400 });
 
   const user = await getOrCreateUser();
-  const answer = await findReportedAnswer(user.id, parsed.data.messageId);
-  if (!answer) return NextResponse.json({ error: msg("This answer is no longer available.") }, { status: 404 });
+  const data = parsed.data;
+  let email: { subject: string; text: string };
+  if ("pageId" in data) {
+    // スライドの AI で作った画像：自分の（ゴミ箱に無い）スライドの中の、AI で作った印のある画像だけ。
+    const deck = normalizeDeck(await readCanvasData(user.id, data.pageId));
+    const element = deck.slides.flatMap((slide) => slide.elements).find((entry) => entry.id === data.elementId);
+    const file = element?.type === "image" && element.generated ? parseNoteFileUrl(element.src) : null;
+    if (!element || element.type !== "image" || !element.generated || !file || file === "empty") {
+      return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
+    }
+    email = slideImageReportEmail({ userId: user.id, signedIn: isAccountUser(user), pageId: data.pageId, elementId: element.id, prompt: element.generated.prompt, path: file.path, reason: data.reason });
+  } else {
+    const answer = await findReportedAnswer(user.id, data.messageId);
+    if (!answer) return NextResponse.json({ error: msg("This answer is no longer available.") }, { status: 404 });
+    email = reportEmail({
+      userId: user.id, signedIn: isAccountUser(user), sessionId: answer.sessionId, messageId: answer.id,
+      model: answer.model, createdAt: answer.createdAt, answer: answer.content, prompt: answer.prompt, images: answer.images, reason: data.reason,
+    });
+  }
 
   const ticket = await consumeReportQuota(user, clientNetworkKey(request));
   if (!ticket) {
@@ -25,10 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    await sendReport(reportEmail({
-      userId: user.id, signedIn: isAccountUser(user), sessionId: answer.sessionId, messageId: answer.id,
-      model: answer.model, createdAt: answer.createdAt, answer: answer.content, prompt: answer.prompt, images: answer.images, reason: parsed.data.reason,
-    }));
+    await sendReport(email);
   } catch (error) {
     await refundUsage(ticket);
     if (error instanceof EmailSendError) return NextResponse.json({ error: msg("Could not send the report.") }, { status: 502 });

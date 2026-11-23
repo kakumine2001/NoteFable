@@ -60,7 +60,11 @@ class NotePageMenuActions(
     /** "Export Markdown"：把这一篇存成 .md 文件。 */
     val onExport: () -> Unit,
     val onTrash: () -> Unit,
-)
+    /** 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。只有编辑页传入，幻灯片才显示这几项。 */
+    val onSlides: ((String) -> Unit)? = null,
+) {
+    fun withSlides(handler: (String) -> Unit) = NotePageMenuActions(error, busy, onSettings, onFavorite, onDuplicate, onAddInside, onMove, onExport, onTrash, handler)
+}
 
 private val MenuDivider: Color get() = Sm.Border
 
@@ -117,6 +121,15 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             }
             ToggleItem(stringResource(R.string.pg_lock_page), Lucide.Lock, page.locked) { actions.onSettings(NotePageSettings(locked = !page.locked)) }
             Divider()
+            val slides = actions.onSlides
+            if (slides != null && page.kind == com.kakumine.notefable.data.PageKind.Slides) {
+                MenuItem(stringResource(R.string.slides_present), Lucide.Presentation, onClick = run { slides("""{"action":"present"}""") })
+                MenuItem(stringResource(R.string.slides_export_pdf), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf"}""") })
+                MenuItem(stringResource(R.string.slides_export_pdf_notes), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pdf-notes"}""") })
+                MenuItem(stringResource(R.string.slides_export_png), Lucide.Download, onClick = run { slides("""{"action":"export","format":"png"}""") })
+                MenuItem(stringResource(R.string.slides_export_pptx), Lucide.Download, onClick = run { slides("""{"action":"export","format":"pptx"}""") })
+                Divider()
+            }
             val favorite = page.favoritedAt != null
             MenuItem(stringResource(if (favorite) R.string.pg_remove_from_favorites else R.string.pg_add_to_favorites), if (favorite) Lucide.StarOff else Lucide.Star,
                 onClick = run { actions.onFavorite(!favorite) })

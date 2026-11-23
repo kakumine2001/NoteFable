@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- スライドの編集画面の「…」メニューと、書き出したファイルの保存の案内（src/lib/i18n/messages/ja.ts）。 -->
+<resources>
+    <string name="slides_present">プレゼンテーション</string>
+    <string name="slides_export_pdf">PDF に書き出す</string>
+    <string name="slides_export_pdf_notes">発表者ノート付きの PDF に書き出す</string>
+    <string name="slides_export_png">PNG 画像に書き出す</string>
+    <string name="slides_export_pptx">PowerPoint（PPTX）に書き出す</string>
+    <string name="slides_file_saved">ファイルを保存しました。</string>
+    <string name="slides_file_save_failed">ファイルを保存できませんでした。</string>
+</resources>

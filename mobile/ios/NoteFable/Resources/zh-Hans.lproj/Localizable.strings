@@ -553,6 +553,15 @@
 "sb_err_move_chat" = "无法移动聊天。";
 "sb_err_create_chat" = "数据库不可用，请启动本地 PostgreSQL 后重试。";
 
+/* strings_slides.xml */
+"slides_present" = "放映";
+"slides_export_pdf" = "导出 PDF";
+"slides_export_pdf_notes" = "导出带演讲备注的 PDF";
+"slides_export_png" = "导出 PNG 图片";
+"slides_export_pptx" = "导出 PowerPoint（PPTX）";
+"slides_file_saved" = "文件已保存。";
+"slides_file_save_failed" = "无法保存文件。";
+
 /* strings_turns.xml */
 "regenerate" = "重新生成";
 "branch_in_new_chat" = "在新聊天中分支";

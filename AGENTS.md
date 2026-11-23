@@ -5,7 +5,7 @@ Next.js 16 App Router, React 19, Tailwind v4, Prisma 7, Neon PostgreSQL, Vercel,
 ## Working Rules
 
 - Discussion produces a reviewable plan in chat; an implementation request goes straight to local changes, checks and a local preview. No plan or analysis files unless asked.
-- Read the area's doc before exploring code: `docs/architecture/` covers chat-flow, image-flow, notes-flow, provider-requests, database, deployment, billing, i18n, android, android-native, ios and ios-native.
+- Read the area's doc before exploring code: `docs/architecture/` covers chat-flow, image-flow, notes-flow, slides, provider-requests, database, deployment, billing, i18n, android, android-native, ios and ios-native.
 - Production deploys only by merging a PR that passed the review flow (Review and Validation). Never push to `main` directly or deploy any other way unless the user asks in the current chat.
 - UI: inspect the existing screen and keep its language, spacing and motion. Translate UI via `useT()` / `useI18n()`, mark constant text with `msg()`, and update every non-English dictionary (`zh-hant.ts` is generated; `docs/architecture/i18n.md`).
 - Keep `/`, `/app` and `/note-embed` static under `src/app/[locale]/`; no cookies or headers in layouts. After dictionary or Android string changes, regenerate `zh-hant.ts` and the native string and system-text assets (scripts in `docs/architecture/i18n.md`); close mobile drawers outside `runTransition`.

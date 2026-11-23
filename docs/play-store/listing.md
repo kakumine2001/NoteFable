@@ -26,6 +26,7 @@ KEEP WHAT MATTERS
 • Organize notes with sub-pages, groups, favorites and emoji icons.
 • Edit history and a trash bin, so nothing is lost by accident.
 • Import Markdown files as notes, and export any note as Markdown.
+• Slide decks with layouts, themes, text, math, images and shapes: present full screen with speaker notes, export to PDF or PowerPoint, or share a link to view them.
 
 LET AI WORK ON YOUR NOTES
 • Attach notes to a chat and the AI reads them as context.
@@ -68,6 +69,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 • 用子页面、分组、收藏和表情图标整理笔记。
 • 编辑历史和回收站，误删也能找回。
 • 把 Markdown 文件导入成笔记，也可以把笔记导出为 Markdown。
+• 幻灯片：版式、主题、文字、公式、图片和形状；全屏放映并查看演讲备注，导出 PDF 或 PowerPoint，也能分享放映链接。
 
 让 AI 帮你改笔记
 • 把笔记添加到对话里，AI 会把它作为参考内容。
@@ -110,6 +112,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 • 用子頁面、群組、收藏和表情符號圖示整理筆記。
 • 編輯紀錄和垃圾桶，誤刪也能找回。
 • 把 Markdown 檔案匯入成筆記，也可以把筆記匯出為 Markdown。
+• 投影片：版面、主題、文字、公式、圖片和形狀；全螢幕放映並查看演講備註，匯出 PDF 或 PowerPoint，也能分享放映連結。
 
 讓 AI 幫你改筆記
 • 把筆記加入對話，AI 會把它當作參考內容。
@@ -152,6 +155,7 @@ NoteFable は AI チャットとノートをひとつにまとめたアプリで
 • サブページ・グループ・お気に入り・絵文字アイコンでノートを整理。
 • 編集履歴とゴミ箱があるので、うっかり消しても戻せます。
 • Markdown ファイルをノートとして読み込み、ノートを Markdown で書き出せます。
+• スライド：レイアウト・テーマ・テキスト・数式・画像・図形。発表者ノートを見ながら全画面で発表し、PDF や PowerPoint に書き出したり、リンクで共有したりできます。
 
 AI がノートを手伝う
 • ノートをチャットに添付すると、AI がそれを参考にして答えます。
@@ -194,6 +198,7 @@ NoteFable은 AI 채팅과 노트를 한곳에 모아, 배운 내용이 채팅 �
 • 하위 페이지, 그룹, 즐겨찾기, 이모지 아이콘으로 노트를 정리하세요.
 • 편집 기록과 휴지통이 있어 실수로 지워도 되살릴 수 있어요.
 • Markdown 파일을 노트로 가져오고, 어떤 노트든 Markdown으로 내보낼 수 있어요.
+• 슬라이드: 레이아웃, 테마, 텍스트, 수식, 이미지, 도형. 발표자 노트를 보며 전체 화면으로 발표하고, PDF나 PowerPoint로 내보내거나 링크로 공유할 수 있어요.
 
 AI가 노트를 도와줘요
 • 노트를 채팅에 첨부하면 AI가 그 내용을 참고해 답해요.
@@ -236,6 +241,7 @@ GUARDA LO IMPORTANTE
 • Organiza tus notas con subpáginas, grupos, favoritos e iconos emoji.
 • Historial de ediciones y papelera, para que nada se pierda por error.
 • Importa archivos Markdown como notas y exporta cualquier nota en Markdown.
+• Diapositivas con diseños, temas, texto, ecuaciones, imágenes y formas: presenta a pantalla completa con notas del orador, exporta a PDF o PowerPoint, o comparte un enlace para verlas.
 
 DEJA QUE LA IA TRABAJE EN TUS NOTAS
 • Adjunta notas a un chat y la IA las usa como contexto.
@@ -278,6 +284,7 @@ GARDEZ L'ESSENTIEL
 • Organisez vos notes avec des sous-pages, des groupes, des favoris et des icônes emoji.
 • Historique des modifications et corbeille : rien ne se perd par erreur.
 • Importez des fichiers Markdown comme notes et exportez n'importe quelle note en Markdown.
+• Des diapositives avec mises en page, thèmes, texte, équations, images et formes : présentez en plein écran avec les notes du présentateur, exportez en PDF ou PowerPoint, ou partagez un lien pour les consulter.
 
 L'IA TRAVAILLE SUR VOS NOTES
 • Joignez des notes à une conversation : l'IA s'en sert comme contexte.
@@ -320,6 +327,7 @@ BEHALTE, WAS ZÄHLT
 • Ordne Notizen mit Unterseiten, Gruppen, Favoriten und Emoji-Symbolen.
 • Bearbeitungsverlauf und Papierkorb, damit nichts versehentlich verloren geht.
 • Importiere Markdown-Dateien als Notizen und exportiere jede Notiz als Markdown.
+• Folien mit Layouts, Designs, Text, Formeln, Bildern und Formen: im Vollbild mit Sprechernotizen präsentieren, als PDF oder PowerPoint exportieren oder per Link teilen.
 
 LASS DIE KI AN DEINEN NOTIZEN ARBEITEN
 • Hänge Notizen an einen Chat an, und die KI nutzt sie als Kontext.
@@ -362,6 +370,7 @@ GUARDE O QUE IMPORTA
 • Organize as notas com subpáginas, grupos, favoritos e ícones de emoji.
 • Histórico de edições e lixeira, para nada se perder por engano.
 • Importe arquivos Markdown como notas e exporte qualquer nota em Markdown.
+• Slides com layouts, temas, texto, equações, imagens e formas: apresente em tela cheia com notas do apresentador, exporte para PDF ou PowerPoint ou compartilhe um link para visualizá-los.
 
 DEIXE A IA TRABALHAR NAS SUAS NOTAS
 • Anexe notas a uma conversa e a IA usa o conteúdo como contexto.
@@ -404,6 +413,7 @@ CONSERVA CIÒ CHE CONTA
 • Organizza le note con sottopagine, gruppi, preferiti e icone emoji.
 • Cronologia delle modifiche e cestino, così niente va perso per errore.
 • Importa file Markdown come note ed esporta qualsiasi nota in Markdown.
+• Diapositive con layout, temi, testo, formule, immagini e forme: presenta a schermo intero con le note del relatore, esporta in PDF o PowerPoint o condividi un link per vederle.
 
 LASCIA CHE L'IA LAVORI SULLE TUE NOTE
 • Allega le note a una chat e l'IA le usa come contesto.
@@ -446,6 +456,7 @@ SIMPAN YANG PENTING
 • Atur catatan dengan subhalaman, grup, favorit, dan ikon emoji.
 • Riwayat edit dan tempat sampah, jadi tidak ada yang hilang karena salah hapus.
 • Impor file Markdown sebagai catatan, dan ekspor catatan apa pun sebagai Markdown.
+• Slide dengan tata letak, tema, teks, rumus, gambar, dan bentuk: presentasikan layar penuh dengan catatan pembicara, ekspor ke PDF atau PowerPoint, atau bagikan tautan untuk melihatnya.
 
 BIARKAN AI MENGERJAKAN CATATAN ANDA
 • Lampirkan catatan ke chat dan AI memakainya sebagai konteks.
@@ -488,6 +499,7 @@ GIỮ LẠI ĐIỀU QUAN TRỌNG
 • Sắp xếp ghi chú bằng trang con, nhóm, mục yêu thích và biểu tượng emoji.
 • Lịch sử chỉnh sửa và thùng rác, để không mất gì vì lỡ tay.
 • Nhập tệp Markdown thành ghi chú và xuất bất kỳ ghi chú nào ra Markdown.
+• Trình chiếu với bố cục, chủ đề, văn bản, công thức, hình ảnh và hình khối: trình chiếu toàn màn hình kèm ghi chú của người thuyết trình, xuất ra PDF hoặc PowerPoint, hoặc chia sẻ liên kết để xem.
 
 ĐỂ AI LÀM VIỆC VỚI GHI CHÚ
 • Đính kèm ghi chú vào cuộc trò chuyện và AI dùng chúng làm ngữ cảnh.
@@ -530,6 +542,7 @@ NoteFable รวมแชท AI และโน้ตของคุณไว้
 • จัดระเบียบโน้ตด้วยหน้าย่อย กลุ่ม รายการโปรด และไอคอนอีโมจิ
 • มีประวัติการแก้ไขและถังขยะ ไม่ต้องกลัวลบผิด
 • นำเข้าไฟล์ Markdown เป็นโน้ต และส่งออกโน้ตใดก็ได้เป็น Markdown
+• สไลด์พร้อมเลย์เอาต์ ธีม ข้อความ สมการ รูปภาพ และรูปร่าง นำเสนอแบบเต็มจอพร้อมบันทึกผู้บรรยาย ส่งออกเป็น PDF หรือ PowerPoint หรือแชร์ลิงก์ให้ผู้อื่นดู
 
 ให้ AI ช่วยทำงานกับโน้ต
 • แนบโน้ตเข้าแชท แล้ว AI จะใช้เป็นบริบทในการตอบ
@@ -572,6 +585,7 @@ NoteFable AI चैट और आपके नोट्स को एक ही 
 • सब-पेज, ग्रुप, पसंदीदा और इमोजी आइकन से नोट्स व्यवस्थित करें।
 • एडिट हिस्ट्री और ट्रैश, ताकि गलती से कुछ न खोए।
 • Markdown फ़ाइलों को नोट्स के रूप में इंपोर्ट करें और किसी भी नोट को Markdown में एक्सपोर्ट करें।
+• लेआउट, थीम, टेक्स्ट, गणितीय सूत्र, इमेज और आकृतियों वाली स्लाइड: वक्ता नोट्स के साथ फ़ुल स्क्रीन में प्रस्तुत करें, PDF या PowerPoint में एक्सपोर्ट करें, या देखने के लिए लिंक शेयर करें।
 
 AI आपके नोट्स पर काम करे
 • नोट्स को चैट में जोड़ें, AI उन्हें संदर्भ के रूप में पढ़ता है।
@@ -614,6 +628,7 @@ AI संदेशों और इमेज की दैनिक और म�
 • نظّم ملاحظاتك بالصفحات الفرعية والمجموعات والمفضلة وأيقونات الرموز التعبيرية.
 • سجل للتعديلات وسلة مهملات، فلا يضيع شيء بالخطأ.
 • استورد ملفات Markdown كملاحظات، وصدّر أي ملاحظة بصيغة Markdown.
+• شرائح بتخطيطات وسمات ونصوص ومعادلات وصور وأشكال: اعرضها بملء الشاشة مع ملاحظات المتحدث، أو صدّرها بصيغة PDF أو PowerPoint، أو شارك رابطًا لعرضها.
 
 دع الذكاء الاصطناعي يعمل على ملاحظاتك
 • أرفق الملاحظات بالمحادثة ليستخدمها الذكاء الاصطناعي كسياق.
@@ -656,6 +671,7 @@ HER ŞEYİ SOR
 • Notlarını alt sayfalar, gruplar, favoriler ve emoji simgeleriyle düzenle.
 • Düzenleme geçmişi ve çöp kutusu sayesinde yanlışlıkla hiçbir şey kaybolmaz.
 • Markdown dosyalarını not olarak içe aktar, istediğin notu Markdown olarak dışa aktar.
+• Düzenler, temalar, metin, formüller, görseller ve şekillerle slaytlar: konuşmacı notlarıyla tam ekran sun, PDF veya PowerPoint olarak dışa aktar ya da görüntülemek için bir bağlantı paylaş.
 
 YAPAY ZEKÂ NOTLARINDA ÇALIŞSIN
 • Notları bir sohbete ekle, yapay zekâ onları bağlam olarak kullansın.
@@ -698,6 +714,7 @@ NoteFable объединяет ИИ-чат и ваши заметки в одн�
 • Упорядочивайте заметки с помощью подстраниц, групп, избранного и значков-эмодзи.
 • История правок и корзина — ничего не пропадёт по ошибке.
 • Импортируйте файлы Markdown как заметки и экспортируйте любую заметку в Markdown.
+• Слайды с макетами, темами, текстом, формулами, изображениями и фигурами: показывайте их на весь экран с заметками докладчика, экспортируйте в PDF или PowerPoint или делитесь ссылкой для просмотра.
 
 ПУСТЬ ИИ РАБОТАЕТ С ЗАМЕТКАМИ
 • Прикрепите заметки к чату, и ИИ будет опираться на них.

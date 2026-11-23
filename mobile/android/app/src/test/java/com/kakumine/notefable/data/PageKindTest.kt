@@ -65,11 +65,23 @@ class PageKindTest {
         val asset = java.io.File("src/main/assets/page-kinds.json").readText()
         try {
             PageKindTable.loadBundled(asset)
-            // 网页现在的表：只有笔记能新建（白板、幻灯片的编辑器上线时这里跟着变）。
+            // 网页现在的表（白板、幻灯片的编辑器上线时这里跟着变）：能新建的类型按分区顺序；幻灯片有编辑器和公开的放映页（#149）。
             assertEquals(PageKindTable.parse(kotlinx.serialization.json.Json.parseToJsonElement(asset))?.filterValues { it.editor }?.keys?.let { keys -> PageKindTable.DisplayOrder.filter { it in keys } }, PageKindTable.creatable)
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
         } finally {
             PageKindTable.reset()
         }
+    }
+
+    @Test
+    fun `parses the slide presentation and file-save bridge messages`() {
+        assertEquals(EmbedMessage.Presentation("start", 2, 9), EmbedMessage.parse("""{"type":"presentation","state":"start","index":2,"count":9}"""))
+        assertEquals(null, EmbedMessage.parse("""{"type":"presentation","state":"spin","index":2,"count":9}"""))
+        assertEquals(EmbedMessage.FileStart("f1", "Deck.pdf", "application/pdf", 1234), EmbedMessage.parse("""{"type":"fileStart","id":"f1","name":"Deck.pdf","mime":"application/pdf","size":1234}"""))
+        assertEquals(EmbedMessage.FileChunk("f1", 0, "AAEC"), EmbedMessage.parse("""{"type":"fileChunk","id":"f1","index":0,"data":"AAEC"}"""))
+        assertEquals(EmbedMessage.FileEnd("f1"), EmbedMessage.parse("""{"type":"fileEnd","id":"f1"}"""))
+        assertEquals(EmbedMessage.FileAbort("f1"), EmbedMessage.parse("""{"type":"fileAbort","id":"f1"}"""))
+        assertEquals(null, EmbedMessage.parse("""{"type":"fileStart","id":"f1","name":""}"""))
     }
 
     @Test

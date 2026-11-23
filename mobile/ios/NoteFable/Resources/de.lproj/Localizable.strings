@@ -553,6 +553,15 @@
 "sb_err_move_chat" = "Der Chat konnte nicht verschoben werden.";
 "sb_err_create_chat" = "Datenbank nicht erreichbar. Starte dein lokales PostgreSQL und versuche es erneut.";
 
+/* strings_slides.xml */
+"slides_present" = "Präsentieren";
+"slides_export_pdf" = "Als PDF exportieren";
+"slides_export_pdf_notes" = "Als PDF mit Sprechernotizen exportieren";
+"slides_export_png" = "Als PNG-Bilder exportieren";
+"slides_export_pptx" = "Als PowerPoint (PPTX) exportieren";
+"slides_file_saved" = "Datei gespeichert.";
+"slides_file_save_failed" = "Die Datei konnte nicht gespeichert werden.";
+
 /* strings_turns.xml */
 "regenerate" = "Neu generieren";
 "branch_in_new_chat" = "In neuem Chat verzweigen";

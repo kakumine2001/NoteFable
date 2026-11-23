@@ -553,6 +553,15 @@
 "sb_err_move_chat" = "No se pudo mover el chat.";
 "sb_err_create_chat" = "La base de datos no está disponible. Inicia PostgreSQL local e inténtalo de nuevo.";
 
+/* strings_slides.xml */
+"slides_present" = "Presentar";
+"slides_export_pdf" = "Exportar PDF";
+"slides_export_pdf_notes" = "Exportar PDF con notas del orador";
+"slides_export_png" = "Exportar imágenes PNG";
+"slides_export_pptx" = "Exportar a PowerPoint (PPTX)";
+"slides_file_saved" = "Archivo guardado.";
+"slides_file_save_failed" = "No se pudo guardar el archivo.";
+
 /* strings_turns.xml */
 "regenerate" = "Regenerar";
 "branch_in_new_chat" = "Ramificar en un nuevo chat";

@@ -69,7 +69,8 @@ private sealed interface NotesDialogState {
     data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
     data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
     data class TrashNote(val page: NotePageSummary) : NotesDialogState
-    data class Share(val pageId: String) : NotesDialogState
+    /** [kind]：幻灯片是公开树的叶子，没有“包含子页面”（网页 note-share-dialog.tsx 的 kind）。 */
+    data class Share(val pageId: String, val kind: com.kakumine.notefable.data.PageKind = com.kakumine.notefable.data.PageKind.Note) : NotesDialogState
 }
 
 @Composable
@@ -85,6 +86,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     val activity = LocalActivity.current ?: return
     val app = LocalContext.current.applicationContext as NoteFableApp
     val drawerState = rememberDrawerState(DrawerValue.Closed)
+    // 幻灯片在放映（编辑页报上来的）：放映中侧栏不跟着滑动打开。
+    var slidesPresenting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var dialog by remember { mutableStateOf<NotesDialogState?>(null) }
     // 笔记编辑器里上传因存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
@@ -222,6 +225,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        // 幻灯片放映中不让侧栏跟着边缘滑动打开（和翻回上一页、呼出系统栏的手势冲突）。
+        gesturesEnabled = !slidesPresenting,
         drawerContent = {
             AppDrawer(
                 workspace = notes.workspace,
@@ -384,6 +389,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onMenu = { scope.launch { drawerState.open() } },
                     onBack = notesViewModel::closeNote,
                     onDismissNotice = notesViewModel::dismissNotice,
+                    onPresentingChange = { slidesPresenting = it },
                     onMessage = { editor, message ->
                         when (message) {
                             is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
@@ -396,6 +402,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                                 noteStorageLimit = editor to StorageLimitInfo(message.tier, message.used, message.limit)
                             }
                             is EmbedMessage.Flushed -> Unit
+                            // 放映（横屏、全屏、常亮）和导出文件的保存由编辑页自己处理（NoteEditorScreen）。
+                            is EmbedMessage.Presentation, is EmbedMessage.FileStart, is EmbedMessage.FileChunk, is EmbedMessage.FileEnd, is EmbedMessage.FileAbort -> Unit
                         }
                     },
                     registerFlush = { bridge ->
@@ -419,7 +427,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onExport = { exportNote(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
-                    onShare = { dialog = NotesDialogState.Share(open.id) },
+                    onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->
                         {
                             // 登录成功后编辑器会关掉（身份变了），提示随之消失；取消登录时提示留着。
@@ -541,7 +549,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
             onConfirm = { vm.trashNote(dialog.page.id) },
             onClose = close,
         )
-        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close)
+        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close, kind = dialog.kind)
     }
 }
 

@@ -262,4 +262,5 @@ final class NotesTestEditor: NoteEditorBridge {
     func appIcon(_ value: String?) { calls.append("icon:\(value ?? "null")") }
     func language(_ code: String) { calls.append("lang:\(code)") }
     func theme(_ value: String) { calls.append("theme:\(value)") }
+    func slides(_ command: String) { calls.append("slides:\(command)") }
 }

@@ -23,6 +23,7 @@
 5. [database.md](database.md) — Neon 里有哪些表、关系是什么
 6. [deployment.md](deployment.md) — GitHub、Vercel、Neon 如何组合；Google / 邮箱登录配置
 7. [notes-flow.md](notes-flow.md) — 站内页面、区块编辑、自动保存与冲突恢复、Trash 与编辑历史、Markdown 导出 / 导入、笔记里的 AI 助手（选中文字提问与对话恢复）
+   - [slides.md](slides.md) — 幻灯片：数据形状、编辑器（版式、主题、富文本与公式、自由摆放）、图片（上传、聊天里的图片、AI 生成）、放映与演讲者视图、PDF / PNG / PPTX 导出、公开放映链接、App 里的放映与文件保存
 8. [android.md](android.md) — Android 开发环境、APK 交付、App 内登录、手机网页排版
 9. [android-native.md](android-native.md) — Kotlin / Compose 客户端、模型列表与网页界面对齐
 10. [ios.md](ios.md) — iOS PR 检查、App Store Connect / TestFlight 自动打包上传与云端签名
@@ -96,6 +97,7 @@ flowchart LR
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
 | `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/note-assistant.tsx` | Trash 对话框、编辑历史/恢复对话框与笔记内 AI 助手面板 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
+| `src/lib/slides/`、`src/components/slides/`、`src/components/public-slides-view.tsx` | 幻灯片的数据形状与纯函数、编辑器、放映、导出和公开放映页（[slides.md](slides.md)） |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
 | `src/lib/characters.ts`、`src/lib/app-icon.ts` | 7 个预设 AI 角色与本机图标配置 |
