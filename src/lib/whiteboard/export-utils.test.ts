@@ -1,15 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { exportFileName, frameOrder, planPdfPages, type FrameRelation, type PdfPagePlan } from "@/lib/whiteboard/export-utils";
+import { boundsRelation, exportFileName, frameOrder, planPdfPages, type PdfPagePlan } from "@/lib/whiteboard/export-utils";
 
 type Box = { id: string; type: string; x: number; y: number; width: number; height: number; frameId?: string | null; containerId?: string | null };
 
 const box = (id: string, type: string, x: number, y: number, width: number, height: number, extra: Partial<Box> = {}): Box => ({ id, type, x, y, width, height, ...extra });
 
 // テスト用の位置の関係（外接矩形 = x, y, width, height）。
-const relation = (element: Box, frame: Box): FrameRelation => {
-  if (element.x + element.width < frame.x || element.x > frame.x + frame.width || element.y + element.height < frame.y || element.y > frame.y + frame.height) return "none";
-  return element.x >= frame.x && element.y >= frame.y && element.x + element.width <= frame.x + frame.width && element.y + element.height <= frame.y + frame.height ? "inside" : "overlap";
-};
+const boundsOf = (element: Box) => [element.x, element.y, element.x + element.width, element.y + element.height] as const;
+const relation = (element: Box, frame: Box) => boundsRelation(boundsOf(element), boundsOf(frame));
+
+describe("boundsRelation", () => {
+  it("tells inside, overlap and none apart, counting touching edges as overlap", () => {
+    expect(boundsRelation([10, 10, 20, 20], [0, 0, 100, 100])).toBe("inside");
+    expect(boundsRelation([0, 0, 100, 100], [0, 0, 100, 100])).toBe("inside");
+    expect(boundsRelation([90, 90, 120, 120], [0, 0, 100, 100])).toBe("overlap");
+    expect(boundsRelation([100, 0, 150, 50], [0, 0, 100, 100])).toBe("overlap");
+    expect(boundsRelation([101, 0, 150, 50], [0, 0, 100, 100])).toBe("none");
+    expect(boundsRelation([0, -50, 50, -1], [0, 0, 100, 100])).toBe("none");
+  });
+});
 
 const describePages = (pages: PdfPagePlan<Box>[]) => pages.map((page) => page.kind === "frame" ? `frame:${page.frame.id}` : page.kind === "rest" ? `rest:${page.elements.map((element) => element.id).join(",")}` : "all");
 
@@ -69,6 +78,24 @@ describe("planPdfPages", () => {
       box("label", "text", 30, 40, 80, 20, { containerId: "shape" }),
     ];
     expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f"]);
+  });
+
+  it("keeps a label with its container even when the label's own frame says otherwise", () => {
+    const elements = [
+      box("f", "frame", 0, 0, 300, 200),
+      box("shape", "rectangle", 600, 20, 100, 60),
+      box("label", "text", 610, 40, 80, 20, { containerId: "shape", frameId: "f" }),
+    ];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["rest:shape,label"]);
+  });
+
+  it("puts an arrow's label on the last page with the arrow, even if the label sits inside a frame", () => {
+    const elements = [
+      box("f", "frame", 0, 0, 300, 200),
+      box("arrow", "arrow", 200, 50, 300, 100),
+      box("label", "text", 210, 60, 60, 20, { containerId: "arrow" }),
+    ];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f", "rest:arrow,label"]);
   });
 
   it("treats a child of a frame that is not on the board as a loose element", () => {

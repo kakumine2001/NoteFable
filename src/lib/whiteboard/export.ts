@@ -2,8 +2,8 @@ import { exportScene, getCommonBounds, isInvisiblySmallElement } from "@excalidr
 import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { NonDeletedExcalidrawElement, ExcalidrawFrameLikeElement } from "@excalidraw/excalidraw/element/types";
 import { msg } from "@/lib/i18n/translate";
-import { buildPdf, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
-import { exportFileName, planPdfPages, type FrameRelation, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
+import { buildPdf, isBlankRgb, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
+import { boundsRelation, exportFileName, planPdfPages, type FrameRelation, type PdfPagePlan, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
 
 export type { WhiteboardExportFormat };
 
@@ -59,10 +59,12 @@ async function jpegOf(canvas: HTMLCanvasElement): Promise<PdfImage> {
   return { kind: "jpeg", data: new Uint8Array(await blob.arrayBuffer()), pixelWidth: canvas.width, pixelHeight: canvas.height };
 }
 
-async function canvasToPdfImage(canvas: HTMLCanvasElement): Promise<PdfImage> {
+// skipBlank のときは、真っ白（何も描かれていない）なら null を返す。
+async function canvasToPdfImage(canvas: HTMLCanvasElement, skipBlank: boolean): Promise<PdfImage | null> {
   const context = canvas.getContext("2d");
   if (context && typeof CompressionStream !== "undefined") {
     const rgb = rgbaToRgb(context.getImageData(0, 0, canvas.width, canvas.height).data);
+    if (skipBlank && isBlankRgb(rgb)) return null;
     const stream = new Blob([rgb as BlobPart]).stream().pipeThrough(new CompressionStream("deflate"));
     const data = new Uint8Array(await new Response(stream).arrayBuffer());
     const flate: PdfImage = { kind: "flate", data, pixelWidth: canvas.width, pixelHeight: canvas.height };
@@ -81,12 +83,29 @@ function frameRelation() {
     if (!value) { value = getCommonBounds([element]); cache.set(element.id, value); }
     return value;
   };
-  return (element: NonDeletedExcalidrawElement, frame: NonDeletedExcalidrawElement): FrameRelation => {
-    const [ax1, ay1, ax2, ay2] = bounds(element);
-    const [bx1, by1, bx2, by2] = bounds(frame);
-    if (ax2 < bx1 || ax1 > bx2 || ay2 < by1 || ay1 > by2) return "none";
-    return ax1 >= bx1 && ay1 >= by1 && ax2 <= bx2 && ay2 <= by2 ? "inside" : "overlap";
-  };
+  return (element: NonDeletedExcalidrawElement, frame: NonDeletedExcalidrawElement): FrameRelation => boundsRelation(bounds(element), bounds(frame));
+}
+
+// PDF の 1 ページを描く。枠のページで、描いた結果が真っ白なら null（外接矩形だけが枠に重なっていた）。
+async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<NonDeletedExcalidrawElement>, elements: readonly NonDeletedExcalidrawElement[], files: BinaryFiles): Promise<PdfPage | null> {
+  const frame = page.kind === "frame" ? page.frame as ExcalidrawFrameLikeElement : null;
+  // 実際に使った倍率を覚えておき、元の大きさ（1 CSS ピクセル = 0.75 ポイント）のページにする。
+  let used = 2;
+  const pick = scaleFor(2);
+  const canvas = await exportScene({
+    type: "canvas",
+    // 最後のページ（どの枠にも入っていない要素）は、その要素だけを描く。
+    data: sceneData(api, page.kind === "rest" ? page.elements : elements, files),
+    config: { theme: "light", scale: (width: number, height: number) => (used = pick(width, height)), ...(frame ? { exportingFrame: frame as never, padding: 0 } : { padding: PADDING }) },
+  });
+  try {
+    const image = await canvasToPdfImage(canvas, frame !== null);
+    return image && { width: (canvas.width / used) * 0.75, height: (canvas.height / used) * 0.75, image };
+  } finally {
+    // 大きな canvas はすぐ放す（スマホのメモリ）。
+    canvas.width = 0;
+    canvas.height = 0;
+  }
 }
 
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {
@@ -108,23 +127,11 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
   const pages: PdfPage[] = [];
   const files = api.getFiles();
   for (const page of planPdfPages(elements, frameRelation())) {
-    const frame = page.kind === "frame" ? page.frame as ExcalidrawFrameLikeElement : null;
-    // 実際に使った倍率を覚えておき、元の大きさ（1 CSS ピクセル = 0.75 ポイント）のページにする。
-    let used = 2;
-    const pick = scaleFor(2);
-    const canvas = await exportScene({
-      type: "canvas",
-      data: sceneData(api, page.kind === "rest" ? page.elements : elements, files),
-      config: { theme: "light", scale: (width: number, height: number) => (used = pick(width, height)), ...(frame ? { exportingFrame: frame as never, padding: 0 } : { padding: PADDING }) },
-    });
-    try {
-      pages.push({ width: (canvas.width / used) * 0.75, height: (canvas.height / used) * 0.75, image: await canvasToPdfImage(canvas) });
-    } finally {
-      // 大きな canvas はすぐ放す（スマホのメモリ）。
-      canvas.width = 0;
-      canvas.height = 0;
-    }
+    const rendered = await renderPdfPage(api, page, elements, files);
+    if (rendered) pages.push(rendered);
   }
+  // 枠のページがどれも真っ白で、枠の外にも何も無かったときは、全体を 1 ページにする（空のファイルにしない）。
+  if (!pages.length) pages.push((await renderPdfPage(api, { kind: "all" }, elements, files))!);
   const bytes = buildPdf(pages, { title: title === "Untitled" ? undefined : title });
   return { blob: new Blob([bytes as BlobPart], { type: mimeType }), fileName, mimeType };
 }

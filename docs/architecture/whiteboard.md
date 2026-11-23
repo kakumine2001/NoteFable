@@ -43,7 +43,7 @@
 ## 导入 PDF 与导出
 
 - **导入 PDF**（菜单或“更多工具”）：pdf.js（`pdfjs-dist`，Apache-2.0）在浏览器里逐页渲染成 JPEG（长边最多 2000px、约 350 万像素，超过 4 MiB 再压），逐页上传，每页放进一个框（“文件名 · 页码”），图片锁定以便直接在上面批注。最多 50 页、文件最多 50 MB；为了手机内存，一次只渲染一页、渲染完立刻释放画布。中途某一页失败（存储空间不够、网络）时，已经上传的页照样放进白板，并提示“只导入了前 N 页”。
-- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个有内容的框一页，按从上到下、从左到右排；不在任何框里的内容放在最后一页，空框跳过；没有框、或者只有空框时整块一页。`planPdfPages` 在 `export-utils.ts`，框的内容和 Excalidraw 的按框导出一致：框的子元素和与框重叠的散元素；只有一部分压在框上的散元素两页都有，不会被裁掉）。导出总是整块白板（选中的部分不影响），一律浅色。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG；照片、导入的 PDF 这类 Flate 超过 2 MiB 且 JPEG 不到一半时改用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
+- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个有内容的框一页，按从上到下、从左到右排；不在任何框里的内容放在最后一页，空框跳过；没有框、或者只有空框时整块一页。`planPdfPages` 在 `export-utils.ts`，框的内容和 Excalidraw 的按框导出一致：框的子元素和与框重叠的散元素；只有一部分压在框上的散元素两页都有，不会被裁掉；图形和箭头里的文字跟着它的图形 / 箭头走；外接矩形碰到了框、实际却没画进去时，画出来是全白的那页框也跳过）。导出总是整块白板（选中的部分不影响），一律浅色。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG；照片、导入的 PDF 这类 Flate 超过 2 MiB 且 JPEG 不到一半时改用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
 
 ## 搜索、历史、公开链接
 
@@ -64,4 +64,4 @@
 
 ## 测试
 
-`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名与框的顺序、PDF 写入器）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
+`src/lib/whiteboard/*.test.ts`（保存形的转换、精简、链接、公开地址、显示请求、导出文件名、框的顺序与 PDF 分页、PDF 写入器）、`src/lib/export-file.test.ts`（分块发送）、`src/app/s/[token]/file/route.test.ts`（公开图片只放行引用的文件）、`src/lib/note-share-server.test.ts`（白板可以公开；幻灯片也能公开，是分享树的叶子）。编辑器本身（Excalidraw）在浏览器里验证。
