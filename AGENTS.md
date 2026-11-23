@@ -10,6 +10,9 @@ Next.js 16 App Router, React 19, Tailwind v4, Prisma 7, Neon PostgreSQL, Vercel,
 - UI: inspect the existing screen and keep its language, spacing and motion. Translate UI via `useT()` / `useI18n()`, mark constant text with `msg()`, and update every non-English dictionary (`zh-hant.ts` is generated; `docs/architecture/i18n.md`).
 - Keep `/`, `/app` and `/note-embed` static under `src/app/[locale]/`; no cookies or headers in layouts. After dictionary or Android string changes, regenerate `zh-hant.ts` and the native string and system-text assets (scripts in `docs/architecture/i18n.md`); close mobile drawers outside `runTransition`.
 - No secrets in code or docs; provider credentials stay server-side.
+- Scope: AI agents do the work, so never cut, shrink or postpone a planned feature because of how much work it is. Until the official launch (remove this sentence then), build every planned feature now; don't hold one back for the launch or for usage data. Splitting a big feature into several PRs is fine. Order work only by dependencies, technical risk, money (API or service fees) or a decision the owner has to make.
+- Libraries and SDKs must be free for our use: no paid license, license key or per-seat fee (tldraw, for example). Free closed-source platform SDKs such as Play Billing are fine; GPL/AGPL code (e.g. BlockNote `xl-*`) needs the owner's OK. If nothing free fits, build it ourselves, forking only permissively licensed code (MIT, Apache, BSD, ISC, MPL). Paid services and accounts (hosting, AI providers, app stores) are the owner's call.
+- Fix every clear bug you find without asking: in the same PR if the current task changes or depends on that code, otherwise as its own task under the branch rules below (own worktree, branch from `origin/main`, own PR). Ask first only when the intended behavior is unclear, the fix costs money, or it would delete or rewrite production data. Read-only reviewers report bugs instead of fixing them, and so does an agent that finds a bug only in another agent's open branch.
 
 ## Branches and Parallel Agents
 
@@ -71,7 +74,7 @@ Several agents work on this repo at the same time. These rules keep their work f
 - Every delivered APK is the Play-signed universal APK of an AAB on the closed testing (alpha) track (one signing key, one Android OAuth client; locally signed builds have no Google login), and goes to the Google Drive release folder in `docs/architecture/android.md`, which holds exactly one APK: the latest. Upload the new one, verify size and folder, then move all older APKs to the trash and return the link. Flow: `docs/architecture/android.md`.
 - `globals.css` rules are unlayered and beat Tailwind utilities: restyle at breakpoints with an equal-or-higher-specificity `@media` rule placed after, not `hidden` / `sm:hidden`. Panels needing the Back key push a history entry (`use-back-to-close.ts`).
 - Native Google login: token audience is the Web client ID; the only Android OAuth client is `NoteFable-Android` (Play app signing key SHA-1).
-- Keep the Play Console store listing in sync with the product. A task that changes user-visible features, UI or branding (logo, mascot, name, colors) also updates what it made outdated: listing text and Console form answers in `docs/play-store/`, images (icon, feature graphic, screenshots) in `mobile/android/play-store/`, in every listed language, in the same PR. After the merge, apply the same changes in Play Console; tell the user what will change before sending anything for review. If nothing on the listing is affected, say so in the final report.
+- Keep the store listing files in sync with the product. A task that changes user-visible features, UI or branding (logo, mascot, name, colors) also updates what it made outdated: listing text and Console form answers in `docs/play-store/`, images (icon, feature graphic, screenshots) in `mobile/android/play-store/`, in every listed language, in the same PR. Don't update the Play Console store listing after each PR: once the features in progress have all shipped in a Play release, or when the owner asks, make Console match `docs/play-store/listing.md` and `mobile/android/play-store/` in one pass. Declarations (Data safety, content rating) and subscription products and prices are not batched: update them with the release that needs them. Before sending anything for review, tell the user what will change. If nothing on the listing is affected, say so in the final report.
 
 ## Review and Validation
 
@@ -92,6 +95,8 @@ Every task that needs review goes through the same flow:
 4. Merge: once the cross-review has no open valid findings and the checks pass, merge the PR into `main` with a merge commit (`gh pr merge --merge`), then run `npm run git:cleanup`. Merging deploys production; this flow is the release approval, so don't push to `main` any other way.
 - Other cross-calls (questions, second opinions): Claude Code → Codex `codex exec -m gpt-6.2-sol -c model_reasoning_effort=high ...`; Codex → Claude Code `claude -p --model claude-opus-5-5 --effort high ...`.
 - Verify UI changes in a browser. No Playwright/E2E unless asked.
+- UI changes: send the owner the PR's Vercel Preview URL for the web, and screenshots for Android and iOS (an emulator or simulator is fine). If a platform can't be shown, say so and why.
+- Every final report states up front whether the self-review and the cross-review ran: for each, the tool, the effort and the result. If either was skipped, say why.
 
 ## Keep This File Small
 

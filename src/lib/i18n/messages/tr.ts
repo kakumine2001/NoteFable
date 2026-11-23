@@ -770,4 +770,5 @@ export const tr: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Yer açmak için artık ihtiyacınız olmayan dosyaları silin.",
   "Storage": "Depolama",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Sildiğiniz dosyaların alanı yaklaşık bir hafta sonra boşalır. Çöp Kutusu'ndaki veya sürüm geçmişindeki dosyalar sayılmaya devam eder.",
+  "New page": "Yeni sayfa",
 };

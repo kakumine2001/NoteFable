@@ -2,7 +2,7 @@
 
 Play Console → 发布 → 商店展示 → 主要商店详情。默认语言用 English (United States)，翻译覆盖 App 的全部界面语言：简体中文（zh-CN）、繁体中文（zh-TW）、日语（ja-JP）、韩语（ko-KR）、西班牙语（es-419 和 es-ES 用同一份）、法语（fr-FR）、德语（de-DE）、葡萄牙语（pt-BR）、意大利语（it-IT）、印尼语（id）、越南语（vi）、泰语（th）、印地语（hi-IN）、阿拉伯语（ar）、土耳其语（tr-TR）、俄语（ru-RU）。字数上限：应用名 30，简短说明 80，完整说明 4000。图片在 `mobile/android/play-store/`（[README](../../mobile/android/play-store/README.md)）。
 
-内容只写已经上线的功能（见 [README.md](../../README.md)）；改了功能或额度后同步改这里。
+内容只写已经上线的功能（见 [README.md](../../README.md)）；改了功能或额度后同步改这里。Play Console 分批同步这里的内容，不是每次改动后马上同步（见 `AGENTS.md`）。
 
 ## English (en-US)
 

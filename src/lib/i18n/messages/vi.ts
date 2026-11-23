@@ -770,4 +770,5 @@ export const vi: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Xóa các tệp bạn không cần nữa để giải phóng dung lượng.",
   "Storage": "Dung lượng lưu trữ",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Dung lượng của tệp đã xóa được giải phóng sau khoảng một tuần. Tệp trong Thùng rác hoặc lịch sử phiên bản vẫn được tính.",
+  "New page": "Trang mới",
 };
