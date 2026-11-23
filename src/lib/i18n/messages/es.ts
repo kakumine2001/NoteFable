@@ -757,4 +757,10 @@ export const es: Record<string, string> = {
   "Import to": "Importar en",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Funcionan mejor las imágenes cuadradas de al menos 280 × 280 píxeles. JPEG, PNG, WebP o GIF, hasta 4 MB.",
   "Images must be 4 MB or smaller.": "Las imágenes deben pesar 4 MB o menos.",
+  "Whiteboard": "Pizarra",
+  "Slides": "Diapositivas",
+  "Whiteboard editing is coming soon.": "La edición de pizarras llegará pronto.",
+  "Slide deck editing is coming soon.": "La edición de presentaciones llegará pronto.",
+  "Text on this page": "Texto de esta página",
+  "This page has no text yet.": "Esta página aún no tiene texto.",
 };

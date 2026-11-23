@@ -757,4 +757,10 @@ export const tr: Record<string, string> = {
   "Import to": "Şuraya içe aktar",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "En az 280 × 280 piksel kare görseller en iyi sonucu verir. JPEG, PNG, WebP veya GIF, en fazla 4 MB.",
   "Images must be 4 MB or smaller.": "Görseller en fazla 4 MB olmalıdır.",
+  "Whiteboard": "Beyaz tahta",
+  "Slides": "Slaytlar",
+  "Whiteboard editing is coming soon.": "Beyaz tahta düzenleme yakında geliyor.",
+  "Slide deck editing is coming soon.": "Slayt destesi düzenleme yakında geliyor.",
+  "Text on this page": "Bu sayfadaki metin",
+  "This page has no text yet.": "Bu sayfada henüz metin yok.",
 };

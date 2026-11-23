@@ -9,6 +9,8 @@ import {
   updatePageShareMeta,
   type ShareMetaUpdate,
 } from "@/lib/note-share-server";
+import { NOTE_ONLY_ACTION_ERRORS, pageKindRejection } from "@/lib/page-kind-errors";
+import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -30,6 +32,7 @@ export async function GET(request: Request, { params }: Params) {
 }
 
 // 所有者向け: 公開のオン・オフ、サブページを含むか、有効期限、親の共有からの除外を保存する。
+// 公開用の読み取りビューが無い種類（いまはホワイトボード・スライド）は公開できない（古いアプリから送られても訳した文で断る）。
 export async function PUT(request: Request, { params }: Params) {
   try {
     const { pageId } = await params;
@@ -45,9 +48,11 @@ export async function PUT(request: Request, { params }: Params) {
     const user = await getOrCreateUser();
     const existing = await prisma.notePage.findFirst({
       where: { id: pageId, userId: user.id, deletedAt: null },
-      select: { id: true, shareToken: true, shareEnabled: true, shareExpiresAt: true },
+      select: { id: true, kind: true, shareToken: true, shareEnabled: true, shareExpiresAt: true },
     });
     if (!existing) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    const kind = pageKindOf(existing);
+    if (body.enabled === true && !pageKindFeatures(kind).publicShare) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.share, kind);
 
     const now = new Date();
     const update: ShareMetaUpdate = {};

@@ -757,4 +757,10 @@ export const ru: Record<string, string> = {
   "Import to": "Импортировать в",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Лучше всего подходят квадратные изображения от 280 × 280 пикселей. JPEG, PNG, WebP или GIF, до 4 МБ.",
   "Images must be 4 MB or smaller.": "Размер изображения не должен превышать 4 МБ.",
+  "Whiteboard": "Доска",
+  "Slides": "Слайды",
+  "Whiteboard editing is coming soon.": "Редактирование досок скоро появится.",
+  "Slide deck editing is coming soon.": "Редактирование презентаций скоро появится.",
+  "Text on this page": "Текст на этой странице",
+  "This page has no text yet.": "На этой странице пока нет текста.",
 };

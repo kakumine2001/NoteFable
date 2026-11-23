@@ -757,4 +757,10 @@ export const ko: Record<string, string> = {
   "Import to": "가져올 위치",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "280 × 280픽셀 이상의 정사각형 이미지가 가장 좋습니다. JPEG, PNG, WebP 또는 GIF, 최대 4MB.",
   "Images must be 4 MB or smaller.": "이미지는 4MB 이하여야 합니다.",
+  "Whiteboard": "화이트보드",
+  "Slides": "슬라이드",
+  "Whiteboard editing is coming soon.": "화이트보드 편집 기능이 곧 제공될 예정이에요.",
+  "Slide deck editing is coming soon.": "슬라이드 편집 기능이 곧 제공될 예정이에요.",
+  "Text on this page": "이 페이지의 텍스트",
+  "This page has no text yet.": "이 페이지에는 아직 텍스트가 없어요.",
 };

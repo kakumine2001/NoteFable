@@ -36,6 +36,14 @@ enum NoteRevisionReason {
   RESTORE
 }
 
+// ワークスペースのページの種類。note は BlockNote の本文（NotePage.blocks）、whiteboard と slides は本体を NoteCanvas に別に置く。
+// 作った後は変えない。API の JSON でもこの小文字の値をそのまま使う（src/lib/page-kinds.ts）。
+enum PageKind {
+  note
+  whiteboard
+  slides
+}
+
 // 利用プラン。PRO は月額の有料プラン（Stripe の購読が有効な間。手動で設定することもできる）。上限は src/lib/usage-plans.ts にある。
 enum UserPlan {
   FREE
@@ -126,6 +134,8 @@ model NotePage {
   userId        String
   title         String    @default("Untitled")
   position      Int       @default(0)
+  // ページの種類（ノート・ホワイトボード・スライド）。作った後は変えない。ノート以外は blocks が空配列で、本体は canvas にある。
+  kind          PageKind  @default(note)
   // ページ見出しの絵文字アイコンとプリセットのカバー。未設定は null。
   icon          String?
   cover         String?
@@ -168,6 +178,7 @@ model NotePage {
   projectRefs       ChatProjectNote[]
   messageRefs       MessageNote[]
   embeddings        NoteEmbedding[]
+  canvas            NoteCanvas?
 
   @@index([userId, updatedAt])
   @@index([userId, groupId])
@@ -185,6 +196,8 @@ model NoteRevision {
   title     String
   icon      String?
   blocks    Json
+  // ホワイトボード・スライドの本体（NoteCanvas.data の写し）。ノートの履歴は null（本文は blocks）。
+  data      Json?
   version   Int
   createdAt DateTime           @default(now())
 
@@ -193,6 +206,23 @@ model NoteRevision {
 
   @@index([noteId, createdAt])
   @@index([userId])
+}
+
+// ホワイトボード・スライドの本体。ノートの本文（NotePage.blocks）とは別の表に置き、一覧・検索・ページの読み込みで大きな本体を運ばない。
+// 検索・意味検索・チャットの文脈は data から取り出した文字（segments: [{ id, text }]）だけを使い、本体（線の点など）は走査しない。
+// 版（競合の判定）は NotePage.version を使う。ページを完全に削除するとカスケードで消える。
+model NoteCanvas {
+  noteId    String   @id
+  data      Json
+  // data から取り出した文字。id はホワイトボードの要素、またはスライドのページ（検索結果からそこへ移動する）。
+  segments  Json
+  // data の JSON の SHA-256（16 進）。応答だけ失われた保存の再送を、本体を読み直さずに見分ける。
+  hash      String
+  // data の JSON のバイト数（上限の確認と調査用）。
+  size      Int
+  updatedAt DateTime @updatedAt
+
+  note NotePage @relation(fields: [noteId], references: [id], onDelete: Cascade)
 }
 
 // ノート本文の意味検索（セマンティック検索）用のチャンク単位ベクトル。

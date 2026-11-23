@@ -1,7 +1,7 @@
 import { isLocale, type Locale } from "@/lib/i18n/locale";
 import { isImageIcon, parseCharacterIcon, saveAppIcon, toCharacterIcon } from "@/lib/app-icon";
 import { parseThemePreference, saveThemePreference, type ThemePreference } from "@/lib/theme";
-import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus } from "@/types/notes";
+import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatus, type PageKind } from "@/types/notes";
 
 // Android アプリ（mobile/android）の WebView にノートのエディターだけを載せる /note-embed と、アプリ側とのやり取り。
 // 取り決めは docs/architecture/notes-flow.md の「Android アプリへの埋め込み」。ここを変えたらアプリ側も合わせる。
@@ -9,7 +9,8 @@ import { pageSettingsOf, type NotePage, type NotePageSummary, type NoteSaveStatu
 // web → アプリ。アプリは @JavascriptInterface の window.NoteFableNative.postMessage(JSON 文字列) で受け取る。
 export type EmbedSaveState = "saved" | "saving" | "unsaved" | "error" | "conflict";
 export type NativeMessage =
-  | { type: "ready"; page: { id: string; title: string; icon: string | null } }
+  // kind はページの種類（note / whiteboard / slides）。古いアプリは読まない（知らない項目は無視する）。
+  | { type: "ready"; page: { id: string; title: string; icon: string | null; kind?: PageKind } }
   | { type: "meta"; title: string; icon: string | null }
   | { type: "saveState"; state: EmbedSaveState }
   | { type: "missing" }

@@ -1,4 +1,4 @@
-import { ArrowUpRight, Check, ChevronRight, FileText } from "lucide-react";
+import { ArrowUpRight, Check, ChevronRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/i18n-provider";
 import type { NoteSaveQueue } from "@/lib/note-save-queue";
@@ -6,6 +6,7 @@ import { CHAT_RECENT_COUNT } from "@/types/notes";
 import { recentPages } from "@/lib/notes-home-text";
 import { MAX_MESSAGE_NOTES, type AttachedPage } from "@/types/chat";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 type RecentNote = AttachedPage & { updatedAt: string };
 
@@ -51,14 +52,14 @@ export function ChatRecentNotes({ selected, disabled, lastEditor, onToggle, onOp
       <h2 id="chat-recent-title">{t("Recently edited")}</h2>
       <button type="button" className="chat-recent-all" onClick={onViewAll}>{t("All notes")}<ChevronRight size={14} className="rtl-mirror" aria-hidden="true" /></button>
     </header>
-    <ul>{pages.map(({ id, title, icon }) => {
+    <ul>{pages.map(({ id, kind, title, icon }) => {
       const attached = selected.some((page) => page.id === id);
       const name = title || t("Untitled");
       return <li key={id}>
         <button type="button" className="notes-recent-card" aria-pressed={attached}
           disabled={disabled || (!attached && selected.length >= MAX_MESSAGE_NOTES)}
-          onClick={() => onToggle({ id, title, icon })}>
-          <span aria-hidden="true" className="chat-recent-icon"><NoteIcon icon={icon} fallback={<FileText size={18} />} /></span>
+          onClick={() => onToggle({ id, kind, title, icon })}>
+          <span aria-hidden="true" className="chat-recent-icon"><NoteIcon icon={icon} fallback={<PageKindIcon kind={kind} size={18} />} /></span>
           <span className="chat-recent-title">{name}</span>
           <span className="chat-recent-action">{attached && <Check size={12} aria-hidden="true" />}<span>{attached ? t("Attached") : t("Attach")}</span></span>
         </button>

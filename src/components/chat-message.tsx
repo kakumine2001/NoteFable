@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Download, FileText, ImagePlus, Paperclip } from "lucide-react";
+import { Download, ImagePlus, Paperclip } from "lucide-react";
 import { memo, useState } from "react";
 import { AnswerActions, ReportAnswerButton, isSavedMessageId } from "@/components/answer-actions";
 import { UserMessageEditor, UserTurnActions, VersionNav, type TurnActions } from "@/components/turn-actions";
@@ -18,6 +18,7 @@ import { useT } from "@/components/i18n-provider";
 import { localizeFailureText } from "@/lib/failure-text";
 import { splitQuotedMessage } from "@/lib/chat-quote";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 function GeneratingImagePreview() {
   const t = useT();
@@ -281,7 +282,7 @@ export const ChatMessage = memo(function ChatMessage({
                   onClick={() => window.dispatchEvent(new CustomEvent("notefable:open-note", { detail: { id: page.id } }))}
                   className="inline-flex max-w-full items-center gap-1 rounded border border-[var(--notion-border)] bg-[var(--notion-sidebar)] px-2 py-1 text-[var(--notion-muted)] hover:bg-[var(--notion-hover)]"
                 >
-                  {page.icon ? <span aria-hidden="true"><NoteIcon icon={page.icon} /></span> : <FileText size={12} aria-hidden="true" />}
+                  {page.icon ? <span aria-hidden="true"><NoteIcon icon={page.icon} /></span> : <PageKindIcon kind={page.kind} size={12} aria-hidden="true" />}
                   <span className="truncate">{page.title || t("Untitled")}</span>
                 </button>
               </li>

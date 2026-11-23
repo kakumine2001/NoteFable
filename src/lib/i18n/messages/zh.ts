@@ -766,4 +766,10 @@ export const zh: Record<string, string> = {
   "Import to": "导入到",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "建议使用不小于 280 × 280 像素的正方形图片。支持 JPEG、PNG、WebP 或 GIF，最大 4 MB。",
   "Images must be 4 MB or smaller.": "图片需不超过 4 MB。",
+  "Whiteboard": "白板",
+  "Slides": "幻灯片",
+  "Whiteboard editing is coming soon.": "白板编辑功能即将推出。",
+  "Slide deck editing is coming soon.": "幻灯片编辑功能即将推出。",
+  "Text on this page": "此页面上的文字",
+  "This page has no text yet.": "此页面还没有文字。",
 };

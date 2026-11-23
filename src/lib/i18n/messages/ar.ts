@@ -757,4 +757,10 @@ export const ar: Record<string, string> = {
   "Import to": "استيراد إلى",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "تعمل الصور المربعة بحجم 280 × 280 بكسل على الأقل بشكل أفضل. JPEG أو PNG أو WebP أو GIF، حتى 4 ميغابايت.",
   "Images must be 4 MB or smaller.": "يجب ألا يتجاوز حجم الصور 4 ميغابايت.",
+  "Whiteboard": "السبورة",
+  "Slides": "الشرائح",
+  "Whiteboard editing is coming soon.": "تعديل السبورات قادم قريبًا.",
+  "Slide deck editing is coming soon.": "تعديل مجموعات الشرائح قادم قريبًا.",
+  "Text on this page": "النص في هذه الصفحة",
+  "This page has no text yet.": "لا يوجد نص في هذه الصفحة بعد.",
 };

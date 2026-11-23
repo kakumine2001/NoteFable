@@ -26,13 +26,16 @@ describe("GET /api/pages/trash", () => {
     const deletedAt = new Date(Date.now() - 2 * DAY);
     // n3 は親の n1 と一緒に捨てたサブページなので、一覧には出さない（親を戻すと一緒に戻る）。
     mocks.findMany.mockResolvedValue([{ id: "n1", title: "Plan", icon: "📚", deletedAt, parent: null }, { id: "n3", title: "Child", icon: null, deletedAt, parent: { deletedAt } },
-      { id: "n2", title: "Old", icon: null, deletedAt: new Date(Date.now() - 5 * DAY), parent: { deletedAt: null } }]);
+      { id: "n2", kind: "whiteboard", title: "Old", icon: null, deletedAt: new Date(Date.now() - 5 * DAY), parent: { deletedAt: null } }]);
     const response = await listTrash();
     expect(response.status).toBe(200);
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     const { pages } = await response.json();
     expect(pages.map((page: { id: string }) => page.id)).toEqual(["n1", "n2"]);
-    expect(pages[0]).toEqual({ id: "n1", title: "Plan", icon: "📚", deletedAt: deletedAt.toISOString(), purgeAt: new Date(deletedAt.getTime() + 30 * DAY).toISOString() });
+    expect(pages[0]).toEqual({ id: "n1", kind: "note", title: "Plan", icon: "📚", deletedAt: deletedAt.toISOString(), purgeAt: new Date(deletedAt.getTime() + 30 * DAY).toISOString() });
+    // 種類（ホワイトボード・スライド）も一覧に出し、画面が種類のアイコンを出せるようにする。
+    expect(pages[1].kind).toBe("whiteboard");
+    expect(mocks.findMany.mock.calls[0][0].select.kind).toBe(true);
 
     const purge = mocks.deleteMany.mock.calls[0][0].where;
     expect(purge.userId).toBe("mine");
@@ -44,7 +47,7 @@ describe("GET /api/pages/trash", () => {
     expectCutoff(query.where.deletedAt);
     expect(query.orderBy).toEqual([{ deletedAt: "desc" }, { id: "desc" }]);
     // 本文は取らない。
-    expect(query.select).toEqual({ id: true, title: true, icon: true, deletedAt: true, parent: { select: { deletedAt: true } } });
+    expect(query.select).toEqual({ id: true, kind: true, title: true, icon: true, deletedAt: true, parent: { select: { deletedAt: true } } });
   });
 
   it("never lists an expired note even when purging failed", async () => {

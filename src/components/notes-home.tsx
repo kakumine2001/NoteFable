@@ -11,6 +11,7 @@ import type { NoteGroupSummary, NotePageSummary } from "@/types/notes";
 import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 // Notes のホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつと「最近編集したノート」のカードを出す（スマホ幅は一覧だけ）。
@@ -57,7 +58,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} className="rtl-mirror" />}
       </button>
       <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)} className="notes-home-row">
-        <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={20} />} /></span>
+        <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={20} />} /></span>
         <span className="notes-home-name">{page.title}</span>
         <time className="notes-home-date" dateTime={page.updatedAt}>
           {new Date(page.updatedAt).toLocaleDateString(tag, { month: "short", day: "numeric" })}
@@ -79,7 +80,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
             {recent.map((page) => <li key={page.id}>
               <button type="button" className="notes-recent-card" disabled={busy} onClick={() => onOpen(page.id)}>
                 <span className="notes-recent-cover" aria-hidden="true" />
-                <span className="notes-recent-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={24} strokeWidth={1.6} />} /></span>
+                <span className="notes-recent-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={24} strokeWidth={1.6} />} /></span>
                 <span className="notes-recent-name">{page.title}</span>
                 <time className="notes-recent-date" dateTime={page.updatedAt}>{relativeTime(page.updatedAt, openedAt, relative)}</time>
               </button>
@@ -94,7 +95,7 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         <h2 className="notes-home-group">{t("Favorites")}<span>{favorites.length}</span></h2>
         <ul className="notes-home-list">{favorites.map((page) => <li key={page.id} className="notes-home-node"><div className="notes-home-item">
           <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
-            <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={20} />} /></span>
+            <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={20} />} /></span>
             <span className="notes-home-name">{page.title}</span>
           </button>
         </div></li>)}</ul>

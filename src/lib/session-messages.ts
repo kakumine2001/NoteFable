@@ -46,7 +46,7 @@ export async function loadPublicSessionMessages(
       notes: {
         where: { note: { userId, deletedAt: null } },
         orderBy: { position: "asc" },
-        select: { note: { select: { id: true, title: true, icon: true } } },
+        select: { note: { select: { id: true, kind: true, title: true, icon: true } } },
       },
     },
   });

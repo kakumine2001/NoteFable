@@ -4,11 +4,13 @@ import { ArrowLeft, History, RotateCcw, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { AssistantMarkdown, PREVIEW_MATH_PIPE } from "@/components/assistant-markdown";
 import { TABLE_SEPARATOR, blocksToMarkdown, inlineMathEnd, splitTableRow } from "@/lib/note-markdown";
+import { extractCanvasSegments } from "@/lib/canvas-document";
+import type { CanvasKind } from "@/lib/page-kinds";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
 import "@/components/note-trash-history.css";
 import { useNow } from "@/lib/use-now";
-import { useI18n } from "@/components/i18n-provider";
+import { useI18n, useT } from "@/components/i18n-provider";
 import { createTranslator, localizeSystemText, msg, type Translate } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
 
@@ -75,6 +77,18 @@ function previewTableCell(cell: string) {
 }
 
 const LIST_ITEM = /^\s*(?:[-+*]|\d+[.)])\s/;
+
+// ホワイトボード・スライドの履歴のプレビュー：その版の本体から取り出した文字（エディターができたら、各エディターの読み取り表示に替える）。
+// 種類は本体の形で分かる（スライドは slides、ホワイトボードは elements を持つ）。
+function CanvasRevisionPreview({ data }: { data: Record<string, unknown> }) {
+  const t = useT();
+  const kind: CanvasKind = Array.isArray(data.slides) ? "slides" : "whiteboard";
+  const segments = extractCanvasSegments(kind, data);
+  if (!segments.length) return <p className="canvas-placeholder-empty">{t("This page has no text yet.")}</p>;
+  return <ol className="canvas-placeholder-text" data-page-kind={kind}>{segments.map((segment, index) => <li key={segment.id}>
+    {kind === "slides" && <span className="canvas-placeholder-index" aria-hidden="true">{index + 1}</span>}<span>{segment.text}</span>
+  </li>)}</ol>;
+}
 
 // プレビュー用の Markdown。blocksToMarkdown は 1 行が 1 ブロックなので、そのままだと連続した段落が 1 つに繋がる。
 // コードや数式（$$）の囲みの外では行の間に空行を入れて段落を分け、連続する箇条書きだけは詰めたままにする（4 つ以上の字下げがコード扱いにならないよう、箇条書き以外は字下げを外す）。
@@ -267,7 +281,8 @@ export function NoteHistoryDialog({ noteId, getVersion, flush, onRestored, onClo
           {detail?.status === "error" && <p role="alert" className="note-history-footer-error">{t(detail.message)}</p>}
           {revision && <>
             <h3 className="note-history-preview-title">{revision.icon && <span aria-hidden="true"><NoteIcon icon={revision.icon} /></span>}{revision.title}</h3>
-            <div className="markdown-body"><AssistantMarkdown math="dollars" content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>
+            {revision.data ? <CanvasRevisionPreview data={revision.data} />
+              : <div className="markdown-body"><AssistantMarkdown math="dollars" content={previewMarkdown(revision.blocks) || t("_This version has no text._")} /></div>}
           </>}
         </div>
         {revision && <div className="note-history-preview-footer">

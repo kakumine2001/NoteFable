@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Trash2, X } from "lucide-react";
+import { Trash2, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useBackToClose } from "@/lib/use-back-to-close";
 import { TRASH_RETENTION_DAYS, type NotePageSummary, type NoteTrashItem } from "@/types/notes";
@@ -9,6 +9,7 @@ import { useNow } from "@/lib/use-now";
 import { useT } from "@/components/i18n-provider";
 import { createTranslator, msg, type Translate } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -117,7 +118,7 @@ export function NoteTrashDialog({ onClose }: { onClose: () => void }) {
       {items && !items.length && <p role="status" className="note-th-status">{t("The trash is empty.")}</p>}
       {!!items?.length && <ul className="note-trash-list" aria-label={t("Notes in the trash")}>
         {items.map((item) => <li key={item.id} className="note-trash-row">
-          <span className="note-th-icon" aria-hidden="true"><NoteIcon icon={item.icon} fallback={<FileText size={16} />} /></span>
+          <span className="note-th-icon" aria-hidden="true"><NoteIcon icon={item.icon} fallback={<PageKindIcon kind={item.kind} size={16} />} /></span>
           <span className="note-trash-text">
             <span className="note-th-row-title" title={item.title}>{item.title}</span>
             <span className="note-th-row-meta">{trashTimeLabel(item, now, t)}</span>

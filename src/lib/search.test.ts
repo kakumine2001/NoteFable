@@ -173,8 +173,29 @@ describe("searchNotes", () => {
       blocks: [block("h", "heading", [text("Cells")]), block("p", "paragraph", [text("Mitosis is how a cell divides.")])],
     }]);
     expect(await searchNotes("mine", ["mitosis"])).toEqual([{
-      kind: "note", id: "n1", title: "Biology", icon: "🧬", snippet: "Mitosis is how a cell divides.", blockId: "p", updatedAt: updatedAt.toISOString(),
+      kind: "note", id: "n1", pageKind: "note", title: "Biology", icon: "🧬", snippet: "Mitosis is how a cell divides.", blockId: "p", updatedAt: updatedAt.toISOString(),
     }]);
+  });
+
+  it("searches whiteboards and slide decks only through their extracted text, never their drawing data", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    await searchNotes("mine", ["mitosis"]);
+    const { sql } = lastSql();
+    expect(sql).toContain('LEFT JOIN "notefable"."NoteCanvas" c ON c."noteId" = p."id"');
+    expect(sql).toContain(`jsonb_path_query_array(COALESCE(c."segments", '[]'::jsonb), ?::jsonpath)`);
+    expect(sql).not.toContain('c."data"');
+  });
+
+  it("points a whiteboard hit at the matching element and a slide deck hit at the matching slide", async () => {
+    mocks.queryRaw.mockResolvedValue([
+      { id: "w1", kind: "whiteboard", title: "Board", icon: null, updatedAt, blocks: [], segments: [{ id: "e1", text: "Cells" }, { id: "e2", text: "Mitosis splits a cell" }] },
+      { id: "s1", kind: "slides", title: "Deck", icon: null, updatedAt, blocks: [], segments: [{ id: "slide-a", text: "Intro" }, { id: "slide-b", text: "Mitosis phases" }] },
+      { id: "s2", kind: "slides", title: "Mitosis deck", icon: null, updatedAt, blocks: [], segments: null },
+    ]);
+    const [board, deck, titleOnly] = await searchNotes("mine", ["mitosis"]);
+    expect(board).toMatchObject({ pageKind: "whiteboard", blockId: "e2", snippet: "Mitosis splits a cell" });
+    expect(deck).toMatchObject({ pageKind: "slides", blockId: "slide-b", snippet: "Mitosis phases" });
+    expect(titleOnly).toMatchObject({ pageKind: "slides", blockId: null, snippet: "" });
   });
 
   it("finds the block and snippet through a different spelling, keeping the original characters", async () => {
@@ -218,15 +239,15 @@ describe("searchNotes", () => {
     mocks.queryRaw.mockResolvedValue([{ id: "n1", title: "装修坑", icon: null, updatedAt, blocks: [block("p1", "paragraph", [text("装修坑记录")])] }]);
     mocks.semanticSearch.mockResolvedValue({
       hits: [
-        { id: "n1", title: "装修坑", icon: null, blockId: "p1", chunkText: "装修坑记录", score: 0.9, updatedAt },
-        { id: "n2", title: "新房验收踩雷记录", icon: "🏠", blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.65, updatedAt },
+        { id: "n1", kind: "note", title: "装修坑", icon: null, blockId: "p1", chunkText: "装修坑记录", score: 0.9, updatedAt },
+        { id: "n2", kind: "whiteboard", title: "新房验收踩雷记录", icon: "🏠", blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.65, updatedAt },
       ],
       hasMoreBackfill: false,
     });
     const results = await searchNotes("mine", ["装修坑"], { rawQuery: "装修坑" });
     expect(results).toEqual([
-      { kind: "note", id: "n1", title: "装修坑", icon: null, snippet: "装修坑记录", blockId: "p1", updatedAt: updatedAt.toISOString() },
-      { kind: "note", id: "n2", title: "新房验收踩雷记录", icon: "🏠", snippet: "水电改造一定要拍照留底", blockId: "b2", updatedAt: updatedAt.toISOString() },
+      { kind: "note", id: "n1", pageKind: "note", title: "装修坑", icon: null, snippet: "装修坑记录", blockId: "p1", updatedAt: updatedAt.toISOString() },
+      { kind: "note", id: "n2", pageKind: "whiteboard", title: "新房验收踩雷记录", icon: "🏠", snippet: "水电改造一定要拍照留底", blockId: "b2", updatedAt: updatedAt.toISOString() },
     ]);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, LoaderCircle, Search, X } from "lucide-react";
+import { LoaderCircle, Search, X } from "lucide-react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import "@/components/chat-project-settings.css";
 import type { ChatProject } from "@/components/chat-actions";
@@ -9,6 +9,7 @@ import { MAX_PROJECT_INSTRUCTIONS, MAX_PROJECT_NOTES, type ChatProjectDetail, ty
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 type NoteRef = ChatProjectDetail["notes"][number];
 // 一覧に出すノートの上限。多いときは絞り込みで探す。
@@ -123,7 +124,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
             </h3>
             {selected.length > 0 && <ul className="project-settings-chips" aria-label={t("Selected notes")}>
               {selected.map((note) => <li key={note.id} className="project-settings-chip">
-                <FileText size={13} aria-hidden="true" className="flex-none" />
+                <PageKindIcon kind={note.kind} size={13} aria-hidden="true" className="flex-none" />
                 <span className="project-settings-chip-title">{note.title || t("Untitled")}</span>
                 <button type="button" disabled={busy} aria-label={t("Remove {title}", { title: note.title || t("Untitled") })} onClick={() => toggle(note)}><X size={12} aria-hidden="true" /></button>
               </li>)}
@@ -141,7 +142,7 @@ export function ChatProjectSettings({ project, onClose, onSaved }: {
                 return <li key={page.id}>
                   <label className={`project-settings-option${checked ? " is-selected" : ""}${blocked ? " is-disabled" : ""}`}>
                     <input type="checkbox" checked={checked} disabled={busy || blocked} onChange={() => toggle(page)} />
-                    <span className="project-settings-note-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={14} />} /></span>
+                    <span className="project-settings-note-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={14} />} /></span>
                     <span className="project-settings-note-title">{page.title || t("Untitled")}</span>
                   </label>
                 </li>;

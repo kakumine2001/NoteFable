@@ -757,4 +757,10 @@ export const hi: Record<string, string> = {
   "Import to": "यहाँ आयात करें",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "कम से कम 280 × 280 पिक्सेल की वर्गाकार इमेज सबसे अच्छी रहती है। JPEG, PNG, WebP या GIF, 4 MB तक।",
   "Images must be 4 MB or smaller.": "इमेज 4 MB या उससे छोटी होनी चाहिए।",
+  "Whiteboard": "व्हाइटबोर्ड",
+  "Slides": "स्लाइड",
+  "Whiteboard editing is coming soon.": "व्हाइटबोर्ड संपादन जल्द ही आ रहा है।",
+  "Slide deck editing is coming soon.": "स्लाइड डेक संपादन जल्द ही आ रहा है।",
+  "Text on this page": "इस पेज का टेक्स्ट",
+  "This page has no text yet.": "इस पेज पर अभी कोई टेक्स्ट नहीं है।",
 };

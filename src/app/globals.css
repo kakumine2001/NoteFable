@@ -3831,3 +3831,18 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 :root[data-theme="dark"] .public-note-topbar { background: rgba(25, 25, 25, 0.92); }
 :root[data-theme="dark"] .public-note-code { background: #1f1f22; }
 :root[data-theme="dark"] .notes-share-expired { color: #f0b46a; }
+
+/* ホワイトボード・スライドの仮の画面（エディターができるまでの読み取り専用。src/components/canvas-page-placeholder.tsx）。 */
+.canvas-placeholder { padding-bottom: 30vh; }
+.canvas-placeholder-icon { color: var(--notion-faint); }
+.canvas-placeholder-title { overflow-wrap: anywhere; }
+.canvas-placeholder-notice {
+  display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 28px; padding: 10px 12px;
+  border-radius: 8px; background: var(--notion-hover); color: var(--notion-muted); font-size: 14px; line-height: 1.5;
+}
+.canvas-placeholder-notice svg { flex: none; margin-top: 3px; }
+.canvas-placeholder-heading { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--notion-muted); }
+.canvas-placeholder-text { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.canvas-placeholder-text li { display: flex; gap: 10px; font-size: 16px; line-height: 1.6; color: var(--notion-text); overflow-wrap: anywhere; }
+.canvas-placeholder-index { flex: none; min-width: 1.5em; color: var(--notion-faint); font-variant-numeric: tabular-nums; text-align: end; }
+.canvas-placeholder-empty { margin: 0; font-size: 15px; color: var(--notion-faint); }

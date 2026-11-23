@@ -63,7 +63,7 @@ describe("page tools", () => {
     expect(sql.sql).toContain(`WHERE p."userId" = ? AND p."deletedAt" IS NULL`);
     expect(sql.sql).not.toMatch(/normalize\(|translate\(|lower\(/i);
     expect(sql.values).toEqual(expect.arrayContaining([termMatcher("api").regex, termMatcher("データ").regex, "%期待値%"]));
-    expect(JSON.parse(result.content).results).toEqual([{ id: "p1", title: "Biology", snippet: "ＲＥＳＴ ＡＰＩ の でーた", updatedAt: updatedAt.toISOString() }]);
+    expect(JSON.parse(result.content).results).toEqual([{ id: "p1", kind: "note", title: "Biology", snippet: "ＲＥＳＴ ＡＰＩ の でーた", updatedAt: updatedAt.toISOString() }]);
     expect(result.label).toBe("Searched notes for “api データ 期待値”");
   });
 
@@ -71,15 +71,15 @@ describe("page tools", () => {
     mocks.queryRaw.mockResolvedValue([{ id: "p1", title: "装修清单", updatedAt, body: "装修坑汇总" }]);
     mocks.semanticSearch.mockResolvedValue({
       hits: [
-        { id: "p1", title: "装修清单", icon: null, blockId: "b1", chunkText: "装修坑汇总", score: 0.85, updatedAt },
-        { id: "p2", title: "新房验收踩雷记录", icon: null, blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.62, updatedAt },
+        { id: "p1", kind: "note", title: "装修清单", icon: null, blockId: "b1", chunkText: "装修坑汇总", score: 0.85, updatedAt },
+        { id: "p2", kind: "slides", title: "新房验收踩雷记录", icon: null, blockId: "b2", chunkText: "水电改造一定要拍照留底", score: 0.62, updatedAt },
       ],
       hasMoreBackfill: false,
     });
     const result = await runPageTool("search_notes", { query: "装修坑" }, "mine", "s1");
     expect(JSON.parse(result.content).results).toEqual([
-      { id: "p1", title: "装修清单", snippet: "装修坑汇总", updatedAt: updatedAt.toISOString() },
-      { id: "p2", title: "新房验收踩雷记录", snippet: "水电改造一定要拍照留底", updatedAt: updatedAt.toISOString() },
+      { id: "p1", kind: "note", title: "装修清单", snippet: "装修坑汇总", updatedAt: updatedAt.toISOString() },
+      { id: "p2", kind: "slides", title: "新房验收踩雷记录", snippet: "水电改造一定要拍照留底", updatedAt: updatedAt.toISOString() },
     ]);
   });
 
@@ -103,6 +103,22 @@ describe("page tools", () => {
     expect(result.content).toContain("[Truncated");
   });
 
+  it("shows a whiteboard or slide deck as read-only text, without block numbers, and says it cannot be edited", async () => {
+    mocks.findFirst.mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Plan", version: 2, blocks: [], updatedAt, canvas: { segments: [{ id: "e1", text: "Goal" }, { id: "e2", text: "Risks" }] } });
+    const board = await runPageTool("read_note", { noteId: "w1" }, "mine", "s1");
+    expect(board.isError).toBeUndefined();
+    expect(board.content).toContain("kind: whiteboard");
+    expect(board.content).toContain("This page is a whiteboard, not a note.");
+    expect(board.content).toContain("- Goal\n- Risks");
+    expect(board.content).not.toMatch(/\[\d+\]/);
+    mocks.findFirst.mockResolvedValue({ id: "s1", kind: "slides", title: "Deck", version: 1, blocks: [], updatedAt, canvas: { segments: [{ id: "a", text: "Intro" }, { id: "b", text: "Summary" }] } });
+    const deck = await runPageTool("read_note", { noteId: "s1" }, "mine", "s1");
+    expect(deck.content).toContain("This page is a slide deck, not a note.");
+    expect(deck.content).toContain("Slide 1: Intro\nSlide 2: Summary");
+    mocks.findFirst.mockResolvedValue({ id: "s2", kind: "slides", title: "Empty", version: 0, blocks: [], updatedAt, canvas: null });
+    expect((await runPageTool("read_note", { noteId: "s2" }, "mine", "s1")).content).toContain("(This page has no text.)");
+  });
+
   it("numbers blocks and shows the version in read_note", async () => {
     mocks.findFirst.mockResolvedValue({ id: "p1", title: "Notes", version: 4, blocks: [block("heading", [text("A")], { level: 1 }), block("paragraph", [text("b")])], updatedAt });
     const result = await runPageTool("read_note", { noteId: "p1" }, "mine", "s1");
@@ -113,6 +129,16 @@ describe("page tools", () => {
   describe("propose_note_edit", () => {
     const stored = () => ({ id: "p1", title: "Notes", version: 4, blocks: [block("heading", [text("A")], { level: 1 }), block("paragraph", [text("b")])] });
     const args = (extra = {}) => ({ noteId: "p1", version: 4, title: null, edits: [{ op: "replace", block: 2, markdown: "**new**" }], ...extra });
+
+    it("refuses to propose note edits to a whiteboard or slide deck and saves nothing", async () => {
+      for (const kind of ["whiteboard", "slides"]) {
+        mocks.findFirst.mockResolvedValue({ ...stored(), kind, blocks: [] });
+        const result = await runPageTool("propose_note_edit", args({ edits: [{ op: "insert_after", block: 0, markdown: "hi" }] }), "mine", "s1");
+        expect(result).toMatchObject({ isError: true, content: expect.stringContaining("not a note, so propose_note_edit cannot change it") });
+        expect(result.events).toBeUndefined();
+      }
+      expect(mocks.createProposal).not.toHaveBeenCalled();
+    });
 
     it("returns a proposal event for the owner's page and does not write", async () => {
       mocks.findFirst.mockResolvedValue(stored());

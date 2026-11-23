@@ -196,6 +196,33 @@ describe("note-embeddings", () => {
     expect(mocks.noteEmbeddingCreateMany.mock.calls[0][0].data[0]).toMatchObject({ noteId: "changed", userId: "u1", blockId: "b1", noteVersion: 3 });
   });
 
+  it("indexes a whiteboard or slide deck from its extracted text (never its drawing data), keyed by element or slide", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    mocks.notePageFindMany.mockResolvedValue([
+      { id: "w1", kind: "whiteboard", title: "Plan", blocks: [], version: 2, canvas: { segments: [{ id: "e1", text: "Launch checklist" }] } },
+      { id: "s1", kind: "slides", title: "Deck", blocks: [], version: 1, canvas: null },
+    ]);
+    mocks.noteEmbeddingFindMany.mockResolvedValueOnce([]);
+    mocks.notePageFindFirst.mockResolvedValue({ version: 2 });
+    globalThis.fetch = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0), makeUnitVector(1)])) as unknown as typeof fetch;
+    await syncNoteEmbeddingsForIds("u1", ["w1", "s1"]);
+    expect(mocks.notePageFindMany.mock.calls[0][0].select).toEqual({ id: true, kind: true, title: true, blocks: true, version: true, canvas: { select: { segments: true } } });
+    const sent = JSON.parse((globalThis.fetch as unknown as { mock: { calls: [string, { body: string }][] } }).mock.calls[0][1].body).input;
+    expect(sent).toEqual(["Plan\n\nLaunch checklist", "Deck"]);
+    expect(mocks.noteEmbeddingCreateMany.mock.calls[0][0].data[0]).toMatchObject({ noteId: "w1", blockId: "e1", noteVersion: 2 });
+  });
+
+  it("finds stale whiteboards and slide decks through their extracted text", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    mocks.queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    globalThis.fetch = vi.fn() as unknown as typeof fetch;
+    await semanticSearchNotes("u1", "checklist", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
+    const staleSql = (mocks.queryRaw.mock.calls[1][0] as { sql: string }).sql.replace(/\s+/g, " ");
+    expect(staleSql).toContain('LEFT JOIN "notefable"."NoteCanvas" c ON c."noteId" = p."id"');
+    expect(staleSql).toContain(`jsonb_path_exists(COALESCE(c."segments", '[]'::jsonb), ?::jsonpath)`);
+    expect(staleSql).not.toContain('c."data"');
+  });
+
   it("skips calling OpenAI when the user has no live indexed notes", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const fetchMock = vi.fn();
@@ -207,6 +234,18 @@ describe("note-embeddings", () => {
     const result = await semanticSearchNotes("anon", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
     expect(result).toEqual({ hits: [], hasMoreBackfill: false });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns the kind of each hit and points a slide deck hit at the matching slide", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    const updatedAt = new Date("2026-11-01T00:00:00Z");
+    globalThis.fetch = vi.fn().mockResolvedValue(mockEmbeddingsResponse([makeUnitVector(0)])) as unknown as typeof fetch;
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ noteId: "s1", chunkIndex: 0, blockId: "slide-2", noteVersion: 1, vector: encodeVector(normalizeVector(makeUnitVector(0))!), kind: "slides", title: "Deck", icon: null, updatedAt }])
+      .mockResolvedValueOnce([]);
+    mocks.notePageFindMany.mockResolvedValue([{ id: "s1", kind: "slides", title: "Deck", version: 1, blocks: [], canvas: { segments: [{ id: "slide-2", text: "Quarterly goals" }] } }]);
+    const { hits } = await semanticSearchNotes("u1", "goals", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0 });
+    expect(hits[0]).toMatchObject({ id: "s1", kind: "slides", blockId: "slide-2", chunkText: "Quarterly goals" });
   });
 
   it("builds excerpts from the exact matching chunkIndex even when multiple chunks share one blockId", async () => {

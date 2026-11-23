@@ -1,4 +1,7 @@
 import type { Block } from "@blocknote/core";
+import type { PageKind } from "@/lib/page-kinds";
+
+export type { PageKind };
 
 export const CHAT_RECENT_COUNT = 4;
 
@@ -6,6 +9,8 @@ export const CHAT_RECENT_COUNT = 4;
 export type NoteContent = { title: string; icon: string | null; cover: string | null; coverPosition: number | null; blocks: Block[] };
 export type NotePageSummary = {
   id: string;
+  // ページの種類（ノート・ホワイトボード・スライド）。古い応答にはない（ノートとして扱う。pageKindOf）。
+  kind?: PageKind;
   position?: number;
   title: string;
   icon: string | null;
@@ -58,17 +63,19 @@ export function pageSettingsOf(page: Partial<NotePageSettings> | undefined): Not
   const font = page?.font === "serif" || page?.font === "mono" ? page.font : "default";
   return { fullWidth: page?.fullWidth === true, smallText: page?.smallText === true, font, locked: page?.locked === true };
 }
-export type NotePage = NotePageSummary & NoteContent;
+// data はホワイトボード・スライドの本体（GET /api/pages/:id などが返す。ノートには無い）。
+export type NotePage = NotePageSummary & NoteContent & { data?: Record<string, unknown> };
 export type NoteGroupSummary = { id: string; name: string; position: number };
 export type NoteSaveStatus = "saved" | "pending" | "saving" | "error" | "conflict";
 
 // ゴミ箱のノートを復元できる日数。サーバー（復元の期限・完全削除）と画面の文言が同じ値を使うので、サーバー専用の依存を持たないここに置く。
 export const TRASH_RETENTION_DAYS = 30;
 // deletedAt はゴミ箱に入れた時刻、purgeAt は復元できなくなり完全に削除される時刻（ISO 文字列）。
-export type NoteTrashItem = { id: string; title: string; icon: string | null; deletedAt: string; purgeAt: string };
+export type NoteTrashItem = { id: string; kind?: PageKind; title: string; icon: string | null; deletedAt: string; purgeAt: string };
 
 // 履歴を残した理由。AUTO は自動保存、AI_EDIT は AI の編集案を適用する直前、RESTORE は履歴から戻す直前。
 export type NoteRevisionReason = "AUTO" | "AI_EDIT" | "RESTORE";
 // 一覧用（本文は含めない）。version は残した時点のノートの版、createdAt は残した時刻（ISO 文字列）。
 export type NoteRevisionSummary = { id: string; reason: NoteRevisionReason; title: string; version: number; createdAt: string };
-export type NoteRevisionDetail = NoteRevisionSummary & { icon: string | null; blocks: Block[] };
+// data はホワイトボード・スライドの履歴の本体（ノートの履歴には無い）。
+export type NoteRevisionDetail = NoteRevisionSummary & { icon: string | null; blocks: Block[]; data?: Record<string, unknown> };

@@ -3,13 +3,13 @@ import { NoteValidationError } from "@/lib/note-document";
 
 const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(), summary: vi.fn(), resolveParent: vi.fn(), setGroup: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(),
-  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(),
+  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), raw: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-covers", () => ({ claimCover: mocks.claim }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, findMany: mocks.findMany, create: mocks.create };
-  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage }) } };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage, $executeRaw: mocks.raw }) } };
 });
 vi.mock("@/lib/note-tree-server", async (original) => ({
   ...(await original<typeof import("@/lib/note-tree-server")>()),
@@ -25,11 +25,31 @@ const context = { params: Promise.resolve({ pageId: "p1" }) };
 const put = (body: unknown) => new Request("http://localhost/api/pages/p1/x", { method: "PUT", body: JSON.stringify(body) });
 
 describe("page settings and favorites", () => {
-  beforeEach(() => { vi.clearAllMocks(); mocks.setMeta.mockResolvedValue(1); mocks.summary.mockResolvedValue({ id: "p1" }); });
+  beforeEach(() => { vi.clearAllMocks(); mocks.setMeta.mockResolvedValue(1); mocks.summary.mockResolvedValue({ id: "p1" }); mocks.findFirst.mockResolvedValue({ kind: "note" }); });
 
   it("writes only the settings that were sent, as metadata", async () => {
     expect((await settings(put({ fullWidth: true, font: "serif" }), context)).status).toBe(200);
     expect(mocks.setMeta).toHaveBeenCalledWith(expect.anything(), "mine", "p1", { fullWidth: true, font: "serif" });
+  });
+
+  it("refuses note-only typography for a whiteboard or slide deck, in the requester's language, but still locks it", async () => {
+    for (const kind of ["whiteboard", "slides"]) {
+      mocks.findFirst.mockResolvedValue({ kind });
+      for (const body of [{ font: "serif" }, { smallText: true }, { fullWidth: true }]) {
+        const request = new Request("http://localhost/api/pages/p1/settings", { method: "PUT", body: JSON.stringify(body), headers: { "accept-language": "ja" } });
+        const response = await settings(request, context);
+        expect(response.status).toBe(400);
+        const json = await response.json();
+        expect(json).toMatchObject({ code: "wrong_page_kind", kind });
+        // 古いアプリは辞書にこの文を持たないので、サーバーが要求の言語に訳して返す。
+        expect(json.error).not.toBe("Font, text size and width can only be changed for notes.");
+        expect(json.error).toMatch(/[\u3040-\u30ff\u4e00-\u9fff]/);
+      }
+      expect(mocks.setMeta).not.toHaveBeenCalled();
+      expect((await settings(put({ locked: true }), context)).status).toBe(200);
+      expect(mocks.setMeta).toHaveBeenLastCalledWith(expect.anything(), "mine", "p1", { locked: true });
+      mocks.setMeta.mockClear();
+    }
   });
 
   it("rejects unknown fonts, non-boolean switches and empty requests", async () => {
@@ -98,6 +118,29 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect(root).toMatchObject({ title: "Plan (1)", parentId: null, groupId: "g1", fullWidth: true, font: "mono" });
     expect(child).toMatchObject({ title: "c1", parentId: "copy1" });
     expect(mocks.writeOrder).toHaveBeenCalledWith(expect.anything(), "mine", ["x", "p1", "copy1", "copy2", "c1", "y"]);
+  });
+
+  it("copies a whiteboard with a slide deck inside, keeping each kind and copying their content inside the database", async () => {
+    mocks.findFirst.mockImplementation(async ({ where }) => where.id === "p1" ? { ...row("p1", null, "Board"), kind: "whiteboard" } : { id: where.id });
+    mocks.descendants.mockResolvedValue(["c1"]);
+    mocks.findMany.mockImplementation(async ({ select }) => select ? [] : [{ ...row("c1", "p1"), kind: "slides" }]);
+    expect((await duplicate(new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(201);
+    const [root, child] = mocks.create.mock.calls.map((call) => call[0].data);
+    expect(root).toMatchObject({ kind: "whiteboard", title: "Board (1)", blocks: [] });
+    expect(child).toMatchObject({ kind: "slides", parentId: "copy1" });
+    // 本体（最大 2 MB）はアプリに読み込まず、INSERT ... SELECT で写す。
+    const copies = mocks.raw.mock.calls.map(([sql]) => sql as { sql: string; values: unknown[] });
+    expect(copies).toHaveLength(2);
+    expect(copies[0].sql).toContain('INSERT INTO "notefable"."NoteCanvas"');
+    expect(copies[0].sql).toContain('SELECT');
+    expect(copies.map((copy) => copy.values)).toEqual([["copy1", "p1"], ["copy2", "c1"]]);
+  });
+
+  it("copies notes without touching the canvas table", async () => {
+    mocks.descendants.mockResolvedValue([]);
+    mocks.findMany.mockResolvedValue([]);
+    expect((await duplicate(new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(201);
+    expect(mocks.raw).not.toHaveBeenCalled();
   });
 
   it("refuses pages with more than 99 sub-pages", async () => {

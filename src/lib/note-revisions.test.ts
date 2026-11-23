@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({ raw: vi.fn(), unsafe: vi.fn(), create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: {} }));
 import {
-  AUTO_REVISION_INTERVAL_MS, AUTO_REVISION_MAX_AGE_MS, createRevision, MAX_AUTO_REVISIONS_PER_NOTE, MAX_MARKED_REVISIONS_PER_NOTE, MAX_REVISIONS_PER_NOTE, snapshotBeforeSave, snapshotSql, toRevisionDetail, toRevisionSummary,
+  AUTO_REVISION_INTERVAL_MS, AUTO_REVISION_MAX_AGE_MS, CANVAS_AUTO_REVISION_INTERVAL_MS, createRevision, MAX_AUTO_REVISIONS_PER_CANVAS, MAX_AUTO_REVISIONS_PER_NOTE, MAX_MARKED_REVISIONS_PER_CANVAS, MAX_MARKED_REVISIONS_PER_NOTE, MAX_REVISIONS_PER_NOTE, revisionLimits, snapshotBeforeSave, snapshotSql, toRevisionDetail, toRevisionSummary,
 } from "./note-revisions";
 
 const tx = { $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe, noteRevision: { create: mocks.create, findMany: mocks.findMany, deleteMany: mocks.deleteMany } } as unknown as Parameters<typeof snapshotBeforeSave>[0];
@@ -14,11 +14,11 @@ describe("auto-save snapshot SQL", () => {
   it("is one INSERT ... SELECT from the live note, qualified with the database schema", () => {
     const { sql, values } = snapshotSql(input);
     const text = flat(sql);
-    expect(text).toContain('INSERT INTO "notefable"."NoteRevision" ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "version", "createdAt")');
-    expect(text).toContain('FROM "notefable"."NotePage" p');
+    expect(text).toContain('INSERT INTO "notefable"."NoteRevision" ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "data", "version", "createdAt")');
+    expect(text).toContain('FROM "notefable"."NotePage" p LEFT JOIN "notefable"."NoteCanvas" c ON c."noteId" = p."id"');
     expect(text).toContain("gen_random_uuid()::text");
     expect(text).toContain(`'AUTO'::"notefable"."NoteRevisionReason"`);
-    expect(text).toContain('p."title", p."icon", p."blocks", p."version"');
+    expect(text).toContain('p."title", p."icon", p."blocks", c."data", p."version"');
     expect(values).toEqual(["n1", "mine", 7]);
   });
 
@@ -29,14 +29,20 @@ describe("auto-save snapshot SQL", () => {
 
   it("skips empty notes without risking an error on a non-array blocks value", () => {
     const text = flat(snapshotSql(input).sql);
-    expect(text).toContain(`jsonb_typeof(p."blocks") = 'array' AND p."blocks" <> '[]'::jsonb`);
+    expect(text).toContain(`(p."kind" = 'note' AND jsonb_typeof(p."blocks") = 'array' AND p."blocks" <> '[]'::jsonb)`);
     expect(text).not.toContain("jsonb_array_length");
+  });
+
+  it("copies a whiteboard or slide deck from its separate content row, skipping empty ones", () => {
+    const text = flat(snapshotSql(input).sql);
+    expect(text).toContain(`(p."kind" <> 'note' AND c."data" IS NOT NULL AND COALESCE(c."data" -> 'elements', c."data" -> 'slides', '[]'::jsonb) <> '[]'::jsonb)`);
   });
 
   it("skips the copy when an auto revision of the note is newer than 10 minutes, comparing in UTC", () => {
     expect(AUTO_REVISION_INTERVAL_MS).toBe(10 * 60 * 1000);
     const text = flat(snapshotSql(input).sql);
-    expect(text).toContain(`NOT EXISTS ( SELECT 1 FROM "notefable"."NoteRevision" r WHERE r."noteId" = p."id" AND r."reason" = 'AUTO'::"notefable"."NoteRevisionReason" AND r."createdAt" > (now() AT TIME ZONE 'UTC') - interval '600 seconds' )`);
+    expect(CANVAS_AUTO_REVISION_INTERVAL_MS).toBe(30 * 60 * 1000);
+    expect(text).toContain(`NOT EXISTS ( SELECT 1 FROM "notefable"."NoteRevision" r WHERE r."noteId" = p."id" AND r."reason" = 'AUTO'::"notefable"."NoteRevisionReason" AND r."createdAt" > (now() AT TIME ZONE 'UTC') - (CASE WHEN p."kind" = 'note' THEN interval '600 seconds' ELSE interval '1800 seconds' END) )`);
     expect(text).toContain(`(now() AT TIME ZONE 'UTC')`);
   });
 
@@ -66,6 +72,26 @@ describe("snapshotBeforeSave and createRevision", () => {
     expect(mocks.findMany).toHaveBeenNthCalledWith(1, { where: { noteId: "n1", userId: "mine", reason: "AUTO" }, orderBy: order, skip: 30, select: { id: true } });
     expect(mocks.findMany).toHaveBeenNthCalledWith(2, { where: { noteId: "n1", userId: "mine", reason: { not: "AUTO" } }, orderBy: order, skip: 20, select: { id: true } });
     expect(mocks.deleteMany).toHaveBeenCalledWith({ where: { id: { in: ["a31", "m21"] }, noteId: "n1", userId: "mine" } });
+  });
+
+  it("keeps fewer revisions of a whiteboard or slide deck (5 auto-saves + 5 marked), since each copy can be 2 MB", async () => {
+    mocks.raw.mockResolvedValue(1);
+    expect(revisionLimits("whiteboard")).toEqual({ auto: 5, marked: 5, intervalMs: 30 * 60 * 1000 });
+    expect(revisionLimits("slides")).toEqual(revisionLimits("whiteboard"));
+    expect(revisionLimits("note")).toEqual({ auto: 30, marked: 20, intervalMs: 10 * 60 * 1000 });
+    expect(MAX_AUTO_REVISIONS_PER_CANVAS + MAX_MARKED_REVISIONS_PER_CANVAS).toBe(10);
+    await snapshotBeforeSave(tx, { ...input, kind: "whiteboard" });
+    const order = [{ createdAt: "desc" }, { id: "desc" }];
+    expect(mocks.findMany).toHaveBeenNthCalledWith(1, { where: { noteId: "n1", userId: "mine", reason: "AUTO" }, orderBy: order, skip: 5, select: { id: true } });
+    expect(mocks.findMany).toHaveBeenNthCalledWith(2, { where: { noteId: "n1", userId: "mine", reason: { not: "AUTO" } }, orderBy: order, skip: 5, select: { id: true } });
+  });
+
+  it("stores the content of a whiteboard or slide deck in data and prunes with its limits", async () => {
+    const data = { elements: [{ id: "e1", type: "text", text: "Hi" }] };
+    mocks.findMany.mockResolvedValue([]);
+    await createRevision(tx, { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Board", icon: null, blocks: [], data, version: 2, kind: "whiteboard" });
+    expect(mocks.create).toHaveBeenCalledWith({ data: { noteId: "n1", userId: "mine", reason: "RESTORE", title: "Board", icon: null, blocks: [], data, version: 2 } });
+    expect(mocks.findMany.mock.calls[0][0].skip).toBe(5);
   });
 
   it("drops auto-saves older than 90 days after a snapshot was inserted", async () => {
@@ -112,5 +138,11 @@ describe("revision views for the browser", () => {
 
   it("returns the full content for one revision", () => {
     expect(toRevisionDetail(row)).toEqual({ id: "r1", reason: "RESTORE", title: "T", icon: null, blocks: [], version: 3, createdAt: "2026-10-15T01:02:03.000Z" });
+    expect(toRevisionDetail({ ...row, data: null })).not.toHaveProperty("data");
+  });
+
+  it("adds the whiteboard or slide content as data", () => {
+    const data = { slides: [{ id: "s1" }] };
+    expect(toRevisionDetail({ ...row, data })).toMatchObject({ blocks: [], data });
   });
 });

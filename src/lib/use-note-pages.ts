@@ -7,6 +7,7 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
+import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -211,7 +212,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const queue = queues.current.get(page.id);
       if (!queue || queue.version === page.version) return;
       if (!queue.dirty && queue.status !== "saving") {
-        queue.loadLatest(page);
+        // ホワイトボード・スライドの本体（data）は、アイコンの変更などの応答には入っていない。届いていなければ読み込み済みのものを残す。
+        queue.loadLatest(isCanvasKind(pageKindOf(page)) && page.data === undefined ? { ...page, data: queue.page.data } : page);
         if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
       } else {
         // 未保存の編集は消さず、衝突として知らせる。
@@ -453,7 +455,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // サイドバーのアイコンから変える。開いているノートは編集と同じ経路（自動保存）に乗せ、開いていないノートは専用の API で書く。
   const changeIcon = (id: string, icon: string | null) => groupAction(async () => {
-    if (active && id === activeId) { active.edit({ ...active.content, icon }); return true; }
+    // ホワイトボード・スライドはノートの自動保存に乗せられない（本文の形が違う）ので、開いていても専用の API で書く。
+    if (active && id === activeId && !isCanvasKind(pageKindOf(active.page))) { active.edit({ ...active.content, icon }); return true; }
     const { page } = await pageRequest(`/api/pages/${id}/icon`, "PUT", { icon });
     // 一覧と、読み込み済みの編集内容を新しい版へそろえる（未保存の編集が残っていれば、上書きせず衝突として知らせる）。
     window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));

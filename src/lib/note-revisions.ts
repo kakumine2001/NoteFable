@@ -1,67 +1,87 @@
 import { Prisma } from "@/generated/prisma/client";
+import { isCanvasKind, type PageKind } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import type { NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
 
 // ノートの編集履歴。保存のたびではなく、編集の合間に一定間隔で「変更される直前の状態」を残し、AI の編集案の適用と履歴からの復元でも直前の状態を残す。
 // 1 ノートに残す件数には上限があり、古いものから消える。自動保存の履歴が AI 編集・復元の直前の履歴を押し出さないよう、上限は別々に持つ。
+// ホワイトボード・スライドは 1 件が大きい（最大 2 MB）ので、残す件数を少なくし、自動保存の間隔も長くする。
 
 export const MAX_AUTO_REVISIONS_PER_NOTE = 30;
 export const MAX_MARKED_REVISIONS_PER_NOTE = 20;
 export const MAX_REVISIONS_PER_NOTE = MAX_AUTO_REVISIONS_PER_NOTE + MAX_MARKED_REVISIONS_PER_NOTE;
 export const AUTO_REVISION_INTERVAL_MS = 10 * 60 * 1000;
+// ホワイトボード・スライドの履歴：自動保存 5 件 + AI 編集・復元の直前 5 件、自動保存は 30 分おき。
+export const MAX_AUTO_REVISIONS_PER_CANVAS = 5;
+export const MAX_MARKED_REVISIONS_PER_CANVAS = 5;
+export const CANVAS_AUTO_REVISION_INTERVAL_MS = 30 * 60 * 1000;
 // 自動保存の履歴は、件数が少なくても 90 日で消す（古い版を何年も抱えない）。
 export const AUTO_REVISION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
+
+export function revisionLimits(kind: PageKind = "note") {
+  return isCanvasKind(kind)
+    ? { auto: MAX_AUTO_REVISIONS_PER_CANVAS, marked: MAX_MARKED_REVISIONS_PER_CANVAS, intervalMs: CANVAS_AUTO_REVISION_INTERVAL_MS }
+    : { auto: MAX_AUTO_REVISIONS_PER_NOTE, marked: MAX_MARKED_REVISIONS_PER_NOTE, intervalMs: AUTO_REVISION_INTERVAL_MS };
+}
 
 type RevisionClient = Pick<typeof prisma, "$executeRaw" | "$executeRawUnsafe" | "noteRevision">;
 
 // 自動保存の直前に呼ぶ（PATCH と同じトランザクションの中で、更新より前）。
-// 履歴は保存済みの行から DB 側で 1 文でコピーする。本文を一度アプリに読み込んで送り返さないので、自動保存が遅くならない。
+// 履歴は保存済みの行から DB 側で 1 文でコピーする。本文（ホワイトボード・スライドは NoteCanvas の本体）を一度アプリに読み込んで送り返さないので、自動保存が遅くならない。
 // 条件に合わなければ何も入れない：
 //  - 保存済みの版が、これから上書きする版と一致しない（版の競合や、応答だけ失われた保存の再送）
-//  - ノートがゴミ箱にある、または本文が空
-//  - 直前 10 分以内に自動保存の履歴がある
+//  - ノートがゴミ箱にある、または本文が空（ホワイトボードは要素、スライドはページが無い）
+//  - 直前の一定時間（ノート 10 分、ホワイトボード・スライド 30 分）以内に自動保存の履歴がある
 // FOR UPDATE で行を押さえ、同じ版を同時に保存する 2 つのリクエストが同じ履歴を二重に入れないようにする。
 // 時刻は他の列と同じ UTC の時計（timestamp without time zone）で比べる。blocks は jsonb_typeof で配列と確かめてから比べ、式がエラーでトランザクションを壊さないようにする。
 export function snapshotSql({ noteId, userId, version }: { noteId: string; userId: string; version: number }) {
   const schema = `"${databaseSchema}"`;
   const note = Prisma.raw(`${schema}."NotePage"`);
+  const canvas = Prisma.raw(`${schema}."NoteCanvas"`);
   const revision = Prisma.raw(`${schema}."NoteRevision"`);
   const reason = Prisma.raw(`'AUTO'::${schema}."NoteRevisionReason"`);
-  const interval = Prisma.raw(`interval '${AUTO_REVISION_INTERVAL_MS / 1000} seconds'`);
+  const noteInterval = Prisma.raw(`interval '${AUTO_REVISION_INTERVAL_MS / 1000} seconds'`);
+  const canvasInterval = Prisma.raw(`interval '${CANVAS_AUTO_REVISION_INTERVAL_MS / 1000} seconds'`);
   return Prisma.sql`
-    INSERT INTO ${revision} ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "version", "createdAt")
-    SELECT gen_random_uuid()::text, p."id", p."userId", ${reason}, p."title", p."icon", p."blocks", p."version", (now() AT TIME ZONE 'UTC')
+    INSERT INTO ${revision} ("id", "noteId", "userId", "reason", "title", "icon", "blocks", "data", "version", "createdAt")
+    SELECT gen_random_uuid()::text, p."id", p."userId", ${reason}, p."title", p."icon", p."blocks", c."data", p."version", (now() AT TIME ZONE 'UTC')
     FROM ${note} p
+    LEFT JOIN ${canvas} c ON c."noteId" = p."id"
     WHERE p."id" = ${noteId} AND p."userId" = ${userId} AND p."version" = ${version} AND p."deletedAt" IS NULL
-      AND jsonb_typeof(p."blocks") = 'array' AND p."blocks" <> '[]'::jsonb
+      AND (
+        (p."kind" = 'note' AND jsonb_typeof(p."blocks") = 'array' AND p."blocks" <> '[]'::jsonb)
+        OR (p."kind" <> 'note' AND c."data" IS NOT NULL AND COALESCE(c."data" -> 'elements', c."data" -> 'slides', '[]'::jsonb) <> '[]'::jsonb)
+      )
       AND NOT EXISTS (
         SELECT 1 FROM ${revision} r
-        WHERE r."noteId" = p."id" AND r."reason" = ${reason} AND r."createdAt" > (now() AT TIME ZONE 'UTC') - ${interval}
+        WHERE r."noteId" = p."id" AND r."reason" = ${reason}
+          AND r."createdAt" > (now() AT TIME ZONE 'UTC') - (CASE WHEN p."kind" = 'note' THEN ${noteInterval} ELSE ${canvasInterval} END)
       )
     FOR UPDATE OF p`;
 }
 
-// 自動保存の履歴は新しい順に 30 件、AI 編集・復元の直前の履歴は新しい順に 20 件だけ残し、自動保存は 90 日を過ぎたものも消す。
-async function pruneRevisions(tx: RevisionClient, noteId: string, userId: string) {
+// 自動保存の履歴は新しい順に上限件数、AI 編集・復元の直前の履歴も新しい順に上限件数だけ残し、自動保存は 90 日を過ぎたものも消す。
+async function pruneRevisions(tx: RevisionClient, noteId: string, userId: string, kind: PageKind = "note") {
+  const limits = revisionLimits(kind);
   const newestFirst = [{ createdAt: "desc" as const }, { id: "desc" as const }];
   const staleAuto = await tx.noteRevision.findMany({
-    where: { noteId, userId, reason: "AUTO" }, orderBy: newestFirst, skip: MAX_AUTO_REVISIONS_PER_NOTE, select: { id: true },
+    where: { noteId, userId, reason: "AUTO" }, orderBy: newestFirst, skip: limits.auto, select: { id: true },
   });
   const staleMarked = await tx.noteRevision.findMany({
-    where: { noteId, userId, reason: { not: "AUTO" } }, orderBy: newestFirst, skip: MAX_MARKED_REVISIONS_PER_NOTE, select: { id: true },
+    where: { noteId, userId, reason: { not: "AUTO" } }, orderBy: newestFirst, skip: limits.marked, select: { id: true },
   });
   const stale = [...staleAuto, ...staleMarked];
   if (stale.length) await tx.noteRevision.deleteMany({ where: { id: { in: stale.map((row) => row.id) }, noteId, userId } });
   await tx.noteRevision.deleteMany({ where: { noteId, userId, reason: "AUTO", createdAt: { lt: new Date(Date.now() - AUTO_REVISION_MAX_AGE_MS) } } });
 }
 
-// 履歴を入れたら true。
+// 履歴を入れたら true。kind はページの種類（残す件数が違う）。
 // 履歴の保存は自動保存の「おまけ」なので、失敗しても保存そのものを巻き込まない。失敗した文は Postgres のトランザクション全体を使えなくするため、SAVEPOINT で閉じ込めて戻す。
-export async function snapshotBeforeSave(tx: RevisionClient, input: { noteId: string; userId: string; version: number }) {
+export async function snapshotBeforeSave(tx: RevisionClient, input: { noteId: string; userId: string; version: number; kind?: PageKind }) {
   try {
     await tx.$executeRawUnsafe("SAVEPOINT note_snapshot");
     const inserted = await tx.$executeRaw(snapshotSql(input));
-    if (inserted) await pruneRevisions(tx, input.noteId, input.userId);
+    if (inserted) await pruneRevisions(tx, input.noteId, input.userId, input.kind);
     await tx.$executeRawUnsafe("RELEASE SAVEPOINT note_snapshot");
     return Boolean(inserted);
   } catch (error) {
@@ -73,16 +93,18 @@ export async function snapshotBeforeSave(tx: RevisionClient, input: { noteId: st
 }
 
 // AI の編集案の適用・履歴からの復元の直前に、その時点の状態を残す（呼び出し側のトランザクションの中で。巻き戻されれば履歴も消える）。
+// ホワイトボード・スライドは data に本体を入れる（blocks は空配列）。
 export async function createRevision(tx: RevisionClient, input: {
-  noteId: string; userId: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; version: number;
+  noteId: string; userId: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; version: number; kind?: PageKind; data?: unknown;
 }) {
   await tx.noteRevision.create({
     data: {
       noteId: input.noteId, userId: input.userId, reason: input.reason, title: input.title, icon: input.icon,
       blocks: input.blocks as Prisma.InputJsonValue, version: input.version,
+      ...(input.data === undefined || input.data === null ? {} : { data: input.data as Prisma.InputJsonValue }),
     },
   });
-  await pruneRevisions(tx, input.noteId, input.userId);
+  await pruneRevisions(tx, input.noteId, input.userId, input.kind);
 }
 
 export const REVISION_SUMMARY_SELECT = { id: true, reason: true, title: true, version: true, createdAt: true } as const;
@@ -91,6 +113,10 @@ export function toRevisionSummary(row: { id: string; reason: NoteRevisionReason;
   return { id: row.id, reason: row.reason, title: row.title, version: row.version, createdAt: row.createdAt.toISOString() };
 }
 
-export function toRevisionDetail(row: { id: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; version: number; createdAt: Date }): NoteRevisionDetail {
-  return { ...toRevisionSummary(row), icon: row.icon, blocks: row.blocks as NoteRevisionDetail["blocks"] };
+// data はホワイトボード・スライドの本体（ノートの履歴には無い）。
+export function toRevisionDetail(row: { id: string; reason: NoteRevisionReason; title: string; icon: string | null; blocks: unknown; data?: unknown; version: number; createdAt: Date }): NoteRevisionDetail {
+  return {
+    ...toRevisionSummary(row), icon: row.icon, blocks: row.blocks as NoteRevisionDetail["blocks"],
+    ...(row.data === undefined || row.data === null ? {} : { data: row.data as NoteRevisionDetail["data"] }),
+  };
 }

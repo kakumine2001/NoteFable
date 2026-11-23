@@ -757,4 +757,10 @@ export const vi: Record<string, string> = {
   "Import to": "Nhập vào",
   "Square images of at least 280 × 280 pixels work best. JPEG, PNG, WebP or GIF, up to 4 MB.": "Nên dùng ảnh vuông tối thiểu 280 × 280 pixel. JPEG, PNG, WebP hoặc GIF, tối đa 4 MB.",
   "Images must be 4 MB or smaller.": "Ảnh phải từ 4 MB trở xuống.",
+  "Whiteboard": "Bảng trắng",
+  "Slides": "Trình chiếu",
+  "Whiteboard editing is coming soon.": "Tính năng chỉnh sửa bảng trắng sắp ra mắt.",
+  "Slide deck editing is coming soon.": "Tính năng chỉnh sửa bản trình chiếu sắp ra mắt.",
+  "Text on this page": "Văn bản trên trang này",
+  "This page has no text yet.": "Trang này chưa có văn bản.",
 };
