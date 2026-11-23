@@ -17,30 +17,13 @@ import type { ResolvedPublicShare } from "@/lib/note-share-server";
 import { validColumnWidth } from "@/lib/note-columns";
 import { blocksHaveMath } from "@/lib/note-text";
 
-// BlockNote のカラー名と Notion の色対応（テキスト色・背景色）。
-const TEXT_COLORS: Record<string, string> = {
-  gray: "#787774",
-  brown: "#9f6b53",
-  red: "#d44c47",
-  orange: "#d9730d",
-  yellow: "#cb912f",
-  green: "#448361",
-  blue: "#337ea9",
-  purple: "#9065b0",
-  pink: "#c14c8a",
-};
+// BlockNote のカラー名（テキスト色・背景色）。色そのものは globals.css の --public-note-<色>-text / -bg で、
+// ライトは Notion の色、ダークはエディター（BlockNote のダーク）と同じ色になる。
+const NOTE_COLORS = new Set(["gray", "brown", "red", "orange", "yellow", "green", "blue", "purple", "pink"]);
 
-const BG_COLORS: Record<string, string> = {
-  gray: "#f1f1ef",
-  brown: "#f4eeee",
-  red: "#fdebec",
-  orange: "#fbecdd",
-  yellow: "#fbf3db",
-  green: "#edf3ec",
-  blue: "#e7f3f8",
-  purple: "#f6f3f9",
-  pink: "#faf1f5",
-};
+function noteColor(value: unknown): string | null {
+  return typeof value === "string" && NOTE_COLORS.has(value) ? value : null;
+}
 
 type InlineNode =
   | { type: "text"; text: string; styles?: Record<string, unknown> }
@@ -102,14 +85,13 @@ function mathRenderer(katex: KatexApi): MathRenderer {
 }
 
 function colorStyle(textColor?: unknown, backgroundColor?: unknown): CSSProperties | undefined {
+  const text = noteColor(textColor);
+  const background = noteColor(backgroundColor);
+  if (!text && !background) return undefined;
   const style: CSSProperties = {};
-  if (typeof textColor === "string" && textColor !== "default" && TEXT_COLORS[textColor]) {
-    style.color = TEXT_COLORS[textColor];
-  }
-  if (typeof backgroundColor === "string" && backgroundColor !== "default" && BG_COLORS[backgroundColor]) {
-    style.backgroundColor = BG_COLORS[backgroundColor];
-  }
-  return Object.keys(style).length ? style : undefined;
+  if (text) style.color = `var(--public-note-${text}-text)`;
+  if (background) style.backgroundColor = `var(--public-note-${background}-bg)`;
+  return style;
 }
 
 function alignStyle(alignment: unknown): CSSProperties["textAlign"] | undefined {
@@ -311,7 +293,10 @@ function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext
     case "callout": {
       const emoji = typeof props.emoji === "string" && props.emoji ? props.emoji : "💡";
       const calloutBg = typeof props.backgroundColor === "string" ? props.backgroundColor : "gray";
-      const calloutStyle = colorStyle(props.textColor, calloutBg);
+      // 既定の灰色はエディターと同じく専用の地（ダークでは灰色の背景色より控えめな地）。
+      const calloutStyle = calloutBg === "gray"
+        ? { ...colorStyle(props.textColor), backgroundColor: "var(--public-note-callout-bg)" }
+        : colorStyle(props.textColor, calloutBg);
       return (
         <div key={block.id} className="public-note-block">
           <div className={`public-note-callout ${calloutBg === "default" ? "is-outlined" : ""}`} style={calloutStyle}>
