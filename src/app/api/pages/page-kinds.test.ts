@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn(),
   canvasFindFirst: vi.fn(), canvasFindUnique: vi.fn(), canvasUpsert: vi.fn(),
   revisionCreate: vi.fn(), revisionFindFirst: vi.fn(), revisionFindMany: vi.fn(), revisionDeleteMany: vi.fn(),
-  raw: vi.fn(), unsafe: vi.fn(), resolveParent: vi.fn(), schedule: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(),
+  raw: vi.fn(), unsafe: vi.fn(), queryRaw: vi.fn(), resolveParent: vi.fn(), schedule: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-embeddings", () => ({ scheduleNoteEmbeddingSync: mocks.schedule }));
@@ -17,7 +17,7 @@ vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, create: mocks.create, updateMany: mocks.updateMany };
   const noteCanvas = { findFirst: mocks.canvasFindFirst, findUnique: mocks.canvasFindUnique, upsert: mocks.canvasUpsert };
   const noteRevision = { create: mocks.revisionCreate, findFirst: mocks.revisionFindFirst, findMany: mocks.revisionFindMany, deleteMany: mocks.revisionDeleteMany };
-  const tx = { notePage, noteCanvas, noteRevision, storedFile: { updateMany: mocks.claimFiles }, $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe };
+  const tx = { notePage, noteCanvas, noteRevision, storedFile: { updateMany: mocks.claimFiles }, $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe, $queryRaw: mocks.queryRaw };
   return { databaseSchema: "notefable", prisma: { ...tx, $transaction: async (fn: (client: unknown) => unknown) => fn(tx) } };
 });
 import { POST as create } from "./route";
@@ -96,6 +96,43 @@ describe("creating whiteboards and slide decks", () => {
     expect((await create(json({ title: "Note", icon: null, cover: null, coverPosition: null, blocks: [] }))).status).toBe(201);
     expect(mocks.create.mock.calls[0][0].data).not.toHaveProperty("kind");
     expect(mocks.canvasUpsert).not.toHaveBeenCalled();
+  });
+});
+
+// 項目の「+」（#168）：プロジェクトの最上位に作る。プロジェクトは本人のものだけ、行を押さえてから作る。
+describe("creating a page at the top of a project", () => {
+  const note = { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
+
+  it("puts a note or a whiteboard into the user's own project, locking the project row first", async () => {
+    mocks.queryRaw.mockResolvedValue([{ id: "g1" }]);
+    expect((await create(json({ ...note, groupId: "g1" }))).status).toBe(201);
+    expect(mocks.create.mock.calls[0][0].data).toMatchObject({ userId: "mine", parentId: null, groupId: "g1" });
+    expect((await create(json({ kind: "whiteboard", title: "Board", icon: null, groupId: "g1" }))).status).toBe(201);
+    expect(mocks.create.mock.calls[1][0].data).toMatchObject({ kind: "whiteboard", parentId: null, groupId: "g1" });
+    const query = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(query.sql).toContain('"notefable"."NoteGroup"');
+    expect(query.sql).toContain("FOR KEY SHARE");
+    expect(query.values).toEqual(["g1", "mine"]);
+  });
+
+  it("answers 404 for someone else's or a deleted project without creating anything", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    const response = await create(json({ ...note, groupId: "other" }));
+    expect(response.status).toBe(404);
+    expect((await response.json()).error).toBe("Project not found.");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
+  it("follows the parent's project for a sub-page and ignores groupId", async () => {
+    mocks.resolveParent.mockResolvedValue({ id: "n1", groupId: "g2" });
+    expect((await create(json({ ...note, parentId: "n1", groupId: "g1" }))).status).toBe(201);
+    expect(mocks.create.mock.calls[0][0].data).toMatchObject({ parentId: "n1", groupId: "g2" });
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed groupId", async () => {
+    for (const groupId of ["", 3, "x".repeat(65), {}]) expect((await create(json({ ...note, groupId }))).status).toBe(400);
+    expect(mocks.create).not.toHaveBeenCalled();
   });
 });
 

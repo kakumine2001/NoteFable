@@ -22,6 +22,12 @@ import com.kakumine.notefable.data.NoteFableApi
 import com.kakumine.notefable.data.SystemText
 
 class NoteFableApp : Application(), SingletonImageLoader.Factory {
+    override fun onCreate() {
+        super.onCreate()
+        // 页面类型的功能表：服务端的 kinds 到之前先用安装包里的（scripts/gen-native-page-kinds.ts 从网页生成）。
+        runCatching { assets.open("page-kinds.json").use { com.kakumine.notefable.data.PageKindTable.loadBundled(it.readBytes().decodeToString()) } }
+    }
+
     val cookieJar: PersistentCookieJar by lazy { PersistentCookieJar(this) }
     val api: NoteFableApi by lazy {
         NoteFableApi(BuildConfig.BASE_URL, cookieJar, openFile = { uri ->

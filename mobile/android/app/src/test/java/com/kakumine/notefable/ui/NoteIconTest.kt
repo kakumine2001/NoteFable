@@ -41,7 +41,7 @@ class NoteIconTest {
 
     private class Notes : NotesBackend {
         override suspend fun notes() = NotesList(listOf(NotePageSummary("a", "Bio", null, version = 3)), emptyList())
-        override suspend fun createNote(parentId: String?) = error("unused")
+        override suspend fun createNote(parentId: String?, kind: com.kakumine.notefable.data.PageKind, groupId: String?) = error("unused")
         override suspend fun trashNote(id: String) = listOf(id)
         override suspend fun moveNote(id: String, groupId: String?) = listOf(id)
         override suspend fun moveToPage(id: String, parentId: String?) = emptyList<NotePageSummary>()

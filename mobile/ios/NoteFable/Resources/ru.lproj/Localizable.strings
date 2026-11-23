@@ -358,6 +358,14 @@
 "page_kind_note" = "Заметка";
 "page_kind_whiteboard" = "Доска";
 "page_kind_slides" = "Слайды";
+"ws_new" = "Создать";
+"ws_new_page" = "Новая страница";
+"ws_new_page_in" = "Новая страница в %1$s";
+"ws_section_whiteboards" = "Доски";
+"ws_new_slides" = "Новая презентация";
+"ws_new_whiteboard" = "Новая доска";
+"ws_all_types" = "Все типы";
+"ws_page_type" = "Тип страницы";
 
 /* strings_pages.xml */
 "pg_favorites" = "Избранное";

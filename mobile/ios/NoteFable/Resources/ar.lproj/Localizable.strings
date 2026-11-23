@@ -358,6 +358,14 @@
 "page_kind_note" = "ملاحظة";
 "page_kind_whiteboard" = "السبورة";
 "page_kind_slides" = "الشرائح";
+"ws_new" = "جديد";
+"ws_new_page" = "صفحة جديدة";
+"ws_new_page_in" = "صفحة جديدة في %1$s";
+"ws_section_whiteboards" = "السبورات";
+"ws_new_slides" = "مجموعة شرائح جديدة";
+"ws_new_whiteboard" = "سبورة جديدة";
+"ws_all_types" = "كل الأنواع";
+"ws_page_type" = "نوع الصفحة";
 
 /* strings_pages.xml */
 "pg_favorites" = "المفضلة";

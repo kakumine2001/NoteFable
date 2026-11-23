@@ -4,4 +4,12 @@
     <string name="page_kind_note">ملاحظة</string>
     <string name="page_kind_whiteboard">السبورة</string>
     <string name="page_kind_slides">الشرائح</string>
+    <string name="ws_new">جديد</string>
+    <string name="ws_new_page">صفحة جديدة</string>
+    <string name="ws_new_page_in">صفحة جديدة في %1$s</string>
+    <string name="ws_section_whiteboards">السبورات</string>
+    <string name="ws_new_slides">مجموعة شرائح جديدة</string>
+    <string name="ws_new_whiteboard">سبورة جديدة</string>
+    <string name="ws_all_types">كل الأنواع</string>
+    <string name="ws_page_type">نوع الصفحة</string>
 </resources>

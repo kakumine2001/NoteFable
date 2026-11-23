@@ -358,6 +358,14 @@
 "page_kind_note" = "노트";
 "page_kind_whiteboard" = "화이트보드";
 "page_kind_slides" = "슬라이드";
+"ws_new" = "새로 만들기";
+"ws_new_page" = "새 페이지";
+"ws_new_page_in" = "%1$s에 새 페이지";
+"ws_section_whiteboards" = "화이트보드";
+"ws_new_slides" = "새 슬라이드";
+"ws_new_whiteboard" = "새 화이트보드";
+"ws_all_types" = "모든 유형";
+"ws_page_type" = "페이지 유형";
 
 /* strings_pages.xml */
 "pg_favorites" = "즐겨찾기";

@@ -251,12 +251,13 @@ final class NoteFableApi: ChatBackend, AccountBackend, NotesBackend, @unchecked 
         try await http.getJson("/api/pages?recent=1", as: NotesList.self).pages
     }
 
-    // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
-    func createNote(parentId: String?) async throws -> NotePageSummary {
-        var fields: [String: JSONValue] = [
-            "title": "Untitled", "icon": .null, "cover": .null, "coverPosition": .null, "blocks": .array([]),
-        ]
-        if let parentId { fields["parentId"] = .string(parentId) }
+    // 与网页 use-note-pages.ts 的 create()（canvas-save.ts 的 newPageBody）发送的内容相同：
+    // 笔记是空的正文，白板 / 幻灯片是 { kind, title, icon }（不发 data，服务端建空的本体）。子页面不发 groupId（项目随父页面）。
+    func createNote(parentId: String?, kind: PageKind, groupId: String?) async throws -> NotePageSummary {
+        var fields: [String: JSONValue] = kind.isCanvas
+            ? ["kind": .string(kind.wire), "title": "Untitled", "icon": .null]
+            : ["title": "Untitled", "icon": .null, "cover": .null, "coverPosition": .null, "blocks": .array([])]
+        if let parentId { fields["parentId"] = .string(parentId) } else if let groupId { fields["groupId"] = .string(groupId) }
         return try await http.send(try http.request("POST", "/api/pages", json: .object(fields)), as: PageResponse.self).page
     }
 

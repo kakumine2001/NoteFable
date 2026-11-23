@@ -11,19 +11,19 @@ final class SearchApiTests: XCTestCase {
         """#)
         server.enqueue(#"{"query":"x","notes":[],"chats":[]}"#)
         let api = SearchApi(http: makeApi(server).http)
-        let result = try await api.search(query: "a b&c", scope: .chats, projectId: "p1")
+        let result = try await api.search(query: "a b&c", scope: .chats, projectId: "p1", kind: nil)
         XCTAssertEqual(server.next().path, "/api/search?q=a%20b%26c&scope=chats&projectId=p1")
         XCTAssertEqual(result.notes.map(\.blockId), ["b1"])
         XCTAssertEqual(result.chats.map(\.messageId), ["m1"])
         XCTAssertEqual(result.chats.first?.attachmentName, "f.pdf")
-        _ = try await api.search(query: "x", scope: .all, projectId: nil)
+        _ = try await api.search(query: "x", scope: .all, projectId: nil, kind: nil)
         XCTAssertEqual(server.next().path, "/api/search?q=x&scope=all")
     }
 
     func testAServerErrorThrows() async {
         let server = FakeTransport()
         server.enqueue(#"{"error":"Database is unavailable.","notes":[],"chats":[]}"#, status: 503)
-        let error = await errorThrown(try await SearchApi(http: makeApi(server).http).search(query: "x", scope: .all, projectId: nil))
+        let error = await errorThrown(try await SearchApi(http: makeApi(server).http).search(query: "x", scope: .all, projectId: nil, kind: nil))
         XCTAssertTrue(error is ApiException)
     }
 }

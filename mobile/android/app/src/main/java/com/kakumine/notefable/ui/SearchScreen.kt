@@ -128,6 +128,9 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val vm = remember { SearchViewModel(scope, backend) }
     LaunchedEffect(projects) { vm.setProjects(projects) }
+    // 类型筛选的选项跟着服务端的表（[PageKindTable] 是 Compose 状态）：换了就重新检索。
+    val kinds = com.kakumine.notefable.data.PageKindTable.creatable
+    LaunchedEffect(kinds) { vm.setKinds(kinds) }
     val state by vm.state.collectAsStateWithLifecycle()
     val view = state.view(projects, currentProjectId, chatFirst)
     val focus = remember { FocusRequester() }
@@ -209,7 +212,18 @@ fun SearchScreen(
                 }
                 if (state.scope == SearchScope.Chats && view.projectOptions.isNotEmpty()) {
                     Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
-                    ProjectFilter(view.projectOptions, view.projectId, Modifier.widthIn(max = toolbarWidth * 0.48f), vm::setProject)
+                    FilterSelect(
+                        listOf("" to stringResource(R.string.search_all_projects)) + view.projectOptions.map { it.id to it.name }, view.projectId,
+                        stringResource(R.string.search_project), Modifier.widthIn(max = toolbarWidth * 0.48f), vm::setProject,
+                    )
+                }
+                // Notes 的类型筛选（网页 search-dialog 的「Page type」，#168）：能新建的类型有两种以上时才出现。
+                if (state.scope == SearchScope.Notes && view.kindOptions.isNotEmpty()) {
+                    Spacer(Modifier.weight(1f).widthIn(min = 8.dp))
+                    FilterSelect(
+                        listOf("" to stringResource(R.string.ws_all_types)) + view.kindOptions.map { it.wire to stringResource(searchKindLabel(it)) }, view.kind,
+                        stringResource(R.string.ws_page_type), Modifier.widthIn(max = toolbarWidth * 0.48f), vm::setKind,
+                    )
                 }
             }
         }
@@ -270,16 +284,22 @@ private fun SearchTab(label: String, selected: Boolean, onClick: () -> Unit) {
     }
 }
 
+/** 类型筛选的名字（网页 PAGE_KIND_SECTION_LABELS）：笔记 / 幻灯片 / 白板。 */
+private fun searchKindLabel(kind: com.kakumine.notefable.data.PageKind): Int = when (kind) {
+    com.kakumine.notefable.data.PageKind.Note -> R.string.notes
+    com.kakumine.notefable.data.PageKind.Slides -> R.string.page_kind_slides
+    com.kakumine.notefable.data.PageKind.Whiteboard -> R.string.ws_section_whiteboards
+}
+
+/** 筛选（网页的原生 <select>：项目、类型）。[options] 是（值, 名字），第一项是"全部"（值 ""）。[label] 是读屏名字。 */
 @Composable
-private fun ProjectFilter(options: List<ChatProjectSummary>, selected: String, modifier: Modifier, onSelect: (String) -> Unit) {
+private fun FilterSelect(options: List<Pair<String, String>>, selected: String, label: String, modifier: Modifier, onSelect: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    val allLabel = stringResource(R.string.search_all_projects)
     val shape = RoundedCornerShape(6.dp)
-    val projectLabel = stringResource(R.string.search_project)
     // 网页是原生 <select>：宽度按最长的选项定（再受 48% 限制），选哪一项都不变宽变窄。
     val measurer = rememberTextMeasurer()
     val density = LocalDensity.current
-    val names = listOf(allLabel) + options.map { it.name }
+    val names = options.map { it.second }
     val widest = remember(names, density) {
         with(density) { names.maxOf { measurer.measure(it, TextStyle(fontSize = 16.sp), maxLines = 1).size.width }.toDp() }
     }
@@ -288,13 +308,13 @@ private fun ProjectFilter(options: List<ChatProjectSummary>, selected: String, m
     Box(modifier) {
         Box(
             Modifier.width(triggerWidth).height(40.dp).clip(shape).border(1.dp, Sm.Border, shape).clickable { open = true }
-                .semantics { contentDescription = projectLabel }.padding(horizontal = 6.4.dp),
+                .semantics { contentDescription = label }.padding(horizontal = 6.4.dp),
             Alignment.CenterStart,
         ) {
             // 箭头靠右（<select> 的箭头在右端），文字在剩下的宽度里，放不下时省略。
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    options.firstOrNull { it.id == selected }?.name ?: allLabel,
+                    options.firstOrNull { it.first == selected }?.second ?: options.firstOrNull()?.second.orEmpty(),
                     color = Sm.Muted, fontSize = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
                 )
                 Spacer(Modifier.width(4.dp))
@@ -302,7 +322,7 @@ private fun ProjectFilter(options: List<ChatProjectSummary>, selected: String, m
             }
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Sm.Surface) {
-            (listOf("" to allLabel) + options.map { it.id to it.name }).forEach { (id, name) ->
+            options.forEach { (id, name) ->
                 DropdownMenuItem(
                     text = { Text(name, color = Sm.Text, fontSize = 16.sp, fontWeight = if (id == selected) FontWeight.SemiBold else FontWeight.Normal) },
                     onClick = { open = false; onSelect(id) },

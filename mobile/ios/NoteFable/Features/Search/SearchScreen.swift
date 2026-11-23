@@ -64,6 +64,15 @@ private struct SearchPanel: View {
         .onChange(of: projects, initial: true) { _, list in
             model.setProjects(list)
         }
+        // 类型筛选的选项跟着服务端的表（笔记列表读到的 kinds）：换了就重新检索。
+        .onChange(of: app.notes.state.kinds, initial: true) { _, list in
+            model.setKinds(list)
+        }
+        .task {
+            // 还没读过笔记列表时（从聊天直接打开检索）顺便读一次：页面类型的表跟着 GET /api/pages 的 kinds。
+            let notes = app.notes
+            if !notes.state.loaded && !notes.state.loading { notes.refresh() }
+        }
         .task {
             // 等面板进了窗口再聚焦，太早设会被忽略。
             try? await Task.sleep(nanoseconds: 80_000_000)
@@ -121,8 +130,21 @@ private struct SearchPanel: View {
             }
             Spacer(minLength: 8)
             if state.scope == .chats && !view.projectOptions.isEmpty {
-                SearchProjectFilter(options: view.projectOptions, selected: view.projectId) { id in
+                SearchFilter(
+                    options: [("", L("search_all_projects"))] + view.projectOptions.map { ($0.id, $0.name) },
+                    selected: view.projectId, label: L("search_project")
+                ) { id in
                     model.setProject(id)
+                }
+                .frame(maxWidth: max(0, toolbarWidth * 0.48), alignment: .trailing)
+            }
+            // Notes 的类型筛选（网页 search-dialog 的「Page type」，#168）：能新建的类型有两种以上时才出现。
+            if state.scope == .notes && !view.kindOptions.isEmpty {
+                SearchFilter(
+                    options: [("", L("ws_all_types"))] + view.kindOptions.map { ($0.wire, L(pageKindSectionLabel($0))) },
+                    selected: view.kind, label: L("ws_page_type")
+                ) { wire in
+                    model.setKind(wire)
                 }
                 .frame(maxWidth: max(0, toolbarWidth * 0.48), alignment: .trailing)
             }
@@ -206,21 +228,21 @@ private struct SearchTab: View {
     }
 }
 
-/// 项目筛选（网页是原生 <select>，这里用系统的菜单）：触发框按最长的选项定宽（外面再限制到 48%），箭头在行尾。
-private struct SearchProjectFilter: View {
-    let options: [ChatProjectSummary]
+/// 筛选（项目、类型；网页是原生 <select>，这里用系统的菜单）：触发框按最长的选项定宽（外面再限制到 48%），箭头在行尾。
+/// [options] 是（值, 名字），第一项是“全部”（值 ""）。[label] 是读屏名字。
+private struct SearchFilter: View {
+    let options: [(String, String)]
     let selected: String
+    let label: String
     let onSelect: (String) -> Void
 
     var body: some View {
-        let allLabel = L("search_all_projects")
-        let names = [allLabel] + options.map(\.name)
-        let current = options.first { $0.id == selected }?.name ?? allLabel
+        let names = options.map(\.1)
+        let current = options.first { $0.0 == selected }?.1 ?? names.first ?? ""
         Menu {
-            Picker(L("search_project"), selection: Binding(get: { selected }, set: { onSelect($0) })) {
-                Text(allLabel).tag("")
-                ForEach(options) { project in
-                    Text(project.name).tag(project.id)
+            Picker(label, selection: Binding(get: { selected }, set: { onSelect($0) })) {
+                ForEach(Array(options.enumerated()), id: \.offset) { entry in
+                    Text(entry.element.1).tag(entry.element.0)
                 }
             }
         } label: {
@@ -246,7 +268,7 @@ private struct SearchProjectFilter: View {
             .overlay { RoundedRectangle(cornerRadius: 6).strokeBorder(Sm.border, lineWidth: 1) }
             .contentShape(Rectangle())
         }
-        .accessibilityLabel(L("search_project"))
+        .accessibilityLabel(label)
     }
 }
 

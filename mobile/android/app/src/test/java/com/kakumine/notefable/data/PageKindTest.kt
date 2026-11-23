@@ -31,12 +31,48 @@ class PageKindTest {
     }
 
     @Test
-    fun `features follow the web PAGE_KIND_FEATURES - whiteboards and slides have an editor and a public view`() {
+    fun `only notes have typography, Markdown export and public sharing until the server says otherwise`() {
+        PageKindTable.reset()
         assertEquals(PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true), Note.features)
-        // 白板（#152）：编辑器和公开视图有了；Markdown 导出、字体设置没有，AI 操作等 #153。
-        assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Whiteboard.features)
-        // 幻灯片（#149）：编辑器和公开的放映页。
-        assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
+        val canvas = PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)
+        assertEquals(canvas, Whiteboard.features)
+        assertEquals(canvas, Slides.features)
+        assertEquals(listOf(Note), PageKindTable.creatable)
+    }
+
+    @Test
+    fun `the server's kinds table switches whiteboards and slides on, in section order, and bad tables are ignored`() {
+        try {
+            PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement(
+                """{"note":{"editor":true,"markdownExport":true,"typography":true,"publicShare":true,"aiEdit":true},"whiteboard":{"editor":true,"publicShare":true,"future":1},"slides":{"editor":true},"mindmap":{"editor":true}}""",
+            ))
+            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            assertTrue(Whiteboard.features.publicShare)
+            assertFalse(Slides.features.markdownExport)
+            // 不是对象的表不动；表里缺了笔记也照样能用笔记。
+            PageKindTable.update(kotlinx.serialization.json.JsonPrimitive("x"))
+            assertEquals(listOf(Note, Slides, Whiteboard), PageKindTable.creatable)
+            PageKindTable.update(kotlinx.serialization.json.Json.parseToJsonElement("""{"slides":{"editor":true}}"""))
+            assertEquals(listOf(Note, Slides), PageKindTable.creatable)
+            assertTrue(Note.features.markdownExport)
+        } finally {
+            PageKindTable.reset()
+        }
+    }
+
+    @Test
+    fun `the bundled page-kinds json matches the web table (scripts gen-native-page-kinds)`() {
+        val asset = java.io.File("src/main/assets/page-kinds.json").readText()
+        try {
+            PageKindTable.loadBundled(asset)
+            // 网页现在的表（白板、幻灯片的编辑器上线时这里跟着变）：能新建的类型按分区顺序；幻灯片有编辑器和公开的放映页（#149）。
+            assertEquals(PageKindTable.parse(kotlinx.serialization.json.Json.parseToJsonElement(asset))?.filterValues { it.editor }?.keys?.let { keys -> PageKindTable.DisplayOrder.filter { it in keys } }, PageKindTable.creatable)
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
+            // 白板（#152）：编辑器和公开的只读视图。
+            assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Whiteboard.features)
+        } finally {
+            PageKindTable.reset()
+        }
     }
 
     @Test
@@ -95,7 +131,7 @@ class PageKindTest {
                 {"kind":"note","id":"old","title":"Old server","icon":null,"snippet":"","blockId":null,"updatedAt":""},
                 {"kind":"note","pageKind":"timeline","id":"future","title":"Future","icon":null,"snippet":"","blockId":null,"updatedAt":""}
             ],"chats":[]}"""))
-            val notes = SearchApi(server.api().http).search("x", SearchScope.Notes, null).notes
+            val notes = SearchApi(server.api().http).search("x", SearchScope.Notes, null, null).notes
             assertEquals(listOf(Slides, Whiteboard, Note, Note), notes.map { it.pageKind })
             assertEquals("slide-2", notes.first().blockId)
         }

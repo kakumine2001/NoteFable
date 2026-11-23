@@ -109,7 +109,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     } == true
     // 全屏检索（Batch 4）：抽屉的 Search 行和顶栏的搜索按钮打开。
     var searchOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val openSearch = { searchOpen = true }
+    // 还没读过笔记列表时（从聊天直接打开检索）顺便读一次：页面类型的表（检索的类型筛选）跟着 GET /api/pages 的 kinds。
+    val openSearch = {
+        searchOpen = true
+        if (!notes.loaded && !notes.loading) notesViewModel.refresh()
+    }
     // 当前打开着的网页编辑器的 JS 桥（没有打开笔记时为 null）。
     var editorBridge by remember { mutableStateOf<NoteEmbedBridge?>(null) }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)
@@ -270,7 +274,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 if (notes.workspace == Workspace.Notes) {
                     NotesDrawerBody(
                         state = notes,
-                        onCreate = { closeDrawer(); notesViewModel.createNote() },
+                        onCreate = { kind, groupId -> closeDrawer(); notesViewModel.createNote(kind = kind, groupId = groupId) },
                         onOpen = { id -> closeDrawer(); notesViewModel.openNote(id) },
                         onToggleGroup = notesViewModel::toggleGroup,
                         onMove = { dialog = NotesDialogState.Move(it.id) },
@@ -284,7 +288,8 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onSearch = openSearch,
                         reorder = noteReorder,
                         onToggleExpanded = notesViewModel::toggleExpanded,
-                        onCreateInside = { page -> closeDrawer(); notesViewModel.createNote(page.id) },
+                        onCreateInside = { page, kind -> closeDrawer(); notesViewModel.createNote(page.id, kind) },
+                        onToggleSection = notesViewModel::toggleSection,
                         onUnfavorite = { page -> scope.launch { notesViewModel.setFavorite(page.id, false) } },
                         onImport = pickMarkdownImport,
                     )
@@ -469,7 +474,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     state = notes,
                     onSwitch = notesViewModel::setWorkspace,
                     onOpen = notesViewModel::openNote,
-                    onCreate = notesViewModel::createNote,
+                    onCreate = { kind -> notesViewModel.createNote(kind = kind) },
                     onMove = { dialog = NotesDialogState.Move(it.id) },
                     onNewGroup = { dialog = NotesDialogState.NewGroup },
                     onRetry = notesViewModel::refresh,

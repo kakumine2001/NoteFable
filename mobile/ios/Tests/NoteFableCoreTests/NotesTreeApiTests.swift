@@ -7,7 +7,7 @@ final class NotesTreeApiTests: XCTestCase {
     func testCreatesAPageInsideAnotherAndReadsTreeFields() async throws {
         let server = FakeTransport()
         server.enqueue(#"{"page":{"id":"c","title":"Untitled","parentId":"p","groupId":"g","favoritedAt":null,"fullWidth":true,"font":"serif","locked":true}}"#, status: 201)
-        let page = try await makeApi(server).createNote(parentId: "p")
+        let page = try await makeApi(server).createNote(parentId: "p", kind: .note, groupId: nil)
         XCTAssertEqual(page.parentId, "p")
         XCTAssertTrue(page.fullWidth)
         XCTAssertEqual(page.font, "serif")

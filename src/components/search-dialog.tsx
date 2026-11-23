@@ -12,7 +12,7 @@ import type { TextDirection } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { isCanvasKind, PAGE_KIND_LABELS, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
+import { creatablePageKinds, isCanvasKind, PAGE_KIND_LABELS, PAGE_KIND_SECTION_LABELS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 
 type Result = NoteSearchResult | ChatSearchResult;
 // key は「どの検索条件の結果か」。data が null なら、その条件の検索に失敗した。
@@ -134,6 +134,8 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   const [scope, setScope] = useState<SearchScope>("all");
   // Chats タブの絞り込み。"" はすべてのプロジェクト。
   const [projectChoice, setProjectChoice] = useState("");
+  // Notes タブの種類の絞り込み（#168）。"" はすべての種類。作れる種類が 2 つ以上のときだけ出す。
+  const [kindChoice, setKindChoice] = useState<PageKind | "">("");
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [retry, setRetry] = useState(0);
   const [active, setActive] = useState(0);
@@ -147,8 +149,10 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   const projectNames = new Map(projectOptions.map((project) => [project.id, project.name]));
   // 絞り込みは Chats タブだけ。消えたプロジェクトが選ばれたままなら「すべて」に戻す。
   const projectId = scope === "chats" && projectNames.has(projectChoice) ? projectChoice : "";
+  const kindOptions = creatablePageKinds();
+  const kind = scope === "notes" && kindOptions.length > 1 && kindChoice && kindOptions.includes(kindChoice) ? kindChoice : "";
   const query = input.trim().slice(0, MAX_SEARCH_QUERY_CHARS);
-  const key = `${scope}\n${projectId}\n${query}\n${retry}`;
+  const key = `${scope}\n${projectId}\n${kind}\n${query}\n${retry}`;
 
   useEffect(() => {
     if (!query) return;
@@ -158,6 +162,7 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
       try {
         const params = new URLSearchParams({ q: query, scope });
         if (projectId) params.set("projectId", projectId);
+        if (kind) params.set("kind", kind);
         const response = await fetch(`/api/search?${params}`, { signal: controller.signal, cache: "no-store" });
         if (!response.ok) throw new Error(`Search failed with ${response.status}`);
         const data = await response.json() as SearchResponse;
@@ -172,7 +177,7 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
       clearTimeout(timer);
       controller.abort();
     };
-  }, [key, query, scope, projectId]);
+  }, [key, query, scope, projectId, kind]);
 
   // 開いたら入力欄にフォーカスし、閉じたら開く前にいた場所へ戻す（画面から消えた要素は無視する）。
   useEffect(() => {
@@ -248,6 +253,11 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   // フォーカスは選択欄に残す（矢印キーで選択肢を順に動かせるように、入力欄へは戻さない）。
   function changeProject(next: string) {
     setProjectChoice(next);
+    setActive(0);
+  }
+
+  function changeKind(next: string) {
+    setKindChoice(kindOptions.find((option) => option === next) ?? "");
     setActive(0);
   }
 
@@ -332,6 +342,12 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
               </button>
             ))}
           </div>
+          {scope === "notes" && kindOptions.length > 1 && (
+            <select className="search-project" aria-label={t("Page type")} value={kind} onChange={(event) => changeKind(event.target.value)}>
+              <option value="">{t("All types")}</option>
+              {kindOptions.map((option) => <option key={option} value={option}>{t(PAGE_KIND_SECTION_LABELS[option])}</option>)}
+            </select>
+          )}
           {scope === "chats" && projectOptions.length > 0 && (
             <select className="search-project" aria-label={t("Project")} value={projectId} onChange={(event) => changeProject(event.target.value)}>
               <option value="">{t("All projects")}</option>

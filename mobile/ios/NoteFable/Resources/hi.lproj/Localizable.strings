@@ -358,6 +358,14 @@
 "page_kind_note" = "नोट";
 "page_kind_whiteboard" = "व्हाइटबोर्ड";
 "page_kind_slides" = "स्लाइड";
+"ws_new" = "नया";
+"ws_new_page" = "नया पेज";
+"ws_new_page_in" = "%1$s में नया पेज";
+"ws_section_whiteboards" = "व्हाइटबोर्ड";
+"ws_new_slides" = "नया स्लाइड डेक";
+"ws_new_whiteboard" = "नया व्हाइटबोर्ड";
+"ws_all_types" = "सभी प्रकार";
+"ws_page_type" = "पेज का प्रकार";
 
 /* strings_pages.xml */
 "pg_favorites" = "पसंदीदा";

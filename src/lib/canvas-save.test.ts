@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { canvasSaveBody, canvasSavedPage, creatablePageKinds, newPageBody, parseCanvasDraft } from "./canvas-save";
+import { canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "./canvas-save";
 import { NoteSaveQueue } from "./note-save-queue";
-import { PAGE_KIND_FEATURES } from "./page-kinds";
 import type { NotePage } from "@/types/notes";
 
 const deck = { slides: [{ id: "s1", elements: [{ id: "e1", text: "Hello" }] }] };
@@ -54,10 +53,12 @@ describe("new page body", () => {
     expect(newPageBody("slides", { ...content, data: deck }, "p")).toEqual({ kind: "slides", title: "Untitled", icon: null, data: deck, parentId: "p" });
   });
 
-  it("offers only kinds that have an editor, notes first", () => {
-    const kinds = creatablePageKinds();
-    expect(kinds[0]).toBe("note");
-    expect(kinds.every((kind) => PAGE_KIND_FEATURES[kind].editor)).toBe(true);
+  it("puts a top-level page into the chosen project, and a sub-page under its parent only", () => {
+    const content = { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
+    expect(newPageBody("note", content, null, "g1")).toEqual({ ...content, groupId: "g1" });
+    expect(newPageBody("whiteboard", content, null, "g1")).toEqual({ kind: "whiteboard", title: "Untitled", icon: null, groupId: "g1" });
+    // サブページのプロジェクトは親に従うので、groupId は送らない。
+    expect(newPageBody("note", content, "parent", "g1")).toEqual({ ...content, parentId: "parent" });
   });
 });
 

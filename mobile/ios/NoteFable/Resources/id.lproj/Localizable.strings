@@ -358,6 +358,14 @@
 "page_kind_note" = "Catatan";
 "page_kind_whiteboard" = "Papan tulis";
 "page_kind_slides" = "Slide";
+"ws_new" = "Baru";
+"ws_new_page" = "Halaman baru";
+"ws_new_page_in" = "Halaman baru di %1$s";
+"ws_section_whiteboards" = "Papan tulis";
+"ws_new_slides" = "Presentasi baru";
+"ws_new_whiteboard" = "Papan tulis baru";
+"ws_all_types" = "Semua jenis";
+"ws_page_type" = "Jenis halaman";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favorit";

@@ -358,6 +358,14 @@
 "page_kind_note" = "Nota";
 "page_kind_whiteboard" = "Lavagna";
 "page_kind_slides" = "Diapositive";
+"ws_new" = "Nuovo";
+"ws_new_page" = "Nuova pagina";
+"ws_new_page_in" = "Nuova pagina in %1$s";
+"ws_section_whiteboards" = "Lavagne";
+"ws_new_slides" = "Nuova presentazione";
+"ws_new_whiteboard" = "Nuova lavagna";
+"ws_all_types" = "Tutti i tipi";
+"ws_page_type" = "Tipo di pagina";
 
 /* strings_pages.xml */
 "pg_favorites" = "Preferiti";

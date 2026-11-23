@@ -61,11 +61,15 @@ final class NotesTestBackend: NotesBackend {
         return snapshot
     }
 
-    func createNote(parentId: String?) async throws -> NotePageSummary {
-        calls.append(parentId.map { "create:\($0)" } ?? "create")
+    func createNote(parentId: String?, kind: PageKind, groupId: String?) async throws -> NotePageSummary {
+        var call = parentId.map { "create:\($0)" } ?? "create"
+        if kind != .note { call += ":\(kind.wire)" }
+        if let groupId { call += "@\(groupId)" }
+        calls.append(call)
         try maybeFail()
-        let group = parentId.flatMap { id in pages.first { $0.id == id }?.groupId }
-        let page = NotePageSummary(id: "new", title: "Untitled", icon: nil, groupId: group, createdAt: "2026-11-15T00:00:00Z", parentId: parentId)
+        let group = parentId.flatMap { id in pages.first { $0.id == id }?.groupId } ?? groupId
+        var page = NotePageSummary(id: "new", title: "Untitled", icon: nil, groupId: group, createdAt: "2026-11-15T00:00:00Z", parentId: parentId)
+        page.kind = kind
         pages.insert(page, at: 0)
         return page
     }

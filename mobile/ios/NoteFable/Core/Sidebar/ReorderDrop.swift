@@ -17,13 +17,20 @@ func dropZoneAt(_ point: CGPoint, _ zones: [String: CGRect]) -> String? {
 }
 
 /// 投放区优先，其次是别的行（按手指在行的上半 / 下半决定前 / 后）。
-/// [zones] 的键是容器 id；空白键（""、" "）都表示无项目。
-func dropTargetAt(_ point: CGPoint, dragging: String, zones: [String: CGRect], rows: [String: CGRect]) -> DropTarget? {
+/// [zones] 的键是容器 id；空白键（""、" "）都表示无项目，[zoneContainers] 里登记的键按登记的容器。
+/// 手指下的投放区 / 行登记了 [zoneAccepts] / [rowAccepts] 而且和 [tag] 不同时不是目标（别的类型的分区不能放，网页 canDropIn）。
+func dropTargetAt(
+    _ point: CGPoint, dragging: String, zones: [String: CGRect], rows: [String: CGRect],
+    zoneContainers: [String: String?] = [:], zoneAccepts: [String: String] = [:], rowAccepts: [String: String] = [:], tag: String? = nil
+) -> DropTarget? {
     if let zone = dropZoneAt(point, zones) {
+        if let accepts = zoneAccepts[zone], accepts != tag { return nil }
+        if let container = zoneContainers[zone] { return .into(containerId: container) }
         return .into(containerId: ApiText.isBlank(zone) ? nil : zone)
     }
     guard let row = rows.keys.sorted().first(where: { $0 != dragging && rows[$0]?.contains(point) == true }),
           let rect = rows[row] else { return nil }
+    if let accepts = rowAccepts[row], accepts != tag { return nil }
     return .row(id: row, after: point.y > rect.midY)
 }
 

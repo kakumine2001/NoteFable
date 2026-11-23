@@ -358,6 +358,14 @@
 "page_kind_note" = "Nota";
 "page_kind_whiteboard" = "Pizarra";
 "page_kind_slides" = "Diapositivas";
+"ws_new" = "Nuevo";
+"ws_new_page" = "Nueva página";
+"ws_new_page_in" = "Nueva página en %1$s";
+"ws_section_whiteboards" = "Pizarras";
+"ws_new_slides" = "Nueva presentación";
+"ws_new_whiteboard" = "Nueva pizarra";
+"ws_all_types" = "Todos los tipos";
+"ws_page_type" = "Tipo de página";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoritos";

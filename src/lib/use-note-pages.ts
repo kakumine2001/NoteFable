@@ -313,9 +313,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     };
   }, []);
 
-  // parentId を渡すと、そのページの中にサブページを作る。kind は作るページの種類（「新規」メニュー）。
-  // copy（衝突した下書きを新しいページとして保存）は、開いているページと同じ種類で作る。
-  async function create(copy = false, parentId: string | null = null, kind: PageKind = "note") {
+  // kind の空のページを、parentId の中（サブページ）か groupId のプロジェクトの最上位（どちらもなければプロジェクトなし）に作る。
+  // copy（衝突した下書きを新しいページとして保存）は、開いているページと同じ種類で、同じ親の下に作る。
+  async function create(copy = false, parentId: string | null = null, kind: PageKind = "note", groupId: string | null = null) {
     if (actionBusy.current) return;
     actionBusy.current = true;
     setBusy(true);
@@ -327,7 +327,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const copyParent = copy && activeId ? pages.find((entry) => entry.id === activeId)?.parentId ?? null : null;
       const parent = copy ? copyParent : parentId;
       const pageKind = copy && current ? pageKindOf(current.page) : kind;
-      const { page } = await pageRequest("/api/pages", "POST", newPageBody(pageKind, content, parent));
+      // プロジェクトは親がないときだけ（サブページのプロジェクトは親に従う）。競合の副本には付けない：一覧の groupId は
+      // 別の端末で消されたプロジェクトを指したままのことがあり、404 で下書きを救えなくなる（副本は今までどおりプロジェクトなし）。
+      const group = copy || parent ? null : groupId;
+      const { page } = await pageRequest("/api/pages", "POST", newPageBody(pageKind, content, parent, group));
       if (copy && current) {
         const latest = current.latest ?? current.page;
         if (isCanvasKind(pageKindOf(current.page)) && latest.data === undefined) {

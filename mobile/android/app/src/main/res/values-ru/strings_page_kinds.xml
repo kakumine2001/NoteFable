@@ -4,4 +4,12 @@
     <string name="page_kind_note">Заметка</string>
     <string name="page_kind_whiteboard">Доска</string>
     <string name="page_kind_slides">Слайды</string>
+    <string name="ws_new">Создать</string>
+    <string name="ws_new_page">Новая страница</string>
+    <string name="ws_new_page_in">Новая страница в %1$s</string>
+    <string name="ws_section_whiteboards">Доски</string>
+    <string name="ws_new_slides">Новая презентация</string>
+    <string name="ws_new_whiteboard">Новая доска</string>
+    <string name="ws_all_types">Все типы</string>
+    <string name="ws_page_type">Тип страницы</string>
 </resources>

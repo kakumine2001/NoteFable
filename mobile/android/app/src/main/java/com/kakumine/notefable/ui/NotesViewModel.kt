@@ -18,6 +18,7 @@ import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PageKindTable
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -89,6 +90,8 @@ data class NotesUiState(
     val collapsed: Set<String> = emptySet(),
     /** 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。 */
     val expanded: Set<String> = emptySet(),
+    /** 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。 */
+    val collapsedSections: Set<PageKind> = emptySet(),
     val open: OpenNote? = null,
     /** 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。 */
     val saveState: String? = null,
@@ -111,9 +114,26 @@ data class NotesUiState(
     val loosePages: List<NotePageSummary>
         get() = roots.filter { page -> page.groupId == null || groups.none { it.id == page.groupId } }
 
-    /** 未分组的页面数（含子页面），"No project" 标题后的数字。 */
-    val looseCount: Int
-        get() = pages.count { page -> page.groupId == null || groups.none { it.id == page.groupId } }
+    /** 能新建的类型（网页 creatablePageKinds，服务端的表 [PageKindTable]）：分区、新建菜单、首页的新建按钮只出这些。 */
+    val kinds: List<PageKind> get() = PageKindTable.creatable
+
+    /** 页面所在的分区（网页 sectionKindOf）：还不能新建的类型（没有编辑器）的页面放在笔记的分区，不会看不到。 */
+    fun sectionKindOf(page: NotePageSummary): PageKind = if (page.kind in kinds) page.kind else PageKind.Note
+
+    /**
+     * 工作区的分区（网页 workspaceSections，#168）：不在项目里的最上层页面按类型分成笔记、幻灯片、白板（[kinds] 的顺序），
+     * 子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
+     */
+    val sections: List<WorkspaceSection>
+        get() {
+            val loose = loosePages
+            val types = kinds
+            fun size(page: NotePageSummary): Int = 1 + children(page.id).sumOf { size(it) }
+            return types.map { kind ->
+                val members = loose.filter { (if (it.kind in types) it.kind else PageKind.Note) == kind }
+                WorkspaceSection(kind, members, members.sumOf { size(it) })
+            }
+        }
 
     /** 项目里最上层的页面（列表用）。 */
     fun members(groupId: String) = roots.filter { it.groupId == groupId }
@@ -169,6 +189,9 @@ data class NotesUiState(
     fun isExpanded(id: String): Boolean = id in expanded || (open != null && children(id).isNotEmpty() && ancestors(open.id).any { it.id == id })
 }
 
+/** 一个分区（网页 WorkspaceSection）：类型、最上层的页面（列表顺序）、含子页面的数量。 */
+data class WorkspaceSection(val kind: PageKind, val roots: List<NotePageSummary>, val count: Int)
+
 /**
  * 拖动失败：[id] 是被拖的笔记。[detail] 是服务端原句（经词典翻译后显示）；没有时 [wait] 为真显示
  * "Wait for the previous move to finish."，否则 "Could not move the item. Try again."。
@@ -179,6 +202,10 @@ data class ReorderFailure(val id: String, val detail: String? = null, val wait: 
 interface NotesPrefs {
     var collapsedGroups: Set<String>
     var expandedPages: Set<String>
+    /** 折叠了的分区（类型的 wire 值："note" 等）。 */
+    var collapsedSections: Set<String>
+        get() = emptySet()
+        set(@Suppress("UNUSED_PARAMETER") value) {}
 }
 
 class PrefsNotesPrefs(context: Context) : NotesPrefs {
@@ -189,6 +216,9 @@ class PrefsNotesPrefs(context: Context) : NotesPrefs {
     override var expandedPages: Set<String>
         get() = prefs.getStringSet("expanded", emptySet())?.toSet() ?: emptySet()
         set(value) = prefs.edit().putStringSet("expanded", value).apply()
+    override var collapsedSections: Set<String>
+        get() = prefs.getStringSet("collapsedSections", emptySet())?.toSet() ?: emptySet()
+        set(value) = prefs.edit().putStringSet("collapsedSections", value).apply()
 }
 
 class NotesViewModel(
@@ -197,7 +227,12 @@ class NotesViewModel(
     /** 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。 */
     private val noteIcons: com.kakumine.notefable.data.NoteIconBackend = com.kakumine.notefable.data.NoteIconBackend { _, _ -> error("no icon backend") },
 ) : ViewModel() {
-    private val _state = MutableStateFlow(NotesUiState(collapsed = prefs.collapsedGroups, expanded = prefs.expandedPages))
+    private val _state = MutableStateFlow(
+        NotesUiState(
+            collapsed = prefs.collapsedGroups, expanded = prefs.expandedPages,
+            collapsedSections = prefs.collapsedSections.mapNotNullTo(HashSet()) { wire -> PageKind.entries.firstOrNull { it.wire == wire } },
+        ),
+    )
     val state: StateFlow<NotesUiState> = _state.asStateFlow()
 
     /**
@@ -258,7 +293,11 @@ class NotesViewModel(
                 if (result.isFailure || seen == mutations) break
             }
             result
-                .onSuccess { list -> _state.update { it.copy(pages = list.pages, groups = list.groups, loading = false, loaded = true, error = null) } }
+                .onSuccess { list ->
+                    // 页面类型的功能表（分区、新建菜单的开关）：服务端发来就用服务端的（网页 PAGE_KIND_FEATURES）。
+                    PageKindTable.update(list.kinds)
+                    _state.update { it.copy(pages = list.pages, groups = list.groups, loading = false, loaded = true, error = null) }
+                }
                 .onFailure { e -> _state.update { it.copy(loading = false, error = errorOf(NotesError.Kind.Load, e)) } }
         }
     }
@@ -278,7 +317,7 @@ class NotesViewModel(
         trashActionJobs.toList().forEach { it.cancel() }
         // 旧身份选好、还没选去处的导入文件不再导入（窗口随下面的新状态关掉）。
         pendingImport = null
-        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded) }
+        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded, collapsedSections = it.collapsedSections) }
         if (_state.value.workspace == Workspace.Notes) refresh()
     }
 
@@ -410,16 +449,21 @@ class NotesViewModel(
         }
     }
 
-    /** [parentId] 指定时，在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面。 */
-    fun createNote(parentId: String? = null) {
+    /**
+     * 新建一篇 [kind] 的空白页面并打开（网页 createNote）。[parentId] 指定时在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面；
+     * 否则建在 [groupId] 项目的最上层（项目的 "+"，折叠着就展开），都没有时建在那个类型的分区里（折叠着就展开）。
+     */
+    fun createNote(parentId: String? = null, kind: PageKind = PageKind.Note, groupId: String? = null) {
         if (_state.value.busy) return
         leaveThen {
             _state.update { it.copy(busy = true, error = null) }
             try {
-                val page = backend.createNote(parentId)
+                val page = backend.createNote(parentId, kind, if (parentId == null) groupId else null)
                 // 换身份会取消这个任务，走到这里一定还是同一个身份。
                 mutations++
                 if (parentId != null) expand(parentId)
+                else if (groupId != null) { if (groupId in _state.value.collapsed) toggleGroup(groupId) }
+                else openSection(_state.value.sectionKindOf(page))
                 _state.update {
                     it.copy(
                         workspace = Workspace.Notes,
@@ -942,6 +986,8 @@ class NotesViewModel(
             if (error == null) {
                 commit(owner) { _state.update { s -> s.copy(pages = movedToGroup(s.pages, id, moved, groupId)) } }
                 if (groupId != null && groupId in _state.value.collapsed) toggleGroup(groupId)
+                // 移出项目的页面回到自己类型的分区：分区折叠着就展开（网页 setSectionOpen）。
+                if (groupId == null) _state.value.pages.firstOrNull { it.id == id }?.let { openSection(_state.value.sectionKindOf(it)) }
             }
             _state.update {
                 it.copy(moveBusy = it.moveBusy - id, reorderError = error?.let { e -> ReorderFailure(id, serverDetail(e)) })
@@ -955,6 +1001,19 @@ class NotesViewModel(
         val next = _state.value.collapsed.let { if (id in it) it - id else it + id }
         prefs.collapsedGroups = next
         _state.update { it.copy(collapsed = next) }
+    }
+
+    /** 折叠 / 展开分区（网页 notes-sidebar 的分区标题）。 */
+    fun toggleSection(kind: PageKind) = setSectionCollapsed(kind, kind !in _state.value.collapsedSections)
+
+    private fun openSection(kind: PageKind) {
+        if (kind in _state.value.collapsedSections) setSectionCollapsed(kind, false)
+    }
+
+    private fun setSectionCollapsed(kind: PageKind, collapsed: Boolean) {
+        val next = _state.value.collapsedSections.let { if (collapsed) it + kind else it - kind }
+        prefs.collapsedSections = next.mapTo(HashSet()) { it.wire }
+        _state.update { it.copy(collapsedSections = next) }
     }
 
     // ---- 回收站 ----

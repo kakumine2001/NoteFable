@@ -358,6 +358,14 @@
 "page_kind_note" = "Not";
 "page_kind_whiteboard" = "Beyaz tahta";
 "page_kind_slides" = "Slaytlar";
+"ws_new" = "Yeni";
+"ws_new_page" = "Yeni sayfa";
+"ws_new_page_in" = "%1$s içinde yeni sayfa";
+"ws_section_whiteboards" = "Beyaz tahtalar";
+"ws_new_slides" = "Yeni slayt destesi";
+"ws_new_whiteboard" = "Yeni beyaz tahta";
+"ws_all_types" = "Tüm türler";
+"ws_page_type" = "Sayfa türü";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoriler";

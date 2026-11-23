@@ -4,4 +4,12 @@
     <string name="page_kind_note">Ghi chú</string>
     <string name="page_kind_whiteboard">Bảng trắng</string>
     <string name="page_kind_slides">Trình chiếu</string>
+    <string name="ws_new">Tạo mới</string>
+    <string name="ws_new_page">Trang mới</string>
+    <string name="ws_new_page_in">Trang mới trong %1$s</string>
+    <string name="ws_section_whiteboards">Bảng trắng</string>
+    <string name="ws_new_slides">Bản trình chiếu mới</string>
+    <string name="ws_new_whiteboard">Bảng trắng mới</string>
+    <string name="ws_all_types">Tất cả loại</string>
+    <string name="ws_page_type">Loại trang</string>
 </resources>

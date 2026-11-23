@@ -212,15 +212,20 @@ class NoteFableApi(
 
     suspend fun recentNotes(): List<NotePageSummary> = getJson<NotesList>("/api/pages?recent=1").pages
 
-    // 与网页 use-note-pages.ts 的 create() 发送的内容相同。
-    override suspend fun createNote(parentId: String?): NotePageSummary {
+    // 与网页 use-note-pages.ts 的 create()（canvas-save.ts 的 newPageBody）发送的内容相同：
+    // 笔记是空的正文，白板 / 幻灯片是 { kind, title, icon }（不发 data，服务端建空的本体）。子页面不发 groupId（项目随父页面）。
+    override suspend fun createNote(parentId: String?, kind: PageKind, groupId: String?): NotePageSummary {
         val body = buildJsonObject {
+            if (kind.isCanvas) put("kind", kind.wire)
             put("title", "Untitled")
             put("icon", null as String?)
-            put("cover", null as String?)
-            put("coverPosition", null as String?)
-            put("blocks", kotlinx.serialization.json.JsonArray(emptyList()))
+            if (!kind.isCanvas) {
+                put("cover", null as String?)
+                put("coverPosition", null as String?)
+                put("blocks", kotlinx.serialization.json.JsonArray(emptyList()))
+            }
             if (parentId != null) put("parentId", parentId)
+            else if (groupId != null) put("groupId", groupId)
         }.toString()
         return send<PageResponse>(Request.Builder().url(absoluteUrl("/api/pages")).post(body.toRequestBody(JSON))).page
     }

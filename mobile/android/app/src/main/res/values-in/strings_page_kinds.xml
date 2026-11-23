@@ -4,4 +4,12 @@
     <string name="page_kind_note">Catatan</string>
     <string name="page_kind_whiteboard">Papan tulis</string>
     <string name="page_kind_slides">Slide</string>
+    <string name="ws_new">Baru</string>
+    <string name="ws_new_page">Halaman baru</string>
+    <string name="ws_new_page_in">Halaman baru di %1$s</string>
+    <string name="ws_section_whiteboards">Papan tulis</string>
+    <string name="ws_new_slides">Presentasi baru</string>
+    <string name="ws_new_whiteboard">Papan tulis baru</string>
+    <string name="ws_all_types">Semua jenis</string>
+    <string name="ws_page_type">Jenis halaman</string>
 </resources>

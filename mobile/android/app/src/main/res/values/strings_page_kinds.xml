@@ -4,4 +4,13 @@
     <string name="page_kind_note">Note</string>
     <string name="page_kind_whiteboard">Whiteboard</string>
     <string name="page_kind_slides">Slides</string>
+    <!-- 工作区的分区与新建（#168，网页 notes-sidebar / notes-home / search-dialog）。 -->
+    <string name="ws_new">New</string>
+    <string name="ws_new_page">New page</string>
+    <string name="ws_new_page_in">New page in %1$s</string>
+    <string name="ws_section_whiteboards">Whiteboards</string>
+    <string name="ws_new_slides">New slide deck</string>
+    <string name="ws_new_whiteboard">New whiteboard</string>
+    <string name="ws_all_types">All types</string>
+    <string name="ws_page_type">Page type</string>
 </resources>
