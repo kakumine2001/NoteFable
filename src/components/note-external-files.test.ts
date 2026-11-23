@@ -7,7 +7,9 @@ import { withoutExternalFiles } from "./note-external-files";
 const schema = new Schema({
   nodes: {
     doc: { content: "blockGroup" },
-    blockGroup: { content: "blockContainer+" },
+    blockGroup: { content: "(blockContainer | columnList)+" },
+    columnList: { content: "column column+" },
+    column: { content: "blockContainer+" },
     blockContainer: { content: "blockContent blockGroup?" },
     paragraph: { group: "blockContent", content: "text*" },
     image: { group: "blockContent", attrs: { url: { default: "" } } },
@@ -32,7 +34,7 @@ describe("pasted or dropped files from outside the app", () => {
     const slice = new Slice(Fragment.fromArray([paragraph("hello"), image("https://example.com/cat.png"), file("http://example.com/a.pdf"), image(own)]), 1, 1);
     const cleaned = withoutExternalFiles(slice);
     expect(names(cleaned)).toEqual(["paragraph:hello", `image:${own}`]);
-    expect(cleaned.openStart).toBe(0);
+    expect([cleaned.openStart, cleaned.openEnd]).toEqual([1, 1]);
   });
 
   it("leaves the app's own files and empty upload placeholders untouched (moving blocks keeps working)", () => {
@@ -48,6 +50,33 @@ describe("pasted or dropped files from outside the app", () => {
     cleaned.content.descendants((node) => { if (node.type.name === "blockGroup") groups += 1; });
     expect(groups).toBe(0);
     cleaned.content.forEach((node) => node.check());
+  });
+
+  it("keeps a pasted group open so the blocks land beside the current block, not inside it", () => {
+    // BlockNote の HTML の貼り付け・ドロップは blockGroup 1 つを深さ 3 で開いた slice になる。
+    const group = schema.node("blockGroup", null, [paragraph("Hello"), image("https://example.com/cat.png"), paragraph("World")]);
+    const cleaned = withoutExternalFiles(new Slice(Fragment.from(group), 3, 3));
+    expect(names(cleaned)).toEqual(["paragraph:Hello", "paragraph:World"]);
+    expect([cleaned.openStart, cleaned.openEnd]).toEqual([3, 3]);
+    // 端のブロックが消えたら、その時の端の深さまでにする（画像のような葉は開かない）。
+    const own2 = schema.node("blockGroup", null, [image("https://example.com/cat.png"), image(own)]);
+    const trimmed = withoutExternalFiles(new Slice(Fragment.from(own2), 3, 3));
+    expect([trimmed.openStart, trimmed.openEnd]).toEqual([2, 2]);
+  });
+
+  it("removes a column left empty and unwraps a column list left with one column", () => {
+    const column = (...blocks: ReturnType<typeof schema.node>[]) => schema.node("column", null, blocks);
+    const two = schema.node("columnList", null, [column(paragraph("left")), column(image("https://example.com/cat.png"))]);
+    const cleaned = withoutExternalFiles(new Slice(Fragment.from(schema.node("blockGroup", null, [two])), 0, 0));
+    expect(names(cleaned)).toEqual(["paragraph:left"]);
+    cleaned.content.forEach((node) => node.check());
+    const three = schema.node("columnList", null, [column(paragraph("a")), column(image("https://example.com/x.png")), column(paragraph("b"))]);
+    const kept = withoutExternalFiles(new Slice(Fragment.from(schema.node("blockGroup", null, [three])), 0, 0));
+    expect(names(kept)).toEqual(["columnList:ab", "column:a", "paragraph:a", "column:b", "paragraph:b"]);
+    kept.content.forEach((node) => node.check());
+    let columns = 0;
+    kept.content.descendants((node) => { if (node.type.name === "column") columns += 1; });
+    expect(columns).toBe(2);
   });
 
   it("gives an empty slice when only external files were dropped", () => {

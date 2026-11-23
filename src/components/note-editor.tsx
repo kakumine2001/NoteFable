@@ -281,13 +281,14 @@ function NoteSideMenu() {
 }
 
 // 画像・ファイルの追加パネル。Notion の「Embed link」は出さず、アップロードだけにする。
-function NoteFilePanel(props: FilePanelProps) {
+// onUploaded: アップロードしてブロックを差し替えたあと（差し替えのポップオーバーを閉じる）。
+function NoteFilePanel({ onUploaded, ...props }: FilePanelProps & { onUploaded?: () => void }) {
   const t = useT();
-  return <FilePanel {...props} tabs={[{ name: t("Upload"), tabPanel: <NoteUploadTab {...props} /> }]} />;
+  return <FilePanel {...props} tabs={[{ name: t("Upload"), tabPanel: <NoteUploadTab {...props} onUploaded={onUploaded} /> }]} />;
 }
 
 // ブラウザ標準の「Choose File」ではなく、アプリの見た目のボタンで選ばせる。進行中と失敗も画面に出す。
-function NoteUploadTab({ blockId }: FilePanelProps) {
+function NoteUploadTab({ blockId, onUploaded }: FilePanelProps & { onUploaded?: () => void }) {
   const t = useT();
   const editor = useBlockNoteEditor(schema);
   const [state, setState] = useState<{ phase: "idle" | "uploading" | "failed"; message?: string }>({ phase: "idle" });
@@ -309,6 +310,9 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
       const result = await editor.uploadFile?.(file, blockId);
       // 待っている間にブロックが消されたら何もしない。
       if (result && editor.getBlock(blockId)) editor.updateBlock(blockId, typeof result === "string" ? { props: { url: result, name: file.name } } : result);
+      // 追加のパネルはブロックが埋まると閉じるが、差し替えのパネルは開いたままなので、元の表示に戻して閉じる。
+      setState({ phase: "idle" });
+      onUploaded?.();
     } catch (error) {
       setState({ phase: "failed", message: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
     } finally {
@@ -338,6 +342,7 @@ export function NoteFileReplaceButton() {
   const Components = useComponentsContext()!;
   const portalElement = usePortalElement();
   const dict = useDictionary();
+  const [open, setOpen] = useState(false);
   const block = useEditorState({ editor, selector: () => {
     if (!editor.isEditable) return undefined;
     const selected = editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block];
@@ -347,12 +352,12 @@ export function NoteFileReplaceButton() {
   const label = dict.formatting_toolbar.file_replace.tooltip[block.type] || dict.formatting_toolbar.file_replace.tooltip.file;
   return (
     // 閉じたらエディターへフォーカスを戻す（スマホでキーボードとツールバーが消えないように。標準のボタンと同じ）。
-    <Components.Generic.Popover.Root onOpenChange={(open) => { if (!open) editor.focus(); }} portalElement={portalElement}>
+    <Components.Generic.Popover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) editor.focus(); }} portalElement={portalElement}>
       <Components.Generic.Popover.Trigger>
         <Components.FormattingToolbar.Button className="bn-button" mainTooltip={label} label={label} icon={<Upload size={16} />} />
       </Components.Generic.Popover.Trigger>
       <Components.Generic.Popover.Content className="bn-popover-content bn-panel-popover" variant="panel-popover">
-        <NoteFilePanel blockId={block.id} />
+        <NoteFilePanel blockId={block.id} onUploaded={() => { setOpen(false); editor.focus(); }} />
       </Components.Generic.Popover.Content>
     </Components.Generic.Popover.Root>
   );

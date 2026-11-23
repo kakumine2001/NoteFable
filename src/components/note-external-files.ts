@@ -28,18 +28,33 @@ function clean(fragment: Fragment): Fragment | null {
     const inner = node.isLeaf ? null : clean(node.content);
     if (!inner) { kept.push(node); return; }
     changed = true;
-    // 子がなくなった入れ子（blockGroup）は残さない（空の blockGroup は文書として不正）。
-    if (node.type.name === "blockGroup" && !inner.childCount) return;
+    const type = node.type.name;
+    // 子がなくなった入れ子（blockGroup）と段（column）は残さない（空のままでは文書として不正）。
+    if ((type === "blockGroup" || type === "column") && !inner.childCount) return;
+    // 段組みは 2 段以上が必要。1 段だけ残ったら、段組みをやめて中のブロックをそのまま並べる。
+    if (type === "columnList" && inner.childCount < 2) {
+      inner.firstChild?.content.forEach((child) => { kept.push(child); });
+      return;
+    }
     kept.push(node.copy(inner));
   });
   return changed ? Fragment.fromArray(kept) : null;
 }
 
-// 変えるものがなければ元の slice をそのまま返す。
+// 端から開いたままにできる深さ（葉や isolating のノードの手前まで）。
+function edgeDepth(fragment: Fragment, start: boolean) {
+  let depth = 0;
+  for (let node = start ? fragment.firstChild : fragment.lastChild; node && !node.isLeaf && !node.type.spec.isolating; node = start ? node.firstChild : node.lastChild) depth += 1;
+  return depth;
+}
+
+// 変えるものがなければ元の slice をそのまま返す。開いた深さは元のまま（取り除いた後の端の深さまで）にする。
+// 0 にすると、ProseMirror は 1 つの blockGroup を閉じたノードとして挿入し、貼ったブロックが今のブロックの子になる。
 export function withoutExternalFiles(slice: Slice): Slice {
   const content = clean(slice.content);
   if (!content) return slice;
-  return content.size ? new Slice(content, 0, 0) : Slice.empty;
+  if (!content.size) return Slice.empty;
+  return new Slice(content, Math.min(slice.openStart, edgeDepth(content, true)), Math.min(slice.openEnd, edgeDepth(content, false)));
 }
 
 export const externalFilesGuard = createExtension({

@@ -6,6 +6,12 @@ const state = vi.hoisted(() => ({
   editable: true,
   selected: [{ id: "img1", type: "image", props: { url: "/api/pages/files?key=a&name=a.png" } }] as { id: string; type: string; props: Record<string, unknown> }[],
   focus: vi.fn(),
+  setOpen: vi.fn(),
+}));
+
+vi.mock("react", async (original) => ({
+  ...await original<typeof import("react")>(),
+  useState: (initial: unknown) => [initial, state.setOpen],
 }));
 
 vi.mock("@blocknote/ariakit/style.css", () => ({}));
@@ -47,6 +53,7 @@ describe("the toolbar's Replace button for images and files", () => {
     state.editable = true;
     state.selected = [{ id: "img1", type: "image", props: { url: "/api/pages/files?key=a&name=a.png" } }];
     state.focus.mockClear();
+    state.setOpen.mockClear();
   });
 
   it("opens the upload-only panel for the selected block, never the stock panel with Embed", () => {
@@ -57,6 +64,7 @@ describe("the toolbar's Replace button for images and files", () => {
     const [panel] = childrenOf(content);
     expect((panel.type as { name?: string }).name).toBe("NoteFilePanel");
     expect(panel.props.blockId).toBe("img1");
+    expect(root.props.open).toBe(false);
 
     // パネルの中身はアップロードのタブ 1 つだけ。
     const filePanel = (panel.type as (props: unknown) => Element)(panel.props);
@@ -65,7 +73,15 @@ describe("the toolbar's Replace button for images and files", () => {
 
     // 閉じたらエディターへフォーカスを戻す。
     (root.props.onOpenChange as (open: boolean) => void)(false);
+    expect(state.setOpen).toHaveBeenLastCalledWith(false);
     expect(state.focus).toHaveBeenCalledTimes(1);
+
+    // 差し替えが終わったらパネルを閉じる（開いたまま「Uploading…」で止まらない）。
+    state.setOpen.mockClear();
+    (panel.props.onUploaded as () => void)();
+    expect(state.setOpen).toHaveBeenCalledWith(false);
+    expect(state.focus).toHaveBeenCalledTimes(2);
+    expect((tabs[0] as unknown as { tabPanel: Element }).tabPanel.props.onUploaded).toBe(panel.props.onUploaded);
   });
 
   it("labels file blocks and stays hidden when the note can't be edited or the selection isn't one image or file", () => {
