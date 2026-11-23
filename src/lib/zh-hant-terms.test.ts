@@ -10,6 +10,8 @@ describe("Traditional Chinese conversion with product terms", () => {
     expect(toTraditional("幻灯片")).toBe("投影片");
     expect(toTraditional("此页面是幻灯片，不是笔记。")).toBe("此頁面是投影片，不是筆記。");
     expect(toTraditional("新建思维导图和便签")).toBe("新建心智圖和便利貼");
+    expect(plain("页面类型")).toBe("頁面型別");
+    expect(toTraditional("页面类型")).toBe("頁面類型");
   });
 
   it("converts everything else exactly like OpenCC", () => {

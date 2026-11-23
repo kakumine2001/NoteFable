@@ -11,7 +11,9 @@ import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
 import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PageKindTable
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -39,12 +41,21 @@ class NotesViewModelTest {
     fun setUp() = Dispatchers.setMain(dispatcher)
 
     @After
-    fun tearDown() = Dispatchers.resetMain()
+    fun tearDown() {
+        Dispatchers.resetMain()
+        PageKindTable.reset()
+    }
 
     private class MemoryPrefs : NotesPrefs {
         override var collapsedGroups: Set<String> = emptySet()
         override var expandedPages: Set<String> = emptySet()
+        override var collapsedSections: Set<String> = emptySet()
     }
+
+    /** 服务端的功能表里打开白板和幻灯片的开关（网页 PAGE_KIND_FEATURES 的 editor）。 */
+    private fun enableCanvasKinds() = PageKindTable.update(
+        Json.parseToJsonElement("""{"note":{"editor":true,"markdownExport":true,"typography":true,"publicShare":true,"aiEdit":true},"whiteboard":{"editor":true},"slides":{"editor":true}}"""),
+    )
 
     private class FakeNotes : NotesBackend {
         var pages = mutableListOf(
@@ -71,10 +82,15 @@ class NotesViewModelTest {
             hold("notes")
             return snapshot
         }
-        override suspend fun createNote(parentId: String?): NotePageSummary {
-            calls += if (parentId == null) "create" else "create:$parentId"; maybeFail()
-            val group = parentId?.let { id -> pages.firstOrNull { it.id == id }?.groupId }
-            return NotePageSummary("new", "Untitled", null, createdAt = "2026-11-15T00:00:00Z", parentId = parentId, groupId = group).also { pages.add(0, it) }
+        override suspend fun createNote(parentId: String?, kind: PageKind, groupId: String?): NotePageSummary {
+            calls += buildString {
+                append(if (parentId == null) "create" else "create:$parentId")
+                if (kind != PageKind.Note) append(":${kind.wire}")
+                if (groupId != null) append("@$groupId")
+            }
+            maybeFail()
+            val group = parentId?.let { id -> pages.firstOrNull { it.id == id }?.groupId } ?: groupId
+            return NotePageSummary("new", "Untitled", null, createdAt = "2026-11-15T00:00:00Z", parentId = parentId, groupId = group, kind = kind).also { pages.add(0, it) }
         }
         /** 子页面一起移进回收站（服务端的 ids）。 */
         override suspend fun trashNote(id: String): List<String> {
@@ -195,6 +211,65 @@ class NotesViewModelTest {
         assertEquals("new", vm.state.value.open?.id)
         assertEquals("new", vm.state.value.pages.first().id)
         assertFalse(vm.state.value.busy)
+    }
+
+    // 工作区的分区（#168，网页 workspaceSections）。
+    @Test
+    fun `pages outside projects are split into sections by kind once those kinds can be created`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z", kind = PageKind.Whiteboard))
+            pages.add(NotePageSummary("s", "Deck", null, createdAt = "2026-11-12T00:00:00Z", kind = PageKind.Slides))
+            pages.add(NotePageSummary("child", "Sub board", null, createdAt = "2026-11-11T00:00:00Z", parentId = "b", kind = PageKind.Whiteboard))
+        }
+        val vm = notesVm(backend)
+        // 开关关着：只有笔记的分区，白板和幻灯片的页面也放在里面（不会看不到）。
+        assertEquals(listOf(PageKind.Note), vm.state.value.kinds)
+        assertEquals(listOf(listOf("b", "w", "s")), vm.state.value.sections.map { section -> section.roots.map { it.id } })
+        enableCanvasKinds()
+        val sections = vm.state.value.sections
+        assertEquals(listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard), sections.map { it.kind })
+        // 子页面跟着父页面（不在自己类型的分区里），数量含子页面；项目里的页面不在分区里。
+        assertEquals(listOf(listOf("b"), listOf("s"), listOf("w")), sections.map { section -> section.roots.map { it.id } })
+        assertEquals(listOf(2, 1, 1), sections.map { it.count })
+        assertEquals(PageKind.Whiteboard, vm.state.value.sectionKindOf(backend.pages.first { it.id == "child" }))
+    }
+
+    @Test
+    fun `new pages of any kind go into the chosen project or section, which opens if it was folded`() = runTest(dispatcher) {
+        enableCanvasKinds()
+        val prefs = MemoryPrefs().apply { collapsedGroups = setOf("g1"); collapsedSections = setOf("slides") }
+        val backend = FakeNotes()
+        val vm = notesVm(backend, prefs)
+        assertEquals(setOf(PageKind.Slides), vm.state.value.collapsedSections)
+        vm.createNote(kind = PageKind.Whiteboard, groupId = "g1")
+        advanceUntilIdle()
+        assertEquals("create:whiteboard@g1", backend.calls.last())
+        assertEquals("g1", vm.state.value.pages.first { it.id == "new" }.groupId)
+        assertFalse("g1" in vm.state.value.collapsed)
+        vm.createNote(kind = PageKind.Slides)
+        advanceUntilIdle()
+        assertEquals("create:slides", backend.calls.last())
+        assertTrue(vm.state.value.collapsedSections.isEmpty())
+        assertTrue(prefs.collapsedSections.isEmpty())
+        // 子页面的项目随父页面，不发 groupId。
+        vm.createNote("b", PageKind.Slides, groupId = "g1")
+        advanceUntilIdle()
+        assertEquals("create:b:slides", backend.calls.last())
+    }
+
+    @Test
+    fun `sections fold and the choice is kept on the device`() = runTest(dispatcher) {
+        val prefs = MemoryPrefs()
+        val vm = notesVm(prefs = prefs)
+        vm.toggleSection(PageKind.Note)
+        assertEquals(setOf(PageKind.Note), vm.state.value.collapsedSections)
+        assertEquals(setOf("note"), prefs.collapsedSections)
+        vm.toggleSection(PageKind.Note)
+        assertTrue(vm.state.value.collapsedSections.isEmpty())
+        // 换身份（登录 / 退出）时折叠状态是这台设备的，保留（和项目的折叠一样）。
+        vm.toggleSection(PageKind.Slides)
+        vm.onIdentityChanged()
+        assertEquals(setOf(PageKind.Slides), vm.state.value.collapsedSections)
     }
 
     @Test

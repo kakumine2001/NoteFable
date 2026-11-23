@@ -235,6 +235,19 @@ describe("searchNotes", () => {
     expect(mocks.queryRaw).not.toHaveBeenCalled();
   });
 
+  it("narrows keyword and semantic matches to one page kind when asked (the search type filter)", async () => {
+    mocks.queryRaw.mockResolvedValue([]);
+    await searchNotes("mine", ["plan"], { rawQuery: "plan", kind: "whiteboard" });
+    const { sql, values } = lastSql();
+    expect(sql).toContain('p."kind"::text = ');
+    expect(values).toContain("whiteboard");
+    expect(mocks.semanticSearch.mock.calls[0][2]).toMatchObject({ kind: "whiteboard" });
+    // 種類を指定しなければ絞らない。
+    await searchNotes("mine", ["plan"], { rawQuery: "plan" });
+    expect(lastSql().sql).not.toContain('p."kind"::text = ');
+    expect(mocks.semanticSearch.mock.calls[1][2].kind).toBeUndefined();
+  });
+
   it("appends deduplicated semantic matches with chunk blockId and snippet after keyword hits", async () => {
     mocks.queryRaw.mockResolvedValue([{ id: "n1", title: "装修坑", icon: null, updatedAt, blocks: [block("p1", "paragraph", [text("装修坑记录")])] }]);
     mocks.semanticSearch.mockResolvedValue({

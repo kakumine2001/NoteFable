@@ -87,6 +87,9 @@ final class ReorderDragController {
     @ObservationIgnored private var zones: [String: Slot] = [:]
     @ObservationIgnored private var handles: [String: Slot] = [:]
     @ObservationIgnored private var lastEnded: Date?
+    /// 投放规则（工作区的分区，Core 的 `noteDropRules`）：拖动开始时问一次，拖完之前一直用这一份。
+    @ObservationIgnored var rules: () -> ReorderDropRules = { ReorderDropRules() }
+    @ObservationIgnored private var activeRules = ReorderDropRules()
 
     init() {}
 
@@ -147,8 +150,9 @@ final class ReorderDragController {
     fileprivate func begin(_ id: String, at point: CGPoint, visible: CGRect) {
         if drag.dragging != nil { _ = end() }
         Haptics.dragStart()
+        activeRules = rules()
         sync(visible)
-        drag.start(id, at: point)
+        drag.start(id, at: point, tag: activeRules.tag(id))
         ReorderDragSession.count += 1
         publish()
     }
@@ -185,6 +189,9 @@ final class ReorderDragController {
         drag.listBounds = visible
         drag.rows = rows.mapValues(\.frame)
         drag.zones = zones.mapValues(\.frame)
+        drag.zoneContainers = activeRules.zoneContainers
+        drag.zoneAccepts = activeRules.zoneAccepts
+        drag.rowAccepts = activeRules.rowAccepts
     }
 
     /// 只在变了的时候写，免得每次手指移动都让所有行重绘。

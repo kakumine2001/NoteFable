@@ -4,4 +4,12 @@
     <string name="page_kind_note">Nota</string>
     <string name="page_kind_whiteboard">Quadro branco</string>
     <string name="page_kind_slides">Slides</string>
+    <string name="ws_new">Novo</string>
+    <string name="ws_new_page">Nova página</string>
+    <string name="ws_new_page_in">Nova página em %1$s</string>
+    <string name="ws_section_whiteboards">Quadros brancos</string>
+    <string name="ws_new_slides">Nova apresentação</string>
+    <string name="ws_new_whiteboard">Novo quadro branco</string>
+    <string name="ws_all_types">Todos os tipos</string>
+    <string name="ws_page_type">Tipo de página</string>
 </resources>

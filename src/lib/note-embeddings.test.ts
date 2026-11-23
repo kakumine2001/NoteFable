@@ -236,6 +236,20 @@ describe("note-embeddings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("searches only the asked page kind and skips OpenAI when none of that kind is indexed", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    mocks.queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
+    const result = await semanticSearchNotes("u1", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0, kind: "whiteboard" });
+    expect(result).toEqual({ hits: [], hasMoreBackfill: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+    // 種類は LIMIT の前に SQL で絞る（ほかの種類の新しい塊で読み込みの枠が埋まらない）。
+    const chunkSql = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(chunkSql.sql).toContain('p."kind"::text = ');
+    expect(chunkSql.values).toContain("whiteboard");
+  });
+
   it("returns the kind of each hit and points a slide deck hit at the matching slide", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const updatedAt = new Date("2026-11-01T00:00:00Z");

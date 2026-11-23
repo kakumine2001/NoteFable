@@ -85,6 +85,20 @@ describe("GET /api/search", () => {
     expect(mocks.queryRaw).not.toHaveBeenCalled();
   });
 
+  it("narrows the notes search to one page kind, leaving chats alone", async () => {
+    await get("?q=mitosis&kind=slides");
+    expect(calls('"NotePage"')[0][0].sql).toContain('p."kind"::text = ');
+    expect(valuesOf('"NotePage"')).toContain("slides");
+    expect((calls('"Session"')[0][0] as { sql: string }).sql).not.toContain('"kind"');
+  });
+
+  it.each([["?q=x&kind=canvas"], ["?q=x&kind=Note"]])("rejects an unknown page kind: %s", async (query) => {
+    const response = await get(query);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Unknown page kind." });
+    expect(mocks.queryRaw).not.toHaveBeenCalled();
+  });
+
   describe("projectId", () => {
     it("narrows the chats search to the project, leaving notes alone", async () => {
       const body = await (await get("?q=mitosis&projectId=cproj123")).json();

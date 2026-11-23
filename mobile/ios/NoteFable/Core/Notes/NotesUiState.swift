@@ -102,6 +102,10 @@ struct NotesUiState: Equatable, Sendable {
     var collapsed: Set<String> = []
     /// 展开了哪些页面（子页面的树）。侧栏和首页共用，重开 App 后保留（网页 notefable:note-pages-expanded:v1）。
     var expanded: Set<String> = []
+    /// 折叠了哪些分区（笔记 / 幻灯片 / 白板），重开 App 后保留（网页 notefable:workspace-sections-collapsed:v1）。
+    var collapsedSections: Set<PageKind> = []
+    /// 各类型能用的功能表（服务端的 kinds，[PageKindTable]）。分区和新建菜单按它画。
+    var kindFeatures: [PageKind: PageKindFeatures] = PageKindTable.shared.snapshot
     var open: OpenNote? = nil
     /// 网页编辑器报来的保存状态：saved / saving / unsaved / error / conflict。
     var saveState: String? = nil
@@ -122,10 +126,31 @@ struct NotesUiState: Equatable, Sendable {
     /// 拖动失败的行和原因（网页 ReorderRowButton 的 list-reorder-error）。
     var reorderError: ReorderFailure? = nil
 
-    init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = []) {
+    init(workspace: Workspace = .chat, collapsed: Set<String> = [], expanded: Set<String> = [], collapsedSections: Set<PageKind> = []) {
         self.workspace = workspace
         self.collapsed = collapsed
         self.expanded = expanded
+        self.collapsedSections = collapsedSections
+    }
+
+    /// 能新建的类型（网页 creatablePageKinds）：分区、新建菜单、首页的新建按钮只出这些。
+    var kinds: [PageKind] { PageKindTable.creatable(in: kindFeatures) }
+
+    /// 页面所在的分区（网页 sectionKindOf）：还不能新建的类型（没有编辑器）的页面放在笔记的分区，不会看不到。
+    func sectionKind(of page: NotePageSummary) -> PageKind {
+        kinds.contains(page.kind) ? page.kind : .note
+    }
+
+    /// 工作区的分区（网页 workspaceSections，Android `NotesUiState.sections`，#168）：不在项目里的最上层页面按类型分成
+    /// 笔记、幻灯片、白板（[kinds] 的顺序），子页面跟着父页面。[WorkspaceSection.count] 含子页面（首页小标题后的数字）。
+    var sections: [WorkspaceSection] {
+        let loose = loosePages
+        let types = kinds
+        func size(_ page: NotePageSummary) -> Int { 1 + children(page.id).reduce(0) { $0 + size($1) } }
+        return types.map { kind in
+            let members = loose.filter { (types.contains($0.kind) ? $0.kind : .note) == kind }
+            return WorkspaceSection(kind: kind, roots: members, count: members.reduce(0) { $0 + size($1) })
+        }
     }
 
     private func isLoose(_ page: NotePageSummary) -> Bool {
@@ -235,20 +260,31 @@ func notesStableSorted<T>(_ items: [T], by areInIncreasingOrder: (T, T) -> Bool)
     }.map(\.element)
 }
 
-/// 折叠了哪些项目、展开了哪些页面，重开 App 后保留（网页存在 localStorage）。
+/// 一个分区（网页 WorkspaceSection）：类型、最上层的页面（列表顺序）、含子页面的数量。
+struct WorkspaceSection: Equatable, Sendable {
+    var kind: PageKind
+    var roots: [NotePageSummary]
+    var count: Int
+}
+
+/// 折叠了哪些项目、分区，展开了哪些页面，重开 App 后保留（网页存在 localStorage）。
 protocol NotesPrefs: AnyObject {
     var collapsedGroups: Set<String> { get set }
     var expandedPages: Set<String> { get set }
+    /// 折叠了的分区（类型的 wire 值："note" 等）。
+    var collapsedSections: Set<String> { get set }
 }
 
 /// 只留在内存里（测试、预览）。
 final class MemoryNotesPrefs: NotesPrefs {
     var collapsedGroups: Set<String>
     var expandedPages: Set<String>
+    var collapsedSections: Set<String>
 
-    init(collapsedGroups: Set<String> = [], expandedPages: Set<String> = []) {
+    init(collapsedGroups: Set<String> = [], expandedPages: Set<String> = [], collapsedSections: Set<String> = []) {
         self.collapsedGroups = collapsedGroups
         self.expandedPages = expandedPages
+        self.collapsedSections = collapsedSections
     }
 }
 
@@ -257,6 +293,7 @@ final class UserDefaultsNotesPrefs: NotesPrefs {
     private let defaults: UserDefaults
     private let collapsedKey = "notes.collapsed"
     private let expandedKey = "notes.expanded"
+    private let sectionsKey = "notes.collapsedSections"
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -270,5 +307,10 @@ final class UserDefaultsNotesPrefs: NotesPrefs {
     var expandedPages: Set<String> {
         get { Set(defaults.stringArray(forKey: expandedKey) ?? []) }
         set { defaults.set(newValue.sorted(), forKey: expandedKey) }
+    }
+
+    var collapsedSections: Set<String> {
+        get { Set(defaults.stringArray(forKey: sectionsKey) ?? []) }
+        set { defaults.set(newValue.sorted(), forKey: sectionsKey) }
     }
 }

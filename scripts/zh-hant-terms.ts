@@ -9,6 +9,8 @@ export const ZH_HANT_TERMS: readonly (readonly [simplified: string, traditional:
   // 白板（#152）用的词。
   ["思维导图", "心智圖"],
   ["便签", "便利貼"],
+  // OpenCC 把「类型」转成程序用语「型別」；界面上的「檔案類型」「頁面類型」用「類型」（#168 的类型筛选）。
+  ["类型", "類型"],
 ];
 
 const convert = OpenCC.Converter({ from: "cn", to: "twp" });

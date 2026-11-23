@@ -356,6 +356,14 @@
 "page_kind_note" = "Notiz";
 "page_kind_whiteboard" = "Whiteboard";
 "page_kind_slides" = "Folien";
+"ws_new" = "Neu";
+"ws_new_page" = "Neue Seite";
+"ws_new_page_in" = "Neue Seite in %1$s";
+"ws_section_whiteboards" = "Whiteboards";
+"ws_new_slides" = "Neue Präsentation";
+"ws_new_whiteboard" = "Neues Whiteboard";
+"ws_all_types" = "Alle Typen";
+"ws_page_type" = "Seitentyp";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoriten";

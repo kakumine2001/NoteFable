@@ -356,6 +356,14 @@
 "page_kind_note" = "Ghi chú";
 "page_kind_whiteboard" = "Bảng trắng";
 "page_kind_slides" = "Trình chiếu";
+"ws_new" = "Tạo mới";
+"ws_new_page" = "Trang mới";
+"ws_new_page_in" = "Trang mới trong %1$s";
+"ws_section_whiteboards" = "Bảng trắng";
+"ws_new_slides" = "Bản trình chiếu mới";
+"ws_new_whiteboard" = "Bảng trắng mới";
+"ws_all_types" = "Tất cả loại";
+"ws_page_type" = "Loại trang";
 
 /* strings_pages.xml */
 "pg_favorites" = "Yêu thích";

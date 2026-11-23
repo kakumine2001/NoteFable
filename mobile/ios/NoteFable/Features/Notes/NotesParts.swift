@@ -47,6 +47,75 @@ struct NotesSectionLabel: View {
 }
 
 /// 行右侧的小按钮（网页 .chat-row-action）：25.6 见方、圆角 4、灰色图标，右距 3.2。触屏上常显。
+/// 新建按钮外面的一层（网页 NewPageButton，Android `NewPageMenuAnchor`，#168）：能新建的类型（[kinds]）只有一种时
+/// [content] 的点击直接建它，两种以上时在按钮下方开类型菜单（笔记 / 幻灯片 / 白板，与"…"菜单同一外框 `actionsMenu`）。
+@MainActor
+struct NewPageMenuAnchor<Content: View>: View {
+    private let kinds: [PageKind]
+    private let label: String
+    private let alignment: ActionsMenuAlignment
+    private let onCreate: (PageKind) -> Void
+    private let content: (@escaping () -> Void) -> Content
+    @State private var open = false
+
+    init(kinds: [PageKind], label: String, alignment: ActionsMenuAlignment = .trailing, onCreate: @escaping (PageKind) -> Void,
+         @ViewBuilder content: @escaping (@escaping () -> Void) -> Content) {
+        self.kinds = kinds
+        self.label = label
+        self.alignment = alignment
+        self.onCreate = onCreate
+        self.content = content
+    }
+
+    var body: some View {
+        let kinds = self.kinds
+        let onCreate = self.onCreate
+        content {
+            if kinds.count > 1 { open = true } else { onCreate(kinds.first ?? .note) }
+        }
+        .actionsMenu(isPresented: $open, alignment: alignment, label: label) {
+            ForEach(kinds, id: \.self) { kind in
+                ActionsMenuItem(L(pageKindLabel(kind)), icon: pageKindIcon(kind)) {
+                    open = false
+                    onCreate(kind)
+                }
+            }
+        }
+    }
+}
+
+/// 侧栏的分区标题（网页 .notes-section-heading，Android `SectionHeading`）：与 PROJECTS 同一行（左右 8、上距 9.6、"+" 40），
+/// 名字后面是折叠箭头 13 浅灰，点名字折叠；"+" 建这个类型。
+@MainActor
+struct NotesSectionHeading: View {
+    let kind: PageKind
+    let isOpen: Bool
+    let busy: Bool
+    let onToggle: () -> Void
+    let onCreate: () -> Void
+
+    var body: some View {
+        let name = L(pageKindSectionLabel(kind))
+        HStack(spacing: 0) {
+            Button(action: onToggle) {
+                HStack(spacing: 4.8) {
+                    NotesSectionLabel(name)
+                    LucideIcon(isOpen ? Lucide.chevronDown : Lucide.chevronRight, size: 13, color: Sm.faint)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.pressable(cornerRadius: 4))
+            .accessibilityLabel(isOpen ? L("pg_collapse_title", name) : L("pg_expand_title", name))
+            NFIconButton(Lucide.plus, label: L(pageKindNewLabel(kind)), iconSize: 15, action: onCreate)
+                .disabled(busy)
+        }
+        .padding(.horizontal, 8)
+        .padding(.top, 9.6)
+    }
+}
+
 struct NoteRowAction: View {
     private let icon: [String]
     private let iconSize: CGFloat
@@ -101,18 +170,20 @@ struct NotesSidebarActionRow: View {
 struct NotesInkButton: View {
     private let title: String
     private let height: CGFloat
+    private let icon: [String]
     private let action: () -> Void
 
-    init(_ title: String, height: CGFloat, action: @escaping () -> Void) {
+    init(_ title: String, height: CGFloat, icon: [String] = Lucide.plus, action: @escaping () -> Void) {
         self.title = title
         self.height = height
+        self.icon = icon
         self.action = action
     }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                LucideIcon(Lucide.plus, size: 16, color: Sm.onInk)
+                LucideIcon(icon, size: 16, color: Sm.onInk)
                 Text(title)
                     .font(.nf(14, weight: 550))
                     .foregroundStyle(Sm.onInk)

@@ -74,13 +74,22 @@ internal class DragState(private val scroll: ScrollState) {
     /** 列表可见区域（窗口坐标），自动滚动用。 */
     var listBounds = Rect.Zero
     val rows = mutableStateMapOf<String, Rect>()
-    /** 投放区：键 → 区域。键是容器 id；空白键（""、" "）都表示无项目。 */
+    /** 投放区：键 → 区域。键是容器 id；空白键（""、" "）都表示无项目，[zoneContainers] 里登记的键按登记的容器。 */
     val zones = mutableStateMapOf<String, Rect>()
+    /** 键不是容器 id 的投放区（工作区的分区标题：键 "section:note" 等 → null = 无项目）。 */
+    val zoneContainers = HashMap<String, String?>()
+    /**
+     * 只接受某一类行的投放区 / 行（键 → 类别；网页 data-drop-kind）：工作区的分区标题和分区里最上层的行只接受同一分区的页面
+     * （[draggingTag]，网页行的 data-page-kind）。没登记的投放区和行什么都接受。
+     */
+    val zoneAccepts = HashMap<String, String>()
+    val rowAccepts = HashMap<String, String>()
+    var draggingTag: String? = null
 
     fun update(point: Offset) {
         pointer = point
         val id = dragging ?: return
-        target = dropTargetAt(point, id, zones, rows)
+        target = dropTargetAt(point, id, zones, rows, zoneContainers, zoneAccepts, rowAccepts, draggingTag)
         targetZone = if (target is DropTarget.Into) zones.entries.firstOrNull { it.value.contains(point) }?.key else null
     }
 
@@ -99,17 +108,31 @@ internal class DragState(private val scroll: ScrollState) {
 
     fun clear() {
         dragging = null
+        draggingTag = null
         target = null
         targetZone = null
     }
 }
 
-/** 投放区优先，其次是别的行（按手指在行的上半 / 下半决定前 / 后）。 */
-internal fun dropTargetAt(point: Offset, dragging: String, zones: Map<String, Rect>, rows: Map<String, Rect>): DropTarget? {
+/**
+ * 投放区优先，其次是别的行（按手指在行的上半 / 下半决定前 / 后）。手指下的投放区 / 行登记了 [zoneAccepts] / [rowAccepts]
+ * 而且和 [tag] 不同时不是目标（别的类型的分区不能放，网页 canDropIn）。
+ */
+internal fun dropTargetAt(
+    point: Offset, dragging: String, zones: Map<String, Rect>, rows: Map<String, Rect>,
+    zoneContainers: Map<String, String?> = emptyMap(), zoneAccepts: Map<String, String> = emptyMap(), rowAccepts: Map<String, String> = emptyMap(),
+    tag: String? = null,
+): DropTarget? {
     val zone = zones.entries.firstOrNull { it.value.contains(point) }
-    if (zone != null) return DropTarget.Into(zone.key.ifBlank { null })
-    return rows.entries.firstOrNull { it.key != dragging && it.value.contains(point) }
-        ?.let { DropTarget.Row(it.key, point.y > it.value.center.y) }
+    if (zone != null) {
+        val accepts = zoneAccepts[zone.key]
+        if (accepts != null && accepts != tag) return null
+        return DropTarget.Into(if (zone.key in zoneContainers) zoneContainers[zone.key] else zone.key.ifBlank { null })
+    }
+    val row = rows.entries.firstOrNull { it.key != dragging && it.value.contains(point) } ?: return null
+    val accepts = rowAccepts[row.key]
+    if (accepts != null && accepts != tag) return null
+    return DropTarget.Row(row.key, point.y > row.value.center.y)
 }
 
 /** 投放区高亮（[data-order-drop="into"]）。 */

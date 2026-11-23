@@ -5,7 +5,7 @@ import { noteApiError } from "@/lib/note-api";
 import { createCanvasPage, createNotePage } from "@/lib/note-create";
 import { NoteValidationError, readNoteRequest, topLevelJsonFields, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
-import { isCanvasKind, isPageKind } from "@/lib/page-kinds";
+import { isCanvasKind, isPageKind, PAGE_KIND_FEATURES } from "@/lib/page-kinds";
 import { CHAT_RECENT_COUNT } from "@/types/notes";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { prisma } from "@/lib/prisma";
@@ -30,11 +30,14 @@ export async function GET(request: Request) {
       }),
       prisma.noteGroup.findMany({ where: { userId: user.id }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { id: true, name: true, position: true } }),
     ]);
-    return NextResponse.json({ pages, groups }, { headers: { "Cache-Control": "no-store" } });
+    // kinds は種類ごとに使える機能の表（PAGE_KIND_FEATURES）。Android / iOS はこれで分区・新規作成のメニュー・ページのメニューを決める
+    // （網頁は同じ表を直接読む）。サーバーを更新すれば、アプリを出し直さなくても開関が三端そろって切り替わる。
+    return NextResponse.json({ pages, groups, kinds: PAGE_KIND_FEATURES }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) { return noteApiError(error); }
 }
 
-// 本文に加えて parentId（省略・null は最上位）と kind（省略は note）を受け取る。親を指定するとそのページのサブページになる。
+// 本文に加えて parentId（省略・null は最上位）、groupId（省略・null はプロジェクトなし）と kind（省略は note）を受け取る。
+// 親を指定するとそのページのサブページになり、プロジェクトは親に従う（groupId は見ない）。親がなければ groupId のプロジェクトの最上位。
 // kind が whiteboard / slides のときは { kind, title, icon, data? }（data を省略すると空の本体）。種類の違うページの下にも作れる。
 export async function POST(request: Request) {
   try {
@@ -50,16 +53,18 @@ export async function POST(request: Request) {
     if (!isPageKind(rawKind)) throw new NoteValidationError(msg("Unknown page kind."));
     const parentId = (body as { parentId?: unknown } | null)?.parentId ?? null;
     if (parentId !== null && (typeof parentId !== "string" || !parentId || parentId.length > 64)) throw new NoteValidationError("parentId must be a note ID or null.");
+    const groupId = (body as { groupId?: unknown } | null)?.groupId ?? null;
+    if (groupId !== null && (typeof groupId !== "string" || !groupId || groupId.length > 64)) throw new NoteValidationError(msg("Project not found."));
     if (isCanvasKind(rawKind)) {
       const input = validateCanvasPage(rawKind, body);
       const user = await getOrCreateUser();
-      const { page, data } = await createCanvasPage(user.id, rawKind, input, { parentId });
+      const { page, data } = await createCanvasPage(user.id, rawKind, input, { parentId, groupId });
       scheduleNoteEmbeddingSync(user.id, [page.id]);
       return NextResponse.json({ page: { ...page, data } }, { status: 201 });
     }
     const content = validateNoteContent(body);
     const user = await getOrCreateUser();
-    const page = await createNotePage(user.id, content, { parentId });
+    const page = await createNotePage(user.id, content, { parentId, groupId });
     scheduleNoteEmbeddingSync(user.id, [page.id]);
     return NextResponse.json({ page }, { status: 201 });
   } catch (error) { return noteApiError(error); }

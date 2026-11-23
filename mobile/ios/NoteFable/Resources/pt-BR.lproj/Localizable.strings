@@ -356,6 +356,14 @@
 "page_kind_note" = "Nota";
 "page_kind_whiteboard" = "Quadro branco";
 "page_kind_slides" = "Slides";
+"ws_new" = "Novo";
+"ws_new_page" = "Nova página";
+"ws_new_page_in" = "Nova página em %1$s";
+"ws_section_whiteboards" = "Quadros brancos";
+"ws_new_slides" = "Nova apresentação";
+"ws_new_whiteboard" = "Novo quadro branco";
+"ws_all_types" = "Todos os tipos";
+"ws_page_type" = "Tipo de página";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoritos";
