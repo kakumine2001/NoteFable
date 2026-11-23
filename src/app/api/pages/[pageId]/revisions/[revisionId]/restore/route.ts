@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateUser } from "@/lib/auth";
 import { assertCanvasFilesOwner, emptyCanvasData, validateCanvasPage } from "@/lib/canvas-document";
-import { prepareCanvas, writeCanvas } from "@/lib/canvas-store";
+import { prepareCanvas, readCanvasData, writeCanvas } from "@/lib/canvas-store";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
@@ -75,7 +75,11 @@ export async function POST(request: Request, context: Context) {
     if (outcome === "revision-missing") return NextResponse.json({ error: msg("Revision not found.") }, { status: 404 });
     if (outcome === "stale") {
       const latest = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-      return latest ? NextResponse.json({ error: msg("This note was changed in another tab."), page: latest }, { status: 409 }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      if (!latest) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+      // ホワイトボード・スライドは最新の本体も付ける（画面が版と本体をそろえて持てるように）。
+      const latestKind = pageKindOf(latest);
+      const page = isCanvasKind(latestKind) ? { ...latest, data: await readCanvasData(user.id, pageId) ?? emptyCanvasData(latestKind) } : latest;
+      return NextResponse.json({ error: msg("This note was changed in another tab."), page }, { status: 409 });
     }
     scheduleNoteEmbeddingSync(user.id, [pageId]);
     return NextResponse.json({ page: outcome.page });

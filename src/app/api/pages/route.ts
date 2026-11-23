@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES);
     const rawKind = (body as { kind?: unknown } | null)?.kind ?? "note";
     if (!isPageKind(rawKind)) throw new NoteValidationError(msg("Unknown page kind."));
-    const parentId = (body as { parentId?: unknown }).parentId ?? null;
+    const parentId = (body as { parentId?: unknown } | null)?.parentId ?? null;
     if (parentId !== null && (typeof parentId !== "string" || !parentId || parentId.length > 64)) throw new NoteValidationError("parentId must be a note ID or null.");
     if (isCanvasKind(rawKind)) {
       const input = validateCanvasPage(rawKind, body);

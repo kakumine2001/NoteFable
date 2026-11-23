@@ -14,6 +14,9 @@ import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ pageId: string }> };
 
+// 1 回の複製で写すホワイトボード・スライドの本体の合計の上限。
+const MAX_DUPLICATE_CANVAS_BYTES = 32 * 1024 * 1024;
+
 // ページを複製する（Notion の「Duplicate」）。サブページも一緒に複製し、元のページのすぐ後ろに並べる。
 // 本文・アイコン・カバー・表示設定・グループを写す。お気に入り・履歴・AI の会話は写さない。
 // 種類もそのまま写し、ホワイトボード・スライドは本体（NoteCanvas）を DB の中で写す（本体をアプリに読み込まない）。
@@ -29,6 +32,12 @@ export async function POST(_request: Request, context: Context) {
       const ids = await descendantIds(tx, user.id, pageId);
       if (ids.length + 1 > MAX_DUPLICATE_PAGES) throw new NoteValidationError(msg("Only pages with up to 99 sub-pages can be duplicated."));
       const children = ids.length ? await tx.notePage.findMany({ where: { id: { in: ids }, userId: user.id, deletedAt: null } }) : [];
+      // ホワイトボード・スライドの本体は 1 つ最大 2 MB。まとめて写すと 1 回のトランザクションが長くなりすぎるので、合計に上限を置く。
+      const canvasIds = [root, ...children].filter((page) => isCanvasKind(page.kind)).map((page) => page.id);
+      if (canvasIds.length) {
+        const total = await tx.noteCanvas.aggregate({ where: { noteId: { in: canvasIds } }, _sum: { size: true } });
+        if ((total._sum.size ?? 0) > MAX_DUPLICATE_CANVAS_BYTES) throw new NoteValidationError(msg("These pages are too large to duplicate at once."), 413);
+      }
       const order = await liveOrderIds(tx, user.id);
       // 親を先に作るため、元の並び順のまま、親が子より前に来るように並べる。
       const sources = [root, ...children.sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id))];

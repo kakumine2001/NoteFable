@@ -246,4 +246,5 @@ export const koServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "글꼴, 글자 크기, 너비는 노트에서만 바꿀 수 있어요.",
   "Whiteboards and slide decks can't be published yet.": "화이트보드와 슬라이드는 아직 게시할 수 없어요.",
   "This page can't be edited in this version of NoteFable.": "이 버전의 NoteFable에서는 이 페이지를 편집할 수 없어요.",
+  "These pages are too large to duplicate at once.": "이 페이지들은 너무 커서 한 번에 복제할 수 없어요.",
 };

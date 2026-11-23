@@ -810,6 +810,7 @@ export const zhHant: Record<string, string> = {
   "The model requested an unavailable tool. Please retry.": "模型呼叫了不可用的工具，請重試。",
   "The model returned an empty response. Please retry.": "模型返回了空回答，請重試。",
   "The trash is empty.": "回收站是空的。",
+  "These pages are too large to duplicate at once.": "這些頁面太大，無法一次複製。",
   "Thinking": "正在思考",
   "This answer is no longer available.": "這條回答已經不存在。",
   "This answer is too large to save as a note.": "這條回答太長，無法儲存為筆記。",

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Prisma } from "@/generated/prisma/client";
-import { extractCanvasSegments, parseCanvasSegments, type CanvasData, type CanvasSegment } from "@/lib/canvas-document";
+import { extractCanvasSegments, type CanvasData, type CanvasSegment } from "@/lib/canvas-document";
 import type { CanvasKind } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 
@@ -41,9 +41,3 @@ export async function readCanvasData(userId: string, noteId: string): Promise<Ca
   return (row?.data as CanvasData | undefined) ?? null;
 }
 
-// 検索・チャットの文脈用の文字だけを読む（本体は読まない）。本人のページだけ。
-export async function readCanvasSegments(userId: string, noteIds: string[]): Promise<Map<string, CanvasSegment[]>> {
-  if (!noteIds.length) return new Map();
-  const rows = await prisma.noteCanvas.findMany({ where: { noteId: { in: noteIds }, note: { userId } }, select: { noteId: true, segments: true } });
-  return new Map(rows.map((row) => [row.noteId, parseCanvasSegments(row.segments)]));
-}

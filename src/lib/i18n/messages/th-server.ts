@@ -246,4 +246,5 @@ export const thServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "เปลี่ยนแบบอักษร ขนาดตัวอักษร และความกว้างได้เฉพาะโน้ตเท่านั้น",
   "Whiteboards and slide decks can't be published yet.": "ยังเผยแพร่ไวท์บอร์ดและชุดสไลด์ไม่ได้",
   "This page can't be edited in this version of NoteFable.": "แก้ไขหน้านี้ใน NoteFable เวอร์ชันนี้ไม่ได้",
+  "These pages are too large to duplicate at once.": "หน้าเหล่านี้ใหญ่เกินกว่าจะทำสำเนาในครั้งเดียว",
 };

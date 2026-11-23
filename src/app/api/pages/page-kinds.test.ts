@@ -24,6 +24,7 @@ import { POST as create } from "./route";
 import { GET as read, PATCH as save } from "./[pageId]/route";
 import { POST as restore } from "./[pageId]/revisions/[revisionId]/restore/route";
 import { PUT as share } from "./[pageId]/share/route";
+import { PUT as changeIcon } from "./[pageId]/icon/route";
 
 const context = { params: Promise.resolve({ pageId: "w1" }) };
 const json = (body: unknown, headers: Record<string, string> = {}) => new Request("http://localhost/api/pages", { method: "POST", body: JSON.stringify(body), headers });
@@ -167,6 +168,17 @@ describe("restoring a whiteboard revision", () => {
     expect(mocks.canvasUpsert.mock.calls[0][0].update).toMatchObject({ data: revisionData, segments: [{ id: "t1", text: "Old text" }] });
     // 履歴はホワイトボードの上限（5 + 5 件）で切りそろえる。
     expect(mocks.revisionFindMany.mock.calls[0][0].skip).toBe(5);
+  });
+});
+
+describe("changing the icon of a whiteboard", () => {
+  it("returns the content too, read after the page row, so the screen never pairs a new version with old content", async () => {
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    mocks.findFirst.mockResolvedValue(row({ icon: "🎨", version: 5 }));
+    mocks.canvasFindFirst.mockResolvedValue({ data: board("Latest") });
+    const response = await changeIcon(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ icon: "🎨" }) }), context);
+    expect((await response.json()).page).toMatchObject({ icon: "🎨", version: 5, data: board("Latest") });
+    expect(mocks.findFirst.mock.invocationCallOrder.at(-1)!).toBeLessThan(mocks.canvasFindFirst.mock.invocationCallOrder[0]);
   });
 });
 

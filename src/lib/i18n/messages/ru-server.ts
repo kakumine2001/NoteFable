@@ -246,4 +246,5 @@ export const ruServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Шрифт, размер текста и ширину можно менять только у заметок.",
   "Whiteboards and slide decks can't be published yet.": "Доски и презентации пока нельзя опубликовать.",
   "This page can't be edited in this version of NoteFable.": "Эту страницу нельзя редактировать в этой версии NoteFable.",
+  "These pages are too large to duplicate at once.": "Эти страницы слишком большие, чтобы скопировать их за один раз.",
 };

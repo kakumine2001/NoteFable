@@ -67,6 +67,12 @@ describe("whiteboard and slide data", () => {
     expect(() => validateCanvasData("whiteboard", { elements: [], files: { f: { dataURL: "data:image/png;base64,AAAA" } } })).toThrow("Images must be uploaded");
     expect(() => validateCanvasData("slides", { slides: [{ id: "s", elements: [{ id: "e", src: " DATA:image/jpeg;base64,/9j/" }] }] })).toThrow("Images must be uploaded");
     expect(status(() => validateCanvasData("whiteboard", { elements: [{ id: "a", type: "text", text: "bad\u0000" }] }))).toBe(400);
+    // URL エンコードの画像も埋め込み。ふつうの文の "data:" は通す。
+    expect(() => validateCanvasData("whiteboard", { elements: [], files: { f: { dataURL: "data:image/svg+xml,%3Csvg%3E" } } })).toThrow("Images must be uploaded");
+    expect(validateCanvasData("whiteboard", { elements: [{ id: "t", type: "text", text: "data: see the chart" }] }).size).toBeGreaterThan(0);
+    // 片方だけのサロゲートは jsonb に保存できないので 400（500 にしない）。
+    expect(status(() => validateCanvasData("whiteboard", { elements: [{ id: "a", type: "text", text: "x\ud83d" }] }))).toBe(400);
+    expect(status(() => validateCanvasData("slides", { slides: [{ id: "s", notes: "\ude00y" }] }))).toBe(400);
     let deep: Record<string, unknown> = { leaf: true };
     for (let index = 0; index < 80; index++) deep = { next: deep };
     expect(status(() => validateCanvasData("whiteboard", { elements: [], appState: deep }))).toBe(400);
@@ -117,6 +123,12 @@ describe("text for search, semantic search and chat", () => {
       ],
     };
     expect(extractCanvasSegments("slides", data)).toEqual([{ id: "a", text: "Title here remember" }, { id: "c", text: "Plain" }]);
+  });
+
+  it("never cuts an emoji in half when a long text is shortened", () => {
+    const text = `${"a".repeat(7999)}😀tail`;
+    const [segment] = extractCanvasSegments("whiteboard", { elements: [{ id: "t", type: "text", text }] });
+    expect(segment.text).toBe("a".repeat(7999));
   });
 
   it("caps the extracted text", () => {

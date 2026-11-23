@@ -246,4 +246,5 @@ export const deServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Schriftart, Textgröße und Breite lassen sich nur bei Notizen ändern.",
   "Whiteboards and slide decks can't be published yet.": "Whiteboards und Präsentationen können noch nicht veröffentlicht werden.",
   "This page can't be edited in this version of NoteFable.": "Diese Seite kann in dieser Version von NoteFable nicht bearbeitet werden.",
+  "These pages are too large to duplicate at once.": "Diese Seiten sind zu groß, um sie auf einmal zu duplizieren.",
 };

@@ -246,4 +246,5 @@ export const idServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Font, ukuran teks, dan lebar hanya dapat diubah untuk catatan.",
   "Whiteboards and slide decks can't be published yet.": "Papan tulis dan presentasi belum dapat dipublikasikan.",
   "This page can't be edited in this version of NoteFable.": "Halaman ini tidak dapat diedit di versi NoteFable ini.",
+  "These pages are too large to duplicate at once.": "Halaman-halaman ini terlalu besar untuk diduplikasi sekaligus.",
 };

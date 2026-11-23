@@ -3,13 +3,13 @@ import { NoteValidationError } from "@/lib/note-document";
 
 const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(), summary: vi.fn(), resolveParent: vi.fn(), setGroup: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(),
-  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), raw: vi.fn(),
+  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), raw: vi.fn(), aggregate: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-covers", () => ({ claimCover: mocks.claim }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, findMany: mocks.findMany, create: mocks.create };
-  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage, $executeRaw: mocks.raw }) } };
+  return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage, noteCanvas: { aggregate: mocks.aggregate }, $executeRaw: mocks.raw }) } };
 });
 vi.mock("@/lib/note-tree-server", async (original) => ({
   ...(await original<typeof import("@/lib/note-tree-server")>()),
@@ -121,6 +121,7 @@ describe("POST /api/pages/:id/duplicate", () => {
   });
 
   it("copies a whiteboard with a slide deck inside, keeping each kind and copying their content inside the database", async () => {
+    mocks.aggregate.mockResolvedValue({ _sum: { size: 4096 } });
     mocks.findFirst.mockImplementation(async ({ where }) => where.id === "p1" ? { ...row("p1", null, "Board"), kind: "whiteboard" } : { id: where.id });
     mocks.descendants.mockResolvedValue(["c1"]);
     mocks.findMany.mockImplementation(async ({ select }) => select ? [] : [{ ...row("c1", "p1"), kind: "slides" }]);
@@ -136,11 +137,23 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect(copies.map((copy) => copy.values)).toEqual([["copy1", "p1"], ["copy2", "c1"]]);
   });
 
+  it("refuses to copy more than 32 MB of whiteboard and slide content at once", async () => {
+    mocks.findFirst.mockImplementation(async ({ where }) => where.id === "p1" ? { ...row("p1", null, "Board"), kind: "whiteboard" } : { id: where.id });
+    mocks.descendants.mockResolvedValue([]);
+    mocks.findMany.mockResolvedValue([]);
+    mocks.aggregate.mockResolvedValue({ _sum: { size: 32 * 1024 * 1024 + 1 } });
+    const response = await duplicate(new Request("http://localhost/x", { method: "POST" }), context);
+    expect(response.status).toBe(413);
+    expect(mocks.aggregate).toHaveBeenCalledWith({ where: { noteId: { in: ["p1"] } }, _sum: { size: true } });
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("copies notes without touching the canvas table", async () => {
     mocks.descendants.mockResolvedValue([]);
     mocks.findMany.mockResolvedValue([]);
     expect((await duplicate(new Request("http://localhost/x", { method: "POST" }), context)).status).toBe(201);
     expect(mocks.raw).not.toHaveBeenCalled();
+    expect(mocks.aggregate).not.toHaveBeenCalled();
   });
 
   it("refuses pages with more than 99 sub-pages", async () => {

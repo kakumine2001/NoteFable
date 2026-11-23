@@ -246,4 +246,5 @@ export const jaServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "フォント・文字サイズ・幅を変えられるのはノートだけです。",
   "Whiteboards and slide decks can't be published yet.": "ホワイトボードとスライドはまだ公開できません。",
   "This page can't be edited in this version of NoteFable.": "このバージョンの NoteFable ではこのページを編集できません。",
+  "These pages are too large to duplicate at once.": "これらのページは大きすぎるため、一度に複製できません。",
 };

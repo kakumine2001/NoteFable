@@ -246,4 +246,5 @@ export const hiServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "फ़ॉन्ट, टेक्स्ट का आकार और चौड़ाई केवल नोट के लिए बदली जा सकती है।",
   "Whiteboards and slide decks can't be published yet.": "व्हाइटबोर्ड और स्लाइड डेक अभी प्रकाशित नहीं किए जा सकते।",
   "This page can't be edited in this version of NoteFable.": "NoteFable के इस संस्करण में यह पेज संपादित नहीं किया जा सकता।",
+  "These pages are too large to duplicate at once.": "ये पेज एक साथ डुप्लिकेट करने के लिए बहुत बड़े हैं।",
 };

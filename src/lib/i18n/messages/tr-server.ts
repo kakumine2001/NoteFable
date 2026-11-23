@@ -246,4 +246,5 @@ export const trServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Yazı tipi, metin boyutu ve genişlik yalnızca notlarda değiştirilebilir.",
   "Whiteboards and slide decks can't be published yet.": "Beyaz tahtalar ve slayt desteleri henüz yayımlanamıyor.",
   "This page can't be edited in this version of NoteFable.": "Bu sayfa NoteFable’ın bu sürümünde düzenlenemiyor.",
+  "These pages are too large to duplicate at once.": "Bu sayfalar bir kerede çoğaltılamayacak kadar büyük.",
 };

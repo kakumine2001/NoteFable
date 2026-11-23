@@ -246,4 +246,5 @@ export const zhServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "只有笔记可以更改字体、文字大小和宽度。",
   "Whiteboards and slide decks can't be published yet.": "白板和幻灯片暂时还不能发布。",
   "This page can't be edited in this version of NoteFable.": "当前版本的 NoteFable 无法编辑此页面。",
+  "These pages are too large to duplicate at once.": "这些页面太大，无法一次复制。",
 };

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isDeepStrictEqual } from "node:util";
 import type { Prisma } from "@/generated/prisma/client";
 import { getOrCreateUser } from "@/lib/auth";
-import { assertCanvasFilesOwner, emptyCanvasData, MAX_CANVAS_REQUEST_BYTES, validateCanvasPage } from "@/lib/canvas-document";
+import { assertCanvasFilesOwner, CANVAS_TOO_LARGE, emptyCanvasData, MAX_CANVAS_REQUEST_BYTES, validateCanvasPage } from "@/lib/canvas-document";
 import { prepareCanvas, readCanvasData, writeCanvas } from "@/lib/canvas-store";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
@@ -48,7 +48,7 @@ export async function PATCH(request: Request, context: Context) {
     if (!target) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     const kind = pageKindOf(target);
     if (isCanvasKind(kind)) {
-      const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES);
+      const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES, CANVAS_TOO_LARGE);
       // 古い画面（ノートのエディター）がホワイトボード・スライドにノートの本文を送ってきた：上書きせず、訳した文で断る。
       if (body && typeof body === "object" && "blocks" in body) return pageKindRejection(request, NOTE_ONLY_ACTION_ERRORS.save, kind);
       return await saveCanvas(body, user.id, pageId, kind);

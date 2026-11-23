@@ -212,8 +212,18 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const queue = queues.current.get(page.id);
       if (!queue || queue.version === page.version) return;
       if (!queue.dirty && queue.status !== "saving") {
-        // ホワイトボード・スライドの本体（data）は、アイコンの変更などの応答には入っていない。届いていなければ読み込み済みのものを残す。
-        queue.loadLatest(isCanvasKind(pageKindOf(page)) && page.data === undefined ? { ...page, data: queue.page.data } : page);
+        // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
+        // 読み直してから替える。
+        if (isCanvasKind(pageKindOf(page)) && page.data === undefined) {
+          void pageRequest(`/api/pages/${page.id}`).then((data) => {
+            const current = queues.current.get(page.id);
+            if (!current || current.dirty || current.status === "saving" || current.version === data.page.version) return;
+            current.loadLatest(data.page);
+            if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
+          }).catch(() => { /* 次に開いた時に読み直す。 */ });
+          return;
+        }
+        queue.loadLatest(page);
         if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
       } else {
         // 未保存の編集は消さず、衝突として知らせる。

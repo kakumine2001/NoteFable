@@ -246,4 +246,5 @@ export const ptBRServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Fonte, tamanho do texto e largura só podem ser alterados em notas.",
   "Whiteboards and slide decks can't be published yet.": "Quadros brancos e apresentações ainda não podem ser publicados.",
   "This page can't be edited in this version of NoteFable.": "Esta página não pode ser editada nesta versão do NoteFable.",
+  "These pages are too large to duplicate at once.": "Estas páginas são grandes demais para duplicar de uma só vez.",
 };

@@ -246,4 +246,5 @@ export const frServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "La police, la taille du texte et la largeur ne peuvent être modifiées que pour les notes.",
   "Whiteboards and slide decks can't be published yet.": "Les tableaux blancs et les présentations ne peuvent pas encore être publiés.",
   "This page can't be edited in this version of NoteFable.": "Cette page ne peut pas être modifiée dans cette version de NoteFable.",
+  "These pages are too large to duplicate at once.": "Ces pages sont trop volumineuses pour être dupliquées en une seule fois.",
 };

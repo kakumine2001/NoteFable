@@ -13,11 +13,11 @@ Notes 是 NoteFable 内部的文字笔记模式。切换模式保留聊天输入
 - 白板：`{ elements: [{ id, type, text?, originalText?, name?, containerId?, isDeleted?, … }], files?: { <id>: { dataURL | url, … } }, appState?: {…} }`（与 Excalidraw 的 scene 同构）。
 - 幻灯片：`{ slides: [{ id, layout?, hidden?, notes?, elements?: [{ id, … }] }], theme?: {…} }`。
 
-保存时服务端校验（`validateCanvasData`）：JSON 对象、元素和页的 `id` 为 1–120 字符且不重复（幻灯片的元素 ID 在整套里不重复）、白板元素带 `type`、白板最多 20,000 个元素、幻灯片最多 500 页且每页 1,000 个元素、演讲备注 20,000 字符、嵌套不超过 64 层、不含 NUL；**不能内嵌 base64 图片**（`data:…;base64,` 一律 400 “Images must be uploaded, not embedded in the page.”），图片先传到笔记文件（`POST /api/pages/files`），白板的 `files` 里的 `dataURL` / `url` 只能是 `/api/pages/files?key=…`；本体里出现的所有笔记文件地址都必须在本人目录下（`assertCanvasFilesOwner`，否则 400 “This page refers to a file that is not yours.”）。整份本体（JSON）最多 2 MB（`MAX_CANVAS_BYTES`，超过 413 “This page is larger than 2 MB and cannot be saved.”；请求体最多 2 MB + 64 KB，远低于 Vercel 4.5 MB 的上限）。画笔的点由编辑器在保存前精简（#152），服务端只管上限。从聊天里拿大图时压缩到 4 MiB 以内是编辑器 / AI 操作（#152、#158）的事。
+保存时服务端校验（`validateCanvasData`）：JSON 对象、元素和页的 `id` 为 1–120 字符且不重复（幻灯片的元素 ID 在整套里不重复）、白板元素带 `type`、白板最多 20,000 个元素、幻灯片最多 500 页且每页 1,000 个元素、演讲备注 20,000 字符、嵌套不超过 64 层、不含 NUL 和落单的代理项（jsonb 存不进）；**不能内嵌图片**（`data:<MIME>;…` 形式的 URL 一律 400 “Images must be uploaded, not embedded in the page.”），图片先传到笔记文件（`POST /api/pages/files`），白板的 `files` 里的 `dataURL` / `url` 只能是 `/api/pages/files?key=…`；本体里出现的所有笔记文件地址都必须在本人目录下（`assertCanvasFilesOwner`，否则 400 “This page refers to a file that is not yours.”）。整份本体（JSON）最多 2 MB（`MAX_CANVAS_BYTES`，超过 413 “This page is larger than 2 MB and cannot be saved.”；请求体最多 2 MB + 64 KB，远低于 Vercel 4.5 MB 的上限）。画笔的点由编辑器在保存前精简（#152），服务端只管上限。从聊天里拿大图时压缩到 4 MiB 以内是编辑器 / AI 操作（#152、#158）的事。
 
 **检索用的文字。** 每次保存，服务端从本体里取出文字存进 `NoteCanvas.segments`（`[{ id, text }]`，`extractCanvasSegments`）：白板是没删除的元素的文字（`originalText` 或 `text`，绑在图形上的文字算到图形的 ID 下）和框（frame）的名字；幻灯片是每一页元素里所有 `text` 字段（含富文本 JSON）加演讲备注，ID 是页的 ID。合计最多 100,000 字符。站内搜索、AI 的 `search_notes`、语义搜索的索引、附加到聊天和项目参考笔记**只用这份文字**，SQL 只读 `c."segments"`，从不遍历本体（笔迹的点）。搜索结果的 `blockId` 对白板是命中的元素、对幻灯片是命中的页（编辑器做好后据此定位；现在网页和应用只打开页面开头）。
 
-**保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
+**保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读；其他返回整页的接口——`GET`、改图标 `PUT /api/pages/:id/icon`、历史恢复及其 409——对白板 / 幻灯片都带 `data`，先读版本后读本体，网页收到不带 `data` 的页面时重新读取，不把新版本和旧本体拼在一起）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
 
 **历史少留。** 白板和幻灯片的历史本体存在 `NoteRevision.data`（`blocks` 为空数组），每页只留自动保存 5 份 + AI 编辑 / 恢复前 5 份（共 10 份，笔记是 30 + 20），自动快照最短间隔 30 分钟（笔记 10 分钟），见 `revisionLimits`。自动快照照样是 DB 内的 `INSERT … SELECT`（`LEFT JOIN NoteCanvas`），本体不进应用；空白板（没有元素）/ 空幻灯片（没有页）不留快照。
 
@@ -26,7 +26,7 @@ Notes 是 NoteFable 内部的文字笔记模式。切换模式保留聊天输入
 - **列表与图标**：一览、最近编辑、回收站、搜索结果、附加页面、项目参考笔记、发言下的页面标签都带 `kind`；页面没有自己的图标时显示类型图标（笔记 FileText、白板 Shapes、幻灯片 Presentation，`PageKindIcon`）。搜索结果里白板 / 幻灯片在标题旁标出类型名。
 - **打开**：网页的 Notes 视图、分屏和 `/note-embed` 对白板 / 幻灯片显示只读的占位画面（`CanvasPagePlaceholder`：图标、标题、“编辑功能即将推出”和本体里的文字，幻灯片带页码），不加载 BlockNote、不显示 AI 按钮、不自动保存；“…”菜单只留锁定、收藏、复制、新建子页面、移动和移入回收站，顶栏不显示“分享”。提及（`@`）和页面链接照常在原地打开，打开后按类型显示。
 - **历史**：预览按类型显示（白板 / 幻灯片列出那一版的文字），恢复按类型写回（`NoteCanvas` 和标题、图标，先把当前状态存成 `RESTORE` 历史），响应的 `page` 带本体。
-- **复制**：类型照抄，本体在数据库里 `INSERT … SELECT` 复制（不读进应用），事务超时 30 秒。
+- **复制**：类型照抄，本体在数据库里 `INSERT … SELECT` 复制（不读进应用），事务超时 30 秒；一次复制的白板 / 幻灯片本体合计最多 32 MB（超过 413 “These pages are too large to duplicate at once.”）。
 - **公开分享**：没有公开视图的类型（现在是白板和幻灯片）不出现在分享树里，它们下面的子页面也不出现（和“从上级分享排除”一样处理）；它们自己不能发布（`PUT /api/pages/:id/share` 的 `enabled: true` 返回 400）。白板的只读视图在 #152、幻灯片的放映视图在 #149 做。
 - **附加到聊天、项目参考笔记**：白板 / 幻灯片发送取出的文字（白板每段一行 `- 文字`，幻灯片 `Slide n: 文字`），规则与笔记相同（每次发送实时读取、单篇 8,000 / 合计 20,000 字符），分隔行上标 `[whiteboard]` / `[slide deck]`。
 - **导入导出**：Markdown 导入只建笔记，导出只对笔记（白板 / 幻灯片返回 400），它们自己的导出（PNG、SVG、PDF、PPTX）由各编辑器提供。

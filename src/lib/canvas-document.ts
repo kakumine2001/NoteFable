@@ -29,8 +29,10 @@ const MAX_DEPTH = 64;
 // 検索・チャットの文脈に使う文字の合計の上限と、1 つの要素・ページの上限。
 export const MAX_CANVAS_TEXT = 100_000;
 const MAX_SEGMENT_TEXT = 8_000;
-// base64 を埋め込んだ画像（data:…;base64,…）。画像は note-files にアップロードしてその URL を置く。
-const INLINE_DATA_URL = /^\s*data:[^,]{0,200};base64,/i;
+// 埋め込んだ画像・ファイル（data:<MIME>;base64,… や data:image/svg+xml,…）。画像は note-files にアップロードしてその URL を置く。
+const INLINE_DATA_URL = /^\s*data:[a-z]+\/[a-z0-9.+-]+[;,]/i;
+// 片方だけのサロゲート。PostgreSQL の jsonb は受け付けない（保存が 500 になる）ので、先に断る。
+const LONE_SURROGATE = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
 const FILE_URL_PREFIX = "/api/pages/files?";
 
 export type CanvasData = Record<string, unknown>;
@@ -45,6 +47,7 @@ export function emptyCanvasData(kind: CanvasKind): CanvasData {
 }
 
 const invalid = () => new NoteValidationError(msg("This page contains invalid whiteboard or slide data."));
+export const CANVAS_TOO_LARGE = msg("This page is larger than 2 MB and cannot be saved.");
 
 // 本体全体をたどり、壊れた値・埋め込み画像・他人のファイルの参照につながるものを見る。再帰を使わない（深い JSON でもスタックを使い切らない）。
 function scan(value: unknown, fileOwners: Set<string>) {
@@ -54,7 +57,7 @@ function scan(value: unknown, fileOwners: Set<string>) {
     if (depth > MAX_DEPTH) throw invalid();
     if (typeof current === "string") {
       // PostgreSQL の jsonb は NUL を入れられない（保存で 500 にならないよう、先に断る）。
-      if (current.includes("\u0000")) throw invalid();
+      if (current.includes("\u0000") || LONE_SURROGATE.test(current)) throw invalid();
       if (INLINE_DATA_URL.test(current)) throw new NoteValidationError(msg("Images must be uploaded, not embedded in the page."));
       if (current.startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
@@ -71,7 +74,7 @@ function scan(value: unknown, fileOwners: Set<string>) {
     }
     if (!object(current)) throw invalid();
     for (const [key, item] of Object.entries(current)) {
-      if (key.includes("\u0000")) throw invalid();
+      if (key.includes("\u0000") || LONE_SURROGATE.test(key)) throw invalid();
       stack.push({ value: item, depth: depth + 1 });
     }
   }
@@ -119,7 +122,7 @@ function validSlides(data: Record<string, unknown>) {
 export function validateCanvasData(kind: CanvasKind, value: unknown): ValidatedCanvas {
   if (!object(value)) throw invalid();
   const size = new TextEncoder().encode(JSON.stringify(value)).byteLength;
-  if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(msg("This page is larger than 2 MB and cannot be saved."), 413);
+  if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(CANVAS_TOO_LARGE, 413);
   const fileOwners = new Set<string>();
   scan(value, fileOwners);
   if (!(kind === "whiteboard" ? validWhiteboard(value) : validSlides(value))) throw invalid();
@@ -132,6 +135,13 @@ export function assertCanvasFilesOwner(canvas: Pick<ValidatedCanvas, "fileOwners
 }
 
 // ---- 検索・意味検索・チャットの文脈に使う文字 ----
+
+// サロゲートペアの途中で切らない（切ると jsonb に入れられない文字列になる）。
+function cut(text: string, limit: number) {
+  if (text.length <= limit) return text;
+  const end = (text.charCodeAt(limit - 1) & 0xfc00) === 0xd800 ? limit - 1 : limit;
+  return text.slice(0, end);
+}
 
 function clean(text: string) {
   return text.replace(/\s+/g, " ").trim();
@@ -182,7 +192,7 @@ export function extractCanvasSegments(kind: CanvasKind, data: unknown): CanvasSe
   const segments: CanvasSegment[] = [];
   let total = 0;
   for (const [id, texts] of byId) {
-    const text = texts.join(" ").slice(0, MAX_SEGMENT_TEXT);
+    const text = cut(texts.join(" "), MAX_SEGMENT_TEXT);
     if (total + text.length > MAX_CANVAS_TEXT) break;
     total += text.length;
     segments.push({ id, text });

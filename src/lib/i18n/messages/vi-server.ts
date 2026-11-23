@@ -246,4 +246,5 @@ export const viServer: Record<string, string> = {
   "Font, text size and width can only be changed for notes.": "Chỉ có thể đổi phông chữ, cỡ chữ và độ rộng cho ghi chú.",
   "Whiteboards and slide decks can't be published yet.": "Chưa thể xuất bản bảng trắng và bản trình chiếu.",
   "This page can't be edited in this version of NoteFable.": "Không thể chỉnh sửa trang này trong phiên bản NoteFable này.",
+  "These pages are too large to duplicate at once.": "Các trang này quá lớn để nhân bản cùng một lúc.",
 };
