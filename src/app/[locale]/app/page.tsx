@@ -544,6 +544,12 @@ export default function Home() {
   const [upgradeLimit, setUpgradeLimit] = useState<UsageKind | null>(null);
   // ファイル置き場の容量が足りずに断られたとき（添付・画像の生成）。理由と、ログイン・アップグレードの案内を出す。
   const [storageLimit, setStorageLimit] = useState<StorageLimitError | null>(null);
+  // 上限の案内は一度に 1 つだけ出す（Android / iOS と同じく、新しく断られた理由に置き換える）。
+  const showLimitPrompt = (next: { guest?: UsageKind; upgrade?: UsageKind; storage?: StorageLimitError }) => {
+    setGuestLimit(next.guest ?? null);
+    setUpgradeLimit(next.upgrade ?? null);
+    setStorageLimit(next.storage ?? null);
+  };
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
   // 入力欄の要素は画面から外れると先に null になるので、最後の入力値も state 側から持っておく。
@@ -1425,7 +1431,7 @@ export default function Home() {
         if (error instanceof StorageLimitError) {
           // 本文と添付は入力欄に残っている（まだ何も送っていない）。ログインや申し込みから戻っても本文が残るようにする。
           if (error.tier !== "pro") guestLimitHitRef.current = true;
-          setStorageLimit(error);
+          showLimitPrompt({ storage: error });
         } else {
           setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
         }
@@ -1646,13 +1652,13 @@ export default function Home() {
       if (limited) {
         if (storageRefused) {
           if (error.tier !== "pro") guestLimitHitRef.current = true;
-          setStorageLimit(error);
+          showLimitPrompt({ storage: error });
         } else if (error.tier === "guest") {
           guestLimitHitRef.current = true;
-          setGuestLimit(error.kind);
+          showLimitPrompt({ guest: error.kind });
         } else if (error.tier === "member") {
           guestLimitHitRef.current = true;
-          setUpgradeLimit(error.kind);
+          showLimitPrompt({ upgrade: error.kind });
         }
         // 上限で断られた送信はどこにも保存されていない。本文と添付を入力欄に戻す。
         // 待っている間に書き足した本文や添付があれば消さず、断られた分を前に足す。
@@ -1764,8 +1770,8 @@ export default function Home() {
       if (error instanceof UsageLimitError && error.tier !== "pro") {
         // 入力欄に書きかけの文があれば、ログインや申し込みから戻ってきても残るようにする（通常の送信と同じ）。
         guestLimitHitRef.current = true;
-        if (error.tier === "guest") setGuestLimit(error.kind);
-        else setUpgradeLimit(error.kind);
+        if (error.tier === "guest") showLimitPrompt({ guest: error.kind });
+        else showLimitPrompt({ upgrade: error.kind });
       }
       const partial = (sessionMessagesRef.current[sessionId] ?? []).find((message) => message.id === assistantMessageId);
       if (partial?.content) {
@@ -2543,7 +2549,7 @@ export default function Home() {
               onBeforeUpgrade={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}
           {storageLimit && (
-            <StorageLimitPrompt limit={storageLimit} onClose={() => setStorageLimit(null)} attachmentsLost={files.length > 0}
+            <StorageLimitPrompt limit={storageLimit} onClose={() => setStorageLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
               onBeforeSignIn={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")}
               onBeforeUpgrade={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}

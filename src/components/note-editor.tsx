@@ -521,7 +521,10 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
       } catch (error) {
         // 容量の上限で断られたとき、貼り付け・ドロップで作られた空のブロック（「Loading...」のまま）は残さない。理由はノートの上の案内に出る。
         // BlockNote は貼り付け・ドロップのアップロードで投げた例外を受け止めないので、何も変えない結果を返してから、そのブロックを消す。
-        if (error instanceof StorageLimitError && blockId && !panelUploads.has(blockId)) {
+        // 中身のあるブロックの差し替え（Replace）は投げ直して、開いているパネルに理由を出す。
+        const current = blockId ? uploadEditorRef.current?.getBlock(blockId)?.props as { url?: unknown } | undefined : undefined;
+        const placeholder = current !== undefined && !current.url;
+        if (error instanceof StorageLimitError && blockId && !panelUploads.has(blockId) && placeholder) {
           setTimeout(() => {
             const target = uploadEditorRef.current;
             const props = target?.getBlock(blockId)?.props as { url?: unknown } | undefined;

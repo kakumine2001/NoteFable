@@ -217,14 +217,22 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   }, []);
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
-  const showStorageLimit = (error: StorageLimitError) => {
+  // 上限の案内は一度に 1 つだけ出す（Android / iOS と同じく、新しく断られた理由に置き換える）。
+  const showLimitPrompt = (next: { guest?: boolean; upgrade?: boolean; storage?: StorageLimitError }) => {
+    setGuestLimit(next.guest ?? false);
+    setUpgradeLimit(next.upgrade ?? false);
+    setStorageLimit(next.storage ?? null);
+  };
+  // inline: 発言の吹き出しに理由が出ない断り（添付のアップロード）。アプリが案内を出すときも、パネルの中に理由を残す
+  // （案内はパネルの外、エディターの上に出る）。送信が断られたときは吹き出しに理由が出るので、重ねて出さない。
+  const showStorageLimit = (error: StorageLimitError, { inline = false } = {}) => {
     if (error.tier !== "pro") guestLimitHitRef.current = true;
-    // アプリが案内を出すときも、パネルの中に理由を残す（案内はパネルの外、エディターの上に出る）。
     if (embedded && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: error.tier, used: error.used, limit: error.limit })) {
-      setError(error.message);
+      showLimitPrompt({});
+      if (inline) setError(error.message);
       return;
     }
-    setStorageLimit(error);
+    showLimitPrompt({ storage: error });
   };
   const inputValueRef = useRef("");
   inputValueRef.current = input;
@@ -554,7 +562,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
         setUploadProgress({ key: msg("Uploading {index}/{total} · {name} · {percentage}%"), vars: { index, total, name, percentage } });
       });
     } catch (caught) {
-      if (caught instanceof StorageLimitError) showStorageLimit(caught);
+      if (caught instanceof StorageLimitError) showStorageLimit(caught, { inline: true });
       else setError(caught instanceof Error ? caught.message : msg("Attachment upload failed. Please try again."));
       setActiveTurnAssistantId(null);
       flashOutcome("error");
@@ -567,10 +575,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     }
     stick.current = true;
 
+    const userMessageId = crypto.randomUUID();
     setMessages((current) => [
       ...current,
       {
-        id: crypto.randomUUID(), role: "USER", content: displayText,
+        id: userMessageId, role: "USER", content: displayText,
         attachments: sentFiles.map(({ id, file, previewUrl }) => ({ id, filename: file.name, mimeType: file.type || "application/octet-stream", size: file.size, previewUrl })),
         ...(sentPages.length ? { pages: sentPages } : {}),
       },
@@ -624,14 +633,20 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       const limited = caught instanceof UsageLimitError || storageRefused;
       if (!accepted && tickets.length) void cleanupClientUploads(tickets);
       if (storageRefused) showStorageLimit(caught);
-      if (caught instanceof UsageLimitError && caught.tier === "guest") { guestLimitHitRef.current = true; setGuestLimit(true); }
-      if (caught instanceof UsageLimitError && caught.tier === "member" && !embedded) { guestLimitHitRef.current = true; setUpgradeLimit(true); }
+      if (caught instanceof UsageLimitError && caught.tier === "guest") { guestLimitHitRef.current = true; showLimitPrompt({ guest: true }); }
+      if (caught instanceof UsageLimitError && caught.tier === "member" && !embedded) { guestLimitHitRef.current = true; showLimitPrompt({ upgrade: true }); }
       // 上限で断られた本文は保存されていない。入力欄から送ったものなら戻す（待つ間に書き足した文は後ろに残す）。
       // 待つ間に別のノートへ移っていたら、入力欄の代わりにこのノートの分として預けておく。
       if (limited && display === undefined && !composerMountedRef.current) keepRejectedDraft(`note:${noteId}`, activeSelection ? payloadText : text);
       if (limited && display === undefined) setInput((current) => (current.trim() ? [text.trimEnd(), current].join("\n\n") : text));
       // すでに届いた本文は残し、上限・失敗の文だけを表示時に訳す。
-      setMessages((current) => current.map((message) => message.id === assistantId
+      // 断られた添付は入力欄に戻り、プレビューの URL は入力欄が持つ（外すと解放される）。送った発言からは外す。
+      setMessages((current) => current.map((message) => limited && message.id === userMessageId
+        ? { ...message, attachments: message.attachments?.map(({ previewUrl: _previewUrl, ...attachment }) => {
+          void _previewUrl;
+          return attachment;
+        }) }
+        : message.id === assistantId
         ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail),
           failed: true, usageLimit: caught instanceof UsageLimitError ? caught.kind : undefined, storageLimit: storageRefused || undefined,
           activity: limited ? message.activity : applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: message.content ? message.content.length + 2 : 0, detail }) }
@@ -726,10 +741,12 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       </div>
       )}
 
-      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
-      {storageLimit && <StorageLimitPrompt limit={storageLimit} actions={!embedded} onClose={() => setStorageLimit(null)}
+      {upgradeLimit && <UpgradePrompt kind="chat" onClose={() => setUpgradeLimit(false)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
+        onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+      {storageLimit && <StorageLimitPrompt limit={storageLimit} actions={!embedded} onClose={() => setStorageLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
         onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} onBeforeUpgrade={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
-      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
+      {guestLimit && <GuestLimitPrompt kind="chat" onClose={() => setGuestLimit(false)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
+        onBeforeSignIn={() => savePendingDraft(`note:${noteId}`, draftToKeep(input))} />}
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">

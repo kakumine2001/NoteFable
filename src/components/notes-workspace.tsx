@@ -61,7 +61,8 @@ function NoteStorageLimitNotice({ embedded }: { embedded: boolean }) {
     return () => window.removeEventListener(STORAGE_LIMIT_EVENT, onLimit);
   }, [embedded]);
   if (!limit) return null;
-  return <div className="notes-column pt-6"><StorageLimitPrompt limit={limit} actions={!embedded} className="" onClose={() => setLimit(null)} /></div>;
+  // 長いノートの下の方で貼り付けたときも見えるよう、書き出しの失敗と同じくスクロールする領域の上端に留める。
+  return <div className="notes-storage-limit notes-column pt-6"><StorageLimitPrompt limit={limit} actions={!embedded} className="" onClose={() => setLimit(null)} /></div>;
 }
 
 export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {

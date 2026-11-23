@@ -129,5 +129,32 @@ describe("PlanSettings usage meters and copy", () => {
     const text = collectText(PlanSettings());
     expect(text).toContain("Storage 12 MB / 500 MB");
     expect(text).toContain("Files you delete free up space about a week later.");
+    expect(storageBar(PlanSettings())).toEqual({ full: false, width: "2.5%" });
+
+    // 上限ちょうど・超えたとき（生成画像は上限を少し超えることがある）は、満杯のバーで止める。
+    state.plan.storage = { used: 500 * 1024 * 1024, limit: 500 * 1024 * 1024 };
+    expect(collectText(PlanSettings())).toContain("Storage 500 MB / 500 MB");
+    expect(storageBar(PlanSettings())).toEqual({ full: true, width: "100%" });
+    state.plan.storage = { used: 510 * 1024 * 1024, limit: 500 * 1024 * 1024 };
+    expect(storageBar(PlanSettings())).toEqual({ full: true, width: "100%" });
   });
 });
+
+// 「Storage」の行のバー（クラスと幅）。
+function storageBar(node: unknown) {
+  let found: { full: boolean; width: string } | null = null;
+  (function walk(value: unknown, inStorage: boolean): void {
+    if (Array.isArray(value)) return value.forEach((item) => walk(item, inStorage));
+    if (!value || typeof value !== "object" || !("props" in value)) return;
+    const props = (value as { props?: Record<string, unknown> }).props ?? {};
+    const className = typeof props.className === "string" ? props.className : "";
+    const here = inStorage || (className === "settings-plan-meter" && collectText(value).startsWith("Storage"));
+    if (here && className.startsWith("settings-plan-bar")) {
+      const fill = props.children as { props: { style: { width: string } } };
+      found = { full: className.includes("is-full"), width: fill.props.style.width };
+      return;
+    }
+    walk(props.children, here);
+  })(node, false);
+  return found;
+}
