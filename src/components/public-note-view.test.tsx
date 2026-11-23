@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Locale } from "@/lib/i18n/locale";
 import { renderKatex, type KatexApi } from "@/lib/katex-render";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
+// 変換を収集時に済ませておく（各テストは resetModules 後に読み直すので、最初のテストが重くならないように）。
+import "./public-note-view";
 
 // 数式のスタイルは next/dynamic のチャンク（Next.js の中でだけ読み込める）なので、目印に置き換えて「出したか」だけを見る。
 vi.mock("@/components/public-note-math-styles", () => ({ PublicMathStyles: () => <i data-katex-styles="" /> }));
@@ -55,7 +57,7 @@ async function realKatex() {
   return (mod.default ?? mod) as KatexApi;
 }
 
-describe("public note math", () => {
+describe("public note math", { timeout: 30_000 }, () => {
   it("loads neither KaTeX nor its styles for a page without math", async () => {
     const html = await render([
       paragraph([text("It costs $5 and $10, not $x$.")]),
