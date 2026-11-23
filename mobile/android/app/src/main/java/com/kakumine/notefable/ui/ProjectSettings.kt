@@ -69,6 +69,7 @@ import com.kakumine.notefable.data.ChatProjectNote
 import com.kakumine.notefable.data.ChatProjectSummary
 import com.kakumine.notefable.data.MAX_PROJECT_INSTRUCTIONS
 import com.kakumine.notefable.data.MAX_PROJECT_NOTES
+import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.launch
 
 /** 一次最多列出的笔记数（网页 MAX_LISTED）；多了用筛选找。 */
@@ -198,7 +199,7 @@ fun ProjectSettingsDialog(project: ChatProjectSummary, sidebar: SidebarViewModel
                                 horizontalArrangement = Arrangement.spacedBy(5.6.dp),
                                 verticalArrangement = Arrangement.spacedBy(5.6.dp),
                             ) {
-                                selected.forEach { note -> NoteChip(note.title.ifEmpty { untitled }, enabled = !busy) { selected = toggleProjectNote(selected, note) } }
+                                selected.forEach { note -> NoteChip(note.title.ifEmpty { untitled }, note.kind, enabled = !busy) { selected = toggleProjectNote(selected, note) } }
                             }
                         }
                         FilterField(filter, { filter = it }, stringResource(R.string.sb_filter_notes))
@@ -314,16 +315,17 @@ internal fun FilterField(value: String, onChange: (String) -> Unit, placeholder:
     )
 }
 
-// .project-settings-chip：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4/3.2/2.4/8.8；文件图标 13 + 4.8；移除键 28 圆（✕ 12 灰）。
+// .project-settings-chip：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4/3.2/2.4/8.8；页面类型图标 13（不显示表情，同网页）+ 4.8；
+// 移除键 28 圆（✕ 12 灰）。
 @Composable
-internal fun NoteChip(title: String, enabled: Boolean, onRemove: () -> Unit) {
+internal fun NoteChip(title: String, kind: PageKind, enabled: Boolean, onRemove: () -> Unit) {
     val remove = stringResource(R.string.sb_remove_title, title)
     Row(
         Modifier.border(1.dp, Sm.BorderStrong, CircleShape).clip(CircleShape).background(Sm.Sidebar)
             .padding(start = 8.8.dp, end = 3.2.dp, top = 2.4.dp, bottom = 2.4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(Lucide.FileText, 13.dp, Sm.Text)
+        LucideIcon(pageKindIcon(kind), 13.dp, Sm.Text)
         Spacer(Modifier.width(4.8.dp))
         Text(title, Modifier.widthIn(max = 220.dp), color = Sm.Text, fontSize = 13.sp, lineHeight = 19.5.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
         Spacer(Modifier.width(4.8.dp))
@@ -351,7 +353,7 @@ internal fun NoteOption(page: ChatProjectNote, untitled: String, checked: Boolea
         Checkbox16(checked, enabled = !busy && !blocked)
         Spacer(Modifier.width(8.8.dp))
         Box(Modifier.width(20.dp), Alignment.Center) {
-            NoteIcon(page.icon, 14.sp, 14.dp, Sm.Muted)
+            NoteIcon(page.icon, 14.sp, 14.dp, Sm.Muted, page.kind)
         }
         Spacer(Modifier.width(8.8.dp))
         Text(title, Modifier.weight(1f), color = if (blocked) Sm.Faint else Sm.Text, fontSize = 15.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)

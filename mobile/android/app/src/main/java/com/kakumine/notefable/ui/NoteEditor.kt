@@ -245,8 +245,8 @@ private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
-// 笔记图标（表情 15 / 文件图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
-// 保存状态 14 灰（出错 / 冲突时 #b45309）。
+// 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
+// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板、幻灯片没有分享按钮（[PageKindFeatures.publicShare]）。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(
@@ -325,6 +325,8 @@ fun NoteEditorScreen(
         }
     }
 
+    // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
+    val kind = page?.kind ?: open.kind
     Column(Modifier.fillMaxSize().background(Sm.Background)) {
         Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -334,7 +336,7 @@ fun NoteEditorScreen(
             Spacer(Modifier.width(12.dp))
             TopIconButton(Lucide.ChevronLeft, stringResource(R.string.all_notes), onBack, iconSize = 22.dp)
             Spacer(Modifier.width(12.dp))
-            Box(Modifier.size(20.dp), Alignment.Center) { NoteIcon(open.icon, 15.sp, 15.dp, Sm.Muted) }
+            Box(Modifier.size(20.dp), Alignment.Center) { NoteIcon(open.icon, 15.sp, 15.dp, Sm.Muted, kind) }
             Spacer(Modifier.width(6.dp))
             Text(
                 open.title.ifEmpty { stringResource(R.string.notes) },
@@ -354,7 +356,8 @@ fun NoteEditorScreen(
                 ) { LucideIcon(Lucide.Lock, 14.dp, Sm.Muted) }
                 Spacer(Modifier.width(8.dp))
             }
-            if (page != null && onShare != null) {
+            // 只有有公开视图的类型能公开（现在只有笔记；白板 #152、幻灯片 #149 以后再开），网页同样不显示分享按钮。
+            if (page != null && onShare != null && kind.features.publicShare) {
                 val shareLabel = stringResource(R.string.share_action)
                 val isShared = page.isShared()
                 Box(

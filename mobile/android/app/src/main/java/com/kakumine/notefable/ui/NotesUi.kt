@@ -1,5 +1,6 @@
 package com.kakumine.notefable.ui
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -86,6 +87,7 @@ import com.kakumine.notefable.data.NoteGroupSummary
 import com.kakumine.notefable.data.NoteImport
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
+import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.TRASH_RETENTION_DAYS
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -388,7 +390,7 @@ private fun FavoriteRow(page: NotePageSummary, active: Boolean, busy: Boolean, o
             .clickable(enabled = !busy) { onOpen(page.id) },
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+        Box(Modifier.padding(start = 4.dp).size(28.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
         Text(page.title, modifier = Modifier.weight(1f).padding(start = 4.dp, end = 8.dp), color = if (active) Sm.Ink else Sm.Text,
             fontSize = 14.sp, lineHeight = 20.sp, fontWeight = if (active) FontWeight(550) else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
         RowAction(Lucide.StarOff, 14.dp, stringResource(R.string.pg_remove_title_from_favorites, page.title), enabled = !busy) { onUnfavorite(page) }
@@ -448,7 +450,7 @@ private fun NoteRow(
                 if (active || page.locked) {
                     // 打开着的笔记：图标由编辑器保存（网页走自动保存），这里只显示，点它和点行一样。
                     // 锁定的页面也不能在这里改图标（网页 disabled={page.locked}）。
-                    Box(Modifier.size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+                    Box(Modifier.size(40.dp), Alignment.Center) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
                 } else {
                     // 图标按钮 40×40（左距 2、圆角 4），点开表情选择器（aria-label "Change icon of {title}"）；忙时禁用。
                     EmojiTriggerButton(
@@ -457,7 +459,7 @@ private fun NoteRow(
                         description = stringResource(R.string.em_change_icon_of, page.title),
                         modifier = Modifier.size(40.dp),
                         enabled = !busy,
-                    ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted) }
+                    ) { NoteIcon(page.icon, 15.sp, 15.dp, Sm.Muted, page.kind) }
                 }
                 Text(
                     page.title,
@@ -528,9 +530,12 @@ private fun IconSquare(icon: List<String>, iconSize: Dp, box: Dp, description: S
     ) { LucideIcon(icon, iconSize, tint) }
 }
 
-/** 笔记图标：设置了表情就显示表情，否则是 lucide 的 FileText。 */
+/**
+ * 笔记图标：设置了表情 / 上传的图片就显示它，否则是页面类型的图标（[pageKindIcon]：笔记 FileText、白板 Shapes、幻灯片 Presentation，
+ * 网页 NoteIcon 的 fallback = PageKindIcon）。
+ */
 @Composable
-fun NoteIcon(icon: String?, emojiSize: androidx.compose.ui.unit.TextUnit, iconSize: Dp, tint: Color) {
+fun NoteIcon(icon: String?, emojiSize: androidx.compose.ui.unit.TextUnit, iconSize: Dp, tint: Color, kind: PageKind = PageKind.Note) {
     // 上传的图片图标：和表情一样大（1em 四方、圆角 3），带登录 Cookie 读（Coil 共用 App 的 OkHttp）。
     val image = com.kakumine.notefable.data.NoteIcons.imagePath(icon)
     if (image != null) {
@@ -542,7 +547,15 @@ fun NoteIcon(icon: String?, emojiSize: androidx.compose.ui.unit.TextUnit, iconSi
             modifier = Modifier.size(side).clip(androidx.compose.foundation.shape.RoundedCornerShape(3.dp)),
         )
     } else if (icon != null) Text(icon, fontSize = emojiSize, lineHeight = emojiSize)
-    else LucideIcon(Lucide.FileText, iconSize, tint)
+    else LucideIcon(pageKindIcon(kind), iconSize, tint)
+}
+
+/** 页面类型的名字（网页 PAGE_KIND_LABELS）：检索结果里白板 / 幻灯片标题后面的小字。 */
+@StringRes
+fun pageKindLabel(kind: PageKind): Int = when (kind) {
+    PageKind.Note -> R.string.page_kind_note
+    PageKind.Whiteboard -> R.string.page_kind_whiteboard
+    PageKind.Slides -> R.string.page_kind_slides
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -688,7 +701,7 @@ private fun FavoriteHomeItem(page: NotePageSummary, busy: Boolean, onOpen: (Stri
             .clickable(enabled = !busy) { onOpen(page.id) }.padding(horizontal = 4.dp, vertical = 6.4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint) }
+        Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint, page.kind) }
         Spacer(Modifier.width(13.6.dp))
         Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 17.sp, lineHeight = 25.5.sp,
             fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -726,7 +739,7 @@ private fun HomeItem(
             Modifier.weight(1f).heightIn(min = 56.dp).clickable(enabled = !busy) { onOpen(page.id) }.noteReorderDrag(page, rowDrag).padding(horizontal = 4.dp, vertical = 6.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint) }
+            Box(Modifier.width(28.dp), Alignment.Center) { NoteIcon(page.icon, 20.sp, 20.dp, Faint, page.kind) }
             Spacer(Modifier.width(13.6.dp))
             Text(page.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 17.sp, lineHeight = 25.5.sp,
                 fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1139,7 +1152,7 @@ fun MoveNoteDialog(
                                     .semantics { role = Role.RadioButton },
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Box(Modifier.width(20.dp), Alignment.Center) { NoteIcon(target.icon, 15.sp, 15.dp, Sm.Muted) }
+                                Box(Modifier.width(20.dp), Alignment.Center) { NoteIcon(target.icon, 15.sp, 15.dp, Sm.Muted, target.kind) }
                                 Spacer(Modifier.width(8.dp))
                                 Text(target.title, modifier = Modifier.weight(1f), color = Sm.Text, fontSize = 15.sp,
                                     fontWeight = if (checked) FontWeight.SemiBold else FontWeight.Normal, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -1280,7 +1293,7 @@ private fun TrashRow(
 ) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 6.4.dp)) {
         Row(Modifier.fillMaxWidth().heightIn(min = 39.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(24.dp), Alignment.Center) { NoteIcon(item.icon, 17.sp, 16.dp, Sm.Muted) }
+            Box(Modifier.size(24.dp), Alignment.Center) { NoteIcon(item.icon, 17.sp, 16.dp, Sm.Muted, item.kind) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.6.dp)) {
                 Text(item.title, color = Sm.Text, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)

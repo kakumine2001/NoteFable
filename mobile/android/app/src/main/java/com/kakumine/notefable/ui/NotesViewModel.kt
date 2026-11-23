@@ -17,6 +17,7 @@ import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
+import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Job
@@ -49,8 +50,12 @@ data class NotesError(val kind: Kind, val detail: String? = null) {
  * 正在编辑的笔记。标题和图标随网页编辑器的 meta 消息更新。
  * [editor] 是这个编辑器（WebView）最初打开的页面 id，编辑器没换就不变；冲突后"另存为新笔记"时网页换到新页面，
  * [id] 跟着变成新页面，[editor] 不变，所以 WebView 不重新加载。
+ * [kind] 是页面类型（列表、检索结果里的；网页的 ready 消息带着时以它为准），决定顶栏的类型图标和分享按钮。
  */
-data class OpenNote(val id: String, val title: String, val icon: String?, val editor: String = id)
+data class OpenNote(val id: String, val title: String, val icon: String?, val editor: String = id, val kind: PageKind = PageKind.Note)
+
+/** 打开列表里的这一篇：标题、图标、类型都取列表项的。 */
+internal fun NotePageSummary.toOpenNote() = OpenNote(id, title, icon, kind = kind)
 
 /** 让网页保存的结果。[draftKept]：没保存成功，但草稿已留在 WebView 里、之后会重试（不是冲突），可以先离开。 */
 data class FlushResult(val ok: Boolean, val draftKept: Boolean = false)
@@ -322,10 +327,10 @@ class NotesViewModel(
     }
 
     /**
-     * 打开笔记。[title] / [icon] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
+     * 打开笔记。[title] / [icon] / [kind] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
      * 笔记已不存在时编辑器会报 missing，和网页一样回到列表。
      */
-    fun openNote(id: String, title: String? = null, icon: String? = null) {
+    fun openNote(id: String, title: String? = null, icon: String? = null, kind: PageKind = PageKind.Note) {
         val current = _state.value
         if (current.open?.id == id) {
             if (current.workspace != Workspace.Notes) _state.update { it.copy(workspace = Workspace.Notes) }
@@ -333,15 +338,15 @@ class NotesViewModel(
         }
         val page = current.pages.firstOrNull { it.id == id }
         val open = when {
-            page != null -> OpenNote(page.id, page.title, page.icon)
-            title != null -> OpenNote(id, title, icon)
+            page != null -> page.toOpenNote()
+            title != null -> OpenNote(id, title, icon, kind = kind)
             else -> return
         }
         // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
         val pending = iconWrites[id]
         leaveThen(before = { pending?.done?.await() }) {
             val target = if (pending == null) open else {
-                _state.value.pages.firstOrNull { it.id == id }?.let { OpenNote(it.id, it.title, it.icon) } ?: open
+                _state.value.pages.firstOrNull { it.id == id }?.toOpenNote() ?: open
             }
             _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
         }
@@ -397,7 +402,7 @@ class NotesViewModel(
                     it.copy(
                         workspace = Workspace.Notes,
                         pages = upsert(it.pages, page),
-                        open = OpenNote(page.id, page.title, page.icon),
+                        open = page.toOpenNote(),
                         saveState = null, notice = null, busy = false,
                     )
                 }
@@ -424,13 +429,17 @@ class NotesViewModel(
     /**
      * 编辑器读好了页面 [pageId]。和打开着的不是同一页时，是冲突后"另存为新笔记"换到了副本：
      * 打开着的笔记换成副本（WebView 不重新加载），原来那篇的列表项不动，重读列表把副本加进来。
+     * [kind] 是网页读到的页面类型（旧网页不发时是 null，保留已知的类型）。
      */
-    fun onEditorReady(editor: String, pageId: String, title: String, icon: String?) {
+    fun onEditorReady(editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = null) {
         val open = _state.value.open
         if (open != null && open.editor == editor && open.id != pageId) {
-            _state.update { it.copy(open = open.copy(id = pageId, title = title, icon = icon), saveState = null) }
+            _state.update { it.copy(open = open.copy(id = pageId, title = title, icon = icon, kind = kind ?: open.kind), saveState = null) }
             refresh()
             return
+        }
+        if (kind != null) {
+            _state.update { state -> state.copy(open = state.open?.takeIf { it.editor == editor && it.id == pageId }?.copy(kind = kind) ?: state.open) }
         }
         onEditorMeta(editor, title, icon)
     }
@@ -640,7 +649,7 @@ class NotesViewModel(
                 }
                 if (applied) {
                     _state.update { it.copy(busy = false) }
-                    openNote(result.page.id, result.page.title, result.page.icon)
+                    openNote(result.page.id, result.page.title, result.page.icon, result.page.kind)
                 }
             } catch (e: CancellationException) {
                 if (owner == identity) _state.update { it.copy(busy = false) }
@@ -766,7 +775,7 @@ class NotesViewModel(
                 val applied = commit(owner) {
                     _state.update { s -> s.copy(busy = false, pages = created.fold(s.pages) { pages, page -> upsert(pages, page) }) }
                 }
-                if (applied) created.firstOrNull()?.let { openNote(it.id, it.title, it.icon) }
+                if (applied) created.firstOrNull()?.let { openNote(it.id, it.title, it.icon, it.kind) }
             } catch (e: CancellationException) {
                 if (owner == identity) _state.update { it.copy(busy = false) }
                 throw e

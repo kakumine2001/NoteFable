@@ -322,7 +322,7 @@ class SidebarViewModel(
                 if (error is CancellationException) throw error
                 throw ProjectSettingsLoadError(SidebarError.of(error, R.string.sb_err_load_your_notes))
             }.getOrThrow()
-            loaded to notes.map { ChatProjectNote(it.id, it.title, it.icon) }
+            loaded to notes.map { ChatProjectNote(it.id, it.title, it.icon, it.kind) }
         }
     }.onFailure { if (it is CancellationException) throw it }
 

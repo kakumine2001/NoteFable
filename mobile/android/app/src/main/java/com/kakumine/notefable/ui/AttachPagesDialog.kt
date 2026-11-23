@@ -120,7 +120,7 @@ fun AttachPagesDialog(
                         verticalArrangement = Arrangement.spacedBy(5.6.dp),
                     ) {
                         selected.forEach { note ->
-                            NoteChip(note.title.ifEmpty { untitled }, enabled = true) { selected = toggleProjectNote(selected, note, MAX_MESSAGE_NOTES) }
+                            NoteChip(note.title.ifEmpty { untitled }, note.kind, enabled = true) { selected = toggleProjectNote(selected, note, MAX_MESSAGE_NOTES) }
                         }
                     }
                 }

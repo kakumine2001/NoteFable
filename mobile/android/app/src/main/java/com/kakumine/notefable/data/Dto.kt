@@ -167,9 +167,12 @@ data class ChatProjectsResponse(val projects: List<ChatProjectSummary> = emptyLi
 @Serializable
 data class ChatProjectResponse(val project: ChatProjectSummary)
 
-/** 设置窗口用的详情：notes 按选的顺序，不含回收站里的笔记。 */
+/**
+ * 设置窗口用的详情：notes 按选的顺序，不含回收站里的笔记。发言添加的笔记（[MessageDto.pages]）和输入栏上方待发送的也用它。
+ * [kind] 是页面类型（旧服务端不返回，按笔记）。
+ */
 @Serializable
-data class ChatProjectNote(val id: String, val title: String = "", val icon: String? = null)
+data class ChatProjectNote(val id: String, val title: String = "", val icon: String? = null, val kind: PageKind = PageKind.Note)
 
 @Serializable
 data class ChatProjectDetail(
