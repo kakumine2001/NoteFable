@@ -124,8 +124,11 @@ vi.mock("@/lib/view-transition", () => ({
   runTransition: (update: () => void) => update(),
 }));
 
+const sheetCleanupMock = vi.hoisted(() => ({ isCleanup: false }));
 vi.mock("@/lib/use-back-to-close", () => ({
   restoreSheetMarker: vi.fn(),
+  afterSheetHistory: (cb: () => void) => cb(),
+  isSheetCleanupPopState: () => sheetCleanupMock.isCleanup,
 }));
 
 const preloadPageEditor = vi.hoisted(() => vi.fn());
@@ -133,6 +136,7 @@ vi.mock("@/lib/preload-editor", () => ({
   preloadPageEditor,
 }));
 
+import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 import { useNotePages } from "./use-note-pages";
 
@@ -268,6 +272,7 @@ describe("useNotePages instant switching & prefetch", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     preloadPageEditor.mockClear();
+    sheetCleanupMock.isCleanup = false;
     hookRuntime.reset();
   });
 
@@ -655,5 +660,120 @@ describe("useNotePages instant switching & prefetch", () => {
     await flushMicrotasks();
     expect(hook.current.hasCached("w1")).toBe(false);
     expect(hook.current.activeId).toBeNull();
+  });
+
+  it("ignores tablet drawer cleanup popstate while keeping real Back cancellation, and flushes pending whiteboard strokes before revalidation", async () => {
+    const { fakeWindow } = createFakeBrowser();
+    const wbV1: NotePage = { ...makePage("w1", "Board", 1), kind: "whiteboard", data: { elements: [] } };
+    const wbV2: NotePage = { ...makePage("w1", "Board v2", 2), kind: "whiteboard", data: { elements: [{ id: "remote", type: "rectangle" }] } };
+    const pageB = makePage("b", "Beta", 1);
+    const fetchB = deferred<Response>();
+    const revalWb = deferred<Response>();
+    let wbCalls = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(wbV1), makeSummary(pageB)], groups: [] }));
+      if (url === "/api/pages/w1") {
+        wbCalls += 1;
+        return wbCalls === 1 ? Promise.resolve(jsonResponse({ page: wbV1 })) : revalWb.promise;
+      }
+      if (url === "/api/pages/b") return fetchB.promise;
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+    await hook.current.select("w1", "push");
+    await flushMicrotasks();
+
+    // Start opening uncached B, then simulate tablet drawer cleanup popstate -> must NOT cancel B!
+    const openB = hook.current.select("b", "push");
+    await flushMicrotasks();
+    expect(hook.current.openingId).toBe("b");
+    sheetCleanupMock.isCleanup = true;
+    fakeWindow.dispatchEvent(new Event("popstate"));
+    sheetCleanupMock.isCleanup = false;
+    await flushMicrotasks();
+    expect(hook.current.openingId).toBe("b");
+
+    fetchB.resolve(jsonResponse({ page: pageB }));
+    await openB;
+    await flushMicrotasks();
+    expect(hook.current.activeId).toBe("b");
+
+    // Switch back to cached whiteboard w1; register a pending 400ms stroke via sync flusher.
+    await hook.current.select("w1", "push");
+    await flushMicrotasks();
+    const off = registerCanvasFlusher(
+      () => true,
+      () => {
+        hook.current.active!.edit({ ...hook.current.active!.content, data: { elements: [{ id: "local-stroke", type: "freedraw" }] } });
+        return false;
+      },
+    );
+    try {
+      revalWb.resolve(jsonResponse({ page: wbV2 }));
+      await flushMicrotasks();
+      // Pending stroke was flushed synchronously before loadLatest -> conflict raised instead of silently discarding!
+      expect(hook.current.active?.status).toBe("conflict");
+      expect(hook.current.active?.content.data).toEqual({ elements: [{ id: "local-stroke", type: "freedraw" }] });
+    } finally {
+      off();
+    }
+  });
+
+  it("preserves newer lock/favorite settings on cached open and refetches invalidated in-flight prefetches", async () => {
+    const { fakeWindow, history } = createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB1 = makePage("b", "Beta v1", 1);
+    const pageB2 = makePage("b", "Beta v2", 2);
+    const prefetchB1 = deferred<Response>();
+    let bCalls = 0;
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages") return Promise.resolve(jsonResponse({ pages: [makeSummary(pageA), makeSummary(pageB1)], groups: [] }));
+      if (url === "/api/pages/a") return Promise.resolve(jsonResponse({ page: pageA }));
+      if (url === "/api/pages/a/settings" && init?.method === "PUT") {
+        return Promise.resolve(jsonResponse({ page: { ...makeSummary(pageA), locked: true } }));
+      }
+      if (url === "/api/pages/b") {
+        bCalls += 1;
+        return bCalls === 1 ? prefetchB1.promise : Promise.resolve(jsonResponse({ page: pageB2 }));
+      }
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(true));
+    await flushMicrotasks();
+
+    // 1. Prefetch A (locked: false), then lock A from sidebar -> opening A must keep locked: true!
+    hook.current.prefetch("a", true);
+    await flushMicrotasks();
+    await hook.current.updateSettings("a", { locked: true });
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(true);
+    await hook.current.select("a", "push");
+    await flushMicrotasks();
+    expect(hook.current.pages.find((p) => p.id === "a")?.locked).toBe(true);
+
+    // 2. Click joins in-flight prefetch of B1; AI update arrives mid-flight -> select must refetch B2!
+    hook.current.prefetch("b", true);
+    const selectB = hook.current.select("b", "push");
+    await flushMicrotasks();
+    fakeWindow.dispatchEvent(new CustomEvent("notefable:page-updated", { detail: pageB2 }));
+    prefetchB1.resolve(jsonResponse({ page: pageB1 }));
+    await selectB;
+    await flushMicrotasks();
+    expect(bCalls).toBe(2);
+    expect(hook.current.activeId).toBe("b");
+    expect(hook.current.active?.content.title).toBe("Beta v2");
+    expect(hook.current.active?.version).toBe(2);
+
+    // 3. Reselecting displayed B when URL points elsewhere restores URL back to ?page=b.
+    fakeWindow.location.href = "https://app.notefable.com/app?view=pages&page=other";
+    history.pushState.mockClear();
+    await hook.current.select("b", "push");
+    await flushMicrotasks();
+    expect(history.pushState).toHaveBeenCalledWith(null, "", expect.objectContaining({ search: "?view=pages&page=b" }));
   });
 });

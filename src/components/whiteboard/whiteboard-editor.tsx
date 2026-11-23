@@ -341,18 +341,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
 
   // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
   // 待っても終わらない画像があれば false（保存し切れていない。アプリは編集画面を閉じずに知らせる）。
-  useEffect(() => registerCanvasFlusher(async () => {
-    flushRef.current();
-    if (!uploadTasks.current.size) return true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.allSettled([...uploadTasks.current]),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
-    ]);
-    clearTimeout(timer);
-    flushRef.current();
-    return uploadTasks.current.size === 0;
-  }), []);
+  // 第 2 引数の同期フラッシュは、裏の再検証が loadLatest() を呼ぶ前に 400ms 待ちの線やアップロード中画像を拾うために使う。
+  useEffect(() => registerCanvasFlusher(
+    async () => {
+      flushRef.current();
+      if (!uploadTasks.current.size) return true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.allSettled([...uploadTasks.current]),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
+      ]);
+      clearTimeout(timer);
+      flushRef.current();
+      return uploadTasks.current.size === 0;
+    },
+    () => {
+      flushRef.current();
+      return uploadTasks.current.size > 0;
+    },
+  ), []);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {
@@ -507,7 +514,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // 開いた直後の依頼は、最初の内容を読み終えた時（onInitialize）に受け取る。ここは開いている間に来たもの。
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<WhiteboardRevealDetail>).detail;
-      if (detail?.pageId === pageId && initialized.current && consumeWhiteboardReveal(pageId)) reveal(detail.elementId);
+      if (detail?.pageId === pageId && initialized.current) consumeWhiteboardReveal(pageId, Date.now(), (elementId) => reveal(elementId));
     };
     window.addEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
     return () => window.removeEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
@@ -616,7 +623,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
-    const pending = consumeWhiteboardReveal(pageId);
+    // 検索の結果から開いたときの依頼は、今のシーン（キャッシュから開いた古いシーンのこともある）に要素がある時だけ受け取る。
+    // 無ければ依頼を残し、裏の再検証で新しいシーンが載った後に受け取り直す（reveal.ts）。
+    const pending = consumeWhiteboardReveal(pageId, Date.now(), (elementId) => ready.getSceneElements().some((element) => element.id === elementId));
     const { width, height } = ready.getAppState();
     // 枠の大きさがまだ 0（見えていない枠・後から広がる App の WebView）のときに合わせると、10% まで縮んで左上に寄る。
     // 大きさが決まってから合わせる（handleChange が Excalidraw の大きさの変化を見て行う）。

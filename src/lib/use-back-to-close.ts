@@ -11,9 +11,16 @@ const MARKER = { notefableSheet: true };
 let pendingBack: ReturnType<typeof setTimeout> | null = null;
 // 自分で呼んだ history.back() が起こす popstate を、端末の「戻る」と区別して無視するための印。
 let ownBack = false;
+let ownBackEvent: Event | null = null;
 let listening = false;
 
 const hasMarker = () => !!window.history.state?.notefableSheet;
+
+// いま届いた popstate がシート・ドロワーの後始末（history.back）によるものか。
+// リスナーの登録順に関わらず判定できるよう、処理中（ownBack）と同一イベント配送中（ownBackEvent）の両方を見る。
+export function isSheetCleanupPopState(event?: Event): boolean {
+  return ownBack || (Boolean(event) && ownBackEvent === event);
+}
 
 // 目印を外す history.back() を待っている処理（afterSheetHistory）。
 let afterBack: (() => void)[] = [];
@@ -38,6 +45,8 @@ function onPopState(event: PopStateEvent) {
   if (!event.isTrusted) return;
   if (ownBack) {
     ownBack = false;
+    ownBackEvent = event;
+    queueMicrotask(() => { if (ownBackEvent === event) ownBackEvent = null; });
     // 退けた目印のあとに別のシートが開いていた（目印を積み損ねた）場合は積み直す。
     restoreSheetMarker();
     // 元の履歴に戻った。Next.js がこの popstate を処理し終えてから、待っていた書き換えをする。

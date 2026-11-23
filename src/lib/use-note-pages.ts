@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
-import { flushCanvasEditors } from "@/lib/canvas-flush";
+import { flushCanvasEditors, flushCanvasEditorsSync } from "@/lib/canvas-flush";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
@@ -12,7 +12,7 @@ import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
 import { PAGES_TRASHED_EVENT, PAGES_WILL_TRASH_EVENT, type PagesWillTrashDetail } from "@/lib/proposal-sync";
 import { preloadPageEditor } from "@/lib/preload-editor";
-import { restoreSheetMarker } from "@/lib/use-back-to-close";
+import { afterSheetHistory, isSheetCleanupPopState, restoreSheetMarker } from "@/lib/use-back-to-close";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -64,7 +64,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const queues = useRef(new Map<string, NoteSaveQueue>());
   // ホバー・フォーカスで先読みしたページ本体（副作用を出さないよう、開くまで NoteSaveQueue は作らない）。
   const prefetched = useRef(new Map<string, { page: NotePage; fetchedAt: number }>());
-  const inflightPages = useRef(new Map<string, Promise<NotePage>>());
+  const inflightPages = useRef(new Map<string, Promise<{ page: NotePage; startedMeta: number }>>());
   const inflightPrefetches = useRef(new Set<string>());
   const invalidationSeq = useRef(new Map<string, number>());
   const prefetchTimer = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
@@ -78,6 +78,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   const actionBusy = useRef(false);
   const displayedId = useRef<string | null>(null);
   const pendingId = useRef<string | null>(null);
+
+  // この画面で表示設定・お気に入りを変えるたびに進める番号。ページごとに最後に変えた番号を覚える（取得・保存の応答が古い値で戻さないため）。
+  const metaSequence = useRef(0);
+  const metaChanged = useRef(new Map<string, number>());
+  const markMeta = useCallback((id: string) => { metaChanged.current.set(id, ++metaSequence.current); }, []);
 
   const invalidatePageCache = useCallback((id: string) => {
     prefetched.current.delete(id);
@@ -96,10 +101,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     }
   }, []);
 
-  const fetchPage = useCallback((id: string): Promise<NotePage> => {
+  const fetchPage = useCallback((id: string): Promise<{ page: NotePage; startedMeta: number }> => {
     const inflight = inflightPages.current.get(id);
     if (inflight) return inflight;
-    const promise = pageRequest(`/api/pages/${id}`).then((data) => data.page as NotePage);
+    const startedMeta = metaSequence.current;
+    const promise = pageRequest(`/api/pages/${id}`).then((data) => ({ page: data.page as NotePage, startedMeta }));
     const wrapped = promise.finally(() => {
       if (inflightPages.current.get(id) === wrapped) inflightPages.current.delete(id);
     });
@@ -126,7 +132,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     const seq = invalidationSeq.current.get(id) ?? 0;
     inflightPrefetches.current.add(id);
     void fetchPage(id)
-      .then((page) => { cachePrefetched(id, page, seq); })
+      .then(({ page }) => { cachePrefetched(id, page, seq); })
       .catch(() => { /* 先読みの失敗は無視し、実際に開いたときに通常どおり扱う。 */ })
       .finally(() => { inflightPrefetches.current.delete(id); });
   }, [cachePrefetched, fetchPage]);
@@ -154,10 +160,6 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
   // それ以外（サーバーから読んだ・保存した行）は、お気に入り・表示設定をサーバーの値にそろえる（別タブ・アプリでの変更を拾う）。
-  // この画面で表示設定・お気に入りを変えるたびに進める番号。ページごとに最後に変えた番号を覚える（保存の応答が古い値で戻さないため）。
-  const metaSequence = useRef(0);
-  const metaChanged = useRef(new Map<string, number>());
-  const markMeta = useCallback((id: string) => { metaChanged.current.set(id, ++metaSequence.current); }, []);
 
   // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
   // since: 保存を始めた時点の番号。その後にこの画面で設定を変えていたら一覧の値を残し、変えていなければサーバーの値（別のタブ・アプリでの変更）を使う。
@@ -249,20 +251,26 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   const syncPageUrl = useCallback((id: string, historyMode: "push" | "replace" | "none") => {
     if (historyMode === "none") return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get("view") !== "pages") return;
-    url.searchParams.set("page", id);
-    if (url.href === window.location.href) return;
-    if (historyMode === "push") {
-      if (window.history.state?.notefableSheet) {
-        window.history.replaceState(null, "", url);
-        restoreSheetMarker();
+    const apply = () => {
+      if (displayedId.current !== id) return;
+      const url = new URL(window.location.href);
+      if (url.searchParams.get("view") !== "pages") return;
+      url.searchParams.set("page", id);
+      if (url.href === window.location.href) return;
+      if (historyMode === "push") {
+        if (window.history.state?.notefableSheet) {
+          window.history.replaceState(null, "", url);
+          restoreSheetMarker();
+        } else {
+          window.history.pushState(null, "", url);
+        }
       } else {
-        window.history.pushState(null, "", url);
+        window.history.replaceState(null, "", url);
       }
-    } else {
-      window.history.replaceState(null, "", url);
-    }
+    };
+    // タブレット等のドロワー後始末（history.back）が予約・実行中なら、それが終わってから URL を書き換える。
+    if (window.history.state?.notefableSheet) apply();
+    else afterSheetHistory(apply);
   }, []);
 
   // 開けたら true。ノートが無い（ゴミ箱に入った・削除された）ときだけ false で、呼び出し側が古いリンクを片付けられる。
@@ -287,18 +295,21 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       setActiveId(id);
       displayedId.current = id;
       setActive(queue);
-      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon });
+      // 先読みや前回開いた時点の古い設定（ロック・お気に入り等）で一覧の最新値を巻き戻さないよう local: true で反映する。
+      upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
       syncPageUrl(id, historyMode);
       // 先読み直後で十分に新しい場合以外は、裏で最新版を照合して別タブの更新・削除を拾う。
       const shouldRevalidate = Boolean(existing) || !prefetchedEntry || Date.now() - prefetchedEntry.fetchedAt >= PREFETCH_FRESH_MS;
       if (shouldRevalidate) {
         const seq = invalidationSeq.current.get(id) ?? 0;
-        void fetchPage(id).then((latestPage) => {
+        void fetchPage(id).then(({ page: latestPage, startedMeta }) => {
           if ((invalidationSeq.current.get(id) ?? 0) !== seq) return;
           const currentQueue = queues.current.get(id);
           if (!currentQueue) return;
           if (latestPage.version > currentQueue.version) {
-            if (!currentQueue.dirty && currentQueue.status !== "saving") {
+            // ホワイトボード等に 400ms 待ちの未提出の線やアップロード中画像があれば、先に同期でキューへ渡してから判定する。
+            const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+            if (!hasPendingEditorWork && !currentQueue.dirty && currentQueue.status !== "saving") {
               currentQueue.loadLatest(latestPage);
               if (displayedId.current === id) setEditorEpoch((value) => value + 1);
             } else if (currentQueue.status !== "saving") {
@@ -309,17 +320,20 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
             }
           }
           if (latestPage.version >= currentQueue.version) {
-            upsertSummary({ ...latestPage, title: currentQueue.content.title.trim() || "Untitled", icon: currentQueue.content.icon });
+            upsertSummary({ ...latestPage, title: currentQueue.content.title.trim() || "Untitled", icon: currentQueue.content.icon }, { since: startedMeta });
           }
         }).catch((caught) => {
           const gone = caught instanceof NoteSaveError && caught.status === 404;
           if (!gone) return;
           const currentQueue = queues.current.get(id);
-          if (currentQueue?.dirty) {
-            currentQueue.gone = true;
-            currentQueue.status = "error";
-            currentQueue.error = caught instanceof Error ? caught.message : msg("Failed to open note.");
-            refresh((value) => value + 1);
+          const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+          if (currentQueue?.dirty || hasPendingEditorWork) {
+            if (currentQueue) {
+              currentQueue.gone = true;
+              currentQueue.status = "error";
+              currentQueue.error = caught instanceof Error ? caught.message : msg("Failed to open note.");
+              refresh((value) => value + 1);
+            }
             return;
           }
           invalidatePageCache(id);
@@ -349,17 +363,27 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       setActiveId(null);
       setActive(undefined);
     }
-    const seq = invalidationSeq.current.get(id) ?? 0;
     try {
-      const latestPage = await fetchPage(id);
-      if (intent !== navigation.current) {
-        cachePrefetched(id, latestPage, seq);
-        return true;
+      let latestPage: NotePage;
+      let startedMeta: number;
+      while (true) {
+        const seq = invalidationSeq.current.get(id) ?? 0;
+        const fetched = await fetchPage(id);
+        if (intent !== navigation.current) {
+          cachePrefetched(id, fetched.page, seq);
+          return true;
+        }
+        // ホバー先読みに相乗りしている間に AI 編集・アイコン変更等で無効化された場合は、取り直して最新版を開く。
+        if ((invalidationSeq.current.get(id) ?? 0) !== seq) continue;
+        latestPage = fetched.page;
+        startedMeta = fetched.startedMeta;
+        break;
       }
       const existingAfter = queues.current.get(id);
       const queue = existingAfter ?? install(latestPage);
       if (existingAfter && latestPage.version > existingAfter.version) {
-        if (!existingAfter.dirty && existingAfter.status !== "saving") {
+        const hasPendingEditorWork = displayedId.current === id && flushCanvasEditorsSync();
+        if (!hasPendingEditorWork && !existingAfter.dirty && existingAfter.status !== "saving") {
           existingAfter.loadLatest(latestPage);
           setEditorEpoch((value) => value + 1);
         } else if (existingAfter.status !== "saving") {
@@ -371,7 +395,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       setActiveId(id);
       displayedId.current = id;
       setActive(queue);
-      upsertSummary({ ...latestPage, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon });
+      upsertSummary({ ...latestPage, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { since: startedMeta });
       syncPageUrl(id, historyMode);
       return true;
     } catch (caught) {
@@ -550,7 +574,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }, [upsertSummary, markMeta, invalidatePageCache, cancelPending]);
 
   useEffect(() => {
-    function onPopState() {
+    function onPopState(event: PopStateEvent) {
+      // タブレット等のドロワーを閉じた後始末（use-back-to-close の history.back）はユーザーの「戻る」ではないので、進行中のページ選択を消さない。
+      if (isSheetCleanupPopState(event)) return;
       const url = new URL(window.location.href);
       const id = url.searchParams.get("page");
       if (url.searchParams.get("view") === "pages" && id) {
