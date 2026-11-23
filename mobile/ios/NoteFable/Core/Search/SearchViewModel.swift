@@ -161,6 +161,8 @@ final class SearchViewModel {
     /// 要被观察：[view] 用它出项目筛选和项目名，列表读完时条件没变（不重新检索）界面也得重画
     /// （Android 是 Compose 的参数，变了就重组）。
     private var projects: [ChatProjectSummary] = []
+    /// 能新建的类型（类型筛选的选项，`PageKindTable.creatable`）。表换了要重新检索（选着的类型可能没了）。
+    private var kinds: [PageKind] = PageKindTable.creatable(in: PageKindTable.shared.snapshot)
     /// 正在等待 / 进行的那次检索（测试里等它结束）。
     @ObservationIgnored private(set) var job: Task<Void, Never>?
     @ObservationIgnored private var scheduledKey: String?
@@ -182,6 +184,11 @@ final class SearchViewModel {
 
     func setProjects(_ list: [ChatProjectSummary]) {
         projects = list
+        schedule()
+    }
+
+    func setKinds(_ list: [PageKind]) {
+        kinds = list
         schedule()
     }
 
@@ -221,7 +228,7 @@ final class SearchViewModel {
 
     /// 界面内容；项目列表是 [setProjects] 给的那份。
     func view(currentProjectId: String?, chatFirst: Bool) -> SearchView {
-        state.view(projects, currentProjectId, chatFirst)
+        state.view(projects, currentProjectId, chatFirst, kinds: kinds)
     }
 
     /// 检索关掉了：停掉还在等的请求。
@@ -232,7 +239,7 @@ final class SearchViewModel {
     }
 
     private func schedule() {
-        let view = state.view(projects, nil, true)
+        let view = state.view(projects, nil, true, kinds: kinds)
         if view.key == scheduledKey { return }
         scheduledKey = view.key
         job?.cancel()

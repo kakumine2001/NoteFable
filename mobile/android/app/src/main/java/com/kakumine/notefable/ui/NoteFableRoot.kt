@@ -94,7 +94,11 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
     LaunchedEffect(openEditor) { if (noteStorageLimit?.first != openEditor) noteStorageLimit = null }
     // 全屏检索（Batch 4）：抽屉的 Search 行和顶栏的搜索按钮打开。
     var searchOpen by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    val openSearch = { searchOpen = true }
+    // 还没读过笔记列表时（从聊天直接打开检索）顺便读一次：页面类型的表（检索的类型筛选）跟着 GET /api/pages 的 kinds。
+    val openSearch = {
+        searchOpen = true
+        if (!notes.loaded && !notes.loading) notesViewModel.refresh()
+    }
     // 当前打开着的网页编辑器的 JS 桥（没有打开笔记时为 null）。
     var editorBridge by remember { mutableStateOf<NoteEmbedBridge?>(null) }
     val downloadNoteFile = rememberNoteFileDownloader(app.api)

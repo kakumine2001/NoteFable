@@ -349,13 +349,14 @@ function withDeadline<T>(promise: Promise<T>, ms: number, fallback: T): Promise<
   return Promise.race([promise.finally(() => { if (timer) clearTimeout(timer); }), timeout]);
 }
 
-async function loadIndexedChunks(userId: string, config: EmbeddingConfig): Promise<ChunkRow[]> {
+// kind を渡すとその種類のページの塊だけ（LIMIT の前に絞る：ほかの種類の新しい塊で枠が埋まらないように）。
+async function loadIndexedChunks(userId: string, config: EmbeddingConfig, kind?: PageKind): Promise<ChunkRow[]> {
   const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
   return prisma.$queryRaw<ChunkRow[]>(Prisma.sql`
     SELECT e."noteId", e."chunkIndex", e."blockId", e."noteVersion", e."vector", p."kind"::text AS "kind", p."title", p."icon", p."updatedAt"
     FROM ${table("NoteEmbedding")} e
     JOIN ${table("NotePage")} p ON p."id" = e."noteId"
-    WHERE e."userId" = ${userId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
+    WHERE e."userId" = ${userId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL ${kind ? Prisma.sql`AND p."kind"::text = ${kind}` : Prisma.empty}
       AND e."noteVersion" = p."version"
       AND e."model" = ${config.model} AND e."dimensions" = ${config.dimensions}
     ORDER BY p."updatedAt" DESC, e."chunkIndex" ASC
@@ -365,7 +366,7 @@ async function loadIndexedChunks(userId: string, config: EmbeddingConfig): Promi
 async function runSemanticSearch(userId: string, query: string, config: EmbeddingConfig, options: SemanticSearchOptions): Promise<{ hits: SemanticNoteHit[]; hasMoreBackfill: boolean }> {
   const timeoutMs = options.timeoutMs ?? 2500;
   const [initialRows, staleIds] = await Promise.all([
-    loadIndexedChunks(userId, config),
+    loadIndexedChunks(userId, config, options.kind),
     findStaleNoteIds(userId, config, 1).catch(() => []),
   ]);
   let rows = initialRows;
@@ -377,10 +378,9 @@ async function runSemanticSearch(userId: string, query: string, config: Embeddin
       signal: signalFor({ timeoutMs, signal: options.signal }, timeoutMs),
     }).catch(() => ({ synced: 0, hasMore: true }));
     hasMoreBackfill = backfill.hasMore;
-    if (backfill.synced > 0) rows = await loadIndexedChunks(userId, config);
+    if (backfill.synced > 0) rows = await loadIndexedChunks(userId, config, options.kind);
   }
 
-  if (options.kind) rows = rows.filter((row) => pageKindOf(row) === options.kind);
   // 検索できる通常のノートが 1 件も無ければ、埋め込み API を呼ばない（匿名検索での無駄な課金を防ぐ）。
   if (!rows.length) return { hits: [], hasMoreBackfill };
 

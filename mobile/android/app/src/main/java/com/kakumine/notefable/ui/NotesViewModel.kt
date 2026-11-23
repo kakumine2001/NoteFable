@@ -306,7 +306,7 @@ class NotesViewModel(
         trashActionJobs.toList().forEach { it.cancel() }
         // 旧身份选好、还没选去处的导入文件不再导入（窗口随下面的新状态关掉）。
         pendingImport = null
-        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded) }
+        _state.update { NotesUiState(workspace = it.workspace, collapsed = it.collapsed, expanded = it.expanded, collapsedSections = it.collapsedSections) }
         if (_state.value.workspace == Workspace.Notes) refresh()
     }
 

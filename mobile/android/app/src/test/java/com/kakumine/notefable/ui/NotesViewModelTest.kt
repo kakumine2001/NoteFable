@@ -266,6 +266,10 @@ class NotesViewModelTest {
         assertEquals(setOf("note"), prefs.collapsedSections)
         vm.toggleSection(PageKind.Note)
         assertTrue(vm.state.value.collapsedSections.isEmpty())
+        // 换身份（登录 / 退出）时折叠状态是这台设备的，保留（和项目的折叠一样）。
+        vm.toggleSection(PageKind.Slides)
+        vm.onIdentityChanged()
+        assertEquals(setOf(PageKind.Slides), vm.state.value.collapsedSections)
     }
 
     @Test

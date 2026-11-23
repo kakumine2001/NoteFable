@@ -15,6 +15,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.kakumine.notefable.data.PageKind
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -48,6 +49,29 @@ class SearchViewModelTest {
         assertEquals(listOf("api"), view.terms)
         // 在笔记界面时 Notes 在前。
         assertEquals(listOf(false, true), vm.state.value.view(projects, null, false).groups.map { it.isChats })
+    }
+
+    @Test
+    fun `the Notes type filter is sent only when two or more kinds can be created, and a vanished kind searches again`() = runTest {
+        val kinds = mutableListOf<String?>()
+        val vm = SearchViewModel(backgroundScope, { q, _, _, k -> kinds += k; response(q) })
+        val all = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+        vm.setKinds(all)
+        vm.setScope(SearchScope.Notes)
+        vm.setKind("slides")
+        vm.setInput("plan")
+        advanceTimeBy(251)
+        runCurrent()
+        assertEquals(listOf<String?>("slides"), kinds)
+        assertEquals(all, vm.state.value.view(projects, null, true, all).kindOptions)
+        // 开关关掉了：筛选消失，按全部类型重新检索（不会一直停在"检索中"）。
+        vm.setKinds(listOf(PageKind.Note))
+        advanceTimeBy(251)
+        runCurrent()
+        assertEquals(listOf("slides", null), kinds)
+        val view = vm.state.value.view(projects, null, true, listOf(PageKind.Note))
+        assertTrue(view.kindOptions.isEmpty())
+        assertFalse(view.loading)
     }
 
     @Test

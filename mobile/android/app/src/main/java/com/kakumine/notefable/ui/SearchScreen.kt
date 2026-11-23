@@ -127,6 +127,9 @@ fun SearchScreen(
     val scope = rememberCoroutineScope()
     val vm = remember { SearchViewModel(scope, backend) }
     LaunchedEffect(projects) { vm.setProjects(projects) }
+    // 类型筛选的选项跟着服务端的表（[PageKindTable] 是 Compose 状态）：换了就重新检索。
+    val kinds = com.kakumine.notefable.data.PageKindTable.creatable
+    LaunchedEffect(kinds) { vm.setKinds(kinds) }
     val state by vm.state.collectAsStateWithLifecycle()
     val view = state.view(projects, currentProjectId, chatFirst)
     val focus = remember { FocusRequester() }

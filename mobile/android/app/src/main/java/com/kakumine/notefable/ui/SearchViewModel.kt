@@ -126,11 +126,18 @@ class SearchViewModel(
     val state: StateFlow<SearchUiState> = _state.asStateFlow()
 
     private var projects: List<ChatProjectSummary> = emptyList()
+    /** 能新建的类型（类型筛选的选项，[PageKindTable.creatable]）。表换了要重新检索（选着的类型可能没了）。 */
+    private var kinds: List<PageKind> = PageKindTable.creatable
     private var job: Job? = null
     private var scheduledKey: String? = null
 
     fun setProjects(list: List<ChatProjectSummary>) {
         projects = list
+        schedule()
+    }
+
+    fun setKinds(list: List<PageKind>) {
+        kinds = list
         schedule()
     }
 
@@ -165,7 +172,7 @@ class SearchViewModel(
     }
 
     private fun schedule() {
-        val view = _state.value.view(projects, null, true)
+        val view = _state.value.view(projects, null, true, kinds)
         if (view.key == scheduledKey) return
         scheduledKey = view.key
         job?.cancel()

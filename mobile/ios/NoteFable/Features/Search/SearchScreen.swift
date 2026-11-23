@@ -64,6 +64,15 @@ private struct SearchPanel: View {
         .onChange(of: projects, initial: true) { _, list in
             model.setProjects(list)
         }
+        // 类型筛选的选项跟着服务端的表（笔记列表读到的 kinds）：换了就重新检索。
+        .onChange(of: app.notes.state.kinds, initial: true) { _, list in
+            model.setKinds(list)
+        }
+        .task {
+            // 还没读过笔记列表时（从聊天直接打开检索）顺便读一次：页面类型的表跟着 GET /api/pages 的 kinds。
+            let notes = app.notes
+            if !notes.state.loaded && !notes.state.loading { notes.refresh() }
+        }
         .task {
             // 等面板进了窗口再聚焦，太早设会被忽略。
             try? await Task.sleep(nanoseconds: 80_000_000)

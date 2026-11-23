@@ -139,7 +139,7 @@ final class NotesViewModel {
         linkTask?.cancel()
         trashTask?.cancel()
         for task in trashActionTasks.values { task.cancel() }
-        state = NotesUiState(workspace: state.workspace, collapsed: state.collapsed, expanded: state.expanded)
+        state = NotesUiState(workspace: state.workspace, collapsed: state.collapsed, expanded: state.expanded, collapsedSections: state.collapsedSections)
         if state.workspace == .notes { refresh() }
     }
 

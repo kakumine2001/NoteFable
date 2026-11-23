@@ -110,6 +110,10 @@ final class WorkspaceSectionsTests: XCTestCase {
         XCTAssertEqual(prefs.collapsedSections, ["note"])
         vm.toggleSection(.note)
         XCTAssertTrue(vm.state.collapsedSections.isEmpty)
+        // 换身份（登录 / 退出）时折叠状态是这台设备的，保留（和项目的折叠一样）。
+        vm.toggleSection(.slides)
+        vm.onIdentityChanged()
+        XCTAssertEqual(vm.state.collapsedSections, [.slides])
     }
 
     func testAPageGoesOnlyIntoItsOwnSectionButIntoAnyProjectOrSubPageList() {

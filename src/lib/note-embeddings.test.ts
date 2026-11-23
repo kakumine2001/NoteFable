@@ -240,12 +240,14 @@ describe("note-embeddings", () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const fetchMock = vi.fn();
     globalThis.fetch = fetchMock as unknown as typeof fetch;
-    mocks.queryRaw
-      .mockResolvedValueOnce([{ noteId: "n1", chunkIndex: 0, blockId: null, noteVersion: 1, vector: new Uint8Array(4), kind: "note", title: "Note", icon: null, updatedAt: new Date() }])
-      .mockResolvedValueOnce([]);
+    mocks.queryRaw.mockResolvedValueOnce([]).mockResolvedValueOnce([]);
     const result = await semanticSearchNotes("u1", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0, kind: "whiteboard" });
     expect(result).toEqual({ hits: [], hasMoreBackfill: false });
     expect(fetchMock).not.toHaveBeenCalled();
+    // 種類は LIMIT の前に SQL で絞る（ほかの種類の新しい塊で読み込みの枠が埋まらない）。
+    const chunkSql = mocks.queryRaw.mock.calls[0][0] as { sql: string; values: unknown[] };
+    expect(chunkSql.sql).toContain('p."kind"::text = ');
+    expect(chunkSql.values).toContain("whiteboard");
   });
 
   it("returns the kind of each hit and points a slide deck hit at the matching slide", async () => {
