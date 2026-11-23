@@ -208,8 +208,10 @@ export default function Home() {
         setWorkspaceView(view);
         setNotesList(list);
       };
-      // 端末の「戻る」でノートから一覧へ戻るときなど、画面が変わるときだけ動かす（シートを閉じるだけの戻るでは何もしない）。
-      if (animate && (view !== shownRef.current.view || list !== shownRef.current.list)) runTransition(apply, "back");
+      // 端末の「戻る」で画面が変わるときだけ動かす（シートを閉じるだけの戻るや、パソコン幅でのページ切り替えでは動かさない）。
+      const isPhone = window.matchMedia("(max-width: 639px)").matches;
+      if (animate && view !== shownRef.current.view) runTransition(apply, "fade");
+      else if (animate && isPhone && list !== shownRef.current.list) runTransition(apply, "back");
       else runTransition(apply, "back", false);
     }
     const onPopState = () => syncWorkspace(true);
@@ -222,6 +224,7 @@ export default function Home() {
     const url = new URL(window.location.href);
     if (view === (url.searchParams.get("view") === "pages" ? "pages" : "chat")) return;
     cancelReveal();
+    notes.cancelPending();
     if (view === "pages") {
       // Notes はいつもホームから始める（前に開いていたノートへ勝手に飛ばない）。
       url.searchParams.set("view", "pages");
@@ -245,15 +248,26 @@ export default function Home() {
 
   function openNote(id: string) {
     cancelReveal();
-    // パソコン幅：読み込めてから URL（page= の履歴を 1 件積む）と表示を切り替える。読み込めなかったら、いまの画面と URL のまま。
-    if (!window.matchMedia("(max-width: 639px)").matches && notes.activeId !== id) {
-      void notes.select(id).then((opened) => {
-        if (opened) runTransition(syncNotesList, "forward");
+    const isPhone = window.matchMedia("(max-width: 639px)").matches;
+    if (!isPhone) {
+      // パソコン・タブレット幅：サイドバーごと揺れる全面スライドは使わず、Notion と同じく右側の内容だけをその場で切り替える。
+      // キャッシュ済み（一度開いた・先読み済み）なら即座に切り替え、未キャッシュでも今の画面を保ったまま裏で読んでから差し替える。
+      if (notes.activeId === id && !notesList) {
+        notes.cancelPending();
+        return;
+      }
+      if (notes.hasCached(id)) {
+        void notes.select(id, "push").then((opened) => { if (!opened) forgetMissingNote(id); });
+        setNotesList(false);
+        return;
+      }
+      void notes.select(id, "push").then((opened) => {
+        if (opened) syncNotesList();
         else forgetMissingNote(id);
       });
       return;
     }
-    // スマホ、または前に開いていたノートへ戻るとき：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
+    // スマホ幅：戻るでホームへ戻れるよう page= 付きの履歴を 1 件積んでから表示する。
     // ドロワーや底部シートが積んだ履歴の上なら、新しく積まずその履歴を置き換える（空の戻り先を残さない）。
     const url = new URL(window.location.href);
     if (url.searchParams.get("page") !== id) {
@@ -262,9 +276,9 @@ export default function Home() {
       else window.history.pushState(null, "", url);
       restoreSheetMarker();
     }
+    void notes.select(id, "none", { keepCurrent: !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     // 一覧からノートへは、右から入ってくる動き。
-    runTransition(() => setNotesList(false), "forward");
-    if (notes.activeId !== id) void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+    if (notesList) runTransition(() => setNotesList(false), "forward");
   }
 
   // 開けなかった（別のタブでゴミ箱に入った・削除された）ノートの指定は URL に残さず、ホームに戻す。
@@ -284,14 +298,15 @@ export default function Home() {
     // 参照ノートに選ばれていたノートがゴミ箱へ入ると、プロジェクトの参照ノート数が変わる。
     refreshChatProjects();
     // 開いていたノートを消したら、URL から page= が外れているのでホームに戻る。
-    runTransition(syncNotesList, "back");
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(syncNotesList, "back");
+    else syncNotesList();
     return true;
   }
 
   // 新しいページを作って開く。kind は種類（省略はノート）、parentId はそのページの中（サブページ）、groupId はそのプロジェクトの最上位。
   function createNote(request?: NewPageRequest) {
     cancelReveal();
-    runTransition(() => setNotesList(false), "forward");
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(() => setNotesList(false), "forward");
     // ボタンの onClick に直接渡された場合のクリックイベントなど、形の違う値は作り先にしない。
     // 作れなかったとき（URL に page= が付かない）は、ホームに戻す。
     const kind = isPageKind(request?.kind) ? request.kind : "note";
@@ -377,12 +392,13 @@ export default function Home() {
       setWorkspaceView("pages");
       setNotesList(false);
     };
+    const isPhone = window.matchMedia("(max-width: 639px)").matches;
     if (workspaceView !== "pages") runTransition(show, "fade");
-    else if (notesList) runTransition(show, "forward");
+    else if (notesList && isPhone) runTransition(show, "forward");
     else show();
     // 初回の Notes は、画面が切り替わったあとの一覧取得が URL の page= を見て開く。すでに開いているノートは取り直さない。
-    if (notes.activeId !== id) {
-      void notes.select(id, "none").then((opened) => { if (!opened) forgetMissingNote(id); });
+    if (notes.activeId !== id || notes.openingId) {
+      void notes.select(id, "none", { keepCurrent: workspaceView === "pages" && !notesList }).then((opened) => { if (!opened) forgetMissingNote(id); });
     }
     if (blockId) queueReveal({ kind: "note", noteId: id, blockId });
   }
@@ -461,6 +477,7 @@ export default function Home() {
   }
 
   function openNotesList() {
+    notes.cancelPending();
     const url = new URL(window.location.href);
     // すでに URL がホームを指しているなら、履歴は積まずに表示だけ合わせる。
     if (!url.searchParams.get("page")) { setNotesList(true); return; }
@@ -469,8 +486,9 @@ export default function Home() {
     if (window.history.state?.notefableSheet) window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
     restoreSheetMarker();
-    // ノートから一覧へは、左へ戻る動き。
-    runTransition(() => setNotesList(true), "back");
+    // スマホではノートから一覧へ左へ戻る動き。パソコン幅ではサイドバーを揺らさずその場で切り替える。
+    if (window.matchMedia("(max-width: 639px)").matches) runTransition(() => setNotesList(true), "back");
+    else setNotesList(true);
   }
 
   // 左サイドバーに表示するチャットセッション一覧。
@@ -2272,9 +2290,10 @@ export default function Home() {
     else setSidebarOpen(false);
   };
   const sidebar = workspaceView === "pages" ? (
-    <NotesSidebar pages={notes.pages} activeId={notesList ? null : notes.activeId} busy={notes.busy || notes.loading}
-      home={notesList} onHome={() => { setSidebarOpen(false); openNotesList(); }}
+    <NotesSidebar pages={notes.pages} activeId={notes.openingId ?? (notesList ? null : notes.activeId)} busy={notes.busy}
+      home={notesList && !notes.openingId} onHome={() => { setSidebarOpen(false); openNotesList(); }}
       onCreate={(request) => { setSidebarOpen(false); createNote(request); }} onImport={(files) => void importMarkdownFiles(files)} onSearch={() => setSearchOpen(true)} onSelect={(id) => { setSidebarOpen(false); openNote(id); }}
+      onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch}
       onDelete={deleteNote} onClose={closeSidebar} onWorkspaceChange={changeWorkspace}
       groups={notes.groups} groupError={notes.groupError} onReorder={notes.reorder} onMoveNote={notes.moveNote} onChangeIcon={notes.changeIcon} onCreateGroup={notes.createGroup}
       onRenameGroup={notes.renameGroup} onDeleteGroup={notes.deleteGroup} onMoveToPage={notes.moveToPage} onFavorite={notes.setFavorite} />
@@ -2409,7 +2428,11 @@ export default function Home() {
               <div className="flex items-center gap-1.5 text-sm text-[var(--notion-muted)]">
                 {/* パンくず（Notion と同じく祖先のページを左から）。スマホは幅がないので今のページだけ。 */}
                 {workspaceView === "pages" && !notesList && activeAncestors.map((page) => <span key={page.id} className="notes-breadcrumb hidden min-w-0 items-center gap-1.5 sm:flex">
-                  <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)} title={page.title}>
+                  <button type="button" className="notes-breadcrumb-link" onClick={() => openNote(page.id)}
+                    onPointerEnter={(event) => { if (event.pointerType !== "touch") notes.prefetch(page.id, false); }}
+                    onPointerLeave={() => notes.cancelPrefetch(page.id)}
+                    onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) notes.prefetch(page.id, true); }}
+                    onFocus={() => notes.prefetch(page.id, true)} title={page.title}>
                     {page.icon && <span className="shrink-0 text-[15px] leading-none"><NoteIcon icon={page.icon} /></span>}<span className="truncate">{page.title}</span>
                   </button>
                   <span aria-hidden="true" className="text-[var(--notion-faint)]">/</span>

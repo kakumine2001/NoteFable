@@ -113,7 +113,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onAskSelectionInChat?: (text: string) => void;
 }) {
   const { t, locale } = useI18n();
-  const { active, activeId, loading, busy, error, actionError } = notes;
+  const { active, activeId, loading, listLoading, openingId, busy, error, actionError } = notes;
   // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
   // ホワイトボード・スライドのエディターは、選んだ要素・スライドの ID も渡す（PageSelection）。
   const [aiAsk, setAiAsk] = useState<{ noteId: string; selection: PageSelection | null; signal: number } | null>(null);
@@ -156,6 +156,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // フォーカスしていたボタンの位置。切り替えの外なら null。
   const switchFocused = useRef<number | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  // ページ切り替え・ホームとの行き来で前のスクロール位置を残さない（同じページの裏同期では維持する）。
+  useLayoutEffect(() => {
+    if (rootRef.current) rootRef.current.scrollTop = 0;
+  }, [activeId, listMode]);
   useLayoutEffect(() => {
     const focused = document.activeElement;
     if (switchFocused.current === null || (focused && focused !== document.body)) return;
@@ -169,12 +173,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     }}
     // 要素が消えて外れたフォーカス（relatedTarget なし）は覚えたままにして、上で付け直す。
     onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
+    {openingId && (listMode || active) && <div className="notes-switch-progress" role="progressbar" aria-label={t("Loading note…")} />}
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
     <NoteStorageLimitNotice embedded={embedded} />
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
-      <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
+      <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy} onOpen={onOpen}
+        onPrefetch={notes.prefetch} onCancelPrefetch={notes.cancelPrefetch} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
@@ -190,7 +196,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
           onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
           // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。
-          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages}
+          pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages}
           onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
@@ -212,7 +218,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>
     : active && activeId && !listMode ? <>
-      <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
+      <NotePageHeader key={`header:${activeId}`} content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {
           if (event.nativeEvent.isComposing) return;
@@ -225,7 +231,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。
-          pages={embedded || (loading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId} pageMentions={!embedded || nativeCanOpenPage()}
+          pages={embedded || (listLoading && !notes.pages.length) ? undefined : notes.pages} currentPageId={activeId} pageMentions={!embedded || nativeCanOpenPage()}
           // 埋め込みでは、openPage を処理できるアプリにだけ送る。古いアプリ・ブラウザでは false を返し、エディターは元どおりリンクを新しいウィンドウで開く。
           onOpenPage={(id) => { if (!embedded) { onOpen(id); return true; } return nativeCanOpenPage() && postToNative({ type: "openPage", id }); }}
           editorRef={editorRef} onFocusTitle={() => {
