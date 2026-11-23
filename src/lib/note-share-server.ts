@@ -4,6 +4,7 @@ import { splitHosts } from "@/lib/hosts";
 import { isShareRowActive, isValidShareToken, sharePageUrl } from "@/lib/note-share";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
 import { PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
+import { readCanvasDataForShare } from "@/lib/canvas-store";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
@@ -13,6 +14,8 @@ const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
 // 出せない種類のページは、その下のサブページごと公開の木から外す（親の共有から除外したのと同じ扱い）。
 const SHAREABLE_KINDS = PAGE_KINDS.filter((kind) => pageKindFeatures(kind).publicShare);
 const shareable = (row: { kind?: unknown }) => pageKindFeatures(pageKindOf(row)).publicShare;
+// スライドは公開の木の「葉」：公開するのはそのスライド自身だけで、その下のサブページは公開しない（放映だけを見せる）。
+const leafKind = (row: { kind?: unknown }) => pageKindOf(row) === "slides";
 
 type AncestorRow = {
   id: string;
@@ -78,9 +81,11 @@ export type ResolvedPublicShare = {
   };
   page: {
     id: string;
-    userId: string;
-    // ノートは本文（blocks）を描き、ホワイトボードは本体（NoteCanvas）を /s/:token/scene から読んで描く。
+    // ページの種類。ノートは本文（blocks）を描く。スライドは data（本体）を持ち、放映のビューで見せる。
+    // ホワイトボードは本体（NoteCanvas）を /s/:token/scene から読んで描く（data は null）。
     kind: PageKind;
+    data: unknown;
+    userId: string;
     title: string;
     icon: string | null;
     cover: string | null;
@@ -139,7 +144,7 @@ export async function resolvePublicShare(
   const breadcrumbs: PublicShareCrumb[] = [{ id: root.id, title: root.title, icon: root.icon, kind: pageKindOf(root) }];
 
   if (requestedPageId && requestedPageId !== root.id) {
-    if (!root.shareIncludeSubpages) return null;
+    if (!root.shareIncludeSubpages || leafKind(root)) return null;
     const requested = await prisma.notePage.findFirst({
       where: { id: requestedPageId, userId: root.userId, deletedAt: null },
       select: PUBLIC_PAGE_SELECT,
@@ -158,7 +163,7 @@ export async function resolvePublicShare(
           reachedRoot = true;
           break;
         }
-        if (ancestor.shareExcludeFromParent || !shareable(ancestor)) return null;
+        if (ancestor.shareExcludeFromParent || !shareable(ancestor) || leafKind(ancestor)) return null;
         chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon, kind: pageKindOf(ancestor) });
       }
     }
@@ -168,7 +173,7 @@ export async function resolvePublicShare(
     target = requested;
   }
 
-  const children = root.shareIncludeSubpages
+  const children = root.shareIncludeSubpages && !leafKind(target)
     ? await prisma.notePage.findMany({
         where: { userId: root.userId, parentId: target.id, deletedAt: null, shareExcludeFromParent: false, kind: { in: SHAREABLE_KINDS } },
         orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
@@ -188,8 +193,10 @@ export async function resolvePublicShare(
     },
     page: {
       id: target.id,
-      userId: target.userId,
       kind: pageKindOf(target),
+      // スライドの本体（公開の 1 回の読み込みで、ページの行の後に読む）。ノートは blocks を使う。
+      data: pageKindOf(target) === "slides" ? await readCanvasDataForShare(target.id) : null,
+      userId: target.userId,
       title: target.title,
       icon: target.icon,
       cover: target.cover,
@@ -233,7 +240,7 @@ export async function resolveOwnerShareState(
   if (page.parentId && shareable(page)) {
     const ancestors = await fetchAncestors(userId, page.parentId);
     for (const ancestor of ancestors) {
-      if (!shareable(ancestor)) break;
+      if (!shareable(ancestor) || leafKind(ancestor)) break;
       if (isShareRowActive(ancestor, now) && ancestor.shareIncludeSubpages && ancestor.shareToken) {
         inheritedFrom = {
           id: ancestor.id,
@@ -258,7 +265,8 @@ export async function resolveOwnerShareState(
     expired,
     token: page.shareToken,
     url: page.shareToken ? sharePageUrl(page.shareToken, origin) : null,
-    includeSubpages: page.shareIncludeSubpages,
+    // スライドは公開の木の葉：サブページを含める設定は無い（含めると、公開の前に下のページまで保存しに行く）。
+    includeSubpages: page.shareIncludeSubpages && !leafKind(page),
     expiresAt: page.shareExpiresAt ? page.shareExpiresAt.toISOString() : null,
     excludeFromParent: page.shareExcludeFromParent,
     hasParent: Boolean(page.parentId),

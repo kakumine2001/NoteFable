@@ -164,6 +164,11 @@ function collectText(value: unknown, out: string[]) {
     if (Array.isArray(current)) { for (let index = current.length - 1; index >= 0; index--) stack.push(current[index]); continue; }
     if (!object(current)) continue;
     if (typeof current.text === "string") out.push(current.text);
+    // スライドの数式（行内・ブロック）の TeX も検索できるようにする（ノートの数式と同じ）。
+    if (current.type === "math_inline" || current.type === "math_block") {
+      const attrs = current.attrs;
+      if (object(attrs) && typeof attrs.latex === "string") out.push(attrs.latex);
+    }
     const entries = Object.entries(current).filter(([key]) => key !== "text");
     for (let index = entries.length - 1; index >= 0; index--) stack.push(entries[index][1]);
   }

@@ -547,6 +547,13 @@
 "sb_err_move_chat" = "ไม่สามารถย้ายแชทได้";
 "sb_err_create_chat" = "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาเปิด PostgreSQL ในเครื่องแล้วลองอีกครั้ง";
 
+/* strings_slides.xml */
+"slides_present" = "นำเสนอ";
+"slides_export_pdf" = "ส่งออก PDF";
+"slides_export_pdf_notes" = "ส่งออก PDF พร้อมบันทึกผู้บรรยาย";
+"slides_export_png" = "ส่งออกรูปภาพ PNG";
+"slides_export_pptx" = "ส่งออกเป็น PowerPoint (PPTX)";
+
 /* strings_turns.xml */
 "regenerate" = "สร้างคำตอบใหม่";
 "branch_in_new_chat" = "แยกแขนงในแชทใหม่";

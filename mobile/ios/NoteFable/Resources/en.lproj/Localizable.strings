@@ -547,6 +547,13 @@
 "sb_err_move_chat" = "Could not move the chat.";
 "sb_err_create_chat" = "Database is unavailable. Start local PostgreSQL and try again.";
 
+/* strings_slides.xml */
+"slides_present" = "Present";
+"slides_export_pdf" = "Export PDF";
+"slides_export_pdf_notes" = "Export PDF with speaker notes";
+"slides_export_png" = "Export PNG images";
+"slides_export_pptx" = "Export PowerPoint (PPTX)";
+
 /* strings_turns.xml */
 "regenerate" = "Regenerate";
 "branch_in_new_chat" = "Branch in new chat";

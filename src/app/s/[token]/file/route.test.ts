@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // 公開ページの画像：ホワイトボードは本体の files が参照しているファイルだけを返す（ノートは本文のブロック）。
 const mocks = vi.hoisted(() => ({ resolve: vi.fn(), canvas: vi.fn(), read: vi.fn() }));
 vi.mock("@/lib/note-share-server", () => ({ resolvePublicShare: mocks.resolve }));
-vi.mock("@/lib/prisma", () => ({ prisma: { noteCanvas: { findUnique: mocks.canvas } } }));
+vi.mock("@/lib/canvas-store", () => ({ readCanvasDataForShare: mocks.canvas }));
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read }));
 import { GET } from "./route";
 
@@ -17,7 +17,7 @@ const params = { params: Promise.resolve({ token: "tok" }) };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.resolve.mockResolvedValue({ page: { id: "board", userId: owner, kind: "whiteboard", blocks: [] } });
-  mocks.canvas.mockResolvedValue({ data: { elements: [{ id: "i", type: "image", fileId: "f" }], files: { f: { id: "f", mimeType: "image/png", dataURL: fileUrl(key) } } } });
+  mocks.canvas.mockResolvedValue({ elements: [{ id: "i", type: "image", fileId: "f" }], files: { f: { id: "f", mimeType: "image/png", dataURL: fileUrl(key) } } });
   mocks.read.mockResolvedValue(Buffer.from([0x89, 0x50, 0x4e, 0x47]));
 });
 
@@ -26,7 +26,7 @@ describe("GET /s/:token/file for whiteboards", () => {
     const response = await GET(request(key), params);
     expect(response.status).toBe(200);
     expect(response.headers.get("Content-Type")).toBe("image/png");
-    expect(mocks.canvas).toHaveBeenCalledWith({ where: { noteId: "board" }, select: { data: true } });
+    expect(mocks.canvas).toHaveBeenCalledWith("board");
   });
 
   it("refuses the owner's other files", async () => {

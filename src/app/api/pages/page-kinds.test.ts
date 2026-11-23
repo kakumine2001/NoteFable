@@ -234,12 +234,12 @@ describe("changing the icon of a whiteboard", () => {
 });
 
 describe("publishing", () => {
-  it("refuses to publish a slide deck (no public view yet) in the requester's language", async () => {
-    mocks.findFirst.mockResolvedValue({ id: "s1", kind: "slides", shareToken: null, shareEnabled: false, shareExpiresAt: null });
-    const response = await share(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ enabled: true }), headers: { "accept-language": "ja" } }), context);
-    expect(response.status).toBe(400);
-    const body = await response.json();
-    expect(body).toMatchObject({ code: "wrong_page_kind", kind: "slides" });
-    expect(body.error).toBe("スライドはまだ公開できません。");
+  it("does not refuse to publish a whiteboard or a slide deck (both have public views)", async () => {
+    for (const kind of ["whiteboard", "slides"]) {
+      mocks.findFirst.mockResolvedValue({ id: "p1", kind, shareToken: null, shareEnabled: false, shareExpiresAt: null });
+      const response = await share(new Request("http://localhost/x", { method: "PUT", body: JSON.stringify({ enabled: true }), headers: { "accept-language": "ja" } }), context);
+      const body = await response.json().catch(() => ({}));
+      expect(body.code).not.toBe("wrong_page_kind");
+    }
   });
 });

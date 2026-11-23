@@ -294,6 +294,10 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         run(NoteEmbedScripts.reveal(id))
     }
 
+    func slides(_ command: String) {
+        run(NoteEmbedScripts.slides(command))
+    }
+
     private func run(_ script: String) {
         webView?.evaluateJavaScript(script, completionHandler: nil)
     }
@@ -305,6 +309,16 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     func goBack() {
         if router.drawerOpen { return }
         let notes = app.notes
+        // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
+        if notes.state.presenting {
+            slides(#"{"action":"end"}"#)
+            // 网页没有回应（加载失败等）时也结束放映，不把人困在横屏全屏里。
+            Task { @MainActor [weak notes] in
+                try? await Task.sleep(for: .milliseconds(1500))
+                if notes?.state.presenting == true { notes?.presentationEnded() }
+            }
+            return
+        }
         guard let webView else {
             notes.closeNote()
             return
@@ -465,6 +479,8 @@ extension NoteEditorController: WKNavigationDelegate {
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
         // 拼了一半的导出文件不会再来了（新网页不知道它）：作废，不留下打开着的临时文件。
         app.notes.cancelExportTransfer(editor: editor)
+        // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
+        app.notes.presentationEnded()
         bridge.release(self)
         bridge.attach(self)
         loadPage()

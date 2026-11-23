@@ -31,6 +31,8 @@ final class NotesViewModel {
     /// 检索结果就在打开着的这一页里：让网页编辑器就地定位到命中的块 / 元素（window.notefableEmbed.reveal），不重新加载。
     /// 由界面在编辑器打开时设置（[registerEditor]）。
     @ObservationIgnored var revealInEditor: (@MainActor (String) -> Void)?
+    /// 幻灯片的放映 / 导出（"…"菜单、放映中的返回）：交给网页编辑器（window.notefableEmbed.slides）。由界面在编辑器打开时设置。
+    @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
 
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
@@ -75,11 +77,13 @@ final class NotesViewModel {
         change(&next)
         // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示，
         // 它没送完的导出文件作废，收齐了还没存的也删掉（不在别的页面上弹出保存）。
+        // 放映也随之结束：新的编辑器没有在放映（否则一直横屏、没有顶栏）。
         if next.open?.editor != state.open?.editor {
             next.storageLimit = nil
             discardExportFiles(next)
             next.exportFile = nil
             next.exportFileFailed = false
+            next.presenting = false
         }
         state = next
     }
@@ -351,7 +355,10 @@ final class NotesViewModel {
     /// 界面收到编辑器 [editor]（[OpenNote.editor]）发来的消息时调用。flushed 由 [NoteEmbedBridge] 自己处理。
     func onEditorMessage(_ editor: String, _ message: EmbedMessage) {
         switch message {
-        case .ready(let id, let title, let icon, let kind): onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
+        case .ready(let id, let title, let icon, let kind):
+            // 网页（重新）载入后不在放映：WebView 重载时收不到 end，这里把放映状态清掉（否则一直横屏、没有顶栏）。
+            if state.open?.editor == editor, state.presenting { update { $0.presenting = false } }
+            onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
         case .meta(let title, let icon): onEditorMeta(editor, title: title, icon: icon)
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
@@ -364,6 +371,10 @@ final class NotesViewModel {
         case .drawing:
             // iOS 在白板页一直关着边缘返回和抽屉的边缘拖动（NotesUiState.editorCapturesEdgeSwipes），不用按画没画来切换。
             break
+        case .presentation(let presentation, _, _):
+            // 放映中：顶栏收起、横屏、屏幕常亮（界面看 state.presenting）。已经关掉或换走的编辑器晚到的消息不收。
+            guard state.open?.editor == editor else { break }
+            update { $0.presenting = presentation != "end" }
         case .fileStart(let id, let name, let mime, let size):
             guard state.open?.editor == editor else { break }
             receiveExportFile { try exportFiles.start(id: id, name: name, mime: mime, size: size) }
@@ -388,6 +399,16 @@ final class NotesViewModel {
             exportFiles.abort(id: id)
         case .flushed: break
         }
+    }
+
+    /// 编辑器关掉了：放映也随之结束（顶栏、竖屏恢复）。
+    func presentationEnded() {
+        if state.presenting { update { $0.presenting = false } }
+    }
+
+    /// 幻灯片的放映 / 导出（"…"菜单）。命令是网页 `parseSlidesCommand` 认的 JSON。
+    func slidesCommand(_ command: String) {
+        sendSlidesCommand?(command)
     }
 
     func dismissStorageLimit() {

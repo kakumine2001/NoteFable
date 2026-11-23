@@ -244,7 +244,7 @@ export const frServer: Record<string, string> = {
   "Unknown page kind.": "Type de page inconnu.",
   "Only notes can be exported as Markdown.": "Seules les notes peuvent être exportées en Markdown.",
   "Font, text size and width can only be changed for notes.": "La police, la taille du texte et la largeur ne peuvent être modifiées que pour les notes.",
-  "Slide decks can't be published yet.": "Les présentations ne peuvent pas encore être publiées.",
+  "This page type can't be published yet.": "Ce type de page ne peut pas encore être publié.",
   "This page can't be edited in this version of NoteFable.": "Cette page ne peut pas être modifiée dans cette version de NoteFable.",
   "These pages are too large to duplicate at once.": "Ces pages sont trop volumineuses pour être dupliquées en une seule fois.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Il ne reste pas assez d’espace de stockage. Connectez-vous pour obtenir plus d’espace, ou supprimez les fichiers dont vous n’avez plus besoin.",

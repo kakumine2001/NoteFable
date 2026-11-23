@@ -31,11 +31,23 @@ class PageKindTest {
     }
 
     @Test
-    fun `features follow the web PAGE_KIND_FEATURES - whiteboards have an editor and public sharing, slides nothing yet`() {
+    fun `features follow the web PAGE_KIND_FEATURES - whiteboards and slides have an editor and a public view`() {
         assertEquals(PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true), Note.features)
         // 白板（#152）：编辑器和公开视图有了；Markdown 导出、字体设置没有，AI 操作等 #153。
         assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Whiteboard.features)
-        assertEquals(PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false), Slides.features)
+        // 幻灯片（#149）：编辑器和公开的放映页。
+        assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Slides.features)
+    }
+
+    @Test
+    fun `parses the slide presentation and file-save bridge messages`() {
+        assertEquals(EmbedMessage.Presentation("start", 2, 9), EmbedMessage.parse("""{"type":"presentation","state":"start","index":2,"count":9}"""))
+        assertEquals(null, EmbedMessage.parse("""{"type":"presentation","state":"spin","index":2,"count":9}"""))
+        assertEquals(EmbedMessage.FileStart("f1", "Deck.pdf", "application/pdf", 1234), EmbedMessage.parse("""{"type":"fileStart","id":"f1","name":"Deck.pdf","mime":"application/pdf","size":1234}"""))
+        assertEquals(EmbedMessage.FileChunk("f1", 0, "AAEC"), EmbedMessage.parse("""{"type":"fileChunk","id":"f1","index":0,"data":"AAEC"}"""))
+        assertEquals(EmbedMessage.FileEnd("f1"), EmbedMessage.parse("""{"type":"fileEnd","id":"f1"}"""))
+        assertEquals(EmbedMessage.FileAbort("f1"), EmbedMessage.parse("""{"type":"fileAbort","id":"f1"}"""))
+        assertEquals(null, EmbedMessage.parse("""{"type":"fileStart","id":"f1","name":""}"""))
     }
 
     @Test

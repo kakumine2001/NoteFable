@@ -16,6 +16,8 @@ struct NotePageMenuActions {
     /// "导出 Markdown"（网页 onExport）。
     var onExport: () -> Void
     var onTrash: () -> Void
+    /// 幻灯片的放映和导出（网页 `window.notefableEmbed.slides` 的 JSON 命令）。nil 时不显示。
+    var onSlides: ((String) -> Void)? = nil
 }
 
 /// 菜单 "Style" 一栏的字体：[key] 是 NotePageSummary.font 的值，[label] 是文案的键。

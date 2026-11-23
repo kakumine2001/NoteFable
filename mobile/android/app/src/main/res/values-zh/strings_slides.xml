@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 幻灯片编辑页的"…"菜单和导出文件的保存提示（src/lib/i18n/messages/zh.ts）。 -->
+<resources>
+    <string name="slides_present">放映</string>
+    <string name="slides_export_pdf">导出 PDF</string>
+    <string name="slides_export_pdf_notes">导出带演讲备注的 PDF</string>
+    <string name="slides_export_png">导出 PNG 图片</string>
+    <string name="slides_export_pptx">导出 PowerPoint（PPTX）</string>
+</resources>

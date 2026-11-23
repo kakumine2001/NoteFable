@@ -259,4 +259,5 @@ final class NotesTestEditor: NoteEditorBridge {
     func language(_ code: String) { calls.append("lang:\(code)") }
     func theme(_ value: String) { calls.append("theme:\(value)") }
     func reveal(_ id: String) { calls.append("reveal:\(id)") }
+    func slides(_ command: String) { calls.append("slides:\(command)") }
 }

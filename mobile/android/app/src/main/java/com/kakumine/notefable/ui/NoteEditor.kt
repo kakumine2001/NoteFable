@@ -9,8 +9,17 @@ import androidx.compose.ui.semantics.Role
 import com.kakumine.notefable.data.isShared
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.view.WindowManager
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import java.io.File
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -52,6 +61,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -74,13 +84,13 @@ import com.kakumine.notefable.data.ExportFileAssembler
 import com.kakumine.notefable.data.NoteFileLinks
 import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONObject
-import java.io.File
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.coroutines.resume
@@ -144,9 +154,21 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canShowStorageLimit(): Boolean = true
 
-    /** 网页据此把导出的文件（白板的 PNG / SVG / PDF 等）分块交给 App 保存；旧版 App 没有这个方法，网页就提示要更新 App。 */
+    /** 网页据此把幻灯片的放映交给 App（横屏、全屏、屏幕常亮；`presentation` 消息）。旧版 App 没有这个方法，网页只在 WebView 里放映。 */
+    @JavascriptInterface
+    fun canPresent(): Boolean = true
+
+    /** 网页据此把导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存；旧版 App 没有这个方法，网页就提示要更新 App。 */
     @JavascriptInterface
     fun canSaveFile(): Boolean = true
+
+    /** 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回键）：交给网页（`window.notefableEmbed.slides`）。 */
+    fun slides(command: String, onResult: ((Boolean) -> Unit)? = null) {
+        val view = webView ?: return run { onResult?.invoke(false) }
+        view.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')return e.slides(${JSONObject.quote(command)})===true;return false})()") { result ->
+            onResult?.invoke(result == "true")
+        }
+    }
 
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
     fun pushLanguage(code: String) {
@@ -232,6 +254,7 @@ class NoteEmbedBridge(
 
     /** WebView 被销毁（离开编辑页、渲染进程崩溃）：等着它回答的保存都算失败，不再等；没拼完的导出文件也不会再来了。 */
     fun release(view: WebView) {
+        // 已经换上新的 WebView 时，不动它正在进行的导出。
         if (webView !== view) return
         webView = null
         mounting.values.forEach { it.complete(false) }
@@ -329,7 +352,7 @@ internal fun loadReveal(open: OpenNote, generation: Int): String? = open.reveal.
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
-// 保存状态 14 灰（出错 / 冲突时 #b45309）。幻灯片没有分享按钮（[PageKindFeatures.publicShare]）。
+// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板、幻灯片都能公开（[PageKindFeatures.publicShare]），顶栏都有分享按钮。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(
@@ -364,6 +387,8 @@ fun NoteEditorScreen(
     onShare: (() -> Unit)? = null,
     /** 编辑器上方的提示（上传因存储空间不够被拒绝时的 [StorageLimitPrompt]）。 */
     prompt: (@Composable () -> Unit)? = null,
+    /** 幻灯片放映的开始 / 结束（放映中侧栏的滑动打开要关掉）。 */
+    onPresentingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -375,13 +400,25 @@ fun NoteEditorScreen(
     // 网页里的 AI 按钮用设置里选的图标：网页打开时经桥读现在的值，开着的时候换了再推过去。
     // 导出的文件拼在缓存目录的 exports/ 里（每个编辑器一个拼接器，同一时间只拼一个文件）。
     val iconStore = appIconStore()
+    // 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。
+    val presentingState = remember(open.editor) { androidx.compose.runtime.mutableStateOf(false) }
+    val presenting by presentingState
     val bridge: NoteEmbedBridge = remember(open.editor) {
         NoteEmbedBridge(
             currentIcon = { iconStore?.icon?.value },
             exports = ExportFileAssembler(File(context.cacheDir, ExportFileAssembler.DIR_NAME)),
             onExportFile = { file -> currentOnExportFile(file) },
-        ) { message -> currentOnMessage(open.editor, message) }
+        ) { message ->
+            if (message is EmbedMessage.Presentation) presentingState.value = message.state != "end"
+            // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
+            if (message is EmbedMessage.Ready) presentingState.value = false
+            currentOnMessage(open.editor, message)
+        }
     }
+    PresentationMode(presenting)
+    val currentOnPresentingChange by rememberUpdatedState(onPresentingChange)
+    LaunchedEffect(presenting) { currentOnPresentingChange(presenting) }
+    DisposableEffect(Unit) { onDispose { currentOnPresentingChange(false) } }
     val appIcon = currentAppIcon()
     LaunchedEffect(bridge, appIcon) { bridge.pushAppIcon(appIcon) }
     // 外观：编辑器和原生界面用同一个结果（设置里选的，跟随系统时看系统）。先写进桥（网页加载时读），变了再推过去；
@@ -417,6 +454,9 @@ fun NoteEditorScreen(
     BackHandler(enabled = !drawerOpen) {
         val view = bridge.webView
         when {
+            // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
+            // 网页没有回应（加载失败等）时由这里结束放映，不把人困在横屏全屏里。
+            presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) presentingState.value = false }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -428,8 +468,8 @@ fun NoteEditorScreen(
     // 白板正在用画图工具时（网页的 drawing 消息）让开屏幕两侧的系统返回手势，从边上起笔不会变成"返回"；
     // 用手掌平移时、不是白板时都照常能返回。WebView 尺寸变了（键盘、旋转）就重算，关掉编辑器时清掉。
     val excludeEdges = rememberUpdatedState(drawing && kind == PageKind.Whiteboard)
-    Column(Modifier.fillMaxSize().background(Sm.Background)) {
-        Row(
+    Column(Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)) {
+        if (!presenting) Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -480,17 +520,18 @@ fun NoteEditorScreen(
             Text(status, color = if (saveState == "error" || saveState == "conflict") Color(0xFFB45309) else Sm.Muted, fontSize = 14.sp, maxLines = 1)
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
-                NotePageMenuButton(page, menu)
+                // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。
+                NotePageMenuButton(page, if (kind == com.kakumine.notefable.data.PageKind.Slides) menu.withSlides(bridge::slides) else menu)
             }
         }
-        if (notice != null) {
+        if (notice != null && !presenting) {
             ErrorBar(notice, null, Modifier.padding(horizontal = 24.dp, vertical = 8.dp).clickable(onClick = onDismissNotice))
         }
-        if (prompt != null) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
+        if (prompt != null && !presenting) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
 
         val lang = embedLanguage()
         androidx.compose.runtime.key(generation) { AndroidView(
-            modifier = Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            modifier = Modifier.weight(1f).fillMaxWidth().then(if (presenting) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))),
             factory = { ctx ->
                 WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
                 WebView(ctx).apply {
@@ -535,6 +576,8 @@ fun NoteEditorScreen(
 
                         // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。丢掉这个 WebView，换新的重新加载。
                         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                            // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
+                            presentingState.value = false
                             bridge.release(view)
                             // 白板正在画图时崩溃：新网页报告之前（读不出来时也）不再让开两侧的返回手势。
                             currentOnMessage(open.editor, EmbedMessage.Drawing(false))
@@ -574,6 +617,35 @@ fun NoteEditorScreen(
             syncCookies(baseUrl, cookieJar)
             // 检索命中的块只在第一次加载时带上：渲染进程崩溃后重新加载时不再跳过去。
             bridge.webView?.loadUrl(currentEmbedUrl(lang, bridge.currentTheme, loadReveal(open, generation)))
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
+ * 幻灯片放映中：横屏（随传感器左右转）、隐藏状态栏和导航栏（从边缘滑动可暂时调出）、屏幕常亮。结束（或离开编辑器）时恢复原样。
+ */
+@Composable
+private fun PresentationMode(active: Boolean) {
+    val activity = LocalContext.current.findActivity() ?: return
+    DisposableEffect(activity, active) {
+        if (!active) return@DisposableEffect onDispose {}
+        val window = activity.window
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity.requestedOrientation = previousOrientation
         }
     }
 }

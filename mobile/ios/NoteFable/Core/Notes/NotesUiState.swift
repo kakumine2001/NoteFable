@@ -119,6 +119,8 @@ struct NotesUiState: Equatable, Sendable {
     /// 导出的文件没能收下（类型不对、太大、缺了块、写不进去）：界面提示一次“Could not save the file.”，
     /// 再调 [NotesViewModel.dismissExportFileFailure]。
     var exportFileFailed: Bool = false
+    /// 幻灯片放映中（网页的 presentation start / end）：编辑页收起顶栏，横屏、全屏、屏幕常亮。
+    var presenting: Bool = false
     /// 回收站窗口；nil 表示没打开。
     var trash: TrashUiState? = nil
     /// 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。

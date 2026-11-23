@@ -11,8 +11,8 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        // 开着白板时不从屏幕边缘拉出抽屉（画笔从边缘开始画）：用顶栏的菜单键开。
-        AppDrawer(isOpen: $router.drawerOpen, edgeOpens: !app.notes.state.editorCapturesEdgeSwipes) {
+        // 开着白板时（画笔从边缘开始画）、幻灯片放映中（和翻页、返回的手势冲突）不从屏幕边缘拉出抽屉：用顶栏的菜单键开。
+        AppDrawer(isOpen: $router.drawerOpen, edgeOpens: !app.notes.state.editorCapturesEdgeSwipes && !app.notes.state.presenting) {
             DrawerPanel()
         } content: {
             workspace

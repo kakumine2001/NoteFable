@@ -547,6 +547,13 @@
 "sb_err_move_chat" = "चैट स्थानांतरित नहीं की जा सकी।";
 "sb_err_create_chat" = "डेटाबेस उपलब्ध नहीं है। लोकल PostgreSQL शुरू करें और फिर से प्रयास करें।";
 
+/* strings_slides.xml */
+"slides_present" = "प्रस्तुत करें";
+"slides_export_pdf" = "PDF एक्सपोर्ट करें";
+"slides_export_pdf_notes" = "वक्ता नोट्स के साथ PDF एक्सपोर्ट करें";
+"slides_export_png" = "PNG इमेज एक्सपोर्ट करें";
+"slides_export_pptx" = "PowerPoint (PPTX) एक्सपोर्ट करें";
+
 /* strings_turns.xml */
 "regenerate" = "फिर से जवाब बनाएँ";
 "branch_in_new_chat" = "नई चैट में शाखा बनाएँ";

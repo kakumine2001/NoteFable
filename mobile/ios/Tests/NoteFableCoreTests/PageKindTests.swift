@@ -18,7 +18,7 @@ final class PageKindTests: XCTestCase {
         XCTAssertEqual(PageKind.allCases.map(\.wire), ["note", "whiteboard", "slides"])
     }
 
-    func testTheFeatureTableMatchesTheWebWhiteboardsHaveAnEditorAndAPublicViewButNoNoteOnlyFeatures() {
+    func testTheFeatureTableMatchesTheWebWhiteboardsAndSlidesHaveAnEditorAndAPublicView() {
         XCTAssertEqual(
             PageKind.note.features,
             PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
@@ -28,9 +28,10 @@ final class PageKindTests: XCTestCase {
             PageKind.whiteboard.features,
             PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
         )
+        // 幻灯片（#149）：有编辑器和公开的放映页。
         XCTAssertEqual(
             PageKind.slides.features,
-            PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
+            PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
         )
     }
 

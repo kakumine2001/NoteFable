@@ -23,10 +23,12 @@ describe("page kinds", () => {
     expect(pageKindOf({ kind: "slides" })).toBe("slides");
   });
 
-  it("turns on only what each kind has: whiteboards have an editor and a public view, slide decks nothing yet", () => {
+  it("keeps note-only features for notes and turns on each canvas kind as its editor ships", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
+    // ホワイトボードのエディターと読み取り専用の公開ビュー（#152）。AI の操作は #153。
     expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
-    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
+    // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
+    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
   });
 });
 

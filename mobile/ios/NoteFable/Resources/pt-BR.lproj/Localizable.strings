@@ -547,6 +547,13 @@
 "sb_err_move_chat" = "Não foi possível mover o chat.";
 "sb_err_create_chat" = "O banco de dados está indisponível. Inicie o PostgreSQL local e tente novamente.";
 
+/* strings_slides.xml */
+"slides_present" = "Apresentar";
+"slides_export_pdf" = "Exportar PDF";
+"slides_export_pdf_notes" = "Exportar PDF com notas do apresentador";
+"slides_export_png" = "Exportar imagens PNG";
+"slides_export_pptx" = "Exportar para PowerPoint (PPTX)";
+
 /* strings_turns.xml */
 "regenerate" = "Gerar novamente";
 "branch_in_new_chat" = "Ramificar em novo chat";

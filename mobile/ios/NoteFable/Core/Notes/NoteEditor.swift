@@ -19,6 +19,8 @@ protocol NoteEditorBridge: AnyObject {
     func theme(_ value: String)
     /// 执行 [NoteEmbedScripts.reveal]：在开着的页面里定位到检索命中的块 / 元素，不重新加载。
     func reveal(_ id: String)
+    /// 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回）：交给网页（`window.notefableEmbed.slides`）。
+    func slides(_ command: String)
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -88,6 +90,11 @@ enum NoteEmbedScripts {
         "window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal(\(quote(id)))"
     }
 
+    /// 幻灯片的操作（JSON：{ action: "present" | "end" | "export", format? }）。
+    static func slides(_ command: String) -> String {
+        "(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')e.slides(\(quote(command)))})()"
+    }
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -105,7 +112,7 @@ enum NoteEmbedScripts {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
-            "canShowStorageLimit:function(){return true},canSaveFile:function(){return true}" +
+            "canShowStorageLimit:function(){return true},canPresent:function(){return true},canSaveFile:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -201,6 +208,10 @@ final class NoteEmbedBridge {
         editor?.openHistory()
     }
 
+    func slides(_ command: String) {
+        editor?.slides(command)
+    }
+
     /// 别处（聊天里的提案）改了这篇笔记：把服务端返回的新版本交给网页，走网页 notefable:page-updated 的同一条路
     /// （没有未保存的编辑就换成新版本，有就提示冲突），否则编辑器还拿着旧版本，下次保存会 409。
     func pageUpdated(_ pageJson: String) {
@@ -247,10 +258,13 @@ extension NotesViewModel {
             flushEditor = nil
             pushPageSettings = nil
             revealInEditor = nil
+            sendSlidesCommand = nil
+            presentationEnded()
             return
         }
         flushEditor = { await bridge.flush() }
         pushPageSettings = { bridge.pageSettings($0) }
         revealInEditor = { bridge.reveal($0) }
+        sendSlidesCommand = { bridge.slides($0) }
     }
 }

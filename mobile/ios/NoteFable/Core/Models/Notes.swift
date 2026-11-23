@@ -37,7 +37,8 @@ enum PageKind: String, CaseIterable, Sendable {
             // 编辑器和公开的只读视图都有；AI 的操作在 #153。
             return PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
         case .slides:
-            return PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
+            // 幻灯片（#149）：有编辑器和公开的放映页。AI 编辑在 #150。
+            return PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
         }
     }
 
@@ -487,9 +488,12 @@ enum EmbedMessage: Equatable, Sendable {
     /// 白板在用画画的工具（画笔、图形…，不是移动画布的手）。Android 这期间让开屏幕边缘的返回手势；
     /// iOS 在白板页一直关着边缘手势（[PageKind.capturesEdgeSwipes]），收下不用。
     case drawing(active: Bool)
-    /// 编辑器导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）分块送来（src/lib/export-file.ts）：
+    /// 幻灯片的放映：start（App 横屏、全屏、屏幕常亮）、slide（换了页，index 从 0 开始）、end（恢复）。
+    /// 只有 bootstrap 里声明了 `canPresent()` 的 App 才会收到。
+    case presentation(state: String, index: Int, count: Int)
+    /// 编辑器导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块送来（src/lib/export-file.ts）：
     /// fileStart（[size] 是总字节数）→ fileChunk（[data] 是一块的 base64，[index] 从 0 起按顺序）× n → fileEnd；中途放弃是 fileAbort。
-    /// 只有 bootstrap 里声明了 `canSaveFile()` 的 App 才会收到；由 [ExportFileAssembler] 拼成临时文件。
+    /// 只有 bootstrap 里声明了 `canSaveFile()` 的 App 才会收到；NotesViewModel 用 [ExportFileAssembler] 拼成临时文件。
     case fileStart(id: String, name: String, mime: String, size: Int)
     case fileChunk(id: String, index: Int, data: String)
     case fileEnd(id: String)
@@ -520,6 +524,9 @@ enum EmbedMessage: Equatable, Sendable {
             case "storageLimit":
                 guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
                 return .storageLimit(tier: tier, used: used, limit: limit)
+            case "presentation":
+                guard let state = try text(fields["state"]), ["start", "slide", "end"].contains(state) else { return nil }
+                return .presentation(state: state, index: fields["index"]?.intValue ?? 0, count: fields["count"]?.intValue ?? 0)
             case "flushed":
                 return .flushed(
                     requestId: try text(fields["requestId"]) ?? "",

@@ -547,6 +547,13 @@
 "sb_err_move_chat" = "Impossibile spostare la chat.";
 "sb_err_create_chat" = "Il database non è disponibile. Avvia PostgreSQL in locale e riprova.";
 
+/* strings_slides.xml */
+"slides_present" = "Presenta";
+"slides_export_pdf" = "Esporta PDF";
+"slides_export_pdf_notes" = "Esporta PDF con le note del relatore";
+"slides_export_png" = "Esporta immagini PNG";
+"slides_export_pptx" = "Esporta in PowerPoint (PPTX)";
+
 /* strings_turns.xml */
 "regenerate" = "Rigenera";
 "branch_in_new_chat" = "Dirama in una nuova chat";

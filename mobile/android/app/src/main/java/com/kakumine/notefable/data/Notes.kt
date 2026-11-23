@@ -14,6 +14,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
@@ -44,8 +45,10 @@ data class PageKindFeatures(
 @Serializable(with = PageKindSerializer::class)
 enum class PageKind(val wire: String, val features: PageKindFeatures) {
     Note("note", PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)),
+    // 白板（#152）：编辑器和公开的只读视图。AI 的操作是 #153。
     Whiteboard("whiteboard", PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false)),
-    Slides("slides", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false));
+    // スライド（#149）：エディターと公開の放映ページがある。AI の編集は #150。
+    Slides("slides", PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false));
 
     /** 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。 */
     val isCanvas: Boolean get() = this != Note
@@ -309,11 +312,15 @@ sealed interface EmbedMessage {
      * 和聊天一样的提示（登录 / 升级）。只有声明了 `canShowStorageLimit()` 的 App 才会收到。
      */
     data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
-
+    /**
+     * 幻灯片的放映：[state] 是 start（App 横屏、全屏、屏幕常亮）、slide（换了页，[index] 从 0 开始，[count] 是总页数）、end（恢复）。
+     * 只有声明了 `canPresent()` 的 App 才会收到。
+     */
+    data class Presentation(val state: String, val index: Int, val count: Int) : EmbedMessage
     /** 白板正在用画图的工具（手掌 / 平移以外的都算）：这期间 App 让开屏幕两侧的系统返回手势。 */
     data class Drawing(val active: Boolean) : EmbedMessage
 
-    // 网页导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）分块交给 App 保存（src/lib/export-file.ts）：
+    // 网页导出的文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX）分块交给 App 保存（src/lib/export-file.ts）：
     // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
     // 中途放弃是 fileAbort。只有声明了 `canSaveFile()` 的 App 才会收到；由 [ExportFileAssembler] 拼成临时文件。
     /** [size] 是整个文件的字节数。 */
@@ -347,6 +354,11 @@ sealed interface EmbedMessage {
                     obj.str("tier") ?: return@runCatching null,
                     obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                     obj["limit"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
+                )
+                "presentation" -> Presentation(
+                    obj.str("state")?.takeIf { it == "start" || it == "slide" || it == "end" } ?: return@runCatching null,
+                    obj["index"]?.jsonPrimitive?.intOrNull ?: 0,
+                    obj["count"]?.jsonPrimitive?.intOrNull ?: 0,
                 )
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),

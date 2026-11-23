@@ -40,7 +40,7 @@ export const PAGE_KIND_FEATURES: Record<PageKind, PageKindFeatures> = {
   note: { editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true },
   // ホワイトボード（#152）：エディターと公開の読み取りビューがある。AI の操作は #153。
   whiteboard: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false },
-  slides: { editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false },
+  slides: { editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false },
 };
 
 export function pageKindFeatures(kind: PageKind): PageKindFeatures {

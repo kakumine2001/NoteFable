@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 幻灯片编辑页的"…"菜单（放映、导出）和导出文件的保存提示（网页 src/components/slides/slides-editor.tsx，英文原句）。 -->
+<resources>
+    <string name="slides_present">Present</string>
+    <string name="slides_export_pdf">Export PDF</string>
+    <string name="slides_export_pdf_notes">Export PDF with speaker notes</string>
+    <string name="slides_export_png">Export PNG images</string>
+    <string name="slides_export_pptx">Export PowerPoint (PPTX)</string>
+</resources>

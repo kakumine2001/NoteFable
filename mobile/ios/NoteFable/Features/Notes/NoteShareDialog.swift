@@ -5,6 +5,8 @@ import UIKit
 @MainActor
 struct NoteShareDialog: View {
     let pageId: String
+    /// 幻灯片只公开它自己（公开树的叶子），不显示“包含子页面”。
+    var kind: PageKind = .note
     @Binding var busy: Bool
     let close: () -> Void
 
@@ -77,11 +79,13 @@ struct NoteShareDialog: View {
                             .foregroundStyle(Sm.muted)
                     }
 
-                    switchRow(
-                        label: L("share_include_subpages"),
-                        checked: draftIncludeSubpages,
-                        action: { draftIncludeSubpages.toggle() }
-                    )
+                    if kind != .slides {
+                        switchRow(
+                            label: L("share_include_subpages"),
+                            checked: draftIncludeSubpages,
+                            action: { draftIncludeSubpages.toggle() }
+                        )
+                    }
 
                     Button {
                         save(NoteSharePatch(enabled: true, includeSubpages: draftIncludeSubpages))
@@ -100,11 +104,13 @@ struct NoteShareDialog: View {
                         urlRow(url: url, key: "own")
                     }
 
-                    switchRow(
-                        label: L("share_include_subpages"),
-                        checked: s.includeSubpages,
-                        action: { save(NoteSharePatch(includeSubpages: !s.includeSubpages)) }
-                    )
+                    if kind != .slides {
+                        switchRow(
+                            label: L("share_include_subpages"),
+                            checked: s.includeSubpages,
+                            action: { save(NoteSharePatch(includeSubpages: !s.includeSubpages)) }
+                        )
+                    }
 
                     Rectangle().fill(Sm.border).frame(height: 1)
 
