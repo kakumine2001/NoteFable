@@ -4,7 +4,7 @@ import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, 
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
-import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, FileText, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
@@ -329,6 +329,34 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
   );
 }
 
+// 画像・ファイルの差し替え。BlockNote 標準の「Replace」は標準のパネル（外部リンクを入れる「Embed」付き）を開くが、
+// ノートは自分のサービスのファイルしか持てず（validateNoteContent）、外部リンクを入れると保存できなくなる。
+// 追加のときと同じ、アップロードだけのパネルを開く（失敗や容量の上限の理由もパネルに出る）。
+export function NoteFileReplaceButton() {
+  const editor = useBlockNoteEditor(schema);
+  const Components = useComponentsContext()!;
+  const portalElement = usePortalElement();
+  const dict = useDictionary();
+  const block = useEditorState({ editor, selector: () => {
+    if (!editor.isEditable) return undefined;
+    const selected = editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block];
+    return selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file") ? selected[0] : undefined;
+  } });
+  if (!block) return null;
+  const label = dict.formatting_toolbar.file_replace.tooltip[block.type] || dict.formatting_toolbar.file_replace.tooltip.file;
+  return (
+    // 閉じたらエディターへフォーカスを戻す（スマホでキーボードとツールバーが消えないように。標準のボタンと同じ）。
+    <Components.Generic.Popover.Root onOpenChange={(open) => { if (!open) editor.focus(); }} portalElement={portalElement}>
+      <Components.Generic.Popover.Trigger>
+        <Components.FormattingToolbar.Button className="bn-button" mainTooltip={label} label={label} icon={<Upload size={16} />} />
+      </Components.Generic.Popover.Trigger>
+      <Components.Generic.Popover.Content className="bn-popover-content bn-panel-popover" variant="panel-popover">
+        <NoteFilePanel blockId={block.id} />
+      </Components.Generic.Popover.Content>
+    </Components.Generic.Popover.Root>
+  );
+}
+
 const NoteAskAiContext = createContext<((text: string) => void) | null>(null);
 function InlineMathToolbarButton() {
   const editor = useBlockNoteEditor(schema);
@@ -366,7 +394,7 @@ function NoteFormattingToolbar() {
   }));
   if (media) return <FormattingToolbar>
     <FileCaptionButton />
-    <FileReplaceButton />
+    <NoteFileReplaceButton />
     <FileRenameButton />
     <FileDownloadButton />
     <FilePreviewButton />

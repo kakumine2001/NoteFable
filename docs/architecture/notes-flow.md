@@ -29,7 +29,7 @@ AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：页
 
 **存储上限。** 笔记文件、封面和图片图标都计入用户的文件存储用量（与聊天图片、生成的图片、头像合计；游客 100 MB、登录免费 500 MB、Pro 10 GB，数值在 `usage-plans.ts` 的 `STORAGE_LIMITS`，规则见 [database.md](database.md#storedfile)）。`POST /api/pages/files` / `POST /api/pages/covers` 放不下时返回 413 `{ error, code: "storage_limit", tier, used, limit }`，什么都不写。网页的上传入口收到它时都派发 `notefable:storage-limit`（`src/lib/storage-limit-client.ts`）：从上传面板（`/image`、`/file`、替换）、封面和图片图标选的文件在原处显示服务端的说明；粘贴、拖入时新建的空块直接删掉（不留“Loading...”），原因只由下面的提示说明。`NotesWorkspace` 在笔记上方显示 `StorageLimitPrompt`（吸附在滚动区域顶端，长笔记下方粘贴时也看得见）：用量、游客的登录按钮、免费用户的 Pro 升级按钮（启用 Stripe 时）和“删除不需要的文件”。`/note-embed` 里不显示按钮：App 声明了 `canShowStorageLimit()` 时把 `storageLimit` 消息交给 App 用原生提示显示，旧版 App 只在编辑器里显示原因。笔记 AI 面板的附件同样处理。已有的文件不受影响。
 
-图片块和文件块的 `props.url` 只能是 `/api/pages/files?key=…&name=…`（`parseNoteFileUrl`，`src/lib/note-file-keys.ts`），不接受任意外部 URL；上传前的空块 `url` 为空字符串。文件保存在 `note-files/<用户ID>/<uuid>.<扩展名>`，与封面、聊天图片共用 `src/lib/storage.ts`。保存页面时 `assertNoteFilesOwner` 检查所有被引用的键都在当前用户目录下，否则返回 400。
+图片块和文件块的 `props.url` 只能是 `/api/pages/files?key=…&name=…`（`parseNoteFileUrl`，`src/lib/note-file-keys.ts`），不接受任意外部 URL；上传前的空块 `url` 为空字符串。所以新建和替换（选中图片 / 文件时格式工具栏的“替换图片 / 替换文件”，`NoteFileReplaceButton`）都只打开上传面板 `NoteFilePanel`，不出现 BlockNote 默认面板的 Embed（外部链接）标签。文件保存在 `note-files/<用户ID>/<uuid>.<扩展名>`，与封面、聊天图片共用 `src/lib/storage.ts`。保存页面时 `assertNoteFilesOwner` 检查所有被引用的键都在当前用户目录下，否则返回 400。
 
 `POST /api/pages/files` 只收一个 `file` 字段，最大 4 MiB（Vercel 请求体上限 4.5 MB），按实际接收字节数限制。图片按文件头判断（JPEG/PNG/WebP/GIF）；其他文件按扩展名白名单（pdf、txt、md、csv、json、doc/docx、xls/xlsx、ppt/pptx、zip、mp3、wav、mp4），可执行文件、HTML 等被拒绝（400）。`GET /api/pages/files?key=&name=` 只返回当前用户自己的文件：图片内联显示，其他类型以 `attachment` 下载，并带 `nosniff` 和 `Content-Security-Policy: sandbox`。
 
