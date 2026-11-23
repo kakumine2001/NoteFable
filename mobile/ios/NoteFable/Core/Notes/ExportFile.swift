@@ -11,6 +11,8 @@ enum ExportFileTypes {
         "image/svg+xml": "svg",
         "application/pdf": "pdf",
         "application/vnd.openxmlformats-officedocument.presentationml.presentation": "pptx",
+        // 幻灯片的多页 PNG（src/lib/slides/export-files.ts）。
+        "application/zip": "zip",
     ]
 
     /// 表里的类型（不分大小写，`; charset=…` 这样的参数不看）；不在表里是 nil。

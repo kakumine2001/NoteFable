@@ -12,7 +12,7 @@ import java.util.Locale
 data class ExportFile(val file: File, val name: String, val mime: String)
 
 /**
- * 把网页编辑器分块送来的导出文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX；src/lib/export-file.ts）拼成 [dir] 里的临时文件。
+ * 把网页编辑器分块送来的导出文件（白板的 PNG / SVG / PDF，幻灯片的 PDF / PNG / PPTX / ZIP；src/lib/export-file.ts）拼成 [dir] 里的临时文件。
  * 消息是 fileStart → fileChunk ×n → fileEnd，中途放弃是 fileAbort（[EmbedMessage.FileStart] 等）。
  * - 只收 [MIME_TYPES] 里的类型；整个文件最多 [maxBytes]（64 MiB），写进去的字节不能超过声明的大小，结束时要正好等于它。
  * - 块只在 index 是下一个时写入。顺序乱了、base64 坏了、写不进去，这次就作废（删掉临时文件），之后的块不再收，[finish] 返回 null。
@@ -142,12 +142,13 @@ class ExportFileAssembler(
 
         private const val STALE_MILLIS = 24L * 60 * 60 * 1000
 
-        /** 收的类型 → 补扩展名时用的扩展名（白板 src/lib/whiteboard/export.ts 的 PNG / SVG / PDF；幻灯片的 PPTX）。 */
+        /** 收的类型 → 补扩展名时用的扩展名（白板 src/lib/whiteboard/export.ts 的 PNG / SVG / PDF；幻灯片 src/lib/slides/export-files.ts 的 PDF / PNG / PPTX，多页的 PNG 是 ZIP）。 */
         val MIME_TYPES: Map<String, String> = mapOf(
             "image/png" to "png",
             "image/svg+xml" to "svg",
             "application/pdf" to "pdf",
             "application/vnd.openxmlformats-officedocument.presentationml.presentation" to "pptx",
+            "application/zip" to "zip",
         )
 
         /** 去掉参数（`;charset=…`）、不分大小写后是收的类型就返回它，否则 null。 */

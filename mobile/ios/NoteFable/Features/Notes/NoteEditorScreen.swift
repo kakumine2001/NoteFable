@@ -254,7 +254,7 @@ struct NoteEditorScreen: View {
 struct ExportedFileDocument: FileDocument {
     private static let pptx = UTType(filenameExtension: "pptx", conformingTo: .data) ?? .data
     /// `ExportFileTypes` 里的类型（存的时候用 [contentType] 选一个），认不出来的按普通数据。
-    static let readableContentTypes: [UTType] = [.png, .svg, .pdf, pptx, .data]
+    static let readableContentTypes: [UTType] = [.png, .svg, .pdf, pptx, .zip, .data]
 
     let url: URL
 
@@ -277,6 +277,7 @@ struct ExportedFileDocument: FileDocument {
         case "image/svg+xml": return .svg
         case "application/pdf": return .pdf
         case "application/vnd.openxmlformats-officedocument.presentationml.presentation": return pptx
+        case "application/zip": return .zip
         default: return .data
         }
     }

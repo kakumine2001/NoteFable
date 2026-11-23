@@ -152,7 +152,7 @@ final class ExportFileTests: XCTestCase {
     func testOnlyTheWhiteboardAndSlideTypesUpTo64MiBAreAccepted() throws {
         let root = makeRoot()
         let assembler = ExportFileAssembler(directory: root)
-        assertFailure(.unsupportedType) { try assembler.start(id: "x", name: "x.zip", mime: "application/zip", size: 1) }
+        assertFailure(.unsupportedType) { try assembler.start(id: "x", name: "x.exe", mime: "application/octet-stream", size: 1) }
         assertFailure(.unsupportedType) { try assembler.start(id: "x", name: "x.html", mime: "text/html", size: 1) }
         assertFailure(.unsupportedType) { try assembler.start(id: "x", name: "x", mime: "", size: 1) }
         assertFailure(.tooLarge) {
@@ -169,6 +169,9 @@ final class ExportFileTests: XCTestCase {
         XCTAssertEqual(ExportFileTypes.normalized(pptx), pptx)
         XCTAssertEqual(ExportFileTypes.normalized("APPLICATION/PDF"), "application/pdf")
         XCTAssertNil(ExportFileTypes.normalized("image/jpeg"))
+        // 幻灯片的多页 PNG 是 ZIP。
+        XCTAssertEqual(ExportFileTypes.normalized("application/zip"), "application/zip")
+        XCTAssertEqual(ExportFileAssembler.sanitizedName("Deck", mime: "application/zip"), "Deck.zip")
         try assembler.start(id: "p", name: "Deck", mime: pptx, size: 1)
         try assembler.append(id: "p", index: 0, data: base64([7]))
         let deck = try XCTUnwrap(assembler.finish(id: "p"))
@@ -352,7 +355,7 @@ final class ExportFileTests: XCTestCase {
         let vm = await whiteboardVm(root)
 
         // 类型不对：提示一次，后面的块和结束不再提示。
-        vm.onEditorMessage("w", .fileStart(id: "x", name: "x.zip", mime: "application/zip", size: 3))
+        vm.onEditorMessage("w", .fileStart(id: "x", name: "x.html", mime: "text/html", size: 3))
         XCTAssertTrue(vm.state.exportFileFailed)
         vm.dismissExportFileFailure()
         vm.onEditorMessage("w", .fileChunk(id: "x", index: 0, data: "AAAA"))

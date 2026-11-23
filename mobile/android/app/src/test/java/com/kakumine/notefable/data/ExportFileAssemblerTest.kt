@@ -61,6 +61,9 @@ class ExportFileAssemblerTest {
         }
         assertEquals(emptyList<File>(), leftovers())
         assertEquals("image/svg+xml", ExportFileAssembler.mimeType(" Image/SVG+xml ;charset=UTF-8"))
+        // 幻灯片的多页 PNG 是 ZIP。
+        assertEquals("application/zip", ExportFileAssembler.mimeType("application/zip"))
+        assertEquals("Deck.zip", ExportFileAssembler.fileName("Deck", "application/zip"))
     }
 
     @Test
