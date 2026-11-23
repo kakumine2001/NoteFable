@@ -7,9 +7,10 @@
 
 import { createBlockSpecFromTiptapNode, createExtension, fixColumnList, fragmentToBlocks, getNodeById, type BlockNoteEditor, type ComputeDropPositionContext } from "@blocknote/core";
 import { Node, mergeAttributes } from "@tiptap/core";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
+import type { Node as PMNode } from "@tiptap/pm/model";
+import { NodeSelection, Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
-import { COLUMN, COLUMN_LIST, MAX_COLUMNS, MIN_COLUMN_WIDTH, unwrapColumns, validColumnWidth } from "@/lib/note-columns";
+import { COLUMN, COLUMN_LIST, MAX_COLUMNS, MAX_COLUMN_WIDTH, MIN_COLUMN_WIDTH, unwrapColumns, validColumnWidth } from "@/lib/note-columns";
 
 // 段組みの外側。2 段以上の column だけを持つ。
 const ColumnListNode = Node.create({
@@ -57,7 +58,15 @@ const ColumnNode = Node.create({
 type AnyEditor = BlockNoteEditor<any, any, any>;
 type Side = "left" | "right";
 // ドロップ先: 段の外のブロックなら、そのブロックと運んだブロックで新しい段組みを作る。段の中のブロックなら、その段の隣に段を足す。
-type SideTarget = { side: Side; blockId: string; cursorPos: number };
+// side は画面上の左右（縦線の位置）、before は文書の順で前に置くか（右から左に書く言語では左右が逆になる）。
+type SideTarget = { side: Side; before: boolean; blockId: string; cursorPos: number };
+
+const isRtl = (element: Element) => getComputedStyle(element).direction === "rtl";
+
+// ドラッグを始めたエディター（ブロックのハンドルはエディターの外に描かれるので、同じ .bn-container かで見る）。
+// 同じノートを分割表示で 2 つ開いているとき、ID が同じでも相手側のドラッグをこちらの移動として扱わない。
+const dragOrigins = new WeakMap<EditorView, boolean>();
+function dragStartedIn(view: EditorView) { return dragOrigins.get(view) === true; }
 
 // 左右のドロップを受け付ける幅（ブロックの端から）。
 const SIDE_ZONE_MAX = 96;
@@ -84,10 +93,19 @@ function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
   const inColumn = $pos.parent.type.name === COLUMN;
   const blockPos = $pos.pos;
   const columnPos = inColumn ? $pos.before($pos.depth) : -1;
-  if (inColumn && $pos.node($pos.depth - 1).childCount >= MAX_COLUMNS) return null;
-
   // 運んでいるブロック自身の上や、運ぶブロックしかない段の横には置けない。
   const { from, to } = view.state.selection;
+  if (inColumn) {
+    // 段の数の上限。同じ段組みの別の段を丸ごと運ぶときは、その段が消えるので数は増えない。
+    const list = $pos.node($pos.depth - 1);
+    let offset = $pos.before($pos.depth - 1) + 1;
+    let emptied = 0;
+    list.forEach((column) => {
+      if (dragStartedIn(view) && from <= offset + 1 && to >= offset + column.nodeSize - 1) emptied = 1;
+      offset += column.nodeSize;
+    });
+    if (list.childCount - emptied >= MAX_COLUMNS) return null;
+  }
   if (blockPos >= from && blockPos < to) return null;
   if (inColumn) {
     const column = $pos.parent;
@@ -103,7 +121,8 @@ function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
     : event.clientX >= rect.left + LEFT_EDGE_GAP && event.clientX < rect.left + zone ? "left" : null;
   if (!side) return null;
   const blockId = block.attrs.id;
-  return typeof blockId === "string" ? { side, blockId, cursorPos } : null;
+  const before = (side === "left") !== isRtl(dom);
+  return typeof blockId === "string" ? { side, before, blockId, cursorPos } : null;
 }
 
 // ドラッグ中の線: 左右に置けるときは縦線（BlockNote の DropCursor が描く）。
@@ -129,7 +148,7 @@ function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, mov
   const dragged = fragmentToBlocks(slice.content) as unknown as JsonBlock[];
   if (!dragged.length) return false;
   // この文書から運んだ（コピーではない）ブロックは元の場所から外す。外した後で、段が空になれば core が片付ける。
-  const local = moved && dragged.every((block) => block.id && editor.getBlock(block.id));
+  const local = moved && dragStartedIn(view) && dragged.every((block) => block.id && editor.getBlock(block.id));
   const moving = local ? unwrapColumns(dragged) : withoutIds(unwrapColumns(dragged));
   let firstMoved: string | undefined;
   editor.transact(() => {
@@ -142,14 +161,14 @@ function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, mov
       const columns = (list?.children ?? []) as JsonBlock[];
       const widths = columns.map((column) => Number(column.props?.width)).filter(validColumnWidth);
       const width = widths.length ? Math.max(MIN_COLUMN_WIDTH, widths.reduce((sum, value) => sum + value, 0) / widths.length) : 1;
-      const [inserted] = editor.insertBlocks([{ type: COLUMN, props: { width }, children: moving } as never], parent.id, target.side === "left" ? "before" : "after");
+      const [inserted] = editor.insertBlocks([{ type: COLUMN, props: { width }, children: moving } as never], parent.id, target.before ? "before" : "after");
       firstMoved = (inserted?.children?.[0] as JsonBlock | undefined)?.id;
     } else {
       const own = { type: COLUMN, props: { width: 1 }, children: [targetBlock] };
       const added = { type: COLUMN, props: { width: 1 }, children: moving };
-      const { insertedBlocks } = editor.replaceBlocks([target.blockId], [{ type: COLUMN_LIST, children: target.side === "left" ? [added, own] : [own, added] } as never]);
+      const { insertedBlocks } = editor.replaceBlocks([target.blockId], [{ type: COLUMN_LIST, children: target.before ? [added, own] : [own, added] } as never]);
       const list = insertedBlocks[0] as unknown as JsonBlock | undefined;
-      firstMoved = list?.children?.[target.side === "left" ? 0 : 1]?.children?.[0]?.id;
+      firstMoved = list?.children?.[target.before ? 0 : 1]?.children?.[0]?.id;
     }
   });
   // 運んだ先頭のブロックにキャレットを置く（文字を持たないブロックなら何もしない）。
@@ -173,7 +192,8 @@ function resizePlugin() {
     view(view) {
       let hovered: HTMLElement | null = null;
       let border: { left: HTMLElement; right: HTMLElement } | null = null;
-      let drag: { startX: number; left: HTMLElement; right: HTMLElement; leftPx: number; rightPx: number; total: number; leftWidth: number; rightWidth: number } | null = null;
+      // left / right は文書の順で前後の段（右から左に書く言語では画面の右 / 左）。
+      let drag: { startX: number; rtl: boolean; left: HTMLElement; right: HTMLElement; leftPx: number; rightPx: number; total: number; leftWidth: number; rightWidth: number } | null = null;
       const setBorder = (next: typeof border) => {
         if (border?.left === next?.left) return;
         border?.left.classList.remove(BORDER_CLASS);
@@ -209,9 +229,11 @@ function resizePlugin() {
         // 狭い画面では段が縦に積まれるので、幅は変えられない。
         if (!list || getComputedStyle(list).flexDirection !== "row") { setBorder(null); return; }
         const columns = columnElements(list);
+        const rtl = isRtl(list);
         let next: typeof border = null;
         for (let index = 0; index < columns.length - 1; index++) {
-          if (Math.abs(event.clientX - columns[index].getBoundingClientRect().right) <= RESIZE_HIT) { next = { left: columns[index], right: columns[index + 1] }; break; }
+          const rect = columns[index].getBoundingClientRect();
+          if (Math.abs(event.clientX - (rtl ? rect.left : rect.right)) <= RESIZE_HIT) { next = { left: columns[index], right: columns[index + 1] }; break; }
         }
         setBorder(next);
       };
@@ -220,9 +242,14 @@ function resizePlugin() {
         if (!drag) return;
         const span = drag.leftPx + drag.rightPx;
         if (!Number.isFinite(event.clientX) || span <= 2 * MIN_COLUMN_PX) return;
-        const leftPx = Math.min(Math.max(drag.leftPx + event.clientX - drag.startX, MIN_COLUMN_PX), span - MIN_COLUMN_PX);
-        drag.leftWidth = drag.total * leftPx / span;
-        drag.rightWidth = drag.total - drag.leftWidth;
+        const delta = (event.clientX - drag.startX) * (drag.rtl ? -1 : 1);
+        const leftPx = Math.min(Math.max(drag.leftPx + delta, MIN_COLUMN_PX), span - MIN_COLUMN_PX);
+        // 2 つの段の比の合計は保ち、どちらも保存できる範囲に収める。
+        const leftWidth = Math.min(Math.max(drag.total * leftPx / span, MIN_COLUMN_WIDTH), MAX_COLUMN_WIDTH);
+        const rightWidth = drag.total - leftWidth;
+        if (!validColumnWidth(rightWidth)) return;
+        drag.leftWidth = leftWidth;
+        drag.rightWidth = rightWidth;
         drag.left.style.flexGrow = String(drag.leftWidth);
         drag.right.style.flexGrow = String(drag.rightWidth);
       };
@@ -236,11 +263,14 @@ function resizePlugin() {
         document.body.classList.remove("notes-column-resizing");
         // 幅は小数 3 桁に丸めて保存する（JSON を短く保つ）。
         const round = (value: number) => Math.round(value * 1000) / 1000;
+        const widths = [round(leftWidth), round(rightWidth)];
+        // 片方だけ書くと 2 つの段の比が崩れるので、どちらも有効なときだけ両方書く。
+        if (!widths.every(validColumnWidth)) return;
         let tr = view.state.tr;
-        for (const [element, width] of [[left, leftWidth], [right, rightWidth]] as const) {
+        for (const [element, width] of [[left, widths[0]], [right, widths[1]]] as const) {
           const id = element.getAttribute("data-id");
           const found = id ? getNodeById(id, tr.doc) : undefined;
-          if (found && validColumnWidth(round(width))) tr = tr.setNodeMarkup(found.posBeforeNode, undefined, { ...found.node.attrs, width: round(width) });
+          if (found) tr = tr.setNodeMarkup(found.posBeforeNode, undefined, { ...found.node.attrs, width });
         }
         if (tr.docChanged) view.dispatch(tr);
       };
@@ -255,7 +285,7 @@ function resizePlugin() {
         const leftWidth = widthOf(border.left);
         const rightWidth = widthOf(border.right);
         drag = {
-          startX: event.clientX, left: border.left, right: border.right,
+          startX: event.clientX, rtl: isRtl(border.left), left: border.left, right: border.right,
           leftPx: border.left.getBoundingClientRect().width, rightPx: border.right.getBoundingClientRect().width,
           total: leftWidth + rightWidth, leftWidth, rightWidth,
         };
@@ -285,27 +315,72 @@ function resizePlugin() {
 
 // ブロックを普通にドラッグして（上下の位置へ）段の外に出したとき、元の段が空のまま残らないようにする。
 // BlockNote の移動・削除の API は段を片付けるが、ProseMirror の標準のドロップは片付けない。
-// 片付けるのは運び出した元の段組みだけ（/2 columns で作ったばかりの空の段は消さない）。
+// 片付けるのは、このエディターでつかんだブロックを運び出して空になった元の段だけ
+// （文字のドラッグやファイルのドロップ、/2 columns で作ったばかりの空の段には触れない）。
+function isEmptyColumn(column: PMNode) {
+  const block = column.childCount === 1 ? column.firstChild : null;
+  const content = block?.childCount === 1 ? block.firstChild : null;
+  return content?.type.name === "paragraph" && content.content.size === 0;
+}
+
 function dropCleanupPlugin() {
   return new Plugin({
     key: new PluginKey("notes-column-drop-cleanup"),
+    view(view) {
+      // ドラッグを始めたのがこのエディター（本文か、エディターの外に描かれるブロックのハンドル）かを覚えておく。
+      const onStart = (event: Event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        const container = view.dom.closest(".bn-container");
+        dragOrigins.set(view, !!target && (view.dom.contains(target) || (!!container && target.closest(".bn-container") === container)));
+      };
+      // drop の処理が終わってから消す。
+      const onEnd = () => { setTimeout(() => dragOrigins.delete(view), 0); };
+      const root = view.root as Document;
+      root.addEventListener("dragstart", onStart, true);
+      root.addEventListener("dragend", onEnd, true);
+      return {
+        destroy() {
+          root.removeEventListener("dragstart", onStart, true);
+          root.removeEventListener("dragend", onEnd, true);
+          dragOrigins.delete(view);
+        },
+      };
+    },
     appendTransaction(transactions, oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged && tr.getMeta("uiEvent") === "drop")) return null;
-      const $from = oldState.doc.resolve(oldState.selection.from);
+      // ブロックをつかんだドラッグ（ノードの選択）だけ。文字の選択を運んでも段は空にならない。
+      const selection = oldState.selection;
+      if (!(selection instanceof NodeSelection) && selection.content().openStart !== 0) return null;
+      const $from = oldState.doc.resolve(selection.from);
+      // 元の段は「段組みの位置 + 何番目の段か」で追う（ドロップで段のノード自体が置き換わることがあるため）。
       let listPos = -1;
-      for (let depth = $from.depth; depth > 0; depth--) {
-        if ($from.node(depth).type.name === COLUMN_LIST) { listPos = $from.before(depth); break; }
+      let index = -1;
+      for (let depth = $from.depth; depth > 1; depth--) {
+        if ($from.node(depth).type.name === COLUMN && $from.node(depth - 1).type.name === COLUMN_LIST) {
+          listPos = $from.before(depth - 1);
+          index = $from.index(depth - 1);
+          break;
+        }
       }
       if (listPos < 0) return null;
+      const oldCount = oldState.doc.nodeAt(listPos)?.childCount;
       let mapped = listPos;
       for (const tr of transactions) {
         const result = tr.mapping.mapResult(mapped, 1);
         if (result.deleted) return null;
         mapped = result.pos;
       }
-      if (newState.doc.nodeAt(mapped)?.type.name !== COLUMN_LIST) return null;
+      const list = newState.doc.nodeAt(mapped);
+      if (list?.type.name !== COLUMN_LIST || list.childCount !== oldCount) return null;
+      const column = list.child(index);
+      if (!isEmptyColumn(column)) return null;
       const tr = newState.tr;
-      fixColumnList(tr, mapped);
+      // 3 段以上ならその段だけ消す。2 段なら段組みをやめて、残った段の中身だけにする（core の fixColumnList）。
+      if (list.childCount > 2) {
+        let columnPos = mapped + 1;
+        for (let i = 0; i < index; i++) columnPos += list.child(i).nodeSize;
+        tr.delete(columnPos, columnPos + column.nodeSize);
+      } else fixColumnList(tr, mapped);
       return tr.docChanged ? tr : null;
     },
   });

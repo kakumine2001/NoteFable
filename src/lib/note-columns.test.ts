@@ -31,6 +31,13 @@ describe("columns", () => {
     for (const blocks of bad) expect(() => validateNoteContent(note(blocks))).toThrow();
   });
 
+  it("does not count column containers toward the nesting limit", () => {
+    let nested: { id: string; type: string; props: object; content: unknown[]; children: unknown[] } = p("n8", "deep");
+    for (let level = 7; level >= 1; level--) nested = { ...p(`n${level}`, "x"), children: [nested] };
+    expect(() => validateNoteContent(note([nested]))).not.toThrow();
+    expect(() => validateNoteContent(note([columns("l", column("c1", [nested]), column("c2", [p("b", "y")]))]))).not.toThrow();
+  });
+
   it("writes column contents in order without numbering the containers", () => {
     expect(blocksToMarkdown(doc)).toBe("Intro\nLeft\nRight\nMore\nOutro");
     expect(blocksToMarkdown(doc, 0, { n: 0 })).toBe("[1] Intro\n[2] Left\n[3] Right\n[4] More\n[5] Outro");

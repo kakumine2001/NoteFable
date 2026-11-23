@@ -535,6 +535,14 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     editor.setTextCursorPosition(first, "start");
   }
   function focusEnd() {
+    // 最後が段組みなら、段の中ではなく段組みの下に新しい段落を置く。
+    const tail = editor.document.at(-1)!;
+    if (tail.type === "columnList") {
+      const inserted = editor.insertBlocks([{ type: "paragraph" }], tail, "after")[0];
+      editor.focus();
+      editor.setTextCursorPosition(inserted, "end");
+      return;
+    }
     let last = editor.document.at(-1)!;
     while (last.children.length) last = editor.getBlock(last.children.at(-1)!.id)!;
     if (last.type !== "paragraph" || last.content.length) {
@@ -575,7 +583,9 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
     if (!editable || event.nativeEvent.isComposing || !(event.target instanceof HTMLElement) || !event.target.closest(".bn-editor")) return;
     if (event.key === "ArrowUp" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey) {
       const selection = window.getSelection();
-      const first = editor.document[0];
+      // 先頭が段組みなら、左の段の最初のブロックが「最初のブロック」。
+      let first = editor.document[0];
+      while ((first.type === "columnList" || first.type === "column") && first.children.length) first = first.children[0];
       if (selection?.isCollapsed && editor.getTextCursorPosition().block.id === first.id) {
         const content = event.currentTarget.querySelector(".bn-inline-content");
         if (content && selection.anchorNode && content.contains(selection.anchorNode)) {

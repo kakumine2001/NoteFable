@@ -136,7 +136,8 @@ export function validateNoteContent(value: unknown): NoteContent {
         if (block.content !== undefined || !Array.isArray(children)) return false;
         if (block.type === COLUMN_LIST ? children.length < 2 || children.length > MAX_STORED_COLUMNS || Object.keys(block.props).length : !children.length
           || !Object.entries(block.props).every(([key, width]) => key === "width" && validColumnWidth(width))) return false;
-        return validBlocks(children, depth + 1, block.type);
+        // 段組みと段は本文を持たない入れ物なので、入れ子の深さ（8 まで）には数えない。
+        return validBlocks(children, depth, block.type);
       }
       const props = block.props;
       const validProps = Object.entries(props).every(([key, entry]) => {
