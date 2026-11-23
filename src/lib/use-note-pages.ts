@@ -42,7 +42,12 @@ async function pageRequest(url: string, method = "GET", body?: unknown) {
 
 
 // embedded: Android アプリの WebView に載せる /note-embed（1 ページだけを開き、一覧は読まない）。
-export function useNotePages(enabled: boolean, { embedded = false }: { embedded?: boolean } = {}) {
+export function useNotePages(
+  enabled: boolean,
+  { embedded = false, onMissing }: { embedded?: boolean; onMissing?: (id: string) => void } = {},
+) {
+  const onMissingRef = useRef(onMissing);
+  useEffect(() => { onMissingRef.current = onMissing; }, [onMissing]);
   const orderSync=useRef(new OrderRefreshSync());
   const reorderBusy=useRef(false);
   const [pages, setPages] = useState<NotePageSummary[]>([]);
@@ -348,6 +353,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
               currentQueue.error = msg("This note was changed in another tab. Save a copy or load the latest version.");
               refresh((value) => value + 1);
             }
+          } else if (currentQueue.status === "error" && !currentQueue.gone && currentQueue.dirty) {
+            // 前回の保存が一時失敗して下書きだけ残っていた場合、再表示時の再照合で衝突がなければ自動で再送する。
+            void currentQueue.flush();
           }
           if (latestPage.version >= currentQueue.version) {
             upsertSummary({ ...latestPage, title: currentQueue.content.title.trim() || "Untitled", icon: currentQueue.content.icon }, { since: startedMeta });
@@ -377,9 +385,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
             const url = new URL(window.location.href);
             if (url.searchParams.get("page") === id) {
               url.searchParams.delete("page");
-              window.history.replaceState(null, "", url);
+              window.history.replaceState(window.history.state, "", url);
               window.dispatchEvent(new Event("popstate"));
             }
+            onMissingRef.current?.(id);
           }
         });
       }

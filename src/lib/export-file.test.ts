@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FILE_CHUNK_BYTES, MAX_APP_FILE_BYTES, saveExportFile, sendFileToNative } from "@/lib/export-file";
+import { cancelNativeExports, FILE_CHUNK_BYTES, getNativeExportEpoch, MAX_APP_FILE_BYTES, saveExportFile, sendFileToNative } from "@/lib/export-file";
 import type { NativeMessage } from "@/lib/native-bridge";
 
 describe("sendFileToNative", () => {
@@ -56,6 +56,14 @@ describe("saveExportFile in the app", () => {
     const messages = stubApp(true);
     const big = { size: MAX_APP_FILE_BYTES + 1, type: "application/pdf" } as Blob;
     expect(await saveExportFile(big, "a.pdf")).toBe("tooLarge");
+    expect(messages).toEqual([]);
+  });
+
+  it("cancels a delayed export after the editor switches pages", async () => {
+    const messages = stubApp(true);
+    const startedEpoch = getNativeExportEpoch();
+    cancelNativeExports();
+    expect(await saveExportFile(new Blob(["x"], { type: "image/png" }), "old-board.png", startedEpoch)).toBe("cancelled");
     expect(messages).toEqual([]);
   });
 });

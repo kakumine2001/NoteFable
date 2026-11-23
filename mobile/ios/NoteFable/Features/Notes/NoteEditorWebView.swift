@@ -324,7 +324,6 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         if isLoaded, webView != nil {
             bridge.pushLanguage(language)
             bridge.pushAppIcon(appIcon)
-            let pageJson = app.notes.state.pages.first(where: { $0.id == open.id }).map { NoteFableJson.encodeToString($0) }
             let chat = app.chat.state
             let model = chat.selectedModel?.id
             let reasoning = chat.selectedReasoning
@@ -332,10 +331,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 guard let self else { return }
                 let handled = await self.bridge.openPage(id: open.id, reveal: useReveal, model: model, reasoning: reasoning)
                 guard !Task.isCancelled, self.showEpoch == epoch, self.activeEditor == open.editor else { return }
-                if handled {
-                    if let pageJson { self.bridge.pageSettings(pageJson) }
-                } else {
-                    self.loadPage(pageId: open.id, reveal: useReveal)
+                if !handled {
+                    // 旧版服务端不支持 openPage：用 replace 替换当前历史项，避免上一篇笔记留在 backForwardList 里。
+                    self.loadPage(pageId: open.id, reveal: useReveal, replaceHistory: true)
                 }
             }
         } else {
@@ -409,7 +407,8 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     }
 
     /// 换 Cookie、装好 `window.NoteFableNative`，再打开网页。
-    private func loadPage(pageId: String, reveal: String?) {
+    /// `replaceHistory` 为 true（旧版服务端回退整页加载）且当前已在同站页时，用 `location.replace` 替换当前历史项，不污染 `canGoBack`。
+    private func loadPage(pageId: String, reveal: String?, replaceHistory: Bool = false) {
         guard let webView, let url = embedURL(pageId: pageId, reveal: reveal) else { return }
         loadRun += 1
         let current = loadRun
@@ -438,7 +437,14 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
             // 换 Cookie 的途中换了身份或已离开笔记：不再带着旧 Cookie 去加载。
             guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor != nil, let webView = self.webView else { return }
             self.isLoaded = true
-            webView.load(URLRequest(url: url))
+            if replaceHistory, let currentUrl = webView.url, self.isSameSite(currentUrl) {
+                webView.evaluateJavaScript("window.location.replace(\(NoteEmbedScripts.quote(url.absoluteString)))") { [weak self, weak webView] _, error in
+                    guard error != nil, let self, self.loadRun == current, let webView else { return }
+                    webView.load(URLRequest(url: url))
+                }
+            } else {
+                webView.load(URLRequest(url: url))
+            }
         }
     }
 
