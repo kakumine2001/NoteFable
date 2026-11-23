@@ -351,6 +351,11 @@
 "language_effective" = "ภาษาปัจจุบัน";
 "language_no_results" = "ไม่พบภาษา";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "โน้ต";
+"page_kind_whiteboard" = "ไวท์บอร์ด";
+"page_kind_slides" = "สไลด์";
+
 /* strings_pages.xml */
 "pg_favorites" = "รายการโปรด";
 "pg_no_pages_inside" = "ไม่มีหน้าย่อย";

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 工作区的页面类型（src/lib/i18n/messages/zh.ts）。 -->
+<resources>
+    <string name="page_kind_note">笔记</string>
+    <string name="page_kind_whiteboard">白板</string>
+    <string name="page_kind_slides">幻灯片</string>
+</resources>

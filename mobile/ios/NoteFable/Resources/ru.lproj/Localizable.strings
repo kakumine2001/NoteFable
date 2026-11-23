@@ -351,6 +351,11 @@
 "language_effective" = "Текущий язык";
 "language_no_results" = "Языки не найдены.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Заметка";
+"page_kind_whiteboard" = "Доска";
+"page_kind_slides" = "Слайды";
+
 /* strings_pages.xml */
 "pg_favorites" = "Избранное";
 "pg_no_pages_inside" = "Внутри нет подстраниц";

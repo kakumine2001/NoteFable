@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 工作区的页面类型（网页 src/lib/page-kinds.ts 的 PAGE_KIND_LABELS，英文原句）：类型图标的读屏说明、搜索结果里白板 / 幻灯片的标注。 -->
+<resources>
+    <string name="page_kind_note">Note</string>
+    <string name="page_kind_whiteboard">Whiteboard</string>
+    <string name="page_kind_slides">Slides</string>
+</resources>

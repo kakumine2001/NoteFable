@@ -351,6 +351,11 @@
 "language_effective" = "Bahasa saat ini";
 "language_no_results" = "Bahasa tidak ditemukan.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Catatan";
+"page_kind_whiteboard" = "Papan tulis";
+"page_kind_slides" = "Slide";
+
 /* strings_pages.xml */
 "pg_favorites" = "Favorit";
 "pg_no_pages_inside" = "Tidak ada subhalaman";

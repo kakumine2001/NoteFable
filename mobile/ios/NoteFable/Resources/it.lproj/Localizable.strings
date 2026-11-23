@@ -351,6 +351,11 @@
 "language_effective" = "Lingua attuale";
 "language_no_results" = "Nessuna lingua trovata.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Nota";
+"page_kind_whiteboard" = "Lavagna";
+"page_kind_slides" = "Diapositive";
+
 /* strings_pages.xml */
 "pg_favorites" = "Preferiti";
 "pg_no_pages_inside" = "Nessuna sottopagina";

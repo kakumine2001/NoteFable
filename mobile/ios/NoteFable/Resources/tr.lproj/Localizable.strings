@@ -351,6 +351,11 @@
 "language_effective" = "Geçerli dil";
 "language_no_results" = "Dil bulunamadı.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Not";
+"page_kind_whiteboard" = "Beyaz tahta";
+"page_kind_slides" = "Slaytlar";
+
 /* strings_pages.xml */
 "pg_favorites" = "Favoriler";
 "pg_no_pages_inside" = "Alt sayfa yok";

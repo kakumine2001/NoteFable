@@ -351,6 +351,11 @@
 "language_effective" = "現在の言語";
 "language_no_results" = "言語が見つかりません。";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "ノート";
+"page_kind_whiteboard" = "ホワイトボード";
+"page_kind_slides" = "スライド";
+
 /* strings_pages.xml */
 "pg_favorites" = "お気に入り";
 "pg_no_pages_inside" = "サブページはありません";
