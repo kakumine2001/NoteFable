@@ -158,7 +158,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />
-      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Notes")}</h1>
+      <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Workspace")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
         <button type="button" disabled={busy} className="notes-empty-new !mt-0" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
@@ -172,7 +172,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           <button type="button" disabled={busy} className="notion-button notes-home-new-group" onClick={() => emptyImportRef.current?.click()}><Upload size={16} />{t("Import Markdown")}</button>
         </>}
       </div>
-      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.")}</p>
+      <p className="mt-10 max-w-sm text-xs leading-5 text-[var(--notion-faint)]">{t("Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.")}</p>
     </div></>}
   </div>;
 }

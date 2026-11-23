@@ -86,7 +86,7 @@ struct NoteEditorScreen: View {
                 .padding(.leading, 12)
             NFIconTile(emoji: open.icon, fallback: Lucide.fileText, box: 20, glyph: 15)
                 .padding(.leading, 12)
-            Text(open.title.isEmpty ? L("notes") : open.title)
+            Text(open.title.isEmpty ? L("workspace") : open.title)
                 .font(.nf(14))
                 .nfLineHeight(20, fontSize: 14)
                 .foregroundStyle(Sm.muted)

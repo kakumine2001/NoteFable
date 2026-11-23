@@ -7,7 +7,7 @@ import { landingPath } from "@/lib/i18n/routing";
 import { createTranslator, msg } from "@/lib/i18n/translate";
 import "./landing.css";
 
-const DESCRIPTION = msg("AI chat and notes in one place: ask a question, keep the answer as a note, and find it again later.");
+const DESCRIPTION = msg("AI chat and notes in one place: ask a question, keep the answer as a note in your workspace, and find it again later.");
 
 // 検索エンジンに言語ごとの版を知らせる（hreflang と canonical）。/ は proxy が言語を選んで /{locale} の中身を出すので、
 // その版の canonical（/{locale}）を指す重複として扱われる。x-default は付けない（canonical が別の URL を指す URL は無視されるため）。

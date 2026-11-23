@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Không thể đính kèm trang khi tạo hình ảnh. Hãy gỡ các trang đính kèm hoặc tắt tạo hình ảnh.</string>
     <string name="create_page">Tổng hợp thành ghi chú</string>
     <string name="create_page_title">Tổng hợp đoạn chat này thành ghi chú</string>
-    <string name="create_page_body">NoteFable dùng mô hình đang chọn để viết lại cuộc trò chuyện này thành một ghi chú mạch lạc trong mục Ghi chú. Các đoạn chat quá dài sẽ được rút gọn vừa vặn và ưu tiên giữ lại những tin nhắn gần nhất. Thao tác này được tính là 1 tin nhắn trong giới hạn hôm nay.</string>
-    <string name="create_page_working">Đang viết ghi chú… Việc này có thể mất khoảng một phút. Bạn có thể đóng cửa sổ này; ghi chú sẽ xuất hiện trong mục Ghi chú khi hoàn tất.</string>
-    <string name="create_page_done">Đã tạo “%1$s” trong Ghi chú.</string>
+    <string name="create_page_body">NoteFable dùng mô hình đang chọn để viết lại cuộc trò chuyện này thành một ghi chú mạch lạc trong Không gian. Các đoạn chat quá dài sẽ được rút gọn vừa vặn và ưu tiên giữ lại những tin nhắn gần nhất. Thao tác này được tính là 1 tin nhắn trong giới hạn hôm nay.</string>
+    <string name="create_page_working">Đang viết ghi chú… Việc này có thể mất khoảng một phút. Bạn có thể đóng cửa sổ này; ghi chú sẽ xuất hiện trong Không gian khi hoàn tất.</string>
+    <string name="create_page_done">Đã tạo “%1$s” trong Không gian.</string>
     <string name="create_page_partial">Đoạn chat này khá dài nên một phần nội dung đã được lược bớt.</string>
     <string name="open_page">Mở ghi chú</string>
     <string name="language_current">Ngôn ngữ: %1$s</string>

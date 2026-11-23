@@ -73,9 +73,10 @@
     <string name="err_some_more">Vous pouvez ajouter encore %1$d fichiers (%2$d par message). Aucun de ces %3$d fichiers n’a été ajouté. Choisissez moins de fichiers.</string>
     <string name="err_not_added">%1$s Aucun nouveau fichier n’a été ajouté.</string>
     <string name="chat_mode">Discussion</string>
-    <string name="note_mode">Note</string>
-    <string name="workspace_mode">Mode de l’espace de travail</string>
+    <string name="note_mode">Espace</string>
+    <string name="workspace_mode">Basculer entre Discussion et Espace</string>
     <string name="notes">Notes</string>
+    <string name="workspace">Espace</string>
     <string name="new_note">Nouvelle note</string>
     <string name="projects">Projets</string>
     <string name="new_project">Nouveau projet</string>
@@ -127,7 +128,7 @@
     <string name="days_left">%1$d jours restants</string>
     <string name="loading_notes">Chargement des notes…</string>
     <string name="notes_intro">Rédigez vos notes par blocs — tapez %1$s pour les titres, listes, tâches et blocs de code.</string>
-    <string name="notes_storage_hint">Les notes sont enregistrées sur le serveur et associées à cet appareil. Connectez-vous pour les ouvrir sur d’autres appareils. Effacer les données de l’application ou du site crée un espace de travail distinct.</string>
+    <string name="notes_storage_hint">Les notes sont enregistrées sur le serveur et associées à cet appareil. Connectez-vous pour les ouvrir sur d’autres appareils. Si vous effacez les données de l’application ou du site avant de vous connecter, vous n’y aurez plus accès.</string>
     <string name="all_notes">Toutes les notes</string>
     <string name="version_history">Historique des versions</string>
     <string name="save_saved">Enregistré</string>

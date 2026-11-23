@@ -73,9 +73,10 @@
 "err_some_more" = "还能再添加 %1$d 个文件（每条消息最多 %2$d 个）。这 %3$d 个文件都没有添加，请少选一些。";
 "err_not_added" = "%1$s没有添加新文件。";
 "chat_mode" = "聊天";
-"note_mode" = "笔记";
-"workspace_mode" = "工作区模式";
+"note_mode" = "工作区";
+"workspace_mode" = "在聊天和工作区之间切换";
 "notes" = "笔记";
+"workspace" = "工作区";
 "new_note" = "新笔记";
 "projects" = "项目";
 "new_project" = "新项目";
@@ -127,7 +128,7 @@
 "days_left" = "剩余 %1$d 天";
 "loading_notes" = "正在加载笔记…";
 "notes_intro" = "用块组织笔记，输入 %1$s 即可添加标题、列表、待办和代码。";
-"notes_storage_hint" = "笔记保存在服务器上，并与此设备关联。登录后，可在其他设备打开。清除应用或网站数据后会创建一个独立的工作区。";
+"notes_storage_hint" = "笔记保存在服务器上，并与此设备关联。登录后，可在其他设备打开。如果在登录前清除应用或网站数据，将无法再打开这些笔记。";
 "all_notes" = "全部笔记";
 "version_history" = "版本历史";
 "save_saved" = "已保存";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "生成图片时不能添加页面。请移除页面或关闭图片生成。";
 "create_page" = "整理成笔记";
 "create_page_title" = "把这段聊天整理成笔记";
-"create_page_body" = "NoteFable 会用当前选择的模型，把这段对话改写成一篇条理清晰的笔记并保存到笔记中。很长的对话会被缩短，优先保留最近的消息。这会计入今天的消息次数（1 次）。";
-"create_page_working" = "正在撰写笔记……可能需要一分钟左右。你可以关闭这个窗口，完成后笔记会出现在笔记列表里。";
-"create_page_done" = "已在笔记中创建“%1$s”。";
+"create_page_body" = "NoteFable 会用当前选择的模型，把这段对话改写成一篇条理清晰的笔记并保存到工作区。很长的对话会被缩短，优先保留最近的消息。这会计入今天的消息次数（1 次）。";
+"create_page_working" = "正在撰写笔记……可能需要一分钟左右。你可以关闭这个窗口，完成后笔记会出现在工作区里。";
+"create_page_done" = "已在工作区中创建“%1$s”。";
 "create_page_partial" = "对话较长，省略了一部分内容。";
 "open_page" = "打开笔记";
 "language_current" = "语言：%1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "回答选项";
 "answer_more_options" = "更多回答选项";
-"answer_save_to_page" = "保存到笔记";
-"answer_saved_to_page" = "已保存到笔记";
-"answer_retry_save" = "重新保存到笔记";
+"answer_save_to_page" = "保存为笔记";
+"answer_saved_to_page" = "已保存为笔记";
+"answer_retry_save" = "重新保存为笔记";
 "answer_open_saved_page" = "打开已保存的笔记";
 "answer_download_conversation" = "下载聊天";
 "answer_conversation_downloaded" = "聊天已下载";
 "answer_download_failed" = "无法下载聊天，请重试。";
-"answer_save_failed" = "无法保存到笔记，请重试。";
+"answer_save_failed" = "无法保存为笔记，请重试。";
 "answer_save_too_large" = "这条回答太长，无法保存为笔记。";
 
 /* strings_i18n.xml */

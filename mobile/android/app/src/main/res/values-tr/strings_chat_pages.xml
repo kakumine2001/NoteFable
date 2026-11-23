@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">Görsel oluştururken sayfa eklenemez. Sayfaları kaldırın veya görsel oluşturmayı kapatın.</string>
     <string name="create_page">Nota dönüştür</string>
     <string name="create_page_title">Bu sohbetten not oluştur</string>
-    <string name="create_page_body">NoteFable, seçili modeli kullanarak bu konuşmayı Notlar içinde düzenli bir nota dönüştürür. Çok uzun sohbetler, en son mesajlar korunarak kısaltılır. Bu işlem bugünkü mesaj limitinizden bir mesaj olarak sayılır.</string>
-    <string name="create_page_working">Not yazılıyor… Bu işlem bir dakika kadar sürebilir. Bu pencereyi kapatabilirsiniz; hazır olduğunda notunuz Notlar listesinde görünecektir.</string>
-    <string name="create_page_done">Notlarda “%1$s” oluşturuldu.</string>
+    <string name="create_page_body">NoteFable, seçili modeli kullanarak bu konuşmayı Çalışma alanında düzenli bir nota dönüştürür. Çok uzun sohbetler, en son mesajlar korunarak kısaltılır. Bu işlem bugünkü mesaj limitinizden bir mesaj olarak sayılır.</string>
+    <string name="create_page_working">Not yazılıyor… Bu işlem bir dakika kadar sürebilir. Bu pencereyi kapatabilirsiniz; hazır olduğunda notunuz Çalışma alanında görünecektir.</string>
+    <string name="create_page_done">Çalışma alanında “%1$s” oluşturuldu.</string>
     <string name="create_page_partial">Bu sohbet uzun olduğu için bir kısmı dışarıda bırakıldı.</string>
     <string name="open_page">Notu aç</string>
     <string name="language_current">Dil: %1$s</string>

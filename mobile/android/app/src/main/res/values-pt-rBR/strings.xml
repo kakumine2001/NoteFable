@@ -73,9 +73,10 @@
     <string name="err_some_more">Você pode adicionar mais %1$d arquivos (máximo de %2$d por mensagem). Nenhum destes %3$d arquivos foi adicionado. Escolha menos arquivos.</string>
     <string name="err_not_added">%1$s Nenhum arquivo novo foi adicionado.</string>
     <string name="chat_mode">Chat</string>
-    <string name="note_mode">Nota</string>
-    <string name="workspace_mode">Modo do espaço de trabalho</string>
+    <string name="note_mode">Espaço</string>
+    <string name="workspace_mode">Alternar entre Chat e Espaço</string>
     <string name="notes">Notas</string>
+    <string name="workspace">Espaço</string>
     <string name="new_note">Nova nota</string>
     <string name="projects">Projetos</string>
     <string name="new_project">Novo projeto</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Faltam %1$d dias</string>
     <string name="loading_notes">Carregando notas…</string>
     <string name="notes_intro">Escreva notas com blocos — digite %1$s para títulos, listas, tarefas e código.</string>
-    <string name="notes_storage_hint">As notas são salvas no servidor e vinculadas a este dispositivo. Entre para abri-las em outros dispositivos. Limpar os dados do app ou do site cria um espaço de trabalho separado.</string>
+    <string name="notes_storage_hint">As notas são salvas no servidor e vinculadas a este dispositivo. Entre para abri-las em outros dispositivos. Se você limpar os dados do app ou do site antes de entrar, perderá o acesso a elas.</string>
     <string name="all_notes">Todas as notas</string>
     <string name="version_history">Histórico de versões</string>
     <string name="save_saved">Salvo</string>

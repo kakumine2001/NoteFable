@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">Tùy chọn câu trả lời</string>
     <string name="answer_more_options">Thêm tùy chọn câu trả lời</string>
-    <string name="answer_save_to_page">Lưu vào ghi chú</string>
-    <string name="answer_saved_to_page">Đã lưu vào ghi chú</string>
-    <string name="answer_retry_save">Thử lưu lại vào ghi chú</string>
+    <string name="answer_save_to_page">Lưu thành ghi chú</string>
+    <string name="answer_saved_to_page">Đã lưu thành ghi chú</string>
+    <string name="answer_retry_save">Thử lưu lại thành ghi chú</string>
     <string name="answer_open_saved_page">Mở ghi chú đã lưu</string>
     <string name="answer_download_conversation">Tải xuống cuộc trò chuyện</string>
     <string name="answer_conversation_downloaded">Đã tải xuống cuộc trò chuyện</string>
     <string name="answer_download_failed">Không thể tải xuống cuộc trò chuyện. Hãy thử lại.</string>
-    <string name="answer_save_failed">Không thể lưu vào Ghi chú. Hãy thử lại.</string>
+    <string name="answer_save_failed">Không thể lưu thành ghi chú. Hãy thử lại.</string>
     <string name="answer_save_too_large">Câu trả lời này quá dài để lưu thành ghi chú.</string>
 </resources>

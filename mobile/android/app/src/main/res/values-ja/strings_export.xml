@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">回答のオプション</string>
     <string name="answer_more_options">回答のその他のオプション</string>
-    <string name="answer_save_to_page">ノートに保存</string>
-    <string name="answer_saved_to_page">ノートに保存しました</string>
-    <string name="answer_retry_save">ノートへの保存を再試行</string>
+    <string name="answer_save_to_page">ノートとして保存</string>
+    <string name="answer_saved_to_page">ノートとして保存しました</string>
+    <string name="answer_retry_save">ノートとしての保存を再試行</string>
     <string name="answer_open_saved_page">保存したノートを開く</string>
     <string name="answer_download_conversation">会話をダウンロード</string>
     <string name="answer_conversation_downloaded">会話をダウンロードしました</string>
     <string name="answer_download_failed">会話をダウンロードできませんでした。もう一度お試しください。</string>
-    <string name="answer_save_failed">ノートに保存できませんでした。もう一度お試しください。</string>
+    <string name="answer_save_failed">ノートとして保存できませんでした。もう一度お試しください。</string>
     <string name="answer_save_too_large">回答が長すぎるため、ノートとして保存できません。</string>
 </resources>

@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">Opções da resposta</string>
     <string name="answer_more_options">Mais opções de resposta</string>
-    <string name="answer_save_to_page">Salvar em Notas</string>
-    <string name="answer_saved_to_page">Salvo em Notas</string>
-    <string name="answer_retry_save">Tentar salvar em Notas novamente</string>
+    <string name="answer_save_to_page">Salvar como nota</string>
+    <string name="answer_saved_to_page">Salva como nota</string>
+    <string name="answer_retry_save">Tentar salvar como nota novamente</string>
     <string name="answer_open_saved_page">Abrir nota salva</string>
     <string name="answer_download_conversation">Baixar conversa</string>
     <string name="answer_conversation_downloaded">Conversa baixada</string>
     <string name="answer_download_failed">Não foi possível baixar a conversa. Tente novamente.</string>
-    <string name="answer_save_failed">Não foi possível salvar em Notas. Tente novamente.</string>
+    <string name="answer_save_failed">Não foi possível salvar como nota. Tente novamente.</string>
     <string name="answer_save_too_large">Esta resposta é longa demais para ser salva como nota.</string>
 </resources>

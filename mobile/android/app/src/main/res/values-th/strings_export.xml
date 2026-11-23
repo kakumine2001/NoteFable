@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">ตัวเลือกคำตอบ</string>
     <string name="answer_more_options">ตัวเลือกคำตอบเพิ่มเติม</string>
-    <string name="answer_save_to_page">บันทึกไปยังโน้ต</string>
-    <string name="answer_saved_to_page">บันทึกไปยังโน้ตแล้ว</string>
-    <string name="answer_retry_save">ลองบันทึกไปยังโน้ตใหม่</string>
+    <string name="answer_save_to_page">บันทึกเป็นโน้ต</string>
+    <string name="answer_saved_to_page">บันทึกเป็นโน้ตแล้ว</string>
+    <string name="answer_retry_save">ลองบันทึกเป็นโน้ตอีกครั้ง</string>
     <string name="answer_open_saved_page">เปิดโน้ตที่บันทึกไว้</string>
     <string name="answer_download_conversation">ดาวน์โหลดการสนทนา</string>
     <string name="answer_conversation_downloaded">ดาวน์โหลดการสนทนาแล้ว</string>
     <string name="answer_download_failed">ไม่สามารถดาวน์โหลดการสนทนาได้ กรุณาลองอีกครั้ง</string>
-    <string name="answer_save_failed">ไม่สามารถบันทึกไปยังโน้ตได้ กรุณาลองอีกครั้ง</string>
+    <string name="answer_save_failed">ไม่สามารถบันทึกเป็นโน้ตได้ กรุณาลองอีกครั้ง</string>
     <string name="answer_save_too_large">คำตอบนี้ยาวเกินกว่าจะบันทึกเป็นโน้ตได้</string>
 </resources>

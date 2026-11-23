@@ -73,9 +73,10 @@
     <string name="err_some_more">يمكنك إضافة %1$d من الملفات الأخرى (بحد أقصى %2$d لكل رسالة). لم تتم إضافة أي من هذه الملفات (%3$d). اختر عدداً أقل من الملفات.</string>
     <string name="err_not_added">%1$s لم تتم إضافة أي ملفات جديدة.</string>
     <string name="chat_mode">محادثة</string>
-    <string name="note_mode">ملاحظة</string>
-    <string name="workspace_mode">وضع مساحة العمل</string>
+    <string name="note_mode">مساحة العمل</string>
+    <string name="workspace_mode">التبديل بين المحادثة ومساحة العمل</string>
     <string name="notes">الملاحظات</string>
+    <string name="workspace">مساحة العمل</string>
     <string name="new_note">ملاحظة جديدة</string>
     <string name="projects">المشاريع</string>
     <string name="new_project">مشروع جديد</string>
@@ -127,7 +128,7 @@
     <string name="days_left">متبقٍ %1$d من الأيام</string>
     <string name="loading_notes">جارٍ تحميل الملاحظات…</string>
     <string name="notes_intro">اكتب ملاحظاتك بنظام الكتل — اكتب %1$s لإضافة العناوين والقوائم وقوائم المهام والكود.</string>
-    <string name="notes_storage_hint">تُحفظ الملاحظات على الخادم وترتبط بهذا الجهاز. سجّل الدخول لفتحها على أجهزة أخرى. ويؤدي مسح بيانات التطبيق أو الموقع إلى إنشاء مساحة عمل منفصلة.</string>
+    <string name="notes_storage_hint">تُحفظ الملاحظات على الخادم وترتبط بهذا الجهاز. سجّل الدخول لفتحها على أجهزة أخرى. إذا مسحت بيانات التطبيق أو الموقع قبل تسجيل الدخول، فلن تتمكن من فتحها بعد ذلك.</string>
     <string name="all_notes">كل الملاحظات</string>
     <string name="version_history">سجل الإصدارات</string>
     <string name="save_saved">تم الحفظ</string>

@@ -73,9 +73,10 @@
     <string name="err_some_more">%1$d dosya daha ekleyebilirsiniz (mesaj başına en fazla %2$d). Seçilen %3$d dosyanın hiçbiri eklenmedi. Daha az dosya seçin.</string>
     <string name="err_not_added">%1$s Yeni dosya eklenmedi.</string>
     <string name="chat_mode">Sohbet</string>
-    <string name="note_mode">Not</string>
-    <string name="workspace_mode">Çalışma alanı modu</string>
+    <string name="note_mode">Çalışma alanı</string>
+    <string name="workspace_mode">Sohbet ve Çalışma alanı arasında geçiş yap</string>
     <string name="notes">Notlar</string>
+    <string name="workspace">Çalışma alanı</string>
     <string name="new_note">Yeni not</string>
     <string name="projects">Projeler</string>
     <string name="new_project">Yeni proje</string>
@@ -127,7 +128,7 @@
     <string name="days_left">%1$d gün kaldı</string>
     <string name="loading_notes">Notlar yükleniyor…</string>
     <string name="notes_intro">Bloklarla not yazın — başlık, liste, yapılacaklar ve kod eklemek için %1$s yazın.</string>
-    <string name="notes_storage_hint">Notlar sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Uygulama veya site verilerini temizlemek ayrı bir çalışma alanı oluşturur.</string>
+    <string name="notes_storage_hint">Notlar sunucuya kaydedilir ve bu cihazla ilişkilendirilir. Başka cihazlarda açmak için giriş yapın. Giriş yapmadan önce uygulama veya site verilerini temizlerseniz notlarınıza bir daha erişemezsiniz.</string>
     <string name="all_notes">Tüm notlar</string>
     <string name="version_history">Sürüm geçmişi</string>
     <string name="save_saved">Kaydedildi</string>
