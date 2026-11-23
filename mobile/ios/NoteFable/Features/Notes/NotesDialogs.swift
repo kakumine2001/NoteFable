@@ -12,7 +12,8 @@ enum NotesDialogState: Identifiable, Equatable {
     case renameGroup(NoteGroupSummary)
     case deleteGroup(NoteGroupSummary)
     case trashNote(NotePageSummary)
-    case share(pageId: String)
+    /// kind：幻灯片是公开树的叶子，没有“包含子页面”（网页 note-share-dialog.tsx 的 kind）。
+    case share(pageId: String, kind: PageKind = .note)
 
     var id: String {
         switch self {
@@ -21,7 +22,7 @@ enum NotesDialogState: Identifiable, Equatable {
         case .renameGroup(let group): return "rename-group:" + group.id
         case .deleteGroup(let group): return "delete-group:" + group.id
         case .trashNote(let page): return "trash-note:" + page.id
-        case .share(let pageId): return "share:" + pageId
+        case .share(let pageId, _): return "share:" + pageId
         }
     }
 }
@@ -139,8 +140,8 @@ private struct NotesDialogContent: View {
                 close: close,
                 onConfirm: { await notes.trashNote(page.id) }
             )
-        case .share(let pageId):
-            NoteShareDialog(pageId: pageId, busy: $busy, close: close)
+        case .share(let pageId, let kind):
+            NoteShareDialog(pageId: pageId, kind: kind, busy: $busy, close: close)
         }
     }
 }

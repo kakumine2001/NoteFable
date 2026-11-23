@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
 // 分享（Globe 15）、间距 8、版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
-// 白板、幻灯片没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面。
+// 白板没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面；幻灯片打开网页的幻灯片编辑器。
 // “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
 
 @MainActor
@@ -146,7 +146,7 @@ struct NoteEditorScreen: View {
     private func shareButton(_ page: NotePageSummary) -> some View {
         let dialogBinding = $dialog
         return Button {
-            dialogBinding.wrappedValue = .share(pageId: page.id)
+            dialogBinding.wrappedValue = .share(pageId: page.id, kind: page.kind)
         } label: {
             LucideIcon(Lucide.globe, size: 15, color: page.isShared() ? Sm.blue : Sm.muted)
                 .padding(.horizontal, 8)

@@ -52,7 +52,8 @@ function isTypingTarget(target: EventTarget | null) {
 
 const MOD = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+";
 
-export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange }: CanvasEditorProps) {
+// aiSlot: AI の面板（#150）を置く場所。単ページ編集の面の右下（スマホでは縮小図の帯の上）に重ねて出す。
+export default function SlidesEditor({ pageId, title, data, version, editable, embedded, onChange, onTitleChange, aiSlot }: CanvasEditorProps & { aiSlot?: ReactNode }) {
   const t = useT();
   const phone = useMediaQuery("(max-width: 640px)");
   // 作ったばかりで中身の無いスライドは、最初の 1 枚（標題）を入れて始める（作成の続き。開いただけで書き換えるのはこの時だけ）。
@@ -297,7 +298,11 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     setNotice("");
     try {
       const { exportDeckFiles } = await import("@/lib/slides/export-files");
-      await exportDeckFiles(deck, title, format, capture);
+      const result = await exportDeckFiles(deck, title, format, capture);
+      // アプリの中では、ファイルを受け取れない古いアプリだと保存できない（WebView はダウンロードを扱えない）。
+      if (result === "unsupported") setNotice(t("Update the app to save exported files."));
+      else if (result === "tooLarge") setNotice(t("This file is too large to save in the app."));
+      else if (result === "failed") setNotice(t("Could not save the file."));
     }
     catch (caught) { setNotice(caught instanceof Error && caught.message ? caught.message : t("Could not export the slides.")); }
     finally { setExporting(null); }
@@ -511,6 +516,7 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         {!phone && <SlideFilmstrip deck={deck} currentId={current?.id ?? null} selected={selectedSlides} editable={editable} horizontal={false} onSelect={selectSlide}
           onMove={(ids, index) => commit(moveSlides(deck, ids, index))} onContextMenu={(x, y) => setMenu({ x, y, kind: "slide" })} onAdd={() => addSlide()} />}
         <div className="slides-center">
+          <div className="slides-stage-area">
           {current && <SlideRenderRoot theme={theme} mode={editable ? "edit" : "view"}>
             <SlideStage slide={current} editable={editable} selection={liveSelection} editingId={editingId} editSelectAll={editing?.selectAll ?? false}
               onSelect={(ids) => { setSelection(ids); if (!ids.has(editingId ?? "")) setEditing(null); }}
@@ -525,6 +531,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
               onDropFiles={(files, point) => void uploadFiles(files, null, point)}
               commandsRef={commandsRef} onTextSelection={() => setFormatTick((value) => value + 1)} stageRef={stageRef} padding={phone ? 12 : 32} />
           </SlideRenderRoot>}
+          {aiSlot && <div className="slides-ai-slot">{aiSlot}</div>}
+          </div>
           {current && <div className={`slides-notes${notesOpen ? "" : " is-closed"}`}>
             <button type="button" className="slides-notes-toggle" aria-expanded={notesOpen} onClick={() => setNotesOpen((open) => !open)}>
               <StickyNote size={15} aria-hidden="true" />{t("Speaker notes")}<ChevronDown size={14} aria-hidden="true" />

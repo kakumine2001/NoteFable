@@ -990,4 +990,6 @@ export const ko: Record<string, string> = {
   "Classic": "클래식",
   "File saved.": "파일을 저장했습니다.",
   "Could not save the file.": "파일을 저장할 수 없습니다.",
+  "This file is too large to save in the app.": "파일이 너무 커서 앱에서 저장할 수 없습니다.",
+  "Update the app to save exported files.": "내보낸 파일을 저장하려면 앱을 업데이트하세요.",
 };

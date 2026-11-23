@@ -69,7 +69,8 @@ private sealed interface NotesDialogState {
     data class RenameGroup(val group: NoteGroupSummary) : NotesDialogState
     data class DeleteGroup(val group: NoteGroupSummary) : NotesDialogState
     data class TrashNote(val page: NotePageSummary) : NotesDialogState
-    data class Share(val pageId: String) : NotesDialogState
+    /** [kind]：幻灯片是公开树的叶子，没有“包含子页面”（网页 note-share-dialog.tsx 的 kind）。 */
+    data class Share(val pageId: String, val kind: com.kakumine.notefable.data.PageKind = com.kakumine.notefable.data.PageKind.Note) : NotesDialogState
 }
 
 @Composable
@@ -416,7 +417,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                         onExport = { exportNote(open.id) },
                         onTrash = { notes.pages.firstOrNull { it.id == open.id }?.let { dialog = NotesDialogState.TrashNote(it) } },
                     ),
-                    onShare = { dialog = NotesDialogState.Share(open.id) },
+                    onShare = { dialog = NotesDialogState.Share(open.id, notes.pages.firstOrNull { it.id == open.id }?.kind ?: open.kind) },
                     prompt = noteStorageLimit?.takeIf { it.first == open.editor }?.let { (_, limit) ->
                         {
                             // 登录成功后编辑器会关掉（身份变了），提示随之消失；取消登录时提示留着。
@@ -538,7 +539,7 @@ private fun NotesDialogs(dialog: NotesDialogState?, notes: NotesUiState, vm: Not
             onConfirm = { vm.trashNote(dialog.page.id) },
             onClose = close,
         )
-        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close)
+        is NotesDialogState.Share -> NoteShareDialog(dialog.pageId, vm, close, kind = dialog.kind)
     }
 }
 

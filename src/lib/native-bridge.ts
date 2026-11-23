@@ -124,7 +124,12 @@ export function nativeCanPresent(target: BridgeWindow | undefined = browserWindo
   try { return native.canPresent() === true; } catch { return false; }
 }
 
-// アプリが書き出したファイルを保存できるか。古いアプリや普通のブラウザでは false（ブラウザのダウンロードにする）。
+// アプリの中（WebView）で開いているか。
+export function inNativeApp(target: BridgeWindow | undefined = browserWindow()): boolean {
+  return host(target) !== null;
+}
+
+// アプリがファイルの保存（fileStart … fileEnd）を処理できるか。古いアプリや普通のブラウザでは false。
 export function nativeCanSaveFile(target: BridgeWindow | undefined = browserWindow()): boolean {
   const native = host(target);
   if (!native || typeof native.canSaveFile !== "function") return false;

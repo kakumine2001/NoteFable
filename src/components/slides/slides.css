@@ -78,6 +78,9 @@
 .slides-color-chip.is-text { width: 18px; height: 6px; margin-top: 12px; border: 0; border-radius: 2px; }
 
 /* ---- 編集する面 ---- */
+.slides-stage-area { position: relative; display: flex; min-height: 0; flex: 1; flex-direction: column; }
+/* AI の面板（#150）の置き場所：単ページ編集の面の右下。 */
+.slides-ai-slot { position: absolute; bottom: 12px; inset-inline-end: 12px; z-index: 5; }
 .slides-stage { position: relative; display: flex; min-height: 0; flex: 1; align-items: center; justify-content: center; overflow: hidden; outline: none; }
 .slides-stage-frame { position: relative; flex: none; box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18), 0 8px 28px rgba(15, 23, 42, 0.1); touch-action: none; }
 .slides-stage-frame .slide-frame-inner { position: absolute; top: 0; left: 0; transform-origin: 0 0; }

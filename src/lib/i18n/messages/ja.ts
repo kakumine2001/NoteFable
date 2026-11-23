@@ -991,4 +991,6 @@ export const ja: Record<string, string> = {
   "Classic": "クラシック",
   "File saved.": "ファイルを保存しました。",
   "Could not save the file.": "ファイルを保存できませんでした。",
+  "This file is too large to save in the app.": "ファイルが大きすぎるため、アプリで保存できません。",
+  "Update the app to save exported files.": "書き出したファイルを保存するには、アプリを更新してください。",
 };

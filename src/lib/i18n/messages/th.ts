@@ -990,4 +990,6 @@ export const th: Record<string, string> = {
   "Classic": "คลาสสิก",
   "File saved.": "บันทึกไฟล์แล้ว",
   "Could not save the file.": "บันทึกไฟล์ไม่ได้",
+  "This file is too large to save in the app.": "ไฟล์มีขนาดใหญ่เกินกว่าจะบันทึกในแอปได้",
+  "Update the app to save exported files.": "อัปเดตแอปเพื่อบันทึกไฟล์ที่ส่งออก",
 };

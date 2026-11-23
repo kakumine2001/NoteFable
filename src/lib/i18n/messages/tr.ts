@@ -990,4 +990,6 @@ export const tr: Record<string, string> = {
   "Classic": "Klasik",
   "File saved.": "Dosya kaydedildi.",
   "Could not save the file.": "Dosya kaydedilemedi.",
+  "This file is too large to save in the app.": "Dosya uygulamada kaydedilemeyecek kadar büyük.",
+  "Update the app to save exported files.": "Dışa aktarılan dosyaları kaydetmek için uygulamayı güncelle.",
 };

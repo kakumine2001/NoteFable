@@ -1,42 +1,42 @@
-import { nativeCanSaveFile, postToNative } from "@/lib/native-bridge";
+import { inNativeApp, nativeCanSaveFile, postToNative } from "@/lib/native-bridge";
 
-// 画面で作ったファイル（スライドの PDF・PNG・PPTX、ホワイトボードの画像など）を保存する。
-// アプリ（/note-embed）では、ファイルを base64 に分けてアプリへ渡し、アプリの保存画面で保存してもらう（canSaveFile を持つアプリだけ）。
-// ブラウザでは、ふつうのダウンロードにする。
+// 書き出したファイル（ホワイトボードの PNG・SVG・PDF、スライドの PPTX など）を利用者に渡す。
+// - ブラウザー：<a download> でダウンロードする。
+// - アプリの中（/note-embed の WebView）：分けてアプリに送り（native-bridge.ts の fileStart / fileChunk / fileEnd）、アプリが保存先を選ばせる。
+// 結果：download（ブラウザーで落とした）・app（アプリに渡した）・unsupported（ファイルを受け取れない古いアプリ）・
+// tooLarge（アプリが受け取れる大きさを超える）・failed（送る途中で失敗）。
 
-const CHUNK_BYTES = 512 * 1024;
+// 1 回に送る元のバイト数（base64 にすると約 683 KiB の文字列）。
+export const FILE_CHUNK_BYTES = 512 * 1024;
+// アプリが受け取るファイルの大きさの上限（Android・iOS の ExportFileAssembler の MAX_BYTES と同じ）。
+export const MAX_APP_FILE_BYTES = 64 * 1024 * 1024;
+export type SaveExportResult = "download" | "app" | "unsupported" | "tooLarge" | "failed";
 
-function toBase64(bytes: Uint8Array) {
+async function base64Of(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer());
   let binary = "";
   const step = 0x8000;
-  for (let index = 0; index < bytes.length; index += step) binary += String.fromCharCode(...bytes.subarray(index, index + step));
+  for (let offset = 0; offset < bytes.length; offset += step) binary += String.fromCharCode(...bytes.subarray(offset, offset + step));
   return btoa(binary);
 }
 
-// 保存先に使えない文字を除いたファイル名（拡張子は別に付ける）。
-export function exportFileBase(title: string, fallback = "slides") {
-  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
-  return base && base !== "Untitled" ? base : fallback;
+function randomId() {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 }
 
-export async function saveExportFile(blob: Blob, name: string): Promise<"native" | "download"> {
-  if (nativeCanSaveFile()) {
-    const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const bytes = new Uint8Array(await blob.arrayBuffer());
-    if (!postToNative({ type: "fileStart", id, name, mime: blob.type || "application/octet-stream", size: bytes.length })) throw new Error("bridge");
-    try {
-      for (let index = 0, part = 0; index < bytes.length; index += CHUNK_BYTES, part++) {
-        if (!postToNative({ type: "fileChunk", id, index: part, data: toBase64(bytes.subarray(index, index + CHUNK_BYTES)) })) throw new Error("bridge");
-        // 大きなファイルでも画面が固まらないよう、ときどき描画に返す。
-        if (part % 8 === 7) await new Promise((resolve) => setTimeout(resolve, 0));
-      }
-    } catch (error) {
-      postToNative({ type: "fileAbort", id });
-      throw error;
-    }
-    postToNative({ type: "fileEnd", id });
-    return "native";
+// アプリへ分けて送る。送れなかったら fileAbort を送って false。
+export async function sendFileToNative(blob: Blob, name: string, post: typeof postToNative = postToNative): Promise<boolean> {
+  const id = randomId();
+  const mime = blob.type || "application/octet-stream";
+  if (!post({ type: "fileStart", id, name, mime, size: blob.size })) return false;
+  for (let index = 0, offset = 0; offset < blob.size; index++, offset += FILE_CHUNK_BYTES) {
+    const data = await base64Of(blob.slice(offset, offset + FILE_CHUNK_BYTES));
+    if (!post({ type: "fileChunk", id, index, data })) { post({ type: "fileAbort", id }); return false; }
   }
+  return post({ type: "fileEnd", id });
+}
+
+export function downloadBlob(blob: Blob, name: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
@@ -45,6 +45,17 @@ export async function saveExportFile(blob: Blob, name: string): Promise<"native"
   document.body.append(link);
   link.click();
   link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
+}
+
+export async function saveExportFile(blob: Blob, name: string): Promise<SaveExportResult> {
+  if (inNativeApp()) {
+    // アプリの WebView は blob: のダウンロードを扱えないので、ファイルを受け取れない古いアプリでは何もしない（呼び出し側が理由を出す）。
+    if (!nativeCanSaveFile()) return "unsupported";
+    // 上限を超えるものは、送ってから断られる前に止める（理由を出せるように）。
+    if (blob.size > MAX_APP_FILE_BYTES) return "tooLarge";
+    return (await sendFileToNative(blob, name)) ? "app" : "failed";
+  }
+  downloadBlob(blob, name);
   return "download";
 }

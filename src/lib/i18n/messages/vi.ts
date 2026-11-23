@@ -990,4 +990,6 @@ export const vi: Record<string, string> = {
   "Classic": "Cổ điển",
   "File saved.": "Đã lưu tệp.",
   "Could not save the file.": "Không thể lưu tệp.",
+  "This file is too large to save in the app.": "Tệp quá lớn để lưu trong ứng dụng.",
+  "Update the app to save exported files.": "Hãy cập nhật ứng dụng để lưu tệp đã xuất.",
 };

@@ -999,4 +999,6 @@ export const zh: Record<string, string> = {
   "Classic": "经典",
   "File saved.": "文件已保存。",
   "Could not save the file.": "无法保存文件。",
+  "This file is too large to save in the app.": "文件太大，无法在应用中保存。",
+  "Update the app to save exported files.": "请更新应用后再保存导出的文件。",
 };

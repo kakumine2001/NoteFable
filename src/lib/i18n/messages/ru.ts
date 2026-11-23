@@ -990,4 +990,6 @@ export const ru: Record<string, string> = {
   "Classic": "Классическая",
   "File saved.": "Файл сохранён.",
   "Could not save the file.": "Не удалось сохранить файл.",
+  "This file is too large to save in the app.": "Файл слишком большой, чтобы сохранить его в приложении.",
+  "Update the app to save exported files.": "Обновите приложение, чтобы сохранять экспортированные файлы.",
 };

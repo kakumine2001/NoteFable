@@ -990,4 +990,6 @@ export const ar: Record<string, string> = {
   "Classic": "كلاسيكي",
   "File saved.": "تم حفظ الملف.",
   "Could not save the file.": "تعذّر حفظ الملف.",
+  "This file is too large to save in the app.": "الملف كبير جدًا بحيث لا يمكن حفظه في التطبيق.",
+  "Update the app to save exported files.": "حدِّث التطبيق لحفظ الملفات المُصدَّرة.",
 };

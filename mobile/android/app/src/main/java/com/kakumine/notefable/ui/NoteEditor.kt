@@ -331,7 +331,7 @@ private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
-// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板、幻灯片没有分享按钮（[PageKindFeatures.publicShare]）。
+// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板没有分享按钮（[PageKindFeatures.publicShare]）。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(

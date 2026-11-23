@@ -65,7 +65,10 @@ fun NoteShareDialog(
     pageId: String,
     vm: NotesViewModel,
     onClose: () -> Unit,
+    /** 幻灯片只公开它自己（公开树的叶子），不显示“包含子页面”。 */
+    kind: com.kakumine.notefable.data.PageKind = com.kakumine.notefable.data.PageKind.Note,
 ) {
+    val leaf = kind == com.kakumine.notefable.data.PageKind.Slides
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val clipboard = LocalClipboardManager.current
@@ -210,7 +213,7 @@ fun NoteShareDialog(
                         } else {
                             Text(stringResource(R.string.share_desc), color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp)
                         }
-                        ShareSwitchRow(
+                        if (!leaf) ShareSwitchRow(
                             label = stringResource(R.string.share_include_subpages),
                             checked = draftIncludeSubpages,
                             enabled = !busy,
@@ -243,7 +246,7 @@ fun NoteShareDialog(
                                 onOpen = { runCatching { uriHandler.openUri(url) } },
                             )
                         }
-                        ShareSwitchRow(
+                        if (!leaf) ShareSwitchRow(
                             label = stringResource(R.string.share_include_subpages),
                             checked = s.includeSubpages,
                             enabled = !busy,

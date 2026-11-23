@@ -990,4 +990,6 @@ export const ptBR: Record<string, string> = {
   "Classic": "Clássico",
   "File saved.": "Arquivo salvo.",
   "Could not save the file.": "Não foi possível salvar o arquivo.",
+  "This file is too large to save in the app.": "O arquivo é grande demais para ser salvo no app.",
+  "Update the app to save exported files.": "Atualize o app para salvar os arquivos exportados.",
 };

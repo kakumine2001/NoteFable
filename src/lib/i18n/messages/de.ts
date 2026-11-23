@@ -990,4 +990,6 @@ export const de: Record<string, string> = {
   "Classic": "Klassisch",
   "File saved.": "Datei gespeichert.",
   "Could not save the file.": "Die Datei konnte nicht gespeichert werden.",
+  "This file is too large to save in the app.": "Die Datei ist zu groß, um sie in der App zu speichern.",
+  "Update the app to save exported files.": "Aktualisiere die App, um exportierte Dateien zu speichern.",
 };

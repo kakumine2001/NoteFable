@@ -990,4 +990,6 @@ export const id: Record<string, string> = {
   "Classic": "Klasik",
   "File saved.": "File disimpan.",
   "Could not save the file.": "Tidak dapat menyimpan file.",
+  "This file is too large to save in the app.": "File terlalu besar untuk disimpan di aplikasi.",
+  "Update the app to save exported files.": "Perbarui aplikasi untuk menyimpan file hasil ekspor.",
 };

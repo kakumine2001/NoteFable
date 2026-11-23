@@ -1,5 +1,5 @@
 import type PptxGenJS from "pptxgenjs";
-import { exportFileBase, saveExportFile } from "@/lib/export-file";
+import { saveExportFile, type SaveExportResult } from "@/lib/export-file";
 import { SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type Slide, type SlideElement, type TextStyle, type WhiteboardElement } from "@/lib/slides/model";
 import { isRichDocEmpty, safeHref, type RichBlock, type RichDoc, type RichInline } from "@/lib/slides/rich-text";
 import { PPTX_SHAPES } from "@/lib/slides/shapes";
@@ -12,6 +12,12 @@ import type { NotesPageInput } from "@/components/slides/slide-capture";
 //   数式は PPTX では TeX の文字（$…$）として入れる（PowerPoint の数式には変換しない）。
 
 export type ExportFormat = "pdf" | "pdf-notes" | "png" | "pptx";
+
+// 保存先に使えない文字を除いたファイル名（拡張子は別に付ける）。
+export function exportFileBase(title: string, fallback = "slides") {
+  const base = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120);
+  return base && base !== "Untitled" ? base : fallback;
+}
 export type SlideCapture = {
   renderSlide: (slide: Slide) => Promise<HTMLElement>;
   renderNotesPage: (input: NotesPageInput) => Promise<HTMLElement>;
@@ -37,11 +43,11 @@ async function exportPng(deck: Deck, theme: ResolvedTheme, base: string, capture
   const slides = deck.slides.filter((slide) => !slide.hidden);
   const blobs: Blob[] = [];
   for (const slide of slides) blobs.push(await canvasBlob(await slideCanvas(capture, slide, resolveColor(slide.background ?? "background", theme, "background"), 1)));
-  if (blobs.length === 1) { await saveExportFile(blobs[0], `${base}.png`); return; }
+  if (blobs.length === 1) return saveExportFile(blobs[0], `${base}.png`);
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
   blobs.forEach((blob, index) => zip.file(`${base}-${pad(index + 1, blobs.length)}.png`, blob));
-  await saveExportFile(await zip.generateAsync({ type: "blob", mimeType: "application/zip" }), `${base}.zip`);
+  return saveExportFile(await zip.generateAsync({ type: "blob", mimeType: "application/zip" }), `${base}.zip`);
 }
 
 async function exportPdf(deck: Deck, theme: ResolvedTheme, base: string, title: string, capture: SlideCapture, notes: boolean) {
@@ -62,7 +68,7 @@ async function exportPdf(deck: Deck, theme: ResolvedTheme, base: string, title: 
     const pageCanvas = await domToCanvas(page, { width: 1240, height: 1754, scale: 1, backgroundColor: "#ffffff" });
     pdf.addImage(pageCanvas.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, pdf.internal.pageSize.getWidth(), pdf.internal.pageSize.getHeight(), undefined, "FAST");
   }
-  await saveExportFile(pdf.output("blob"), `${base}.pdf`);
+  return saveExportFile(pdf.output("blob"), `${base}.pdf`);
 }
 
 // ---- PPTX ----
@@ -237,17 +243,18 @@ async function exportPptx(deck: Deck, theme: ResolvedTheme, base: string, title:
     if (slide.notes?.trim()) target.addNotes(slide.notes);
   }
   const blob = await pptx.write({ outputType: "blob", compression: true }) as Blob;
-  await saveExportFile(new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), `${base}.pptx`);
+  return saveExportFile(new Blob([blob], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), `${base}.pptx`);
 }
 
-export async function exportDeckFiles(deck: Deck, title: string, format: ExportFormat, capture: SlideCapture) {
+// 結果は saveExportFile と同じ（download・app・unsupported：ファイルを受け取れない古いアプリ・failed：アプリへ送る途中で失敗）。
+export async function exportDeckFiles(deck: Deck, title: string, format: ExportFormat, capture: SlideCapture): Promise<SaveExportResult> {
   const theme = resolveTheme(deck.theme);
   const base = exportFileBase(title);
   const name = title.trim() && title !== "Untitled" ? title : base;
   try {
-    if (format === "png") await exportPng(deck, theme, base, capture);
-    else if (format === "pptx") await exportPptx(deck, theme, base, name);
-    else await exportPdf(deck, theme, base, name, capture, format === "pdf-notes");
+    if (format === "png") return await exportPng(deck, theme, base, capture);
+    if (format === "pptx") return await exportPptx(deck, theme, base, name);
+    return await exportPdf(deck, theme, base, name, capture, format === "pdf-notes");
   } finally {
     capture.done();
   }

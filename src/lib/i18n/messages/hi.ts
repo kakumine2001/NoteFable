@@ -990,4 +990,6 @@ export const hi: Record<string, string> = {
   "Classic": "क्लासिक",
   "File saved.": "फ़ाइल सहेजी गई।",
   "Could not save the file.": "फ़ाइल सहेजी नहीं जा सकी।",
+  "This file is too large to save in the app.": "फ़ाइल ऐप में सहेजने के लिए बहुत बड़ी है।",
+  "Update the app to save exported files.": "निर्यात की गई फ़ाइलें सहेजने के लिए ऐप अपडेट करें।",
 };
