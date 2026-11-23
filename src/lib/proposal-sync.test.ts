@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ActivityEvent } from "@/lib/chat-activity";
 import { syncAutoAppliedProposal } from "./proposal-sync";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -7,12 +8,12 @@ describe("auto-applied proposals in the chat stream", () => {
   afterEach(() => { vi.unstubAllGlobals(); });
 
   it("reloads the page once and tells the open editor or the list", async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ page: { id: "pg", version: 4 } })));
+    const fetchMock = vi.fn<(input: string) => Promise<Response>>(async () => new Response(JSON.stringify({ page: { id: "pg", version: 4 } })));
     const dispatch = vi.fn();
     vi.stubGlobal("fetch", fetchMock);
     vi.stubGlobal("window", { dispatchEvent: dispatch });
     vi.stubGlobal("CustomEvent", class { constructor(public type: string, public init: { detail: unknown }) {} });
-    const edit = { type: "proposal", id: "sync-1", pageId: "pg", pageTitle: "T", baseVersion: 3, changes: [], proposed: { title: "T", blocks: [] }, status: "applied", autoApplied: true } as const;
+    const edit: ActivityEvent = { type: "proposal", id: "sync-1", pageId: "pg", pageTitle: "T", baseVersion: 3, changes: [], proposed: { title: "T", blocks: [] }, status: "applied", autoApplied: true };
     syncAutoAppliedProposal(edit);
     syncAutoAppliedProposal(edit);
     await flush();

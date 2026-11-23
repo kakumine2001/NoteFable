@@ -99,7 +99,9 @@ fun ReportDialog(target: ReportTarget, onClose: () -> Unit, backend: ReportBacke
             NotionButton(
                 stringResource(if (busy) R.string.report_sending else R.string.report_send),
                 enabled = !busy, primary = true,
-                onClick = {
+                onClick = onClick@{
+                    // 连点时第二下可能在按钮变灰之前到：发送中、已发送都不再发。
+                    if (busy || sent) return@onClick
                     busy = true
                     error = null
                     scope.launch {

@@ -60,6 +60,29 @@ final class ActivityTests: XCTestCase {
 
     // ---- 不分页面类型的提案（白板、幻灯片、自动应用、撤销；src/lib/page-ai/types.ts） ----
 
+    func testKeepsOnlyTheProposalImageAddressTheServerGives() {
+        XCTAssertTrue(Activity.isProposalImagePath("/api/proposals/pr2/image?change=0&side=after"))
+        XCTAssertTrue(Activity.isProposalImagePath("/api/proposals/cm_9-x/image?change=1234&side=before"))
+        let rejected = [
+            "/api/proposals/../pages/covers/image?change=0&side=after",
+            "/api/proposals/pr2/image?change=0&side=after&x=1",
+            "/api/proposals/pr 2/image?change=0&side=after",
+            "/api/proposals/pr2/image?change=0&side=after\n",
+            "/api/proposals/pr2\\x/image?change=0&side=before",
+            "/api/proposals//image?change=0&side=before",
+            "/api/proposals/pr2/image?change=&side=before",
+            "/api/proposals/pr2/image?change=12345&side=before",
+            "/api/proposals/pr2/image?change=0&side=middle",
+            "/api/proposals/pr2/image?change=0",
+            "/api/pages/covers?key=x",
+            "https://elsewhere.test/api/proposals/pr2/image?change=0&side=after",
+            "//elsewhere.test/api/proposals/pr2/image?change=0&side=after",
+        ]
+        for path in rejected {
+            XCTAssertFalse(Activity.isProposalImagePath(path), path)
+        }
+    }
+
     func testReadsTheTargetsThumbnailsAndStateOfAnEditToAnyKindOfPage() {
         let json = #"{"type":"proposal","id":"pr2","pageId":"s1","pageTitle":"Deck","baseVersion":7,"# +
             #""pageKind":"slides","status":"applied","appliedPageId":"s1","autoApplied":true,"undoable":true,"# +

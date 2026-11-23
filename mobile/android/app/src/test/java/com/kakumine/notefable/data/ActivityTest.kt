@@ -108,9 +108,18 @@ class ActivityTest {
     fun `only same-origin proposal image urls are kept`() {
         val json = """{"type":"proposal","id":"pr3","pageId":"w1","pageTitle":"Board","baseVersion":1,"pageKind":"whiteboard","changes":[""" +
             """{"op":"update","block":0,"beforeImage":"https://evil.example/x.png","afterImage":"//evil.example/y.png"},""" +
-            """{"op":"update","block":0,"beforeImage":"/api/pages/covers?key=x","afterImage":5}],"proposed":{"title":"Board","blocks":[]}}"""
+            """{"op":"update","block":0,"beforeImage":"/api/pages/covers?key=x","afterImage":5},""" +
+            // 提案图片的接口也只收服务端给的那一种写法。
+            """{"op":"update","block":0,"beforeImage":"/api/proposals/../pages/covers/image?change=0&side=after","afterImage":"/api/proposals/pr3/image?change=0&side=after&x=1"},""" +
+            """{"op":"update","block":0,"beforeImage":"/api/proposals/pr 3/image?change=0&side=after","afterImage":"/api/proposals/pr3/image?change=0&side=after\n"},""" +
+            """{"op":"update","block":0,"beforeImage":"/api/proposals/pr3\\x/image?change=0&side=before","afterImage":"/api/proposals/pr3/image?change=12345&side=before"},""" +
+            """{"op":"update","block":0,"beforeImage":"/api/proposals/pr3/image?change=&side=before","afterImage":"/api/proposals/pr3/image?change=12&side=before"}""" +
+            """],"proposed":{"title":"Board","blocks":[]}}"""
         val proposal = (apply(json).single() as ActivityStep.ProposalStep).proposal as Proposal.Edit
-        assertEquals(listOf(ProposalChange("update", 0), ProposalChange("update", 0)), proposal.changes)
+        assertEquals(
+            List(5) { ProposalChange("update", 0) } + ProposalChange("update", 0, afterImage = "/api/proposals/pr3/image?change=12&side=before"),
+            proposal.changes,
+        )
     }
 
     @Test

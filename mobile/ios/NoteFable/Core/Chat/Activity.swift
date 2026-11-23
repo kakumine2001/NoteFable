@@ -467,10 +467,26 @@ enum Activity {
         }
     }
 
-    /// 缩略图要带着 App 的 Cookie 读，所以只收本站的相对地址（以一个 / 开头）；别的写法当没有。
+    /// 缩略图要带着 App 的 Cookie 读，所以只收服务端给的那一种本站地址；别的写法当没有。
     private static func proposalImagePath(_ value: JSONValue?) -> String? {
-        guard let path = value?.stringValue, path.hasPrefix("/"), !path.hasPrefix("//") else { return nil }
+        guard let path = value?.stringValue, isProposalImagePath(path) else { return nil }
         return path
+    }
+
+    /// `/api/proposals/<id>/image?change=<n>&side=before|after`（src/lib/page-ai/proposals.ts 的 imageUrl）：
+    /// ID 只有字母、数字、_ 和 -，位置是 1～4 位数字；含 ..、反斜杠、空白、多余参数的都不算。
+    static func isProposalImagePath(_ path: String) -> Bool {
+        let prefix = "/api/proposals/", middle = "/image?change="
+        guard path.hasPrefix(prefix) else { return false }
+        let rest = path.dropFirst(prefix.count)
+        guard let idEnd = rest.range(of: middle) else { return false }
+        let id = rest[..<idEnd.lowerBound]
+        guard (1...64).contains(id.count),
+              id.allSatisfy({ $0.isASCII && ($0.isLetter || $0.isNumber || $0 == "_" || $0 == "-") }) else { return false }
+        let tail = rest[idEnd.upperBound...]
+        guard let side = ["&side=before", "&side=after"].first(where: { tail.hasSuffix($0) }) else { return false }
+        let change = tail.dropLast(side.count)
+        return (1...4).contains(change.count) && change.allSatisfy { $0.isASCII && $0.isNumber }
     }
 }
 

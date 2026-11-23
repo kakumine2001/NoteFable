@@ -94,13 +94,34 @@ data class ProposalState(
 ) {
     enum class Status { Idle, Applying, Discarding, Applied, Discarded, Undoing, Undone }
 
-    /** 已处理（应用 / 放弃 / 撤销）：卡片默认最小化、变淡（网页 is-settled）。 */
-    val settled: Boolean get() = status == Status.Applied || status == Status.Discarded || status == Status.Undone
+    /** 标题行的徽章：已应用（撤销中也是）、已放弃、已撤销；没处理时没有。 */
+    enum class Badge { Done, Discarded, Undone }
+
+    /** 已处理（应用 / 放弃 / 撤销，撤销中也算，同网页）：卡片默认最小化、变淡（网页 is-settled）。 */
+    val settled: Boolean get() = status == Status.Applied || status == Status.Undoing || status == Status.Discarded || status == Status.Undone
 
     /** 还没处理（包括应用中、放弃中）：显示"应用"和"放弃"。 */
     val pending: Boolean get() = status == Status.Idle || status == Status.Applying || status == Status.Discarding
 
     val busy: Boolean get() = status == Status.Applying || status == Status.Discarding || status == Status.Undoing
+
+    val badge: Badge?
+        get() = when (status) {
+            Status.Applied, Status.Undoing -> Badge.Done
+            Status.Discarded -> Badge.Discarded
+            Status.Undone -> Badge.Undone
+            Status.Idle, Status.Applying, Status.Discarding -> null
+        }
+
+    /** 显示"撤销"：服务端说能撤销、或刚在这里应用过；撤销中是转圈。 */
+    val showsUndo: Boolean get() = status == Status.Undoing || (status == Status.Applied && undoable)
+
+    /**
+     * "打开"的目标：已应用的页面，和撤销中 / 撤销了的编辑（页面还在，内容回到应用前）。
+     * 撤销中 / 撤销了的新建页面要进 / 已在回收站里，不给。
+     */
+    fun openPageId(isEdit: Boolean): String? =
+        pageId?.takeIf { status == Status.Applied || ((status == Status.Undoing || status == Status.Undone) && isEdit) }
 }
 
 /** 操作失败：[serverMessage] 是服务端原句（界面用系统文词典翻译），null 时用 [action] 对应的本地文案。 */

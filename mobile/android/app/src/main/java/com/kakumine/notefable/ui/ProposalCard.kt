@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -184,18 +185,15 @@ private fun Card(
     var reporting by remember { mutableStateOf(false) }
     // 处理中、有错误时一定展开，结果看得见。
     val open = busy || state.error != null || (manual ?: !settled)
-    val badge = when (state.status) {
-        ProposalState.Status.Applied -> doneBadge
-        ProposalState.Status.Discarded -> stringResource(R.string.proposal_discarded)
-        ProposalState.Status.Undone -> stringResource(R.string.proposal_undone)
-        else -> null
+    // 徽章、"打开"的目标和撤销键都由 ProposalState 决定（撤销中还是"已应用"，同网页）。
+    val badge = when (state.badge) {
+        ProposalState.Badge.Done -> doneBadge
+        ProposalState.Badge.Discarded -> stringResource(R.string.proposal_discarded)
+        ProposalState.Badge.Undone -> stringResource(R.string.proposal_undone)
+        null -> null
     }
-    // "打开"的目标：已应用的页面，或撤销了的编辑（页面还在，内容回到应用前）。撤销了的新建页面在回收站里，不能打开。
-    val openPage = state.pageId?.takeIf {
-        state.status == ProposalState.Status.Applied || (state.status == ProposalState.Status.Undone && proposal is Proposal.Edit)
-    }
-    // 撤销键：服务端说能撤销、或刚在这里应用过；撤销中转圈。
-    val showUndo = state.status == ProposalState.Status.Undoing || (state.status == ProposalState.Status.Applied && state.undoable)
+    val openPage = state.openPageId(isEdit = proposal is Proposal.Edit)
+    val showUndo = state.showsUndo
     val shape = RoundedCornerShape(8.dp)
     val toggleLabel = stringResource(if (open) R.string.proposal_minimize else R.string.proposal_expand)
 
@@ -226,10 +224,12 @@ private fun Card(
                 LucideIcon(icon, 14.dp, headerStyle.color, strokeWidth = if (proposal.pageKind == PageKind.Note) 1.9f else 2f)
                 Text(title, style = headerStyle, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 if (badge != null) {
+                    // 长的译文（"已自动应用"等）也只占一行：徽章最宽 160dp，再长就省略，标题照样留得下。
                     Text(
                         badge,
                         style = TextStyle(fontSize = 12.sp, lineHeight = 18.6.sp, fontWeight = FontWeight.Medium, color = Sm.Muted, letterSpacing = 0.sp),
-                        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Sm.Hover).padding(horizontal = 6.4.dp),
+                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.widthIn(max = 160.dp).clip(RoundedCornerShape(4.dp)).background(Sm.Hover).padding(horizontal = 6.4.dp),
                     )
                 }
             }
@@ -346,6 +346,7 @@ private fun Link(text: String, size: androidx.compose.ui.unit.TextUnit, onClick:
     Text(
         text,
         style = CardText.copy(fontSize = size, color = Sm.Blue, textDecoration = TextDecoration.Underline),
+        maxLines = 1, overflow = TextOverflow.Ellipsis,
         modifier = Modifier.clickable(role = Role.Button, onClick = onClick),
     )
 }

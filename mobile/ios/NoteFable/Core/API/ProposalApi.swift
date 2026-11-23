@@ -107,17 +107,18 @@ struct ProposalState: Equatable, Sendable {
     /// 显示"撤销"：服务端说能撤销，或者刚在这台设备上应用过（网页 State.undoable）。
     var undoable: Bool = false
 
-    /// 已处理（应用 / 放弃 / 撤销）：卡片默认最小化、变淡。
-    var settled: Bool { status == .applied || status == .discarded || status == .undone }
+    /// 已处理（应用 / 放弃 / 撤销，撤销中也算，同网页）：卡片默认最小化、变淡。
+    var settled: Bool { status == .applied || status == .undoing || status == .discarded || status == .undone }
     var busy: Bool { status == .applying || status == .discarding || status == .undoing }
     /// 还没决定：显示"应用 / 放弃"。
     var pending: Bool { status == .idle || status == .applying || status == .discarding }
     /// 显示"撤销"（撤销中是转圈）。
     var showsUndo: Bool { status == .undoing || (status == .applied && undoable) }
 
-    /// "打开"链接的目标：已应用的提案，和撤销过的编辑提案（页面还在，内容恢复了）；撤销过的新建提案的页面在回收站里，不给。
+    /// "打开"链接的目标：已应用的提案，和撤销中 / 撤销过的编辑提案（页面还在，内容恢复了）；
+    /// 撤销中 / 撤销过的新建提案的页面要进 / 已在回收站里，不给。
     func openPageId(isEdit: Bool) -> String? {
-        status == .applied || (status == .undone && isEdit) ? pageId : nil
+        status == .applied || ((status == .undoing || status == .undone) && isEdit) ? pageId : nil
     }
 }
 

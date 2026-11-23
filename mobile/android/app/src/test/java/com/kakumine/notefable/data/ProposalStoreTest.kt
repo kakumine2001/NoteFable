@@ -198,7 +198,26 @@ class ProposalStoreTest {
         assertEquals(true, discarded.settled && undone.settled)
         assertEquals(false, ProposalState(ProposalState.Status.Applied).pending)
         assertEquals(true, ProposalState(ProposalState.Status.Undoing).busy)
-        assertEquals(false, ProposalState(ProposalState.Status.Undoing).settled)
+        // 撤销中也算已处理（和网页一样：不出"应用 / 放弃"，卡片变淡）。
+        assertEquals(true, ProposalState(ProposalState.Status.Undoing).settled)
+        assertEquals(false, ProposalState(ProposalState.Status.Undoing).pending)
+    }
+
+    @Test
+    fun `the card's badge, open target and undo button follow the state`() {
+        fun state(status: ProposalState.Status, undoable: Boolean = false) = ProposalState(status, pageId = "p1", undoable = undoable)
+        val all = ProposalState.Status.entries
+        assertEquals(
+            listOf(null, null, null, ProposalState.Badge.Done, ProposalState.Badge.Discarded, ProposalState.Badge.Done, ProposalState.Badge.Undone),
+            all.map { state(it).badge },
+        )
+        // 编辑：已应用、撤销中、撤销了都能打开；新建：只有已应用的能打开（撤销中 / 撤销了的在回收站里）。
+        assertEquals(listOf(null, null, null, "p1", null, "p1", "p1"), all.map { state(it).openPageId(isEdit = true) })
+        assertEquals(listOf(null, null, null, "p1", null, null, null), all.map { state(it).openPageId(isEdit = false) })
+        assertNull(ProposalState(ProposalState.Status.Applied).openPageId(isEdit = true))
+        // 撤销键：能撤销的已应用，和撤销中（转圈）。
+        assertEquals(listOf(false, false, false, false, false, true, false), all.map { state(it).showsUndo })
+        assertEquals(true, state(ProposalState.Status.Applied, undoable = true).showsUndo)
     }
 
     @Test

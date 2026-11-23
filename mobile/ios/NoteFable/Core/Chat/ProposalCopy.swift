@@ -50,14 +50,15 @@ enum ProposalCopy {
     static func badge(_ proposal: Proposal, _ state: ProposalState) -> String? {
         let created = proposal.editedPageId == nil
         switch state.status {
-        case .applied:
+        case .applied, .undoing:
+            // 撤销中还是"已应用"（和网页一样）。
             if proposal.autoApplied { return L(created ? "proposal_created_auto" : "proposal_applied_auto") }
             return L(created ? "proposal_created" : "proposal_applied")
         case .discarded:
             return L("proposal_discarded")
         case .undone:
             return L("proposal_undone")
-        case .idle, .applying, .discarding, .undoing:
+        case .idle, .applying, .discarding:
             return nil
         }
     }

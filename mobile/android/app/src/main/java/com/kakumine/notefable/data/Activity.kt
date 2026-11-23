@@ -348,11 +348,12 @@ object Activity {
         }
     }
 
-    // 缩略图要带登录 Cookie 读：只收服务端给的同源提案图片地址，不读别的地方。
+    // 缩略图要带登录 Cookie 读：只收服务端给的那一种同源地址（/api/proposals/<id>/image?change=<n>&side=before|after），
+    // 别的写法（含 ..、反斜杠、空白、多余的参数、别的接口）都不读。
     private fun imagePath(value: JsonElement?): String? =
-        (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.startsWith(PROPOSAL_IMAGE_PREFIX) }
+        (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { PROPOSAL_IMAGE_PATH.matches(it) }
 
-    private const val PROPOSAL_IMAGE_PREFIX = "/api/proposals/"
+    private val PROPOSAL_IMAGE_PATH = Regex("""/api/proposals/[A-Za-z0-9_-]{1,64}/image\?change=[0-9]{1,4}&side=(before|after)""")
 
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString && it !is JsonNull }?.content

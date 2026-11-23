@@ -173,7 +173,8 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
   const badge = state.status === "applied" || state.status === "undoing" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
   const host = useContext(ProposalHostContext);
   // AI パネルの中で、そのパネルのページそのものなら「開く」は出さない（もう開いている）。
-  const canOpen = (state.status === "applied" || state.status === "undoing" || (state.status === "undone" && proposal.kind === "proposal"))
+  // 新しく作ったページは、元に戻している間（ゴミ箱へ移る途中）と戻した後は開けない。編集したページは残る。
+  const canOpen = (state.status === "applied" || ((state.status === "undoing" || state.status === "undone") && proposal.kind === "proposal"))
     && state.pageId && state.pageId !== host.currentPageId;
   const href = state.pageId ? `/?view=pages&page=${encodeURIComponent(state.pageId)}` : "";
   return (

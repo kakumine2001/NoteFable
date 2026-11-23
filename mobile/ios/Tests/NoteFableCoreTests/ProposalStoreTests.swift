@@ -160,8 +160,9 @@ final class ProposalStoreTests: XCTestCase {
         XCTAssertTrue(undoing.busy)
         XCTAssertTrue(undoing.showsUndo, "the undo button turns into a spinner")
         XCTAssertFalse(undoing.pending, "no Apply / Discard while undoing")
-        XCTAssertFalse(undoing.settled)
-        XCTAssertNil(undoing.openPageId(isEdit: true))
+        XCTAssertTrue(undoing.settled, "undoing counts as settled, as on the web")
+        XCTAssertEqual(undoing.openPageId(isEdit: true), "p1", "the edited page stays open-able while undoing")
+        XCTAssertNil(undoing.openPageId(isEdit: false), "a created page is on its way to the Trash")
         // 撤销中再点不会重复请求，也不能应用 / 放弃。
         XCTAssertNil(store.undo(edit))
         XCTAssertNil(store.apply(edit))

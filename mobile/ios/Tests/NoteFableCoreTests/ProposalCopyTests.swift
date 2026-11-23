@@ -35,7 +35,10 @@ final class ProposalCopyTests: XCTestCase {
         XCTAssertEqual(ProposalCopy.badge(create(autoApplied: true), applied), "proposal_created_auto")
         XCTAssertEqual(ProposalCopy.badge(edit(), ProposalState(status: .discarded)), "proposal_discarded")
         XCTAssertEqual(ProposalCopy.badge(create(autoApplied: true), ProposalState(status: .undone)), "proposal_undone")
-        for status in [ProposalState.Status.idle, .applying, .discarding, .undoing] {
+        // 撤销中还是"已应用"。
+        XCTAssertEqual(ProposalCopy.badge(edit(autoApplied: true), ProposalState(status: .undoing)), "proposal_applied_auto")
+        XCTAssertEqual(ProposalCopy.badge(create(), ProposalState(status: .undoing)), "proposal_created")
+        for status in [ProposalState.Status.idle, .applying, .discarding] {
             XCTAssertNil(ProposalCopy.badge(edit(), ProposalState(status: status)), "\(status)")
         }
     }
