@@ -110,7 +110,8 @@ describe("reading and saving a whiteboard", () => {
     mocks.updateMany.mockResolvedValue({ count: 1 });
     expect((await save(patch({ title: "New", version: 3 }), context)).status).toBe(200);
     expect(mocks.canvasUpsert).not.toHaveBeenCalled();
-    expect(mocks.raw).not.toHaveBeenCalled();
+    // 題名だけの変更でも、上書き前の状態は履歴の候補になる（間隔はノートと同じく SQL が判断する）。
+    expect(mocks.raw).toHaveBeenCalledTimes(1);
   });
 
   it("answers a stale save with 409 and the current version, but accepts an identical resend after a lost response", async () => {

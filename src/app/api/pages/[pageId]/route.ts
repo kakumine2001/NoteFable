@@ -29,6 +29,8 @@ export async function GET(_request: Request, context: Context) {
     if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
     const kind = pageKindOf(page);
     if (isCanvasKind(kind)) {
+      // 版（ページの行）を先に、本体を後に読む。間に別のタブが保存しても、返す版は本体より古くなるだけで、次の保存は 409 になる
+      // （逆の順だと、新しい版と古い本体を組み合わせて返し、別のタブの保存を黙って上書きさせてしまう）。
       const data = await readCanvasData(user.id, page.id) ?? emptyCanvasData(kind);
       return NextResponse.json({ page: { ...page, data } }, { headers: { "Cache-Control": "no-store" } });
     }
@@ -92,7 +94,8 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
   const canvas = input.data ? prepareCanvas(kind, input.data, input.size!) : null;
   const result = await prisma.$transaction(async (tx) => {
     if (iconPresent) await claimCover(tx, input.icon, userId, "icon");
-    if (canvas) await snapshotBeforeSave(tx, { noteId: pageId, userId, version, kind });
+    // ノートと同じく、上書きされる前の状態を間隔を空けて履歴に残す（題名だけの変更でも。本体は DB の中で写す）。
+    await snapshotBeforeSave(tx, { noteId: pageId, userId, version, kind });
     const changed = await tx.notePage.updateMany({
       where: { id: pageId, userId, version, deletedAt: null, kind },
       data: { title: input.title, ...(iconPresent ? { icon: input.icon } : {}), version: { increment: 1 } },
