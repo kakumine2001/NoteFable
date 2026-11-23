@@ -1,6 +1,8 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import type { ComponentType } from "react";
+import { useT } from "@/components/i18n-provider";
 import type { CanvasData } from "@/lib/canvas-document";
 import type { CanvasKind } from "@/lib/page-kinds";
 import type { PageSelection } from "@/lib/page-ai/types";
@@ -33,4 +35,11 @@ export type CanvasEditorProps = {
 
 // 種類ごとのエディター。PAGE_KIND_FEATURES[kind].editor が true で、ここに登録があるときだけ使う（無ければ読み取り専用の仮の画面）。
 // エディターは大きいので、それぞれ next/dynamic で開いたときに読み込む。
-export const CANVAS_EDITORS: Partial<Record<CanvasKind, ComponentType<CanvasEditorProps>>> = {};
+function EditorLoading() {
+  const t = useT();
+  return <p className="notes-loading canvas-editor-loading">{t("Loading editor…")}</p>;
+}
+
+export const CANVAS_EDITORS: Partial<Record<CanvasKind, ComponentType<CanvasEditorProps>>> = {
+  slides: dynamic(() => import("@/components/slides/slides-editor"), { ssr: false, loading: () => <EditorLoading /> }),
+};

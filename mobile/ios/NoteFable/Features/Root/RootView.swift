@@ -11,7 +11,8 @@ struct RootView: View {
 
     var body: some View {
         @Bindable var router = router
-        AppDrawer(isOpen: $router.drawerOpen) {
+        // 幻灯片放映中不让抽屉跟着边缘滑动打开（和翻页、返回的手势冲突）。
+        AppDrawer(isOpen: $router.drawerOpen, gesturesEnabled: !app.notes.state.presenting) {
             DrawerPanel()
         } content: {
             workspace
@@ -154,6 +155,7 @@ private struct SidebarFooter: View {
 /// “减弱动态效果”时不做动画，直接到位。
 private struct AppDrawer<Panel: View, Content: View>: View {
     @Binding var isOpen: Bool
+    let gesturesEnabled: Bool
     let panel: Panel
     let content: Content
 
@@ -176,8 +178,9 @@ private struct AppDrawer<Panel: View, Content: View>: View {
     private static var edgeWidth: CGFloat { 24 }
     private static var scrim: Color { Color.black.opacity(0.15) }
 
-    init(isOpen: Binding<Bool>, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
+    init(isOpen: Binding<Bool>, gesturesEnabled: Bool = true, @ViewBuilder panel: () -> Panel, @ViewBuilder content: () -> Content) {
         self._isOpen = isOpen
+        self.gesturesEnabled = gesturesEnabled
         self.panel = panel()
         self.content = content()
     }
@@ -272,7 +275,7 @@ private struct AppDrawer<Panel: View, Content: View>: View {
             .onChanged { value in
                 if drag == nil {
                     let fromEdge = rtl ? containerWidth - value.startLocation.x : value.startLocation.x
-                    let begins = !isOpen && shown == 0 && fromEdge <= Self.edgeWidth
+                    let begins = gesturesEnabled && !isOpen && shown == 0 && fromEdge <= Self.edgeWidth
                         && isHorizontal(value) && inward(value, rtl: rtl) > 0 && !ReorderDragSession.isActive
                     drag = begins ? .opening : .ignored
                     if begins { hideKeyboard() }

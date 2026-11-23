@@ -95,10 +95,23 @@ function expandCollapsedAncestors(element: HTMLElement) {
   }
 }
 
+// スライドでは一致した ID が枚の ID なので、エディターにその枚を開いてもらい（notefable:reveal-canvas-item）、縮小図を強調する。
+export const canvasItemSelector = (itemId: string) => `.slides-editor [data-slide-id="${attributeValue(itemId)}"]`;
+// スライドのエディターは遅れて読み込まれる（next/dynamic）。開く前に出した依頼は、ここに少しの間（WAIT_MS）残し、
+// エディターが開いたときに takeCanvasReveal で受け取る。受け取ったら消す（あとで別の時に開いても動かない）。
+let pendingCanvasReveal: { id: string; at: number } | null = null;
+export function takeCanvasReveal(accept: (id: string) => boolean): string | null {
+  const pending = pendingCanvasReveal;
+  if (!pending || Date.now() - pending.at > WAIT_MS || !accept(pending.id)) return null;
+  pendingCanvasReveal = null;
+  return pending.id;
+}
 export function revealNoteBlock(blockId: string, options: RevealOptions = {}) {
+  pendingCanvasReveal = { id: blockId, at: Date.now() };
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") window.dispatchEvent(new CustomEvent<string>("notefable:reveal-canvas-item", { detail: blockId }));
   return reveal(
     () => {
-      const element = document.querySelector<HTMLElement>(noteBlockSelector(blockId));
+      const element = document.querySelector<HTMLElement>(noteBlockSelector(blockId)) ?? document.querySelector<HTMLElement>(canvasItemSelector(blockId));
       if (element) expandCollapsedAncestors(element);
       return element;
     },

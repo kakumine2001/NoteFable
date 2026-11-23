@@ -43,17 +43,21 @@ data class SearchResponse(
     val chats: List<ChatSearchResult> = emptyList(),
 )
 
-/** 聊天和笔记的横断检索：`GET /api/search?q=&scope=&projectId=`（和网页 search-dialog.tsx 同一个接口）。 */
+/**
+ * 聊天和笔记的横断检索：`GET /api/search?q=&scope=&projectId=&kind=`（和网页 search-dialog.tsx 同一个接口）。
+ * [kind] 是 Notes 的类型筛选（"note" / "slides" / "whiteboard"，null 是全部类型）。
+ */
 fun interface SearchBackend {
-    suspend fun search(query: String, scope: SearchScope, projectId: String?): SearchResponse
+    suspend fun search(query: String, scope: SearchScope, projectId: String?, kind: String?): SearchResponse
 }
 
 class SearchApi internal constructor(private val http: NoteFableHttp) : SearchBackend {
-    override suspend fun search(query: String, scope: SearchScope, projectId: String?): SearchResponse {
+    override suspend fun search(query: String, scope: SearchScope, projectId: String?, kind: String?): SearchResponse {
         val url = http.absoluteUrl("/api/search").toHttpUrl().newBuilder()
             .addQueryParameter("q", query)
             .addQueryParameter("scope", scope.wire)
             .apply { if (!projectId.isNullOrEmpty()) addQueryParameter("projectId", projectId) }
+            .apply { if (!kind.isNullOrEmpty()) addQueryParameter("kind", kind) }
             .build()
         return http.getJson(url.toString())
     }

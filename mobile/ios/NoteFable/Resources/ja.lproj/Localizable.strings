@@ -381,6 +381,14 @@
 "page_kind_note" = "ノート";
 "page_kind_whiteboard" = "ホワイトボード";
 "page_kind_slides" = "スライド";
+"ws_new" = "新規作成";
+"ws_new_page" = "新しいページ";
+"ws_new_page_in" = "%1$s に新しいページ";
+"ws_section_whiteboards" = "ホワイトボード";
+"ws_new_slides" = "新しいスライド";
+"ws_new_whiteboard" = "新しいホワイトボード";
+"ws_all_types" = "すべての種類";
+"ws_page_type" = "ページの種類";
 
 /* strings_pages.xml */
 "pg_favorites" = "お気に入り";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "前の移動が終わるまでお待ちください。";
 "sb_err_move_chat" = "チャットを移動できませんでした。";
 "sb_err_create_chat" = "データベースに接続できません。ローカルのPostgreSQLを起動して、もう一度お試しください。";
+
+/* strings_slides.xml */
+"slides_present" = "プレゼンテーション";
+"slides_export_pdf" = "PDF に書き出す";
+"slides_export_pdf_notes" = "発表者ノート付きの PDF に書き出す";
+"slides_export_png" = "PNG 画像に書き出す";
+"slides_export_pptx" = "PowerPoint（PPTX）に書き出す";
+"slides_file_saved" = "ファイルを保存しました。";
+"slides_file_save_failed" = "ファイルを保存できませんでした。";
 
 /* strings_turns.xml */
 "regenerate" = "回答を再生成";

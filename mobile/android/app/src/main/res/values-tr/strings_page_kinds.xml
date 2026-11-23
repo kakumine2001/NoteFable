@@ -4,4 +4,12 @@
     <string name="page_kind_note">Not</string>
     <string name="page_kind_whiteboard">Beyaz tahta</string>
     <string name="page_kind_slides">Slaytlar</string>
+    <string name="ws_new">Yeni</string>
+    <string name="ws_new_page">Yeni sayfa</string>
+    <string name="ws_new_page_in">%1$s içinde yeni sayfa</string>
+    <string name="ws_section_whiteboards">Beyaz tahtalar</string>
+    <string name="ws_new_slides">Yeni slayt destesi</string>
+    <string name="ws_new_whiteboard">Yeni beyaz tahta</string>
+    <string name="ws_all_types">Tüm türler</string>
+    <string name="ws_page_type">Sayfa türü</string>
 </resources>

@@ -381,6 +381,14 @@
 "page_kind_note" = "Note";
 "page_kind_whiteboard" = "Tableau blanc";
 "page_kind_slides" = "Diapositives";
+"ws_new" = "Nouveau";
+"ws_new_page" = "Nouvelle page";
+"ws_new_page_in" = "Nouvelle page dans %1$s";
+"ws_section_whiteboards" = "Tableaux blancs";
+"ws_new_slides" = "Nouvelle présentation";
+"ws_new_whiteboard" = "Nouveau tableau blanc";
+"ws_all_types" = "Tous les types";
+"ws_page_type" = "Type de page";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoris";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "Attendez la fin du déplacement précédent.";
 "sb_err_move_chat" = "Impossible de déplacer la discussion.";
 "sb_err_create_chat" = "La base de données est indisponible. Démarrez PostgreSQL en local et réessayez.";
+
+/* strings_slides.xml */
+"slides_present" = "Présenter";
+"slides_export_pdf" = "Exporter en PDF";
+"slides_export_pdf_notes" = "Exporter en PDF avec les notes du présentateur";
+"slides_export_png" = "Exporter en images PNG";
+"slides_export_pptx" = "Exporter vers PowerPoint (PPTX)";
+"slides_file_saved" = "Fichier enregistré.";
+"slides_file_save_failed" = "Impossible d’enregistrer le fichier.";
 
 /* strings_turns.xml */
 "regenerate" = "Régénérer";

@@ -1,5 +1,8 @@
 package com.kakumine.notefable.data
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -8,43 +11,94 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
 
 /**
- * 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，两边一起改）。
- * 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+ * 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures）。表本身只在网页的 PAGE_KIND_FEATURES 里定义，
+ * App 从服务端读（[PageKindTable]）。服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。
  */
+@Serializable
 data class PageKindFeatures(
-    /** 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。 */
-    val editor: Boolean,
+    /** 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。也是"能不能新建"的开关：分区、新建菜单、检索的类型筛选只出 true 的类型（#168）。 */
+    val editor: Boolean = false,
     /** Markdown 导出（GET /api/pages/:id/export）。 */
-    val markdownExport: Boolean,
+    val markdownExport: Boolean = false,
     /** 字体、小字号、全宽（页面设置里只影响正文外观的几项）。锁定所有类型都能用。 */
-    val typography: Boolean,
+    val typography: Boolean = false,
     /** 公开分享（/s/:token）：只有有公开视图的类型。 */
-    val publicShare: Boolean,
+    val publicShare: Boolean = false,
     /** AI 的编辑提案（propose_note_edit 和应用）。 */
-    val aiEdit: Boolean,
+    val aiEdit: Boolean = false,
 )
+
+/**
+ * 各页面类型能用的功能表（网页 PAGE_KIND_FEATURES）。服务端 `GET /api/pages` 的 `kinds` 一到就换成它（[update]），
+ * 之前用安装包的 assets/page-kinds.json（scripts/gen-native-page-kinds.ts 从网页生成，[loadBundled]），两者都没有时只有笔记能用。
+ * 所以白板 / 幻灯片的开关在网页部署后三端一起切换，不用重新发 App。表是 Compose 状态，换了以后读它的界面会重组。
+ */
+object PageKindTable {
+    private val NoteFeatures = PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)
+    private val Fallback: Map<PageKind, PageKindFeatures> = mapOf(PageKind.Note to NoteFeatures)
+
+    /** 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。分区、新建菜单、检索的类型筛选都按它排。 */
+    val DisplayOrder: List<PageKind> = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+
+    private var table by mutableStateOf(Fallback)
+
+    fun features(kind: PageKind): PageKindFeatures = table[kind] ?: if (kind == PageKind.Note) NoteFeatures else PageKindFeatures()
+
+    /** 能新建的类型（网页 creatablePageKinds）：[DisplayOrder] 里 editor 为 true 的；笔记总能新建。 */
+    val creatable: List<PageKind> get() = DisplayOrder.filter { it == PageKind.Note || features(it).editor }
+
+    /** 服务端的 `kinds`（`{ "note": { editor, … }, … }`）。不是对象、读不出来就不动；不认识的类型忽略，没列出的类型什么都不能用。 */
+    fun update(kinds: JsonElement?) {
+        val parsed = parse(kinds) ?: return
+        if (parsed != table) table = parsed
+    }
+
+    /** 安装包里的 assets/page-kinds.json（读不出来时保持只有笔记）。 */
+    fun loadBundled(json: String) = update(runCatching { NoteFableJson.parseToJsonElement(json) }.getOrNull())
+
+    internal fun parse(kinds: JsonElement?): Map<PageKind, PageKindFeatures>? {
+        val obj = kinds as? JsonObject ?: return null
+        val result = HashMap<PageKind, PageKindFeatures>()
+        for ((wire, value) in obj) {
+            val kind = PageKind.entries.firstOrNull { it.wire == wire } ?: continue
+            val features = runCatching { NoteFableJson.decodeFromJsonElement(PageKindFeatures.serializer(), value) }.getOrNull() ?: continue
+            result[kind] = features
+        }
+        // 笔记一直能用（服务端的表也是这样）：读到的表里缺了也不让笔记消失。
+        if (PageKind.Note !in result) result[PageKind.Note] = NoteFeatures
+        return result
+    }
+
+    /** 单元测试用：回到只有笔记的表。 */
+    internal fun reset() { table = Fallback }
+}
 
 /**
  * 工作区页面的类型（网页 PAGE_KINDS）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
  * 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。
  */
 @Serializable(with = PageKindSerializer::class)
-enum class PageKind(val wire: String, val features: PageKindFeatures) {
-    Note("note", PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)),
-    Whiteboard("whiteboard", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)),
-    Slides("slides", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false));
+enum class PageKind(val wire: String) {
+    Note("note"),
+    Whiteboard("whiteboard"),
+    Slides("slides");
+
+    /** 这个类型能用的功能（[PageKindTable]，服务端的表）。 */
+    val features: PageKindFeatures get() = PageKindTable.features(this)
 
     /** 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。 */
     val isCanvas: Boolean get() = this != Note
@@ -158,8 +212,9 @@ data class ImportMarkdownFile(val name: String, val markdown: String)
 @Serializable
 data class NoteGroupSummary(val id: String, val name: String, val position: Int = 0)
 
+/** [kinds] 是各类型能用的功能表（网页 PAGE_KIND_FEATURES，交给 [PageKindTable.update]）；旧服务端没有。 */
 @Serializable
-data class NotesList(val pages: List<NotePageSummary> = emptyList(), val groups: List<NoteGroupSummary> = emptyList())
+data class NotesList(val pages: List<NotePageSummary> = emptyList(), val groups: List<NoteGroupSummary> = emptyList(), val kinds: JsonElement? = null)
 
 /** deletedAt 是移进回收站的时刻，purgeAt 是不能再恢复、会被永久删除的时刻（ISO 字符串）。 */
 @Serializable
@@ -216,8 +271,11 @@ internal data class TrashResponse(val pages: List<NoteTrashItem> = emptyList())
 interface NotesBackend {
     suspend fun notes(): NotesList
 
-    /** 和网页的"New note"一样，建一篇空白的 Untitled 笔记。[parentId] 指定时建在那一篇里面（子页面）。 */
-    suspend fun createNote(parentId: String? = null): NotePageSummary
+    /**
+     * 和网页的新建一样，建一篇空白的 Untitled 页面（[kind]：笔记，或空的白板 / 幻灯片）。[parentId] 指定时建在那一篇里面（子页面，项目随父页面），
+     * 否则建在 [groupId] 项目的最上层（null 是不进项目）。
+     */
+    suspend fun createNote(parentId: String? = null, kind: PageKind = PageKind.Note, groupId: String? = null): NotePageSummary
 
     /** 移到回收站（服务端只记 deletedAt，30 天内可恢复），子页面一起移进去。返回所有被移进去的 id（含这一篇）。 */
     suspend fun trashNote(id: String): List<String>
@@ -307,6 +365,19 @@ sealed interface EmbedMessage {
      * 和聊天一样的提示（登录 / 升级）。只有声明了 `canShowStorageLimit()` 的 App 才会收到。
      */
     data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
+    /**
+     * 幻灯片的放映：[state] 是 start（App 横屏、全屏、屏幕常亮）、slide（换了页，[index] 从 0 开始，[count] 是总页数）、end（恢复）。
+     * 只有声明了 `canPresent()` 的 App 才会收到。
+     */
+    data class Presentation(val state: String, val index: Int, val count: Int) : EmbedMessage
+    /**
+     * 网页做好的导出文件（PDF、PNG、PPTX）分块交给 App 保存：FileStart → 若干 FileChunk（base64）→ FileEnd（出错时 FileAbort）。
+     * 只有声明了 `canSaveFile()` 的 App 才会收到。
+     */
+    data class FileStart(val id: String, val name: String, val mime: String, val size: Long) : EmbedMessage
+    data class FileChunk(val id: String, val index: Int, val data: String) : EmbedMessage
+    data class FileEnd(val id: String) : EmbedMessage
+    data class FileAbort(val id: String) : EmbedMessage
 
     companion object {
         /** 不认识或格式不对的消息返回 null（网页先加了新消息类型也不会让 App 出错）。 */
@@ -329,6 +400,24 @@ sealed interface EmbedMessage {
                     obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                     obj["limit"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                 )
+                "presentation" -> Presentation(
+                    obj.str("state")?.takeIf { it == "start" || it == "slide" || it == "end" } ?: return@runCatching null,
+                    obj["index"]?.jsonPrimitive?.intOrNull ?: 0,
+                    obj["count"]?.jsonPrimitive?.intOrNull ?: 0,
+                )
+                "fileStart" -> FileStart(
+                    obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.str("name")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.str("mime") ?: "application/octet-stream",
+                    obj["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+                )
+                "fileChunk" -> FileChunk(
+                    obj.str("id") ?: return@runCatching null,
+                    obj["index"]?.jsonPrimitive?.intOrNull ?: return@runCatching null,
+                    obj.str("data") ?: return@runCatching null,
+                )
+                "fileEnd" -> FileEnd(obj.str("id") ?: return@runCatching null)
+                "fileAbort" -> FileAbort(obj.str("id") ?: return@runCatching null)
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,

@@ -381,6 +381,14 @@
 "page_kind_note" = "Ghi chú";
 "page_kind_whiteboard" = "Bảng trắng";
 "page_kind_slides" = "Trình chiếu";
+"ws_new" = "Tạo mới";
+"ws_new_page" = "Trang mới";
+"ws_new_page_in" = "Trang mới trong %1$s";
+"ws_section_whiteboards" = "Bảng trắng";
+"ws_new_slides" = "Bản trình chiếu mới";
+"ws_new_whiteboard" = "Bảng trắng mới";
+"ws_all_types" = "Tất cả loại";
+"ws_page_type" = "Loại trang";
 
 /* strings_pages.xml */
 "pg_favorites" = "Yêu thích";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "Hãy đợi thao tác di chuyển trước đó hoàn tất.";
 "sb_err_move_chat" = "Không thể di chuyển đoạn chat.";
 "sb_err_create_chat" = "Không thể kết nối cơ sở dữ liệu. Hãy khởi động PostgreSQL cục bộ và thử lại.";
+
+/* strings_slides.xml */
+"slides_present" = "Trình chiếu";
+"slides_export_pdf" = "Xuất PDF";
+"slides_export_pdf_notes" = "Xuất PDF kèm ghi chú";
+"slides_export_png" = "Xuất ảnh PNG";
+"slides_export_pptx" = "Xuất PowerPoint (PPTX)";
+"slides_file_saved" = "Đã lưu tệp.";
+"slides_file_save_failed" = "Không thể lưu tệp.";
 
 /* strings_turns.xml */
 "regenerate" = "Tạo lại";

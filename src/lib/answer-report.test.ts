@@ -20,6 +20,18 @@ describe("reporting AI content", () => {
     expect(parseReport({})).toEqual({ ok: false });
   });
 
+  it("reads a slide image target: a slide deck with one of its elements", () => {
+    expect(parseReport({ pageId: "pg", elementId: "img1", reason: " ugly " })).toEqual({ ok: true, data: { target: { kind: "slideImage", pageId: "pg", elementId: "img1" }, reason: "ugly" } });
+    // 要素はスライドのページと一緒にだけ。長さの上限は回答・ページと別（ページ 64、要素 120）。
+    expect(parseReport({ messageId: "m1", elementId: "img1" })).toEqual({ ok: false });
+    expect(parseReport({ proposalId: "p1", elementId: "img1" })).toEqual({ ok: false });
+    expect(parseReport({ pageId: "pg", elementId: "" })).toEqual({ ok: false });
+    expect(parseReport({ pageId: "pg", elementId: 3 })).toEqual({ ok: false });
+    expect(parseReport({ pageId: "x".repeat(65), elementId: "img1" })).toEqual({ ok: false });
+    expect(parseReport({ pageId: "pg", elementId: "e".repeat(121) })).toEqual({ ok: false });
+    expect(parseReport({ pageId: "pg", elementId: "e".repeat(120) })).toMatchObject({ ok: true });
+  });
+
   it("finds only the user's own proposal, with the model of its answer", async () => {
     mocks.proposal.mockResolvedValue({ id: "p1", sessionId: "s1", messageId: "m1", kind: "EDIT", status: "APPLIED", pageKind: "note", autoApplied: false, payload: {}, createdAt: new Date() });
     mocks.message.mockResolvedValue({ model: "luna" });

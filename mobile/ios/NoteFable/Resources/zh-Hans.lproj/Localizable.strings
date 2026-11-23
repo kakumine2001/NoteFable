@@ -381,6 +381,14 @@
 "page_kind_note" = "笔记";
 "page_kind_whiteboard" = "白板";
 "page_kind_slides" = "幻灯片";
+"ws_new" = "新建";
+"ws_new_page" = "新建页面";
+"ws_new_page_in" = "在 %1$s 中新建页面";
+"ws_section_whiteboards" = "白板";
+"ws_new_slides" = "新幻灯片";
+"ws_new_whiteboard" = "新白板";
+"ws_all_types" = "全部类型";
+"ws_page_type" = "页面类型";
 
 /* strings_pages.xml */
 "pg_favorites" = "收藏";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "请等待上一次移动完成。";
 "sb_err_move_chat" = "无法移动聊天。";
 "sb_err_create_chat" = "数据库不可用，请启动本地 PostgreSQL 后重试。";
+
+/* strings_slides.xml */
+"slides_present" = "放映";
+"slides_export_pdf" = "导出 PDF";
+"slides_export_pdf_notes" = "导出带演讲备注的 PDF";
+"slides_export_png" = "导出 PNG 图片";
+"slides_export_pptx" = "导出 PowerPoint（PPTX）";
+"slides_file_saved" = "文件已保存。";
+"slides_file_save_failed" = "无法保存文件。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

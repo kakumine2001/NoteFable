@@ -15,6 +15,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.kakumine.notefable.data.PageKind
 import java.io.IOException
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -31,7 +32,7 @@ class SearchViewModelTest {
     @Test
     fun `waits 250ms after typing stops and searches only the latest input`() = runTest {
         val calls = mutableListOf<Call>()
-        val vm = SearchViewModel(backgroundScope, { q, s, p -> calls += Call(q, s, p); response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, s, p, _ -> calls += Call(q, s, p); response(q) })
         vm.setInput("ap")
         advanceTimeBy(200)
         vm.setInput("  api  ")
@@ -51,9 +52,32 @@ class SearchViewModelTest {
     }
 
     @Test
+    fun `the Notes type filter is sent only when two or more kinds can be created, and a vanished kind searches again`() = runTest {
+        val kinds = mutableListOf<String?>()
+        val vm = SearchViewModel(backgroundScope, { q, _, _, k -> kinds += k; response(q) })
+        val all = listOf(PageKind.Note, PageKind.Slides, PageKind.Whiteboard)
+        vm.setKinds(all)
+        vm.setScope(SearchScope.Notes)
+        vm.setKind("slides")
+        vm.setInput("plan")
+        advanceTimeBy(251)
+        runCurrent()
+        assertEquals(listOf<String?>("slides"), kinds)
+        assertEquals(all, vm.state.value.view(projects, null, true, all).kindOptions)
+        // 开关关掉了：筛选消失，按全部类型重新检索（不会一直停在"检索中"）。
+        vm.setKinds(listOf(PageKind.Note))
+        advanceTimeBy(251)
+        runCurrent()
+        assertEquals(listOf("slides", null), kinds)
+        val view = vm.state.value.view(projects, null, true, listOf(PageKind.Note))
+        assertTrue(view.kindOptions.isEmpty())
+        assertFalse(view.loading)
+    }
+
+    @Test
     fun `keeps the previous results while a new search runs and drops late stale answers`() = runTest {
         val gates = mutableMapOf<String, CompletableDeferred<SearchResponse>>()
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> gates.getOrPut(q) { CompletableDeferred() }.await() })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> gates.getOrPut(q) { CompletableDeferred() }.await() })
         vm.setInput("a")
         advanceTimeBy(300)
         gates["a"]!!.complete(response("a"))
@@ -77,7 +101,7 @@ class SearchViewModelTest {
     fun `a failed search shows the failure and retry searches again`() = runTest {
         var fail = true
         var count = 0
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> count++; if (fail) throw IOException("down") else response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> count++; if (fail) throw IOException("down") else response(q) })
         vm.setInput("x")
         advanceTimeBy(300)
         runCurrent()
@@ -95,7 +119,7 @@ class SearchViewModelTest {
     @Test
     fun `the project filter applies only on the Chats tab and only to existing projects`() = runTest {
         val calls = mutableListOf<Call>()
-        val vm = SearchViewModel(backgroundScope, { q, s, p -> calls += Call(q, s, p); response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, s, p, _ -> calls += Call(q, s, p); response(q) })
         vm.setProjects(projects)
         vm.setInput("x")
         vm.setProject("p1")
@@ -120,7 +144,7 @@ class SearchViewModelTest {
     @Test
     fun `empty input stays idle without a request`() = runTest {
         var count = 0
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> count++; response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> count++; response(q) })
         vm.setInput("   ")
         advanceTimeBy(1000)
         runCurrent()

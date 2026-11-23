@@ -381,6 +381,14 @@
 "page_kind_note" = "ملاحظة";
 "page_kind_whiteboard" = "السبورة";
 "page_kind_slides" = "الشرائح";
+"ws_new" = "جديد";
+"ws_new_page" = "صفحة جديدة";
+"ws_new_page_in" = "صفحة جديدة في %1$s";
+"ws_section_whiteboards" = "السبورات";
+"ws_new_slides" = "مجموعة شرائح جديدة";
+"ws_new_whiteboard" = "سبورة جديدة";
+"ws_all_types" = "كل الأنواع";
+"ws_page_type" = "نوع الصفحة";
 
 /* strings_pages.xml */
 "pg_favorites" = "المفضلة";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "انتظر حتى تكتمل عملية النقل السابقة.";
 "sb_err_move_chat" = "تعذّر نقل المحادثة.";
 "sb_err_create_chat" = "قاعدة البيانات غير متاحة. شغّل PostgreSQL المحلي وحاول مرة أخرى.";
+
+/* strings_slides.xml */
+"slides_present" = "عرض";
+"slides_export_pdf" = "تصدير PDF";
+"slides_export_pdf_notes" = "تصدير PDF مع ملاحظات المتحدث";
+"slides_export_png" = "تصدير صور PNG";
+"slides_export_pptx" = "تصدير إلى PowerPoint (PPTX)";
+"slides_file_saved" = "تم حفظ الملف.";
+"slides_file_save_failed" = "تعذّر حفظ الملف.";
 
 /* strings_turns.xml */
 "regenerate" = "إعادة التوليد";

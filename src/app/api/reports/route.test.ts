@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
+const mocks = vi.hoisted(() => ({ currentUser: vi.fn(), find: vi.fn(), findProposal: vi.fn(), findPage: vi.fn(), readCanvas: vi.fn(), consume: vi.fn(), refund: vi.fn(), send: vi.fn() }));
 vi.mock("@/lib/auth", () => ({
   getOrCreateUser: mocks.currentUser,
   isAccountUser: (user: { googleSub: string | null; verifiedEmail?: string | null }) => Boolean(user.googleSub || user.verifiedEmail),
@@ -13,6 +13,7 @@ vi.mock("@/lib/answer-report", async (load) => ({
   findReportedPage: mocks.findPage,
   sendReport: mocks.send,
 }));
+vi.mock("@/lib/canvas-store", () => ({ readCanvasData: mocks.readCanvas }));
 vi.mock("@/lib/usage-limits", () => ({ clientNetworkKey: () => "ip:net", consumeReportQuota: mocks.consume, refundUsage: mocks.refund }));
 vi.mock("@/lib/prisma", () => ({ prisma: {}, databaseSchema: "notefable" }));
 import { EmailSendError } from "@/lib/email-login";
@@ -93,6 +94,28 @@ describe("POST /api/reports", () => {
     expect((await POST(post({ pageId: "gone" }))).status).toBe(404);
     // 対象は 1 つだけ。
     expect((await POST(post({ pageId: "p1", messageId: "m2" }))).status).toBe(400);
+  });
+
+  it("reports an AI image on the user's own slide deck with its prompt and storage path", async () => {
+    const path = "note-files/u1/00000000-0000-4000-8000-000000000000.png";
+    const src = `/api/pages/files?key=${encodeURIComponent(path)}&name=sky.png`;
+    mocks.readCanvas.mockResolvedValue({ slides: [{ id: "s1", elements: [
+      { id: "img1", type: "image", src, generated: { prompt: "A lighthouse at dawn" } },
+      { id: "img2", type: "image", src },
+    ] }] });
+    expect((await POST(post({ pageId: "deck1", elementId: "img1", reason: "Wrong" }))).status).toBe(200);
+    expect(mocks.readCanvas).toHaveBeenCalledWith("u1", "deck1");
+    const email = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(email.subject).toContain("deck1/img1");
+    expect(email.text).toContain("A lighthouse at dawn");
+    expect(email.text).toContain(path);
+    // AI で作った印の無い画像、無い要素、読めないページは 404。
+    expect((await POST(post({ pageId: "deck1", elementId: "img2" }))).status).toBe(404);
+    expect((await POST(post({ pageId: "deck1", elementId: "gone" }))).status).toBe(404);
+    mocks.readCanvas.mockResolvedValueOnce(null);
+    expect((await POST(post({ pageId: "other", elementId: "img1" }))).status).toBe(404);
+    expect(mocks.findPage).not.toHaveBeenCalled();
+    expect(mocks.send).toHaveBeenCalledTimes(1);
   });
 
   it("rejects bad bodies, other sites and too many reports", async () => {

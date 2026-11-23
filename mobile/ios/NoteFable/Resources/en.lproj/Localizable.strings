@@ -381,6 +381,14 @@
 "page_kind_note" = "Note";
 "page_kind_whiteboard" = "Whiteboard";
 "page_kind_slides" = "Slides";
+"ws_new" = "New";
+"ws_new_page" = "New page";
+"ws_new_page_in" = "New page in %1$s";
+"ws_section_whiteboards" = "Whiteboards";
+"ws_new_slides" = "New slide deck";
+"ws_new_whiteboard" = "New whiteboard";
+"ws_all_types" = "All types";
+"ws_page_type" = "Page type";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favorites";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "Wait for the previous move to finish.";
 "sb_err_move_chat" = "Could not move the chat.";
 "sb_err_create_chat" = "Database is unavailable. Start local PostgreSQL and try again.";
+
+/* strings_slides.xml */
+"slides_present" = "Present";
+"slides_export_pdf" = "Export PDF";
+"slides_export_pdf_notes" = "Export PDF with speaker notes";
+"slides_export_png" = "Export PNG images";
+"slides_export_pptx" = "Export PowerPoint (PPTX)";
+"slides_file_saved" = "File saved.";
+"slides_file_save_failed" = "Could not save the file.";
 
 /* strings_turns.xml */
 "regenerate" = "Regenerate";

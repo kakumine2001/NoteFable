@@ -38,7 +38,7 @@ struct NotesHomeView: View {
                         .padding(.bottom, 16)
                 } else if nothing {
                     if state.error == nil && state.loaded {
-                        NotesEmptyView(busy: busy, onCreate: { notes.createNote() }, onImport: { importing = true })
+                        NotesEmptyView(kinds: state.kinds, busy: busy, onCreate: { notes.createNote(kind: $0) }, onImport: { importing = true })
                     }
                 } else {
                     NotesHomeList(busy: busy, reorder: reorder, onImport: { importing = true }, dialog: $dialog)
@@ -47,8 +47,9 @@ struct NotesHomeView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 24)
             .padding(.bottom, 96)
-            .reorderContainer(reorder, onStart: { _ in
+            .reorderContainer(reorder, onStart: { [reorder] _ in
                 NoteReorderOrigin.shared.surface = .home
+                reorder.rules = { noteDropRules(notes.state) }
                 notes.dismissReorderError()
             }) { id, target in
                 notes.drop(id, on: target)
@@ -74,8 +75,7 @@ private struct NotesHomeList: View {
         let notes = app.notes
         let state = notes.state
         let favorites = state.favorites
-        let loose = state.loosePages
-        // 标题“Workspace”：也是“移出项目”的投放区。字距 −0.04em（从右到左的文字不加字距）。
+        // 标题“Workspace”：也是“移出项目”的投放区（什么类型都接受，移出后回到自己类型的分区）。字距 −0.04em（从右到左的文字不加字距）。
         Text(L("workspace"))
             .font(.nf(32, weight: 750))
             .tracking(layoutDirection == .rightToLeft ? 0 : -1.28)
@@ -100,15 +100,16 @@ private struct NotesHomeList: View {
         ForEach(state.groups) { group in
             groupSection(group, state)
         }
-        // “No project”小标题的键是 " "（空白键都表示无项目），和标题“Notes”的 "" 分开登记、分开高亮。
-        if !state.groups.isEmpty && !loose.isEmpty {
-            NotesHomeHeading(name: L("no_project"), count: state.looseCount)
-                .reorderDropZone(" ", in: reorder)
-                .notesHomeHeadingMargins()
-        }
-        if !loose.isEmpty {
+        // 不在项目里的页面（网页 notes-home 的分区）：只能建笔记时和以前一样，有项目才出“No project”小标题；
+        // 能建几种类型时每个有页面的分区一个小标题（笔记 / 幻灯片 / 白板 + 数量）。小标题只接受同一分区的页面（Core 的 noteDropRules）。
+        ForEach(state.sections.filter { !$0.roots.isEmpty }, id: \.kind) { section in
+            if state.kinds.count > 1 || !state.groups.isEmpty {
+                NotesHomeHeading(name: state.kinds.count > 1 ? L(pageKindSectionLabel(section.kind)) : L("no_project"), count: section.count)
+                    .reorderDropZone(noteSectionZone(section.kind), in: reorder)
+                    .notesHomeHeadingMargins()
+            }
             VStack(alignment: .leading, spacing: 0) {
-                ForEach(loose) { page in
+                ForEach(section.roots) { page in
                     NotesHomeTree(page: page, busy: busy, reorder: reorder, dialog: $dialog)
                 }
             }
@@ -139,11 +140,11 @@ private struct NotesHomeList: View {
         }
     }
 
-    /// “新笔记”“新项目”“导入 Markdown”（.notes-home-actions）：上距 8、间距 8，一行放不下就换行（flex-wrap）。
+    /// 新建按钮（能建的类型各一个）、“新项目”“导入 Markdown”（.notes-home-actions）：上距 8、间距 8，一行放不下就换行（flex-wrap）。
     private var buttons: some View {
         let notes = app.notes
         return ChatFlowLayout(spacing: 8, lineSpacing: 8) {
-            NotesInkButton(L("new_note"), height: 40) { notes.createNote() }
+            NewPageButtons(kinds: notes.state.kinds, height: 40) { notes.createNote(kind: $0) }
                 .disabled(busy)
             NotesHomeTextButton(icon: Lucide.folderPlus, title: L("new_project")) { dialog = .newGroup }
                 .disabled(busy)
@@ -151,6 +152,29 @@ private struct NotesHomeList: View {
                 .disabled(busy)
         }
         .padding(.top, 8)
+    }
+}
+
+/// 首页和空状态的新建按钮（网页 NewPageButtons，Android `NewPageButtons`）：只能建笔记时是原来的“新笔记”（+）；能建几种类型时
+/// 每种一个，带类型图标，第一个（笔记）是深色按钮，其余是文字按钮。放进外面的排版（流式换行 / 横排）里。
+@MainActor
+private struct NewPageButtons: View {
+    let kinds: [PageKind]
+    let height: CGFloat
+    let onCreate: (PageKind) -> Void
+
+    var body: some View {
+        if kinds.count < 2 {
+            NotesInkButton(L("new_note"), height: height) { onCreate(.note) }
+        } else {
+            ForEach(Array(kinds.enumerated()), id: \.element) { index, kind in
+                if index == 0 {
+                    NotesInkButton(L(pageKindNewLabel(kind)), height: height, icon: pageKindIcon(kind)) { onCreate(kind) }
+                } else {
+                    NotesHomeTextButton(icon: pageKindIcon(kind), title: L(pageKindNewLabel(kind))) { onCreate(kind) }
+                }
+            }
+        }
     }
 }
 
@@ -342,8 +366,9 @@ private struct NotesHomeFavoriteItem: View {
 /// 最下面 12 / 20 浅灰的存储说明，上距 40、最宽 384。
 @MainActor
 private struct NotesEmptyView: View {
+    let kinds: [PageKind]
     let busy: Bool
-    let onCreate: () -> Void
+    let onCreate: (PageKind) -> Void
     let onImport: () -> Void
     @Environment(\.layoutDirection) private var layoutDirection
 
@@ -387,7 +412,7 @@ private struct NotesEmptyView: View {
 
     @ViewBuilder
     private var actions: some View {
-        NotesInkButton(L("new_note"), height: 32, action: onCreate)
+        NewPageButtons(kinds: kinds, height: 32, onCreate: onCreate)
             .disabled(busy)
         NotesHomeTextButton(icon: Lucide.upload, title: L("import_markdown"), action: onImport)
             .disabled(busy)

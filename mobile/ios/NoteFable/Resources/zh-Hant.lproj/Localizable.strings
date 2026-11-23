@@ -381,6 +381,14 @@
 "page_kind_note" = "筆記";
 "page_kind_whiteboard" = "白板";
 "page_kind_slides" = "投影片";
+"ws_new" = "新建";
+"ws_new_page" = "新建頁面";
+"ws_new_page_in" = "在 %1$s 中新建頁面";
+"ws_section_whiteboards" = "白板";
+"ws_new_slides" = "新投影片";
+"ws_new_whiteboard" = "新白板";
+"ws_all_types" = "全部類型";
+"ws_page_type" = "頁面類型";
 
 /* strings_pages.xml */
 "pg_favorites" = "收藏";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "請等待上一次移動完成。";
 "sb_err_move_chat" = "無法移動聊天。";
 "sb_err_create_chat" = "資料庫不可用，請啟動本地 PostgreSQL 後重試。";
+
+/* strings_slides.xml */
+"slides_present" = "放映";
+"slides_export_pdf" = "匯出 PDF";
+"slides_export_pdf_notes" = "匯出帶演講備註的 PDF";
+"slides_export_png" = "匯出 PNG 圖片";
+"slides_export_pptx" = "匯出 PowerPoint（PPTX）";
+"slides_file_saved" = "檔案已儲存。";
+"slides_file_save_failed" = "無法儲存檔案。";
 
 /* strings_turns.xml */
 "regenerate" = "重新生成";

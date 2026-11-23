@@ -6,27 +6,39 @@ import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 
 // AI が作った内容の通報（Google Play の AI 生成コンテンツのポリシー：アプリ内で不快な AI 出力を開発者に知らせられること）。
-// 対象は 3 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）。
+// 対象は 4 つ：チャットの回答（messageId）、AI の提案カード（proposalId：ページの編集・新規の案）、AI が書いたページ（pageId）、
+// スライドの AI で作った画像（pageId + elementId）。
 // 通報は開発者のメールに送るだけで、データベースには残さない。
 export const MAX_REPORT_REASON = 1000;
 const MAX_ANSWER_CHARS = 20_000;
 const MAX_PROMPT_CHARS = 4_000;
 const MAX_PAGE_PROPOSALS = 20;
 
-export type ReportTarget = { kind: "answer"; id: string } | { kind: "proposal"; id: string } | { kind: "page"; id: string };
+export type ReportTarget =
+  | { kind: "answer"; id: string }
+  | { kind: "proposal"; id: string }
+  | { kind: "page"; id: string }
+  | { kind: "slideImage"; pageId: string; elementId: string };
 export type ReportInput = { target: ReportTarget; reason: string };
 
-// 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ）と、任意の理由。
+const validId = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
+
+// 本文の形。通報する対象（messageId・proposalId・pageId のどれか 1 つ。pageId に elementId を添えるとスライドの画像）と、任意の理由。
 export function parseReport(body: unknown): { ok: true; data: ReportInput } | { ok: false } {
   if (!body || typeof body !== "object") return { ok: false };
-  const { messageId, proposalId, pageId, reason } = body as Record<string, unknown>;
+  const { messageId, proposalId, pageId, elementId, reason } = body as Record<string, unknown>;
   const targets = ([["answer", messageId], ["proposal", proposalId], ["page", pageId]] as const).filter(([, id]) => id !== undefined);
   if (targets.length !== 1) return { ok: false };
   const [kind, id] = targets[0];
-  if (typeof id !== "string" || !id || id.length > 100) return { ok: false };
   if (reason !== undefined && typeof reason !== "string") return { ok: false };
   const text = (reason ?? "").trim();
   if (text.length > MAX_REPORT_REASON) return { ok: false };
+  if (elementId !== undefined) {
+    // 画像の要素はスライドのページと一緒にだけ。
+    if (kind !== "page" || !validId(id, 64) || !validId(elementId, 120)) return { ok: false };
+    return { ok: true, data: { target: { kind: "slideImage", pageId: id, elementId }, reason: text } };
+  }
+  if (!validId(id, 100)) return { ok: false };
   return { ok: true, data: { target: { kind, id }, reason: text } };
 }
 
@@ -116,6 +128,25 @@ export function pageReportEmail(report: {
     page.text.trim() ? clip(page.text, MAX_ANSWER_CHARS) : "(no text)",
   ];
   return { subject: `[NoteFable] Reported AI page ${page.id}`, text: lines.join("\n") };
+}
+
+// スライドの AI で作った画像の報告メール。作るときの説明（プロンプト）と保存先のパスを付ける。
+export function slideImageReportEmail(report: { userId: string; signedIn: boolean; pageId: string; elementId: string; prompt: string; path: string; reason: string }) {
+  const lines = [
+    `Reason: ${report.reason || "(none given)"}`,
+    "",
+    `User: ${report.userId} (${report.signedIn ? "signed in" : "anonymous"})`,
+    `Slide deck: ${report.pageId}`,
+    `Image element: ${report.elementId}`,
+    "",
+    "--- Image prompt ---",
+    clip(report.prompt, MAX_PROMPT_CHARS),
+    "",
+    "--- Image (storage path) ---",
+    report.path,
+  ];
+  const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  return { subject: `[NoteFable] Reported slide image ${plain(report.pageId)}/${plain(report.elementId)}`, text: lines.join("\n") };
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

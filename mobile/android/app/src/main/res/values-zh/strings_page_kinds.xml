@@ -4,4 +4,12 @@
     <string name="page_kind_note">笔记</string>
     <string name="page_kind_whiteboard">白板</string>
     <string name="page_kind_slides">幻灯片</string>
+    <string name="ws_new">新建</string>
+    <string name="ws_new_page">新建页面</string>
+    <string name="ws_new_page_in">在 %1$s 中新建页面</string>
+    <string name="ws_section_whiteboards">白板</string>
+    <string name="ws_new_slides">新幻灯片</string>
+    <string name="ws_new_whiteboard">新白板</string>
+    <string name="ws_all_types">全部类型</string>
+    <string name="ws_page_type">页面类型</string>
 </resources>

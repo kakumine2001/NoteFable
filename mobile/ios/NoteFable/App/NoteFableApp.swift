@@ -6,6 +6,8 @@ import UIKit
 /// 账号在 `AccountViewModel` 建好时就读一次（Android 的 ViewModel 同样在 init 里读），这里不用再读。
 @main
 struct NoteFableApp: App {
+    // 告诉系统现在允许的界面方向（只有幻灯片放映中是横屏，OrientationLock）。
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var app: AppEnvironment
     @State private var router: AppRouter
 

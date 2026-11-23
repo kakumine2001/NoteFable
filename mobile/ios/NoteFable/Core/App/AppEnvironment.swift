@@ -15,7 +15,7 @@ final class AppEnvironment {
     // MARK: - 配置和资源
 
     let config: AppConfig
-    /// 装着打包资源（`system-text.json`、`models.json`、`emoji.json`、`usage-limits.json`、各语言 lproj）的包。
+    /// 装着打包资源（`system-text.json`、`models.json`、`emoji.json`、`usage-limits.json`、`page-kinds.json`、各语言 lproj）的包。
     let resources: Bundle
     let defaults: UserDefaults
 
@@ -187,6 +187,8 @@ final class AppEnvironment {
         // ---- 打包的资源 ----
         systemTextCatalog = Self.resourceData("system-text", "json", in: resources).flatMap { try? SystemText.parse($0) } ?? .empty
         usageLimits = Self.resourceData("usage-limits", "json", in: resources).flatMap { try? UsageLimits.parse($0) }
+        // 页面类型的功能表：服务端的 kinds 到之前先用安装包里的（scripts/gen-native-page-kinds.ts 从网页生成，Android 的 assets 同一份）。
+        if let pageKinds = Self.resourceData("page-kinds", "json", in: resources) { PageKindTable.shared.loadBundled(pageKinds) }
 
         // ---- App 级的 Store ----
         let appIcon = AppIconDefaults.store(defaults)

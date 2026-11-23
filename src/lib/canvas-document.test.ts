@@ -23,11 +23,11 @@ describe("page kinds", () => {
     expect(pageKindOf({ kind: "slides" })).toBe("slides");
   });
 
-  it("keeps note-only features off for whiteboards and slide decks until their editors exist", () => {
+  it("keeps note-only features for notes and turns on each canvas kind as its editor ships", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
-    for (const kind of ["whiteboard", "slides"] as const) {
-      expect(PAGE_KIND_FEATURES[kind]).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
-    }
+    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
+    // スライドのエディターと公開の放映ページ（#149）。AI の編集は #150。
+    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
   });
 });
 

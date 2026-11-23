@@ -28,6 +28,9 @@ final class NotesViewModel {
     /// 编辑器随即变宽、换字体或变成只读。由界面在编辑器打开时设置。
     @ObservationIgnored var pushPageSettings: (@MainActor (NotePageSummary) -> Void)?
 
+    /// 幻灯片的放映 / 导出（"…"菜单、放映中的返回）：交给网页编辑器（window.notefableEmbed.slides）。由界面在编辑器打开时设置。
+    @ObservationIgnored var sendSlidesCommand: (@MainActor (String) -> Void)?
+
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
     /// 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。
@@ -56,7 +59,10 @@ final class NotesViewModel {
         self.backend = backend
         self.prefs = prefs
         self.noteIcons = noteIcons
-        state = NotesUiState(collapsed: prefs.collapsedGroups, expanded: prefs.expandedPages)
+        state = NotesUiState(
+            collapsed: prefs.collapsedGroups, expanded: prefs.expandedPages,
+            collapsedSections: Set(prefs.collapsedSections.compactMap(PageKind.init(rawValue:)))
+        )
     }
 
     /// 几个字段一起改时只发一次变更通知（Kotlin 的 `_state.update { it.copy(…) }`）。
@@ -64,7 +70,8 @@ final class NotesViewModel {
         var next = state
         change(&next)
         // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示。
-        if next.open?.editor != state.open?.editor { next.storageLimit = nil }
+        // 放映也随之结束：新的编辑器没有在放映（否则一直横屏、没有顶栏）。
+        if next.open?.editor != state.open?.editor { next.storageLimit = nil; next.presenting = false }
         state = next
     }
 
@@ -102,7 +109,10 @@ final class NotesViewModel {
             }
             switch result {
             case .success(let list):
+                // 页面类型的功能表（分区、新建菜单的开关）：服务端发来就用服务端的（网页 PAGE_KIND_FEATURES）。
+                if let kinds = list.kinds { PageKindTable.shared.update(kinds) }
                 update {
+                    if let kinds = list.kinds { $0.kindFeatures = kinds }
                     $0.pages = list.pages
                     $0.groups = list.groups
                     $0.loading = false
@@ -133,7 +143,7 @@ final class NotesViewModel {
         linkTask?.cancel()
         trashTask?.cancel()
         for task in trashActionTasks.values { task.cancel() }
-        state = NotesUiState(workspace: state.workspace, collapsed: state.collapsed, expanded: state.expanded)
+        state = NotesUiState(workspace: state.workspace, collapsed: state.collapsed, expanded: state.expanded, collapsedSections: state.collapsedSections)
         if state.workspace == .notes { refresh() }
     }
 
@@ -278,8 +288,9 @@ final class NotesViewModel {
         }
     }
 
-    /// [parentId] 指定时，在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面。
-    func createNote(parentId: String? = nil) {
+    /// 新建一篇 [kind] 的空白页面并打开（网页 createNote）。[parentId] 指定时在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面；
+    /// 否则建在 [groupId] 项目的最上层（项目的"+"，折叠着就展开），都没有时建在那个类型的分区里（折叠着就展开）。
+    func createNote(parentId: String? = nil, kind: PageKind = .note, groupId: String? = nil) {
         if state.busy { return }
         leaveThen { [self] in
             update {
@@ -287,11 +298,17 @@ final class NotesViewModel {
                 $0.error = nil
             }
             do {
-                let page = try await backend.createNote(parentId: parentId)
+                let page = try await backend.createNote(parentId: parentId, kind: kind, groupId: parentId == nil ? groupId : nil)
                 // 换身份会取消这个任务，列表已经清空：旧身份建的笔记不写进去。
                 if Task.isCancelled { return }
                 mutations += 1
-                if let parentId { expand(parentId) }
+                if let parentId {
+                    expand(parentId)
+                } else if let groupId {
+                    if state.collapsed.contains(groupId) { toggleGroup(groupId) }
+                } else {
+                    openSection(state.sectionKind(of: page))
+                }
                 update {
                     $0.workspace = .notes
                     $0.pages = Self.upsert($0.pages, page)
@@ -322,7 +339,10 @@ final class NotesViewModel {
     /// 界面收到编辑器 [editor]（[OpenNote.editor]）发来的消息时调用。flushed 由 [NoteEmbedBridge] 自己处理。
     func onEditorMessage(_ editor: String, _ message: EmbedMessage) {
         switch message {
-        case .ready(let id, let title, let icon, let kind): onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
+        case .ready(let id, let title, let icon, let kind):
+            // 网页（重新）载入后不在放映：WebView 重载时收不到 end，这里把放映状态清掉（否则一直横屏、没有顶栏）。
+            if state.open?.editor == editor, state.presenting { update { $0.presenting = false } }
+            onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
         case .meta(let title, let icon): onEditorMeta(editor, title: title, icon: icon)
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
@@ -332,8 +352,22 @@ final class NotesViewModel {
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
             update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
-        case .flushed: break
+        case .presentation(let presentation, _, _):
+            // 放映中：顶栏收起、横屏、屏幕常亮（界面看 state.presenting）。已经关掉或换走的编辑器晚到的消息不收。
+            guard state.open?.editor == editor else { break }
+            update { $0.presenting = presentation != "end" }
+        case .flushed, .fileStart, .fileChunk, .fileEnd, .fileAbort: break
         }
+    }
+
+    /// 编辑器关掉了：放映也随之结束（顶栏、竖屏恢复）。
+    func presentationEnded() {
+        if state.presenting { update { $0.presenting = false } }
+    }
+
+    /// 幻灯片的放映 / 导出（"…"菜单）。命令是网页 `parseSlidesCommand` 认的 JSON。
+    func slidesCommand(_ command: String) {
+        sendSlidesCommand?(command)
     }
 
     func dismissStorageLimit() {
@@ -935,6 +969,8 @@ final class NotesViewModel {
             if failure == nil {
                 commit(owner) { update { $0.pages = Self.movedToGroup($0.pages, id, moved, groupId) } }
                 if let groupId, state.collapsed.contains(groupId) { toggleGroup(groupId) }
+                // 移出项目的页面回到自己类型的分区：分区折叠着就展开（网页 setSectionOpen）。
+                if groupId == nil, let page = state.pages.first(where: { $0.id == id }) { openSection(state.sectionKind(of: page)) }
             }
             update {
                 $0.moveBusy.remove(id)
@@ -952,6 +988,22 @@ final class NotesViewModel {
         if next.contains(id) { next.remove(id) } else { next.insert(id) }
         prefs.collapsedGroups = next
         update { $0.collapsed = next }
+    }
+
+    /// 折叠 / 展开分区（网页 notes-sidebar 的分区标题）。
+    func toggleSection(_ kind: PageKind) {
+        setSectionCollapsed(kind, !state.collapsedSections.contains(kind))
+    }
+
+    private func openSection(_ kind: PageKind) {
+        if state.collapsedSections.contains(kind) { setSectionCollapsed(kind, false) }
+    }
+
+    private func setSectionCollapsed(_ kind: PageKind, _ collapsed: Bool) {
+        var next = state.collapsedSections
+        if collapsed { next.insert(kind) } else { next.remove(kind) }
+        prefs.collapsedSections = Set(next.map(\.wire))
+        update { $0.collapsedSections = next }
     }
 
     // ---- 回收站 ----

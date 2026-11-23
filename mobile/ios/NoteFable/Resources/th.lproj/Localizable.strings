@@ -381,6 +381,14 @@
 "page_kind_note" = "โน้ต";
 "page_kind_whiteboard" = "ไวท์บอร์ด";
 "page_kind_slides" = "สไลด์";
+"ws_new" = "สร้างใหม่";
+"ws_new_page" = "หน้าใหม่";
+"ws_new_page_in" = "หน้าใหม่ใน %1$s";
+"ws_section_whiteboards" = "ไวท์บอร์ด";
+"ws_new_slides" = "ชุดสไลด์ใหม่";
+"ws_new_whiteboard" = "ไวท์บอร์ดใหม่";
+"ws_all_types" = "ทุกประเภท";
+"ws_page_type" = "ประเภทหน้า";
 
 /* strings_pages.xml */
 "pg_favorites" = "รายการโปรด";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "กรุณารอให้การย้ายก่อนหน้าเสร็จสิ้นก่อน";
 "sb_err_move_chat" = "ไม่สามารถย้ายแชทได้";
 "sb_err_create_chat" = "ไม่สามารถเชื่อมต่อฐานข้อมูลได้ กรุณาเปิด PostgreSQL ในเครื่องแล้วลองอีกครั้ง";
+
+/* strings_slides.xml */
+"slides_present" = "นำเสนอ";
+"slides_export_pdf" = "ส่งออก PDF";
+"slides_export_pdf_notes" = "ส่งออก PDF พร้อมบันทึกผู้บรรยาย";
+"slides_export_png" = "ส่งออกรูปภาพ PNG";
+"slides_export_pptx" = "ส่งออกเป็น PowerPoint (PPTX)";
+"slides_file_saved" = "บันทึกไฟล์แล้ว";
+"slides_file_save_failed" = "บันทึกไฟล์ไม่ได้";
 
 /* strings_turns.xml */
 "regenerate" = "สร้างคำตอบใหม่";

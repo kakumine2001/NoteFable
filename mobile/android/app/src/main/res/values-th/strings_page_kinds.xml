@@ -4,4 +4,12 @@
     <string name="page_kind_note">โน้ต</string>
     <string name="page_kind_whiteboard">ไวท์บอร์ด</string>
     <string name="page_kind_slides">สไลด์</string>
+    <string name="ws_new">สร้างใหม่</string>
+    <string name="ws_new_page">หน้าใหม่</string>
+    <string name="ws_new_page_in">หน้าใหม่ใน %1$s</string>
+    <string name="ws_section_whiteboards">ไวท์บอร์ด</string>
+    <string name="ws_new_slides">ชุดสไลด์ใหม่</string>
+    <string name="ws_new_whiteboard">ไวท์บอร์ดใหม่</string>
+    <string name="ws_all_types">ทุกประเภท</string>
+    <string name="ws_page_type">ประเภทหน้า</string>
 </resources>

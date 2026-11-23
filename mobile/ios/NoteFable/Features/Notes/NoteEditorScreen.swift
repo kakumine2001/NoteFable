@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
 // 分享（Globe 15）、间距 8、版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
-// 白板、幻灯片没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面。
+// 白板没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面；幻灯片打开网页的幻灯片编辑器。
 // “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
 
 @MainActor
@@ -33,8 +33,8 @@ struct NoteEditorScreen: View {
         // 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有“…”菜单。
         let page = state.pages.first(where: { $0.id == open.id })
         VStack(spacing: 0) {
-            topBar(state, page: page)
-            if let notice = state.notice ?? state.error {
+            if !state.presenting { topBar(state, page: page) }
+            if !state.presenting, let notice = state.notice ?? state.error {
                 // 离开时没能保存等提示：点一下收起。
                 Button {
                     notes.dismissNotice()
@@ -45,7 +45,7 @@ struct NoteEditorScreen: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 8)
             }
-            if let storage = state.storageLimit {
+            if !state.presenting, let storage = state.storageLimit {
                 // 上传因存储空间不够被拒绝（网页 StorageLimitPrompt）：说明原因和用量，未登录时给登录入口。
                 GuestLimitPrompt(storage: storage, attachmentsLost: false) { notes.dismissStorageLimit() }
                     .padding(.horizontal, 16)
@@ -57,6 +57,19 @@ struct NoteEditorScreen: View {
                 theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        // 幻灯片放映中：横屏、隐藏状态栏和主屏幕指示条、屏幕常亮（Android 的 PresentationMode）。
+        .background(state.presenting ? Color.black : Color.clear)
+        .statusBarHidden(state.presenting)
+        .persistentSystemOverlays(state.presenting ? .hidden : .automatic)
+        .ignoresSafeArea(edges: state.presenting ? .all : [])
+        .onChange(of: state.presenting, initial: true) { _, presenting in
+            OrientationLock.set(landscape: presenting)
+            UIApplication.shared.isIdleTimerDisabled = presenting
+        }
+        .onDisappear {
+            if OrientationLock.mask != .portrait { OrientationLock.set(landscape: false) }
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .background(Sm.background)
         .fileExporter(
@@ -133,7 +146,7 @@ struct NoteEditorScreen: View {
     private func shareButton(_ page: NotePageSummary) -> some View {
         let dialogBinding = $dialog
         return Button {
-            dialogBinding.wrappedValue = .share(pageId: page.id)
+            dialogBinding.wrappedValue = .share(pageId: page.id, kind: page.kind)
         } label: {
             LucideIcon(Lucide.globe, size: 15, color: page.isShared() ? Sm.blue : Sm.muted)
                 .padding(.horizontal, 8)
@@ -178,7 +191,9 @@ struct NoteEditorScreen: View {
                 if let page = notes.state.pages.first(where: { $0.id == id }) {
                     dialogBinding.wrappedValue = .trashNote(page)
                 }
-            }
+            },
+            // 幻灯片的放映和导出（网页做，导出的文件再交回 App 保存）。
+            onSlides: { command in notes.slidesCommand(command) }
         )
     }
 }

@@ -4,4 +4,12 @@
     <string name="page_kind_note">Notiz</string>
     <string name="page_kind_whiteboard">Whiteboard</string>
     <string name="page_kind_slides">Folien</string>
+    <string name="ws_new">Neu</string>
+    <string name="ws_new_page">Neue Seite</string>
+    <string name="ws_new_page_in">Neue Seite in %1$s</string>
+    <string name="ws_section_whiteboards">Whiteboards</string>
+    <string name="ws_new_slides">Neue Präsentation</string>
+    <string name="ws_new_whiteboard">Neues Whiteboard</string>
+    <string name="ws_all_types">Alle Typen</string>
+    <string name="ws_page_type">Seitentyp</string>
 </resources>

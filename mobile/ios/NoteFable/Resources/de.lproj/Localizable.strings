@@ -381,6 +381,14 @@
 "page_kind_note" = "Notiz";
 "page_kind_whiteboard" = "Whiteboard";
 "page_kind_slides" = "Folien";
+"ws_new" = "Neu";
+"ws_new_page" = "Neue Seite";
+"ws_new_page_in" = "Neue Seite in %1$s";
+"ws_section_whiteboards" = "Whiteboards";
+"ws_new_slides" = "Neue Präsentation";
+"ws_new_whiteboard" = "Neues Whiteboard";
+"ws_all_types" = "Alle Typen";
+"ws_page_type" = "Seitentyp";
 
 /* strings_pages.xml */
 "pg_favorites" = "Favoriten";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "Warte, bis der vorherige Verschiebevorgang abgeschlossen ist.";
 "sb_err_move_chat" = "Der Chat konnte nicht verschoben werden.";
 "sb_err_create_chat" = "Datenbank nicht erreichbar. Starte dein lokales PostgreSQL und versuche es erneut.";
+
+/* strings_slides.xml */
+"slides_present" = "Präsentieren";
+"slides_export_pdf" = "Als PDF exportieren";
+"slides_export_pdf_notes" = "Als PDF mit Sprechernotizen exportieren";
+"slides_export_png" = "Als PNG-Bilder exportieren";
+"slides_export_pptx" = "Als PowerPoint (PPTX) exportieren";
+"slides_file_saved" = "Datei gespeichert.";
+"slides_file_save_failed" = "Die Datei konnte nicht gespeichert werden.";
 
 /* strings_turns.xml */
 "regenerate" = "Neu generieren";

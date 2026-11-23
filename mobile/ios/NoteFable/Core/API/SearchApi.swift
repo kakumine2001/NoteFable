@@ -72,9 +72,10 @@ extension SearchResponse: Decodable {
     }
 }
 
-/// 聊天和笔记的横断检索：`GET /api/search?q=&scope=&projectId=`（和网页 search-dialog.tsx 同一个接口）。
+/// 聊天和笔记的横断检索：`GET /api/search?q=&scope=&projectId=&kind=`（和网页 search-dialog.tsx 同一个接口）。
+/// [kind] 是 Notes 的类型筛选（"note" / "slides" / "whiteboard"，nil 是全部类型）。
 protocol SearchBackend {
-    func search(query: String, scope: SearchScope, projectId: String?) async throws -> SearchResponse
+    func search(query: String, scope: SearchScope, projectId: String?, kind: String?) async throws -> SearchResponse
 }
 
 final class SearchApi: SearchBackend, @unchecked Sendable {
@@ -84,9 +85,10 @@ final class SearchApi: SearchBackend, @unchecked Sendable {
         self.http = http
     }
 
-    func search(query: String, scope: SearchScope, projectId: String?) async throws -> SearchResponse {
+    func search(query: String, scope: SearchScope, projectId: String?, kind: String?) async throws -> SearchResponse {
         var path = "/api/search?q=" + ApiUrl.encode(query) + "&scope=" + scope.wire
         if let projectId, !projectId.isEmpty { path += "&projectId=" + ApiUrl.encode(projectId) }
+        if let kind, !kind.isEmpty { path += "&kind=" + ApiUrl.encode(kind) }
         return try await http.getJson(path)
     }
 }

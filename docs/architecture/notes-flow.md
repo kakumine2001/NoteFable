@@ -4,20 +4,20 @@ Notes 是 NoteFable 内部的文字笔记模式，界面上叫 **Workspace**（�
 
 ## 页面类型（笔记 / 白板 / 幻灯片）
 
-工作区的页面有三种类型（`NotePage.kind`，枚举 `PageKind`：`note` / `whiteboard` / `slides`，API 的 JSON 用同样的小写值；旧数据和不带 `kind` 的旧响应一律当作 `note`，见 `pageKindOf`，`src/lib/page-kinds.ts`）。类型在新建时决定，之后不能改。三种类型可以互相嵌套（笔记下面放白板、白板下面放幻灯片……），项目、子页面、收藏、排序、30 天回收站、复制、锁定、编辑历史对三种类型都一样。白板和幻灯片的编辑器在 #152、#149 里做，新建入口也随编辑器一起加；在那之前只能通过接口（`POST /api/pages` 带 `kind`）和复制得到这两种页面。
+工作区的页面有三种类型（`NotePage.kind`，枚举 `PageKind`：`note` / `whiteboard` / `slides`，API 的 JSON 用同样的小写值；旧数据和不带 `kind` 的旧响应一律当作 `note`，见 `pageKindOf`，`src/lib/page-kinds.ts`）。类型在新建时决定，之后不能改。三种类型可以互相嵌套（笔记下面放白板、白板下面放幻灯片……），项目、子页面、收藏、排序、30 天回收站、复制、锁定、编辑历史对三种类型都一样。幻灯片的编辑器、放映、导出和公开放映见 [slides.md](slides.md)；白板的编辑器在 #152 做。侧栏的分区和各处的新建入口按类型做好（见下文“分区与新建”），由下面这张表的 `editor` 开关控制：幻灯片已打开，白板关着，开关关着时只能通过接口（`POST /api/pages` 带 `kind`）和复制得到白板。
 
-**各类型能用的功能**只在一张表里定义（`PAGE_KIND_FEATURES`：`editor`、`markdownExport`、`typography`、`publicShare`、`aiEdit`），服务端的拒绝、网页和两个原生应用的菜单都看它。目前白板和幻灯片这五项都是 `false`：Markdown 导出、字体 / 小字号 / 全宽、公开发布、AI 编辑案都只对笔记；锁定、收藏、复制、移动、回收站、历史对所有类型。编辑器、公开视图做好后在这张表里打开。
+**各类型能用的功能**只在一张表里定义（`PAGE_KIND_FEATURES`：`editor`、`markdownExport`、`typography`、`publicShare`、`aiEdit`），服务端的拒绝、网页和两个原生应用的菜单都看它。网页直接读这张表；Android / iOS 读 `GET /api/pages` 返回的 `kinds`（同一张表），读到之前用安装包里的 `assets/page-kinds.json`（`scripts/gen-native-page-kinds.ts` 从表生成，iOS 经 `project.yml` 共用同一份；`src/lib/native-page-kinds-asset.test.ts` 在过期时失败），所以开关随网页部署三端一起切换，不用重新发版。`editor` 同时是“能不能新建”的开关（`creatablePageKinds`）。目前幻灯片打开了 `editor` 和 `publicShare`，白板五项都是 `false`：Markdown 导出、字体 / 小字号 / 全宽、AI 编辑案只对笔记；锁定、收藏、复制、移动、回收站、历史对所有类型。编辑器、公开视图做好后在这张表里打开。
 
 **数据单独存放。** 笔记的正文在 `NotePage.blocks`；白板和幻灯片的 `blocks` 永远是空数组，本体放在 `NoteCanvas`（一页一行，`noteId` 主键、`ON DELETE CASCADE`），一览、搜索和普通的页面读取都不搬运本体。形状只定外框（`src/lib/canvas-document.ts`），元素内部由各编辑器决定：
 
 - 白板：`{ elements: [{ id, type, text?, originalText?, name?, containerId?, isDeleted?, … }], files?: { <id>: { dataURL | url, … } }, appState?: {…} }`（与 Excalidraw 的 scene 同构）。
-- 幻灯片：`{ slides: [{ id, layout?, hidden?, notes?, elements?: [{ id, … }] }], theme?: {…} }`。
+- 幻灯片：`{ format, theme: { id, mode }, slides: [{ id, layout, hidden?, notes?, section?, background?, elements: [{ id, type, … }] }] }`（元素与富文本的形状见 [slides.md](slides.md#数据)）。
 
 保存时服务端校验（`validateCanvasData`）：JSON 对象、元素和页的 `id` 为 1–120 字符且不重复（幻灯片的元素 ID 在整套里不重复）、白板元素带 `type`、白板最多 20,000 个元素、幻灯片最多 500 页且每页 1,000 个元素、演讲备注 20,000 字符、嵌套不超过 64 层、不含 NUL 和落单的代理项（jsonb 存不进）；**不能内嵌图片**（`data:<MIME>;…` 形式的 URL 一律 400 “Images must be uploaded, not embedded in the page.”），图片先传到笔记文件（`POST /api/pages/files`），白板的 `files` 里的 `dataURL` / `url` 只能是 `/api/pages/files?key=…`；本体里出现的所有笔记文件地址都必须在本人目录下（`assertCanvasFilesOwner`，否则 400 “This page refers to a file that is not yours.”）。整份本体（JSON）最多 2 MB（`MAX_CANVAS_BYTES`，超过 413 “This page is larger than 2 MB and cannot be saved.”；请求体最多 2 MB + 64 KB，远低于 Vercel 4.5 MB 的上限；超过的请求不读完，新建（`POST /api/pages`）时按已读到的开头里最上层的 `kind`（`topLevelJsonFields`，不看本体里同名的键；`kind` 在读到的部分之后时，有 `data` 没有 `blocks` 就当白板 / 幻灯片）选提示：白板 / 幻灯片是上面这句，笔记是 “Note content exceeds 1 MiB.”）。画笔的点由编辑器在保存前精简（#152），服务端只管上限。从聊天里拿大图时压缩到 4 MiB 以内是编辑器 / AI 操作（#152、#158）的事。
 
-**检索用的文字。** 每次保存，服务端从本体里取出文字存进 `NoteCanvas.segments`（`[{ id, text }]`，`extractCanvasSegments`）：白板是没删除的元素的文字（`originalText` 或 `text`，绑在图形上的文字算到图形的 ID 下）和框（frame）的名字；幻灯片是每一页元素里所有 `text` 字段（含富文本 JSON）加演讲备注，ID 是页的 ID。合计最多 100,000 字符。站内搜索、AI 的 `search_notes`、语义搜索的索引、附加到聊天和项目参考笔记**只用这份文字**，SQL 只读 `c."segments"`，从不遍历本体（笔迹的点）。搜索结果的 `blockId` 对白板是命中的元素、对幻灯片是命中的页（编辑器做好后据此定位；现在网页和应用只打开页面开头）。
+**检索用的文字。** 每次保存，服务端从本体里取出文字存进 `NoteCanvas.segments`（`[{ id, text }]`，`extractCanvasSegments`）：白板是没删除的元素的文字（`originalText` 或 `text`，绑在图形上的文字算到图形的 ID 下）和框（frame）的名字；幻灯片是每一页元素里所有 `text` 字段（含富文本 JSON）加演讲备注，ID 是页的 ID。合计最多 100,000 字符。站内搜索、AI 的 `search_notes`、语义搜索的索引、附加到聊天和项目参考笔记**只用这份文字**，SQL 只读 `c."segments"`，从不遍历本体（笔迹的点）。搜索结果的 `blockId` 对白板是命中的元素、对幻灯片是命中的页：幻灯片编辑器打开那一页并高亮缩略图（`notefable:reveal-canvas-item`）；白板在编辑器做好之前只打开页面开头。
 
-**网页的编辑器与保存。** 白板 / 幻灯片的编辑器按类型登记在 `CANVAS_EDITORS`（`src/components/canvas-editors.tsx`，各自 `next/dynamic` 按需加载）：`PAGE_KIND_FEATURES[kind].editor` 为 true 且有登记时，`NotesWorkspace` 在工作区全宽渲染它（根元素加 `is-canvas-editor`，滚动交给编辑器），否则仍是只读占位画面。编辑器收到 `{ pageId, kind, title, icon, data, version, editable, embedded, split, saveStatus }`，改动经 `onChange(data)` / `onTitleChange(title)` 交回；保存与笔记共用同一个 `NoteSaveQueue`（一秒防抖、同时只有一个请求、409 冲突、404 `gone`），队列内容多一项 `data`。`useNotePages` 对白板 / 幻灯片发 `PATCH { title, icon, data?, version }`，`data` 只在与上次保存成功的本体不同时才发（只改标题不重发 2 MB），响应的 `{ version, page }` 与发出的本体合成队列里的页面（`src/lib/canvas-save.ts`）。浏览器里的草稿存在 `notefable:canvas-draft:v1:<pageId>`（`{ title, icon, data, version }`，恢复前用 `validateCanvasData` 检查，不合格就丢弃；旧编辑器的 `notefable:page-draft:v1:` 草稿照旧丢弃），移入 Trash 时一起删除。冲突时的“载入最新版”、聊天 / 应用推来的 `page-updated` 不带本体时都先 `GET` 再换掉编辑器（`editorEpoch`），不把新版本号和旧本体拼在一起；“另存为新页面”按原类型 `POST { kind, title, icon, data }`。打开着的白板 / 幻灯片在侧栏改图标也走自动保存（与笔记相同）。**新建菜单**：侧栏、Notes 首页和空状态的 “New note” 旁有一个下拉按钮（`NewPageKindMenu`），列出所有 `editor` 为 true 的类型（笔记在前）；只有笔记能编辑时不显示，所以某个类型的编辑器上线时只需在表里打开 `editor`。
+**网页的编辑器与保存。** 白板 / 幻灯片的编辑器按类型登记在 `CANVAS_EDITORS`（`src/components/canvas-editors.tsx`，各自 `next/dynamic` 按需加载）：`PAGE_KIND_FEATURES[kind].editor` 为 true 且有登记时，`NotesWorkspace` 在工作区全宽渲染它（根元素加 `is-canvas-editor`，滚动交给编辑器），否则仍是只读占位画面。编辑器收到 `{ pageId, kind, title, icon, data, version, editable, embedded, split, saveStatus }`，改动经 `onChange(data)` / `onTitleChange(title)` 交回；保存与笔记共用同一个 `NoteSaveQueue`（一秒防抖、同时只有一个请求、409 冲突、404 `gone`），队列内容多一项 `data`。`useNotePages` 对白板 / 幻灯片发 `PATCH { title, icon, data?, version }`，`data` 只在与上次保存成功的本体不同时才发（只改标题不重发 2 MB），响应的 `{ version, page }` 与发出的本体合成队列里的页面（`src/lib/canvas-save.ts`）。浏览器里的草稿存在 `notefable:canvas-draft:v1:<pageId>`（`{ title, icon, data, version }`，恢复前用 `validateCanvasData` 检查，不合格就丢弃；旧编辑器的 `notefable:page-draft:v1:` 草稿照旧丢弃），移入 Trash 时一起删除。冲突时的“载入最新版”、聊天 / 应用推来的 `page-updated` 不带本体时都先 `GET` 再换掉编辑器（`editorEpoch`），不把新版本号和旧本体拼在一起；“另存为新页面”按原类型 `POST { kind, title, icon, data }`。打开着的白板 / 幻灯片在侧栏改图标也走自动保存（与笔记相同）。**新建入口**（侧栏的“新建”、项目和页面行的“+”、分区的“+”、首页和空状态的新建按钮）见下文“分区与新建”：都按 `editor` 为 true 的类型出现，所以某个类型的编辑器上线时只需在表里打开 `editor`。
 
 **保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读；其他返回整页的接口——`GET`、改图标 `PUT /api/pages/:id/icon`、历史恢复及其 409——对白板 / 幻灯片都带 `data`，先读版本后读本体，网页收到不带 `data` 的页面时重新读取，不把新版本和旧本体拼在一起）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。不带 `data` 的保存（只改标题 / 图标）版本不一致时一律 409（分不清期间本体是否被别的标签页改过）。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
 
@@ -26,13 +26,13 @@ Notes 是 NoteFable 内部的文字笔记模式，界面上叫 **Workspace**（�
 **在各处按类型处理。**
 
 - **列表与图标**：一览、最近编辑、回收站、搜索结果、附加页面、项目参考笔记、发言下的页面标签都带 `kind`；页面没有自己的图标时显示类型图标（笔记 FileText、白板 Shapes、幻灯片 Presentation，`PageKindIcon`）。搜索结果里白板 / 幻灯片在标题旁标出类型名。
-- **打开**：网页的 Notes 视图、分屏和 `/note-embed` 对白板 / 幻灯片显示只读的占位画面（`CanvasPagePlaceholder`：图标、标题、“编辑功能即将推出”和本体里的文字，幻灯片带页码），不加载 BlockNote、不显示 AI 按钮、不自动保存；“…”菜单只留锁定、收藏、复制、新建子页面、移动和移入回收站，顶栏不显示“分享”。提及（`@`）和页面链接照常在原地打开，打开后按类型显示。
+- **打开**：网页的 Notes 视图、分屏和 `/note-embed` 对幻灯片打开幻灯片编辑器；对还没有编辑器的类型（现在是白板）显示只读的占位画面（`CanvasPagePlaceholder`：图标、标题、“编辑功能即将推出”和本体里的文字，幻灯片带页码），不加载 BlockNote、不自动保存。两者都不显示笔记的 AI 按钮；“…”菜单只留锁定、收藏、复制、新建子页面、移动和移入回收站（幻灯片在 App 里另有放映和导出），顶栏的“分享”只对能公开的类型（笔记、幻灯片）显示。提及（`@`）和页面链接照常在原地打开，打开后按类型显示。
 - **历史**：预览按类型显示（白板 / 幻灯片列出那一版的文字），恢复按类型写回（`NoteCanvas` 和标题、图标，先把当前状态存成 `RESTORE` 历史），响应的 `page` 带本体。
 - **复制**：类型照抄，本体在数据库里 `INSERT … SELECT` 复制（不读进应用），事务超时 30 秒；一次复制的白板 / 幻灯片本体合计最多 32 MB（超过 413 “These pages are too large to duplicate at once.”）。
-- **公开分享**：没有公开视图的类型（现在是白板和幻灯片）不出现在分享树里，它们下面的子页面也不出现（和“从上级分享排除”一样处理）；它们自己不能发布（`PUT /api/pages/:id/share` 的 `enabled: true` 返回 400）。白板的只读视图在 #152、幻灯片的放映视图在 #149 做。
+- **公开分享**：没有公开视图的类型（现在是白板）不出现在分享树里，它们下面的子页面也不出现（和“从上级分享排除”一样处理）；它们自己不能发布（`PUT /api/pages/:id/share` 的 `enabled: true` 返回 400）。白板的只读视图在 #152 做。幻灯片可以发布，公开页面是只读的放映视图；幻灯片是分享树的叶子：它下面的子页面不公开（分享对话框不显示“包含子页面”），隐藏页、演讲者备注和 AI 图片的说明不公开（[slides.md](slides.md#公开放映链接)）。
 - **附加到聊天、项目参考笔记**：白板 / 幻灯片发送取出的文字（白板每段一行 `- 文字`，幻灯片 `Slide n: 文字`），规则与笔记相同（每次发送实时读取、单篇 8,000 / 合计 20,000 字符），分隔行上标 `[whiteboard]` / `[slide deck]`。
-- **导入导出**：Markdown 导入只建笔记，导出只对笔记（白板 / 幻灯片返回 400），它们自己的导出（PNG、SVG、PDF、PPTX）由各编辑器提供。
-- **AI 工具**：都走 AI 操控底座（[chat-flow.md](chat-flow.md#ai-操控底座框架--各类型适配器158)），每种类型一个适配器。`search_notes` / `list_pages` 列出全部类型，结果带 `kind`；`read_note` 对白板 / 幻灯片返回只读的文字，带元素 / 幻灯片的 ID（幻灯片按实际顺序编号）；白板 / 幻灯片的适配器现在只读，修改工具、直接新建和预览在 #153 / #150 加上；`propose_note_edit` 和应用编辑案只认笔记（工具错误 / 409 “This page is a whiteboard, not a note.”）。白板 / 幻灯片页面上也有 AI 面板（见“页面里的 AI 助手”），选中的元素 / 幻灯片作为上下文。
+- **导入导出**：Markdown 导入只建笔记，导出只对笔记（白板 / 幻灯片返回 400），它们自己的导出由各编辑器提供（幻灯片：PDF、带备注的 PDF、PNG、PPTX，[slides.md](slides.md#导出)；白板：#152）。
+- **AI 工具**：都走 AI 操控底座（[chat-flow.md](chat-flow.md#ai-操控底座框架--各类型适配器158)），每种类型一个适配器。`search_notes` / `list_pages` 列出全部类型，结果带 `kind`；`read_note` 对白板 / 幻灯片返回只读的文字，带元素 / 幻灯片的 ID（幻灯片按实际顺序编号）；白板 / 幻灯片的适配器现在只读，修改工具、直接新建和预览在 #153 / #150 加上；`propose_note_edit` 和应用编辑案只认笔记（工具错误 / 409 “This page is a whiteboard, not a note.”）。白板 / 幻灯片页面上也有 AI 面板（见“页面里的 AI 助手”），选中的元素 / 幻灯片作为上下文。`buildInstructions()` 按各类型适配器能做的事说明哪些页面能改（[chat-flow.md](chat-flow.md#notes-工具三家模型共用)）。
 
 **旧版应用。** 应用里的编辑页始终是 `/note-embed?page=<id>`（旧版应用会把新的路径交给系统浏览器，所以不换路径），网页按类型渲染，桥接全部照旧（`ready` 多带 `page.kind`）。旧版应用的“…”菜单对所有类型都显示笔记专用的操作；服务端拒绝这些操作（Markdown 导出、字体 / 小字号 / 全宽、发布、笔记正文的保存），返回 400 `{ error, code: "wrong_page_kind", kind }`，其中 `error` **已经按请求的语言译好**（`notefable-locale` Cookie → `Accept-Language` → 地区 → 英文，与 `/api/i18n` 相同，`src/lib/page-kind-errors.ts`），因为旧版应用的词典里没有这些句子。新版网页和应用直接显示这个句子。
 
@@ -73,7 +73,19 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序：New note → Home → Search → Favorites（有收藏时）→ Projects → Notes（底部另有 Import Markdown 和 Trash）；Projects 可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New note、New project 和 Import Markdown。笔记项目与聊天项目仍独立存储。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序：新建 → Home → Search → Favorites（有收藏时）→ Projects → 分区（笔记 / 幻灯片 / 白板，见下面“分区与新建”；底部另有 Import Markdown 和 Trash）；每个项目和每个分区都可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到自己类型的分区标题可移出项目。手机端 Notes 列表的项目标题和分区 / No project 标题也接受拖放，每行保留移动按钮，底部提供新建按钮、New project 和 Import Markdown。笔记项目与聊天项目仍独立存储。项目里可以放三种类型的页面。
+
+### 分区与新建（#168）
+
+工作区的侧栏和首页按类型分区，规则在 `src/lib/workspace-sections.ts`（`workspaceSections`、`sectionKindOf`、`canDropIn`），Android（`NotesUiState.sections`）和 iOS（`NotesUiState.sections`、`noteDropRules`）照同一套规则。
+
+- **能新建的类型**：`creatablePageKinds()` = `PAGE_KIND_FEATURES` 里 `editor` 为 true 的类型，按笔记、幻灯片、白板的顺序（`PAGE_KIND_ORDER`），笔记总在。下面所有“按类型出现”的东西都只看它：开关关着的类型的分区、新建选项、首页按钮和检索筛选完全不出现。
+- **新建**：侧栏最上面的按钮在只能建笔记时是 “New note”，一点就建（和以前一样）；能建两种以上时是 “New”，点了打开类型菜单（笔记 / 幻灯片 / 白板，带类型图标；`NewPageButton`）。项目行和页面行的 “+” 同样：一种时直接建，两种以上时先选类型；项目的 “+” 建在该项目的最上层（`POST /api/pages` 带 `groupId`），页面行的 “+” 建子页面。分区标题的 “+” 直接建这个类型。新建到折叠着的项目或分区时先把它展开。页面 “…” 菜单的 “Add a page inside” 和分屏里的 “New note” 仍只建笔记。
+- **分区**：Projects 下面是笔记、幻灯片、白板三个分区（只出能新建的类型），每个分区列出不在项目里的最上层页面（项目被删后残留的 `groupId` 也算不在项目里）；标题是 Projects 同款的等宽小字，后面是折叠箭头，点标题折叠，状态存在 `notefable:workspace-sections-collapsed:v1`（类型 → true；Android `NotesPrefs.collapsedSections`、iOS `notes.collapsedSections`）。项目里三种类型按原来的顺序混排，每行前面是页面图标，没有图标时是类型图标。子页面不论类型都跟着父页面显示，不在自己类型的分区里出现。还不能新建的类型（开关关着）的页面放在笔记分区里，不会看不到。
+- **拖动**：分区标题和分区里最上层的行带 `data-drop-kind`，被拖的行带 `data-page-kind`（它会进的分区，`sectionKindOf`），`ReorderRowButton` 只把同一分区的页面当作可放的目标（`canDropIn`）：可以在同一分区里排序、拖到自己类型的分区标题上移出项目；拖到别的类型的分区（标题或其中的行）上什么都不发生，因为类型不能改。项目标题、项目里的行和子页面的行接受所有类型（拖进项目、在项目里排序、成为子页面的兄弟）。拖出项目的页面回到自己类型的分区（分区折叠着就展开）。键盘的 Alt+↑/↓ 在分区里也只在同一分区内移动。
+- **首页**：只能建笔记时和以前一样（有项目才显示 “No project” 小标题）；能建两种以上时，不在项目里的页面按分区显示小标题（名字和含子页面的数量，只显示有页面的分区），桌面宽度的列表标题从 “All notes” 换成 “All pages”。最近编辑的卡片包含所有类型（带类型图标）。底部和空状态的新建按钮（`NewPageButtons`）只能建笔记时是原来的 “New note”，能建两种以上时每种一个（类型图标 + “New note / New slide deck / New whiteboard”，第一个是深色按钮）。
+- **检索**：Notes 标签页在能新建两种以上的类型时多一个类型筛选（“Page type”：All types / 各分区名），选了就带 `kind` 参数（见 [chat-flow.md](chat-flow.md#跨-chats--notes-搜索)）。
+- 白板（#152）、幻灯片（#149）的编辑器上线时只需在 `PAGE_KIND_FEATURES` 里打开 `editor`，并运行 `npx tsx scripts/gen-native-page-kinds.ts`，三端的分区、菜单和筛选随之出现。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
@@ -98,8 +110,8 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `kind`、`groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, kind, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
-| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面，父页面可以是任何类型）；带 `kind: "whiteboard" \| "slides"` 时是 `{ kind, title, icon, data?, parentId? }`（`data` 省略为空的本体），201 `{ page }` 的 `page` 带 `data`；未知的 `kind` 400，也用于保存冲突副本，以及聊天回答下方的 “Save to page”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
+| `GET /api/pages` | 返回 `{ pages, groups, kinds }`（`kinds` 是 `PAGE_KIND_FEATURES`，原生应用据此决定分区和新建菜单）：页面摘要按 `position`、创建时间排列（含 `kind`、`groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, kind, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
+| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId?, groupId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面，父页面可以是任何类型，`groupId` 不看；没有 `parentId` 时 `groupId` 指定的本人项目的最上层，在同一事务里用 `FOR KEY SHARE` 锁住项目行，不是本人的或已删除的项目 404 `Project not found.`，格式不对 400）；带 `kind: "whiteboard" \| "slides"` 时是 `{ kind, title, icon, data?, parentId?, groupId? }`（`data` 省略为空的本体），201 `{ page }` 的 `page` 带 `data`；未知的 `kind` 400，也用于保存冲突副本，以及聊天回答下方的 “Save to page”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
 | `POST /api/sessions/:id/page` | 输入栏 “＋” 菜单里的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page, partial }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
 | `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404）。白板 / 幻灯片的 `page` 另带本体 `data` |
@@ -116,6 +128,8 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `GET /api/pages/covers?key=` | 只返回当前用户目录下的封面图片 |
 | `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件”；存储用量放不下时 413 `code: "storage_limit"` |
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
+| `GET /api/pages/chat-images` / `POST /api/pages/chat-images` | 幻灯片的“聊天里的图片”：列出本人聊天里的图片附件 / 把一张复制成笔记文件，返回 `{ url, name, size }`（[slides.md](slides.md#图片)） |
+| `POST /api/pages/images` | 幻灯片的 “AI 生成图片” `{ prompt, size }`：计一次图片生成次数，结果存成笔记文件，返回 `{ url, name, size, prompt }`（[slides.md](slides.md#图片)） |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
 | `PATCH` / `DELETE /api/pages/groups/:groupId` | 重命名 / 删除自己的分组 |
 | `PUT /api/pages/:id/group` | 把页面（连同子页面）移入自己的分组，或用 `{ groupId: null }` 移出；页面同时脱离父页面成为最上位。响应 `{ id, groupId, parentId: null, ids }` |
@@ -123,7 +137,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/favorite` | `{ favorite: boolean }`：加入/移出收藏，返回 `{ page }`（摘要）。不增加 `version` |
 | `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version`。白板 / 幻灯片只能改 `locked`，送来字体 / 小字号 / 全宽返回 400（按请求语言译好的句子，`code: "wrong_page_kind"`） |
 | `GET /api/pages/:id/share` | 返回该笔记的公开分享状态 `{ share }`（含是否已发布、链接、是否包含子页面、过期时间、是否从上级分享排除、上级公开页面的继承信息） |
-| `PUT /api/pages/:id/share` | 白板 / 幻灯片的 `enabled: true` 返回 400（`wrong_page_kind`，句子按请求语言译好）。`{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
+| `PUT /api/pages/:id/share` | 白板的 `enabled: true` 返回 400（`wrong_page_kind`，句子按请求语言译好）；幻灯片可以发布（只公开它自己）。`{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
 | `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、块级与行内公式（服务器端 KaTeX）、子页面列表与面包屑。块、文字高亮、Callout、表格单元格与公式的颜色随浅色/深色外观切换（`globals.css` 的 `--public-note-<颜色>-text` / `-bg`，浅色为 Notion 配色，深色与编辑器的 BlockNote 深色配色一致）。封面、图片图标（`/s/:token/cover?kind=icon`）与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
 | `POST /api/pages/:id/duplicate` | 复制这篇及子页面（类型照抄，白板 / 幻灯片的本体在数据库里复制），201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
 | `GET /api/pages/:id/export` | 把这一篇导出成 Markdown：`{ fileName, markdown }`（与 `GET /api/sessions/:id/export` 同形），`Cache-Control: no-store`；不存在、不是本人的或在 Trash 里返回 404；白板 / 幻灯片返回 400（`wrong_page_kind`，句子按请求语言译好）。见“Markdown 导出与导入” |
@@ -222,7 +236,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 原生 Android（`mobile/android`，`WebView`）与 iOS（`mobile/ios`，`WKWebView`）应用自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=<locale>`，支持全部 17 种已启用语言，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度；`&theme=<light|dark|system>` 是外观，两个应用只发算好的 `light` / `dark`）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，在工作区主机由 `src/proxy.ts` 像 `/app` 一样 rewrite（分域后从主域 `notefable.com` 访问 `/note-embed` 或 `/<locale>/note-embed` 会 307 重定向到工作区主机 `app.notefable.com`）；要打开的页面 ID 在浏览器端从 URL 读取。
 
-- **页面类型。** 白板和幻灯片也用 `/note-embed?page=<id>` 打开，编辑器做好之前显示只读的占位画面（见“页面类型”）；桥接照旧（没有要保存的内容，`flush` 总是 `ok`，`saveState` 是 `saved`）。
+- **页面类型。** 白板和幻灯片也用 `/note-embed?page=<id>` 打开。幻灯片打开网页的幻灯片编辑器，保存与桥接和笔记相同；放映（`presentation`）、导出文件的保存（`fileStart` / `fileChunk` / `fileEnd` / `fileAbort`）和 App 发来的幻灯片操作（`notefableEmbed.slides(...)`）见 [slides.md](slides.md#原生应用android--ios)。还没有编辑器的类型（白板）显示只读的占位画面（见“页面类型”），桥接照旧（没有要保存的内容，`flush` 总是 `ok`，`saveState` 是 `saved`）。
 - **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、锁定按钮、版本历史、保存状态和“…”页面菜单（字体 / 小字号 / 全宽 / 锁定 / 收藏 / 复制 / 新建子页面 / 移动 / 导出 Markdown / 移入回收站）由应用的原生顶栏负责（与网页端顶栏一致）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
 - **保存与恢复照旧。** 一秒防抖自动保存、`notefable:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
 - **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）同步到 WebView（Android 为 `CookieManager`，iOS 为 `WKWebsiteDataStore.httpCookieStore`）。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。

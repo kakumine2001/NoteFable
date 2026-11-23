@@ -9,8 +9,21 @@ import androidx.compose.ui.semantics.Role
 import com.kakumine.notefable.data.isShared
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.ActivityNotFoundException
+import android.provider.DocumentsContract
+import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.util.Base64
+import android.view.WindowManager
+import android.widget.Toast
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import java.io.File
+import java.io.FileOutputStream
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -52,6 +65,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -71,6 +85,9 @@ import com.kakumine.notefable.data.ChatLink
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.NoteFileLinks
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.CookieJar
@@ -126,6 +143,83 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canShowStorageLimit(): Boolean = true
 
+    /** 网页据此把幻灯片的放映交给 App（横屏、全屏、屏幕常亮；`presentation` 消息）。旧版 App 没有这个方法，网页只在 WebView 里放映。 */
+    @JavascriptInterface
+    fun canPresent(): Boolean = true
+
+    /** 网页据此把导出的文件（PDF、PNG、PPTX）交给 App 保存（`fileStart` → `fileChunk` → `fileEnd`）。旧版 App 没有这个方法，网页照旧下载。 */
+    @JavascriptInterface
+    fun canSaveFile(): Boolean = true
+
+    /** 导出文件的临时目录（App 的缓存）。界面在打开编辑器时设定。 */
+    @Volatile
+    var exportDir: File? = null
+    /** 一个导出文件收齐了：交给界面打开系统的"保存到"（主线程）。 */
+    @Volatile
+    var onFileReady: ((File, String, String) -> Unit)? = null
+    /** 导出文件在 App 这边没能收齐（写不进临时文件、分块乱序、太大）：界面提示"无法保存文件"（主线程）。 */
+    @Volatile
+    var onFileFailed: (() -> Unit)? = null
+
+    private class ExportFile(val file: File, val out: FileOutputStream, val name: String, val mime: String, var next: Int = 0, var bytes: Long = 0)
+    private val exports = ConcurrentHashMap<String, ExportFile>()
+    // 分块在 JS 线程上写，release 在主线程上清理：同一时刻只让一边动导出文件。
+    private val fileLock = Any()
+
+    private fun failFile() {
+        main.post { onFileFailed?.invoke() }
+    }
+
+    private fun startFile(message: EmbedMessage.FileStart) {
+        val dir = exportDir ?: return failFile()
+        val ok = synchronized(fileLock) {
+            runCatching {
+                dir.mkdirs()
+                // 前一次没保存完留下的临时文件（超过一天的）顺便清掉。
+                dir.listFiles()?.filter { System.currentTimeMillis() - it.lastModified() > 24 * 60 * 60 * 1000L }?.forEach { it.delete() }
+                val file = File(dir, UUID.randomUUID().toString() + ".part")
+                exports.put(message.id, ExportFile(file, FileOutputStream(file), message.name, message.mime))?.let { runCatching { it.out.close() }; it.file.delete() }
+            }.isSuccess
+        }
+        if (!ok) failFile()
+    }
+
+    private fun appendFile(message: EmbedMessage.FileChunk) {
+        val ok = synchronized(fileLock) {
+            val export = exports[message.id] ?: return
+            runCatching {
+                if (message.index != export.next) error("chunk order")
+                val bytes = Base64.decode(message.data, Base64.DEFAULT)
+                export.bytes += bytes.size
+                if (export.bytes > MAX_EXPORT_BYTES) error("too large")
+                export.out.write(bytes)
+                export.next++
+            }.isSuccess
+        }
+        if (!ok) { abortFile(message.id); failFile() }
+    }
+
+    private fun finishFile(id: String) {
+        val export = synchronized(fileLock) { exports.remove(id) } ?: return
+        // 没写完（close 失败）的文件不交出去。
+        if (runCatching { export.out.close() }.isFailure) { export.file.delete(); return failFile() }
+        main.post { onFileReady?.invoke(export.file, export.name, export.mime) ?: export.file.delete() }
+    }
+
+    private fun abortFile(id: String) {
+        val export = synchronized(fileLock) { exports.remove(id) } ?: return
+        runCatching { export.out.close() }
+        export.file.delete()
+    }
+
+    /** 幻灯片的操作（"…"菜单的放映 / 导出、放映中的返回键）：交给网页（`window.notefableEmbed.slides`）。 */
+    fun slides(command: String, onResult: ((Boolean) -> Unit)? = null) {
+        val view = webView ?: return run { onResult?.invoke(false) }
+        view.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.slides==='function')return e.slides(${JSONObject.quote(command)})===true;return false})()") { result ->
+            onResult?.invoke(result == "true")
+        }
+    }
+
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
     fun pushLanguage(code: String) {
         webView?.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language(${JSONObject.quote(code)})})()", null)
@@ -140,6 +234,14 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun postMessage(json: String) {
         val message = EmbedMessage.parse(json) ?: return
+        // 导出文件的分块在 JS 线程上直接写进临时文件（不经过主线程，大文件也不卡界面）。
+        when (message) {
+            is EmbedMessage.FileStart -> { startFile(message); return }
+            is EmbedMessage.FileChunk -> { appendFile(message); return }
+            is EmbedMessage.FileEnd -> { finishFile(message.id); return }
+            is EmbedMessage.FileAbort -> { abortFile(message.id); return }
+            else -> {}
+        }
         if (message is EmbedMessage.Flushed) {
             pending.remove(message.requestId)?.complete(FlushResult(message.ok, message.kept))
             return
@@ -181,7 +283,9 @@ class NoteEmbedBridge(
 
     /** WebView 被销毁（离开编辑页、渲染进程崩溃）：等着它回答的保存都算失败，不再等。 */
     fun release(view: WebView) {
+        // 已经换上新的 WebView 时，不动它正在进行的导出。
         if (webView !== view) return
+        exports.keys.toList().forEach(::abortFile)
         webView = null
         mounting.values.forEach { it.complete(false) }
         pending.values.forEach { it.complete(FlushResult(false)) }
@@ -221,6 +325,8 @@ class NoteEmbedBridge(
 
         /** App 实际的外观在桥上用的值（网页 ThemePreference 的 "light" / "dark"）。 */
         fun themeValue(dark: Boolean) = if (dark) THEME_DARK else THEME_LIGHT
+        /** 导出文件的上限（网页的 PDF 几十 MB 以内）。超过就放弃，不把存储写满。 */
+        const val MAX_EXPORT_BYTES = 200L * 1024 * 1024
 
         fun themeScript(value: String) =
             "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(${JSONObject.quote(value)})})()"
@@ -250,7 +356,7 @@ private fun embedLanguage(): String = stringResource(R.string.ui_locale)
 // 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
-// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板、幻灯片没有分享按钮（[PageKindFeatures.publicShare]）。
+// 保存状态 14 灰（出错 / 冲突时 #b45309）。白板没有分享按钮（[PageKindFeatures.publicShare]）。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(
@@ -278,6 +384,8 @@ fun NoteEditorScreen(
     onShare: (() -> Unit)? = null,
     /** 编辑器上方的提示（上传因存储空间不够被拒绝时的 [StorageLimitPrompt]）。 */
     prompt: (@Composable () -> Unit)? = null,
+    /** 幻灯片放映的开始 / 结束（放映中侧栏的滑动打开要关掉）。 */
+    onPresentingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -287,8 +395,61 @@ fun NoteEditorScreen(
     // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
     // 网页里的 AI 按钮用设置里选的图标：网页打开时经桥读现在的值，开着的时候换了再推过去。
     val iconStore = appIconStore()
+    // 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。
+    val presentingState = remember(open.editor) { androidx.compose.runtime.mutableStateOf(false) }
+    val presenting by presentingState
     val bridge: NoteEmbedBridge = remember(open.editor) {
-        NoteEmbedBridge(currentIcon = { iconStore?.icon?.value }) { message -> currentOnMessage(open.editor, message) }
+        NoteEmbedBridge(currentIcon = { iconStore?.icon?.value }) { message ->
+            if (message is EmbedMessage.Presentation) presentingState.value = message.state != "end"
+            // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
+            if (message is EmbedMessage.Ready) presentingState.value = false
+            currentOnMessage(open.editor, message)
+        }
+    }
+    PresentationMode(presenting)
+    val currentOnPresentingChange by rememberUpdatedState(onPresentingChange)
+    LaunchedEffect(presenting) { currentOnPresentingChange(presenting) }
+    DisposableEffect(Unit) { onDispose { currentOnPresentingChange(false) } }
+    // 导出：网页做好的文件先存进缓存，再让用户用系统的"保存到"选位置。
+    val exportDir = remember(context) { File(context.cacheDir, "exports") }
+    val pendingExport = remember(open.editor) { arrayOfNulls<File>(1) }
+    val savedText = stringResource(R.string.slides_file_saved)
+    val saveFailedText = stringResource(R.string.slides_file_save_failed)
+    val app = context.applicationContext as com.kakumine.notefable.NoteFableApp
+    val saver = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val file = pendingExport[0]
+        pendingExport[0] = null
+        val uri = result.data?.data
+        if (file == null) return@rememberLauncherForActivityResult
+        if (uri == null || result.resultCode != Activity.RESULT_OK) { file.delete(); return@rememberLauncherForActivityResult }
+        // 大文件（PNG 的 ZIP 等）也不卡界面：在 IO 线程里写；离开编辑页也写完（App 的 scope）。
+        // 写失败就删掉保存位置里已经建好的空文件。
+        app.scope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                try {
+                    runCatching { (app.contentResolver.openOutputStream(uri, "wt") ?: error("no stream")).use { out -> file.inputStream().use { it.copyTo(out) } } }.isSuccess
+                        .also { saved -> if (!saved) runCatching { DocumentsContract.deleteDocument(app.contentResolver, uri) } }
+                } finally {
+                    file.delete()
+                }
+            }
+            Toast.makeText(app, if (ok) savedText else saveFailedText, Toast.LENGTH_SHORT).show()
+        }
+    }
+    remember(bridge) {
+        bridge.exportDir = exportDir
+        bridge.onFileFailed = { Toast.makeText(context, saveFailedText, Toast.LENGTH_SHORT).show() }
+        bridge.onFileReady = { file, name, mime ->
+            pendingExport[0]?.delete()
+            pendingExport[0] = file
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).addCategory(Intent.CATEGORY_OPENABLE).setType(mime).putExtra(Intent.EXTRA_TITLE, name)
+            try { saver.launch(intent) } catch (_: RuntimeException) {
+                // 没有选择保存位置的画面（ActivityNotFoundException），或编辑页已经关了（IllegalStateException）。
+                pendingExport[0] = null
+                file.delete()
+                Toast.makeText(context, saveFailedText, Toast.LENGTH_SHORT).show()
+            }
+        }
     }
     val appIcon = currentAppIcon()
     LaunchedEffect(bridge, appIcon) { bridge.pushAppIcon(appIcon) }
@@ -314,6 +475,9 @@ fun NoteEditorScreen(
         registerFlush(bridge)
         onDispose {
             registerFlush(null)
+            // 关掉之后才收齐的导出不再弹保存画面（launcher 已经不能用），临时文件由 finishFile 删掉。
+            bridge.onFileReady = null
+            bridge.onFileFailed = null
             fileCallback[0]?.onReceiveValue(null)
             fileCallback[0] = null
         }
@@ -325,6 +489,9 @@ fun NoteEditorScreen(
     BackHandler(enabled = !drawerOpen) {
         val view = bridge.webView
         when {
+            // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
+            // 网页没有回应（加载失败等）时由这里结束放映，不把人困在横屏全屏里。
+            presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) presentingState.value = false }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -333,8 +500,8 @@ fun NoteEditorScreen(
 
     // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
     val kind = page?.kind ?: open.kind
-    Column(Modifier.fillMaxSize().background(Sm.Background)) {
-        Row(
+    Column(Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)) {
+        if (!presenting) Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -385,17 +552,18 @@ fun NoteEditorScreen(
             Text(status, color = if (saveState == "error" || saveState == "conflict") Color(0xFFB45309) else Sm.Muted, fontSize = 14.sp, maxLines = 1)
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
-                NotePageMenuButton(page, menu)
+                // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。
+                NotePageMenuButton(page, if (kind == com.kakumine.notefable.data.PageKind.Slides) menu.withSlides(bridge::slides) else menu)
             }
         }
-        if (notice != null) {
+        if (notice != null && !presenting) {
             ErrorBar(notice, null, Modifier.padding(horizontal = 24.dp, vertical = 8.dp).clickable(onClick = onDismissNotice))
         }
-        if (prompt != null) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
+        if (prompt != null && !presenting) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
 
         val lang = embedLanguage()
         androidx.compose.runtime.key(generation) { AndroidView(
-            modifier = Modifier.weight(1f).fillMaxWidth().windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime)),
+            modifier = Modifier.weight(1f).fillMaxWidth().then(if (presenting) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))),
             factory = { ctx ->
                 WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
                 WebView(ctx).apply {
@@ -440,6 +608,8 @@ fun NoteEditorScreen(
 
                         // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。丢掉这个 WebView，换新的重新加载。
                         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                            // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
+                            presentingState.value = false
                             bridge.release(view)
                             generation++
                             return true
@@ -472,6 +642,35 @@ fun NoteEditorScreen(
         LaunchedEffect(bridge, generation) {
             syncCookies(baseUrl, cookieJar)
             bridge.webView?.loadUrl(currentEmbedUrl(lang, bridge.currentTheme))
+        }
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
+ * 幻灯片放映中：横屏（随传感器左右转）、隐藏状态栏和导航栏（从边缘滑动可暂时调出）、屏幕常亮。结束（或离开编辑器）时恢复原样。
+ */
+@Composable
+private fun PresentationMode(active: Boolean) {
+    val activity = LocalContext.current.findActivity() ?: return
+    DisposableEffect(activity, active) {
+        if (!active) return@DisposableEffect onDispose {}
+        val window = activity.window
+        val previousOrientation = activity.requestedOrientation
+        activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        val controller = WindowCompat.getInsetsController(window, window.decorView)
+        controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        onDispose {
+            controller.show(WindowInsetsCompat.Type.systemBars())
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            activity.requestedOrientation = previousOrientation
         }
     }
 }

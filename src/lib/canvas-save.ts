@@ -1,7 +1,7 @@
 import { validateCanvasData, type CanvasData } from "@/lib/canvas-document";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { MAX_NOTE_TITLE, uploadedCoverPath } from "@/lib/note-document";
-import { pageKindFeatures, PAGE_KINDS, type CanvasKind, type PageKind } from "@/lib/page-kinds";
+import type { CanvasKind, PageKind } from "@/lib/page-kinds";
 import type { NoteContent, NotePage } from "@/types/notes";
 
 // ホワイトボード・スライドの保存（画面側）。ノートと同じ保存キュー（NoteSaveQueue）に載せ、送る形だけを変える
@@ -42,13 +42,10 @@ export function parseCanvasDraft(kind: CanvasKind, cached: string, page: Pick<No
 }
 
 // 新規作成の本文（POST /api/pages）。ホワイトボード・スライドは { kind, title, icon, data? }、ノートは従来どおり。
-export function newPageBody(kind: PageKind, content: Pick<NoteContent, "title" | "icon" | "cover" | "coverPosition" | "blocks" | "data">, parentId: string | null) {
-  const parent = parentId ? { parentId } : {};
+// parentId があればそのページの中（プロジェクトは親に従うので groupId は送らない）、なければ groupId のプロジェクトの最上位。
+export function newPageBody(kind: PageKind, content: Pick<NoteContent, "title" | "icon" | "cover" | "coverPosition" | "blocks" | "data">, parentId: string | null, groupId: string | null = null) {
+  const parent = parentId ? { parentId } : groupId ? { groupId } : {};
   if (kind === "note") return { title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition, blocks: content.blocks, ...parent };
   return { kind, title: content.title, icon: content.icon, ...(content.data !== undefined ? { data: content.data } : {}), ...parent };
 }
 
-// 「新規」メニューに出す種類：エディターがある種類だけ（ノートが先頭）。ノートしか無いあいだはメニューを出さない。
-export function creatablePageKinds(): PageKind[] {
-  return PAGE_KINDS.filter((kind) => pageKindFeatures(kind).editor);
-}

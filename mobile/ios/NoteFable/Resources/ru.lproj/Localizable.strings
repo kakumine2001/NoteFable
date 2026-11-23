@@ -381,6 +381,14 @@
 "page_kind_note" = "Заметка";
 "page_kind_whiteboard" = "Доска";
 "page_kind_slides" = "Слайды";
+"ws_new" = "Создать";
+"ws_new_page" = "Новая страница";
+"ws_new_page_in" = "Новая страница в %1$s";
+"ws_section_whiteboards" = "Доски";
+"ws_new_slides" = "Новая презентация";
+"ws_new_whiteboard" = "Новая доска";
+"ws_all_types" = "Все типы";
+"ws_page_type" = "Тип страницы";
 
 /* strings_pages.xml */
 "pg_favorites" = "Избранное";
@@ -571,6 +579,15 @@
 "sb_err_wait_move" = "Дождитесь завершения предыдущего перемещения.";
 "sb_err_move_chat" = "Не удалось переместить чат.";
 "sb_err_create_chat" = "База данных недоступна. Запустите локальный PostgreSQL и попробуйте ещё раз.";
+
+/* strings_slides.xml */
+"slides_present" = "Показать";
+"slides_export_pdf" = "Экспорт в PDF";
+"slides_export_pdf_notes" = "Экспорт в PDF с заметками докладчика";
+"slides_export_png" = "Экспорт в изображения PNG";
+"slides_export_pptx" = "Экспорт в PowerPoint (PPTX)";
+"slides_file_saved" = "Файл сохранён.";
+"slides_file_save_failed" = "Не удалось сохранить файл.";
 
 /* strings_turns.xml */
 "regenerate" = "Сгенерировать заново";

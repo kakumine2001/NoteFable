@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findReportedAnswer, findReportedPage, findReportedProposal, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport } from "@/lib/answer-report";
+import { findReportedAnswer, findReportedPage, findReportedProposal, pageReportEmail, parseReport, proposalReportEmail, reportEmail, sendReport, slideImageReportEmail } from "@/lib/answer-report";
+import { readCanvasData } from "@/lib/canvas-store";
+import { parseNoteFileUrl } from "@/lib/note-file-keys";
+import { normalizeDeck } from "@/lib/slides/model";
 import { getOrCreateUser, isAccountUser } from "@/lib/auth";
 import { EmailSendError } from "@/lib/email-login";
 import { msg } from "@/lib/i18n/translate";
 import { isSameOrigin } from "@/lib/native-google-login";
 import { clientNetworkKey, consumeReportQuota, refundUsage } from "@/lib/usage-limits";
 
-// AI が作った内容を開発者に通報する：回答（「…」メニューの「回答を報告」）、AI の提案カード、AI が書いたページ（ページの「…」メニュー）。
+// AI が作った内容を開発者に通報する：回答（「…」メニューの「回答を報告」）、AI の提案カード、AI が書いたページ（ページの「…」メニュー）、
+// スライドの AI で作った画像（スライドの画像の設定）。
 // 未ログインでも、自分のものなら送れる。ネイティブアプリの要求は Origin を付けないので通す。
 export async function POST(request: NextRequest) {
   if (!isSameOrigin(request.headers.get("origin"), request.headers.get("host"))) {
@@ -30,10 +34,19 @@ export async function POST(request: NextRequest) {
     const proposal = await findReportedProposal(user.id, target.id);
     if (!proposal) return NextResponse.json({ error: msg("This content is no longer available.") }, { status: 404 });
     email = proposalReportEmail({ userId: user.id, signedIn, proposal, reason });
-  } else {
+  } else if (target.kind === "page") {
     const page = await findReportedPage(user.id, target.id);
     if (!page) return NextResponse.json({ error: msg("This content is no longer available.") }, { status: 404 });
     email = pageReportEmail({ userId: user.id, signedIn, page, reason });
+  } else {
+    // スライドの AI で作った画像：自分の（ゴミ箱に無い）スライドの中の、AI で作った印のある画像だけ。
+    const deck = normalizeDeck(await readCanvasData(user.id, target.pageId));
+    const element = deck.slides.flatMap((slide) => slide.elements).find((entry) => entry.id === target.elementId);
+    const file = element?.type === "image" && element.generated ? parseNoteFileUrl(element.src) : null;
+    if (!element || element.type !== "image" || !element.generated || !file || file === "empty") {
+      return NextResponse.json({ error: msg("This image is no longer available.") }, { status: 404 });
+    }
+    email = slideImageReportEmail({ userId: user.id, signedIn, pageId: target.pageId, elementId: element.id, prompt: element.generated.prompt, path: file.path, reason });
   }
 
   const ticket = await consumeReportQuota(user, clientNetworkKey(request));
