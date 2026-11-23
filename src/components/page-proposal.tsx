@@ -158,14 +158,15 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
   proposal: Proposal; state: State; icon: ReactNode; title: ReactNode; label: string; applyLabel: string; doneBadge: string; openLabel: string; children: ReactNode;
 }) {
   const t = useT();
-  const settled = state.status === "applied" || state.status === "discarded" || state.status === "undone";
+  // 元に戻している間も処理済みとして扱う（適用・破棄のボタンは出さない）。
+  const settled = state.status === "applied" || state.status === "undoing" || state.status === "discarded" || state.status === "undone";
   const busy = busyStatuses.has(state.status);
   const [manual, setManual] = useState<boolean | null>(null);
   const [reporting, setReporting] = useState(false);
   // 適用中・エラー表示中は、結果が見えるよう必ず開く。
   const open = busy || !!state.error || (manual ?? !settled);
-  const badge = state.status === "applied" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
-  const canOpen = (state.status === "applied" || (state.status === "undone" && proposal.kind === "proposal")) && state.pageId;
+  const badge = state.status === "applied" || state.status === "undoing" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
+  const canOpen = (state.status === "applied" || state.status === "undoing" || (state.status === "undone" && proposal.kind === "proposal")) && state.pageId;
   const href = state.pageId ? `/?view=pages&page=${encodeURIComponent(state.pageId)}` : "";
   return (
     <section className={`page-edit ${settled ? "is-settled" : ""} ${open ? "" : "is-minimized"}`} aria-label={label}>
