@@ -92,9 +92,9 @@ flowchart LR
 | `src/lib/session-messages.ts` | 读取一个会话当前显示的消息（附件、附加笔记、提案）的函数，`GET /api/sessions/:id/messages` 使用 |
 | `src/components/split-note-pane.tsx`、`src/lib/split-view.ts` | 桌面端聊天右侧的笔记面板，以及分屏开关、所开笔记和比例的本机保存（[chat-flow.md](chat-flow.md#聊天与笔记分屏)） |
 | `src/lib/theme.ts`、`src/lib/theme-init.ts`、`src/components/theme-settings.tsx`、`src/app/globals.css` 的 `:root[data-theme="dark"]` | 外观（跟随系统 / 浅色 / 深色）：本机偏好、首次绘制前写 `data-theme` 的内联脚本、设置里的“外观”一行和深色色板（访客的入口在 `help-menu.tsx`） |
-| `src/lib/page-tools.ts`、`src/lib/note-proposals.ts`、`src/app/api/proposals/*` | AI 的 Notes 读写/提案工具定义与提案应用/放弃接口 |
+| `src/lib/page-ai/*`、`src/app/api/proposals/*` | AI 操控底座：各页面类型的适配器、工具定义、提案的保存 / 应用 / 放弃 / 撤销与接口 |
 | `src/lib/note-tree.ts`、`src/lib/note-tree-server.ts`、`src/lib/note-trash.ts`、`src/lib/note-revisions.ts` | 子页面树与元数据、Trash 保留期与惰性清理、编辑历史快照与裁剪 |
-| `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/note-assistant.tsx` | Trash 对话框、编辑历史/恢复对话框与笔记内 AI 助手面板 |
+| `src/components/note-trash-dialog.tsx`、`src/components/note-history-dialog.tsx`、`src/components/page-assistant.tsx`、`src/components/page-proposal.tsx` | Trash 对话框、编辑历史/恢复对话框、页面里的 AI 面板与通用提案卡片 |
 | `src/components/note-editor.tsx` | 客户端区块编辑器及允许的区块类型 |
 | `src/lib/note-save-queue.ts` | 自动保存队列、重试和冲突状态 |
 | `src/lib/custom-instructions.ts`、`src/app/api/custom-instructions/route.ts`、`src/components/settings-dialog.tsx`、`src/lib/settings-navigation.ts` | 已登录用户的自定义指令与设置界面（通用/个性化/方案/账号，手机两级导航），整合个人资料（`profile-settings.tsx`）、语言、外观（`theme-settings.tsx`）、AI 角色图标（`app-icon-settings.tsx`）、方案（`plan-settings.tsx`）与退出/删号 |
