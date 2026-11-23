@@ -68,7 +68,9 @@ function backgroundRgb(color: string): Rgb {
   canvas.height = 1;
   const context = canvas.getContext("2d");
   if (!context) return [255, 255, 255];
-  context.fillStyle = color || "#ffffff";
+  // Excalidraw の bootstrapCanvas と同じく、先に白にしてから色を入れる（色の文字列が正しくなければ白のまま）。
+  context.fillStyle = "#ffffff";
+  if (color) context.fillStyle = color;
   context.fillRect(0, 0, 1, 1);
   const [red, green, blue] = rgbaToRgb(context.getImageData(0, 0, 1, 1).data);
   return [red, green, blue];
@@ -101,13 +103,14 @@ async function canvasToPdfImage(canvas: HTMLCanvasElement, blank: Rgb | null): P
 }
 
 // 要素と枠の外接矩形の関係（ページ割りに使う。Excalidraw の枠の書き出しも外接矩形の重なりで中身を選ぶ）。
-// 外接矩形は白板の全要素の表と一緒に求める（矢印の文字も入る。要素 1 つだけで求めると、文字の無い外接矩形が Excalidraw の表に残る）。
-function frameRelation(scene: readonly NonDeletedExcalidrawElement[]) {
-  const elementsMap = new Map(scene.map((element) => [element.id, element])) as unknown as Parameters<typeof getCommonBounds>[1];
+// 外接矩形は書き出す要素の表と一緒に求める（矢印の文字も入る）。Excalidraw は外接矩形を要素ごとに覚えていて（ElementBounds）、
+// 矢印の文字を直しても矢印の版は変わらないので、覚えている値が古いことがある。写しで求めて、覚えている値を使わず、書き換えもしない。
+function frameRelation(elements: readonly NonDeletedExcalidrawElement[]) {
+  const elementsMap = new Map(elements.map((element) => [element.id, element])) as unknown as Parameters<typeof getCommonBounds>[1];
   const cache = new Map<string, readonly [number, number, number, number]>();
   const bounds = (element: NonDeletedExcalidrawElement) => {
     let value = cache.get(element.id);
-    if (!value) { value = getCommonBounds([element], elementsMap); cache.set(element.id, value); }
+    if (!value) { value = getCommonBounds([{ ...element } as NonDeletedExcalidrawElement], elementsMap); cache.set(element.id, value); }
     return value;
   };
   return (element: NonDeletedExcalidrawElement, frame: NonDeletedExcalidrawElement): FrameRelation => boundsRelation(bounds(element), bounds(frame));
@@ -137,8 +140,7 @@ async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<Non
 
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {
   // 書き出しでは消える、大きさの無い要素（点 1 つの線など）しか無いときも「空」と言う（何も描かれない画像を作らない）。
-  const scene = api.getSceneElements();
-  const elements = scene.filter((element) => !isInvisiblySmallElement(element));
+  const elements = api.getSceneElements().filter((element) => !isInvisiblySmallElement(element));
   if (!elements.length) throw new Error(msg("This whiteboard is empty."));
   const mimeType = MIME[format];
   const fileName = exportFileName(title, format);
@@ -155,7 +157,7 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
   const pages: PdfPage[] = [];
   const files = api.getFiles();
   const background = backgroundRgb(api.getAppState().viewBackgroundColor);
-  for (const page of planPdfPages(elements, frameRelation(scene))) {
+  for (const page of planPdfPages(elements, frameRelation(elements))) {
     const rendered = await renderPdfPage(api, page, elements, files, background);
     if (rendered) pages.push(rendered);
   }
