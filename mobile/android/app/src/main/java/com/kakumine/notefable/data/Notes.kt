@@ -1,7 +1,15 @@
 package com.kakumine.notefable.data
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
@@ -10,6 +18,52 @@ import kotlinx.serialization.json.longOrNull
 
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
+
+/**
+ * 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，两边一起改）。
+ * 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+ */
+data class PageKindFeatures(
+    /** 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。 */
+    val editor: Boolean,
+    /** Markdown 导出（GET /api/pages/:id/export）。 */
+    val markdownExport: Boolean,
+    /** 字体、小字号、全宽（页面设置里只影响正文外观的几项）。锁定所有类型都能用。 */
+    val typography: Boolean,
+    /** 公开分享（/s/:token）：只有有公开视图的类型。 */
+    val publicShare: Boolean,
+    /** AI 的编辑提案（propose_note_edit 和应用）。 */
+    val aiEdit: Boolean,
+)
+
+/**
+ * 工作区页面的类型（网页 PAGE_KINDS）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
+ * 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。
+ */
+@Serializable(with = PageKindSerializer::class)
+enum class PageKind(val wire: String, val features: PageKindFeatures) {
+    Note("note", PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)),
+    Whiteboard("whiteboard", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)),
+    Slides("slides", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false));
+
+    /** 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。 */
+    val isCanvas: Boolean get() = this != Note
+
+    companion object {
+        fun of(value: String?): PageKind = entries.firstOrNull { it.wire == value } ?: Note
+    }
+}
+
+/** 读到不是字符串（数字、对象）或不认识的类型时按笔记，不让整个列表因为一个字段读不出来。 */
+internal object PageKindSerializer : KSerializer<PageKind> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("com.kakumine.notefable.data.PageKind", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: PageKind) = encoder.encodeString(value.wire)
+
+    override fun deserialize(decoder: Decoder): PageKind =
+        if (decoder is JsonDecoder) PageKind.of((decoder.decodeJsonElement() as? JsonPrimitive)?.takeIf { it.isString }?.content)
+        else PageKind.of(decoder.decodeString())
+}
 
 @Serializable
 data class NotePageSummary(
@@ -36,6 +90,8 @@ data class NotePageSummary(
     /** 公开分享状态（用于顶栏分享按钮高亮）。 */
     val shareEnabled: Boolean = false,
     val shareExpiresAt: String? = null,
+    /** 页面类型（笔记 / 白板 / 幻灯片）。旧服务端不返回，按笔记。 */
+    val kind: PageKind = PageKind.Note,
 )
 
 fun NotePageSummary.isShared(nowMillis: Long = System.currentTimeMillis()): Boolean {
@@ -105,7 +161,10 @@ data class NotesList(val pages: List<NotePageSummary> = emptyList(), val groups:
 
 /** deletedAt 是移进回收站的时刻，purgeAt 是不能再恢复、会被永久删除的时刻（ISO 字符串）。 */
 @Serializable
-data class NoteTrashItem(val id: String, val title: String = "", val icon: String? = null, val deletedAt: String, val purgeAt: String)
+data class NoteTrashItem(
+    val id: String, val title: String = "", val icon: String? = null, val deletedAt: String, val purgeAt: String,
+    val kind: PageKind = PageKind.Note,
+)
 
 /**
  * `POST /api/pages/reorder` 返回的新顺序（`{items:[{id, position, groupId?}]}`）。只有被移动的那一篇带 groupId
@@ -231,7 +290,8 @@ const val TRASH_RETENTION_DAYS = 30
  * 约定见 src/lib/native-bridge.ts 和 docs/architecture/android-native.md；两边要一起改。
  */
 sealed interface EmbedMessage {
-    data class Ready(val id: String, val title: String, val icon: String?) : EmbedMessage
+    /** [kind]：网页读到的页面类型；旧网页不发时是 null（这时不改 App 这边已知的类型）。 */
+    data class Ready(val id: String, val title: String, val icon: String?, val kind: PageKind? = null) : EmbedMessage
     data class Meta(val title: String, val icon: String?) : EmbedMessage
     data class SaveState(val state: String) : EmbedMessage
     data object Missing : EmbedMessage
@@ -254,7 +314,8 @@ sealed interface EmbedMessage {
             when (obj.str("type")) {
                 "ready" -> {
                     val page = obj["page"]?.jsonObject ?: return@runCatching null
-                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"))
+                    val kind = (page["kind"] as? JsonPrimitive)?.takeIf { it.isString }?.content?.let(PageKind::of)
+                    Ready(page.str("id") ?: return@runCatching null, page.str("title").orEmpty(), page.str("icon"), kind)
                 }
                 "meta" -> Meta(obj.str("title").orEmpty(), obj.str("icon"))
                 "saveState" -> SaveState(obj.str("state") ?: return@runCatching null)

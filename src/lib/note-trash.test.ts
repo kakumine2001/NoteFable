@@ -24,7 +24,7 @@ describe("note trash retention", () => {
   it("describes a trashed note for the browser with ISO times and its purge time", () => {
     const deletedAt = new Date("2026-10-01T09:00:00.000Z");
     expect(toTrashItem({ id: "n1", title: "Plan", icon: "📚", deletedAt })).toEqual({
-      id: "n1", title: "Plan", icon: "📚", deletedAt: "2026-10-01T09:00:00.000Z", purgeAt: "2026-10-31T09:00:00.000Z",
+      id: "n1", kind: "note", title: "Plan", icon: "📚", deletedAt: "2026-10-01T09:00:00.000Z", purgeAt: "2026-10-31T09:00:00.000Z",
     });
   });
 

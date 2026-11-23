@@ -28,7 +28,7 @@ describe("GET /api/search", () => {
     expect(response.headers.get("Cache-Control")).toBe("no-store");
     expect(await response.json()).toEqual({
       query: "Mitosis",
-      notes: [{ kind: "note", id: "n1", title: "Biology", icon: "🧬", snippet: "Mitosis notes", blockId: "b1", updatedAt: updatedAt.toISOString() }],
+      notes: [{ kind: "note", id: "n1", pageKind: "note", title: "Biology", icon: "🧬", snippet: "Mitosis notes", blockId: "b1", updatedAt: updatedAt.toISOString() }],
       chats: [{ kind: "chat", id: "s1", title: "Exam", icon: null, snippet: "about mitosis", messageId: "m1", role: "USER", attachmentName: "notes.pdf", projectId: "p1", titleMatch: false, updatedAt: updatedAt.toISOString() }],
     });
     expect(mocks.queryRaw).toHaveBeenCalledTimes(2);

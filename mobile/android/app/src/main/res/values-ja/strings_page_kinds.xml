@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 工作区的页面类型（src/lib/i18n/messages/ja.ts）。 -->
+<resources>
+    <string name="page_kind_note">ノート</string>
+    <string name="page_kind_whiteboard">ホワイトボード</string>
+    <string name="page_kind_slides">スライド</string>
+</resources>

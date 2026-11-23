@@ -10,6 +10,7 @@ import { recentPages } from "@/lib/notes-home-text";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { pageSettingsOf, type NotePageSummary } from "@/types/notes";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 type SplitNotePaneProps = {
   notes: ReturnType<typeof useNotePages>;
@@ -80,6 +81,7 @@ export function SplitNotePane({
 
   const currentTitle = notes.active?.content.title.trim() || activeSummary?.title || t("Workspace");
   const currentIcon = notes.active?.content.icon ?? activeSummary?.icon ?? null;
+  const currentKind = activeSummary?.kind ?? notes.active?.page.kind;
 
   return (
     <aside className="workspace-split-note" aria-label={t("Workspace")}>
@@ -94,7 +96,7 @@ export function SplitNotePane({
             onClick={() => { setQuery(""); setPickerOpen((open) => !open); }}
           >
             <span className="shrink-0 text-[15px] leading-none" aria-hidden="true">
-              <NoteIcon icon={currentIcon} fallback={<FileText size={15} />} />
+              <NoteIcon icon={currentIcon} fallback={<PageKindIcon kind={currentKind} size={15} />} />
             </span>
             <span className="truncate">{currentTitle}</span>
             <ChevronDown size={14} className="shrink-0 text-[var(--notion-faint)]" aria-hidden="true" />
@@ -133,7 +135,7 @@ export function SplitNotePane({
                     onClick={() => { setPickerOpen(false); onSelectNote(page.id); }}
                   >
                     <span className="shrink-0 text-[14px] leading-none" aria-hidden="true">
-                      <NoteIcon icon={page.icon} fallback={<FileText size={14} />} />
+                      <NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={14} />} />
                     </span>
                     <span className="truncate">{page.title}</span>
                   </button>
@@ -253,7 +255,7 @@ export function SplitNotePane({
                 {recent.map((page) => (
                   <li key={page.id}>
                     <button type="button" className="chat-menu-item" onClick={() => onSelectNote(page.id)}>
-                      <span className="shrink-0 text-[14px] leading-none" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={14} />} /></span>
+                      <span className="shrink-0 text-[14px] leading-none" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={14} />} /></span>
                       <span className="truncate">{page.title}</span>
                     </button>
                   </li>

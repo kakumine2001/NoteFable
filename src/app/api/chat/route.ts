@@ -52,6 +52,7 @@ import { subtreeIds } from "@/lib/chat-branches";
 import { loadActiveLeafId, loadBranchTree, lockSession } from "@/lib/chat-branch-store";
 import { isSupportedImageMimeType } from "@/lib/image-types";
 import { splitQuotedMessage } from "@/lib/chat-quote";
+import { isCanvasKind, type PageKind } from "@/lib/page-kinds";
 
 export const runtime = "nodejs";
 
@@ -65,7 +66,7 @@ function makeTitle(message: string) {
 
 // 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
-function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string; continuedInChats?: boolean }, project?: ProjectContext | null, customInstructions?: string | null, attachedNotes: AttachedContextNote[] = [], noteSelection = false) {
+function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string; kind?: PageKind; continuedInChats?: boolean }, project?: ProjectContext | null, customInstructions?: string | null, attachedNotes: AttachedContextNote[] = [], noteSelection = false) {
   const custom = formatCustomInstructions(customInstructions);
   const attached = formatAttachedNotes(attachedNotes, pageTools);
   return [
@@ -79,10 +80,17 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     ...(pageTools
       ? [
           "You can search and read the user's own notes, kept in their NoteFable Workspace, with the search_notes and read_note tools (search_notes matches by meaning as well as keywords). Use them when the user refers to their notes or Workspace or asks about personal records, plans, or topics they may have saved in their notes; skip searching for general questions unrelated to their notes, and never guess what a note says.",
+          // ワークスペースには 3 種類のページがある。AI が直せるのはノートだけ（ホワイトボード・スライドの AI 操作は #158）。
+          "The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes finds all of them and shows each page's kind; read_note shows a whiteboard or slide deck as its text only. Only notes can be changed or created with the tools: never try to edit a whiteboard or slide deck with propose_note_edit, and tell the user it can't be edited from chat yet.",
           "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the note changes only after they apply it, so never say a note was updated.",
           "Notes can hold uploaded images and files, shown to you as [Image: …] / [File: …]; propose_note_edit may replace or delete those blocks. When the user wants an image they sent in this chat placed in a note, call list_chat_attachments and put the line ![caption](attachment:ID), alone on its own line, in the proposal's markdown.",
           "To make a new note, call propose_note_create. It also only shows a proposal until the user applies it, so never say a note was created.",
-          ...(note
+          ...(note && isCanvasKind(note.kind)
+            ? [
+                // ホワイトボード・スライドから始めた会話。本文の文字は読めるが、変えられない（AI での操作は #153・#150）。
+                `${note.continuedInChats ? "This conversation was started from inside the user's" : "The user is asking from inside their"} ${note.kind === "whiteboard" ? "whiteboard" : "slide deck"} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read its text. You cannot change it with the note tools.`,
+              ]
+            : note
             ? [
                 // ノートを開いたまま呼ばれた時と、その会話を Chats で続けている時。タイトルはユーザーのデータなので JSON 文字列として渡す。
                 `${note.continuedInChats ? "This conversation was started from inside the editor of the user's note" : "The user is asking from inside the editor of their note"} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about this note: call read_note with this noteId first, then use propose_note_edit with the version it returns. Change only what was asked and leave the rest of the note as it is. The note changes only after the user applies your proposal.`,
@@ -445,7 +453,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
 
   // ノート用の送信なら、自分のノートかを確かめる（他人のノートや存在しないノートは使わせない）。
   const note = noteId
-    ? await prisma.notePage.findFirst({ where: { id: noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true } })
+    ? await prisma.notePage.findFirst({ where: { id: noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true, kind: true } })
     : null;
   if (noteId && !note) {
     return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
@@ -483,7 +491,7 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
 
   // ノートで始めた会話を Chats で続けるときも、どのノートの話かをモデルに伝える。ゴミ箱のノート・消えたノートなら普通のチャットとして続ける。
   const contextNote = note ?? (session.noteId
-    ? await prisma.notePage.findFirst({ where: { id: session.noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true } })
+    ? await prisma.notePage.findFirst({ where: { id: session.noteId, userId: user.id, deletedAt: null }, select: { id: true, title: true, kind: true } })
     : null);
 
   // プロジェクトの会話なら、共通指示と参照ノートを毎回読み直して渡す（ノートの編集は次の送信から反映される）。

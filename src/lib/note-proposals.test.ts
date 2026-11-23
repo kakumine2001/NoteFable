@@ -70,7 +70,7 @@ const create = () => ({
 
 describe("note proposals", () => {
   beforeEach(() => { db.proposals.length = 0; db.pages.length = 0; db.revisions.length = 0; db.next = 1; db.beforeClaim = undefined; db.beforePageWrite = undefined; });
-  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ id: "pg", userId, title: "Notes", icon: "📚", blocks: [para("a")], version, deletedAt: null }); return "pg"; };
+  const seedPage = (userId = "u1", version = 3) => { db.pages.push({ kind: "note", id: "pg", userId, title: "Notes", icon: "📚", blocks: [para("a")], version, deletedAt: null }); return "pg"; };
 
   it("saves a pending proposal and returns it in the card shape", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -102,7 +102,7 @@ describe("note proposals", () => {
 
   it("returns the same created note to a request that lost the claim", async () => {
     const view = await saveProposal("u1", "s1", create());
-    db.beforeClaim = () => { db.pages.push({ id: "winner", userId: "u1", title: "New", blocks: [], version: 0, deletedAt: null }); db.proposals[0].status = "APPLIED"; db.proposals[0].appliedPageId = "winner"; };
+    db.beforeClaim = () => { db.pages.push({ kind: "note", id: "winner", userId: "u1", title: "New", blocks: [], version: 0, deletedAt: null }); db.proposals[0].status = "APPLIED"; db.proposals[0].appliedPageId = "winner"; };
     expect(await applyProposal("u1", view.id)).toMatchObject({ ok: true, kind: "create", page: { id: "winner" } });
     expect(db.pages).toHaveLength(1);
   });
@@ -200,7 +200,7 @@ describe("note proposals", () => {
 
 describe("note proposals and the trash / edit history", () => {
   beforeEach(() => { db.proposals.length = 0; db.pages.length = 0; db.revisions.length = 0; db.next = 1; db.beforeClaim = undefined; db.beforePageWrite = undefined; });
-  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, ...extra }); return "pg"; };
+  const seedPage = (extra: Record<string, unknown> = {}) => { db.pages.push({ kind: "note", id: "pg", userId: "u1", title: "Notes", icon: "📚", blocks: [para("a")], version: 3, deletedAt: null, ...extra }); return "pg"; };
 
   it("keeps the state it overwrites as an AI_EDIT revision when an edit is applied", async () => {
     const view = await saveProposal("u1", "s1", edit(seedPage(), 3));
@@ -216,6 +216,17 @@ describe("note proposals and the trash / edit history", () => {
     await applyProposal("u1", view.id);
     expect(db.revisions).toHaveLength(1);
     expect(db.pages[0].version).toBe(4);
+  });
+
+  it("never applies a note edit to a whiteboard or slide deck: 409, nothing written, the proposal stays pending", async () => {
+    for (const [kind, error] of [["whiteboard", "This page is a whiteboard, not a note."], ["slides", "This page is a slide deck, not a note."]] as const) {
+      db.pages.length = 0; db.proposals.length = 0;
+      const view = await saveProposal("u1", "s1", edit(seedPage({ kind, blocks: [] }), 3));
+      expect(await applyProposal("u1", view.id)).toEqual({ ok: false, httpStatus: 409, error });
+      expect(db.pages[0]).toMatchObject({ title: "Notes", version: 3, blocks: [] });
+      expect(db.revisions).toHaveLength(0);
+      expect(db.proposals[0].status).toBe("PENDING");
+    }
   });
 
   it("rolls the revision back together with the apply when the write loses a race", async () => {

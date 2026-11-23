@@ -352,6 +352,11 @@
 "language_effective" = "वर्तमान भाषा";
 "language_no_results" = "कोई भाषा नहीं मिली।";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "नोट";
+"page_kind_whiteboard" = "व्हाइटबोर्ड";
+"page_kind_slides" = "स्लाइड";
+
 /* strings_pages.xml */
 "pg_favorites" = "पसंदीदा";
 "pg_no_pages_inside" = "अंदर कोई सब-पेज नहीं";

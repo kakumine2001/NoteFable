@@ -10,6 +10,7 @@ import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.NoteTrashItem
 import com.kakumine.notefable.data.NotesBackend
 import com.kakumine.notefable.data.NotesList
+import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -279,6 +280,51 @@ class NotesViewModelTest {
         // 别的笔记发来的状态不算。
         vm.onEditorSaveState("a", "error")
         assertEquals("saving", vm.state.value.saveState)
+    }
+
+    @Test
+    fun `the open page takes its kind from the list, a search result or the editor`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z", kind = PageKind.Whiteboard))
+        }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w")
+        advanceUntilIdle()
+        assertEquals(OpenNote("w", "Board", null, kind = PageKind.Whiteboard), vm.state.value.open)
+
+        // 列表里没有（检索结果，列表可能还没读过）：用结果带的类型。
+        vm.openNote("s", "Deck", null, PageKind.Slides)
+        advanceUntilIdle()
+        assertEquals(OpenNote("s", "Deck", null, kind = PageKind.Slides), vm.state.value.open)
+        // 网页的 ready 不带类型（旧网页）时保留已知的；带着时以它为准。
+        vm.onEditorReady("s", "s", "Deck", null)
+        assertEquals(PageKind.Slides, vm.state.value.open?.kind)
+        vm.onEditorReady("s", "s", "Deck", null, PageKind.Whiteboard)
+        assertEquals(PageKind.Whiteboard, vm.state.value.open?.kind)
+
+        // 复制白板：打开的复制件也是白板。
+        vm.openNote("w")
+        advanceUntilIdle()
+        vm.duplicate("w")
+        advanceUntilIdle()
+        assertEquals(OpenNote("copy", "Copy (1)", null, kind = PageKind.Whiteboard), vm.state.value.open)
+    }
+
+    @Test
+    fun `the ready message corrects the kind of the list entry too, and a stale editor changes nothing`() = runTest(dispatcher) {
+        // 旧服务端没返回类型的列表（仍是 Note）也按网页 ready 带来的类型改正；别的编辑器的 ready 不改。
+        val backend = FakeNotes().apply { pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z")) }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w")
+        advanceUntilIdle()
+        vm.onEditorReady("other", "w", "Board", null, PageKind.Whiteboard)
+        assertEquals(PageKind.Note, vm.state.value.open?.kind)
+        assertEquals(PageKind.Note, vm.state.value.pages.single { it.id == "w" }.kind)
+        vm.onEditorReady("w", "w", "Board", null, PageKind.Whiteboard)
+        assertEquals(PageKind.Whiteboard, vm.state.value.open?.kind)
+        assertEquals(PageKind.Whiteboard, vm.state.value.pages.single { it.id == "w" }.kind)
     }
 
     @Test

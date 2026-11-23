@@ -134,9 +134,10 @@ struct NFDivider: View {
 
 /// 聊天 / 笔记的图标：有表情就显示表情，没有就画默认的 lucide 图标，放在 `box` 见方的格子正中。
 /// 网页的侧栏行（40 格、表情 / 图标 15）、笔记首页（28 格、20）、顶栏标题（15）都是这个结构。
+/// 页面的默认图标按页面类型取（`pageKindIcon`）。
 ///
 /// ```swift
-/// NFIconTile(emoji: note.icon, fallback: Lucide.fileText, box: 40, glyph: 15)
+/// NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 40, glyph: 15)
 /// ```
 struct NFIconTile: View {
     private let emoji: String?

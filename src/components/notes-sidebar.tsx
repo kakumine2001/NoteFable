@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ChevronRight, FileText, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
+import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -17,6 +17,7 @@ import { TRASH_RETENTION_DAYS, type NoteGroupSummary, type NotePageSummary } fro
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
 
@@ -107,7 +108,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           const position = floatingPositionFor(event.currentTarget.getBoundingClientRect());
           setPicker(picker?.id === page.id ? null : { id: page.id, position });
         }}>
-        <span className="notes-row-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<FileText size={15} />} /></span>
+        <span className="notes-row-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span>
       </button>
       <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
         const ok=await onMoveNote(page.id,groupId);
@@ -146,7 +147,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         {favorites.length > 0 && <>
           <div className="chat-section-label">{t("Favorites")}</div>
           {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
-            <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon"><NoteIcon icon={page.icon} fallback={<FileText size={15} />} /></span></span>
+            <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span></span>
             <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
               <span className="truncate text-sm">{page.title}</span>
             </button>

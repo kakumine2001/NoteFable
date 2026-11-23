@@ -88,6 +88,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.ChatProjectSummary
+import com.kakumine.notefable.data.PageKind
 import com.kakumine.notefable.data.SearchBackend
 import com.kakumine.notefable.data.SearchFold
 import com.kakumine.notefable.data.SearchScope
@@ -103,7 +104,7 @@ import java.util.Locale
 //     Chats 标签页且有项目时右侧是项目筛选（高 40、最宽 48%、1px 线、圆角 6、左右 6.4、16sp 灰）。
 //   结果区（上 5.6、左右 6.4、下 12）：分组标题 12sp/600 灰（上 8、左右 9.6、下 4）；
 //     行 最小高 52、内边距 9.6、圆角 6、间距 10.4，当前行 --notion-hover 底；图标区 22.4（上 0.8，表情 16 / 图标 16 灰）；
-//     标题 15sp/500 单行，后面 8 处项目名 12sp 浅灰（最宽 40%）；摘录 13sp 行高 1.4 灰、最多两行，命中词黄色底 rgba(255,207,0,.4)；
+//     标题 15sp/500 单行，后面 8 处项目名 / 白板、幻灯片的类型名 12sp 浅灰（最宽 40%）；摘录 13sp 行高 1.4 灰、最多两行，命中词黄色底 rgba(255,207,0,.4)；
 //     附件命中时摘录前是 回形针 12 + "in 文件名" 12sp/500 正文色，右距 5.6；日期 12sp 浅灰，上距 2.4。
 //   空 / 失败 / 无结果：内边距 20×12.8、间距 6.4，标题 15sp/600 正文色，说明 14sp 行高 21 灰；"检索中"是转圈 16 + 14sp 灰字，间距 8。
 //   键盘提示（"Use ↑ ↓ to move…"）在触屏上不显示（@media (hover: none)）。
@@ -121,7 +122,7 @@ fun SearchScreen(
     chatFirst: Boolean,
     onClose: () -> Unit,
     onOpenChat: (id: String, messageId: String?) -> Unit,
-    onOpenNote: (id: String, title: String, icon: String?) -> Unit,
+    onOpenNote: (id: String, title: String, icon: String?, kind: PageKind) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val vm = remember { SearchViewModel(scope, backend) }
@@ -136,7 +137,7 @@ fun SearchScreen(
         // 和网页一样先关检索再跳转。
         onClose()
         when (hit) {
-            is SearchHit.Note -> onOpenNote(hit.id, hit.title, hit.icon)
+            is SearchHit.Note -> onOpenNote(hit.id, hit.title, hit.icon, hit.result.pageKind)
             is SearchHit.Chat -> onOpenChat(hit.id, hit.result.messageId)
         }
     }
@@ -364,14 +365,17 @@ private fun ResultRow(hit: SearchHit, terms: List<String>, projectName: String?,
             .background(if (active) Sm.Hover else Color.Transparent).clickable(onClick = onClick).padding(9.6.dp),
         horizontalArrangement = Arrangement.spacedBy(10.4.dp),
     ) {
+        val pageKind = (hit as? SearchHit.Note)?.result?.pageKind
         Box(Modifier.padding(top = 0.8.dp).size(22.4.dp), Alignment.Center) {
             val icon = hit.icon
             when {
-                hit is SearchHit.Note -> NoteIcon(icon, 16.sp, 16.dp, Sm.Muted)
+                pageKind != null -> NoteIcon(icon, 16.sp, 16.dp, Sm.Muted, pageKind)
                 icon != null -> Text(icon, fontSize = 16.sp, lineHeight = 16.sp)
                 else -> LucideIcon(Lucide.MessageSquareText, 16.dp, Sm.Muted)
             }
         }
+        // 白板、幻灯片在标题后面加类型名（和项目名同样的小字），打开前就知道会看到什么；笔记是默认，不加（网页 search-dialog.tsx）。
+        val kindLabel = pageKind?.takeIf { it.isCanvas }?.let { stringResource(pageKindLabel(it)) }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.4.dp)) {
             BoxWithConstraints(Modifier.fillMaxWidth()) {
                 val headWidth = maxWidth
@@ -381,10 +385,10 @@ private fun ResultRow(hit: SearchHit, terms: List<String>, projectName: String?,
                         color = Sm.Text, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.Medium,
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                     )
-                    if (projectName != null) {
+                    listOfNotNull(projectName, kindLabel).forEach { label ->
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            projectName, modifier = Modifier.widthIn(max = headWidth * 0.4f).padding(bottom = 2.dp),
+                            label, modifier = Modifier.widthIn(max = headWidth * 0.4f).padding(bottom = 2.dp),
                             color = Sm.Faint, fontSize = 12.sp, lineHeight = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         )
                     }

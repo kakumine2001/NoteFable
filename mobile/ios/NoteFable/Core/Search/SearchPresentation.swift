@@ -63,6 +63,13 @@ extension SearchHit {
         guard case .chat(let chat) = self, let projectId = chat.projectId else { return nil }
         return names[projectId]
     }
+
+    /// 白板 / 幻灯片的结果在标题后面用同样的小字标出类型名（文案键，网页 search-dialog.tsx：开了会看到什么）。
+    /// 笔记是默认的，不标；聊天没有。
+    var kindLabel: String? {
+        guard let kind = pageKind, kind.isCanvas else { return nil }
+        return pageKindLabel(kind)
+    }
 }
 
 /// 服务端的时间（ISO 8601，带不带毫秒都收）；读不懂是 nil。

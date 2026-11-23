@@ -1,5 +1,6 @@
 import type { ActivityStep } from "@/lib/chat-activity";
 import type { MessageVersions } from "@/lib/chat-branches";
+import type { PageKind } from "@/lib/page-kinds";
 
 // 回答に紐付いて保存された AI の提案（ノートの編集・新規作成）。
 export type StoredProposal = Extract<ActivityStep, { kind: "proposal" | "create_proposal" }>;
@@ -11,8 +12,8 @@ export const MAX_PROJECT_NOTES = 5;
 export const MAX_CUSTOM_INSTRUCTIONS = MAX_PROJECT_INSTRUCTIONS;
 // チャットの 1 回の発言に添付できるノートの数。クライアントとサーバーで同じ値を使う。
 export const MAX_MESSAGE_NOTES = 5;
-// 発言に添付したノート。表示用のタイトルとアイコンは、履歴を読むたびにノートから取り直す。
-export type AttachedPage = { id: string; title: string; icon: string | null };
+// 発言に添付したノート。表示用のタイトルとアイコンは、履歴を読むたびにノートから取り直す。kind はページの種類（古い応答には無い）。
+export type AttachedPage = { id: string; kind?: PageKind; title: string; icon: string | null };
 
 export function toggleAttachedPage(list: AttachedPage[], page: AttachedPage): AttachedPage[] {
   if (list.some((item) => item.id === page.id)) return list.filter((item) => item.id !== page.id);
@@ -26,7 +27,7 @@ export type ChatProjectDetail = {
   id: string;
   name: string;
   instructions: string | null;
-  notes: { id: string; title: string; icon: string | null }[];
+  notes: { id: string; kind?: PageKind; title: string; icon: string | null }[];
 };
 
 export type Session = {

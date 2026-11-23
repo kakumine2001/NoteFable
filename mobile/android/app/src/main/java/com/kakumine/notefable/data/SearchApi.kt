@@ -12,9 +12,11 @@ data class NoteSearchResult(
     val title: String = "",
     val icon: String? = null,
     val snippet: String = "",
-    /** 命中的块；只命中标题时为 null。 */
+    /** 命中的块（白板是元素、幻灯片是页，原生版不用）；只命中标题时为 null。 */
     val blockId: String? = null,
     val updatedAt: String = "",
+    /** 页面类型（笔记 / 白板 / 幻灯片）。JSON 里的 `kind` 是结果的种类（note / chat），所以叫这个名字；旧服务端不返回，按笔记。 */
+    val pageKind: PageKind = PageKind.Note,
 )
 
 @Serializable

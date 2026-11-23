@@ -73,6 +73,7 @@ erDiagram
     User ||--o{ NoteRevision : owns
     NotePage ||--o{ NoteRevision : "history (cascade)"
     NotePage ||--o{ NoteEmbedding : "semantic index (cascade)"
+    NotePage ||--o| NoteCanvas : "whiteboard / slides content (cascade)"
     NotePage ||--o{ Session : "started in note (set null)"
     ChatProject ||--o{ ChatProjectNote : "references (cascade)"
     NotePage ||--o{ ChatProjectNote : "referenced by (cascade)"
@@ -142,6 +143,7 @@ erDiagram
     NotePage {
         string id PK
         string userId FK
+        PageKind kind "note, whiteboard, slides"
         string title
         int position
         string icon
@@ -174,8 +176,18 @@ erDiagram
         string title
         string icon "nullable"
         json blocks
+        json data "nullable, whiteboard / slides content"
         int version "NotePage.version at snapshot time"
         datetime createdAt
+    }
+
+    NoteCanvas {
+        string noteId PK, FK
+        json data "whiteboard / slides content, at most 2 MB"
+        json segments "extracted text [{ id, text }]"
+        string hash "SHA-256 of data"
+        int size "bytes of data"
+        datetime updatedAt
     }
 
     NoteEmbedding {
@@ -357,6 +369,12 @@ User 1 -> N StoredFile（SetNull）
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
+`kind`（枚举 `PageKind`：`note` / `whiteboard` / `slides`，默认 `note`，`20261123000000_page_kinds` 追加）是页面类型，新建后不变。白板和幻灯片的 `blocks` 是空数组，本体在 `NoteCanvas`；类型的规则见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)。读取正文的代码要按 `kind` 分开处理：笔记读 `blocks`，白板 / 幻灯片的检索和聊天上下文读 `NoteCanvas.segments`，不要遍历 `NoteCanvas.data`。
+
+### NoteCanvas
+
+白板和幻灯片的本体（`20261123000000_page_kinds` 新增）。`noteId` 是主键也是指向 `NotePage` 的外键（`ON DELETE CASCADE`：页面被永久删除时一起删除；放进 Trash 时保留）。`data` 是本体 JSON（最多 2 MB，形状与校验见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)），`segments` 是每次保存时服务端从本体取出的文字 `[{ id, text }]`（`id` 是白板的元素或幻灯片的页），`hash` 是本体 JSON 的 SHA-256（判断保存的重发），`size` 是本体的字节数。版本（冲突判断）用 `NotePage.version`：保存在同一事务里先按版本条件更新 `NotePage`（标题、图标、`version + 1`），成功才写这一行。站内搜索、`search_notes`、语义搜索的索引、附加笔记和项目参考笔记只读 `segments`（SQL 里 `LEFT JOIN NoteCanvas c` 后读 `c."segments"`），列表和一般的页面读取不读这张表。复制页面时用 `INSERT … SELECT` 在数据库里复制。没有 `userId` 列：所有读取都经 `NotePage` 的 `userId` 限定（`note: { userId }` 或 JOIN）。
+
 ### StoredFile
 
 文件仓库（Private Vercel Blob，本地开发没有 Blob token 时是 `NOTEFABLE_STORAGE_DIR`）里每个文件一行（`20261123000000_stored_files` 新增，代码 `src/lib/stored-files.ts`）。它同时用于**按套餐的存储上限**和**未引用文件的清理**，接替了只管封面的 `NoteCoverAsset`（迁移时连同状态搬进来后删表；部署期间留过一个同名兼容视图，之后已删除，见下方迁移说明）。
@@ -388,11 +406,11 @@ User 1 -> N StoredFile（SetNull）
 
 已有的文件在超限后照常可读、可用；复制笔记、分支聊天、编辑发言共用原文件，不增加用量。
 
-**引用（使用中）。** 只上传、引用要等之后保存的文件（笔记文件、封面）登记时就记 `releasedAt`（未使用，宽限期从上传算）；同一请求里就会被引用的文件（聊天附件和生成图、头像、图标、AI 提案里的复制）用 `storeFile(..., { held: true })` 直接登记为使用中，没用上时由巡查释放。保存笔记的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、复制笔记、导入、历史恢复、适用 AI 提案（先锁文件行、后锁笔记行，与 `PATCH` 同序）。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
+**引用（使用中）。** 只上传、引用要等之后保存的文件（笔记文件、封面）登记时就记 `releasedAt`（未使用，宽限期从上传算）；同一请求里就会被引用的文件（聊天附件和生成图、头像、图标、AI 提案里的复制）用 `storeFile(..., { held: true })` 直接登记为使用中，没用上时由巡查释放。保存笔记的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、复制笔记、导入、历史恢复、适用 AI 提案（先锁文件行、后锁笔记行，与 `PATCH` 同序）。白板 / 幻灯片的图片也放在 `note-files/`（`NOTE_FILE`）：保存、新建、历史恢复时 `validateCanvasData` 收集本体里的文件路径，同样在更新页面行之前用 `claimStoredFiles` 设为使用中；复制白板 / 幻灯片不把本体读进应用，而是在创建复制品之前用 `claimCanvasFiles` 在数据库里从 `NoteCanvas.data` 取出文件 UUID 并设为使用中（这样复制途中原页面去掉了文件，清理也要等复制提交后再判断）。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
 
 | kind | 引用来源 |
 | --- | --- |
-| `NOTE_FILE` | 持有者的全部 `NotePage.blocks`（含 Trash）、`NoteRevision.blocks`、`PENDING` 的 `NoteProposal.payload`：把 JSON 转成文本，用 `NOTE_FILE_REFERENCE` 正则取出文件 UUID（编码与否、大小写都认）。将来白板、幻灯片等把文件 URL 存在别的表时，加进 `NOTE_FILE_SOURCES` |
+| `NOTE_FILE` | 持有者的全部 `NotePage.blocks`（含 Trash）、`NoteRevision.blocks`、白板 / 幻灯片的本体 `NoteCanvas.data`（经 `NotePage` 定持有者，含 Trash）和历史 `NoteRevision.data`、`PENDING` 的 `NoteProposal.payload`：把 JSON 转成文本，用 `NOTE_FILE_REFERENCE` 正则取出文件 UUID（编码与否、大小写都认）。将来再有内容把文件 URL 存在别的表时，加进 `NOTE_FILE_SOURCES` |
 | `NOTE_COVER` | `NotePage.cover` / `NotePage.icon`（含 Trash）、`NoteRevision.icon` |
 | `CHAT_IMAGE` | 任意 `Attachment.imageStoragePath`（含切换版本可回去的非 active 消息；分支、编辑的复制行共用路径）；`Attachment` 为此加了 `(imageStoragePath)` 索引 |
 | `AVATAR` / `APP_ICON` | 所属用户的 `User.avatarImage` / `User.appIconImage` |
@@ -419,7 +437,7 @@ Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时�
 
 ### NoteRevision
 
-笔记的编辑历史（`20261015100000_note_trash_and_revisions` 新增），是“恢复到过去某个版本”的来源。每一行是**被覆盖之前**的一份快照：`title`、`icon`、`blocks` 和当时的 `NotePage.version`；不保存封面、封面位置、分组和位置，恢复时这些保持现状。`noteId` 指向 `NotePage`，`userId` 指向 `User`，两者都 `ON DELETE CASCADE`；索引 `(noteId, createdAt)` 用于按笔记读取历史，`(userId)` 用于级联删除。
+笔记的编辑历史（`20261015100000_note_trash_and_revisions` 新增），是“恢复到过去某个版本”的来源。每一行是**被覆盖之前**的一份快照：`title`、`icon`、`blocks` 和当时的 `NotePage.version`（白板 / 幻灯片的本体在可空的 `data` 里，`blocks` 为空数组，`20261123000000_page_kinds` 追加）；不保存封面、封面位置、分组和位置，恢复时这些保持现状。`noteId` 指向 `NotePage`，`userId` 指向 `User`，两者都 `ON DELETE CASCADE`；索引 `(noteId, createdAt)` 用于按笔记读取历史，`(userId)` 用于级联删除。
 
 `reason`（枚举 `NoteRevisionReason`）说明为什么留下这一份：
 
@@ -429,7 +447,7 @@ Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时�
 | `AI_EDIT` | 适用 AI 编辑提案（`POST /api/proposals/:id/apply`）、覆盖笔记之前，写在适用提案的同一个事务里；写入失败整体回滚时这份历史一起消失，重试不会重复 |
 | `RESTORE` | 从历史恢复（`POST /api/pages/:id/revisions/:revisionId/restore`）、覆盖笔记之前，写“恢复前”的当前状态，所以恢复本身也可以再恢复回去；与恢复写入在同一事务，版本被抢先修改（409）时一起回滚 |
 
-**保留：** 每个笔记最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（`notefable`）。
+**保留：** 白板 / 幻灯片每页最多 10 份（自动保存 5 份、`AI_EDIT` / `RESTORE` 5 份，自动快照最短间隔 30 分钟，`revisionLimits`），因为一份最多 2 MB。笔记每篇最多 50 份（`MAX_REVISIONS_PER_NOTE`），按类别分开计数：`AUTO` 最新 30 份（`MAX_AUTO_REVISIONS_PER_NOTE`，超过 90 天的也删除），`AI_EDIT` / `RESTORE` 合计最新 20 份（`MAX_MARKED_REVISIONS_PER_NOTE`），写入后按 `createdAt` 从旧到新裁剪，所以连续的自动保存不会把“AI 编辑前”的快照挤出去。自动快照在 `PATCH /api/pages/:id` 的事务里用 SAVEPOINT 包裹，失败时回滚到保存点并只记录日志，保存本身照常成功。历史随笔记走：笔记放进 Trash 时历史保留，复原后继续可用；笔记被永久删除时历史级联删除。历史读取接口只给“活着的”笔记（Trash 里的笔记返回 404）。快照 SQL 使用 `gen_random_uuid()`（PostgreSQL 13+，Neon 与本地 18 均满足），并明确限定 schema（`notefable`）。
 
 ### NoteProposal
 
@@ -569,6 +587,11 @@ NoteRevisionReason
 - AI_EDIT
 - RESTORE
 
+PageKind（API 的 JSON 也用这些小写值）
+- note
+- whiteboard
+- slides
+
 UserPlan
 - FREE
 - PRO
@@ -586,12 +609,13 @@ StoredFileKind
 | 数据 | 保留规则 | 删除时的级联 |
 | --- | --- | --- |
 | Trash 里的笔记（`NotePage.deletedAt`） | 30 天。期内可复原；超期的笔记不再列出，复原被拒绝（404），并在下一次惰性清理时永久删除 | 永久删除一篇笔记会级联删除它的 `NoteRevision`、`ChatProjectNote`、`MessageNote`；在这篇笔记里开始的 `Session` 保留（`noteId` 置空），仍在 Chats 里 |
-| 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
+| 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；白板 / 幻灯片最多 10 份（5 + 5），间隔 30 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
+| 白板 / 幻灯片的本体（`NoteCanvas`） | 每页一行，随保存覆盖；Trash 里的页面保留 | 随页面的永久删除、用户删除级联删除 |
 | 项目参考笔记（`ChatProjectNote`） | 每个项目最多 5 篇；Trash 里的笔记保留关联但不使用 | 随项目、随笔记的永久删除级联删除 |
 | 发言附加的笔记（`MessageNote`） | 每条发言最多 5 篇；Trash 里的笔记保留关联但不使用、不显示 | 随消息（会话）、随笔记的永久删除级联删除 |
 | 存储中的文件（`StoredFile`） | 被引用期间保留（笔记、Trash、编辑历史、待确认提案、聊天附件、头像 / 图标）；不再被引用 7 天后删除文件和行 | 删除用户时行保留（`userId` 置空、标为删除中），文件删掉后删行 |
 
-**没有定时任务清理 Trash。** 超期笔记在三个时机被永久删除：用户打开 Trash 列表（`GET /api/pages/trash`，先清理再列出，清理失败也不会把超期笔记列出来）、把某篇笔记放进 Trash（`DELETE /api/pages/:id`，尽力清理，失败只记日志）、清空 Trash（`DELETE /api/pages/trash`，删除 Trash 笔记，不论是否超期；界面带 `before` 只删到用户确认时看到的最新一条）。长期不操作的用户，其超期笔记会一直留在库里直到下一次这样的操作，但任何接口都看不到它们。若将来要定时清理，复用 `purgeExpiredNotes()`（`src/lib/note-trash.ts`）即可。笔记的图片和文件由 `StoredFile` 的清理任务回收，它的引用统计包括 Trash 里的笔记和 `NoteRevision.blocks`，所以历史恢复后不会出现指向已删除文件的块。
+**没有定时任务清理 Trash。** 超期笔记在三个时机被永久删除：用户打开 Trash 列表（`GET /api/pages/trash`，先清理再列出，清理失败也不会把超期笔记列出来）、把某篇笔记放进 Trash（`DELETE /api/pages/:id`，尽力清理，失败只记日志）、清空 Trash（`DELETE /api/pages/trash`，删除 Trash 笔记，不论是否超期；界面带 `before` 只删到用户确认时看到的最新一条）。长期不操作的用户，其超期笔记会一直留在库里直到下一次这样的操作，但任何接口都看不到它们。若将来要定时清理，复用 `purgeExpiredNotes()`（`src/lib/note-trash.ts`）即可。笔记的图片和文件由 `StoredFile` 的清理任务回收，它的引用统计包括 Trash 里的笔记、`NoteRevision.blocks`、白板 / 幻灯片的本体 `NoteCanvas.data` 和它们的历史 `NoteRevision.data`，所以历史恢复后不会出现指向已删除文件的块。
 
 ## 为什么 Attachment 不直接存图片
 
@@ -626,7 +650,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。`20261123000000_stored_files` 新建 `StoredFileKind`、`StoredFile`、`MaintenanceJob`，把 `NoteCoverAsset` 的行（连同使用中 / 删除中的状态，`size` 为 null）搬进 `StoredFile` 后删掉旧表，把已有的聊天图片（`Attachment.imageStoragePath`，大小取 `Attachment.size`，持有者取会话）登记为使用中，并给 `Attachment.imageStoragePath` 加索引；笔记文件、头像、图标等其余旧文件由上线后的盘点补登记（登记为使用中、未确认，下一轮清理确认引用后才开始计宽限期）。紧接着的 `20261123010000_note_cover_asset_view` 建同名兼容视图 `NoteCoverAsset`（只露出 `kind = 'NOTE_COVER'` 的行，插入经 `INSTEAD OF` 触发器写进 `StoredFile`，更新 / 删除直接落到 `StoredFile`），让部署窗口里仍在运行的旧版本照常上传封面、保存笔记和清理。新版本代码不用这个视图；新版本上线后 `20261123020000_drop_note_cover_asset_view` 删掉视图和触发器函数（`note_cover_asset_view_insert`）。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。`20261123000000_page_kinds` 追加枚举 `PageKind`、默认 `note` 的 `NotePage.kind`（已有页面全部是笔记）、可空的 `NoteRevision.data` 和 `NoteCanvas` 表，不改写已有数据；它与 `20261123000000_stored_files` 时间戳相同、互不依赖（按目录名排序先于后者，已经应用了后者的库上 `prisma migrate deploy` 照常补上它）。`20261123000000_stored_files` 新建 `StoredFileKind`、`StoredFile`、`MaintenanceJob`，把 `NoteCoverAsset` 的行（连同使用中 / 删除中的状态，`size` 为 null）搬进 `StoredFile` 后删掉旧表，把已有的聊天图片（`Attachment.imageStoragePath`，大小取 `Attachment.size`，持有者取会话）登记为使用中，并给 `Attachment.imageStoragePath` 加索引；笔记文件、头像、图标等其余旧文件由上线后的盘点补登记（登记为使用中、未确认，下一轮清理确认引用后才开始计宽限期）。紧接着的 `20261123010000_note_cover_asset_view` 建同名兼容视图 `NoteCoverAsset`（只露出 `kind = 'NOTE_COVER'` 的行，插入经 `INSTEAD OF` 触发器写进 `StoredFile`，更新 / 删除直接落到 `StoredFile`），让部署窗口里仍在运行的旧版本照常上传封面、保存笔记和清理。新版本代码不用这个视图；新版本上线后 `20261123020000_drop_note_cover_asset_view` 删掉视图和触发器函数（`note_cover_asset_view_insert`）。
 
 聊天行右侧显示三点按钮，置顶/取消置顶、重命名、移动项目和删除确认均在三点菜单内。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

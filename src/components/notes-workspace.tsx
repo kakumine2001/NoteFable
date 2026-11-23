@@ -5,6 +5,7 @@ import { FileText, Plus, RefreshCw, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
+import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NotesHome } from "@/components/notes-home";
@@ -14,6 +15,7 @@ import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
 
@@ -96,7 +98,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const emptyImportRef = useRef<HTMLInputElement>(null);
   const emptyPage = active?.content.title === "Untitled" && !active.content.blocks.length;
   // ページの表示設定（全幅・小さな文字・字体）とロック。一覧の 1 件が持つ（/note-embed では開いたページの 1 件だけ）。
-  const settings = pageSettingsOf(activeId ? notes.pages.find((page) => page.id === activeId) : undefined);
+  const activeSummary = activeId ? notes.pages.find((page) => page.id === activeId) : undefined;
+  const settings = pageSettingsOf(activeSummary);
+  // ページの種類。一覧の 1 件（/note-embed では開いたページの 1 件だけ）か、読み込んだページの行が持つ。
+  const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
     ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}${split ? " is-split" : ""}`
@@ -136,7 +141,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
-    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div> : active && activeId && !listMode ? <>
+    ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
+    // ホワイトボード・スライドは、エディターができるまで読み取り専用の仮の画面（ノートのエディター・AI ボタンは出さない。保存もしない）。
+    : active && activeId && !listMode && isCanvasKind(activeKind) ? <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
+      title={active.content.title} icon={active.content.icon} data={active.page.data} />
+    : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
         onTitleKeyDown={(event) => {

@@ -352,6 +352,11 @@
 "language_effective" = "Current language";
 "language_no_results" = "No languages found.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Note";
+"page_kind_whiteboard" = "Whiteboard";
+"page_kind_slides" = "Slides";
+
 /* strings_pages.xml */
 "pg_favorites" = "Favorites";
 "pg_no_pages_inside" = "No pages inside";

@@ -354,7 +354,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 onDismissGuestLimit = viewModel::dismissGuestLimit,
                 onDismissUpgradeLimit = viewModel::dismissUpgradeLimit,
                 onDismissStorageLimit = viewModel::dismissStorageLimit,
-                loadNotes = { app.api.notes().pages.map { com.kakumine.notefable.data.ChatProjectNote(it.id, it.title, it.icon) } },
+                loadNotes = { app.api.notes().pages.map { com.kakumine.notefable.data.ChatProjectNote(it.id, it.title, it.icon, it.kind) } },
                 recentNotes = recentNotes,
                 onToggleRecentNote = viewModel::toggleRecentNote,
                 onAttachPages = viewModel::setAttachedPages,
@@ -381,7 +381,7 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                     onDismissNotice = notesViewModel::dismissNotice,
                     onMessage = { editor, message ->
                         when (message) {
-                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon)
+                            is EmbedMessage.Ready -> notesViewModel.onEditorReady(editor, message.id, message.title, message.icon, message.kind)
                             is EmbedMessage.Meta -> notesViewModel.onEditorMeta(editor, message.title, message.icon)
                             is EmbedMessage.SaveState -> notesViewModel.onEditorSaveState(editor, message.state)
                             EmbedMessage.Missing -> notesViewModel.onEditorMissing(editor)
@@ -478,9 +478,9 @@ fun NoteFableRoot(viewModel: ChatViewModel, accountViewModel: AccountViewModel, 
                 closeDrawer()
                 openChatLink(com.kakumine.notefable.data.ChatLink.Open(id, messageId), viewModel, notesViewModel)
             },
-            onOpenNote = { id, title, icon ->
+            onOpenNote = { id, title, icon, kind ->
                 closeDrawer()
-                notesViewModel.openNote(id, title, icon)
+                notesViewModel.openNote(id, title, icon, kind)
             },
         )
     }

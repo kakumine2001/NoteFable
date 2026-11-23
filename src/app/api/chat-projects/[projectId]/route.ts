@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: Context) {
       where: { id: projectId, userId: user.id },
       select: {
         id: true, name: true, instructions: true,
-        notes: { where: { note: { userId: user.id, deletedAt: null } }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { note: { select: { id: true, title: true, icon: true } } } },
+        notes: { where: { note: { userId: user.id, deletedAt: null } }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], select: { note: { select: { id: true, kind: true, title: true, icon: true } } } },
       },
     });
     if (!project) return NextResponse.json(NOT_FOUND, { status: 404 });

@@ -1,6 +1,6 @@
-import { clip, defang, MAX_CONTEXT_NOTE_CHARS, MAX_CONTEXT_TOTAL_CHARS } from "@/lib/chat-project-context";
+import { clip, defang, MAX_CONTEXT_NOTE_CHARS, MAX_CONTEXT_TOTAL_CHARS, pageContextText, pageKindMarker } from "@/lib/chat-project-context";
 import { msg } from "@/lib/i18n/translate";
-import { blocksToMarkdown } from "@/lib/note-markdown";
+import { pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { MAX_MESSAGE_NOTES } from "@/types/chat";
 
@@ -43,7 +43,7 @@ export async function liveOwnedNoteIds(userId: string, ids: string[]) {
   return ids.filter((id) => owned.has(id));
 }
 
-export type AttachedContextNote = { id: string; title: string; markdown: string; truncated: boolean; latest: boolean };
+export type AttachedContextNote = { id: string; kind?: PageKind; title: string; markdown: string; truncated: boolean; latest: boolean };
 
 // この会話で添付されたノートを、新しく添付した順に読み直す（同じノートは最新の添付だけ数える）。
 // latestMessageId の発言に添付したものには latest を付ける。excludeIds（プロジェクトの参照ノート）は重ねて渡さない。
@@ -76,7 +76,7 @@ export async function loadAttachedNotesContext(
   if (!order.length) return [];
   const notes = await prisma.notePage.findMany({
     where: { id: { in: order.map((item) => item.id) }, userId, deletedAt: null },
-    select: { id: true, title: true, blocks: true },
+    select: { id: true, kind: true, title: true, blocks: true, canvas: { select: { segments: true } } },
   });
   const byId = new Map(notes.map((note) => [note.id, note]));
   let remaining = MAX_CONTEXT_TOTAL_CHARS;
@@ -86,7 +86,8 @@ export async function loadAttachedNotesContext(
     if (!note) continue;
     let markdown: string;
     try {
-      markdown = blocksToMarkdown(note.blocks).trim();
+      // ホワイトボード・スライドは保存時に取り出した文字（本体は読まない）。
+      markdown = pageContextText(note).trim();
     } catch (error) {
       // 1 つのノートが読めなくても、ほかのノートは渡す。
       console.error("Failed to read an attached note", error instanceof Error ? error.message : error);
@@ -94,7 +95,7 @@ export async function loadAttachedNotesContext(
     }
     const { text, truncated } = clip(markdown, Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
     remaining -= text.length;
-    result.push({ id, title: note.title.trim() || "Untitled", markdown: text, truncated, latest });
+    result.push({ id, kind: pageKindOf(note), title: note.title.trim() || "Untitled", markdown: text, truncated, latest });
   }
   return result;
 }
@@ -111,7 +112,7 @@ export function formatAttachedNotes(notes: AttachedContextNote[], canReadNotes =
   ];
   notes.forEach((note, index) => {
     lines.push(
-      `=== Attached note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${note.latest ? " [attached to this message]" : ""}${note.truncated ? " [truncated]" : ""} ===`,
+      `=== Attached note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.latest ? " [attached to this message]" : ""}${note.truncated ? " [truncated]" : ""} ===`,
       defang(note.markdown) || (note.truncated ? "(left out because of the size limit)" : "(empty)"),
       `=== End of attached note ${index + 1} ===`,
     );

@@ -105,8 +105,9 @@ describe("trashed notes", () => {
     expect((await GET(request(), context)).status).toBe(404);
     const saved = await PATCH(request(), context);
     expect(saved.status).toBe(404);
-    expect(mocks.update.mock.calls[0][0].where.deletedAt).toBeNull();
-    expect(mocks.find).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null } });
+    // 種類を読む時点でゴミ箱のノートは見つからないので、書き込みまで進まない。
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.find).toHaveBeenLastCalledWith({ where: { id: "p1", userId: "mine", deletedAt: null }, select: { kind: true } });
   });
 });
 

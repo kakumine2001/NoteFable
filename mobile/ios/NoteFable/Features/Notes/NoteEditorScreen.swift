@@ -3,8 +3,9 @@ import UniformTypeIdentifiers
 
 // 笔记编辑页（Android ui/NoteEditor.kt 的 NoteEditorScreen）：原生顶栏 + WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
-// 笔记图标（表情 15 / 文件图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
-// 版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
+// 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
+// 分享（Globe 15）、间距 8、版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
+// 白板、幻灯片没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面。
 // “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
 
 @MainActor
@@ -86,11 +87,13 @@ struct NoteEditorScreen: View {
     private func topBar(_ state: NotesUiState, page: NotePageSummary?) -> some View {
         let notes = app.notes
         let actions = menuActions(state)
+        // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
+        let kind = page?.kind ?? open.kind
         return HStack(spacing: 0) {
             NFIconButton(Lucide.menu, label: L("open_menu")) { router.openDrawer() }
             NFIconButton(Lucide.chevronLeft, label: L("all_notes"), iconSize: 22) { notes.closeNote() }
                 .padding(.leading, 12)
-            NFIconTile(emoji: open.icon, fallback: Lucide.fileText, box: 20, glyph: 15)
+            NFIconTile(emoji: open.icon, fallback: pageKindIcon(kind), box: 20, glyph: 15)
                 .padding(.leading, 12)
             Text(open.title.isEmpty ? L("workspace") : open.title)
                 .font(.nf(14))
@@ -105,7 +108,8 @@ struct NoteEditorScreen: View {
                 lockButton(actions)
                     .padding(.leading, 8)
             }
-            if let page {
+            // 只有有公开视图的类型能公开（现在只有笔记；白板 #152、幻灯片 #149 以后再开），网页同样不显示分享按钮。
+            if let page, kind.features.publicShare {
                 shareButton(page)
                     .padding(.leading, 8)
             }

@@ -448,7 +448,7 @@ final class SidebarViewModel {
         switch await pages {
         case .success(let notes):
             return .success(ProjectSettingsLoaded(
-                detail: loaded, notes: notes.map { ChatProjectNote(id: $0.id, title: $0.title, icon: $0.icon) }
+                detail: loaded, notes: notes.map { ChatProjectNote(page: $0) }
             ))
         case .failure(let error):
             if error is CancellationError { return .failure(error) }

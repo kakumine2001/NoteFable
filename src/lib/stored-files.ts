@@ -13,7 +13,8 @@ import { AVATAR_ROOT } from "@/lib/user-profile";
 // 1. 容量の上限: 利用者ごとに行の size を足して数え、新しいファイルの前に空きを確かめる（usage-plans.ts の STORAGE_LIMITS）。
 // 2. 後片付け: どこからも参照されなくなったファイルを、猶予（FILE_GRACE_MS）のあとで消す（collectUnusedFiles）。
 // ファイルは必ず「行を作ってから書く」。書く前に落ちても行だけが残り（参照がないので後片付けが消す）、記録のないファイルは生まれない。
-// 新しい種類のファイル（ホワイトボードやスライドの画像など）を置くときは、StoredFileKind に種類を足し、
+// ホワイトボード・スライドの画像はノートと同じ note-files（NOTE_FILE）に置き、本体と履歴の本体を NOTE_FILE_SOURCES で調べる。
+// 新しい種類のファイルを置くときは、StoredFileKind に種類を足し、
 // STORED_FILE_PREFIXES に保存先、REFERENCE_CHECKS（ノートと同じ参照の仕方なら NOTE_FILE_SOURCES）に参照の調べ方を足す。
 // 置くときは storeFile、保存のたびに使用中へ戻すのは claimStoredFiles を使う。docs/architecture/database.md の StoredFile。
 
@@ -164,6 +165,22 @@ export async function claimNoteFiles(tx: Db, blocks: unknown, userId: string) {
   await claimStoredFiles(tx, noteFilePaths(blocks), userId);
 }
 
+// ホワイトボード・スライドの本体（NoteCanvas.data）が参照するファイルを、DB の中で取り出して使用中に戻す（最大 2 MB の本体をアプリに読み込まない）。
+// 複製のように本体を DB の中で写すときに、写す前に呼ぶ（保存・作成・復元は validateCanvasData が集めたパスを claimStoredFiles に渡す）。
+// 行を書き換えるので、写している間に元のページからファイルが外されても、後片付けの「削除中」への切り替えはこの複製の確定を待つ。
+export async function claimCanvasFiles(tx: Db, noteIds: string[], userId: string) {
+  if (!noteIds.length) return;
+  await tx.$executeRaw(Prisma.sql`
+    UPDATE ${table("StoredFile")} f SET "releasedAt" = NULL
+    WHERE f."userId" = ${userId} AND f."kind" = 'NOTE_FILE' AND f."deletingAt" IS NULL AND f."releasedAt" IS NOT NULL
+      AND lower(substring(f."path" from ${NOTE_FILE_ID_SQL})) IN (
+        SELECT lower(m[1]) FROM ${table("NoteCanvas")} c
+        JOIN ${table("NotePage")} p ON p."id" = c."noteId" AND p."userId" = ${userId}
+        CROSS JOIN LATERAL regexp_matches(c."data"::text, ${NOTE_FILE_REFERENCE}, 'gi') AS m
+        WHERE c."noteId" IN (${Prisma.join(noteIds)})
+      )`);
+}
+
 // ---------- 参照の確認 ----------
 
 type Candidate = { path: string; userId: string | null; kind: StoredFileKind };
@@ -174,12 +191,17 @@ const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
 // 本文の JSON を文字列として探す（エンコードの有無・大文字小文字を問わない）。UUID はファイルごとに違うので取り違えない。
 export const NOTE_FILE_REFERENCE = "note-files(?:%2F|/)[a-z0-9]{1,64}(?:%2F|/)([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})";
 const NOTE_FILE_ID = /^note-files\/[a-z0-9]{1,64}\/([0-9a-f-]{36})\./;
+// 同じ取り出しを SQL の substring(... from ...) で使う形（括弧の中が返る）。
+const NOTE_FILE_ID_SQL = "^note-files/[a-z0-9]{1,64}/([0-9a-f-]{36})\\.";
 
 // ノートのファイルを参照しうる場所（持ち主の行だけを見る。ゴミ箱のノートと編集履歴も、復元で戻るので参照に数える）。
 // 白板やスライドなど、別の表にファイルの URL を持つ内容を足したら、ここにその表を足す。
 export const NOTE_FILE_SOURCES: ((userId: string) => Prisma.Sql)[] = [
   (userId) => Prisma.sql`SELECT "blocks"::text AS body FROM ${table("NotePage")} WHERE "userId" = ${userId}`,
   (userId) => Prisma.sql`SELECT "blocks"::text AS body FROM ${table("NoteRevision")} WHERE "userId" = ${userId}`,
+  // ホワイトボード・スライドの本体（NoteCanvas は userId を持たないので、ページで持ち主を見る）と、その編集履歴の本体。
+  (userId) => Prisma.sql`SELECT c."data"::text AS body FROM ${table("NoteCanvas")} c JOIN ${table("NotePage")} p ON p."id" = c."noteId" WHERE p."userId" = ${userId}`,
+  (userId) => Prisma.sql`SELECT "data"::text AS body FROM ${table("NoteRevision")} WHERE "userId" = ${userId} AND "data" IS NOT NULL`,
   // 適用を待っている AI の提案（チャットの画像をノート用にコピーしたもの）。適用・破棄したものは数えない。
   (userId) => Prisma.sql`SELECT "payload"::text AS body FROM ${table("NoteProposal")} WHERE "userId" = ${userId} AND "status" = 'PENDING'`,
 ];

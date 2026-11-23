@@ -1,6 +1,6 @@
 "use client";
 
-import { FileText, Loader2, MessageSquareText, Paperclip, Search, X } from "lucide-react";
+import { Loader2, MessageSquareText, Paperclip, Search, X } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import "@/components/search-dialog.css";
@@ -11,6 +11,8 @@ import { useI18n } from "@/components/i18n-provider";
 import type { TextDirection } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
+import { isCanvasKind, PAGE_KIND_LABELS, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 
 type Result = NoteSearchResult | ChatSearchResult;
 // key は「どの検索条件の結果か」。data が null なら、その条件の検索に失敗した。
@@ -98,7 +100,7 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
   id: string; index: number; result: Result; terms: string[]; projectName?: string; active: boolean; onHover: (index: number) => void; onSelect: (result: Result) => void;
 }) {
   const { t, tag } = useI18n();
-  const icon = result.kind === "note" ? <NoteIcon icon={result.icon} fallback={<FileText size={16} />} /> : result.icon ?? <MessageSquareText size={16} />;
+  const icon = result.kind === "note" ? <NoteIcon icon={result.icon} fallback={<PageKindIcon kind={result.pageKind} size={16} />} /> : result.icon ?? <MessageSquareText size={16} />;
   const fileName = result.kind === "chat" ? result.attachmentName : null;
   // 添付ファイルの本文に当たったときは、話し手ではなくファイル名を示す。
   const speaker = result.kind === "chat" && !fileName && result.snippet && result.role ? (result.role === "USER" ? t("You: ") : t("NoteFable: ")) : "";
@@ -111,6 +113,8 @@ function ResultRow({ id, index, result, terms, projectName, active, onHover, onS
         <span className="search-row-head">
           <span className="search-row-title"><Highlight text={result.title} terms={terms} /></span>
           {projectName && <span className="search-row-project" title={projectName}>{projectName}</span>}
+          {/* ホワイトボード・スライドは、開くと何が出るか分かるよう種類の名前を添える（ノートは既定なので付けない）。 */}
+          {result.kind === "note" && isCanvasKind(result.pageKind) && <span className="search-row-project">{t(PAGE_KIND_LABELS[result.pageKind])}</span>}
         </span>
         {result.snippet && (
           <span className="search-row-snippet">
@@ -199,7 +203,8 @@ function SearchPanel({ view, projects, currentProjectId, onClose, onOpenChat, on
   function select(result: Result) {
     // 先に閉じてから移動する（移動の履歴操作は、シートを閉じる処理より前に走らせる）。
     onClose();
-    if (result.kind === "note") onOpenNote(result.id, result.blockId ?? undefined);
+    // 一致した場所へ移れるのはエディターがある種類だけ（ホワイトボード・スライドの要素・ページへの移動は各エディターで足す）。
+    if (result.kind === "note") onOpenNote(result.id, pageKindFeatures(pageKindOf({ kind: result.pageKind })).editor ? result.blockId ?? undefined : undefined);
     else onOpenChat(result.id, result.messageId ?? undefined);
   }
 

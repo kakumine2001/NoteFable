@@ -64,9 +64,9 @@ describe("loadAttachedNotesContext", () => {
     ]);
     const notes = await loadAttachedNotesContext("user", "session", "m3", ["project-note"]);
     expect(notes).toEqual([
-      { id: "b", title: "Beta", markdown: "beta", truncated: false, latest: true },
-      { id: "a", title: "Untitled", markdown: "alpha", truncated: false, latest: true },
-      { id: "c", title: "Gamma", markdown: "gamma", truncated: false, latest: false },
+      { id: "b", kind: "note", title: "Beta", markdown: "beta", truncated: false, latest: true },
+      { id: "a", kind: "note", title: "Untitled", markdown: "alpha", truncated: false, latest: true },
+      { id: "c", kind: "note", title: "Gamma", markdown: "gamma", truncated: false, latest: false },
     ]);
     // 本人の、ゴミ箱に入っていないノートだけを読む。
     expect(mocks.findRefs.mock.calls[0][0].where).toEqual({ message: { sessionId: "session", active: true }, note: { userId: "user", deletedAt: null } });
@@ -78,6 +78,15 @@ describe("loadAttachedNotesContext", () => {
     mocks.findNotes.mockResolvedValue([{ id: "project-note", title: "P", blocks: paragraph("p") }]);
     const notes = await loadAttachedNotesContext("user", "session", "m2", ["project-note", "other-project-note"]);
     expect(notes.map((note) => [note.id, note.latest])).toEqual([["project-note", true]]);
+  });
+
+  it("sends an attached whiteboard or slide deck as its extracted text and marks its kind", async () => {
+    mocks.findRefs.mockResolvedValue([{ messageId: "m", noteId: "w" }]);
+    mocks.findNotes.mockResolvedValue([{ id: "w", kind: "whiteboard", title: "Board", blocks: [], canvas: { segments: [{ id: "e1", text: "Sticky one" }, { id: "e2", text: "Sticky two" }] } }]);
+    const notes = await loadAttachedNotesContext("user", "session", "m");
+    expect(mocks.findNotes.mock.calls[0][0].select).toEqual({ id: true, kind: true, title: true, blocks: true, canvas: { select: { segments: true } } });
+    expect(notes).toEqual([{ id: "w", kind: "whiteboard", title: "Board", markdown: "- Sticky one\n- Sticky two", truncated: false, latest: true }]);
+    expect(formatAttachedNotes(notes)).toContain('=== Attached note 1: "Board" (id: w) [whiteboard] [attached to this message] ===');
   });
 
   it("skips a note it cannot convert and passes the others", async () => {
