@@ -10,13 +10,15 @@ const boundsOf = (element: Box) => [element.x, element.y, element.x + element.wi
 const relation = (element: Box, frame: Box) => boundsRelation(boundsOf(element), boundsOf(frame));
 
 describe("boundsRelation", () => {
-  it("tells inside, overlap and none apart, counting touching edges as overlap", () => {
+  it("tells inside, overlap and none apart; touching edges do not overlap (as in Excalidraw's frame export)", () => {
     expect(boundsRelation([10, 10, 20, 20], [0, 0, 100, 100])).toBe("inside");
     expect(boundsRelation([0, 0, 100, 100], [0, 0, 100, 100])).toBe("inside");
     expect(boundsRelation([90, 90, 120, 120], [0, 0, 100, 100])).toBe("overlap");
-    expect(boundsRelation([100, 0, 150, 50], [0, 0, 100, 100])).toBe("overlap");
-    expect(boundsRelation([101, 0, 150, 50], [0, 0, 100, 100])).toBe("none");
+    expect(boundsRelation([100, 0, 150, 50], [0, 0, 100, 100])).toBe("none");
     expect(boundsRelation([0, -50, 50, -1], [0, 0, 100, 100])).toBe("none");
+    // 枠の上の辺に重ねた水平線（高さ 0）は枠のページに描かれない。中を通る水平線は描かれる。
+    expect(boundsRelation([20, 0, 80, 0], [0, 0, 100, 100])).toBe("none");
+    expect(boundsRelation([20, 50, 80, 50], [0, 0, 100, 100])).toBe("inside");
   });
 });
 
@@ -101,6 +103,44 @@ describe("planPdfPages", () => {
   it("treats a child of a frame that is not on the board as a loose element", () => {
     const elements = [box("f", "frame", 0, 0, 300, 200), box("orphan", "freedraw", 600, 0, 50, 50, { frameId: "deleted-frame" })];
     expect(describePages(planPdfPages(elements, relation))).toEqual(["rest:orphan"]);
+  });
+
+  it("puts a child of a deleted frame on the last page even when it sits inside another frame (no frame page draws it)", () => {
+    const elements = [box("f", "frame", 0, 0, 300, 200), box("orphan", "freedraw", 10, 10, 50, 50, { frameId: "deleted-frame" })];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["rest:orphan"]);
+  });
+
+  it("keeps the outside part of an arrow that belongs to a frame (frames do not clip arrows)", () => {
+    const elements = [
+      box("f", "frame", 0, 0, 300, 200),
+      box("start", "rectangle", 20, 20, 60, 60, { frameId: "f" }),
+      box("arrow", "arrow", 80, 50, 420, 40, { frameId: "f" }),
+      box("end", "rectangle", 500, 40, 60, 60),
+    ];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f", "rest:arrow,end"]);
+  });
+
+  it("gives an otherwise empty frame a page when another frame's arrow reaches into it", () => {
+    const elements = [
+      box("f1", "frame", 0, 0, 300, 200),
+      box("f2", "frame", 400, 0, 300, 200),
+      box("arrow", "arrow", 100, 50, 350, 20, { frameId: "f1" }),
+    ];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f1", "frame:f2", "rest:arrow"]);
+  });
+
+  it("keeps an arrow that stays inside its own frame on that frame's page only", () => {
+    const elements = [box("f", "frame", 0, 0, 300, 200), box("arrow", "arrow", 20, 20, 200, 100, { frameId: "f" })];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f"]);
+  });
+
+  it("puts a line lying on a frame's edge on the last page (the frame page does not draw it)", () => {
+    const elements = [
+      box("f", "frame", 0, 0, 300, 200),
+      box("shape", "rectangle", 20, 20, 60, 60, { frameId: "f" }),
+      box("line", "line", 20, 0, 260, 0),
+    ];
+    expect(describePages(planPdfPages(elements, relation))).toEqual(["frame:f", "rest:line"]);
   });
 });
 

@@ -59,12 +59,36 @@ async function jpegOf(canvas: HTMLCanvasElement): Promise<PdfImage> {
   return { kind: "jpeg", data: new Uint8Array(await blob.arrayBuffer()), pixelWidth: canvas.width, pixelHeight: canvas.height };
 }
 
-// skipBlank のときは、真っ白（何も描かれていない）なら null を返す。
-async function canvasToPdfImage(canvas: HTMLCanvasElement, skipBlank: boolean): Promise<PdfImage | null> {
+type Rgb = readonly [number, number, number];
+
+// 画布の色を、書き出しと同じように白の上に合成した RGB にする（1×1 の canvas に塗って読む。透明は白）。
+function backgroundRgb(color: string): Rgb {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  const context = canvas.getContext("2d");
+  if (!context) return [255, 255, 255];
+  context.fillStyle = color || "#ffffff";
+  context.fillRect(0, 0, 1, 1);
+  const [red, green, blue] = rgbaToRgb(context.getImageData(0, 0, 1, 1).data);
+  return [red, green, blue];
+}
+
+// 大きな canvas でも一度に全部を読まず、帯に分けて画布の色だけかを見る（JPEG にするときは RGB の配列を作らないため）。
+function canvasIsBlank(context: CanvasRenderingContext2D, width: number, height: number, background: Rgb) {
+  const rows = Math.max(1, Math.floor(1_000_000 / Math.max(1, width)));
+  for (let top = 0; top < height; top += rows) {
+    if (!isBlankRgb(rgbaToRgb(context.getImageData(0, top, width, Math.min(rows, height - top)).data), background)) return false;
+  }
+  return true;
+}
+
+// blank（画布の色）を渡したときは、その色だけ（何も描かれていない）なら null を返す。
+async function canvasToPdfImage(canvas: HTMLCanvasElement, blank: Rgb | null): Promise<PdfImage | null> {
   const context = canvas.getContext("2d");
   if (context && typeof CompressionStream !== "undefined") {
     const rgb = rgbaToRgb(context.getImageData(0, 0, canvas.width, canvas.height).data);
-    if (skipBlank && isBlankRgb(rgb)) return null;
+    if (blank && isBlankRgb(rgb, blank)) return null;
     const stream = new Blob([rgb as BlobPart]).stream().pipeThrough(new CompressionStream("deflate"));
     const data = new Uint8Array(await new Response(stream).arrayBuffer());
     const flate: PdfImage = { kind: "flate", data, pixelWidth: canvas.width, pixelHeight: canvas.height };
@@ -72,22 +96,25 @@ async function canvasToPdfImage(canvas: HTMLCanvasElement, skipBlank: boolean): 
     const jpeg = await jpegOf(canvas);
     return jpeg.data.byteLength * 2 < data.byteLength ? jpeg : flate;
   }
+  if (blank && context && canvasIsBlank(context, canvas.width, canvas.height, blank)) return null;
   return jpegOf(canvas);
 }
 
 // 要素と枠の外接矩形の関係（ページ割りに使う。Excalidraw の枠の書き出しも外接矩形の重なりで中身を選ぶ）。
-function frameRelation() {
+// 外接矩形は白板の全要素の表と一緒に求める（矢印の文字も入る。要素 1 つだけで求めると、文字の無い外接矩形が Excalidraw の表に残る）。
+function frameRelation(scene: readonly NonDeletedExcalidrawElement[]) {
+  const elementsMap = new Map(scene.map((element) => [element.id, element])) as unknown as Parameters<typeof getCommonBounds>[1];
   const cache = new Map<string, readonly [number, number, number, number]>();
   const bounds = (element: NonDeletedExcalidrawElement) => {
     let value = cache.get(element.id);
-    if (!value) { value = getCommonBounds([element]); cache.set(element.id, value); }
+    if (!value) { value = getCommonBounds([element], elementsMap); cache.set(element.id, value); }
     return value;
   };
   return (element: NonDeletedExcalidrawElement, frame: NonDeletedExcalidrawElement): FrameRelation => boundsRelation(bounds(element), bounds(frame));
 }
 
-// PDF の 1 ページを描く。枠のページで、描いた結果が真っ白なら null（外接矩形だけが枠に重なっていた）。
-async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<NonDeletedExcalidrawElement>, elements: readonly NonDeletedExcalidrawElement[], files: BinaryFiles): Promise<PdfPage | null> {
+// PDF の 1 ページを描く。枠のページで、描いた結果が画布の色だけなら null（外接矩形だけが枠に重なっていた）。
+async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<NonDeletedExcalidrawElement>, elements: readonly NonDeletedExcalidrawElement[], files: BinaryFiles, background: Rgb): Promise<PdfPage | null> {
   const frame = page.kind === "frame" ? page.frame as ExcalidrawFrameLikeElement : null;
   // 実際に使った倍率を覚えておき、元の大きさ（1 CSS ピクセル = 0.75 ポイント）のページにする。
   let used = 2;
@@ -99,7 +126,7 @@ async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<Non
     config: { theme: "light", scale: (width: number, height: number) => (used = pick(width, height)), ...(frame ? { exportingFrame: frame as never, padding: 0 } : { padding: PADDING }) },
   });
   try {
-    const image = await canvasToPdfImage(canvas, frame !== null);
+    const image = await canvasToPdfImage(canvas, frame ? background : null);
     return image && { width: (canvas.width / used) * 0.75, height: (canvas.height / used) * 0.75, image };
   } finally {
     // 大きな canvas はすぐ放す（スマホのメモリ）。
@@ -110,7 +137,8 @@ async function renderPdfPage(api: ExcalidrawImperativeAPI, page: PdfPagePlan<Non
 
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {
   // 書き出しでは消える、大きさの無い要素（点 1 つの線など）しか無いときも「空」と言う（何も描かれない画像を作らない）。
-  const elements = api.getSceneElements().filter((element) => !isInvisiblySmallElement(element));
+  const scene = api.getSceneElements();
+  const elements = scene.filter((element) => !isInvisiblySmallElement(element));
   if (!elements.length) throw new Error(msg("This whiteboard is empty."));
   const mimeType = MIME[format];
   const fileName = exportFileName(title, format);
@@ -126,12 +154,13 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
   }
   const pages: PdfPage[] = [];
   const files = api.getFiles();
-  for (const page of planPdfPages(elements, frameRelation())) {
-    const rendered = await renderPdfPage(api, page, elements, files);
+  const background = backgroundRgb(api.getAppState().viewBackgroundColor);
+  for (const page of planPdfPages(elements, frameRelation(scene))) {
+    const rendered = await renderPdfPage(api, page, elements, files, background);
     if (rendered) pages.push(rendered);
   }
-  // 枠のページがどれも真っ白で、枠の外にも何も無かったときは、全体を 1 ページにする（空のファイルにしない）。
-  if (!pages.length) pages.push((await renderPdfPage(api, { kind: "all" }, elements, files))!);
+  // 枠のページがどれも画布の色だけで、枠の外にも何も無かったときは、全体を 1 ページにする（空のファイルにしない）。
+  if (!pages.length) pages.push((await renderPdfPage(api, { kind: "all" }, elements, files, background))!);
   const bytes = buildPdf(pages, { title: title === "Untitled" ? undefined : title });
   return { blob: new Blob([bytes as BlobPart], { type: mimeType }), fileName, mimeType };
 }

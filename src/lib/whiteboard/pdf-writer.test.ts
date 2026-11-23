@@ -64,4 +64,12 @@ describe("isBlankRgb", () => {
     expect(isBlankRgb(rgbaToRgb(new Uint8Array([30, 30, 30, 0, 0, 0, 0, 0])))).toBe(true);
     expect(isBlankRgb(rgbaToRgb(new Uint8Array([30, 30, 30, 0, 0, 0, 0, 8])))).toBe(false);
   });
+
+  it("compares against the canvas color when one is given", () => {
+    const cream = [255, 252, 232] as const;
+    expect(isBlankRgb(new Uint8Array([255, 252, 232, 255, 252, 232]), cream)).toBe(true);
+    expect(isBlankRgb(new Uint8Array([255, 252, 232, 30, 30, 30]), cream)).toBe(false);
+    // 白い図形を色の付いた画布に置いたページは白紙ではない。
+    expect(isBlankRgb(new Uint8Array([255, 255, 255, 255, 255, 255]), cream)).toBe(false);
+  });
 });
