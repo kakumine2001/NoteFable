@@ -123,5 +123,8 @@ class PageKindTest {
         assertEquals(EmbedMessage.Ready("p", "T", null, null), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"T","icon":null}}"""))
         assertEquals(EmbedMessage.Ready("p", "T", null, Note), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"T","icon":null,"kind":"mindmap"}}"""))
         assertEquals(EmbedMessage.Ready("p", "T", null, null), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"T","icon":null,"kind":{"x":1}}}"""))
+        for (raw in listOf("null", "3", "true")) {
+            assertEquals(raw, EmbedMessage.Ready("p", "T", null, null), EmbedMessage.parse("""{"type":"ready","page":{"id":"p","title":"T","icon":null,"kind":$raw}}"""))
+        }
     }
 }

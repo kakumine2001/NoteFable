@@ -487,6 +487,28 @@ final class NotesViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testAPageOpenedFromALinkKeepsItsKindAndAConflictCopyKeepsItOrTakesTheEditors() async {
+        let backend = NotesTestBackend()
+        backend.pages.append(NotePageSummary(id: "s", title: "Deck", icon: nil, createdAt: "2026-11-13T00:00:00Z", kind: .slides))
+        backend.pages.append(NotePageSummary(id: "old", title: "Board", icon: nil, createdAt: "2026-11-13T00:00:00Z"))
+        let vm = await notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        // 点回答里的页面链接打开幻灯片：类型取列表的。
+        vm.openNoteFromLink("s")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("s", "Deck", nil, kind: .slides))
+        // 冲突后网页把内容另存成新页面（ready 的 id 变了）：旧网页不带类型时保留打开时的类型。
+        vm.onEditorMessage("s", .ready(id: "s-copy", title: "Deck (1)", icon: nil))
+        XCTAssertEqual(vm.state.open, OpenNote("s-copy", "Deck (1)", nil, editor: "s", kind: .slides))
+        await notesSettle()
+        // 带类型时以网页的为准（列表是旧服务端读的、仍是笔记时也一样）。
+        vm.openNote("old")
+        await notesSettle()
+        vm.onEditorMessage("old", .ready(id: "old-copy", title: "Board (1)", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.open, OpenNote("old-copy", "Board (1)", nil, editor: "old", kind: .whiteboard))
+    }
+
+    @MainActor
     func testIdentityChangeSavesTheOpenNoteFirstAndDropsAPendingNavigation() async {
         let vm = await notesVm()
         vm.openNote("a")

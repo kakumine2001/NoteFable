@@ -136,6 +136,13 @@ final class PageKindTests: XCTestCase {
             EmbedMessage.parse(#"{"type":"ready","page":{"id":"p","title":"T","icon":null,"kind":{"x":1}}}"#),
             .ready(id: "p", title: "T", icon: nil, kind: nil)
         )
+        for raw in ["null", "3", "true"] {
+            XCTAssertEqual(
+                EmbedMessage.parse(#"{"type":"ready","page":{"id":"p","title":"T","icon":null,"kind":"# + raw + "}}"),
+                .ready(id: "p", title: "T", icon: nil, kind: nil),
+                raw
+            )
+        }
     }
 
     func testThePageMenuOffersOnlyTheLockToggleForWhiteboardsAndSlides() {
