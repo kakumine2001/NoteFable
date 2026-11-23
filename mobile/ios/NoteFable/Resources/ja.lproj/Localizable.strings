@@ -356,6 +356,14 @@
 "page_kind_note" = "ノート";
 "page_kind_whiteboard" = "ホワイトボード";
 "page_kind_slides" = "スライド";
+"ws_new" = "新規作成";
+"ws_new_page" = "新しいページ";
+"ws_new_page_in" = "%1$s に新しいページ";
+"ws_section_whiteboards" = "ホワイトボード";
+"ws_new_slides" = "新しいスライド";
+"ws_new_whiteboard" = "新しいホワイトボード";
+"ws_all_types" = "すべての種類";
+"ws_page_type" = "ページの種類";
 
 /* strings_pages.xml */
 "pg_favorites" = "お気に入り";

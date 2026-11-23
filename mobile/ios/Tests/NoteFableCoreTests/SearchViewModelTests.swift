@@ -32,7 +32,7 @@ private final class FakeSearch: SearchBackend {
         )
     }
 
-    func search(query: String, scope: SearchScope, projectId: String?) async throws -> SearchResponse {
+    func search(query: String, scope: SearchScope, projectId: String?, kind: String?) async throws -> SearchResponse {
         calls.append(Call(query: query, scope: scope, projectId: projectId))
         if gated { await gate(query).pass() }
         if fail { throw TestIOError(message: "down") }

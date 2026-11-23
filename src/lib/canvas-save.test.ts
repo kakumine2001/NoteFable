@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "./canvas-save";
 import { NoteSaveQueue } from "./note-save-queue";
-import { PAGE_KIND_FEATURES } from "./page-kinds";
 import type { NotePage } from "@/types/notes";
 
 const deck = { slides: [{ id: "s1", elements: [{ id: "e1", text: "Hello" }] }] };

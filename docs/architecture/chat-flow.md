@@ -380,9 +380,10 @@ data: {"activity":{"type":"context","id":"project-context","projectName":"…","
 
 ## 跨 Chats / Notes 搜索
 
-`GET /api/search?q=<文字>&scope=all|chats|notes[&projectId=<项目 ID>]`（`src/app/api/search/route.ts`，查询在 `src/lib/search.ts`，表记折叠在 `src/lib/search-fold.ts`，共享类型在 `src/types/search.ts`）。
+`GET /api/search?q=<文字>&scope=all|chats|notes[&projectId=<项目 ID>][&kind=note|slides|whiteboard]`（`src/app/api/search/route.ts`，查询在 `src/lib/search.ts`，表记折叠在 `src/lib/search-fold.ts`，共享类型在 `src/types/search.ts`）。
 
 - `scope` 缺省是 `all`，存在但为空或未知的值返回 400。
+- `kind` 只对 Notes 生效：关键词检索在 SQL 里加 `p."kind"::text = <kind>`，语义检索在算相似度之前只留这个类型的块（没有这个类型的已索引块时不调用嵌入接口）；空是不筛选，未知的值 400 “Unknown page kind.”。三端的检索面板在 Notes 标签页、能新建的类型有两种以上时显示类型筛选（[notes-flow.md](notes-flow.md#分区与新建168)）。
 - `q` 去掉首尾空白后必须是 1–100 字符。先按下文“表记折叠”折叠，再按空白（含全角空格）切成词，去重后最多 8 个，**所有词**都要命中。`%`、`_` 按字面处理：折叠发生在 LIKE 转义之前，所以全角 `％` 先变成 `%`。NUL 会被去掉，否则 PostgreSQL 会报错。
 - `projectId` 可省略，只对 Chats 生效，Notes 不受影响（`scope=notes` 根本不查会话）。空串等于不过滤；其他值必须匹配 `/^[A-Za-z0-9_-]{1,64}$/`（`SEARCH_PROJECT_ID_PATTERN`），否则 400 `Project id is not valid.`。不属于当前用户的项目 ID 不报错，只是没有会话命中。
 - 响应 `{ query, notes, chats }`，Notes 的每条带 `pageKind`（`note` / `whiteboard` / `slides`；`kind` 是结果的分类 `note` / `chat`），白板 / 幻灯片的 `blockId` 是命中的元素 / 页。每类最多 15 条，没请求的那一类是空数组；全部限定在当前用户，`Cache-Control: no-store`，数据库不可用返回 503（正文里仍带空的 `notes`、`chats`）。

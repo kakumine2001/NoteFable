@@ -22,13 +22,13 @@ class SearchApiTest {
             )
             server.enqueue(MockResponse().setBody("""{"query":"x","notes":[],"chats":[]}"""))
             val api = SearchApi(server.http())
-            val result = api.search("a b&c", SearchScope.Chats, "p1")
+            val result = api.search("a b&c", SearchScope.Chats, "p1", null)
             val first = server.takeRequest(1, TimeUnit.SECONDS)!!
             assertEquals("/api/search?q=a%20b%26c&scope=chats&projectId=p1", first.path)
             assertEquals("b1", result.notes.single().blockId)
             assertEquals("m1", result.chats.single().messageId)
             assertEquals("f.pdf", result.chats.single().attachmentName)
-            api.search("x", SearchScope.All, null)
+            api.search("x", SearchScope.All, null, null)
             assertEquals("/api/search?q=x&scope=all", server.takeRequest(1, TimeUnit.SECONDS)!!.path)
         }
     }
@@ -37,7 +37,7 @@ class SearchApiTest {
     fun `a server error throws`() = runBlocking<Unit> {
         MockWebServer().use { server ->
             server.enqueue(MockResponse().setResponseCode(503).setBody("""{"error":"Database is unavailable.","notes":[],"chats":[]}"""))
-            SearchApi(server.http()).search("x", SearchScope.All, null)
+            SearchApi(server.http()).search("x", SearchScope.All, null, null)
         }
     }
 }

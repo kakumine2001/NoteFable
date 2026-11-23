@@ -79,7 +79,7 @@ final class PageKindTests: XCTestCase {
             {"kind":"note","pageKind":"timeline","id":"future","title":"Future","icon":null,"snippet":"","blockId":null,"updatedAt":""}
         ],"chats":[]}
         """#)
-        let notes = try await SearchApi(http: makeApi(server).http).search(query: "x", scope: .notes, projectId: nil).notes
+        let notes = try await SearchApi(http: makeApi(server).http).search(query: "x", scope: .notes, projectId: nil, kind: nil).notes
         XCTAssertEqual(notes.map(\.pageKind), [.slides, .whiteboard, .note, .note])
         XCTAssertEqual(notes.first?.blockId, "slide-2")
     }

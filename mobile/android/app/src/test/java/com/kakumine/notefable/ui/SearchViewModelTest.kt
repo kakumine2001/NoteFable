@@ -31,7 +31,7 @@ class SearchViewModelTest {
     @Test
     fun `waits 250ms after typing stops and searches only the latest input`() = runTest {
         val calls = mutableListOf<Call>()
-        val vm = SearchViewModel(backgroundScope, { q, s, p -> calls += Call(q, s, p); response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, s, p, _ -> calls += Call(q, s, p); response(q) })
         vm.setInput("ap")
         advanceTimeBy(200)
         vm.setInput("  api  ")
@@ -53,7 +53,7 @@ class SearchViewModelTest {
     @Test
     fun `keeps the previous results while a new search runs and drops late stale answers`() = runTest {
         val gates = mutableMapOf<String, CompletableDeferred<SearchResponse>>()
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> gates.getOrPut(q) { CompletableDeferred() }.await() })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> gates.getOrPut(q) { CompletableDeferred() }.await() })
         vm.setInput("a")
         advanceTimeBy(300)
         gates["a"]!!.complete(response("a"))
@@ -77,7 +77,7 @@ class SearchViewModelTest {
     fun `a failed search shows the failure and retry searches again`() = runTest {
         var fail = true
         var count = 0
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> count++; if (fail) throw IOException("down") else response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> count++; if (fail) throw IOException("down") else response(q) })
         vm.setInput("x")
         advanceTimeBy(300)
         runCurrent()
@@ -95,7 +95,7 @@ class SearchViewModelTest {
     @Test
     fun `the project filter applies only on the Chats tab and only to existing projects`() = runTest {
         val calls = mutableListOf<Call>()
-        val vm = SearchViewModel(backgroundScope, { q, s, p -> calls += Call(q, s, p); response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, s, p, _ -> calls += Call(q, s, p); response(q) })
         vm.setProjects(projects)
         vm.setInput("x")
         vm.setProject("p1")
@@ -120,7 +120,7 @@ class SearchViewModelTest {
     @Test
     fun `empty input stays idle without a request`() = runTest {
         var count = 0
-        val vm = SearchViewModel(backgroundScope, { q, _, _ -> count++; response(q) })
+        val vm = SearchViewModel(backgroundScope, { q, _, _, _ -> count++; response(q) })
         vm.setInput("   ")
         advanceTimeBy(1000)
         runCurrent()

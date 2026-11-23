@@ -35,6 +35,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -77,6 +78,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
@@ -97,6 +99,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import kotlin.math.roundToInt
 
 // 网页笔记界面（notes-sidebar / notes-home / note-group-dialogs / note-trash-dialog）的复刻。
 // 数值来自网页在 412x915 手机视口下的实测，对照表见 docs/architecture/android-native.md。
@@ -202,10 +205,60 @@ private class NoteRowDrag(val drag: DragState, val state: NotesUiState, val busy
         state.reorderError?.takeIf { it.id == id && reorder.surface == surface }
 }
 
+// ---------------------------------------------------------------------------------------------
+// 工作区的分区与新建（网页 notes-sidebar / notes-home / new-page-button，#168）。能新建的类型（[NotesUiState.kinds]）只有笔记时，
+// 新建按钮和"+"和以前一样一点就建笔记；两种以上时点了开类型菜单（笔记 / 幻灯片 / 白板，与聊天的"…"菜单同一外框 [ActionsMenu]）。
+
+/** 分区的投放区的键（[DragState.zoneContainers] 里登记为无项目，[DragState.zoneAccepts] 只接受同一分区的页面）。 */
+private fun sectionZone(kind: PageKind) = "section:" + kind.wire
+
+/** 分区的名字（网页 PAGE_KIND_SECTION_LABELS）。 */
+@StringRes
+private fun sectionLabel(kind: PageKind): Int = when (kind) {
+    PageKind.Note -> R.string.notes
+    PageKind.Slides -> R.string.page_kind_slides
+    PageKind.Whiteboard -> R.string.ws_section_whiteboards
+}
+
+/** 一次建这个类型的按钮（网页 PAGE_KIND_NEW_LABELS）：分区的"+"、首页和空状态的新建按钮。 */
+@StringRes
+private fun newPageLabel(kind: PageKind): Int = when (kind) {
+    PageKind.Note -> R.string.new_note
+    PageKind.Slides -> R.string.ws_new_slides
+    PageKind.Whiteboard -> R.string.ws_new_whiteboard
+}
+
+/**
+ * 新建按钮外面的一层（网页 NewPageButton）：[kinds] 只有一种时 [content] 的点击直接建它，两种以上时在按钮下方开类型菜单。
+ * [label] 是菜单的读屏名字。
+ */
+@Composable
+private fun NewPageMenuAnchor(
+    kinds: List<PageKind>, label: String, onCreate: (PageKind) -> Unit, modifier: Modifier = Modifier,
+    content: @Composable (onClick: () -> Unit) -> Unit,
+) {
+    var anchor by remember { mutableStateOf<IntRect?>(null) }
+    var open by remember { mutableStateOf(false) }
+    Box(modifier.onGloballyPositioned { coords ->
+        val b = coords.boundsInWindow()
+        anchor = IntRect(b.left.roundToInt(), b.top.roundToInt(), b.right.roundToInt(), b.bottom.roundToInt())
+    }) {
+        content { if (kinds.size > 1) open = true else onCreate(kinds.firstOrNull() ?: PageKind.Note) }
+    }
+    val at = anchor
+    if (open && at != null) {
+        val close = { open = false }
+        ActionsMenu(at, label, close) {
+            kinds.forEach { kind -> MenuItem(stringResource(pageKindLabel(kind)), pageKindIcon(kind)) { close(); onCreate(kind) } }
+        }
+    }
+}
+
 @Composable
 fun NotesDrawerBody(
     state: NotesUiState,
-    onCreate: () -> Unit,
+    /** 新建 [kind] 的页面：[groupId] 是项目的"+"（null 是那个类型的分区）。 */
+    onCreate: (kind: PageKind, groupId: String?) -> Unit,
     onOpen: (String) -> Unit,
     onToggleGroup: (String) -> Unit,
     onMove: (NotePageSummary) -> Unit,
@@ -219,9 +272,11 @@ fun NotesDrawerBody(
     modifier: Modifier = Modifier,
     onSearch: () -> Unit = {},
     reorder: NoteReorder = NoteReorder.None,
-    /** 子页面的树：展开 / 收起、在这一篇里新建（网页 notes-sidebar 的箭头和"+"）。 */
+    /** 子页面的树：展开 / 收起、在这一篇里新建（网页 notes-sidebar 的箭头和"+"，能建几种类型时先选类型）。 */
     onToggleExpanded: (String) -> Unit = {},
-    onCreateInside: (NotePageSummary) -> Unit = {},
+    onCreateInside: (NotePageSummary, PageKind) -> Unit = { _, _ -> },
+    /** 折叠 / 展开分区（笔记 / 幻灯片 / 白板）。 */
+    onToggleSection: (PageKind) -> Unit = {},
     /** Favorites 行右侧的"从收藏中移除"。 */
     onUnfavorite: (NotePageSummary) -> Unit = {},
     /** 回收站上面的 "Import Markdown"（网页 notes-sidebar：打开文件选择器）。 */
@@ -232,19 +287,30 @@ fun NotesDrawerBody(
     val drag = remember(scroll) { DragState(scroll) }
     val rowDrag = NoteRowDrag(drag, state, busy, reorder, NoteListSurface.Drawer)
     val tree = NoteTreeActions(state, onOpen, onMove, onTrash, onChangeIcon, onToggleExpanded, onCreateInside)
+    val kinds = state.kinds
+    val sections = state.sections
+    // 分区里最上层的行只接受同一分区的页面放在前后（网页 data-drop-kind）；别处的行什么都接受。
+    SideEffect {
+        drag.rowAccepts.clear()
+        sections.forEach { section -> section.roots.forEach { drag.rowAccepts[it.id] = section.kind.wire } }
+    }
     Column(modifier) {
-        // "新笔记"（.sidebar-primary-action，手机）：上距 12、高 44、圆角 8、深色底，左对齐图标 16 + 间距 8 + 16/550 白字。
-        Row(
-            Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp).fillMaxWidth().height(44.dp)
-                .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0C1730), spotColor = Color(0x1F0C1730))
-                .clip(RoundedCornerShape(8.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
-                .clickable(enabled = !busy, onClick = onCreate)
-                .padding(horizontal = 11.2.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
-            Spacer(Modifier.width(8.dp))
-            Text(stringResource(R.string.new_note), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
+        // "新建"（.sidebar-primary-action，手机）：上距 12、高 44、圆角 8、深色底，左对齐图标 16 + 间距 8 + 16/550 白字。
+        // 只能建笔记时是"新笔记"（一点就建），能建几种类型时是"新建"，点了先选类型。
+        NewPageMenuAnchor(kinds, stringResource(R.string.ws_new_page), { kind -> onCreate(kind, null) },
+            Modifier.padding(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 4.dp).fillMaxWidth()) { open ->
+            Row(
+                Modifier.fillMaxWidth().height(44.dp)
+                    .shadow(1.dp, RoundedCornerShape(8.dp), ambientColor = Color(0x1F0C1730), spotColor = Color(0x1F0C1730))
+                    .clip(RoundedCornerShape(8.dp)).background(if (busy) Sm.Ink.copy(alpha = 0.6f) else Sm.Ink)
+                    .clickable(enabled = !busy, onClick = open)
+                    .padding(horizontal = 11.2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(if (kinds.size > 1) R.string.ws_new else R.string.new_note), color = Sm.OnInk, fontSize = 16.sp, fontWeight = FontWeight(550))
+            }
         }
         // Search 行（Batch 4）：网页侧栏里在"新建"按钮正下方。
         SidebarSearchRow(onSearch)
@@ -275,6 +341,7 @@ fun NotesDrawerBody(
                 GroupRow(
                     group, state.memberCount(group.id), open, onToggle = { onToggleGroup(group.id) }, onRename = { onRenameGroup(group) }, onDelete = { onDeleteGroup(group) },
                     modifier = Modifier.dropZone(drag.target == DropTarget.Into(group.id)).onGloballyPositioned { drag.zones[group.id] = it.boundsInWindow() },
+                    kinds = kinds, busy = busy, onCreate = { kind -> onCreate(kind, group.id) },
                 )
                 if (open) {
                     // .notes-group-members：左距 12、1px 竖线、内左距 4。
@@ -300,18 +367,29 @@ fun NotesDrawerBody(
                 Text(stringResource(R.string.em_note_icon_failed), color = Sm.Danger, fontSize = 12.sp, lineHeight = 16.sp,
                     modifier = Modifier.padding(horizontal = 8.dp).semantics { liveRegion = androidx.compose.ui.semantics.LiveRegionMode.Assertive })
             }
-            val notesLabel = stringResource(R.string.notes).uppercase()
-            // NOTES 标签同时是"移出项目"的投放区（网页 data-note-group-drop=""）。
-            Text(
-                notesLabel, style = roleLabelStyle(notesLabel),
-                modifier = Modifier.fillMaxWidth().dropZone(drag.target == DropTarget.Into(null))
-                    .onGloballyPositioned { drag.zones[""] = it.boundsInWindow() }
-                    .padding(start = 8.dp, end = 8.dp, top = 14.4.dp, bottom = 4.8.dp),
-            )
-            state.loosePages.forEach { page -> key(page.id) { NoteTree(page, busy, rowDrag, tree) } }
-            if (state.pages.isEmpty() && state.loaded) {
-                Text(stringResource(R.string.notes_list_empty), color = Sm.Muted, fontSize = 12.sp, lineHeight = 20.sp,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
+            // 分区（网页 notes-sidebar 的分区）：不在项目里的最上层页面按类型分开。标题同 PROJECTS（12 等宽大写灰字），后面是折叠箭头 13，
+            // 右侧 40 的"+"建这个类型。标题是"移出项目"的投放区，只接受同一分区的页面（别的类型不能放进来）。
+            sections.forEach { section ->
+                val zone = sectionZone(section.kind)
+                val open = section.kind !in state.collapsedSections
+                key(zone) {
+                    DisposableEffect(zone) {
+                        drag.zoneContainers[zone] = null
+                        drag.zoneAccepts[zone] = section.kind.wire
+                        onDispose { drag.zones.remove(zone); drag.zoneContainers.remove(zone); drag.zoneAccepts.remove(zone) }
+                    }
+                    SectionHeading(
+                        section.kind, open, busy, onToggle = { onToggleSection(section.kind) }, onCreate = { onCreate(section.kind, null) },
+                        modifier = Modifier.dropZone(drag.targetZone == zone).onGloballyPositioned { drag.zones[zone] = it.boundsInWindow() },
+                    )
+                }
+                if (open) {
+                    section.roots.forEach { page -> key(page.id) { NoteTree(page, busy, rowDrag, tree) } }
+                    if (section.kind == PageKind.Note && state.pages.isEmpty() && state.loaded) {
+                        Text(stringResource(R.string.notes_list_empty), color = Sm.Muted, fontSize = 12.sp, lineHeight = 20.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp))
+                    }
+                }
             }
         }
 
@@ -341,6 +419,8 @@ private fun SidebarAction(icon: List<String>, text: String, onClick: () -> Unit,
 private fun GroupRow(
     group: NoteGroupSummary, count: Int, open: Boolean, onToggle: () -> Unit, onRename: () -> Unit, onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    /** 项目的"+"（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。 */
+    kinds: List<PageKind> = listOf(PageKind.Note), busy: Boolean = false, onCreate: (PageKind) -> Unit = {},
 ) {
     Row(modifier.fillMaxWidth().heightIn(min = 44.dp).clip(RoundedCornerShape(6.4.dp)), verticalAlignment = Alignment.CenterVertically) {
         Row(
@@ -355,8 +435,30 @@ private fun GroupRow(
                 maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
             Text(count.toString(), color = Faint, fontSize = 12.sp, lineHeight = 16.sp)
         }
+        val newLabel = stringResource(R.string.ws_new_page_in, group.name)
+        NewPageMenuAnchor(kinds, newLabel, onCreate) { open -> RowAction(Lucide.Plus, 14.dp, newLabel, enabled = !busy, onClick = open) }
         RowAction(Lucide.Pencil, 13.dp, stringResource(R.string.rename_name, group.name), onRename)
         RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.delete_project_name, group.name), onDelete)
+    }
+}
+
+// 分区标题（网页 .notes-section-heading）：与 PROJECTS 同一行（左右 8、上距 9.6、"+" 40），名字后面是折叠箭头 13 浅灰，点名字折叠。
+@Composable
+private fun SectionHeading(kind: PageKind, open: Boolean, busy: Boolean, onToggle: () -> Unit, onCreate: () -> Unit, modifier: Modifier = Modifier) {
+    val name = stringResource(sectionLabel(kind))
+    val label = name.uppercase()
+    val toggleLabel = if (open) collapseLabel(name) else expandLabel(name)
+    Row(modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 9.6.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.weight(1f).heightIn(min = 40.dp).clip(RoundedCornerShape(4.dp)).clickable(onClick = onToggle)
+                .semantics { contentDescription = toggleLabel; role = Role.Button },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(label, style = roleLabelStyle(label), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+            Spacer(Modifier.width(4.8.dp))
+            LucideIcon(if (open) Lucide.ChevronDown else Lucide.ChevronRight, 13.dp, Faint)
+        }
+        IconSquare(Lucide.Plus, 15.dp, 40.dp, stringResource(newPageLabel(kind)), Sm.Muted) { if (!busy) onCreate() }
     }
 }
 
@@ -371,7 +473,7 @@ private class NoteTreeActions(
     val onTrash: (NotePageSummary) -> Unit,
     val onChangeIcon: (NotePageSummary, String?) -> Unit,
     val onToggle: (String) -> Unit,
-    val onCreateInside: (NotePageSummary) -> Unit,
+    val onCreateInside: (NotePageSummary, PageKind) -> Unit,
 ) {
     val openAncestors: Set<String> = state.open?.let { open -> state.ancestors(open.id).mapTo(HashSet()) { it.id } } ?: emptySet()
     fun isOpen(id: String, hasChildren: Boolean) = id in state.expanded || (hasChildren && id in openAncestors)
@@ -384,7 +486,7 @@ private fun NoteTree(page: NotePageSummary, busy: Boolean, rowDrag: NoteRowDrag,
     val kids = tree.state.children(page.id)
     val open = tree.isOpen(page.id, kids.isNotEmpty())
     NoteRow(page, tree.state.open?.id == page.id, busy, rowDrag, tree.onOpen, tree.onMove, tree.onTrash, tree.onChangeIcon,
-        open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { tree.onCreateInside(page) })
+        open = open, onToggle = { tree.onToggle(page.id) }, onCreateInside = { kind -> tree.onCreateInside(page, kind) })
     if (open) {
         Column(
             Modifier.padding(start = 12.dp).fillMaxWidth()
@@ -433,7 +535,7 @@ private fun NoteRow(
     onChangeIcon: (NotePageSummary, String?) -> Unit,
     open: Boolean = false,
     onToggle: () -> Unit = {},
-    onCreateInside: () -> Unit = {},
+    onCreateInside: (PageKind) -> Unit = {},
 ) {
     val drag = rowDrag.drag
     val target = drag.target as? DropTarget.Row
@@ -497,7 +599,8 @@ private fun NoteRow(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                RowAction(Lucide.Plus, 14.dp, stringResource(R.string.pg_add_page_inside_title, page.title), enabled = !busy) { onCreateInside() }
+                val insideLabel = stringResource(R.string.pg_add_page_inside_title, page.title)
+                NewPageMenuAnchor(rowDrag.state.kinds, insideLabel, onCreateInside) { open -> RowAction(Lucide.Plus, 14.dp, insideLabel, enabled = !busy, onClick = open) }
                 RowAction(Lucide.FolderInput, 14.dp, stringResource(R.string.move_title_to_project, page.title), enabled = !busy) { onMove(page) }
                 RowAction(Lucide.Trash2, 14.dp, stringResource(R.string.move_title_to_trash, page.title), enabled = !busy) { onTrash(page) }
             }
@@ -520,6 +623,8 @@ private fun Modifier.noteReorderDrag(page: NotePageSummary, rowDrag: NoteRowDrag
     onStart = {
         rowDrag.reorder.surface = rowDrag.surface
         rowDrag.reorder.onDismissError()
+        // 拖的这一篇放得进哪个分区（网页行的 data-page-kind）。
+        rowDrag.drag.draggingTag = rowDrag.state.sectionKindOf(page).wire
     },
     onDrop = { rowDrag.drag.drop(page.id, rowDrag.reorder) },
 )
@@ -593,7 +698,8 @@ fun NotesHome(
     state: NotesUiState,
     onSwitch: (Workspace) -> Unit,
     onOpen: (String) -> Unit,
-    onCreate: () -> Unit,
+    /** 新建这个类型的页面（首页和空状态的新建按钮，能建的类型各一个）。 */
+    onCreate: (PageKind) -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
     onRetry: () -> Unit,
@@ -616,7 +722,7 @@ fun NotesHome(
             state.loading && state.pages.isEmpty() && state.groups.isEmpty() ->
                 Text(stringResource(R.string.loading_notes), color = Sm.Muted, fontSize = 14.sp,
                     modifier = Modifier.padding(top = 96.dp, bottom = 16.dp))
-            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(busy, onCreate, onImport)
+            state.pages.isEmpty() && state.groups.isEmpty() -> if (state.error == null && state.loaded) NotesEmpty(state.kinds, busy, onCreate, onImport)
             else -> NotesHomeList(state, busy, rowDrag, onOpen, onCreate, onMove, onNewGroup, onToggleExpanded, onImport)
         }
     }
@@ -629,7 +735,7 @@ private fun NotesHomeList(
     busy: Boolean,
     rowDrag: NoteRowDrag,
     onOpen: (String) -> Unit,
-    onCreate: () -> Unit,
+    onCreate: (PageKind) -> Unit,
     onMove: (NotePageSummary) -> Unit,
     onNewGroup: () -> Unit,
     onToggleExpanded: (String) -> Unit,
@@ -647,12 +753,17 @@ private fun NotesHomeList(
             else Column(Modifier.padding(start = 24.dp)) { kids.forEach { key(it.id) { Tree(it) } } }
         }
     }
-    // 标题 "Workspace" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
+    // 标题 "Workspace" 和分区的小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
+    // 分区的小标题只接受同一分区的页面（网页 data-drop-kind），分区里最上层的行也是（放在它们前后会移出项目）。
     fun Modifier.zone(key: String): Modifier =
         dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
-    DisposableEffect(Unit) { onDispose { drag.zones.clear() } }
-    val hasLooseHeading = state.groups.isNotEmpty() && state.loosePages.isNotEmpty()
-    DisposableEffect(hasLooseHeading) { onDispose { drag.zones.remove(" ") } }
+    DisposableEffect(Unit) { onDispose { drag.zones.clear(); drag.zoneContainers.clear(); drag.zoneAccepts.clear() } }
+    val kinds = state.kinds
+    val sections = state.sections
+    SideEffect {
+        drag.rowAccepts.clear()
+        sections.forEach { section -> section.roots.forEach { drag.rowAccepts[it.id] = section.kind.wire } }
+    }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Text(
         stringResource(R.string.workspace),
@@ -677,16 +788,28 @@ private fun NotesHomeList(
             Column(Modifier.padding(bottom = 16.dp)) { members.forEach { key(it.id) { Tree(it) } } }
         }
     }
-    val loose = state.loosePages
-    // "No project" 小标题的键是 " "（空白键都表示无项目），和标题 "Notes" 的 "" 分开登记、分开高亮。
-    if (state.groups.isNotEmpty() && loose.isNotEmpty()) GroupHeading(stringResource(R.string.no_project), state.looseCount, Modifier.zone(" "))
-    if (loose.isNotEmpty()) Column(Modifier.padding(bottom = 16.dp)) { loose.forEach { key(it.id) { Tree(it) } } }
-    // .notes-home-actions：上距 8、间距 8、放不下就换行（三个按钮在窄屏或长文案时会换）。
+    // 不在项目里的页面（网页 notes-home 的分区）：只能建笔记时和以前一样，有项目才出 "No project" 小标题；
+    // 能建几种类型时每个有页面的分区一个小标题（笔记 / 幻灯片 / 白板 + 数量）。
+    sections.forEach { section ->
+        if (section.roots.isEmpty()) return@forEach
+        val zone = sectionZone(section.kind)
+        val heading = if (kinds.size > 1) stringResource(sectionLabel(section.kind)) else if (state.groups.isNotEmpty()) stringResource(R.string.no_project) else null
+        key(zone) {
+            DisposableEffect(zone) {
+                drag.zoneContainers[zone] = null
+                drag.zoneAccepts[zone] = section.kind.wire
+                onDispose { drag.zones.remove(zone); drag.zoneContainers.remove(zone); drag.zoneAccepts.remove(zone) }
+            }
+            if (heading != null) GroupHeading(heading, section.count, Modifier.zone(zone))
+        }
+        Column(Modifier.padding(bottom = 16.dp)) { section.roots.forEach { key(it.id) { Tree(it) } } }
+    }
+    // .notes-home-actions：上距 8、间距 8、放不下就换行（几个按钮在窄屏或长文案时会换）。
     FlowRow(
         Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp),
         itemVerticalAlignment = Alignment.CenterVertically,
     ) {
-        InkButton(stringResource(R.string.new_note), 40.dp, enabled = !busy, onClick = onCreate)
+        NewPageButtons(kinds, busy, 40.dp, onCreate)
         HomeTextButton(Lucide.FolderPlus, stringResource(R.string.new_project), enabled = !busy, onClick = onNewGroup)
         HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
     }
@@ -801,7 +924,7 @@ private fun shortDate(iso: String): String {
 // "新笔记"高 32、圆角 8，旁边"导入 Markdown"（高 40 的文字按钮）；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit) {
+private fun NotesEmpty(kinds: List<PageKind>, busy: Boolean, onCreate: (PageKind) -> Unit, onImport: () -> Unit) {
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(Modifier.padding(top = 120.dp)) {
         LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
@@ -823,7 +946,7 @@ private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit
             verticalArrangement = Arrangement.spacedBy(10.dp),
             itemVerticalAlignment = Alignment.CenterVertically,
         ) {
-            InkButton(stringResource(R.string.new_note), 32.dp, enabled = !busy, onClick = onCreate)
+            NewPageButtons(kinds, busy, 32.dp, onCreate)
             HomeTextButton(Lucide.Upload, stringResource(R.string.import_markdown), enabled = !busy, onClick = onImport)
         }
         Text(stringResource(R.string.notes_storage_hint), modifier = Modifier.padding(top = 40.dp).widthIn(max = 384.dp),
@@ -831,15 +954,32 @@ private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit
     }
 }
 
+/**
+ * 首页和空状态的新建按钮（网页 NewPageButtons）：只能建笔记时是原来的"新笔记"（+）；能建几种类型时每种一个，带类型图标，
+ * 第一个（笔记）是深色按钮，其余是文字按钮。直接放进外面的 FlowRow。
+ */
+@Composable
+private fun NewPageButtons(kinds: List<PageKind>, busy: Boolean, height: Dp, onCreate: (PageKind) -> Unit) {
+    if (kinds.size < 2) {
+        InkButton(stringResource(R.string.new_note), height, enabled = !busy, onClick = { onCreate(PageKind.Note) })
+        return
+    }
+    kinds.forEachIndexed { index, kind ->
+        val label = stringResource(newPageLabel(kind))
+        if (index == 0) InkButton(label, height, enabled = !busy, onClick = { onCreate(kind) }, icon = pageKindIcon(kind))
+        else HomeTextButton(pageKindIcon(kind), label, enabled = !busy) { onCreate(kind) }
+    }
+}
+
 // .notes-empty-new：圆角 8、深色底、左右 12、图标 16 + 间距 6、14/550 白字。
 @Composable
-private fun InkButton(text: String, height: Dp, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun InkButton(text: String, height: Dp, enabled: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, icon: List<String> = Lucide.Plus) {
     Row(
         modifier.height(height).clip(RoundedCornerShape(8.dp)).background(Sm.Ink).clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        LucideIcon(Lucide.Plus, 16.dp, Sm.OnInk)
+        LucideIcon(icon, 16.dp, Sm.OnInk)
         Spacer(Modifier.width(6.dp))
         Text(text, color = Sm.OnInk, fontSize = 14.sp, fontWeight = FontWeight(550))
     }

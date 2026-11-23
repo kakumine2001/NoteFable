@@ -68,6 +68,8 @@ struct SearchUiState: Equatable, Sendable {
     var scope: SearchScope = .all
     /// Chats 标签页的项目筛选；"" 表示全部项目。
     var projectChoice = ""
+    /// Notes 标签页的类型筛选（类型的 wire 值，网页 search-dialog 的 kindChoice）；"" 表示全部类型。
+    var kindChoice = ""
     var loaded: SearchLoaded? = nil
     var retry = 0
     /// 高亮的行（网页的 aria-activedescendant；手机上是第一行或点过的行）。
@@ -83,6 +85,10 @@ struct SearchGroup: Equatable, Sendable {
 struct SearchView: Equatable, Sendable {
     var query: String
     var projectId: String
+    /// 生效的类型筛选（wire 值，"" 是全部类型）：只在 Notes 标签页、能新建的类型有两种以上时。
+    var kind: String = ""
+    /// 类型筛选的选项（网页 creatablePageKinds）。少于两种时是空的（不显示筛选）。
+    var kindOptions: [PageKind] = []
     var key: String
     var idle: Bool
     var failed: Bool
@@ -111,12 +117,15 @@ func orderProjects(_ projects: [ChatProjectSummary], _ currentProjectId: String?
 
 extension SearchUiState {
     /// - Parameter chatFirst: 当前在聊天界面：Chats 组在前；在笔记界面时 Notes 在前（网页的 view）。
-    func view(_ projects: [ChatProjectSummary], _ currentProjectId: String?, _ chatFirst: Bool) -> SearchView {
+    func view(_ projects: [ChatProjectSummary], _ currentProjectId: String?, _ chatFirst: Bool,
+              kinds: [PageKind] = PageKindTable.creatable(in: PageKindTable.shared.snapshot)) -> SearchView {
         let options = orderProjects(projects, currentProjectId)
         // 只有 Chats 标签页能筛选；选中的项目已经不在了就退回"全部"。
         let projectId = scope == .chats && options.contains { $0.id == projectChoice } ? projectChoice : ""
+        // 类型筛选只在 Notes 标签页，能新建的类型有两种以上时（开关关着的类型不出现）。
+        let kind = scope == .notes && kinds.count > 1 && kinds.contains { $0.wire == kindChoice } ? kindChoice : ""
         let query = clipUtf16(ApiText.trim(input), SearchFold.MAX_SEARCH_QUERY_CHARS)
-        let key = "\(scope.wire)\n\(projectId)\n\(query)\n\(retry)"
+        let key = "\(scope.wire)\n\(projectId)\n\(kind)\n\(query)\n\(retry)"
         let idle = query.isEmpty
         let current = loaded.flatMap { !idle && $0.key == key ? $0 : nil }
         let failed = current != nil && current?.data == nil
@@ -130,7 +139,8 @@ extension SearchUiState {
         let noteGroup = SearchGroup(isChats: false, results: notes)
         let ordered = chatFirst ? [chatGroup, noteGroup] : [noteGroup, chatGroup]
         return SearchView(
-            query: query, projectId: projectId, key: key, idle: idle, failed: failed, loading: loading, data: data,
+            query: query, projectId: projectId, kind: kind, kindOptions: kinds.count > 1 ? kinds : [],
+            key: key, idle: idle, failed: failed, loading: loading, data: data,
             terms: terms, groups: ordered.filter { !$0.results.isEmpty }, projectOptions: options
         )
     }
@@ -193,6 +203,13 @@ final class SearchViewModel {
         schedule()
     }
 
+    /// Notes 的类型筛选（wire 值，"" 是全部类型）。
+    func setKind(_ wire: String) {
+        state.kindChoice = wire
+        state.active = 0
+        schedule()
+    }
+
     func retry() {
         state.retry += 1
         schedule()
@@ -225,6 +242,7 @@ final class SearchViewModel {
         let searchScope = state.scope
         let query = view.query
         let projectId = view.projectId.isEmpty ? nil : view.projectId
+        let kind = view.kind.isEmpty ? nil : view.kind
         let backend = self.backend
         let sleep = self.sleep
         let debounceMs = self.debounceMs
@@ -233,7 +251,7 @@ final class SearchViewModel {
             do {
                 try await sleep(debounceMs)
                 try Task.checkCancellation()
-                result = try await backend.search(query: query, scope: searchScope, projectId: projectId)
+                result = try await backend.search(query: query, scope: searchScope, projectId: projectId, kind: kind)
             } catch is CancellationError {
                 return
             } catch {

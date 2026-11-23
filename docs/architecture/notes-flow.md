@@ -4,9 +4,9 @@ Notes 是 NoteFable 内部的文字笔记模式，界面上叫 **Workspace**（�
 
 ## 页面类型（笔记 / 白板 / 幻灯片）
 
-工作区的页面有三种类型（`NotePage.kind`，枚举 `PageKind`：`note` / `whiteboard` / `slides`，API 的 JSON 用同样的小写值；旧数据和不带 `kind` 的旧响应一律当作 `note`，见 `pageKindOf`，`src/lib/page-kinds.ts`）。类型在新建时决定，之后不能改。三种类型可以互相嵌套（笔记下面放白板、白板下面放幻灯片……），项目、子页面、收藏、排序、30 天回收站、复制、锁定、编辑历史对三种类型都一样。白板和幻灯片的编辑器在 #152、#149 里做，新建入口也随编辑器一起加；在那之前只能通过接口（`POST /api/pages` 带 `kind`）和复制得到这两种页面。
+工作区的页面有三种类型（`NotePage.kind`，枚举 `PageKind`：`note` / `whiteboard` / `slides`，API 的 JSON 用同样的小写值；旧数据和不带 `kind` 的旧响应一律当作 `note`，见 `pageKindOf`，`src/lib/page-kinds.ts`）。类型在新建时决定，之后不能改。三种类型可以互相嵌套（笔记下面放白板、白板下面放幻灯片……），项目、子页面、收藏、排序、30 天回收站、复制、锁定、编辑历史对三种类型都一样。白板和幻灯片的编辑器在 #152、#149 里做；侧栏的分区和各处的新建入口已经按类型做好（见下文“分区与新建”），由下面这张表的 `editor` 开关控制，编辑器上线时在表里打开即可；开关关着时只能通过接口（`POST /api/pages` 带 `kind`）和复制得到这两种页面。
 
-**各类型能用的功能**只在一张表里定义（`PAGE_KIND_FEATURES`：`editor`、`markdownExport`、`typography`、`publicShare`、`aiEdit`），服务端的拒绝、网页和两个原生应用的菜单都看它。目前白板和幻灯片这五项都是 `false`：Markdown 导出、字体 / 小字号 / 全宽、公开发布、AI 编辑案都只对笔记；锁定、收藏、复制、移动、回收站、历史对所有类型。编辑器、公开视图做好后在这张表里打开。
+**各类型能用的功能**只在一张表里定义（`PAGE_KIND_FEATURES`：`editor`、`markdownExport`、`typography`、`publicShare`、`aiEdit`），服务端的拒绝、网页和两个原生应用的菜单都看它。网页直接读这张表；Android / iOS 读 `GET /api/pages` 返回的 `kinds`（同一张表），读到之前用安装包里的 `assets/page-kinds.json`（`scripts/gen-native-page-kinds.ts` 从表生成，iOS 经 `project.yml` 共用同一份；`src/lib/native-page-kinds-asset.test.ts` 在过期时失败），所以开关随网页部署三端一起切换，不用重新发版。`editor` 同时是“能不能新建”的开关（`creatablePageKinds`）。目前白板和幻灯片这五项都是 `false`：Markdown 导出、字体 / 小字号 / 全宽、公开发布、AI 编辑案都只对笔记；锁定、收藏、复制、移动、回收站、历史对所有类型。编辑器、公开视图做好后在这张表里打开。
 
 **数据单独存放。** 笔记的正文在 `NotePage.blocks`；白板和幻灯片的 `blocks` 永远是空数组，本体放在 `NoteCanvas`（一页一行，`noteId` 主键、`ON DELETE CASCADE`），一览、搜索和普通的页面读取都不搬运本体。形状只定外框（`src/lib/canvas-document.ts`），元素内部由各编辑器决定：
 
@@ -73,7 +73,19 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 ## 分组
 
-笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序：New note → Home → Search → Favorites（有收藏时）→ Projects → Notes（底部另有 Import Markdown 和 Trash）；Projects 可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到 Notes 标题可移出项目。手机端 Notes 列表的项目标题和 Notes / No project 标题也接受拖放，每行保留移动按钮，底部提供 New note、New project 和 Import Markdown。笔记项目与聊天项目仍独立存储。
+笔记可以放进单层的分组（文件夹），界面统一称为 Projects（项目内的层级用子页面，见“子页面、收藏与页面设置”）。`NoteGroup` 属于当前用户（匿名设备或已登录账号）（最多 50 个，名称最长 60 字符），`NotePage.groupId` 可空，删除项目时其中的笔记保留并回到“无项目”（`SetNull`）。移动笔记只改 `groupId`，不增加内容 `version`，所以不会和自动保存冲突。侧栏顺序：新建 → Home → Search → Favorites（有收藏时）→ Projects → 分区（笔记 / 幻灯片 / 白板，见下面“分区与新建”；底部另有 Import Markdown 和 Trash）；每个项目和每个分区都可折叠，折叠状态存在本机 localStorage。拖动笔记行可把笔记拖到项目标题（空项目或折叠项目也支持），成功后自动展开；拖到自己类型的分区标题可移出项目。手机端 Notes 列表的项目标题和分区 / No project 标题也接受拖放，每行保留移动按钮，底部提供新建按钮、New project 和 Import Markdown。笔记项目与聊天项目仍独立存储。项目里可以放三种类型的页面。
+
+### 分区与新建（#168）
+
+工作区的侧栏和首页按类型分区，规则在 `src/lib/workspace-sections.ts`（`workspaceSections`、`sectionKindOf`、`canDropIn`），Android（`NotesUiState.sections`）和 iOS（`NotesUiState.sections`、`noteDropRules`）照同一套规则。
+
+- **能新建的类型**：`creatablePageKinds()` = `PAGE_KIND_FEATURES` 里 `editor` 为 true 的类型，按笔记、幻灯片、白板的顺序（`PAGE_KIND_ORDER`），笔记总在。下面所有“按类型出现”的东西都只看它：开关关着的类型的分区、新建选项、首页按钮和检索筛选完全不出现。
+- **新建**：侧栏最上面的按钮在只能建笔记时是 “New note”，一点就建（和以前一样）；能建两种以上时是 “New”，点了打开类型菜单（笔记 / 幻灯片 / 白板，带类型图标；`NewPageButton`）。项目行和页面行的 “+” 同样：一种时直接建，两种以上时先选类型；项目的 “+” 建在该项目的最上层（`POST /api/pages` 带 `groupId`），页面行的 “+” 建子页面。分区标题的 “+” 直接建这个类型。新建到折叠着的项目或分区时先把它展开。页面 “…” 菜单的 “Add a page inside” 和分屏里的 “New note” 仍只建笔记。
+- **分区**：Projects 下面是笔记、幻灯片、白板三个分区（只出能新建的类型），每个分区列出不在项目里的最上层页面（项目被删后残留的 `groupId` 也算不在项目里）；标题是 Projects 同款的等宽小字，后面是折叠箭头，点标题折叠，状态存在 `notefable:workspace-sections-collapsed:v1`（类型 → true；Android `NotesPrefs.collapsedSections`、iOS `notes.collapsedSections`）。项目里三种类型按原来的顺序混排，每行前面是页面图标，没有图标时是类型图标。子页面不论类型都跟着父页面显示，不在自己类型的分区里出现。还不能新建的类型（开关关着）的页面放在笔记分区里，不会看不到。
+- **拖动**：分区标题和分区里最上层的行带 `data-drop-kind`，被拖的行带 `data-page-kind`（它会进的分区，`sectionKindOf`），`ReorderRowButton` 只把同一分区的页面当作可放的目标（`canDropIn`）：可以在同一分区里排序、拖到自己类型的分区标题上移出项目；拖到别的类型的分区（标题或其中的行）上什么都不发生，因为类型不能改。项目标题、项目里的行和子页面的行接受所有类型（拖进项目、在项目里排序、成为子页面的兄弟）。拖出项目的页面回到自己类型的分区（分区折叠着就展开）。键盘的 Alt+↑/↓ 在分区里也只在同一分区内移动。
+- **首页**：只能建笔记时和以前一样（有项目才显示 “No project” 小标题）；能建两种以上时，不在项目里的页面按分区显示小标题（名字和含子页面的数量，只显示有页面的分区），桌面宽度的列表标题从 “All notes” 换成 “All pages”。最近编辑的卡片包含所有类型（带类型图标）。底部和空状态的新建按钮（`NewPageButtons`）只能建笔记时是原来的 “New note”，能建两种以上时每种一个（类型图标 + “New note / New slide deck / New whiteboard”，第一个是深色按钮）。
+- **检索**：Notes 标签页在能新建两种以上的类型时多一个类型筛选（“Page type”：All types / 各分区名），选了就带 `kind` 参数（见 [chat-flow.md](chat-flow.md#跨-chats--notes-搜索)）。
+- 白板（#152）、幻灯片（#149）的编辑器上线时只需在 `PAGE_KIND_FEATURES` 里打开 `editor`，并运行 `npx tsx scripts/gen-native-page-kinds.ts`，三端的分区、菜单和筛选随之出现。
 
 代码块的外观仿 Notion：浅米色底、圆角 10px、左 32px / 右 16px / 上下 32px 的内边距，长行自动折行。语言选择和复制按钮平时隐藏，鼠标移到代码块上（或键盘聚焦）时才在右上角出现，复制后图标变成对勾。BlockNote 自带的 CSS 在 `globals.css` 之后加载且选择器权重相同，所以覆盖它的选择器必须带上 `.bn-block-content`（例如 `.notes-block-editor .bn-block-content[data-content-type="codeBlock"] > pre`），否则会被静默覆盖。
 
@@ -98,8 +110,8 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `kind`、`groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, kind, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
-| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面，父页面可以是任何类型）；带 `kind: "whiteboard" \| "slides"` 时是 `{ kind, title, icon, data?, parentId? }`（`data` 省略为空的本体），201 `{ page }` 的 `page` 带 `data`；未知的 `kind` 400，也用于保存冲突副本，以及聊天回答下方的 “Save to page”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
+| `GET /api/pages` | 返回 `{ pages, groups, kinds }`（`kinds` 是 `PAGE_KIND_FEATURES`，原生应用据此决定分区和新建菜单）：页面摘要按 `position`、创建时间排列（含 `kind`、`groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, kind, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
+| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId?, groupId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面，父页面可以是任何类型，`groupId` 不看；没有 `parentId` 时 `groupId` 指定的本人项目的最上层，在同一事务里用 `FOR KEY SHARE` 锁住项目行，不是本人的或已删除的项目 404 `Project not found.`，格式不对 400）；带 `kind: "whiteboard" \| "slides"` 时是 `{ kind, title, icon, data?, parentId? }`（`data` 省略为空的本体），201 `{ page }` 的 `page` 带 `data`；未知的 `kind` 400，也用于保存冲突副本，以及聊天回答下方的 “Save to page”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
 | `POST /api/sessions/:id/page` | 输入栏 “＋” 菜单里的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page, partial }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
 | `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
 | `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404）。白板 / 幻灯片的 `page` 另带本体 `data` |

@@ -3,6 +3,8 @@ package com.kakumine.notefable.ui
 import com.kakumine.notefable.data.ChatProjectSummary
 import com.kakumine.notefable.data.ChatSearchResult
 import com.kakumine.notefable.data.NoteSearchResult
+import com.kakumine.notefable.data.PageKind
+import com.kakumine.notefable.data.PageKindTable
 import com.kakumine.notefable.data.SearchBackend
 import com.kakumine.notefable.data.SearchFold
 import com.kakumine.notefable.data.SearchResponse
@@ -50,6 +52,8 @@ data class SearchUiState(
     val scope: SearchScope = SearchScope.All,
     /** Chats 标签页的项目筛选；"" 表示全部项目。 */
     val projectChoice: String = "",
+    /** Notes 标签页的类型筛选（类型的 wire 值，网页 search-dialog 的 kindChoice）；"" 表示全部类型。 */
+    val kindChoice: String = "",
     val loaded: SearchLoaded? = null,
     val retry: Int = 0,
     /** 高亮的行（网页的 aria-activedescendant；手机上是第一行或点过的行）。 */
@@ -62,6 +66,10 @@ data class SearchGroup(val isChats: Boolean, val results: List<SearchHit>)
 data class SearchView(
     val query: String,
     val projectId: String,
+    /** 生效的类型筛选（wire 值，"" 是全部类型）：只在 Notes 标签页、能新建的类型有两种以上时。 */
+    val kind: String,
+    /** 类型筛选的选项（网页 creatablePageKinds）。少于两种时不显示筛选。 */
+    val kindOptions: List<PageKind>,
     val key: String,
     val idle: Boolean,
     val failed: Boolean,
@@ -84,12 +92,14 @@ fun orderProjects(projects: List<ChatProjectSummary>, currentProjectId: String?)
 /**
  * @param chatFirst 当前在聊天界面：Chats 组在前；在笔记界面时 Notes 在前（网页的 view）。
  */
-fun SearchUiState.view(projects: List<ChatProjectSummary>, currentProjectId: String?, chatFirst: Boolean): SearchView {
+fun SearchUiState.view(projects: List<ChatProjectSummary>, currentProjectId: String?, chatFirst: Boolean, kinds: List<PageKind> = PageKindTable.creatable): SearchView {
     val options = orderProjects(projects, currentProjectId)
     // 只有 Chats 标签页能筛选；选中的项目已经不在了就退回"全部"。
     val projectId = if (scope == SearchScope.Chats && options.any { it.id == projectChoice }) projectChoice else ""
+    // 类型筛选只在 Notes 标签页，能新建的类型有两种以上时（开关关着的类型不出现）。
+    val kind = if (scope == SearchScope.Notes && kinds.size > 1 && kinds.any { it.wire == kindChoice }) kindChoice else ""
     val query = input.trim().take(SearchFold.MAX_SEARCH_QUERY_CHARS)
-    val key = "${scope.wire}\n$projectId\n$query\n$retry"
+    val key = "${scope.wire}\n$projectId\n$kind\n$query\n$retry"
     val idle = query.isEmpty()
     val current = loaded?.takeIf { !idle && it.key == key }
     val failed = current != null && current.data == null
@@ -100,7 +110,7 @@ fun SearchUiState.view(projects: List<ChatProjectSummary>, currentProjectId: Str
     val chats = if (scope == SearchScope.Notes) emptyList() else data?.chats.orEmpty().map { SearchHit.Chat(it) }
     val notes = if (scope == SearchScope.Chats) emptyList() else data?.notes.orEmpty().map { SearchHit.Note(it) }
     val ordered = if (chatFirst) listOf(SearchGroup(true, chats), SearchGroup(false, notes)) else listOf(SearchGroup(false, notes), SearchGroup(true, chats))
-    return SearchView(query, projectId, key, idle, failed, loading, data, terms, ordered.filter { it.results.isNotEmpty() }, options)
+    return SearchView(query, projectId, kind, if (kinds.size > 1) kinds else emptyList(), key, idle, failed, loading, data, terms, ordered.filter { it.results.isNotEmpty() }, options)
 }
 
 /**
@@ -139,6 +149,12 @@ class SearchViewModel(
         schedule()
     }
 
+    /** Notes 的类型筛选（wire 值，"" 是全部类型）。 */
+    fun setKind(wire: String) {
+        _state.update { it.copy(kindChoice = wire, active = 0) }
+        schedule()
+    }
+
     fun retry() {
         _state.update { it.copy(retry = it.retry + 1) }
         schedule()
@@ -159,7 +175,7 @@ class SearchViewModel(
         job = scope.launch {
             delay(debounceMs)
             val result = try {
-                backend.search(view.query, searchScope, view.projectId.ifEmpty { null })
+                backend.search(view.query, searchScope, view.projectId.ifEmpty { null }, view.kind.ifEmpty { null })
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (_: Throwable) {

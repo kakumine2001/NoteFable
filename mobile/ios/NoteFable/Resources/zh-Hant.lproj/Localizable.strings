@@ -356,6 +356,14 @@
 "page_kind_note" = "筆記";
 "page_kind_whiteboard" = "白板";
 "page_kind_slides" = "投影片";
+"ws_new" = "新建";
+"ws_new_page" = "新建頁面";
+"ws_new_page_in" = "在 %1$s 中新建頁面";
+"ws_section_whiteboards" = "白板";
+"ws_new_slides" = "新投影片";
+"ws_new_whiteboard" = "新白板";
+"ws_all_types" = "全部類型";
+"ws_page_type" = "頁面類型";
 
 /* strings_pages.xml */
 "pg_favorites" = "收藏";

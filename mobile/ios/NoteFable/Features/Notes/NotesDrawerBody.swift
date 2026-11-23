@@ -1,9 +1,9 @@
 import SwiftUI
 
 // 侧栏的笔记部分（网页 NotesSidebar，手机尺寸；Android ui/NotesUi.kt 的 NotesDrawerBody）。头部、Chat / Note 切换和底部的账号由 Root 放。
-// 从上到下：“新笔记”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → NOTES）、最下面的“导入 Markdown”和回收站两行。
+// 从上到下：“新建”、Search 行、可滚动的列表（FAVORITES → PROJECTS 和各项目 → 分区：笔记 / 幻灯片 / 白板）、最下面的“导入 Markdown”和回收站两行。
 // 笔记行长按标题后可以拖动排序（Features/Shared/ReorderDragUI.swift）：放到别的笔记前 / 后是排序，放到项目行上移进项目，
-// 放到 NOTES 标签上移出项目。
+// 放到分区标题上移出项目（只接受同一分区的页面，Core 的 noteDropRules）。
 
 /// 抽屉里的笔记部分。
 @MainActor
@@ -21,11 +21,14 @@ struct NotesDrawerBody: View {
         let state = notes.state
         let busy = state.busy || state.loading
         let router = self.router
+        let kinds = state.kinds
         VStack(spacing: 0) {
-            // “新笔记”（.sidebar-primary-action）：上距 12、左右 8、下距 4。
-            SidebarPrimaryButton(L("new_note")) {
+            // “新建”（.sidebar-primary-action）：上距 12、左右 8、下距 4。只能建笔记时是“新笔记”（一点就建），能建几种类型时先选类型。
+            NewPageMenuAnchor(kinds: kinds, label: L("ws_new_page"), onCreate: { kind in
                 router.closeDrawer()
-                notes.createNote()
+                notes.createNote(kind: kind)
+            }) { open in
+                SidebarPrimaryButton(L(kinds.count > 1 ? "ws_new" : "new_note"), action: open)
             }
             .disabled(busy)
             .padding(.horizontal, 8)
@@ -37,8 +40,9 @@ struct NotesDrawerBody: View {
                 NotesDrawerList(busy: busy, reorder: reorder, dialog: $dialog)
                     .padding(.horizontal, 8)
                     .padding(.bottom, 16)
-                    .reorderContainer(reorder, onStart: { _ in
+                    .reorderContainer(reorder, onStart: { [reorder] _ in
                         NoteReorderOrigin.shared.surface = .drawer
+                        reorder.rules = { noteDropRules(notes.state) }
                         notes.dismissReorderError()
                     }) { id, target in
                         notes.drop(id, on: target)
@@ -70,6 +74,7 @@ private struct NotesDrawerList: View {
     let reorder: ReorderDragController
     @Binding var dialog: NotesDialogState?
     @Environment(AppEnvironment.self) private var app
+    @Environment(AppRouter.self) private var router
 
     var body: some View {
         let state = app.notes.state
@@ -104,17 +109,29 @@ private struct NotesDrawerList: View {
                     .foregroundStyle(Sm.danger)
                     .padding(.horizontal, 8)
             }
-            // NOTES 标签同时是“移出项目”的投放区（网页 data-note-group-drop=""）。
-            NotesSectionLabel(L("notes"))
-                .padding(.horizontal, 8)
-                .padding(.top, 14.4)
-                .padding(.bottom, 4.8)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .reorderDropZone("", in: reorder)
-            ForEach(state.loosePages) { page in
+            // 分区（网页 notes-sidebar 的分区）：不在项目里的最上层页面按类型分开。标题是“移出项目”的投放区，只接受同一分区的页面。
+            ForEach(state.sections, id: \.kind) { section in
+                sectionView(section, state)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// 一个分区：标题（折叠箭头、“+”），展开时下面是它最上层的页面。
+    @ViewBuilder
+    private func sectionView(_ section: WorkspaceSection, _ state: NotesUiState) -> some View {
+        let notes = app.notes
+        let isOpen = !state.collapsedSections.contains(section.kind)
+        NotesSectionHeading(kind: section.kind, isOpen: isOpen, busy: busy, onToggle: { notes.toggleSection(section.kind) }) {
+            router.closeDrawer()
+            notes.createNote(kind: section.kind)
+        }
+        .reorderDropZone(noteSectionZone(section.kind), in: reorder)
+        if isOpen {
+            ForEach(section.roots) { page in
                 NotesDrawerTree(page: page, busy: busy, reorder: reorder, dialog: $dialog)
             }
-            if state.pages.isEmpty && state.loaded {
+            if section.kind == .note && state.pages.isEmpty && state.loaded {
                 Text(L("notes_list_empty"))
                     .font(.nf(12))
                     .nfLineHeight(20, fontSize: 12)
@@ -123,7 +140,6 @@ private struct NotesDrawerList: View {
                     .padding(.vertical, 12)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// 一个项目：项目行（同时是“移进这个项目”的投放区），展开时下面是它最上层的笔记。
@@ -179,6 +195,15 @@ private struct NotesDrawerList: View {
                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             }
             .buttonStyle(.pressable(cornerRadius: 6.4))
+            // 项目的“+”（网页项目行的 NewPageButton）：在这个项目的最上层新建，能建几种类型时先选类型。
+            let newLabel = L("ws_new_page_in", group.name)
+            NewPageMenuAnchor(kinds: notes.state.kinds, label: newLabel, onCreate: { kind in
+                router.closeDrawer()
+                notes.createNote(kind: kind, groupId: group.id)
+            }) { open in
+                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: newLabel, action: open)
+            }
+            .disabled(busy)
             NoteRowAction(icon: Lucide.pencil, iconSize: 13, label: L("rename_name", group.name)) {
                 dialog = .renameGroup(group)
             }
@@ -263,9 +288,11 @@ private struct NotesDrawerRow: View {
                 iconButton
             }
             title(active: active, locked: busy || state.moveBusy.contains(page.id))
-            NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title)) {
+            NewPageMenuAnchor(kinds: state.kinds, label: L("pg_add_page_inside_title", page.title), onCreate: { kind in
                 router.closeDrawer()
-                notes.createNote(parentId: page.id)
+                notes.createNote(parentId: page.id, kind: kind)
+            }) { open in
+                NoteRowAction(icon: Lucide.plus, iconSize: 14, label: L("pg_add_page_inside_title", page.title), action: open)
             }
             .disabled(busy)
             NoteRowAction(icon: Lucide.folderInput, iconSize: 14, label: L("move_title_to_project", page.title)) {

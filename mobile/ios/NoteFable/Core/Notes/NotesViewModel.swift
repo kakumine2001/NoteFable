@@ -56,7 +56,10 @@ final class NotesViewModel {
         self.backend = backend
         self.prefs = prefs
         self.noteIcons = noteIcons
-        state = NotesUiState(collapsed: prefs.collapsedGroups, expanded: prefs.expandedPages)
+        state = NotesUiState(
+            collapsed: prefs.collapsedGroups, expanded: prefs.expandedPages,
+            collapsedSections: Set(prefs.collapsedSections.compactMap(PageKind.init(rawValue:)))
+        )
     }
 
     /// 几个字段一起改时只发一次变更通知（Kotlin 的 `_state.update { it.copy(…) }`）。
@@ -102,7 +105,10 @@ final class NotesViewModel {
             }
             switch result {
             case .success(let list):
+                // 页面类型的功能表（分区、新建菜单的开关）：服务端发来就用服务端的（网页 PAGE_KIND_FEATURES）。
+                if let kinds = list.kinds { PageKindTable.shared.update(kinds) }
                 update {
+                    if let kinds = list.kinds { $0.kindFeatures = kinds }
                     $0.pages = list.pages
                     $0.groups = list.groups
                     $0.loading = false
@@ -278,8 +284,9 @@ final class NotesViewModel {
         }
     }
 
-    /// [parentId] 指定时，在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面。
-    func createNote(parentId: String? = nil) {
+    /// 新建一篇 [kind] 的空白页面并打开（网页 createNote）。[parentId] 指定时在那一篇里新建子页面（网页 "Add a page inside"），并展开父页面；
+    /// 否则建在 [groupId] 项目的最上层（项目的"+"，折叠着就展开），都没有时建在那个类型的分区里（折叠着就展开）。
+    func createNote(parentId: String? = nil, kind: PageKind = .note, groupId: String? = nil) {
         if state.busy { return }
         leaveThen { [self] in
             update {
@@ -287,11 +294,17 @@ final class NotesViewModel {
                 $0.error = nil
             }
             do {
-                let page = try await backend.createNote(parentId: parentId)
+                let page = try await backend.createNote(parentId: parentId, kind: kind, groupId: parentId == nil ? groupId : nil)
                 // 换身份会取消这个任务，列表已经清空：旧身份建的笔记不写进去。
                 if Task.isCancelled { return }
                 mutations += 1
-                if let parentId { expand(parentId) }
+                if let parentId {
+                    expand(parentId)
+                } else if let groupId {
+                    if state.collapsed.contains(groupId) { toggleGroup(groupId) }
+                } else {
+                    openSection(state.sectionKind(of: page))
+                }
                 update {
                     $0.workspace = .notes
                     $0.pages = Self.upsert($0.pages, page)
@@ -928,6 +941,8 @@ final class NotesViewModel {
             if failure == nil {
                 commit(owner) { update { $0.pages = Self.movedToGroup($0.pages, id, moved, groupId) } }
                 if let groupId, state.collapsed.contains(groupId) { toggleGroup(groupId) }
+                // 移出项目的页面回到自己类型的分区：分区折叠着就展开（网页 setSectionOpen）。
+                if groupId == nil, let page = state.pages.first(where: { $0.id == id }) { openSection(state.sectionKind(of: page)) }
             }
             update {
                 $0.moveBusy.remove(id)
@@ -945,6 +960,22 @@ final class NotesViewModel {
         if next.contains(id) { next.remove(id) } else { next.insert(id) }
         prefs.collapsedGroups = next
         update { $0.collapsed = next }
+    }
+
+    /// 折叠 / 展开分区（网页 notes-sidebar 的分区标题）。
+    func toggleSection(_ kind: PageKind) {
+        setSectionCollapsed(kind, !state.collapsedSections.contains(kind))
+    }
+
+    private func openSection(_ kind: PageKind) {
+        if state.collapsedSections.contains(kind) { setSectionCollapsed(kind, false) }
+    }
+
+    private func setSectionCollapsed(_ kind: PageKind, _ collapsed: Bool) {
+        var next = state.collapsedSections
+        if collapsed { next.insert(kind) } else { next.remove(kind) }
+        prefs.collapsedSections = Set(next.map(\.wire))
+        update { $0.collapsedSections = next }
     }
 
     // ---- 回收站 ----

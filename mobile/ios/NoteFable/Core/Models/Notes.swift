@@ -3,19 +3,98 @@ import Foundation
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
 
-/// 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，Android `PageKindFeatures`，几边一起改）。
-/// 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+/// 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures，Android `PageKindFeatures`）。表本身只在网页的
+/// PAGE_KIND_FEATURES 里定义，App 从服务端读（[PageKindTable]）。服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。
 struct PageKindFeatures: Equatable, Sendable {
-    /// 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。
-    var editor: Bool
+    /// 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。也是"能不能新建"的开关：分区、新建菜单、检索的类型筛选只出 true 的类型（#168）。
+    var editor: Bool = false
     /// Markdown 导出（GET /api/pages/:id/export）。
-    var markdownExport: Bool
+    var markdownExport: Bool = false
     /// 字体、小字号、全宽（页面设置里只影响正文外观的几项）。锁定所有类型都能用。
-    var typography: Bool
+    var typography: Bool = false
     /// 公开分享（/s/:token）：只有有公开视图的类型。
-    var publicShare: Bool
+    var publicShare: Bool = false
     /// AI 的编辑提案（propose_note_edit 和应用）。
-    var aiEdit: Bool
+    var aiEdit: Bool = false
+
+    static let note = PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
+
+    /// 服务端 JSON 的一项（`{ editor, markdownExport, … }`）：缺的、不是布尔值的字段按 false，不是对象时 nil。
+    init?(json: JSONValue) {
+        guard let object = json.objectValue else { return nil }
+        editor = object["editor"]?.boolValue ?? false
+        markdownExport = object["markdownExport"]?.boolValue ?? false
+        typography = object["typography"]?.boolValue ?? false
+        publicShare = object["publicShare"]?.boolValue ?? false
+        aiEdit = object["aiEdit"]?.boolValue ?? false
+    }
+
+    init(editor: Bool = false, markdownExport: Bool = false, typography: Bool = false, publicShare: Bool = false, aiEdit: Bool = false) {
+        self.editor = editor
+        self.markdownExport = markdownExport
+        self.typography = typography
+        self.publicShare = publicShare
+        self.aiEdit = aiEdit
+    }
+}
+
+/// 各页面类型能用的功能表（网页 PAGE_KIND_FEATURES，Android `PageKindTable`）。服务端 `GET /api/pages` 的 `kinds` 一到就换成它，
+/// 之前用安装包里的 page-kinds.json（scripts/gen-native-page-kinds.ts 从网页生成，Android 的 assets 同一份），两者都没有时只有笔记能用。
+/// 所以白板 / 幻灯片的开关在网页部署后三端一起切换，不用重新发 App。界面按 [NotesUiState.kindFeatures] 画（那份会触发重绘），
+/// 这里给不在笔记状态里的地方（页面菜单、编辑页顶栏）读。
+final class PageKindTable: @unchecked Sendable {
+    static let shared = PageKindTable()
+
+    /// 画面上的顺序（网页 PAGE_KIND_ORDER）：笔记、幻灯片、白板。
+    static let displayOrder: [PageKind] = [.note, .slides, .whiteboard]
+    static let fallback: [PageKind: PageKindFeatures] = [.note: .note]
+
+    private let lock = NSLock()
+    private var table: [PageKind: PageKindFeatures] = PageKindTable.fallback
+
+    var snapshot: [PageKind: PageKindFeatures] {
+        lock.lock(); defer { lock.unlock() }
+        return table
+    }
+
+    func features(_ kind: PageKind) -> PageKindFeatures {
+        Self.features(kind, in: snapshot)
+    }
+
+    /// 换成服务端 / 安装包的表（[parse] 读出来的）。
+    func update(_ next: [PageKind: PageKindFeatures]) {
+        lock.lock(); defer { lock.unlock() }
+        table = next
+    }
+
+    /// 安装包里的 page-kinds.json（读不出来时保持只有笔记）。
+    func loadBundled(_ data: Data) {
+        if let json = JSONValue.parse(data), let parsed = Self.parse(json) { update(parsed) }
+    }
+
+    /// 单元测试用：回到只有笔记的表。
+    func reset() { update(Self.fallback) }
+
+    static func features(_ kind: PageKind, in table: [PageKind: PageKindFeatures]) -> PageKindFeatures {
+        table[kind] ?? (kind == .note ? .note : PageKindFeatures())
+    }
+
+    /// 能新建的类型（网页 creatablePageKinds）：[displayOrder] 里 editor 为 true 的；笔记总能新建。
+    static func creatable(in table: [PageKind: PageKindFeatures]) -> [PageKind] {
+        displayOrder.filter { $0 == .note || features($0, in: table).editor }
+    }
+
+    /// 服务端的 `kinds`（`{ "note": { editor, … }, … }`）。不是对象时 nil（不动）；不认识的类型忽略；表里缺了笔记也让笔记能用。
+    static func parse(_ json: JSONValue) -> [PageKind: PageKindFeatures]? {
+        guard let object = json.objectValue else { return nil }
+        var result: [PageKind: PageKindFeatures] = [:]
+        for (wire, value) in object {
+            guard let kind = PageKind(rawValue: wire), let features = PageKindFeatures(json: value) else { continue }
+            result[kind] = features
+        }
+        if result[.note] == nil { result[.note] = .note }
+        return result
+    }
 }
 
 /// 工作区页面的类型（网页 PAGE_KINDS，Android `PageKind`）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
@@ -28,14 +107,8 @@ enum PageKind: String, CaseIterable, Sendable {
     /// JSON 里的值。
     var wire: String { rawValue }
 
-    var features: PageKindFeatures {
-        switch self {
-        case .note:
-            return PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
-        case .whiteboard, .slides:
-            return PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
-        }
-    }
+    /// 这个类型能用的功能（[PageKindTable]，服务端的表）。
+    var features: PageKindFeatures { PageKindTable.shared.features(self) }
 
     /// 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。
     var isCanvas: Bool { self != .note }
@@ -58,12 +131,30 @@ extension PageKind: Codable {
     }
 }
 
-/// 页面类型的名字（网页 PAGE_KIND_LABELS，Android `pageKindLabel`）的文案键：检索结果里白板 / 幻灯片标题后面的小字。
+/// 页面类型的名字（网页 PAGE_KIND_LABELS，Android `pageKindLabel`）的文案键：检索结果里白板 / 幻灯片标题后面的小字、新建菜单的项。
 func pageKindLabel(_ kind: PageKind) -> String {
     switch kind {
     case .note: return "page_kind_note"
     case .whiteboard: return "page_kind_whiteboard"
     case .slides: return "page_kind_slides"
+    }
+}
+
+/// 分区的名字（网页 PAGE_KIND_SECTION_LABELS，Android `sectionLabel`）的文案键：侧栏和首页的分区标题、检索的类型筛选。
+func pageKindSectionLabel(_ kind: PageKind) -> String {
+    switch kind {
+    case .note: return "notes"
+    case .slides: return "page_kind_slides"
+    case .whiteboard: return "ws_section_whiteboards"
+    }
+}
+
+/// 一次建这个类型的按钮（网页 PAGE_KIND_NEW_LABELS，Android `newPageLabel`）的文案键：分区的"+"、首页和空状态的新建按钮。
+func pageKindNewLabel(_ kind: PageKind) -> String {
+    switch kind {
+    case .note: return "new_note"
+    case .slides: return "ws_new_slides"
+    case .whiteboard: return "ws_new_whiteboard"
     }
 }
 
@@ -263,12 +354,18 @@ extension NoteGroupSummary: Decodable {
 struct NotesList: Encodable, Equatable, Sendable {
     var pages: [NotePageSummary] = []
     var groups: [NoteGroupSummary] = []
+    /// 各类型能用的功能表（网页 PAGE_KIND_FEATURES，[PageKindTable.parse] 读出来的）；旧服务端没有、读不出来时 nil。
+    var kinds: [PageKind: PageKindFeatures]? = nil
+
+    enum CodingKeys: String, CodingKey { case pages, groups }
 }
 
 extension NotesList: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
-        self.init(pages: try f.or("pages", []), groups: try f.or("groups", []))
+        // kinds 读不出来也不让整个列表失败。
+        let kinds = (try? f.opt("kinds", JSONValue.self)).flatMap { $0 }.flatMap(PageKindTable.parse)
+        self.init(pages: try f.or("pages", []), groups: try f.or("groups", []), kinds: kinds)
     }
 }
 
@@ -377,8 +474,9 @@ struct JsonObjectResponse: Decodable {
 protocol NotesBackend {
     func notes() async throws -> NotesList
 
-    /// 和网页的"New note"一样，建一篇空白的 Untitled 笔记。[parentId] 指定时建在那一篇里面（子页面）。
-    func createNote(parentId: String?) async throws -> NotePageSummary
+    /// 和网页的新建一样，建一篇空白的 Untitled 页面（[kind]：笔记，或空的白板 / 幻灯片）。[parentId] 指定时建在那一篇里面
+    /// （子页面，项目随父页面），否则建在 [groupId] 项目的最上层（nil 是不进项目）。
+    func createNote(parentId: String?, kind: PageKind, groupId: String?) async throws -> NotePageSummary
 
     /// 移到回收站（服务端只记 deletedAt，30 天内可恢复），子页面一起移进去。返回所有被移进去的 id（含这一篇）。
     func trashNote(id: String) async throws -> [String]
@@ -427,7 +525,7 @@ protocol NotesBackend {
 
 extension NotesBackend {
     func createNote() async throws -> NotePageSummary {
-        try await createNote(parentId: nil)
+        try await createNote(parentId: nil, kind: .note, groupId: nil)
     }
 
     func getShare(id: String) async throws -> NoteShareState {

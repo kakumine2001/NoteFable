@@ -356,6 +356,14 @@
 "page_kind_note" = "โน้ต";
 "page_kind_whiteboard" = "ไวท์บอร์ด";
 "page_kind_slides" = "สไลด์";
+"ws_new" = "สร้างใหม่";
+"ws_new_page" = "หน้าใหม่";
+"ws_new_page_in" = "หน้าใหม่ใน %1$s";
+"ws_section_whiteboards" = "ไวท์บอร์ด";
+"ws_new_slides" = "ชุดสไลด์ใหม่";
+"ws_new_whiteboard" = "ไวท์บอร์ดใหม่";
+"ws_all_types" = "ทุกประเภท";
+"ws_page_type" = "ประเภทหน้า";
 
 /* strings_pages.xml */
 "pg_favorites" = "รายการโปรด";

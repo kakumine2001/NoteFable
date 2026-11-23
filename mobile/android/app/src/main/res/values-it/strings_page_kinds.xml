@@ -4,4 +4,12 @@
     <string name="page_kind_note">Nota</string>
     <string name="page_kind_whiteboard">Lavagna</string>
     <string name="page_kind_slides">Diapositive</string>
+    <string name="ws_new">Nuovo</string>
+    <string name="ws_new_page">Nuova pagina</string>
+    <string name="ws_new_page_in">Nuova pagina in %1$s</string>
+    <string name="ws_section_whiteboards">Lavagne</string>
+    <string name="ws_new_slides">Nuova presentazione</string>
+    <string name="ws_new_whiteboard">Nuova lavagna</string>
+    <string name="ws_all_types">Tutti i tipi</string>
+    <string name="ws_page_type">Tipo di pagina</string>
 </resources>
