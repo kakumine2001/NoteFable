@@ -151,7 +151,7 @@ export async function prepareAttachments(files: File[], claudeImageMaxBytes?: nu
         // Decode/optimize before storing so invalid images never create orphan originals.
         if (owner) {
           const [{ newChatImagePath }, { storeFile }] = await Promise.all([import("@/lib/storage"), import("@/lib/stored-files")]);
-          base.imageStoragePath = await storeFile(owner, { path: newChatImagePath(base.mimeType), kind: "CHAT_IMAGE", buffer, mimeType: base.mimeType });
+          base.imageStoragePath = await storeFile(owner, { path: newChatImagePath(base.mimeType), kind: "CHAT_IMAGE", buffer, mimeType: base.mimeType }, { held: true });
         } else {
           const { writeStoredImage } = await import("@/lib/storage");
           base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);

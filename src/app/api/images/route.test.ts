@@ -130,6 +130,34 @@ describe("image generation conversation wiring", () => {
     expect(mocks.createMessage.mock.calls[0][0].data.attachments.create[0].filename).toBe("logo.png");
   });
 
+  it("stores an uploaded reference before paying for the generation and deletes it when the generation fails", async () => {
+    const order: string[] = [];
+    mocks.write.mockImplementation(async () => { order.push("store"); return "logo-saved.png"; });
+    mocks.consumeUsage.mockImplementation(async () => { order.push("usage"); return { ok: true, ticket: { buckets: [] } }; });
+    mocks.fetch.mockResolvedValue(new Response("upstream failed", { status: 500 }));
+    const body = new FormData();
+    body.set("sessionId", "owned");
+    body.set("prompt", "このロゴを使って");
+    body.append("files", new File(["logo"], "logo.png", { type: "image/png" }));
+    const response = await POST(new Request("http://localhost/api/images", { method: "POST", body }));
+    expect(response.status).toBeGreaterThanOrEqual(500);
+    expect(order).toEqual(["store", "usage"]);
+    expect(mocks.discard).toHaveBeenCalledWith(["logo-saved.png"]);
+    expect(mocks.createMessage).not.toHaveBeenCalled();
+  });
+
+  it("deletes a stored reference when the generation limit is reached", async () => {
+    mocks.write.mockResolvedValue("logo-saved.png");
+    mocks.consumeUsage.mockResolvedValueOnce({ ok: false, tier: "guest", message: "limit" });
+    const body = new FormData();
+    body.set("sessionId", "owned");
+    body.set("prompt", "このロゴを使って");
+    body.append("files", new File(["logo"], "logo.png", { type: "image/png" }));
+    expect((await POST(new Request("http://localhost/api/images", { method: "POST", body }))).status).toBe(429);
+    expect(mocks.discard).toHaveBeenCalledWith(["logo-saved.png"]);
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
+
   it("makes the original upload available alongside the generated edit", async () => {
     const image = (filename: string) => ({ filename, mimeType: "image/png", size: 9, extractedText: null, imageStoragePath: filename });
     setHistory([

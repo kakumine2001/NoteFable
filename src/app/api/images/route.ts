@@ -379,17 +379,28 @@ export async function POST(request: Request) {
       }
     }
 
-    // 生成した画像と参照画像はファイル置き場に残る。費用の掛かる生成を始める前に、容量の空きを確かめる
-    // （生成する画像の大きさはまだ分からないので、上限に達していないこと、参照画像が入ることだけを見る）。
+    // 生成した画像と参照画像はファイル置き場に残る。費用の掛かる生成を始める前に、容量の空きを確かめる。
+    // 参照画像は大きさが分かるので、ここで上限を確かめて置いてしまう（同時の生成で上限を超えないように）。
+    // 生成する画像の大きさはまだ分からないので、上限に達していないことだけを見る。
+    const referencePaths: string[] = [];
     try {
       await assertStorageRoom(user, imageInputs.reduce((sum, image) => sum + image.buffer.byteLength, 0));
+      for (const image of imageInputs) {
+        const path = await storeFile(user, { path: newChatImagePath(image.mimeType), kind: "CHAT_IMAGE", buffer: image.buffer, mimeType: image.mimeType }, { held: true });
+        storedPaths.push(path);
+        referencePaths.push(path);
+      }
     } catch (error) {
-      if (error instanceof StorageLimitError) return storageLimitResponse(error);
+      if (error instanceof StorageLimitError) {
+        await discardStoredFiles(storedPaths.splice(0));
+        return storageLimitResponse(error);
+      }
       throw error;
     }
 
     const usage = await consumeUsage(user, "image", clientNetworkKey(request));
     if (!usage.ok) {
+      await discardStoredFiles(storedPaths.splice(0));
       return usageLimitResponse(usage, "image");
     }
     usageTicket = usage.ticket;
@@ -461,12 +472,8 @@ export async function POST(request: Request) {
     // 保存処理には base64 ではなく Buffer が必要なので変換する。
     const imageBuffer = Buffer.from(imageBase64, "base64");
     // 生成画像を保存し、DB には相対パスを記録する。生成はもう済んで費用も掛かっているので、容量に数えるが上限では断らない。
-    const keep = async (buffer: Buffer, mimeType: string) => {
-      const path = await storeFile(user, { path: newChatImagePath(mimeType), kind: "CHAT_IMAGE", buffer, mimeType }, { enforce: false });
-      storedPaths.push(path);
-      return path;
-    };
-    const imageStoragePath = await keep(imageBuffer, "image/png");
+    const imageStoragePath = await storeFile(user, { path: newChatImagePath("image/png"), kind: "CHAT_IMAGE", buffer: imageBuffer, mimeType: "image/png" }, { enforce: false, held: true });
+    storedPaths.push(imageStoragePath);
     // 新規チャットから生成した場合は、完了画像ができた時点でセッションを作る。
     session ??= await prisma.session.create({
       data: {
@@ -476,14 +483,12 @@ export async function POST(request: Request) {
       select: { id: true, title: true },
     });
 
-    const inputAttachmentCreates = await Promise.all(
-      imageInputs.map(async (image) => ({
-        filename: image.filename,
-        mimeType: image.mimeType,
-        size: image.size,
-        imageStoragePath: await keep(image.buffer, image.mimeType),
-      })),
-    );
+    const inputAttachmentCreates = imageInputs.map((image, index) => ({
+      filename: image.filename,
+      mimeType: image.mimeType,
+      size: image.size,
+      imageStoragePath: referencePaths[index],
+    }));
 
     // 会話履歴上は、ユーザーが画像生成プロンプトを送った発言として保存する。表示中の枝の末尾に続ける。
     const promptMessage = await prisma.message.create({

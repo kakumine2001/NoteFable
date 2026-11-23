@@ -59,8 +59,10 @@ describe("storage quota", () => {
     expect(mocks.prisma.storedFile.create).toHaveBeenCalledWith({ data: { path: "note-files/g1/a.png", userId: "g1", kind: "NOTE_FILE", size: 100, releasedAt: expect.any(Date) } });
     used(STORAGE_LIMITS.guest);
     mocks.prisma.$queryRaw.mockClear();
-    await reserveStoredFile(guest, { path: "images/2026/11/23/b.png", kind: "CHAT_IMAGE", size: 5000 }, { enforce: false });
+    await reserveStoredFile(guest, { path: "images/2026/11/23/b.png", kind: "CHAT_IMAGE", size: 5000 }, { enforce: false, held: true });
     expect(mocks.prisma.$queryRaw).not.toHaveBeenCalled();
+    // 同じリクエストで参照を付けるファイルは、最初から使用中として記録する。
+    expect(mocks.prisma.storedFile.create).toHaveBeenLastCalledWith({ data: { path: "images/2026/11/23/b.png", userId: "g1", kind: "CHAT_IMAGE", size: 5000, releasedAt: null } });
     expect(mocks.prisma.storedFile.create).toHaveBeenCalledTimes(2);
   });
 
@@ -200,8 +202,8 @@ describe("inventory of files from before the records", () => {
     expect(state).toEqual({ index: 0, finishedAt: now.toISOString() });
     expect(mocks.prisma.storedFile.updateMany).toHaveBeenCalledWith({ where: { path: `note-files/m1/${uuid(3)}.png`, size: null }, data: { size: 30 } });
     expect(mocks.prisma.storedFile.createMany.mock.calls.map(([args]) => args.data)).toEqual([
-      [{ path: `note-files/m1/${uuid(1)}.png`, userId: "m1", kind: "NOTE_FILE", size: 10, releasedAt: now, createdAt: new Date(1) }],
-      [{ path: "images/2026/01/01/a.png", userId: "m1", kind: "CHAT_IMAGE", size: 40, releasedAt: now, createdAt: new Date(4) }],
+      [{ path: `note-files/m1/${uuid(1)}.png`, userId: "m1", kind: "NOTE_FILE", size: 10, releasedAt: null, checkedAt: null, createdAt: new Date(1) }],
+      [{ path: "images/2026/01/01/a.png", userId: "m1", kind: "CHAT_IMAGE", size: 40, releasedAt: null, checkedAt: null, createdAt: new Date(4) }],
     ]);
   });
 

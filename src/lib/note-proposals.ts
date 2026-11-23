@@ -111,6 +111,8 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
           select: { id: true, title: true, icon: true, blocks: true, version: true },
         });
         if (!current) throw new Conflict();
+        // 提案のためにコピーした画像は、ここからノートの本文が参照する。保存（PATCH）と同じく、ノートの行より先にファイルの行を取る。
+        await claimNoteFiles(tx, content.blocks, userId);
         // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
         await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });
         const changed = await tx.notePage.updateMany({
@@ -118,8 +120,6 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
           data: { title: content.title, blocks: content.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
         });
         if (!changed.count) throw new Conflict();
-        // 提案のためにコピーした画像は、ここからノートの本文が参照する。
-        await claimNoteFiles(tx, content.blocks, userId);
         return tx.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null } });
       });
       if (!page) return afterLostClaim();

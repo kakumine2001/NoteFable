@@ -359,7 +359,7 @@ User 1 -> N StoredFile（SetNull）
 
 ### StoredFile
 
-文件仓库（Private Vercel Blob，本地开发没有 Blob token 时是 `NOTEFABLE_STORAGE_DIR`）里每个文件一行（`20261123000000_stored_files` 新增，代码 `src/lib/stored-files.ts`）。它同时用于**按套餐的存储上限**和**未引用文件的清理**，接替了只管封面的 `NoteCoverAsset`（迁移时连同状态搬进来后删表）。
+文件仓库（Private Vercel Blob，本地开发没有 Blob token 时是 `NOTEFABLE_STORAGE_DIR`）里每个文件一行（`20261123000000_stored_files` 新增，代码 `src/lib/stored-files.ts`）。它同时用于**按套餐的存储上限**和**未引用文件的清理**，接替了只管封面的 `NoteCoverAsset`（迁移时连同状态搬进来后删表，部署期间留一个同名兼容视图，见下方迁移说明）。
 
 | 列 | 说明 |
 | --- | --- |
@@ -382,13 +382,13 @@ User 1 -> N StoredFile（SetNull）
 | `POST /api/pages/covers`、`POST /api/pages/files` | 新文件放得下才收（`storeFile` 检查） |
 | `POST /api/uploads`（聊天附件的上传凭证） | 只算会留下的图片（文本、PDF 只取文字）：`assertStorageRoom` 先拒，避免先上传再失败 |
 | `/api/chat` 保存附件图片 | `prepareAttachments(files, budget, user)` 逐张 `storeFile`（并发时的最后一道）；放不下时退还这次聊天次数、返回 413 |
-| `/api/images` | 生成前 `assertStorageRoom(user, 参考图大小)`：已满（用量 ≥ 上限）或参考图放不下就不调用 OpenAI、不计次数；生成后的图片和参考图不再检查（费用已产生），可能略超上限 |
-| AI 把聊天图片复制进笔记（`note-attachments.ts`） | 复制也是新文件，放不下时工具向模型返回错误，提案不建立 |
+| `/api/images` | 生成前 `assertStorageRoom(user, 参考图大小)`，再逐张 `storeFile` 参考图（并发时的最后一道）：已满（用量 ≥ 上限）或参考图放不下就不调用 OpenAI、不计次数；之后失败（次数用完、生成失败、保存失败）时删掉已存的参考图。生成后的图片不再检查（费用已产生），可能略超上限 |
+| AI 把聊天图片复制进笔记（`note-attachments.ts`） | 复制也是新文件，放不下时工具向模型返回错误，提案不建立；提案没保存成（任何原因）时删掉这次复制的文件 |
 | 头像、设置里的图标 | 计入用量但不拒绝（只是替换一张，旧的立即删除） |
 
 已有的文件在超限后照常可读、可用；复制笔记、分支聊天、编辑发言共用原文件，不增加用量。
 
-**引用（使用中）。** 保存笔记的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、导入、历史恢复、适用 AI 提案。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
+**引用（使用中）。** 只上传、引用要等之后保存的文件（笔记文件、封面）登记时就记 `releasedAt`（未使用，宽限期从上传算）；同一请求里就会被引用的文件（聊天附件和生成图、头像、图标、AI 提案里的复制）用 `storeFile(..., { held: true })` 直接登记为使用中，没用上时由巡查释放。保存笔记的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、复制笔记、导入、历史恢复、适用 AI 提案（先锁文件行、后锁笔记行，与 `PATCH` 同序）。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
 
 | kind | 引用来源 |
 | --- | --- |
@@ -401,7 +401,7 @@ User 1 -> N StoredFile（SetNull）
 
 **清理（`collectUnusedFiles`）。** ① `userId` 为空（账号已删）的行直接标成删除中；② 使用中的行按 `checkedAt` 从旧到新巡查（每次最多 4×500 行），没有引用的记 `releasedAt`，记完再确认一次，期间被引用的改回使用中；③ `releasedAt` 超过 7 天（`FILE_GRACE_MS`）的再确认引用，仍没有就用条件更新设 `deletingAt`（与保存的 claim 抢同一行的锁：保存在前则条件不成立，清理在前则保存被拒或不再认领）；④ 删除中的行先删文件、成功后删行，失败的下次重试。所以从笔记里删掉的图片在编辑历史、Trash、待确认提案都不再引用它之后约一周被删；删掉的聊天的图片也一样。
 
-**盘点（`inventoryStoredFiles`）。** 按 kind 的目录分页列出文件仓库（Blob `list()`，每页 1,000 个），把没有行的旧文件补成行（`releasedAt` = 现在：有引用的会在宽限期满时确认后转回使用中，没有的随后被删），给 `size` 为 null 的行补上大小。只补持有者在本数据库里能确定的文件（用户目录的用户存在、聊天图片有本库的附件指向），别的环境放进同一仓库的文件不碰。盘点做完一轮后 7 天再做下一轮，进度存在 `MaintenanceJob.state`。
+**盘点（`inventoryStoredFiles`）。** 按 kind 的目录分页列出文件仓库（Blob `list()`，每页 1,000 个），把没有行的旧文件补成行（使用中、`checkedAt` 为空：巡查最先确认它们的引用，没有引用的从那时起才算宽限期，不会因为文件本身旧而少给宽限），给 `size` 为 null 的行补上大小。只补持有者在本数据库里能确定的文件（用户目录的用户存在、聊天图片有本库的附件指向），别的环境放进同一仓库的文件不碰。盘点做完一轮后 7 天再做下一轮，进度存在 `MaintenanceJob.state`。
 
 **什么时候运行（没有 Cron）。** `runStorageMaintenance()` 在请求之后（`after()`）尝试运行：封面、笔记文件上传、聊天附件凭证和 `GET /api/billing`（打开设置的方案页）都会触发；用 `MaintenanceJob` 行做租约（同一时刻只有一个、两次之间至少 6 小时、每次最多约 20 秒，超时的部分下次继续）。每次依次：删掉超过 2 小时的 `chat-uploads/` 临时上传（全站，补充每个用户下次上传时的清理）、盘点、清理。**本地开发用着与生产共享的 Blob token 时（有 token 但 `VERCEL_ENV` 不是 production / preview）完全不运行**，避免用本地数据库的引用去删生产的文件（`sharesForeignStorage`）。Preview 有自己的 Blob store，照常运行。
 
@@ -626,7 +626,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。`20261123000000_stored_files` 新建 `StoredFileKind`、`StoredFile`、`MaintenanceJob`，把 `NoteCoverAsset` 的行（连同使用中 / 删除中的状态，`size` 为 null）搬进 `StoredFile` 后删掉旧表，把已有的聊天图片（`Attachment.imageStoragePath`，大小取 `Attachment.size`，持有者取会话）登记为使用中，并给 `Attachment.imageStoragePath` 加索引；笔记文件、头像、图标等其余旧文件由上线后的盘点补登记。部署窗口内仍在运行的旧版本写 `NoteCoverAsset` 会失败（上传封面、保存带上传封面的笔记），几分钟后新版本接手即恢复，草稿会重试。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。`20261123000000_stored_files` 新建 `StoredFileKind`、`StoredFile`、`MaintenanceJob`，把 `NoteCoverAsset` 的行（连同使用中 / 删除中的状态，`size` 为 null）搬进 `StoredFile` 后删掉旧表，把已有的聊天图片（`Attachment.imageStoragePath`，大小取 `Attachment.size`，持有者取会话）登记为使用中，并给 `Attachment.imageStoragePath` 加索引；笔记文件、头像、图标等其余旧文件由上线后的盘点补登记（登记为使用中、未确认，下一轮清理确认引用后才开始计宽限期）。紧接着的 `20261123010000_note_cover_asset_view` 建同名兼容视图 `NoteCoverAsset`（只露出 `kind = 'NOTE_COVER'` 的行，插入经 `INSTEAD OF` 触发器写进 `StoredFile`，更新 / 删除直接落到 `StoredFile`），让部署窗口里仍在运行的旧版本照常上传封面、保存笔记和清理。新版本代码不用这个视图；新版本上线后由下一个迁移删掉视图和触发器函数（`note_cover_asset_view_insert`）。
 
 聊天行右侧显示三点按钮，置顶/取消置顶、重命名、移动项目和删除确认均在三点菜单内。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

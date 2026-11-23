@@ -88,9 +88,17 @@ export async function assertStorageRoom(owner: StorageOwner | string, incomingBy
   if (used + incomingBytes > limit || used >= limit) throw limitError(tier, used, limit);
 }
 
+export type StoreOptions = {
+  // false は上限を確かめない（生成し終えた画像や、1 枚を置き換えるだけのプロフィール画像。費用はもう掛かっている）。
+  enforce?: boolean;
+  // true は同じリクエストのうちに参照を付けるファイル（チャットの添付・生成画像、プロフィール画像、AI の提案に入れるコピー）。
+  // 最初から使用中として記録する（使われずに終わったら、後片付けの巡回が解放の時刻を付けて猶予のあとで消す）。
+  // false（既定）はアップロードだけで、参照はあとの保存で付く（ノートのファイル・カバー）。
+  held?: boolean;
+};
+
 // 空きを確かめて、ファイルの行を作る。同じ利用者の同時のアップロードは 1 つずつ数える（合わせて上限を超えないように）。
-// enforce: false は上限を確かめない（生成し終えた画像や、1 枚を置き換えるだけのプロフィール画像。費用はもう掛かっている）。
-export async function reserveStoredFile(owner: StorageOwner | string, file: { path: string; kind: StoredFileKind; size: number }, { enforce = true } = {}) {
+export async function reserveStoredFile(owner: StorageOwner | string, file: { path: string; kind: StoredFileKind; size: number }, { enforce = true, held = false }: StoreOptions = {}) {
   const row = await ownerRow(owner);
   const { tier, limit } = storageLimitFor(row);
   await prisma.$transaction(async (tx) => {
@@ -99,13 +107,13 @@ export async function reserveStoredFile(owner: StorageOwner | string, file: { pa
       const used = await storageUsed(row.id, tx);
       if (used + file.size > limit) throw limitError(tier, used, limit);
     }
-    // アップロードの直後は、まだどこからも参照されていない。参照が付けば保存の処理か後片付けが使用中に戻す。
-    await tx.storedFile.create({ data: { path: file.path, userId: row.id, kind: file.kind, size: file.size, releasedAt: new Date() } });
+    // アップロードだけのファイルは、まだどこからも参照されていない。参照が付けば保存の処理か後片付けが使用中に戻す。
+    await tx.storedFile.create({ data: { path: file.path, userId: row.id, kind: file.kind, size: file.size, releasedAt: held ? null : new Date() } });
   });
 }
 
 // 空きを確かめて記録し、ファイルを書く。上限なら StorageLimitError。書けなかったら行を「削除中」にして（後片付けが片付ける）投げ直す。
-export async function storeFile(owner: StorageOwner | string, file: { path: string; kind: StoredFileKind; buffer: Buffer; mimeType: string }, options?: { enforce?: boolean }) {
+export async function storeFile(owner: StorageOwner | string, file: { path: string; kind: StoredFileKind; buffer: Buffer; mimeType: string }, options?: StoreOptions) {
   await reserveStoredFile(owner, { path: file.path, kind: file.kind, size: file.buffer.byteLength }, options);
   try {
     return await writeStoredImageAt(file.path, file.buffer, file.mimeType);
@@ -343,8 +351,8 @@ export async function collectUnusedFiles(now = Date.now(), deadline = Number.POS
 
 // この表より前から置き場にある（記録のない）ファイルを記録に加え、大きさの分からない行に大きさを補う。
 // 持ち主がこの DB で分かるものだけを加える（利用者のフォルダならその利用者がいる、チャットの画像ならこの DB の添付が指している）。
-// 別の環境が同じ置き場に置いたファイルには触れない。加えたファイルは参照がまだ確かめられていないので、猶予の数えから始める
-// （参照があれば猶予が切れたときの確認で使用中に戻り、なければ消える）。
+// 別の環境が同じ置き場に置いたファイルには触れない。加えたファイルは使用中・未確認として記録し、次の巡回で参照を確かめる
+// （参照がなければそこから猶予を数え始めるので、使われているファイルが猶予なしで消えることはない）。
 export type InventoryState = { index: number; cursor?: string; finishedAt?: string };
 
 async function ownersOf(kind: StoredFileKind, files: StoredFileListing[]) {
@@ -368,7 +376,7 @@ async function ownersOf(kind: StoredFileKind, files: StoredFileListing[]) {
   return owners;
 }
 
-async function adoptListedFiles(kind: StoredFileKind, files: StoredFileListing[], now: Date) {
+async function adoptListedFiles(kind: StoredFileKind, files: StoredFileListing[]) {
   if (!files.length) return 0;
   const existing = await prisma.storedFile.findMany({ where: { path: { in: files.map((file) => file.path) } }, select: { path: true, size: true } });
   const known = new Map(existing.map((row) => [row.path, row.size]));
@@ -381,7 +389,7 @@ async function adoptListedFiles(kind: StoredFileKind, files: StoredFileListing[]
   if (!missing.length) return 0;
   const owners = await ownersOf(kind, missing);
   const rows = missing.filter((file) => owners.has(file.path)).map((file) => ({
-    path: file.path, userId: owners.get(file.path)!, kind, size: file.size, releasedAt: now, createdAt: file.uploadedAt,
+    path: file.path, userId: owners.get(file.path)!, kind, size: file.size, releasedAt: null, checkedAt: null, createdAt: file.uploadedAt,
   }));
   if (rows.length) await prisma.storedFile.createMany({ data: rows, skipDuplicates: true });
   return rows.length;
@@ -397,7 +405,7 @@ export async function inventoryStoredFiles(
   while (index < KINDS.length && Date.now() < deadline) {
     const kind = KINDS[index];
     const page = await listStoredFiles(STORED_FILE_PREFIXES[kind], cursor);
-    await adoptListedFiles(kind, page.files, now);
+    await adoptListedFiles(kind, page.files);
     cursor = page.cursor;
     if (!cursor) index += 1;
     if (index < KINDS.length) await onProgress?.({ index, cursor });
@@ -417,6 +425,7 @@ async function reapStaleChatUploads(now: number, deadline: number) {
   for (let page = 0; page < 3 && Date.now() < deadline; page += 1) {
     const result = await listStoredFiles("chat-uploads/", cursor);
     for (const file of result.files) {
+      if (Date.now() >= deadline) return removed;
       if (file.uploadedAt.getTime() >= now - STALE_CHAT_UPLOAD_MS) continue;
       await deleteStoredImage(file.path).then(() => { removed += 1; }, () => {});
     }

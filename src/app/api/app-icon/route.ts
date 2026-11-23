@@ -83,7 +83,7 @@ export async function PUT(request: Request) {
 
     const storagePath = input.kind === "image" ? `${APP_ICON_ROOT}/${user.id}/${randomUUID()}${getImageExtension(input.mimeType)}` : null;
     // 容量に数えるが、上限では断らない（数十 KB の 1 枚を置き換えるだけで、古い画像はすぐ消す）。
-    if (input.kind === "image") await storeFile(user, { path: storagePath!, kind: "APP_ICON", buffer: input.bytes, mimeType: input.mimeType }, { enforce: false });
+    if (input.kind === "image") await storeFile(user, { path: storagePath!, kind: "APP_ICON", buffer: input.bytes, mimeType: input.mimeType }, { enforce: false, held: true });
     const updatedAt = new Date();
     try {
       // 読んだときの画像のままの場合だけ置き換える（同時に別の端末が置き換えていたら、そちらの画像を消さないように、こちらを取り消す）。

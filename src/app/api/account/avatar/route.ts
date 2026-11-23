@@ -55,7 +55,7 @@ export async function POST(request: Request) {
 
   const storagePath = `${AVATAR_ROOT}/${row.id}/${randomUUID()}${getImageExtension(mimeType)}`;
   // 容量に数えるが、上限では断らない（1 枚を置き換えるだけで、古い写真はすぐ消す）。
-  await storeFile(row, { path: storagePath, kind: "AVATAR", buffer, mimeType }, { enforce: false });
+  await storeFile(row, { path: storagePath, kind: "AVATAR", buffer, mimeType }, { enforce: false, held: true });
 
   // 読んだときの写真のままの場合だけ差し替える（同時に別のタブが差し替えていたら、そちらを消さず、こちらを取り消す）。
   try {

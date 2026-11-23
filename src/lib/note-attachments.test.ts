@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  findMany: vi.fn(), findFirst: vi.fn(), pageFindFirst: vi.fn(), createProposal: vi.fn(), read: vi.fn(), write: vi.fn(),
+  findMany: vi.fn(), findFirst: vi.fn(), pageFindFirst: vi.fn(), createProposal: vi.fn(), read: vi.fn(), write: vi.fn(), discard: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   databaseSchema: "notefable",
@@ -10,6 +10,7 @@ vi.mock("@/lib/prisma", () => ({
 vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read }));
 vi.mock("@/lib/stored-files", () => ({
   storeFile: async (_owner: unknown, file: { path: string; buffer: Buffer; mimeType: string }) => { await mocks.write(file.path, file.buffer, file.mimeType); return file.path; },
+  discardStoredFiles: mocks.discard,
 }));
 import { noteFileUrl, parseNoteFileUrl } from "./note-file-keys";
 import { runPageTool } from "./page-tools";
@@ -71,6 +72,17 @@ describe("chat attachments in the note tools", () => {
     expect(image).toMatchObject({ type: "image", props: { caption: "Cell diagram", name: "diagram (v2).png", showPreview: true } });
     expect(parseNoteFileUrl(image.props.url)).toMatchObject({ ownerId: "mine", extension: "png" });
     expect((result.events as { content: string }[])[0].content).toContain("[Image: diagram (v2).png — Cell diagram]");
+  });
+
+  it("deletes the copied images again when the proposal is not saved", async () => {
+    mocks.createProposal.mockRejectedValueOnce(new Error("database unavailable"));
+    await expect(runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, "mine", "s1")).rejects.toThrow("database unavailable");
+    const [path] = mocks.write.mock.calls[0];
+    expect(mocks.discard).toHaveBeenCalledWith([path]);
+    // 保存できた提案のコピーは消さない。
+    mocks.discard.mockClear();
+    expect((await runPageTool("propose_note_create", { title: "Diagram", markdown: "![Cell diagram](attachment:att1)", icon: null }, "mine", "s1")).isError).toBeUndefined();
+    expect(mocks.discard).not.toHaveBeenCalled();
   });
 
   it("can replace an uploaded image in an existing note with an attached one", async () => {
