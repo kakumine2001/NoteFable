@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown } from "lucide-react";
-import { useId, useState } from "react";
+import { useCallback, useId, useState } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { useT } from "@/components/i18n-provider";
 import { PageKindIcon } from "@/components/page-kind-icon";
@@ -15,9 +15,10 @@ export function NewPageKindMenu({ busy, onCreate, className = "" }: { busy: bool
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
+  // 親の再描画（自動保存の状態の変化など）でメニューが開き直らないよう、同じ関数を渡し続ける。
+  const close = useCallback(() => setMenu(null), []);
   const kinds = creatablePageKinds();
   if (kinds.length < 2) return null;
-  const close = () => setMenu(null);
   return <>
     <button type="button" className={`new-page-kind-trigger ${className}`} disabled={busy} aria-label={t("New page")} title={t("New page")}
       aria-haspopup="menu" aria-expanded={!!menu} aria-controls={id}

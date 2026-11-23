@@ -7,7 +7,7 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
-import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
+import { isCanvasKind, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { CANVAS_DRAFT_PREFIX, canvasSaveBody, canvasSavedPage, newPageBody, parseCanvasDraft } from "@/lib/canvas-save";
 import type { NoteContent, NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
@@ -106,7 +106,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     } catch { /* 壊れた端末キャッシュは DB の本文に影響させない。 */ }
     const draftKey = (isCanvasKind(kind) ? CANVAS_DRAFT_PREFIX : DRAFT_PREFIX) + page.id;
     // 最後に書いた下書きの内容。保存の状態だけが変わった通知で、同じ（ホワイトボード・スライドでは最大 2 MB の）内容を書き直さない。
-    let writtenDraft: unknown = null;
+    let writtenDraft: { content: unknown; version: number } | null = null;
     const queue: NoteSaveQueue = new NoteSaveQueue(page, async (content, version): Promise<NotePage> => {
       const started = metaSequence.current;
       if (isCanvasKind(kind)) {
@@ -125,9 +125,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       upsertSummary({ ...queue.page, title: queue.content.title.trim() || "Untitled", icon: queue.content.icon }, { local: true });
       try {
         if (!queue.dirty) { localStorage.removeItem(draftKey); writtenDraft = null; }
-        else if (writtenDraft !== queue.content || !isCanvasKind(kind)) {
+        else if (!isCanvasKind(kind) || writtenDraft?.content !== queue.content || writtenDraft.version !== queue.version) {
           localStorage.setItem(draftKey, JSON.stringify(queue.draft));
-          writtenDraft = queue.content;
+          writtenDraft = { content: queue.content, version: queue.version };
         }
         setBackupError("");
       } catch { setBackupError(msg("Browser draft backup is unavailable. Keep this tab open until Saved appears.")); }
@@ -505,8 +505,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // サイドバーのアイコンから変える。開いているノートは編集と同じ経路（自動保存）に乗せ、開いていないノートは専用の API で書く。
   const changeIcon = (id: string, icon: string | null) => groupAction(async () => {
-    // 開いているページは（ホワイトボード・スライドも）編集と同じ自動保存に載せる。
-    if (active && id === activeId) { active.edit({ ...active.content, icon }); return true; }
+    // 開いているページは編集と同じ自動保存に載せる。ホワイトボード・スライドはエディターがある種類だけ
+    // （読み取り専用の仮の画面には保存の失敗・衝突を直す案内が無いので、専用の API で書く）。
+    if (active && id === activeId && (!isCanvasKind(pageKindOf(active.page)) || pageKindFeatures(pageKindOf(active.page)).editor)) { active.edit({ ...active.content, icon }); return true; }
     const { page } = await pageRequest(`/api/pages/${id}/icon`, "PUT", { icon });
     // 一覧と、読み込み済みの編集内容を新しい版へそろえる（未保存の編集が残っていれば、上書きせず衝突として知らせる）。
     window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));
@@ -625,13 +626,15 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   async function loadLatest() {
     const queue = active;
-    let latest = queue?.latest;
+    const conflict = queue?.latest;
+    let latest = conflict;
     if (!queue || !latest) return;
     // ホワイトボード・スライドの 409 は本体を含まない。新しい版と古い本体を組み合わせないよう、読み直してから替える。
     if (isCanvasKind(pageKindOf(queue.page)) && latest.data === undefined) {
       try { latest = (await pageRequest(`/api/pages/${queue.page.id}`)).page as NotePage; }
       catch (caught) { setActionError(caught instanceof Error && caught.message ? caught.message : msg("Failed to open note.")); return; }
-      if (queues.current.get(queue.page.id) !== queue) return;
+      // 読み直している間に、別の操作（もう一度押した・新しいページとして保存した）で衝突が片付いていたら、その後の編集を消さない。
+      if (queues.current.get(queue.page.id) !== queue || queue.latest !== conflict) return;
     }
     queue.loadLatest(latest);
     upsertSummary(queue.page);

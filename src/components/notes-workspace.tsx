@@ -180,8 +180,10 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
         onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
         onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }} />
-    </div> : <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
-      title={active.content.title} icon={active.content.icon} data={active.page.data} />)
+    </div> : <>
+      {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
+      <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
+    </>)
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
