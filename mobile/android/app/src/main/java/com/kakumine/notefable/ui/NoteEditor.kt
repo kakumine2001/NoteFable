@@ -83,7 +83,6 @@ import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.ExportFile
 import com.kakumine.notefable.data.ExportFileAssembler
 import com.kakumine.notefable.data.NoteFileLinks
-import com.kakumine.notefable.data.NoteFableJson
 import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.CompletableDeferred
@@ -578,7 +577,7 @@ class NoteEmbedHost(
         return view
     }
 
-    /** 打开或切到 [open]：已加载过同一身份的 /note-embed 时优先走 `openPage` 就地切页，失败再回退 `loadUrl`。 */
+    /** 打开或切到 [open]：已加载过同一身份的 /note-embed 时优先走 `openPage` 就地切页，失败则重建干净 WebView 回退整页加载。 */
     fun show(
         context: Context,
         open: OpenNote,
@@ -588,7 +587,6 @@ class NoteEmbedHost(
         appIcon: String?,
         model: String?,
         reasoning: String?,
-        page: NotePageSummary?,
         embedUrl: (lang: String, theme: String, reveal: String?) -> String,
         baseUrl: String,
         cookieJar: CookieJar,
@@ -611,13 +609,15 @@ class NoteEmbedHost(
             bridge.pushTheme(theme)
             bridge.pushLanguage(lang)
             bridge.pushAppIcon(appIcon)
-            val pageJson = page?.let { NoteFableJson.encodeToString(NotePageSummary.serializer(), it) }
             bridge.openPage(open.id, reveal = useReveal, model = model, reasoning = reasoning) { handled ->
                 if (epoch != showEpoch || bridge.activeEditor != open.editor) return@openPage
-                if (handled) {
-                    if (pageJson != null) bridge.pageSettings(pageJson)
-                } else {
-                    loadFresh(epoch, open, lang, theme, useReveal, embedUrl, baseUrl, cookieJar)
+                if (!handled) {
+                    // 旧版服务端不支持 openPage 或首次加载尚未挂好：销毁旧 WebView 并递增 generation，
+                    // 用全新 WebView 整页加载，避免上一篇笔记留在 WebView 的后退栈里（canGoBack）。
+                    destroy()
+                    bridge.activeEditor = open.editor
+                    awaitingPageId = open.id
+                    generation++
                 }
             }
         } else {
@@ -755,7 +755,6 @@ fun NoteEditorScreen(
     val bridge = host.bridge
     val presenting = host.presenting
     val currentEmbedUrl by rememberUpdatedState(embedUrl)
-    val currentPage by rememberUpdatedState(page)
     val currentModel by rememberUpdatedState(model)
     val currentReasoning by rememberUpdatedState(reasoning)
 
@@ -921,7 +920,6 @@ fun NoteEditorScreen(
                 appIcon = appIcon,
                 model = currentModel,
                 reasoning = currentReasoning,
-                page = currentPage,
                 embedUrl = currentEmbedUrl,
                 baseUrl = baseUrl,
                 cookieJar = cookieJar,

@@ -831,4 +831,59 @@ describe("useNotePages instant switching & prefetch", () => {
     expect(hook.current.hasCached("p2")).toBe(true);
     expect(hook.current.hasCached("p10")).toBe(true);
   });
+
+  it("notifies onMissing when a clean cached note revalidates as 404 and retries failed cached drafts on reopen", async () => {
+    createFakeBrowser();
+    const pageA = makePage("a", "Alpha", 1);
+    const pageB = makePage("b", "Beta", 1);
+    let aFetchCount = 0;
+    let bPatchCount = 0;
+    const missing: string[] = [];
+
+    vi.stubGlobal("fetch", vi.fn((url: string, init?: RequestInit) => {
+      if (url === "/api/pages/a") {
+        aFetchCount += 1;
+        return aFetchCount === 1
+          ? Promise.resolve(jsonResponse({ page: pageA }))
+          : Promise.resolve(jsonResponse({ error: "Not found" }, 404));
+      }
+      if (url === "/api/pages/b" && init?.method === "PATCH") {
+        bPatchCount += 1;
+        if (bPatchCount === 1) return Promise.resolve(jsonResponse({ error: "Temporary outage" }, 503));
+        return Promise.resolve(jsonResponse({ page: makePage("b", "Unsaved B", 2) }));
+      }
+      if (url === "/api/pages/b") return Promise.resolve(jsonResponse({ page: pageB }));
+      return Promise.reject(new Error(`unexpected ${url}`));
+    }));
+
+    const hook = hookRuntime.mount(() => useNotePages(false, { embedded: true, onMissing: (id) => { missing.push(id); } }));
+    await flushMicrotasks();
+
+    // 1. Open A, deactivate, reopen A -> background 404 must notify onMissing("a").
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.deactivate();
+    await flushMicrotasks();
+    await hook.current.select("a", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    expect(missing).toEqual(["a"]);
+    expect(hook.current.activeId).toBeNull();
+
+    // 2. Open B, make an edit whose save fails (503), leave, reopen B -> revalidation confirms v1 and retries save.
+    await hook.current.select("b", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    hook.current.active!.edit({ ...hook.current.active!.content, title: "Unsaved B" });
+    await hook.current.active!.flush();
+    await flushMicrotasks();
+    expect(hook.current.active?.status).toBe("error");
+    hook.current.deactivate();
+    await flushMicrotasks();
+
+    await hook.current.select("b", "none", { keepCurrent: false });
+    await flushMicrotasks();
+    await flushMicrotasks();
+    expect(bPatchCount).toBe(2);
+    expect(hook.current.active?.status).toBe("saved");
+    expect(hook.current.active?.version).toBe(2);
+  });
 });

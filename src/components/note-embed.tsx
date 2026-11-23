@@ -14,6 +14,8 @@ import { pageKindOf } from "@/lib/page-kinds";
 import { revealNoteBlock } from "@/lib/search-reveal";
 import { cancelWhiteboardReveal, requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 import { flushCanvasEditors } from "@/lib/canvas-flush";
+import { cancelNativeExports } from "@/lib/export-file";
+import { afterSheetHistory } from "@/lib/use-back-to-close";
 
 const noop = () => {};
 
@@ -25,7 +27,13 @@ const noop = () => {};
 // 保存・下書きの退避・衝突の扱いは useNotePages と NoteSaveQueue をそのまま使う。アプリとのやり取りは src/lib/native-bridge.ts。
 export function NoteEmbed() {
   const { t, locale, setPreference, changeError } = useI18n();
-  const notes = useNotePages(false, { embedded: true });
+  const expectedPageRef = useRef<string | null>(null);
+  const notes = useNotePages(false, {
+    embedded: true,
+    onMissing: (id) => {
+      if (expectedPageRef.current === id) postToNative({ type: "missing" });
+    },
+  });
   const { active, activeId, loading, select, deactivate } = notes;
   const [pageId, setPageId] = useState<string | null>(null);
   // アプリが一時的に一覧・チャットへ戻っている間（close() 後）は、編集画面の DOM を外してキャッシュだけ保つ。
@@ -40,7 +48,6 @@ export function NoteEmbed() {
   const activeRef = useRef(active);
   // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
   const revealRef = useRef<{ pageId: string; target: string } | null>(null);
-  const expectedPageRef = useRef<string | null>(null);
   const initialLoadedRef = useRef(false);
   const backupErrorRef = useRef(notes.backupError);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
@@ -114,6 +121,7 @@ export function NoteEmbed() {
     // 常駐 WebView の中で別ページ（または以前開いたページ）へ即座に切り替える。履歴は積まない（canGoBack を汚さない）。
     openPage: ({ id, reveal, model: nextModel, reasoning: nextReasoning }) => {
       cancelWhiteboardReveal();
+      cancelNativeExports();
       setHistoryOpen(false);
       sent.current = { readyId: "", meta: "", state: "", goneId: "" };
       expectedPageRef.current = id;
@@ -125,15 +133,19 @@ export function NoteEmbed() {
         const resolved = resolveModelPreference(readEmbedModelPreference(params), optionsRef.current);
         if (resolved) { setModel(resolved.model); setReasoning(resolved.reasoning); }
       }
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.set("page", id);
-        url.searchParams.delete("reveal");
-        url.searchParams.delete("warm");
-        window.history.replaceState(null, "", url);
-      } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
       setIdle(false);
       setPageId(id);
+      // 履歴ダイアログや AI パネル（useBackToClose）が開いていた場合、その history.back() 後始末が終わってから URL を差し替える。
+      window.setTimeout(() => afterSheetHistory(() => {
+        if (expectedPageRef.current !== id) return;
+        try {
+          const url = new URL(window.location.href);
+          url.searchParams.set("page", id);
+          url.searchParams.delete("reveal");
+          url.searchParams.delete("warm");
+          window.history.replaceState(window.history.state, "", url);
+        } catch { /* URL 更新できなくても表示切り替えは続ける。 */ }
+      }));
       void select(id, "none", { keepCurrent: false }).then((opened) => {
         if (!opened && expectedPageRef.current === id) postToNative({ type: "missing" });
       });
@@ -141,6 +153,7 @@ export function NoteEmbed() {
     // 一覧・チャットへ戻るとき：エディター DOM を外してキャッシュだけ残す。
     close: () => {
       cancelWhiteboardReveal();
+      cancelNativeExports();
       setHistoryOpen(false);
       revealRef.current = null;
       expectedPageRef.current = null;
@@ -190,7 +203,11 @@ export function NoteEmbed() {
     else void revealNoteBlock(request.target);
   }, [idle, active, activeId, loading, kind]);
 
-  const retry = async () => { if (pageId) await select(pageId, "none", { keepCurrent: false }); };
+  const retry = async () => {
+    if (!pageId) return;
+    const opened = await select(pageId, "none", { keepCurrent: false });
+    if (!opened && expectedPageRef.current === pageId) postToNative({ type: "missing" });
+  };
 
   if (idle) {
     return <main className="notion-workspace flex h-dvh" />;
