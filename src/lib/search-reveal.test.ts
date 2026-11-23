@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { chatMessageSelector, noteBlockSelector, REVEAL_CLASS, revealChatMessage, revealNoteBlock } from "./search-reveal";
+import { chatMessageSelector, noteBlockSelector, REVEAL_CLASS, revealChatMessage, revealNoteBlock, takeCanvasReveal } from "./search-reveal";
 
 // node 環境には DOM が無いので、このモジュールが使う分だけの偽物を用意する。
 class FakeElement {
@@ -126,6 +126,25 @@ describe("revealChatMessage", () => {
     await two;
     expect(first.flashing).toBe(false);
     expect(second.flashing).toBe(true);
+  });
+});
+
+describe("takeCanvasReveal", () => {
+  it("hands a slide editor that opens later the request it missed, once", async () => {
+    const controller = new AbortController();
+    void revealNoteBlock("slide-7", { signal: controller.signal });
+    controller.abort();
+    expect(takeCanvasReveal((id) => id === "other")).toBeNull();
+    expect(takeCanvasReveal((id) => id === "slide-7")).toBe("slide-7");
+    expect(takeCanvasReveal(() => true)).toBeNull();
+  });
+
+  it("forgets a request after the wait", async () => {
+    const controller = new AbortController();
+    void revealNoteBlock("slide-8", { signal: controller.signal });
+    controller.abort();
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(takeCanvasReveal(() => true)).toBeNull();
   });
 });
 

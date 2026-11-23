@@ -55,6 +55,8 @@ Claude 使用独立的模型输入副本（`src/lib/claude-image.ts`、Sharp）�
 
 `/api/images` 使用独立的双层生图额度（月 / 账期总量 + 每日张数，与聊天次数分开统计）：未登录 10 张/月且 3 张/天（同网络另共享 30 张/月）、免费登录 20 张/月且 5 张/天、Pro 60 张/账期且 10 张/天。在调用 OpenAI 前在同一事务内预占两层计数，任一层满额即返回 `429`（`{ error, code: "usage_limit", tier, kind: "image" }`）；游客看到登录引导，已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。设置的“方案”页里 Pro 同时显示本期与今日两条进度条，免费方案平时只显示今日条、仅在月上限用满时补显示满额的本月条。生成或保存失败、没有交付图片时退还次数。档位与重置规则见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。生成前还检查文件存储：用量已满或参考图放不下时返回 413 `code: "storage_limit"`（不调用 OpenAI、不计次数）；生成后的图片和参考图登记为 `StoredFile`（`CHAT_IMAGE`）并计入用量，这时不再检查上限（费用已经产生）。保存消息之前失败时，已存的图片立即删除。
 
+幻灯片的“AI 生成图片”（`POST /api/pages/images`）用同一个生图额度（同样预占、没有交付图片时退还）和同一段请求代码（`src/lib/image-generation.ts` 的 `createImageApiGeneration`，只有文字、走 `/images/generations`），但不建会话、不留聊天记录：生成前先查存储空间，图片存成笔记文件（`NOTE_FILE`，计入存储用量），由幻灯片的保存设为使用中，没被用上的由文件清理删掉。见 [slides.md](slides.md#图片)。
+
 默认使用 `gpt-image-2.6-sunburst`，可通过 `OPENAI_IMAGE_MODEL` 覆盖。图片生成和编辑与 GPT-6 Luna 聊天共用服务端 `OPENAI_API_KEY`，默认接入点为 `https://api.openai.com/v1`（可通过 `OPENAI_BASE_URL` 覆盖）。单次 prompt 最多 4,000 字符（超出返回 413），可选 `size`（`1024x1024 | 1024x1536 | 1536x1024 | auto`，默认 `auto`）与 `quality`（`low | medium | high | auto`，默认 `auto`），固定 `output_format: "png"`、`n: 1`，上游临时失败自动重试一次（最多 2 次尝试）；当前上传参考图只接受 PNG / JPEG / WebP（其他格式返回 400）。模型访问权限取决于 OpenAI 项目设置。
 
 前端开启：

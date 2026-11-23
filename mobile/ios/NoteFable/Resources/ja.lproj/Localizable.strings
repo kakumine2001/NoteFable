@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "チャットを移動できませんでした。";
 "sb_err_create_chat" = "データベースに接続できません。ローカルのPostgreSQLを起動して、もう一度お試しください。";
 
+/* strings_slides.xml */
+"slides_present" = "プレゼンテーション";
+"slides_export_pdf" = "PDF に書き出す";
+"slides_export_pdf_notes" = "発表者ノート付きの PDF に書き出す";
+"slides_export_png" = "PNG 画像に書き出す";
+"slides_export_pptx" = "PowerPoint（PPTX）に書き出す";
+"slides_file_saved" = "ファイルを保存しました。";
+"slides_file_save_failed" = "ファイルを保存できませんでした。";
+
 /* strings_turns.xml */
 "regenerate" = "回答を再生成";
 "branch_in_new_chat" = "新しいチャットで分岐";

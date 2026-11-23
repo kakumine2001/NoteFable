@@ -14,6 +14,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
@@ -44,7 +45,8 @@ data class PageKindFeatures(
 enum class PageKind(val wire: String, val features: PageKindFeatures) {
     Note("note", PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)),
     Whiteboard("whiteboard", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)),
-    Slides("slides", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false));
+    // スライド（#149）：エディターと公開の放映ページがある。AI の編集は #150。
+    Slides("slides", PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false));
 
     /** 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。 */
     val isCanvas: Boolean get() = this != Note
@@ -305,6 +307,19 @@ sealed interface EmbedMessage {
      * 和聊天一样的提示（登录 / 升级）。只有声明了 `canShowStorageLimit()` 的 App 才会收到。
      */
     data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
+    /**
+     * 幻灯片的放映：[state] 是 start（App 横屏、全屏、屏幕常亮）、slide（换了页，[index] 从 0 开始，[count] 是总页数）、end（恢复）。
+     * 只有声明了 `canPresent()` 的 App 才会收到。
+     */
+    data class Presentation(val state: String, val index: Int, val count: Int) : EmbedMessage
+    /**
+     * 网页做好的导出文件（PDF、PNG、PPTX）分块交给 App 保存：FileStart → 若干 FileChunk（base64）→ FileEnd（出错时 FileAbort）。
+     * 只有声明了 `canSaveFile()` 的 App 才会收到。
+     */
+    data class FileStart(val id: String, val name: String, val mime: String, val size: Long) : EmbedMessage
+    data class FileChunk(val id: String, val index: Int, val data: String) : EmbedMessage
+    data class FileEnd(val id: String) : EmbedMessage
+    data class FileAbort(val id: String) : EmbedMessage
 
     companion object {
         /** 不认识或格式不对的消息返回 null（网页先加了新消息类型也不会让 App 出错）。 */
@@ -327,6 +342,24 @@ sealed interface EmbedMessage {
                     obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                     obj["limit"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
                 )
+                "presentation" -> Presentation(
+                    obj.str("state")?.takeIf { it == "start" || it == "slide" || it == "end" } ?: return@runCatching null,
+                    obj["index"]?.jsonPrimitive?.intOrNull ?: 0,
+                    obj["count"]?.jsonPrimitive?.intOrNull ?: 0,
+                )
+                "fileStart" -> FileStart(
+                    obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.str("name")?.takeIf { it.isNotBlank() } ?: return@runCatching null,
+                    obj.str("mime") ?: "application/octet-stream",
+                    obj["size"]?.jsonPrimitive?.longOrNull ?: 0L,
+                )
+                "fileChunk" -> FileChunk(
+                    obj.str("id") ?: return@runCatching null,
+                    obj["index"]?.jsonPrimitive?.intOrNull ?: return@runCatching null,
+                    obj.str("data") ?: return@runCatching null,
+                )
+                "fileEnd" -> FileEnd(obj.str("id") ?: return@runCatching null)
+                "fileAbort" -> FileAbort(obj.str("id") ?: return@runCatching null)
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,

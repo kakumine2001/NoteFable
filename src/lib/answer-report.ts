@@ -8,17 +8,22 @@ export const MAX_REPORT_REASON = 1000;
 const MAX_ANSWER_CHARS = 20_000;
 const MAX_PROMPT_CHARS = 4_000;
 
-export type ReportInput = { messageId: string; reason: string };
+// 回答（messageId）か、スライドの AI で作った画像（pageId + elementId）のどちらか。
+export type ReportInput = { messageId: string; reason: string } | { pageId: string; elementId: string; reason: string };
+
+const validId = (value: unknown, max: number): value is string => typeof value === "string" && value.length > 0 && value.length <= max;
 
 export function parseReport(body: unknown): { ok: true; data: ReportInput } | { ok: false } {
   if (!body || typeof body !== "object") return { ok: false };
-  const { messageId, reason } = body as Record<string, unknown>;
-  if (typeof messageId !== "string" || !messageId || messageId.length > 100) return { ok: false };
+  const { messageId, pageId, elementId, reason } = body as Record<string, unknown>;
   if (reason !== undefined && typeof reason !== "string") return { ok: false };
   const text = (reason ?? "").trim();
   if (text.length > MAX_REPORT_REASON) return { ok: false };
-  return { ok: true, data: { messageId, reason: text } };
+  if (messageId !== undefined) return validId(messageId, 100) ? { ok: true, data: { messageId, reason: text } } : { ok: false };
+  if (validId(pageId, 64) && validId(elementId, 120)) return { ok: true, data: { pageId, elementId, reason: text } };
+  return { ok: false };
 }
+
 
 const clip = (text: string, max: number) => (text.length > max ? `${text.slice(0, max)}\n…(${text.length - max} more characters)` : text);
 
@@ -45,6 +50,25 @@ export function reportEmail(report: {
     ...(report.images?.length ? ["", "--- Images in the answer (storage paths) ---", ...report.images.map((image) => `${image.filename}: ${image.path} (attachment ${image.id})`)] : []),
   ];
   return { subject: `[NoteFable] Reported answer ${report.messageId}`, text: lines.join("\n") };
+}
+
+// スライドの AI で作った画像の報告メール。作るときの説明（プロンプト）と保存先のパスを付ける。
+export function slideImageReportEmail(report: { userId: string; signedIn: boolean; pageId: string; elementId: string; prompt: string; path: string; reason: string }) {
+  const lines = [
+    `Reason: ${report.reason || "(none given)"}`,
+    "",
+    `User: ${report.userId} (${report.signedIn ? "signed in" : "anonymous"})`,
+    `Slide deck: ${report.pageId}`,
+    `Image element: ${report.elementId}`,
+    "",
+    "--- Image prompt ---",
+    clip(report.prompt, MAX_PROMPT_CHARS),
+    "",
+    "--- Image (storage path) ---",
+    report.path,
+  ];
+  const plain = (value: string) => value.replace(/[\u0000-\u001f\u007f]+/g, " ");
+  return { subject: `[NoteFable] Reported slide image ${plain(report.pageId)}/${plain(report.elementId)}`, text: lines.join("\n") };
 }
 
 // 自分のチャットの AI の回答だけを通報できる。見つからなければ null。

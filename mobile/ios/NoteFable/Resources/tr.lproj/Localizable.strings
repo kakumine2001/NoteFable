@@ -545,6 +545,15 @@
 "sb_err_move_chat" = "Sohbet taşınamadı.";
 "sb_err_create_chat" = "Veritabanına ulaşılamıyor. Yerel PostgreSQL hizmetini başlatıp tekrar deneyin.";
 
+/* strings_slides.xml */
+"slides_present" = "Sun";
+"slides_export_pdf" = "PDF olarak dışa aktar";
+"slides_export_pdf_notes" = "Konuşmacı notlarıyla PDF olarak dışa aktar";
+"slides_export_png" = "PNG görseller olarak dışa aktar";
+"slides_export_pptx" = "PowerPoint (PPTX) olarak dışa aktar";
+"slides_file_saved" = "Dosya kaydedildi.";
+"slides_file_save_failed" = "Dosya kaydedilemedi.";
+
 /* strings_turns.xml */
 "regenerate" = "Yeniden oluştur";
 "branch_in_new_chat" = "Yeni sohbette dallandır";
