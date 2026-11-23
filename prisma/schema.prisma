@@ -106,7 +106,7 @@ model User {
   sessions      Session[]
   chatProjects  ChatProject[]
   notePages     NotePage[]
-  coverAssets   NoteCoverAsset[]
+  storedFiles   StoredFile[]
   noteProposals NoteProposal[]
   noteGroups    NoteGroup[]
   noteRevisions NoteRevision[]
@@ -381,24 +381,59 @@ model Attachment {
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+  // ファイルの後片付けが、画像がまだどの添付から使われているかを引く。
+  @@index([imageStoragePath])
 }
 
-// Pages のアップロードカバー画像。参照の付与と日次削除をこの行で調停する。
-// releasedAt はどのページからも参照されなくなった（と確認した）時刻。null は使用中。
-model NoteCoverAsset {
-  path       String    @id
-  userId     String
+// ファイル置き場（Private Vercel Blob、ローカル開発は NOTEFABLE_STORAGE_DIR）に置いたファイルの種類。
+// 種類ごとに、どこから参照されているかの調べ方が違う（src/lib/stored-files.ts の参照の確認）。
+enum StoredFileKind {
+  // note-files/<利用者 ID>/: ノートの画像ブロック・ファイルブロック
+  NOTE_FILE
+  // page-covers/<利用者 ID>/: ページのカバーとページアイコンの画像
+  NOTE_COVER
+  // images/YYYY/MM/DD/: チャットの添付画像と生成した画像（Attachment.imageStoragePath）
+  CHAT_IMAGE
+  // avatars/<利用者 ID>/: プロフィールの写真（User.avatarImage）
+  AVATAR
+  // app-icons/<利用者 ID>/: 設定の「アイコン」の画像（User.appIconImage）
+  APP_ICON
+}
+
+// ファイル置き場のファイル 1 つ。容量の上限はこの行の size を利用者ごとに足して数え、どこからも参照されなくなった
+// ファイルは猶予のあとで消す（src/lib/stored-files.ts）。行を先に作ってからファイルを書くので、記録のないファイルは残らない。
+// releasedAt は参照がない（と確かめた）時刻で、null は使用中。アップロード直後はまだ参照がないので作成時刻を入れる。
+model StoredFile {
+  path       String         @id
+  // 持ち主。アカウントを消すと null になり、ファイルを消し終えたら行も消える（消し損ねても後片付けがやり直す）。
+  userId     String?
+  kind       StoredFileKind
+  // バイト数。null はこの表より前からあるファイルで、ファイル置き場の一覧から大きさを補うまで 0 として数える。
+  size       Int?
   releasedAt DateTime?
-  // 削除処理を始めた時刻。ここから先は参照を付けられず、画像削除が終わったら行を消す。
+  // 削除を始めた時刻。ここから先は参照を付けられず、ファイルを消し終えたら行を消す。
   deletingAt DateTime?
-  // 日次処理が最後に参照を確認した時刻。古いものから順に確認して、件数が多くても全件を巡回する。
+  // 後片付けが最後に参照を確かめた時刻。古いものから順に確かめて、件数が多くても全件を巡回する。
   checkedAt  DateTime?
-  createdAt  DateTime  @default(now())
+  createdAt  DateTime       @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([userId])
   @@index([releasedAt])
   @@index([checkedAt])
+}
+
+// 定期的な後片付け（ファイルの回収など）の実行状態。cron の代わりに、ふつうのリクエストの後で少しずつ進める。
+model MaintenanceJob {
+  name        String    @id
+  // 次に実行してよい時刻（前回から間をあける）。
+  runAfter    DateTime  @default(now())
+  // 実行中の印。この時刻までは他のリクエストが同じ仕事を始めない（途中で落ちても、過ぎれば次が引き継ぐ）。
+  lockedUntil DateTime?
+  // 続きから再開するための状態（ファイル置き場の一覧のどこまで見たかなど）。
+  state       Json?
+  updatedAt   DateTime  @updatedAt
 }
 
 // AI が出したノートの編集・新規作成の提案。ユーザーが適用するまでノートは変わらない。

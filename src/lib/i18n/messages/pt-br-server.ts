@@ -247,4 +247,6 @@ export const ptBRServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Quadros brancos e apresentações ainda não podem ser publicados.",
   "This page can't be edited in this version of NoteFable.": "Esta página não pode ser editada nesta versão do NoteFable.",
   "These pages are too large to duplicate at once.": "Estas páginas são grandes demais para duplicar de uma só vez.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Não há espaço de armazenamento suficiente. Entre para ter mais espaço ou exclua os arquivos de que você não precisa mais.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Não há espaço de armazenamento suficiente. Exclua os arquivos de que você não precisa mais para liberar espaço.",
 };

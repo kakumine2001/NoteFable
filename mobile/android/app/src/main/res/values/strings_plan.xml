@@ -15,7 +15,7 @@
     <string name="plan_past_due">Your last payment failed. Update your payment method to keep Pro.</string>
     <string name="plan_load_failed">Could not load your plan.</string>
     <string name="plan_offer_title">NoteFable Pro · %1$s/month</string>
-    <string name="plan_offer_body">%1$s messages and %2$d image generations a month. Cancel anytime.</string>
+    <string name="plan_offer_body">%1$s messages and %2$d image generations a month, and %3$s of storage. Cancel anytime.</string>
     <string name="plan_upgrade">Upgrade to Pro</string>
     <string name="plan_manage_play">Manage subscription on Google Play</string>
     <string name="plan_welcome">Welcome to NoteFable Pro</string>
@@ -27,4 +27,11 @@
     <string name="plan_trial_start">Start %1$d-day free trial</string>
     <string name="plan_trial_note">Free for %1$d days, then %2$s/month. Cancel before the trial ends and you won\'t be charged.</string>
     <string name="plan_trial_ends">Your free trial ends on %1$s. After that, Pro is ¥%2$d/month.</string>
+    <string name="plan_storage">Storage</string>
+    <string name="plan_storage_help">Files you delete free up space about a week later. Files in Trash or in version history still count.</string>
+    <string name="storage_limit_title">Not enough storage space</string>
+    <string name="storage_limit_used">You\'ve used %1$s of %2$s.</string>
+    <string name="storage_limit_sign_in">Sign in to get %1$s of storage.</string>
+    <string name="storage_limit_upgrade">Get %1$s of storage with Pro for %2$s/month.</string>
+    <string name="storage_limit_delete">Delete files you no longer need to free up space.</string>
 </resources>

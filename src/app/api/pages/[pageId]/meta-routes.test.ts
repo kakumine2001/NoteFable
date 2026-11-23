@@ -3,10 +3,11 @@ import { NoteValidationError } from "@/lib/note-document";
 
 const mocks = vi.hoisted(() => ({
   setMeta: vi.fn(), summary: vi.fn(), resolveParent: vi.fn(), setGroup: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(),
-  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), raw: vi.fn(), aggregate: vi.fn(),
+  descendants: vi.fn(), order: vi.fn(), writeOrder: vi.fn(), create: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(), raw: vi.fn(), aggregate: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-covers", () => ({ claimCover: mocks.claim }));
+vi.mock("@/lib/stored-files", () => ({ claimNoteFiles: mocks.claimFiles }));
 vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, findMany: mocks.findMany, create: mocks.create };
   return { databaseSchema: "notefable", prisma: { notePage, $transaction: async (fn: (tx: unknown) => unknown) => fn({ notePage, noteCanvas: { aggregate: mocks.aggregate }, $executeRaw: mocks.raw }) } };
@@ -118,6 +119,9 @@ describe("POST /api/pages/:id/duplicate", () => {
     expect(root).toMatchObject({ title: "Plan (1)", parentId: null, groupId: "g1", fullWidth: true, font: "mono" });
     expect(child).toMatchObject({ title: "c1", parentId: "copy1" });
     expect(mocks.writeOrder).toHaveBeenCalledWith(expect.anything(), "mine", ["x", "p1", "copy1", "copy2", "c1", "y"]);
+    // 複製も同じファイルを参照するので、ファイルを使用中に戻す（元から外されても消えないように）。
+    expect(mocks.claimFiles).toHaveBeenCalledTimes(2);
+    expect(mocks.claimFiles).toHaveBeenCalledWith(expect.anything(), [], "mine");
   });
 
   it("copies a whiteboard with a slide deck inside, keeping each kind and copying their content inside the database", async () => {

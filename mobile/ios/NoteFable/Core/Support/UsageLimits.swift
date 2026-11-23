@@ -1,11 +1,12 @@
 import Foundation
 
-/// 每日上限（`src/lib/usage-plans.ts` 的 USAGE_LIMITS）。安装包里的 `usage-limits.json` 由
-/// `scripts/gen-native-usage-limits.ts` 生成（和 Android 共用同一个文件），不手改。
-/// 登录提示（GuestLimitPrompt）和网页一样显示 member 的数值。
+/// 每日上限（`src/lib/usage-plans.ts` 的 USAGE_LIMITS）和文件存储上限（STORAGE_LIMITS，字节）。安装包里的
+/// `usage-limits.json` 由 `scripts/gen-native-usage-limits.ts` 生成（和 Android 共用同一个文件），不手改。
+/// 登录提示（GuestLimitPrompt）和网页一样显示 member 的数值。旧的文件没有 storage（nil）。
 struct UsageLimit: Decodable, Equatable, Sendable {
     let chat: Int
     let image: Int
+    var storage: Int? = nil
 }
 
 struct UsageLimits: Decodable, Equatable, Sendable {

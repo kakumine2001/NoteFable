@@ -8,6 +8,7 @@ import type { NoteContent } from "@/types/notes";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
+import { storageLimitFromUpload } from "@/lib/storage-limit-client";
 
 const COVER_LABELS: Record<NoteCover, string> = {
   "gradient-sunset": msg("Sunset"), "gradient-peach": msg("Peach"), "gradient-mint": msg("Mint"), "gradient-ocean": msg("Ocean"),
@@ -134,6 +135,9 @@ function CoverPicker({ current, onPick }: { current: string | null; onPick: (cov
       body.append("file", file);
       const response = await fetch("/api/pages/covers", { method: "POST", body, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
+      // 容量の上限なら、ノートの画面に案内も出す（ここには理由の文を出す）。
+      const storage = storageLimitFromUpload(response.status, data);
+      if (storage) throw storage;
       if (!response.ok || typeof data.cover !== "string") throw new Error(data.error || t("Upload failed. Try again."));
       if (!controller.signal.aborted) onPick(data.cover);
     } catch (caught) {

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { LEGAL_CONTACT_EMAIL, LEGAL_UPDATED_JA, LegalPage } from "@/components/legal-page";
-import { PRO_PRICE_JPY, PRO_TRIAL_DAYS, USAGE_DAILY_LIMITS, USAGE_LIMITS } from "@/lib/usage-plans";
+import { PRO_PRICE_JPY, PRO_TRIAL_DAYS, STORAGE_LIMITS, USAGE_DAILY_LIMITS, USAGE_LIMITS, formatStorageSize } from "@/lib/usage-plans";
 
 export const metadata: Metadata = {
   title: "特定商取引法に基づく表記 – NoteFable",
@@ -64,7 +64,7 @@ export default function LegalNoticePage() {
           <br />アカウントを削除すると、ウェブ版で購入したサブスクリプションはその時点で終了し、Google Play のサブスクリプションは次回以降の更新が停止されます。
         </Row>
         <Row term="Pro の内容">
-          AI メッセージを 1 請求期間あたり {count(pro.chat)} 件、画像生成を {count(pro.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.pro.image ?? 0)} 枚）まで利用できます。無料プラン（ログイン時）では AI メッセージが 1 日 {count(member.chat)} 件、画像が 1 か月 {count(member.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.member.image ?? 0)} 枚）までです。
+          AI メッセージを 1 請求期間あたり {count(pro.chat)} 件、画像生成を {count(pro.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.pro.image ?? 0)} 枚）まで利用できます。無料プラン（ログイン時）では AI メッセージが 1 日 {count(member.chat)} 件、画像が 1 か月 {count(member.image)} 枚（1 日 {count(USAGE_DAILY_LIMITS.member.image ?? 0)} 枚）までです。ファイルの保存容量は、Pro が {formatStorageSize(STORAGE_LIMITS.pro)}、無料プラン（ログイン時）が {formatStorageSize(STORAGE_LIMITS.member)}、ログインなしが {formatStorageSize(STORAGE_LIMITS.guest)} までです。
           上限や利用できる AI モデルは、サービスの運営上の理由で変更することがあります。
         </Row>
         <Row term="動作環境">

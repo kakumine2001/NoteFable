@@ -107,6 +107,8 @@ struct NotesUiState: Equatable, Sendable {
     var saveState: String? = nil
     /// 离开笔记时没能保存：提示后留在笔记里。
     var notice: NotesError? = nil
+    /// 编辑器里的上传因为文件存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
+    var storageLimit: StorageLimitInfo? = nil
     /// 回收站窗口；nil 表示没打开。
     var trash: TrashUiState? = nil
     /// 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。

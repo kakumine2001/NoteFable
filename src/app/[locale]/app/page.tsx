@@ -33,7 +33,7 @@ import { TurnBusyContext, type TurnActions } from "@/components/turn-actions";
 import { AccountAppIconSync, AccountLocaleSync } from "@/components/account-button";
 import { CreatePageDialog } from "@/components/create-page-dialog";
 import { EmptyConversation, StarterPrompts } from "@/components/empty-conversation";
-import { BillingReturnNotice, GuestLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
+import { BillingReturnNotice, GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
 import { AttachMenu, AttachSheet } from "@/components/attach-sheet";
 import { ChatRecentNotes } from "@/components/chat-recent-notes";
 import { AttachPageDialog } from "@/components/attach-page-dialog";
@@ -71,7 +71,7 @@ import { revealChatMessage, revealNoteBlock } from "@/lib/search-reveal";
 import { getSubmissionValidationError } from "@/lib/submission-validation";
 import { restoreSheetMarker, useBackToClose } from "@/lib/use-back-to-close";
 import { useMediaQuery } from "@/lib/use-media-query";
-import { UsageLimitError, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
+import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom, type UsageKind } from "@/lib/usage-plans";
 import { readModelPreference, resolveModelPreference, saveModelPreference } from "@/lib/model-preference";
 import { keepRejectedDraft, savePendingDraft, takePendingDraft, useKeepDraftOnLeave } from "@/lib/pending-draft";
 import { consumeWebShare, mergeDraftWithShare, pruneExpiredWebShares, saveShareDraft, takeShareDraft } from "@/lib/share-target";
@@ -544,6 +544,14 @@ export default function Home() {
   const [guestLimit, setGuestLimit] = useState<UsageKind | null>(null);
   // 無料の利用者が上限に達したときの有料プランの案内。
   const [upgradeLimit, setUpgradeLimit] = useState<UsageKind | null>(null);
+  // ファイル置き場の容量が足りずに断られたとき（添付・画像の生成）。理由と、ログイン・アップグレードの案内を出す。
+  const [storageLimit, setStorageLimit] = useState<StorageLimitError | null>(null);
+  // 上限の案内は一度に 1 つだけ出す（Android / iOS と同じく、新しく断られた理由に置き換える）。
+  const showLimitPrompt = (next: { guest?: UsageKind; upgrade?: UsageKind; storage?: StorageLimitError }) => {
+    setGuestLimit(next.guest ?? null);
+    setUpgradeLimit(next.upgrade ?? null);
+    setStorageLimit(next.storage ?? null);
+  };
   // 一度でも未ログインの上限に達したら、以後ページを離れるとき（サイドバーからのログインも含む）入力欄の本文を預ける。
   const guestLimitHitRef = useRef(false);
   // 入力欄の要素は画面から外れると先に null になるので、最後の入力値も state 側から持っておく。
@@ -846,7 +854,7 @@ export default function Home() {
 
     if (!response.ok || !response.body) {
       const data = await response.json().catch(() => ({}));
-      throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to send message."));
+      throw usageLimitErrorFrom(response.status, data) ?? storageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to send message."));
     }
 
     // 新規チャットの場合、サーバーで作成されたセッション ID がレスポンスヘッダーに入る。
@@ -1422,7 +1430,13 @@ export default function Home() {
       }
     } catch (error) {
       if (navigationIntent === sessionNavigationIntentRef.current) {
-        setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
+        if (error instanceof StorageLimitError) {
+          // 本文と添付は入力欄に残っている（まだ何も送っていない）。ログインや申し込みから戻っても本文が残るようにする。
+          if (error.tier !== "pro") guestLimitHitRef.current = true;
+          showLimitPrompt({ storage: error });
+        } else {
+          setSendError(error instanceof Error ? error.message : msg("Attachment upload failed. Please try again."));
+        }
         flashCharacterOutcome(requestSessionKey, "error");
       }
       submittingSessionKeysRef.current.delete(initialRequestSessionKey);
@@ -1553,7 +1567,7 @@ export default function Home() {
 
         if (!response.ok) {
           const data = await response.json().catch(() => ({}));
-          throw usageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to generate image."));
+          throw usageLimitErrorFrom(response.status, data) ?? storageLimitErrorFrom(response.status, data) ?? new Error(data.error ?? msg("Failed to generate image."));
         }
 
         const event = (await response.json()) as ImageGenerationResult;
@@ -1635,14 +1649,18 @@ export default function Home() {
       // ネットワークや上流 API の失敗も、空のアシスタント枠へエラー文として表示する。
       // 原文を保持し、明示した失敗・上限の文だけを表示時に訳す。
       const detail = error instanceof Error ? error.message : msg("Unknown error.");
-      const limited = error instanceof UsageLimitError;
+      const storageRefused = error instanceof StorageLimitError;
+      const limited = error instanceof UsageLimitError || storageRefused;
       if (limited) {
-        if (error.tier === "guest") {
+        if (storageRefused) {
+          if (error.tier !== "pro") guestLimitHitRef.current = true;
+          showLimitPrompt({ storage: error });
+        } else if (error.tier === "guest") {
           guestLimitHitRef.current = true;
-          setGuestLimit(error.kind);
+          showLimitPrompt({ guest: error.kind });
         } else if (error.tier === "member") {
           guestLimitHitRef.current = true;
-          setUpgradeLimit(error.kind);
+          showLimitPrompt({ upgrade: error.kind });
         }
         // 上限で断られた送信はどこにも保存されていない。本文と添付を入力欄に戻す。
         // 待っている間に書き足した本文や添付があれば消さず、断られた分を前に足す。
@@ -1668,7 +1686,7 @@ export default function Home() {
             : message.id === assistantMessageId
             // 途中まで届いていた回答は消さず、その後ろに失敗の文を足す。
             ? { ...message, content: limited ? detail : message.content ? `${message.content}\n\n${failureText(detail)}` : failureText(detail), failed: true, isGeneratingImage: false,
-              usageLimit: limited ? error.kind : undefined,
+              usageLimit: error instanceof UsageLimitError ? error.kind : undefined, storageLimit: storageRefused || undefined,
               activity: limited ? message.activity : applyActivityEvent(message.activity ?? [], { type: "failure", id: "request-failure", offset: message.content ? message.content.length + 2 : 0, detail }) }
             : message,
         ),
@@ -1754,8 +1772,8 @@ export default function Home() {
       if (error instanceof UsageLimitError && error.tier !== "pro") {
         // 入力欄に書きかけの文があれば、ログインや申し込みから戻ってきても残るようにする（通常の送信と同じ）。
         guestLimitHitRef.current = true;
-        if (error.tier === "guest") setGuestLimit(error.kind);
-        else setUpgradeLimit(error.kind);
+        if (error.tier === "guest") showLimitPrompt({ guest: error.kind });
+        else showLimitPrompt({ upgrade: error.kind });
       }
       const partial = (sessionMessagesRef.current[sessionId] ?? []).find((message) => message.id === assistantMessageId);
       if (partial?.content) {
@@ -2531,6 +2549,11 @@ export default function Home() {
           <BillingReturnNotice />
           {upgradeLimit && (
             <UpgradePrompt kind={upgradeLimit} onClose={() => setUpgradeLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
+              onBeforeUpgrade={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
+          )}
+          {storageLimit && (
+            <StorageLimitPrompt limit={storageLimit} onClose={() => setStorageLimit(null)} attachmentsLost={files.length > 0 || attachedPages.length > 0}
+              onBeforeSignIn={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")}
               onBeforeUpgrade={() => savePendingDraft("chat", withComposerQuote(inputRef.current?.value ?? input) || rejectedEdit?.text || "")} />
           )}
           {guestLimit && (

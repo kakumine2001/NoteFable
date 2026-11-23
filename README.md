@@ -249,6 +249,7 @@ npm run prisma:migrate
 - 历史图片预览经 `/api/attachments/[id]/image` 检查归属后，重定向到只限该图片、有效期 5 分钟的私有 Blob 读取链接；重定向不缓存，避免大图经 Function 回传时触发 4.5 MB 响应限制。本地文件存储仍直接返回图片
 - 未配置 Blob 的本地开发使用 `/api/uploads/local` 上传到本地存储；生产禁止这个二进制回退入口。旧 multipart 客户端保留兼容，但仍受 4.5 MB 请求体限制
 - 支持文本、Markdown、JSON、CSV、TSV、TXT、PDF，以及 PNG/JPEG/WEBP 图片
+- 文件存储上限：每个用户放在文件仓库里的全部文件（聊天图片、生成的图片、笔记的图片和文件、封面、头像等）合计，游客 100 MB、登录免费 500 MB、Pro 10 GB（`src/lib/usage-plans.ts` 的 `STORAGE_LIMITS`）；工作区上传单个最多 4 MB。放不下时上传和图片生成返回 413 `storage_limit`，三端显示用量和登录 / 升级提示；设置的“方案”页显示已用空间。不再被引用的文件约一周后自动删除（请求之后惰性运行，没有 Cron）。规则见 [docs/architecture/database.md](docs/architecture/database.md#storedfile)
 
 模型能力：
 
@@ -279,9 +280,9 @@ Blob pathname 结构：
 images/YYYY/MM/DD/<uuid>.<ext>
 ```
 
-图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `NOTEFABLE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用。读取图片时通过 `/api/attachments/:id/image` 校验当前用户所有权（匿名设备或已登录账号）。
+图片文件不会长期写入 PostgreSQL。Vercel 环境使用私有 Vercel Blob（`BLOB_READ_WRITE_TOKEN`），本地开发在未配置该 token 时使用 `NOTEFABLE_STORAGE_DIR`；数据库只保存 Blob/文件存储中的 `imageStoragePath` 引用，以及每个文件的登记（`StoredFile`：持有者、大小、是否还被引用）。读取图片时通过 `/api/attachments/:id/image` 校验当前用户所有权（匿名设备或已登录账号）。
 
-本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。
+本地 `.env.local` 如果配置了 Blob token，图片也会写入该 token 对应的 Blob Store；本地数据库并不代表图片一定存放在本地磁盘。这种情况下（有 token 但不是 Vercel 的 production / preview），未引用文件的清理不会运行，避免用本地数据库删掉生产的文件。
 
 Vercel 的 Serverless 文件系统没有持久磁盘：除 `/tmp` 外只读，`/tmp` 也会在实例回收或重新部署后清空。因此 Vercel 部署必须配置 Vercel Blob token；否则图片上传和生成会明确失败，不会静默写入临时磁盘。
 

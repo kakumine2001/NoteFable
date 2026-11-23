@@ -165,6 +165,9 @@ struct ChatUiState: Equatable, Sendable {
     var guestLimit: String? = nil
     /// 免费用户撞到上限（tier = member）时是 "chat" 或 "image"：输入栏上方显示 Pro 的升级提示（网页 UpgradePrompt）。
     var upgradeLimit: String? = nil
+    /// 文件存储空间不够、附件或图片生成被拒绝（413 storage_limit）：输入栏上方说明原因和用量，
+    /// 未登录时给登录入口（网页 StorageLimitPrompt）。关掉、登录或退出后清空。
+    var storageLimit: StorageLimitInfo? = nil
     /// 还在拷贝、校验的附件（粘贴的图片、刚选的文件）有几批；没处理完前不能发送，否则它们会漏掉、跑到下一条里。
     var importing = 0
     /// 正在发送（上传附件或生成回答）的聊天的会话 ID，包括后台的（切换聊天不会停掉它们）。`sending` 只说当前聊天。
@@ -266,4 +269,11 @@ final class MemoryChatSavedState: ChatSavedState {
         self.draft = draft
         self.quote = quote
     }
+}
+
+/// 文件存储空间不够、新的上传被拒绝（413 storage_limit）时的档位和用量（字节）。
+struct StorageLimitInfo: Equatable, Sendable {
+    var tier: String
+    var used: Int
+    var limit: Int
 }

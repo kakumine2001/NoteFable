@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { MAX_NOTE_FILE_BYTES, NOTE_IMAGE_EXTENSIONS, isNoteImageUrl, noteFileUrl, safeFileName, sniffImage } from "@/lib/note-file-keys";
 import { PageEditError } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
-import { readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { readStoredImage } from "@/lib/storage";
+import { discardStoredFiles, storeFile } from "@/lib/stored-files";
+import { StorageLimitError } from "@/lib/usage-plans";
 
 // チャットに添付された画像を、AI の編集案からノートの画像ブロックとして使えるようにする。
 // モデルは「![説明](attachment:<添付 ID>)」と書くだけで、サーバーが同じ会話の自分の添付かを確かめ、
@@ -64,8 +66,10 @@ function fitName(path: string, name: string, extension: string) {
 // 複数の markdown（編集案ならすべての edit）をまとめて処理する。
 // 1) 参照を全部集めて検証し（画像を書く前に失敗できる）、2) まとめてコピーし、3) 参照を URL に置き換える。
 // 同じ添付は 1 回だけコピーし、1 回の提案で使える画像は MAX_ATTACHMENT_IMAGES_PER_PROPOSAL 枚まで。
+// copied はコピーしたファイル。提案を保存できなかったら、呼び出し側が discardStoredFiles で消す（容量を占めたままにしない）。
 export function createAttachmentResolver(userId: string, sessionId: string, excludeMessageIds: string[] = []) {
-  return async function resolve(markdowns: string[]): Promise<string[]> {
+  const copied: string[] = [];
+  const resolve = async function resolve(markdowns: string[]): Promise<string[]> {
     const split = markdowns.map((markdown) => markdown.replace(/\r\n?/g, "\n").split("\n"));
     const references = split.map(findReferences);
     const ids = [...new Set(references.flatMap((list) => list.map((reference) => reference.id)))];
@@ -102,7 +106,18 @@ export function createAttachmentResolver(userId: string, sessionId: string, excl
       const name = fitName(path, safeFileName(image.filename) || `image.${extension}`, extension);
       const url = noteFileUrl(path, name);
       if (!isNoteImageUrl(url)) throw new PageEditError(`attachment:${image.id} cannot be placed in a note.`);
-      await writeStoredImageAt(path, image.buffer, image.mime);
+      // コピーも新しいファイルなので、持ち主の容量に数える（入らなければ、モデルに理由を返して提案を作らない）。
+      // 待っている提案が参照するので使用中として記録する。途中で失敗したら、それまでのコピーも消す。
+      try {
+        await storeFile(userId, { path, kind: "NOTE_FILE", buffer: image.buffer, mimeType: image.mime }, { held: true });
+        copied.push(path);
+      } catch (error) {
+        await discardStoredFiles(copied.splice(0));
+        if (error instanceof StorageLimitError) {
+          throw new PageEditError(`attachment:${image.id} could not be copied into the note because the user's file storage is full. Tell the user their storage is full; they can delete files they no longer need${error.tier === "pro" ? "" : error.tier === "guest" ? " or sign in for more space" : " or upgrade to Pro for more space"}.`);
+        }
+        throw error;
+      }
       urls.set(image.id, url);
     }
 
@@ -111,4 +126,5 @@ export function createAttachmentResolver(userId: string, sessionId: string, excl
       return references[index].length ? lines.join("\n") : markdowns[index];
     });
   };
+  return Object.assign(resolve, { copied });
 }

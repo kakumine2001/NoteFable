@@ -10,6 +10,7 @@ import { useT } from "@/components/i18n-provider";
 import { MAX_COVER_BYTES } from "@/lib/note-document";
 import { isUploadedNoteIcon } from "@/lib/note-icon";
 import { msg } from "@/lib/i18n/translate";
+import { storageLimitFromUpload } from "@/lib/storage-limit-client";
 
 // Load the full dataset only when a picker opens, never during server rendering.
 const FullEmojiPicker = dynamic(() => import("./full-emoji-picker"), {
@@ -151,6 +152,9 @@ function IconUploadBody({ hasImage, onChange, onClose }: { hasImage: boolean; on
       body.append("file", await shrinkIconImage(file));
       const response = await fetch("/api/pages/covers", { method: "POST", body, signal: controller.signal });
       const data = await response.json().catch(() => ({}));
+      // 容量の上限なら、ノートの画面に案内も出す（ここには理由の文を出す）。
+      const storage = storageLimitFromUpload(response.status, data);
+      if (storage) throw storage;
       if (!response.ok || typeof data.cover !== "string") throw new Error(data.error || msg("Upload failed. Try again."));
       if (!controller.signal.aborted) { onChange(data.cover); onClose(); }
     } catch (caught) {

@@ -49,6 +49,8 @@ export type Session = {
 export type Message = {
   // 429 のローカル表示だけに付ける。保存された AI 本文を翻訳対象にしない。
   usageLimit?: "chat" | "image";
+  // ファイル置き場の容量が足りずに断られた送信（本文はサーバーの文で、表示時に訳す）。
+  storageLimit?: boolean;
   // DB の message ID、または送信直後の楽観表示で作る一時 ID。
   id: string;
   // USER は右側の吹き出し、ASSISTANT は Markdown 表示として描画する。

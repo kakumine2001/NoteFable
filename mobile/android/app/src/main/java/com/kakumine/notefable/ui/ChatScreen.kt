@@ -153,6 +153,7 @@ fun ChatScreen(
     onSignIn: () -> Unit = {},
     onDismissGuestLimit: () -> Unit = {},
     onDismissUpgradeLimit: () -> Unit = {},
+    onDismissStorageLimit: () -> Unit = {},
     onSearch: () -> Unit = {},
     onRevealDone: (Long) -> Unit = {},
     /** 添加笔记窗口打开时读自己的笔记列表（GET /api/pages）。 */
@@ -250,9 +251,22 @@ fun ChatScreen(
                 }
             }
             val guestLimit = state.guestLimit
+            val storageLimit = state.storageLimit
             Composer(
+                // 存储空间不够（网页 StorageLimitPrompt）优先：总要说明原因。
+                prompt = if (storageLimit != null) {
+                    {
+                        StorageLimitPrompt(
+                            limit = storageLimit,
+                            account = account,
+                            attachmentsLost = state.files.isNotEmpty(),
+                            onSignIn = onSignIn,
+                            onClose = onDismissStorageLimit,
+                        )
+                    }
+                } else
                 // 未登录撞到上限：网页只在服务端开了登录、且还没登录时显示（GuestLimitPrompt 里的判断）。
-                prompt = if (guestLimit != null && account.configured && account.user == null) {
+                if (guestLimit != null && account.configured && account.user == null) {
                     {
                         GuestLimitPrompt(
                             kind = guestLimit,

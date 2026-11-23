@@ -7,6 +7,7 @@ import { prepareCanvas, readCanvasData, writeCanvas } from "@/lib/canvas-store";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
 import { NoteValidationError, readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
@@ -61,6 +62,7 @@ export async function PATCH(request: Request, context: Context) {
     const result = await prisma.$transaction(async (tx) => {
       if (update.present.includes("cover")) await claimCover(tx, update.cover, user.id);
       if (update.present.includes("icon")) await claimCover(tx, update.icon, user.id, "icon");
+      await claimNoteFiles(tx, update.blocks, user.id);
       // 上書きされる前の状態を、間隔を空けて履歴に残す。版が違う保存（競合・再送）では何も入らない。
       await snapshotBeforeSave(tx, { noteId: pageId, userId: user.id, version: update.version });
       const changed = await tx.notePage.updateMany({
@@ -91,9 +93,11 @@ async function saveCanvas(body: unknown, userId: string, pageId: string, kind: C
   const iconPresent = "icon" in value;
   if (iconPresent) assertCoverOwner(input.icon, userId, "icon");
   assertCanvasFilesOwner(input, userId);
-  const canvas = input.data ? prepareCanvas(kind, input.data, input.size!) : null;
+  const canvas = input.data ? prepareCanvas(kind, input.data, input.size!, input.filePaths) : null;
   const result = await prisma.$transaction(async (tx) => {
     if (iconPresent) await claimCover(tx, input.icon, userId, "icon");
+    // 本体が参照するファイル（note-files）を使用中に戻す（ノートの claimNoteFiles と同じく、ページの行より先に）。
+    if (canvas) await claimStoredFiles(tx, canvas.filePaths, userId);
     // ノートと同じく、上書きされる前の状態を間隔を空けて履歴に残す（題名だけの変更でも。本体は DB の中で写す）。
     await snapshotBeforeSave(tx, { noteId: pageId, userId, version, kind });
     const changed = await tx.notePage.updateMany({

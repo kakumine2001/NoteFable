@@ -14,7 +14,7 @@
     <string name="plan_past_due">上次扣款失敗。請更新付款方式以繼續使用 Pro。</string>
     <string name="plan_load_failed">無法載入你的方案。</string>
     <string name="plan_offer_title">NoteFable Pro · 每月 %1$s</string>
-    <string name="plan_offer_body">每月 %1$s 條訊息、生成 %2$d 張圖片。隨時可以取消。</string>
+    <string name="plan_offer_body">每月 %1$s 條訊息、生成 %2$d 張圖片，以及 %3$s 儲存空間。隨時可以取消。</string>
     <string name="plan_upgrade">升級到 Pro</string>
     <string name="plan_manage_play">在 Google Play 上管理訂閱</string>
     <string name="plan_welcome">歡迎使用 NoteFable Pro</string>
@@ -26,4 +26,11 @@
     <string name="plan_trial_start">開始 %1$d 天免費試用</string>
     <string name="plan_trial_note">前 %1$d 天免費，之後每月 %2$s。試用結束前取消就不會扣費。</string>
     <string name="plan_trial_ends">免費試用將於 %1$s 結束，之後 Pro 每月 ¥%2$d。</string>
+    <string name="plan_storage">儲存空間</string>
+    <string name="plan_storage_help">刪除的檔案約一週後釋放空間。回收站和版本歷史中的檔案仍計入用量。</string>
+    <string name="storage_limit_title">儲存空間不足</string>
+    <string name="storage_limit_used">已使用 %1$s，共 %2$s。</string>
+    <string name="storage_limit_sign_in">登入後可使用 %1$s 儲存空間。</string>
+    <string name="storage_limit_upgrade">升級 Pro（每月 %2$s），可使用 %1$s 儲存空間。</string>
+    <string name="storage_limit_delete">刪除不再需要的檔案即可釋放空間。</string>
 </resources>

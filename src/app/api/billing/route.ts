@@ -4,10 +4,11 @@ import { isBillingConfigured, isTrialEligible, isWebhookConfigured, refreshCusto
 import { googlePlayManageUrl, googlePlayProduct, isGooglePlayConfigured, syncPlayPurchase } from "@/lib/google-play-billing";
 import { msg } from "@/lib/i18n/translate";
 import { prisma } from "@/lib/prisma";
+import { scheduleStorageMaintenance, storageSummary } from "@/lib/stored-files";
 import { usageSummary } from "@/lib/usage-limits";
 import { PRO_PRICE_JPY, PRO_TRIAL_DAYS } from "@/lib/usage-plans";
 
-// 設定の「プラン」用。いまのプラン、購読の状態、この期間の使用量を返す。
+// 設定の「プラン」用。いまのプラン、購読の状態、この期間の使用量、ファイル置き場の使用量を返す。
 // ?refresh=1 は決済から戻ったときに使い、Webhook を待たずに Stripe から購読を取り直す。
 export async function GET(request: Request) {
   const user = await signedInUser();
@@ -30,7 +31,9 @@ export async function GET(request: Request) {
     }
   }
 
-  const summary = await usageSummary(row);
+  const [summary, storage] = await Promise.all([usageSummary(row), storageSummary(row)]);
+  // 設定を開いたついでに、ファイルの後片付けの時間が来ていれば進める（応答の後）。
+  scheduleStorageMaintenance();
   const provider = row.subscriptionProvider === "google" ? "google" : row.subscriptionProvider === "stripe" ? "stripe" : null;
   return NextResponse.json({
     billing: configured,
@@ -54,5 +57,7 @@ export async function GET(request: Request) {
     canManage: isWebhookConfigured() && Boolean(row.stripeCustomerId) && provider !== "google",
     manageUrl: provider === "google" ? googlePlayManageUrl() : null,
     usage: summary.usage,
+    // ファイル置き場の使用量と上限（バイト）。
+    storage,
   }, { headers: { "Cache-Control": "private, no-store" } });
 }

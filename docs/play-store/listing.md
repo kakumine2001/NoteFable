@@ -42,7 +42,7 @@ WORKS EVERYWHERE
 • Light and dark mode: follow your system or pick one.
 • Available in English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe and Русский.
 
-Free to use with daily and monthly limits on AI messages and images. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 2,000 messages and 60 images a month (up to 10 images a day), and your first 30 days are free. No ads.
+Free to use with daily and monthly limits on AI messages and images, and 500 MB of file storage when signed in. Need more? NoteFable Pro (monthly subscription, cancel anytime) raises the limits to 2,000 messages and 60 images a month (up to 10 images a day) and storage to 10 GB, and your first 30 days are free. No ads.
 
 Privacy policy: https://notefable.com/privacy
 
@@ -84,7 +84,7 @@ NoteFable 把 AI 对话和你的笔记放在一起，学到的东西不会埋没
 • 支持浅色和深色模式，可跟随系统或自行选择。
 • 支持 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
-免费使用，AI 消息和图片有每天、每月的使用上限。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 2,000 条消息和 60 张图片（每天最多 10 张），首次订阅前 30 天免费。没有广告。
+免费使用，AI 消息和图片有每天、每月的使用上限，登录后有 500 MB 文件存储空间。需要更多可以订阅 NoteFable Pro（按月订阅，随时可以取消），每月可用 2,000 条消息和 60 张图片（每天最多 10 张），存储空间增至 10 GB，首次订阅前 30 天免费。没有广告。
 
 隐私政策：https://notefable.com/privacy
 
@@ -126,7 +126,7 @@ NoteFable 把 AI 對話和你的筆記放在一起，學到的東西不會埋沒
 • 支援淺色與深色模式，可跟隨系統或自行選擇。
 • 支援 English、简体中文、繁體中文、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Italiano、Bahasa Indonesia、Tiếng Việt、ไทย、हिन्दी、العربية、Türkçe、Русский。
 
-免費使用，AI 訊息和圖片有每天、每月的使用上限。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 2,000 則訊息和 60 張圖片（每天最多 10 張），首次訂閱前 30 天免費。沒有廣告。
+免費使用，AI 訊息和圖片有每天、每月的使用上限，登入後有 500 MB 檔案儲存空間。需要更多可以訂閱 NoteFable Pro（按月訂閱，隨時可以取消），每月可使用 2,000 則訊息和 60 張圖片（每天最多 10 張），儲存空間增至 10 GB，首次訂閱前 30 天免費。沒有廣告。
 
 隱私權政策：https://notefable.com/privacy
 
@@ -168,7 +168,7 @@ AI がノートを手伝う
 • ライトモードとダークモードに対応。システム設定に合わせるか、好きなほうを選べます。
 • English・简体中文・繁體中文・日本語・한국어・Español・Français・Deutsch・Português (Brasil)・Italiano・Bahasa Indonesia・Tiếng Việt・ไทย・हिन्दी・العربية・Türkçe・Русскийに対応。
 
-無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があります）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで（1 日 10 枚まで）使えます。初めての方は最初の 30 日間無料です。広告はありません。
+無料で使えます（AI メッセージと画像には 1 日・1 か月の上限があり、ログインするとファイルを 500 MB まで保存できます）。もっと使いたい方は NoteFable Pro（月額サブスクリプション、いつでも解約可）で、1 か月にメッセージ 2,000 件・画像 60 枚まで（1 日 10 枚まで）使え、保存容量は 10 GB になります。初めての方は最初の 30 日間無料です。広告はありません。
 
 プライバシーポリシー：https://notefable.com/privacy
 
@@ -210,7 +210,7 @@ AI가 노트를 도와줘요
 • 라이트 모드와 다크 모드: 시스템 설정을 따르거나 직접 고르세요.
 • 지원 언어: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-무료로 쓸 수 있으며 AI 메시지와 이미지에는 일일·월간 한도가 있어요. 더 필요하다면 NoteFable Pro(월 구독, 언제든 해지 가능)로 한도가 한 달 메시지 2,000개, 이미지 60개(하루 최대 10개)까지 늘어나고, 처음 30일은 무료예요. 광고는 없습니다.
+무료로 쓸 수 있으며 AI 메시지와 이미지에는 일일·월간 한도가 있고, 로그인하면 파일 저장 공간 500 MB를 쓸 수 있어요. 더 필요하다면 NoteFable Pro(월 구독, 언제든 해지 가능)로 한도가 한 달 메시지 2,000개, 이미지 60개(하루 최대 10개)까지 늘어나고 저장 공간은 10 GB가 되며, 처음 30일은 무료예요. 광고는 없습니다.
 
 개인정보처리방침: https://notefable.com/privacy
 
@@ -252,7 +252,7 @@ FUNCIONA EN TODAS PARTES
 • Modo claro y oscuro: sigue el sistema o elige uno.
 • Disponible en English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Uso gratuito con límites diarios y mensuales de mensajes e imágenes de IA. ¿Necesitas más? NoteFable Pro (suscripción mensual, cancela cuando quieras) sube los límites a 2.000 mensajes y 60 imágenes al mes (hasta 10 imágenes al día), y los primeros 30 días son gratis. Sin anuncios.
+Uso gratuito con límites diarios y mensuales de mensajes e imágenes de IA, y 500 MB de almacenamiento para tus archivos al iniciar sesión. ¿Necesitas más? NoteFable Pro (suscripción mensual, cancela cuando quieras) sube los límites a 2.000 mensajes y 60 imágenes al mes (hasta 10 imágenes al día) y el almacenamiento a 10 GB, y los primeros 30 días son gratis. Sin anuncios.
 
 Política de privacidad: https://notefable.com/privacy
 
@@ -294,7 +294,7 @@ PARTOUT
 • Mode clair et sombre : suivez le système ou choisissez.
 • Disponible en English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Gratuit, avec des limites quotidiennes et mensuelles sur les messages et images IA. Besoin de plus ? NoteFable Pro (abonnement mensuel, résiliable à tout moment) porte les limites à 2 000 messages et 60 images par mois (jusqu'à 10 images par jour), et les 30 premiers jours sont offerts. Sans publicité.
+Gratuit, avec des limites quotidiennes et mensuelles sur les messages et images IA, et 500 MB de stockage pour vos fichiers une fois connecté. Besoin de plus ? NoteFable Pro (abonnement mensuel, résiliable à tout moment) porte les limites à 2 000 messages et 60 images par mois (jusqu'à 10 images par jour) et le stockage à 10 GB, et les 30 premiers jours sont offerts. Sans publicité.
 
 Politique de confidentialité : https://notefable.com/privacy
 
@@ -336,7 +336,7 @@ SCHNELL WIEDERFINDEN
 • Heller und dunkler Modus: wie im System oder selbst gewählt.
 • Verfügbar auf English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Kostenlos nutzbar mit täglichen und monatlichen Limits für KI-Nachrichten und -Bilder. Du brauchst mehr? NoteFable Pro (Monatsabo, jederzeit kündbar) erhöht die Limits auf 2.000 Nachrichten und 60 Bilder im Monat (bis zu 10 Bilder pro Tag), und die ersten 30 Tage sind kostenlos. Keine Werbung.
+Kostenlos nutzbar mit täglichen und monatlichen Limits für KI-Nachrichten und -Bilder und 500 MB Speicherplatz für deine Dateien, wenn du angemeldet bist. Du brauchst mehr? NoteFable Pro (Monatsabo, jederzeit kündbar) erhöht die Limits auf 2.000 Nachrichten und 60 Bilder im Monat (bis zu 10 Bilder pro Tag) und den Speicherplatz auf 10 GB, und die ersten 30 Tage sind kostenlos. Keine Werbung.
 
 Datenschutzerklärung: https://notefable.com/privacy
 
@@ -378,7 +378,7 @@ FUNCIONA EM TODO LUGAR
 • Modo claro e escuro: siga o sistema ou escolha um.
 • Disponível em English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Uso gratuito com limites diários e mensais de mensagens e imagens de IA. Precisa de mais? O NoteFable Pro (assinatura mensal, cancele quando quiser) aumenta os limites para 2.000 mensagens e 60 imagens por mês (até 10 imagens por dia), e os primeiros 30 dias são grátis. Sem anúncios.
+Uso gratuito com limites diários e mensais de mensagens e imagens de IA, e 500 MB de armazenamento para seus arquivos ao entrar na conta. Precisa de mais? O NoteFable Pro (assinatura mensal, cancele quando quiser) aumenta os limites para 2.000 mensagens e 60 imagens por mês (até 10 imagens por dia) e o armazenamento para 10 GB, e os primeiros 30 dias são grátis. Sem anúncios.
 
 Política de privacidade: https://notefable.com/privacy
 
@@ -420,7 +420,7 @@ FUNZIONA OVUNQUE
 • Modalità chiara e scura: segui il sistema o scegline una.
 • Disponibile in English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Gratuito con limiti giornalieri e mensili per messaggi e immagini IA. Ti serve di più? NoteFable Pro (abbonamento mensile, disdici quando vuoi) porta i limiti a 2.000 messaggi e 60 immagini al mese (fino a 10 immagini al giorno), e i primi 30 giorni sono gratuiti. Nessuna pubblicità.
+Gratuito con limiti giornalieri e mensili per messaggi e immagini IA, e 500 MB di spazio per i tuoi file quando accedi. Ti serve di più? NoteFable Pro (abbonamento mensile, disdici quando vuoi) porta i limiti a 2.000 messaggi e 60 immagini al mese (fino a 10 immagini al giorno) e lo spazio a 10 GB, e i primi 30 giorni sono gratuiti. Nessuna pubblicità.
 
 Informativa sulla privacy: https://notefable.com/privacy
 
@@ -462,7 +462,7 @@ BISA DI MANA SAJA
 • Mode terang dan gelap: ikuti sistem atau pilih sendiri.
 • Tersedia dalam English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Gratis digunakan dengan batas harian dan bulanan untuk pesan dan gambar AI. Perlu lebih? NoteFable Pro (langganan bulanan, bisa dibatalkan kapan saja) menaikkan batas menjadi 2.000 pesan dan 60 gambar per bulan (hingga 10 gambar per hari), dan 30 hari pertama gratis. Tanpa iklan.
+Gratis digunakan dengan batas harian dan bulanan untuk pesan dan gambar AI, serta penyimpanan file 500 MB setelah masuk. Perlu lebih? NoteFable Pro (langganan bulanan, bisa dibatalkan kapan saja) menaikkan batas menjadi 2.000 pesan dan 60 gambar per bulan (hingga 10 gambar per hari) dan penyimpanan menjadi 10 GB, dan 30 hari pertama gratis. Tanpa iklan.
 
 Kebijakan privasi: https://notefable.com/privacy
 
@@ -504,7 +504,7 @@ DÙNG Ở MỌI NƠI
 • Chế độ sáng và tối: theo hệ thống hoặc tự chọn.
 • Hỗ trợ English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Miễn phí với giới hạn hằng ngày và hằng tháng cho tin nhắn và hình ảnh AI. Cần nhiều hơn? NoteFable Pro (gói tháng, hủy bất cứ lúc nào) nâng giới hạn lên 2.000 tin nhắn và 60 hình ảnh mỗi tháng (tối đa 10 hình ảnh mỗi ngày), và 30 ngày đầu miễn phí. Không có quảng cáo.
+Miễn phí với giới hạn hằng ngày và hằng tháng cho tin nhắn và hình ảnh AI, cùng 500 MB lưu trữ tệp khi đăng nhập. Cần nhiều hơn? NoteFable Pro (gói tháng, hủy bất cứ lúc nào) nâng giới hạn lên 2.000 tin nhắn và 60 hình ảnh mỗi tháng (tối đa 10 hình ảnh mỗi ngày) và dung lượng lưu trữ lên 10 GB, và 30 ngày đầu miễn phí. Không có quảng cáo.
 
 Chính sách quyền riêng tư: https://notefable.com/privacy
 
@@ -546,7 +546,7 @@ NoteFable รวมแชท AI และโน้ตของคุณไว้
 • โหมดสว่างและโหมดมืด: ตามระบบหรือเลือกเอง
 • รองรับ English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский
 
-ใช้ฟรีโดยมีขีดจำกัดรายวันและรายเดือนสำหรับข้อความและรูปภาพ AI ต้องการมากกว่านี้? NoteFable Pro (สมัครรายเดือน ยกเลิกได้ทุกเมื่อ) เพิ่มขีดจำกัดเป็น 2,000 ข้อความและ 60 รูปต่อเดือน (สูงสุด 10 รูปต่อวัน) และใช้ฟรี 30 วันแรก ไม่มีโฆษณา
+ใช้ฟรีโดยมีขีดจำกัดรายวันและรายเดือนสำหรับข้อความและรูปภาพ AI และมีพื้นที่เก็บไฟล์ 500 MB เมื่อลงชื่อเข้าใช้ ต้องการมากกว่านี้? NoteFable Pro (สมัครรายเดือน ยกเลิกได้ทุกเมื่อ) เพิ่มขีดจำกัดเป็น 2,000 ข้อความและ 60 รูปต่อเดือน (สูงสุด 10 รูปต่อวัน) และพื้นที่เก็บไฟล์เป็น 10 GB และใช้ฟรี 30 วันแรก ไม่มีโฆษณา
 
 นโยบายความเป็นส่วนตัว: https://notefable.com/privacy
 
@@ -588,7 +588,7 @@ AI आपके नोट्स पर काम करे
 • लाइट और डार्क मोड: सिस्टम के हिसाब से या खुद चुनें।
 • उपलब्ध भाषाएं: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский।
 
-AI संदेशों और इमेज की दैनिक और मासिक सीमाओं के साथ मुफ़्त। और चाहिए? NoteFable Pro (मासिक सदस्यता, कभी भी रद्द करें) सीमा को हर महीने 2,000 संदेश और 60 इमेज (रोज़ 10 इमेज तक) तक बढ़ाता है, और पहले 30 दिन मुफ़्त हैं। कोई विज्ञापन नहीं।
+AI संदेशों और इमेज की दैनिक और मासिक सीमाओं के साथ मुफ़्त, और साइन इन करने पर फ़ाइलों के लिए 500 MB स्टोरेज। और चाहिए? NoteFable Pro (मासिक सदस्यता, कभी भी रद्द करें) सीमा को हर महीने 2,000 संदेश और 60 इमेज (रोज़ 10 इमेज तक) तक और स्टोरेज को 10 GB तक बढ़ाता है, और पहले 30 दिन मुफ़्त हैं। कोई विज्ञापन नहीं।
 
 गोपनीयता नीति: https://notefable.com/privacy
 
@@ -630,7 +630,7 @@ AI संदेशों और इमेज की दैनिक और म�
 • الوضع الفاتح والداكن: اتبع إعدادات النظام أو اختر بنفسك.
 • متاح باللغات: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-مجاني مع حدود يومية وشهرية لرسائل وصور الذكاء الاصطناعي. تحتاج إلى المزيد؟ يرفع NoteFable Pro (اشتراك شهري يمكن إلغاؤه في أي وقت) الحدود إلى 2,000 رسالة و60 صورة شهريًا (حتى 10 صور يوميًا)، وأول 30 يومًا مجانية. بلا إعلانات.
+مجاني مع حدود يومية وشهرية لرسائل وصور الذكاء الاصطناعي، و500 MB لتخزين ملفاتك عند تسجيل الدخول. تحتاج إلى المزيد؟ يرفع NoteFable Pro (اشتراك شهري يمكن إلغاؤه في أي وقت) الحدود إلى 2,000 رسالة و60 صورة شهريًا (حتى 10 صور يوميًا) والتخزين إلى 10 GB، وأول 30 يومًا مجانية. بلا إعلانات.
 
 سياسة الخصوصية: https://notefable.com/privacy
 
@@ -672,7 +672,7 @@ HER YERDE ÇALIŞIR
 • Açık ve koyu mod: sistemi takip et ya da birini seç.
 • Desteklenen diller: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Yapay zekâ mesajları ve görselleri için günlük ve aylık sınırlarla ücretsiz. Daha fazlası mı lazım? NoteFable Pro (aylık abonelik, istediğin zaman iptal) sınırları ayda 2.000 mesaj ve 60 görsele (günde en fazla 10 görsel) çıkarır ve ilk 30 gün ücretsizdir. Reklam yok.
+Yapay zekâ mesajları ve görselleri için günlük ve aylık sınırlarla ücretsiz; oturum açınca dosyaların için 500 MB depolama alanı. Daha fazlası mı lazım? NoteFable Pro (aylık abonelik, istediğin zaman iptal) sınırları ayda 2.000 mesaj ve 60 görsele (günde en fazla 10 görsel), depolamayı da 10 GB'a çıkarır ve ilk 30 gün ücretsizdir. Reklam yok.
 
 Gizlilik politikası: https://notefable.com/privacy
 
@@ -714,7 +714,7 @@ NoteFable объединяет ИИ-чат и ваши заметки в одн�
 • Светлая и тёмная тема: как в системе или на ваш выбор.
 • Доступно на языках: English, 简体中文, 繁體中文, 日本語, 한국어, Español, Français, Deutsch, Português (Brasil), Italiano, Bahasa Indonesia, Tiếng Việt, ไทย, हिन्दी, العربية, Türkçe, Русский.
 
-Бесплатно, с дневными и месячными лимитами на сообщения и изображения ИИ. Нужно больше? NoteFable Pro (ежемесячная подписка, отмена в любой момент) повышает лимиты до 2000 сообщений и 60 изображений в месяц (до 10 изображений в день), а первые 30 дней бесплатны. Без рекламы.
+Бесплатно, с дневными и месячными лимитами на сообщения и изображения ИИ и 500 MB для ваших файлов после входа. Нужно больше? NoteFable Pro (ежемесячная подписка, отмена в любой момент) повышает лимиты до 2000 сообщений и 60 изображений в месяц (до 10 изображений в день), хранилище — до 10 GB, а первые 30 дней бесплатны. Без рекламы.
 
 Политика конфиденциальности: https://notefable.com/privacy
 

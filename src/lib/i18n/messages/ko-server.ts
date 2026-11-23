@@ -247,4 +247,6 @@ export const koServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "화이트보드와 슬라이드는 아직 게시할 수 없어요.",
   "This page can't be edited in this version of NoteFable.": "이 버전의 NoteFable에서는 이 페이지를 편집할 수 없어요.",
   "These pages are too large to duplicate at once.": "이 페이지들은 너무 커서 한 번에 복제할 수 없어요.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "남은 저장 공간이 부족해요. 로그인하면 공간이 늘어나고, 필요 없는 파일을 삭제할 수도 있어요.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "남은 저장 공간이 부족해요. 필요 없는 파일을 삭제해 공간을 확보하세요.",
 };

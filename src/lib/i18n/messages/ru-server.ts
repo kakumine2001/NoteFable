@@ -247,4 +247,6 @@ export const ruServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Доски и презентации пока нельзя опубликовать.",
   "This page can't be edited in this version of NoteFable.": "Эту страницу нельзя редактировать в этой версии NoteFable.",
   "These pages are too large to duplicate at once.": "Эти страницы слишком большие, чтобы скопировать их за один раз.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Осталось недостаточно места в хранилище. Войдите, чтобы получить больше места, или удалите ненужные файлы.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Осталось недостаточно места в хранилище. Удалите ненужные файлы, чтобы освободить место.",
 };

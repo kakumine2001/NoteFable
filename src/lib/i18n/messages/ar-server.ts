@@ -247,4 +247,6 @@ export const arServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "لا يمكن نشر السبورات ومجموعات الشرائح بعد.",
   "This page can't be edited in this version of NoteFable.": "لا يمكن تعديل هذه الصفحة في هذا الإصدار من NoteFable.",
   "These pages are too large to duplicate at once.": "هذه الصفحات كبيرة جدًا بحيث لا يمكن تكرارها دفعة واحدة.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "لم تعد هناك مساحة تخزين كافية. سجّل الدخول للحصول على مساحة أكبر، أو احذف الملفات التي لم تعد بحاجة إليها.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "لم تعد هناك مساحة تخزين كافية. احذف الملفات التي لم تعد بحاجة إليها لتحرير مساحة.",
 };

@@ -247,4 +247,6 @@ export const zhServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "白板和幻灯片暂时还不能发布。",
   "This page can't be edited in this version of NoteFable.": "当前版本的 NoteFable 无法编辑此页面。",
   "These pages are too large to duplicate at once.": "这些页面太大，无法一次复制。",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "剩余存储空间不足。登录可获得更多空间，也可以删除不再需要的文件。",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "剩余存储空间不足。请删除不再需要的文件以释放空间。",
 };

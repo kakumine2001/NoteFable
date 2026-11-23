@@ -38,7 +38,7 @@ Notes 是 NoteFable 内部的文字笔记模式，界面上叫 **Workspace**（�
 
 Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选择器，打开时才加载，支持英文搜索、分类、最近使用和肤色。表情以单个 Unicode 字素保存，包含旗帜、键帽和组合表情；原生显示受设备字体支持范围限制。头像照片与封面的现有上传流程保留，不提供独立的图标素材库。
 
-**页面图标也可以是上传的图片**（仿 Notion 的 Emoji / Upload 两个标签页）：页面标题上方和侧栏行首的图标选择器（`EmojiPopover` / `FloatingEmojiPopover` 传 `allowUpload`）多一个“上传”标签页，选的图片经封面同一个接口 `POST /api/pages/covers`（JPEG/PNG/WebP/GIF、按文件头判断、最大 4 MiB）保存，`icon` 存同样形式的键 `upload:page-covers/<用户ID>/<uuid>.<ext>`。`validateNoteContent` 接受“单个 emoji 或这种键”；新建、自动保存（PATCH 带 `icon`）、`PUT /api/pages/:id/icon`、复制和历史恢复都像封面一样先 `assertCoverOwner`（只能用自己目录下的键）再在事务里 `claimCover`（把 `NoteCoverAsset` 设为使用中）。显示统一走 `NoteIcon`（`src/components/note-icon.tsx`）：emoji 原样，图片是 `/api/pages/covers?key=` 的 `<img>`（1em 四方、圆角 3）；公开分享页走 `/s/:token/cover?page=<id>&kind=icon`（只返回该公开页面自己的图标图片）。只能放文字的地方（AI 新建提案的标题前缀等）用 `noteIconText`，图片图标不显示。AI 的 `propose_note_create` 只接受 emoji 图标。聊天会话图标和 Callout 的 emoji 不变，仍只能是 emoji。
+**页面图标也可以是上传的图片**（仿 Notion 的 Emoji / Upload 两个标签页）：页面标题上方和侧栏行首的图标选择器（`EmojiPopover` / `FloatingEmojiPopover` 传 `allowUpload`）多一个“上传”标签页，选的图片经封面同一个接口 `POST /api/pages/covers`（JPEG/PNG/WebP/GIF、按文件头判断、最大 4 MiB）保存，`icon` 存同样形式的键 `upload:page-covers/<用户ID>/<uuid>.<ext>`。`validateNoteContent` 接受“单个 emoji 或这种键”；新建、自动保存（PATCH 带 `icon`）、`PUT /api/pages/:id/icon`、复制和历史恢复都像封面一样先 `assertCoverOwner`（只能用自己目录下的键）再在事务里 `claimCover`（把 `StoredFile` 的行设为使用中）。显示统一走 `NoteIcon`（`src/components/note-icon.tsx`）：emoji 原样，图片是 `/api/pages/covers?key=` 的 `<img>`（1em 四方、圆角 3）；公开分享页走 `/s/:token/cover?page=<id>&kind=icon`（只返回该公开页面自己的图标图片）。只能放文字的地方（AI 新建提案的标题前缀等）用 `noteIconText`，图片图标不显示。AI 的 `propose_note_create` 只接受 emoji 图标。聊天会话图标和 Callout 的 emoji 不变，仍只能是 emoji。
 
 `src/components/note-editor.tsx` 用同版本的 `@blocknote/core`、`@blocknote/react` 和 `@blocknote/ariakit` 社区包构建编辑器，通过 `next/dynamic` 禁用 SSR，在打开页面时加载。显式 schema 包含段落、H1–H3（可设为折叠标题，`isToggleable`）、项目/编号/待办列表、折叠列表（`toggleListItem`）、引用、Callout（`callout`，自定义块，见下）、代码、分隔线、表格（`table`）、数学公式块（`mathBlock`）以及行内数学公式节点（`mathInline`）；代码块使用 `@blocknote/code-block` 的 Shiki 高亮和语言选择，未知或空语言（包括旧数据）在载入和编辑时统一为 Plain Text；另有上传的图片块和文件块（斜杠菜单 Media 分组里的 Image / File，粘贴或拖入图片也会生成图片块）；不开放视频/音频块、外部链接嵌入或子页面。
 
@@ -57,13 +57,17 @@ AI 工具读写这些块时用的 Markdown（`src/lib/note-markdown.ts`）：页
 
 ## 图片与文件
 
-笔记附件和封面的单文件上限均为 4 MiB（4,194,304 字节）；界面和接口错误文案沿用 “4 MB” 标签。以下容量按实际字节上限描述。
+笔记附件和封面的单文件上限均为 4 MiB（4,194,304 字节，`src/lib/usage-plans.ts` 的 `MAX_STORED_FILE_BYTES`）；界面和接口错误文案沿用 “4 MB” 标签。以下容量按实际字节上限描述。
+
+**存储上限。** 笔记文件、封面和图片图标都计入用户的文件存储用量（与聊天图片、生成的图片、头像合计；游客 100 MB、登录免费 500 MB、Pro 10 GB，数值在 `usage-plans.ts` 的 `STORAGE_LIMITS`，规则见 [database.md](database.md#storedfile)）。`POST /api/pages/files` / `POST /api/pages/covers` 放不下时返回 413 `{ error, code: "storage_limit", tier, used, limit }`，什么都不写。网页的上传入口收到它时都派发 `notefable:storage-limit`（`src/lib/storage-limit-client.ts`）：从上传面板（`/image`、`/file`、替换）、封面和图片图标选的文件在原处显示服务端的说明；粘贴、拖入时新建的空块直接删掉（不留“Loading...”），原因只由下面的提示说明。`NotesWorkspace` 在笔记上方显示 `StorageLimitPrompt`（吸附在滚动区域顶端，长笔记下方粘贴时也看得见）：用量、游客的登录按钮、免费用户的 Pro 升级按钮（启用 Stripe 时）和“删除不需要的文件”。`/note-embed` 里不显示按钮：App 声明了 `canShowStorageLimit()` 时把 `storageLimit` 消息交给 App 用原生提示显示，旧版 App 只在编辑器里显示原因。笔记 AI 面板的附件同样处理。已有的文件不受影响。
 
 图片块和文件块的 `props.url` 只能是 `/api/pages/files?key=…&name=…`（`parseNoteFileUrl`，`src/lib/note-file-keys.ts`），不接受任意外部 URL；上传前的空块 `url` 为空字符串。文件保存在 `note-files/<用户ID>/<uuid>.<扩展名>`，与封面、聊天图片共用 `src/lib/storage.ts`。保存页面时 `assertNoteFilesOwner` 检查所有被引用的键都在当前用户目录下，否则返回 400。
 
 `POST /api/pages/files` 只收一个 `file` 字段，最大 4 MiB（Vercel 请求体上限 4.5 MB），按实际接收字节数限制。图片按文件头判断（JPEG/PNG/WebP/GIF）；其他文件按扩展名白名单（pdf、txt、md、csv、json、doc/docx、xls/xlsx、ppt/pptx、zip、mp3、wav、mp4），可执行文件、HTML 等被拒绝（400）。`GET /api/pages/files?key=&name=` 只返回当前用户自己的文件：图片内联显示，其他类型以 `attachment` 下载，并带 `nosniff` 和 `Content-Security-Policy: sandbox`。
 
-AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]` 占位文字。`propose_note_edit` 可以像其他块一样替换或删除这些块；替换或删除到上传内容时，提案里该处会带 `dropsMedia`，提案卡片提示“上传的图片或文件会从笔记中移除”，用户批准后才会生效。AI 也可以把当前聊天里的图片放进笔记（含用户上传和助手生成的图片）：先用 `list_chat_attachments` 取得附件 ID，再在提案的 Markdown 中单独写一行 `![说明](attachment:ID)`。服务端（`src/lib/note-attachments.ts`）确认该附件属于本会话和本人（不按消息角色排除生成图）、是 PNG/JPEG/WebP/GIF 且不超过 4 MiB，把图片复制到 `note-files/<用户>/`，替换成指向它的图片块；每个提案最多 5 张，同一张只复制一次。聊天里的 PDF / 文本附件只保存了抽出的文字，没有原文件，所以不能作为文件块放进笔记。模型直接写 `![说明](/api/pages/files?...)` 时只接受本人目录下的图片，生成提案和适用提案时都会检查（`assertNoteFilesOwner`）。已上传但不再被引用的文件不会被清理（清理任务已移除）。
+AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]` 占位文字。`propose_note_edit` 可以像其他块一样替换或删除这些块；替换或删除到上传内容时，提案里该处会带 `dropsMedia`，提案卡片提示“上传的图片或文件会从笔记中移除”，用户批准后才会生效。AI 也可以把当前聊天里的图片放进笔记（含用户上传和助手生成的图片）：先用 `list_chat_attachments` 取得附件 ID，再在提案的 Markdown 中单独写一行 `![说明](attachment:ID)`。服务端（`src/lib/note-attachments.ts`）确认该附件属于本会话和本人（不按消息角色排除生成图）、是 PNG/JPEG/WebP/GIF 且不超过 4 MiB，把图片复制到 `note-files/<用户>/`，替换成指向它的图片块；每个提案最多 5 张，同一张只复制一次。聊天里的 PDF / 文本附件只保存了抽出的文字，没有原文件，所以不能作为文件块放进笔记。模型直接写 `![说明](/api/pages/files?...)` 时只接受本人目录下的图片，生成提案和适用提案时都会检查（`assertNoteFilesOwner`）。复制进笔记的图片也计入存储用量，放不下时工具向模型返回错误、不建立提案。
+
+**未引用文件的清理。** 每个上传的文件都登记在 `StoredFile`（[database.md](database.md#storedfile)）。保存笔记（自动保存、新建、导入、历史恢复、适用 AI 提案）时在同一事务里把正文引用的文件设为使用中（`claimNoteFiles`）；不再被任何笔记（含 Trash）、编辑历史和待确认的 AI 提案引用的文件，7 天后由文件清理任务删除（`collectUnusedFiles`，请求之后惰性运行，没有 Cron）。所以从笔记里删掉的图片要等它也不在编辑历史里（历史被裁剪或笔记被永久删除）之后约一周才真正删掉、释放空间。
 
 ## 分组
 
@@ -106,9 +110,9 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `GET /api/pages/:id/revisions` | 返回 `{ revisions }`（`id`、`reason`、`title`、`version`、`createdAt`，不含正文），最新在前，最多 50 条 |
 | `GET /api/pages/:id/revisions/:revisionId` | 返回 `{ revision }`，含 `icon` 和 `blocks`（白板 / 幻灯片另含本体 `data`），用于预览 |
 | `POST /api/pages/:id/revisions/:revisionId/restore` | 把笔记恢复为该历史的标题、图标和正文（白板 / 幻灯片恢复本体，响应的 `page` 带 `data`）。body `{ version }` 是客户端当前的笔记版本；成功返回完整的 `{ page }`，版本过期返回 409（带最新的 `page`） |
-| `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MiB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
+| `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MiB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入。存储用量放不下时 413 `code: "storage_limit"` |
 | `GET /api/pages/covers?key=` | 只返回当前用户目录下的封面图片 |
-| `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件” |
+| `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件”；存储用量放不下时 413 `code: "storage_limit"` |
 | `GET /api/pages/files?key=&name=` | 只返回当前用户自己的上传文件 |
 | `POST /api/pages/groups` | 新建分组 `{ name }` |
 | `PATCH` / `DELETE /api/pages/groups/:groupId` | 重命名 / 删除自己的分组 |
@@ -135,7 +139,7 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 - **永久删除**有三条路径：单篇“Delete forever”、“Empty trash”（两者都有行内二次确认）和超期清理。永久删除会级联删除这篇笔记的编辑历史和项目参考关联，不可恢复；在这篇笔记的 AI 面板里开始的聊天保留在 Chats 里（只解除与笔记的关联）。
 - **没有定时清理。** 超期笔记在三个时机被删：打开 Trash 列表时、把另一篇笔记放进 Trash 时（尽力而为，失败只记日志、不影响删除本身）、清空 Trash 时。超期笔记在被真正删除之前也不会在任何接口里出现，复原会被拒绝。
 - 放进 Trash 前，`remove()` 先把该笔记的未保存编辑 flush；flush 失败则不删除，并提示先处理未保存草稿。成功后丢弃该页的本地队列和 `notefable:page-draft:v1:<pageId>` 草稿缓存，所以复原后看到的是服务端保存的正文，不会被旧草稿覆盖。
-- Trash 里的笔记仍引用它的上传封面，因此保留期内封面图片不会被回收（见 [database.md](database.md) 的 `NotePage`）。
+- Trash 里的笔记仍引用它的上传封面和文件，因此保留期内它们不会被回收（见 [database.md](database.md#storedfile)）。
 
 ## 编辑历史与恢复
 
@@ -206,7 +210,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）、`20261116100000_message_notes`（`MessageNote`）和 `20261123000000_page_kinds`（枚举 `PageKind`、`NotePage.kind` 默认 `note`、`NoteRevision.data`、`NoteCanvas` 表），均为非破坏追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）、`20261116100000_message_notes`（`MessageNote`）、`20261123000000_page_kinds`（枚举 `PageKind`、`NotePage.kind` 默认 `note`、`NoteRevision.data`、`NoteCanvas` 表）和 `20261123000000_stored_files`（`StoredFile` 接替 `NoteCoverAsset`，见 [database.md](database.md#storedfile)）。除最后一个删掉已搬走的 `NoteCoverAsset` 外均为非破坏追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash、历史和文件清理都没有新的环境变量，也没有定时任务（文件清理在请求之后惰性运行）。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
@@ -235,6 +239,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 | `{type:"missing"}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留 |
 | `{type:"openPage", id}` | 正文里的页面提及被点了。App 用"从链接打开笔记"的同一入口（`openNoteFromLink`）打开那一页：先 flush、切到列表、刷新后笔记在就打开 |
 | `{type:"flushed", requestId, ok, kept?}` | 对 `flush(requestId)` 的回复；`ok` 为 false 时带 `kept` |
+| `{type:"storageLimit", tier, used, limit}` | 编辑器里的图片、文件、封面、图标或 AI 面板的附件因存储空间不够被拒绝（`used` / `limit` 是字节）。只在 App 声明了 `window.NoteFableNative.canShowStorageLimit()` 时发；App 在编辑器上方显示与聊天相同的存储提示（登录 / 升级）。没有这个方法的旧版 App 不收到，网页在编辑器里只说明原因 |
 | `{type:"trashed"}` | 预留：内嵌页目前不提供移入 Trash 的入口，Trash 由应用在 flush 成功后调用 `DELETE /api/pages/:id` |
 
 **应用 → 网页**：`window.notefableEmbed`。

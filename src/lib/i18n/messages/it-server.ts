@@ -247,4 +247,6 @@ export const itServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Le lavagne e le presentazioni non possono ancora essere pubblicate.",
   "This page can't be edited in this version of NoteFable.": "Questa pagina non può essere modificata in questa versione di NoteFable.",
   "These pages are too large to duplicate at once.": "Queste pagine sono troppo grandi per essere duplicate in una volta.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Lo spazio di archiviazione rimasto non basta. Accedi per avere più spazio oppure elimina i file che non ti servono più.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Lo spazio di archiviazione rimasto non basta. Elimina i file che non ti servono più per liberare spazio.",
 };

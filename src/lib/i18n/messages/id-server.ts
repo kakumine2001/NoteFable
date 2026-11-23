@@ -247,4 +247,6 @@ export const idServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Papan tulis dan presentasi belum dapat dipublikasikan.",
   "This page can't be edited in this version of NoteFable.": "Halaman ini tidak dapat diedit di versi NoteFable ini.",
   "These pages are too large to duplicate at once.": "Halaman-halaman ini terlalu besar untuk diduplikasi sekaligus.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Ruang penyimpanan yang tersisa tidak cukup. Masuk untuk mendapatkan lebih banyak ruang, atau hapus file yang tidak lagi Anda perlukan.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Ruang penyimpanan yang tersisa tidak cukup. Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.",
 };

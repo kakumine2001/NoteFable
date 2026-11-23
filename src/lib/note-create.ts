@@ -3,6 +3,7 @@ import { assertCanvasFilesOwner, emptyCanvasData, type CanvasPageInput } from "@
 import { prepareCanvas, writeCanvas } from "@/lib/canvas-store";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
 import { lockNoteOrder, resolveParent } from "@/lib/note-tree-server";
 import type { CanvasKind } from "@/lib/page-kinds";
 import type { NoteContent } from "@/types/notes";
@@ -18,6 +19,7 @@ export async function createNotePage(userId: string, content: NoteContent, { par
     const groupId = parentId ? await parentGroup(tx, userId, parentId) : null;
     await claimCover(tx, content.cover, userId);
     await claimCover(tx, content.icon, userId, "icon");
+    await claimNoteFiles(tx, content.blocks, userId);
     return tx.notePage.create({ data: { userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
   });
 }
@@ -34,10 +36,11 @@ export async function createCanvasPage(userId: string, kind: CanvasKind, input: 
   assertCoverOwner(input.icon, userId, "icon");
   assertCanvasFilesOwner(input, userId);
   const data = input.data ?? emptyCanvasData(kind);
-  const canvas = prepareCanvas(kind, data, input.size ?? new TextEncoder().encode(JSON.stringify(data)).byteLength);
+  const canvas = prepareCanvas(kind, data, input.size ?? new TextEncoder().encode(JSON.stringify(data)).byteLength, input.filePaths);
   const page = await prisma.$transaction(async (tx) => {
     const groupId = parentId ? await parentGroup(tx, userId, parentId) : null;
     await claimCover(tx, input.icon, userId, "icon");
+    await claimStoredFiles(tx, input.filePaths, userId);
     const created = await tx.notePage.create({ data: { userId, kind, parentId, groupId, title: input.title, icon: input.icon, cover: null, coverPosition: null, blocks: [] } });
     await writeCanvas(tx, created.id, canvas);
     return created;

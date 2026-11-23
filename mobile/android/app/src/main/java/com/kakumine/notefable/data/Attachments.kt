@@ -44,6 +44,29 @@ fun formatUploadSize(bytes: Long): String {
     return if (tenths % 10 == 0L) "${tenths / 10} MiB" else "${tenths / 10}.${tenths % 10} MiB"
 }
 
+/**
+ * 网页 usage-plans.ts 的 formatStorageSize：1024 进制，单位 KB / MB / GB（不翻译）；10 以下保留一位小数，向下取整
+ * （用量不会显示得比实际多）。数字的写法（小数点）按界面语言。
+ */
+fun formatStorageSize(bytes: Long, locale: java.util.Locale = java.util.Locale.ENGLISH): String {
+    val mib = 1024.0 * 1024.0
+    val value = maxOf(0L, bytes).toDouble()
+    val (amount, unit) = when {
+        value >= 1024 * mib -> value / (1024 * mib) to "GB"
+        value >= mib -> value / mib to "MB"
+        else -> value / 1024 to "KB"
+    }
+    val digits = if (unit != "KB" && amount < 10) 1 else 0
+    val scale = if (digits == 1) 10.0 else 1.0
+    val shown = kotlin.math.floor(amount * scale) / scale
+    val format = java.text.NumberFormat.getNumberInstance(locale).apply {
+        maximumFractionDigits = digits
+        minimumFractionDigits = 0
+        isGroupingUsed = true
+    }
+    return "${format.format(shown)} $unit"
+}
+
 /** 当前这组附件能不能发送；可以时返回 null。 */
 fun attachmentError(files: List<LocalFile>, supportsImages: Boolean): AttachError? {
     if (files.size > MAX_UPLOAD_FILES) return AttachError.TooMany(MAX_UPLOAD_FILES, files.size - MAX_UPLOAD_FILES)

@@ -247,4 +247,6 @@ export const thServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "ยังเผยแพร่ไวท์บอร์ดและชุดสไลด์ไม่ได้",
   "This page can't be edited in this version of NoteFable.": "แก้ไขหน้านี้ใน NoteFable เวอร์ชันนี้ไม่ได้",
   "These pages are too large to duplicate at once.": "หน้าเหล่านี้ใหญ่เกินกว่าจะทำสำเนาในครั้งเดียว",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "พื้นที่จัดเก็บเหลือไม่พอ ลงชื่อเข้าใช้เพื่อรับพื้นที่เพิ่ม หรือลบไฟล์ที่ไม่ต้องการแล้ว",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "พื้นที่จัดเก็บเหลือไม่พอ ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง",
 };

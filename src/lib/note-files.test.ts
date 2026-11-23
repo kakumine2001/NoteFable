@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NoteValidationError, validateNoteContent } from "./note-document";
 import { noteFileKeyParts, noteFileUrl, parseNoteFileUrl, safeFileName } from "./note-file-keys";
-import { assertNoteFilesOwner, classifyUpload } from "./note-files";
+import { assertNoteFilesOwner, classifyUpload, noteFilePaths } from "./note-files";
 import { blocksToMarkdown, markdownToBlocks, type NoteBlock } from "./note-markdown";
 import { applyPageEdits } from "./page-edit";
 
@@ -132,5 +132,25 @@ describe("media blocks and the AI edit tools", () => {
     const text = blocksToMarkdown(blocks);
     expect(text.startsWith("new intro\n[Image: pic.png — A cat]\nbelow the image")).toBe(true);
     expect(text).toContain("[File: a.pdf]");
+  });
+});
+
+describe("files a note refers to", () => {
+  it("collects each uploaded file once, from nested blocks too, and skips empty uploads", () => {
+    const nested = { id: "p", type: "paragraph", props: {}, content: [], children: [media("file", { url: url("user1", "pdf", "a.pdf") }), media("image")] };
+    expect(noteFilePaths([media("image"), nested, media("image", { url: "" })]).sort()).toEqual([`note-files/user1/${UUID}.pdf`, `note-files/user1/${UUID}.png`]);
+    expect(noteFilePaths(null)).toEqual([]);
+  });
+
+  it("does not count columns toward the nesting depth, like the note validation", () => {
+    // 段組みの中の最も深い位置（入れ子 8 段）にあるファイルも見つける。
+    const deep = (owner: string) => {
+      let block: Record<string, unknown> = media("image", { url: url(owner) });
+      for (let level = 0; level < 8; level += 1) block = { id: `p${level}`, type: "paragraph", props: {}, content: [], children: [block] };
+      const column = (id: string, children: unknown[]) => ({ id, type: "column", props: { width: 1 }, children });
+      return [{ id: "cols", type: "columnList", props: {}, children: [column("c1", [block]), column("c2", [{ id: "x", type: "paragraph", props: {}, content: [], children: [] }])] }];
+    };
+    expect(noteFilePaths(deep("user1"))).toEqual([`note-files/user1/${UUID}.png`]);
+    expect(() => assertNoteFilesOwner(deep("someoneelse"), "user1")).toThrow(NoteValidationError);
   });
 });

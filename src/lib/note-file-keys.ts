@@ -1,8 +1,10 @@
 // ノートの中に置く画像・ファイル（Notion の /image と /file 相当）の保存形式と検証。
 // 保存先は「note-files/<所有者 ID>/<UUID>.<拡張子>」。所有者 ID をパスに含め、他人のキーを自分のノートに付け替えさせない。
 
-// Vercel Functions の受信上限 4.5 MB に multipart の余白を残す（カバー画像と同じ）。
-export const MAX_NOTE_FILE_BYTES = 4 * 1024 * 1024;
+import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
+
+// 1 ファイルの上限（カバー画像と同じ。数値は usage-plans.ts にまとめてある）。
+export const MAX_NOTE_FILE_BYTES = MAX_STORED_FILE_BYTES;
 
 export const NOTE_IMAGE_EXTENSIONS: Record<string, string> = {
   "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "image/gif": "gif",

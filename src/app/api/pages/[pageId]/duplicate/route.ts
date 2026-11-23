@@ -11,6 +11,7 @@ import { descendantIds, liveOrderIds, lockNoteOrder, PAGE_SUMMARY_SELECT, writeO
 import { isCanvasKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
+import { claimNoteFiles } from "@/lib/stored-files";
 
 type Context = { params: Promise<{ pageId: string }> };
 
@@ -48,6 +49,8 @@ export async function POST(_request: Request, context: Context) {
           if (copies.has(source.id) || (source.id !== root.id && !copies.has(source.parentId ?? ""))) continue;
           await claimCover(tx, source.cover, user.id);
           await claimCover(tx, source.icon, user.id, "icon");
+          // 複製も同じファイルを参照する。元のノートから外されても消させない。
+          await claimNoteFiles(tx, source.blocks, user.id);
           const copy = await tx.notePage.create({
             data: {
               userId: user.id, kind: source.kind, title: source.id === root.id ? duplicateTitle(source.title) : source.title, icon: source.icon, cover: source.cover,

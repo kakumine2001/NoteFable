@@ -49,6 +49,9 @@ struct PlanSettingsCard: View {
                 }
             }
             .padding(.top, 16)
+            if plan.storage != nil {
+                SettingsHelpLine(L("plan_storage_help"))
+            }
         } else {
             SettingsLoadingLine()
         }

@@ -247,4 +247,6 @@ export const trServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Beyaz tahtalar ve slayt desteleri henüz yayımlanamıyor.",
   "This page can't be edited in this version of NoteFable.": "Bu sayfa NoteFable’ın bu sürümünde düzenlenemiyor.",
   "These pages are too large to duplicate at once.": "Bu sayfalar bir kerede çoğaltılamayacak kadar büyük.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Yeterli depolama alanı kalmadı. Daha fazla alan için oturum açın veya artık ihtiyacınız olmayan dosyaları silin.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Yeterli depolama alanı kalmadı. Yer açmak için artık ihtiyacınız olmayan dosyaları silin.",
 };

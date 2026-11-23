@@ -14,10 +14,11 @@ export function canvasHash(data: CanvasData) {
   return createHash("sha256").update(JSON.stringify(data)).digest("hex");
 }
 
-export type PreparedCanvas = { data: CanvasData; segments: CanvasSegment[]; hash: string; size: number };
+// filePaths: 本体が参照しているファイル（validateCanvasData が集めたもの）。書く前に claimStoredFiles で使用中へ戻す。
+export type PreparedCanvas = { data: CanvasData; segments: CanvasSegment[]; hash: string; size: number; filePaths: string[] };
 
-export function prepareCanvas(kind: CanvasKind, data: CanvasData, size: number): PreparedCanvas {
-  return { data, segments: extractCanvasSegments(kind, data), hash: canvasHash(data), size };
+export function prepareCanvas(kind: CanvasKind, data: CanvasData, size: number, filePaths: string[] = []): PreparedCanvas {
+  return { data, segments: extractCanvasSegments(kind, data), hash: canvasHash(data), size, filePaths };
 }
 
 // ページの本体を置き換える（無ければ作る）。呼び出し側のトランザクションの中で、ページの版を進めたのと同じ時に呼ぶ。

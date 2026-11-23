@@ -247,4 +247,6 @@ export const hiServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "व्हाइटबोर्ड और स्लाइड डेक अभी प्रकाशित नहीं किए जा सकते।",
   "This page can't be edited in this version of NoteFable.": "NoteFable के इस संस्करण में यह पेज संपादित नहीं किया जा सकता।",
   "These pages are too large to duplicate at once.": "ये पेज एक साथ डुप्लिकेट करने के लिए बहुत बड़े हैं।",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "स्टोरेज में पर्याप्त जगह नहीं बची है। ज़्यादा जगह पाने के लिए साइन इन करें, या वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "स्टोरेज में पर्याप्त जगह नहीं बची है। जगह खाली करने के लिए वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",
 };

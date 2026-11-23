@@ -94,6 +94,8 @@ describe("whiteboard and slide data", () => {
   it("lists the owners of referenced files so another user's files cannot be used", () => {
     const canvas = validateCanvasData("whiteboard", { elements: [], files: { a: { dataURL: fileUrl() }, b: { url: fileUrl("someoneelse") } } });
     expect(canvas.fileOwners.sort()).toEqual([OWNER, "someoneelse"]);
+    // 参照しているファイルの保存先も集める（保存のたびに使用中へ戻し、ストレージの後片付けに消させない）。
+    expect(canvas.filePaths.sort()).toEqual([`note-files/${OWNER}/123e4567-e89b-12d3-a456-426614174000.png`, "note-files/someoneelse/123e4567-e89b-12d3-a456-426614174000.png"]);
     expect(() => assertCanvasFilesOwner(canvas, OWNER)).toThrow("not yours");
     expect(() => assertCanvasFilesOwner({ fileOwners: [OWNER] }, OWNER)).not.toThrow();
     // ファイルの URL の形をしているのに読めないものは、壊れたデータとして断る。
@@ -101,7 +103,7 @@ describe("whiteboard and slide data", () => {
   });
 
   it("validates page input: title, icon, no cover, optional data", () => {
-    expect(validateCanvasPage("whiteboard", { title: "  ", icon: null })).toEqual({ title: "Untitled", icon: null, fileOwners: [] });
+    expect(validateCanvasPage("whiteboard", { title: "  ", icon: null })).toEqual({ title: "Untitled", icon: null, fileOwners: [], filePaths: [] });
     expect(validateCanvasPage("slides", { title: "Deck", icon: "📊", data: { slides: [] } })).toMatchObject({ title: "Deck", icon: "📊", data: { slides: [] }, size: 13 });
     for (const body of [{ title: "x".repeat(201) }, { title: "x", icon: "not an emoji" }, { title: "x", cover: "gradient-mint" }, { title: "x", blocks: [] }, { title: 1 }]) {
       expect(status(() => validateCanvasPage("whiteboard", body)), JSON.stringify(body)).toBe(400);

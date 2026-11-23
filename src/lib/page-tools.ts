@@ -15,6 +15,7 @@ import { canvasBodyValues, noteBodyValues, termHit } from "@/lib/search";
 import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fold";
 import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
+import { discardStoredFiles } from "@/lib/stored-files";
 
 export { blocksToMarkdown };
 
@@ -181,13 +182,16 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string,
   if (page.version !== value.version) {
     return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, msg("Note changed since it was read"));
   }
+  // 提案を保存できなかったら、そのためにコピーした画像を消す（容量を占めたままにしない）。
+  const resolver = createAttachmentResolver(userId, sessionId, excludeMessageIds);
+  let saved = false;
   try {
     // 添付画像の参照は、すべての edit をまとめて検証・コピーしてから URL に置き換える（順番に処理し、並列にはしない）。
     let edits = value.edits;
     if (Array.isArray(value.edits)) {
       const entries = value.edits.map((edit: unknown) => edit && typeof edit === "object" ? edit as Record<string, unknown> : null);
       const markdowns = entries.map((entry) => entry && typeof entry.markdown === "string" ? entry.markdown : "");
-      const resolved = await createAttachmentResolver(userId, sessionId, excludeMessageIds)(markdowns);
+      const resolved = await resolver(markdowns);
       edits = value.edits.map((edit: unknown, index: number) => entries[index] && typeof entries[index]!.markdown === "string" ? { ...entries[index], markdown: resolved[index] } : edit);
     }
     const { blocks, changes } = applyPageEdits(page.blocks as NoteBlock[], edits);
@@ -200,6 +204,7 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string,
       ...(content.title !== page.title ? { title: { before: page.title, after: content.title } } : {}),
       changes, proposed: { title: content.title, blocks: content.blocks },
     } });
+    saved = true;
     return {
       content: JSON.stringify({ status: "proposed", applied: false, message: "The proposal is shown to the user. Nothing has been changed yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was updated." }),
       label: fmt("Proposed edits to “{title}”", { title: page.title }),
@@ -208,6 +213,8 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string,
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message);
     throw error;
+  } finally {
+    if (!saved) await discardStoredFiles(resolver.copied);
   }
 }
 
@@ -217,8 +224,10 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
   const title = typeof value.title === "string" ? value.title.trim() : "";
   if (!title) return toolError("title must be a non-empty string.");
   if (value.icon !== null && value.icon !== undefined && typeof value.icon !== "string") return toolError("icon must be a single emoji or null.");
+  const resolver = createAttachmentResolver(userId, sessionId, excludeMessageIds);
+  let saved = false;
   try {
-    const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await createAttachmentResolver(userId, sessionId, excludeMessageIds)([value.markdown]))[0] : value.markdown);
+    const blocks = parseNewPageMarkdown(typeof value.markdown === "string" ? (await resolver([value.markdown]))[0] : value.markdown);
     const icon = typeof value.icon === "string" && value.icon.trim() ? value.icon.trim() : null;
     if (icon !== null && !isEmojiIcon(icon)) return toolError("icon must be a single emoji or null.");
     const content = validateNoteContent({ title, icon, blocks });
@@ -227,6 +236,7 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
       title: content.title, icon: content.icon, content: blocksToMarkdown(content.blocks),
       proposed: { title: content.title, icon: content.icon, blocks: content.blocks },
     } });
+    saved = true;
     return {
       content: JSON.stringify({ status: "proposed", created: false, message: "The proposal is shown to the user. No note has been created yet. Briefly say what you proposed and ask the user to review and apply it; do not say the note was created." }),
       label: fmt("Proposed new note “{title}”", { title: content.title }),
@@ -235,6 +245,8 @@ async function proposePageCreate(args: unknown, userId: string, sessionId: strin
   } catch (error) {
     if (error instanceof PageEditError || error instanceof NoteValidationError) return toolError(error.message, msg("Note proposal rejected"));
     throw error;
+  } finally {
+    if (!saved) await discardStoredFiles(resolver.copied);
   }
 }
 

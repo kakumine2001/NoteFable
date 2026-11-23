@@ -221,18 +221,24 @@ extension ModelsResponse: Decodable {
     }
 }
 
-// 错误响应。429 的使用上限还带 code / tier / kind（src/lib/usage-limits.ts）。
+// 错误响应。429 的使用上限还带 code / tier / kind（src/lib/usage-limits.ts）；
+// 413 的容量上限（code = "storage_limit"）带 tier / used / limit（字节，src/lib/stored-files.ts）。
 struct ApiError: Encodable, Equatable, Sendable {
     var error: String? = nil
     var code: String? = nil
     var tier: String? = nil
     var kind: String? = nil
+    var used: Int? = nil
+    var limit: Int? = nil
 }
 
 extension ApiError: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
-        self.init(error: try f.opt("error"), code: try f.opt("code"), tier: try f.opt("tier"), kind: try f.opt("kind"))
+        self.init(
+            error: try f.opt("error"), code: try f.opt("code"), tier: try f.opt("tier"), kind: try f.opt("kind"),
+            used: try f.opt("used"), limit: try f.opt("limit")
+        )
     }
 }
 
@@ -506,6 +512,19 @@ extension PlanDailyUsage: Decodable {
     }
 }
 
+/// `GET /api/billing` 的文件存储用量和上限（字节，网页 PlanInfo.storage）。
+struct PlanStorage: Encodable, Equatable, Sendable {
+    var used: Int = 0
+    var limit: Int = 0
+}
+
+extension PlanStorage: Decodable {
+    init(from decoder: Decoder) throws {
+        let f = try DtoFields(decoder)
+        self.init(used: try f.or("used", 0), limit: try f.or("limit", 0))
+    }
+}
+
 /// `GET /api/billing` 的订阅状态（网页 src/lib/billing-client.ts 的 PlanInfo.subscription）。
 struct PlanSubscription: Encodable, Equatable, Sendable {
     var status: String = ""
@@ -535,6 +554,8 @@ struct PlanInfo: Encodable, Equatable, Sendable {
     var manageUrl: String? = nil
     var priceJpy: Int = 0
     var trialDays: Int = 0
+    /// 文件存储的用量；旧的服务端不返回（nil 时方案卡片不显示这一栏）。
+    var storage: PlanStorage? = nil
 }
 
 extension PlanInfo: Decodable {
@@ -544,7 +565,7 @@ extension PlanInfo: Decodable {
             plan: try f.or("plan", "free"), subscription: try f.opt("subscription"), usage: try f.or("usage", [:]),
             googlePlay: try f.or("googlePlay", false), productId: try f.opt("productId"), accountId: try f.opt("accountId"),
             provider: try f.opt("provider"), manageUrl: try f.opt("manageUrl"), priceJpy: try f.or("priceJpy", 0),
-            trialDays: try f.or("trialDays", 0)
+            trialDays: try f.or("trialDays", 0), storage: try f.opt("storage")
         )
     }
 }

@@ -5,7 +5,7 @@ const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn(),
   canvasFindFirst: vi.fn(), canvasFindUnique: vi.fn(), canvasUpsert: vi.fn(),
   revisionCreate: vi.fn(), revisionFindFirst: vi.fn(), revisionFindMany: vi.fn(), revisionDeleteMany: vi.fn(),
-  raw: vi.fn(), unsafe: vi.fn(), resolveParent: vi.fn(), schedule: vi.fn(), claim: vi.fn(),
+  raw: vi.fn(), unsafe: vi.fn(), resolveParent: vi.fn(), schedule: vi.fn(), claim: vi.fn(), claimFiles: vi.fn(),
 }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/note-embeddings", () => ({ scheduleNoteEmbeddingSync: mocks.schedule }));
@@ -17,7 +17,7 @@ vi.mock("@/lib/prisma", () => {
   const notePage = { findFirst: mocks.findFirst, create: mocks.create, updateMany: mocks.updateMany };
   const noteCanvas = { findFirst: mocks.canvasFindFirst, findUnique: mocks.canvasFindUnique, upsert: mocks.canvasUpsert };
   const noteRevision = { create: mocks.revisionCreate, findFirst: mocks.revisionFindFirst, findMany: mocks.revisionFindMany, deleteMany: mocks.revisionDeleteMany };
-  const tx = { notePage, noteCanvas, noteRevision, $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe };
+  const tx = { notePage, noteCanvas, noteRevision, storedFile: { updateMany: mocks.claimFiles }, $executeRaw: mocks.raw, $executeRawUnsafe: mocks.unsafe };
   return { databaseSchema: "notefable", prisma: { ...tx, $transaction: async (fn: (client: unknown) => unknown) => fn(tx) } };
 });
 import { POST as create } from "./route";
@@ -104,6 +104,30 @@ describe("reading and saving a whiteboard", () => {
     expect(snapshot.sql).toContain('LEFT JOIN "notefable"."NoteCanvas" c');
     expect(mocks.raw.mock.invocationCallOrder[0]).toBeLessThan(mocks.updateMany.mock.invocationCallOrder[0]);
     expect(mocks.schedule).toHaveBeenCalledWith("mine", ["w1"]);
+  });
+
+  it("marks the files the content refers to as in use, before moving the version (the storage cleanup must not delete them)", async () => {
+    mocks.findFirst.mockResolvedValueOnce({ kind: "whiteboard" }).mockResolvedValue({ id: "w1", kind: "whiteboard", title: "Board", icon: null, version: 4 });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    const data = { elements: [{ id: "i1", type: "image", fileId: "f1" }], files: { f1: { dataURL: fileUrl("mine") }, f2: { url: fileUrl("mine") } } };
+    expect((await save(patch({ title: "Board", data, version: 3 }), context)).status).toBe(200);
+    expect(mocks.claimFiles).toHaveBeenCalledWith({ where: { path: { in: ["note-files/mine/123e4567-e89b-12d3-a456-426614174000.png"] }, userId: "mine", deletingAt: null, releasedAt: { not: null } }, data: { releasedAt: null } });
+    expect(mocks.claimFiles.mock.invocationCallOrder[0]).toBeLessThan(mocks.updateMany.mock.invocationCallOrder[0]);
+    // 作成と履歴の復元でも同じく使用中へ戻す。
+    vi.clearAllMocks();
+    mocks.create.mockImplementation(async ({ data: row }) => ({ id: "w2", version: 0, ...row }));
+    expect((await create(json({ kind: "whiteboard", title: "Plan", icon: null, data }))).status).toBe(201);
+    expect(mocks.claimFiles.mock.calls[0][0].where.path).toEqual({ in: ["note-files/mine/123e4567-e89b-12d3-a456-426614174000.png"] });
+    vi.clearAllMocks();
+    mocks.raw.mockResolvedValue(0);
+    mocks.revisionFindMany.mockResolvedValue([]);
+    mocks.findFirst.mockResolvedValueOnce(row()).mockResolvedValue(row({ version: 4 }));
+    mocks.revisionFindFirst.mockResolvedValue({ id: "r1", title: "Board", icon: null, blocks: [], data });
+    mocks.canvasFindUnique.mockResolvedValue({ data: board("Current") });
+    mocks.updateMany.mockResolvedValue({ count: 1 });
+    const restored = await restore(new Request("http://localhost/x", { method: "POST", body: JSON.stringify({ version: 3 }) }), { params: Promise.resolve({ pageId: "w1", revisionId: "r1" }) });
+    expect(restored.status).toBe(200);
+    expect(mocks.claimFiles.mock.calls[0][0].where.path).toEqual({ in: ["note-files/mine/123e4567-e89b-12d3-a456-426614174000.png"] });
   });
 
   it("renames without touching the content when data is left out", async () => {

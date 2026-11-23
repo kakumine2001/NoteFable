@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { LEGAL_CONTACT_EMAIL, LegalPage, LegalSection } from "@/components/legal-page";
-import { PRO_PRICE_JPY, PRO_TRIAL_DAYS, USAGE_DAILY_LIMITS, USAGE_LIMITS } from "@/lib/usage-plans";
+import { MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
+import { MAX_STORED_FILE_BYTES, PRO_PRICE_JPY, PRO_TRIAL_DAYS, STORAGE_LIMITS, USAGE_DAILY_LIMITS, USAGE_LIMITS, formatStorageSize } from "@/lib/usage-plans";
 
 export const metadata: Metadata = {
   title: "Terms of Service – NoteFable",
@@ -21,7 +22,7 @@ export default function TermsPage() {
       <LegalSection title="2. The service">
         <p>
           NoteFable is an AI study assistant: you can chat with AI models, keep notes in your Workspace, attach files and generate images. It is a personal project provided
-          “as is”. It is free to use within daily and monthly limits; a paid Pro plan raises those limits (section 3). Features, models and limits can change,
+          “as is”. It is free to use within daily and monthly limits and a storage limit for your files; a paid Pro plan raises those limits (section 3). Features, models and limits can change,
           and the service can be interrupted or stopped at any time without notice. Keep your own copy of anything important.
         </p>
       </LegalSection>
@@ -29,7 +30,7 @@ export default function TermsPage() {
       <LegalSection title="3. Pro subscription">
         <ul>
           <li>
-            <strong>What you get.</strong> Pro raises your limits to {USAGE_LIMITS.pro.chat.toLocaleString("en-US")} AI messages and {USAGE_LIMITS.pro.image} generated images per billing period (up to {USAGE_DAILY_LIMITS.pro.image} images a day). Limits and the available
+            <strong>What you get.</strong> Pro raises your limits to {USAGE_LIMITS.pro.chat.toLocaleString("en-US")} AI messages and {USAGE_LIMITS.pro.image} generated images per billing period (up to {USAGE_DAILY_LIMITS.pro.image} images a day), and your file storage to {formatStorageSize(STORAGE_LIMITS.pro)} (section 4). Limits and the available
             AI models can change for operational reasons. Pro requires signing in.
           </li>
           <li>
@@ -70,6 +71,13 @@ export default function TermsPage() {
           You can use NoteFable without signing in (your data is tied to your browser or app) or sign in with Google or an email code. You are responsible for what happens under your browser or account.
           You keep ownership of the content you create. You allow us to store and process it only as needed to run the service, including sending it to the AI providers
           described in the Privacy Policy.
+        </p>
+        <p>
+          Files you upload or generate (images in chats, generated images, and files, covers and icons in your Workspace) count toward a storage limit:
+          {" "}{formatStorageSize(STORAGE_LIMITS.guest)} without signing in, {formatStorageSize(STORAGE_LIMITS.member)} when signed in and {formatStorageSize(STORAGE_LIMITS.pro)} with Pro.
+          Each file can be up to {formatStorageSize(MAX_STORED_FILE_BYTES)} ({formatStorageSize(MAX_UPLOAD_FILE_BYTES)} for chat attachments). When the limit is reached, new uploads are refused until you delete files; the files you
+          already have stay. Files you delete are removed from storage about a week after nothing uses them any more; files that a note in Trash or a note’s
+          version history still uses are kept until those are gone.
         </p>
       </LegalSection>
 

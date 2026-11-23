@@ -13,6 +13,10 @@ vi.mock("@/lib/storage", () => ({
   writeStoredImageAt: mocks.write,
   deleteStoredImage: mocks.del,
 }));
+vi.mock("@/lib/stored-files", () => ({
+  storeFile: async (_owner: unknown, file: { path: string; buffer: Buffer; mimeType: string }) => { await mocks.write(file.path, file.buffer, file.mimeType); return file.path; },
+  discardStoredFiles: async (paths: string[]) => { for (const path of paths) await Promise.resolve(mocks.del(path)).catch(() => {}); },
+}));
 import { appIconAccountKey } from "@/lib/account-app-icon";
 import { StoredImageNotFoundError } from "@/lib/storage";
 import { GET, PUT } from "./route";

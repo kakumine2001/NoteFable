@@ -414,7 +414,7 @@
 "plan_past_due" = "지난 결제에 실패했어요. Pro를 계속 이용하려면 결제 수단을 업데이트해 주세요.";
 "plan_load_failed" = "플랜을 불러오지 못했어요.";
 "plan_offer_title" = "NoteFable Pro · 월 %1$s";
-"plan_offer_body" = "매달 메시지 %1$s개와 이미지 생성 %2$d회 제공. 언제든 해지할 수 있어요.";
+"plan_offer_body" = "매달 메시지 %1$s개와 이미지 생성 %2$d회, 저장 공간 %3$s 제공. 언제든 해지할 수 있어요.";
 "plan_upgrade" = "Pro로 업그레이드";
 "plan_manage_play" = "Google Play에서 구독 관리";
 "plan_welcome" = "NoteFable Pro에 오신 것을 환영합니다";
@@ -426,6 +426,13 @@
 "plan_trial_start" = "%1$d일 무료 체험 시작하기";
 "plan_trial_note" = "%1$d일간 무료 체험 후 요금은 월 %2$s입니다. 체험 기간이 끝나기 전에 해지하면 요금이 청구되지 않아요.";
 "plan_trial_ends" = "무료 체험은 %1$s에 종료되며, 이후 Pro는 월 ¥%2$d입니다.";
+"plan_storage" = "저장 공간";
+"plan_storage_help" = "삭제한 파일의 공간은 약 1주일 후에 확보돼요. 휴지통이나 버전 기록에 있는 파일은 계속 사용량에 포함돼요.";
+"storage_limit_title" = "저장 공간이 부족해요";
+"storage_limit_used" = "%2$s 중 %1$s를 사용했어요.";
+"storage_limit_sign_in" = "로그인하면 저장 공간이 %1$s로 늘어나요.";
+"storage_limit_upgrade" = "월 %2$s의 Pro로 저장 공간 %1$s를 이용해 보세요.";
+"storage_limit_delete" = "필요 없는 파일을 삭제하면 공간을 확보할 수 있어요.";
 
 /* strings_report.xml */
 "report_answer" = "답변 신고";

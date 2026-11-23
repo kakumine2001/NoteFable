@@ -7,6 +7,7 @@ import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { readSmallJson } from "@/lib/note-groups";
 import { createRevision } from "@/lib/note-revisions";
@@ -54,6 +55,7 @@ export async function POST(request: Request, context: Context) {
           assertNoteFilesOwner(checked.blocks, user.id);
           assertCoverOwner(checked.icon, user.id, "icon");
           await claimCover(tx, checked.icon, user.id, "icon");
+          await claimNoteFiles(tx, checked.blocks, user.id);
           return checked;
         });
         await createRevision(tx, { noteId: current.id, userId: user.id, reason: "RESTORE", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });
@@ -96,6 +98,7 @@ async function restoreCanvas(tx: Prisma.TransactionClient, userId: string, kind:
     assertCanvasFilesOwner(checked, userId);
     assertCoverOwner(checked.icon, userId, "icon");
     await claimCover(tx, checked.icon, userId, "icon");
+    await claimStoredFiles(tx, checked.filePaths, userId);
     return checked;
   });
   const stored = await tx.noteCanvas.findUnique({ where: { noteId: current.id }, select: { data: true } });
@@ -105,7 +108,7 @@ async function restoreCanvas(tx: Prisma.TransactionClient, userId: string, kind:
     data: { title: input.title, icon: input.icon, version: { increment: 1 } },
   });
   if (!changed.count) throw new Stale();
-  await writeCanvas(tx, current.id, prepareCanvas(kind, input.data!, input.size!));
+  await writeCanvas(tx, current.id, prepareCanvas(kind, input.data!, input.size!, input.filePaths));
   const page = await tx.notePage.findFirst({ where: { id: current.id, userId, deletedAt: null } });
   if (!page) throw new Stale();
   return { page: { ...page, data: input.data } };

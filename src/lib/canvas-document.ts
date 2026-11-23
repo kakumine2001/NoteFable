@@ -38,7 +38,8 @@ const FILE_URL_PREFIX = "/api/pages/files?";
 export type CanvasData = Record<string, unknown>;
 // 本体から取り出した文字。id はホワイトボードの要素（文字が図形に付いているときは図形）、またはスライドのページ。
 export type CanvasSegment = { id: string; text: string };
-export type ValidatedCanvas = { data: CanvasData; size: number; fileOwners: string[] };
+// filePaths は参照しているファイル（note-files）の保存先。保存のたびに使用中へ戻す（stored-files.ts の claimStoredFiles）。
+export type ValidatedCanvas = { data: CanvasData; size: number; fileOwners: string[]; filePaths: string[] };
 
 const object = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 
@@ -50,7 +51,7 @@ const invalid = () => new NoteValidationError(msg("This page contains invalid wh
 export const CANVAS_TOO_LARGE = msg("This page is larger than 2 MB and cannot be saved.");
 
 // 本体全体をたどり、壊れた値・埋め込み画像・他人のファイルの参照につながるものを見る。再帰を使わない（深い JSON でもスタックを使い切らない）。
-function scan(value: unknown, fileOwners: Set<string>) {
+function scan(value: unknown, files: Map<string, string>) {
   const stack: { value: unknown; depth: number }[] = [{ value, depth: 0 }];
   while (stack.length) {
     const { value: current, depth } = stack.pop()!;
@@ -63,7 +64,7 @@ function scan(value: unknown, fileOwners: Set<string>) {
       if (current.trimStart().startsWith(FILE_URL_PREFIX)) {
         const parsed = parseNoteFileUrl(current);
         if (!parsed || parsed === "empty") throw invalid();
-        fileOwners.add(parsed.ownerId);
+        files.set(parsed.path, parsed.ownerId);
       }
       continue;
     }
@@ -126,12 +127,12 @@ function validSlides(data: Record<string, unknown>) {
 export function validateCanvasData(kind: CanvasKind, value: unknown): ValidatedCanvas {
   if (!object(value)) throw invalid();
   // 深さを先に（再帰しない scan で）確かめる。深すぎる JSON は JSON.stringify がスタックを使い切って 503 になる。
-  const fileOwners = new Set<string>();
-  scan(value, fileOwners);
+  const files = new Map<string, string>();
+  scan(value, files);
   const size = new TextEncoder().encode(JSON.stringify(value)).byteLength;
   if (size > MAX_CANVAS_BYTES[kind]) throw new NoteValidationError(CANVAS_TOO_LARGE, 413);
   if (!(kind === "whiteboard" ? validWhiteboard(value) : validSlides(value))) throw invalid();
-  return { data: value, size, fileOwners: [...fileOwners] };
+  return { data: value, size, fileOwners: [...new Set(files.values())], filePaths: [...files.keys()] };
 }
 
 // 他人のフォルダにあるファイルを、自分のホワイトボード・スライドに置かせない。
@@ -236,7 +237,7 @@ export function canvasReadableText(kind: CanvasKind, segments: CanvasSegment[]) 
 
 // ---- ページの入力（作成・保存） ----
 
-export type CanvasPageInput = { title: string; icon: string | null; data?: CanvasData; size?: number; fileOwners: string[] };
+export type CanvasPageInput = { title: string; icon: string | null; data?: CanvasData; size?: number; fileOwners: string[]; filePaths: string[] };
 
 // 作成（POST /api/pages）と保存（PATCH /api/pages/:id）の本文。題名とアイコンはノートと同じ規則。
 // カバーはノートだけのもの（送られても null 以外は断る）。data は省略できる（作成では空の本体、保存では題名・アイコンだけを変える）。
@@ -251,6 +252,6 @@ export function validateCanvasPage(kind: CanvasKind, value: unknown): CanvasPage
   const canvas = value.data === undefined ? null : validateCanvasData(kind, value.data);
   return {
     title: value.title.trim() || "Untitled", icon: icon as string | null,
-    ...(canvas ? { data: canvas.data, size: canvas.size } : {}), fileOwners: canvas?.fileOwners ?? [],
+    ...(canvas ? { data: canvas.data, size: canvas.size } : {}), fileOwners: canvas?.fileOwners ?? [], filePaths: canvas?.filePaths ?? [],
   };
 }

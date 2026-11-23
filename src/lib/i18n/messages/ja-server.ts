@@ -247,4 +247,6 @@ export const jaServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "ホワイトボードとスライドはまだ公開できません。",
   "This page can't be edited in this version of NoteFable.": "このバージョンの NoteFable ではこのページを編集できません。",
   "These pages are too large to duplicate at once.": "これらのページは大きすぎるため、一度に複製できません。",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "保存容量が足りません。ログインすると容量が増えます。不要なファイルを削除することもできます。",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "保存容量が足りません。不要なファイルを削除して、空き容量を増やしてください。",
 };

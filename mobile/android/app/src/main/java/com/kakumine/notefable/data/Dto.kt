@@ -85,13 +85,16 @@ data class ModelsResponse(
     val models: List<ModelInfo> = emptyList(),
 )
 
-// 错误响应。429 的使用上限还带 code / tier / kind（src/lib/usage-limits.ts）。
+// 错误响应。429 的使用上限还带 code / tier / kind（src/lib/usage-limits.ts）；
+// 413 的容量上限（code = "storage_limit"）带 tier / used / limit（字节，src/lib/stored-files.ts）。
 @Serializable
 data class ApiError(
     val error: String? = null,
     val code: String? = null,
     val tier: String? = null,
     val kind: String? = null,
+    val used: Long? = null,
+    val limit: Long? = null,
 )
 
 // POST /api/uploads：每个文件一张上传凭证（ticket）和存放路径；mode 是 "blob"（线上）或 "local"（本机开发）。
@@ -205,6 +208,10 @@ data class PlanUsage(val used: Int = 0, val limit: Int = 0, val period: String =
 @Serializable
 data class PlanDailyUsage(val used: Int = 0, val limit: Int = 0, val resetsAt: String? = null)
 
+/** `GET /api/billing` 的文件存储用量和上限（字节，网页 PlanInfo.storage）。可能超过 2 GiB，所以用 Long。 */
+@Serializable
+data class PlanStorage(val used: Long = 0, val limit: Long = 0)
+
 /** `GET /api/billing` 的订阅状态（网页 src/lib/billing-client.ts 的 PlanInfo.subscription）。 */
 @Serializable
 data class PlanSubscription(val status: String = "", val periodEnd: String? = null, val cancelAt: String? = null)
@@ -227,6 +234,8 @@ data class PlanInfo(
     val manageUrl: String? = null,
     val priceJpy: Int = 0,
     val trialDays: Int = 0,
+    /** 文件存储的用量；旧的服务端不返回（null 时方案页不显示这一栏）。 */
+    val storage: PlanStorage? = null,
 )
 
 /** `POST /api/billing/google` 的回复：开通了是 plan = pro；付款还在处理是 pending = true（202）。 */

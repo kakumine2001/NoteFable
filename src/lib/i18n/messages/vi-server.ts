@@ -247,4 +247,6 @@ export const viServer: Record<string, string> = {
   "Whiteboards and slide decks can't be published yet.": "Chưa thể xuất bản bảng trắng và bản trình chiếu.",
   "This page can't be edited in this version of NoteFable.": "Không thể chỉnh sửa trang này trong phiên bản NoteFable này.",
   "These pages are too large to duplicate at once.": "Các trang này quá lớn để nhân bản cùng một lúc.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Không còn đủ dung lượng lưu trữ. Hãy đăng nhập để có thêm dung lượng hoặc xóa các tệp bạn không cần nữa.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Không còn đủ dung lượng lưu trữ. Hãy xóa các tệp bạn không cần nữa để giải phóng dung lượng.",
 };
