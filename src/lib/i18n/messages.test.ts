@@ -52,6 +52,8 @@ const IDENTICAL_SENTENCE_ALLOWLIST = new Set([
   "NoteFable: ",
   "Ctrl K",
   "Use Google photo",
+  // 提案カードの見出し（操作と要素の名前）。言語によっては引用符もそのまま。
+  "{op} · “{name}”",
 ]);
 
 describe.each(TRANSLATED_LOCALES)("%s UI and server dictionary", (locale) => {
