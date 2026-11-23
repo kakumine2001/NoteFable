@@ -59,6 +59,86 @@ class ActivityTest {
     }
 
     @Test
+    fun `reads the page kind, auto-apply, undo and status of a generic edit proposal`() {
+        val json = """{"type":"proposal","id":"pr2","pageId":"s1","pageTitle":"Deck","baseVersion":4,"pageKind":"slides",""" +
+            """"status":"applied","appliedPageId":"s1","autoApplied":true,"undoable":true,"changes":[""" +
+            """{"op":"update","block":0,"target":{"type":"slide","number":2},"before":"Old","after":"New",""" +
+            """"beforeImage":"/api/proposals/pr2/image?change=0&side=before","afterImage":"/api/proposals/pr2/image?change=0&side=after"},""" +
+            """{"op":"add","block":0,"target":{"type":"elements","count":3}},""" +
+            """{"op":"move","block":0,"target":{"type":"elements","count":1,"name":"Goal"}},""" +
+            """{"op":"reorder","block":0,"target":{"type":"slide","number":"2"}},""" +
+            """{"op":"explode","block":0,"target":{"type":"circle"}},{"block":1},7],"proposed":{"title":"Deck","blocks":[]}}"""
+        val proposal = (apply(json).single() as ActivityStep.ProposalStep).proposal as Proposal.Edit
+        assertEquals(PageKind.Slides, proposal.pageKind)
+        assertEquals("applied", proposal.status)
+        assertTrue(proposal.autoApplied)
+        assertTrue(proposal.undoable)
+        assertEquals(
+            listOf(
+                ProposalChange(
+                    "update", 0, before = "Old", after = "New", target = ProposalTarget.Slide(2),
+                    beforeImage = "/api/proposals/pr2/image?change=0&side=before", afterImage = "/api/proposals/pr2/image?change=0&side=after",
+                ),
+                ProposalChange("add", 0, target = ProposalTarget.Elements(3)),
+                ProposalChange("move", 0, target = ProposalTarget.Elements(1, "Goal")),
+                // 形状不对的对象丢掉，不认识（或没有）的操作按 update；不是对象的改动跳过。
+                ProposalChange("reorder", 0),
+                ProposalChange("update", 0),
+                ProposalChange("update", 1),
+            ),
+            proposal.changes,
+        )
+    }
+
+    @Test
+    fun `an old edit proposal is a pending note proposal that cannot be undone`() {
+        val json = """{"type":"proposal","id":"pr1","pageId":"p1","pageTitle":"Notes","baseVersion":2,"changes":[],"proposed":{"title":"Notes","blocks":[]}}"""
+        val proposal = (apply(json).single() as ActivityStep.ProposalStep).proposal
+        assertEquals(PageKind.Note, proposal.pageKind)
+        assertEquals(false, proposal.autoApplied)
+        assertEquals(false, proposal.undoable)
+        assertNull(proposal.status)
+        // 不认识的页面类型也按笔记；"undone" 原样保留。
+        val undone = event(json.replace("\"changes\"", "\"pageKind\":\"mindmap\",\"status\":\"undone\",\"changes\"")) as ActivityEvent.ProposalEvent
+        assertEquals(PageKind.Note, undone.proposal.pageKind)
+        assertEquals("undone", undone.proposal.status)
+    }
+
+    @Test
+    fun `only same-origin proposal image urls are kept`() {
+        val json = """{"type":"proposal","id":"pr3","pageId":"w1","pageTitle":"Board","baseVersion":1,"pageKind":"whiteboard","changes":[""" +
+            """{"op":"update","block":0,"beforeImage":"https://evil.example/x.png","afterImage":"//evil.example/y.png"},""" +
+            """{"op":"update","block":0,"beforeImage":"/api/pages/covers?key=x","afterImage":5}],"proposed":{"title":"Board","blocks":[]}}"""
+        val proposal = (apply(json).single() as ActivityStep.ProposalStep).proposal as Proposal.Edit
+        assertEquals(listOf(ProposalChange("update", 0), ProposalChange("update", 0)), proposal.changes)
+    }
+
+    @Test
+    fun `reads the parent, kind and changes of a generic create proposal`() {
+        val json = """{"type":"create_proposal","id":"np2","title":"Roadmap","icon":null,"content":"Q1 · Q2","pageKind":"whiteboard",""" +
+            """"parentId":"p1","parentTitle":"","status":"undone","appliedPageId":"w9","changes":[""" +
+            """{"op":"add","block":0,"target":{"type":"elements","count":4},"afterImage":"/api/proposals/np2/image?change=0&side=after"}],""" +
+            """"proposed":{"title":"Roadmap","icon":null,"blocks":[]}}"""
+        assertEquals(
+            listOf(
+                ActivityStep.ProposalStep(
+                    Proposal.Create(
+                        "np2", "Roadmap", null, "Q1 · Q2", status = "undone", appliedPageId = "w9", pageKind = PageKind.Whiteboard,
+                        parentId = "p1", parentTitle = "",
+                        changes = listOf(ProposalChange("add", 0, target = ProposalTarget.Elements(4), afterImage = "/api/proposals/np2/image?change=0&side=after")),
+                    ),
+                ),
+            ),
+            apply(json),
+        )
+        // 旧的新建提案没有父页面、改动和类型。
+        val old = Activity.parseCreateProposal(obj("""{"id":"np1","title":"Plan","content":"","changes":"none","proposed":{"title":"Plan","blocks":[]}}"""))
+        assertEquals(Proposal.Create("np1", "Plan", null, ""), old)
+        // proposed.blocks 仍然必须是数组（旧版 App 同样要求）。
+        assertNull(event(json.replace(""""blocks":[]""", """"blocks":null""")))
+    }
+
+    @Test
     fun `tracks a page tool from running to its finished label`() {
         val steps = apply(
             """{"type":"tool","id":"call1","name":"read_note","status":"running"}""",
@@ -209,10 +289,12 @@ class ActivityTest {
     fun `stored proposals come first and live ones are added once`() {
         val stored = Activity.parseStoredProposals(
             NoteFableJson.parseToJsonElement(
-                """[{"kind":"proposal","id":"pr1","pageId":"p1","pageTitle":"Notes","baseVersion":2,"changes":[],"proposed":{"title":"Notes","blocks":[]},"status":"applied"}]""",
+                """[{"kind":"proposal","id":"pr1","pageId":"p1","pageTitle":"Notes","baseVersion":2,"changes":[],"proposed":{"title":"Notes","blocks":[]},""" +
+                    """"status":"applied","appliedPageId":"p1","pageKind":"note","undoable":true}]""",
             ),
         )
         assertEquals("applied", stored.single().status)
+        assertTrue(stored.single().undoable)
         val live = apply(
             """{"type":"proposal","id":"pr1","pageId":"p1","pageTitle":"Notes","baseVersion":2,"changes":[],"proposed":{"title":"Notes","blocks":[]}}""",
             """{"type":"create_proposal","id":"np1","title":"Plan","content":"","proposed":{"title":"Plan","blocks":[]}}""",

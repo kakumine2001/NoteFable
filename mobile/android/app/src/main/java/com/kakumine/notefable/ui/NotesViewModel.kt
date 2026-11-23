@@ -484,6 +484,24 @@ class NotesViewModel(
         }
     }
 
+    /**
+     * 别处已经把这些页面移进了回收站（聊天里撤销 AI 新建的页面，子页面一起，网页 notefable:pages-trashed）：
+     * 从列表里去掉，打开着的是其中一篇就关掉（不再保存：页面已在回收站里）。
+     */
+    fun onPagesTrashed(ids: Collection<String>) {
+        if (ids.isEmpty()) return
+        val removed = ids.toSet()
+        mutations++
+        _state.update { state ->
+            val closing = state.open?.id in removed
+            state.copy(
+                pages = state.pages.filterNot { it.id in removed },
+                open = state.open?.takeIf { !closing },
+                saveState = if (closing) null else state.saveState,
+            )
+        }
+    }
+
     // ---- 移到回收站 ----
 
     /** 网页的确认框"移到回收站"。打开着的那篇先保存，保存不了就不移（网页同样的提示）。成功返回 true。 */

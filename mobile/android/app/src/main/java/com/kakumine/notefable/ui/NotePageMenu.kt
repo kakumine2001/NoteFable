@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.kakumine.notefable.R
 import com.kakumine.notefable.data.NotePageSettings
 import com.kakumine.notefable.data.NotePageSummary
+import com.kakumine.notefable.data.ReportTarget
 import kotlin.math.roundToInt
 
 /** 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx）。 */
@@ -67,13 +68,14 @@ private val MenuDivider: Color get() = Sm.Border
 // 网页上部栏的"…"（.notes-page-menu = .chat-actions-menu 宽 248）：
 // "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
 // "Ag" 22、标签 12 灰，选中的蓝色）；分隔线（上下 4.8、左右 8）；Small text / Full width / Lock page 三个开关（右侧 26×14 的开关）；
-// 分隔线；收藏、复制、添加子页面、移动到、导出 Markdown（Download 16）；分隔线；移到回收站（红字）。
+// 分隔线；收藏、复制、添加子页面、移动到、导出 Markdown（Download 16）、报告 AI 内容（Flag 16）；分隔线；移到回收站（红字）。
 // 项目按页面类型出（[PageKindFeatures]，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
-// 从 Lock page 开始（服务端也拒绝这些操作）。
+// 从 Lock page 开始（服务端也拒绝这些操作）。"报告 AI 内容"只给 AI 写过内容的页面（aiUpdatedAt 有值，Google Play 的 AI 生成内容政策）。
 @Composable
 fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     var open by remember { mutableStateOf(false) }
+    var reporting by remember { mutableStateOf(false) }
     val label = stringResource(R.string.pg_page_options)
     val features = page.kind.features
     Box(
@@ -124,6 +126,7 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             MenuItem(stringResource(R.string.pg_add_page_inside), Lucide.FilePlus2, onClick = run(actions.onAddInside))
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
             if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
+            if (page.aiUpdatedAt != null) MenuItem(stringResource(R.string.report_ai_content), FlagIcon, onClick = run { reporting = true })
             Divider()
             MenuItem(stringResource(R.string.move_to_trash), Lucide.Trash2, danger = true, onClick = run(actions.onTrash))
             actions.error?.let {
@@ -133,6 +136,7 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             }
         }
     }
+    if (reporting) ReportDialog(ReportTarget.Page(page.id), onClose = { reporting = false })
 }
 
 @Composable
