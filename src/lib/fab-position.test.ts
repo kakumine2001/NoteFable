@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampFabPosition, FAB_MARGIN, panelPlacement } from "@/lib/fab-position";
+import { anchorFabPosition, clampFabPosition, FAB_MARGIN, panelPlacement } from "@/lib/fab-position";
 
 describe("clampFabPosition", () => {
   it("keeps a position that is already inside the viewport", () => {
@@ -13,6 +13,16 @@ describe("clampFabPosition", () => {
 
   it("stays at the margin when the viewport is smaller than the button", () => {
     expect(clampFabPosition({ right: 300, bottom: 300 }, 48, 40, 40)).toEqual({ right: FAB_MARGIN, bottom: FAB_MARGIN });
+  });
+});
+
+describe("anchorFabPosition", () => {
+  it("puts the button on the editor's slot, measured from the right and bottom edges", () => {
+    expect(anchorFabPosition({ right: 900, bottom: 700, width: 52, height: 52 }, 1280, 800)).toEqual({ right: 380, bottom: 100 });
+  });
+
+  it("gives no position while the slot is not laid out", () => {
+    expect(anchorFabPosition({ right: 0, bottom: 0, width: 0, height: 0 }, 1280, 800)).toBeNull();
   });
 });
 

@@ -26,6 +26,12 @@ export function panelPlacement(position: FabPosition, size: number, panelWidth: 
     : { right, top: top + size + gap, bottom: "auto" as const, maxHeight: Math.max(0, position.bottom - gap - edge) };
 }
 
+// エディターが用意した置き場所（目印の要素の画面上の四角）に、ボタンを重ねる位置。目印が描かれていない（大きさ 0）なら null。
+export function anchorFabPosition(rect: { right: number; bottom: number; width: number; height: number }, viewportWidth: number, viewportHeight: number): FabPosition | null {
+  if (!rect.width && !rect.height) return null;
+  return { right: viewportWidth - rect.right, bottom: viewportHeight - rect.bottom };
+}
+
 export function loadFabPosition(): FabPosition | null {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");

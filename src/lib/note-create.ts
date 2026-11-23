@@ -17,7 +17,7 @@ type CreatePlacement = { parentId?: string | null; groupId?: string | null };
 
 // 検証済みの本文から新しいページを作る。POST /api/pages と回答からの保存（/api/pages/from-answer）が同じ手順を通る。
 // parentId / groupId は CreatePlacement を見る。
-// ai は AI が書いた本文（Create page・AI の新規ページ）。ページの「AI の内容を報告」の目印（aiUpdatedAt）を付ける。
+// ai は AI が書いた本文（Create page）。ページの「AI の内容を報告」の目印（aiUpdatedAt）を付ける（AI の提案で作るページは page-ai/storage.ts が付ける）。
 export async function createNotePage(
   userId: string, content: NoteContent, { parentId = null, groupId: projectId = null, ai = false }: CreatePlacement & { ai?: boolean } = {},
 ) {

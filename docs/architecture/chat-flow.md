@@ -337,7 +337,7 @@ DeepSeek 正文通过跨 chunk 的工具记法检查，遇到 DSML 或 `<tool_re
 
 **额度。** 用户每发一条消息算 1 条聊天额度，AI 内部的工具调用、自动应用、撤销都不另算；快捷按钮也是一次发送，算 1 条；生图仍按张数。
 
-**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page 建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由，只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
+**AI 内容的举报。** 提案卡片标题栏的旗帜和 AI 写过的页面（`NotePage.aiUpdatedAt` 非空：适用过 AI 提案，或由 Create page 建出）的“…”菜单里有 “Report AI content”，与回答的举报同一个对话框和接口：`POST /api/reports` 收 `{ messageId }`、`{ proposalId }` 或 `{ pageId }` 之一和可选的理由（`elementId` 只能和 `pageId` 一起：那是幻灯片里 AI 生成的图片，见下面的 Report answer），只认本人的内容，邮件附上卡片的改前改后文字或页面当前的文字和适用过的 AI 提案列表（`src/lib/answer-report.ts`），额度与回答的举报共用。已知的缺口：本功能之前用 Create page 建的笔记没有 `aiUpdatedAt`，页面菜单里没有这一项（那段对话的回答仍可举报）；Android / iOS 的原生“…”菜单在 WebView 编辑器里的 AI 面板写过页面之后，要等页面列表下次刷新才显示这一项（面板里的卡片有自己的举报按钮）；旧版 App 不认识 `undone`，会把撤销过的提案显示成待确认，点应用会得到 409 “This change was undone.”。
 
 工具调用和结果不进入聊天记录正文（`Message.content` 只保存最终回答文字）；工具步骤的显示标签作为途中经过存入 `Message.activity`。发生压缩时，checkpoint 中每个工具调用之后都保留对应结果（`tool_result` / `function_call_output`，预览图片只留文字），保证重放合法。浏览器的途中经过里会显示"Searched notes for …"、"Listed pages"、"Read “笔记标题”"、"Applied edits to “…”"或"Created page “…”"。
 

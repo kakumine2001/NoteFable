@@ -29,7 +29,7 @@ import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
-import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
+import { anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
 import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
@@ -187,7 +187,7 @@ async function streamChat(
 // ページは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。「自動適用」を入れると、編集案はすぐ適用され、カードから元に戻せる。
 // 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ページの編集には使わない）。
 // ホワイトボード・スライドのエディターは、選んだ要素・スライドを selection（文字と ID）で渡す。
-export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions }: {
+export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null }: {
   pageId: string;
   pageKind?: PageKind;
   pageTitle: string;
@@ -210,6 +210,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // エディターごとの頼み事のボタン（省略すると種類ごとの既定）。
   quickActions?: readonly QuickAction[];
   selectionActions?: readonly QuickAction[];
+  // エディターが用意したボタンの置き場所（CanvasEditorProps.aiSlot の目印）。動かしていないボタンはここに重ねる。
+  anchor?: HTMLElement | null;
 }) {
   const { t, tag } = useI18n();
   // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
@@ -322,8 +324,9 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const phone = useMediaQuery("(max-width: 639px)");
   const close = () => setOpen(false);
 
-  // 丸いボタンの位置。null は動かしていない（CSS の既定位置＝右下）。
+  // 丸いボタンの位置。null は動かしていない（エディターの置き場所があればそこ、なければ CSS の既定位置＝右下）。
   const [fabPosition, setFabPosition] = useState<FabPosition | null>(() => (typeof window === "undefined" ? null : loadFabPosition()));
+  const [anchorPosition, setAnchorPosition] = useState<FabPosition | null>(null);
   const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0, rem: 16 } : viewportSize()));
   const [dragging, setDragging] = useState(false);
   // last は、このドラッグで最後に置いた位置（まだ動かしていなければ null）。
@@ -332,8 +335,26 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const skipClick = useRef(false);
   // CSS の .note-ai-fab と同じ大きさ（3.25rem、スマホは 3.5rem）。
   const fabSize = (phone ? 3.5 : 3.25) * viewport.rem;
-  // 画面が小さくなっても、ボタンは必ず画面の中に置く。
-  const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
+  // 画面が小さくなっても、ボタンは必ず画面の中に置く。動かした位置が、エディターの置き場所より優先。
+  const placed = fabPosition ?? anchorPosition;
+  const fab = placed && clampFabPosition(placed, fabSize, viewport.width, viewport.height);
+  // エディターの置き場所にいる間は、エディターの重なり順に合わせる（エディターのシート・メニューの下になる）。
+  const anchored = !fabPosition && !!anchorPosition;
+
+  // エディターの置き場所を測り直す。置き場所を含む面（目印の位置の基準になる親たち）の大きさが変わったとき
+  // （メモ欄の開閉、サイドバーの開閉など）と、画面の大きさが変わったとき。
+  useEffect(() => {
+    if (!anchor) { setAnchorPosition(null); return; }
+    const measure = () => {
+      const { width, height } = viewportSize();
+      setAnchorPosition(anchorFabPosition(anchor.getBoundingClientRect(), width, height));
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    for (let element: Element | null = anchor, depth = 0; element && depth < 4; element = (element as HTMLElement).offsetParent, depth++) observer?.observe(element);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [anchor]);
 
   useEffect(() => {
     const onResize = () => setViewport(viewportSize());
@@ -899,7 +920,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
 
   return (
     <>
-      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""}`}
+      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
         style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}

@@ -116,6 +116,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
   // ホワイトボード・スライドのエディターは、選んだ要素・スライドの ID も渡す（PageSelection）。
   const [aiAsk, setAiAsk] = useState<{ noteId: string; selection: PageSelection | null; signal: number } | null>(null);
+  // ホワイトボード・スライドのエディターが空けた AI ボタンの置き場所（CanvasEditorProps.aiSlot の目印）。
+  const [aiAnchor, setAiAnchor] = useState<HTMLElement | null>(null);
   const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.selection : null;
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const titleRef = useRef<HTMLTextAreaElement>(null);
@@ -187,7 +189,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
             if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
             setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
-          }} />
+          }}
+          aiSlot={<span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />} />
       </div> : <>
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
@@ -196,7 +199,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
-        openSignal={aiOpenSignal} hidden={split} />
+        openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor ? aiAnchor : null} />
     </>
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}

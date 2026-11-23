@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
 import type { CanvasData } from "@/lib/canvas-document";
 import type { CanvasKind } from "@/lib/page-kinds";
@@ -31,6 +31,9 @@ export type CanvasEditorProps = {
   onTitleChange: (title: string) => void;
   // 選んだ要素・スライドについて AI に聞く（エディターの「Ask AI」）。AI パネルが開き、text は引用、ids は要素・スライドの ID として送られる。
   onAskAi?: (selection: PageSelection) => void;
+  // AI ボタンの置き場所。エディターは自分の操作を避けた場所（スライドは単ページ編集の面の右下）にこれを置く。
+  // 中身は見えない目印で、ボタンを動かしていない間はそこにボタンが重なる（page-assistant.tsx の anchor）。
+  aiSlot?: ReactNode;
 };
 
 // 種類ごとのエディター。PAGE_KIND_FEATURES[kind].editor が true で、ここに登録があるときだけ使う（無ければ読み取り専用の仮の画面）。
