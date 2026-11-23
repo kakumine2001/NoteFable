@@ -157,9 +157,17 @@ final class NoteEditorTests: XCTestCase {
         bridge.pushAppIcon("character:piko")
         bridge.pushLanguage("zh-Hant")
         bridge.reveal("element_2")
+        let switched = await bridge.openPage(id: "p2", reveal: "blk-1", model: "gpt-5", reasoning: "high")
+        XCTAssertTrue(switched)
+        bridge.close()
+        bridge.pageTrashed(["p1", "p2"])
+        bridge.pageTrashed([])
         XCTAssertEqual(
             editor.calls,
-            ["history", #"updated:{"id":"p1"}"#, "icon:null", "icon:character:piko", "lang:zh-Hant", "reveal:element_2"]
+            [
+                "history", #"updated:{"id":"p1"}"#, "icon:null", "icon:character:piko",
+                "lang:zh-Hant", "reveal:element_2", "openPage:p2:blk-1:gpt-5:high", "close", "trashed:p1,p2",
+            ]
         )
     }
 
@@ -280,6 +288,30 @@ final class NoteEditorTests: XCTestCase {
             NoteEmbedScripts.language("zh-Hant"),
             #"(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language("zh-Hant")})()"#
         )
+        XCTAssertEqual(
+            NoteEmbedScripts.close,
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()"
+        )
+        XCTAssertEqual(
+            NoteEmbedScripts.openPage(id: "page_1"),
+            #"(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({"id":"page_1"})===true;return false})()"#
+        )
+        XCTAssertEqual(
+            NoteEmbedScripts.openPage(id: "page_1", reveal: "blk-2", model: " gpt-5 ", reasoning: "high"),
+            #"(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({"id":"page_1","reveal":"blk-2","model":"gpt-5","reasoning":"high"})===true;return false})()"#
+        )
+        XCTAssertEqual(
+            NoteEmbedScripts.openPage(id: "page_1", reveal: "bad reveal!"),
+            #"(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage({"id":"page_1"})===true;return false})()"#
+        )
+        XCTAssertNil(NoteEmbedScripts.openPage(id: ""))
+        XCTAssertNil(NoteEmbedScripts.openPage(id: "bad/id"))
+        XCTAssertEqual(
+            NoteEmbedScripts.pageTrashed(["p1", "bad id", "p_2"]),
+            #"(function(){var e=window.notefableEmbed;if(e&&typeof e.pageTrashed==='function')return e.pageTrashed(["p1","p_2"])===true;return false})()"#
+        )
+        XCTAssertNil(NoteEmbedScripts.pageTrashed([]))
+        XCTAssertNil(NoteEmbedScripts.pageTrashed(["bad/id"]))
     }
 
     func testTheRevealScriptPassesTheQuotedTargetToTheEmbedApi() {

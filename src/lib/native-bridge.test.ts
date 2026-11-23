@@ -271,3 +271,38 @@ describe("file save capability", () => {
     expect(inNativeApp({})).toBe(false);
   });
 });
+
+describe("embed persistent page switching bridge", () => {
+  it("parses openPage requests, handles close, and forwards pageTrashed ids", () => {
+    const openPage = vi.fn();
+    const close = vi.fn();
+    const pageTrashed = vi.fn();
+    const api = createEmbedApi({ flush: async () => true, openHistory: () => {}, openPage, close, pageTrashed, post: () => {} });
+
+    expect(api.openPage("page_1")).toBe(true);
+    expect(openPage).toHaveBeenLastCalledWith({ id: "page_1", reveal: null, model: null, reasoning: null });
+
+    expect(api.openPage(JSON.stringify({ id: "page_2", reveal: "blk-9", model: "gpt-5", reasoning: "high" }))).toBe(true);
+    expect(openPage).toHaveBeenLastCalledWith({ id: "page_2", reveal: "blk-9", model: "gpt-5", reasoning: "high" });
+
+    // Malformed reveal is dropped while valid id still opens; malformed id is rejected.
+    expect(api.openPage({ id: "page_3", reveal: "bad id!" })).toBe(true);
+    expect(openPage).toHaveBeenLastCalledWith({ id: "page_3", reveal: null, model: null, reasoning: null });
+    expect(api.openPage({ id: "bad id" })).toBe(false);
+    expect(api.openPage("{broken")).toBe(false);
+    expect(api.openPage("")).toBe(false);
+
+    expect(api.close()).toBe(true);
+    expect(close).toHaveBeenCalledTimes(1);
+
+    expect(api.pageTrashed(JSON.stringify(["p1", "p2", "bad id"]))).toBe(true);
+    expect(pageTrashed).toHaveBeenCalledWith(["p1", "p2"]);
+    expect(api.pageTrashed("[]")).toBe(false);
+    expect(api.pageTrashed("not-json")).toBe(false);
+
+    // Without callbacks installed, openPage and close report false so native falls back cleanly.
+    const minimal = createEmbedApi({ flush: async () => true, openHistory: () => {}, post: () => {} });
+    expect(minimal.openPage("page_1")).toBe(false);
+    expect(minimal.close()).toBe(false);
+  });
+});

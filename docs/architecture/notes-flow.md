@@ -274,6 +274,9 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 - `pageSettings(page)`：应用在原生的 “…” 菜单里改了字体、Small text、Full width、锁定或收藏后，把 `PUT /api/pages/:id/settings` / `favorite` 返回的 `page`（一览的摘要，JSON 字符串或对象）传进来。网页校验 `id`、把未知的设置值换成默认值，发出 `notefable:page-meta`，`useNotePages` 用它替换这篇的设置，编辑器随即变宽、换字体或变为只读。没有 `id` 时返回 false。
 - `appIcon(icon)`：编辑器开着时应用在设置里换了角色或图片，把新值（预设角色 `character:<id>` 或 `<id>`、图片的 data URL；`null`、`character:quill` 或空字符串是默认角色 Quill）传进来，网页用 `saveAppIcon` 存下并立刻换掉 AI 按钮上的角色或图片。不是预设角色也不是图片时返回 false、什么也不做。
 - `theme(value)`：应用的外观变了（设置里换了，或跟随系统时系统切了深浅）时把 `light` / `dark`（也接受 `system`）传进来，网页保存并就地换色，不重新加载、不动正文和未保存的编辑；返回 `true`，其他值返回 `false`、什么也不做。两个应用在收到 `ready` 后也再推一次，覆盖加载期间发生的变化。
+- `openPage(request)`：原生端复用同一个常驻 `/note-embed` WebView 时，传入 `{ id, reveal?, model?, reasoning? }`（或 JSON / ID 字符串）就地切换到另一篇页面或重新打开缓存里的页面；不向历史栈压记录（`replaceState`，不污染原生返回手势），立即命中 `useNotePages` 内嵌模式最多 8 篇的 LRU 缓存并后台对账（未命中时仅拉取单页数据，不重载 HTML / JS 包）；返回 `true` 表示网页已接管，旧版服务端无此方法时返回 `false` 由原生自动回退到整页加载。
+- `close()`：原生端返回笔记列表或切到聊天、暂留常驻 WebView 热缓存时调用，卸载当前 `NotesWorkspace` 编辑器 DOM（释放 BlockNote / 白板 / 幻灯片实例与定时器），只保留轻量的网页壳与最多 8 篇的 LRU 队列缓存；未保存或保存中的队列绝不被 LRU 驱逐。
+- `pageTrashed(ids)`：原生端在列表、菜单或聊天提案撤销里把页面移入回收站时传入页面 ID 数组（即使当前未打开编辑器），从常驻 WebView 缓存中同步清除这些页面与草稿。
 
 消息的组装与 flush 的回复在 `src/lib/native-bridge.ts`（有单元测试）；更改约定时同时修改 Android / iOS 应用端以及 [android-native.md](android-native.md) / [ios-native.md](ios-native.md)。
 

@@ -16,9 +16,9 @@ struct NotesWorkspace: View {
         let state = app.notes.state
         Group {
             if let open = state.open {
-                // 按编辑器分，不按页面 id：冲突后“另存为新笔记”换到副本时，WebView 留着不重新加载。
+                // 复用同一个 NoteEditorScreen 和常驻 WKWebView：直接切页走 window.notefableEmbed.openPage；
+                // 冲突后“另存为新笔记”只改 open.id 不改 open.editor，也不会触发重新切页。
                 NoteEditorScreen(open: open, dialog: $dialog)
-                    .id(open.editor)
             } else {
                 VStack(spacing: 0) {
                     listTopBar

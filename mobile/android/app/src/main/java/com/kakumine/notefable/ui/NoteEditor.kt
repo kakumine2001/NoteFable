@@ -60,6 +60,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
@@ -82,17 +83,25 @@ import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.ExportFile
 import com.kakumine.notefable.data.ExportFileAssembler
 import com.kakumine.notefable.data.NoteFileLinks
+import com.kakumine.notefable.data.NoteFableJson
+import com.kakumine.notefable.data.NotePageSummary
 import com.kakumine.notefable.data.PageKind
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import okhttp3.CookieJar
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import org.json.JSONObject
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.resume
 
 /**
@@ -114,16 +123,27 @@ class NoteEmbedBridge(
     private val main = Handler(Looper.getMainLooper())
     private val pending = ConcurrentHashMap<String, CompletableDeferred<FlushResult>>()
     private val mounting = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+    private val exportEpoch = AtomicInteger(0)
 
-    /** 接着的 WebView（主线程写）。[attached] 给 JS 线程读：拆掉（[release]）之后来的导出文件的块不再收。 */
+    /** 接着的 WebView（主线程写）。[attached] 给 JS 线程读：拆掉（[release]）或暂停（[activeEditor] 为空）之后来的导出文件的块不再收。 */
     var webView: WebView? = null
         set(value) {
             field = value
             attached = value != null
         }
 
+    /** 当前打开着的编辑器（[OpenNote.editor]）；停在列表或聊天里、WebView 只保留热缓存时为 null。主线程写，JS 线程经 [hasActiveEditor] 读。 */
+    var activeEditor: String? = null
+        set(value) {
+            field = value
+            hasActiveEditor = value != null
+        }
+
     @Volatile
     private var attached = false
+
+    @Volatile
+    private var hasActiveEditor = false
 
     /** App 现在实际的外观（`light` / `dark`）。界面在主线程写，[theme] 在 WebView 的 JS 线程读。 */
     @Volatile
@@ -192,11 +212,11 @@ class NoteEmbedBridge(
             // 导出文件的块（每块最多 512 KiB）直接在 JS 线程上写进临时文件，拼好了才到主线程上让用户选保存位置。
             // 编辑器已经拆掉（[release]）时不再开始新的文件（不留下没人关的临时文件）。
             is EmbedMessage.FileStart -> {
-                if (attached) exports.start(message.id, message.name, message.mime, message.size)
+                if (attached && hasActiveEditor) exports.start(message.id, message.name, message.mime, message.size)
                 return
             }
             is EmbedMessage.FileChunk -> {
-                exports.chunk(message.id, message.index, message.data)
+                if (attached && hasActiveEditor) exports.chunk(message.id, message.index, message.data)
                 return
             }
             is EmbedMessage.FileAbort -> {
@@ -204,10 +224,11 @@ class NoteEmbedBridge(
                 return
             }
             is EmbedMessage.FileEnd -> {
+                val epoch = exportEpoch.get()
                 val file = exports.finish(message.id)
                 main.post {
-                    // 拼好之前编辑器关掉了（换页、退出登录、渲染进程崩溃）：不在别的画面上弹出保存位置，也不提示失败，只删临时文件。
-                    if (webView == null) {
+                    // 拼好之前编辑器关掉了、换了另一篇笔记或渲染进程崩溃：不在别的画面上弹出保存位置，也不提示失败，只删临时文件。
+                    if (webView == null || activeEditor == null || exportEpoch.get() != epoch) {
                         file?.let { stale -> Thread { stale.file.delete() }.start() }
                         return@post
                     }
@@ -222,7 +243,13 @@ class NoteEmbedBridge(
                 pushLanguage(AppLanguage.uiLocale)
                 // 页面加载期间外观变了的话，地址里带的那个值已经旧了。
                 pushTheme(currentTheme)
+                // 首次 HTML 还没加载完用户就已经离开了笔记：立刻让网页卸载编辑器 DOM，不留孤立的编辑实例。
+                if (activeEditor == null) {
+                    close()
+                    return@post
+                }
             }
+            if (activeEditor == null) return@post
             onMessage(message)
         }
     }
@@ -252,14 +279,45 @@ class NoteEmbedBridge(
         }
     }
 
-    /** WebView 被销毁（离开编辑页、渲染进程崩溃）：等着它回答的保存都算失败，不再等；没拼完的导出文件也不会再来了。 */
+    /** 换页或离开笔记时丢弃未拼完的导出文件（保留常驻 WebView 不销毁）。 */
+    fun discardExports() {
+        exportEpoch.incrementAndGet()
+        exports.discard()
+    }
+
+    /** WebView 被销毁（换身份、系统内存紧张、退到后台、空闲超时、渲染进程崩溃）：等着它回答的保存都算失败，不再等；没拼完的导出文件也不会再来了。 */
     fun release(view: WebView) {
         // 已经换上新的 WebView 时，不动它正在进行的导出。
         if (webView !== view) return
         webView = null
+        activeEditor = null
         mounting.values.forEach { it.complete(false) }
         pending.values.forEach { it.complete(FlushResult(false)) }
-        exports.discard()
+        discardExports()
+    }
+
+    /** 在常驻 WebView 里就地切到另一篇笔记（返回 false 表示旧版服务端或网页尚未挂好，由宿主回退到 loadUrl）。 */
+    fun openPage(
+        id: String,
+        reveal: String? = null,
+        model: String? = null,
+        reasoning: String? = null,
+        onResult: (Boolean) -> Unit,
+    ) {
+        val view = webView ?: return onResult(false)
+        val script = openPageScript(id, reveal, model, reasoning) ?: return onResult(false)
+        view.evaluateJavascript(script) { result -> onResult(result == "true") }
+    }
+
+    /** 离开笔记回到列表 / 聊天时，让常驻 WebView 卸载当前编辑器 DOM，只保留轻量缓存。 */
+    fun close() {
+        webView?.evaluateJavascript(CLOSE_SCRIPT, null)
+    }
+
+    /** 回收站删掉的页面从常驻 WebView 缓存里清掉（停在列表或聊天里时同样生效）。 */
+    fun pageTrashed(ids: Collection<String>) {
+        val script = pageTrashedScript(ids) ?: return
+        webView?.evaluateJavascript(script, null)
     }
 
     fun openHistory() {
@@ -321,6 +379,31 @@ class NoteEmbedBridge(
             return "(function(){var e=window.notefableEmbed;if(e&&typeof e.reveal==='function')e.reveal(${JsonPrimitive(target)})})()"
         }
 
+        const val CLOSE_SCRIPT =
+            "(function(){var e=window.notefableEmbed;if(e&&typeof e.close==='function')return e.close()===true;return false})()"
+
+        /** 在常驻 WebView 里就地切页的脚本（window.notefableEmbed.openPage）；id 不合法时返回 null。 */
+        fun openPageScript(
+            id: String,
+            reveal: String? = null,
+            model: String? = null,
+            reasoning: String? = null,
+        ): String? {
+            if (!REVEAL_TARGET.matches(id)) return null
+            val fields = linkedMapOf<String, kotlinx.serialization.json.JsonElement>("id" to JsonPrimitive(id))
+            reveal?.takeIf { REVEAL_TARGET.matches(it) }?.let { fields["reveal"] = JsonPrimitive(it) }
+            model?.trim()?.takeIf { it.isNotEmpty() }?.let { fields["model"] = JsonPrimitive(it) }
+            reasoning?.trim()?.takeIf { it.isNotEmpty() }?.let { fields["reasoning"] = JsonPrimitive(it) }
+            return "(function(){var e=window.notefableEmbed;if(e&&typeof e.openPage==='function')return e.openPage(${JsonObject(fields)})===true;return false})()"
+        }
+
+        /** 把移进回收站的页面 id 通知常驻 WebView 清理缓存（window.notefableEmbed.pageTrashed）。 */
+        fun pageTrashedScript(ids: Collection<String>): String? {
+            val valid = ids.filter { REVEAL_TARGET.matches(it) }
+            if (valid.isEmpty()) return null
+            return "(function(){var e=window.notefableEmbed;if(e&&typeof e.pageTrashed==='function')return e.pageTrashed(${JsonArray(valid.map(::JsonPrimitive))})===true;return false})()"
+        }
+
         private const val FLUSH_TIMEOUT_MS = 15_000L
     }
 }
@@ -349,13 +432,289 @@ private fun embedLanguage(): String = stringResource(R.string.ui_locale)
  */
 internal fun loadReveal(open: OpenNote, generation: Int): String? = open.reveal.takeIf { generation == 0 }
 
-// 笔记编辑页：原生顶栏 + WebView 里的网页编辑器。
+/**
+ * 整个笔记工作区共用的常驻 /note-embed WebView 宿主：首次打开笔记时按需创建，切页或短暂回到列表 / 聊天时保留
+ * 网页壳和缓存（最多 8 篇），离开笔记时调 `window.notefableEmbed.close()` 卸载编辑器 DOM。
+ * 换身份、系统内存紧张、App 退到后台、空闲超过 120 秒、渲染进程崩溃或宿主销毁时彻底释放 WebView。
+ */
+@SuppressLint("SetJavaScriptEnabled")
+class NoteEmbedHost(
+    cacheDir: File,
+    private val hostScope: CoroutineScope,
+    currentIcon: () -> String?,
+) {
+    var onMessage: (String, EmbedMessage) -> Unit = { _, _ -> }
+    var onDownload: (String) -> Unit = {}
+    var onChatLink: (ChatLink) -> Unit = {}
+    var onExportFile: (ExportFile?) -> Unit = {}
+    var onShowFileChooser: ((ValueCallback<Array<Uri>>, WebChromeClient.FileChooserParams) -> Boolean)? = null
+    var excludeEdges: Boolean = false
+
+    /** 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。 */
+    var presenting by mutableStateOf(false)
+        private set
+
+    /** 渲染进程崩溃后递增，促使正在显示的编辑页重新挂上新的 WebView 并重新加载。 */
+    var generation by mutableIntStateOf(0)
+        private set
+
+    var webView: WebView? = null
+        private set
+
+    private var loadedForIdentity = false
+    private var crashedEditor: String? = null
+    /** 正在切往的目标页面 id：在该页的 Ready 到达前，丢弃旧页残留的晚到消息，避免串到新页上。 */
+    private var awaitingPageId: String? = null
+    private var idleJob: Job? = null
+    private var loadJob: Job? = null
+    private var showEpoch = 0
+
+    val bridge: NoteEmbedBridge = NoteEmbedBridge(
+        currentIcon = currentIcon,
+        exports = ExportFileAssembler(File(cacheDir, ExportFileAssembler.DIR_NAME)),
+        onExportFile = { file -> onExportFile(file) },
+    ) { message ->
+        val editor = bridge.activeEditor ?: return@NoteEmbedBridge
+        val expected = awaitingPageId
+        if (expected != null) {
+            when (message) {
+                is EmbedMessage.Ready -> {
+                    if (message.id != expected) return@NoteEmbedBridge
+                    awaitingPageId = null
+                }
+                EmbedMessage.Missing -> awaitingPageId = null
+                else -> return@NoteEmbedBridge
+            }
+        }
+        if (message is EmbedMessage.Presentation) presenting = message.state != "end"
+        // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
+        if (message is EmbedMessage.Ready) presenting = false
+        onMessage(editor, message)
+    }
+
+    /** 当前没有笔记显示（停在列表或聊天，WebView 只保留热缓存）。 */
+    val isParked: Boolean get() = bridge.activeEditor == null
+
+    fun endPresentationLocally() {
+        presenting = false
+    }
+
+    /** 确保单实例 WebView 存在（不从现有父视图摘除，供同屏切页使用）。 */
+    fun ensureWebView(context: Context, baseUrl: String, webBackground: Int): WebView {
+        webView?.let { existing ->
+            existing.setBackgroundColor(webBackground)
+            return existing
+        }
+        WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
+        return WebView(context).apply {
+            layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
+            setBackgroundColor(webBackground)
+            settings.javaScriptEnabled = true
+            settings.domStorageEnabled = true
+            settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            settings.allowFileAccess = false
+            settings.allowContentAccess = false
+            settings.setSupportMultipleWindows(false)
+            attachBridge(bridge)
+            // 网页按下载处理的响应（Content-Disposition: attachment）：本站的笔记文件由 App 下载，其它交给系统。
+            setDownloadListener { url, _, _, _, _ ->
+                if (NoteFileLinks.isNoteFile(url, baseUrl)) onDownload(url)
+                else try {
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                } catch (_: ActivityNotFoundException) { }
+            }
+            webViewClient = object : WebViewClient() {
+                // 只在 WebView 里打开本站的 /note-embed；本站的笔记文件由 App 带着 Cookie 下载
+                // （系统浏览器没有 App 的 Cookie，只会拿到 404）；其它链接（笔记里的网址等）交给系统浏览器。
+                override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                    val target = request.url
+                    if (NoteFileLinks.isNoteFile(target.toString(), baseUrl)) {
+                        onDownload(target.toString())
+                        return true
+                    }
+                    val base = Uri.parse(baseUrl)
+                    val sameSite = target.scheme == base.scheme && target.host == base.host && target.port == base.port
+                    if (sameSite && target.path.orEmpty().contains("/note-embed")) return false
+                    // 本站的聊天链接（保存的回答里写的 /?chat=…&message=…）：在 App 里打开，不交给浏览器。
+                    ChatLink.parse(target.toString(), baseUrl)?.let { link ->
+                        onChatLink(link)
+                        return true
+                    }
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, target))
+                    } catch (_: ActivityNotFoundException) { }
+                    return true
+                }
+
+                // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。正在看笔记就换新的重载；停在后台就只销毁。
+                override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+                    val wasEditor = bridge.activeEditor
+                    destroy()
+                    if (wasEditor != null) {
+                        crashedEditor = wasEditor
+                        onMessage(wasEditor, EmbedMessage.Drawing(false))
+                        generation++
+                    }
+                    return true
+                }
+            }
+            webChromeClient = object : WebChromeClient() {
+                // 图片 / 文件块的"上传"：用系统文件选择器。
+                override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                    val handler = onShowFileChooser ?: return false
+                    return handler(callback, params)
+                }
+            }
+            addOnLayoutChangeListener(drawingEdgeListener { excludeEdges })
+            bridge.webView = this
+            this@NoteEmbedHost.webView = this
+        }
+    }
+
+    /** 给新挂上的 AndroidView 返回单实例 WebView（若还挂在旧容器上先摘除）。 */
+    fun attachWebView(context: Context, baseUrl: String, webBackground: Int): WebView {
+        val view = ensureWebView(context, baseUrl, webBackground)
+        (view.parent as? ViewGroup)?.removeView(view)
+        return view
+    }
+
+    /** 打开或切到 [open]：已加载过同一身份的 /note-embed 时优先走 `openPage` 就地切页，失败再回退 `loadUrl`。 */
+    fun show(
+        context: Context,
+        open: OpenNote,
+        lang: String,
+        theme: String,
+        webBackground: Int,
+        appIcon: String?,
+        model: String?,
+        reasoning: String?,
+        page: NotePageSummary?,
+        embedUrl: (lang: String, theme: String, reveal: String?) -> String,
+        baseUrl: String,
+        cookieJar: CookieJar,
+    ) {
+        idleJob?.cancel()
+        idleJob = null
+        loadJob?.cancel()
+        loadJob = null
+        val epoch = ++showEpoch
+        if (crashedEditor != open.editor) crashedEditor = null
+        val useReveal = if (crashedEditor == open.editor) null else open.reveal
+        presenting = false
+        bridge.discardExports()
+        awaitingPageId = open.id
+        bridge.activeEditor = open.editor
+        bridge.currentTheme = theme
+        val view = ensureWebView(context, baseUrl, webBackground)
+        view.setBackgroundColor(webBackground)
+        if (loadedForIdentity) {
+            bridge.pushTheme(theme)
+            bridge.pushLanguage(lang)
+            bridge.pushAppIcon(appIcon)
+            val pageJson = page?.let { NoteFableJson.encodeToString(NotePageSummary.serializer(), it) }
+            bridge.openPage(open.id, reveal = useReveal, model = model, reasoning = reasoning) { handled ->
+                if (epoch != showEpoch || bridge.activeEditor != open.editor) return@openPage
+                if (handled) {
+                    if (pageJson != null) bridge.pageSettings(pageJson)
+                } else {
+                    loadFresh(epoch, open, lang, theme, useReveal, embedUrl, baseUrl, cookieJar)
+                }
+            }
+        } else {
+            loadFresh(epoch, open, lang, theme, useReveal, embedUrl, baseUrl, cookieJar)
+        }
+    }
+
+    private fun loadFresh(
+        epoch: Int,
+        open: OpenNote,
+        lang: String,
+        theme: String,
+        reveal: String?,
+        embedUrl: (lang: String, theme: String, reveal: String?) -> String,
+        baseUrl: String,
+        cookieJar: CookieJar,
+    ) {
+        loadJob?.cancel()
+        loadJob = hostScope.launch {
+            syncCookies(baseUrl, cookieJar)
+            if (epoch != showEpoch || bridge.activeEditor != open.editor) return@launch
+            val view = webView ?: return@launch
+            loadedForIdentity = true
+            view.loadUrl(embedUrl(lang, theme, reveal))
+        }
+    }
+
+    /** 离开编辑页但保留热缓存：卸载网页编辑器 DOM，开始 120 秒空闲倒计时，到期未重开则销毁。 */
+    fun park() {
+        loadJob?.cancel()
+        loadJob = null
+        idleJob?.cancel()
+        idleJob = null
+        showEpoch++
+        presenting = false
+        awaitingPageId = null
+        bridge.activeEditor = null
+        bridge.discardExports()
+        excludeEdges = false
+        webView?.excludeDrawingEdges(false)
+        if (loadedForIdentity && webView != null) {
+            bridge.close()
+            idleJob = hostScope.launch {
+                delay(IDLE_TIMEOUT_MS)
+                if (isParked) destroy()
+            }
+        } else if (webView != null) {
+            destroy()
+        }
+    }
+
+    /** 彻底销毁 WebView 与其缓存（换身份、内存紧张、退到后台、空闲超时、进程崩溃、页面销毁）。 */
+    fun destroy() {
+        loadJob?.cancel()
+        loadJob = null
+        idleJob?.cancel()
+        idleJob = null
+        showEpoch++
+        presenting = false
+        loadedForIdentity = false
+        awaitingPageId = null
+        excludeEdges = false
+        bridge.activeEditor = null
+        val view = webView
+        webView = null
+        if (view != null) {
+            view.excludeDrawingEdges(false)
+            bridge.release(view)
+            (view.parent as? ViewGroup)?.removeView(view)
+            view.stopLoading()
+            view.destroy()
+        }
+    }
+
+    /** 别处（聊天提案）改了笔记：即使 WebView 停在热缓存里也同步更新，下次点开直接显示新版。 */
+    fun pageUpdated(pageJson: String) {
+        if (loadedForIdentity && webView != null) bridge.pageUpdated(pageJson)
+    }
+
+    /** 页面移进回收站：从热缓存里清掉。 */
+    fun pageTrashed(ids: Collection<String>) {
+        if (loadedForIdentity && webView != null) bridge.pageTrashed(ids)
+    }
+
+    companion object {
+        private const val IDLE_TIMEOUT_MS = 120_000L
+    }
+}
+
+// 笔记编辑页：原生顶栏 + 复用的 WebView 里的网页编辑器。
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、"<"返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40（图标 20）、间距 8、版本历史 40（图标 20）、间距 8、
 // 保存状态 14 灰（出错 / 冲突时 #b45309）。白板、幻灯片都能公开（[PageKindFeatures.publicShare]），顶栏都有分享按钮。
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun NoteEditorScreen(
+    host: NoteEmbedHost,
     open: OpenNote,
     saveState: String?,
     notice: String?,
@@ -364,6 +723,8 @@ fun NoteEditorScreen(
      * [reveal] 是检索命中的块（[OpenNote.reveal]），只在这个编辑器第一次加载时给，渲染进程崩溃后重新加载时是 null。
      */
     embedUrl: (lang: String, theme: String, reveal: String?) -> String,
+    model: String?,
+    reasoning: String?,
     baseUrl: String,
     cookieJar: CookieJar,
     drawerOpen: Boolean,
@@ -382,7 +743,7 @@ fun NoteEditorScreen(
     /** 笔记里指向本站聊天的链接（?chat=&message=）：在 App 里打开聊天。 */
     onChatLink: (ChatLink) -> Unit = {},
     /** 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有"…"菜单。 */
-    page: com.kakumine.notefable.data.NotePageSummary? = null,
+    page: NotePageSummary? = null,
     menu: NotePageMenuActions? = null,
     onShare: (() -> Unit)? = null,
     /** 编辑器上方的提示（上传因存储空间不够被拒绝时的 [StorageLimitPrompt]）。 */
@@ -391,34 +752,23 @@ fun NoteEditorScreen(
     onPresentingChange: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
-    val currentOnMessage by rememberUpdatedState(onMessage)
+    val bridge = host.bridge
+    val presenting = host.presenting
     val currentEmbedUrl by rememberUpdatedState(embedUrl)
-    val currentOnDownload by rememberUpdatedState(onDownload)
-    val currentOnChatLink by rememberUpdatedState(onChatLink)
-    val currentOnExportFile by rememberUpdatedState(onExportFile)
-    // 消息按编辑器（[OpenNote.editor]）转发，不按页面 id：冲突后"另存为新笔记"时网页会换到新页面，由 ViewModel 跟过去。
-    // 网页里的 AI 按钮用设置里选的图标：网页打开时经桥读现在的值，开着的时候换了再推过去。
-    // 导出的文件拼在缓存目录的 exports/ 里（每个编辑器一个拼接器，同一时间只拼一个文件）。
-    val iconStore = appIconStore()
-    // 幻灯片放映中（网页发 presentation start / end）：横屏、全屏、屏幕常亮，原生顶栏收起。
-    val presentingState = remember(open.editor) { androidx.compose.runtime.mutableStateOf(false) }
-    val presenting by presentingState
-    val bridge: NoteEmbedBridge = remember(open.editor) {
-        NoteEmbedBridge(
-            currentIcon = { iconStore?.icon?.value },
-            exports = ExportFileAssembler(File(context.cacheDir, ExportFileAssembler.DIR_NAME)),
-            onExportFile = { file -> currentOnExportFile(file) },
-        ) { message ->
-            if (message is EmbedMessage.Presentation) presentingState.value = message.state != "end"
-            // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
-            if (message is EmbedMessage.Ready) presentingState.value = false
-            currentOnMessage(open.editor, message)
-        }
-    }
+    val currentPage by rememberUpdatedState(page)
+    val currentModel by rememberUpdatedState(model)
+    val currentReasoning by rememberUpdatedState(reasoning)
+
+    host.onMessage = onMessage
+    host.onDownload = onDownload
+    host.onChatLink = onChatLink
+    host.onExportFile = onExportFile
+
     PresentationMode(presenting)
     val currentOnPresentingChange by rememberUpdatedState(onPresentingChange)
     LaunchedEffect(presenting) { currentOnPresentingChange(presenting) }
     DisposableEffect(Unit) { onDispose { currentOnPresentingChange(false) } }
+
     val appIcon = currentAppIcon()
     LaunchedEffect(bridge, appIcon) { bridge.pushAppIcon(appIcon) }
     // 外观：编辑器和原生界面用同一个结果（设置里选的，跟随系统时看系统）。先写进桥（网页加载时读），变了再推过去；
@@ -431,20 +781,38 @@ fun NoteEditorScreen(
         bridge.webView?.setBackgroundColor(webBackground)
         bridge.pushTheme(theme)
     }
-    // 渲染进程崩溃后换一个新的 WebView 重新加载（没保存的编辑网页已经存进 localStorage，重新打开时会恢复）。
-    var generation by remember(open.editor) { mutableIntStateOf(0) }
-    val fileCallback = remember(open.editor) { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
+
+    val fileCallback = remember { arrayOfNulls<ValueCallback<Array<Uri>>>(1) }
     val chooser = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         fileCallback[0]?.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
         fileCallback[0] = null
     }
+    host.onShowFileChooser = { callback, params ->
+        fileCallback[0]?.onReceiveValue(null)
+        fileCallback[0] = callback
+        try {
+            chooser.launch(params.createIntent())
+            true
+        } catch (_: ActivityNotFoundException) {
+            fileCallback[0] = null
+            false
+        }
+    }
+    DisposableEffect(open.editor) {
+        onDispose {
+            fileCallback[0]?.onReceiveValue(null)
+            fileCallback[0] = null
+        }
+    }
 
-    DisposableEffect(bridge) {
+    DisposableEffect(host) {
         registerFlush(bridge)
         onDispose {
+            host.onShowFileChooser = null
             registerFlush(null)
             fileCallback[0]?.onReceiveValue(null)
             fileCallback[0] = null
+            host.park()
         }
     }
 
@@ -456,7 +824,7 @@ fun NoteEditorScreen(
         when {
             // 放映中：先结束放映（网页收到后发 presentation end，App 恢复竖屏和顶栏），不离开幻灯片。
             // 网页没有回应（加载失败等）时由这里结束放映，不把人困在横屏全屏里。
-            presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) presentingState.value = false }
+            presenting -> bridge.slides("""{"action":"end"}""") { handled -> if (!handled) host.endPresentationLocally() }
             view == null -> onBack()
             view.canGoBack() -> view.goBack()
             else -> view.evaluateJavascript(CLOSE_TOP_DIALOG) { closed -> if (closed != "true") onBack() }
@@ -467,7 +835,8 @@ fun NoteEditorScreen(
     val kind = page?.kind ?: open.kind
     // 白板正在用画图工具时（网页的 drawing 消息）让开屏幕两侧的系统返回手势，从边上起笔不会变成"返回"；
     // 用手掌平移时、不是白板时都照常能返回。WebView 尺寸变了（键盘、旋转）就重算，关掉编辑器时清掉。
-    val excludeEdges = rememberUpdatedState(drawing && kind == PageKind.Whiteboard)
+    val excludeEdges = drawing && kind == PageKind.Whiteboard
+    host.excludeEdges = excludeEdges
     Column(Modifier.fillMaxSize().background(if (presenting) Color.Black else Sm.Background)) {
         if (!presenting) Row(
             Modifier.fillMaxWidth().statusBarsPadding().height(56.dp).padding(horizontal = 10.4.dp),
@@ -521,7 +890,7 @@ fun NoteEditorScreen(
             if (page != null && menu != null) {
                 Spacer(Modifier.width(8.dp))
                 // 幻灯片的"…"菜单多出放映和导出（交给网页做，文件再交回 App 保存）。
-                NotePageMenuButton(page, if (kind == com.kakumine.notefable.data.PageKind.Slides) menu.withSlides(bridge::slides) else menu)
+                NotePageMenuButton(page, if (kind == PageKind.Slides) menu.withSlides(bridge::slides) else menu)
             }
         }
         if (notice != null && !presenting) {
@@ -530,93 +899,33 @@ fun NoteEditorScreen(
         if (prompt != null && !presenting) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
 
         val lang = embedLanguage()
-        androidx.compose.runtime.key(generation) { AndroidView(
+        androidx.compose.runtime.key(host.generation) { AndroidView(
             modifier = Modifier.weight(1f).fillMaxWidth().then(if (presenting) Modifier else Modifier.windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))),
-            factory = { ctx ->
-                WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-                WebView(ctx).apply {
-                    layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-                    setBackgroundColor(webBackground)
-                    settings.javaScriptEnabled = true
-                    settings.domStorageEnabled = true
-                    settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                    settings.allowFileAccess = false
-                    settings.allowContentAccess = false
-                    settings.setSupportMultipleWindows(false)
-                    attachBridge(bridge)
-                    // 网页按下载处理的响应（Content-Disposition: attachment）：本站的笔记文件由 App 下载，其它交给系统。
-                    setDownloadListener { url, _, _, _, _ ->
-                        if (NoteFileLinks.isNoteFile(url, baseUrl)) currentOnDownload(url)
-                        else try {
-                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                        } catch (_: ActivityNotFoundException) { }
-                    }
-                    webViewClient = object : WebViewClient() {
-                        // 只在 WebView 里打开本站的 /note-embed；本站的笔记文件由 App 带着 Cookie 下载
-                        // （系统浏览器没有 App 的 Cookie，只会拿到 404）；其它链接（笔记里的网址等）交给系统浏览器。
-                        override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
-                            val target = request.url
-                            if (NoteFileLinks.isNoteFile(target.toString(), baseUrl)) {
-                                currentOnDownload(target.toString())
-                                return true
-                            }
-                            val base = Uri.parse(baseUrl)
-                            val sameSite = target.scheme == base.scheme && target.host == base.host && target.port == base.port
-                            if (sameSite && target.path.orEmpty().contains("/note-embed")) return false
-                            // 本站的聊天链接（保存的回答里写的 /?chat=…&message=…）：在 App 里打开，不交给浏览器。
-                            ChatLink.parse(target.toString(), baseUrl)?.let { link ->
-                                currentOnChatLink(link)
-                                return true
-                            }
-                            try {
-                                context.startActivity(Intent(Intent.ACTION_VIEW, target))
-                            } catch (_: ActivityNotFoundException) { }
-                            return true
-                        }
-
-                        // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。丢掉这个 WebView，换新的重新加载。
-                        override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
-                            // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
-                            presentingState.value = false
-                            bridge.release(view)
-                            // 白板正在画图时崩溃：新网页报告之前（读不出来时也）不再让开两侧的返回手势。
-                            currentOnMessage(open.editor, EmbedMessage.Drawing(false))
-                            generation++
-                            return true
-                        }
-                    }
-                    webChromeClient = object : WebChromeClient() {
-                        // 图片 / 文件块的"上传"：用系统文件选择器。
-                        override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
-                            fileCallback[0]?.onReceiveValue(null)
-                            fileCallback[0] = callback
-                            return try {
-                                chooser.launch(params.createIntent())
-                                true
-                            } catch (_: ActivityNotFoundException) {
-                                fileCallback[0] = null
-                                false
-                            }
-                        }
-                    }
-                    addOnLayoutChangeListener(drawingEdgeListener { excludeEdges.value })
-                    bridge.webView = this
-                }
-            },
+            factory = { ctx -> host.attachWebView(ctx, baseUrl, webBackground) },
             // 读的是 State：drawing 或页面类型变了就再跑一次。
-            update = { view -> view.excludeDrawingEdges(excludeEdges.value) },
+            update = { view -> view.excludeDrawingEdges(excludeEdges) },
             onRelease = { view ->
+                // 不在这里销毁 WebView：由 NoteEmbedHost 保留热缓存，按身份变化 / 内存压力 / 后台 / 空闲超时统一释放。
                 view.excludeDrawingEdges(false)
-                bridge.release(view)
-                view.stopLoading()
-                view.destroy()
+                (view.parent as? ViewGroup)?.removeView(view)
             },
         ) }
         LaunchedEffect(bridge, lang) { bridge.pushLanguage(lang) }
-        LaunchedEffect(bridge, generation) {
-            syncCookies(baseUrl, cookieJar)
-            // 检索命中的块只在第一次加载时带上：渲染进程崩溃后重新加载时不再跳过去。
-            bridge.webView?.loadUrl(currentEmbedUrl(lang, bridge.currentTheme, loadReveal(open, generation)))
+        LaunchedEffect(host, open.editor, host.generation) {
+            host.show(
+                context = context,
+                open = open,
+                lang = lang,
+                theme = theme,
+                webBackground = webBackground,
+                appIcon = appIcon,
+                model = currentModel,
+                reasoning = currentReasoning,
+                page = currentPage,
+                embedUrl = currentEmbedUrl,
+                baseUrl = baseUrl,
+                cookieJar = cookieJar,
+            )
         }
     }
 }

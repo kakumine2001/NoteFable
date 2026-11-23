@@ -21,6 +21,9 @@ const PREFETCH_HOVER_DELAY_MS = 65;
 const PREFETCH_FRESH_MS = 5000;
 const MAX_PREFETCHED = 20;
 const MAX_CONCURRENT_PREFETCHES = 2;
+// ネイティブアプリの埋め込み WebView（/note-embed）でメモリを使いすぎないよう、
+// 常駐再利用時に保持するクリーンな保存キューの件数に上限を設ける（未保存・保存中のキューは捨てない）。
+const MAX_EMBEDDED_CACHED_QUEUES = 8;
 
 export type SelectPageOptions = {
   // 未キャッシュのページを読み込む間、いま表示しているページをそのまま残すか（デスクトップ・分割表示は true でちらつきを防ぎ、スマホでホームから開くときは false）。
@@ -147,6 +150,19 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   const hasCached = useCallback((id: string) => queues.current.has(id) || prefetched.current.has(id), []);
 
+  const touchQueue = useCallback((id: string, queue: NoteSaveQueue) => {
+    queues.current.delete(id);
+    queues.current.set(id, queue);
+    if (!embedded || queues.current.size <= MAX_EMBEDDED_CACHED_QUEUES) return;
+    for (const [candidateId, candidate] of queues.current) {
+      if (queues.current.size <= MAX_EMBEDDED_CACHED_QUEUES) break;
+      if (candidateId === id || candidateId === displayedId.current || candidateId === pendingId.current) continue;
+      if (candidate.dirty || candidate.status === "saving") continue;
+      candidate.dispose();
+      queues.current.delete(candidateId);
+    }
+  }, [embedded]);
+
   const cancelPending = useCallback(() => {
     if (!pendingId.current) return;
     ++navigation.current;
@@ -154,6 +170,19 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setOpeningId(null);
     setError("");
   }, []);
+
+  // ネイティブアプリの常駐 WebView が一覧へ戻ったとき：編集画面を閉じて DOM/キャンバスを解放しつつ、
+  // queues の LRU キャッシュと読み込み済み JS チャンクはそのまま残して次回を即座に開けるようにする。
+  const deactivate = useCallback(() => {
+    ++navigation.current;
+    cancelPrefetch();
+    pendingId.current = null;
+    displayedId.current = null;
+    setOpeningId(null);
+    setActiveId(null);
+    setActive(undefined);
+    setError("");
+  }, [cancelPrefetch]);
 
   // local: 編集中の内容（queue.page は開いた時点の古い行）から作った 1 件。お気に入り・表示設定は一覧の値を残す。
   // それ以外（サーバーから読んだ・保存した行）は、お気に入り・表示設定をサーバーの値にそろえる（別タブ・アプリでの変更を拾う）。
@@ -239,10 +268,10 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       } catch { setBackupError(msg("Browser draft backup is unavailable. Keep this tab open until Saved appears.")); }
       refresh((value) => value + 1);
     }, draft);
-    queues.current.set(page.id, queue);
+    touchQueue(page.id, queue);
     queue.schedule();
     return queue;
-  }, [upsertSummary]);
+  }, [touchQueue, upsertSummary]);
 
   const syncPageUrl = useCallback((id: string, historyMode: "push" | "replace" | "none") => {
     if (historyMode === "none") return;
@@ -285,6 +314,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (existing || prefetchedEntry) {
       if (prefetchedEntry) prefetched.current.delete(id);
       const queue = existing ?? install(prefetchedEntry!.page);
+      if (existing) touchQueue(id, existing);
       pendingId.current = null;
       setOpeningId(null);
       setActiveId(id);
@@ -405,7 +435,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       return !gone;
     }
     finally { if (intent === navigation.current) { pendingId.current = null; setOpeningId(null); } }
-  }, [cachePrefetched, cancelPrefetch, fetchPage, install, invalidatePageCache, syncPageUrl, upsertSummary]);
+  }, [cachePrefetched, cancelPrefetch, fetchPage, install, invalidatePageCache, syncPageUrl, touchQueue, upsertSummary]);
 
   const load = useCallback(async () => {
     setListLoading(true);
@@ -915,5 +945,5 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     if (displayedId.current === queue.page.id) setEditorEpoch((value) => value + 1);
   }
 
-  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, create, remove, load, loadLatest };
+  return { pages, groups, groupError, reorder, createGroup, renameGroup, deleteGroup, moveNote, moveToPage, setFavorite, updateSettings, applyShareMeta: applyMeta, flushSubtree, duplicate, changeIcon, exportPage, importMarkdown, checkImportFiles, ensureListLoaded, activeId, active, loading, listLoading, openingId, busy, error, actionError, dismissActionError: () => setActionError(""), backupError, editorEpoch, select, prefetch, cancelPrefetch, hasCached, cancelPending, deactivate, create, remove, load, loadLatest };
 }
