@@ -23,12 +23,14 @@
 - **画布**：撤销重做、缩放、适应屏幕、小地图（自己画的：内容缩略图 + 视野框，点或拖跳到那里；元素超过 2,500 个时只画外框）、“回到内容”（视野里没有内容时出现）、网格、对象吸附、手写笔专用（检测到手写笔后可选，手指只拖动）、画布底色。每个设备记住每块白板的视野（`localStorage` 的 `notefable:whiteboard-viewport:v1:<id>`），小地图开关记在 `notefable:whiteboard-minimap:v1`。
 - **标题和图标**在左上角的小条里改（和笔记一样走自动保存）。
 - **锁定**（页面设置的 Lock）：Excalidraw 的 `viewModeEnabled`，只能看、拖动、缩放、导出。
+- **锁定的元素**（样式面板的锁、导入 PDF 的页面图片）：点它时 Excalidraw 只记下 `activeLockedId`（解除的小窗只在它自己的界面里），我们在画布上方显示 “Unlock” 按钮，解除后选中它（是组就整组）。
 - **布局**按画布宽度（不是窗口宽度）：撤销 / 缩放在右上（菜单旁），工具栏在下方中间；宽度 < 1010px 时小地图移到工具栏上方；< 640px（手机、App）时工具栏靠左、右下角留给 AI 按钮（`.whiteboard-ai-slot`，#153），样式面板变成底部的一条，可以展开。
 
 ## 保存
 
 - 走笔记同一个保存队列（`NoteSaveQueue`，#169 的 `canvas-save.ts`）：编辑器在内容变化 400ms 后（画线、拖动途中不算）把场景转成保存用的形（`sceneToStored`，`src/lib/whiteboard/scene.ts`）交给队列，队列再按一秒防抖 `PATCH { title, icon, data, version }`。只改视野、选择不会保存。关闭编辑器（换页）、页面被隐藏（`visibilitychange` / `pagehide`）、App 关闭编辑页前的 `notefableEmbed.flush()` 时，不等 400ms，立刻把还没交出去的变化交给队列（`src/lib/canvas-flush.ts` 的 `registerCanvasFlusher`；App 的 flush 还会等上传中的图片最多 10 秒）。
-- 保存的形和 Excalidraw 的 scene 同构：`{ elements, files?, appState? }`。删掉的元素不存（撤销历史只在打开的页面内存里），坐标保留两位小数，`appState` 只存底色、网格、吸附。
+- 打开时 Excalidraw 读完内容（`onInitialize`）才记下“已保存”的样子；读的过程中的变化不算编辑（打开不会多出版本）。编辑器关掉后不再用 Excalidraw 的 API（它把内容清空但 `isDestroyed` 仍是 false），之后完成的上传用最后一次收到的场景补进保存。最新的版本 / 版本恢复替换了内容（`NoteSaveQueue.generation` 变了）以后，之前的编辑器关掉时交来的旧变化丢弃。
+- 保存的形和 Excalidraw 的 scene 同构：`{ elements, files?, appState? }`。只存 NoteFable 的工具能做出的元素种类（`WHITEBOARD_ELEMENT_TYPES`：矩形、菱形、椭圆、箭头、线、手写、文字、图片、框、便签），Excalidraw 的嵌入（`embeddable`、`iframe`）和 AI 框（`magicframe`）不存、不读，服务端也拒绝；编辑器和公开页都关掉嵌入（`validateEmbeddable={false}`，贴网址只会变成链接）。删掉的元素不存（撤销历史只在打开的页面内存里），坐标保留两位小数，`appState` 只存底色、网格、吸附。
 - **图片**：Excalidraw 把贴进来 / 拖进来 / 用图片工具插入的图片放成 `data:` URL。编辑器把它们上传到 `POST /api/pages/files`（SVG 等先转成 PNG），`files[id].dataURL` 存成 `/api/pages/files?key=…` 的地址；上传完成前这个图片元素（和绑在上面的文字）不进保存。上传因存储空间不够被拒时（413 `storage_limit`）删掉这张图，由笔记画面的存储提示说明；其他失败在画布上提示。关闭编辑器后才上传完的图片，也会用最后的场景补进保存。既不是 `data:` 也不是自己的 note-files 地址的图片（例如从公开链接的视图复制来的），读得到就同样上传，读不到就删掉并提示。单张图片上限沿用 4 MiB（Excalidraw 先把长边缩到 2560px）。
 - **大小**：整份本体最多 2 MB（服务端上限）。超过 95% 时，保存前用 Ramer–Douglas–Peucker 逐级精简手写线的点（`fitStoredWhiteboard`，平时不精简，以免改变按速度变化的线宽）；仍然超过就由服务端返回 413，提示在画布上方的保存提示里。
 
@@ -47,7 +49,7 @@
 
 - **搜索**：白板的文字（元素的文字、框名）由服务端存进 `NoteCanvas.segments`，命中的 `blockId` 是元素 ID。网页打开结果后 `requestWhiteboardReveal` 把请求交给编辑器（编辑器是动态加载的，用 `src/lib/whiteboard/reveal.ts` 暂存，15 秒内有效），编辑器把视野移到该元素并选中。App 里用 `/note-embed?page=<id>&reveal=<id>`（笔记的块同样适用）。
 - **历史**：预览用 `exportScene` 画出那一版（SVG），下面列出文字；恢复走服务端原有的流程，打开的编辑器以新内容重新挂载。
-- **公开链接**：`PAGE_KIND_FEATURES.whiteboard.publicShare = true`。`/s/:token`（和 `/s/:token/p/:id`）对白板显示和笔记相同的顶栏 + 只读画布（`viewModeEnabled`，可缩放、平移，右下有缩放按钮）；本体由 `GET /s/:token/scene?page=` 读取（`no-store`、`noindex`），图片地址换成 `/s/:token/file?page=&key=`，而 `/s/:token/file` 对白板只放行本体 `files` 实际引用的文件（`whiteboardFileKeys`）。公开页里的页面链接按同一个公开链接的子页面打开（不在公开树里就显示“无法显示”）。
+- **公开链接**：`PAGE_KIND_FEATURES.whiteboard.publicShare = true`。`/s/:token`（和 `/s/:token/p/:id`）对白板显示和笔记相同的顶栏 + 只读画布（`viewModeEnabled`，可缩放、平移，右下有缩放按钮）；本体由 `GET /s/:token/scene?page=` 读取（`no-store`、`noindex`），图片地址换成 `/s/:token/file?page=&key=`，而 `/s/:token/file` 对白板只放行还活着的图片元素用到的文件（`whiteboardFileKeys`，和 scene 用同一份：删掉的图片、没人用的文件、同一个文件的第二个地址都不放行）；公开的 scene 里元素的 `customData` 只留页面卡片的标记。公开页里的页面链接按同一个公开链接的子页面打开（不在公开树里就显示“无法显示”）。
 
 ## App（`/note-embed`）
 

@@ -310,6 +310,43 @@ final class ExportFileTests: XCTestCase {
     }
 
     @MainActor
+    func testASecondFileWhileTheSaveSheetIsOpenIsRefusedAndTheOpenOneKept() async throws {
+        let root = makeRoot()
+        let vm = await whiteboardVm(root)
+        vm.onEditorMessage("w", .fileStart(id: "a", name: "A.png", mime: "image/png", size: 0))
+        vm.onEditorMessage("w", .fileEnd(id: "a"))
+        let first = try XCTUnwrap(vm.state.exportFile)
+
+        // 保存窗口开着时第二个到了：第二个不存并提示，开着的第一个不删。
+        vm.onEditorMessage("w", .fileStart(id: "b", name: "B.png", mime: "image/png", size: 0))
+        vm.onEditorMessage("w", .fileEnd(id: "b"))
+        XCTAssertEqual(vm.state.exportFile, first)
+        XCTAssertTrue(exists(first.url))
+        XCTAssertTrue(vm.state.exportFileFailed)
+        XCTAssertEqual(folders(root).count, 1)
+        vm.finishExportFile(first)
+        XCTAssertEqual(folders(root), [])
+    }
+
+    @MainActor
+    func testAWebProcessCrashDropsTheUnfinishedFile() async {
+        let root = makeRoot()
+        let vm = await whiteboardVm(root)
+        vm.onEditorMessage("w", .fileStart(id: "f", name: "f", mime: "image/png", size: 4))
+        vm.onEditorMessage("w", .fileChunk(id: "f", index: 0, data: base64([1, 2])))
+        XCTAssertEqual(folders(root).count, 1)
+        // 别的编辑器来的通知什么也不做。
+        vm.cancelExportTransfer(editor: "other")
+        XCTAssertEqual(folders(root).count, 1)
+        vm.cancelExportTransfer(editor: "w")
+        XCTAssertEqual(folders(root), [])
+        // 作废之后剩下的块和结束什么也不做。
+        vm.onEditorMessage("w", .fileChunk(id: "f", index: 1, data: base64([3, 4])))
+        vm.onEditorMessage("w", .fileEnd(id: "f"))
+        XCTAssertNil(vm.state.exportFile)
+    }
+
+    @MainActor
     func testAFileThatCannotBeTakenIsReportedOnceAndTheEditorsOwnAbortIsNot() async {
         let root = makeRoot()
         let vm = await whiteboardVm(root)

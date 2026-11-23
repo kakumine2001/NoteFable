@@ -374,8 +374,13 @@ final class NotesViewModel {
             guard state.open?.editor == editor else { break }
             receiveExportFile {
                 guard let file = try exportFiles.finish(id: id) else { return }
-                // 上一个还没存完（几乎不会有：保存窗口开着时网页在下面）就换成新的。
-                if let previous = state.exportFile, previous != file { exportFiles.discard(previous) }
+                // 上一个的保存窗口还开着：同一时间只等一个保存位置（和 Android 一样），这个不存，提示没能保存。
+                // 不能删掉上一个：保存窗口可能还在读它。
+                if let previous = state.exportFile, previous != file {
+                    exportFiles.discard(file)
+                    update { $0.exportFileFailed = true }
+                    return
+                }
                 update { $0.exportFile = file }
             }
         case .fileAbort(let id):
@@ -398,6 +403,12 @@ final class NotesViewModel {
         } catch {
             update { $0.exportFileFailed = true }
         }
+    }
+
+    /// 编辑器的网页进程没了（崩溃后重新加载）：拼了一半的文件不会再来，作废它（删掉写了一半的临时文件）。
+    func cancelExportTransfer(editor: String) {
+        guard state.open?.editor == editor else { return }
+        exportFiles.cancel()
     }
 
     /// 系统的“存储到文件”结束了（存好、取消或失败都一样）：删掉临时文件。

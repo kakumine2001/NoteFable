@@ -81,14 +81,15 @@ struct NoteEditorScreen: View {
         }
         .background {
             // 挂在自己的视图上，不和上面 Markdown 导出的“存储到文件”互相影响。
+            // 取消时系统不调 onCompletion（用 iOS 17 的 onCancellation 接住），不然临时文件会一直留着。
             Color.clear.fileExporter(
                 isPresented: $savingFileOpen,
                 document: savingFile.map { ExportedFileDocument(url: $0.url) },
-                contentType: savingFile.map(ExportedFileDocument.contentType) ?? .data,
-                defaultFilename: savingFile.map(ExportedFileDocument.defaultFilename)
-            ) { result in
-                finishSavingFile(result)
-            }
+                contentTypes: [savingFile.map(ExportedFileDocument.contentType) ?? .data],
+                defaultFilename: savingFile.map(ExportedFileDocument.defaultFilename),
+                onCompletion: { result in finishSavingFile(result) },
+                onCancellation: { cancelSavingFile() }
+            )
         }
         // ViewModel 拼好了网页送来的文件：让用户选保存的位置。
         .onChange(of: state.exportFile) { _, file in
@@ -102,6 +103,12 @@ struct NoteEditorScreen: View {
             notes.dismissExportFileFailure()
             Toast.show(L("export_file_failed"), long: true)
         }
+    }
+
+    /// 取消了“存储到文件”：删掉临时文件，什么也不说。
+    private func cancelSavingFile() {
+        if let file = savingFile { app.notes.finishExportFile(file) }
+        savingFile = nil
     }
 
     /// “存储到文件”结束了：删掉临时文件；存好了提示“File saved.”，失败提示“Could not save the file.”，取消什么也不说。

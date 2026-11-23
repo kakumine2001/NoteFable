@@ -463,6 +463,8 @@ extension NoteEditorController: WKNavigationDelegate {
 
     /// 网页进程被系统杀掉或崩溃：等着它回答的保存都算失败（Android bridge.release），再重新加载。
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        // 拼了一半的导出文件不会再来了（新网页不知道它）：作废，不留下打开着的临时文件。
+        app.notes.cancelExportTransfer(editor: editor)
         bridge.release(self)
         bridge.attach(self)
         loadPage()
