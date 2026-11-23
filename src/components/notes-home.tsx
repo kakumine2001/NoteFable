@@ -1,5 +1,3 @@
-import { CREATABLE_PAGE_KINDS, NEW_PAGE_LABELS } from "@/components/new-page-menu";
-import type { PageKind } from "@/lib/page-kinds";
 import { ChevronDown, ChevronRight, Clock3, FileText, FolderInput, FolderPlus, Plus, Upload } from "lucide-react";
 import { useRef, useState } from "react";
 import { ReorderRowButton } from "@/components/reorder-row-button";
@@ -14,10 +12,12 @@ import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { NewPageKindMenu } from "@/components/new-page-menu";
+import type { PageKind } from "@/lib/page-kinds";
 
 // Notes のホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつと「最近編集したノート」のカードを出す（スマホ幅は一覧だけ）。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onCreateKind, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
@@ -25,7 +25,9 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   groupError: string;
   busy: boolean;
   onOpen: (id: string) => void;
-  onCreate: (kind?: PageKind) => void;
+  onCreate: () => void;
+  // ノート以外の種類（スライドなど）を作る。
+  onCreateKind?: (kind: PageKind) => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
@@ -115,10 +117,10 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">{t("No project")}<span>{pages.filter((page) => !page.groupId || !known.has(page.groupId)).length}</span></h2>}
       {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
       <div className="notes-home-actions">
-        <button type="button" className="notes-empty-new" disabled={busy} onClick={() => onCreate()}><Plus size={16} />{t("New note")}</button>
-        {CREATABLE_PAGE_KINDS.filter((kind) => kind !== "note").map((kind) => <button key={kind} type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => onCreate(kind)}>
-          <PageKindIcon kind={kind} size={16} />{t(NEW_PAGE_LABELS[kind])}
-        </button>)}
+        <span className="notes-new-split">
+          <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+          {onCreateKind && <NewPageKindMenu busy={busy} onCreate={onCreateKind} className="notes-new-kind" />}
+        </span>
         <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />{t("New project")}</button>
         {onImport && <>
           <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"

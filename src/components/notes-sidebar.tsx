@@ -1,7 +1,5 @@
 "use client";
 
-import type { PageKind } from "@/lib/page-kinds";
-import { NewPageKindMenu } from "@/components/new-page-menu";
 import { ChevronDown, ChevronRight, Folder, FolderInput, House, PanelLeftClose, Pencil, Plus, Search, StarOff, Trash2, Upload } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
@@ -20,6 +18,8 @@ import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { NewPageKindMenu } from "@/components/new-page-menu";
+import type { PageKind } from "@/lib/page-kinds";
 
 const COLLAPSED_KEY = "notefable:note-groups-collapsed:v1";
 
@@ -36,12 +36,14 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onCreateKind, onImport, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // parentId を渡すと、そのページの中にサブページを作る。
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string, kind?: PageKind) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (parentId?: string) => void;
+  // ノート以外の種類（スライドなど）を作る。「New note」の横のメニューから。
+  onCreateKind?: (kind: PageKind) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -137,9 +139,9 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
       </div>
       <WorkspaceNav view="pages" onChange={onWorkspaceChange} />
       <div className="mt-3 px-2">
-        <div className="sidebar-primary-split">
+        <div className="sidebar-new-row">
           <button type="button" className="sidebar-primary-action" disabled={busy} onClick={() => onCreate()}><Plus size={16} /><span>{t("New note")}</span></button>
-          <NewPageKindMenu busy={busy} className="sidebar-primary-action sidebar-primary-more" onCreate={(kind) => onCreate(undefined, kind)} />
+          {onCreateKind && <NewPageKindMenu busy={busy} onCreate={onCreateKind} className="sidebar-new-kind" />}
         </div>
         <button type="button" className={`notion-sidebar-action notes-sidebar-home ${home ? "is-active" : ""}`} aria-current={home ? "page" : undefined} onClick={onHome}>
           <House size={16} /><span>{t("Home")}</span>

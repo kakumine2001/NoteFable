@@ -770,4 +770,5 @@ export const ar: Record<string, string> = {
   "Delete files you no longer need to free up space.": "احذف الملفات التي لم تعد بحاجة إليها لتحرير مساحة.",
   "Storage": "التخزين",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "تتحرر مساحة الملفات المحذوفة بعد نحو أسبوع. تظل الملفات الموجودة في سلة المهملات أو سجل الإصدارات محسوبة.",
+  "New page": "صفحة جديدة",
 };

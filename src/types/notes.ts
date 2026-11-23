@@ -6,7 +6,7 @@ export type { PageKind };
 export const CHAT_RECENT_COUNT = 4;
 
 // icon は絵文字 1 つ、cover は NOTE_COVERS のキーかアップロード画像のキー、coverPosition は画像カバーの縦位置（%）。未設定は null。
-// data はホワイトボード・スライドの本体（NoteCanvas.data）。ノートには無い。
+// data はホワイトボード・スライドの本体（NoteCanvas.data）。ノートには無く、ホワイトボード・スライドの blocks はいつも [] で cover は null。
 export type NoteContent = { title: string; icon: string | null; cover: string | null; coverPosition: number | null; blocks: Block[]; data?: Record<string, unknown> };
 export type NotePageSummary = {
   id: string;

@@ -3,8 +3,11 @@
    このファイルはホワイトボードを開いた時だけ読み込まれる（動的読み込みのチャンクに入る）。 */
 
 .whiteboard {
-  position: absolute;
-  inset: 0;
+  /* ノート画面（.canvas-editor-shell、縦の flex）の残りいっぱいに広がる。公開ページでは枠いっぱい。 */
+  position: relative;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
   overflow: hidden;
   background: var(--notion-bg);
   color: var(--notion-text);

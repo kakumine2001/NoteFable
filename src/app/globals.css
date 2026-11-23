@@ -782,6 +782,20 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 }
 .sidebar-primary-action:disabled { opacity: 0.6; }
 .sidebar-primary-action:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
+/* 「New note」と、その横のほかの種類（スライド・ホワイトボード）を作るメニュー（src/components/new-page-menu.tsx）。
+   作れる種類がノートだけのあいだはメニューが出ず、「New note」が行いっぱいに広がる。 */
+.sidebar-new-row { display: flex; gap: 4px; margin-bottom: 0.25rem; }
+.sidebar-new-row .sidebar-primary-action { min-width: 0; flex: 1; margin-bottom: 0; }
+.new-page-kind-trigger { display: grid; flex: none; place-items: center; background: var(--nf-ink); color: var(--nf-on-ink); }
+.new-page-kind-trigger:disabled { opacity: 0.6; }
+.new-page-kind-trigger:focus-visible { outline: 2px solid var(--nf-accent-line); outline-offset: 2px; }
+@media (hover: hover) {
+  .new-page-kind-trigger:hover:not(:disabled) { background: var(--nf-ink-hover); }
+}
+.sidebar-new-kind { width: 2.25rem; height: 2.25rem; border-radius: 0.5rem; box-shadow: 0 1px 2px rgba(12, 23, 48, 0.12); }
+.notes-new-split { display: inline-flex; align-items: center; gap: 4px; }
+.notes-new-kind { width: 32px; height: 32px; border-radius: 8px; }
+.notes-home-actions .notes-new-kind { width: 2.5rem; height: 2.5rem; }
 
 /* サイドバー最上部の Chat / Workspace 切替。選んでいる側が白く浮く。
    幅は普段は半分ずつ。名前が半分に収まらない言語（日本語の「ワークスペース」など）だけ、その側が名前の幅まで広がる。 */
@@ -2137,6 +2151,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   .codex-model-trigger { height: 2.5rem; font-size: 0.9375rem; }
   .notion-sidebar-action { height: 2.75rem; font-size: 1rem; }
   .sidebar-primary-action { height: 2.75rem; font-size: 1rem; }
+  .sidebar-new-kind { width: 2.75rem; height: 2.75rem; }
   .notion-segment { height: 2.75rem; font-size: 1rem; }
   /* 幅 240 の引き出しの中では 16px だと日本語の「チャット｜ワークスペース」が収まらないので、デスクトップの側栏と同じ 14px にする。 */
   .notion-sidebar .notion-segment { font-size: 0.875rem; }
@@ -3506,6 +3521,7 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 :root[data-theme="dark"] .notion-send:not(:disabled),
 :root[data-theme="dark"] .notion-button-primary,
 :root[data-theme="dark"] .notes-empty-new,
+:root[data-theme="dark"] .new-page-kind-trigger,
 :root[data-theme="dark"] .page-edit-apply,
 :root[data-theme="dark"] .model-sheet-done,
 :root[data-theme="dark"] .guest-limit-signin {
@@ -3873,21 +3889,14 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .canvas-placeholder-text li { display: flex; gap: 10px; font-size: 16px; line-height: 1.6; color: var(--notion-text); overflow-wrap: anywhere; }
 .canvas-placeholder-index { flex: none; min-width: 1.5em; color: var(--notion-faint); font-variant-numeric: tabular-nums; text-align: end; }
 .canvas-placeholder-empty { margin: 0; font-size: 15px; color: var(--notion-faint); }
-
-/* ホワイトボード（src/components/whiteboard/）。エディター自身の見た目は whiteboard.css（開いた時だけ読む）。
-   ここは読み込み前から要る外枠だけ：ノート画面いっぱいに広げ、スクロールさせない。 */
-.notes-workspace.is-whiteboard { position: relative; overflow: hidden; }
-.notes-workspace.is-whiteboard > .notes-storage-limit,
-.notes-workspace.is-whiteboard > .notes-action-error { position: absolute; top: 56px; left: 0; right: 0; z-index: 20; pointer-events: none; }
-.notes-workspace.is-whiteboard > .notes-storage-limit > *,
-.notes-workspace.is-whiteboard > .notes-action-error > * { pointer-events: auto; }
-.whiteboard-page { position: absolute; inset: 0; }
-.whiteboard-loading { position: absolute; inset: 0; display: grid; place-items: center; background: var(--notion-bg); }
-.whiteboard-save-alert {
-  position: absolute; top: 60px; left: 50%; z-index: 21; width: min(520px, calc(100% - 24px)); transform: translateX(-50%);
-  padding: 12px 14px; border-radius: 12px; background: var(--notion-surface); box-shadow: var(--notion-shadow);
-  color: var(--notion-text); font-size: 14px; line-height: 1.5;
-}
+/* ホワイトボード・スライドのエディター（src/components/canvas-editors.tsx）。ノートの列ではなく、作業領域いっぱいに広げ、スクロールはエディターに任せる。 */
+.notes-workspace.is-canvas-editor { display: flex; flex-direction: column; overflow: hidden; }
+.canvas-editor-shell { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.canvas-editor-warnings:empty { display: none; }
+.canvas-editor-warnings { flex: none; padding: 12px 16px 0; }
+.canvas-editor-warnings .notion-warning { margin-bottom: 0; }
+/* 種類ごとのエディターを読み込んでいる間（src/components/canvas-editors.tsx）。 */
+.canvas-editor-loading { flex: 1; min-height: 0; background: var(--notion-bg); }
 /* ブロック・文字の色は、エディターがダークで出す色（BlockNote のダークの色）と同じにする。
    淡い地のままだと、ダークの明るい文字が読めなくなる。 */
 :root[data-theme="dark"] .public-note-shell {
@@ -3902,9 +3911,3 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --public-note-pink-text: #da208f; --public-note-pink-bg: #ad1a72;
   --public-note-callout-bg: rgba(255, 255, 255, 0.05);
 }
-
-/* サイドバーの「New note」と、ページの種類を選ぶ ▾（src/components/new-page-menu.tsx）。 */
-.sidebar-primary-split { display: flex; gap: 2px; margin-bottom: 0.25rem; }
-.sidebar-primary-split > .sidebar-primary-action { margin-bottom: 0; }
-.sidebar-primary-split > .sidebar-primary-action:first-child { flex: 1; min-width: 0; border-start-end-radius: 0.2rem; border-end-end-radius: 0.2rem; }
-.sidebar-primary-split > .sidebar-primary-more { flex: none; width: 2.25rem; padding: 0; justify-content: center; border-start-start-radius: 0.2rem; border-end-start-radius: 0.2rem; }

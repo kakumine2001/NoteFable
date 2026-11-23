@@ -192,10 +192,11 @@ export const NOTE_META_FIELDS = ["icon", "cover", "coverPosition"] as const;
 
 // 保存済みページから編集対象の本文だけを取り出す。
 export function noteContentOf(page: NoteContent): NoteContent {
-  const content: NoteContent = { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, coverPosition: page.coverPosition ?? null, blocks: page.blocks };
-  // ホワイトボード・スライドの本体（ノートには無い）。
-  if (page.data && typeof page.data === "object" && !Array.isArray(page.data)) content.data = page.data;
-  return content;
+  return {
+    title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, coverPosition: page.coverPosition ?? null, blocks: page.blocks,
+    // ホワイトボード・スライドの本体（ノートには無い）。
+    ...(page.data !== undefined ? { data: page.data } : {}),
+  };
 }
 
 // tooLargeMessage は上限を超えたときの文。関数なら、上限までに読めた先頭（途中で切れた JSON の文字列）から文を選ぶ
