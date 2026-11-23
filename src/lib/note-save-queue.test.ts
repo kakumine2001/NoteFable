@@ -75,4 +75,18 @@ describe("page autosave queue", () => {
     expect(stale.status).toBe("conflict");
     expect(stale.content.title).toBe("Recovered");
   });
+
+  it("stops a pending autosave once the page was trashed elsewhere", async () => {
+    vi.useFakeTimers();
+    const save = vi.fn();
+    const changed = vi.fn();
+    const queue = new NoteSaveQueue(page, save, changed);
+    queue.edit({ title: "Second", icon: null, cover: null, coverPosition: null, blocks: [] });
+    queue.dispose();
+    await vi.advanceTimersByTimeAsync(2000);
+    queue.edit({ title: "Third", icon: null, cover: null, coverPosition: null, blocks: [] });
+    expect(await queue.flush()).toBe(true);
+    expect(save).not.toHaveBeenCalled();
+    expect(changed).toHaveBeenCalledTimes(1);
+  });
 });

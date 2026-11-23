@@ -8,9 +8,10 @@ type Context = { params: Promise<{ proposalId: string }> };
 // 提案カードの縮小画像（ホワイトボード・スライドの改前・改後）。?change=<変更の位置>&side=before|after。
 // 本人の提案の画像だけを返す（画像は提案の中に保存してあり、ほかの場所には置かない）。
 export async function GET(request: NextRequest, context: Context) {
-  const change = Number(request.nextUrl.searchParams.get("change"));
+  const raw = request.nextUrl.searchParams.get("change") ?? "";
+  const change = /^\d{1,4}$/.test(raw) ? Number(raw) : NaN;
   const side = request.nextUrl.searchParams.get("side");
-  if (!Number.isSafeInteger(change) || change < 0 || (side !== "before" && side !== "after")) {
+  if (!Number.isSafeInteger(change) || (side !== "before" && side !== "after")) {
     return NextResponse.json({ error: msg("Invalid request.") }, { status: 400 });
   }
   try {

@@ -54,7 +54,9 @@ describe("GET /api/proposals/:id/image", () => {
   });
 
   it("rejects a bad query and answers 404 for someone else's or a missing image", async () => {
-    for (const query of ["", "?change=-1&side=after", "?change=0&side=middle", "?change=x&side=before"]) expect((await get(query)).status).toBe(400);
+    for (const query of ["", "?side=after", "?change=&side=after", "?change=-1&side=after", "?change=0&side=middle", "?change=x&side=before", "?change=1.5&side=before"]) {
+      expect((await get(query)).status).toBe(400);
+    }
     expect(mocks.image).not.toHaveBeenCalled();
     mocks.image.mockResolvedValue(null);
     expect((await get("?change=0&side=before")).status).toBe(404);

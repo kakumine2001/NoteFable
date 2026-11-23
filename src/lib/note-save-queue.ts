@@ -20,6 +20,8 @@ export class NoteSaveQueue {
   private savedRevision = 0;
   private timer?: ReturnType<typeof setTimeout>;
   private flight?: Promise<boolean>;
+  // 別の操作でページがゴミ箱に入った（AI の提案を元に戻した）。残っている保存は送らない（404 になり、一覧に戻してしまう）。
+  private disposed = false;
 
   constructor(
     public page: NotePage,
@@ -43,7 +45,13 @@ export class NoteSaveQueue {
   get dirty() { return this.revision !== this.savedRevision; }
   get draft(): NoteDraft { return { ...this.content, version: this.version }; }
 
+  dispose() {
+    this.disposed = true;
+    clearTimeout(this.timer);
+  }
+
   edit(content: NoteContent) {
+    if (this.disposed) return;
     this.content = content;
     this.revision++;
     if (this.status !== "conflict") { this.status = "pending"; this.error = ""; this.schedule(); }
@@ -52,11 +60,13 @@ export class NoteSaveQueue {
 
   schedule() {
     clearTimeout(this.timer);
+    if (this.disposed) return;
     if (this.dirty && this.status !== "conflict") this.timer = setTimeout(() => { void this.flush(); }, 1000);
   }
 
   flush(): Promise<boolean> {
     clearTimeout(this.timer);
+    if (this.disposed) return Promise.resolve(true);
     if (this.flight) return this.flight;
     if (!this.dirty) return Promise.resolve(true);
     if (this.status === "conflict") return Promise.resolve(false);

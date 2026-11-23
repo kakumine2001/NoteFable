@@ -2,13 +2,14 @@ import type { Prisma } from "@/generated/prisma/client";
 import { assertCanvasFilesOwner, emptyCanvasData, validateCanvasData, type CanvasData } from "@/lib/canvas-document";
 import { prepareCanvas, readCanvasData, writeCanvas } from "@/lib/canvas-store";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
-import { MAX_NOTE_TITLE, NoteValidationError, validateNoteContent } from "@/lib/note-document";
+import { isEmojiIcon } from "@/lib/emoji-icon";
+import { MAX_NOTE_TITLE, NoteValidationError, uploadedCoverPath, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
 import { lockNoteOrder, resolveParent } from "@/lib/note-tree-server";
 import { isCanvasKind, pageKindOf, type CanvasKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { claimNoteFiles, claimStoredFiles } from "@/lib/stored-files";
-import { fmt } from "@/lib/i18n/translate";
+import { fmt, msg } from "@/lib/i18n/translate";
 import type { PageAdapter, PageSnapshot, ProposedContent, Tx } from "@/lib/page-ai/adapter";
 
 // アダプターの「適用」の部分（保存と同じ検証・書き込み・作成・履歴の内容）。置き場所はページの種類で決まる：
@@ -23,8 +24,11 @@ async function parentGroup(tx: Tx, userId: string, parentId: string | null) {
   return { parentId, groupId: (await resolveParent(tx, userId, null, parentId)).groupId };
 }
 
-function checkIcon(icon: string | null | undefined, userId: string) {
-  if (icon !== undefined) assertCoverOwner(icon, userId, "icon");
+// アイコンは絵文字 1 つか、自分のアップロード画像（保存・作成と同じ規則）。undefined は「変えない」。
+function checkIcon(icon: unknown, userId: string) {
+  if (icon === undefined || icon === null) return;
+  if (typeof icon !== "string" || (!isEmojiIcon(icon) && !uploadedCoverPath(icon))) throw new NoteValidationError(msg("Note icon must be a single emoji or an uploaded image."));
+  assertCoverOwner(icon, userId, "icon");
 }
 
 export const noteStorage: Storage = {

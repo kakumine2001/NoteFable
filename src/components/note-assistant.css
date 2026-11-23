@@ -99,7 +99,6 @@
   .note-ai-chip { min-height: 2.6rem; font-size: 0.9375rem; }
 }
 /* 適用後の「Open」リンクは、いま開いているノートへの再読み込みになるので、このパネルの中では出さない。 */
-.note-ai-list .page-edit[aria-label="Proposed note edit"] .page-edit-link { display: none; }
 /* スマホでは、承認ボタンも他の操作と同じ大きさにそろえる。 */
 @media (max-width: 639px) {
   .note-ai-panel .page-edit-apply, .note-ai-panel .page-edit-discard { min-height: 2.5rem; padding: 0 1rem; font-size: 0.9375rem; }

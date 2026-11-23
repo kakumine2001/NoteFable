@@ -66,6 +66,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setPages((current) => {
       const existing = current.find((entry) => entry.id === page.id);
       if (!existing) return [{ ...page, groupId: page.groupId ?? null }, ...current].sort(byPosition);
+      // 一覧の版より古い応答（遅れて届いたもの）では戻さない。
+      if (page.version < existing.version) return current;
       const changedLocally = since !== undefined && (metaChanged.current.get(page.id) ?? 0) > since;
       const meta = local || changedLocally || page.locked === undefined
         ? {
@@ -241,7 +243,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       // まだ開いていないページでも、一覧の題名と版は最新にする。
       if (loaded.current) upsertSummary(page);
       const queue = queues.current.get(page.id);
-      if (!queue || queue.version === page.version) return;
+      // 遅れて届いた古い版（自動適用の読み直しが前後したときなど）で、新しい版を古い版へ戻さない。
+      if (!queue || page.version <= queue.version) return;
       if (!queue.dirty && queue.status !== "saving") {
         // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
         // 読み直してから替える。
@@ -286,12 +289,16 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       if (!Array.isArray(ids) || !ids.length) return;
       const removed = new Set(ids.filter((id): id is string => typeof id === "string"));
       for (const id of removed) {
+        // 待っている保存も止める（送ると 404 になり、一覧に戻してしまう）。
+        queues.current.get(id)?.dispose();
         queues.current.delete(id);
         try {
           localStorage.removeItem(DRAFT_PREFIX + id);
           localStorage.removeItem(CANVAS_DRAFT_PREFIX + id);
         } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
       }
+      // 開こうとしている途中なら、届いた結果でゴミ箱のページを開き直さない。
+      if (pendingId.current && removed.has(pendingId.current)) { navigation.current += 1; pendingId.current = null; }
       runTransition(() => setPages((current) => current.filter((page) => !removed.has(page.id))), "list");
       if (displayedId.current && removed.has(displayedId.current)) {
         displayedId.current = null;

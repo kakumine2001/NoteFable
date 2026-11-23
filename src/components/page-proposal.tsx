@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, ChevronRight, FilePenLine, FilePlus2, Flag, LoaderCircle, Undo2, X } from "lucide-react";
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { StoredProposal } from "@/types/chat";
 import { ReportDialog } from "@/components/answer-actions";
 import { useT } from "@/components/i18n-provider";
@@ -19,12 +19,16 @@ type EditProposal = Extract<StoredProposal, { kind: "proposal" }>;
 type CreateProposal = Extract<StoredProposal, { kind: "create_proposal" }>;
 type Proposal = EditProposal | CreateProposal;
 // pageId は適用後のページ ID（「開く」のリンク先）。
-type State = {
+export type ProposalCardState = {
   status: "idle" | "applying" | "discarding" | "applied" | "discarded" | "undoing" | "undone";
   error: string;
   pageId?: string;
   undoable?: boolean;
 };
+type State = ProposalCardState;
+
+// カードを出している場所。AI パネルの中では、そのパネルのページへの「開く」は出さない（もう開いている）。
+export const ProposalHostContext = createContext<{ currentPageId?: string }>({});
 
 const OP_LABEL: Record<ProposalOp, string> = {
   replace: msg("Replace"), insert_after: msg("Insert"), delete: msg("Delete"),
@@ -48,9 +52,18 @@ function subscribe(listener: () => void) {
 }
 
 const busyStatuses = new Set<State["status"]>(["applying", "discarding", "undoing"]);
-const current = (proposal: Proposal) => states.get(proposal.id) ?? initialState(proposal);
+// サーバーに保存された確定状態は、手元の古い状態（エラー後の未適用など）より優先する。別のタブで先に操作された場合も、
+// 読み込み直せばその結果が出る。適用済みのあとは、この画面で元に戻している・戻した結果だけを手元から使う。
+// 画面の表示（useProposalState）と操作（適用・破棄・元に戻す）が、同じ規則で今の状態を決める。
+export function resolveProposalState(initial: State, local: State | undefined): State {
+  if (initial.status === "discarded" || initial.status === "undone") return initial;
+  if (initial.status === "applied") return local && (local.status === "applied" || local.status === "undoing" || local.status === "undone") ? local : initial;
+  return local ?? initial;
+}
 
-function initialState(proposal: Proposal): State {
+const current = (proposal: Proposal) => resolveProposalState(initialState(proposal), states.get(proposal.id));
+
+export function initialState(proposal: Proposal): State {
   return {
     status: proposal.status === "applied" ? "applied" : proposal.status === "discarded" ? "discarded" : proposal.status === "undone" ? "undone" : "idle",
     error: "",
@@ -110,19 +123,11 @@ async function undo(proposal: Proposal) {
 
 function useProposalState(proposal: Proposal): State {
   const initial = useMemo(() => initialState(proposal), [proposal]);
-  // サーバーに保存された確定状態は、手元の古い状態（エラー後の未適用など）より優先する。別のタブで先に操作された場合も、
-  // 読み込み直せばその結果が出る。適用済みのあとは、この画面で元に戻している・戻した結果だけを手元から使う。
-  const snapshot = () => {
-    const local = states.get(proposal.id);
-    if (initial.status === "discarded" || initial.status === "undone") return initial;
-    if (initial.status === "applied") return local && (local.status === "applied" || local.status === "undoing" || local.status === "undone") ? local : initial;
-    return local ?? initial;
-  };
-  return useSyncExternalStore(subscribe, snapshot, () => initial);
+  return useSyncExternalStore(subscribe, () => resolveProposalState(initial, states.get(proposal.id)), () => initial);
 }
 
 // 変更の見出し（操作と対象）。ノートはブロック番号、スライドは何枚目か、ホワイトボードは要素。
-function changeLabel(change: ProposalChange, t: Translate, kind: PageKind) {
+export function changeLabel(change: ProposalChange, t: Translate, kind: PageKind) {
   const op = t(OP_LABEL[change.op] ?? msg("Update"));
   const target = change.target;
   if (target?.type === "slide") return t("{op} · slide {number}", { op, number: target.number });
@@ -166,7 +171,10 @@ function Card({ proposal, state, icon, title, label, applyLabel, doneBadge, open
   // 適用中・エラー表示中は、結果が見えるよう必ず開く。
   const open = busy || !!state.error || (manual ?? !settled);
   const badge = state.status === "applied" || state.status === "undoing" ? doneBadge : state.status === "discarded" ? t("Discarded") : state.status === "undone" ? t("Undone") : "";
-  const canOpen = (state.status === "applied" || state.status === "undoing" || (state.status === "undone" && proposal.kind === "proposal")) && state.pageId;
+  const host = useContext(ProposalHostContext);
+  // AI パネルの中で、そのパネルのページそのものなら「開く」は出さない（もう開いている）。
+  const canOpen = (state.status === "applied" || state.status === "undoing" || (state.status === "undone" && proposal.kind === "proposal"))
+    && state.pageId && state.pageId !== host.currentPageId;
   const href = state.pageId ? `/?view=pages&page=${encodeURIComponent(state.pageId)}` : "";
   return (
     <section className={`page-edit ${settled ? "is-settled" : ""} ${open ? "" : "is-minimized"}`} aria-label={label}>
@@ -235,9 +243,10 @@ export function PageCreateProposal({ proposal }: { proposal: CreateProposal }) {
       icon={kind === "note" ? <FilePlus2 size={14} strokeWidth={1.9} aria-hidden="true" /> : <PageKindIcon kind={kind} size={14} aria-hidden="true" />}
       title={title}>
       {proposal.parentTitle !== undefined && <div className="page-edit-op">{t("Inside “{title}”", { title: proposal.parentTitle || t("Untitled") })}</div>}
-      <div className="page-edit-change">
+      {/* 文字の無いページでも、縮小画像などの変更があれば「空のページ」とは書かない。 */}
+      {(proposal.content || !proposal.changes?.length) && <div className="page-edit-change">
         {proposal.content ? <div className="page-edit-after">{proposal.content}</div> : <div className="page-edit-op">{kind === "note" ? t("Empty note") : t("Empty page")}</div>}
-      </div>
+      </div>}
       {proposal.changes?.map((change, index) => <Change key={index} change={change} kind={kind} />)}
     </Card>
   );

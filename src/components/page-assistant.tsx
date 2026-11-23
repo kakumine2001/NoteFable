@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUp, History, Paperclip, SquarePen, X, Zap } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
@@ -10,7 +10,7 @@ import { AttachMenu } from "@/components/attach-sheet";
 import { ChatMessage } from "@/components/chat-message";
 import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
-import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
+import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -34,6 +34,7 @@ import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitEr
 import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { ProposalHostContext } from "@/components/page-proposal";
 import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
 import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
 import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
@@ -105,11 +106,13 @@ type NoteChat = { id: string; title: string; updatedAt: string };
 
 // 保存された会話を読み直すとき、定型ボタンで送った長い指示文は、送ったときと同じ短い名前に戻して見せる。
 // 選んだ範囲に対するボタンは「引用 + 指示文」で保存されるので、引用は残して指示文だけ戻す。
-export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string): Message[] {
+// extra はエディターが渡した頼み事のボタン（既定の表に無いもの）。
+export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string, extra: readonly QuickAction[] = []): Message[] {
+  const labels = extra.length ? new Map([...ACTION_LABEL_BY_PROMPT, ...extra.map((action) => [action.prompt, action.label] as const)]) : ACTION_LABEL_BY_PROMPT;
   return messages.map((message) => {
     if (message.role !== "USER") return message;
     const { quote, body } = splitQuotedMessage(message.content);
-    const label = ACTION_LABEL_BY_PROMPT.get(body.trim());
+    const label = labels.get(body.trim());
     return label ? { ...message, content: composeQuotedMessage(quote, t(label)) } : message;
   });
 }
@@ -209,6 +212,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   selectionActions?: readonly QuickAction[];
 }) {
   const { t, tag } = useI18n();
+  // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
+  const proposalHost = useMemo(() => ({ currentPageId: noteId }), [noteId]);
   const kindText = KIND_TEXT[pageKind];
   const actions = quickActions ?? DEFAULT_ACTIONS[pageKind].quick;
   const pickedActions = selectionActions ?? DEFAULT_ACTIONS[pageKind].selection;
@@ -218,7 +223,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   const [autoApply, setAutoApply] = useState(false);
   useEffect(() => { queueMicrotask(() => setAutoApply(loadAutoApply(pageKind))); }, [pageKind]);
   const autoApplyOn = editable && autoApply;
-  const selectionText = selection?.text.trim() || "";
+  // エディターが渡した文字も、ノートの「Ask AI」と同じく整えて長さを抑える（normalizeQuote）。
+  const selectionText = selection?.text ? normalizeQuote(selection.text) : "";
   // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
   const selectionIds = [...new Set((selection?.ids ?? []).filter((id) => id && id.length <= MAX_SELECTION_ID_LENGTH))].slice(0, MAX_SELECTION_IDS);
   const hasSelection = Boolean(selectionText || selectionIds.length);
@@ -459,7 +465,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
       const response = await fetch(`/api/sessions/${id}/messages`, { cache: "no-store" });
       if (response.status === 404) return "missing" as const;
       const data = response.ok ? await response.json().catch(() => null) : null;
-      return data && Array.isArray(data.messages) ? restoreNoteChatMessages(data.messages as Message[], t) : null;
+      return data && Array.isArray(data.messages) ? restoreNoteChatMessages(data.messages as Message[], t, [...actions, ...pickedActions]) : null;
     } catch {
       return null;
     }
@@ -806,10 +812,10 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
               ))}
             </div>}
           </div>
-        ) : messages.map((message) => (
+        ) : <ProposalHostContext.Provider value={proposalHost}>{messages.map((message) => (
           <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
             characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
-        ))}
+        ))}</ProposalHostContext.Provider>}
       </div>
       )}
 

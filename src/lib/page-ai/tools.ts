@@ -246,7 +246,9 @@ async function saveAndMaybeApply(ctx: ToolContext, save: () => Promise<ProposalV
   // 手動の適用（/api/proposals/:id/apply）と同じく、意味検索の索引を書き直す。
   const pageId = (result.page as { id?: unknown } | null)?.id;
   if (typeof pageId === "string") scheduleNoteEmbeddingSync(ctx.userId, [pageId]);
-  return { view: (await proposalView(ctx.userId, view.id).catch(() => null)) ?? view, applied: true as const };
+  // 読み直せなくても、適用した結果をカードに出す（待確認のまま出すと、適用・破棄のボタンが出て、開いた編集も読み直されない）。
+  const applied: ProposalView = { ...view, status: "applied", autoApplied: true, undoable: true, ...(typeof pageId === "string" ? { appliedPageId: pageId } : {}) };
+  return { view: (await proposalView(ctx.userId, view.id).catch(() => null)) ?? applied, applied: true as const };
 }
 
 function proposalResult(kind: "edit" | "create", outcome: { applied: boolean; failure?: string }) {
@@ -306,7 +308,11 @@ async function runCreate(adapter: PageAdapter, value: unknown, ctx: ToolContext)
   // サブページの親は、自分のゴミ箱に入っていないページだけ（作るときにもう一度確かめる）。
   let parentTitle: string | undefined;
   if (draft.parentId) {
-    const parent = await prisma.notePage.findFirst({ where: { id: draft.parentId, userId: ctx.userId, deletedAt: null }, select: { title: true } });
+    const parent = await prisma.notePage.findFirst({ where: { id: draft.parentId, userId: ctx.userId, deletedAt: null }, select: { title: true } })
+      .catch(async (error) => {
+        if (draft.copiedFiles?.length) await discardStoredFiles(draft.copiedFiles);
+        throw error;
+      });
     if (!parent) {
       if (draft.copiedFiles?.length) await discardStoredFiles(draft.copiedFiles);
       return toolError("The parent page was not found. Use an ID from search_notes or list_pages, or null.", msg("Note proposal rejected"));

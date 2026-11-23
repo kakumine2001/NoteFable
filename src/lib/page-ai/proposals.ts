@@ -84,15 +84,20 @@ export function toProposalView(row: Row): ProposalView {
 }
 
 // 保存された提案の形を、使う前に確かめる。形が壊れていると、条件の欠けた更新を投げかねない。
-function editPayload(payload: unknown): EditPayload | null {
-  const p = payload as Partial<EditPayload> | null;
-  return p && typeof p.pageId === "string" && p.pageId.length > 0 && Number.isSafeInteger(p.baseVersion) && typeof p.proposed?.title === "string"
-    && (Array.isArray(p.proposed.blocks) || (typeof p.proposed.data === "object" && p.proposed.data !== null)) ? p as EditPayload : null;
+// 内容はページの種類の形でなければならない（ノートは blocks、ホワイトボード・スライドは data）。違えば、空の内容で上書きしてしまう。
+function contentFits(proposed: Partial<ProposedContent> | undefined, kind: PageKind) {
+  if (!proposed || typeof proposed.title !== "string") return false;
+  return kind === "note"
+    ? Array.isArray(proposed.blocks)
+    : typeof proposed.data === "object" && proposed.data !== null && !Array.isArray(proposed.data);
 }
-function createPayload(payload: unknown): CreatePayload | null {
+function editPayload(payload: unknown, kind: PageKind): EditPayload | null {
+  const p = payload as Partial<EditPayload> | null;
+  return p && typeof p.pageId === "string" && p.pageId.length > 0 && Number.isSafeInteger(p.baseVersion) && contentFits(p.proposed, kind) ? p as EditPayload : null;
+}
+function createPayload(payload: unknown, kind: PageKind): CreatePayload | null {
   const p = payload as Partial<CreatePayload> | null;
-  return p && typeof p.proposed?.title === "string"
-    && (Array.isArray(p.proposed.blocks) || (typeof p.proposed.data === "object" && p.proposed.data !== null)) ? p as CreatePayload : null;
+  return p && contentFits(p.proposed, kind) && (p.parentId === undefined || p.parentId === null || typeof p.parentId === "string") ? p as CreatePayload : null;
 }
 
 function keptImages(images: ProposalImage[] | undefined) {
@@ -154,7 +159,7 @@ const fail = (httpStatus: number, error: string) => ({ ok: false as const, httpS
 
 // 適用済みなら、そのときの結果（いまのページ）をそのまま返す。
 async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
-  const pageId = row.appliedPageId ?? (row.kind === "EDIT" ? editPayload(row.payload)?.pageId : null);
+  const pageId = row.appliedPageId ?? (row.kind === "EDIT" ? editPayload(row.payload, row.pageKind)?.pageId : null);
   const page = pageId ? await loadFullPage(userId, pageId) : null;
   if (!page) return fail(404, msg("This note no longer exists."));
   return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
@@ -176,8 +181,8 @@ export async function applyProposal(userId: string, id: string, { auto = false }
   if (row.status === "DISCARDED") return fail(409, msg("This proposal was discarded."));
   if (row.status === "UNDONE") return fail(409, msg("This change was undone."));
   if (row.status === "APPLIED") return appliedResult(userId, row);
-  const edit = row.kind === "EDIT" ? editPayload(row.payload) : null;
-  const create = row.kind === "CREATE" ? createPayload(row.payload) : null;
+  const edit = row.kind === "EDIT" ? editPayload(row.payload, row.pageKind) : null;
+  const create = row.kind === "CREATE" ? createPayload(row.payload, row.pageKind) : null;
   if (!edit && !create) return fail(409, msg("This proposal is no longer valid. Ask again to get a fresh proposal."));
   const adapter = adapterFor(row.pageKind);
 

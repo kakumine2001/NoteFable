@@ -439,3 +439,28 @@ describe("proposals for other page kinds (fake slides adapter)", () => {
     expect(db.canvases).toHaveLength(1);
   });
 });
+
+describe("payload checks", () => {
+  beforeEach(reset);
+
+  it("does not create a sub-page under a parent that went to the Trash, and keeps the proposal pending", async () => {
+    db.pages.push({ kind: "note", id: "parent", userId: "u1", title: "Parent", blocks: [], version: 0, deletedAt: new Date() });
+    const view = await saveProposal("u1", "s1", { ...create(), draft: { ...create().draft, parentId: "parent" } });
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 404 });
+    expect(db.pages).toHaveLength(1);
+    expect(db.proposals[0].status).toBe("PENDING");
+  });
+
+  it("refuses content of the wrong shape for the page kind instead of writing an empty page", async () => {
+    db.pages.push({ kind: "slides", id: "deck", userId: "u1", title: "Deck", icon: null, blocks: [], version: 2, deletedAt: null });
+    const view = await saveProposal("u1", "s1", { kind: "EDIT", pageKind: "slides", page: { id: "deck", title: "Deck", version: 2 }, draft: { changes: [], proposed: { title: "Deck", blocks: [] } } });
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 409 });
+    expect(db.pages[0].version).toBe(2);
+  });
+
+  it("checks the icon of a new slide deck like a save does", async () => {
+    const view = await saveProposal("u1", "s1", { kind: "CREATE", pageKind: "slides", draft: { title: "Plan", icon: "not an emoji", content: "", proposed: { title: "Plan", icon: "not an emoji", data: { slides: [] } } } });
+    expect(await applyProposal("u1", view.id)).toMatchObject({ ok: false, httpStatus: 400 });
+    expect(db.pages).toHaveLength(0);
+  });
+});

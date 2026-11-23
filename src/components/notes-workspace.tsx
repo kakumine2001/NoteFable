@@ -22,6 +22,7 @@ import { pageSettingsOf } from "@/types/notes";
 import { NewPageKindMenu } from "@/components/new-page-menu";
 import type { PageKind } from "@/lib/page-kinds";
 import type { PageSelection } from "@/lib/page-ai/types";
+import { normalizeQuote } from "@/lib/chat-quote";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <EditorLoading />,
@@ -186,7 +187,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
           onAskAi={(selection) => {
             // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
-            if (split && onAskSelectionInChat) { if (selection.text.trim()) onAskSelectionInChat(selection.text); return; }
+            if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
             setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
           }} />
       </div> : <>
