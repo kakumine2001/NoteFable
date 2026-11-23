@@ -73,9 +73,10 @@
 "err_some_more" = "Você pode adicionar mais %1$d arquivos (máximo de %2$d por mensagem). Nenhum destes %3$d arquivos foi adicionado. Escolha menos arquivos.";
 "err_not_added" = "%1$s Nenhum arquivo novo foi adicionado.";
 "chat_mode" = "Chat";
-"note_mode" = "Nota";
-"workspace_mode" = "Modo do espaço de trabalho";
+"note_mode" = "Espaço";
+"workspace_mode" = "Alternar entre Chat e Espaço";
 "notes" = "Notas";
+"workspace" = "Espaço";
 "new_note" = "Nova nota";
 "projects" = "Projetos";
 "new_project" = "Novo projeto";
@@ -127,7 +128,7 @@
 "days_left" = "Faltam %1$d dias";
 "loading_notes" = "Carregando notas…";
 "notes_intro" = "Escreva notas com blocos — digite %1$s para títulos, listas, tarefas e código.";
-"notes_storage_hint" = "As notas são salvas no servidor e vinculadas a este dispositivo. Entre para abri-las em outros dispositivos. Limpar os dados do app ou do site cria um espaço de trabalho separado.";
+"notes_storage_hint" = "As notas são salvas no servidor e vinculadas a este dispositivo. Entre para abri-las em outros dispositivos. Se você limpar os dados do app ou do site antes de entrar, perderá o acesso a elas.";
 "all_notes" = "Todas as notas";
 "version_history" = "Histórico de versões";
 "save_saved" = "Salvo";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Não é possível anexar páginas ao criar uma imagem. Remova-as ou desative a criação de imagens.";
 "create_page" = "Criar nota";
 "create_page_title" = "Criar uma nota a partir deste chat";
-"create_page_body" = "O NoteFable reescreve esta conversa em uma nota organizada em Notas usando o modelo selecionado. Conversas muito longas são resumidas para caber, mantendo as mensagens mais recentes. Isso conta como uma mensagem no limite de hoje.";
-"create_page_working" = "Escrevendo a nota… Isso pode levar um minuto. Você pode fechar esta janela; a nota aparecerá em Notas quando estiver pronta.";
-"create_page_done" = "“%1$s” foi criada em Notas.";
+"create_page_body" = "O NoteFable reescreve esta conversa em uma nota organizada no seu Espaço usando o modelo selecionado. Conversas muito longas são resumidas para caber, mantendo as mensagens mais recentes. Isso conta como uma mensagem no limite de hoje.";
+"create_page_working" = "Escrevendo a nota… Isso pode levar um minuto. Você pode fechar esta janela; a nota aparecerá no seu Espaço quando estiver pronta.";
+"create_page_done" = "“%1$s” foi criada no seu Espaço.";
 "create_page_partial" = "Este chat é longo, por isso uma parte ficou de fora.";
 "open_page" = "Abrir nota";
 "language_current" = "Idioma: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Opções da resposta";
 "answer_more_options" = "Mais opções de resposta";
-"answer_save_to_page" = "Salvar em Notas";
-"answer_saved_to_page" = "Salvo em Notas";
-"answer_retry_save" = "Tentar salvar em Notas novamente";
+"answer_save_to_page" = "Salvar como nota";
+"answer_saved_to_page" = "Salva como nota";
+"answer_retry_save" = "Tentar salvar como nota novamente";
 "answer_open_saved_page" = "Abrir nota salva";
 "answer_download_conversation" = "Baixar conversa";
 "answer_conversation_downloaded" = "Conversa baixada";
 "answer_download_failed" = "Não foi possível baixar a conversa. Tente novamente.";
-"answer_save_failed" = "Não foi possível salvar em Notas. Tente novamente.";
+"answer_save_failed" = "Não foi possível salvar como nota. Tente novamente.";
 "answer_save_too_large" = "Esta resposta é longa demais para ser salva como nota.";
 
 /* strings_i18n.xml */

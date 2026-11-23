@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <LegalPage title="Privacy Policy">
       <LegalSection title="1. About NoteFable">
         <p>
-          NoteFable is a personal AI study assistant with chat and Notes, available at
+          NoteFable is a personal AI study assistant with chat and a Workspace for your notes, available at
           {" "}<a href="https://notefable.com">notefable.com</a>. It is run by an individual developer.
           This policy explains what data NoteFable handles and why. Questions: <a href={`mailto:${LEGAL_CONTACT_EMAIL}`}>{LEGAL_CONTACT_EMAIL}</a>.
         </p>
@@ -21,20 +21,20 @@ export default function PrivacyPage() {
       <LegalSection title="2. What we collect">
         <ul>
           <li>
-            <strong>A device identifier.</strong> When you use the workspace, we create a random identifier and store it in a signed,
-            HTTP-only cookie named <code>notefable_device</code> (valid for one year). Your chats and Notes are saved under this identifier.
+            <strong>A device identifier.</strong> When you use the app, we create a random identifier and store it in a signed,
+            HTTP-only cookie named <code>notefable_device</code> (valid for one year). Your chats and Workspace content are saved under this identifier.
             If you clear your cookies, you lose access to that data in that browser unless you signed in with Google.
             When you sign in with Google, the sign-in also sets an HTTP-only session cookie (about 30 days) that holds your Google account ID, email,
             name and profile-picture link, plus a few short-lived cookies used only to complete the sign-in. The Android app uses one more HTTP-only
             cookie, valid for 5 minutes, while it signs you in.
-            The workspace (app.notefable.com) also sets a cookie named <code>notefable_app</code> for notefable.com and its subdomains
-            (valid for about 13 months). It only records that this browser has used the workspace, so notefable.com can take you straight back to it;
+            The web app (app.notefable.com) also sets a cookie named <code>notefable_app</code> for notefable.com and its subdomains
+            (valid for about 13 months). It only records that this browser has used the web app, so notefable.com can take you straight back to it;
             it contains no identifier.
           </li>
           <li>
             <strong>Google sign-in (optional).</strong> If you choose “Sign in with Google”, Google gives us your Google account ID,
             email address, name and profile picture (the basic <code>openid</code>, <code>email</code> and <code>profile</code> scopes). We store them with your
-            account so your chats and Notes follow you to other devices, and to show your name in the sidebar. If you choose your own display name, emoji icon or
+            account so your chats and Workspace content follow you to other devices, and to show your name in the sidebar. If you choose your own display name, emoji icon or
             profile photo, we store those too and show them instead.
             We do not request access to your Gmail, Drive, Calendar, contacts or any other Google data.
           </li>
@@ -60,7 +60,7 @@ export default function PrivacyPage() {
           </li>
           <li>
             <strong>Content you create.</strong> The messages you send, the AI’s replies (with the short reasoning summary and web-search steps shown
-            alongside them), files and images you attach or generate, your Notes (pages, covers, images, files and groups), and any instructions you write for the AI (custom instructions in Settings and
+            alongside them), files and images you attach or generate, your Workspace content (notes, covers, images, files and groups), and any instructions you write for the AI (custom instructions in Settings and
             project instructions), which are sent to the AI provider along with your messages.
             Attached documents such as PDFs and text files are kept as extracted text; images are kept as files. If you upload a profile photo, we keep
             the cropped photo (about 512×512) in file storage and delete the old file when you replace or remove it.
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
 
       <LegalSection title="3. How we use it">
         <p>
-          To run the service: show your chats and Notes, generate AI replies, sign you in, keep your data available across devices, and provide and bill the
+          To run the service: show your chats and Workspace content, generate AI replies, sign you in, keep your data available across devices, and provide and bill the
           Pro plan.
           We also use it to keep the service working and to fix problems. We do not sell your data, use it for advertising, or build advertising profiles.
         </p>

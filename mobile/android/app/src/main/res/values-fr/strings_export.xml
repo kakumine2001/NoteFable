@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">Options de la réponse</string>
     <string name="answer_more_options">Plus d’options pour la réponse</string>
-    <string name="answer_save_to_page">Enregistrer dans les notes</string>
-    <string name="answer_saved_to_page">Enregistré dans les notes</string>
-    <string name="answer_retry_save">Réessayer d’enregistrer dans les notes</string>
+    <string name="answer_save_to_page">Enregistrer comme note</string>
+    <string name="answer_saved_to_page">Enregistrée comme note</string>
+    <string name="answer_retry_save">Réessayer d’enregistrer comme note</string>
     <string name="answer_open_saved_page">Ouvrir la note enregistrée</string>
     <string name="answer_download_conversation">Télécharger la discussion</string>
     <string name="answer_conversation_downloaded">Discussion téléchargée</string>
     <string name="answer_download_failed">Impossible de télécharger la discussion. Réessayez.</string>
-    <string name="answer_save_failed">Impossible d’enregistrer dans Notes. Réessayez.</string>
+    <string name="answer_save_failed">Impossible d’enregistrer comme note. Réessayez.</string>
     <string name="answer_save_too_large">Cette réponse est trop volumineuse pour être enregistrée en note.</string>
 </resources>

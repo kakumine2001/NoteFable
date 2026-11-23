@@ -46,6 +46,32 @@ export function inlineText(content: unknown): string {
   return (typeof node.text === "string" ? node.text : "") + inlineText(node.content);
 }
 
+// 行内の本文（表のセル・リンクの中も）に空でない行内数式があるか。inlineText と同じ順にたどる。
+function inlineHasMath(content: unknown): boolean {
+  if (Array.isArray(content)) return content.some(inlineHasMath);
+  if (!content || typeof content !== "object") return false;
+  const node = content as { type?: unknown; props?: { latex?: unknown } | null; content?: unknown; rows?: unknown };
+  if (node.type === "mathInline") return typeof node.props?.latex === "string" && node.props.latex.trim() !== "";
+  if (Array.isArray(node.rows)) {
+    return node.rows.some((row) => { const cells = (row as { cells?: unknown } | null)?.cells; return Array.isArray(cells) && cells.some(inlineHasMath); });
+  }
+  return inlineHasMath(node.content);
+}
+
+// ノートに空でない数式（ブロック数式・行内数式）があるか。子ブロックと段組みの中も見る。
+// 公開ページはこれが真の時だけ KaTeX とそのスタイルを読み込む。
+export function blocksHaveMath(blocks: unknown): boolean {
+  for (const block of walkBlocks(blocks)) {
+    if (block.type === "mathBlock") {
+      const latex = (block.props as { latex?: unknown } | null)?.latex;
+      if (typeof latex === "string" && latex.trim()) return true;
+    } else if (inlineHasMath(block.content)) {
+      return true;
+    }
+  }
+  return false;
+}
+
 export function blockText(block: BlockLike): string {
   if (block.type === "mathBlock") {
     const latex = (block.props as { latex?: unknown } | null)?.latex;

@@ -2,10 +2,12 @@ import { ChevronRight, Download, FileText, Globe } from "lucide-react";
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
 import { PublicCodeBlock, PublicToggleBlock } from "@/components/public-note-interactive";
+import { PublicMathStyles } from "@/components/public-note-math-styles";
 import { siteHref } from "@/lib/hosts";
 import { localeDir, type Locale } from "@/lib/i18n/locale";
 import { messagesFor } from "@/lib/i18n/messages";
 import { createTranslator } from "@/lib/i18n/translate";
+import { renderKatex, type KatexApi } from "@/lib/katex-render";
 import { isPresetCover, NOTE_COVERS, uploadedCoverPath } from "@/lib/note-document";
 import { mentionText } from "@/lib/note-mention";
 import { rewriteBlocksForShare, shareCoverUrl, shareIconUrl, sharePagePath } from "@/lib/note-share";
@@ -13,6 +15,7 @@ import { NoteIcon } from "@/components/note-icon";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
 import { validColumnWidth } from "@/lib/note-columns";
+import { blocksHaveMath } from "@/lib/note-text";
 
 // BlockNote のカラー名と Notion の色対応（テキスト色・背景色）。
 const TEXT_COLORS: Record<string, string> = {
@@ -42,7 +45,8 @@ const BG_COLORS: Record<string, string> = {
 type InlineNode =
   | { type: "text"; text: string; styles?: Record<string, unknown> }
   | { type: "link"; href: string; content: InlineNode[] }
-  | { type: "mention"; props?: Record<string, unknown> };
+  | { type: "mention"; props?: Record<string, unknown> }
+  | { type: "mathInline"; props?: { latex?: unknown } };
 
 type TableCell =
   | InlineNode[]
@@ -74,6 +78,29 @@ type RenderBlock = {
   children?: RenderBlock[];
 };
 
+// 数式の TeX を KaTeX の HTML にする（描けない時は空文字）。
+type MathRenderer = (latex: string, displayMode: boolean) => string;
+
+type RenderContext = {
+  labels: { copy: string; copied: string; download: string };
+  // 数式のあるページだけ、サーバーで読み込んだ KaTeX で描く関数が入る（数式の無いページは null）。
+  math: MathRenderer | null;
+};
+
+// 同じページの同じ式は 1 回だけ描く（公開ページはリクエストごとにサーバーで描くため）。
+function mathRenderer(katex: KatexApi): MathRenderer {
+  const cache = new Map<string, string>();
+  return (latex, displayMode) => {
+    const key = `${displayMode ? "D" : "I"}${latex}`;
+    let html = cache.get(key);
+    if (html === undefined) {
+      html = renderKatex(katex, latex, displayMode).html;
+      cache.set(key, html);
+    }
+    return html;
+  };
+}
+
 function colorStyle(textColor?: unknown, backgroundColor?: unknown): CSSProperties | undefined {
   const style: CSSProperties = {};
   if (typeof textColor === "string" && textColor !== "default" && TEXT_COLORS[textColor]) {
@@ -91,20 +118,36 @@ function alignStyle(alignment: unknown): CSSProperties["textAlign"] | undefined 
     : undefined;
 }
 
-function renderInline(nodes: unknown): ReactNode {
+// 数式の中身。エディター（note-math.tsx）と同じ KaTeX の設定（renderKatex）とクラスで描く。
+// 描けない時（深すぎる入れ子など）は、エディターと同じく TeX をそのまま文字で出す。
+function renderMath(latex: string, math: MathRenderer | null, displayMode: boolean): ReactNode {
+  const html = math ? math(latex, displayMode) : "";
+  if (!html) return <code className="notes-math-fallback">{latex}</code>;
+  return displayMode
+    ? <div className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: html }} />
+    : <span className="notes-math-rendered" dangerouslySetInnerHTML={{ __html: html }} />;
+}
+
+function renderInline(nodes: unknown, math: MathRenderer | null): ReactNode {
   if (!Array.isArray(nodes) || !nodes.length) return null;
   return nodes.map((raw, index) => {
     const node = raw as InlineNode;
     if (node.type === "link") {
       return (
         <a key={index} href={node.href} target="_blank" rel="noopener noreferrer" className="public-note-link">
-          {renderInline(node.content)}
+          {renderInline(node.content, math)}
         </a>
       );
     }
     if (node.type === "mention") {
       // 「@」メンション。リンク先のページは公開されていないことがあるので、リンクにせず文字だけ出す（タイトルは書いた時のもの）。
       return <span key={index} className="public-note-mention">{mentionText(node.props ?? {})}</span>;
+    }
+    if (node.type === "mathInline") {
+      // 行内の数式。RTL のページでも左から右に固定する。空の数式（エディターでは入力の案内）は閲覧者には出さない。
+      const latex = typeof node.props?.latex === "string" ? node.props.latex : "";
+      if (!latex.trim()) return null;
+      return <span key={index} dir="ltr" className="notes-math-inline">{renderMath(latex, math, false)}</span>;
     }
     if (node.type !== "text") return null;
     const styles = node.styles ?? {};
@@ -139,10 +182,7 @@ function plainText(nodes: unknown): string {
     .join("");
 }
 
-function renderBlockList(
-  blocks: RenderBlock[],
-  labels: { copy: string; copied: string; download: string },
-): ReactNode {
+function renderBlockList(blocks: RenderBlock[], ctx: RenderContext): ReactNode {
   if (!blocks.length) return null;
   const elements: ReactNode[] = [];
   let numberIndex = 0;
@@ -155,16 +195,13 @@ function renderBlockList(
     } else {
       numberIndex = 0;
     }
-    elements.push(renderBlock(block, numberIndex, labels));
+    elements.push(renderBlock(block, numberIndex, ctx));
   }
   return elements;
 }
 
-function renderBlock(
-  block: RenderBlock,
-  numberIndex: number,
-  labels: { copy: string; copied: string; download: string },
-): ReactNode {
+function renderBlock(block: RenderBlock, numberIndex: number, ctx: RenderContext): ReactNode {
+  const { labels } = ctx;
   const props = block.props ?? {};
   const colors = colorStyle(props.textColor, props.backgroundColor);
   const textAlign = alignStyle(props.textAlignment);
@@ -178,7 +215,7 @@ function renderBlock(
           const width = column.props?.width;
           return (
             <div key={column.id} className="public-note-column" style={validColumnWidth(width) ? { flexGrow: width } : undefined}>
-              {renderBlockList(column.children ?? [], labels)}
+              {renderBlockList(column.children ?? [], ctx)}
             </div>
           );
         })}
@@ -186,12 +223,12 @@ function renderBlock(
     );
   }
   const renderedChildren =
-    Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null;
+    Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, ctx) : null;
   const childrenNode = renderedChildren ? <div className="public-note-children">{renderedChildren}</div> : null;
 
   switch (block.type) {
     case "paragraph": {
-      const inline = renderInline(block.content);
+      const inline = renderInline(block.content, ctx.math);
       return (
         <div key={block.id} className="public-note-block public-note-paragraph" style={blockStyle}>
           <p>{inline ?? <br />}</p>
@@ -201,7 +238,7 @@ function renderBlock(
     }
     case "heading": {
       const level = props.level === 1 || props.level === 2 || props.level === 3 ? props.level : 1;
-      const inline = renderInline(block.content);
+      const inline = renderInline(block.content, ctx.math);
       const headingEl =
         level === 1 ? (
           <h1 className="public-note-h1">{inline}</h1>
@@ -229,7 +266,7 @@ function renderBlock(
         <div key={block.id} className="public-note-block public-note-list-item" style={blockStyle}>
           <div className="public-note-list-row">
             <span className="public-note-bullet" aria-hidden="true">•</span>
-            <div className="public-note-list-text">{renderInline(block.content)}</div>
+            <div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>
           </div>
           {childrenNode}
         </div>
@@ -239,7 +276,7 @@ function renderBlock(
         <div key={block.id} className="public-note-block public-note-list-item" style={blockStyle}>
           <div className="public-note-list-row">
             <span className="public-note-number" aria-hidden="true">{numberIndex}.</span>
-            <div className="public-note-list-text">{renderInline(block.content)}</div>
+            <div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>
           </div>
           {childrenNode}
         </div>
@@ -250,7 +287,7 @@ function renderBlock(
         <div key={block.id} className={`public-note-block public-note-check-item ${checked ? "is-checked" : ""}`} style={blockStyle}>
           <div className="public-note-list-row">
             <input type="checkbox" checked={checked} readOnly tabIndex={-1} className="public-note-checkbox" aria-label="" />
-            <div className="public-note-list-text">{renderInline(block.content)}</div>
+            <div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>
           </div>
           {childrenNode}
         </div>
@@ -259,7 +296,7 @@ function renderBlock(
     case "toggleListItem":
       return (
         <div key={block.id} className="public-note-block" style={blockStyle}>
-          <PublicToggleBlock header={<div className="public-note-list-text">{renderInline(block.content)}</div>}>
+          <PublicToggleBlock header={<div className="public-note-list-text">{renderInline(block.content, ctx.math)}</div>}>
             {renderedChildren}
           </PublicToggleBlock>
         </div>
@@ -267,7 +304,7 @@ function renderBlock(
     case "quote":
       return (
         <div key={block.id} className="public-note-block" style={blockStyle}>
-          <blockquote className="public-note-quote">{renderInline(block.content)}</blockquote>
+          <blockquote className="public-note-quote">{renderInline(block.content, ctx.math)}</blockquote>
           {childrenNode}
         </div>
       );
@@ -280,7 +317,7 @@ function renderBlock(
           <div className={`public-note-callout ${calloutBg === "default" ? "is-outlined" : ""}`} style={calloutStyle}>
             <span className="public-note-callout-emoji" aria-hidden="true">{emoji}</span>
             <div className="public-note-callout-body">
-              <div>{renderInline(block.content)}</div>
+              <div>{renderInline(block.content, ctx.math)}</div>
               {childrenNode}
             </div>
           </div>
@@ -339,7 +376,7 @@ function renderBlock(
                         rowSpan={cellProps?.rowspan && cellProps.rowspan > 1 ? cellProps.rowspan : undefined}
                         style={cellStyle}
                       >
-                        {renderInline(cellContent)}
+                        {renderInline(cellContent, ctx.math)}
                       </Tag>
                     );
                   })}
@@ -401,12 +438,38 @@ function renderBlock(
         </div>
       );
     }
+    case "mathBlock": {
+      // ブロックの数式。エディターと同じく中央寄せ・長い式は式の中で横スクロール、RTL のページでも左から右。
+      // 空の数式（エディターでは入力の案内）は閲覧者には出さない。
+      const latex = typeof props.latex === "string" ? props.latex : "";
+      if (!latex.trim()) return childrenNode ? <div key={block.id} className="public-note-block">{childrenNode}</div> : null;
+      return (
+        <div key={block.id} className="public-note-block">
+          <div dir="ltr" className="notes-math-block public-note-math-block" style={colors}>
+            {renderMath(latex, ctx.math, true)}
+          </div>
+          {childrenNode}
+        </div>
+      );
+    }
     default:
       return null;
   }
 }
 
-export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; locale: Locale }) {
+// KaTeX 本体はサーバーでだけ使う（ブラウザーには描いた HTML とスタイルだけを送る）。数式の無いページでは読み込まない。
+// 読み込めなかった時はページ全体を失敗させず、数式を TeX のまま出す。
+async function loadKatex(): Promise<KatexApi | null> {
+  try {
+    const mod = await import("katex");
+    return (mod.default ?? mod) as KatexApi;
+  } catch (error) {
+    console.error("[public-note] failed to load KaTeX", error);
+    return null;
+  }
+}
+
+export async function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; locale: Locale }) {
   const t = createTranslator(messagesFor(locale));
   const dir = localeDir(locale);
   const { page, breadcrumbs, children, token, root } = data;
@@ -421,6 +484,8 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
     token,
     page.id,
   );
+  const katex = blocksHaveMath(blocks) ? await loadKatex() : null;
+  const math = katex ? mathRenderer(katex) : null;
 
   const pageClass = [
     page.fullWidth ? "is-full-width" : "",
@@ -434,6 +499,7 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
 
   return (
     <div className={`public-note-shell ${pageClass}`} lang={locale} dir={dir}>
+      {katex ? <PublicMathStyles /> : null}
       <header className="public-note-topbar">
         <nav className="public-note-breadcrumbs" aria-label={t("Breadcrumb")}>
           {breadcrumbs.map((crumb, index) => {
@@ -483,7 +549,7 @@ export function PublicNoteView({ data, locale }: { data: ResolvedPublicShare; lo
         </div>
 
         <article className="notes-column notes-body public-note-body">
-          {renderBlockList(blocks, { copy: t("Copy"), copied: t("Copied"), download: t("Download") })}
+          {renderBlockList(blocks, { labels: { copy: t("Copy"), copied: t("Copied"), download: t("Download") }, math })}
         </article>
 
         {children.length > 0 ? (

@@ -4,7 +4,7 @@ export const LANDING_HERO = {
   headlineLead: "Ask it.",
   headlineMark: "Keep it.",
   headlineTail: "Find it again.",
-  lede: "NoteFable is a study space where a question becomes an answer, the answer becomes a note, and the note is still there when you need it.",
+  lede: "NoteFable is a study space where a question becomes an answer, the answer becomes a note in your workspace, and the note is still there when you need it.",
 } as const;
 
 export function landingTitle() {

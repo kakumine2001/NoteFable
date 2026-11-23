@@ -73,9 +73,10 @@
 "err_some_more" = "You can add %1$d more files (%2$d per message). None of these %3$d files were added. Choose fewer files.";
 "err_not_added" = "%1$s No new files were added.";
 "chat_mode" = "Chat";
-"note_mode" = "Note";
-"workspace_mode" = "Workspace mode";
+"note_mode" = "Workspace";
+"workspace_mode" = "Switch between Chat and Workspace";
 "notes" = "Notes";
+"workspace" = "Workspace";
 "new_note" = "New note";
 "projects" = "Projects";
 "new_project" = "New project";
@@ -127,7 +128,7 @@
 "days_left" = "%1$d days left";
 "loading_notes" = "Loading notes…";
 "notes_intro" = "Write notes with blocks — type %1$s for headings, lists, to-dos and code.";
-"notes_storage_hint" = "Notes are saved on the server and linked to this device. Sign in to open them on other devices. Clearing app or site data creates a separate workspace.";
+"notes_storage_hint" = "Notes are saved on the server and linked to this device. Sign in to open them on other devices. If you clear app or site data before signing in, you lose access to them.";
 "all_notes" = "All notes";
 "version_history" = "Version history";
 "save_saved" = "Saved";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "Pages can’t be attached when creating an image. Remove them or turn off image creation.";
 "create_page" = "Create page";
 "create_page_title" = "Create a page from this chat";
-"create_page_body" = "NoteFable rewrites this conversation into an organized note in Notes, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.";
-"create_page_working" = "Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.";
-"create_page_done" = "Created “%1$s” in Notes.";
+"create_page_body" = "NoteFable rewrites this conversation into an organized note in Workspace, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.";
+"create_page_working" = "Writing the page… This can take a minute. You can close this window; the page will appear in Workspace when it’s ready.";
+"create_page_done" = "Created “%1$s” in Workspace.";
 "create_page_partial" = "This chat is long, so some of it was left out.";
 "open_page" = "Open page";
 "language_current" = "Language: %1$s";
@@ -338,7 +339,7 @@
 "answer_download_conversation" = "Download conversation";
 "answer_conversation_downloaded" = "Conversation downloaded";
 "answer_download_failed" = "Could not download the conversation. Try again.";
-"answer_save_failed" = "Could not save to Notes. Try again.";
+"answer_save_failed" = "Could not save to page. Try again.";
 "answer_save_too_large" = "This answer is too large to save as a note.";
 
 /* strings_i18n.xml */

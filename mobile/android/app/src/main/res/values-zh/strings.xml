@@ -79,9 +79,10 @@
 
     <!-- 笔记（网页 notes-sidebar / notes-home / note-group-dialogs / note-trash-dialog 的原句）。 -->
     <string name="chat_mode">聊天</string>
-    <string name="note_mode">笔记</string>
-    <string name="workspace_mode">工作区模式</string>
+    <string name="note_mode">工作区</string>
+    <string name="workspace_mode">在聊天和工作区之间切换</string>
     <string name="notes">笔记</string>
+    <string name="workspace">工作区</string>
     <string name="new_note">新笔记</string>
     <string name="projects">项目</string>
     <string name="new_project">新项目</string>
@@ -133,7 +134,7 @@
     <string name="days_left">剩余 %1$d 天</string>
     <string name="loading_notes">正在加载笔记…</string>
     <string name="notes_intro">用块组织笔记，输入 %1$s 即可添加标题、列表、待办和代码。</string>
-    <string name="notes_storage_hint">笔记保存在服务器上，并与此设备关联。登录后，可在其他设备打开。清除应用或网站数据后会创建一个独立的工作区。</string>
+    <string name="notes_storage_hint">笔记保存在服务器上，并与此设备关联。登录后，可在其他设备打开。如果在登录前清除应用或网站数据，将无法再打开这些笔记。</string>
     <string name="all_notes">全部笔记</string>
     <string name="version_history">版本历史</string>
     <string name="save_saved">已保存</string>

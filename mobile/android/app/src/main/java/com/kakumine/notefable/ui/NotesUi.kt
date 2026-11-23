@@ -55,6 +55,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
@@ -74,8 +75,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -104,38 +107,59 @@ private val PanelShadow = Color(0x1F0F0F0F)          // --notion-shadow 0 4px 14
 private val PanelRing: Color get() = Sm.Ring            // --notion-shadow 0 0 0 1px rgba(15,15,15,.05)
 
 // ---------------------------------------------------------------------------------------------
-// Chat / Note 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
-// 每键高 44、圆角 6.4、16/500、图标 16 + 间距 6.4；选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。
+// Chat / Workspace 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
+// 每键高 44、圆角 6.4、16/500（抽屉里 14/500，与网页宽 240 的侧栏相同）、图标 16 + 间距 6.4、左右内距 4；
+// 选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。两键平时各占一半，名字比一半宽时那一侧按名字宽度变宽（segmentWidths，
+// 网页 minmax(max-content, 1fr)）：日文「ワークスペース」在宽 240 的抽屉里放不下一半。
 
 @Composable
-fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifier: Modifier = Modifier) {
+fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifier: Modifier = Modifier, inDrawer: Boolean = false) {
     val label = stringResource(R.string.workspace_mode)
-    Row(
-        modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Sm.Active).padding(2.dp)
+    val fontSize = if (inDrawer) 14.sp else 16.sp
+    Layout(
+        content = {
+            Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat, fontSize) { onChange(Workspace.Chat) }
+            Segment(stringResource(R.string.note_mode), Lucide.FileText, workspace == Workspace.Notes, fontSize) { onChange(Workspace.Notes) }
+        },
+        modifier = modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Sm.Active).padding(2.dp)
             .semantics { contentDescription = label },
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat) { onChange(Workspace.Chat) }
-        Segment(stringResource(R.string.note_mode), Lucide.FileText, workspace == Workspace.Notes) { onChange(Workspace.Notes) }
+    ) { measurables, constraints ->
+        val gap = 2.dp.roundToPx()
+        val height = constraints.maxHeight
+        val (first, second) = segmentWidths(
+            constraints.maxWidth - gap,
+            measurables[0].maxIntrinsicWidth(height),
+            measurables[1].maxIntrinsicWidth(height),
+        )
+        val chat = measurables[0].measure(Constraints.fixed(first, height))
+        val notes = measurables[1].measure(Constraints.fixed(second, height))
+        layout(constraints.maxWidth, height) {
+            chat.placeRelative(0, 0)
+            notes.placeRelative(first + gap, 0)
+        }
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.Segment(text: String, icon: List<String>, active: Boolean, onClick: () -> Unit) {
+private fun Segment(text: String, icon: List<String>, active: Boolean, fontSize: TextUnit, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.4.dp)
     Row(
-        Modifier.weight(1f).height(44.dp)
+        Modifier.height(44.dp)
             .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F0F0F), spotColor = Color(0x140F0F0F)) else Modifier)
             .clip(shape)
             .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x1A0F0F0F), Sm.Border), shape) else Modifier)
             .clickable(onClick = onClick)
-            .semantics { role = Role.Button },
+            .semantics { role = Role.Button }
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         LucideIcon(icon, 16.dp, if (active) Sm.Blue else Sm.Muted)
         Spacer(Modifier.width(6.4.dp))
-        Text(text, color = if (active) Sm.Ink else Sm.Muted, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(
+            text, color = if (active) Sm.Ink else Sm.Muted, fontSize = fontSize, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -623,7 +647,7 @@ private fun NotesHomeList(
             else Column(Modifier.padding(start = 24.dp)) { kids.forEach { key(it.id) { Tree(it) } } }
         }
     }
-    // 标题 "Notes" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
+    // 标题 "Workspace" 和 "No project" 小标题是"移出项目"的投放区，项目小标题是"移进项目"的（网页 data-note-group-drop）。
     fun Modifier.zone(key: String): Modifier =
         dropZone(drag.target is DropTarget.Into && drag.targetZone == key).onGloballyPositioned { drag.zones[key] = it.boundsInWindow() }
     DisposableEffect(Unit) { onDispose { drag.zones.clear() } }
@@ -631,7 +655,7 @@ private fun NotesHomeList(
     DisposableEffect(hasLooseHeading) { onDispose { drag.zones.remove(" ") } }
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Text(
-        stringResource(R.string.notes),
+        stringResource(R.string.workspace),
         modifier = Modifier.padding(top = 8.dp, bottom = 12.dp).fillMaxWidth().zone(""),
         color = Sm.Ink, fontSize = 32.sp, lineHeight = 48.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.28).sp,
     )
@@ -772,7 +796,7 @@ private fun shortDate(iso: String): String {
 }
 
 // 一篇笔记都没有（网页 NotesWorkspace 的空状态，手机）：上距 120；文件图标 28（线宽 1.4，浅灰）；
-// "Notes" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
+// "Workspace" 40/750、行高 1.25、字距 −0.04em，上距 16；说明 15/24 灰（"/"是等宽小键帽），上距 8；
 // 按钮行上距 24、间距 10、放不下换行、整行水平居中（网页 mt-6 flex flex-wrap items-center justify-center gap-2.5）：
 // "新笔记"高 32、圆角 8，旁边"导入 Markdown"（高 40 的文字按钮）；最下面 12/20 浅灰的存储说明，上距 40、最宽 384。
 @OptIn(ExperimentalLayoutApi::class)
@@ -781,7 +805,7 @@ private fun NotesEmpty(busy: Boolean, onCreate: () -> Unit, onImport: () -> Unit
     val rtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     Column(Modifier.padding(top = 120.dp)) {
         LucideIcon(Lucide.FileText, 28.dp, Faint, strokeWidth = 1.4f)
-        Text(stringResource(R.string.notes), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
+        Text(stringResource(R.string.workspace), modifier = Modifier.padding(top = 16.dp), color = Sm.Ink, fontSize = 40.sp,
             lineHeight = 50.sp, fontWeight = FontWeight(750), letterSpacing = if (rtl) 0.sp else (-1.6).sp)
         val intro = stringResource(R.string.notes_intro).split("%1\$s")
         Text(

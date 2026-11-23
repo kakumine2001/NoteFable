@@ -3,13 +3,13 @@
 <resources>
     <string name="answer_options">Параметры ответа</string>
     <string name="answer_more_options">Другие параметры ответа</string>
-    <string name="answer_save_to_page">Сохранить в заметки</string>
-    <string name="answer_saved_to_page">Сохранено в заметки</string>
-    <string name="answer_retry_save">Повторить сохранение в заметки</string>
+    <string name="answer_save_to_page">Сохранить как заметку</string>
+    <string name="answer_saved_to_page">Сохранено как заметка</string>
+    <string name="answer_retry_save">Повторить сохранение в виде заметки</string>
     <string name="answer_open_saved_page">Открыть сохранённую заметку</string>
     <string name="answer_download_conversation">Скачать диалог</string>
     <string name="answer_conversation_downloaded">Диалог скачан</string>
     <string name="answer_download_failed">Не удалось скачать диалог. Попробуйте ещё раз.</string>
-    <string name="answer_save_failed">Не удалось сохранить в заметки. Попробуйте ещё раз.</string>
+    <string name="answer_save_failed">Не удалось сохранить как заметку. Попробуйте ещё раз.</string>
     <string name="answer_save_too_large">Этот ответ слишком длинный, чтобы сохранить его как заметку.</string>
 </resources>

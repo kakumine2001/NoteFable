@@ -73,9 +73,10 @@
 "err_some_more" = "파일을 %1$d개만 더 추가할 수 있어요(메시지당 최대 %2$d개). 선택한 %3$d개의 파일은 추가되지 않았어요. 파일 수를 줄여 주세요.";
 "err_not_added" = "%1$s 새 파일이 추가되지 않았어요.";
 "chat_mode" = "채팅";
-"note_mode" = "노트";
-"workspace_mode" = "워크스페이스 모드";
+"note_mode" = "워크스페이스";
+"workspace_mode" = "채팅과 워크스페이스 간 전환";
 "notes" = "노트";
+"workspace" = "워크스페이스";
 "new_note" = "새 노트";
 "projects" = "프로젝트";
 "new_project" = "새 프로젝트";
@@ -127,7 +128,7 @@
 "days_left" = "%1$d일 남음";
 "loading_notes" = "노트 불러오는 중…";
 "notes_intro" = "블록으로 노트를 작성해 보세요 — %1$s 키를 입력해 제목, 목록, 할 일, 코드를 추가할 수 있어요.";
-"notes_storage_hint" = "노트는 서버에 저장되며 현재 기기와 연결됩니다. 다른 기기에서 열려면 로그인해 주세요. 앱이나 사이트 데이터를 삭제하면 별도의 워크스페이스가 생성됩니다.";
+"notes_storage_hint" = "노트는 서버에 저장되며 현재 기기와 연결됩니다. 다른 기기에서 열려면 로그인해 주세요. 로그인하기 전에 앱이나 사이트 데이터를 삭제하면 노트를 더 이상 열 수 없습니다.";
 "all_notes" = "모든 노트";
 "version_history" = "버전 기록";
 "save_saved" = "저장됨";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "이미지를 생성할 때는 페이지를 첨부할 수 없어요. 페이지를 제거하거나 이미지 생성을 꺼 주세요.";
 "create_page" = "노트로 정리";
 "create_page_title" = "이 채팅을 노트로 정리";
-"create_page_body" = "NoteFable이 선택한 모델을 사용해 이 대화를 깔끔하게 정리된 노트로 다시 작성해 노트에 저장합니다. 매우 긴 채팅은 최근 메시지를 우선으로 길이에 맞게 요약됩니다. 오늘 메시지 한도에서 1회가 차감됩니다.";
-"create_page_working" = "노트를 작성하는 중… 1분 정도 걸릴 수 있어요. 이 창을 닫아도 완성되면 노트에 나타납니다.";
-"create_page_done" = "노트에 “%1$s” 노트를 만들었어요.";
+"create_page_body" = "NoteFable이 선택한 모델을 사용해 이 대화를 깔끔하게 정리된 노트로 다시 작성해 워크스페이스에 저장합니다. 매우 긴 채팅은 최근 메시지를 우선으로 길이에 맞게 요약됩니다. 오늘 메시지 한도에서 1회가 차감됩니다.";
+"create_page_working" = "노트를 작성하는 중… 1분 정도 걸릴 수 있어요. 이 창을 닫아도 완성되면 워크스페이스에 나타납니다.";
+"create_page_done" = "워크스페이스에 “%1$s” 노트를 만들었어요.";
 "create_page_partial" = "대화가 길어 일부 내용은 생략되었어요.";
 "open_page" = "노트 열기";
 "language_current" = "언어: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "답변 옵션";
 "answer_more_options" = "답변 옵션 더보기";
-"answer_save_to_page" = "노트에 저장";
-"answer_saved_to_page" = "노트에 저장됨";
-"answer_retry_save" = "노트에 다시 저장";
+"answer_save_to_page" = "노트로 저장";
+"answer_saved_to_page" = "노트로 저장됨";
+"answer_retry_save" = "노트로 다시 저장";
 "answer_open_saved_page" = "저장된 노트 열기";
 "answer_download_conversation" = "대화 다운로드";
 "answer_conversation_downloaded" = "대화를 다운로드했어요";
 "answer_download_failed" = "대화를 다운로드하지 못했어요. 다시 시도해 주세요.";
-"answer_save_failed" = "노트에 저장하지 못했어요. 다시 시도해 주세요.";
+"answer_save_failed" = "노트로 저장하지 못했어요. 다시 시도해 주세요.";
 "answer_save_too_large" = "답변이 너무 길어 노트로 저장할 수 없어요.";
 
 /* strings_i18n.xml */

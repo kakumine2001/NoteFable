@@ -548,7 +548,7 @@ private fun AppDrawer(
                 // 头部右侧的"关闭侧栏"（.notion-icon-button 40，PanelLeftClose 17 灰）；聊天和笔记两边的网页侧栏都有。
                 TopIconButton(Lucide.PanelLeftClose, stringResource(R.string.sb_close_sidebar), onClose, iconSize = 17.dp)
             }
-            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp))
+            WorkspaceSwitch(workspace, onSwitch, Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp), inDrawer = true)
             body()
             footer()
         }

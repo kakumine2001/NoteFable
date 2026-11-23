@@ -73,9 +73,10 @@
 "err_some_more" = "還能再新增 %1$d 個檔案（每條訊息最多 %2$d 個）。這 %3$d 個檔案都沒有新增，請少選一些。";
 "err_not_added" = "%1$s沒有新增新檔案。";
 "chat_mode" = "聊天";
-"note_mode" = "筆記";
-"workspace_mode" = "工作區模式";
+"note_mode" = "工作區";
+"workspace_mode" = "在聊天和工作區之間切換";
 "notes" = "筆記";
+"workspace" = "工作區";
 "new_note" = "新筆記";
 "projects" = "專案";
 "new_project" = "新專案";
@@ -127,7 +128,7 @@
 "days_left" = "剩餘 %1$d 天";
 "loading_notes" = "正在載入筆記…";
 "notes_intro" = "用塊組織筆記，輸入 %1$s 即可新增標題、列表、待辦和程式碼。";
-"notes_storage_hint" = "筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。清除應用或網站資料後會建立一個獨立的工作區。";
+"notes_storage_hint" = "筆記儲存在伺服器上，並與此裝置關聯。登入後，可在其他裝置開啟。如果在登入前清除應用或網站資料，將無法再開啟這些筆記。";
 "all_notes" = "全部筆記";
 "version_history" = "版本歷史";
 "save_saved" = "已儲存";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "生成圖片時不能新增頁面。請移除頁面或關閉圖片生成。";
 "create_page" = "整理成筆記";
 "create_page_title" = "把這段聊天整理成筆記";
-"create_page_body" = "NoteFable 會用當前選擇的模型，把這段對話改寫成一篇條理清晰的筆記並儲存到筆記中。很長的對話會被縮短，優先保留最近的訊息。這會計入今天的訊息次數（1 次）。";
-"create_page_working" = "正在撰寫筆記……可能需要一分鐘左右。你可以關閉這個視窗，完成後筆記會出現在筆記列表裡。";
-"create_page_done" = "已在筆記中建立“%1$s”。";
+"create_page_body" = "NoteFable 會用當前選擇的模型，把這段對話改寫成一篇條理清晰的筆記並儲存到工作區。很長的對話會被縮短，優先保留最近的訊息。這會計入今天的訊息次數（1 次）。";
+"create_page_working" = "正在撰寫筆記……可能需要一分鐘左右。你可以關閉這個視窗，完成後筆記會出現在工作區裡。";
+"create_page_done" = "已在工作區中建立“%1$s”。";
 "create_page_partial" = "對話較長，省略了一部分內容。";
 "open_page" = "開啟筆記";
 "language_current" = "語言：%1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "回答選項";
 "answer_more_options" = "更多回答選項";
-"answer_save_to_page" = "儲存到筆記";
-"answer_saved_to_page" = "已儲存到筆記";
-"answer_retry_save" = "重新儲存到筆記";
+"answer_save_to_page" = "儲存為筆記";
+"answer_saved_to_page" = "已儲存為筆記";
+"answer_retry_save" = "重新儲存為筆記";
 "answer_open_saved_page" = "開啟已儲存的筆記";
 "answer_download_conversation" = "下載聊天";
 "answer_conversation_downloaded" = "聊天已下載";
 "answer_download_failed" = "無法下載聊天，請重試。";
-"answer_save_failed" = "無法儲存到筆記，請重試。";
+"answer_save_failed" = "無法儲存為筆記，請重試。";
 "answer_save_too_large" = "這條回答太長，無法儲存為筆記。";
 
 /* strings_i18n.xml */

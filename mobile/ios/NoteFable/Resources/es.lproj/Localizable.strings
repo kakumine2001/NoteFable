@@ -73,9 +73,10 @@
 "err_some_more" = "Puedes añadir %1$d archivos más (máximo %2$d por mensaje). No se añadió ninguno de estos %3$d archivos. Elige menos archivos.";
 "err_not_added" = "%1$s No se añadieron archivos nuevos.";
 "chat_mode" = "Chat";
-"note_mode" = "Nota";
-"workspace_mode" = "Modo del espacio de trabajo";
+"note_mode" = "Espacio";
+"workspace_mode" = "Cambiar entre Chat y Espacio";
 "notes" = "Notas";
+"workspace" = "Espacio";
 "new_note" = "Nueva nota";
 "projects" = "Proyectos";
 "new_project" = "Nuevo proyecto";
@@ -127,7 +128,7 @@
 "days_left" = "Quedan %1$d días";
 "loading_notes" = "Cargando notas…";
 "notes_intro" = "Escribe notas con bloques: escribe %1$s para añadir encabezados, listas, tareas y código.";
-"notes_storage_hint" = "Las notas se guardan en el servidor y se vinculan a este dispositivo. Inicia sesión para abrirlas en otros dispositivos. Al borrar los datos de la aplicación o del sitio, se crea un espacio de trabajo independiente.";
+"notes_storage_hint" = "Las notas se guardan en el servidor y se vinculan a este dispositivo. Inicia sesión para abrirlas en otros dispositivos. Si borras los datos de la aplicación o del sitio antes de iniciar sesión, perderás el acceso a ellas.";
 "all_notes" = "Todas las notas";
 "version_history" = "Historial de versiones";
 "save_saved" = "Guardado";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "No se pueden adjuntar páginas al crear una imagen. Quítalas o desactiva la creación de imágenes.";
 "create_page" = "Crear nota";
 "create_page_title" = "Crear una nota a partir de este chat";
-"create_page_body" = "NoteFable reescribe esta conversación como una nota organizada en Notas usando el modelo seleccionado. Los chats muy largos se acortan para ajustarse, conservando los mensajes más recientes. Cuenta como un mensaje para el límite de hoy.";
-"create_page_working" = "Escribiendo la nota… Esto puede tardar un minuto. Puedes cerrar esta ventana; la nota aparecerá en Notas cuando esté lista.";
-"create_page_done" = "Se creó “%1$s” en Notas.";
+"create_page_body" = "NoteFable reescribe esta conversación como una nota organizada en tu Espacio usando el modelo seleccionado. Los chats muy largos se acortan para ajustarse, conservando los mensajes más recientes. Cuenta como un mensaje para el límite de hoy.";
+"create_page_working" = "Escribiendo la nota… Esto puede tardar un minuto. Puedes cerrar esta ventana; la nota aparecerá en tu Espacio cuando esté lista.";
+"create_page_done" = "Se creó “%1$s” en tu Espacio.";
 "create_page_partial" = "Este chat es largo, así que se omitió una parte.";
 "open_page" = "Abrir nota";
 "language_current" = "Idioma: %1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "Opciones de la respuesta";
 "answer_more_options" = "Más opciones de respuesta";
-"answer_save_to_page" = "Guardar en Notas";
-"answer_saved_to_page" = "Guardado en Notas";
-"answer_retry_save" = "Reintentar guardar en Notas";
+"answer_save_to_page" = "Guardar como nota";
+"answer_saved_to_page" = "Guardada como nota";
+"answer_retry_save" = "Reintentar guardar como nota";
 "answer_open_saved_page" = "Abrir nota guardada";
 "answer_download_conversation" = "Descargar conversación";
 "answer_conversation_downloaded" = "Conversación descargada";
 "answer_download_failed" = "No se pudo descargar la conversación. Inténtalo de nuevo.";
-"answer_save_failed" = "No se pudo guardar en Notas. Inténtalo de nuevo.";
+"answer_save_failed" = "No se pudo guardar como nota. Inténtalo de nuevo.";
 "answer_save_too_large" = "Esta respuesta es demasiado extensa para guardarla como nota.";
 
 /* strings_i18n.xml */

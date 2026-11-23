@@ -75,8 +75,8 @@ private struct NotesHomeList: View {
         let state = notes.state
         let favorites = state.favorites
         let loose = state.loosePages
-        // 标题“Notes”：也是“移出项目”的投放区。字距 −0.04em（从右到左的文字不加字距）。
-        Text(L("notes"))
+        // 标题“Workspace”：也是“移出项目”的投放区。字距 −0.04em（从右到左的文字不加字距）。
+        Text(L("workspace"))
             .font(.nf(32, weight: 750))
             .tracking(layoutDirection == .rightToLeft ? 0 : -1.28)
             .nfLineHeight(48, fontSize: 32)
@@ -350,7 +350,7 @@ private struct NotesEmptyView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             LucideIcon(Lucide.fileText, size: 28, strokeWidth: 1.4, color: Sm.faint)
-            Text(L("notes"))
+            Text(L("workspace"))
                 .font(.nf(40, weight: 750))
                 .tracking(layoutDirection == .rightToLeft ? 0 : -1.6)
                 .nfLineHeight(50, fontSize: 40)

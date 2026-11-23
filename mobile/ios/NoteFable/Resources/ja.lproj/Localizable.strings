@@ -73,9 +73,10 @@
 "err_some_more" = "あと %1$d 個追加できます（1 メッセージ %2$d 個まで）。選んだ %3$d 個はどれも追加していません。数を減らしてください。";
 "err_not_added" = "%1$s新しいファイルは追加していません。";
 "chat_mode" = "チャット";
-"note_mode" = "ノート";
-"workspace_mode" = "ワークスペースのモード";
+"note_mode" = "ワークスペース";
+"workspace_mode" = "チャットとワークスペースを切り替え";
 "notes" = "ノート";
+"workspace" = "ワークスペース";
 "new_note" = "新しいノート";
 "projects" = "プロジェクト";
 "new_project" = "新しいプロジェクト";
@@ -127,7 +128,7 @@
 "days_left" = "残り%1$d日";
 "loading_notes" = "ノートを読み込み中…";
 "notes_intro" = "ブロックでノートを書けます。%1$sを入力すると、見出し、リスト、チェックリスト、コードを追加できます。";
-"notes_storage_hint" = "ノートはサーバーに保存され、この端末に紐づきます。別の端末で開くにはログインしてください。アプリやサイトのデータを消去すると、別のワークスペースになります。";
+"notes_storage_hint" = "ノートはサーバーに保存され、この端末に紐づきます。別の端末で開くにはログインしてください。ログインする前にアプリやサイトのデータを消去すると、ノートを開けなくなります。";
 "all_notes" = "すべてのノート";
 "version_history" = "編集履歴";
 "save_saved" = "保存済み";
@@ -277,9 +278,9 @@
 "err_pages_image_mode" = "画像の作成ではページを添付できません。ページを外すか、画像の作成をオフにしてください。";
 "create_page" = "ノートにまとめる";
 "create_page_title" = "このチャットをノートにまとめる";
-"create_page_body" = "選択中のモデルで、この会話を整理されたノートに書き直してノートに保存します。とても長い会話は、新しいメッセージを優先して短くします。今日の送信回数に 1 回として数えられます。";
-"create_page_working" = "ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとノートに追加されます。";
-"create_page_done" = "ノートに「%1$s」を作成しました。";
+"create_page_body" = "選択中のモデルで、この会話を整理されたノートに書き直してワークスペースに保存します。とても長い会話は、新しいメッセージを優先して短くします。今日の送信回数に 1 回として数えられます。";
+"create_page_working" = "ノートを作成中… 1 分ほどかかることがあります。この画面を閉じても、できあがるとワークスペースに追加されます。";
+"create_page_done" = "ワークスペースに「%1$s」を作成しました。";
 "create_page_partial" = "長い会話なので、一部を省きました。";
 "open_page" = "ノートを開く";
 "language_current" = "言語：%1$s";
@@ -331,14 +332,14 @@
 /* strings_export.xml */
 "answer_options" = "回答のオプション";
 "answer_more_options" = "回答のその他のオプション";
-"answer_save_to_page" = "ノートに保存";
-"answer_saved_to_page" = "ノートに保存しました";
-"answer_retry_save" = "ノートへの保存を再試行";
+"answer_save_to_page" = "ノートとして保存";
+"answer_saved_to_page" = "ノートとして保存しました";
+"answer_retry_save" = "ノートとしての保存を再試行";
 "answer_open_saved_page" = "保存したノートを開く";
 "answer_download_conversation" = "会話をダウンロード";
 "answer_conversation_downloaded" = "会話をダウンロードしました";
 "answer_download_failed" = "会話をダウンロードできませんでした。もう一度お試しください。";
-"answer_save_failed" = "ノートに保存できませんでした。もう一度お試しください。";
+"answer_save_failed" = "ノートとして保存できませんでした。もう一度お試しください。";
 "answer_save_too_large" = "回答が長すぎるため、ノートとして保存できません。";
 
 /* strings_i18n.xml */

@@ -124,7 +124,7 @@ function useStations(): Station[] {
         <p>{stream(t("Both come from {term}. Air scatters short blue wavelengths the most, so at noon blue reaches you from every direction. At sunset the light crosses far more air, the blue is scattered away, and red is what is left."), t("Rayleigh scattering"))}</p>
         <div className="tl-actions">
           <span><Copy size={13} />{" "}{t("Copy")}</span>
-          <span className="tl-action-save"><NotebookPen size={13} />{" "}{t("Save to Notes")}</span>
+          <span className="tl-action-save"><NotebookPen size={13} />{" "}{t("Save to page")}</span>
           <span aria-hidden="true"><MoreHorizontal size={15} /></span>
         </div>
       </div>
@@ -301,7 +301,7 @@ export function ThreadLanding() {
 
       <header className="tl-nav tl-wrap">
         <Link className="tl-brand" href={INTRO_HREF} aria-label={t("NoteFable home")}><CharacterGraphic characterId={DEFAULT_CHARACTER_ID} size={26} /><span>NoteFable</span></Link>
-        <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open workspace")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
+        <Link className="tl-nav-cta" href="/app" prefetch={false}>{t("Open NoteFable")}{" "}<ArrowRight size={15} aria-hidden="true" /></Link>
       </header>
 
       <main id="tl-main">

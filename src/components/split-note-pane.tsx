@@ -79,12 +79,12 @@ export function SplitNotePane({
     };
   }, [pickerOpen]);
 
-  const currentTitle = notes.active?.content.title.trim() || activeSummary?.title || t("Notes");
+  const currentTitle = notes.active?.content.title.trim() || activeSummary?.title || t("Workspace");
   const currentIcon = notes.active?.content.icon ?? activeSummary?.icon ?? null;
   const currentKind = activeSummary?.kind ?? notes.active?.page.kind;
 
   return (
-    <aside className="workspace-split-note" aria-label={t("Notes")}>
+    <aside className="workspace-split-note" aria-label={t("Workspace")}>
       <header className="notion-topbar workspace-split-header">
         <div className="relative min-w-0 flex-1" ref={pickerRef}>
           <button
