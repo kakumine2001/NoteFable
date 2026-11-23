@@ -696,6 +696,7 @@ export const it: Record<string, string> = {
   "Add a one-line summary at the top.": "Aggiungi un riassunto di una riga all’inizio.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "In breve: al tramonto la luce attraversa più aria, il blu si disperde e resta il rosso.",
   "Block equation": "Equazione a blocco",
+  "{count} columns": "{count} colonne",
   "Inline equation": "Equazione in linea",
   "Add a TeX equation": "Aggiungi un’equazione TeX",
   "New equation": "Nuova equazione",

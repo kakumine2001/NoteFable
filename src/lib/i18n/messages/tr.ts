@@ -696,6 +696,7 @@ export const tr: Record<string, string> = {
   "Add a one-line summary at the top.": "En üste tek satırlık bir özet ekle.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Kısacası: gün batımında ışık daha fazla havadan geçer, mavi dağılır, kırmızı kalır.",
   "Block equation": "Blok denklem",
+  "{count} columns": "{count} sütun",
   "Inline equation": "Satır içi denklem",
   "Add a TeX equation": "TeX denklemi ekle",
   "New equation": "Yeni denklem",

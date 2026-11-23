@@ -696,6 +696,7 @@ export const ptBR: Record<string, string> = {
   "Add a one-line summary at the top.": "Adicione um resumo de uma linha no início.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Em resumo: no pôr do sol a luz atravessa mais ar, o azul se espalha e o vermelho resta.",
   "Block equation": "Equação em bloco",
+  "{count} columns": "{count} colunas",
   "Inline equation": "Equação em linha",
   "Add a TeX equation": "Adicionar uma equação TeX",
   "New equation": "Nova equação",

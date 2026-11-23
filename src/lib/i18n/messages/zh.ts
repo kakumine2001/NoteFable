@@ -705,6 +705,7 @@ export const zh: Record<string, string> = {
   "Add a one-line summary at the top.": "在开头加一句话总结。",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "一句话总结：日落时阳光穿过更厚的大气，蓝光被散射掉，留下的是红光。",
   "Block equation": "块级公式",
+  "{count} columns": "{count} 栏",
   "Inline equation": "行内公式",
   "Add a TeX equation": "添加 TeX 公式",
   "New equation": "新建公式",

@@ -697,6 +697,7 @@ export const ja: Record<string, string> = {
   "Add a one-line summary at the top.": "冒頭に一行の要約を。",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "要約：夕方は光が大気を長く通るため、青い光が散乱し、赤い光が残る。",
   "Block equation": "ブロック数式",
+  "{count} columns": "{count} 列",
   "Inline equation": "インライン数式",
   "Add a TeX equation": "TeX 数式を追加",
   "New equation": "新しい数式",

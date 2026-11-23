@@ -696,6 +696,7 @@ export const id: Record<string, string> = {
   "Add a one-line summary at the top.": "Tambahkan ringkasan satu baris di bagian atas.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Singkatnya: saat senja cahaya melewati lebih banyak udara, biru terhambur habis, dan merah tersisa.",
   "Block equation": "Persamaan blok",
+  "{count} columns": "{count} kolom",
   "Inline equation": "Persamaan sebaris",
   "Add a TeX equation": "Tambahkan persamaan TeX",
   "New equation": "Persamaan baru",

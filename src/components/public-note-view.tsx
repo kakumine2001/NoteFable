@@ -12,6 +12,7 @@ import { rewriteBlocksForShare, shareCoverUrl, shareIconUrl, sharePagePath } fro
 import { NoteIcon } from "@/components/note-icon";
 import { isUploadedNoteIcon, noteIconText } from "@/lib/note-icon";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
+import { validColumnWidth } from "@/lib/note-columns";
 
 // BlockNote のカラー名と Notion の色対応（テキスト色・背景色）。
 const TEXT_COLORS: Record<string, string> = {
@@ -174,6 +175,20 @@ function renderBlock(
   const childrenNode = renderedChildren ? <div className="public-note-children">{renderedChildren}</div> : null;
 
   switch (block.type) {
+    // 段組み: 段を横に並べる（幅は段の比。狭い画面では CSS で縦に積む）。
+    case "columnList":
+      return (
+        <div key={block.id} className="public-note-columns">
+          {(block.children ?? []).filter((column) => column.type === "column").map((column) => {
+            const width = column.props?.width;
+            return (
+              <div key={column.id} className="public-note-column" style={validColumnWidth(width) ? { flexGrow: width } : undefined}>
+                {renderBlockList(column.children ?? [], labels)}
+              </div>
+            );
+          })}
+        </div>
+      );
     case "paragraph": {
       const inline = renderInline(block.content);
       return (

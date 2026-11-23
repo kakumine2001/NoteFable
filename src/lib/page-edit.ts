@@ -1,4 +1,5 @@
 import { blocksToMarkdown, flattenBlocks, markdownToBlocks, type NoteBlock } from "@/lib/note-markdown";
+import { normalizeColumns } from "@/lib/note-columns";
 
 // モデルが出す編集案を、ページのブロック列へ適用する。ページ自体は変更せず、結果を返すだけ。
 
@@ -210,5 +211,6 @@ export function applyPageEdits(blocks: NoteBlock[], rawEdits: unknown): { blocks
     }
     return out;
   };
-  return { blocks: [...head, ...rebuild(blocks)], changes };
+  // 段の中のブロックを全部消すと段が空になるので、段組みの形を直す。
+  return { blocks: normalizeColumns([...head, ...rebuild(blocks)]), changes };
 }

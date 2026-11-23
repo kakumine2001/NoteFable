@@ -696,6 +696,7 @@ export const hi: Record<string, string> = {
   "Add a one-line summary at the top.": "सबसे ऊपर एक पंक्ति का सारांश जोड़ें।",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "संक्षेप में: सूर्यास्त के समय प्रकाश ज़्यादा हवा से गुज़रता है, नीला बिखर जाता है और लाल बच रहता है।",
   "Block equation": "ब्लॉक समीकरण",
+  "{count} columns": "{count} कॉलम",
   "Inline equation": "इनलाइन समीकरण",
   "Add a TeX equation": "TeX समीकरण जोड़ें",
   "New equation": "नया समीकरण",

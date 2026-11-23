@@ -696,6 +696,7 @@ export const th: Record<string, string> = {
   "Add a one-line summary at the top.": "เพิ่มสรุปหนึ่งบรรทัดไว้ด้านบน",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "สรุป: ยามอาทิตย์ตกแสงเดินทางผ่านอากาศมากขึ้น แสงสีน้ำเงินกระเจิงออก เหลือแต่สีแดง",
   "Block equation": "สมการแบบบล็อก",
+  "{count} columns": "{count} คอลัมน์",
   "Inline equation": "สมการในบรรทัด",
   "Add a TeX equation": "เพิ่มสมการ TeX",
   "New equation": "สมการใหม่",

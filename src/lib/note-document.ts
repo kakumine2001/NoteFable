@@ -2,10 +2,11 @@ import type { Block } from "@blocknote/core";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { validMention } from "@/lib/note-mention";
+import { COLUMN, COLUMN_LIST, MAX_STORED_COLUMNS, validColumnWidth } from "@/lib/note-columns";
 import type { NoteContent } from "@/types/notes";
 import { msg, fmt } from "@/lib/i18n/translate";
 
-export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file", "mathBlock"] as const;
+export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
 export const MAX_NOTE_BYTES = 1024 * 1024;
 // 数式（TeX）1 つのソースの長さの上限。ブロックの数式も行内の数式も同じ。
 export const MAX_MATH_LATEX = 10_000;
@@ -121,12 +122,22 @@ export function validateNoteContent(value: unknown): NoteContent {
   }
   const ids = new Set<string>();
   let count = 0;
-  function validBlocks(blocks: unknown, depth: number): boolean {
+  // parent は親ブロックの種類（最上位は null）。段組み（columnList）の子は段（column）だけ、段の子は本文のブロックだけ。
+  function validBlocks(blocks: unknown, depth: number, parent: unknown = null): boolean {
     if (!Array.isArray(blocks) || depth > 8) return false;
     return blocks.every((block) => {
       if (++count > 2000 || !object(block) || typeof block.id !== "string" || !block.id || block.id.length > 120 || ids.has(block.id)) return false;
       ids.add(block.id);
       if (!NOTE_BLOCK_TYPES.some((type) => type === block.type) || !object(block.props)) return false;
+      if ((parent === COLUMN_LIST) !== (block.type === COLUMN) || (parent === COLUMN && block.type === COLUMN_LIST)) return false;
+      if (block.type === COLUMN_LIST || block.type === COLUMN) {
+        // 段組みと段は本文を持たない。段組みは 2 段以上、段は 1 つ以上のブロックを持つ。段の props は幅（比）だけ。
+        const children = block.children;
+        if (block.content !== undefined || !Array.isArray(children)) return false;
+        if (block.type === COLUMN_LIST ? children.length < 2 || children.length > MAX_STORED_COLUMNS || Object.keys(block.props).length : !children.length
+          || !Object.entries(block.props).every(([key, width]) => key === "width" && validColumnWidth(width))) return false;
+        return validBlocks(children, depth + 1, block.type);
+      }
       const props = block.props;
       const validProps = Object.entries(props).every(([key, entry]) => {
         if (["backgroundColor", "textColor"].includes(key)) return typeof entry === "string" && /^[a-zA-Z]+$/.test(entry) && entry.length <= 32;
@@ -157,7 +168,7 @@ export function validateNoteContent(value: unknown): NoteContent {
       } else if (block.type === "codeBlock") {
         if (!validInline(block.content, false) || !Array.isArray(block.content) || block.content.some((entry) => Object.keys(entry.styles).length)) return false;
       } else if (!validInline(block.content)) return false;
-      return validBlocks(block.children ?? [], depth + 1);
+      return validBlocks(block.children ?? [], depth + 1, block.type);
     });
   }
   if (!validBlocks(value.blocks, 0)) throw new NoteValidationError(msg("This note contains an unsupported or invalid block."));

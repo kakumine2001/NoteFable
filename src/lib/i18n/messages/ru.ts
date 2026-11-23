@@ -696,6 +696,7 @@ export const ru: Record<string, string> = {
   "Add a one-line summary at the top.": "Добавь в начало краткое резюме в одну строку.",
   "In short: at sunset the light crosses more air, the blue is scattered away, and red is left.": "Коротко: на закате свет проходит через больший слой воздуха, синий рассеивается, остаётся красный.",
   "Block equation": "Блочная формула",
+  "{count} columns": "{count} колонки",
   "Inline equation": "Строчная формула",
   "Add a TeX equation": "Добавить формулу TeX",
   "New equation": "Новая формула",

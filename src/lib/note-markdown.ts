@@ -2,6 +2,7 @@ import { isEmojiIcon } from "@/lib/emoji-icon";
 import { MAX_MATH_LATEX } from "@/lib/note-document";
 import { isNoteImageUrl, noteFileUrlName } from "@/lib/note-file-keys";
 import { mentionFromHref, mentionHref, mentionText, type MentionProps } from "@/lib/note-mention";
+import { unwrapColumns } from "@/lib/note-columns";
 // BlockNote のブロック JSON と Markdown の相互変換。チャットのツールがページを読む（JSON → Markdown）、
 // 編集案を作る（Markdown → JSON）ために使う。対応するのは note-document.ts が検証する範囲のブロックだけ。
 
@@ -368,7 +369,8 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
   const indent = "  ".repeat(depth);
   const lines: string[] = [];
   let previousType: unknown;
-  for (const block of blocks as NoteBlock[]) {
+  // 段組みは Markdown で表せないので、段の中のブロックを左の段から順に、同じ深さで書く（番号も付けない）。
+  for (const block of unwrapColumns(blocks as NoteBlock[])) {
     if (!block || typeof block !== "object") continue;
     const props = block.props ?? {};
     const label = counter ? `[${++counter.n}] ` : "";
@@ -432,7 +434,8 @@ export function blocksToMarkdown(blocks: unknown, depth = 0, counter?: { n: numb
 // 深さ優先（行頭の [n] 番号と同じ順）でブロックを平らにする。
 export function flattenBlocks(blocks: unknown, depth = 0, out: NoteBlock[] = []): NoteBlock[] {
   if (!Array.isArray(blocks) || depth > 8) return out;
-  for (const block of blocks as NoteBlock[]) {
+  // 段組みと段そのものは番号を持たない（blocksToMarkdown と同じ順）。
+  for (const block of unwrapColumns(blocks as NoteBlock[])) {
     if (!block || typeof block !== "object") continue;
     out.push(block);
     flattenBlocks(block.children, depth + 1, out);
