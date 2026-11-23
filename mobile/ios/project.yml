@@ -50,6 +50,9 @@ targets:
       - path: ../android/app/src/main/assets/emoji.json
         group: SharedAssets
         buildPhase: resources
+      - path: ../android/app/src/main/assets/page-kinds.json
+        group: SharedAssets
+        buildPhase: resources
     dependencies:
       - package: swift-markdown
         product: Markdown

@@ -236,6 +236,18 @@ describe("note-embeddings", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("searches only the asked page kind and skips OpenAI when none of that kind is indexed", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "sk-test");
+    const fetchMock = vi.fn();
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ noteId: "n1", chunkIndex: 0, blockId: null, noteVersion: 1, vector: new Uint8Array(4), kind: "note", title: "Note", icon: null, updatedAt: new Date() }])
+      .mockResolvedValueOnce([]);
+    const result = await semanticSearchNotes("u1", "装修坑", { limit: 10, minSimilarity: 0.34, maxBackfillNotes: 0, kind: "whiteboard" });
+    expect(result).toEqual({ hits: [], hasMoreBackfill: false });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("returns the kind of each hit and points a slide deck hit at the matching slide", async () => {
     vi.stubEnv("OPENAI_API_KEY", "sk-test");
     const updatedAt = new Date("2026-11-01T00:00:00Z");

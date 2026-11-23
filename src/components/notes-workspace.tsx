@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
+import { CANVAS_EDITORS } from "@/components/canvas-editors";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
@@ -15,7 +16,7 @@ import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
-import { creatablePageKinds, isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { creatablePageKinds, isCanvasKind, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import type { NewPageRequest } from "@/lib/workspace-sections";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
@@ -68,6 +69,25 @@ function NoteStorageLimitNotice({ embedded }: { embedded: boolean }) {
   return <div className="notes-storage-limit notes-column pt-6"><StorageLimitPrompt limit={limit} actions={!embedded} className="" onClose={() => setLimit(null)} /></div>;
 }
 
+// 保存できなかった・衝突したときの案内（ノートとホワイトボード・スライドで共通）。衝突は「新しいページとして保存」か「最新版を読み込む」。
+function NoteSaveWarnings({ notes }: { notes: ReturnType<typeof useNotePages> }) {
+  const t = useT();
+  const { active, busy, backupError } = notes;
+  if (!active) return null;
+  return <>
+    {backupError && <div className="notion-warning mb-4" role="alert">{t(backupError)}</div>}
+    {!!active.error && <div className="notion-warning mb-5" role="alert">
+      <p>{localizeSystemText(active.error, t)}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {active.status === "conflict" ? <>
+          <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>
+          <button type="button" className="notion-button" onClick={() => { if (window.confirm(t("Discard this unsaved draft and load the latest version?"))) void notes.loadLatest(); }}>{t("Load latest")}</button>
+        </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
+      </div>
+    </div>}
+  </>;
+}
+
 export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
   notes: ReturnType<typeof useNotePages>;
   listMode: boolean;
@@ -90,7 +110,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onAskSelectionInChat?: (text: string) => void;
 }) {
   const { t, locale } = useI18n();
-  const { active, activeId, loading, busy, error, actionError, backupError } = notes;
+  const { active, activeId, loading, busy, error, actionError } = notes;
   // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
   const [aiAsk, setAiAsk] = useState<{ noteId: string; text: string | null; signal: number } | null>(null);
   const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.text : null;
@@ -104,6 +124,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const settings = pageSettingsOf(activeSummary);
   // ページの種類。一覧の 1 件（/note-embed では開いたページの 1 件だけ）か、読み込んだページの行が持つ。
   const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
+  // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
+  // 本体を持たないキュー（本体なしの応答から作られたもの）には作らない（空の本体で編集を始めさせない）。
+  const canvasData = active?.content.data ?? active?.page.data;
+  const CanvasEditor = isCanvasKind(activeKind) && pageKindFeatures(activeKind).editor && canvasData ? CANVAS_EDITORS[activeKind] : undefined;
+  const canvasEditorOpen = Boolean(CanvasEditor && active && activeId && !listMode && !loading);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
     ? `${settings.fullWidth ? " is-full-width" : ""}${settings.smallText ? " is-small-text" : ""}${settings.font !== "default" ? ` notes-font-${settings.font}` : ""}${settings.locked ? " is-locked" : ""}${split ? " is-split" : ""}`
@@ -129,7 +154,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     rootRef.current?.querySelectorAll<HTMLElement>(".notion-home-switch button")[switchFocused.current]?.focus({ preventScroll: true });
   }, [hasItems, loading, error]);
 
-  return <div ref={rootRef} className={`notes-workspace flex-1 overflow-y-auto${pageClass}`}
+  return <div ref={rootRef} className={`notes-workspace flex-1 overflow-y-auto${pageClass}${canvasEditorOpen ? " is-canvas-editor" : ""}`}
     onFocus={(event) => {
       const button = (event.target as HTMLElement).closest(".notion-home-switch button");
       switchFocused.current = button?.parentElement ? Array.from(button.parentElement.children).indexOf(button) : null;
@@ -144,9 +169,19 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
-    // ホワイトボード・スライドは、エディターができるまで読み取り専用の仮の画面（ノートのエディター・AI ボタンは出さない。保存もしない）。
-    : active && activeId && !listMode && isCanvasKind(activeKind) ? <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
-      title={active.content.title} icon={active.content.icon} data={active.page.data} />
+    // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
+    // （ノートのエディター・AI ボタンは出さない。保存もしない）。
+    : active && activeId && !listMode && isCanvasKind(activeKind) ? (CanvasEditor ? <div className="canvas-editor-shell">
+      <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
+      <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
+        data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+        // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
+        onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
+        onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }} />
+    </div> : <>
+      {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
+      <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
+    </>)
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
@@ -157,16 +192,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           }
         }} />
       <div className="notes-column notes-body">
-        {backupError && <div className="notion-warning mb-4" role="alert">{t(backupError)}</div>}
-        {!!active.error && <div className="notion-warning mb-5" role="alert">
-          <p>{localizeSystemText(active.error, t)}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            {active.status === "conflict" ? <>
-              <button type="button" className="notion-button" disabled={busy} onClick={() => void notes.create(true)}>{t("Save as new note")}</button>
-              <button type="button" className="notion-button" onClick={() => { if (window.confirm(t("Discard this unsaved draft and load the latest version?"))) notes.loadLatest(); }}>{t("Load latest")}</button>
-            </> : <button type="button" className="notion-button inline-flex items-center gap-2" onClick={() => void active.flush()}><RefreshCw size={13} />{t("Retry save")}</button>}
-          </div>
-        </div>}
+        <NoteSaveWarnings notes={notes} />
         <NoteEditor key={`${activeId}:${notes.editorEpoch}:${locale}`} blocks={active.content.blocks} editable={editable}
           // 埋め込み（/note-embed）は一覧を持たないので、エディターが自分で読む。メンションを押したらアプリに開いてもらう。
           // 一覧の読み込み中（まだ空）は「不明」として渡さない。空の一覧を渡すと、すべてのメンションが「開けない」表示になる。

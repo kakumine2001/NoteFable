@@ -2453,7 +2453,7 @@ export default function Home() {
                 onSettings={(settings) => void notes.updateSettings(activeSummary.id, settings)}
                 onFavorite={(favorite) => void notes.setFavorite(activeSummary.id, favorite)}
                 onDuplicate={() => void notes.duplicate(activeSummary.id)}
-                onAddSubpage={() => createNote(activeSummary.id)}
+                onAddSubpage={() => createNote({ parentId: activeSummary.id })}
                 onMove={() => setMovingNoteId(activeSummary.id)}
                 onExport={() => void notes.exportPage(activeSummary.id)}
                 onTrash={() => setTrashingNoteId(activeSummary.id)} />

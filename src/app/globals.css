@@ -3879,6 +3879,12 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
 .canvas-placeholder-text li { display: flex; gap: 10px; font-size: 16px; line-height: 1.6; color: var(--notion-text); overflow-wrap: anywhere; }
 .canvas-placeholder-index { flex: none; min-width: 1.5em; color: var(--notion-faint); font-variant-numeric: tabular-nums; text-align: end; }
 .canvas-placeholder-empty { margin: 0; font-size: 15px; color: var(--notion-faint); }
+/* ホワイトボード・スライドのエディター（src/components/canvas-editors.tsx）。ノートの列ではなく、作業領域いっぱいに広げ、スクロールはエディターに任せる。 */
+.notes-workspace.is-canvas-editor { display: flex; flex-direction: column; overflow: hidden; }
+.canvas-editor-shell { display: flex; min-height: 0; flex: 1; flex-direction: column; }
+.canvas-editor-warnings:empty { display: none; }
+.canvas-editor-warnings { flex: none; padding: 12px 16px 0; }
+.canvas-editor-warnings .notion-warning { margin-bottom: 0; }
 /* ブロック・文字の色は、エディターがダークで出す色（BlockNote のダークの色）と同じにする。
    淡い地のままだと、ダークの明るい文字が読めなくなる。 */
 :root[data-theme="dark"] .public-note-shell {
