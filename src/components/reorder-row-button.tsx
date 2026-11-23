@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useEffectEvent, useRef, useState, type ReactNode } from "react";
 import type { ReorderRequest } from "@/lib/list-order";
+import { canDropIn } from "@/lib/workspace-sections";
 import { useT } from "@/components/i18n-provider";
 import { msg } from "@/lib/i18n/translate";
 
@@ -27,7 +28,9 @@ export function ReorderRowButton({id,title,scope,ids,disabled,onMove,children,cl
     const current=drag.current;if(!current)return;
     current.row.setAttribute("data-order-dragging","true");
     const container=current.row.closest("[data-reorder-list]");
-    const target=document.elementsFromPoint(x,y).map(element=>element.closest<HTMLElement>(dropAttribute ? `[data-order-id], [${dropAttribute}]` : "[data-order-id]")).find(element=>element && element.closest("[data-reorder-list]")===container && ((dropAttribute && element.hasAttribute(dropAttribute)) || (element.dataset.orderScope===scope && element.dataset.orderId!==id)));
+    // data-drop-kind のある放し先（ワークスペースの分区の見出しと分区の最上位の行）は、同じ分区のページ（行の data-page-kind）だけを受ける。
+    const dragKind=current.row.dataset.pageKind;
+    const target=document.elementsFromPoint(x,y).map(element=>element.closest<HTMLElement>(dropAttribute ? `[data-order-id], [${dropAttribute}]` : "[data-order-id]")).find(element=>element && element.closest("[data-reorder-list]")===container && ((dropAttribute && element.hasAttribute(dropAttribute)) || (element.dataset.orderScope===scope && element.dataset.orderId!==id)) && canDropIn(dragKind,element.dataset.dropKind));
     current.target?.removeAttribute("data-order-drop");current.target=target ?? undefined;
     if(target){const rect=target.getBoundingClientRect();current.after=y>rect.y+rect.height/2;target.setAttribute("data-order-drop",dropAttribute && target.hasAttribute(dropAttribute) ? "into" : current.after ? "after":"before");}
     let scroll=current.row.parentElement;

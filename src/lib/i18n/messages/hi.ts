@@ -770,4 +770,13 @@ export const hi: Record<string, string> = {
   "Delete files you no longer need to free up space.": "जगह खाली करने के लिए वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",
   "Storage": "स्टोरेज",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "हटाई गई फ़ाइलों की जगह लगभग एक हफ़्ते बाद खाली होती है। ट्रैश या वर्ज़न इतिहास की फ़ाइलें गिनी जाती रहती हैं।",
+  "New": "नया",
+  "New page": "नया पेज",
+  "New page in {name}": "{name} में नया पेज",
+  "Whiteboards": "व्हाइटबोर्ड",
+  "New slide deck": "नया स्लाइड डेक",
+  "New whiteboard": "नया व्हाइटबोर्ड",
+  "All pages": "सभी पेज",
+  "All types": "सभी प्रकार",
+  "Page type": "पेज का प्रकार",
 };

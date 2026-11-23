@@ -3,6 +3,7 @@ import { getOrCreateUser } from "@/lib/auth";
 import { parseSearchTerms, searchChats, searchNotes } from "@/lib/search";
 import { MAX_SEARCH_QUERY_CHARS, SEARCH_PROJECT_ID_PATTERN, SEARCH_SCOPES, type SearchScope } from "@/types/search";
 import { msg, fmt } from "@/lib/i18n/translate";
+import { isPageKind } from "@/lib/page-kinds";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -23,11 +24,17 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: msg("Project id is not valid.") }, { status: 400, headers });
   }
 
+  // kind は Notes の種類の絞り込み（note / whiteboard / slides、Chats には効かない）。空は「絞り込まない」。
+  const kind = (params.get("kind") ?? "").trim() || undefined;
+  if (kind !== undefined && !isPageKind(kind)) {
+    return NextResponse.json({ error: msg("Unknown page kind.") }, { status: 400, headers });
+  }
+
   try {
     const user = await getOrCreateUser();
     const terms = parseSearchTerms(query);
     const [notes, chats] = await Promise.all([
-      scope === "chats" ? [] : searchNotes(user.id, terms, { rawQuery: query, signal: request.signal }),
+      scope === "chats" ? [] : searchNotes(user.id, terms, { rawQuery: query, signal: request.signal, kind }),
       scope === "notes" ? [] : searchChats(user.id, terms, { projectId }),
     ]);
     return NextResponse.json({ query, notes, chats }, { headers });

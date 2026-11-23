@@ -7,7 +7,7 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
-import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -290,18 +290,23 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }, []);
 
   // parentId を渡すと、そのページの中にサブページを作る。
-  async function create(copy = false, parentId: string | null = null) {
+  // copy: 開いているページの副本（保存の競合）。それ以外は kind の空のページを、parentId の中（サブページ）か groupId のプロジェクトの最上位に作る。
+  async function create(copy = false, parentId: string | null = null, kind: PageKind = "note", groupId: string | null = null) {
     if (actionBusy.current) return;
     actionBusy.current = true;
     setBusy(true);
     setError("");
     try {
       const current = activeId ? queues.current.get(activeId) : undefined;
-      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
+      // ホワイトボード・スライドは空の本体で作る（data を送らない）。
+      const content = copy && current ? { ...current.content, title: `${current.content.title.slice(0, 185)} (copy)` }
+        : isCanvasKind(kind) ? { kind, title: "Untitled", icon: null } : { title: "Untitled", icon: null, cover: null, coverPosition: null, blocks: [] };
       // 競合の副本は元のページと同じ親の下に作る（サブページなら同じ親、グループも親に従う）。
       const copyParent = copy && activeId ? pages.find((entry) => entry.id === activeId)?.parentId ?? null : null;
       const parent = copy ? copyParent : parentId;
-      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(parent ? { parentId: parent } : {}) });
+      // プロジェクトは親がないときだけ（サブページのプロジェクトは親に従う）。
+      const group = !copy && !parent ? groupId : null;
+      const { page } = await pageRequest("/api/pages", "POST", { ...content, ...(parent ? { parentId: parent } : {}), ...(group ? { groupId: group } : {}) });
       if (copy && current) {
         current.loadLatest(current.latest ?? current.page);
         upsertSummary(current.page);

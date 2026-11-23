@@ -770,4 +770,13 @@ export const de: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Lösche Dateien, die du nicht mehr brauchst, um Platz zu schaffen.",
   "Storage": "Speicherplatz",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Der Platz gelöschter Dateien wird etwa eine Woche später frei. Dateien im Papierkorb oder im Versionsverlauf zählen weiterhin.",
+  "New": "Neu",
+  "New page": "Neue Seite",
+  "New page in {name}": "Neue Seite in {name}",
+  "Whiteboards": "Whiteboards",
+  "New slide deck": "Neue Präsentation",
+  "New whiteboard": "Neues Whiteboard",
+  "All pages": "Alle Seiten",
+  "All types": "Alle Typen",
+  "Page type": "Seitentyp",
 };

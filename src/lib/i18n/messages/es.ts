@@ -770,4 +770,13 @@ export const es: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Elimina los archivos que ya no necesites para liberar espacio.",
   "Storage": "Almacenamiento",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "El espacio de los archivos que eliminas se libera aproximadamente una semana después. Los archivos de la papelera o del historial de versiones siguen contando.",
+  "New": "Nuevo",
+  "New page": "Nueva página",
+  "New page in {name}": "Nueva página en {name}",
+  "Whiteboards": "Pizarras",
+  "New slide deck": "Nueva presentación",
+  "New whiteboard": "Nueva pizarra",
+  "All pages": "Todas las páginas",
+  "All types": "Todos los tipos",
+  "Page type": "Tipo de página",
 };

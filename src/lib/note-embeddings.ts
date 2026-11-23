@@ -338,7 +338,8 @@ export function scheduleNoteEmbeddingBackfill(userId: string) {
 // ---- 意味検索 ----
 
 export type SemanticNoteHit = { id: string; kind: PageKind; title: string; icon: string | null; blockId: string | null; chunkText: string; score: number; updatedAt: Date };
-export type SemanticSearchOptions = { limit: number; minSimilarity: number; maxBackfillNotes?: number; timeoutMs?: number; signal?: AbortSignal };
+// kind を渡すとその種類のページだけを探す（検索の種類の絞り込み）。
+export type SemanticSearchOptions = { limit: number; minSimilarity: number; maxBackfillNotes?: number; timeoutMs?: number; signal?: AbortSignal; kind?: PageKind };
 
 type ChunkRow = { noteId: string; chunkIndex: number; blockId: string | null; noteVersion: number; vector: Uint8Array; kind: string; title: string; icon: string | null; updatedAt: Date | string };
 
@@ -379,6 +380,7 @@ async function runSemanticSearch(userId: string, query: string, config: Embeddin
     if (backfill.synced > 0) rows = await loadIndexedChunks(userId, config);
   }
 
+  if (options.kind) rows = rows.filter((row) => pageKindOf(row) === options.kind);
   // 検索できる通常のノートが 1 件も無ければ、埋め込み API を呼ばない（匿名検索での無駄な課金を防ぐ）。
   if (!rows.length) return { hits: [], hasMoreBackfill };
 

@@ -770,4 +770,13 @@ export const ptBR: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Exclua os arquivos de que você não precisa mais para liberar espaço.",
   "Storage": "Armazenamento",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "O espaço dos arquivos excluídos é liberado cerca de uma semana depois. Arquivos na lixeira ou no histórico de versões continuam contando.",
+  "New": "Novo",
+  "New page": "Nova página",
+  "New page in {name}": "Nova página em {name}",
+  "Whiteboards": "Quadros brancos",
+  "New slide deck": "Nova apresentação",
+  "New whiteboard": "Novo quadro branco",
+  "All pages": "Todas as páginas",
+  "All types": "Todos os tipos",
+  "Page type": "Tipo de página",
 };

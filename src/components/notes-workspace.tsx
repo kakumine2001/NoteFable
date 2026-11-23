@@ -1,21 +1,22 @@
 "use client";
 
 import type { Block } from "@blocknote/core";
-import { FileText, Plus, RefreshCw, Upload } from "lucide-react";
+import { FileText, RefreshCw, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
-import { NotesHome } from "@/components/notes-home";
+import { NewPageButtons, NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
 import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
 import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
-import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { creatablePageKinds, isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import type { NewPageRequest } from "@/lib/workspace-sections";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
 
@@ -77,7 +78,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   onModelChange?: (model: string) => void;
   onReasoningChange?: (reasoning: string) => void;
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  // 新しいページを作る（ホームと空状態の作成ボタン）。省略はプロジェクトなしのノート。
+  onCreate: (request?: NewPageRequest) => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   // Android アプリの WebView に載せる 1 ページだけの画面（/note-embed）。ノートを開く前に Notes のホームを出さない。
@@ -192,7 +194,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <h1 className="mt-4 text-[2.5rem] font-[750] leading-tight tracking-[-0.04em] text-[var(--nf-ink)]">{t("Workspace")}</h1>
       <p className="mt-2 text-[15px] leading-6 text-[var(--notion-muted)]">{t("Write notes with blocks — type {key} for headings, lists, to-dos and code.").split("{key}").flatMap((part, index) => index ? [<kbd key={index} className="notes-kbd">/</kbd>, part] : [part])}</p>
       <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5">
-        <button type="button" disabled={busy} className="notes-empty-new !mt-0" onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+        <NewPageButtons kinds={creatablePageKinds()} busy={busy} className="!mt-0" onCreate={(kind) => onCreate({ kind })} />
         {onImport && <>
           <input ref={emptyImportRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
             onChange={(event) => {

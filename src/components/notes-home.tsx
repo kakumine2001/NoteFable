@@ -12,9 +12,12 @@ import { useI18n } from "@/components/i18n-provider";
 import { greetingFor, recentPages, relativeTime } from "@/lib/notes-home-text";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { creatablePageKinds, PAGE_KIND_NEW_LABELS, PAGE_KIND_SECTION_LABELS, type PageKind } from "@/lib/page-kinds";
+import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/workspace-sections";
 
-// Notes のホーム: 作成済みのノートをグループごとに並べて、押したものを開く。ノートが 0 件のときは呼び出し側が空状態を出す。
-// パソコン幅（640px 以上）では、上にあいさつと「最近編集したノート」のカードを出す（スマホ幅は一覧だけ）。
+// Notes のホーム: 作成済みのページをプロジェクトごと（種類は混ぜる）と、プロジェクトなしは種類ごとの分区（サイドバーと同じ、#168）に並べて、
+// 押したものを開く。ページが 0 件のときは呼び出し側が空状態を出す。
+// パソコン幅（640px 以上）では、上にあいさつと「最近編集したページ」のカード（すべての種類、種類のアイコン付き）を出す（スマホ幅は一覧だけ）。
 export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
@@ -23,7 +26,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   groupError: string;
   busy: boolean;
   onOpen: (id: string) => void;
-  onCreate: () => void;
+  // 種類を指定して作る（省略はノート）。下の作成ボタンは作れる種類ごとに 1 つ。
+  onCreate: (request?: NewPageRequest) => void;
   onImport?: (files: File[]) => void;
   onWorkspaceChange: (view: WorkspaceView) => void;
   onMoveNote: (pageId: string, groupId: string | null) => Promise<unknown>;
@@ -37,22 +41,25 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   const [openedAt] = useState(() => Date.now());
   const recent = recentPages(pages);
   const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
-  const known = new Set(groups.map((group) => group.id));
-  // サブページの木。最上位のページをグループごとに並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
+  // サブページの木。最上位のページをプロジェクトごとと種類ごとの分区に並べ、子は開いた親の下に字下げして出す（開閉はサイドバーと共有）。
+  const kinds = creatablePageKinds();
   const children = childrenByParent(pages);
   const roots = rootPages(pages);
-  const loose = roots.filter((page) => !page.groupId || !known.has(page.groupId));
+  const sections = workspaceSections(pages, groups, kinds);
+  const sectionOf = new Map(sections.flatMap((section) => section.roots.map((page) => [page.id, section] as const)));
   const favorites = pages.filter((page) => page.favoritedAt).sort((a, b) => (a.favoritedAt ?? "").localeCompare(b.favoritedAt ?? ""));
   const [expanded, toggleExpanded] = useExpandedPages();
   const ids = new Set(pages.map((page) => page.id));
-  const siblingIds = (page: NotePageSummary) => (children.get(page.parentId && ids.has(page.parentId) ? page.parentId : null) ?? [])
+  // プロジェクトなしの最上位は、同じ分区の中だけで動かす。
+  const siblingIds = (page: NotePageSummary) => sectionOf.get(page.id)?.roots.map((item) => item.id) ?? (children.get(page.parentId && ids.has(page.parentId) ? page.parentId : null) ?? [])
     .filter((item) => item.groupId === page.groupId).map((item) => item.id);
   const item = (page: NotePageSummary) => {
     const kids = children.get(page.id) ?? [];
     // サイドバーと同じく、どのページにも開閉の矢印を出す（サブページがなければ「No pages inside」）。
     const open = !!expanded[page.id];
     return <li key={page.id} className="notes-home-node">
-      <div className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note">
+      <div className="notes-home-item vt-row" style={rowName(`hrow-${page.id}`)} data-order-id={page.id} data-order-scope="note"
+        data-page-kind={sectionKindOf(page, kinds)} data-drop-kind={sectionOf.get(page.id)?.kind}>
       <button type="button" className="notes-home-toggle" aria-expanded={open} onClick={() => toggleExpanded(page.id, !open)}
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} className="rtl-mirror" />}
@@ -87,8 +94,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
             </li>)}
           </ul>
         </section>
-        {/* プロジェクトから外すドロップ先（スマホ幅では下の見出しが同じ役目）。 */}
-        <h2 className="notes-home-section" data-note-group-drop=""><FileText size={15} aria-hidden="true" />{t("All notes")}</h2>
+        {/* プロジェクトから外すドロップ先（スマホ幅では下の見出しが同じ役目）。外したページは自分の種類の分区に戻る。 */}
+        <h2 className="notes-home-section" data-note-group-drop=""><FileText size={15} aria-hidden="true" />{kinds.length > 1 ? t("All pages") : t("All notes")}</h2>
       </div>
       <h1 className="notes-home-title" data-note-group-drop="">{t("Workspace")}</h1>
       {favorites.length > 0 && <section>
@@ -110,10 +117,16 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
           </section>
         );
       })}
-      {groups.length > 0 && loose.length > 0 && <h2 className="notes-home-group" data-note-group-drop="">{t("No project")}<span>{pages.filter((page) => !page.groupId || !known.has(page.groupId)).length}</span></h2>}
-      {loose.length > 0 && <ul className="notes-home-list">{loose.map(item)}</ul>}
+      {/* プロジェクトなしのページ。作れる種類がノートだけなら今までどおり「No project」（プロジェクトがあるときだけ見出しを出す）、
+          2 つ以上なら種類ごとの分区の見出し。見出しは同じ分区に並ぶページだけを受けるプロジェクトから外す放し先。 */}
+      {sections.map((section) => section.roots.length > 0 && <section key={section.kind}>
+        {kinds.length > 1
+          ? <h2 className="notes-home-group" data-note-group-drop="" data-drop-kind={section.kind}>{t(PAGE_KIND_SECTION_LABELS[section.kind])}<span>{section.count}</span></h2>
+          : groups.length > 0 && <h2 className="notes-home-group" data-note-group-drop="" data-drop-kind={section.kind}>{t("No project")}<span>{section.count}</span></h2>}
+        <ul className="notes-home-list">{section.roots.map(item)}</ul>
+      </section>)}
       <div className="notes-home-actions">
-        <button type="button" className="notes-empty-new" disabled={busy} onClick={onCreate}><Plus size={16} />{t("New note")}</button>
+        <NewPageButtons kinds={kinds} busy={busy} onCreate={(kind) => onCreate({ kind })} />
         <button type="button" className="notion-button notes-home-new-group" disabled={busy} onClick={() => setCreatingGroup(true)}><FolderPlus size={16} />{t("New project")}</button>
         {onImport && <>
           <input ref={importInputRef} type="file" multiple accept=".md,.markdown,.txt,text/markdown,text/plain" className="sr-only"
@@ -131,4 +144,14 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         onSubmit={async (name) => Boolean(await onCreateGroup(name))} />}
     </div>
   );
+}
+
+// ホームと空状態の作成ボタン（#168）。作れる種類がノートだけなら今までどおりの「New note」1 つ。2 つ以上なら種類ごとに 1 つずつ、
+// 種類のアイコン付きで並べる（最初のノートだけ濃い色）。
+export function NewPageButtons({ kinds, busy, onCreate, className = "" }: { kinds: readonly PageKind[]; busy: boolean; onCreate: (kind: PageKind) => void; className?: string }) {
+  const { t } = useI18n();
+  if (kinds.length < 2) return <button type="button" className={`notes-empty-new ${className}`} disabled={busy} onClick={() => onCreate("note")}><Plus size={16} />{t("New note")}</button>;
+  return <>{kinds.map((kind, index) => <button key={kind} type="button" className={index === 0 ? `notes-empty-new ${className}` : "notion-button notes-home-new-group"} disabled={busy} onClick={() => onCreate(kind)}>
+    <PageKindIcon kind={kind} size={16} aria-hidden="true" />{t(PAGE_KIND_NEW_LABELS[kind])}
+  </button>)}</>;
 }

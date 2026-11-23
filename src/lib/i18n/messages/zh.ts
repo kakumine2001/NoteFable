@@ -779,4 +779,13 @@ export const zh: Record<string, string> = {
   "Delete files you no longer need to free up space.": "删除不再需要的文件即可释放空间。",
   "Storage": "存储空间",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "删除的文件约一周后释放空间。回收站和版本历史中的文件仍计入用量。",
+  "New": "新建",
+  "New page": "新建页面",
+  "New page in {name}": "在 {name} 中新建页面",
+  "Whiteboards": "白板",
+  "New slide deck": "新幻灯片",
+  "New whiteboard": "新白板",
+  "All pages": "全部页面",
+  "All types": "全部类型",
+  "Page type": "页面类型",
 };

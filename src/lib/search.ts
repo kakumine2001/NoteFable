@@ -1,6 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { searchableBlocks } from "@/lib/canvas-document";
-import { pageKindOf } from "@/lib/page-kinds";
+import { pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { scheduleNoteEmbeddingBackfill, semanticSearchNotes, UI_SEMANTIC_THRESHOLD } from "@/lib/note-embeddings";
 import { blockText, leadingText, walkBlocks } from "@/lib/note-text";
@@ -100,7 +100,7 @@ type NoteRow = { id: string; kind: string; title: string; icon: string | null; u
 
 // ごみ箱のノート（deletedAt あり）は対象外。タイトルに一致した語が多いものを先に、次に更新が新しい順。
 // 一致した最大 15 件だけが blocks を持ち帰り、移動先のブロックと抜粋は JS で求める。
-async function searchNotesByKeyword(userId: string, needles: string[]): Promise<NoteSearchResult[]> {
+async function searchNotesByKeyword(userId: string, needles: string[], kind?: PageKind): Promise<NoteSearchResult[]> {
   const rows = await prisma.$queryRaw<NoteRow[]>(Prisma.sql`
     SELECT p."id", p."kind"::text AS "kind", p."title", p."icon", p."updatedAt", p."blocks", c."segments"
     FROM ${table("NotePage")} p
@@ -109,7 +109,7 @@ async function searchNotesByKeyword(userId: string, needles: string[]): Promise<
       SELECT string_agg(value, ' ') AS "body"
       FROM jsonb_array_elements_text(${noteBodyValues(table("NotePage"))} || ${canvasBodyValues()})
     ) t
-    WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
+    WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL ${kind ? Prisma.sql`AND p."kind"::text = ${kind}` : Prisma.empty}
       AND ${Prisma.join(needles.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}
     ORDER BY ${Prisma.join(needles.map((term) => Prisma.sql`(CASE WHEN ${termHit('p."title"', term)} THEN 1 ELSE 0 END)`), " + ")} DESC, p."updatedAt" DESC, p."id" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
@@ -134,6 +134,8 @@ export type NoteSearchOptions = {
   // 利用者が打った検索語そのまま。意味検索はこちらを使う（空白で割った語ではなく、文として埋め込む）。
   rawQuery?: string;
   signal?: AbortSignal;
+  // ページの種類で絞る（検索の種類の絞り込み）。省略はすべての種類。
+  kind?: PageKind;
 };
 
 // キーワードで見つかったノートを先に（順序・移動先・抜粋はそのまま）、枠が余っていれば意味が近いノートを後ろに足す。
@@ -141,11 +143,11 @@ export async function searchNotes(userId: string, terms: string[], options: Note
   const needles = prepareTerms(terms);
   const rawQuery = options.rawQuery?.trim() || needles.join(" ");
   if (!needles.length && !rawQuery) return [];
-  const keyword = needles.length ? await searchNotesByKeyword(userId, needles) : [];
+  const keyword = needles.length ? await searchNotesByKeyword(userId, needles, options.kind) : [];
   // キーワード一致だけで上限件数が埋まっていれば、意味検索（外部 API）を待たずにそのまま返す。
   if (keyword.length >= SEARCH_RESULT_LIMIT) return keyword;
   const semantic = await semanticSearchNotes(userId, rawQuery, {
-    limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 0, timeoutMs: 2500, signal: options.signal,
+    limit: SEARCH_RESULT_LIMIT, minSimilarity: UI_SEMANTIC_THRESHOLD, maxBackfillNotes: 0, timeoutMs: 2500, signal: options.signal, kind: options.kind,
   });
   if (semantic.hasMoreBackfill) scheduleNoteEmbeddingBackfill(userId);
   const seen = new Set(keyword.map((note) => note.id));
