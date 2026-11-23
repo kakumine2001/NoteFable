@@ -779,6 +779,7 @@ export const hi: Record<string, string> = {
   "This whiteboard is empty.": "यह व्हाइटबोर्ड खाली है।",
   "Exporting…": "निर्यात हो रहा है…",
   "Update the app to save exported files.": "निर्यात की गई फ़ाइलें सहेजने के लिए ऐप अपडेट करें।",
+  "This file is too large to save in the app.": "फ़ाइल ऐप में सहेजने के लिए बहुत बड़ी है।",
   "Could not export the whiteboard.": "व्हाइटबोर्ड निर्यात नहीं हो सका।",
   "Importing PDF…": "PDF आयात हो रहा है…",
   "Importing page {done} of {total}…": "{total} में से पेज {done} आयात हो रहा है…",

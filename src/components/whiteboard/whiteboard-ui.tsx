@@ -109,7 +109,7 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}
     {props.contentHidden && <button type="button" className="whiteboard-back-to-content" onClick={props.onFitToContent}>
-      <LocateFixed size={15} aria-hidden="true" /><WhiteboardText text="Back to content" />
+      <LocateFixed size={15} aria-hidden="true" /><WhiteboardText text={msg("Back to content")} />
     </button>}
     {props.busy && <div className="whiteboard-busy" role="status"><span className="whiteboard-spinner" aria-hidden="true" />{props.busy}</div>}
     {props.aiSlot && <div className="whiteboard-ai-slot">{props.aiSlot}</div>}

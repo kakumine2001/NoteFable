@@ -3,11 +3,14 @@ import { inNativeApp, nativeCanSaveFile, postToNative } from "@/lib/native-bridg
 // 書き出したファイル（ホワイトボードの PNG・SVG・PDF、スライドの PPTX など）を利用者に渡す。
 // - ブラウザー：<a download> でダウンロードする。
 // - アプリの中（/note-embed の WebView）：分けてアプリに送り（native-bridge.ts の fileStart / fileChunk / fileEnd）、アプリが保存先を選ばせる。
-// 結果：download（ブラウザーで落とした）・app（アプリに渡した）・unsupported（ファイルを受け取れない古いアプリ）・failed（送る途中で失敗）。
+// 結果：download（ブラウザーで落とした）・app（アプリに渡した）・unsupported（ファイルを受け取れない古いアプリ）・
+// tooLarge（アプリが受け取れる大きさを超える）・failed（送る途中で失敗）。
 
 // 1 回に送る元のバイト数（base64 にすると約 683 KiB の文字列）。
 export const FILE_CHUNK_BYTES = 512 * 1024;
-export type SaveExportResult = "download" | "app" | "unsupported" | "failed";
+// アプリが受け取るファイルの大きさの上限（Android・iOS の ExportFileAssembler の MAX_BYTES と同じ）。
+export const MAX_APP_FILE_BYTES = 64 * 1024 * 1024;
+export type SaveExportResult = "download" | "app" | "unsupported" | "tooLarge" | "failed";
 
 async function base64Of(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -49,6 +52,8 @@ export async function saveExportFile(blob: Blob, name: string): Promise<SaveExpo
   if (inNativeApp()) {
     // アプリの WebView は blob: のダウンロードを扱えないので、ファイルを受け取れない古いアプリでは何もしない（呼び出し側が理由を出す）。
     if (!nativeCanSaveFile()) return "unsupported";
+    // 上限を超えるものは、送ってから断られる前に止める（理由を出せるように）。
+    if (blob.size > MAX_APP_FILE_BYTES) return "tooLarge";
     return (await sendFileToNative(blob, name)) ? "app" : "failed";
   }
   downloadBlob(blob, name);

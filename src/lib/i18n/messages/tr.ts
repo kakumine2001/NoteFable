@@ -779,6 +779,7 @@ export const tr: Record<string, string> = {
   "This whiteboard is empty.": "Bu beyaz tahta boş.",
   "Exporting…": "Dışa aktarılıyor…",
   "Update the app to save exported files.": "Dışa aktarılan dosyaları kaydetmek için uygulamayı güncelle.",
+  "This file is too large to save in the app.": "Dosya uygulamada kaydedilemeyecek kadar büyük.",
   "Could not export the whiteboard.": "Beyaz tahta dışa aktarılamadı.",
   "Importing PDF…": "PDF içe aktarılıyor…",
   "Importing page {done} of {total}…": "Sayfa {done}/{total} içe aktarılıyor…",

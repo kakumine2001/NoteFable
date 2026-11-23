@@ -779,6 +779,7 @@ export const id: Record<string, string> = {
   "This whiteboard is empty.": "Papan tulis ini masih kosong.",
   "Exporting…": "Mengekspor…",
   "Update the app to save exported files.": "Perbarui aplikasi untuk menyimpan file hasil ekspor.",
+  "This file is too large to save in the app.": "File terlalu besar untuk disimpan di aplikasi.",
   "Could not export the whiteboard.": "Tidak dapat mengekspor papan tulis.",
   "Importing PDF…": "Mengimpor PDF…",
   "Importing page {done} of {total}…": "Mengimpor halaman {done} dari {total}…",

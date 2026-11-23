@@ -779,6 +779,7 @@ export const th: Record<string, string> = {
   "This whiteboard is empty.": "ไวท์บอร์ดนี้ยังว่างอยู่",
   "Exporting…": "กำลังส่งออก…",
   "Update the app to save exported files.": "อัปเดตแอปเพื่อบันทึกไฟล์ที่ส่งออก",
+  "This file is too large to save in the app.": "ไฟล์มีขนาดใหญ่เกินกว่าจะบันทึกในแอปได้",
   "Could not export the whiteboard.": "ส่งออกไวท์บอร์ดไม่ได้",
   "Importing PDF…": "กำลังนำเข้า PDF…",
   "Importing page {done} of {total}…": "กำลังนำเข้าหน้า {done} จาก {total}…",

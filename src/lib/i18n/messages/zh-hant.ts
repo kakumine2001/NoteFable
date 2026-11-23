@@ -938,6 +938,7 @@ export const zhHant: Record<string, string> = {
   "This chat has nothing to turn into a page yet.": "這段聊天還沒有可以整理成筆記的內容。",
   "This chat is long, so some of it was left out.": "對話較長，省略了一部分內容。",
   "This cover image is no longer available. Choose another cover.": "這張封面圖已不可用，請選擇其他封面。",
+  "This file is too large to save in the app.": "檔案太大，無法在應用中儲存。",
   "This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.": "不支援這種檔案型別。請使用圖片（JPEG、PNG、WebP、GIF）、PDF、文本、Office、CSV、JSON、ZIP、MP3、WAV 或 MP4。",
   "This icon image is no longer available. Choose another icon.": "此圖示圖片已不可用，請選擇其他圖示。",
   "This may take a moment": "可能需要一點時間",

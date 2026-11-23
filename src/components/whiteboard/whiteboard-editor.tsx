@@ -19,9 +19,10 @@ import { saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
-import { fitStoredWhiteboard, isEmbeddedDataUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { fitStoredWhiteboard, isStoredFileUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
 import { MAX_CANVAS_BYTES } from "@/lib/canvas-document";
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
+import { registerCanvasFlusher } from "@/lib/canvas-flush";
 import { WhiteboardChrome, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
 import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
@@ -86,6 +87,9 @@ export type WhiteboardEditorProps = {
 };
 
 type UploadState = { status: "uploading" } | { status: "done"; url: string; mimeType: string } | { status: "failed" };
+// アプリが編集画面を閉じる前の flush で、アップロード中の画像を待つ時間（アプリの flush の待ち時間 15 秒より短く）。
+const UPLOAD_FLUSH_WAIT_MS = 10_000;
+type SceneRefs = { elements: readonly ExcalidrawElement[]; appState: AppState; files: BinaryFiles };
 
 // ペン・蛍光ペン・図形のそれぞれで覚えておく見た目。
 type DrawMode = "pen" | "highlighter";
@@ -158,6 +162,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+  const editableRef = useRef(editable);
+  useEffect(() => { editableRef.current = editable; }, [editable]);
+  // Excalidraw が最後に知らせた scene（onChange の引数をそのまま持つだけ。閉じた後にも保存の形を作れるように）。
+  const latestScene = useRef<SceneRefs | null>(null);
+  // onChange へまだ渡していない変更があるか（描き終わり待ち・400 ms の間・画像のアップロードが終わった直後）。
+  const dirty = useRef(false);
+  // アップロード中の画像（アプリの flush で終わるのを待つ）。
+  const uploadTasks = useRef(new Set<Promise<void>>());
 
   const signatureOf = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const persisted = [appState.viewBackgroundColor, appState.gridModeEnabled, appState.gridSize, appState.gridStep, appState.objectsSnapModeEnabled];
@@ -173,18 +185,36 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     setContentHidden(x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height);
   }, [api]);
 
-  const serializeNow = useCallback(() => {
-    if (!api || api.isDestroyed) return;
+  // scene から保存の形を作って渡す。
+  const emit = useCallback(({ elements, files, appState }: SceneRefs) => {
     const { data: stored } = sceneToStored({
-      elements: api.getSceneElementsIncludingDeleted() as unknown as WhiteboardElement[],
-      files: api.getFiles() as unknown as Parameters<typeof sceneToStored>[0]["files"],
-      appState: api.getAppState(),
+      elements: elements as unknown as WhiteboardElement[],
+      files: files as unknown as Parameters<typeof sceneToStored>[0]["files"],
+      appState,
       uploaded: uploadedUrls.current,
     });
     // 上限（2 MB）に近いときだけ、手書きの線の点を間引いて収める（ふだんは点をそのまま残す）。
     const { data: fitted } = fitStoredWhiteboard(stored, Math.floor(MAX_CANVAS_BYTES.whiteboard * 0.95));
+    dirty.current = false;
     onChangeRef.current(fitted);
-  }, [api]);
+  }, []);
+
+  const serializeNow = useCallback(() => {
+    if (!api || api.isDestroyed) return;
+    emit({ elements: api.getSceneElementsIncludingDeleted(), files: api.getFiles(), appState: api.getAppState() });
+  }, [api, emit]);
+
+  // まだ渡していない変更を、待たずにすぐ渡す（閉じる時・画面が隠れる時・アプリの flush の前）。最後に知らせを受けた scene を使うので、
+  // Excalidraw が閉じた後でも動く。描いている途中の線も、その時点の形で入れる。
+  const flushPending = useCallback(() => {
+    const scene = latestScene.current;
+    if (!dirty.current || !scene) return;
+    clearTimeout(saveTimer.current);
+    dirty.current = false;
+    if (!editableRef.current) return;
+    lastSignature.current = signatureOf(scene.elements, scene.appState);
+    emit(scene);
+  }, [emit, signatureOf]);
 
   const scheduleSave = useCallback(() => {
     const tick = () => {
@@ -193,17 +223,45 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       // 描いている途中・動かしている途中は待つ（終わってから 1 回だけ保存の形を作る）。
       if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing || appState.isRotating) { saveTimer.current = setTimeout(tick, 400); return; }
       const signature = signatureOf(api.getSceneElementsIncludingDeleted(), appState);
-      if (signature === lastSignature.current) return;
+      if (signature === lastSignature.current) { dirty.current = false; return; }
       lastSignature.current = signature;
       setSceneVersion(signature);
       updateContentHidden();
       if (editable) serializeNow();
+      else dirty.current = false;
     };
     clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(tick, 400);
   }, [api, editable, serializeNow, signatureOf, updateContentHidden]);
 
-  useEffect(() => () => clearTimeout(saveTimer.current), []);
+  // 閉じる時（ページの切り替えなど）と画面が隠れる時は、待たずに渡す。保存キューの flush（use-note-pages の visibilitychange）より
+  // 先に渡すため、window の捕捉段階で受ける。
+  const flushRef = useRef(flushPending);
+  useEffect(() => { flushRef.current = flushPending; }, [flushPending]);
+  useEffect(() => {
+    const onVisibility = () => { if (document.visibilityState === "hidden") flushRef.current(); };
+    const onPageHide = () => flushRef.current();
+    window.addEventListener("visibilitychange", onVisibility, true);
+    window.addEventListener("pagehide", onPageHide, true);
+    return () => {
+      window.removeEventListener("visibilitychange", onVisibility, true);
+      window.removeEventListener("pagehide", onPageHide, true);
+      flushRef.current();
+      clearTimeout(saveTimer.current);
+    };
+  }, []);
+  // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
+  useEffect(() => registerCanvasFlusher(async () => {
+    flushRef.current();
+    if (!uploadTasks.current.size) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    await Promise.race([
+      Promise.allSettled([...uploadTasks.current]),
+      new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
+    ]);
+    clearTimeout(timer);
+    flushRef.current();
+  }), []);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {
@@ -220,23 +278,28 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const startUploads = useCallback((elements: readonly ExcalidrawElement[], files: BinaryFiles) => {
     const used = new Set(elements.filter((element) => !element.isDeleted && element.type === "image").map((element) => (element as { fileId?: string | null }).fileId).filter(Boolean));
     for (const [fileId, file] of Object.entries(files)) {
-      if (!used.has(fileId) || uploads.current.has(fileId) || !isEmbeddedDataUrl(file.dataURL)) continue;
+      // 自分の note-files の URL（保存済み・PDF の取り込み）でなければアップロードする。data: のほか、ほかの URL の画像
+      // （公開リンクのビューからコピーしたものなど）も、読めればここへ写す（読めなければ取り除く）。
+      if (!used.has(fileId) || uploads.current.has(fileId) || uploadedUrls.current.has(fileId) || isStoredFileUrl(file.dataURL)) continue;
       uploads.current.set(fileId, { status: "uploading" });
-      void uploadWhiteboardImage(file.dataURL, file.mimeType, fileId).then((result) => {
+      const task: Promise<void> = uploadWhiteboardImage(file.dataURL, file.mimeType, fileId).then((result) => {
         uploads.current.set(fileId, { status: "done", ...result });
         uploadedUrls.current.set(fileId, result);
-        // 保存し直す（signature の uploaded の数が変わる）。
+        // 保存し直す（signature の uploaded の数が変わる）。閉じた後に終わったときは、最後の scene ですぐ渡す。
         lastSignature.current = null;
-        scheduleSave();
+        dirty.current = true;
+        if (!api || api.isDestroyed) flushRef.current();
+        else scheduleSave();
       }).catch((error: unknown) => {
         // 容量の上限は NotesWorkspace の案内（storage-limit-client）が出す。ここは画像を取り除くだけ。
         if (!(error instanceof StorageLimitError)) setNotice({ text: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
         removeImagesOf(fileId);
         // 同じ画像（同じ fileId）をもう一度貼ったときに、改めてアップロードできるよう記録を消す。
         uploads.current.delete(fileId);
-      });
+      }).finally(() => { uploadTasks.current.delete(task); });
+      uploadTasks.current.add(task);
     }
-  }, [removeImagesOf, scheduleSave]);
+  }, [api, removeImagesOf, scheduleSave]);
 
   // ---- 画面の状態（自前のツールバー・パネルに出すもの）。変わった時だけ描き直す。 ----
   const uiKey = useRef("");
@@ -248,9 +311,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
 
   const handleChange = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
+    latestScene.current = { elements, appState, files };
     readUi(elements, appState);
     if (editable) startUploads(elements, files);
-    if (signatureOf(elements, appState) !== lastSignature.current) scheduleSave();
+    if (signatureOf(elements, appState) !== lastSignature.current) { dirty.current = true; scheduleSave(); }
   }, [editable, readUi, scheduleSave, signatureOf, startUploads]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
@@ -459,6 +523,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       const file = await exportWhiteboard(api, format, props.title);
       const result = await saveExportFile(file.blob, file.fileName);
       if (result === "unsupported") setNotice({ text: msg("Update the app to save exported files.") });
+      else if (result === "tooLarge") setNotice({ text: msg("This file is too large to save in the app.") });
       else if (result === "failed") setNotice({ text: msg("Could not export the whiteboard.") });
     } catch (error) {
       setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not export the whiteboard.") });
@@ -506,7 +571,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     try {
       const result = await importPdfPages(file, { onProgress: (done, total) => setBusy(t("Importing page {done} of {total}…", { done: Math.min(done + 1, total), total })) });
       insertPdf(result);
-      if (result.total > MAX_PDF_IMPORT_PAGES) setNotice({ text: msg("Only the first {max} pages were imported."), vars: { max: MAX_PDF_IMPORT_PAGES } });
+      // 途中のページで失敗した（容量の上限・通信など）ときは、そこまでのページだけが入っている。容量の上限は NotesWorkspace の案内も出る。
+      if (result.failed !== undefined || result.total > MAX_PDF_IMPORT_PAGES) setNotice({ text: msg("Only the first {max} pages were imported."), vars: { max: result.pages.length } });
     } catch (error) {
       if (!(error instanceof StorageLimitError)) setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not read this PDF.") });
     } finally { setBusy(null); }

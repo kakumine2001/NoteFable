@@ -48,16 +48,26 @@ function sceneData(api: ExcalidrawImperativeAPI, elements: readonly NonDeletedEx
   return { elements, files, appState: { viewBackgroundColor: appState.viewBackgroundColor } } as Parameters<typeof exportScene>[0]["data"];
 }
 
+// 可逆（Flate）が大きくなるページ（取り込んだ PDF・写真など）は、半分より小さくなるなら JPEG にする（線と文字だけのページは Flate のまま）。
+const FLATE_CHECK_BYTES = 2 * 1024 * 1024;
+
+async function jpegOf(canvas: HTMLCanvasElement): Promise<PdfImage> {
+  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error(msg("Could not export the whiteboard."))), "image/jpeg", 0.92));
+  return { kind: "jpeg", data: new Uint8Array(await blob.arrayBuffer()), pixelWidth: canvas.width, pixelHeight: canvas.height };
+}
+
 async function canvasToPdfImage(canvas: HTMLCanvasElement): Promise<PdfImage> {
   const context = canvas.getContext("2d");
   if (context && typeof CompressionStream !== "undefined") {
     const rgb = rgbaToRgb(context.getImageData(0, 0, canvas.width, canvas.height).data);
     const stream = new Blob([rgb as BlobPart]).stream().pipeThrough(new CompressionStream("deflate"));
     const data = new Uint8Array(await new Response(stream).arrayBuffer());
-    return { kind: "flate", data, pixelWidth: canvas.width, pixelHeight: canvas.height };
+    const flate: PdfImage = { kind: "flate", data, pixelWidth: canvas.width, pixelHeight: canvas.height };
+    if (data.byteLength <= FLATE_CHECK_BYTES) return flate;
+    const jpeg = await jpegOf(canvas);
+    return jpeg.data.byteLength * 2 < data.byteLength ? jpeg : flate;
   }
-  const blob = await new Promise<Blob>((resolve, reject) => canvas.toBlob((result) => result ? resolve(result) : reject(new Error(msg("Could not export the whiteboard."))), "image/jpeg", 0.92));
-  return { kind: "jpeg", data: new Uint8Array(await blob.arrayBuffer()), pixelWidth: canvas.width, pixelHeight: canvas.height };
+  return jpegOf(canvas);
 }
 
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {

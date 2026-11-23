@@ -779,6 +779,7 @@ export const ko: Record<string, string> = {
   "This whiteboard is empty.": "이 화이트보드는 비어 있습니다.",
   "Exporting…": "내보내는 중…",
   "Update the app to save exported files.": "내보낸 파일을 저장하려면 앱을 업데이트하세요.",
+  "This file is too large to save in the app.": "파일이 너무 커서 앱에서 저장할 수 없습니다.",
   "Could not export the whiteboard.": "화이트보드를 내보내지 못했습니다.",
   "Importing PDF…": "PDF를 가져오는 중…",
   "Importing page {done} of {total}…": "{total}페이지 중 {done}페이지를 가져오는 중…",

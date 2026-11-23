@@ -780,6 +780,7 @@ export const ja: Record<string, string> = {
   "This whiteboard is empty.": "このホワイトボードはまだ空です。",
   "Exporting…": "書き出しています…",
   "Update the app to save exported files.": "書き出したファイルを保存するには、アプリを更新してください。",
+  "This file is too large to save in the app.": "ファイルが大きすぎるため、アプリで保存できません。",
   "Could not export the whiteboard.": "ホワイトボードを書き出せませんでした。",
   "Importing PDF…": "PDF を取り込んでいます…",
   "Importing page {done} of {total}…": "{total} ページ中 {done} ページ目を取り込んでいます…",

@@ -14,7 +14,8 @@ const MAX_SIDE = 2000;
 const MAX_PIXELS = 3_500_000;
 
 export type ImportedPdfPage = { url: string; mimeType: string; width: number; height: number; page: number };
-export type PdfImportResult = { pages: ImportedPdfPage[]; total: number; name: string };
+// failed：途中のページで失敗したときの理由（そこまでのページは pages に入っている。最初のページで失敗したときは投げる）。
+export type PdfImportResult = { pages: ImportedPdfPage[]; total: number; name: string; failed?: unknown };
 
 export function isPdfFile(file: File) {
   return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
@@ -62,6 +63,10 @@ export async function importPdfPages(file: File, { onProgress, signal }: { onPro
         if (blob.size > MAX_NOTE_FILE_BYTES) throw new Error(msg("A page of this PDF is too large to import."));
         const uploaded = await uploadImageBlob(blob, `${name}-${number}`);
         pages.push({ ...uploaded, width: base.width, height: base.height, page: number });
+      } catch (error) {
+        // 途中のページで失敗したら（容量の上限・通信など）、アップロードの済んだページは捨てずに取り込む。
+        if (!pages.length) throw error;
+        return { pages, total: document.numPages, name, failed: error };
       } finally {
         page.cleanup();
         canvas.width = 0;

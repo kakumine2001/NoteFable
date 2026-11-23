@@ -779,6 +779,7 @@ export const ru: Record<string, string> = {
   "This whiteboard is empty.": "Эта доска пуста.",
   "Exporting…": "Экспорт…",
   "Update the app to save exported files.": "Обновите приложение, чтобы сохранять экспортированные файлы.",
+  "This file is too large to save in the app.": "Файл слишком большой, чтобы сохранить его в приложении.",
   "Could not export the whiteboard.": "Не удалось экспортировать доску.",
   "Importing PDF…": "Импорт PDF…",
   "Importing page {done} of {total}…": "Импорт страницы {done} из {total}…",

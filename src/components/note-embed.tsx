@@ -13,6 +13,7 @@ import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
 import { revealNoteBlock } from "@/lib/search-reveal";
 import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 
 const noop = () => {};
 
@@ -76,7 +77,11 @@ export function NoteEmbed() {
   // pageUpdated（アプリのチャットで編集案を適用した）は既定のまま notefable:page-updated を出し、useNotePages が /app と同じく扱う。
   useEffect(() => installEmbedApi(createEmbedApi({
     language: (next) => setPreference(next),
-    flush: () => activeRef.current?.flush() ?? Promise.resolve(true),
+    // ホワイトボードなどのエディターがまだ渡していない変更（描き終わり待ち・画像のアップロード中）を先に渡してもらってから送る。
+    flush: async () => {
+      await flushCanvasEditors();
+      return activeRef.current?.flush() ?? true;
+    },
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
     draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
     openHistory: () => { if (activeRef.current) setHistoryOpen(true); },

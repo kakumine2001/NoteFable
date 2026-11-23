@@ -779,6 +779,7 @@ export const de: Record<string, string> = {
   "This whiteboard is empty.": "Dieses Whiteboard ist leer.",
   "Exporting…": "Wird exportiert…",
   "Update the app to save exported files.": "Aktualisiere die App, um exportierte Dateien zu speichern.",
+  "This file is too large to save in the app.": "Die Datei ist zu groß, um sie in der App zu speichern.",
   "Could not export the whiteboard.": "Das Whiteboard konnte nicht exportiert werden.",
   "Importing PDF…": "PDF wird importiert…",
   "Importing page {done} of {total}…": "Seite {done} von {total} wird importiert…",

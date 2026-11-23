@@ -779,6 +779,7 @@ export const ptBR: Record<string, string> = {
   "This whiteboard is empty.": "Este quadro está vazio.",
   "Exporting…": "Exportando…",
   "Update the app to save exported files.": "Atualize o app para salvar os arquivos exportados.",
+  "This file is too large to save in the app.": "O arquivo é grande demais para ser salvo no app.",
   "Could not export the whiteboard.": "Não foi possível exportar o quadro.",
   "Importing PDF…": "Importando PDF…",
   "Importing page {done} of {total}…": "Importando página {done} de {total}…",

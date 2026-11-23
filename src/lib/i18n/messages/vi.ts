@@ -779,6 +779,7 @@ export const vi: Record<string, string> = {
   "This whiteboard is empty.": "Bảng trắng này đang trống.",
   "Exporting…": "Đang xuất…",
   "Update the app to save exported files.": "Hãy cập nhật ứng dụng để lưu tệp đã xuất.",
+  "This file is too large to save in the app.": "Tệp quá lớn để lưu trong ứng dụng.",
   "Could not export the whiteboard.": "Không thể xuất bảng trắng.",
   "Importing PDF…": "Đang nhập PDF…",
   "Importing page {done} of {total}…": "Đang nhập trang {done}/{total}…",

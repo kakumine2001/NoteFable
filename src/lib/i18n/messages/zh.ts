@@ -788,6 +788,7 @@ export const zh: Record<string, string> = {
   "This whiteboard is empty.": "这个白板还是空的。",
   "Exporting…": "正在导出…",
   "Update the app to save exported files.": "请更新应用后再保存导出的文件。",
+  "This file is too large to save in the app.": "文件太大，无法在应用中保存。",
   "Could not export the whiteboard.": "无法导出白板。",
   "Importing PDF…": "正在导入 PDF…",
   "Importing page {done} of {total}…": "正在导入第 {done} 页，共 {total} 页…",

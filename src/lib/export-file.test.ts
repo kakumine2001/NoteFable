@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { FILE_CHUNK_BYTES, sendFileToNative } from "@/lib/export-file";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FILE_CHUNK_BYTES, MAX_APP_FILE_BYTES, saveExportFile, sendFileToNative } from "@/lib/export-file";
 import type { NativeMessage } from "@/lib/native-bridge";
 
 describe("sendFileToNative", () => {
@@ -28,5 +28,34 @@ describe("sendFileToNative", () => {
 
   it("does not start when the app is gone", async () => {
     expect(await sendFileToNative(new Blob(["x"]), "a.svg", () => false)).toBe(false);
+  });
+});
+
+describe("saveExportFile in the app", () => {
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function stubApp(canSaveFile: boolean) {
+    const messages: string[] = [];
+    vi.stubGlobal("window", { NoteFableNative: { postMessage: (json: string) => { messages.push(JSON.parse(json).type); }, canSaveFile: () => canSaveFile } });
+    return messages;
+  }
+
+  it("hands the file to an app that can save files", async () => {
+    const messages = stubApp(true);
+    expect(await saveExportFile(new Blob(["x"], { type: "image/png" }), "a.png")).toBe("app");
+    expect(messages).toEqual(["fileStart", "fileChunk", "fileEnd"]);
+  });
+
+  it("does not send to an old app", async () => {
+    const messages = stubApp(false);
+    expect(await saveExportFile(new Blob(["x"], { type: "image/png" }), "a.png")).toBe("unsupported");
+    expect(messages).toEqual([]);
+  });
+
+  it("stops before sending a file the app would refuse", async () => {
+    const messages = stubApp(true);
+    const big = { size: MAX_APP_FILE_BYTES + 1, type: "application/pdf" } as Blob;
+    expect(await saveExportFile(big, "a.pdf")).toBe("tooLarge");
+    expect(messages).toEqual([]);
   });
 });

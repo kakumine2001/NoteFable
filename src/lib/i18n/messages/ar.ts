@@ -779,6 +779,7 @@ export const ar: Record<string, string> = {
   "This whiteboard is empty.": "هذه اللوحة البيضاء فارغة.",
   "Exporting…": "جارٍ التصدير…",
   "Update the app to save exported files.": "حدِّث التطبيق لحفظ الملفات المُصدَّرة.",
+  "This file is too large to save in the app.": "الملف كبير جدًا بحيث لا يمكن حفظه في التطبيق.",
   "Could not export the whiteboard.": "تعذّر تصدير اللوحة البيضاء.",
   "Importing PDF…": "جارٍ استيراد PDF…",
   "Importing page {done} of {total}…": "جارٍ استيراد الصفحة {done} من {total}…",
