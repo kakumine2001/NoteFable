@@ -1,26 +1,118 @@
+import Observation
 import SwiftUI
 import UIKit
 import WebKit
 
 // 笔记编辑页里的网页编辑器（Android ui/NoteEditor.kt 的 WebView 部分）：WKWebView 打开 `<baseUrl>/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`
 // （从检索结果打开时第一次加载还带 `&reveal=<命中的块 / 元素>`；已经开着的页面改用 `notefableEmbed.reveal(id)` 就地定位），
-// 白板也是同一个页面（网页的白板编辑器）。
-// 和原生之间走 JS 桥（Core 的 NoteEmbedBridge / NoteEmbedScripts，约定见 src/lib/native-bridge.ts）。规则见 docs/architecture/android-native.md 的“笔记”：
+// 白板、幻灯片也是同一个页面。
+// 和原生之间走 JS 桥（Core 的 NoteEmbedBridge / NoteEmbedScripts，约定见 src/lib/native-bridge.ts）。规则见 docs/architecture/ios-native.md：
+// - 整个工作区复用单个常驻 WKWebView（[NoteEditorPool]）：首次打开笔记时按需创建，切页优先走 `notefableEmbed.openPage` 就地切换
+//   （保留网页壳和最多 8 篇缓存），旧版服务端或尚未挂好时自动回退到 Cookie 同步 + 整页加载；离开笔记时调 `close()` 卸载编辑器 DOM。
+// - 换身份、退到后台（停留在列表 / 聊天时）、收到内存警告（停留在列表 / 聊天时）、空闲超过 120 秒、渲染进程崩溃（停留在后台时）
+//   或根视图销毁时彻底释放 WKWebView。
 // - 加载前先清空 WebView 的 Cookie，再把 App 的 Cookie 拷进去：身份和 API 相同，退出登录后网页也不会沿用旧会话。
 // - 只有本站的 /note-embed 在 WebView 里打开；本站的聊天链接在 App 里打开；笔记文件由 App 带着 Cookie 下载；其它链接交给系统浏览器。
-// - 网页进程被系统杀掉或崩溃时重新加载，没保存的编辑由网页的本地草稿恢复。
 // - 图片 / 文件块的“上传”（<input type="file">）WKWebView 自己会弹系统的选择器，不用另接。
 // - 外观：把 App 现在显示的外观（light / dark，已经按“跟随系统”算好）经地址的 theme=、`NoteFableNative.theme()` 交给网页，
-//   开着的时候变了再用 `notefableEmbed.theme(value)` 推一次。不传 system：网页自己再去问系统的话，结果要看 WKWebView 的
-//   prefers-color-scheme 跟不跟窗口的外观覆盖，传算好的值就和 App 的界面一定一致。WebView 自己不画底（透明），
-//   网页画出来之前露出的是编辑页的底色，深色下不会先白一下。
+//   开着的时候变了再用 `notefableEmbed.theme(value)` 推一次。WebView 自己不画底（透明），深色下不会先白一下。
 
-/// 网页编辑器。按 `OpenNote.editor` 建一个（外面用 `.id(open.editor)`）：冲突后“另存为新笔记”换到副本时不重新加载。
-/// `appIcon` / `language` / `theme` 是设置里现在的图标、界面语言和 App 显示着的外观（light / dark），开着的时候变了就推给网页。
-/// `edgeBack`：从屏幕边缘往里滑返回。白板页关掉（`PageKind.capturesEdgeSwipes`：画笔从边缘开始画也不会离开），类型变了（ready）跟着变。
+/// 整个笔记工作区共用的常驻 WKWebView 池（Android 的 `NoteEmbedHost`）：
+/// 首次打开笔记时按需创建，离开笔记时卸载编辑器 DOM 并保留轻量缓存，按身份变化 / 后台 / 内存警告 / 120 秒空闲超时释放。
+@MainActor
+@Observable
+final class NoteEditorPool {
+    private static let idleTimeout: Duration = .seconds(120)
+
+    @ObservationIgnored private(set) var controller: NoteEditorController?
+    @ObservationIgnored private var idleTask: Task<Void, Never>?
+    @ObservationIgnored private var mountToken = 0
+    @ObservationIgnored private weak var boundApp: AppEnvironment?
+
+    init() {}
+
+    /// 绑定到 AppEnvironment，确保停在列表或聊天里时也能收到聊天提案更新和回收站清理事件。
+    func bind(app: AppEnvironment) {
+        if boundApp === app { return }
+        boundApp = app
+        app.warmPageUpdated = { [weak self] pageJson in
+            self?.pageUpdated(pageJson)
+        }
+        app.notes.notifyPagesTrashed = { [weak self] ids in
+            self?.pageTrashed(ids)
+        }
+    }
+
+    func obtainController(app: AppEnvironment, router: AppRouter) -> (controller: NoteEditorController, token: Int) {
+        bind(app: app)
+        idleTask?.cancel()
+        idleTask = nil
+        mountToken += 1
+        let active: NoteEditorController
+        if let existing = controller {
+            existing.updateRouter(router)
+            active = existing
+        } else {
+            let created = NoteEditorController(app: app, router: router) { [weak self] in
+                self?.destroy()
+            }
+            controller = created
+            active = created
+        }
+        return (active, mountToken)
+    }
+
+    /// 离开编辑页但保留热缓存：卸载编辑器 DOM，开始 120 秒空闲倒计时，到期未重开则销毁。
+    func park(ifTokenMatches token: Int) {
+        guard token == mountToken else { return }
+        idleTask?.cancel()
+        idleTask = nil
+        guard let controller else { return }
+        controller.park()
+        if controller.isLoaded {
+            idleTask = Task { @MainActor [weak self] in
+                do {
+                    try await Task.sleep(for: Self.idleTimeout)
+                } catch {
+                    return
+                }
+                guard let self, self.controller?.isParked == true else { return }
+                self.destroy()
+            }
+        } else {
+            destroy()
+        }
+    }
+
+    /// 退到后台或收到内存警告时，如果当前没有打开笔记（只留着热缓存），立刻释放 WKWebView。
+    func destroyIfParked() {
+        if controller?.isParked == true { destroy() }
+    }
+
+    /// 彻底销毁常驻 WKWebView（换身份、空闲超时、内存压力、后台释放、根视图销毁）。
+    func destroy() {
+        idleTask?.cancel()
+        idleTask = nil
+        mountToken += 1
+        controller?.teardown()
+        controller = nil
+    }
+
+    func pageUpdated(_ pageJson: String) {
+        if let controller, controller.isLoaded { controller.pageUpdated(pageJson) }
+    }
+
+    func pageTrashed(_ ids: [String]) {
+        if let controller, controller.isLoaded { controller.pageTrashed(ids) }
+    }
+}
+
+/// 网页编辑器。复用 [NoteEditorPool] 里的单个 WKWebView：直接切页时走 `notefableEmbed.openPage` 不再重建视图；
+/// 冲突后“另存为新笔记”只改 `open.id` 不改 `open.editor`，也不会重新切页。
 @MainActor
 struct NoteEditorWebView: UIViewRepresentable {
-    let editor: String
+    let open: OpenNote
+    let pool: NoteEditorPool
     let app: AppEnvironment
     let router: AppRouter
     let appIcon: String?
@@ -28,25 +120,37 @@ struct NoteEditorWebView: UIViewRepresentable {
     let theme: String
     let edgeBack: Bool
 
-    func makeCoordinator() -> NoteEditorController {
-        NoteEditorController(editor: editor, app: app, router: router)
+    final class Coordinator {
+        let pool: NoteEditorPool
+        var mountToken = 0
+
+        init(pool: NoteEditorPool) {
+            self.pool = pool
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(pool: pool)
     }
 
     func makeUIView(context: Context) -> WKWebView {
-        context.coordinator.makeWebView(appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
+        let (controller, token) = pool.obtainController(app: app, router: router)
+        context.coordinator.mountToken = token
+        return controller.attachView(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
     }
 
     func updateUIView(_ webView: WKWebView, context: Context) {
-        context.coordinator.sync(appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
+        pool.controller?.sync(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
     }
 
-    static func dismantleUIView(_ webView: WKWebView, coordinator: NoteEditorController) {
-        coordinator.teardown()
+    static func dismantleUIView(_ webView: WKWebView, coordinator: Coordinator) {
+        coordinator.pool.park(ifTokenMatches: coordinator.mountToken)
+        webView.removeFromSuperview()
     }
 }
 
-/// 一个编辑器的 WKWebView 和它的桥。出现时建 WebView、`bridge.attach` 并登记到 `AppEnvironment.registerEditor`
-/// （离开笔记前经它保存）；离开界面时 `release` 并注销。
+/// 常驻编辑器的 WKWebView 和它的桥。首次打开笔记时建 WebView、`bridge.attach`；切页时复用并登记到 `AppEnvironment.registerEditor`；
+/// 离开编辑页时 `park()` 卸载编辑器 DOM 并注销活跃桥；释放池时 `teardown()` 彻底销毁。
 @MainActor
 final class NoteEditorController: NSObject, NoteEditorBridge {
     /// `window.webkit.messageHandlers.<名字>`：网页的 `window.NoteFableNative.postMessage` 经它转过来。
@@ -58,44 +162,77 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     /// 所有编辑器的换 Cookie 排成一条链，一次只换一个：旧的加载既不会清掉新加载刚放进去的 Cookie，也不会把上一个身份的 Cookie 放回去。
     private static var cookieChain: Task<Void, Never>?
 
-    private let editor: String
     private let app: AppEnvironment
-    private let router: AppRouter
-    private let bridge: NoteEmbedBridge
+    private var router: AppRouter
+    private let onTerminatedWhileParked: @MainActor () -> Void
+    private var bridge: NoteEmbedBridge!
 
     private var webView: WKWebView?
+    /// 当前活跃的编辑器标识（`OpenNote.editor`）；停留在列表 / 聊天里只保留热缓存时为 nil。
+    private(set) var activeEditor: String?
+    /// 当前活跃笔记的页面 id（用于渲染进程崩溃后重载）。
+    private var currentPageId: String?
+    /// 正在切往的目标页面 id：在该页的 ready 到达前，丢弃旧页残留的晚到消息，避免串到新页上。
+    private var awaitingPageId: String?
+    /// 是否已经为当前身份加载过 `/note-embed`（加载过后切页优先走 `openPage`）。
+    private(set) var isLoaded = false
+    var isParked: Bool { activeEditor == nil }
+
     /// 每开始一次加载（或销毁）加一：等 Cookie 期间又开始了新的加载时，旧的不再继续。
     private var loadRun = 0
+    /// 每次切换或停靠加一：过滤掉异步 `openPage` 返回前的旧回调。
+    private var showEpoch = 0
+    private var openTask: Task<Void, Never>?
+    /// 渲染进程崩溃的那个编辑器：重开同一篇时不再重复触发 `reveal`。
+    private var crashedEditor: String?
     private var pushedIcon: String?
     private var pushedLanguage = ""
     /// 交给网页的外观（light / dark）；重新加载时地址和 `NoteFableNative.theme()` 用它。
     private var pushedTheme = ""
     private var edgePan: UIScreenEdgePanGestureRecognizer?
-    /// 检索结果的定位（`OpenNote.reveal`）还没用过：只在这个编辑器第一次加载时带上，网页进程崩溃后重新加载不再跳过去。
-    private var revealPending = true
-    /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：离开编辑页时关掉，网页不会一直等着。
+    /// 正在显示的网页提示框（alert / confirm / prompt）和按“取消”回答它的办法：切页或离开编辑页时关掉，网页不会一直等着。
     private var openDialog: (alert: UIAlertController, cancel: () -> Void)?
 
-    init(editor: String, app: AppEnvironment, router: AppRouter) {
-        self.editor = editor
+    init(app: AppEnvironment, router: AppRouter, onTerminatedWhileParked: @escaping @MainActor () -> Void) {
         self.app = app
         self.router = router
-        let notes = app.notes
-        // 消息按编辑器转发，不按页面 id：换到副本后由 ViewModel 跟过去。
-        self.bridge = NoteEmbedBridge(onMessage: { message in
-            notes.onEditorMessage(editor, message)
-        })
+        self.onTerminatedWhileParked = onTerminatedWhileParked
         super.init()
+        // 消息按当前活跃编辑器转发，不按页面 id：换到副本后由 ViewModel 跟过去。
+        self.bridge = NoteEmbedBridge(onMessage: { [weak self] message in
+            guard let self else { return }
+            guard let editor = self.activeEditor else {
+                // 首次 HTML 还没加载完用户就离开了笔记：立刻让网页卸载编辑器 DOM，不留孤立实例。
+                if case .ready = message { self.bridge.close() }
+                return
+            }
+            if let expected = self.awaitingPageId {
+                switch message {
+                case .ready(let id, _, _, _):
+                    if id != expected { return }
+                    self.awaitingPageId = nil
+                case .missing:
+                    self.awaitingPageId = nil
+                default:
+                    return
+                }
+            }
+            self.app.notes.onEditorMessage(editor, message)
+        })
     }
 
-    // MARK: - 建立和销毁
+    func updateRouter(_ router: AppRouter) {
+        self.router = router
+    }
 
-    func makeWebView(appIcon: String?, language: String, theme: String, edgeBack: Bool) -> WKWebView {
-        pushedIcon = appIcon
-        pushedLanguage = language
-        pushedTheme = theme
-        // 网页读好（ready）时桥会再推一次。
-        bridge.pushTheme(theme)
+    // MARK: - 建立、切页、停靠和销毁
+
+    func attachView(open: OpenNote, appIcon: String?, language: String, theme: String, edgeBack: Bool) -> WKWebView {
+        if let existing = webView {
+            existing.removeFromSuperview()
+            show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
+            return existing
+        }
 
         let configuration = WKWebViewConfiguration()
         configuration.websiteDataStore = Self.dataStore
@@ -132,14 +269,19 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
 
         self.webView = webView
         bridge.attach(self)
-        app.registerEditor(bridge)
-        loadPage()
+        show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
         return webView
     }
 
     /// 设置里换了图标 / 界面语言 / 外观（或跟随系统时系统切了深浅）：推给网页（就地换，不重新加载笔记）。
     /// 页面类型变了（网页的 ready 改正了检索结果带来的类型）：边缘返回跟着开关。
-    func sync(appIcon: String?, language: String, theme: String, edgeBack: Bool) {
+    /// 直接从一篇笔记切到另一篇时（`open.editor` 变化）：就地切换页面，不重建 WKWebView。
+    func sync(open: OpenNote, appIcon: String?, language: String, theme: String, edgeBack: Bool) {
+        if open.editor != activeEditor {
+            show(open: open, appIcon: appIcon, language: language, theme: theme, edgeBack: edgeBack)
+            return
+        }
+        currentPageId = open.id
         if let edgePan, edgePan.isEnabled != edgeBack { edgePan.isEnabled = edgeBack }
         if theme != pushedTheme {
             pushedTheme = theme
@@ -157,16 +299,76 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         }
     }
 
-    /// 离开编辑页：等着网页回答的保存都算失败，注销桥，停掉网页。
-    func teardown() {
-        loadRun += 1
-        if let dialog = openDialog {
-            openDialog = nil
-            if dialog.alert.presentingViewController != nil { dialog.alert.dismiss(animated: false) }
-            dialog.cancel()
+    /// 在常驻 WKWebView 里打开或切到 `open`：已加载过同一身份的 `/note-embed` 时优先走 `openPage`，失败再回退整页加载。
+    private func show(open: OpenNote, appIcon: String?, language: String, theme: String, edgeBack: Bool) {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        let epoch = showEpoch
+        dismissOpenDialog()
+
+        if crashedEditor != open.editor { crashedEditor = nil }
+        let useReveal = crashedEditor == open.editor ? nil : open.reveal
+
+        activeEditor = open.editor
+        currentPageId = open.id
+        awaitingPageId = open.id
+        pushedIcon = appIcon
+        pushedLanguage = language
+        pushedTheme = theme
+        edgePan?.isEnabled = edgeBack
+        edgePan?.edges = app.language.isRightToLeft ? .right : .left
+        bridge.pushTheme(theme)
+        app.registerEditor(bridge)
+
+        if isLoaded, webView != nil {
+            bridge.pushLanguage(language)
+            bridge.pushAppIcon(appIcon)
+            let chat = app.chat.state
+            let model = chat.selectedModel?.id
+            let reasoning = chat.selectedReasoning
+            openTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                let handled = await self.bridge.openPage(id: open.id, reveal: useReveal, model: model, reasoning: reasoning)
+                guard !Task.isCancelled, self.showEpoch == epoch, self.activeEditor == open.editor else { return }
+                if !handled {
+                    // 旧版服务端不支持 openPage：用 replace 替换当前历史项，避免上一篇笔记留在 backForwardList 里。
+                    self.loadPage(pageId: open.id, reveal: useReveal, replaceHistory: true)
+                }
+            }
+        } else {
+            loadPage(pageId: open.id, reveal: useReveal)
         }
+    }
+
+    /// 离开编辑页但保留热缓存：卸载网页编辑器 DOM、注销当前活跃桥，不销毁 WKWebView。
+    func park() {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        loadRun += 1
+        dismissOpenDialog()
+        activeEditor = nil
+        currentPageId = nil
+        awaitingPageId = nil
+        if app.editorBridge === bridge { app.registerEditor(nil) }
+        if isLoaded, webView != nil {
+            bridge.close()
+        }
+    }
+
+    /// 彻底释放 WKWebView：等着网页回答的保存都算失败，注销桥，停掉网页。
+    func teardown() {
+        openTask?.cancel()
+        openTask = nil
+        showEpoch += 1
+        loadRun += 1
+        isLoaded = false
+        activeEditor = nil
+        currentPageId = nil
+        awaitingPageId = nil
+        dismissOpenDialog()
         bridge.release(self)
-        // 直接从一篇换到另一篇时，新编辑器可能已经登记了：只注销自己的。
         if app.editorBridge === bridge { app.registerEditor(nil) }
         guard let webView else { return }
         self.webView = nil
@@ -180,21 +382,22 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let content = webView.configuration.userContentController
         content.removeScriptMessageHandler(forName: Self.handlerName)
         content.removeAllUserScripts()
+        webView.removeFromSuperview()
+    }
+
+    private func dismissOpenDialog() {
+        if let dialog = openDialog {
+            openDialog = nil
+            if dialog.alert.presentingViewController != nil { dialog.alert.dismiss(animated: false) }
+            dialog.cancel()
+        }
     }
 
     // MARK: - 加载
 
-    /// 现在该打开的地址。换到副本后（`OpenNote.id` 变了、`editor` 没变）重新加载用副本的地址。
-    /// model / reasoning 是聊天里选的模型和推理强度（模型列表读到之后才有），编辑器里的 AI 助手用它们。
+    /// 现在该打开的地址。model / reasoning 是聊天里选的模型和推理强度，编辑器里的 AI 助手用它们。
     /// 从检索结果打开的，第一次加载带上命中的块 / 元素（`reveal=`），网页读好后定位过去。
-    private func embedURL() -> URL? {
-        var pageId = editor
-        var reveal: String?
-        if let open = app.notes.state.open, open.editor == editor {
-            pageId = open.id
-            if revealPending { reveal = open.reveal }
-        }
-        revealPending = false
+    private func embedURL(pageId: String, reveal: String?) -> URL? {
         let chat = app.chat.state
         let address = app.api.noteEmbedUrl(
             pageId: pageId, lang: app.language.uiLocale, model: chat.selectedModel?.id, reasoning: chat.selectedReasoning,
@@ -204,8 +407,9 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
     }
 
     /// 换 Cookie、装好 `window.NoteFableNative`，再打开网页。
-    private func loadPage() {
-        guard let webView, let url = embedURL() else { return }
+    /// `replaceHistory` 为 true（旧版服务端回退整页加载）且当前已在同站页时，用 `location.replace` 替换当前历史项，不污染 `canGoBack`。
+    private func loadPage(pageId: String, reveal: String?, replaceHistory: Bool = false) {
+        guard let webView, let url = embedURL(pageId: pageId, reveal: reveal) else { return }
         loadRun += 1
         let current = loadRun
 
@@ -226,13 +430,21 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
         let previous = Self.cookieChain
         Self.cookieChain = Task { @MainActor [weak self] in
             await previous?.value
-            guard let self, self.loadRun == current, self.webView != nil else { return }
+            guard let self, self.loadRun == current, self.activeEditor != nil, self.webView != nil else { return }
             let identity = self.app.identityGeneration
             let cookies = URL(string: self.app.config.baseURL).map { self.app.cookies(for: $0) } ?? []
             await NoteEditorController.replaceCookies(cookies)
-            // 换 Cookie 的途中换了身份：这页属于上一个身份（界面要到下一次重绘才收掉它），不带着旧 Cookie 去加载。
-            guard self.loadRun == current, self.app.identityGeneration == identity, let webView = self.webView else { return }
-            webView.load(URLRequest(url: url))
+            // 换 Cookie 的途中换了身份或已离开笔记：不再带着旧 Cookie 去加载。
+            guard self.loadRun == current, self.app.identityGeneration == identity, self.activeEditor != nil, let webView = self.webView else { return }
+            self.isLoaded = true
+            if replaceHistory, let currentUrl = webView.url, self.isSameSite(currentUrl) {
+                webView.evaluateJavaScript("window.location.replace(\(NoteEmbedScripts.quote(url.absoluteString)))") { [weak self, weak webView] _, error in
+                    guard error != nil, let self, self.loadRun == current, let webView else { return }
+                    webView.load(URLRequest(url: url))
+                }
+            } else {
+                webView.load(URLRequest(url: url))
+            }
         }
     }
 
@@ -264,6 +476,26 @@ final class NoteEditorController: NSObject, NoteEditorBridge {
                 answer.resume(returning: (result as? Bool) == true)
             }
         }
+    }
+
+    func openPage(id: String, reveal: String?, model: String?, reasoning: String?) async -> Bool {
+        guard let webView, let script = NoteEmbedScripts.openPage(id: id, reveal: reveal, model: model, reasoning: reasoning) else {
+            return false
+        }
+        return await withCheckedContinuation { (answer: CheckedContinuation<Bool, Never>) in
+            webView.evaluateJavaScript(script) { result, _ in
+                answer.resume(returning: (result as? Bool) == true)
+            }
+        }
+    }
+
+    func close() {
+        run(NoteEmbedScripts.close)
+    }
+
+    func pageTrashed(_ ids: [String]) {
+        guard let script = NoteEmbedScripts.pageTrashed(ids) else { return }
+        run(script)
     }
 
     func openHistory() {
@@ -475,15 +707,25 @@ extension NoteEditorController: WKNavigationDelegate {
         return .cancel
     }
 
-    /// 网页进程被系统杀掉或崩溃：等着它回答的保存都算失败（Android bridge.release），再重新加载。
+    /// 网页进程被系统杀掉或崩溃：正在看笔记时作废未完成的保存和导出并重载；停在后台热缓存里时直接销毁。
     func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        guard let editor = activeEditor else {
+            onTerminatedWhileParked()
+            return
+        }
         // 拼了一半的导出文件不会再来了（新网页不知道它）：作废，不留下打开着的临时文件。
         app.notes.cancelExportTransfer(editor: editor)
         // 放映中的网页没了：先结束放映，重新加载失败也不会困在横屏全屏里。
         app.notes.presentationEnded()
+        crashedEditor = editor
+        isLoaded = false
+        openTask?.cancel()
+        openTask = nil
         bridge.release(self)
         bridge.attach(self)
-        loadPage()
+        let pageId = (app.notes.state.open?.editor == editor ? app.notes.state.open?.id : nil) ?? currentPageId ?? editor
+        awaitingPageId = pageId
+        loadPage(pageId: pageId, reveal: nil)
     }
 }
 

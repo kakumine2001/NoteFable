@@ -341,8 +341,11 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     setExporting(format);
     setNotice("");
     try {
+      const { getNativeExportEpoch } = await import("@/lib/export-file");
+      const exportEpoch = getNativeExportEpoch();
       const { exportDeckFiles } = await import("@/lib/slides/export-files");
-      const result = await exportDeckFiles(deck, title, format, capture);
+      const result = await exportDeckFiles(deck, title, format, capture, exportEpoch);
+      if (result === "cancelled") return;
       // アプリの中では、ファイルを受け取れない古いアプリだと保存できない（WebView はダウンロードを扱えない）。
       if (result === "unsupported") setNotice(t("Update the app to save exported files."));
       else if (result === "tooLarge") setNotice(t("This file is too large to save in the app."));

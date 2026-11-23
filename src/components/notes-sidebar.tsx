@@ -46,12 +46,12 @@ type GroupActions = {
   onFavorite: (pageId: string, favorite: boolean) => Promise<unknown>;
 };
 
-export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
+export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, onImport, onSearch, onSelect, onPrefetch, onCancelPrefetch, onDelete, onClose, onWorkspaceChange, groups, groupError, onMoveNote, onChangeIcon, onCreateGroup, onRenameGroup, onDeleteGroup, onReorder, onMoveToPage, onFavorite }: {
   pages: NotePageSummary[]; activeId: string | null; busy: boolean;
   // Notes のホーム（最近のノートと一覧）を出しているか、とホームへ戻る操作。
   home: boolean; onHome: () => void;
   // 作り先（種類・親ページ・プロジェクト）を渡して新しいページを作る。省略はプロジェクトなしのノート。
-  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
+  onWorkspaceChange: (view: WorkspaceView) => void; onCreate: (request?: NewPageRequest) => void; onImport: (files: File[]) => void; onSearch: () => void; onSelect: (id: string) => void; onPrefetch?: (id: string, immediate?: boolean) => void; onCancelPrefetch?: (id?: string) => void; onDelete: (id: string) => Promise<unknown>; onClose: () => void;
 } & GroupActions) {
   const t = useT();
   const importInputRef = useRef<HTMLInputElement>(null);
@@ -150,7 +150,10 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         }}>
         <span className="notes-row-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span>
       </button>
-      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
+      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onOpen={() => onSelect(page.id)}
+        onPrefetch={onPrefetch ? (immediate) => onPrefetch(page.id, immediate) : undefined}
+        onCancelPrefetch={onCancelPrefetch ? () => onCancelPrefetch(page.id) : undefined}
+        className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" onMoveGroup={async groupId=>{
         const ok=await onMoveNote(page.id,groupId);
         if(ok && groupId)openGroup(groupId);
         else if(ok)setSectionOpen(sectionKindOf(page,kinds),true);
@@ -189,7 +192,12 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
           <div className="chat-section-label">{t("Favorites")}</div>
           {favorites.map((page) => <div key={page.id} className={`notion-session-row group ${activeId === page.id ? "is-active" : ""}`}>
             <span className="chat-row-icon-button" aria-hidden="true"><span className="notes-row-icon"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={15} />} /></span></span>
-            <button type="button" disabled={busy} onClick={() => onSelect(page.id)} className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
+            <button type="button" disabled={busy} onClick={() => onSelect(page.id)}
+              onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
+              onPointerLeave={() => onCancelPrefetch?.(page.id)}
+              onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) onPrefetch?.(page.id, true); }}
+              onFocus={() => onPrefetch?.(page.id, true)}
+              className="flex min-w-0 flex-1 items-center py-1.5 ps-1 pe-2 text-start" title={page.title}>
               <span className="truncate text-sm">{page.title}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => void onFavorite(page.id, false)} className="notion-row-action" aria-label={t("Remove {title} from Favorites", { title: page.title })} title={t("Remove from Favorites")}><StarOff size={14} /></button>

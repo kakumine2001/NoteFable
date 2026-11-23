@@ -7,7 +7,7 @@ import { msg } from "@/lib/i18n/translate";
 
 // 行の本体ボタン（開く）がそのままドラッグ元。マウスは 6px 動いたらドラッグ、触屏は長押し、Alt+↑/↓ で並べ替え。
 // 移動中（busy）はドラッグとキー操作だけ止め、ボタン自体は無効にしない（フォーカスとクリックで開く操作を残す）。
-export function ReorderRowButton({id,title,scope,ids,disabled,onMove,children,className,onOpen,onMoveProject,onMoveGroup}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children:ReactNode;className:string;onOpen:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>}) {
+export function ReorderRowButton({id,title,scope,ids,disabled,onMove,children,className,onOpen,onMoveProject,onMoveGroup,onPrefetch,onCancelPrefetch}:{id:string;title:string;scope:string;ids:string[];disabled?:boolean;onMove:(move:ReorderRequest)=>Promise<unknown>;children:ReactNode;className:string;onOpen:()=>void;onMoveProject?:(projectId:string|null)=>Promise<unknown>;onMoveGroup?:(groupId:string|null)=>Promise<unknown>;onPrefetch?:(immediate?:boolean)=>void;onCancelPrefetch?:()=>void}) {
   const t = useT();
   const dropAttribute=onMoveProject ? "data-chat-project-drop" : onMoveGroup ? "data-note-group-drop" : null;
   const onMoveContainer=onMoveProject ?? onMoveGroup;
@@ -87,10 +87,14 @@ export function ReorderRowButton({id,title,scope,ids,disabled,onMove,children,cl
   return <>
     <button ref={buttonRef} type="button" title={title} aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown" className={`row-drag ${className}`} disabled={disabled}
       onClick={()=>{if(suppressClick.current){suppressClick.current=false;return;}onOpen();}}
+      onPointerEnter={event=>{if(event.pointerType!=="touch")onPrefetch?.(false);}}
+      onPointerLeave={()=>{onCancelPrefetch?.();}}
+      onFocus={()=>{onPrefetch?.(true);}}
       onContextMenu={event=>{if(drag.current)event.preventDefault();}}
       onPointerDown={event=>{
         if(event.pointerType==="touch")return;
         if(event.button!==0 || busy) return;
+        onPrefetch?.(true);
         const row=event.currentTarget.closest<HTMLElement>("[data-order-id]");
         if(!row) return;
         suppressClick.current=false;event.preventDefault();event.currentTarget.focus();event.currentTarget.setPointerCapture(event.pointerId);

@@ -133,6 +133,7 @@ mobile/ios/
 - **启动画面的底色**（`LaunchBackground`）跟随系统的深浅，不看 App 里选的外观：选的和系统不一样时，启动瞬间的底色与进入后的界面不同。
 - **导出笔记**：存好以后不另外提示；写入失败弹 “Could not export the page.” 的提示（Android 显示在笔记顶栏下面的提示条里）。导出、导入的其他错误和 Android 一样分别显示在编辑页顶栏下面和笔记的错误条里。
 - **白板页的边缘手势**：Android 只在网页报来正在用画画的工具（`drawing`）时让开屏幕边缘；iOS 在白板页一直关掉边缘返回和抽屉的边缘拉出（用手的工具时也一样），离开用顶栏的“<”。
+- **常驻复用 WebView 与就地切页（#176）**：与 Android 对齐，`RootView` 持有单个工作区级 `NoteEditorPool`（首次打开笔记时按需创建 `WKWebView`），直接切页与离开后短暂重开都复用同一个 `WKWebView` 并经 `window.notefableEmbed.openPage` 就地切换（命中网页端最多 8 篇的 LRU 缓存；旧版服务端或尚未挂好时回退到 Cookie 同步 + 整页加载）。离开编辑页停留在列表或聊天时调用 `close()` 卸载编辑器 DOM 仅保留轻量缓存，同时通过 `AppEnvironment.warmPageUpdated` 与 `NotesViewModel.notifyPagesTrashed` 同步聊天提案更新和回收站清理。换身份、退到后台（`scenePhase == .background` 且未打开笔记）、收到系统内存警告（`didReceiveMemoryWarningNotification` 且未打开笔记）、停靠空闲超过 120 秒、网页进程在停靠期间终止以及根视图销毁时彻底释放 `WKWebView`。
 
 ## 生成的文件
 

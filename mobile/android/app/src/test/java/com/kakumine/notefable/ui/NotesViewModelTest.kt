@@ -1280,4 +1280,17 @@ class NotesViewModelTest {
         assertNull(vm.state.value.open)
         assertFalse(vm.state.value.busy)
     }
+
+    @Test
+    fun `trashing notes notifies the warm webview cache even when closed`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        val vm = notesVm(backend)
+        val notified = mutableListOf<Set<String>>()
+        vm.notifyPagesTrashed = { notified += it.toSet() }
+
+        assertTrue(vm.trashNote("a"))
+        vm.onPagesTrashed(listOf("b"))
+
+        assertEquals(listOf(setOf("a"), setOf("b")), notified)
+    }
 }

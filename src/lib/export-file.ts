@@ -10,7 +10,18 @@ import { inNativeApp, nativeCanSaveFile, postToNative } from "@/lib/native-bridg
 export const FILE_CHUNK_BYTES = 512 * 1024;
 // アプリが受け取るファイルの大きさの上限（Android・iOS の ExportFileAssembler の MAX_BYTES と同じ）。
 export const MAX_APP_FILE_BYTES = 64 * 1024 * 1024;
-export type SaveExportResult = "download" | "app" | "unsupported" | "tooLarge" | "failed";
+export type SaveExportResult = "download" | "app" | "unsupported" | "tooLarge" | "failed" | "cancelled";
+
+// 常駐 /note-embed でページを切り替え・閉じたときに、前ページの遅延書き出しが新ページへ送られないよう世代で止める。
+let nativeExportEpoch = 0;
+
+export function getNativeExportEpoch() {
+  return nativeExportEpoch;
+}
+
+export function cancelNativeExports() {
+  nativeExportEpoch++;
+}
 
 async function base64Of(blob: Blob): Promise<string> {
   const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -24,20 +35,28 @@ function randomId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
 }
 
-// アプリへ分けて送る。送れなかったら fileAbort を送って false。
-export async function sendFileToNative(blob: Blob, name: string, post: typeof postToNative = postToNative): Promise<boolean> {
+// アプリへ分けて送る。送れなかったら fileAbort を送って false。途中でページが切り替わったら即中断する。
+export async function sendFileToNative(
+  blob: Blob,
+  name: string,
+  post: typeof postToNative = postToNative,
+  epoch: number = nativeExportEpoch,
+): Promise<boolean> {
+  if (epoch !== nativeExportEpoch) return false;
   const id = randomId();
   const mime = blob.type || "application/octet-stream";
   if (!post({ type: "fileStart", id, name, mime, size: blob.size })) return false;
   try {
     for (let index = 0, offset = 0; offset < blob.size; index++, offset += FILE_CHUNK_BYTES) {
+      if (epoch !== nativeExportEpoch) { post({ type: "fileAbort", id }); return false; }
       const data = await base64Of(blob.slice(offset, offset + FILE_CHUNK_BYTES));
-      if (!post({ type: "fileChunk", id, index, data })) { post({ type: "fileAbort", id }); return false; }
+      if (epoch !== nativeExportEpoch || !post({ type: "fileChunk", id, index, data })) { post({ type: "fileAbort", id }); return false; }
     }
   } catch {
     post({ type: "fileAbort", id });
     return false;
   }
+  if (epoch !== nativeExportEpoch) { post({ type: "fileAbort", id }); return false; }
   if (post({ type: "fileEnd", id })) return true;
   post({ type: "fileAbort", id });
   return false;
@@ -55,13 +74,16 @@ export function downloadBlob(blob: Blob, name: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-export async function saveExportFile(blob: Blob, name: string): Promise<SaveExportResult> {
+export async function saveExportFile(blob: Blob, name: string, epoch: number = nativeExportEpoch): Promise<SaveExportResult> {
   if (inNativeApp()) {
+    if (epoch !== nativeExportEpoch) return "cancelled";
     // アプリの WebView は blob: のダウンロードを扱えないので、ファイルを受け取れない古いアプリでは何もしない（呼び出し側が理由を出す）。
     if (!nativeCanSaveFile()) return "unsupported";
     // 上限を超えるものは、送ってから断られる前に止める（理由を出せるように）。
     if (blob.size > MAX_APP_FILE_BYTES) return "tooLarge";
-    return (await sendFileToNative(blob, name)) ? "app" : "failed";
+    const ok = await sendFileToNative(blob, name, postToNative, epoch);
+    if (!ok && epoch !== nativeExportEpoch) return "cancelled";
+    return ok ? "app" : "failed";
   }
   downloadBlob(blob, name);
   return "download";

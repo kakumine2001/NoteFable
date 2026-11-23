@@ -6,6 +6,9 @@ import UIKit
 struct RootView: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
+    @Environment(\.scenePhase) private var scenePhase
+    /// 整个工作区共用的常驻 /note-embed WKWebView 池：按需创建，按身份变化 / 后台 / 内存警告 / 空闲超时释放。
+    @State private var noteEditorPool = NoteEditorPool()
 
     init() {}
 
@@ -17,6 +20,13 @@ struct RootView: View {
         } content: {
             workspace
         }
+        .environment(noteEditorPool)
+        .onAppear {
+            noteEditorPool.bind(app: app)
+        }
+        .onDisappear {
+            noteEditorPool.destroy()
+        }
         // 每次打开抽屉都刷新列表，拿到其它设备或网页上的新内容。
         .onChange(of: router.drawerOpen) { _, open in
             if open { refreshDrawerLists() }
@@ -25,9 +35,18 @@ struct RootView: View {
         .onChange(of: app.notes.state.workspace) { old, new in
             if new == .chat && old != .chat { app.chat.refreshActiveQuietly() }
         }
-        // 登录 / 退出后：旧身份的窗口关掉。
+        // 登录 / 退出后：旧身份的窗口关掉，常驻 WebView 与其缓存一并销毁。
         .onChange(of: app.identityGeneration) { _, _ in
+            noteEditorPool.destroy()
             router.onIdentityChanged()
+        }
+        // App 退到后台且当前停留在列表 / 聊天时，立刻释放热缓存 WebView。
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { noteEditorPool.destroyIfParked() }
+        }
+        // 系统内存紧张且当前停留在列表 / 聊天时，立刻释放热缓存 WebView。
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            noteEditorPool.destroyIfParked()
         }
         // 从笔记切回聊天时：如果之前笔记保存失败没能立即接收分享，这里自动取走。
         .onChange(of: app.notes.state.workspace) { _, workspace in
