@@ -276,18 +276,25 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
   // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
   // 待っても終わらない画像があれば false（保存し切れていない。アプリは編集画面を閉じずに知らせる）。
-  useEffect(() => registerCanvasFlusher(async () => {
-    flushRef.current();
-    if (!uploadTasks.current.size) return true;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    await Promise.race([
-      Promise.allSettled([...uploadTasks.current]),
-      new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
-    ]);
-    clearTimeout(timer);
-    flushRef.current();
-    return uploadTasks.current.size === 0;
-  }), []);
+  // 第 2 引数の同期フラッシュは、裏の再検証が loadLatest() を呼ぶ前に 400ms 待ちの線やアップロード中画像を拾うために使う。
+  useEffect(() => registerCanvasFlusher(
+    async () => {
+      flushRef.current();
+      if (!uploadTasks.current.size) return true;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      await Promise.race([
+        Promise.allSettled([...uploadTasks.current]),
+        new Promise<void>((resolve) => { timer = setTimeout(resolve, UPLOAD_FLUSH_WAIT_MS); }),
+      ]);
+      clearTimeout(timer);
+      flushRef.current();
+      return uploadTasks.current.size === 0;
+    },
+    () => {
+      flushRef.current();
+      return uploadTasks.current.size > 0;
+    },
+  ), []);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {
@@ -387,7 +394,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     // 開いた直後の依頼は、最初の内容を読み終えた時（onInitialize）に受け取る。ここは開いている間に来たもの。
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<WhiteboardRevealDetail>).detail;
-      if (detail?.pageId === pageId && initialized.current && consumeWhiteboardReveal(pageId)) reveal(detail.elementId);
+      if (detail?.pageId === pageId && initialized.current) consumeWhiteboardReveal(pageId, Date.now(), (elementId) => reveal(elementId));
     };
     window.addEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
     return () => window.removeEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
@@ -476,9 +483,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
     // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
     // （100% より大きくはしない）。前回の表示位置があればそれを使う。
-    const pending = consumeWhiteboardReveal(pageId);
+    const revealed = Boolean(consumeWhiteboardReveal(pageId, Date.now(), (elementId) => revealIn(ready, elementId, false)));
     const elements = ready.getSceneElements();
-    if (!(pending && revealIn(ready, pending, false)) && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
+    if (!revealed && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
     queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
   }, [fitOnOpen, pageId, readUi, signatureOf]);
 

@@ -247,6 +247,7 @@ mobile/android/
 - 设置里选的图标（见“账号头像”一节的“图标”）：网页打开时调 `window.NoteFableNative.appIcon()` 读（预设角色 `character:<id>` 或图片的 data URL，默认角色 Quill 是空字符串），写进这个 WebView 的 `localStorage`（`notefable:app-icon`），右下角的 AI 按钮和面板标题就用它；编辑器开着时在设置里换了，App 调 `window.notefableEmbed.appIcon(<值或 null>)`，按钮马上跟着变（`NoteEmbedBridge.pushAppIcon`）。
 - 外观：地址里的 `theme` 是 App 现在实际显示的外观（`light` / `dark`，“跟随系统”已经算好，不发 `system`），网页第一帧就按它画；网页打开时再读 `window.NoteFableNative.theme()`（同一个值）。编辑器开着时外观变了（设置或帮助菜单里换了，或跟随系统时系统切了深浅），App 调 `window.notefableEmbed.theme(<light|dark>)`，网页就地换色、不重新加载（`NoteEmbedBridge.pushTheme`）；收到 `ready` 后也再推一次，覆盖加载期间的变化。
 - 离开笔记（"<"、返回键、切换到别的笔记、切到聊天、新建、移到回收站当前笔记）前先 flush，`ok` 才离开；不 ok（或整个 flush 15 秒没结果、WebView 中途被销毁）就留在笔记里，显示网页的"保存失败，草稿已保留。"（移到回收站时显示"请先处理未保存的草稿…"，且不移）。`kept` 为 true（断网、服务器出错，草稿已存进 WebView 的 localStorage，不是冲突）时，提示之后再操作一次就放行，和网页 `/app` 一样不把人困在笔记里；冲突则一直留在笔记里。编辑器还没挂上（`notefableEmbed` 不存在）时没有可保存的编辑，直接离开。
+- **页面切换的缓存与预加载（#176 平台限制）**：网页端在常驻的单页应用内存里保存已打开与预加载的页面队列，再次打开零等待；Android 原生端每次打开页面都会新建一个单页 `/note-embed?page=<id>` 的 `WebView` 并在离开时销毁，无法复用内存里的 `NoteSaveQueue`，因此重开刚看过的页面仍需等待 WebView 与接口加载。未来要补齐体验需改为复用常驻的编辑器 WebView（经 JS 桥切换 `pageId`）或引入原生本地缓存。
 - 登录、退出前也先 flush（趁 WebView 还带着旧身份的 Cookie），存不上也继续；身份换了以后关掉编辑器，排着的打开 / 新建作废，回收站里进行中的操作被取消；旧身份下发出、换身份后才回来的改动（移动、项目、移到回收站、恢复…）结果直接丢弃（`NotesViewModel` 的身份代数）。
 - 列表刷新期间有改动完成（新建、移动、删除、恢复…）时，刷新读到的可能是改动前的列表：丢掉它重读一次，不盖掉本地刚做的改动。
 - 聊天输入栏的草稿放在 `ChatViewModel.draft`（Compose 状态），切到笔记再切回来还在；消息真正发出去后才清空。

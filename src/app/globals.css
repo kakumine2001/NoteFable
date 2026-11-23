@@ -107,6 +107,34 @@ button:disabled {
 .notes-save-status { font-size: 14px; color: var(--notion-muted); }
 .notes-save-status.has-error { color: #b45309; }
 .notes-loading { font-size: 14px; color: var(--notion-muted); padding: 1rem 0; }
+/* 未キャッシュのページ切り替え中、150ms 以上かかるときだけ作業領域の上端に細い進捗線を出す（画面は白くしない）。 */
+.notes-switch-progress {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  flex: none;
+  height: 2px;
+  margin-bottom: -2px;
+  width: 100%;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  animation: notes-switch-progress-in 120ms ease-out 150ms forwards;
+}
+.notes-switch-progress::before {
+  content: "";
+  display: block;
+  height: 100%;
+  width: 40%;
+  background: var(--nf-accent);
+  border-radius: 999px;
+  animation: notes-switch-progress-slide 1s ease-in-out 150ms infinite;
+}
+@keyframes notes-switch-progress-in { to { opacity: 1; } }
+@keyframes notes-switch-progress-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
 
 /* ページ見出し: カバー → アイコン → 操作ボタン → タイトル */
 .notes-page-header { position: relative; }
