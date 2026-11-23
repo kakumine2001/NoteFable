@@ -325,7 +325,10 @@ final class NotesViewModel {
     /// 界面收到编辑器 [editor]（[OpenNote.editor]）发来的消息时调用。flushed 由 [NoteEmbedBridge] 自己处理。
     func onEditorMessage(_ editor: String, _ message: EmbedMessage) {
         switch message {
-        case .ready(let id, let title, let icon, let kind): onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
+        case .ready(let id, let title, let icon, let kind):
+            // 网页（重新）载入后不在放映：WebView 重载时收不到 end，这里把放映状态清掉（否则一直横屏、没有顶栏）。
+            if state.open?.editor == editor, state.presenting { update { $0.presenting = false } }
+            onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
         case .meta(let title, let icon): onEditorMeta(editor, title: title, icon: icon)
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)

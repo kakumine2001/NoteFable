@@ -64,6 +64,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -83,6 +84,9 @@ import com.kakumine.notefable.data.ChatLink
 import com.kakumine.notefable.data.EmbedMessage
 import com.kakumine.notefable.data.NoteFileLinks
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.CookieJar
@@ -374,6 +378,8 @@ fun NoteEditorScreen(
     val bridge: NoteEmbedBridge = remember(open.editor) {
         NoteEmbedBridge(currentIcon = { iconStore?.icon?.value }) { message ->
             if (message is EmbedMessage.Presentation) presentingState.value = message.state != "end"
+            // 网页（重新）载入后不在放映：渲染进程崩溃后重载时收不到 end，这里清掉（否则一直横屏、没有顶栏，返回键也离不开）。
+            if (message is EmbedMessage.Ready) presentingState.value = false
             currentOnMessage(open.editor, message)
         }
     }
@@ -383,15 +389,21 @@ fun NoteEditorScreen(
     val pendingExport = remember(open.editor) { arrayOfNulls<File>(1) }
     val savedText = stringResource(R.string.slides_file_saved)
     val saveFailedText = stringResource(R.string.slides_file_save_failed)
+    val exportScope = rememberCoroutineScope()
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val file = pendingExport[0]
         pendingExport[0] = null
         val uri = result.data?.data
-        if (file != null && uri != null && result.resultCode == Activity.RESULT_OK) {
-            val ok = runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream") }.isSuccess
+        if (file == null) return@rememberLauncherForActivityResult
+        if (uri == null || result.resultCode != Activity.RESULT_OK) { file.delete(); return@rememberLauncherForActivityResult }
+        // 大きなファイル（PNG の ZIP など）でも画面が止まらないよう、書き写しは IO スレッドで。
+        exportScope.launch {
+            val ok = withContext(Dispatchers.IO) {
+                runCatching { context.contentResolver.openOutputStream(uri)?.use { out -> file.inputStream().use { it.copyTo(out) } } ?: error("no stream") }.isSuccess
+                    .also { file.delete() }
+            }
             Toast.makeText(context, if (ok) savedText else saveFailedText, Toast.LENGTH_SHORT).show()
         }
-        file?.delete()
     }
     remember(bridge) {
         bridge.exportDir = exportDir

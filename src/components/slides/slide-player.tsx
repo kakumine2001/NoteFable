@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, typ
 import { createPortal } from "react-dom";
 import { useT } from "@/components/i18n-provider";
 import { SlideFrame } from "@/components/slides/slide-render";
+import { useBackToClose } from "@/lib/use-back-to-close";
 import { playerAction, type PlayerAction } from "@/lib/slides/player-keys";
 import type { Deck, Slide } from "@/lib/slides/model";
 
@@ -67,6 +68,11 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   const [presenter, setPresenter] = useState<Window | null>(null);
   const [startedAt] = useState(() => Date.now());
   const width = useViewportFrame(stage);
+  // 呼び出し側は onExit を毎回作り直して渡す。全画面・常時点灯の効果が描き直しのたびにやり直されないよう、最新の値だけを持つ。
+  const onExitRef = useRef(onExit);
+  useLayoutEffect(() => { onExitRef.current = onExit; });
+  const digitsRef = useRef(digits);
+  useLayoutEffect(() => { digitsRef.current = digits; });
 
   const go = useCallback((delta: number) => {
     setBlank(null);
@@ -85,8 +91,13 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
   const exit = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     presenter?.close();
-    onExit();
-  }, [onExit, presenter]);
+    onExitRef.current();
+  }, [presenter]);
+  // スマホのブラウザの「戻る」・Esc で放映を終える（番号を打っている途中の Esc は番号を消すだけ）。
+  useBackToClose(true, () => {
+    if (digitsRef.current) { setDigits(""); return false; }
+    exit();
+  });
 
   const act = useCallback((action: PlayerAction) => {
     switch (action.type) {
@@ -133,7 +144,7 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
     let entered = false;
     const onFullscreen = () => {
       if (document.fullscreenElement) { entered = true; return; }
-      if (entered) onExit();
+      if (entered) onExitRef.current();
     };
     if (fullscreen && node?.requestFullscreen) {
       document.addEventListener("fullscreenchange", onFullscreen);
@@ -148,7 +159,7 @@ export function SlidePlayer({ deck, startId, onExit, onChange, allowPresenter = 
       const orientation = screen.orientation as ScreenOrientation & { unlock?: () => void };
       try { orientation.unlock?.(); } catch { /* 固定していない */ }
     };
-  }, [fullscreen, onExit]);
+  }, [fullscreen]);
 
   // 操作のボタンは、マウスを動かしたときだけ少しの間出す。
   useEffect(() => {

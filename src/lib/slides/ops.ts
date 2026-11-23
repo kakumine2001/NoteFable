@@ -202,8 +202,9 @@ export function parseClipboard(text: string): { elements: SlideElement[]; slides
   try { value = JSON.parse(text); } catch { return null; }
   if (!value || typeof value !== "object" || (value as { notefableSlides?: unknown }).notefableSlides !== 1) return null;
   const payload = value as { elements?: unknown; slides?: unknown };
-  const elements = (Array.isArray(payload.elements) ? payload.elements : []).slice(0, MAX_SLIDE_ELEMENTS)
-    .map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null);
+  // グループも付け直す（写した元と同じグループのままだと、貼った要素と元の要素が一緒に選ばれて動く）。
+  const elements = cloneElements((Array.isArray(payload.elements) ? payload.elements : []).slice(0, MAX_SLIDE_ELEMENTS)
+    .map((element) => normalizeElement(element, newId())).filter((element): element is SlideElement => element !== null));
   const slides = (Array.isArray(payload.slides) ? payload.slides : []).slice(0, MAX_SLIDES).flatMap((raw) => {
     if (!raw || typeof raw !== "object") return [];
     const source = raw as { elements?: unknown };

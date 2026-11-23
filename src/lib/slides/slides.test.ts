@@ -191,6 +191,15 @@ describe("geometry", () => {
     expect(parsed?.elements[0].id).not.toBe("a");
     expect(parseClipboard("plain text")).toBeNull();
   });
+
+  it("gives pasted elements a new group, so they are not tied to the originals", () => {
+    const base: Slide = { id: "s", layout: "blank", elements: [box("a", 0, 0), box("b", 10, 10)] };
+    const { slide: grouped, group } = groupElements(base, new Set(["a", "b"]));
+    const parsed = parseClipboard(clipboardPayload({ elements: grouped.elements }));
+    expect(parsed?.elements.map((element) => element.group)).toEqual([parsed?.elements[0].group, parsed?.elements[0].group]);
+    expect(parsed?.elements[0].group).toBeTruthy();
+    expect(parsed?.elements[0].group).not.toBe(group);
+  });
 });
 
 describe("themes", () => {

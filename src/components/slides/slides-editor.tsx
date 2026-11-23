@@ -5,7 +5,7 @@ import {
   ChevronDown, Copy, Download, Eye, EyeOff, FileImage, FileText, Image as ImageIcon, LayoutGrid, LayoutTemplate, MessageSquareText, Minus, Monitor, MoveRight, Palette, PenTool,
   Play, Plus, Presentation, Redo2, Scissors, Shapes, Sparkles, SquareDashed, StickyNote, Table, Trash2, Type, Undo2, Upload, Clipboard,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import type { CanvasEditorProps } from "@/components/canvas-editors";
 import { useT } from "@/components/i18n-provider";
 import { ChatImagesDialog, GenerateImageDialog, ReportImageDialog } from "@/components/slides/slide-dialogs";
@@ -19,11 +19,14 @@ import type { TextCommands } from "@/components/slides/text-editor";
 import type { CanvasData } from "@/lib/canvas-document";
 import { localizeSystemText } from "@/lib/i18n/translate";
 import { nativeCanPresent, postToNative } from "@/lib/native-bridge";
+import { takeCanvasReveal } from "@/lib/search-reveal";
+import { useBackToClose } from "@/lib/use-back-to-close";
+import { hasWhiteboardFrameProvider, renderWhiteboardFramePicker, subscribeWhiteboardFrameProvider } from "@/lib/slides/whiteboard-embed";
 import { createImageElement, createLineElement, createShapeElement, createTableElement, createTextElement, createWhiteboardElement } from "@/lib/slides/factory";
 import { expandGroups } from "@/lib/slides/geometry";
 import { uploadSlideImage, SLIDE_IMAGE_TYPES, type SlideImage } from "@/lib/slides/images";
 import { applyLayout, createSlide, LAYOUTS } from "@/lib/slides/layouts";
-import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type LayoutId, type ShapeKind, type Slide, type SlideElement } from "@/lib/slides/model";
+import { normalizeDeck, SHAPE_KINDS, slideRows, SLIDE_HEIGHT, SLIDE_WIDTH, type Deck, type ImageElement, type LayoutId, type ShapeKind, type Slide, type SlideElement } from "@/lib/slides/model";
 import {
   addElements, cloneElements, clipboardPayload, CLIPBOARD_MIME, deleteElements, deleteSlides, duplicateSlides, groupElements, insertSlides, joinRowAt, moveSlides,
   moveSlidesToRow, parseClipboard, renameRow, reorderElements, setHidden, startRowAt, ungroupElements, updateElements, updateSlide,
@@ -70,8 +73,10 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     onChange(deck as unknown as CanvasData);
   }, [deck, onChange]);
 
-  const commit = useCallback((next: Deck, merge?: string) => {
+  // 新しい本体か、最新の本体から新しい本体を作る関数（アップロードの完了など、待ったあとの変更は関数で渡す）。
+  const commit = useCallback((change: Deck | ((deck: Deck) => Deck), merge?: string) => {
     setHistory((current) => {
+      const next = typeof change === "function" ? change(current.deck) : change;
       if (next === current.deck) return current;
       const now = Date.now();
       const merging = !!merge && current.merge === merge && now - current.mergedAt < MERGE_MS;
@@ -81,6 +86,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   const undo = useCallback(() => setHistory((current) => (current.past.length ? { deck: current.past[current.past.length - 1], past: current.past.slice(0, -1), future: [current.deck, ...current.future], merge: null, mergedAt: 0 } : current)), []);
   const redo = useCallback(() => setHistory((current) => (current.future.length ? { deck: current.future[0], past: [...current.past, current.deck], future: current.future.slice(1), merge: null, mergedAt: 0 } : current)), []);
 
+  // 待ったあと（アップロード・生成の完了）に、いま見えている本体を読むため。
+  const deckRef = useRef(deck);
+  useLayoutEffect(() => { deckRef.current = deck; }, [deck]);
   const theme = useMemo(() => resolveTheme(deck.theme), [deck.theme]);
   const [view, setView] = useState<"slide" | "grid">("slide");
   const [currentId, setCurrentId] = useState<string | null>(() => initial.deck.slides[0]?.id ?? null);
@@ -124,13 +132,15 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   }, []);
 
   // 検索で一致した枚を開く（search-reveal.ts が知らせる）。
+  // エディターは遅れて読み込まれるので、開く前に届いた依頼も（少しの間）受け取る（takeCanvasReveal）。
   useEffect(() => {
-    const onReveal = (event: Event) => {
-      const id = (event as CustomEvent<string>).detail;
-      if (typeof id === "string" && deck.slides.some((slide) => slide.id === id)) { openSlide(id); setView("slide"); }
+    const apply = () => {
+      const id = takeCanvasReveal((candidate) => deck.slides.some((slide) => slide.id === candidate));
+      if (id) { openSlide(id); setView("slide"); }
     };
-    window.addEventListener(SLIDES_EVENTS.reveal, onReveal);
-    return () => window.removeEventListener(SLIDES_EVENTS.reveal, onReveal);
+    apply();
+    window.addEventListener(SLIDES_EVENTS.reveal, apply);
+    return () => window.removeEventListener(SLIDES_EVENTS.reveal, apply);
   }, [deck.slides, openSlide]);
 
   // 選んでいる枚・要素を、AI（#150）が文脈として読めるよう知らせる。
@@ -203,37 +213,47 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
   };
 
   // 画像を置く：置き場所（空の画像・差し替え）があればそこへ、無ければ新しい画像として。
-  const placeImage = useCallback((image: SlideImage, target: string | null, at?: { x: number; y: number }) => {
-    if (!current) return;
-    const existing = target ? current.elements.find((element) => element.id === target && element.type === "image") : undefined;
+  // 画像は待ったあと（アップロード・生成の完了）に置くので、その時点の最新の本体に対して変更する（途中の編集や、続けて置いた画像を消さない）。
+  // slideId は置く枚（既定は今の枚）。
+  const placeImage = useCallback((image: SlideImage, target: string | null, at?: { x: number; y: number }, slideId: string | null = current?.id ?? null) => {
+    if (!slideId) return;
+    const alt = image.name.replace(/\.[a-z0-9]+$/i, "");
     const generated = image.prompt ? { generated: { prompt: image.prompt.slice(0, 4000) } } : {};
-    if (existing && existing.type === "image") {
+    const fresh: ImageElement = { ...createImageElement(image.url, image.width, image.height, alt, at), ...generated };
+    // 差し替える画像（target）か、空の画像の置き場所。無ければ新しい画像として足す。
+    const into = (slide: Slide) => {
+      const existing = target ? slide.elements.find((element) => element.id === target && element.type === "image") : undefined;
+      return existing ?? (!target && !at ? slide.elements.find((element) => element.type === "image" && element.role && !element.src) : undefined);
+    };
+    commit((latest) => updateSlide(latest, slideId, (slide) => {
+      const existing = into(slide);
+      if (existing?.type !== "image") return addElements(slide, [fresh]);
       const { generated: _old, ...rest } = existing;
       void _old;
-      commitSlide(updateElements(current, new Set([existing.id]), () => ({ ...rest, src: image.url, alt: image.name.replace(/\.[a-z0-9]+$/i, ""), ...generated })));
-      setSelection(new Set([existing.id]));
-      return;
-    }
-    // 空の画像の置き場所があれば、そこを使う。
-    const placeholder = !target && !at ? current.elements.find((element) => element.type === "image" && element.role && !element.src) : undefined;
-    if (placeholder) { placeImage(image, placeholder.id); return; }
-    insertElements([{ ...createImageElement(image.url, image.width, image.height, image.name.replace(/\.[a-z0-9]+$/i, ""), at), ...generated }]);
-  }, [commitSlide, current, insertElements]);
+      return updateElements(slide, new Set([existing.id]), () => ({ ...rest, src: image.url, alt, ...generated }));
+    }));
+    const shown = deckRef.current.slides.find((slide) => slide.id === slideId);
+    const placed = shown ? into(shown) : undefined;
+    setSelection(new Set([placed?.type === "image" ? placed.id : fresh.id]));
+    setEditing(null);
+    setView("slide");
+  }, [commit, current]);
 
   const uploadFiles = useCallback(async (files: File[], target: string | null, at?: { x: number; y: number }) => {
     const images = files.filter((file) => SLIDE_IMAGE_TYPES.includes(file.type)).slice(0, 10);
     if (!images.length) { setNotice(t("Choose a PNG, JPEG, WebP or GIF image.")); return; }
     setNotice("");
+    const slideId = current?.id ?? null;
     for (const [index, file] of images.entries()) {
       try {
         const image = await uploadSlideImage(file);
-        placeImage(image, index === 0 ? target : null, at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined);
+        placeImage(image, index === 0 ? target : null, at ? { x: at.x + index * 24, y: at.y + index * 24 } : undefined, slideId);
       } catch (caught) {
         if (!(caught instanceof StorageLimitError)) setNotice(caught instanceof Error ? caught.message : t("Upload failed. Try again."));
         return;
       }
     }
-  }, [placeImage, t]);
+  }, [current, placeImage, t]);
 
   const requestImage = (target: string | null) => {
     imageTarget.current = target;
@@ -245,6 +265,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const inside = () => !!root.current && root.current.contains(document.activeElement) && !isTypingTarget(document.activeElement) && !presenting;
     const onCopy = (event: ClipboardEvent, cut: boolean) => {
       if (!inside() || !current) return;
+      // 読み取り専用（ロック中など）では切り取らない（コピーはできる）。
+      if (cut && !editable) return;
       let payload: string | null = null;
       let text = "";
       if (liveSelection.size) {
@@ -252,7 +274,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
         payload = clipboardPayload({ elements });
         text = elements.map((element) => (element.type === "text" || element.type === "shape" ? richDocText(element.doc) : element.type === "table" ? element.rows.map((row) => row.cells.map((cell) => cell.text).join("\t")).join("\n") : "")).filter(Boolean).join("\n\n");
         if (cut) deleteSelection();
-      } else if (selectedSlides.size) {
+      } else if (selectedSlides.size && document.activeElement?.closest(".slides-filmstrip, .slides-grid")) {
+        // 枚をまるごと写すのは、縮小図の一覧（帯・総覧）を操作しているときだけ（スライドの面で何も選ばずに切り取っても枚は消さない）。
         const slides = deck.slides.filter((slide) => selectedSlides.has(slide.id));
         payload = clipboardPayload({ slides });
         text = slides.map((slide) => slide.elements.map((element) => (element.type === "text" ? richDocText(element.doc) : "")).filter(Boolean).join("\n")).join("\n\n");
@@ -341,8 +364,8 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     const key = event.key.toLowerCase();
     if (event.key === "F5") { event.preventDefault(); present(event.shiftKey ? "current" : "start"); return; }
     if (isTypingTarget(event.target)) return;
-    if (mod && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
-    if (mod && key === "y") { event.preventDefault(); redo(); return; }
+    if (editable && mod && key === "z") { event.preventDefault(); if (event.shiftKey) redo(); else undo(); return; }
+    if (editable && mod && key === "y") { event.preventDefault(); redo(); return; }
     if (!editable) {
       if (!mod && (event.key === "ArrowRight" || event.key === "ArrowDown" || event.key === "PageDown") && deck.slides[currentIndex + 1]) openSlide(deck.slides[currentIndex + 1].id);
       if (!mod && (event.key === "ArrowLeft" || event.key === "ArrowUp" || event.key === "PageUp") && deck.slides[currentIndex - 1]) openSlide(deck.slides[currentIndex - 1].id);
@@ -487,6 +510,9 @@ export default function SlidesEditor({ pageId, title, data, version, editable, e
     </div>
   </div>;
 
+  // スマホの設定の下敷き（選んだ要素・枚の設定）は、ブラウザの「戻る」で閉じる。
+  const sheetOpen = phone && view === "slide" && (liveSelection.size > 0 || inspectorOpen);
+  useBackToClose(sheetOpen, () => { setInspectorOpen(false); setSelection(new Set()); });
   const textCommands = editingId ? commandsRef.current : null;
   const inspector = current && view === "slide" ? <SlideInspector slide={current} selection={liveSelection} theme={theme} editable={editable}
     onChange={(next, merge) => commitSlide(next, merge)} onReplaceImage={(id) => requestImage(id)} onReportImage={(id) => setDialog({ kind: "report", target: id })}
@@ -601,17 +627,16 @@ function TableSizePicker({ onPick }: { onPick: (rows: number, cols: number) => v
 // ホワイトボードの枠を静止画として置く（#152 のホワイトボードが提供する。無いあいだはボタンを出さない）。
 function WhiteboardFrameButton({ disabled, onInsert }: { disabled: boolean; onInsert: (element: SlideElement) => void }) {
   const t = useT();
-  const [providers] = useState(() => import("@/lib/slides/whiteboard-embed").then((mod) => mod));
-  const [available, setAvailable] = useState(false);
+  // ホワイトボードがあとから登録しても出るよう、登録の変化を聞く。
+  const available = useSyncExternalStore(subscribeWhiteboardFrameProvider, hasWhiteboardFrameProvider, () => false);
   const [picker, setPicker] = useState<ReactNode>(null);
-  useEffect(() => { void providers.then((mod) => setAvailable(mod.hasWhiteboardFrameProvider())); }, [providers]);
   if (!available) return null;
   return <>
     <button type="button" className="slides-tool" disabled={disabled} aria-label={t("Whiteboard frame")} title={t("Whiteboard frame")}
-      onClick={() => void providers.then((mod) => setPicker(mod.renderWhiteboardFramePicker({
+      onClick={() => setPicker(renderWhiteboardFramePicker({
         onPick: (frame) => { setPicker(null); onInsert(createWhiteboardElement(frame)); },
         onClose: () => setPicker(null),
-      })))}>
+      }))}>
       <PenTool size={18} />
     </button>
     {picker}
