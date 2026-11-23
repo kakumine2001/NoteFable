@@ -18,7 +18,7 @@ import { sectionKindOf, workspaceSections, type NewPageRequest } from "@/lib/wor
 // Notes のホーム: 作成済みのページをプロジェクトごと（種類は混ぜる）と、プロジェクトなしは種類ごとの分区（サイドバーと同じ、#168）に並べて、
 // 押したものを開く。ページが 0 件のときは呼び出し側が空状態を出す。
 // パソコン幅（640px 以上）では、上にあいさつと「最近編集したページ」のカード（すべての種類、種類のアイコン付き）を出す（スマホ幅は一覧だけ）。
-export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
+export function NotesHome({ pages, groups, groupError, busy, onOpen, onPrefetch, onCancelPrefetch, onCreate, onImport, onWorkspaceChange, onMoveNote, onCreateGroup, onReorder, onMoveToPage }: {
   onMoveToPage: (pageId: string, parentId: string) => Promise<unknown>;
   pages: NotePageSummary[];
   onReorder:(move:ReorderRequest)=>Promise<unknown>;
@@ -26,6 +26,8 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
   groupError: string;
   busy: boolean;
   onOpen: (id: string) => void;
+  onPrefetch?: (id: string, immediate?: boolean) => void;
+  onCancelPrefetch?: (id?: string) => void;
   // 種類を指定して作る（省略はノート）。下の作成ボタンは作れる種類ごとに 1 つ。
   onCreate: (request?: NewPageRequest) => void;
   onImport?: (files: File[]) => void;
@@ -64,7 +66,10 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
         aria-label={open ? t("Collapse {title}", { title: page.title }) : t("Expand {title}", { title: page.title })}>
         {open ? <ChevronDown size={18} /> : <ChevronRight size={18} className="rtl-mirror" />}
       </button>
-      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)} className="notes-home-row">
+      <ReorderRowButton id={page.id} title={page.title} scope="note" ids={siblingIds(page)} disabled={busy} onMove={onReorder} onMoveGroup={groupId=>onMoveNote(page.id,groupId)} onOpen={() => onOpen(page.id)}
+        onPrefetch={onPrefetch ? (immediate) => onPrefetch(page.id, immediate) : undefined}
+        onCancelPrefetch={onCancelPrefetch ? () => onCancelPrefetch(page.id) : undefined}
+        className="notes-home-row">
         <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={20} />} /></span>
         <span className="notes-home-name">{page.title}</span>
         <time className="notes-home-date" dateTime={page.updatedAt}>
@@ -85,7 +90,11 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
           <h2 id="notes-home-recent" className="notes-home-section"><Clock3 size={15} aria-hidden="true" />{t("Recently edited")}</h2>
           <ul className="notes-recent-list">
             {recent.map((page) => <li key={page.id}>
-              <button type="button" className="notes-recent-card" disabled={busy} onClick={() => onOpen(page.id)}>
+              <button type="button" className="notes-recent-card" disabled={busy} onClick={() => onOpen(page.id)}
+                onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
+                onPointerLeave={() => onCancelPrefetch?.(page.id)}
+                onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) onPrefetch?.(page.id, true); }}
+                onFocus={() => onPrefetch?.(page.id, true)}>
                 <span className="notes-recent-cover" aria-hidden="true" />
                 <span className="notes-recent-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={24} strokeWidth={1.6} />} /></span>
                 <span className="notes-recent-name">{page.title}</span>
@@ -101,7 +110,11 @@ export function NotesHome({ pages, groups, groupError, busy, onOpen, onCreate, o
       {favorites.length > 0 && <section>
         <h2 className="notes-home-group">{t("Favorites")}<span>{favorites.length}</span></h2>
         <ul className="notes-home-list">{favorites.map((page) => <li key={page.id} className="notes-home-node"><div className="notes-home-item">
-          <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}>
+          <button type="button" className="notes-home-row" disabled={busy} onClick={() => onOpen(page.id)}
+            onPointerEnter={(event) => { if (event.pointerType !== "touch") onPrefetch?.(page.id, false); }}
+            onPointerLeave={() => onCancelPrefetch?.(page.id)}
+            onPointerDown={(event) => { if (event.pointerType !== "touch" && event.button === 0) onPrefetch?.(page.id, true); }}
+            onFocus={() => onPrefetch?.(page.id, true)}>
             <span className="notes-home-icon" aria-hidden="true"><NoteIcon icon={page.icon} fallback={<PageKindIcon kind={page.kind} size={20} />} /></span>
             <span className="notes-home-name">{page.title}</span>
           </button>
