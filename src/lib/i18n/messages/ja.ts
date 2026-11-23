@@ -771,4 +771,5 @@ export const ja: Record<string, string> = {
   "Delete files you no longer need to free up space.": "不要なファイルを削除すると、空き容量を増やせます。",
   "Storage": "保存容量",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "削除したファイルの分は、約 1 週間後に空き容量に戻ります。ゴミ箱や編集履歴にあるファイルは使用量に含まれます。",
+  "New page": "新規ページ",
 };

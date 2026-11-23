@@ -770,4 +770,5 @@ export const it: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Elimina i file che non ti servono più per liberare spazio.",
   "Storage": "Spazio di archiviazione",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Lo spazio dei file eliminati si libera circa una settimana dopo. I file nel cestino o nella cronologia versioni continuano a contare.",
+  "New page": "Nuova pagina",
 };

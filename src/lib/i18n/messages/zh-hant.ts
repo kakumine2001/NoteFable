@@ -514,6 +514,7 @@ export const zhHant: Record<string, string> = {
   "New equation": "新建公式",
   "New note": "新筆記",
   "New note{icon} “{title}”": "新筆記{icon}“{title}”",
+  "New page": "新建頁面",
   "New project": "新專案",
   "New project name": "新專案名稱",
   "New project…": "新建專案…",

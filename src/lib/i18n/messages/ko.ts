@@ -770,4 +770,5 @@ export const ko: Record<string, string> = {
   "Delete files you no longer need to free up space.": "필요 없는 파일을 삭제하면 공간을 확보할 수 있어요.",
   "Storage": "저장 공간",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "삭제한 파일의 공간은 약 1주일 후에 확보돼요. 휴지통이나 버전 기록에 있는 파일은 계속 사용량에 포함돼요.",
+  "New page": "새 페이지",
 };

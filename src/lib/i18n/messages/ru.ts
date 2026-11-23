@@ -770,4 +770,5 @@ export const ru: Record<string, string> = {
   "Delete files you no longer need to free up space.": "Удалите ненужные файлы, чтобы освободить место.",
   "Storage": "Хранилище",
   "Files you delete free up space about a week later. Files in Trash or in version history still count.": "Место удалённых файлов освобождается примерно через неделю. Файлы в корзине и в истории версий по-прежнему учитываются.",
+  "New page": "Новая страница",
 };
