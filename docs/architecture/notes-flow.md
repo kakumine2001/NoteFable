@@ -2,6 +2,38 @@
 
 Notes 是 NoteFable 内部的文字笔记模式。切换模式保留聊天输入、当前会话、正在进行的流式请求和笔记状态。选中的模式及页面 ID 写入 URL 查询参数 `view=pages&page=<id>`，刷新后可重新打开；该 URL 不提供公开分享权限。
 
+## 页面类型（笔记 / 白板 / 幻灯片）
+
+工作区的页面有三种类型（`NotePage.kind`，枚举 `PageKind`：`note` / `whiteboard` / `slides`，API 的 JSON 用同样的小写值；旧数据和不带 `kind` 的旧响应一律当作 `note`，见 `pageKindOf`，`src/lib/page-kinds.ts`）。类型在新建时决定，之后不能改。三种类型可以互相嵌套（笔记下面放白板、白板下面放幻灯片……），项目、子页面、收藏、排序、30 天回收站、复制、锁定、编辑历史对三种类型都一样。白板和幻灯片的编辑器在 #152、#149 里做，新建入口也随编辑器一起加；在那之前只能通过接口（`POST /api/pages` 带 `kind`）和复制得到这两种页面。
+
+**各类型能用的功能**只在一张表里定义（`PAGE_KIND_FEATURES`：`editor`、`markdownExport`、`typography`、`publicShare`、`aiEdit`），服务端的拒绝、网页和两个原生应用的菜单都看它。目前白板和幻灯片这五项都是 `false`：Markdown 导出、字体 / 小字号 / 全宽、公开发布、AI 编辑案都只对笔记；锁定、收藏、复制、移动、回收站、历史对所有类型。编辑器、公开视图做好后在这张表里打开。
+
+**数据单独存放。** 笔记的正文在 `NotePage.blocks`；白板和幻灯片的 `blocks` 永远是空数组，本体放在 `NoteCanvas`（一页一行，`noteId` 主键、`ON DELETE CASCADE`），一览、搜索和普通的页面读取都不搬运本体。形状只定外框（`src/lib/canvas-document.ts`），元素内部由各编辑器决定：
+
+- 白板：`{ elements: [{ id, type, text?, originalText?, name?, containerId?, isDeleted?, … }], files?: { <id>: { dataURL | url, … } }, appState?: {…} }`（与 Excalidraw 的 scene 同构）。
+- 幻灯片：`{ slides: [{ id, layout?, hidden?, notes?, elements?: [{ id, … }] }], theme?: {…} }`。
+
+保存时服务端校验（`validateCanvasData`）：JSON 对象、元素和页的 `id` 为 1–120 字符且不重复（幻灯片的元素 ID 在整套里不重复）、白板元素带 `type`、白板最多 20,000 个元素、幻灯片最多 500 页且每页 1,000 个元素、演讲备注 20,000 字符、嵌套不超过 64 层、不含 NUL；**不能内嵌 base64 图片**（`data:…;base64,` 一律 400 “Images must be uploaded, not embedded in the page.”），图片先传到笔记文件（`POST /api/pages/files`），白板的 `files` 里的 `dataURL` / `url` 只能是 `/api/pages/files?key=…`；本体里出现的所有笔记文件地址都必须在本人目录下（`assertCanvasFilesOwner`，否则 400 “This page refers to a file that is not yours.”）。整份本体（JSON）最多 2 MB（`MAX_CANVAS_BYTES`，超过 413 “This page is larger than 2 MB and cannot be saved.”；请求体最多 2 MB + 64 KB，远低于 Vercel 4.5 MB 的上限）。画笔的点由编辑器在保存前精简（#152），服务端只管上限。从聊天里拿大图时压缩到 4 MiB 以内是编辑器 / AI 操作（#152、#158）的事。
+
+**检索用的文字。** 每次保存，服务端从本体里取出文字存进 `NoteCanvas.segments`（`[{ id, text }]`，`extractCanvasSegments`）：白板是没删除的元素的文字（`originalText` 或 `text`，绑在图形上的文字算到图形的 ID 下）和框（frame）的名字；幻灯片是每一页元素里所有 `text` 字段（含富文本 JSON）加演讲备注，ID 是页的 ID。合计最多 100,000 字符。站内搜索、AI 的 `search_notes`、语义搜索的索引、附加到聊天和项目参考笔记**只用这份文字**，SQL 只读 `c."segments"`，从不遍历本体（笔迹的点）。搜索结果的 `blockId` 对白板是命中的元素、对幻灯片是命中的页（编辑器做好后据此定位；现在网页和应用只打开页面开头）。
+
+**保存只回传版本号。** `PATCH /api/pages/:id` 对白板 / 幻灯片收 `{ title, icon?, data?, version }`，成功返回 `{ version, page }`（`page` 是一览的摘要，不含本体）；省略 `data` 只改标题和图标。版本冲突返回 409 `{ error, page, version }`（同样不带本体，最新内容用 `GET` 读）；响应丢失后的重发用 `NoteCanvas.hash`（本体 JSON 的 SHA-256）判断内容是否已保存，不必读回本体。旧的笔记编辑器把笔记正文（`blocks`）送到白板 / 幻灯片时不写入，返回 400 “This page can't be edited in this version of NoteFable.”。
+
+**历史少留。** 白板和幻灯片的历史本体存在 `NoteRevision.data`（`blocks` 为空数组），每页只留自动保存 5 份 + AI 编辑 / 恢复前 5 份（共 10 份，笔记是 30 + 20），自动快照最短间隔 30 分钟（笔记 10 分钟），见 `revisionLimits`。自动快照照样是 DB 内的 `INSERT … SELECT`（`LEFT JOIN NoteCanvas`），本体不进应用；空白板（没有元素）/ 空幻灯片（没有页）不留快照。
+
+**在各处按类型处理。**
+
+- **列表与图标**：一览、最近编辑、回收站、搜索结果、附加页面、项目参考笔记、发言下的页面标签都带 `kind`；页面没有自己的图标时显示类型图标（笔记 FileText、白板 Shapes、幻灯片 Presentation，`PageKindIcon`）。搜索结果里白板 / 幻灯片在标题旁标出类型名。
+- **打开**：网页的 Notes 视图、分屏和 `/note-embed` 对白板 / 幻灯片显示只读的占位画面（`CanvasPagePlaceholder`：图标、标题、“编辑功能即将推出”和本体里的文字，幻灯片带页码），不加载 BlockNote、不显示 AI 按钮、不自动保存；“…”菜单只留锁定、收藏、复制、新建子页面、移动和移入回收站，顶栏不显示“分享”。提及（`@`）和页面链接照常在原地打开，打开后按类型显示。
+- **历史**：预览按类型显示（白板 / 幻灯片列出那一版的文字），恢复按类型写回（`NoteCanvas` 和标题、图标，先把当前状态存成 `RESTORE` 历史），响应的 `page` 带本体。
+- **复制**：类型照抄，本体在数据库里 `INSERT … SELECT` 复制（不读进应用），事务超时 30 秒。
+- **公开分享**：没有公开视图的类型（现在是白板和幻灯片）不出现在分享树里，它们下面的子页面也不出现（和“从上级分享排除”一样处理）；它们自己不能发布（`PUT /api/pages/:id/share` 的 `enabled: true` 返回 400）。白板的只读视图在 #152、幻灯片的放映视图在 #149 做。
+- **附加到聊天、项目参考笔记**：白板 / 幻灯片发送取出的文字（白板每段一行 `- 文字`，幻灯片 `Slide n: 文字`），规则与笔记相同（每次发送实时读取、单篇 8,000 / 合计 20,000 字符），分隔行上标 `[whiteboard]` / `[slide deck]`。
+- **导入导出**：Markdown 导入只建笔记，导出只对笔记（白板 / 幻灯片返回 400），它们自己的导出（PNG、SVG、PDF、PPTX）由各编辑器提供。
+- **AI 工具**：`search_notes` 搜全部类型，结果带 `kind`；`read_note` 对白板 / 幻灯片只返回只读的文字（不编号，写明不能用 `propose_note_edit` 修改）；`propose_note_edit` 和应用编辑案只认笔记（工具错误 / 409 “This page is a whiteboard, not a note.”）。`buildInstructions()` 说明工作区有三种页面、只有笔记能用工具修改（[chat-flow.md](chat-flow.md#notes-工具三家模型共用)）。完整的 AI 操作在 #158。
+
+**旧版应用。** 应用里的编辑页始终是 `/note-embed?page=<id>`（旧版应用会把新的路径交给系统浏览器，所以不换路径），网页按类型渲染，桥接全部照旧（`ready` 多带 `page.kind`）。旧版应用的“…”菜单对所有类型都显示笔记专用的操作；服务端拒绝这些操作（Markdown 导出、字体 / 小字号 / 全宽、发布、笔记正文的保存），返回 400 `{ error, code: "wrong_page_kind", kind }`，其中 `error` **已经按请求的语言译好**（`notefable-locale` Cookie → `Accept-Language` → 地区 → 英文，与 `/api/i18n` 相同，`src/lib/page-kind-errors.ts`），因为旧版应用的词典里没有这些句子。新版网页和应用直接显示这个句子。
+
 ## 编辑器与数据
 
 Notes、聊天与头像共用 `emoji-picker-react` 的完整 Unicode 表情选择器，打开时才加载，支持英文搜索、分类、最近使用和肤色。表情以单个 Unicode 字素保存，包含旗帜、键帽和组合表情；原生显示受设备字体支持范围限制。头像照片与封面的现有上传流程保留，不提供独立的图标素材库。
@@ -60,20 +92,20 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 
 | 路径 | 行为 |
 | --- | --- |
-| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
-| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面），也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
+| `GET /api/pages` | 返回 `{ pages, groups }`：页面摘要按 `position`、创建时间排列（含 `kind`、`groupId`、`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`、`position`），分组按 `position` 排列；带 `?recent=1` 时只返回按 `updatedAt` 排序的最近 4 篇 `{ id, kind, title, icon, updatedAt }`（空对话页的最近笔记卡片使用）。均只含不在 Trash 里的笔记 |
+| `POST /api/pages` | 新建 `{ title, icon, cover, blocks, parentId? }` 页面（`parentId` 指定时成为该页面的子页面、项目随父页面，父页面可以是任何类型）；带 `kind: "whiteboard" \| "slides"` 时是 `{ kind, title, icon, data?, parentId? }`（`data` 省略为空的本体），201 `{ page }` 的 `page` 带 `data`；未知的 `kind` 400，也用于保存冲突副本，以及聊天回答下方的 “Save to Notes”（块由浏览器按回答生成，规则见 [chat-flow.md](chat-flow.md#回答的复制保存到-notes-与-markdown-导出)；服务端照常校验） |
 | `POST /api/sessions/:id/page` | 输入栏 “＋” 菜单里的 “Create page”：AI 把整段对话改写成一篇笔记，经 `answerToNoteContent`、`validateNoteContent` 与 `createNotePage` 新建，201 `{ page, partial }`；计入聊天额度，规则见 [chat-flow.md](chat-flow.md#整理成笔记create-page) |
 | `POST /api/pages/from-answer` | Android / iOS 原生 App 的 “Save to page”：`{ markdown, sessionId, messageId?, savedOn? }`，服务端核对会话归属后用 `answerToNoteContent` 生成块，经 `validateNoteContent` 与 `createNotePage`（同 `POST /api/pages`）新建，201 `{ page }` |
-| `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404） |
-| `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404 |
+| `GET /api/pages/:id` | 读取拥有的页面（Trash 里的笔记返回 404）。白板 / 幻灯片的 `page` 另带本体 `data` |
+| `PATCH /api/pages/:id` | 原子保存 `{ title, icon, cover, coverPosition, blocks, version }`，版本递增；同一事务内按需先写一份 `AUTO` 历史（见“编辑历史与恢复”）。Trash 里的笔记返回 404。白板 / 幻灯片收 `{ title, icon?, data?, version }`，只回 `{ version, page }`（见“页面类型”） |
 | `DELETE /api/pages/:id` | **移入 Trash**（软删除）：给这篇和全部子页面写同一个 `deletedAt`，响应 `{ ok: true, ids }`；不是永久删除。成功后顺带尽力清理本人超期的 Trash 笔记 |
-| `GET /api/pages/trash` | 返回 `{ pages: NoteTrashItem[] }`（`id`、`title`、`icon`、`deletedAt`、`purgeAt`），最近放入的在前。先清理本人超期的笔记再列出；`Cache-Control: no-store` |
+| `GET /api/pages/trash` | 返回 `{ pages: NoteTrashItem[] }`（`id`、`kind`、`title`、`icon`、`deletedAt`、`purgeAt`），最近放入的在前。先清理本人超期的笔记再列出；`Cache-Control: no-store` |
 | `DELETE /api/pages/trash[?before=<ISO 时间>]` | 清空 Trash：永久删除本人 Trash 里的笔记，返回 `{ ok: true, count }`。带 `before` 时只删除不晚于该时间放进 Trash 的笔记（界面用确认时看到的最新一条的时间，避免删掉确认期间别的标签页刚丢进来、用户没看到的笔记）；时间无法解析返回 400 |
 | `POST /api/pages/trash/:id` | 复原一篇笔记及一起移入的子页面（保留期内才行），返回与 `GET /api/pages` 单项同形的 `{ page }` 和全部复原页面的 `pages`；不在 Trash、不是本人的、已过期的返回 404 `Note not found in the trash.` |
 | `DELETE /api/pages/trash/:id` | 永久删除 Trash 里的这一篇及 Trash 里它的子孙；正常笔记不能用它删除（404） |
 | `GET /api/pages/:id/revisions` | 返回 `{ revisions }`（`id`、`reason`、`title`、`version`、`createdAt`，不含正文），最新在前，最多 50 条 |
-| `GET /api/pages/:id/revisions/:revisionId` | 返回 `{ revision }`，含 `icon` 和 `blocks`，用于预览 |
-| `POST /api/pages/:id/revisions/:revisionId/restore` | 把笔记恢复为该历史的标题、图标和正文。body `{ version }` 是客户端当前的笔记版本；成功返回完整的 `{ page }`，版本过期返回 409（带最新的 `page`） |
+| `GET /api/pages/:id/revisions/:revisionId` | 返回 `{ revision }`，含 `icon` 和 `blocks`（白板 / 幻灯片另含本体 `data`），用于预览 |
+| `POST /api/pages/:id/revisions/:revisionId/restore` | 把笔记恢复为该历史的标题、图标和正文（白板 / 幻灯片恢复本体，响应的 `page` 带 `data`）。body `{ version }` 是客户端当前的笔记版本；成功返回完整的 `{ page }`，版本过期返回 409（带最新的 `page`） |
 | `POST /api/pages/covers` | 上传封面图片（JPEG/PNG/WebP/GIF，按文件头判断，最大 4 MiB，按实际接收字节数限制），返回 `upload:` 键；页面引用由随后的自动保存写入 |
 | `GET /api/pages/covers?key=` | 只返回当前用户目录下的封面图片 |
 | `POST /api/pages/files` | 上传图片块/文件块的文件，返回 `{ url, name, size, kind }`，规则见“图片与文件” |
@@ -83,12 +115,12 @@ AI 工具看到上传内容时是 `[Image: 名称 — 说明]` / `[File: 名称]
 | `PUT /api/pages/:id/group` | 把页面（连同子页面）移入自己的分组，或用 `{ groupId: null }` 移出；页面同时脱离父页面成为最上位。响应 `{ id, groupId, parentId: null, ids }` |
 | `PUT /api/pages/:id/parent` | `{ parentId }`：移到另一页面之下（`null` 回到最上位、项目不变），子页面一起移动、项目随新父页面；成环返回 400。响应 `{ pages }`（被移动的页面的摘要） |
 | `PUT /api/pages/:id/favorite` | `{ favorite: boolean }`：加入/移出收藏，返回 `{ page }`（摘要）。不增加 `version` |
-| `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version` |
+| `PUT /api/pages/:id/settings` | `{ fullWidth?, smallText?, font?, locked? }`（`font` 为 `default`/`serif`/`mono`），只改送来的项，返回 `{ page }`（摘要）。不增加 `version`。白板 / 幻灯片只能改 `locked`，送来字体 / 小字号 / 全宽返回 400（按请求语言译好的句子，`code: "wrong_page_kind"`） |
 | `GET /api/pages/:id/share` | 返回该笔记的公开分享状态 `{ share }`（含是否已发布、链接、是否包含子页面、过期时间、是否从上级分享排除、上级公开页面的继承信息） |
-| `PUT /api/pages/:id/share` | `{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
+| `PUT /api/pages/:id/share` | 白板 / 幻灯片的 `enabled: true` 返回 400（`wrong_page_kind`，句子按请求语言译好）。`{ enabled?, includeSubpages?, expiresAt?, excludeFromParent? }`：按 Notion 方式发布/取消发布（首次发布生成 `shareToken` 并保留、`includeSubpages` 默认 `true`、支持过期时间或 `null` 永不过期、子页面可单独设 `excludeFromParent` 打破继承），元数据写入不增加 `version`，返回 `{ share, page }` |
 | `GET /s/:token` / `/s/:token/p/:pageId` | 公开只读笔记页及公开子页面（免登录、实时同步、`noindex`）；涵盖封面、图标、正文块、表格、折叠、代码块复制、子页面列表与面包屑。封面、图片图标（`/s/:token/cover?kind=icon`）与正文附件经 `/s/:token/cover`、`/s/:token/file` 仅放行当前公开可见页面实际引用的媒体（`Cache-Control: no-store`） |
-| `POST /api/pages/:id/duplicate` | 复制这篇及子页面，201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
-| `GET /api/pages/:id/export` | 把这一篇导出成 Markdown：`{ fileName, markdown }`（与 `GET /api/sessions/:id/export` 同形），`Cache-Control: no-store`；不存在、不是本人的或在 Trash 里返回 404。见“Markdown 导出与导入” |
+| `POST /api/pages/:id/duplicate` | 复制这篇及子页面（类型照抄，白板 / 幻灯片的本体在数据库里复制），201 `{ page, pages, items }`：`page` 是复制后的最上位页面（含正文），`pages` 是全部复制件的摘要，`items` 是全部页面的新 `position` |
+| `GET /api/pages/:id/export` | 把这一篇导出成 Markdown：`{ fileName, markdown }`（与 `GET /api/sessions/:id/export` 同形），`Cache-Control: no-store`；不存在、不是本人的或在 Trash 里返回 404；白板 / 幻灯片返回 400（`wrong_page_kind`，句子按请求语言译好）。见“Markdown 导出与导入” |
 | `POST /api/pages/import` | `{ files: [{ name, markdown }], groupId? }`：每个文件新建一篇笔记，全部在一个事务里，201 `{ pages }`（摘要，顺序与文件相同）。上限和错误见“Markdown 导出与导入” |
 | `PUT /api/pages/:id/icon` | 侧栏里点行首图标修改**未打开**笔记的图标：`{ icon: <单个 emoji、上传图片的键或 null> }`（键要在自己目录下，并在同一事务里 `claimCover`），返回 `{ page }`。图标也在自动保存的 PATCH 里，所以这里把 `version` 加 1，其他标签页里旧内容的保存会得到 409，不会把图标改回去；已打开的笔记走编辑器自己的自动保存，不调这个接口 |
 
@@ -174,7 +206,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 ## 运行与迁移
 
-无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）和 `20261116100000_message_notes`（`MessageNote`），均为非破坏追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
+无需新增环境变量，沿用 DATABASE_URL 与 COOKIE_SECRET。笔记相关迁移包括 `20260930150000_note_pages`（NotePage 表、归属外键和列表索引）、`20261006120000_note_page_icon_cover`（`icon`、`cover`）、`20261006130000_note_page_cover_position`（`coverPosition`）、`20261006140000_note_cover_assets`（`NoteCoverAsset`）、`20261006150000_note_cover_asset_deleting`（`deletingAt`，并把已有的上传封面登记为使用中）、`20261006160000_note_cover_asset_checked`（`checkedAt` 及索引）、`20261013140000_note_proposals`（`NoteProposal`）、`20261014120000_note_groups`（`NoteGroup` 与 `NotePage.groupId`）、`20261014210000_session_note`（`Session.noteId`）、`20261122120000_session_note_set_null`（`Session.noteId` 的外键改为 `ON DELETE SET NULL`）、`20261015001000_manual_list_order`（`position`）、`20261015100000_note_trash_and_revisions`（`NotePage.deletedAt`、`NoteRevisionReason` 与 `NoteRevision`）、`20261116000000_note_page_tree_settings`（`parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`）、`20261116100000_message_notes`（`MessageNote`）和 `20261123000000_page_kinds`（枚举 `PageKind`、`NotePage.kind` 默认 `note`、`NoteRevision.data`、`NoteCanvas` 表），均为非破坏追加。历史快照 SQL 用到 `gen_random_uuid()`（PostgreSQL 13+），并显式带 schema（`notefable`）。Trash 和历史没有新的环境变量，也没有定时任务。封面图片与聊天图片共用 `src/lib/storage.ts`（生产为 Private Vercel Blob，本地无令牌时写入 `NOTEFABLE_STORAGE_DIR`）。使用 `npm run prisma:migrate`，不使用 db push 或数据库重置。预览环境仍须使用独立数据库。
 
 ## 页面排序
 
@@ -184,6 +216,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 原生 Android（`mobile/android`，`WebView`）与 iOS（`mobile/ios`，`WKWebView`）应用自己绘制笔记列表、项目和 Trash，编辑器本身仍用网页的 BlockNote：应用在 WebView 里打开 `<baseUrl>/note-embed?page=<pageId>`（可加 `&lang=<locale>`，支持全部 17 种已启用语言，见 [i18n.md](i18n.md)；`&model=<id>&reasoning=<effort>` 是应用里选的模型和推理强度；`&theme=<light|dark|system>` 是外观，两个应用只发算好的 `light` / `dark`）。页面是按语言预先生成的静态页 `src/app/[locale]/note-embed/page.tsx`，在工作区主机由 `src/proxy.ts` 像 `/app` 一样 rewrite（分域后从主域 `notefable.com` 访问 `/note-embed` 或 `/<locale>/note-embed` 会 307 重定向到工作区主机 `app.notefable.com`）；要打开的页面 ID 在浏览器端从 URL 读取。
 
+- **页面类型。** 白板和幻灯片也用 `/note-embed?page=<id>` 打开，编辑器做好之前显示只读的占位画面（见“页面类型”）；桥接照旧（没有要保存的内容，`flush` 总是 `ok`，`saveState` 是 `saved`）。
 - **内容。** `NoteEmbed`（`src/components/note-embed.tsx`）只渲染手机 Notes 编辑页的正文：封面、图标、标题、BlockNote 编辑器、保存失败/冲突提示和右下角 AI 按钮，复用 `NotesWorkspace`（`embedded`）、`useNotePages(false, { embedded: true })` 和 `NoteSaveQueue`。不显示网页的顶栏、侧栏和 Chat/Notes 切换；返回、标题、锁定按钮、版本历史、保存状态和“…”页面菜单（字体 / 小字号 / 全宽 / 锁定 / 收藏 / 复制 / 新建子页面 / 移动 / 导出 Markdown / 移入回收站）由应用的原生顶栏负责（与网页端顶栏一致）。412×915 下正文的位置和字号与 `/app?view=pages&page=…` 相同（顶栏高度之外）。不读取笔记列表。
 - **保存与恢复照旧。** 一秒防抖自动保存、`notefable:page-draft:v1:<pageId>` 本地草稿、重新打开时的草稿恢复、409 冲突提示（Save as new note / Load latest）、`beforeunload` 和 `visibilitychange` 时的 flush 都与网页相同。WebView 需开启 JavaScript 和 DOM Storage。冲突时选择“另存为新笔记”会把内嵌页切换到新建的副本（URL 用 `replaceState`，不增加历史），并再次发送 `ready`。
 - **认证。** 与 API 使用同一组 Cookie：应用加载前把 `notefable_device`（以及登录后的 Auth.js 会话 Cookie）同步到 WebView（Android 为 `CookieManager`，iOS 为 `WKWebsiteDataStore.httpCookieStore`）。笔记文件（`/api/pages/files?key=…`）的下载由应用拦下、带着自己的 Cookie 下载，不交给系统浏览器。
@@ -196,7 +229,7 @@ Cookie 只是设备身份隔离。清除 Cookie 或换浏览器、设备、域�
 
 | 消息 | 时机 |
 | --- | --- |
-| `{type:"ready", page:{id,title,icon}}` | 页面数据读取完毕、保存队列已建立（BlockNote 是动态加载的，此时可能仍显示 Loading editor…，不代表编辑器已可输入）；打开的页面换成另一篇（冲突副本）时用新 `id` 再发一次，应用据此把打开的笔记换成副本 |
+| `{type:"ready", page:{id,title,icon,kind}}` | `kind` 是页面类型（旧版应用忽略）。页面数据读取完毕、保存队列已建立（BlockNote 是动态加载的，此时可能仍显示 Loading editor…，不代表编辑器已可输入）；打开的页面换成另一篇（冲突副本）时用新 `id` 再发一次，应用据此把打开的笔记换成副本 |
 | `{type:"meta", title, icon}` | 本地编辑改变了标题或图标（空标题发 `Untitled`，无图标为 `null`） |
 | `{type:"saveState", state}` | 保存状态变化：`saved` / `unsaved`（等待输入停止，网页显示 Saving…）/ `saving` / `error`（Not saved）/ `conflict` |
 | `{type:"missing"}` | 没有 `page` 参数，或页面不存在、不属于本人、在 Trash 里（404）；编辑中保存返回 404（别处已移入 Trash 或彻底删除）时也发，本地草稿保留 |
