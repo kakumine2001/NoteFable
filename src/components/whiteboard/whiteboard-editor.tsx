@@ -229,10 +229,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         lastSignature.current = null;
         scheduleSave();
       }).catch((error: unknown) => {
-        uploads.current.set(fileId, { status: "failed" });
         // 容量の上限は NotesWorkspace の案内（storage-limit-client）が出す。ここは画像を取り除くだけ。
         if (!(error instanceof StorageLimitError)) setNotice({ text: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
         removeImagesOf(fileId);
+        // 同じ画像（同じ fileId）をもう一度貼ったときに、改めてアップロードできるよう記録を消す。
+        uploads.current.delete(fileId);
       });
     }
   }, [removeImagesOf, scheduleSave]);
@@ -376,9 +377,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const startWithHand = editable && (touchOnly || embedded);
   const startWithHandRef = useRef(startWithHand);
   useEffect(() => { startWithHandRef.current = startWithHand; }, [startWithHand]);
+  const fitOnOpen = initial.scrollToContent;
   const onInitialize = useCallback((ready: ExcalidrawImperativeAPI) => {
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
-  }, []);
+    // この端末で初めて開くときは、内容がすべて見えるように縮める（100% より大きくはしない）。前回の表示位置があればそれを使う。
+    const elements = ready.getSceneElements();
+    if (fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
+  }, [fitOnOpen]);
 
   // 画面の幅ではなく、キャンバスの幅で並べ方を変える（サイドバー・分割表示で狭くなる）。
   const [width, setWidth] = useState(1024);

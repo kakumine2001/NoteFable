@@ -28,10 +28,16 @@ final class NotesViewModel {
     /// 编辑器随即变宽、换字体或变成只读。由界面在编辑器打开时设置。
     @ObservationIgnored var pushPageSettings: (@MainActor (NotePageSummary) -> Void)?
 
+    /// 检索结果就在打开着的这一页里：让网页编辑器就地定位到命中的块 / 元素（window.notefableEmbed.reveal），不重新加载。
+    /// 由界面在编辑器打开时设置（[registerEditor]）。
+    @ObservationIgnored var revealInEditor: (@MainActor (String) -> Void)?
+
     @ObservationIgnored private let backend: NotesBackend
     @ObservationIgnored private let prefs: NotesPrefs
     /// 侧栏里改没打开的笔记的图标（PUT /api/pages/:id/icon）。
     @ObservationIgnored private let noteIcons: NoteIconBackend
+    /// 编辑器分块送来的导出文件拼在这里（fileStart … fileEnd）。
+    @ObservationIgnored private let exportFiles: ExportFileAssembler
 
     @ObservationIgnored private var loadTask: Task<Void, Never>?
     @ObservationIgnored private var navigationTask: Task<Void, Never>?
@@ -52,10 +58,14 @@ final class NotesViewModel {
     /// 每完成一次改动（新建、移动、删除…）加一。刷新期间有改动完成的话，刷新读到的可能是改动前的列表，要重读。
     @ObservationIgnored private var mutations = 0
 
-    init(backend: NotesBackend, prefs: NotesPrefs = MemoryNotesPrefs(), noteIcons: NoteIconBackend = MissingNoteIconBackend()) {
+    init(
+        backend: NotesBackend, prefs: NotesPrefs = MemoryNotesPrefs(), noteIcons: NoteIconBackend = MissingNoteIconBackend(),
+        exportFiles: ExportFileAssembler = ExportFileAssembler()
+    ) {
         self.backend = backend
         self.prefs = prefs
         self.noteIcons = noteIcons
+        self.exportFiles = exportFiles
         state = NotesUiState(collapsed: prefs.collapsedGroups, expanded: prefs.expandedPages)
     }
 
@@ -63,9 +73,21 @@ final class NotesViewModel {
     private func update(_ change: (inout NotesUiState) -> Void) {
         var next = state
         change(&next)
-        // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示。
-        if next.open?.editor != state.open?.editor { next.storageLimit = nil }
+        // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示，
+        // 它没送完的导出文件作废，收齐了还没存的也删掉（不在别的页面上弹出保存）。
+        if next.open?.editor != state.open?.editor {
+            next.storageLimit = nil
+            discardExportFiles(next)
+            next.exportFile = nil
+            next.exportFileFailed = false
+        }
         state = next
+    }
+
+    /// 正在收的和 [state] 里收齐了还没存的导出文件都删掉（状态由调用的地方清）。
+    private func discardExportFiles(_ state: NotesUiState) {
+        exportFiles.cancel()
+        if let file = state.exportFile { exportFiles.discard(file) }
     }
 
     /// 改动完成后调用：还是同一个身份才把结果写进界面，并记一次改动。
@@ -133,6 +155,8 @@ final class NotesViewModel {
         linkTask?.cancel()
         trashTask?.cancel()
         for task in trashActionTasks.values { task.cancel() }
+        // 旧身份的编辑器导出的文件不留。
+        discardExportFiles(state)
         state = NotesUiState(workspace: state.workspace, collapsed: state.collapsed, expanded: state.expanded)
         if state.workspace == .notes { refresh() }
     }
@@ -207,13 +231,16 @@ final class NotesViewModel {
 
     /// 打开笔记。[title] / [icon] / [kind] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
     /// 笔记已不存在时编辑器会报 missing，和网页一样回到列表。
-    func openNote(_ id: String, title: String? = nil, icon: String? = nil, kind: PageKind = .note) {
+    /// [reveal] 是检索结果命中的块 / 元素：要打开别的页面时放进 [OpenNote.reveal]（编辑器第一次加载时交给网页）；
+    /// 已经开着这一篇时不重新加载，交给开着的编辑器就地定位（[revealInEditor]）。
+    func openNote(_ id: String, title: String? = nil, icon: String? = nil, kind: PageKind = .note, reveal: String? = nil) {
         let current = state
         if current.open?.id == id {
             if current.workspace != .notes { update { $0.workspace = .notes } }
+            if let reveal, !reveal.isEmpty { revealInEditor?(reveal) }
             return
         }
-        let open: OpenNote
+        var open: OpenNote
         if let page = current.pages.first(where: { $0.id == id }) {
             open = OpenNote(page: page)
         } else if let title {
@@ -221,12 +248,14 @@ final class NotesViewModel {
         } else {
             return
         }
+        open.reveal = reveal
         // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
         let pending = iconWrites[id]
-        leaveThen(before: { _ = await pending?.done.wait() }) { [self] in
+        leaveThen(before: { _ = await pending?.done.wait() }) { [self, open] in
             var target = open
             if pending != nil, let page = state.pages.first(where: { $0.id == id }) {
                 target = OpenNote(page: page)
+                target.reveal = reveal
             }
             update {
                 $0.workspace = .notes
@@ -332,12 +361,54 @@ final class NotesViewModel {
             // 已经关掉或换走的编辑器晚到的消息不收。
             guard state.open?.editor == editor else { break }
             update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
+        case .drawing:
+            // iOS 在白板页一直关着边缘返回和抽屉的边缘拖动（NotesUiState.editorCapturesEdgeSwipes），不用按画没画来切换。
+            break
+        case .fileStart(let id, let name, let mime, let size):
+            guard state.open?.editor == editor else { break }
+            receiveExportFile { try exportFiles.start(id: id, name: name, mime: mime, size: size) }
+        case .fileChunk(let id, let index, let data):
+            guard state.open?.editor == editor else { break }
+            receiveExportFile { try exportFiles.append(id: id, index: index, data: data) }
+        case .fileEnd(let id):
+            guard state.open?.editor == editor else { break }
+            receiveExportFile {
+                guard let file = try exportFiles.finish(id: id) else { return }
+                // 上一个还没存完（几乎不会有：保存窗口开着时网页在下面）就换成新的。
+                if let previous = state.exportFile, previous != file { exportFiles.discard(previous) }
+                update { $0.exportFile = file }
+            }
+        case .fileAbort(let id):
+            // 网页自己放弃了（它在编辑器里说明原因），不另外提示。
+            exportFiles.abort(id: id)
         case .flushed: break
         }
     }
 
     func dismissStorageLimit() {
         update { $0.storageLimit = nil }
+    }
+
+    // ---- 编辑器导出的文件（网页 src/lib/export-file.ts） ----
+
+    /// 收一步；出了错（[ExportFileAssembler] 已经删掉写了一半的文件）提示保存失败。
+    private func receiveExportFile(_ step: () throws -> Void) {
+        do {
+            try step()
+        } catch {
+            update { $0.exportFileFailed = true }
+        }
+    }
+
+    /// 系统的“存储到文件”结束了（存好、取消或失败都一样）：删掉临时文件。
+    func finishExportFile(_ file: ExportedFile) {
+        exportFiles.discard(file)
+        if state.exportFile == file { update { $0.exportFile = nil } }
+    }
+
+    /// 界面提示过“没能保存”了。
+    func dismissExportFileFailure() {
+        if state.exportFileFailed { update { $0.exportFileFailed = false } }
     }
 
     // 下面的 [editor] 是发消息的编辑器（[OpenNote.editor]）。它就是打开着的编辑器时，换成它现在显示的页面 id。

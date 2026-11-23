@@ -7,7 +7,7 @@ import { NotesWorkspace } from "@/components/notes-workspace";
 import { useModels } from "@/components/models-provider";
 import { readEmbedModelPreference, readModelPreference, resolveModelPreference } from "@/lib/model-preference";
 import { saveAppIcon } from "@/lib/app-icon";
-import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
+import { createEmbedApi, installEmbedApi, REVEAL_TARGET, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
 import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
@@ -56,7 +56,7 @@ export function NoteEmbed() {
     // reveal：検索の結果から開いたとき、一致したブロック（ノート）・要素（ホワイトボード）まで動かす。
     const reveal = params.get("reveal");
     // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
-    if (reveal && /^[A-Za-z0-9_-]{1,120}$/.test(reveal)) revealRef.current = { pageId: id, target: reveal };
+    if (reveal && REVEAL_TARGET.test(reveal)) revealRef.current = { pageId: id, target: reveal };
     void select(id, "none").then((opened) => { if (!opened) postToNative({ type: "missing" }); });
   }, [select, options]);
 
@@ -80,6 +80,13 @@ export function NoteEmbed() {
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
     draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
     openHistory: () => { if (activeRef.current) setHistoryOpen(true); },
+    // すでに開いているページの検索結果：開き直さずに一致した場所まで動かす。
+    reveal: (target) => {
+      const queue = activeRef.current;
+      if (!queue) return;
+      if (pageKindOf(queue.page) === "whiteboard") requestWhiteboardReveal(queue.page.id, target);
+      else void revealNoteBlock(target);
+    },
     post: (message) => { postToNative(message); },
   })), [setPreference]);
 

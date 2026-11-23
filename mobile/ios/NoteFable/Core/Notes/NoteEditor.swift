@@ -2,7 +2,7 @@ import Foundation
 
 // 原生和网页编辑器（/note-embed）之间的 JS 桥（Android ui/NoteEditor.kt 的 NoteEmbedBridge）。约定见 src/lib/native-bridge.ts：
 // 网页 → 原生：`window.NoteFableNative.postMessage(json)`；原生 → 网页：`window.notefableEmbed.flush(id)` / `openHistory()` /
-// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)` / `theme(value)`。
+// `pageUpdated(pageJson)` / `pageSettings(pageJson)` / `appIcon(value)` / `language(code)` / `theme(value)` / `reveal(id)`。
 // WKWebView 本身在界面层，经 [NoteEditorBridge] 和这里说话；这里管消息的分发和"保存后再离开"的等待。
 
 /// 界面层的编辑器（WKWebView 的包装）要实现的几个调用，都是对网页执行一段脚本（[NoteEmbedScripts]）。
@@ -17,6 +17,8 @@ protocol NoteEditorBridge: AnyObject {
     func appIcon(_ value: String?)
     func language(_ code: String)
     func theme(_ value: String)
+    /// 执行 [NoteEmbedScripts.reveal]：在开着的页面里定位到检索命中的块 / 元素，不重新加载。
+    func reveal(_ id: String)
 }
 
 /// 对网页执行的脚本。和 Android 端逐字相同，网页那边没有对应函数时什么都不做。
@@ -80,6 +82,12 @@ enum NoteEmbedScripts {
         "(function(){var e=window.notefableEmbed;if(e&&typeof e.theme==='function')e.theme(\(quote(value)))})()"
     }
 
+    /// 在开着的页面里滚到检索命中的块（笔记）、移到命中的元素（白板），和地址的 `reveal=` 一样（src/lib/native-bridge.ts 的 reveal）。
+    /// 已经开着的页面又从检索结果打开时用，不重新加载。id 不是 `[A-Za-z0-9_-]{1,120}` 的样子时网页什么也不做。
+    static func reveal(_ id: String) -> String {
+        "window.notefableEmbed&&window.notefableEmbed.reveal&&window.notefableEmbed.reveal(\(quote(id)))"
+    }
+
     /// 返回手势先交给网页：有打开的 <dialog>（版本历史等）就发 cancel 事件关最上面一层（等同网页里按 Esc），返回 true。
     static let closeTopDialog =
         "(function(){var d=document.querySelectorAll('dialog[open]');if(!d.length)return false;" +
@@ -91,12 +99,13 @@ enum NoteEmbedScripts {
     /// 开着的时候换了图标 / 语言 / 外观走 [appIcon] / [language] / [theme] 推过去。默认标志是空字符串。
     /// [theme] 是 App 现在显示的外观（light / dark）；nil 时不定义 `theme()`，网页按地址里的 theme= 或自己存的值。
     /// `canOpenPage()` 告诉网页这个 App 会处理 `openPage`（旧版没有，网页照旧用新窗口打开链接）；
-    /// `canShowStorageLimit()` 告诉网页这个 App 会显示"存储空间不够"（`storageLimit`；旧版没有，网页在编辑器里只说明原因）。
+    /// `canShowStorageLimit()` 告诉网页这个 App 会显示"存储空间不够"（`storageLimit`；旧版没有，网页在编辑器里只说明原因）；
+    /// `canSaveFile()` 告诉网页这个 App 会收导出的文件（`fileStart` … `fileEnd`；旧版没有，网页提示先更新 App）。
     static func bootstrap(handler: String, appIcon: String?, language: String, theme: String? = nil) -> String {
         "(function(){var icon=\(quote(appIcon ?? "")),lang=\(quote(language));window.NoteFableNative={" +
             "postMessage:function(json){window.webkit.messageHandlers[\(quote(handler))].postMessage(String(json))}," +
             "appIcon:function(){return icon},language:function(){return lang},canOpenPage:function(){return true}," +
-            "canShowStorageLimit:function(){return true}" +
+            "canShowStorageLimit:function(){return true},canSaveFile:function(){return true}" +
             (theme.map { ",theme:function(){return \(quote($0))}" } ?? "") +
             "}})()"
     }
@@ -217,6 +226,11 @@ final class NoteEmbedBridge {
         editor?.language(code)
     }
 
+    /// 检索结果在开着的这一页里：就地定位到命中的块 / 元素（网页还没挂上编辑器时什么也不做）。
+    func reveal(_ id: String) {
+        editor?.reveal(id)
+    }
+
     /// App 显示的外观变了（设置里换了，或跟随系统时系统切了深浅）：记下来并推给网页，就地换色。
     /// 传的是已经算好的 light / dark，不传 system：网页编辑器和 App 的界面总是同一个外观。
     func pushTheme(_ value: String) {
@@ -227,14 +241,16 @@ final class NoteEmbedBridge {
 
 extension NotesViewModel {
     /// 编辑器打开 / 关掉时由界面调用（Android NoteEditorScreen 的 registerFlush）：离开笔记前经这个桥保存，
-    /// 显示设置、收藏的改动也经它交给网页。传 nil 是编辑器关掉了。
+    /// 显示设置、收藏的改动和开着的这一页里的检索定位也经它交给网页。传 nil 是编辑器关掉了。
     func registerEditor(_ bridge: NoteEmbedBridge?) {
         guard let bridge else {
             flushEditor = nil
             pushPageSettings = nil
+            revealInEditor = nil
             return
         }
         flushEditor = { await bridge.flush() }
         pushPageSettings = { bridge.pageSettings($0) }
+        revealInEditor = { bridge.reveal($0) }
     }
 }

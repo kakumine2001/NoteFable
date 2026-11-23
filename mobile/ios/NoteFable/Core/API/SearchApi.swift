@@ -15,7 +15,8 @@ struct NoteSearchResult: Encodable, Equatable, Sendable, Identifiable {
     var title: String = ""
     var icon: String? = nil
     var snippet: String = ""
-    /// 命中的块（白板是元素、幻灯片是页，原生版不用）；只命中标题时为 nil。
+    /// 命中的块（白板是元素、幻灯片是页）；只命中标题时为 nil。打开时经 `/note-embed` 的 `reveal=`（`OpenNote.reveal`）定位到那里，
+    /// 已经开着的那一篇经 `notefableEmbed.reveal`（`NotesViewModel.revealInEditor`）。
     var blockId: String? = nil
     var updatedAt: String = ""
     /// 页面类型（笔记 / 白板 / 幻灯片）。JSON 里的 `kind` 是结果的种类（note / chat），所以叫这个名字；旧服务端不返回，按笔记。

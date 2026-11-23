@@ -106,8 +106,20 @@ class NotesApiTest {
             api.noteEmbedUrl("abc", "zh", "gpt-5.5", "high"),
         )
         assertEquals("https://example.test/note-embed?page=abc&model=a%26b", api.noteEmbedUrl("abc", null, "a&b", null))
-        // 外观（App 实际的 light / dark）放在最后。
+        // 外观（App 实际的 light / dark）放在模型之后。
         assertEquals("https://example.test/note-embed?page=abc&lang=ja&theme=dark", api.noteEmbedUrl("abc", "ja", theme = "dark"))
+    }
+
+    @Test
+    fun `embed url carries the search hit to reveal last, encoded, and leaves out an empty one`() {
+        val api = NoteFableApi("https://example.test", CookieJar.NO_COOKIES)
+        assertEquals(
+            "https://example.test/note-embed?page=w&lang=ja&model=gpt-5.5&reasoning=high&theme=dark&reveal=el_1-A",
+            api.noteEmbedUrl("w", "ja", "gpt-5.5", "high", "dark", "el_1-A"),
+        )
+        assertEquals("https://example.test/note-embed?page=n&reveal=a%26b%3Dc", api.noteEmbedUrl("n", null, reveal = "a&b=c"))
+        assertEquals("https://example.test/note-embed?page=n", api.noteEmbedUrl("n", null, reveal = ""))
+        assertEquals("https://example.test/note-embed?page=n", api.noteEmbedUrl("n", null, reveal = null))
     }
 
     @Test
@@ -184,6 +196,48 @@ class NotesApiTest {
         assertNull(EmbedMessage.parse("""{"type":"later-feature"}"""))
         assertNull(EmbedMessage.parse("""{"type":"ready"}"""))
         assertNull(EmbedMessage.parse("not json"))
+    }
+
+    @Test
+    fun `parses the whiteboard drawing message and drops malformed ones`() {
+        assertEquals(EmbedMessage.Drawing(true), EmbedMessage.parse("""{"type":"drawing","active":true}"""))
+        assertEquals(EmbedMessage.Drawing(false), EmbedMessage.parse("""{"type":"drawing","active":false}"""))
+        for (active in listOf("", ""","active":null""", ""","active":"true"""", ""","active":1""")) {
+            assertNull(active, EmbedMessage.parse("""{"type":"drawing"$active}"""))
+        }
+    }
+
+    @Test
+    fun `parses the file save messages and drops malformed ones`() {
+        assertEquals(
+            EmbedMessage.FileStart("f1", "Board.png", "image/png", 1234),
+            EmbedMessage.parse("""{"type":"fileStart","id":"f1","name":"Board.png","mime":"image/png","size":1234}"""),
+        )
+        assertEquals(EmbedMessage.FileChunk("f1", 0, "AAEC"), EmbedMessage.parse("""{"type":"fileChunk","id":"f1","index":0,"data":"AAEC"}"""))
+        assertEquals(EmbedMessage.FileChunk("f1", 7, ""), EmbedMessage.parse("""{"type":"fileChunk","id":"f1","index":7,"data":""}"""))
+        assertEquals(EmbedMessage.FileEnd("f1"), EmbedMessage.parse("""{"type":"fileEnd","id":"f1"}"""))
+        assertEquals(EmbedMessage.FileAbort("f1"), EmbedMessage.parse("""{"type":"fileAbort","id":"f1"}"""))
+        val malformed = listOf(
+            // 没有 id、id 是空的或不是字符串
+            """{"type":"fileStart","name":"a.png","mime":"image/png","size":1}""",
+            """{"type":"fileStart","id":"","name":"a.png","mime":"image/png","size":1}""",
+            """{"type":"fileEnd","id":3}""",
+            """{"type":"fileAbort"}""",
+            // 文件名、类型不是字符串；大小是负数、小数、字符串或缺了
+            """{"type":"fileStart","id":"f","name":null,"mime":"image/png","size":1}""",
+            """{"type":"fileStart","id":"f","name":"a.png","mime":4,"size":1}""",
+            """{"type":"fileStart","id":"f","name":"a.png","mime":"image/png","size":-1}""",
+            """{"type":"fileStart","id":"f","name":"a.png","mime":"image/png","size":1.5}""",
+            """{"type":"fileStart","id":"f","name":"a.png","mime":"image/png","size":"1"}""",
+            """{"type":"fileStart","id":"f","name":"a.png","mime":"image/png"}""",
+            // 块的序号是负数、太大、字符串；数据不是字符串或缺了
+            """{"type":"fileChunk","id":"f","index":-1,"data":"AA=="}""",
+            """{"type":"fileChunk","id":"f","index":4294967296,"data":"AA=="}""",
+            """{"type":"fileChunk","id":"f","index":"0","data":"AA=="}""",
+            """{"type":"fileChunk","id":"f","index":0,"data":12}""",
+            """{"type":"fileChunk","id":"f","index":0}""",
+        )
+        for (json in malformed) assertNull(json, EmbedMessage.parse(json))
     }
 
     @Test

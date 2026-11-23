@@ -23,11 +23,10 @@ describe("page kinds", () => {
     expect(pageKindOf({ kind: "slides" })).toBe("slides");
   });
 
-  it("keeps note-only features off for whiteboards and slide decks until their editors exist", () => {
+  it("turns on only what each kind has: whiteboards have an editor and a public view, slide decks nothing yet", () => {
     expect(PAGE_KIND_FEATURES.note).toEqual({ editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true });
-    for (const kind of ["whiteboard", "slides"] as const) {
-      expect(PAGE_KIND_FEATURES[kind]).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
-    }
+    expect(PAGE_KIND_FEATURES.whiteboard).toEqual({ editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false });
+    expect(PAGE_KIND_FEATURES.slides).toEqual({ editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false });
   });
 });
 

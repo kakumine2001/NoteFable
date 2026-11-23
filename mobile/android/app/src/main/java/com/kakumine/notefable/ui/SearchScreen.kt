@@ -122,7 +122,8 @@ fun SearchScreen(
     chatFirst: Boolean,
     onClose: () -> Unit,
     onOpenChat: (id: String, messageId: String?) -> Unit,
-    onOpenNote: (id: String, title: String, icon: String?, kind: PageKind) -> Unit,
+    /** [reveal] 是命中的块（结果的 blockId；只命中标题时是 null），编辑器打开后滚动 / 缩放到它。 */
+    onOpenNote: (id: String, title: String, icon: String?, kind: PageKind, reveal: String?) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val vm = remember { SearchViewModel(scope, backend) }
@@ -137,7 +138,7 @@ fun SearchScreen(
         // 和网页一样先关检索再跳转。
         onClose()
         when (hit) {
-            is SearchHit.Note -> onOpenNote(hit.id, hit.title, hit.icon, hit.result.pageKind)
+            is SearchHit.Note -> onOpenNote(hit.id, hit.title, hit.icon, hit.result.pageKind, hit.result.blockId)
             is SearchHit.Chat -> onOpenChat(hit.id, hit.result.messageId)
         }
     }

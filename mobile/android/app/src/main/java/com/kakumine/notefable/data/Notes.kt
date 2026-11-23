@@ -21,7 +21,8 @@ import kotlinx.serialization.json.longOrNull
 
 /**
  * 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，两边一起改）。
- * 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+ * 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）已有编辑器和公开视图（AI 操作是 #153）；
+ * 幻灯片（#149）的编辑器和公开视图做好后改成 true。
  */
 data class PageKindFeatures(
     /** 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。 */
@@ -43,7 +44,7 @@ data class PageKindFeatures(
 @Serializable(with = PageKindSerializer::class)
 enum class PageKind(val wire: String, val features: PageKindFeatures) {
     Note("note", PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true)),
-    Whiteboard("whiteboard", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)),
+    Whiteboard("whiteboard", PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false)),
     Slides("slides", PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false));
 
     /** 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。 */
@@ -259,11 +260,14 @@ interface NotesBackend {
     suspend fun importMarkdown(files: List<ImportMarkdownFile>, groupId: String? = null): List<NotePageSummary>
 
     /**
-     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
+     * 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…&reveal=…`）。
      * [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
      * [theme] 是 App 现在实际的外观（`light` / `dark`），网页第一帧就按它画（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
+     * [reveal] 是检索命中的块（笔记的块、白板的元素）：网页读好页面后滚动 / 缩放到它（src/components/note-embed.tsx）。
      */
-    fun noteEmbedUrl(pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null): String
+    fun noteEmbedUrl(
+        pageId: String, lang: String?, model: String? = null, reasoning: String? = null, theme: String? = null, reveal: String? = null,
+    ): String
 }
 
 /**
@@ -306,11 +310,28 @@ sealed interface EmbedMessage {
      */
     data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
 
+    /** 白板正在用画图的工具（手掌 / 平移以外的都算）：这期间 App 让开屏幕两侧的系统返回手势。 */
+    data class Drawing(val active: Boolean) : EmbedMessage
+
+    // 网页导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）分块交给 App 保存（src/lib/export-file.ts）：
+    // fileStart → fileChunk（[FileChunk.data] 是 base64，原始字节最多 512 KiB，[FileChunk.index] 从 0 起按顺序）×n → fileEnd；
+    // 中途放弃是 fileAbort。只有声明了 `canSaveFile()` 的 App 才会收到；由 [ExportFileAssembler] 拼成临时文件。
+    /** [size] 是整个文件的字节数。 */
+    data class FileStart(val id: String, val name: String, val mime: String, val size: Long) : EmbedMessage
+    data class FileChunk(val id: String, val index: Int, val data: String) : EmbedMessage
+    data class FileEnd(val id: String) : EmbedMessage
+    data class FileAbort(val id: String) : EmbedMessage
+
     companion object {
         /** 不认识或格式不对的消息返回 null（网页先加了新消息类型也不会让 App 出错）。 */
         fun parse(json: String): EmbedMessage? = runCatching {
             val obj = NoteFableJson.parseToJsonElement(json).jsonObject
             fun JsonObject.str(key: String) = this[key]?.takeIf { it !is kotlinx.serialization.json.JsonNull }?.jsonPrimitive?.contentOrNull
+            // 下面几个只认对应的 JSON 类型（字符串的 "true"、"3" 不算布尔值和数字）。
+            fun JsonObject.text(key: String) = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content
+            fun JsonObject.number(key: String) = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.longOrNull
+            fun JsonObject.flag(key: String) = (this[key] as? JsonPrimitive)?.takeIf { !it.isString }?.booleanOrNull
+            fun JsonObject.fileId() = text("id")?.takeIf { it.isNotBlank() }
             when (obj.str("type")) {
                 "ready" -> {
                     val page = obj["page"]?.jsonObject ?: return@runCatching null
@@ -332,6 +353,20 @@ sealed interface EmbedMessage {
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,
                     obj["kept"]?.jsonPrimitive?.booleanOrNull == true,
                 )
+                "drawing" -> Drawing(obj.flag("active") ?: return@runCatching null)
+                "fileStart" -> FileStart(
+                    obj.fileId() ?: return@runCatching null,
+                    obj.text("name") ?: return@runCatching null,
+                    obj.text("mime") ?: return@runCatching null,
+                    obj.number("size")?.takeIf { it >= 0 } ?: return@runCatching null,
+                )
+                "fileChunk" -> FileChunk(
+                    obj.fileId() ?: return@runCatching null,
+                    obj.number("index")?.takeIf { it >= 0 && it <= Int.MAX_VALUE }?.toInt() ?: return@runCatching null,
+                    obj.text("data") ?: return@runCatching null,
+                )
+                "fileEnd" -> FileEnd(obj.fileId() ?: return@runCatching null)
+                "fileAbort" -> FileAbort(obj.fileId() ?: return@runCatching null)
                 else -> null
             }
         }.getOrNull()

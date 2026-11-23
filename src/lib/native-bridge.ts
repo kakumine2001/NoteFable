@@ -51,6 +51,9 @@ export type EmbedApi = {
   pageSettings: (page: unknown) => boolean;
   // アプリの設定でアイコンを替えたとき、その値（絵文字 1 つか画像の data URL。null か空文字は既定のロゴ）を渡す。
   appIcon: (icon: unknown) => boolean;
+  // 開いているページの中で、検索で一致したブロック（ノート）・要素（ホワイトボード）まで動かす（URL の reveal と同じ）。
+  // 開き直さずに済むよう、すでに開いているページの検索結果を選んだときにアプリが呼ぶ。ID の形でなければ false。
+  reveal: (target: unknown) => boolean;
 };
 
 type BridgeWindow = { NoteFableNative?: unknown; notefableEmbed?: EmbedApi };
@@ -197,8 +200,12 @@ export function dispatchPageUpdated(page: NotePage) {
 
 // window.notefableEmbed の中身。flush は保存し切れたか（未保存が残っていないか）を返し、同じ結果を flushed で知らせる。
 // 保存できなかったときは、下書きが端末に残っていて後で送り直せるか（draftKept）も添える。
-export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, language, post }: {
+// 検索の一致先（ブロック・要素の ID）の形。
+export const REVEAL_TARGET = /^[A-Za-z0-9_-]{1,120}$/;
+
+export function createEmbedApi({ flush, draftKept = () => false, openHistory, pageUpdated = dispatchPageUpdated, pageSettings = dispatchPageMeta, appIcon = saveAppIcon, theme = saveThemePreference, language, reveal = () => {}, post }: {
   flush: () => Promise<boolean>;
+  reveal?: (target: string) => void;
   language?: (locale: Locale) => Promise<boolean>;
   theme?: (value: ThemePreference) => unknown;
   draftKept?: () => boolean;
@@ -230,6 +237,11 @@ export function createEmbedApi({ flush, draftKept = () => false, openHistory, pa
       return ok;
     },
     openHistory() { openHistory(); },
+    reveal(value) {
+      if (typeof value !== "string" || !REVEAL_TARGET.test(value)) return false;
+      reveal(value);
+      return true;
+    },
     pageUpdated(value) {
       const page = parseUpdatedPage(value);
       if (!page) return false;

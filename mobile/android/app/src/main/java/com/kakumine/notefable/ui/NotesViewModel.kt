@@ -51,11 +51,16 @@ data class NotesError(val kind: Kind, val detail: String? = null) {
  * [editor] 是这个编辑器（WebView）最初打开的页面 id，编辑器没换就不变；冲突后"另存为新笔记"时网页换到新页面，
  * [id] 跟着变成新页面，[editor] 不变，所以 WebView 不重新加载。
  * [kind] 是页面类型（列表、检索结果里的；网页的 ready 消息带着时以它为准），决定顶栏的类型图标和分享按钮。
+ * [reveal] 是从检索结果打开时命中的块（笔记的块、白板的元素，结果的 blockId）：只在这个编辑器第一次加载时放进地址（`&reveal=`），
+ * 网页读好页面后滚动 / 缩放到它。
  */
-data class OpenNote(val id: String, val title: String, val icon: String?, val editor: String = id, val kind: PageKind = PageKind.Note)
+data class OpenNote(
+    val id: String, val title: String, val icon: String?, val editor: String = id, val kind: PageKind = PageKind.Note,
+    val reveal: String? = null,
+)
 
 /** 打开列表里的这一篇：标题、图标、类型都取列表项的。 */
-internal fun NotePageSummary.toOpenNote() = OpenNote(id, title, icon, kind = kind)
+internal fun NotePageSummary.toOpenNote(reveal: String? = null) = OpenNote(id, title, icon, kind = kind, reveal = reveal)
 
 /** 让网页保存的结果。[draftKept]：没保存成功，但草稿已留在 WebView 里、之后会重试（不是冲突），可以先离开。 */
 data class FlushResult(val ok: Boolean, val draftKept: Boolean = false)
@@ -207,6 +212,12 @@ class NotesViewModel(
      */
     var pushPageSettings: ((NotePageSummary) -> Unit)? = null
 
+    /**
+     * 检索结果就在开着的这一页（[openNote] 不重新加载）：让网页编辑器就地跳到命中的块 / 元素
+     * （window.notefableEmbed.reveal）。由界面在编辑器打开时设置。
+     */
+    var revealInEditor: ((String) -> Unit)? = null
+
     private var loadJob: Job? = null
     private var navigationJob: Job? = null
     private var trashJob: Job? = null
@@ -329,24 +340,32 @@ class NotesViewModel(
     /**
      * 打开笔记。[title] / [icon] / [kind] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
      * 笔记已不存在时编辑器会报 missing，和网页一样回到列表。
+     * [reveal] 是检索结果命中的块（[OpenNote.reveal]）。已经开着的那一篇不重新加载，交给 [revealInEditor] 就地跳过去。
      */
-    fun openNote(id: String, title: String? = null, icon: String? = null, kind: PageKind = PageKind.Note) {
+    fun openNote(id: String, title: String? = null, icon: String? = null, kind: PageKind = PageKind.Note, reveal: String? = null) {
         val current = _state.value
         if (current.open?.id == id) {
-            if (current.workspace != Workspace.Notes) _state.update { it.copy(workspace = Workspace.Notes) }
+            val target = reveal?.takeIf { it.isNotBlank() }
+            when {
+                // 编辑器不在画面上（回到笔记时重新加载）：这次命中的块等那次加载放进地址。
+                current.workspace != Workspace.Notes -> _state.update { state ->
+                    state.copy(workspace = Workspace.Notes, open = state.open?.let { open -> if (target != null) open.copy(reveal = target) else open })
+                }
+                target != null -> revealInEditor?.invoke(target)
+            }
             return
         }
         val page = current.pages.firstOrNull { it.id == id }
         val open = when {
-            page != null -> page.toOpenNote()
-            title != null -> OpenNote(id, title, icon, kind = kind)
+            page != null -> page.toOpenNote(reveal)
+            title != null -> OpenNote(id, title, icon, kind = kind, reveal = reveal)
             else -> return
         }
         // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
         val pending = iconWrites[id]
         leaveThen(before = { pending?.done?.await() }) {
             val target = if (pending == null) open else {
-                _state.value.pages.firstOrNull { it.id == id }?.toOpenNote() ?: open
+                _state.value.pages.firstOrNull { it.id == id }?.toOpenNote(reveal) ?: open
             }
             _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
         }

@@ -143,7 +143,8 @@ class NotesViewModelTest {
                 NotePageSummary("imp$index", file.name.substringBeforeLast('.'), null, position = index - files.size, createdAt = "2026-11-20T00:00:0${index}Z", groupId = groupId)
             }.also { pages.addAll(0, it) }
         }
-        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) = "https://example.test/note-embed?page=$pageId&lang=$lang"
+        override fun noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?) =
+            "https://example.test/note-embed?page=$pageId&lang=$lang"
     }
 
     private fun markdownFile(name: String, text: String = "# $name", size: Long? = text.toByteArray().size.toLong()) = ImportCandidate(name, size) { text }
@@ -309,6 +310,74 @@ class NotesViewModelTest {
         vm.duplicate("w")
         advanceUntilIdle()
         assertEquals(OpenNote("copy", "Copy (1)", null, kind = PageKind.Whiteboard), vm.state.value.open)
+    }
+
+    @Test
+    fun `a page opened from a search hit carries the hit's block for the editor's first load`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.add(NotePageSummary("w", "Board", null, createdAt = "2026-11-13T00:00:00Z", kind = PageKind.Whiteboard))
+        }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        // 列表里有的：类型等取列表的，命中的元素跟着。
+        vm.openNote("w", "Board", null, PageKind.Whiteboard, reveal = "el-1")
+        advanceUntilIdle()
+        assertEquals(OpenNote("w", "Board", null, kind = PageKind.Whiteboard, reveal = "el-1"), vm.state.value.open)
+        // 列表里没有的（列表还没读过）也一样；冲突后换成副本时保留（只在第一次加载时用）。
+        vm.openNote("s", "Deck", null, PageKind.Slides, reveal = "slide-2")
+        advanceUntilIdle()
+        assertEquals("slide-2", vm.state.value.open?.reveal)
+        vm.onEditorReady("s", "s-copy", "Deck (1)", null)
+        assertEquals("slide-2", vm.state.value.open?.reveal)
+        // 列表、链接打开时没有。
+        vm.openNote("a")
+        advanceUntilIdle()
+        assertNull(vm.state.value.open?.reveal)
+        // 已经开着的那一篇不重新加载，OpenNote.reveal 也不换（改由开着的编辑器就地跳，见下一条）。
+        vm.openNote("a", "Cell structure", "🧬", reveal = "b9")
+        advanceUntilIdle()
+        assertNull(vm.state.value.open?.reveal)
+    }
+
+    @Test
+    fun `a search hit on the page already open jumps there in the editor, another page opens with the hit in its url`() = runTest(dispatcher) {
+        val vm = notesVm()
+        vm.flushEditor = { FlushResult(true) }
+        val revealed = mutableListOf<String>()
+        vm.revealInEditor = { revealed += it }
+        vm.openNote("a")
+        advanceUntilIdle()
+        val open = vm.state.value.open!!
+
+        // 同一篇：不重新打开（OpenNote 不变，WebView 不重新加载），交给开着的编辑器跳过去。
+        var flushes = 0
+        vm.flushEditor = { flushes++; FlushResult(true) }
+        vm.openNote("a", "Cell structure", "🧬", reveal = "b9")
+        advanceUntilIdle()
+        assertEquals(listOf("b9"), revealed)
+        assertTrue(open === vm.state.value.open)
+        assertEquals(0, flushes)
+        // 只命中标题（没有块）时不跳。
+        vm.openNote("a", "Cell structure", "🧬")
+        vm.openNote("a", "Cell structure", "🧬", reveal = " ")
+        assertEquals(listOf("b9"), revealed)
+
+        // 别的一篇：照常（先保存再）打开，命中的块放进 OpenNote.reveal，第一次加载的地址带上它；不经过就地跳。
+        vm.openNote("b", "Japanese verbs", null, reveal = "c3")
+        advanceUntilIdle()
+        assertEquals(1, flushes)
+        val opened = vm.state.value.open!!
+        assertEquals(OpenNote("b", "Japanese verbs", null, reveal = "c3"), opened)
+        assertEquals(listOf("b9"), revealed)
+        val api = com.kakumine.notefable.data.NoteFableApi("https://example.test", okhttp3.CookieJar.NO_COOKIES)
+        assertEquals("https://example.test/note-embed?page=b&lang=ja&reveal=c3", api.noteEmbedUrl(opened.id, "ja", reveal = loadReveal(opened, generation = 0)))
+        // 渲染进程崩溃后重新加载时不带。
+        assertEquals("https://example.test/note-embed?page=b&lang=ja", api.noteEmbedUrl(opened.id, "ja", reveal = loadReveal(opened, generation = 1)))
+
+        // 编辑器关掉后（界面把 hook 清掉）再开同一篇的命中块：没有编辑器可跳，什么也不做。
+        vm.revealInEditor = null
+        vm.openNote("b", "Japanese verbs", null, reveal = "c4")
+        assertEquals(listOf("b9"), revealed)
     }
 
     @Test

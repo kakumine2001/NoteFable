@@ -30,19 +30,23 @@ struct NotesError: Equatable, Sendable {
 /// [editor] 是这个编辑器（WebView）最初打开的页面 id，编辑器没换就不变；冲突后"另存为新笔记"时网页换到新页面，
 /// [id] 跟着变成新页面，[editor] 不变，所以 WebView 不重新加载。
 /// [kind] 是页面类型（顶栏没有图标时按它画默认图标）：从列表打开时取列表的，编辑器的 ready 带来时以它为准。
+/// [reveal] 是从检索结果打开时命中的块（笔记）或元素（白板）的 id：编辑器第一次加载时经 `/note-embed` 的 `reveal=` 交给网页定位过去，
+/// 之后重新加载（网页进程崩溃）不再用。
 struct OpenNote: Equatable, Sendable {
     var id: String
     var title: String
     var icon: String?
     var editor: String
     var kind: PageKind
+    var reveal: String?
 
-    init(_ id: String, _ title: String, _ icon: String?, editor: String? = nil, kind: PageKind = .note) {
+    init(_ id: String, _ title: String, _ icon: String?, editor: String? = nil, kind: PageKind = .note, reveal: String? = nil) {
         self.id = id
         self.title = title
         self.icon = icon
         self.editor = editor ?? id
         self.kind = kind
+        self.reveal = reveal
     }
 
     /// 列表里的一篇。
@@ -109,6 +113,12 @@ struct NotesUiState: Equatable, Sendable {
     var notice: NotesError? = nil
     /// 编辑器里的上传因为文件存储空间不够被拒绝（网页经桥发来的 storageLimit）：编辑器上方显示提示，关掉为止。
     var storageLimit: StorageLimitInfo? = nil
+    /// 编辑器导出、已经收齐的文件（白板的 PNG / SVG / PDF；网页分块送来，[ExportFileAssembler] 拼成临时文件）：
+    /// 界面交给系统的“存储到文件”，结束后调 [NotesViewModel.finishExportFile]。换了编辑器就作废。
+    var exportFile: ExportedFile? = nil
+    /// 导出的文件没能收下（类型不对、太大、缺了块、写不进去）：界面提示一次“Could not save the file.”，
+    /// 再调 [NotesViewModel.dismissExportFileFailure]。
+    var exportFileFailed: Bool = false
     /// 回收站窗口；nil 表示没打开。
     var trash: TrashUiState? = nil
     /// 侧栏里改图标没成功（网页 notes-sidebar 的 iconError："Could not change the icon. Try again."）。
@@ -214,6 +224,18 @@ struct NotesUiState: Equatable, Sendable {
     /// 收藏（按收藏的先后；同一时刻的保持列表顺序）。
     var favorites: [NotePageSummary] {
         notesStableSorted(pages.filter { $0.favoritedAt != nil }) { ($0.favoritedAt ?? "") < ($1.favoritedAt ?? "") }
+    }
+
+    /// 打开着的页面的类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、编辑器的 ready）。编辑页的顶栏也这样取。
+    var openKind: PageKind? {
+        guard let open else { return nil }
+        return pages.first { $0.id == open.id }?.kind ?? open.kind
+    }
+
+    /// 打开着的编辑器自己要用从屏幕边缘开始的单指拖动（白板，[PageKind.capturesEdgeSwipes]）：编辑页不做边缘返回，
+    /// 抽屉也不从屏幕边缘拉出（顶栏的菜单键照常能开，拉出来以后照常能推回去）。
+    var editorCapturesEdgeSwipes: Bool {
+        workspace == .notes && openKind?.capturesEdgeSwipes == true
     }
 
     /// 展开着：自己展开了，或者是打开着的笔记的祖先（网页侧栏同样会展开）。

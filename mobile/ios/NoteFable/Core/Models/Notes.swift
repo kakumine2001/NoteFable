@@ -4,7 +4,7 @@ import Foundation
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
 
 /// 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，Android `PageKindFeatures`，几边一起改）。
-/// 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+/// 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）已有编辑器和公开视图；幻灯片（#149）做好后改成 true。
 struct PageKindFeatures: Equatable, Sendable {
     /// 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。
     var editor: Bool
@@ -19,7 +19,8 @@ struct PageKindFeatures: Equatable, Sendable {
 }
 
 /// 工作区页面的类型（网页 PAGE_KINDS，Android `PageKind`）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
-/// 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。三种都用同一个 /note-embed 打开，白板和幻灯片由网页显示只读的占位画面。
+/// 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。三种都用同一个 /note-embed 打开：白板是网页的白板编辑器，
+/// 幻灯片由网页显示只读的占位画面。
 enum PageKind: String, CaseIterable, Sendable {
     case note
     case whiteboard
@@ -32,13 +33,20 @@ enum PageKind: String, CaseIterable, Sendable {
         switch self {
         case .note:
             return PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
-        case .whiteboard, .slides:
+        case .whiteboard:
+            // 编辑器和公开的只读视图都有；AI 的操作在 #153。
+            return PageKindFeatures(editor: true, markdownExport: false, typography: false, publicShare: true, aiEdit: false)
+        case .slides:
             return PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
         }
     }
 
     /// 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。
     var isCanvas: Bool { self != .note }
+
+    /// 编辑器自己要用单指拖动，从屏幕边缘开始的也是（白板：画笔、图形、框选）。iOS 在这类页面上关掉编辑页的边缘返回，
+    /// 抽屉也不从屏幕边缘拉出，离开只用顶栏的“<”和菜单键；Android 只在网页报来正在用画画的工具（drawing）时让开边缘。
+    var capturesEdgeSwipes: Bool { self == .whiteboard }
 
     /// 没有或不认识的值按笔记。
     static func of(_ value: String?) -> PageKind {
@@ -419,10 +427,12 @@ protocol NotesBackend {
     /// [groupId] 是导入到哪个项目，nil 是"无项目"；不是自己的项目时服务端回 404。
     func importMarkdown(files: [ImportMarkdownFile], groupId: String?) async throws -> [NotePageSummary]
 
-    /// 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…`）。
+    /// 网页"仅编辑器"页面的地址（`/note-embed?page=…&lang=…&model=…&reasoning=…&theme=…&reveal=…`）。
     /// [model] / [reasoning] 是 App 里选的模型和推理强度，编辑器里的 AI 助手用它们（网页按服务端的模型列表核对）。
     /// [theme] 是 App 现在显示的外观（light / dark）：网页在第一次绘制前就按它上色（src/lib/theme.ts 的 THEME_INIT_SCRIPT）。
-    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String
+    /// [reveal] 是检索结果命中的块（笔记）或元素（白板）的 id（`NoteSearchResult.blockId`）：网页读好页面后滚动 / 移动到那里
+    /// （src/components/note-embed.tsx）。空字符串当作没给。
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?, reveal: String?) -> String
 }
 
 extension NotesBackend {
@@ -439,11 +449,15 @@ extension NotesBackend {
     }
 
     func noteEmbedUrl(pageId: String, lang: String?) -> String {
-        noteEmbedUrl(pageId: pageId, lang: lang, model: nil, reasoning: nil, theme: nil)
+        noteEmbedUrl(pageId: pageId, lang: lang, model: nil, reasoning: nil, theme: nil, reveal: nil)
     }
 
     func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?) -> String {
-        noteEmbedUrl(pageId: pageId, lang: lang, model: model, reasoning: reasoning, theme: nil)
+        noteEmbedUrl(pageId: pageId, lang: lang, model: model, reasoning: reasoning, theme: nil, reveal: nil)
+    }
+
+    func noteEmbedUrl(pageId: String, lang: String?, model: String?, reasoning: String?, theme: String?) -> String {
+        noteEmbedUrl(pageId: pageId, lang: lang, model: model, reasoning: reasoning, theme: theme, reveal: nil)
     }
 }
 
@@ -470,6 +484,16 @@ enum EmbedMessage: Equatable, Sendable {
     /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
     /// 只有 bootstrap 里声明了 `canShowStorageLimit()` 的 App 才会收到。
     case storageLimit(tier: String, used: Int, limit: Int)
+    /// 白板在用画画的工具（画笔、图形…，不是移动画布的手）。Android 这期间让开屏幕边缘的返回手势；
+    /// iOS 在白板页一直关着边缘手势（[PageKind.capturesEdgeSwipes]），收下不用。
+    case drawing(active: Bool)
+    /// 编辑器导出的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX）分块送来（src/lib/export-file.ts）：
+    /// fileStart（[size] 是总字节数）→ fileChunk（[data] 是一块的 base64，[index] 从 0 起按顺序）× n → fileEnd；中途放弃是 fileAbort。
+    /// 只有 bootstrap 里声明了 `canSaveFile()` 的 App 才会收到；由 [ExportFileAssembler] 拼成临时文件。
+    case fileStart(id: String, name: String, mime: String, size: Int)
+    case fileChunk(id: String, index: Int, data: String)
+    case fileEnd(id: String)
+    case fileAbort(id: String)
 
     /// 不认识或格式不对的消息返回 nil（网页先加了新消息类型也不会让 App 出错）。
     static func parse(_ json: String) -> EmbedMessage? {
@@ -502,6 +526,22 @@ enum EmbedMessage: Equatable, Sendable {
                     ok: try flag(fields["ok"]),
                     kept: try flag(fields["kept"])
                 )
+            case "drawing":
+                guard let active = fields["active"]?.boolValue else { return nil }
+                return .drawing(active: active)
+            case "fileStart":
+                // 大小要是不小于 0 的整数；类型、文件名的检查在 ExportFileAssembler（不合格时提示保存失败，不是悄悄丢掉）。
+                guard let id = try fileId(fields), let name = try text(fields["name"]), let mime = try text(fields["mime"]),
+                      let size = fields["size"]?.intValue, size >= 0 else { return nil }
+                return .fileStart(id: id, name: name, mime: mime, size: size)
+            case "fileChunk":
+                guard let id = try fileId(fields), let index = fields["index"]?.intValue, index >= 0,
+                      let data = fields["data"]?.stringValue else { return nil }
+                return .fileChunk(id: id, index: index, data: data)
+            case "fileEnd":
+                return try fileId(fields).map { EmbedMessage.fileEnd(id: $0) }
+            case "fileAbort":
+                return try fileId(fields).map { EmbedMessage.fileAbort(id: $0) }
             default:
                 return nil
             }
@@ -511,6 +551,12 @@ enum EmbedMessage: Equatable, Sendable {
     }
 
     private struct Malformed: Error {}
+
+    /// 导出文件的 id（fileStart … fileEnd 用它配对）：没有或是空的算格式不对。
+    private static func fileId(_ fields: [String: JSONValue]) throws -> String? {
+        guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
+        return id
+    }
 
     // Kotlin 的 jsonPrimitive.contentOrNull：字符串原样，数字和布尔取字面，null / 没有是 nil，对象和数组算格式不对。
     private static func text(_ value: JSONValue?) throws -> String? {

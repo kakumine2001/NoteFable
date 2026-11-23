@@ -31,11 +31,11 @@ class PageKindTest {
     }
 
     @Test
-    fun `only notes have typography, Markdown export and public sharing (web PAGE_KIND_FEATURES)`() {
+    fun `features follow the web PAGE_KIND_FEATURES - whiteboards have an editor and public sharing, slides nothing yet`() {
         assertEquals(PageKindFeatures(editor = true, markdownExport = true, typography = true, publicShare = true, aiEdit = true), Note.features)
-        val canvas = PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false)
-        assertEquals(canvas, Whiteboard.features)
-        assertEquals(canvas, Slides.features)
+        // 白板（#152）：编辑器和公开视图有了；Markdown 导出、字体设置没有，AI 操作等 #153。
+        assertEquals(PageKindFeatures(editor = true, markdownExport = false, typography = false, publicShare = true, aiEdit = false), Whiteboard.features)
+        assertEquals(PageKindFeatures(editor = false, markdownExport = false, typography = false, publicShare = false, aiEdit = false), Slides.features)
     }
 
     @Test

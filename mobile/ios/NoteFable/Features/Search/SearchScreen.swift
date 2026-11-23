@@ -172,12 +172,13 @@ private struct SearchPanel: View {
         }
     }
 
-    /// 选了一条结果：聊天结果切到聊天并定位到命中的消息；笔记结果用结果里的标题、图标和页面类型打开（列表还没读过也能开）。
+    /// 选了一条结果：聊天结果切到聊天并定位到命中的消息；笔记结果用结果里的标题、图标和页面类型打开（列表还没读过也能开），
+    /// 编辑器读好后滚动 / 移动到命中的块（笔记）或元素（白板）。
     /// 两个入口都会先关掉检索面板和抽屉（和网页一样先关检索再跳转）。
     private func select(_ hit: SearchHit) {
         switch hit {
         case .note(let note):
-            router.openNote(note.id, title: note.title, icon: note.icon, kind: note.pageKind)
+            router.openNote(note.id, title: note.title, icon: note.icon, kind: note.pageKind, reveal: note.blockId)
         case .chat(let chat):
             router.openChat(chat.id, messageId: chat.messageId)
         }

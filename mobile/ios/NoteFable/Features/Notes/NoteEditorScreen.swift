@@ -5,8 +5,10 @@ import UniformTypeIdentifiers
 // 顶栏与网页手机版笔记页一致（高 56、左右 10.4）：菜单 40（图标 20）、间距 12、“<”返回列表 40（图标 22）、间距 12、
 // 笔记图标（表情 15 / 页面类型图标 15）+ 间距 6 + 标题 14 灰；右侧搜索 40、间距 8、（锁定时）锁按钮高 32（Lock 14）、间距 8、
 // 分享（Globe 15）、间距 8、版本历史 40、间距 8、保存状态 14 灰（出错 / 冲突时 #b45309）、间距 8、“…”页面菜单 40（菜单宽 248）。
-// 白板、幻灯片没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面。
+// 幻灯片没有分享按钮（`PageKindFeatures.publicShare`），网页在 WebView 里显示只读的占位画面；白板是网页的白板编辑器，
+// 编辑页不做边缘返回（`PageKind.capturesEdgeSwipes`，离开用“<”）。
 // “…”菜单的“导出 Markdown”：先让网页保存，再向服务端要 `{ fileName, markdown }`，交给系统的“存储到文件”（UTF-8 的 .md）。
+// 白板的导出（PNG / SVG / PDF）在网页的编辑器里：文件经桥分块送来、ViewModel 拼好（`NotesUiState.exportFile`），这里交给系统的“存储到文件”。
 
 @MainActor
 struct NoteEditorScreen: View {
@@ -20,6 +22,9 @@ struct NoteEditorScreen: View {
     @State private var exportDocument: MarkdownExportDocument? = nil
     @State private var exportName = ""
     @State private var exporting = false
+    /// 网页编辑器导出、正交给“存储到文件”的文件（ViewModel 拼好的临时文件），和是否正显示着保存位置的选择。
+    @State private var savingFile: ExportedFile? = nil
+    @State private var savingFileOpen = false
 
     /// `dialog` 是笔记页的对话框状态：“…”菜单的“移动到”“移到回收站”经它打开窗口。
     init(open: OpenNote, dialog: Binding<NotesDialogState?>) {
@@ -32,6 +37,8 @@ struct NoteEditorScreen: View {
         let state = notes.state
         // 列表里这一篇（收藏、显示设置、锁定）；不在列表里时没有“…”菜单。
         let page = state.pages.first(where: { $0.id == open.id })
+        // 页面类型：列表里有这一篇就用列表的，否则用打开时知道的（检索结果、网页的 ready 消息）。
+        let kind = page?.kind ?? open.kind
         VStack(spacing: 0) {
             topBar(state, page: page)
             if let notice = state.notice ?? state.error {
@@ -54,7 +61,8 @@ struct NoteEditorScreen: View {
             NoteEditorWebView(
                 editor: open.editor, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,
-                theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue
+                theme: (colorScheme == .dark ? ResolvedTheme.dark : ResolvedTheme.light).rawValue,
+                edgeBack: !kind.capturesEdgeSwipes
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -70,6 +78,42 @@ struct NoteEditorScreen: View {
             guard case .failure(let failure) = result else { return }
             if (failure as? CocoaError)?.code == .userCancelled { return }
             Toast.show(L("note_export_failed"), long: true)
+        }
+        .background {
+            // 挂在自己的视图上，不和上面 Markdown 导出的“存储到文件”互相影响。
+            Color.clear.fileExporter(
+                isPresented: $savingFileOpen,
+                document: savingFile.map { ExportedFileDocument(url: $0.url) },
+                contentType: savingFile.map(ExportedFileDocument.contentType) ?? .data,
+                defaultFilename: savingFile.map(ExportedFileDocument.defaultFilename)
+            ) { result in
+                finishSavingFile(result)
+            }
+        }
+        // ViewModel 拼好了网页送来的文件：让用户选保存的位置。
+        .onChange(of: state.exportFile) { _, file in
+            guard let file, file != savingFile else { return }
+            savingFile = file
+            savingFileOpen = true
+        }
+        // 没能收下网页送来的文件（类型不对、太大、缺了块）：提示一次。
+        .onChange(of: state.exportFileFailed) { _, failed in
+            guard failed else { return }
+            notes.dismissExportFileFailure()
+            Toast.show(L("export_file_failed"), long: true)
+        }
+    }
+
+    /// “存储到文件”结束了：删掉临时文件；存好了提示“File saved.”，失败提示“Could not save the file.”，取消什么也不说。
+    private func finishSavingFile(_ result: Result<URL, Error>) {
+        if let file = savingFile { app.notes.finishExportFile(file) }
+        savingFile = nil
+        switch result {
+        case .success:
+            Toast.show(L("export_file_saved"))
+        case .failure(let failure):
+            if (failure as? CocoaError)?.code == .userCancelled { return }
+            Toast.show(L("export_file_failed"), long: true)
         }
     }
 
@@ -108,7 +152,7 @@ struct NoteEditorScreen: View {
                 lockButton(actions)
                     .padding(.leading, 8)
             }
-            // 只有有公开视图的类型能公开（现在只有笔记；白板 #152、幻灯片 #149 以后再开），网页同样不显示分享按钮。
+            // 只有有公开视图的类型能公开（笔记和白板；幻灯片 #149 以后再开），网页同样不显示分享按钮。
             if let page, kind.features.publicShare {
                 shareButton(page)
                     .padding(.leading, 8)
@@ -180,5 +224,43 @@ struct NoteEditorScreen: View {
                 }
             }
         )
+    }
+}
+
+/// 网页编辑器导出、已经拼在临时文件里的文件（白板的 PNG / SVG / PDF，以后幻灯片的 PPTX），交给系统的“存储到文件”。
+/// 只写不读：内容从临时文件拷过去，不整个读进内存。临时文件在“存储到文件”结束后才删（`NotesViewModel.finishExportFile`）。
+struct ExportedFileDocument: FileDocument {
+    private static let pptx = UTType(filenameExtension: "pptx", conformingTo: .data) ?? .data
+    /// `ExportFileTypes` 里的类型（存的时候用 [contentType] 选一个），认不出来的按普通数据。
+    static let readableContentTypes: [UTType] = [.png, .svg, .pdf, pptx, .data]
+
+    let url: URL
+
+    init(url: URL) {
+        self.url = url
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        throw CocoaError(.featureUnsupported)
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        try FileWrapper(url: url, options: [])
+    }
+
+    /// 文件的系统类型（按 MIME，系统按它给文件名加扩展名）。
+    static func contentType(_ file: ExportedFile) -> UTType {
+        switch file.mime {
+        case "image/png": return .png
+        case "image/svg+xml": return .svg
+        case "application/pdf": return .pdf
+        case "application/vnd.openxmlformats-officedocument.presentationml.presentation": return pptx
+        default: return .data
+        }
+    }
+
+    /// 保存位置的选择里预先填好的名字：系统会按类型加扩展名，所以去掉；类型没有扩展名时（认不出来）留着原来的。
+    static func defaultFilename(_ file: ExportedFile) -> String {
+        contentType(file).preferredFilenameExtension == nil ? file.name : file.baseName
     }
 }
