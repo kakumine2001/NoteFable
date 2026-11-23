@@ -7,6 +7,7 @@ import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-or
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
+import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -77,14 +78,17 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         && existing.favoritedAt === meta.favoritedAt && existing.fullWidth === meta.fullWidth && existing.smallText === meta.smallText && existing.font === meta.font && existing.locked === meta.locked
         && existing.shareEnabled === meta.shareEnabled && existing.shareExpiresAt === meta.shareExpiresAt) return current;
       // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
-      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
+      // 種類は変わらない。種類を持たない応答で消さない。
+      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
     });
   }, []);
 
   const install = useCallback((page: NotePage) => {
     let draft: NoteDraft | undefined;
     try {
-      const cached = localStorage.getItem(DRAFT_PREFIX + page.id);
+      // ホワイトボード・スライドにノートの下書きは無い（古い画面が残したものは、ノートの本文として送ると断られ続けるので捨てる）。
+      if (isCanvasKind(pageKindOf(page))) localStorage.removeItem(DRAFT_PREFIX + page.id);
+      const cached = isCanvasKind(pageKindOf(page)) ? null : localStorage.getItem(DRAFT_PREFIX + page.id);
       if (cached) {
         const parsed = JSON.parse(cached);
         // 新しい項目を持たない旧下書きは、保存済みページの値で補ってから検証する。
@@ -211,6 +215,17 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const queue = queues.current.get(page.id);
       if (!queue || queue.version === page.version) return;
       if (!queue.dirty && queue.status !== "saving") {
+        // ホワイトボード・スライドで本体（data）の無い応答が届いたら、古い本体と新しい版を組み合わせない（別のタブの保存を上書きさせる）。
+        // 読み直してから替える。
+        if (isCanvasKind(pageKindOf(page.kind ? page : queue.page)) && page.data === undefined) {
+          void pageRequest(`/api/pages/${page.id}`).then((data) => {
+            const current = queues.current.get(page.id);
+            if (!current || current.dirty || current.status === "saving" || current.version === data.page.version) return;
+            current.loadLatest(data.page);
+            if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
+          }).catch(() => { /* 次に開いた時に読み直す。 */ });
+          return;
+        }
         queue.loadLatest(page);
         if (displayedId.current === page.id) setEditorEpoch((value) => value + 1);
       } else {
@@ -453,7 +468,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
 
   // サイドバーのアイコンから変える。開いているノートは編集と同じ経路（自動保存）に乗せ、開いていないノートは専用の API で書く。
   const changeIcon = (id: string, icon: string | null) => groupAction(async () => {
-    if (active && id === activeId) { active.edit({ ...active.content, icon }); return true; }
+    // ホワイトボード・スライドはノートの自動保存に乗せられない（本文の形が違う）ので、開いていても専用の API で書く。
+    if (active && id === activeId && !isCanvasKind(pageKindOf(active.page))) { active.edit({ ...active.content, icon }); return true; }
     const { page } = await pageRequest(`/api/pages/${id}/icon`, "PUT", { icon });
     // 一覧と、読み込み済みの編集内容を新しい版へそろえる（未保存の編集が残っていれば、上書きせず衝突として知らせる）。
     window.dispatchEvent(new CustomEvent<NotePage>("notefable:page-updated", { detail: page }));

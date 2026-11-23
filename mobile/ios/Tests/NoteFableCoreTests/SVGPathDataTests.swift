@@ -268,6 +268,35 @@ final class SVGPathDataTests: XCTestCase {
         XCTAssertEqual(gear.y, 4.136, accuracy: 0.01)
     }
 
+    func testPageKindIconPathsKeepLucidesRectAndCircle() {
+        // Lucide.swift 的 shapes / presentation（页面类型的图标，和 Android Lucide.kt 同一份数据；Android PageKindIconTest 的移植）。
+        let shapes = [
+            "M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z",
+            "M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+            "M14 17.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0",
+        ]
+        let presentation = ["M2 3h20", "M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3", "m7 21 5-5 5 5"]
+        for path in shapes + presentation {
+            XCTAssertTrue(SVGPathData.isValid(path), path)
+            XCTAssertFalse(SVGPathData.parse(path).isEmpty, path)
+        }
+        // rect x=3 y=14 width=7 height=7 rx=1：经过的点框住 (3,14)–(10,21)，最后回到起点。
+        let rect = endPoints(SVGPathData.parse(shapes[1]))
+        XCTAssertEqual(rect.map(\.x).min() ?? .nan, 3, accuracy: 1e-9)
+        XCTAssertEqual(rect.map(\.x).max() ?? .nan, 10, accuracy: 1e-9)
+        XCTAssertEqual(rect.map(\.y).min() ?? .nan, 14, accuracy: 1e-9)
+        XCTAssertEqual(rect.map(\.y).max() ?? .nan, 21, accuracy: 1e-9)
+        XCTAssertEqual(rect.first, rect.last)
+        // circle cx=17.5 cy=17.5 r=3.5：两段半圆，从 (14,17.5) 到 (21,17.5) 再回来，每一段的终点都在圆上。
+        let circle = endPoints(SVGPathData.parse(shapes[2]))
+        XCTAssertEqual(circle.first, Point(x: 14, y: 17.5))
+        XCTAssertTrue(circle.contains(Point(x: 21, y: 17.5)))
+        XCTAssertEqual(circle.last, Point(x: 14, y: 17.5))
+        for point in circle {
+            XCTAssertEqual(((point.x - 17.5) * (point.x - 17.5) + (point.y - 17.5) * (point.y - 17.5)).squareRoot(), 3.5, accuracy: 1e-9)
+        }
+    }
+
     // MARK: 辅助
 
     private struct Point: Equatable {
@@ -285,6 +314,17 @@ final class SVGPathDataTests: XCTestCase {
             }
         }
         return Point(x: .nan, y: .nan)
+    }
+
+    /// 每一条带坐标的指令走到的点（`Z` 不算）。
+    private func endPoints(_ commands: [SVGPathCommand]) -> [Point] {
+        commands.compactMap { command in
+            switch command {
+            case let .move(x, y), let .line(x, y): return Point(x: x, y: y)
+            case let .cubic(_, _, _, _, x, y): return Point(x: x, y: y)
+            case .close: return nil
+            }
+        }
     }
 
     private func numbers(_ command: SVGPathCommand) -> (kind: String, values: [Double]) {

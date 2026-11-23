@@ -377,7 +377,7 @@ fun ImageModeChip(onClick: () -> Unit, modifier: Modifier = Modifier) {
 
 /**
  * 输入栏上方已添加的笔记（网页 page.tsx 的 Attached pages 列表，在附件上面）：间距 8、下距 12；
- * 每篇是可点掉的标签（和文件标签相同：圆角 4、1px 描边、浅底、内边距 10×6、12 灰字、间距 8），左边是笔记图标（表情或 FileText 13），右边 ✕ 13。
+ * 每篇是可点掉的标签（和文件标签相同：圆角 4、1px 描边、浅底、内边距 10×6、12 灰字、间距 8），左边是笔记图标（表情或类型图标 13），右边 ✕ 13。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -393,7 +393,8 @@ fun PendingPages(pages: List<ChatProjectNote>, enabled: Boolean, onRemove: (Stri
 }
 
 /**
- * 笔记标签（网页 page.tsx 输入栏上方的、chat-message.tsx 发言下面的）：圆角 4、1px 描边、浅底、12 灰字，图标是表情或 FileText。
+ * 笔记标签（网页 page.tsx 输入栏上方的、chat-message.tsx 发言下面的）：圆角 4、1px 描边、浅底、12 灰字，
+ * 图标是表情或页面类型的图标（FileText / Shapes / Presentation）。
  * 输入栏上方的可移除（[removable]：内边距 10×6、间距 8、图标 13、右边 ✕ 13，读屏念"移除…"）；发言下面的点了打开笔记
  * （内边距 8×4、间距 4、图标 12）。
  */
@@ -411,7 +412,7 @@ internal fun PageChip(page: ChatProjectNote, removable: Boolean, enabled: Boolea
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (removable) 8.dp else 4.dp),
     ) {
-        Box(Modifier.heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { 16.sp.toDp() }), Alignment.Center) { NoteIcon(page.icon, 12.sp, iconSize, Sm.Muted) }
+        Box(Modifier.heightIn(min = with(androidx.compose.ui.platform.LocalDensity.current) { 16.sp.toDp() }), Alignment.Center) { NoteIcon(page.icon, 12.sp, iconSize, Sm.Muted, page.kind) }
         Text(
             title, Modifier.weight(1f, fill = false),
             color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,

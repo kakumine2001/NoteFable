@@ -22,8 +22,25 @@ describe("loading a project's context", () => {
     expect(context).toEqual({
       projectName: "Mail",
       instructions: "Reply in Japanese.",
-      notes: [{ id: "n1", title: "Style guide", markdown: "Be polite.", truncated: false }],
+      notes: [{ id: "n1", kind: "note", title: "Style guide", markdown: "Be polite.", truncated: false }],
     });
+  });
+
+  it("sends a whiteboard or slide deck as its extracted text (never its drawing data) and marks its kind", async () => {
+    mocks.findProject.mockResolvedValue(project({ notes: [
+      { note: { id: "w1", kind: "whiteboard", title: "Board", blocks: [], canvas: { segments: [{ id: "e1", text: "Goal" }] } } },
+      { note: { id: "s1", kind: "slides", title: "Deck", blocks: [], canvas: { segments: [{ id: "a", text: "Intro" }] } } },
+    ] }));
+    const context = await loadProjectContext("mine", "p1");
+    expect(mocks.findProject.mock.calls[0][0].select.notes.select.note.select).toMatchObject({ kind: true, canvas: { select: { segments: true } } });
+    expect(mocks.findProject.mock.calls[0][0].select.notes.select.note.select.canvas.select).not.toHaveProperty("data");
+    expect(context?.notes).toEqual([
+      { id: "w1", kind: "whiteboard", title: "Board", markdown: "- Goal", truncated: false },
+      { id: "s1", kind: "slides", title: "Deck", markdown: "Slide 1: Intro", truncated: false },
+    ]);
+    const text = formatProjectContext(context!);
+    expect(text).toContain('=== Reference note 1: "Board" (id: w1) [whiteboard] ===');
+    expect(text).toContain('=== Reference note 2: "Deck" (id: s1) [slide deck] ===');
   });
 
   it("renders a note as Markdown without the [n] block numbers the edit tools use", async () => {
@@ -47,7 +64,7 @@ describe("loading a project's context", () => {
     mocks.findProject.mockResolvedValue(project({ instructions: "Be brief." }));
     expect(await loadProjectContext("mine", "p1")).toEqual({ projectName: "Mail", instructions: "Be brief.", notes: [] });
     mocks.findProject.mockResolvedValue(project({ notes: [row("n1", "", [])] }));
-    expect(await loadProjectContext("mine", "p1")).toEqual({ projectName: "Mail", instructions: null, notes: [{ id: "n1", title: "Untitled", markdown: "", truncated: false }] });
+    expect(await loadProjectContext("mine", "p1")).toEqual({ projectName: "Mail", instructions: null, notes: [{ id: "n1", kind: "note", title: "Untitled", markdown: "", truncated: false }] });
   });
 
   it("cuts a long note at the per-note cap and flags it", async () => {

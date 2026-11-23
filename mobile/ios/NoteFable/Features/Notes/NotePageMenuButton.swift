@@ -3,6 +3,8 @@ import SwiftUI
 // 笔记顶栏的“…”（网页 note-page-menu.tsx 的 .notes-page-menu = .chat-actions-menu 宽 248；Android ui/NotePageMenu.kt）：
 // “Style”小标题（12 / 500 灰）；三个字体按钮（三等分、间距 4、外边距 4 / 8 / 5.6；每个上下 6.4、圆角 6.4；“Ag”22、标签 12 灰，选中的蓝色）；
 // 分隔线；Small text / Full width / Lock page 三个开关；分隔线；收藏、复制、添加子页面、移动到、导出 Markdown；分隔线；移到回收站（红字）。
+// 项目按页面类型出（`PageKindFeatures`，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
+// 从 Lock page 开始（服务端也拒绝这些操作）。
 // 选了操作先关菜单再执行（和网页 run() 一样，不和对话框、换页叠在一起）；字体和开关留在菜单里。
 
 /// 顶栏最右边的“…”按钮和它的菜单。`actions` 是各项的动作（Core 的 `NotePageMenuActions`）。
@@ -40,10 +42,12 @@ private struct NotePageMenuContent: View {
 
     var body: some View {
         if let page = app.notes.state.pages.first(where: { $0.id == pageId }) {
-            ActionsMenuLabel(L("pg_style"))
-            fonts(page)
-            ActionsMenuDivider()
-            ForEach(NotePageToggle.allCases, id: \.self) { toggle in
+            if page.kind.features.typography {
+                ActionsMenuLabel(L("pg_style"))
+                fonts(page)
+                ActionsMenuDivider()
+            }
+            ForEach(NotePageToggle.visible(for: page.kind), id: \.self) { toggle in
                 ActionsMenuToggle(L(toggle.label), icon: toggle == .locked ? Lucide.lock : nil, isOn: toggle.isOn(page)) {
                     actions.onSettings(toggle.toggled(page))
                 }
@@ -119,7 +123,9 @@ private struct NotePageMenuContent: View {
         ActionsMenuItem(L("pg_duplicate"), icon: Lucide.copy, action: run(actions.onDuplicate))
         ActionsMenuItem(L("pg_add_page_inside"), icon: Lucide.filePlus2, action: run(actions.onAddInside))
         ActionsMenuItem(L("pg_move_to"), icon: Lucide.folderInput, action: run(actions.onMove))
-        ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))
+        if page.kind.features.markdownExport {
+            ActionsMenuItem(L("export_markdown"), icon: Lucide.download, action: run(actions.onExport))
+        }
         ActionsMenuDivider()
         ActionsMenuItem(L("move_to_trash"), icon: Lucide.trash2, role: .danger, action: run(actions.onTrash))
     }

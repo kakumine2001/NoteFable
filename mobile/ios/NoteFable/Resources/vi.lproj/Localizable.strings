@@ -352,6 +352,11 @@
 "language_effective" = "Ngôn ngữ hiện tại";
 "language_no_results" = "Không tìm thấy ngôn ngữ nào.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "Ghi chú";
+"page_kind_whiteboard" = "Bảng trắng";
+"page_kind_slides" = "Trình chiếu";
+
 /* strings_pages.xml */
 "pg_favorites" = "Yêu thích";
 "pg_no_pages_inside" = "Không có trang con";

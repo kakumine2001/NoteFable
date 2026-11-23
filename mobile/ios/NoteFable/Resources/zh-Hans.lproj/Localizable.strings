@@ -352,6 +352,11 @@
 "language_effective" = "当前语言";
 "language_no_results" = "未找到语言。";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "笔记";
+"page_kind_whiteboard" = "白板";
+"page_kind_slides" = "幻灯片";
+
 /* strings_pages.xml */
 "pg_favorites" = "收藏";
 "pg_no_pages_inside" = "没有子页面";

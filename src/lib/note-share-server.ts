@@ -3,13 +3,20 @@ import { Prisma } from "@/generated/prisma/client";
 import { splitHosts } from "@/lib/hosts";
 import { isShareRowActive, isValidShareToken, sharePageUrl } from "@/lib/note-share";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
+import { PAGE_KINDS, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
 const table = () => Prisma.raw(`"${databaseSchema}"."NotePage"`);
 
+// 公開用の読み取りビューがある種類だけを公開の木に出す（いまはノートだけ。ホワイトボード・スライドのビューは #152・#149）。
+// 出せない種類のページは、その下のサブページごと公開の木から外す（親の共有から除外したのと同じ扱い）。
+const SHAREABLE_KINDS = PAGE_KINDS.filter((kind) => pageKindFeatures(kind).publicShare);
+const shareable = (row: { kind?: unknown }) => pageKindFeatures(pageKindOf(row)).publicShare;
+
 type AncestorRow = {
   id: string;
+  kind: string;
   parentId: string | null;
   title: string;
   icon: string | null;
@@ -25,20 +32,20 @@ type AncestorRow = {
 async function fetchAncestors(userId: string, startParentId: string): Promise<AncestorRow[]> {
   return prisma.$queryRaw<AncestorRow[]>(Prisma.sql`
     WITH RECURSIVE chain AS (
-      SELECT p."id", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
              p."shareIncludeSubpages", p."shareExpiresAt", p."shareExcludeFromParent",
              1 AS depth, ARRAY[p."id"]::text[] AS seen
       FROM ${table()} p
       WHERE p."id" = ${startParentId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
       UNION ALL
-      SELECT p."id", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
+      SELECT p."id", p."kind"::text AS "kind", p."parentId", p."title", p."icon", p."shareToken", p."shareEnabled",
              p."shareIncludeSubpages", p."shareExpiresAt", p."shareExcludeFromParent",
              c.depth + 1, c.seen || p."id"
       FROM ${table()} p
       JOIN chain c ON p."id" = c."parentId"
       WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL AND NOT (p."id" = ANY(c.seen))
     )
-    SELECT "id", "parentId", "title", "icon", "shareToken", "shareEnabled",
+    SELECT "id", "kind", "parentId", "title", "icon", "shareToken", "shareEnabled",
            "shareIncludeSubpages", "shareExpiresAt", "shareExcludeFromParent", depth
     FROM chain
     ORDER BY depth ASC
@@ -87,6 +94,7 @@ export type ResolvedPublicShare = {
 
 const PUBLIC_PAGE_SELECT = {
   id: true,
+  kind: true,
   userId: true,
   parentId: true,
   title: true,
@@ -122,7 +130,7 @@ export async function resolvePublicShare(
     where: { shareToken: token, deletedAt: null },
     select: PUBLIC_PAGE_SELECT,
   });
-  if (!root || !isShareRowActive(root, now)) return null;
+  if (!root || !shareable(root) || !isShareRowActive(root, now)) return null;
 
   let target = root;
   const breadcrumbs: PublicShareCrumb[] = [{ id: root.id, title: root.title, icon: root.icon }];
@@ -133,7 +141,7 @@ export async function resolvePublicShare(
       where: { id: requestedPageId, userId: root.userId, deletedAt: null },
       select: PUBLIC_PAGE_SELECT,
     });
-    if (!requested || requested.shareExcludeFromParent) return null;
+    if (!requested || !shareable(requested) || requested.shareExcludeFromParent) return null;
 
     // 要求ページから親をたどり、すべての途中ページが未削除かつ非除外で root に到達するか確かめる。
     const chain: PublicShareCrumb[] = [{ id: requested.id, title: requested.title, icon: requested.icon }];
@@ -147,7 +155,7 @@ export async function resolvePublicShare(
           reachedRoot = true;
           break;
         }
-        if (ancestor.shareExcludeFromParent) return null;
+        if (ancestor.shareExcludeFromParent || !shareable(ancestor)) return null;
         chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon });
       }
     }
@@ -159,7 +167,7 @@ export async function resolvePublicShare(
 
   const children = root.shareIncludeSubpages
     ? await prisma.notePage.findMany({
-        where: { userId: root.userId, parentId: target.id, deletedAt: null, shareExcludeFromParent: false },
+        where: { userId: root.userId, parentId: target.id, deletedAt: null, shareExcludeFromParent: false, kind: { in: SHAREABLE_KINDS } },
         orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
         select: { id: true, title: true, icon: true },
       })
@@ -204,6 +212,7 @@ export async function resolveOwnerShareState(
     where: { id: pageId, userId, deletedAt: null },
     select: {
       id: true,
+      kind: true,
       parentId: true,
       deletedAt: true,
       shareToken: true,
@@ -216,9 +225,11 @@ export async function resolveOwnerShareState(
   if (!page) return null;
 
   let inheritedFrom: NoteShareAncestor | null = null;
-  if (page.parentId) {
+  // 公開できない種類のページ（とその下）は、親が公開中でも公開の木に出ない。
+  if (page.parentId && shareable(page)) {
     const ancestors = await fetchAncestors(userId, page.parentId);
     for (const ancestor of ancestors) {
+      if (!shareable(ancestor)) break;
       if (isShareRowActive(ancestor, now) && ancestor.shareIncludeSubpages && ancestor.shareToken) {
         inheritedFrom = {
           id: ancestor.id,

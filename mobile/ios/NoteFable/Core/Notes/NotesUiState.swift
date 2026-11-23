@@ -29,17 +29,25 @@ struct NotesError: Equatable, Sendable {
 /// 正在编辑的笔记。标题和图标随网页编辑器的 meta 消息更新。
 /// [editor] 是这个编辑器（WebView）最初打开的页面 id，编辑器没换就不变；冲突后"另存为新笔记"时网页换到新页面，
 /// [id] 跟着变成新页面，[editor] 不变，所以 WebView 不重新加载。
+/// [kind] 是页面类型（顶栏没有图标时按它画默认图标）：从列表打开时取列表的，编辑器的 ready 带来时以它为准。
 struct OpenNote: Equatable, Sendable {
     var id: String
     var title: String
     var icon: String?
     var editor: String
+    var kind: PageKind
 
-    init(_ id: String, _ title: String, _ icon: String?, editor: String? = nil) {
+    init(_ id: String, _ title: String, _ icon: String?, editor: String? = nil, kind: PageKind = .note) {
         self.id = id
         self.title = title
         self.icon = icon
         self.editor = editor ?? id
+        self.kind = kind
+    }
+
+    /// 列表里的一篇。
+    init(page: NotePageSummary) {
+        self.init(page.id, page.title, page.icon, kind: page.kind)
     }
 }
 

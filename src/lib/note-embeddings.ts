@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
+import { searchableBlocks } from "@/lib/canvas-document";
 import { optionalEnv } from "@/lib/env";
+import { pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { excerptFromBlock, extractNoteChunks, type NoteTextChunk } from "@/lib/note-text";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { usageDay } from "@/lib/usage-limits";
 
 // ノートの意味検索（セマンティック検索）。ノート本文をチャンクに分け、埋め込み（意味を表すベクトル）にして NoteEmbedding に持つ。
 // 本文のコピーは索引に持たず、NotePage.version と一致するチャンクだけを使って、一致した上位ノートの現在の本文から抜粋を作る。
+// ホワイトボード・スライドは本体ではなく、保存時に取り出した文字（NoteCanvas.segments）からチャンクを作る（searchableBlocks）。
 // 検索語はリクエストをまたいで保持せず（キャッシュしない）、1 回の検索の中だけで使う。
 // どの検索も利用者本人の分だけを対象にするので、pgvector は使わず、BYTEA の Float32 を JS で比べる（1 利用者ぶんは数千チャンクまで）。
 // OPENAI_API_KEY が無い、または NOTEFABLE_SEMANTIC_SEARCH が 0 / false のときは何もしない（キーワード検索だけが働く）。
@@ -195,7 +198,10 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
   if (!ids.length) return 0;
   const claimedKeys: string[] = [];
   try {
-    const notes = await prisma.notePage.findMany({ where: { id: { in: ids }, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true } });
+    const notes = await prisma.notePage.findMany({
+      where: { id: { in: ids }, userId, deletedAt: null },
+      select: { id: true, kind: true, title: true, blocks: true, version: true, canvas: { select: { segments: true } } },
+    });
     if (!notes.length) return 0;
     const existing = await prisma.noteEmbedding.findMany({
       where: { noteId: { in: notes.map((note) => note.id) }, userId },
@@ -207,7 +213,7 @@ export async function syncNoteEmbeddingsForIds(userId: string, pageIds: string[]
     const pending: { id: string; version: number; hash: string; chunks: NoteTextChunk[] }[] = [];
     for (const note of notes) {
       const rows = rowsByNote.get(note.id) ?? [];
-      const chunks = extractNoteChunks(note.title, note.blocks);
+      const chunks = extractNoteChunks(note.title, searchableBlocks(pageKindOf(note), note.blocks, note.canvas?.segments));
       if (!chunks.length) {
         if (rows.length) {
           await mutateNoteIndexIfCurrent(userId, note.id, note.version, async (tx) => {
@@ -279,6 +285,7 @@ async function findStaleNoteIds(userId: string, config: EmbeddingConfig, limit: 
   const rows = await prisma.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT p."id"
     FROM ${table("NotePage")} p
+    LEFT JOIN ${table("NoteCanvas")} c ON c."noteId" = p."id"
     LEFT JOIN (
       SELECT "noteId",
         min("noteVersion") AS "minVersion", max("noteVersion") AS "maxVersion",
@@ -286,7 +293,8 @@ async function findStaleNoteIds(userId: string, config: EmbeddingConfig, limit: 
       FROM ${table("NoteEmbedding")} WHERE "userId" = ${userId} GROUP BY "noteId"
     ) e ON e."noteId" = p."id"
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
-      AND ((btrim(p."title") <> '' AND p."title" <> 'Untitled') OR jsonb_path_exists(p."blocks", ${HAS_NON_WHITESPACE_TEXT}::jsonpath))
+      AND ((btrim(p."title") <> '' AND p."title" <> 'Untitled') OR jsonb_path_exists(p."blocks", ${HAS_NON_WHITESPACE_TEXT}::jsonpath)
+        OR jsonb_path_exists(COALESCE(c."segments", '[]'::jsonb), ${HAS_NON_WHITESPACE_TEXT}::jsonpath))
       AND (e."noteId" IS NULL OR e."current" <> e."total" OR e."minVersion" <> p."version" OR e."maxVersion" <> p."version")
     ORDER BY p."updatedAt" DESC, p."id" DESC
     LIMIT ${limit}`);
@@ -329,10 +337,10 @@ export function scheduleNoteEmbeddingBackfill(userId: string) {
 
 // ---- 意味検索 ----
 
-export type SemanticNoteHit = { id: string; title: string; icon: string | null; blockId: string | null; chunkText: string; score: number; updatedAt: Date };
+export type SemanticNoteHit = { id: string; kind: PageKind; title: string; icon: string | null; blockId: string | null; chunkText: string; score: number; updatedAt: Date };
 export type SemanticSearchOptions = { limit: number; minSimilarity: number; maxBackfillNotes?: number; timeoutMs?: number; signal?: AbortSignal };
 
-type ChunkRow = { noteId: string; chunkIndex: number; blockId: string | null; noteVersion: number; vector: Uint8Array; title: string; icon: string | null; updatedAt: Date | string };
+type ChunkRow = { noteId: string; chunkIndex: number; blockId: string | null; noteVersion: number; vector: Uint8Array; kind: string; title: string; icon: string | null; updatedAt: Date | string };
 
 function withDeadline<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -343,7 +351,7 @@ function withDeadline<T>(promise: Promise<T>, ms: number, fallback: T): Promise<
 async function loadIndexedChunks(userId: string, config: EmbeddingConfig): Promise<ChunkRow[]> {
   const table = (name: string) => Prisma.raw(`"${databaseSchema}"."${name}"`);
   return prisma.$queryRaw<ChunkRow[]>(Prisma.sql`
-    SELECT e."noteId", e."chunkIndex", e."blockId", e."noteVersion", e."vector", p."title", p."icon", p."updatedAt"
+    SELECT e."noteId", e."chunkIndex", e."blockId", e."noteVersion", e."vector", p."kind"::text AS "kind", p."title", p."icon", p."updatedAt"
     FROM ${table("NoteEmbedding")} e
     JOIN ${table("NotePage")} p ON p."id" = e."noteId"
     WHERE e."userId" = ${userId} AND p."userId" = ${userId} AND p."deletedAt" IS NULL
@@ -377,7 +385,7 @@ async function runSemanticSearch(userId: string, query: string, config: Embeddin
   const queryVector = await embedQuery(query, { userId, timeoutMs, signal: options.signal });
   if (!queryVector) return { hits: [], hasMoreBackfill };
 
-  const best = new Map<string, { id: string; title: string; icon: string | null; chunkIndex: number; blockId: string | null; noteVersion: number; score: number; updatedAt: Date }>();
+  const best = new Map<string, { id: string; kind: PageKind; title: string; icon: string | null; chunkIndex: number; blockId: string | null; noteVersion: number; score: number; updatedAt: Date }>();
   for (const row of rows) {
     const vector = decodeVector(row.vector, config.dimensions);
     if (!vector) continue;
@@ -385,7 +393,7 @@ async function runSemanticSearch(userId: string, query: string, config: Embeddin
     const current = best.get(row.noteId);
     if (!current || score > current.score) {
       best.set(row.noteId, {
-        id: row.noteId, title: row.title, icon: row.icon, chunkIndex: row.chunkIndex, blockId: row.blockId,
+        id: row.noteId, kind: pageKindOf(row), title: row.title, icon: row.icon, chunkIndex: row.chunkIndex, blockId: row.blockId,
         noteVersion: row.noteVersion, score, updatedAt: new Date(row.updatedAt),
       });
     }
@@ -399,21 +407,23 @@ async function runSemanticSearch(userId: string, query: string, config: Embeddin
   // 抜粋は索引に複製せず、一致した上位ノートだけ現在の本文を読み、版が一致する該当チャンクから直接作る。
   const livePages = await prisma.notePage.findMany({
     where: { id: { in: ranked.map((hit) => hit.id) }, userId, deletedAt: null },
-    select: { id: true, title: true, version: true, blocks: true },
+    select: { id: true, kind: true, title: true, version: true, blocks: true, canvas: { select: { segments: true } } },
   });
   const byId = new Map(livePages.map((page) => [page.id, page]));
   const hits: SemanticNoteHit[] = [];
   for (const hit of ranked) {
     const page = byId.get(hit.id);
     if (!page || page.version !== hit.noteVersion) continue;
-    const chunks = extractNoteChunks(page.title, page.blocks);
+    const blocks = searchableBlocks(pageKindOf(page), page.blocks, page.canvas?.segments);
+    const chunks = extractNoteChunks(page.title, blocks);
     const matchedChunk = chunks[hit.chunkIndex];
     hits.push({
       id: hit.id,
+      kind: hit.kind,
       title: hit.title,
       icon: hit.icon,
       blockId: matchedChunk?.blockId ?? hit.blockId,
-      chunkText: matchedChunk?.chunkText || excerptFromBlock(page.blocks, hit.blockId),
+      chunkText: matchedChunk?.chunkText || excerptFromBlock(blocks, hit.blockId),
       score: hit.score,
       updatedAt: hit.updatedAt,
     });

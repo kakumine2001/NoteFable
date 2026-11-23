@@ -5,6 +5,9 @@ import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { noteApiError } from "@/lib/note-api";
 import { NoteValidationError, uploadedCoverPath } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
+import { emptyCanvasData } from "@/lib/canvas-document";
+import { readCanvasData } from "@/lib/canvas-store";
+import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -37,6 +40,10 @@ export async function PUT(request: Request, context: Context) {
       throw error;
     }
     const page = await prisma.notePage.findFirst({ where: { id: pageId, userId: user.id, deletedAt: null } });
-    return page ? NextResponse.json({ page }) : NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    if (!page) return NextResponse.json({ error: msg("Note not found.") }, { status: 404 });
+    // ホワイトボード・スライドは本体も返す（版だけ新しく本体が古いページを、画面に持たせない）。版を先に、本体を後に読む。
+    const kind = pageKindOf(page);
+    if (isCanvasKind(kind)) return NextResponse.json({ page: { ...page, data: await readCanvasData(user.id, pageId) ?? emptyCanvasData(kind) } });
+    return NextResponse.json({ page });
   } catch (error) { return noteApiError(error); }
 }

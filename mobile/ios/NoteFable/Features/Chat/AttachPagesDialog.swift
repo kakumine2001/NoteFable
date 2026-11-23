@@ -81,7 +81,7 @@ private struct AttachPagesDialogBody: View {
 
     private func load() async {
         do {
-            let live = try await app.api.notes().pages.map { ChatProjectNote(id: $0.id, title: $0.title, icon: $0.icon) }
+            let live = try await app.api.notes().pages.map { ChatProjectNote(page: $0) }
             pages = live
             selected = refreshAttachedPages(selected, live)
         } catch is CancellationError {
@@ -150,7 +150,7 @@ private struct AttachPagesDialogBody: View {
             if !selected.isEmpty {
                 ChatFlowLayout(spacing: 5.6, lineSpacing: 5.6) {
                     ForEach(selected) { note in
-                        AttachPagesChip(title: note.title.isEmpty ? untitled : note.title) {
+                        AttachPagesChip(title: note.title.isEmpty ? untitled : note.title, kind: note.kind) {
                             selected = toggleProjectNote(selected, note, max: MAX_MESSAGE_NOTES)
                         }
                     }
@@ -324,15 +324,16 @@ private struct AttachPagesFilterField: View {
     }
 }
 
-/// `.project-settings-chip`：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；文件图标 13 + 4.8；
+/// `.project-settings-chip`：全圆角、1px 深描边、#F7F7F5 底、13 字、内边距 2.4 / 3.2 / 2.4 / 8.8；页面类型图标 13 + 4.8；
 /// 移除键 28 圆（✕ 12 灰）。标题最宽 220，放不下省略。
 private struct AttachPagesChip: View {
     let title: String
+    let kind: PageKind
     let onRemove: () -> Void
 
     var body: some View {
         HStack(spacing: 4.8) {
-            LucideIcon(Lucide.fileText, size: 13, color: Sm.text)
+            LucideIcon(pageKindIcon(kind), size: 13, color: Sm.text)
             Text(title)
                 .font(.nf(13))
                 .foregroundStyle(Sm.text)
@@ -354,7 +355,7 @@ private struct AttachPagesChip: View {
     }
 }
 
-/// `.project-settings-option`（手机）：最小高 44、圆角 6、左右 8、间距 8.8、15 字；勾选框 16（蓝）；图标区 20（表情或文件图标 14 灰）；
+/// `.project-settings-option`（手机）：最小高 44、圆角 6、左右 8、间距 8.8、15 字；勾选框 16（蓝）；图标区 20（表情或页面类型图标 14 灰）；
 /// 选中灰底；选满了以后没选的变浅灰且不能点。
 private struct AttachPagesOption: View {
     let note: ChatProjectNote
@@ -367,7 +368,7 @@ private struct AttachPagesOption: View {
         Button(action: onToggle) {
             HStack(spacing: 8.8) {
                 AttachPagesCheckbox(checked: checked, enabled: !blocked)
-                NFIconTile(emoji: note.icon, fallback: Lucide.fileText, box: 20, glyph: 14)
+                NFIconTile(emoji: note.icon, fallback: pageKindIcon(note.kind), box: 20, glyph: 14)
                 Text(title)
                     .font(.nf(15))
                     .foregroundStyle(blocked ? Sm.faint : Sm.text)

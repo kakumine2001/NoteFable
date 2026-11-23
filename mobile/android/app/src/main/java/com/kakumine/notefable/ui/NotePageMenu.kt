@@ -68,11 +68,14 @@ private val MenuDivider: Color get() = Sm.Border
 // "Style" 小标题（12/500 灰，内边距 5.6/12/2.4）；三个字体按钮（三等分、间距 4、外边距 4/8/5.6；每个上下 6.4、圆角 6.4；
 // "Ag" 22、标签 12 灰，选中的蓝色）；分隔线（上下 4.8、左右 8）；Small text / Full width / Lock page 三个开关（右侧 26×14 的开关）；
 // 分隔线；收藏、复制、添加子页面、移动到、导出 Markdown（Download 16）；分隔线；移到回收站（红字）。
+// 项目按页面类型出（[PageKindFeatures]，网页 PAGE_KIND_FEATURES）：白板、幻灯片没有 Style 到 Full width 这一段和导出 Markdown，
+// 从 Lock page 开始（服务端也拒绝这些操作）。
 @Composable
 fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
     var anchor by remember { mutableStateOf<IntRect?>(null) }
     var open by remember { mutableStateOf(false) }
     val label = stringResource(R.string.pg_page_options)
+    val features = page.kind.features
     Box(
         Modifier.onGloballyPositioned { coords ->
             val b = coords.boundsInWindow()
@@ -87,29 +90,31 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
         // 选了操作先关菜单再执行（和网页 run() 一样，不和对话框、换页叠在一起）；开关留在菜单里。
         fun run(action: () -> Unit): () -> Unit = { close(); action() }
         ActionsMenu(at, label, close, width = 248.dp) {
-            Text(stringResource(R.string.pg_style), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
-                modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 5.6.dp, bottom = 2.4.dp))
-            Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 5.6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                listOf(
-                    Triple("default", R.string.pg_font_default, FontFamily.Default),
-                    Triple("serif", R.string.pg_font_serif, FontFamily.Serif),
-                    Triple("mono", R.string.pg_font_mono, FontFamily.Monospace),
-                ).forEach { (key, name, family) ->
-                    val checked = page.font == key
-                    val color = if (checked) Sm.Blue else Sm.Muted
-                    Column(
-                        Modifier.weight(1f).clip(RoundedCornerShape(6.4.dp)).clickable { actions.onSettings(NotePageSettings(font = key)) }
-                            .padding(vertical = 6.4.dp, horizontal = 4.dp).semantics { role = Role.RadioButton; selected = checked },
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        Text("Ag", color = if (checked) Sm.Blue else Sm.Text, fontSize = 22.sp, lineHeight = 26.4.sp, fontFamily = family)
-                        Text(stringResource(name), color = color, fontSize = 12.sp, lineHeight = 16.sp)
+            if (features.typography) {
+                Text(stringResource(R.string.pg_style), color = Sm.Muted, fontSize = 12.sp, lineHeight = 16.sp, fontWeight = FontWeight.Medium,
+                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 5.6.dp, bottom = 2.4.dp))
+                Row(Modifier.fillMaxWidth().padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 5.6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        Triple("default", R.string.pg_font_default, FontFamily.Default),
+                        Triple("serif", R.string.pg_font_serif, FontFamily.Serif),
+                        Triple("mono", R.string.pg_font_mono, FontFamily.Monospace),
+                    ).forEach { (key, name, family) ->
+                        val checked = page.font == key
+                        val color = if (checked) Sm.Blue else Sm.Muted
+                        Column(
+                            Modifier.weight(1f).clip(RoundedCornerShape(6.4.dp)).clickable { actions.onSettings(NotePageSettings(font = key)) }
+                                .padding(vertical = 6.4.dp, horizontal = 4.dp).semantics { role = Role.RadioButton; selected = checked },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Text("Ag", color = if (checked) Sm.Blue else Sm.Text, fontSize = 22.sp, lineHeight = 26.4.sp, fontFamily = family)
+                            Text(stringResource(name), color = color, fontSize = 12.sp, lineHeight = 16.sp)
+                        }
                     }
                 }
+                Divider()
+                ToggleItem(stringResource(R.string.pg_small_text), null, page.smallText) { actions.onSettings(NotePageSettings(smallText = !page.smallText)) }
+                ToggleItem(stringResource(R.string.pg_full_width), null, page.fullWidth) { actions.onSettings(NotePageSettings(fullWidth = !page.fullWidth)) }
             }
-            Divider()
-            ToggleItem(stringResource(R.string.pg_small_text), null, page.smallText) { actions.onSettings(NotePageSettings(smallText = !page.smallText)) }
-            ToggleItem(stringResource(R.string.pg_full_width), null, page.fullWidth) { actions.onSettings(NotePageSettings(fullWidth = !page.fullWidth)) }
             ToggleItem(stringResource(R.string.pg_lock_page), Lucide.Lock, page.locked) { actions.onSettings(NotePageSettings(locked = !page.locked)) }
             Divider()
             val favorite = page.favoritedAt != null
@@ -118,7 +123,7 @@ fun NotePageMenuButton(page: NotePageSummary, actions: NotePageMenuActions) {
             MenuItem(stringResource(R.string.pg_duplicate), Lucide.Copy, onClick = run(actions.onDuplicate))
             MenuItem(stringResource(R.string.pg_add_page_inside), Lucide.FilePlus2, onClick = run(actions.onAddInside))
             MenuItem(stringResource(R.string.pg_move_to), Lucide.FolderInput, onClick = run(actions.onMove))
-            MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
+            if (features.markdownExport) MenuItem(stringResource(R.string.export_markdown), Lucide.Download, onClick = run(actions.onExport))
             Divider()
             MenuItem(stringResource(R.string.move_to_trash), Lucide.Trash2, danger = true, onClick = run(actions.onTrash))
             actions.error?.let {

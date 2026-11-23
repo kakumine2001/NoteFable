@@ -2,6 +2,8 @@ import Foundation
 
 /// 笔记顶栏"…"菜单的操作（网页 note-page-menu.tsx；Android ui/NotePageMenu.kt）。菜单本身在界面层。
 /// 选了操作先关菜单再执行（和网页 run() 一样，不和对话框、换页叠在一起）；字体和开关留在菜单里。
+/// 出哪些项按页面类型（[PageKindFeatures]）：字体、小字号、全宽（typography）和导出 Markdown（markdownExport）只给笔记，
+/// 锁定、收藏、复制、添加子页面、移动到、移到回收站所有类型都有。
 @MainActor
 struct NotePageMenuActions {
     var error: NotesError?
@@ -54,6 +56,11 @@ enum NotePageToggle: CaseIterable, Sendable {
         case .fullWidth: return NotePageSettings(fullWidth: !page.fullWidth)
         case .locked: return NotePageSettings(locked: !page.locked)
         }
+    }
+
+    /// 这一类页面的菜单里有哪些开关：小字号、全宽只给能调排版的类型（网页 features.typography），锁定所有类型都有。
+    static func visible(for kind: PageKind) -> [NotePageToggle] {
+        kind.features.typography ? allCases : [.locked]
     }
 }
 

@@ -420,17 +420,26 @@ extension ChatProjectResponse: Decodable {
     }
 }
 
-/// 设置窗口用的详情：notes 按选的顺序，不含回收站里的笔记。
+/// 设置窗口用的详情：notes 按选的顺序，不含回收站里的笔记。发言添加的笔记（[MessageDto.pages]）和输入栏上方待发送的也用它。
+/// [kind] 是页面类型（旧服务端不返回，按笔记）。
 struct ChatProjectNote: Encodable, Equatable, Sendable, Identifiable {
     var id: String
     var title: String = ""
     var icon: String? = nil
+    var kind: PageKind = .note
 }
 
 extension ChatProjectNote: Decodable {
     init(from decoder: Decoder) throws {
         let f = try DtoFields(decoder)
-        self.init(id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"))
+        self.init(id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"), kind: try f.or("kind", .note))
+    }
+}
+
+extension ChatProjectNote {
+    /// 笔记列表里的一篇（添加到消息、选作项目的参考笔记时）：ID、标题、图标和类型。
+    init(page: NotePageSummary) {
+        self.init(id: page.id, title: page.title, icon: page.icon, kind: page.kind)
     }
 }
 

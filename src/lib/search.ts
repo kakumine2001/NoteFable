@@ -1,4 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
+import { searchableBlocks } from "@/lib/canvas-document";
+import { pageKindOf } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import { scheduleNoteEmbeddingBackfill, semanticSearchNotes, UI_SEMANTIC_THRESHOLD } from "@/lib/note-embeddings";
 import { blockText, leadingText, walkBlocks } from "@/lib/note-text";
@@ -34,6 +36,14 @@ export function noteBodyValues(notePageTable: Prisma.Sql) {
           WHERE m."userId" = p."userId" AND m."deletedAt" IS NULL
             AND m."id" IN (SELECT jsonb_array_elements_text(jsonb_path_query_array(p."blocks", ${MENTION_PAGE_ID_PATH}::jsonpath)))), '[]'::jsonb)`;
 }
+// ホワイトボード・スライドの本文として検索する文字（SQL）。本体（NoteCanvas.data）は走査せず、保存時に取り出した segments の text だけを使う。
+// c は NoteCanvas の別名（LEFT JOIN。ノートには行が無いので空になる）。
+export const CANVAS_TEXT_PATH = 'lax $[*].text';
+export function canvasBodyValues() {
+  return Prisma.sql`jsonb_path_query_array(COALESCE(c."segments", '[]'::jsonb), ${CANVAS_TEXT_PATH}::jsonpath)`;
+}
+
+
 // 一致したメッセージの抜粋として DB から受け取る範囲。語の 100 文字前から 600 文字。
 // 添付ファイルの抽出本文は、保存する時点で 120,000 文字に切られている（src/lib/files.ts の MAX_TEXT_CHARS）ので、DB 側ではさらに切らない。
 const EXCERPT_BEFORE = 100;
@@ -86,30 +96,34 @@ const toIso = (value: Date | string) => new Date(value).toISOString();
 
 // ---- Notes ----
 
-type NoteRow = { id: string; title: string; icon: string | null; updatedAt: Date | string; blocks: unknown };
+type NoteRow = { id: string; kind: string; title: string; icon: string | null; updatedAt: Date | string; blocks: unknown; segments: unknown };
 
 // ごみ箱のノート（deletedAt あり）は対象外。タイトルに一致した語が多いものを先に、次に更新が新しい順。
 // 一致した最大 15 件だけが blocks を持ち帰り、移動先のブロックと抜粋は JS で求める。
 async function searchNotesByKeyword(userId: string, needles: string[]): Promise<NoteSearchResult[]> {
   const rows = await prisma.$queryRaw<NoteRow[]>(Prisma.sql`
-    SELECT p."id", p."title", p."icon", p."updatedAt", p."blocks"
+    SELECT p."id", p."kind"::text AS "kind", p."title", p."icon", p."updatedAt", p."blocks", c."segments"
     FROM ${table("NotePage")} p
+    LEFT JOIN ${table("NoteCanvas")} c ON c."noteId" = p."id"
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(${noteBodyValues(table("NotePage"))})
+      FROM jsonb_array_elements_text(${noteBodyValues(table("NotePage"))} || ${canvasBodyValues()})
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL
       AND ${Prisma.join(needles.map((term) => Prisma.sql`(${termHit('p."title"', term)} OR ${termHit('t."body"', term)})`), " AND ")}
     ORDER BY ${Prisma.join(needles.map((term) => Prisma.sql`(CASE WHEN ${termHit('p."title"', term)} THEN 1 ELSE 0 END)`), " + ")} DESC, p."updatedAt" DESC, p."id" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
   return rows.map((row) => {
-    const hit = findMatchingBlock(row.blocks, needles);
+    const pageKind = pageKindOf(row);
+    const blocks = searchableBlocks(pageKind, row.blocks, row.segments);
+    const hit = findMatchingBlock(blocks, needles);
     return {
       kind: "note",
       id: row.id,
+      pageKind,
       title: row.title,
       icon: row.icon,
-      snippet: buildSearchSnippet(hit ? hit.text : leadingText(row.blocks), needles),
+      snippet: buildSearchSnippet(hit ? hit.text : leadingText(blocks), needles),
       blockId: hit?.blockId ?? null,
       updatedAt: toIso(row.updatedAt),
     };
@@ -140,6 +154,7 @@ export async function searchNotes(userId: string, terms: string[], options: Note
     .map((hit) => ({
       kind: "note",
       id: hit.id,
+      pageKind: hit.kind,
       title: hit.title,
       icon: hit.icon,
       snippet: hit.chunkText ? buildSearchSnippet(hit.chunkText, needles) : "",
