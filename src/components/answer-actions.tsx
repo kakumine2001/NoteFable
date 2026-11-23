@@ -40,7 +40,7 @@ function subscribe(listener: () => void) {
 }
 
 
-const SAVE_FAILED = msg("Could not save to Notes. Try again.");
+const SAVE_FAILED = msg("Could not save to page. Try again.");
 
 function saveErrorMessage(status: number, data: Record<string, unknown>) {
   if (status === 413) return msg("This answer is too large to save as a note.");

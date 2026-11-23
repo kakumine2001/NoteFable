@@ -11,9 +11,9 @@
     <string name="err_pages_image_mode">لا يمكن إرفاق صفحات عند إنشاء صورة. أزِل الصفحات أو أوقف وضع إنشاء الصور.</string>
     <string name="create_page">تنظيم في ملاحظة</string>
     <string name="create_page_title">تنظيم هذه المحادثة في ملاحظة</string>
-    <string name="create_page_body">يعيد NoteFable صياغة هذه المحادثة في ملاحظة منظّمة داخل «الملاحظات» باستخدام النموذج المحدد. وتُختصر المحادثات الطويلة جداً لتلائم الحجم مع الإبقاء على أحدث الرسائل. وتُحتسب كرسالة واحدة ضمن حد الاستخدام اليومي.</string>
-    <string name="create_page_working">جارٍ كتابة الملاحظة… قد يستغرق ذلك دقيقة. يمكنك إغلاق هذه النافذة؛ وستظهر الملاحظة في «الملاحظات» عندما تصبح جاهزة.</string>
-    <string name="create_page_done">تم إنشاء «%1$s» في الملاحظات.</string>
+    <string name="create_page_body">يعيد NoteFable صياغة هذه المحادثة في ملاحظة منظّمة داخل «مساحة العمل» باستخدام النموذج المحدد. وتُختصر المحادثات الطويلة جداً لتلائم الحجم مع الإبقاء على أحدث الرسائل. وتُحتسب كرسالة واحدة ضمن حد الاستخدام اليومي.</string>
+    <string name="create_page_working">جارٍ كتابة الملاحظة… قد يستغرق ذلك دقيقة. يمكنك إغلاق هذه النافذة؛ وستظهر الملاحظة في «مساحة العمل» عندما تصبح جاهزة.</string>
+    <string name="create_page_done">تم إنشاء «%1$s» في مساحة العمل.</string>
     <string name="create_page_partial">هذه المحادثة طويلة، لذا تم اختصار جزء منها.</string>
     <string name="open_page">فتح الملاحظة</string>
     <string name="language_current">اللغة: %1$s</string>

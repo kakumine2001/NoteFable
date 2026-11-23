@@ -93,15 +93,15 @@ export function CreatePageDialog({ sessionId, model, busy, onClose }: { sessionI
     {job?.status === "working" ? (
       <p role="status" className="mt-3 flex items-start gap-2 text-sm text-[var(--notion-muted)]">
         <LoaderCircle size={16} className="mt-0.5 shrink-0 animate-spin" aria-hidden="true" />
-        <span>{t("Writing the page… This can take a minute. You can close this window; the page will appear in Notes when it’s ready.")}</span>
+        <span>{t("Writing the page… This can take a minute. You can close this window; the page will appear in Workspace when it’s ready.")}</span>
       </p>
     ) : job?.status === "done" ? (
       <p role="status" className="mt-3 text-sm text-[var(--notion-muted)]">
-        {t("Created “{title}” in Notes.", { title: job.page.title })}
+        {t("Created “{title}” in Workspace.", { title: job.page.title })}
         {job.partial && <> {t("This chat is long, so some of it was left out.")}</>}
       </p>
     ) : (
-      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this conversation into an organized note in Notes, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.")}</p>
+      <p className="mt-3 text-sm text-[var(--notion-muted)]">{t("NoteFable rewrites this conversation into an organized note in Workspace, using the selected model. Very long chats are shortened to fit, keeping the most recent messages. It counts as one message toward today’s limit.")}</p>
     )}
     {job?.status === "error" && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(job.message, t)}</p>}
     <div className="mt-5 flex justify-end gap-2">

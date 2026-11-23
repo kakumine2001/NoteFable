@@ -73,9 +73,10 @@
     <string name="err_some_more">แนบเพิ่มได้อีก %1$d ไฟล์ (สูงสุด %2$d ไฟล์ต่อข้อความ) ระบบยังไม่ได้เพิ่มไฟล์ทั้ง %3$d ไฟล์นี้ กรุณาเลือกไฟล์ให้น้อยลง</string>
     <string name="err_not_added">%1$s ไม่ได้เพิ่มไฟล์ใหม่</string>
     <string name="chat_mode">แชท</string>
-    <string name="note_mode">โน้ต</string>
-    <string name="workspace_mode">โหมดพื้นที่ทำงาน</string>
+    <string name="note_mode">พื้นที่ทำงาน</string>
+    <string name="workspace_mode">สลับระหว่างแชทกับพื้นที่ทำงาน</string>
     <string name="notes">โน้ต</string>
+    <string name="workspace">พื้นที่ทำงาน</string>
     <string name="new_note">โน้ตใหม่</string>
     <string name="projects">โปรเจกต์</string>
     <string name="new_project">โปรเจกต์ใหม่</string>
@@ -127,7 +128,7 @@
     <string name="days_left">เหลืออีก %1$d วัน</string>
     <string name="loading_notes">กำลังโหลดโน้ต…</string>
     <string name="notes_intro">เขียนโน้ตด้วยระบบบล็อก — พิมพ์ %1$s เพื่อเพิ่มหัวข้อ รายการ สิ่งที่ต้องทำ และโค้ด</string>
-    <string name="notes_storage_hint">โน้ตจะถูกบันทึกไว้บนเซิร์ฟเวอร์และผูกกับอุปกรณ์นี้ เข้าสู่ระบบเพื่อเปิดดูจากอุปกรณ์อื่น การล้างข้อมูลแอปหรือเว็บไซต์จะสร้างพื้นที่ทำงานแยกต่างหาก</string>
+    <string name="notes_storage_hint">โน้ตจะถูกบันทึกไว้บนเซิร์ฟเวอร์และผูกกับอุปกรณ์นี้ เข้าสู่ระบบเพื่อเปิดดูจากอุปกรณ์อื่น หากล้างข้อมูลแอปหรือเว็บไซต์ก่อนเข้าสู่ระบบ คุณจะเปิดโน้ตเหล่านี้ไม่ได้อีก</string>
     <string name="all_notes">โน้ตทั้งหมด</string>
     <string name="version_history">ประวัติเวอร์ชัน</string>
     <string name="save_saved">บันทึกแล้ว</string>

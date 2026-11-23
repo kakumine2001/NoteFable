@@ -337,7 +337,7 @@ fun NoteEditorScreen(
             Box(Modifier.size(20.dp), Alignment.Center) { NoteIcon(open.icon, 15.sp, 15.dp, Sm.Muted) }
             Spacer(Modifier.width(6.dp))
             Text(
-                open.title.ifEmpty { stringResource(R.string.notes) },
+                open.title.ifEmpty { stringResource(R.string.workspace) },
                 modifier = Modifier.weight(1f),
                 color = Sm.Muted, fontSize = 14.sp, lineHeight = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             )

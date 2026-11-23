@@ -73,9 +73,10 @@
     <string name="err_some_more">Puedes añadir %1$d archivos más (máximo %2$d por mensaje). No se añadió ninguno de estos %3$d archivos. Elige menos archivos.</string>
     <string name="err_not_added">%1$s No se añadieron archivos nuevos.</string>
     <string name="chat_mode">Chat</string>
-    <string name="note_mode">Nota</string>
-    <string name="workspace_mode">Modo del espacio de trabajo</string>
+    <string name="note_mode">Espacio</string>
+    <string name="workspace_mode">Cambiar entre Chat y Espacio</string>
     <string name="notes">Notas</string>
+    <string name="workspace">Espacio</string>
     <string name="new_note">Nueva nota</string>
     <string name="projects">Proyectos</string>
     <string name="new_project">Nuevo proyecto</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Quedan %1$d días</string>
     <string name="loading_notes">Cargando notas…</string>
     <string name="notes_intro">Escribe notas con bloques: escribe %1$s para añadir encabezados, listas, tareas y código.</string>
-    <string name="notes_storage_hint">Las notas se guardan en el servidor y se vinculan a este dispositivo. Inicia sesión para abrirlas en otros dispositivos. Al borrar los datos de la aplicación o del sitio, se crea un espacio de trabajo independiente.</string>
+    <string name="notes_storage_hint">Las notas se guardan en el servidor y se vinculan a este dispositivo. Inicia sesión para abrirlas en otros dispositivos. Si borras los datos de la aplicación o del sitio antes de iniciar sesión, perderás el acceso a ellas.</string>
     <string name="all_notes">Todas las notas</string>
     <string name="version_history">Historial de versiones</string>
     <string name="save_saved">Guardado</string>

@@ -73,9 +73,10 @@
     <string name="err_some_more">Bạn chỉ có thể thêm %1$d tệp nữa (tối đa %2$d tệp mỗi tin nhắn). Chưa tệp nào trong %3$d tệp này được thêm. Hãy chọn ít tệp hơn.</string>
     <string name="err_not_added">%1$s Không có tệp mới nào được thêm.</string>
     <string name="chat_mode">Đoạn chat</string>
-    <string name="note_mode">Ghi chú</string>
-    <string name="workspace_mode">Chế độ không gian làm việc</string>
+    <string name="note_mode">Không gian</string>
+    <string name="workspace_mode">Chuyển giữa Đoạn chat và Không gian</string>
     <string name="notes">Ghi chú</string>
+    <string name="workspace">Không gian</string>
     <string name="new_note">Ghi chú mới</string>
     <string name="projects">Dự án</string>
     <string name="new_project">Dự án mới</string>
@@ -127,7 +128,7 @@
     <string name="days_left">Còn %1$d ngày</string>
     <string name="loading_notes">Đang tải ghi chú…</string>
     <string name="notes_intro">Viết ghi chú theo từng khối — gõ %1$s để thêm tiêu đề, danh sách, việc cần làm và mã nguồn.</string>
-    <string name="notes_storage_hint">Ghi chú được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Việc xóa dữ liệu ứng dụng hoặc trang web sẽ tạo ra một không gian làm việc riêng biệt.</string>
+    <string name="notes_storage_hint">Ghi chú được lưu trên máy chủ và liên kết với thiết bị này. Hãy đăng nhập để mở trên các thiết bị khác. Nếu xóa dữ liệu ứng dụng hoặc trang web trước khi đăng nhập, bạn sẽ không mở được các ghi chú này nữa.</string>
     <string name="all_notes">Tất cả ghi chú</string>
     <string name="version_history">Lịch sử phiên bản</string>
     <string name="save_saved">Đã lưu</string>
