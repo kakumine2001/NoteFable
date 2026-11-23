@@ -3,7 +3,7 @@
 import type { Block } from "@blocknote/core";
 import { FileText, Plus, RefreshCw, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { NoteAssistant } from "@/components/note-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
@@ -12,7 +12,9 @@ import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav"
 import type { useNotePages } from "@/lib/use-note-pages";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { localizeSystemText } from "@/lib/i18n/translate";
-import { nativeCanOpenPage, postToNative } from "@/lib/native-bridge";
+import { StorageLimitPrompt } from "@/components/guest-limit-prompt";
+import { nativeCanOpenPage, nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
+import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
@@ -42,6 +44,25 @@ function isUnchanged(next: Block[], current: Block[]) {
   if (sameJson(next, current)) return true;
   const [only] = next;
   return current.length === 0 && next.length === 1 && only.type === "paragraph" && Array.isArray(only.content) && only.content.length === 0 && only.children.length === 0;
+}
+
+// ノートの画像・ファイル・カバー・アイコンが容量の上限で断られたときの案内（storage-limit-client.ts のイベント）。
+// アプリに埋め込んだ編集画面では、案内を出せるアプリならアプリの画面に任せ、古いアプリでは理由だけを出す（ボタンなし）。
+function NoteStorageLimitNotice({ embedded }: { embedded: boolean }) {
+  const [limit, setLimit] = useState<StorageLimitDetail | null>(null);
+  useEffect(() => {
+    const onLimit = (event: Event) => {
+      const detail = (event as CustomEvent<StorageLimitDetail>).detail;
+      if (!detail) return;
+      if (embedded && nativeCanShowStorageLimit() && postToNative({ type: "storageLimit", tier: detail.tier, used: detail.used, limit: detail.limit })) return;
+      setLimit(detail);
+    };
+    window.addEventListener(STORAGE_LIMIT_EVENT, onLimit);
+    return () => window.removeEventListener(STORAGE_LIMIT_EVENT, onLimit);
+  }, [embedded]);
+  if (!limit) return null;
+  // 長いノートの下の方で貼り付けたときも見えるよう、書き出しの失敗と同じくスクロールする領域の上端に留める。
+  return <div className="notes-storage-limit notes-column pt-6"><StorageLimitPrompt limit={limit} actions={!embedded} className="" onClose={() => setLimit(null)} /></div>;
 }
 
 export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChange, onReasoningChange, onOpen, onCreate, onImport, onWorkspaceChange, embedded = false, split = false, onAskSelectionInChat }: {
@@ -110,6 +131,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     onBlur={(event) => { if (event.relatedTarget) switchFocused.current = null; }}>
     {listMode && !hasItems && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}
     {error && <div className="notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(error, t)}<button type="button" className="notion-button ml-3" onClick={() => void notes.load()}>{t("Retry")}</button></div></div>}
+    <NoteStorageLimitNotice embedded={embedded} />
     {actionError && <div className="notes-action-error notes-column pt-6"><div className="notion-error" role="alert">{localizeSystemText(actionError, t)}<button type="button" className="notion-button ml-3" onClick={notes.dismissActionError}>{t("Close")}</button></div></div>}
     {listMode && (notes.pages.length > 0 || notes.groups.length > 0) ? (
       <NotesHome pages={notes.pages} groups={notes.groups} groupError={notes.groupError} busy={busy || loading} onOpen={onOpen} onCreate={onCreate} onImport={onImport}

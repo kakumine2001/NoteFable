@@ -235,4 +235,6 @@ export const hiServer: Record<string, string> = {
   "File is too long for one note: {name}": "फ़ाइल एक नोट के लिए बहुत लंबी है: {name}",
   "Note icon must be a single emoji or an uploaded image.": "नोट का आइकन एक इमोजी या अपलोड की गई इमेज होना चाहिए।",
   "This icon image is no longer available. Choose another icon.": "यह आइकन इमेज अब उपलब्ध नहीं है। कोई दूसरा आइकन चुनें।",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "स्टोरेज में पर्याप्त जगह नहीं बची है। ज़्यादा जगह पाने के लिए साइन इन करें, या वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "स्टोरेज में पर्याप्त जगह नहीं बची है। जगह खाली करने के लिए वे फ़ाइलें हटाएँ जिनकी अब ज़रूरत नहीं है।",
 };

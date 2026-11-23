@@ -23,12 +23,14 @@ struct PlanMeter: Equatable, Sendable, Identifiable {
     var labelKey: String
     var used: Int
     var limit: Int
+    /// 右边显示的"用了 / 上限"（文件存储是"12 MB / 500 MB"）；nil 是数字原样。
+    var text: String? = nil
 
     /// 进度条的比例（0…1）；没有上限数据时算满。
     var ratio: Double { limit > 0 ? min(max(Double(used) / Double(limit), 0), 1) : 1 }
     /// 用满了：进度条变橙色。
     var full: Bool { ratio >= 1 }
-    var countText: String { "\(used) / \(limit)" }
+    var countText: String { text ?? "\(used) / \(limit)" }
 }
 
 extension PlanInfo {
@@ -62,6 +64,14 @@ extension PlanInfo {
                 add(image.period == "day" ? "plan_images_today" : isPro ? "plan_images_period" : "plan_images_month", image.used, image.limit)
             }
             if let daily = image.daily { add("plan_images_today", daily.used, daily.limit) }
+        }
+        // 文件存储（聊天的图片、生成的图片、笔记的文件和封面等）的用量。
+        if let storage {
+            let locale = Locale(identifier: AppLanguage.acceptLanguage(AppLanguage.uiLocale))
+            out.append(PlanMeter(
+                id: out.count, labelKey: "plan_storage", used: storage.used, limit: storage.limit,
+                text: "\(formatStorageSize(storage.used, locale: locale)) / \(formatStorageSize(storage.limit, locale: locale))"
+            ))
         }
         return out
     }

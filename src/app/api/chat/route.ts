@@ -12,6 +12,8 @@ import {
 import { optionalEnv, requireEnv } from "@/lib/env";
 import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES, MAX_UPLOAD_FILE_BYTES } from "@/lib/upload-limits";
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
+import { storageLimitResponse } from "@/lib/stored-files";
+import { StorageLimitError } from "@/lib/usage-plans";
 import { attachProposals } from "@/lib/note-proposals";
 import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
 import { buildHistoryInput } from "@/lib/chat-history";
@@ -503,9 +505,11 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   const claudeImageBudget = isClaude ? Math.min(MAX_CLAUDE_IMAGE_BYTES, Math.floor((MAX_CLAUDE_IMAGE_TOTAL_BYTES / 2) / Math.max(1, imageCount))) : undefined;
   let attachments: Awaited<ReturnType<typeof prepareAttachments>>;
   try {
-    attachments = await prepareAttachments(files, claudeImageBudget);
-  } catch {
+    // 画像は持ち主の容量に数えて保存する（入らなければ 413、この送信は数えない）。
+    attachments = await prepareAttachments(files, claudeImageBudget, user);
+  } catch (error) {
     await refundUsage(usageTicket);
+    if (error instanceof StorageLimitError) return storageLimitResponse(error);
     return NextResponse.json({ error: msg("Unable to process an attachment. Please check that the file can be opened and try again.") }, { status: 400 });
   }
   // 抽出できたテキストを、今回のユーザー入力へ差し込む追加プロンプトにする。

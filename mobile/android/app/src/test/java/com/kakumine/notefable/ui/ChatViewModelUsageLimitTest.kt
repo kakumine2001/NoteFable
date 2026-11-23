@@ -52,6 +52,8 @@ class ChatViewModelUsageLimitTest {
     /** 每次发送都等 [release] 放行后以 [error] 结束。 */
     private class LimitedBackend(var error: Throwable) : ChatBackend {
         var release = CompletableDeferred<Unit>()
+        /** 设了的话，准备上传（POST /api/uploads）就以它失败。 */
+        var uploadError: Throwable? = null
         override suspend fun sessions(): List<SessionSummary> = emptyList()
         override suspend fun messages(sessionId: String): List<MessageDto> = emptyList()
         override suspend fun models() = ModelsResponse(
@@ -67,14 +69,21 @@ class ChatViewModelUsageLimitTest {
             release.await()
             throw error
         }
-        override suspend fun prepareUploads(files: List<LocalFile>) =
-            UploadPlan(files.indices.map { UploadSlot("path-$it", "ticket-$it") }, "local")
+        override suspend fun prepareUploads(files: List<LocalFile>): UploadPlan {
+            uploadError?.let { throw it }
+            return UploadPlan(files.indices.map { UploadSlot("path-$it", "ticket-$it") }, "local")
+        }
         override suspend fun uploadFile(slot: UploadSlot, mode: String, file: LocalFile, onProgress: (Int) -> Unit) = Unit
         override suspend fun discardUploads(tickets: List<String>) = Unit
     }
 
     private fun limit(tier: String, kind: String = "chat") =
         ApiException(429, "You've reached today's limit.", code = ApiException.USAGE_LIMIT_CODE, tier = tier, kind = kind)
+
+    private fun storageFull(tier: String) = ApiException(
+        413, "There isn't enough storage space left. Delete files you no longer need to free up space.",
+        code = ApiException.STORAGE_LIMIT_CODE, tier = tier, used = 500L * 1024 * 1024, limit = 500L * 1024 * 1024,
+    )
 
     // 回答进行中刷新定时器一直在排队，advanceUntilIdle 等不到空闲；只推进一小段虚拟时间。
     private fun kotlinx.coroutines.test.TestScope.settle() {
@@ -202,5 +211,52 @@ class ChatViewModelUsageLimitTest {
         val limits = UsageLimits.parse(asset.readText())
         assertTrue(limits.member.chat > limits.guest.chat)
         assertTrue(limits.member.image > 0)
+        // 存储上限（字节）：Pro 的 10 GiB 超过 Int 的范围。
+        assertEquals(500L * 1024 * 1024, limits.member.storage)
+        assertEquals(10L * 1024 * 1024 * 1024, limits.pro.storage)
+    }
+
+    @Test
+    fun `a storage refusal before uploading keeps the text and files and shows the storage prompt`() = runTest(dispatcher) {
+        val backend = LimitedBackend(java.io.IOException("unused")).apply { uploadError = storageFull("member") }
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)
+        advanceUntilIdle()
+
+        vm.updateDraft("look at this")
+        vm.addFiles(listOf(photo))
+        vm.send(vm.draft)
+        advanceUntilIdle()
+
+        assertEquals("look at this", vm.draft)
+        assertEquals(listOf(photo), vm.state.value.files)
+        assertEquals(StorageLimitInfo("member", 500L * 1024 * 1024, 500L * 1024 * 1024), vm.state.value.storageLimit)
+        // 不是网络问题，不显示"检查网络"的上传失败。
+        assertNull(vm.state.value.notice)
+        assertTrue(vm.state.value.messages.isEmpty())
+
+        vm.dismissStorageLimit()
+        assertNull(vm.state.value.storageLimit)
+    }
+
+    @Test
+    fun `an image generation refused for storage comes back into the composer with the storage prompt`() = runTest(dispatcher) {
+        val backend = LimitedBackend(storageFull("guest"))
+        val vm = ChatViewModel(backend, MemorySettings(), flushIntervalMs = 10)
+        advanceUntilIdle()
+
+        vm.setImageMode(true)
+        vm.send("a cat")
+        backend.release.complete(Unit)
+        advanceUntilIdle()
+
+        assertEquals("a cat", vm.draft)
+        assertEquals("guest", vm.state.value.storageLimit?.tier)
+        // 次数上限的提示不出现；气泡里是服务端的说明（按语言显示）。
+        assertNull(vm.state.value.guestLimit)
+        assertTrue(vm.state.value.messages.last().usageLimit)
+
+        vm.onIdentityChanged()
+        advanceUntilIdle()
+        assertNull(vm.state.value.storageLimit)
     }
 }

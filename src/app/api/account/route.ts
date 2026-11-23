@@ -9,7 +9,7 @@ import { isSameOrigin, isSecureRequest } from "@/lib/native-google-login";
 import { optionalEnv } from "@/lib/env";
 import { isAccountLoginConfigured, isEmailLoginConfigured, isGoogleLoginConfigured } from "@/lib/google-auth";
 import { prisma } from "@/lib/prisma";
-import { deleteStoredImage } from "@/lib/storage";
+import { discardStoredFiles } from "@/lib/stored-files";
 import { parseProfilePatch, toAccountUser } from "@/lib/user-profile";
 import { msg } from "@/lib/i18n/translate";
 
@@ -83,7 +83,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: msg("Your profile changed somewhere else. Try again.") }, { status: 409 });
     }
     updated = await prisma.user.findUniqueOrThrow({ where: { id: row.id } });
-    if (row.avatarImage) await deleteStoredImage(row.avatarImage).catch(() => {});
+    if (row.avatarImage) await discardStoredFiles([row.avatarImage]);
   } else {
     updated = await prisma.user.update({ where: { id: row.id }, data: parsed.data });
   }

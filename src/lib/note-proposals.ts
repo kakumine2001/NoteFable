@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles } from "@/lib/stored-files";
 import { createRevision } from "@/lib/note-revisions";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
@@ -110,6 +111,8 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
           select: { id: true, title: true, icon: true, blocks: true, version: true },
         });
         if (!current) throw new Conflict();
+        // 提案のためにコピーした画像は、ここからノートの本文が参照する。保存（PATCH）と同じく、ノートの行より先にファイルの行を取る。
+        await claimNoteFiles(tx, content.blocks, userId);
         // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
         await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });
         const changed = await tx.notePage.updateMany({
@@ -133,6 +136,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
         data: { userId, title: content.title, icon: content.icon, cover: null, coverPosition: null, blocks: content.blocks as unknown as Prisma.InputJsonValue },
       });
       await tx.noteProposal.update({ where: { id }, data: { appliedPageId: created.id } });
+      await claimNoteFiles(tx, content.blocks, userId);
       return created;
     });
     if (page) return { ok: true, status: "applied", kind: "create", page };

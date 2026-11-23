@@ -347,6 +347,7 @@ final class ChatViewModel {
             $0.notice = nil
             $0.guestLimit = nil
             $0.upgradeLimit = nil
+            $0.storageLimit = nil
             $0.reveal = nil
             $0.rejectedEdit = nil
             $0.draftIcon = nil
@@ -709,6 +710,10 @@ final class ChatViewModel {
         update { $0.upgradeLimit = nil }
     }
 
+    func dismissStorageLimit() {
+        update { $0.storageLimit = nil }
+    }
+
     func setImageMode(_ on: Bool) {
         // 关掉「生成图片」正是"带着笔记不能生成图片"提示要用户做的事：提示随之消失。
         update {
@@ -1044,9 +1049,13 @@ final class ChatViewModel {
             let cancelled = error is CancellationError || Task.isCancelled
             // 用户已经去了别的聊天：不在那边的输入栏报错（网页只在 navigationIntent 没变时 setSendError）。
             let report = !cancelled && navigation == navigationCount
+            // 存储空间不够：不是网络问题，说明原因并给登录的入口（文字和附件还在输入栏）。
+            let storage = (error as? ApiException)?.storageLimitInfo
             update {
                 $0.upload = nil
-                if report { $0.notice = .uploadFailed }
+                if report {
+                    if let storage { $0.storageLimit = storage } else { $0.notice = .uploadFailed }
+                }
             }
             if report { flashOutcome(keyOf(state), .error) }
             flushRestores()
@@ -1096,7 +1105,8 @@ final class ChatViewModel {
         if failed != nil { flashOutcome(run.key, .error) }
         let assistantId = turn.assistantId
         let apiError = failed as? ApiException
-        let limited = apiError?.isUsageLimit == true
+        // 次数上限和存储空间上限都没有保存这次发送：原文和附件放回输入栏，气泡里只显示服务端的说明。
+        let limited = apiError?.isUsageLimit == true || apiError?.isStorageLimit == true
         // 还没拿到会话 ID 的新聊天失败了，而用户已经离开它：这个聊天再也打不开（网页发送前就建好了会话，
         // 侧栏里能找回）。把提问和附件放回输入栏，不留看不到的缓存。撞到上限也一样（未登录时照常显示登录提示）。
         if failed != nil, run.key.hasPrefix(Self.NEW_CHAT_PREFIX), run.key != keyOf(state) {
@@ -1111,14 +1121,17 @@ final class ChatViewModel {
             if assistant.map({ $0.content.isEmpty && $0.activity.isEmpty }) != false {
                 setCached(run.key, before)
                 let kind = apiError?.kind == "image" ? "image" : "chat"
-                let guest = limited && apiError?.tier == "guest"
-                let member = limited && apiError?.tier == "member"
+                let usageLimited = apiError?.isUsageLimit == true
+                let guest = usageLimited && apiError?.tier == "guest"
+                let member = usageLimited && apiError?.tier == "member"
+                let storage = apiError?.storageLimitInfo
                 let detail = chatFailureDetail(failed)
                 update {
                     let shown = keyOf($0) == run.key
                     if shown { $0.notice = .failed(detail: detail) }
                     if guest { $0.guestLimit = kind }
                     if member { $0.upgradeLimit = kind }
+                    if let storage { $0.storageLimit = storage }
                     // 改写的文字不丢：那条提问的编辑框带着它重新打开。
                     if shown, let edit = turn.edit { $0.rejectedEdit = edit }
                 }
@@ -1171,6 +1184,10 @@ final class ChatViewModel {
     /// 未登录用户（tier = guest）另外显示登录提示，免费用户（tier = member）显示升级提示。
     private func restoreRejected(_ turn: Turn, _ error: ApiException) {
         restoreDraft(turn)
+        if let storage = error.storageLimitInfo {
+            update { $0.storageLimit = storage }
+            return
+        }
         let kind = error.kind == "image" ? "image" : "chat"
         if error.tier == "guest" { update { $0.guestLimit = kind } }
         if error.tier == "member" { update { $0.upgradeLimit = kind } }

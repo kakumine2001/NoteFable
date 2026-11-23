@@ -235,4 +235,6 @@ export const trServer: Record<string, string> = {
   "File is too long for one note: {name}": "Dosya tek bir not için çok uzun: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Not simgesi tek bir emoji veya yüklenmiş bir görsel olmalıdır.",
   "This icon image is no longer available. Choose another icon.": "Bu simge görseli artık kullanılamıyor. Başka bir simge seçin.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Yeterli depolama alanı kalmadı. Daha fazla alan için oturum açın veya artık ihtiyacınız olmayan dosyaları silin.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Yeterli depolama alanı kalmadı. Yer açmak için artık ihtiyacınız olmayan dosyaları silin.",
 };

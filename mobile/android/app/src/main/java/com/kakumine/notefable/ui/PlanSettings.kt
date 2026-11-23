@@ -55,6 +55,7 @@ import com.kakumine.notefable.data.PlayProduct
 import com.kakumine.notefable.data.PlayPurchaseEvent
 import com.kakumine.notefable.data.UsageLimit
 import com.kakumine.notefable.data.UsageLimits
+import com.kakumine.notefable.data.formatStorageSize
 import com.kakumine.notefable.data.serverMessage
 import java.time.Instant
 import java.time.ZoneId
@@ -204,7 +205,19 @@ internal fun PlanSettings(state: PlanSettingsState) {
                     }
                     usage.daily?.let { PlanMeter(stringResource(R.string.plan_images_today), PlanUsage(it.used, it.limit)) }
                 }
+                // 文件存储（聊天的图片、生成的图片、笔记的文件和封面等）的用量。
+                current.storage?.let { storage ->
+                    val locale = uiLocale()
+                    PlanMeterRow(
+                        stringResource(R.string.plan_storage),
+                        "${formatStorageSize(storage.used, locale)} / ${formatStorageSize(storage.limit, locale)}",
+                        if (storage.limit > 0) (storage.used.toDouble() / storage.limit).toFloat().coerceIn(0f, 1f) else 1f,
+                        // 满不满用字节数比较（Float 的比例在上限附近会进位成 1）。
+                        full = storage.limit <= 0 || storage.used >= storage.limit,
+                    )
+                }
             }
+            if (current.storage != null) SettingsHelpText(stringResource(R.string.plan_storage_help))
             val offer = product
             val accountId = current.accountId
             if (!pro && offer != null && accountId != null) {
@@ -226,18 +239,24 @@ internal fun PlanSettings(state: PlanSettingsState) {
 }
 
 @Composable
-private fun PlanMeter(label: String, usage: PlanUsage) {
-    val ratio = if (usage.limit > 0) (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) else 1f
+private fun PlanMeter(label: String, usage: PlanUsage) =
+    PlanMeterRow(
+        label, "${usage.used} / ${usage.limit}", if (usage.limit > 0) (usage.used.toFloat() / usage.limit).coerceIn(0f, 1f) else 1f,
+        full = usage.limit <= 0 || usage.used >= usage.limit,
+    )
+
+@Composable
+private fun PlanMeterRow(label: String, count: String, ratio: Float, full: Boolean) {
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
             Text(label, Modifier.weight(1f), color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp)
             Text(
-                "${usage.used} / ${usage.limit}", color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, textAlign = TextAlign.End,
+                count, color = Sm.Muted, fontSize = 13.sp, lineHeight = 19.5.sp, textAlign = TextAlign.End,
                 style = TextStyle(fontFeatureSettings = "tnum"),
             )
         }
         Box(Modifier.padding(top = 6.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(999.dp)).background(Sm.Hover)) {
-            Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(999.dp)).background(if (ratio >= 1f) MeterFull else Sm.Blue))
+            Box(Modifier.fillMaxHeight().fillMaxWidth(ratio).clip(RoundedCornerShape(999.dp)).background(if (full) MeterFull else Sm.Blue))
         }
     }
 }
@@ -263,7 +282,7 @@ private fun PlanOffer(product: PlayProduct, busy: Boolean, onUpgrade: () -> Unit
             Spacer(Modifier.width(6.dp))
             Text(stringResource(R.string.plan_offer_title, product.formattedPrice), color = Sm.Ink, fontSize = 15.sp, lineHeight = 22.5.sp, fontWeight = FontWeight.SemiBold)
         }
-        SettingsHelpText(stringResource(R.string.plan_offer_body, "%,d".format(limits.chat), limits.image))
+        SettingsHelpText(stringResource(R.string.plan_offer_body, "%,d".format(limits.chat), limits.image, formatStorageSize(limits.storage, uiLocale())))
         if (product.trialDays > 0) SettingsHelpText(stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice))
         Box(
             Modifier.padding(top = 12.dp).fillMaxWidth().height(44.dp).clip(CircleShape).background(Sm.Ink)
@@ -302,7 +321,14 @@ internal fun rememberProLimits(): UsageLimit {
  * 在 App 里买不会离开页面，附件不会丢，所以不显示网页那句附件提醒；购买失败或付款处理中时，在同一位置显示原因。
  */
 @Composable
-fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
+fun UpgradeLimitPrompt(
+    kind: String,
+    onClose: () -> Unit,
+    /** 文件存储空间不够（网页 StorageLimitPrompt 的升级部分）：标题和说明换成存储空间的。 */
+    storage: StorageLimitInfo? = null,
+    /** 在 App 里买不了（Play 没开、商品读不到）时显示的东西（存储空间不够时仍要说明原因）。 */
+    unavailable: @Composable () -> Unit = {},
+) {
     val context = LocalContext.current
     val app = context.applicationContext as NoteFableApp
     val billing = app.playBilling
@@ -310,17 +336,23 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
     val system = rememberSystemText()
     val limits = rememberProLimits()
     var offer by remember { mutableStateOf<Pair<PlayProduct, String>?>(null) }
+    // Play の商品を読み終えたか。読んでいる間は何も出さない（読めなかったときだけ unavailable を出す）。
+    var loaded by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
     var failure by remember { mutableStateOf<String?>(null) }
     val failedText = stringResource(R.string.plan_purchase_failed)
     val pendingText = stringResource(R.string.plan_pending)
 
     LaunchedEffect(Unit) {
-        val plan = runCatching { AccountApi(app.api.http).plan() }.getOrNull() ?: return@LaunchedEffect
-        val productId = plan.productId
-        val accountId = plan.accountId
-        if (!plan.googlePlay || plan.plan == "pro" || productId == null || accountId == null) return@LaunchedEffect
-        offer = billing.product(productId, plan.trialDays > 0)?.let { it to accountId }
+        try {
+            val plan = runCatching { AccountApi(app.api.http).plan() }.getOrNull() ?: return@LaunchedEffect
+            val productId = plan.productId
+            val accountId = plan.accountId
+            if (!plan.googlePlay || plan.plan == "pro" || productId == null || accountId == null) return@LaunchedEffect
+            offer = billing.product(productId, plan.trialDays > 0)?.let { it to accountId }
+        } finally {
+            loaded = true
+        }
     }
     LaunchedEffect(billing) {
         billing.events.collect { event ->
@@ -334,7 +366,8 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
         }
     }
 
-    val (product, accountId) = offer ?: return
+    val (product, accountId) = offer ?: return if (loaded) unavailable() else Unit
+    val locale = uiLocale()
     GuestLimitPrompt(
         kind = kind,
         attachmentsLost = false,
@@ -346,12 +379,26 @@ fun UpgradeLimitPrompt(kind: String, onClose: () -> Unit) {
             }
         },
         onClose = onClose,
-        title = stringResource(if (kind == "image") R.string.upgrade_title_image else R.string.guest_limit_title_chat),
-        body = stringResource(R.string.upgrade_body, "%,d".format(limits.chat), limits.image, product.formattedPrice),
-        note = failure ?: if (product.trialDays > 0) stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice) else null,
+        title = if (storage != null) stringResource(R.string.storage_limit_title)
+        else stringResource(if (kind == "image") R.string.upgrade_title_image else R.string.guest_limit_title_chat),
+        body = if (storage != null) {
+            listOf(
+                stringResource(R.string.storage_limit_used, formatStorageSize(storage.used, locale), formatStorageSize(storage.limit, locale)),
+                stringResource(R.string.storage_limit_upgrade, formatStorageSize(limits.storage, locale), product.formattedPrice),
+            ).joinToString("\n")
+        } else stringResource(R.string.upgrade_body, "%,d".format(limits.chat), limits.image, product.formattedPrice),
+        note = listOfNotNull(
+            failure ?: if (product.trialDays > 0) stringResource(R.string.plan_trial_note, product.trialDays, product.formattedPrice) else null,
+            if (storage != null) stringResource(R.string.storage_limit_delete) else null,
+        ).joinToString("\n").ifEmpty { null },
         actionLabel = upgradeLabel(busy, product),
+        icon = if (storage != null) Lucide.HardDrive else Lucide.Sparkles,
     )
 }
+
+/** 界面语言的 Locale（数字和日期的写法跟着它）。 */
+@Composable
+internal fun uiLocale(): Locale = Locale.forLanguageTag(AppLanguage.acceptLanguage(stringResource(R.string.ui_locale)))
 
 /** 网页 `toLocaleDateString(tag, { year: "numeric", month: "short", day: "numeric" })`，按界面语言。 */
 @Composable

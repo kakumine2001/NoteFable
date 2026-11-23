@@ -409,7 +409,7 @@
 "plan_past_due" = "L’ultimo pagamento non è andato a buon fine. Aggiorna il metodo di pagamento per mantenere Pro.";
 "plan_load_failed" = "Impossibile caricare il tuo piano.";
 "plan_offer_title" = "NoteFable Pro · %1$s/mese";
-"plan_offer_body" = "%1$s messaggi e %2$d generazioni di immagini al mese. Annulla quando vuoi.";
+"plan_offer_body" = "%1$s messaggi e %2$d generazioni di immagini al mese, più %3$s di spazio di archiviazione. Annulla quando vuoi.";
 "plan_upgrade" = "Passa a Pro";
 "plan_manage_play" = "Gestisci abbonamento su Google Play";
 "plan_welcome" = "Ti diamo il benvenuto in NoteFable Pro";
@@ -421,6 +421,13 @@
 "plan_trial_start" = "Inizia la prova gratuita di %1$d giorni";
 "plan_trial_note" = "Gratis per %1$d giorni, poi %2$s/mese. Annulla prima della fine della prova e non ti verrà addebitato nulla.";
 "plan_trial_ends" = "La prova gratuita termina il %1$s. Dopo, Pro costa ¥%2$d/mese.";
+"plan_storage" = "Spazio di archiviazione";
+"plan_storage_help" = "Lo spazio dei file eliminati si libera circa una settimana dopo. I file nel cestino o nella cronologia versioni continuano a contare.";
+"storage_limit_title" = "Spazio di archiviazione insufficiente";
+"storage_limit_used" = "Hai usato %1$s su %2$s.";
+"storage_limit_sign_in" = "Accedi per avere %1$s di spazio di archiviazione.";
+"storage_limit_upgrade" = "Ottieni %1$s di spazio di archiviazione con Pro a %2$s/mese.";
+"storage_limit_delete" = "Elimina i file che non ti servono più per liberare spazio.";
 
 /* strings_report.xml */
 "report_answer" = "Segnala risposta";

@@ -13,25 +13,43 @@ struct ApiException: Error, Equatable, Sendable {
     let code: String?
     let tier: String?
     let kind: String?
+    /// 容量上限（413 storage_limit）时的已用量和上限（字节）。
+    let used: Int?
+    let limit: Int?
 
-    init(status: Int, message: String, code: String? = nil, tier: String? = nil, kind: String? = nil) {
+    init(status: Int, message: String, code: String? = nil, tier: String? = nil, kind: String? = nil, used: Int? = nil, limit: Int? = nil) {
         self.status = status
         self.message = message
         self.code = code
         self.tier = tier
         self.kind = kind
+        self.used = used
+        self.limit = limit
     }
 
     static let USAGE_LIMIT_CODE = "usage_limit"
+    static let STORAGE_LIMIT_CODE = "storage_limit"
 
     /// 当日使用次数已用完（`src/lib/usage-plans.ts` 的 USAGE_LIMIT_CODE）。
     var isUsageLimit: Bool { status == 429 && code == Self.USAGE_LIMIT_CODE }
+
+    /// 文件存储空间不够，新的上传被拒绝（`src/lib/usage-plans.ts` 的 STORAGE_LIMIT_CODE）。
+    var isStorageLimit: Bool { status == 413 && code == Self.STORAGE_LIMIT_CODE && used != nil && limit != nil }
+
+    /// 存储空间不够时的档位和用量；别的错误是 nil。
+    var storageLimitInfo: StorageLimitInfo? {
+        guard isStorageLimit, let used, let limit else { return nil }
+        return StorageLimitInfo(tier: tier ?? "guest", used: used, limit: limit)
+    }
 
     /// 按错误响应的状态码和正文构造。正文不是 JSON 或没有 `error` 时退回 "HTTP <status>"。
     static func from(status: Int, body: String) -> ApiException {
         let error = try? NoteFableJson.decodeFromString(ApiError.self, body)
         let sentence = error?.error.flatMap { ApiText.isBlank($0) ? nil : $0 }
-        return ApiException(status: status, message: sentence ?? "HTTP \(status)", code: error?.code, tier: error?.tier, kind: error?.kind)
+        return ApiException(
+            status: status, message: sentence ?? "HTTP \(status)", code: error?.code, tier: error?.tier, kind: error?.kind,
+            used: error?.used, limit: error?.limit
+        )
     }
 
     static func from(status: Int, body: Data) -> ApiException {

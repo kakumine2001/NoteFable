@@ -113,6 +113,7 @@ flowchart LR
 | `src/lib/files.ts` | 文件校验、PDF/文本抽取、图片预处理 |
 | `src/lib/chat-upload-ticket.ts`、`src/lib/chat-uploads.ts`、`src/app/api/uploads/*` | 聊天附件私有 Blob 直传凭证、归属验证、大小检查、临时文件读取与清理 |
 | `src/lib/storage.ts` | Vercel Blob 图片存储（本地开发可回退到文件系统） |
+| `src/lib/stored-files.ts` | 文件仓库的登记（`StoredFile`）：按套餐的存储上限、引用的认领、未引用文件的清理与盘点（[database.md](database.md#storedfile)） |
 | `src/lib/prisma.ts` | Prisma + PostgreSQL adapter、schema 选择 |
 | `src/lib/anthropic-messages.ts`、`src/lib/deepseek-responses.ts` | Anthropic Messages API 与 DeepSeek Responses 兼容处理 |
 | `prisma/schema.prisma` | 数据模型 |

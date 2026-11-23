@@ -4,7 +4,8 @@ import { currentAccountProfile, getOrCreateUser, isAccountUser } from "@/lib/aut
 import { sniffImage } from "@/lib/note-file-keys";
 import { readLimitedBody } from "@/lib/note-upload";
 import { prisma } from "@/lib/prisma";
-import { deleteStoredImage, getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { getImageExtension, readStoredImage } from "@/lib/storage";
+import { discardStoredFiles, storeFile } from "@/lib/stored-files";
 import { AVATAR_ROOT, avatarVersion, toAccountUser } from "@/lib/user-profile";
 import { msg } from "@/lib/i18n/translate";
 
@@ -53,7 +54,8 @@ export async function POST(request: Request) {
   if (!isAccountUser(row)) return NextResponse.json({ error: msg("Sign in to change your photo.") }, { status: 401 });
 
   const storagePath = `${AVATAR_ROOT}/${row.id}/${randomUUID()}${getImageExtension(mimeType)}`;
-  await writeStoredImageAt(storagePath, buffer, mimeType);
+  // 容量に数えるが、上限では断らない（1 枚を置き換えるだけで、古い写真はすぐ消す）。
+  await storeFile(row, { path: storagePath, kind: "AVATAR", buffer, mimeType }, { enforce: false, held: true });
 
   // 読んだときの写真のままの場合だけ差し替える（同時に別のタブが差し替えていたら、そちらを消さず、こちらを取り消す）。
   try {
@@ -62,16 +64,16 @@ export async function POST(request: Request) {
       data: { avatarImage: storagePath, avatarIcon: null },
     });
     if (!result.count) {
-      await deleteStoredImage(storagePath).catch(() => {});
+      await discardStoredFiles([storagePath]);
       return NextResponse.json({ error: msg("Your photo changed somewhere else. Try again.") }, { status: 409 });
     }
   } catch (error) {
     // 行を更新できなかったら、書いたばかりの写真は誰からも参照されないので消す。
-    await deleteStoredImage(storagePath).catch(() => {});
+    await discardStoredFiles([storagePath]);
     throw error;
   }
   // 差し替え前の写真を消す（消せなくても保存は成功のまま。残っても本人だけが読める場所にある）。
-  if (row.avatarImage && row.avatarImage !== storagePath) await deleteStoredImage(row.avatarImage).catch(() => {});
+  if (row.avatarImage && row.avatarImage !== storagePath) await discardStoredFiles([row.avatarImage]);
   // 更新が確定した後の読取失敗では、現在参照されている新しい写真を消さない。
   const updated = await prisma.user.findUniqueOrThrow({ where: { id: row.id } });
 

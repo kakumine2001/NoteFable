@@ -4,18 +4,19 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 
 ## 档位与上限
 
-数值在 `src/lib/usage-plans.ts`（`USAGE_LIMITS` 次数、`USAGE_PERIODS` 计数周期、`USAGE_DAILY_LIMITS` 月上限之外的每日上限），计数在 `src/lib/usage-limits.ts`，存储见 [database.md](database.md#usagecounter)。
+数值在 `src/lib/usage-plans.ts`（`USAGE_LIMITS` 次数、`USAGE_PERIODS` 计数周期、`USAGE_DAILY_LIMITS` 月上限之外的每日上限、`STORAGE_LIMITS` 文件存储上限、`MAX_STORED_FILE_BYTES` 工作区单文件上限），计数在 `src/lib/usage-limits.ts`，存储见 [database.md](database.md#usagecounter)；文件存储的用量在 `src/lib/stored-files.ts`（[database.md](database.md#storedfile)）。
 
-| 档位 | 条件 | 聊天 | 图片 |
-| --- | --- | --- | --- |
-| guest | 未登录 | 20 / 天 | 10 / 月，且 3 / 天 |
-| member | 已登录、免费 | 40 / 天 | 20 / 月，且 5 / 天 |
-| pro | `User.plan = PRO` | 2,000 / 账期 | 60 / 账期，且 10 / 天 |
+| 档位 | 条件 | 聊天 | 图片 | 文件存储 |
+| --- | --- | --- | --- | --- |
+| guest | 未登录 | 20 / 天 | 10 / 月，且 3 / 天 | 100 MB |
+| member | 已登录、免费 | 40 / 天 | 20 / 月，且 5 / 天 | 500 MB |
+| pro | `User.plan = PRO` | 2,000 / 账期 | 60 / 账期，且 10 / 天 | 10 GB |
 
 - “天”是日本时间的一天；免费的“月”是日本时间的自然月；Pro 的“账期”是 Stripe 的当前计费周期（`subscriptionPeriodStart`〜`subscriptionPeriodEnd`），续费时重新计算。账期已过但续费通知还没到时，先按自然月计（不会被上一期用满的计数卡住）。Pro 和免费的月计数是不同的行（`chat:pro` / `image:pro` 与 `image:month`），所以升级时免费额度的用量不带进 Pro，回到免费时也不按旧账期算。
 - 图片有两层上限：月（账期）总量和每日张数，任何一层满了就拒绝，提示句会说明是今天的还是本月的。每日上限让用户每天都能用，月总量控制成本（一张图约 ¥4–8，是聊天的几十倍）。设置的“方案”里 Pro 显示两条图片生成用量（本期 / 今日），免费方案平时只显示今日图片生成（后台仍执行月总量上限，触顶时补显示满额的本月条）。
 - 同一网络的未登录用户另有共同上限：聊天 100 / 天，图片 30 / 月（未登录清 Cookie 就是新用户，图片靠这个上限兜底；登录后不受限）。网络按 IPv4 地址或 IPv6 的前 64 位计（`networkAddress`），在自己的 /64 里换地址逃不掉；换 IP（代理）仍然逃得掉，没有全站的未登录总量上限。
 - 免费的月用量（40 × 31 = 1,240 条）低于 Pro，测试会检查。
+- **文件存储**是这个用户放在文件仓库里的全部文件的合计（聊天附件图片、生成的图片、笔记的图片和文件、封面和页面图标、头像、设置里的图标；1 MB = 1 MiB，界面写作 MB / GB）。工作区上传（笔记文件、封面、图标，以及将来白板 / 幻灯片的图片）单个最多 4 MB，聊天附件仍是单个 20 MB。放不下时新的上传（和图片生成）被拒绝：413 `{ error, code: "storage_limit", tier, used, limit }`，三端显示用量和原因，游客另有登录按钮、免费用户另有 Pro 升级按钮（网页 Stripe、Android Play；iOS 没有内购，只说明原因）；服务端的句子不提升级。已有的文件不受影响。删掉的文件在不再被引用约一周后才释放空间（编辑历史、Trash 里的笔记仍算引用）。设置的“方案”页显示“存储”用量条（`GET /api/billing` 的 `storage: { used, limit }`，字节）。成本参考：Vercel Blob 按存储量和操作次数计费，Pro 的 10 GB 存满时主要是存储费；清理任务每天的 `list()` 次数很少（[database.md](database.md#storedfile)）。
 
 ### 定价依据（2026-11 查价）
 
@@ -25,7 +26,7 @@ NoteFable 的收费只有一种：月额订阅 **Pro**，每月 ¥300（税込�
 - Pro 用满（2,000 条 + 60 张）最坏约 ¥440–1,480（聊天 ¥200–1,000 + 图片 ¥240–480），高于到手的 ¥287；平均用量远低于此，初期允许亏损。web search 的额外费用未计入。
 - 免费用户没有收入：登录用户每天用满，每月最坏约 ¥200–780（聊天 1,240 条 + 图片 20 张）；未登录每个 IP 的图片最坏约 ¥120–240 / 月。实际用量明显偏高时先收紧这些数值。
 
-改上限或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`）。服务条款第 3 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
+改上限（含存储上限）或价格只改 `usage-plans.ts`，然后重新生成 Android 与 iOS 共用的 `mobile/android/app/src/main/assets/usage-limits.json`（`npx tsx scripts/gen-native-usage-limits.ts`；每档带 `storage` 字节数，原生的存储提示和 Pro 说明用它）。服务条款第 3、4 节和特商法标示直接读这里的数值；写成文字的 [Play 商店说明](../play-store/listing.md) 要手动改，并改 `legal-page.tsx` 的 `LEGAL_UPDATED_ISO`。
 
 ## 免费试用
 

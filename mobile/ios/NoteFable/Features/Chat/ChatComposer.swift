@@ -49,12 +49,15 @@ struct ChatComposer: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    /// 存储空间不够（网页 StorageLimitPrompt）优先：总要说明原因；未登录时给登录入口。
     /// 未登录撞到当日上限：网页只在服务端开了登录、且还没登录时显示（GuestLimitPrompt 里的判断）。
     /// 免费用户的升级提示（Android UpgradeLimitPrompt）iOS 还没有购买流程，不显示。
     @ViewBuilder
     private func limitPrompt(_ state: ChatUiState) -> some View {
         let account = app.account.state
-        if let kind = state.guestLimit, account.configured, account.user == nil {
+        if let storage = state.storageLimit {
+            GuestLimitPrompt(storage: storage, attachmentsLost: !state.files.isEmpty)
+        } else if let kind = state.guestLimit, account.configured, account.user == nil {
             GuestLimitPrompt(kind: kind, attachmentsLost: !state.files.isEmpty || !state.attachedPages.isEmpty)
         }
     }

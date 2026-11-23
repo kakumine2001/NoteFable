@@ -235,4 +235,6 @@ export const frServer: Record<string, string> = {
   "File is too long for one note: {name}": "Le fichier est trop long pour une seule note : {name}",
   "Note icon must be a single emoji or an uploaded image.": "L’icône de la note doit être un seul emoji ou une image importée.",
   "This icon image is no longer available. Choose another icon.": "Cette image d’icône n’est plus disponible. Choisissez une autre icône.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Il ne reste pas assez d’espace de stockage. Connectez-vous pour obtenir plus d’espace, ou supprimez les fichiers dont vous n’avez plus besoin.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Il ne reste pas assez d’espace de stockage. Supprimez les fichiers dont vous n’avez plus besoin pour libérer de l’espace.",
 };

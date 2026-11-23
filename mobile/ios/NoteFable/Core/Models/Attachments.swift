@@ -57,6 +57,32 @@ func formatUploadSize(_ bytes: Int) -> String {
     return tenths % 10 == 0 ? "\(tenths / 10) MiB" : "\(tenths / 10).\(tenths % 10) MiB"
 }
 
+/// 网页 usage-plans.ts 的 formatStorageSize：1024 进制，单位 KB / MB / GB（不翻译）；10 以下保留一位小数，向下取整
+/// （用量不会显示得比实际多）。数字的写法（小数点）按界面语言。
+func formatStorageSize(_ bytes: Int, locale: Locale = Locale(identifier: "en")) -> String {
+    let mib = 1024.0 * 1024.0
+    let value = Double(max(0, bytes))
+    let amount: Double
+    let unit: String
+    if value >= 1024 * mib {
+        amount = value / (1024 * mib); unit = "GB"
+    } else if value >= mib {
+        amount = value / mib; unit = "MB"
+    } else {
+        amount = value / 1024; unit = "KB"
+    }
+    let digits = unit != "KB" && amount < 10 ? 1 : 0
+    let scale = digits == 1 ? 10.0 : 1.0
+    let shown = (amount * scale).rounded(.down) / scale
+    let formatter = NumberFormatter()
+    formatter.locale = locale
+    formatter.numberStyle = .decimal
+    formatter.minimumFractionDigits = 0
+    formatter.maximumFractionDigits = digits
+    let number = formatter.string(from: NSNumber(value: shown)) ?? String(shown)
+    return "\(number) \(unit)"
+}
+
 // 网页的 SUPPORTED_EXTENSION：/\.(md|markdown|json|csv|tsv|txt|pdf)$/i
 private func hasSupportedExtension(_ name: String) -> Bool {
     guard let dot = name.lastIndex(of: ".") else { return false }

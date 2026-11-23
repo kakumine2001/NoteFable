@@ -284,7 +284,7 @@ NOTEFABLE_MODELS=[{"id":"gpt-6-luna"},{"id":"claude-haiku-5-5","label":"Claude",
 
 ### File & Image Storage
 
-生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）和用户头像（`avatars/<userId>/`）：
+生产环境使用私有 Vercel Blob（`notefable-images`），存放聊天图片（`images/YYYY/MM/DD/...`）、临时上传（`chat-uploads/<userId>/`）、笔记封面和图片图标（`page-covers/<userId>/`）、笔记附件（`note-files/<userId>/`）、用户头像（`avatars/<userId>/`）和设置里的图标（`app-icons/<userId>/`）：
 
 ```text
 Client -> POST /api/uploads -> @vercel/blob/client 直传临时附件（chat-uploads/）
@@ -294,6 +294,8 @@ PostgreSQL -> 仅保存 storage path / 元数据
 ```
 
 Vercel 项目在 Production、Preview、Development 环境配置 `BLOB_READ_WRITE_TOKEN`（Preview 用单独的 store `notefable-preview`，见上面「Preview 数据库与图片」）。本地开发未配置该 token 时，Storage Layer 回退到 `NOTEFABLE_STORAGE_DIR`（未设时默认 `data/storage`），上传走 `PUT /api/uploads/local`；Vercel 环境缺少 token 会直接报错。
+
+每个文件登记在数据库的 `StoredFile`（存储上限与未引用文件的清理，[database.md](database.md#storedfile)）。清理**没有 Cron、不需要环境变量**：上传和打开设置的方案页之后（`after()`），每 6 小时最多运行一次（`MaintenanceJob` 租约，每次约 20 秒），依次删除超过 2 小时的临时上传、盘点旧文件、删除不再被引用 7 天的文件。Development 环境与 Production 共用 Blob store，所以本地开发带着这个 token 时（`VERCEL_ENV` 不是 production / preview）清理一律不运行，以免用本地数据库的引用删掉生产的文件；Preview 有自己的 store，照常运行（从生产分支来的行指向的文件在 Preview 的 store 里不存在，删除是空操作）。
 
 ## Production Debug Checklist
 

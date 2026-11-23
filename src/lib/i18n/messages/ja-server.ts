@@ -235,4 +235,6 @@ export const jaServer: Record<string, string> = {
   "File is too long for one note: {name}": "ファイルが長すぎて 1 つのノートに読み込めません: {name}",
   "Note icon must be a single emoji or an uploaded image.": "ノートのアイコンは絵文字 1 つか、アップロードした画像にしてください。",
   "This icon image is no longer available. Choose another icon.": "このアイコン画像は使えなくなりました。別のアイコンを選んでください。",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "保存容量が足りません。ログインすると容量が増えます。不要なファイルを削除することもできます。",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "保存容量が足りません。不要なファイルを削除して、空き容量を増やしてください。",
 };

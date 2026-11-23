@@ -235,4 +235,6 @@ export const deServer: Record<string, string> = {
   "File is too long for one note: {name}": "Die Datei ist zu lang für eine einzelne Notiz: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Das Notizsymbol muss ein einzelnes Emoji oder ein hochgeladenes Bild sein.",
   "This icon image is no longer available. Choose another icon.": "Dieses Symbolbild ist nicht mehr verfügbar. Wähle ein anderes Symbol.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Es ist nicht mehr genug Speicherplatz frei. Melde dich an, um mehr Platz zu erhalten, oder lösche Dateien, die du nicht mehr brauchst.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Es ist nicht mehr genug Speicherplatz frei. Lösche Dateien, die du nicht mehr brauchst, um Platz zu schaffen.",
 };

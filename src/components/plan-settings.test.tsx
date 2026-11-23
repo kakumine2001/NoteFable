@@ -62,7 +62,9 @@ describe("PlanSettings usage meters and copy", () => {
     expect(text).toContain("1 / 5");
     expect(text).not.toContain("Image generations this month");
     expect(text).not.toContain("4 / 20");
-    expect(text).toContain("2,000 messages and 60 image generations a month. Cancel anytime.");
+    expect(text).toContain("2,000 messages and 60 image generations a month, and 10 GB of storage. Cancel anytime.");
+    // サーバーが使用量を返さない間（古い応答）は、容量の欄を出さない。
+    expect(text).not.toContain("Storage");
   });
 
   it("shows monthly image usage on Free plan once the monthly cap is reached", () => {
@@ -107,4 +109,52 @@ describe("PlanSettings usage meters and copy", () => {
     expect(text).toContain("Image generations today");
     expect(text).toContain("2 / 10");
   });
+
+  it("shows how much storage is used, with a full bar at the limit", () => {
+    state.plan = {
+      plan: "free",
+      provider: null,
+      billing: false,
+      priceJpy: 300,
+      trialDays: 0,
+      canManage: false,
+      manageUrl: null,
+      subscription: null,
+      usage: {
+        chat: { used: 0, limit: 40, period: "day", resetsAt: "2026-11-22T00:00:00Z" },
+        image: { used: 0, limit: 20, period: "month", resetsAt: "2026-12-01T00:00:00Z", daily: { used: 0, limit: 5, resetsAt: "2026-11-22T00:00:00Z" } },
+      },
+      storage: { used: Math.round(12.5 * 1024 * 1024), limit: 500 * 1024 * 1024 },
+    };
+    const text = collectText(PlanSettings());
+    expect(text).toContain("Storage 12 MB / 500 MB");
+    expect(text).toContain("Files you delete free up space about a week later.");
+    expect(storageBar(PlanSettings())).toEqual({ full: false, width: "2.5%" });
+
+    // 上限ちょうど・超えたとき（生成画像は上限を少し超えることがある）は、満杯のバーで止める。
+    state.plan.storage = { used: 500 * 1024 * 1024, limit: 500 * 1024 * 1024 };
+    expect(collectText(PlanSettings())).toContain("Storage 500 MB / 500 MB");
+    expect(storageBar(PlanSettings())).toEqual({ full: true, width: "100%" });
+    state.plan.storage = { used: 510 * 1024 * 1024, limit: 500 * 1024 * 1024 };
+    expect(storageBar(PlanSettings())).toEqual({ full: true, width: "100%" });
+  });
 });
+
+// 「Storage」の行のバー（クラスと幅）。
+function storageBar(node: unknown) {
+  let found: { full: boolean; width: string } | null = null;
+  (function walk(value: unknown, inStorage: boolean): void {
+    if (Array.isArray(value)) return value.forEach((item) => walk(item, inStorage));
+    if (!value || typeof value !== "object" || !("props" in value)) return;
+    const props = (value as { props?: Record<string, unknown> }).props ?? {};
+    const className = typeof props.className === "string" ? props.className : "";
+    const here = inStorage || (className === "settings-plan-meter" && collectText(value).startsWith("Storage"));
+    if (here && className.startsWith("settings-plan-bar")) {
+      const fill = props.children as { props: { style: { width: string } } };
+      found = { full: className.includes("is-full"), width: fill.props.style.width };
+      return;
+    }
+    walk(props.children, here);
+  })(node, false);
+  return found;
+}

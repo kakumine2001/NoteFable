@@ -63,6 +63,8 @@ final class NotesViewModel {
     private func update(_ change: (inout NotesUiState) -> Void) {
         var next = state
         change(&next)
+        // 换了编辑器（打开别的笔记、关掉编辑器、切到聊天）时，前一个编辑器的容量提示不再显示。
+        if next.open?.editor != state.open?.editor { next.storageLimit = nil }
         state = next
     }
 
@@ -326,8 +328,16 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        case .storageLimit(let tier, let used, let limit):
+            // 已经关掉或换走的编辑器晚到的消息不收。
+            guard state.open?.editor == editor else { break }
+            update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
         case .flushed: break
         }
+    }
+
+    func dismissStorageLimit() {
+        update { $0.storageLimit = nil }
     }
 
     // 下面的 [editor] 是发消息的编辑器（[OpenNote.editor]）。它就是打开着的编辑器时，换成它现在显示的页面 id。

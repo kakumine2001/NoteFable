@@ -235,4 +235,6 @@ export const idServer: Record<string, string> = {
   "File is too long for one note: {name}": "File terlalu panjang untuk satu catatan: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Ikon catatan harus berupa satu emoji atau gambar yang diunggah.",
   "This icon image is no longer available. Choose another icon.": "Gambar ikon ini sudah tidak tersedia. Pilih ikon lain.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Ruang penyimpanan yang tersisa tidak cukup. Masuk untuk mendapatkan lebih banyak ruang, atau hapus file yang tidak lagi Anda perlukan.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Ruang penyimpanan yang tersisa tidak cukup. Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.",
 };

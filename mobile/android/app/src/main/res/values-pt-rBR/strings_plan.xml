@@ -14,7 +14,7 @@
     <string name="plan_past_due">Seu último pagamento falhou. Atualize sua forma de pagamento para manter o Pro.</string>
     <string name="plan_load_failed">Não foi possível carregar seu plano.</string>
     <string name="plan_offer_title">NoteFable Pro · %1$s/mês</string>
-    <string name="plan_offer_body">%1$s mensagens e %2$d gerações de imagem por mês. Cancele quando quiser.</string>
+    <string name="plan_offer_body">%1$s mensagens e %2$d gerações de imagem por mês, e %3$s de armazenamento. Cancele quando quiser.</string>
     <string name="plan_upgrade">Fazer upgrade para o Pro</string>
     <string name="plan_manage_play">Gerenciar assinatura no Google Play</string>
     <string name="plan_welcome">Boas-vindas ao NoteFable Pro</string>
@@ -26,4 +26,11 @@
     <string name="plan_trial_start">Iniciar teste grátis de %1$d dias</string>
     <string name="plan_trial_note">Grátis por %1$d dias, depois %2$s/mês. Cancele antes do fim do período de teste e não haverá cobrança.</string>
     <string name="plan_trial_ends">Seu teste grátis termina em %1$s. Depois disso, o Pro custa ¥%2$d/mês.</string>
+    <string name="plan_storage">Armazenamento</string>
+    <string name="plan_storage_help">O espaço dos arquivos excluídos é liberado cerca de uma semana depois. Arquivos na lixeira ou no histórico de versões continuam contando.</string>
+    <string name="storage_limit_title">Espaço de armazenamento insuficiente</string>
+    <string name="storage_limit_used">Você usou %1$s de %2$s.</string>
+    <string name="storage_limit_sign_in">Entre para ter %1$s de armazenamento.</string>
+    <string name="storage_limit_upgrade">Tenha %1$s de armazenamento com o Pro por %2$s/mês.</string>
+    <string name="storage_limit_delete">Exclua os arquivos de que você não precisa mais para liberar espaço.</string>
 </resources>

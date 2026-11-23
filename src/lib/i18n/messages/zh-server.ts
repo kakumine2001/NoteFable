@@ -235,4 +235,6 @@ export const zhServer: Record<string, string> = {
   "File is too long for one note: {name}": "文件太长，无法导入为一篇笔记：{name}",
   "Note icon must be a single emoji or an uploaded image.": "笔记图标必须是一个表情符号或上传的图片。",
   "This icon image is no longer available. Choose another icon.": "此图标图片已不可用，请选择其他图标。",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "剩余存储空间不足。登录可获得更多空间，也可以删除不再需要的文件。",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "剩余存储空间不足。请删除不再需要的文件以释放空间。",
 };

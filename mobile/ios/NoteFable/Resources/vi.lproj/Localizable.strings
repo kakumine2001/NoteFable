@@ -409,7 +409,7 @@
 "plan_past_due" = "Lần thanh toán gần nhất của bạn không thành công. Hãy cập nhật phương thức thanh toán để tiếp tục sử dụng Pro.";
 "plan_load_failed" = "Không thể tải gói dịch vụ của bạn.";
 "plan_offer_title" = "NoteFable Pro · %1$s/tháng";
-"plan_offer_body" = "%1$s tin nhắn và %2$d lượt tạo hình ảnh mỗi tháng. Hủy bất cứ lúc nào.";
+"plan_offer_body" = "%1$s tin nhắn và %2$d lượt tạo hình ảnh mỗi tháng, cùng %3$s dung lượng lưu trữ. Hủy bất cứ lúc nào.";
 "plan_upgrade" = "Nâng cấp lên Pro";
 "plan_manage_play" = "Quản lý gói đăng ký trên Google Play";
 "plan_welcome" = "Chào mừng bạn đến với NoteFable Pro";
@@ -421,6 +421,13 @@
 "plan_trial_start" = "Bắt đầu dùng thử miễn phí %1$d ngày";
 "plan_trial_note" = "Miễn phí %1$d ngày đầu, sau đó %2$s/tháng. Hủy trước khi hết hạn dùng thử sẽ không bị tính phí.";
 "plan_trial_ends" = "Thời gian dùng thử miễn phí của bạn kết thúc vào %1$s. Sau đó, gói Pro có giá ¥%2$d/tháng.";
+"plan_storage" = "Dung lượng lưu trữ";
+"plan_storage_help" = "Dung lượng của tệp đã xóa được giải phóng sau khoảng một tuần. Tệp trong Thùng rác hoặc lịch sử phiên bản vẫn được tính.";
+"storage_limit_title" = "Không đủ dung lượng lưu trữ";
+"storage_limit_used" = "Bạn đã dùng %1$s trên %2$s.";
+"storage_limit_sign_in" = "Đăng nhập để có %1$s dung lượng lưu trữ.";
+"storage_limit_upgrade" = "Nhận %1$s dung lượng lưu trữ với gói Pro chỉ %2$s/tháng.";
+"storage_limit_delete" = "Xóa các tệp bạn không cần nữa để giải phóng dung lượng.";
 
 /* strings_report.xml */
 "report_answer" = "Báo cáo câu trả lời";

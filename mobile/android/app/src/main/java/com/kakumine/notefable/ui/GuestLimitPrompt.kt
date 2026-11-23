@@ -74,6 +74,10 @@ fun GuestLimitPrompt(
     body: String? = null,
     note: String? = null,
     actionLabel: String? = null,
+    /** 左边图标框里的图标（存储空间不够的提示用 HardDrive）。 */
+    icon: List<String> = Lucide.Sparkles,
+    /** false：不显示按钮和「以后再说」，只留右上角的关闭键（没有可做的事时，网页 StorageLimitPrompt）。 */
+    showActions: Boolean = true,
 ) {
     val context = LocalContext.current
     val limits = remember {
@@ -120,7 +124,7 @@ fun GuestLimitPrompt(
                 }.clip(RoundedCornerShape(10.dp)).background(Sm.Blue),
                 Alignment.Center,
             ) {
-                LucideIcon(Lucide.Sparkles, 18.dp, Color.White, strokeWidth = 2.1f)
+                LucideIcon(icon, 18.dp, Color.White, strokeWidth = 2.1f)
             }
             Column(Modifier.weight(1f)) {
                 Text(
@@ -138,13 +142,15 @@ fun GuestLimitPrompt(
                         Modifier.padding(top = 2.dp), color = Sm.Muted, fontSize = 13.5.sp, lineHeight = 20.925.sp,
                     )
                 }
-                Column(Modifier.padding(top = 12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    GuestLimitSignInButton(motion, actionLabel ?: stringResource(R.string.sign_in), onSignIn)
-                    Text(
-                        stringResource(R.string.not_now),
-                        Modifier.fillMaxWidth().clickable(onClick = onClose).semantics { role = Role.Button },
-                        color = Sm.Muted, fontSize = 13.5.sp, lineHeight = 20.25.sp, textAlign = TextAlign.Center,
-                    )
+                if (showActions) {
+                    Column(Modifier.padding(top = 12.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        GuestLimitSignInButton(motion, actionLabel ?: stringResource(R.string.sign_in), onSignIn)
+                        Text(
+                            stringResource(R.string.not_now),
+                            Modifier.fillMaxWidth().clickable(onClick = onClose).semantics { role = Role.Button },
+                            color = Sm.Muted, fontSize = 13.5.sp, lineHeight = 20.25.sp, textAlign = TextAlign.Center,
+                        )
+                    }
                 }
             }
         }

@@ -409,7 +409,7 @@
 "plan_past_due" = "Son ödemeniz başarısız oldu. Pro aboneliğinizi sürdürmek için ödeme yönteminizi güncelleyin.";
 "plan_load_failed" = "Planınız yüklenemedi.";
 "plan_offer_title" = "NoteFable Pro · Ayda %1$s";
-"plan_offer_body" = "Ayda %1$s mesaj ve %2$d görsel oluşturma. İstediğiniz zaman iptal edin.";
+"plan_offer_body" = "Ayda %1$s mesaj ve %2$d görsel oluşturma, ayrıca %3$s depolama alanı. İstediğiniz zaman iptal edin.";
 "plan_upgrade" = "Pro'ya yükselt";
 "plan_manage_play" = "Google Play'de aboneliği yönet";
 "plan_welcome" = "NoteFable Pro'ya hoş geldiniz";
@@ -421,6 +421,13 @@
 "plan_trial_start" = "%1$d günlük ücretsiz denemeyi başlat";
 "plan_trial_note" = "%1$d gün ücretsiz, ardından ayda %2$s. Deneme süresi bitmeden iptal ederseniz ücret alınmaz.";
 "plan_trial_ends" = "Ücretsiz deneme süreniz %1$s tarihinde sona erer. Ardından Pro ücreti ayda ¥%2$d olur.";
+"plan_storage" = "Depolama";
+"plan_storage_help" = "Sildiğiniz dosyaların alanı yaklaşık bir hafta sonra boşalır. Çöp Kutusu'ndaki veya sürüm geçmişindeki dosyalar sayılmaya devam eder.";
+"storage_limit_title" = "Yeterli depolama alanı yok";
+"storage_limit_used" = "%2$s alanın %1$s kadarını kullandınız.";
+"storage_limit_sign_in" = "%1$s depolama alanı için oturum açın.";
+"storage_limit_upgrade" = "Ayda %2$s karşılığında Pro ile %1$s depolama alanı edinin.";
+"storage_limit_delete" = "Yer açmak için artık ihtiyacınız olmayan dosyaları silin.";
 
 /* strings_report.xml */
 "report_answer" = "Yanıtı bildir";

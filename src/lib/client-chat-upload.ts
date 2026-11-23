@@ -1,5 +1,6 @@
 import { upload } from "@vercel/blob/client";
 import { msg, fmt } from "@/lib/i18n/translate";
+import { storageLimitErrorFrom } from "@/lib/usage-plans";
 
 export async function cleanupClientUploads(tickets: string[]) {
   if (!tickets.length) return;
@@ -10,7 +11,8 @@ export async function uploadChatFiles(files: File[], onProgress: (name: string, 
   if (!files.length) return [];
   const response = await fetch("/api/uploads", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ files: files.map((file) => ({ name: file.name, type: file.type, size: file.size })) }) }).catch(() => { throw new Error(msg("Unable to upload attachments. Check your connection and try sending again.")); });
   const body = await response.json().catch(() => ({ error: msg("Unable to prepare attachments. Try sending again.") }));
-  if (!response.ok) throw new Error(body.error ?? msg("Unable to start attachment upload."));
+  // 容量が足りないときは StorageLimitError（画面がログインやアップグレードを勧める）。
+  if (!response.ok) throw storageLimitErrorFrom(response.status, body) ?? new Error(body.error ?? msg("Unable to start attachment upload."));
   const uploads = body.uploads as { path: string; ticket: string }[];
   if (!Array.isArray(uploads) || uploads.length !== files.length) throw new Error(msg("Invalid upload response."));
   const tickets = uploads.map((item) => item.ticket);

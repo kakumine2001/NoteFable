@@ -33,6 +33,10 @@ vi.mock("@/lib/storage", () => ({
   readStoredImage: mocks.read,
   deleteStoredImage: mocks.del,
 }));
+vi.mock("@/lib/stored-files", () => ({
+  storeFile: async (_owner: unknown, file: { path: string; buffer: Buffer; mimeType: string }) => { await mocks.write(file.path, file.buffer, file.mimeType); return file.path; },
+  discardStoredFiles: async (paths: string[]) => { for (const path of paths) await Promise.resolve(mocks.del(path)).catch(() => {}); },
+}));
 import { GET, POST } from "./route";
 
 const google = { id: "sub-1", name: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png" };

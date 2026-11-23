@@ -235,4 +235,6 @@ export const koServer: Record<string, string> = {
   "File is too long for one note: {name}": "파일이 너무 길어 노트 하나로 가져올 수 없어요: {name}",
   "Note icon must be a single emoji or an uploaded image.": "노트 아이콘은 이모지 하나 또는 업로드한 이미지여야 합니다.",
   "This icon image is no longer available. Choose another icon.": "이 아이콘 이미지는 더 이상 사용할 수 없습니다. 다른 아이콘을 선택하세요.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "남은 저장 공간이 부족해요. 로그인하면 공간이 늘어나고, 필요 없는 파일을 삭제할 수도 있어요.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "남은 저장 공간이 부족해요. 필요 없는 파일을 삭제해 공간을 확보하세요.",
 };

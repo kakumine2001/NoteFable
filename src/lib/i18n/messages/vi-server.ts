@@ -235,4 +235,6 @@ export const viServer: Record<string, string> = {
   "File is too long for one note: {name}": "Tệp quá dài cho một ghi chú: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Biểu tượng ghi chú phải là một emoji hoặc một ảnh đã tải lên.",
   "This icon image is no longer available. Choose another icon.": "Ảnh biểu tượng này không còn dùng được. Hãy chọn biểu tượng khác.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Không còn đủ dung lượng lưu trữ. Hãy đăng nhập để có thêm dung lượng hoặc xóa các tệp bạn không cần nữa.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Không còn đủ dung lượng lưu trữ. Hãy xóa các tệp bạn không cần nữa để giải phóng dung lượng.",
 };

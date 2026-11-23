@@ -29,6 +29,9 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/prisma", () => ({ prisma: { user: { update: mocks.update, updateMany: mocks.updateMany, findUniqueOrThrow: mocks.findUnique } } }));
 vi.mock("@/lib/billing", () => ({ isBillingConfigured: () => false }));
 vi.mock("@/lib/storage", () => ({ deleteStoredImage: mocks.del }));
+vi.mock("@/lib/stored-files", () => ({
+  discardStoredFiles: async (paths: string[]) => { for (const path of paths) await Promise.resolve(mocks.del(path)).catch(() => {}); },
+}));
 import { GET, PATCH } from "./route";
 
 const google = { id: "sub-1", name: "Mine Kaku", email: "a@example.com", image: "https://example.com/p.png" };

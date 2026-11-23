@@ -235,4 +235,6 @@ export const arServer: Record<string, string> = {
   "File is too long for one note: {name}": "الملف طويل جدًا بالنسبة لملاحظة واحدة: {name}",
   "Note icon must be a single emoji or an uploaded image.": "يجب أن تكون أيقونة الملاحظة رمزًا تعبيريًا واحدًا أو صورة مرفوعة.",
   "This icon image is no longer available. Choose another icon.": "لم تعد صورة الأيقونة هذه متاحة. اختر أيقونة أخرى.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "لم تعد هناك مساحة تخزين كافية. سجّل الدخول للحصول على مساحة أكبر، أو احذف الملفات التي لم تعد بحاجة إليها.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "لم تعد هناك مساحة تخزين كافية. احذف الملفات التي لم تعد بحاجة إليها لتحرير مساحة.",
 };

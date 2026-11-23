@@ -106,7 +106,8 @@ export function validateMultipartRequestSize(request: Request) {
   }
 }
 
-export async function prepareAttachments(files: File[], claudeImageMaxBytes?: number) {
+// owner を渡すと、保存する画像を持ち主の容量に数える（上限なら StorageLimitError で、それまでに保存した画像は消す）。
+export async function prepareAttachments(files: File[], claudeImageMaxBytes?: number, owner?: import("@/lib/stored-files").StorageOwner) {
   // 添付をモデル入力用と履歴保存用の両方に加工する。
   // テキスト/PDF は本文抽出、画像はモデル入力用 data URL と再表示用の保存パスを作る。
   const attachments: PreparedAttachment[] = [];
@@ -148,8 +149,13 @@ export async function prepareAttachments(files: File[], claudeImageMaxBytes?: nu
         base.imageInputBytes = input.buffer.byteLength;
         base.imageInputDataUrl = `data:${input.mimeType};base64,${input.buffer.toString("base64")}`;
         // Decode/optimize before storing so invalid images never create orphan originals.
-        const { writeStoredImage } = await import("@/lib/storage");
-        base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);
+        if (owner) {
+          const [{ newChatImagePath }, { storeFile }] = await Promise.all([import("@/lib/storage"), import("@/lib/stored-files")]);
+          base.imageStoragePath = await storeFile(owner, { path: newChatImagePath(base.mimeType), kind: "CHAT_IMAGE", buffer, mimeType: base.mimeType }, { held: true });
+        } else {
+          const { writeStoredImage } = await import("@/lib/storage");
+          base.imageStoragePath = await writeStoredImage(buffer, base.mimeType);
+        }
         savedImagePaths.push(base.imageStoragePath);
       }
 
@@ -158,10 +164,16 @@ export async function prepareAttachments(files: File[], claudeImageMaxBytes?: nu
     }
   } catch (error) {
     if (savedImagePaths.length) {
-      const { deleteStoredImage } = await import("@/lib/storage");
-      const cleanup = await Promise.allSettled(savedImagePaths.map((storagePath) => deleteStoredImage(storagePath)));
-      for (const result of cleanup) {
-        if (result.status === "rejected") console.error("Failed to clean up an uncommitted attachment image.", result.reason);
+      if (owner) {
+        // 記録のある画像は、ファイルと行を一緒に片付ける（消せなければ後片付けがやり直す）。
+        const { discardStoredFiles } = await import("@/lib/stored-files");
+        await discardStoredFiles(savedImagePaths).catch((reason: unknown) => console.error("Failed to clean up uncommitted attachment images.", reason));
+      } else {
+        const { deleteStoredImage } = await import("@/lib/storage");
+        const cleanup = await Promise.allSettled(savedImagePaths.map((storagePath) => deleteStoredImage(storagePath)));
+        for (const result of cleanup) {
+          if (result.status === "rejected") console.error("Failed to clean up an uncommitted attachment image.", result.reason);
+        }
       }
     }
     throw error;

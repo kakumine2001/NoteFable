@@ -409,7 +409,7 @@
 "plan_past_due" = "Pembayaran terakhir Anda gagal. Perbarui metode pembayaran Anda agar tetap menggunakan Pro.";
 "plan_load_failed" = "Tidak dapat memuat paket Anda.";
 "plan_offer_title" = "NoteFable Pro · %1$s/bulan";
-"plan_offer_body" = "%1$s pesan dan %2$d pembuatan gambar per bulan. Batalkan kapan saja.";
+"plan_offer_body" = "%1$s pesan dan %2$d pembuatan gambar per bulan, serta penyimpanan %3$s. Batalkan kapan saja.";
 "plan_upgrade" = "Upgrade ke Pro";
 "plan_manage_play" = "Kelola langganan di Google Play";
 "plan_welcome" = "Selamat datang di NoteFable Pro";
@@ -421,6 +421,13 @@
 "plan_trial_start" = "Mulai uji coba gratis %1$d hari";
 "plan_trial_note" = "Gratis selama %1$d hari, lalu %2$s/bulan. Batalkan sebelum masa uji coba berakhir agar tidak dikenakan biaya.";
 "plan_trial_ends" = "Uji coba gratis Anda berakhir pada %1$s. Setelah itu, biaya Pro adalah ¥%2$d/bulan.";
+"plan_storage" = "Penyimpanan";
+"plan_storage_help" = "Ruang dari file yang Anda hapus akan kosong sekitar seminggu kemudian. File di Sampah atau riwayat versi tetap dihitung.";
+"storage_limit_title" = "Ruang penyimpanan tidak cukup";
+"storage_limit_used" = "Anda telah menggunakan %1$s dari %2$s.";
+"storage_limit_sign_in" = "Masuk untuk mendapatkan penyimpanan %1$s.";
+"storage_limit_upgrade" = "Dapatkan penyimpanan %1$s dengan Pro seharga %2$s/bulan.";
+"storage_limit_delete" = "Hapus file yang tidak lagi Anda perlukan untuk mengosongkan ruang.";
 
 /* strings_report.xml */
 "report_answer" = "Laporkan jawaban";

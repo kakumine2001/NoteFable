@@ -29,12 +29,19 @@ class ApiException(
     val code: String? = null,
     val tier: String? = null,
     val kind: String? = null,
+    /** 容量上限（413 storage_limit）时的已用量和上限（字节）。 */
+    val used: Long? = null,
+    val limit: Long? = null,
 ) : IOException(message) {
     /** 当日使用次数已用完（`src/lib/usage-plans.ts` 的 USAGE_LIMIT_CODE）。 */
     val isUsageLimit: Boolean get() = status == 429 && code == USAGE_LIMIT_CODE
 
+    /** 文件存储空间不够，新的上传被拒绝（`src/lib/usage-plans.ts` 的 STORAGE_LIMIT_CODE）。 */
+    val isStorageLimit: Boolean get() = status == 413 && code == STORAGE_LIMIT_CODE && used != null && limit != null
+
     companion object {
         const val USAGE_LIMIT_CODE = "usage_limit"
+        const val STORAGE_LIMIT_CODE = "storage_limit"
 
         /** 按错误响应的状态码和正文构造。正文不是 JSON 或没有 `error` 时退回 "HTTP <status>"。 */
         fun from(status: Int, body: String): ApiException {
@@ -45,6 +52,8 @@ class ApiException(
                 code = error?.code,
                 tier = error?.tier,
                 kind = error?.kind,
+                used = error?.used,
+                limit = error?.limit,
             )
         }
     }
