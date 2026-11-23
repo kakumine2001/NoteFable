@@ -240,6 +240,6 @@ describe("publishing", () => {
     expect(response.status).toBe(400);
     const body = await response.json();
     expect(body).toMatchObject({ code: "wrong_page_kind", kind: "slides" });
-    expect(body.error).toBe("ホワイトボードとスライドはまだ公開できません。");
+    expect(body.error).toBe("スライドはまだ公開できません。");
   });
 });

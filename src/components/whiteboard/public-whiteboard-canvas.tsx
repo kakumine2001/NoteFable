@@ -75,6 +75,8 @@ export default function PublicWhiteboardCanvas({ token, pageId, locale, dir, lab
       initialData={{ elements: scene.elements as unknown as ExcalidrawElement[], files: (scene.files ?? {}) as unknown as BinaryFiles, appState: scene.appState as Partial<AppState>, scrollToContent: true }}
       ui={false}
       viewModeEnabled
+      // 外部のページの埋め込みは表示しない（保存の形からも外している。src/lib/whiteboard/scene.ts）。
+      validateEmbeddable={false}
       theme={theme}
       langCode={excalidrawLang(locale)}
       onLinkOpen={onLinkOpen}

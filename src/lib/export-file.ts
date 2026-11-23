@@ -29,11 +29,18 @@ export async function sendFileToNative(blob: Blob, name: string, post: typeof po
   const id = randomId();
   const mime = blob.type || "application/octet-stream";
   if (!post({ type: "fileStart", id, name, mime, size: blob.size })) return false;
-  for (let index = 0, offset = 0; offset < blob.size; index++, offset += FILE_CHUNK_BYTES) {
-    const data = await base64Of(blob.slice(offset, offset + FILE_CHUNK_BYTES));
-    if (!post({ type: "fileChunk", id, index, data })) { post({ type: "fileAbort", id }); return false; }
+  try {
+    for (let index = 0, offset = 0; offset < blob.size; index++, offset += FILE_CHUNK_BYTES) {
+      const data = await base64Of(blob.slice(offset, offset + FILE_CHUNK_BYTES));
+      if (!post({ type: "fileChunk", id, index, data })) { post({ type: "fileAbort", id }); return false; }
+    }
+  } catch {
+    post({ type: "fileAbort", id });
+    return false;
   }
-  return post({ type: "fileEnd", id });
+  if (post({ type: "fileEnd", id })) return true;
+  post({ type: "fileAbort", id });
+  return false;
 }
 
 export function downloadBlob(blob: Blob, name: string) {

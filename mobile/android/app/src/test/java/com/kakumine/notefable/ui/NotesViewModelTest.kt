@@ -25,6 +25,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -585,11 +586,13 @@ class NotesViewModelTest {
         assertTrue(vm.state.value.pages.any { it.id == "copy" })
         assertEquals("saved", vm.state.value.saveState)
 
-        // 打开原来那篇不再被当成"已经开着"。
+        // 打开原来那篇不再被当成"已经开着"，而且换一个 editor：编辑器（按 editor 区分）会重新加载原来那篇，不再显示副本。
         vm.flushEditor = { FlushResult(true) }
-        vm.openNote("a")
+        vm.openNote("a", reveal = "b-1")
         advanceUntilIdle()
-        assertEquals(OpenNote("a", originalTitle, vm.state.value.pages.first { it.id == "a" }.icon), vm.state.value.open)
+        val reopened = vm.state.value.open!!
+        assertEquals(OpenNote("a", originalTitle, vm.state.value.pages.first { it.id == "a" }.icon, editor = reopened.editor, reveal = "b-1"), reopened)
+        assertNotEquals("a", reopened.editor)
     }
 
     @Test

@@ -18,4 +18,16 @@ describe("frameOrder", () => {
     ];
     expect(frameOrder(frames).map((frame) => frame.id)).toEqual(["a", "b", "c"]);
   });
+
+  it("gives the same order whatever order the frames come in", () => {
+    // 縦に少しずつずれた枠（2 つずつ比べると A < C < B < A になる並び）。
+    const frames = [
+      { id: "A", x: 200, y: 0, height: 100 },
+      { id: "B", x: 0, y: 40, height: 100 },
+      { id: "C", x: -100, y: 80, height: 100 },
+    ];
+    const orders = [[0, 1, 2], [2, 1, 0], [1, 2, 0], [2, 0, 1]].map((order) => frameOrder(order.map((index) => frames[index])).map((frame) => frame.id).join(""));
+    expect(new Set(orders).size).toBe(1);
+    expect(orders[0]).toBe("BAC");
+  });
 });

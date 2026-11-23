@@ -15,9 +15,12 @@ export type ExportedFile = { blob: Blob; fileName: string; mimeType: string };
 
 const MIME: Record<WhiteboardExportFormat, string> = { png: "image/png", svg: "image/svg+xml", pdf: "application/pdf" };
 const PADDING = 32;
-// 1 枚の画素数の上限（スマホの Safari の canvas の上限 16.7M より小さく）。
+// 1 枚の画素数の上限（スマホの Safari の canvas の上限 16.7M より小さく）と、一辺の上限（ブラウザーの canvas の辺の上限より小さく）。
 const MAX_PIXELS = 16_000_000;
-const scaleFor = (preferred: number) => (width: number, height: number) => Math.max(0.1, Math.min(preferred, Math.sqrt(MAX_PIXELS / Math.max(1, width * height))));
+const MAX_SIDE = 16_000;
+// どちらの上限も超えない倍率（とても広い白板では 1 より小さくなる。下限で上限を超えることはしない）。
+export const scaleFor = (preferred: number) => (width: number, height: number) =>
+  Math.min(preferred, Math.sqrt(MAX_PIXELS / Math.max(1, width * height)), MAX_SIDE / Math.max(1, width, height));
 
 async function blobToDataUrl(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -97,9 +100,13 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
       data: sceneData(api, elements, api.getFiles()),
       config: { theme: "light", scale: (width: number, height: number) => (used = pick(width, height)), ...(frame ? { exportingFrame: frame as never, padding: 0 } : { padding: PADDING }) },
     });
-    pages.push({ width: (canvas.width / used) * 0.75, height: (canvas.height / used) * 0.75, image: await canvasToPdfImage(canvas) });
-    canvas.width = 0;
-    canvas.height = 0;
+    try {
+      pages.push({ width: (canvas.width / used) * 0.75, height: (canvas.height / used) * 0.75, image: await canvasToPdfImage(canvas) });
+    } finally {
+      // 大きな canvas はすぐ放す（スマホのメモリ）。
+      canvas.width = 0;
+      canvas.height = 0;
+    }
   }
   const bytes = buildPdf(pages, { title: title === "Untitled" ? undefined : title });
   return { blob: new Blob([bytes as BlobPart], { type: mimeType }), fileName, mimeType };

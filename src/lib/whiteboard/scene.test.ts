@@ -54,15 +54,22 @@ describe("sceneToStored", () => {
 
 describe("storedToScene", () => {
   it("filters broken elements and files and keeps note-file URLs", () => {
+    const image = (id: string, fileId: string) => element(id, { type: "image", fileId });
     const scene = storedToScene({
-      elements: [element("a"), { id: 3 }, element("gone", { isDeleted: true }), "x"],
-      files: { ok: { mimeType: "image/png", dataURL: fileUrl }, old: { url: fileUrl }, bad: { dataURL: "https://evil.example/x.png" }, junk: 1 },
+      elements: [element("a"), { id: 3 }, element("gone", { isDeleted: true }), "x", image("i1", "ok"), image("i2", "old"), image("i3", "bad"), image("i4", "junk")],
+      files: { ok: { mimeType: "image/png", dataURL: fileUrl }, old: { url: fileUrl }, bad: { dataURL: "https://evil.example/x.png" }, junk: 1, unused: { dataURL: fileUrl } },
       appState: { gridModeEnabled: false, gridSize: -1, theme: "dark" },
     });
-    expect(scene.elements.map((entry) => entry.id)).toEqual(["a"]);
+    expect(scene.elements.map((entry) => entry.id)).toEqual(["a", "i1", "i2", "i3", "i4"]);
+    // どの画像要素も使っていないファイルは入れない。
     expect(Object.keys(scene.files)).toEqual(["ok", "old"]);
     expect(scene.files.old).toMatchObject({ id: "old", mimeType: "image/png", dataURL: fileUrl });
     expect(scene.appState).toEqual({ gridModeEnabled: false });
+  });
+
+  it("drops element types NoteFable cannot place (embeds, HTML frames)", () => {
+    const scene = storedToScene({ elements: [element("a"), element("e", { type: "embeddable" }), element("f", { type: "iframe" }), element("m", { type: "magicframe" }), element("s", { type: "stickynote" })] });
+    expect(scene.elements.map((entry) => entry.id)).toEqual(["a", "s"]);
   });
 
   it("returns an empty scene for missing data", () => {

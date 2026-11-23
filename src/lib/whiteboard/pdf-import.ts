@@ -61,7 +61,7 @@ export async function importPdfPages(file: File, { onProgress, signal }: { onPro
         let blob = await canvasBlob(canvas, 0.86);
         if (blob.size > MAX_NOTE_FILE_BYTES) blob = await canvasBlob(canvas, 0.6);
         if (blob.size > MAX_NOTE_FILE_BYTES) throw new Error(msg("A page of this PDF is too large to import."));
-        const uploaded = await uploadImageBlob(blob, `${name}-${number}`);
+        const uploaded = await uploadImageBlob(blob, `${name}-${number}`, signal);
         pages.push({ ...uploaded, width: base.width, height: base.height, page: number });
       } catch (error) {
         // 途中のページで失敗したら（容量の上限・通信など）、アップロードの済んだページは捨てずに取り込む。

@@ -364,9 +364,12 @@ class NotesViewModel(
         // 侧栏刚改了这篇的图标、PUT 还没回来时先等它：编辑器会读到旧版本，下一次保存就会 409。
         val pending = iconWrites[id]
         leaveThen(before = { pending?.done?.await() }) {
-            val target = if (pending == null) open else {
+            val chosen = if (pending == null) open else {
                 _state.value.pages.firstOrNull { it.id == id }?.toOpenNote(reveal) ?: open
             }
+            // 冲突后"另存为新笔记"时，开着的编辑器换到了新页面、editor 还是原来那篇的 id：再打开原来那篇时换一个 editor，
+            // 否则编辑器（按 editor 区分）不会重新加载，还显示着新页面，检索命中的位置也不会跳过去。
+            val target = if (_state.value.open?.editor == chosen.editor) chosen.copy(editor = "${chosen.id}#${java.util.UUID.randomUUID()}") else chosen
             _state.update { it.copy(workspace = Workspace.Notes, open = target, saveState = null, notice = null) }
         }
     }

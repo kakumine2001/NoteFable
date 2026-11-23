@@ -41,6 +41,6 @@ export function pageKindRejection(request: Request, text: string, kind: PageKind
 export const NOTE_ONLY_ACTION_ERRORS = {
   export: msg("Only notes can be exported as Markdown."),
   typography: msg("Font, text size and width can only be changed for notes."),
-  share: msg("Whiteboards and slide decks can't be published yet."),
+  share: msg("Slide decks can't be published yet."),
   save: msg("This page can't be edited in this version of NoteFable."),
 } as const;

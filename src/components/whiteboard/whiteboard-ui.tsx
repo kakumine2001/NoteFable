@@ -2,14 +2,14 @@
 
 import {
   Circle, Diamond, Ellipsis, Eraser, FileDown, FileUp, Frame, Grid3x3, Hand, Highlighter, ImagePlus, Lasso, LocateFixed, Magnet, Map as MapIcon,
-  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette,
+  Maximize, Minus, MousePointer2, MoveUpRight, Pen, Redo2, Square, StickyNote, Type, Undo2, Wand2, ZoomIn, ZoomOut, Link2, PenTool, Palette, LockOpen,
 } from "lucide-react";
-import { useEffect, useId, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { useT } from "@/components/i18n-provider";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
-import { EmojiPopover } from "@/components/emoji-picker";
+import { FloatingEmojiPopover, floatingPositionFor, usePickerBackToClose, type FloatingPosition } from "@/components/emoji-picker";
 import { msg } from "@/lib/i18n/translate";
 import type { WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
 import { WhiteboardStylePanel, type WhiteboardStyle } from "@/components/whiteboard/whiteboard-style-panel";
@@ -45,6 +45,8 @@ export type WhiteboardUiState = {
   penDetected: boolean;
   viewBackgroundColor: string;
   link: string | null;
+  // 押したロック中の要素（またはグループ）の ID。
+  lockedTarget: string | null;
   style: WhiteboardStyle;
 };
 
@@ -55,7 +57,7 @@ const TOOL_LABELS: Record<WhiteboardTool, string> = {
 };
 // Excalidraw と同じ 1 文字のショートカット（キーは Excalidraw が処理する。ここは表示だけ）。
 const TOOL_KEYS: Partial<Record<WhiteboardTool, string>> = {
-  select: "V", hand: "H", pen: "P", eraser: "E", laser: "K", rectangle: "R", diamond: "D", ellipse: "O", line: "L", arrow: "A", text: "T", sticky: "S", image: "I", frame: "F",
+  select: "V", hand: "H", pen: "P", eraser: "E", laser: "K", rectangle: "R", diamond: "D", ellipse: "O", line: "L", arrow: "A", text: "T", sticky: "N", image: "9", frame: "F",
 };
 const TOOL_ICONS: Record<WhiteboardTool, ReactNode> = {
   select: <MousePointer2 size={18} />, lasso: <Lasso size={18} />, hand: <Hand size={18} />, pen: <Pen size={18} />, highlighter: <Highlighter size={18} />,
@@ -81,6 +83,8 @@ export type WhiteboardChromeProps = {
   onSelectTool: (tool: WhiteboardTool) => void;
   onLink: () => void;
   onOpenLink: (link: string) => void;
+  // ロック中の要素（またはグループ）を解除して選ぶ。
+  onUnlock: (target: string) => void;
   onInsertPageCard: () => void;
   onExport: (format: "png" | "svg" | "pdf") => void;
   onImportPdf: () => void;
@@ -99,6 +103,7 @@ export type WhiteboardChromeProps = {
 
 export function WhiteboardChrome(props: WhiteboardChromeProps) {
   const { ui, editable, compact } = props;
+  const t = useT();
   return <>
     <WhiteboardTitle {...props} />
     <WhiteboardMenu {...props} />
@@ -108,6 +113,9 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}
+    {editable && ui.lockedTarget && <button type="button" className="whiteboard-unlock" onClick={() => props.onUnlock(ui.lockedTarget!)}>
+      <LockOpen size={15} aria-hidden="true" /><span>{t("Unlock")}</span>
+    </button>}
     {props.contentHidden && <button type="button" className="whiteboard-back-to-content" onClick={props.onFitToContent}>
       <LocateFixed size={15} aria-hidden="true" /><WhiteboardText text={msg("Back to content")} />
     </button>}
@@ -149,7 +157,8 @@ function WhiteboardToolbar({ ui, drawMode, compact, onSelectTool, onLink, onInse
   const shown = active && SHAPES.includes(active) ? active : shape;
   const menuId = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; kind: "shapes" | "more" } | null>(null);
-  const close = () => setMenu(null);
+  // AnswerMenu は onClose が変わると開き直す（フォーカスが先頭へ飛ぶ）ので、作り直さない。
+  const close = useCallback(() => setMenu(null), []);
   const pick = (tool: WhiteboardTool) => { close(); if (SHAPES.includes(tool)) setShape(tool); onSelectTool(tool); };
   const open = (kind: "shapes" | "more") => (event: React.MouseEvent<HTMLButtonElement>) =>
     setMenu({ anchor: event.currentTarget.getBoundingClientRect(), trigger: event.currentTarget, kind });
@@ -210,7 +219,8 @@ function WhiteboardMenu({ ui, editable, embedded, onExport, onImportPdf, onFitTo
   const t = useT();
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement } | null>(null);
-  const close = () => setMenu(null);
+  // AnswerMenu は onClose が変わると開き直す（グリッドの切り替えなどでフォーカスが先頭へ飛ぶ）ので、作り直さない。
+  const close = useCallback(() => setMenu(null), []);
   const run = (action: () => void) => () => { close(); action(); };
   return <div className="whiteboard-topbar-end" data-viewport-ui="top">
     <button type="button" className="whiteboard-tool" aria-label={t("Whiteboard options")} title={t("Whiteboard options")} aria-haspopup="menu" aria-expanded={!!menu}
@@ -257,13 +267,15 @@ function MenuToggle({ icon, label, checked, onToggle }: { icon: ReactNode; label
 function WhiteboardTitle({ title, icon, editable, onTitleChange, onIconChange }: WhiteboardChromeProps) {
   const t = useT();
   const [draft, setDraft] = useState(title === "Untitled" ? "" : title);
-  const [picker, setPicker] = useState(false);
+  // アイコンの選択は、ほかのパネルの下に隠れないよう画面の一番上に浮かべる（document.body に出す）。
+  const [picker, setPicker] = useState<FloatingPosition | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const editing = useRef(false);
+  usePickerBackToClose(picker !== null, () => setPicker(null));
   useEffect(() => { if (!editing.current) setDraft(title === "Untitled" ? "" : title); }, [title]);
   return <div className="whiteboard-title" data-viewport-ui="top">
     <button ref={triggerRef} type="button" className="whiteboard-title-icon" disabled={!editable} aria-label={t("Change icon")} title={t("Change icon")}
-      aria-haspopup="dialog" aria-expanded={picker} onClick={() => setPicker((open) => !open)}>
+      aria-haspopup="dialog" aria-expanded={picker !== null} onClick={(event) => setPicker(picker ? null : floatingPositionFor(event.currentTarget.getBoundingClientRect()))}>
       <NoteIcon icon={icon} fallback={<PageKindIcon kind="whiteboard" size={16} />} />
     </button>
     <input className="whiteboard-title-input" value={draft} readOnly={!editable} placeholder={t("Untitled")} aria-label={t("Whiteboard title")} maxLength={200}
@@ -271,7 +283,7 @@ function WhiteboardTitle({ title, icon, editable, onTitleChange, onIconChange }:
       onBlur={() => { editing.current = false; }}
       onChange={(event) => { setDraft(event.target.value); onTitleChange(event.target.value); }}
       onKeyDown={(event) => { if (event.key === "Enter" || event.key === "Escape") { event.preventDefault(); event.currentTarget.blur(); } event.stopPropagation(); }} />
-    {picker && <EmojiPopover current={icon} className="whiteboard-icon-popover" trigger={triggerRef} allowUpload onChange={(next) => { onIconChange(next); setPicker(false); }} onClose={() => setPicker(false)} />}
+    {picker && <FloatingEmojiPopover position={picker} trigger={triggerRef} current={icon} allowUpload onChange={(next) => { onIconChange(next); setPicker(null); }} onClose={() => setPicker(null)} />}
   </div>;
 }
 

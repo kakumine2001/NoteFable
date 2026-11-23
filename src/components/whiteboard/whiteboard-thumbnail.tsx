@@ -18,8 +18,11 @@ export default function WhiteboardThumbnail({ data }: { data: unknown }) {
   const [state, setState] = useState<"loading" | "ready" | "empty" | "error">("loading");
   useEffect(() => {
     let cancelled = false;
+    // 別の版に切り替えたとき、前の版の絵を残さない。
+    ref.current?.replaceChildren();
     const scene = storedToScene(data);
-    if (!scene.elements.length) { queueMicrotask(() => setState("empty")); return; }
+    if (!scene.elements.length) { queueMicrotask(() => { if (!cancelled) setState("empty"); }); return () => { cancelled = true; }; }
+    queueMicrotask(() => { if (!cancelled) setState("loading"); });
     exportScene({
       type: "svg",
       data: {

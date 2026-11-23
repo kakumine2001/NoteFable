@@ -78,9 +78,11 @@ export function NoteEmbed() {
   useEffect(() => installEmbedApi(createEmbedApi({
     language: (next) => setPreference(next),
     // ホワイトボードなどのエディターがまだ渡していない変更（描き終わり待ち・画像のアップロード中）を先に渡してもらってから送る。
+    // 待っても終わらないアップロードが残ったら false（アプリは編集画面を閉じずに知らせる）。
     flush: async () => {
-      await flushCanvasEditors();
-      return activeRef.current?.flush() ?? true;
+      const handed = await flushCanvasEditors();
+      const saved = await (activeRef.current?.flush() ?? true);
+      return handed && saved;
     },
     // 衝突ではなく一時的な失敗（オフライン・サーバーエラー）で、下書きを localStorage に退避できているときだけ。/app と同じく離れても後で送り直せる。
     draftKept: () => activeRef.current?.status === "error" && !backupErrorRef.current,
@@ -146,7 +148,7 @@ export function NoteEmbed() {
         </div>
       </section>
       {historyOpen && active && activeId && (
-        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={() => active.flush()}
+        <NoteHistoryDialog key={activeId} noteId={activeId} getVersion={() => active.version} flush={async () => { await flushCanvasEditors(); return active.flush(); }}
           onRestored={() => setHistoryOpen(false)} onClose={() => setHistoryOpen(false)} />
       )}
     </main>

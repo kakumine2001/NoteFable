@@ -137,6 +137,9 @@ class ExportFileAssembler(
         /** 建议的文件名最多这么多个字符（含扩展名）。 */
         const val MAX_NAME_LENGTH = 120
 
+        /** 建议的文件名最多这么多 UTF-8 字节（含扩展名；文件名的上限 NAME_MAX）。 */
+        const val MAX_NAME_BYTES = 255
+
         private const val STALE_MILLIS = 24L * 60 * 60 * 1000
 
         /** 收的类型 → 补扩展名时用的扩展名（白板 src/lib/whiteboard/export.ts 的 PNG / SVG / PDF；幻灯片的 PPTX）。 */
@@ -153,30 +156,34 @@ class ExportFileAssembler(
 
         // 路径分隔符，和 Windows / FAT 不允许的字符（网页 exportFileName 也去掉这些）。控制字符另外判断。
         private const val FORBIDDEN = "/\\:*?\"<>|"
-        private val EXTENSION = Regex("^[A-Za-z0-9]{1,10}$")
+        // 改变文字方向的字符（能把 "report‮gnp.apk" 显示成别的样子），和 iOS 的 sanitizedName 一样去掉。
+        private const val BIDI_CONTROLS = "؜‎‏‪‫‬‭‮⁦⁧⁨⁩"
         private val SPACES = Regex("\\s+")
 
         /**
-         * 保存时建议的文件名：去掉控制字符和路径分隔符（以及 `:*?"<>|`），连续空白合成一个，名字部分前后的点和空白去掉
-         * （不变成隐藏文件或 `..`）；保留扩展名（最后一个点后面 1–10 个字母或数字），没有就按类型补上；名字部分截短到
-         * 整个不超过 [MAX_NAME_LENGTH] 个字符（不切开代理对）。名字部分是空的时候叫 `export`。
+         * 保存时建议的文件名：去掉控制字符、改变文字方向的字符和路径分隔符（以及 `:*?"<>|`），连续空白合成一个，
+         * 名字部分前后的点和空白去掉（不变成隐藏文件或 `..`）；扩展名总是类型的（已经以它结尾就不重复，别的扩展名当成名字的一部分）；
+         * 名字部分截短到整个不超过 [MAX_NAME_LENGTH] 个字符、[MAX_NAME_BYTES] 个 UTF-8 字节（不切开代理对）。名字部分是空的时候叫 `export`。
          */
         fun fileName(raw: String, mime: String): String {
-            val cleaned = raw.filterNot { it.isISOControl() || it in FORBIDDEN }.replace(SPACES, " ").trim()
-            val dot = cleaned.lastIndexOf('.')
-            val suffix = if (dot >= 0) cleaned.substring(dot + 1) else ""
-            val hasExtension = EXTENSION.matches(suffix)
-            val extension = if (hasExtension) ".$suffix" else mimeType(mime)?.let { ".${MIME_TYPES.getValue(it)}" }.orEmpty()
-            val base = (if (hasExtension) cleaned.substring(0, dot) else cleaned).trim(::isEdge).ifEmpty { "export" }
-            return base.clip(MAX_NAME_LENGTH - extension.length).trimEnd(::isEdge).ifEmpty { "export" } + extension
+            val extension = mimeType(mime)?.let { ".${MIME_TYPES.getValue(it)}" }.orEmpty()
+            val cleaned = raw.filterNot { it.isISOControl() || it in BIDI_CONTROLS || it in FORBIDDEN }.replace(SPACES, " ").trim()
+            val stem = if (extension.isNotEmpty() && cleaned.endsWith(extension, ignoreCase = true)) cleaned.dropLast(extension.length) else cleaned
+            val base = stem.trim(::isEdge).ifEmpty { "export" }
+            val clipped = base.clip(MAX_NAME_LENGTH - extension.length, MAX_NAME_BYTES - extension.toByteArray(Charsets.UTF_8).size)
+            return clipped.trimEnd(::isEdge).ifEmpty { "export" } + extension
         }
 
         private fun isEdge(char: Char) = char == '.' || char.isWhitespace()
 
-        private fun String.clip(count: Int): String {
-            if (length <= count) return this
-            var end = count
-            if (end > 0 && this[end - 1].isHighSurrogate()) end--
+        /** 截到最多 [count] 个字符、[bytes] 个 UTF-8 字节，不切开代理对。 */
+        private fun String.clip(count: Int, bytes: Int): String {
+            var end = minOf(length, count)
+            if (end in 1 until length && this[end - 1].isHighSurrogate()) end--
+            while (end > 0 && substring(0, end).toByteArray(Charsets.UTF_8).size > bytes) {
+                end--
+                if (end > 0 && this[end - 1].isHighSurrogate()) end--
+            }
             return substring(0, end)
         }
     }

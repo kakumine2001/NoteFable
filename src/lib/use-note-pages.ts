@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { validateNoteContent } from "@/lib/note-document";
 import { NoteSaveError, NoteSaveQueue, type NoteDraft } from "@/lib/note-save-queue";
+import { flushCanvasEditors } from "@/lib/canvas-flush";
 import { byPosition, OrderRefreshSync, type ReorderRequest } from "@/lib/list-order";
 import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
@@ -369,6 +370,8 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      // ホワイトボードなどのエディターがまだ渡していない変更も先に渡してもらう（src/lib/canvas-flush.ts）。
+      await flushCanvasEditors();
       const queue = queues.current.get(id);
       if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before moving this note to Trash."));
       // サブページも一緒にゴミ箱へ入る。開いている（未保存の）サブページも先に保存する。
@@ -484,6 +487,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     setBusy(true);
     setError("");
     try {
+      await flushCanvasEditors();
       for (const pageId of [id, ...descendantIdsOf(pages, id)]) {
         const queue = queues.current.get(pageId);
         if (queue && !(await queue.flush())) throw new Error(msg("Resolve the unsaved draft before duplicating this page."));
@@ -530,6 +534,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
     actionBusy.current = true;
     setActionError("");
     try {
+      await flushCanvasEditors();
       const queue = queues.current.get(id);
       if (queue && queue.dirty && !(await queue.flush())) {
         throw new Error(msg("Resolve the unsaved draft before exporting this page."));
@@ -616,6 +621,7 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
   }
 
   async function flushSubtree(id: string, includeSubpages: boolean): Promise<boolean> {
+    await flushCanvasEditors();
     const ids = includeSubpages ? [id, ...descendantIdsOf(pages, id)] : [id];
     for (const pageId of ids) {
       const queue = queues.current.get(pageId);

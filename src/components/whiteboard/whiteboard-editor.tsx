@@ -115,6 +115,24 @@ function visibleRect(appState: AppState) {
   return { x: -appState.scrollX, y: -appState.scrollY, width: appState.width / appState.zoom.value, height: appState.height / appState.zoom.value };
 }
 
+// 見えている範囲に内容が 1 つも無いか（「内容に戻る」を出す）。
+function contentHiddenIn(target: ExcalidrawImperativeAPI) {
+  const elements = target.getSceneElements();
+  if (!elements.length) return false;
+  const [x1, y1, x2, y2] = getCommonBounds(elements);
+  const view = visibleRect(target.getAppState());
+  return x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height;
+}
+
+// その要素まで動かして選ぶ。見つからなければ false。
+function revealIn(target: ExcalidrawImperativeAPI, elementId: string, animation = true) {
+  const element = target.getSceneElements().find((entry) => entry.id === elementId);
+  if (!element) return false;
+  target.setViewport({ target: element, fit: "scale-down", animation });
+  target.selection.select(element.id);
+  return true;
+}
+
 function randomId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID().replace(/-/g, "") : Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
@@ -170,6 +188,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const dirty = useRef(false);
   // アップロード中の画像（アプリの flush で終わるのを待つ）。
   const uploadTasks = useRef(new Set<Promise<void>>());
+  // 閉じたか。Excalidraw は閉じると中身を空にするが、受け取った API の isDestroyed は false のまま：閉じた後は API を使わない
+  // （使うと空の内容を保存してしまう）。
+  const mounted = useRef(true);
+  // Excalidraw が最初の内容を読み終えたか（onInitialize）。それまでの onChange は読み込みそのもので、保存しない。
+  const initialized = useRef(false);
+  // 取り込み中の PDF（閉じたらやめる）。
+  const pdfAbort = useRef<AbortController | null>(null);
 
   const signatureOf = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const persisted = [appState.viewBackgroundColor, appState.gridModeEnabled, appState.gridSize, appState.gridStep, appState.objectsSnapModeEnabled];
@@ -177,12 +202,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
 
   const updateContentHidden = useCallback(() => {
-    if (!api || api.isDestroyed) return;
-    const elements = api.getSceneElements();
-    if (!elements.length) { setContentHidden(false); return; }
-    const [x1, y1, x2, y2] = getCommonBounds(elements);
-    const view = visibleRect(api.getAppState());
-    setContentHidden(x2 < view.x || x1 > view.x + view.width || y2 < view.y || y1 > view.y + view.height);
+    if (!api || !mounted.current) return;
+    setContentHidden(contentHiddenIn(api));
   }, [api]);
 
   // scene から保存の形を作って渡す。
@@ -200,7 +221,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   }, []);
 
   const serializeNow = useCallback(() => {
-    if (!api || api.isDestroyed) return;
+    if (!api || !mounted.current) return;
     emit({ elements: api.getSceneElementsIncludingDeleted(), files: api.getFiles(), appState: api.getAppState() });
   }, [api, emit]);
 
@@ -218,7 +239,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
 
   const scheduleSave = useCallback(() => {
     const tick = () => {
-      if (!api || api.isDestroyed) return;
+      if (!api || !mounted.current) return;
       const appState = api.getAppState();
       // 描いている途中・動かしている途中は待つ（終わってから 1 回だけ保存の形を作る）。
       if (appState.newElement || appState.selectedElementsAreBeingDragged || appState.isResizing || appState.isRotating) { saveTimer.current = setTimeout(tick, 400); return; }
@@ -239,11 +260,14 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const flushRef = useRef(flushPending);
   useEffect(() => { flushRef.current = flushPending; }, [flushPending]);
   useEffect(() => {
+    mounted.current = true;
     const onVisibility = () => { if (document.visibilityState === "hidden") flushRef.current(); };
     const onPageHide = () => flushRef.current();
     window.addEventListener("visibilitychange", onVisibility, true);
     window.addEventListener("pagehide", onPageHide, true);
     return () => {
+      mounted.current = false;
+      pdfAbort.current?.abort();
       window.removeEventListener("visibilitychange", onVisibility, true);
       window.removeEventListener("pagehide", onPageHide, true);
       flushRef.current();
@@ -251,9 +275,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     };
   }, []);
   // アプリが編集画面を閉じる前の flush（/note-embed）：変更を渡し、アップロード中の画像は少し待ってから入れ直す。
+  // 待っても終わらない画像があれば false（保存し切れていない。アプリは編集画面を閉じずに知らせる）。
   useEffect(() => registerCanvasFlusher(async () => {
     flushRef.current();
-    if (!uploadTasks.current.size) return;
+    if (!uploadTasks.current.size) return true;
     let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       Promise.allSettled([...uploadTasks.current]),
@@ -261,11 +286,12 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     ]);
     clearTimeout(timer);
     flushRef.current();
+    return uploadTasks.current.size === 0;
   }), []);
 
   // ---- 画像のアップロード（Excalidraw は貼り付け・ドロップ・画像ツールの画像を data: で持つ。保存には note-files の URL を使う） ----
   const removeImagesOf = useCallback((fileId: string) => {
-    if (!api || api.isDestroyed) return;
+    if (!api || !mounted.current) return;
     const elements = api.getSceneElementsIncludingDeleted();
     const images = new Set(elements.filter((element) => element.type === "image" && (element as { fileId?: string }).fileId === fileId).map((element) => element.id));
     if (!images.size) return;
@@ -288,9 +314,10 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         // 保存し直す（signature の uploaded の数が変わる）。閉じた後に終わったときは、最後の scene ですぐ渡す。
         lastSignature.current = null;
         dirty.current = true;
-        if (!api || api.isDestroyed) flushRef.current();
+        if (!mounted.current) flushRef.current();
         else scheduleSave();
       }).catch((error: unknown) => {
+        if (!mounted.current) { uploads.current.delete(fileId); return; }
         // 容量の上限は NotesWorkspace の案内（storage-limit-client）が出す。ここは画像を取り除くだけ。
         if (!(error instanceof StorageLimitError)) setNotice({ text: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
         removeImagesOf(fileId);
@@ -299,13 +326,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       }).finally(() => { uploadTasks.current.delete(task); });
       uploadTasks.current.add(task);
     }
-  }, [api, removeImagesOf, scheduleSave]);
+  }, [removeImagesOf, scheduleSave]);
 
   // ---- 画面の状態（自前のツールバー・パネルに出すもの）。変わった時だけ描き直す。 ----
   const uiKey = useRef("");
   const readUi = useCallback((elements: readonly ExcalidrawElement[], appState: AppState) => {
     const selected = elements.filter((element) => !element.isDeleted && appState.selectedElementIds[element.id]) as NonDeletedExcalidrawElement[];
-    const next = deriveUiState(selected, appState);
+    const next = deriveUiState(selected, appState, elements);
     const key = JSON.stringify(next);
     if (key !== uiKey.current) { uiKey.current = key; setUi(next); }
   }, []);
@@ -313,9 +340,17 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const handleChange = useCallback((elements: readonly ExcalidrawElement[], appState: AppState, files: BinaryFiles) => {
     latestScene.current = { elements, appState, files };
     readUi(elements, appState);
+    // Excalidraw 自身のエラー（大きすぎる画像など）。既定の画面を出していないので、こちらで知らせて消す。
+    if (appState.errorMessage) {
+      const message = appState.errorMessage;
+      if (typeof message === "string" && message.trim()) setNotice({ text: message });
+      queueMicrotask(() => { if (api && mounted.current) api.updateScene({ appState: { errorMessage: null }, captureUpdate: CaptureUpdateAction.NEVER }); });
+    }
+    // 最初の内容を読み込んでいる間の通知は保存しない（開いただけで版を進めない）。
+    if (!initialized.current) return;
     if (editable) startUploads(elements, files);
     if (signatureOf(elements, appState) !== lastSignature.current) { dirty.current = true; scheduleSave(); }
-  }, [editable, readUi, scheduleSave, signatureOf, startUploads]);
+  }, [api, editable, readUi, scheduleSave, signatureOf, startUploads]);
 
   // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
   useEffect(() => {
@@ -323,16 +358,11 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     (window as unknown as { __notefableWhiteboard?: unknown }).__notefableWhiteboard = api;
   }, [api]);
 
-  // 最初の内容を「保存済み」として覚える（開いただけでは保存しない）。
+  // Excalidraw の組み込みの操作をつなぐ（最初の内容の扱いは onInitialize）。
   useEffect(() => {
     if (!api) return;
-    const signature = signatureOf(api.getSceneElementsIncludingDeleted(), api.getAppState());
-    lastSignature.current = signature;
-    queueMicrotask(() => setSceneVersion(signature));
     setActions(connectWhiteboardActions(api as never, containerRef.current?.querySelector(".excalidraw") as HTMLElement | null));
-    readUi(api.getSceneElements(), api.getAppState());
-    queueMicrotask(updateContentHidden);
-  }, [api, readUi, signatureOf, updateContentHidden]);
+  }, [api]);
 
   // ---- 表示位置を覚える。見えている範囲に内容が無ければ「内容に戻る」を出す。 ----
   useEffect(() => {
@@ -351,21 +381,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   useKeepDocumentLanguage(locale, dir);
 
   // ---- 検索の結果などから、要素まで動かす ----
-  const reveal = useCallback((elementId: string) => {
-    if (!api) return false;
-    const element = api.getSceneElements().find((entry) => entry.id === elementId);
-    if (!element) return false;
-    api.setViewport({ target: element, fit: "scale-down", animation: true });
-    api.selection.select(element.id);
-    return true;
-  }, [api]);
+  const reveal = useCallback((elementId: string) => Boolean(api && mounted.current && initialized.current && revealIn(api, elementId)), [api]);
   useEffect(() => {
     if (!api) return;
-    const pending = consumeWhiteboardReveal(pageId);
-    if (pending) queueMicrotask(() => reveal(pending));
+    // 開いた直後の依頼は、最初の内容を読み終えた時（onInitialize）に受け取る。ここは開いている間に来たもの。
     const onReveal = (event: Event) => {
       const detail = (event as CustomEvent<WhiteboardRevealDetail>).detail;
-      if (detail?.pageId === pageId && consumeWhiteboardReveal(pageId)) reveal(detail.elementId);
+      if (detail?.pageId === pageId && initialized.current && consumeWhiteboardReveal(pageId)) reveal(detail.elementId);
     };
     window.addEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
     return () => window.removeEventListener(WHITEBOARD_REVEAL_EVENT, onReveal);
@@ -443,11 +465,22 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   useEffect(() => { startWithHandRef.current = startWithHand; }, [startWithHand]);
   const fitOnOpen = initial.scrollToContent;
   const onInitialize = useCallback((ready: ExcalidrawImperativeAPI) => {
+    // 読み終えた最初の内容を「保存済み」として覚える（開いただけでは保存しない。読み込みの途中の onChange も保存しない）。
+    const all = ready.getSceneElementsIncludingDeleted();
+    const signature = signatureOf(all, ready.getAppState());
+    lastSignature.current = signature;
+    dirty.current = false;
+    initialized.current = true;
+    setSceneVersion(signature);
+    readUi(all, ready.getAppState());
     if (startWithHandRef.current) ready.setActiveTool({ type: "hand" });
-    // この端末で初めて開くときは、内容がすべて見えるように縮める（100% より大きくはしない）。前回の表示位置があればそれを使う。
+    // 検索の結果から開いたときは、その要素まで動かす。それ以外で、この端末で初めて開くときは内容がすべて見えるように縮める
+    // （100% より大きくはしない）。前回の表示位置があればそれを使う。
+    const pending = consumeWhiteboardReveal(pageId);
     const elements = ready.getSceneElements();
-    if (fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
-  }, [fitOnOpen]);
+    if (!(pending && revealIn(ready, pending, false)) && fitOnOpen && elements.length) ready.setViewport({ target: elements, fit: "scale-down" });
+    queueMicrotask(() => { if (mounted.current) setContentHidden(contentHiddenIn(ready)); });
+  }, [fitOnOpen, pageId, readUi, signatureOf]);
 
   // 画面の幅ではなく、キャンバスの幅で並べ方を変える（サイドバー・分割表示で狭くなる）。
   const [width, setWidth] = useState(1024);
@@ -471,6 +504,20 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
   const sceneCenter = useCallback(() => {
     const view = visibleRect(api!.getAppState());
     return { x: view.x + view.width / 2, y: view.y + view.height / 2 };
+  }, [api]);
+
+  // ---- ロックの解除：押したロック中の要素（グループならその全部）を解除して選ぶ ----
+  const unlockTarget = useCallback((target: string) => {
+    if (!api) return;
+    const elements = api.getSceneElementsIncludingDeleted();
+    const ids = elements.filter((element) => !element.isDeleted && (element.id === target || element.groupIds.includes(target))).map((element) => element.id);
+    if (!ids.length) return;
+    const unlocking = new Set(ids);
+    api.updateScene({
+      elements: elements.map((element) => unlocking.has(element.id) ? newElementWith(element, { locked: false }) : element),
+      appState: { activeLockedId: null, selectedElementIds: Object.fromEntries(ids.map((id) => [id, true])) } as unknown as Pick<AppState, "selectedElementIds">,
+      captureUpdate: CaptureUpdateAction.IMMEDIATELY,
+    });
   }, [api]);
 
   // ---- リンクとページのカード ----
@@ -568,14 +615,22 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (!api || busy) return;
     setNotice(null);
     setBusy(t("Importing PDF…"));
+    // 閉じたら（ページの切り替えなど）やめる：残りのページを描かず、閉じたエディターにも入れない。
+    const controller = new AbortController();
+    pdfAbort.current = controller;
     try {
-      const result = await importPdfPages(file, { onProgress: (done, total) => setBusy(t("Importing page {done} of {total}…", { done: Math.min(done + 1, total), total })) });
+      const result = await importPdfPages(file, { signal: controller.signal, onProgress: (done, total) => setBusy(t("Importing page {done} of {total}…", { done: Math.min(done + 1, total), total })) });
+      if (controller.signal.aborted || !mounted.current) return;
       insertPdf(result);
       // 途中のページで失敗した（容量の上限・通信など）ときは、そこまでのページだけが入っている。容量の上限は NotesWorkspace の案内も出る。
       if (result.failed !== undefined || result.total > MAX_PDF_IMPORT_PAGES) setNotice({ text: msg("Only the first {max} pages were imported."), vars: { max: result.pages.length } });
     } catch (error) {
+      if (controller.signal.aborted || !mounted.current) return;
       if (!(error instanceof StorageLimitError)) setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not read this PDF.") });
-    } finally { setBusy(null); }
+    } finally {
+      if (pdfAbort.current === controller) pdfAbort.current = null;
+      if (mounted.current) setBusy(null);
+    }
   }, [api, busy, insertPdf, t]);
 
   const toggleMinimap = useCallback(() => {
@@ -595,6 +650,8 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
         theme={theme}
         langCode={excalidrawLang(locale)}
         viewModeEnabled={!editable}
+        // 外部のページの埋め込みは作らない（URL を貼ってもリンクになる）。公開リンクで外部のページを開かせないため。
+        validateEmbeddable={false}
         onChange={handleChange}
         onLinkOpen={onLinkOpen}
         imageOptions={{ maxFileSizeBytes: MAX_NOTE_FILE_BYTES, maxWidthOrHeight: 2560 }}
@@ -602,7 +659,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       />
       {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actions}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
-        onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
+        onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onUnlock={unlockTarget} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
@@ -629,13 +686,24 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
 }
 
 // 自前の画面に出す状態。選んでいる要素の種類・共通の見た目と、次に描く図形の見た目。
-function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appState: AppState): WhiteboardUiState {
+function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appState: AppState, elements: readonly ExcalidrawElement[]): WhiteboardUiState {
   const common = <T,>(read: (element: NonDeletedExcalidrawElement) => T | undefined, fallback: T): T | null => {
     if (!selected.length) return fallback;
     const values = new Set(selected.map(read).filter((value) => value !== undefined));
     return values.size === 1 ? [...values][0] as T : values.size === 0 ? fallback : null;
   };
   const roundness = (element: NonDeletedExcalidrawElement) => element.roundness ? "round" : "sharp";
+  // 図形・付箋の文字は、図形に付いた別の文字要素が持つ（文字の見た目はそちらから読む）。
+  const byId = new Map(elements.map((element) => [element.id, element]));
+  const textOf = (element: NonDeletedExcalidrawElement): Record<string, unknown> | undefined => {
+    if ("fontFamily" in element) return element as unknown as Record<string, unknown>;
+    const bound = element.boundElements?.find((entry) => entry.type === "text");
+    const text = bound ? byId.get(bound.id) : undefined;
+    return text && !text.isDeleted ? text as unknown as Record<string, unknown> : undefined;
+  };
+  // 付箋の道具を選んでいる間は、付箋の色が次に置くものの色。
+  const sticky = !selected.length && appState.activeTool.type === "stickynote";
+  const stickyState = appState as AppState & { currentItemStickynoteStrokeColor?: string; currentItemStickynoteBackgroundColor?: string };
   return {
     tool: appState.activeTool.type,
     toolLocked: appState.activeTool.locked,
@@ -652,9 +720,11 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     viewBackgroundColor: appState.viewBackgroundColor,
     // 1 つだけ選んでいる要素のリンク（選んでいる間は Excalidraw がリンクの印を描かないので、パネルから開く）。
     link: selected.length === 1 ? selected[0].link ?? null : null,
+    // 押したロック中の要素（またはグループ）。Excalidraw の解除のポップアップは既定の画面にしか無いので、自前のボタンを出す。
+    lockedTarget: appState.activeLockedId ?? null,
     style: {
-      strokeColor: common((element) => element.strokeColor, appState.currentItemStrokeColor),
-      backgroundColor: common((element) => element.backgroundColor, appState.currentItemBackgroundColor),
+      strokeColor: common((element) => element.strokeColor, (sticky && stickyState.currentItemStickynoteStrokeColor) || appState.currentItemStrokeColor),
+      backgroundColor: common((element) => element.backgroundColor, (sticky && stickyState.currentItemStickynoteBackgroundColor) || appState.currentItemBackgroundColor),
       opacity: common((element) => element.opacity, appState.currentItemOpacity),
       roughness: common((element) => element.roughness, appState.currentItemRoughness),
       strokeStyle: common((element) => element.strokeStyle, appState.currentItemStrokeStyle),
@@ -662,9 +732,9 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
       roundness: common(roundness, appState.currentItemRoundness),
       strokeWidthKey: selected.length ? null : appState.currentItemStrokeWidthKey,
       strokeWidth: common((element) => element.strokeWidth, null as number | null),
-      fontFamily: common((element) => "fontFamily" in element ? element.fontFamily as number : undefined, appState.currentItemFontFamily),
-      fontSize: common((element) => "fontSize" in element ? element.fontSize as number : undefined, appState.currentItemFontSize),
-      textAlign: common((element) => "textAlign" in element ? element.textAlign as string : undefined, appState.currentItemTextAlign),
+      fontFamily: common((element) => textOf(element)?.fontFamily as number | undefined, appState.currentItemFontFamily),
+      fontSize: common((element) => textOf(element)?.fontSize as number | undefined, appState.currentItemFontSize),
+      textAlign: common((element) => textOf(element)?.textAlign as string | undefined, appState.currentItemTextAlign),
       arrowType: common((element) => element.type === "arrow" ? ((element as { elbowed?: boolean }).elbowed ? "elbow" : element.roundness ? "round" : "sharp") : undefined, appState.currentItemArrowType),
       startArrowhead: common((element) => "startArrowhead" in element ? element.startArrowhead as string | null : undefined, appState.currentItemStartArrowhead),
       endArrowhead: common((element) => "endArrowhead" in element ? element.endArrowhead as string | null : undefined, appState.currentItemEndArrowhead),

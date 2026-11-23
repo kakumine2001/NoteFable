@@ -129,6 +129,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
   // 本体を持たないキュー（本体なしの応答から作られたもの）には作らない（空の本体で編集を始めさせない）。
   const canvasData = active?.content.data ?? active?.page.data;
+  // この描画の時点で、キューの中身がサーバーの版で何回置き換えられたか（キャンバスのエディターが渡す変更の照合に使う）。
+  const canvasGeneration = active?.generation ?? 0;
   const CanvasEditor = isCanvasKind(activeKind) && pageKindFeatures(activeKind).editor && canvasData ? CANVAS_EDITORS[activeKind] : undefined;
   const canvasEditorOpen = Boolean(CanvasEditor && active && activeId && !listMode && !loading);
   const editable = !busy && !settings.locked;
@@ -178,7 +180,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
         data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
         // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
-        onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
+        // 中身をサーバーの版で置き換えた後（最新の版を読む・版の復元）は、置き換える前のエディターが閉じる時に渡す古い変更を捨てる。
+        onChange={(data) => { if (active.generation === canvasGeneration && data !== active.content.data) active.edit({ ...active.content, data }); }}
         onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
         onIconChange={(icon) => { if (icon !== active.content.icon) active.edit({ ...active.content, icon }); }}
         // 埋め込み（/note-embed）は一覧を持たない。リンク先を選ぶ時にエディターが自分で読む。

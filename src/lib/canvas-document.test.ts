@@ -53,6 +53,10 @@ describe("whiteboard and slide data", () => {
       ["whiteboard", { elements: [{ id: "a", type: "text" }, { id: "a", type: "text" }] }],
       ["whiteboard", { elements: [{ type: "text" }] }], ["whiteboard", { elements: [{ id: "a" }] }],
       ["whiteboard", { elements: [{ id: "a", type: "text", isDeleted: "yes" }] }],
+      // 埋め込み（外部のページ・任意の HTML）と AI の枠は置けない。
+      ["whiteboard", { elements: [{ id: "a", type: "iframe", customData: { generationData: { status: "done", html: "<script>alert(1)</script>" } } }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "embeddable", link: "https://val.town/x" }] }],
+      ["whiteboard", { elements: [{ id: "a", type: "magicframe" }] }],
       ["whiteboard", { elements: [], files: { f: { dataURL: "https://example.com/x.png" } } }],
       // もう一方の種類の外枠は持てない（種類を取り違えない）。
       ["whiteboard", { elements: [], slides: [] }], ["slides", { slides: [], elements: [] }],

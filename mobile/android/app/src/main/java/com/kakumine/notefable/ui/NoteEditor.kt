@@ -104,7 +104,16 @@ class NoteEmbedBridge(
     private val main = Handler(Looper.getMainLooper())
     private val pending = ConcurrentHashMap<String, CompletableDeferred<FlushResult>>()
     private val mounting = ConcurrentHashMap<String, CompletableDeferred<Boolean>>()
+
+    /** 接着的 WebView（主线程写）。[attached] 给 JS 线程读：拆掉（[release]）之后来的导出文件的块不再收。 */
     var webView: WebView? = null
+        set(value) {
+            field = value
+            attached = value != null
+        }
+
+    @Volatile
+    private var attached = false
 
     /** App 现在实际的外观（`light` / `dark`）。界面在主线程写，[theme] 在 WebView 的 JS 线程读。 */
     @Volatile
@@ -159,8 +168,9 @@ class NoteEmbedBridge(
                 return
             }
             // 导出文件的块（每块最多 512 KiB）直接在 JS 线程上写进临时文件，拼好了才到主线程上让用户选保存位置。
+            // 编辑器已经拆掉（[release]）时不再开始新的文件（不留下没人关的临时文件）。
             is EmbedMessage.FileStart -> {
-                exports.start(message.id, message.name, message.mime, message.size)
+                if (attached) exports.start(message.id, message.name, message.mime, message.size)
                 return
             }
             is EmbedMessage.FileChunk -> {
@@ -173,7 +183,14 @@ class NoteEmbedBridge(
             }
             is EmbedMessage.FileEnd -> {
                 val file = exports.finish(message.id)
-                main.post { onExportFile(file) }
+                main.post {
+                    // 拼好之前编辑器关掉了（换页、退出登录、渲染进程崩溃）：不在别的画面上弹出保存位置，也不提示失败，只删临时文件。
+                    if (webView == null) {
+                        file?.let { stale -> Thread { stale.file.delete() }.start() }
+                        return@post
+                    }
+                    onExportFile(file)
+                }
                 return
             }
             else -> Unit
@@ -519,6 +536,8 @@ fun NoteEditorScreen(
                         // 渲染进程被系统杀掉或崩溃：不处理的话整个 App 会跟着退出。丢掉这个 WebView，换新的重新加载。
                         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
                             bridge.release(view)
+                            // 白板正在画图时崩溃：新网页报告之前（读不出来时也）不再让开两侧的返回手势。
+                            currentOnMessage(open.editor, EmbedMessage.Drawing(false))
                             generation++
                             return true
                         }

@@ -9,6 +9,13 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 // このファイルは Excalidraw の本体を読み込まない（サーバー・テストからも使う）。型だけを使う。
 
 export type WhiteboardElement = { id: string; type: string; isDeleted?: boolean; [key: string]: unknown };
+
+// ホワイトボードに置ける要素の種類（NoteFable の道具で作れるもの）。Excalidraw の埋め込み（embeddable・iframe）と
+// AI の枠（magicframe）は入れない：公開リンクの見る画面で外部のページや任意の HTML を表示させないため。
+// 保存（sceneToStored）・読み込み（storedToScene）・サーバーの検証（canvas-document.ts）が同じ表を使う。
+export const WHITEBOARD_ELEMENT_TYPES: ReadonlySet<string> = new Set([
+  "rectangle", "diamond", "ellipse", "arrow", "line", "freedraw", "text", "image", "frame", "stickynote",
+]);
 export type WhiteboardFile = { id: string; mimeType: string; dataURL: string; created?: number; [key: string]: unknown };
 export type WhiteboardFiles = Record<string, WhiteboardFile>;
 export type WhiteboardAppState = {
@@ -84,7 +91,7 @@ export type SceneSnapshot = {
 export function sceneToStored({ elements, files, appState, uploaded }: SceneSnapshot): { data: StoredWhiteboard; pending: number } {
   const storedFiles: WhiteboardFiles = {};
   const kept: WhiteboardElement[] = [];
-  const live = elements.filter((element) => element.isDeleted !== true);
+  const live = elements.filter((element) => element.isDeleted !== true && WHITEBOARD_ELEMENT_TYPES.has(element.type));
   const liveIds = new Set(live.map((element) => element.id));
   // 画像要素が保存に入らないとき、その画像に付いた文字（containerId）も入れない（付け先のない文字にしない）。
   const skipped = new Set<string>();
@@ -120,16 +127,19 @@ export function sceneToStored({ elements, files, appState, uploaded }: SceneSnap
 }
 
 // 保存された本体を、Excalidraw に渡せる形にする（要素の修復は Excalidraw の restore が読み込み時に行う）。
-// 壊れた要素・ファイルは捨てる。ファイルの dataURL は note-files の URL のまま（<img> で読める）。
+// 壊れた要素・置けない種類の要素・ファイルは捨てる。ファイルは生きている画像要素が使うものだけ（公開リンクで読めるのもこれだけ）。
+// ファイルの dataURL は note-files の URL のまま（<img> で読める）。
 export function storedToScene(data: unknown): { elements: WhiteboardElement[]; files: WhiteboardFiles; appState: WhiteboardAppState } {
   if (!object(data)) return { elements: [], files: {}, appState: {} };
   const elements = Array.isArray(data.elements)
-    ? data.elements.filter((element): element is WhiteboardElement => object(element) && typeof element.id === "string" && typeof element.type === "string" && element.isDeleted !== true)
+    ? data.elements.filter((element): element is WhiteboardElement => object(element) && typeof element.id === "string" && typeof element.type === "string"
+      && WHITEBOARD_ELEMENT_TYPES.has(element.type) && element.isDeleted !== true)
     : [];
+  const used = new Set(elements.filter((element) => element.type === "image" && typeof element.fileId === "string").map((element) => element.fileId as string));
   const files: WhiteboardFiles = {};
   if (object(data.files)) {
     for (const [id, file] of Object.entries(data.files)) {
-      if (!object(file)) continue;
+      if (!object(file) || !used.has(id)) continue;
       const url = isStoredFileUrl(file.dataURL) ? file.dataURL : isStoredFileUrl(file.url) ? file.url : null;
       if (!url) continue;
       files[id] = { ...file, id, mimeType: typeof file.mimeType === "string" ? file.mimeType : "image/png", dataURL: url };

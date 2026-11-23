@@ -244,7 +244,7 @@ export const arServer: Record<string, string> = {
   "Unknown page kind.": "نوع صفحة غير معروف.",
   "Only notes can be exported as Markdown.": "يمكن تصدير الملاحظات فقط بتنسيق Markdown.",
   "Font, text size and width can only be changed for notes.": "لا يمكن تغيير الخط وحجم النص والعرض إلا للملاحظات.",
-  "Whiteboards and slide decks can't be published yet.": "لا يمكن نشر السبورات ومجموعات الشرائح بعد.",
+  "Slide decks can't be published yet.": "لا يمكن نشر مجموعات الشرائح بعد.",
   "This page can't be edited in this version of NoteFable.": "لا يمكن تعديل هذه الصفحة في هذا الإصدار من NoteFable.",
   "These pages are too large to duplicate at once.": "هذه الصفحات كبيرة جدًا بحيث لا يمكن تكرارها دفعة واحدة.",
   "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "لم تعد هناك مساحة تخزين كافية. سجّل الدخول للحصول على مساحة أكبر، أو احذف الملفات التي لم تعد بحاجة إليها.",

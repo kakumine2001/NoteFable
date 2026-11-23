@@ -187,13 +187,34 @@ class ExportFileAssemblerTest {
     }
 
     @Test
-    fun `long file names are cut to 120 characters keeping the extension and whole surrogate pairs`() {
-        val long = ExportFileAssembler.fileName("あ".repeat(200) + ".png", "image/png")
+    fun `the extension always follows the type`() {
+        val png = "image/png"
+        // 别的扩展名是名字的一部分，后面补上类型的扩展名。
+        assertEquals("board.apk.png", ExportFileAssembler.fileName("board.apk", png))
+        assertEquals("board.html.svg", ExportFileAssembler.fileName("board.html", "image/svg+xml"))
+        assertEquals("Plan v1.2.png", ExportFileAssembler.fileName("Plan v1.2", png))
+        // 已经以类型的扩展名结尾（不分大小写）就不重复。
+        assertEquals("Board.png", ExportFileAssembler.fileName("Board.PNG", png))
+        // 改变文字方向的字符去掉（不能把扩展名显示成别的样子）。
+        assertEquals("reportgnp.apk.png", ExportFileAssembler.fileName("report‮gnp.apk", png))
+        assertEquals("ab.png", ExportFileAssembler.fileName("a⁦‏b⁩.png", png))
+    }
+
+    @Test
+    fun `long file names are cut to 120 characters and 255 bytes keeping the extension and whole surrogate pairs`() {
+        val long = ExportFileAssembler.fileName("a".repeat(200) + ".png", "image/png")
         assertEquals(ExportFileAssembler.MAX_NAME_LENGTH, long.length)
-        assertEquals("あ".repeat(116) + ".png", long)
+        assertEquals("a".repeat(116) + ".png", long)
+        // 中日韩的字是 3 个字节：按 255 字节截（83 个字 + .png）。
+        val cjk = ExportFileAssembler.fileName("あ".repeat(200) + ".png", "image/png")
+        assertEquals("あ".repeat(83) + ".png", cjk)
+        assertTrue(cjk.toByteArray(Charsets.UTF_8).size <= ExportFileAssembler.MAX_NAME_BYTES)
         // 第 116 个字符是表情的前半：整个表情去掉，不留半个。
         val emoji = ExportFileAssembler.fileName("a".repeat(115) + "😀😀.png", "image/png")
         assertEquals("a".repeat(115) + ".png", emoji)
+        // 按字节截时也不切开表情（4 个字节）：83 个字（249 字节）之后的表情放不下，整个去掉。
+        val emojiBytes = ExportFileAssembler.fileName("あ".repeat(83) + "😀.png", "image/png")
+        assertEquals("あ".repeat(83) + ".png", emojiBytes)
         // 网页的名字部分最长 120（加扩展名 124）：照样截到 120。
         assertEquals(120, ExportFileAssembler.fileName("b".repeat(120) + ".pdf", "application/pdf").length)
     }
