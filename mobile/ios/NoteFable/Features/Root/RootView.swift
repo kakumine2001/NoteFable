@@ -67,7 +67,7 @@ struct RootView: View {
 // MARK: - 抽屉里的内容
 
 /// 侧边栏（网页 `.notion-sidebar`，手机抽屉；Android `AppDrawer`）：宽 240、底色 #F7F7F5；头部高 48（品牌 + 关闭侧栏）；
-/// 下面是 Chat / Note 切换（左右 8、上距 4），再下面是当前工作区的内容，最底部是账号区。
+/// 下面是 Chat / Workspace 切换（左右 8、上距 4，14 号字），再下面是当前工作区的内容，最底部是账号区。
 private struct DrawerPanel: View {
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -75,7 +75,7 @@ private struct DrawerPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            WorkspaceSwitch()
+            WorkspaceSwitch(inDrawer: true)
                 .padding(.horizontal, 8)
                 .padding(.top, 4)
             Group {

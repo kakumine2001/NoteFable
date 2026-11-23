@@ -54,6 +54,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
@@ -73,8 +74,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -103,37 +106,58 @@ private val PanelRing: Color get() = Sm.Ring            // --notion-shadow 0 0 0
 
 // ---------------------------------------------------------------------------------------------
 // Chat / Workspace 切换（.notion-segmented）：高 48、底色 --notion-active、圆角 8、内边距 2、两键间距 2；
-// 每键高 44、圆角 6.4、16/500、图标 16 + 间距 6.4；选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。
+// 每键高 44、圆角 6.4、16/500（抽屉里 14/500，与网页宽 240 的侧栏相同）、图标 16 + 间距 6.4、左右内距 4；
+// 选中白底、墨色字、蓝色图标、1px 细环 + 浅阴影。两键平时各占一半，名字比一半宽时那一侧按名字宽度变宽（segmentWidths，
+// 网页 minmax(max-content, 1fr)）：日文「ワークスペース」在宽 240 的抽屉里放不下一半。
 
 @Composable
-fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifier: Modifier = Modifier) {
+fun WorkspaceSwitch(workspace: Workspace, onChange: (Workspace) -> Unit, modifier: Modifier = Modifier, inDrawer: Boolean = false) {
     val label = stringResource(R.string.workspace_mode)
-    Row(
-        modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Sm.Active).padding(2.dp)
+    val fontSize = if (inDrawer) 14.sp else 16.sp
+    Layout(
+        content = {
+            Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat, fontSize) { onChange(Workspace.Chat) }
+            Segment(stringResource(R.string.note_mode), Lucide.FileText, workspace == Workspace.Notes, fontSize) { onChange(Workspace.Notes) }
+        },
+        modifier = modifier.fillMaxWidth().height(48.dp).clip(RoundedCornerShape(8.dp)).background(Sm.Active).padding(2.dp)
             .semantics { contentDescription = label },
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Segment(stringResource(R.string.chat_mode), Lucide.MessageSquareText, workspace == Workspace.Chat) { onChange(Workspace.Chat) }
-        Segment(stringResource(R.string.note_mode), Lucide.FileText, workspace == Workspace.Notes) { onChange(Workspace.Notes) }
+    ) { measurables, constraints ->
+        val gap = 2.dp.roundToPx()
+        val height = constraints.maxHeight
+        val (first, second) = segmentWidths(
+            constraints.maxWidth - gap,
+            measurables[0].maxIntrinsicWidth(height),
+            measurables[1].maxIntrinsicWidth(height),
+        )
+        val chat = measurables[0].measure(Constraints.fixed(first, height))
+        val notes = measurables[1].measure(Constraints.fixed(second, height))
+        layout(constraints.maxWidth, height) {
+            chat.placeRelative(0, 0)
+            notes.placeRelative(first + gap, 0)
+        }
     }
 }
 
 @Composable
-private fun androidx.compose.foundation.layout.RowScope.Segment(text: String, icon: List<String>, active: Boolean, onClick: () -> Unit) {
+private fun Segment(text: String, icon: List<String>, active: Boolean, fontSize: TextUnit, onClick: () -> Unit) {
     val shape = RoundedCornerShape(6.4.dp)
     Row(
-        Modifier.weight(1f).height(44.dp)
+        Modifier.height(44.dp)
             .then(if (active) Modifier.shadow(1.dp, shape, ambientColor = Color(0x140F0F0F), spotColor = Color(0x140F0F0F)) else Modifier)
             .clip(shape)
             .then(if (active) Modifier.background(Sm.Surface).border(1.dp, Sm.pick(Color(0x1A0F0F0F), Sm.Border), shape) else Modifier)
             .clickable(onClick = onClick)
-            .semantics { role = Role.Button },
+            .semantics { role = Role.Button }
+            .padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Center,
     ) {
         LucideIcon(icon, 16.dp, if (active) Sm.Blue else Sm.Muted)
         Spacer(Modifier.width(6.4.dp))
-        Text(text, color = if (active) Sm.Ink else Sm.Muted, fontSize = 16.sp, fontWeight = FontWeight.Medium, maxLines = 1)
+        Text(
+            text, color = if (active) Sm.Ink else Sm.Muted, fontSize = fontSize, fontWeight = FontWeight.Medium,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
