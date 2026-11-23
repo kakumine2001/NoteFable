@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { MAX_MATH_LATEX, MAX_NOTE_BYTES, readNoteRequest, validateNoteContent, validateNoteUpdate } from "./note-document";
+import { describe, expect, it, vi } from "vitest";
+import { MAX_MATH_LATEX, MAX_NOTE_BYTES, readNoteRequest, topLevelJsonFields, validateNoteContent, validateNoteUpdate } from "./note-document";
 
 const paragraph = { id: "p1", type: "paragraph", props: { textColor: "default", backgroundColor: "default", textAlignment: "left" }, content: [{ type: "text", text: "中文 日本語", styles: { bold: true } }], children: [] };
 
@@ -80,6 +80,54 @@ describe("page document boundary", () => {
     const request = new Request("http://localhost/api/pages", { method: "POST", body: "x".repeat(MAX_NOTE_BYTES + 1) });
     await expect(readNoteRequest(request)).rejects.toMatchObject({ status: 413 });
     await expect(readNoteRequest(new Request("http://localhost/api/pages", { method: "POST", body: "{bad" }))).rejects.toThrow("Invalid JSON");
+  });
+
+  it("lets the caller pick the too-large message from the part it did read", async () => {
+    const body = `{"kind":"slides","data":"${"x".repeat(200)}"}`;
+    const pick = vi.fn((head: string) => (head.startsWith("{\"kind\":\"slides\"") ? "slides too large" : "other"));
+    const request = new Request("http://localhost/api/pages", { method: "POST", body });
+    await expect(readNoteRequest(request, 100, pick)).rejects.toMatchObject({ status: 413, message: "slides too large" });
+    // 上限までの分を渡す（1 つの塊で届いた本文でも、先頭は読める）。
+    expect(pick.mock.calls[0][0]).toBe(body.slice(0, 100));
+    expect(await readNoteRequest(new Request("http://localhost/api/pages", { method: "POST", body: "{\"a\":1}" }), 100, pick)).toEqual({ a: 1 });
+    // 文を選ぶ関数が失敗しても 413 のまま、既定の文で断る。
+    const failing = () => { throw new Error("boom"); };
+    await expect(readNoteRequest(new Request("http://localhost/api/pages", { method: "POST", body }), 100, failing))
+      .rejects.toMatchObject({ status: 413, message: "Note content exceeds 1 MiB." });
+  });
+});
+
+describe("reading top-level fields from cut-off JSON", () => {
+  const kind = (text: string) => topLevelJsonFields(text).strings.get("kind") ?? null;
+
+  it("finds keys only at the top level, even when the JSON is cut off later", () => {
+    expect(kind("{\"kind\":\"whiteboard\",\"data\":{\"elements\":[{\"id\":\"a")).toBe("whiteboard");
+    expect(kind(" \n{ \"title\" : \"x\" , \"kind\" : \"slides\" ")).toBe("slides");
+    // 入れ子の中の同じ名前のキーは見ない。
+    expect(kind("{\"data\":{\"kind\":\"slides\",\"list\":[\"kind\",{\"kind\":\"x\"}]},\"kind\":\"whiteboard\"")).toBe("whiteboard");
+    const cut = topLevelJsonFields("{\"title\":\"a\",\"data\":{\"kind\":\"slides\"");
+    expect([...cut.keys]).toEqual(["title", "data"]);
+    expect(cut.strings.has("kind")).toBe(false);
+  });
+
+  it("keeps the last value of a repeated key, like JSON.parse", () => {
+    expect(kind("{\"kind\":\"note\",\"kind\":\"slides\",\"data\":")).toBe("slides");
+    expect(kind("{\"kind\":\"slides\",\"kind\":5}")).toBeNull();
+  });
+
+  it("is not fooled by escaped quotes or by values that look like the key", () => {
+    expect(kind("{\"title\":\"say \\\"kind\\\":\\\"slides\\\"\",\"kind\":\"note\"}")).toBe("note");
+    expect(kind("{\"title\":\"kind\",\"x\":\"slides\"}")).toBeNull();
+    expect(kind("{\"kind\":5,\"other\":\"slides\"}")).toBeNull();
+    expect(kind("{\"kind\":{\"a\":\"slides\"},\"b\":\"c\"}")).toBeNull();
+  });
+
+  it("gives up on cut-off values, other top-level shapes and broken strings", () => {
+    expect(kind("{\"kind\":\"white")).toBeNull();
+    expect(kind("{\"kind\":\"a\\")).toBeNull();
+    expect(topLevelJsonFields("[\"kind\",\"slides\"]").keys.size).toBe(0);
+    expect(topLevelJsonFields("").keys.size).toBe(0);
+    expect(kind("{\"a\":1}{\"kind\":\"slides\"}")).toBeNull();
   });
 });
 

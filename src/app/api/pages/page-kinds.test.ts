@@ -74,6 +74,24 @@ describe("creating whiteboards and slide decks", () => {
     expect(mocks.canvasUpsert).not.toHaveBeenCalled();
   });
 
+  it("refuses an oversized request with the size message of the kind it asked for", async () => {
+    // 2 MB と少しを超えた本文は最後まで読まない。種類は読めた先頭から見分ける。
+    const huge = "x".repeat(2 * 1024 * 1024 + 70 * 1024);
+    const board = await create(json({ kind: "whiteboard", title: "x", data: { elements: [{ id: "f", type: "freedraw", points: huge }] } }));
+    expect(board.status).toBe(413);
+    expect((await board.json()).error).toBe("This page is larger than 2 MB and cannot be saved.");
+    // kind が先頭でなくても、最上位なら見分ける（本体の中の "kind" には惑わされない）。
+    const deck = await create(new Request("http://localhost/api/pages", { method: "POST", body: `{"title":"x","kind":"slides","data":{"slides":[{"id":"s","kind":"note","notes":"${huge}"}]}}` }));
+    expect((await deck.json()).error).toBe("This page is larger than 2 MB and cannot be saved.");
+    // kind が読めなかった先にあっても、本体（data）があって本文（blocks）がなければホワイトボード・スライドの文。
+    const late = await create(new Request("http://localhost/api/pages", { method: "POST", body: `{"title":"x","data":{"slides":[{"id":"s","notes":"${huge}"}]},"kind":"slides"}` }));
+    expect((await late.json()).error).toBe("This page is larger than 2 MB and cannot be saved.");
+    const note = await create(json({ title: "x", blocks: [{ type: "paragraph", content: huge }] }));
+    expect(note.status).toBe(413);
+    expect((await note.json()).error).toBe("Note content exceeds 1 MiB.");
+    expect(mocks.create).not.toHaveBeenCalled();
+  });
+
   it("still creates notes as before (kind defaults to note)", async () => {
     expect((await create(json({ title: "Note", icon: null, cover: null, coverPosition: null, blocks: [] }))).status).toBe(201);
     expect(mocks.create.mock.calls[0][0].data).not.toHaveProperty("kind");

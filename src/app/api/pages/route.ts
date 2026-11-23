@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
-import { MAX_CANVAS_REQUEST_BYTES, validateCanvasPage } from "@/lib/canvas-document";
+import { CANVAS_TOO_LARGE, MAX_CANVAS_REQUEST_BYTES, validateCanvasPage } from "@/lib/canvas-document";
 import { noteApiError } from "@/lib/note-api";
 import { createCanvasPage, createNotePage } from "@/lib/note-create";
-import { NoteValidationError, readNoteRequest, validateNoteContent } from "@/lib/note-document";
+import { NoteValidationError, readNoteRequest, topLevelJsonFields, validateNoteContent } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { isCanvasKind, isPageKind } from "@/lib/page-kinds";
 import { CHAT_RECENT_COUNT } from "@/types/notes";
@@ -39,7 +39,13 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     // ノートの本文は validateNoteContent が 1 MiB で抑える。ホワイトボード・スライドは本体の上限（2 MB）まで読む。
-    const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES);
+    // それも超えた本文は最後まで読まないので、読めた先頭の最上位の kind で種類を見分け、種類に合った文で断る。
+    // kind が切れた先にあるときは、本体（data）があって本文（blocks）がなければホワイトボード・スライドとみなす。
+    const body = await readNoteRequest(request, MAX_CANVAS_REQUEST_BYTES, (head) => {
+      const { keys, strings } = topLevelJsonFields(head);
+      const canvas = strings.has("kind") ? isCanvasKind(strings.get("kind")) : keys.has("data") && !keys.has("blocks");
+      return canvas ? CANVAS_TOO_LARGE : msg("Note content exceeds 1 MiB.");
+    });
     const rawKind = (body as { kind?: unknown } | null)?.kind ?? "note";
     if (!isPageKind(rawKind)) throw new NoteValidationError(msg("Unknown page kind."));
     const parentId = (body as { parentId?: unknown } | null)?.parentId ?? null;

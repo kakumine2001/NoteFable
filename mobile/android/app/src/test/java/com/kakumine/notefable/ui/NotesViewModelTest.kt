@@ -328,6 +328,29 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `a page opened from a link keeps its kind, and a conflict copy keeps it or takes the editor's`() = runTest(dispatcher) {
+        val backend = FakeNotes().apply {
+            pages.add(NotePageSummary("s", "Deck", null, createdAt = "2026-11-13T00:00:00Z", kind = PageKind.Slides))
+            pages.add(NotePageSummary("old", "Board", null, createdAt = "2026-11-13T00:00:00Z"))
+        }
+        val vm = notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        // 点回答里的页面链接打开幻灯片：类型取列表的。
+        vm.openNoteFromLink("s")
+        advanceUntilIdle()
+        assertEquals(OpenNote("s", "Deck", null, kind = PageKind.Slides), vm.state.value.open)
+        // 冲突后网页把内容另存成新页面（ready 的 id 变了）：旧网页不带类型时保留打开时的类型。
+        vm.onEditorReady("s", "s-copy", "Deck (1)", null)
+        assertEquals(OpenNote("s-copy", "Deck (1)", null, editor = "s", kind = PageKind.Slides), vm.state.value.open)
+        advanceUntilIdle()
+        // 带类型时以网页的为准（列表是旧服务端读的、仍是笔记时也一样）。
+        vm.openNote("old")
+        advanceUntilIdle()
+        vm.onEditorReady("old", "old-copy", "Board (1)", null, PageKind.Whiteboard)
+        assertEquals(OpenNote("old-copy", "Board (1)", null, editor = "old", kind = PageKind.Whiteboard), vm.state.value.open)
+    }
+
+    @Test
     fun `missing page closes the editor without flushing and refreshes`() = runTest(dispatcher) {
         val backend = FakeNotes()
         val vm = notesVm(backend)

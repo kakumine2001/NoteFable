@@ -195,7 +195,11 @@ export function noteContentOf(page: NoteContent): NoteContent {
   return { title: page.title, icon: page.icon ?? null, cover: page.cover ?? null, coverPosition: page.coverPosition ?? null, blocks: page.blocks };
 }
 
-export async function readNoteRequest(request: Request, maxBytes = MAX_NOTE_BYTES, tooLargeMessage: string = msg("Note content exceeds 1 MiB.")) {
+// tooLargeMessage は上限を超えたときの文。関数なら、上限までに読めた先頭（途中で切れた JSON の文字列）から文を選ぶ
+// （ページの種類が本文の中にしか書かれていない作成など）。
+export async function readNoteRequest(
+  request: Request, maxBytes = MAX_NOTE_BYTES, tooLargeMessage: string | ((head: string) => string) = msg("Note content exceeds 1 MiB."),
+) {
   // 実際の受信量も制限し、Content-Length がない場合も巨大な本文を読まない。
   const reader = request.body?.getReader();
   if (!reader) throw new NoteValidationError(msg("Request body is required."));
@@ -208,19 +212,66 @@ export async function readNoteRequest(request: Request, maxBytes = MAX_NOTE_BYTE
       size += value.byteLength;
       if (size > maxBytes) {
         await reader.cancel();
-        throw new NoteValidationError(tooLargeMessage, 413);
+        // 先頭として渡すのは上限までの分（上限を超えた塊も、上限までは含める。本文が 1 つの塊で届いても先頭が読める）。
+        // 文を選ぶ関数が失敗しても 413 のまま（既定の文で断る）。
+        let message: string = msg("Note content exceeds 1 MiB.");
+        try {
+          message = typeof tooLargeMessage === "string"
+            ? tooLargeMessage
+            : tooLargeMessage(decodeChunks([...chunks, value.subarray(0, maxBytes - (size - value.byteLength))]));
+        } catch { /* 既定の文 */ }
+        throw new NoteValidationError(message, 413);
       }
       chunks.push(value);
     }
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-    const body: unknown = JSON.parse(new TextDecoder().decode(bytes));
+    const body: unknown = JSON.parse(decodeChunks(chunks));
     return body;
   } catch (error) {
     if (error instanceof NoteValidationError) throw error;
     throw new NoteValidationError(msg("Invalid JSON request."));
   } finally { reader.releaseLock(); }
+}
+
+function decodeChunks(chunks: Uint8Array[]) {
+  const bytes = new Uint8Array(chunks.reduce((total, chunk) => total + chunk.byteLength, 0));
+  let offset = 0;
+  for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+  return new TextDecoder().decode(bytes);
+}
+
+// 途中で切れているかもしれない JSON の、最上位のオブジェクトのキーと、文字列の値（入れ子の中の同じ名前のキーは見ない）。
+// 同じキーが 2 度あれば JSON.parse と同じく後のもの。読み終わる前に切れた値は入れない。最上位がオブジェクトでなければ空。
+// 上限を超えて最後まで読まなかった本文の種類（kind）を見分けるためのもの。再帰せず、先頭から 1 回なめるだけ。
+export function topLevelJsonFields(text: string): { keys: Set<string>; strings: Map<string, string> } {
+  const keys = new Set<string>();
+  const strings = new Map<string, string>();
+  let index = text.search(/\S/);
+  if (index < 0 || text[index] !== "{") return { keys, strings };
+  index += 1;
+  let depth = 1;
+  let expectKey = true;
+  let currentKey: string | null = null;
+  while (index < text.length) {
+    const char = text[index];
+    if (char === "\"") {
+      let end = index + 1;
+      while (end < text.length && text[end] !== "\"") end += text[end] === "\\" ? 2 : 1;
+      if (end >= text.length) break;
+      if (depth === 1) {
+        let value: unknown;
+        try { value = JSON.parse(text.slice(index, end + 1)); } catch { break; }
+        if (expectKey) { currentKey = value as string; keys.add(currentKey); strings.delete(currentKey); expectKey = false; }
+        else if (currentKey !== null) strings.set(currentKey, value as string);
+      }
+      index = end + 1;
+      continue;
+    }
+    if (char === "{" || char === "[") depth += 1;
+    else if (char === "}" || char === "]") { depth -= 1; if (depth === 0) break; }
+    else if (char === "," && depth === 1) { expectKey = true; currentKey = null; }
+    index += 1;
+  }
+  return { keys, strings };
 }
 
 export function validateNoteUpdate(value: unknown) {
