@@ -170,25 +170,26 @@ function renderBlock(
   const textAlign = alignStyle(props.textAlignment);
   const blockStyle: CSSProperties | undefined =
     colors || textAlign ? { ...colors, ...(textAlign ? { textAlign } : {}) } : undefined;
+  // 段組みは段ごとに中身を描く（下の共通の子ブロックの描画は使わない。両方で描くと入れ子の段組みで仕事が倍々になる）。
+  if (block.type === "columnList") {
+    return (
+      <div key={block.id} className="public-note-columns">
+        {(block.children ?? []).filter((column) => column.type === "column").map((column) => {
+          const width = column.props?.width;
+          return (
+            <div key={column.id} className="public-note-column" style={validColumnWidth(width) ? { flexGrow: width } : undefined}>
+              {renderBlockList(column.children ?? [], labels)}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
   const renderedChildren =
     Array.isArray(block.children) && block.children.length > 0 ? renderBlockList(block.children, labels) : null;
   const childrenNode = renderedChildren ? <div className="public-note-children">{renderedChildren}</div> : null;
 
   switch (block.type) {
-    // 段組み: 段を横に並べる（幅は段の比。狭い画面では CSS で縦に積む）。
-    case "columnList":
-      return (
-        <div key={block.id} className="public-note-columns">
-          {(block.children ?? []).filter((column) => column.type === "column").map((column) => {
-            const width = column.props?.width;
-            return (
-              <div key={column.id} className="public-note-column" style={validColumnWidth(width) ? { flexGrow: width } : undefined}>
-                {renderBlockList(column.children ?? [], labels)}
-              </div>
-            );
-          })}
-        </div>
-      );
     case "paragraph": {
       const inline = renderInline(block.content);
       return (

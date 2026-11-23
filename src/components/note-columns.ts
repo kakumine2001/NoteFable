@@ -76,10 +76,18 @@ const LEFT_EDGE_GAP = 8;
 
 function sideDropTarget(view: EditorView, event: DragEvent): SideTarget | null {
   if (!view.editable || !view.dragging) return null;
+  // ブロックを丸ごとつかんだドラッグだけ（文字の選択を運ぶときは、選んでいない文字を巻き込まないよう通常のドロップにする）。
+  if (view.dragging.slice.openStart !== 0 || view.dragging.slice.openEnd !== 0) return null;
   const editorRect = view.dom.getBoundingClientRect();
   const x = Math.min(Math.max(event.clientX, editorRect.left + 1), editorRect.right - 1);
   const hit = view.dom.ownerDocument.elementFromPoint(x, event.clientY);
-  const element = hit instanceof Element && view.dom.contains(hit) ? hit.closest<HTMLElement>('[data-node-type="blockContainer"]') : null;
+  let element = hit instanceof Element && view.dom.contains(hit) ? hit.closest<HTMLElement>('[data-node-type="blockContainer"]') : null;
+  // 段の余白（ブロックの外）の上なら、その高さにある段の中のブロックを対象にする（細い段でも左右に置ける）。
+  const column = !element && hit instanceof Element && view.dom.contains(hit) ? hit.closest<HTMLElement>(`[data-node-type="${COLUMN}"]`) : null;
+  if (column) {
+    const blocks = Array.from(column.querySelectorAll<HTMLElement>(':scope > [data-node-type="blockOuter"] > [data-node-type="blockContainer"]'));
+    element = blocks.find((block) => { const rect = block.getBoundingClientRect(); return event.clientY >= rect.top && event.clientY <= rect.bottom; }) ?? null;
+  }
   const id = element?.getAttribute("data-id");
   if (!id) return null;
   const found = getNodeById(id, view.state.doc);
@@ -147,12 +155,13 @@ function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, mov
   if (!slice) return false;
   const dragged = fragmentToBlocks(slice.content) as unknown as JsonBlock[];
   if (!dragged.length) return false;
-  // この文書から運んだ（コピーではない）ブロックは元の場所から外す。外した後で、段が空になれば core が片付ける。
+  // この文書から運んだ（コピーではない）ブロックは元の場所から外す。
+  // 先に新しい位置へ（新しい ID で）入れてから元を外す。先に外すと、元の段が空になって段組みごと片付けられ、
+  // 置き先の段組みが消えたり崩れたりする。外した後で元の段が空になれば core が片付ける。
   const local = moved && dragStartedIn(view) && dragged.every((block) => block.id && editor.getBlock(block.id));
-  const moving = local ? unwrapColumns(dragged) : withoutIds(unwrapColumns(dragged));
+  const moving = withoutIds(unwrapColumns(dragged));
   let firstMoved: string | undefined;
   editor.transact(() => {
-    if (local) editor.removeBlocks(dragged.map((block) => block.id!));
     const targetBlock = editor.getBlock(target.blockId);
     if (!targetBlock) return;
     const parent = editor.getParentBlock(target.blockId);
@@ -170,6 +179,7 @@ function dropBeside(editor: AnyEditor, view: EditorView, target: SideTarget, mov
       const list = insertedBlocks[0] as unknown as JsonBlock | undefined;
       firstMoved = list?.children?.[target.before ? 0 : 1]?.children?.[0]?.id;
     }
+    if (local) editor.removeBlocks(dragged.map((block) => block.id!).filter((id) => editor.getBlock(id)));
   });
   // 運んだ先頭のブロックにキャレットを置く（文字を持たないブロックなら何もしない）。
   if (firstMoved) { try { editor.setTextCursorPosition(firstMoved, "end"); } catch { /* 表・画像など */ } }
@@ -181,6 +191,12 @@ const RESIZE_HIT = 6;
 const MIN_COLUMN_PX = 48;
 const HOVER_CLASS = "bn-column-list-hovered";
 const BORDER_CLASS = "bn-column-resize-border";
+
+// 段の幅のうち flex-grow で分けられる部分（左右の余白は段ごとに固定なので除く）。幅の比はこの長さの比になる。
+function flexWidth(element: HTMLElement) {
+  const style = getComputedStyle(element);
+  return element.getBoundingClientRect().width - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+}
 
 function columnElements(list: Element) {
   return Array.from(list.children).filter((child): child is HTMLElement => child instanceof HTMLElement && child.getAttribute("data-node-type") === COLUMN);
@@ -286,7 +302,7 @@ function resizePlugin() {
         const rightWidth = widthOf(border.right);
         drag = {
           startX: event.clientX, rtl: isRtl(border.left), left: border.left, right: border.right,
-          leftPx: border.left.getBoundingClientRect().width, rightPx: border.right.getBoundingClientRect().width,
+          leftPx: flexWidth(border.left), rightPx: flexWidth(border.right),
           total: leftWidth + rightWidth, leftWidth, rightWidth,
         };
         document.body.classList.add("notes-column-resizing");
@@ -324,6 +340,7 @@ function isEmptyColumn(column: PMNode) {
 }
 
 function dropCleanupPlugin() {
+  let startedHere = false;
   return new Plugin({
     key: new PluginKey("notes-column-drop-cleanup"),
     view(view) {
@@ -331,10 +348,11 @@ function dropCleanupPlugin() {
       const onStart = (event: Event) => {
         const target = event.target instanceof Element ? event.target : null;
         const container = view.dom.closest(".bn-container");
-        dragOrigins.set(view, !!target && (view.dom.contains(target) || (!!container && target.closest(".bn-container") === container)));
+        startedHere = !!target && (view.dom.contains(target) || (!!container && target.closest(".bn-container") === container));
+        dragOrigins.set(view, startedHere);
       };
       // drop の処理が終わってから消す。
-      const onEnd = () => { setTimeout(() => dragOrigins.delete(view), 0); };
+      const onEnd = () => { setTimeout(() => { dragOrigins.delete(view); startedHere = false; }, 0); };
       const root = view.root as Document;
       root.addEventListener("dragstart", onStart, true);
       root.addEventListener("dragend", onEnd, true);
@@ -349,8 +367,9 @@ function dropCleanupPlugin() {
     appendTransaction(transactions, oldState, newState) {
       if (!transactions.some((tr) => tr.docChanged && tr.getMeta("uiEvent") === "drop")) return null;
       // ブロックをつかんだドラッグ（ノードの選択）だけ。文字の選択を運んでも段は空にならない。
+      // このエディターで始めたドラッグに限る（外から文字やファイルを落としたときに、キャレットのある段を消さない）。
       const selection = oldState.selection;
-      if (!(selection instanceof NodeSelection) && selection.content().openStart !== 0) return null;
+      if (!startedHere || selection.empty || (!(selection instanceof NodeSelection) && selection.content().openStart !== 0)) return null;
       const $from = oldState.doc.resolve(selection.from);
       // 元の段は「段組みの位置 + 何番目の段か」で追う（ドロップで段のノード自体が置き換わることがあるため）。
       let listPos = -1;
@@ -411,7 +430,11 @@ export const columnSpec = createBlockSpecFromTiptapNode({ node: ColumnNode, type
 // スラッシュメニューの「2 列」など。空の段落にいればそれを置き換え、そうでなければ下に入れる。
 // 段の中では使えない（段の中に段組みは作らない）。
 export function canInsertColumns(editor: AnyEditor) {
-  return editor.getParentBlock(editor.getTextCursorPosition().block.id)?.type !== COLUMN;
+  // 段の中の入れ子（字下げした子ブロック）でも出さない。
+  for (let parent = editor.getParentBlock(editor.getTextCursorPosition().block.id); parent; parent = editor.getParentBlock(parent.id)) {
+    if (parent.type === COLUMN) return false;
+  }
+  return true;
 }
 
 export function insertColumns(editor: AnyEditor, count: number) {
