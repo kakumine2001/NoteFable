@@ -10,10 +10,14 @@ import { saveAppIcon } from "@/lib/app-icon";
 import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppIcon, readNativeLanguage, readNativeTheme, toEmbedSaveState } from "@/lib/native-bridge";
 import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
+import { pageKindOf } from "@/lib/page-kinds";
 
 const noop = () => {};
 
 // Android アプリが WebView に載せる、1 ページだけのノート画面（/note-embed?page=<id>）。
+// ホワイトボード・スライドもこの同じ URL で開く（古いアプリは別の URL をシステムのブラウザに渡してしまうため）。エディターができるまでは
+// NotesWorkspace が読み取り専用の仮の画面を出し、橋渡し（flush・saveState・openHistory・pageUpdated・pageSettings・theme・language など）は
+// ノートと同じに動く（保存するものが無いので flush はいつも ok）。
 // 中身は /app のスマホのノート画面の本文（封面・アイコン・題名・BlockNote・AI ボタン）と同じ部品で、上部バーとサイドバーはアプリ側が描く。
 // 保存・下書きの退避・衝突の扱いは useNotePages と NoteSaveQueue をそのまま使う。アプリとのやり取りは src/lib/native-bridge.ts。
 export function NoteEmbed() {
@@ -75,13 +79,14 @@ export function NoteEmbed() {
   const icon = active?.content.icon;
   const status = active?.status;
   const gone = active?.gone;
+  const kind = pageKindOf(active?.page);
   useEffect(() => {
     if (!active || !activeId || loading || title === undefined) return;
     const meta = pageMeta({ title, icon: icon ?? null });
     // 衝突を「新しいノートとして保存」すると、開いているノートが新しいページに替わる。そのときも ready を送り直す。
     if (sent.current.readyId !== activeId) {
       sent.current = { readyId: activeId, meta: JSON.stringify(meta), state: "", goneId: "" };
-      postToNative({ type: "ready", page: { id: activeId, ...meta } });
+      postToNative({ type: "ready", page: { id: activeId, ...meta, kind } });
     } else if (sent.current.meta !== JSON.stringify(meta)) {
       sent.current.meta = JSON.stringify(meta);
       postToNative({ type: "meta", ...meta });
@@ -97,7 +102,7 @@ export function NoteEmbed() {
       sent.current.goneId = activeId;
       postToNative({ type: "missing" });
     }
-  }, [active, activeId, loading, title, icon, status, gone]);
+  }, [active, activeId, loading, title, icon, status, gone, kind]);
 
   const retry = async () => { if (pageId) await select(pageId, "none"); };
 

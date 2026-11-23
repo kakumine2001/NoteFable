@@ -5,7 +5,7 @@ import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
 import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
-import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, FileText, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
+import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
@@ -25,6 +25,7 @@ import { useI18n, useT } from "@/components/i18n-provider";
 import { cachedBlockNoteDictionary, fallbackBlockNoteDictionary, loadBlockNoteDictionary } from "@/lib/i18n/blocknote-locales";
 import type { Locale, TextDirection } from "@/lib/i18n/locale";
 import { msg } from "@/lib/i18n/translate";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 export function sideMenuPlacementFor(dir: TextDirection): "left-start" | "right-start" {
   return dir === "rtl" ? "right-start" : "left-start";
@@ -482,7 +483,7 @@ function useMentionPages(given: MentionPage[] | undefined, blocks: NoteContent["
     if (given || started.current) return;
     started.current = true;
     void fetch("/api/pages", { cache: "no-store" }).then((response) => response.ok ? response.json() : null)
-      .then((data: { pages?: MentionPage[] } | null) => { if (data?.pages) setFetched(data.pages.map(({ id, title, icon }) => ({ id, title, icon }))); else started.current = false; })
+      .then((data: { pages?: MentionPage[] } | null) => { if (data?.pages) setFetched(data.pages.map(({ id, kind, title, icon }) => ({ id, kind, title, icon }))); else started.current = false; })
       .catch(() => { started.current = false; });
   }, [given]);
   // ページのメンションがあるノートは、開いた時にタイトルを最新にするため読む。最初の内容だけを見る（入力のたびに全体を文字列にしない）。
@@ -662,7 +663,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
       .map((item) => ({ key: `date:${item.key}`, title: item.title, subtext: formatNoteDate(item.date, locale), group: t("Date"), icon: <CalendarDays size={18} />, onItemClick: insert(dateMention(item.date)) }));
     const pageItems = (pageMentions ? pages ?? [] : []).filter((page) => page.id !== currentPageId && (!q || (page.title || t("Untitled")).toLowerCase().includes(q)))
       .slice(0, 8).map((page) => ({ key: `page:${page.id}`, title: page.title || t("Untitled"), group: t("Link to page"),
-        icon: page.icon ? <span className="notes-mention-menu-emoji"><NoteIcon icon={page.icon} /></span> : <FileText size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
+        icon: page.icon ? <span className="notes-mention-menu-emoji"><NoteIcon icon={page.icon} /></span> : <PageKindIcon kind={page.kind} size={18} />, onItemClick: insert(pageMention(page.id, page.title)) }));
     return [...pageItems, ...dates];
   }
 

@@ -1,4 +1,6 @@
+import { canvasReadableText, parseCanvasSegments } from "@/lib/canvas-document";
 import { blocksToMarkdown } from "@/lib/note-markdown";
+import { isCanvasKind, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { MAX_PROJECT_NOTES } from "@/types/chat";
 
@@ -9,8 +11,19 @@ import { MAX_PROJECT_NOTES } from "@/types/chat";
 export const MAX_CONTEXT_NOTE_CHARS = 8000;
 export const MAX_CONTEXT_TOTAL_CHARS = 20000;
 
-export type ProjectContextNote = { id: string; title: string; markdown: string; truncated: boolean };
+export type ProjectContextNote = { id: string; kind?: PageKind; title: string; markdown: string; truncated: boolean };
 export type ProjectContext = { projectName: string; instructions: string | null; notes: ProjectContextNote[] };
+
+// ページをモデルに渡す文字にする。ノートは Markdown、ホワイトボード・スライドは保存時に取り出した文字（本体は読まない）。
+export function pageContextText(page: { kind?: unknown; blocks: unknown; canvas?: { segments: unknown } | null }) {
+  const kind = pageKindOf(page);
+  return isCanvasKind(kind) ? canvasReadableText(kind, parseCanvasSegments(page.canvas?.segments)) : blocksToMarkdown(page.blocks);
+}
+
+// ノート以外のページの見出しに付ける印（モデルがどの種類のページか分かるように）。
+export function pageKindMarker(kind: PageKind | undefined) {
+  return kind === "whiteboard" ? " [whiteboard]" : kind === "slides" ? " [slide deck]" : "";
+}
 
 // 上限で切る。サロゲートペアの途中では切らない。
 export function clip(text: string, limit: number) {
@@ -31,7 +44,7 @@ export async function loadProjectContext(userId: string, projectId: string): Pro
         where: { note: { userId, deletedAt: null } },
         orderBy: [{ position: "asc" }, { createdAt: "asc" }],
         take: MAX_PROJECT_NOTES,
-        select: { note: { select: { id: true, title: true, blocks: true } } },
+        select: { note: { select: { id: true, kind: true, title: true, blocks: true, canvas: { select: { segments: true } } } } },
       },
     },
   });
@@ -39,9 +52,9 @@ export async function loadProjectContext(userId: string, projectId: string): Pro
   const instructions = project.instructions?.trim() || null;
   let remaining = MAX_CONTEXT_TOTAL_CHARS;
   const notes = project.notes.map(({ note }) => {
-    const { text, truncated } = clip(blocksToMarkdown(note.blocks).trim(), Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
+    const { text, truncated } = clip(pageContextText(note).trim(), Math.min(MAX_CONTEXT_NOTE_CHARS, remaining));
     remaining -= text.length;
-    return { id: note.id, title: note.title.trim() || "Untitled", markdown: text, truncated };
+    return { id: note.id, kind: pageKindOf(note), title: note.title.trim() || "Untitled", markdown: text, truncated };
   });
   return instructions || notes.length ? { projectName: project.name, instructions, notes } : null;
 }
@@ -70,7 +83,7 @@ export function formatProjectContext(context: ProjectContext, canReadNotes = tru
     );
     context.notes.forEach((note, index) => {
       lines.push(
-        `=== Reference note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${note.truncated ? " [truncated]" : ""} ===`,
+        `=== Reference note ${index + 1}: ${JSON.stringify(note.title.slice(0, 200))} (id: ${note.id})${pageKindMarker(note.kind)}${note.truncated ? " [truncated]" : ""} ===`,
         defang(note.markdown) || (note.truncated ? "(left out because of the size limit)" : "(empty)"),
         `=== End of reference note ${index + 1} ===`,
       );

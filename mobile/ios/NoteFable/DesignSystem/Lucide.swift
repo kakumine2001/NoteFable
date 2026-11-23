@@ -43,6 +43,18 @@ enum Lucide {
         "M16 13H8",
         "M16 17H8",
     ]
+    // 页面类型的默认图标（网页 page-kind-icon.tsx）：白板 Shapes、幻灯片 Presentation，lucide-react 1.16.0；rect / circle 换成等价的 path
+    // （和 Android 的 Lucide.kt 相同）。
+    static let shapes: [String] = [
+        "M8.3 10a.7.7 0 0 1-.626-1.079L11.4 3a.7.7 0 0 1 1.198-.043L16.3 8.9a.7.7 0 0 1-.572 1.1Z",
+        "M4 14h5a1 1 0 0 1 1 1v5a1 1 0 0 1 -1 1h-5a1 1 0 0 1 -1 -1v-5a1 1 0 0 1 1 -1Z",
+        "M14 17.5a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0 -7 0",
+    ]
+    static let presentation: [String] = [
+        "M2 3h20",
+        "M21 3v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V3",
+        "m7 21 5-5 5 5",
+    ]
     // 「整理成笔记」（网页 page.tsx / create-page-dialog.tsx 的 FilePlus）。
     static let filePlus: [String] = [
         "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
@@ -301,4 +313,14 @@ enum Lucide {
         logOut,
         folderInput,
     ]
+}
+
+/// 页面类型的默认图标（页面没有表情 / 图片图标时显示，网页 PageKindIcon，Android `pageKindIcon`）：
+/// 笔记 FileText、白板 Shapes、幻灯片 Presentation。
+func pageKindIcon(_ kind: PageKind) -> [String] {
+    switch kind {
+    case .note: return Lucide.fileText
+    case .whiteboard: return Lucide.shapes
+    case .slides: return Lucide.presentation
+    }
 }

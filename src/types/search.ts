@@ -1,6 +1,7 @@
 // Chats と Notes の横断検索。API・サーバー側の検索・ダイアログが共有する型と、ブラウザでも使える純粋な関数だけを置く
 // （prisma を読み込むモジュールをクライアントから import しないため、検索語の分割はここに置く）。
 import { foldSearchText } from "@/lib/search-fold";
+import type { PageKind } from "@/lib/page-kinds";
 
 export const SEARCH_SCOPES = ["all", "chats", "notes"] as const;
 export type SearchScope = (typeof SEARCH_SCOPES)[number];
@@ -14,10 +15,12 @@ export const SEARCH_PROJECT_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 export type NoteSearchResult = {
   kind: "note";
   id: string;
+  // ページの種類（ノート・ホワイトボード・スライド）。kind は結果の区分（note / chat）なので別の名前にする。
+  pageKind: PageKind;
   title: string;
   icon: string | null;
   snippet: string;
-  // 一致したブロックの ID。タイトルだけが一致した場合は null（ノートの先頭を開く）。
+  // 一致した場所の ID：ノートはブロック、ホワイトボードは要素、スライドはページ。タイトルだけが一致した場合は null（先頭を開く）。
   blockId: string | null;
   updatedAt: string;
 };

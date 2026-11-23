@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import type { ToolDefinition, ToolRun } from "@/lib/chat-tools";
+import { canvasReadableText, parseCanvasSegments } from "@/lib/canvas-document";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { isEmojiIcon } from "@/lib/emoji-icon";
 import { createAttachmentResolver, listChatAttachments } from "@/lib/note-attachments";
@@ -9,7 +10,8 @@ import { saveProposal } from "@/lib/note-proposals";
 import { applyPageEdits, MAX_EDITS, PageEditError, parseNewPageMarkdown } from "@/lib/page-edit";
 import { AI_SEMANTIC_THRESHOLD, scheduleNoteEmbeddingBackfill, semanticSearchNotes } from "@/lib/note-embeddings";
 import { databaseSchema, prisma } from "@/lib/prisma";
-import { noteBodyValues, termHit } from "@/lib/search";
+import { isCanvasKind, pageKindOf, type CanvasKind, type PageKind } from "@/lib/page-kinds";
+import { canvasBodyValues, noteBodyValues, termHit } from "@/lib/search";
 import { buildSearchSnippet, foldSearchText, likePattern } from "@/lib/search-fold";
 import { parseSearchTerms } from "@/types/search";
 import { fmt, msg } from "@/lib/i18n/translate";
@@ -23,7 +25,7 @@ export { blocksToMarkdown };
 export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: "search_notes",
-    description: "Search all of the user's notes in their NoteFable Workspace by keywords and by meaning. Notes whose title or text contain every word (ignoring case, full-width/half-width and hiragana/katakana differences) come first, then notes with a similar meaning even when they use different wording or another language. Returns up to 10 matches with note IDs and short snippets. An empty query lists the most recently edited notes.",
+    description: "Search all of the user's pages in their NoteFable Workspace (notes, whiteboards and slide decks) by keywords and by meaning. Pages whose title or text contain every word (ignoring case, full-width/half-width and hiragana/katakana differences) come first, then pages with a similar meaning even when they use different wording or another language. Returns up to 10 matches with page IDs, their kind (note, whiteboard or slides) and short snippets. An empty query lists the most recently edited pages.",
     parameters: {
       type: "object",
       properties: { query: { type: "string", description: "Words to look for in note titles and text. Use an empty string to list recent notes." } },
@@ -33,10 +35,10 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "read_note",
-    description: "Read one of the user's notes (in their NoteFable Workspace) as Markdown. Use a note ID returned by search_notes. Every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here.",
+    description: "Read one of the user's pages in their NoteFable Workspace. Use an ID returned by search_notes. A note comes back as Markdown where every block starts with its number like [3]; propose_note_edit refers to blocks by these numbers and needs the version shown here. A whiteboard or slide deck comes back as its text only (read-only): propose_note_edit cannot change it.",
     parameters: {
       type: "object",
-      properties: { noteId: { type: "string", description: "The note ID from search_notes." } },
+      properties: { noteId: { type: "string", description: "The page ID from search_notes." } },
       required: ["noteId"],
       additionalProperties: false,
     },
@@ -48,7 +50,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
   },
   {
     name: "propose_note_edit",
-    description: `Propose changes to one of the user's notes (in their NoteFable Workspace). This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). read_note shows an uploaded image or file as [Image: name — caption] or [File: name]; you can replace or delete those blocks like any other (the user is warned that the upload leaves the note), and a replacement may contain an image line (below). To put an image the user sent in this chat into the note, use the line \`![caption](attachment:ID)\` with an ID from list_chat_attachments, on its own line. Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), and block math ('$$' on its own lines around LaTeX); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, \`$inline math$\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
+    description: `Propose changes to one of the user's notes in their NoteFable Workspace (kind note only: whiteboards and slide decks cannot be changed with it). This does NOT change the note: the user sees the proposal and must approve it, so never say the note was changed. Call read_note first and pass its noteId and version; if the note changed since then the proposal is rejected and you must read again. Edits refer to the [n] block numbers shown by read_note (all edits in one call use the numbering of that read). Operations: "replace" swaps block n and its nested children for the markdown; "insert_after" adds the markdown after block n (block 0 = at the very start of the note); "delete" removes block n and its nested children (markdown must be null). read_note shows an uploaded image or file as [Image: name — caption] or [File: name]; you can replace or delete those blocks like any other (the user is warned that the upload leaves the note), and a replacement may contain an image line (below). To put an image the user sent in this chat into the note, use the line \`![caption](attachment:ID)\` with an ID from list_chat_attachments, on its own line. Markdown: each non-empty line becomes one block; # to ### headings, - bullets, 1. numbered items, - [ ] tasks, > quotes, code fences, --- dividers, '▸ text' toggles ('# ▸ text' is a toggle heading; indent the hidden content by 2 spaces below it), '> [!💡] text' callouts (any single emoji), GFM tables (a '| a | b |' header row, a '| --- | --- |' line, then rows; the whole table is one block, so replace it as a whole), and block math ('$$' on its own lines around LaTeX); indent nested list items by 2 spaces; **bold**, *italic*, ~~strike~~, \`code\`, \`$inline math$\`, [text](https://url). Up to ${MAX_EDITS} edits per call. Use title to rename the note (null keeps the title).`,
     parameters: {
       type: "object",
       properties: {
@@ -92,7 +94,7 @@ export const PAGE_TOOL_DEFINITIONS: ToolDefinition[] = [
 const SEARCH_RESULT_LIMIT = 10;
 export const MAX_READ_CHARS = 20_000;
 
-type SearchRow = { id: string; title: string; updatedAt: Date; body: string | null };
+type SearchRow = { id: string; kind: string; title: string; updatedAt: Date; body: string | null };
 
 export { likePattern };
 
@@ -101,7 +103,7 @@ export function buildSnippet(body: string | null, terms: string[]) {
   return buildSearchSnippet(body, terms.map(foldSearchText));
 }
 
-type PageSearchResult = { id: string; title: string; snippet: string; updatedAt: string };
+type PageSearchResult = { id: string; kind: PageKind; title: string; snippet: string; updatedAt: string };
 
 // 所有者のページ（ゴミ箱のものを除く）を DB 側で検索する。全語を含むページだけを、タイトル一致の多い順、更新日の新しい順に返す。
 // 語は畳み込み（search-fold.ts）、DB 側は本文を畳み込まず語のほうを正規表現に広げる（サイト内検索と同じ）。
@@ -116,16 +118,17 @@ async function searchPagesByKeyword(userId: string, terms: string[]): Promise<Pa
     ? Prisma.sql`${Prisma.join(terms.map((term) => Prisma.sql`(CASE WHEN ${termHit('p."title"', term)} THEN 1 ELSE 0 END)`), " + ")} DESC, `
     : Prisma.empty;
   const rows = await prisma.$queryRaw<SearchRow[]>(Prisma.sql`
-    SELECT p."id", p."title", p."updatedAt", t."body"
+    SELECT p."id", p."kind"::text AS "kind", p."title", p."updatedAt", t."body"
     FROM ${table} p
+    LEFT JOIN ${Prisma.raw(`"${databaseSchema}"."NoteCanvas"`)} c ON c."noteId" = p."id"
     CROSS JOIN LATERAL (
       SELECT string_agg(value, ' ') AS "body"
-      FROM jsonb_array_elements_text(${noteBodyValues(table)})
+      FROM jsonb_array_elements_text(${noteBodyValues(table)} || ${canvasBodyValues()})
     ) t
     WHERE p."userId" = ${userId} AND p."deletedAt" IS NULL${filter}
     ORDER BY ${order}p."updatedAt" DESC
     LIMIT ${SEARCH_RESULT_LIMIT}`);
-  return rows.map((row) => ({ id: row.id, title: row.title, snippet: buildSearchSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
+  return rows.map((row) => ({ id: row.id, kind: pageKindOf(row), title: row.title, snippet: buildSearchSnippet(row.body, terms), updatedAt: new Date(row.updatedAt).toISOString() }));
 }
 
 // キーワード（表記ゆれを吸収した部分一致）で見つかったものを先に、枠が余っていれば意味が近いもの（別の言い回し・別の言語）を後ろに足す。
@@ -139,7 +142,7 @@ export async function searchPages(userId: string, query: string): Promise<PageSe
   const seen = new Set(keyword.map((page) => page.id));
   const extra = semantic.hits
     .filter((hit) => !seen.has(hit.id))
-    .map((hit) => ({ id: hit.id, title: hit.title, snippet: buildSearchSnippet(hit.chunkText || hit.title, terms), updatedAt: hit.updatedAt.toISOString() }));
+    .map((hit) => ({ id: hit.id, kind: hit.kind, title: hit.title, snippet: buildSearchSnippet(hit.chunkText || hit.title, terms), updatedAt: hit.updatedAt.toISOString() }));
   return [...keyword, ...extra].slice(0, SEARCH_RESULT_LIMIT);
 }
 function input(value: unknown, key: string) {
@@ -151,6 +154,19 @@ function toolError(content: string, label: string = msg("Edit proposal rejected"
   return { content, isError: true, label };
 }
 
+const KIND_NAMES: Record<CanvasKind, string> = { whiteboard: "a whiteboard", slides: "a slide deck" };
+
+// ホワイトボード・スライドは、読める文字だけを返す（ブロック番号は付けず、編集案は出せないと明記する）。完全な AI 操作は #158。
+function readCanvasPage(page: { id: string; title: string; version: number; updatedAt: Date; segments: unknown }, kind: CanvasKind): ToolRun {
+  const text = canvasReadableText(kind, parseCanvasSegments(page.segments));
+  const body = `# ${page.title}\n\n${text || "(This page has no text.)"}`;
+  const content = body.length > MAX_READ_CHARS ? `${body.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the text is longer than ${MAX_READ_CHARS} characters.]` : body;
+  return {
+    content: `noteId: ${page.id}\nkind: ${kind}\nversion: ${page.version}\nupdatedAt: ${page.updatedAt.toISOString()}\n\nThis page is ${KIND_NAMES[kind]}, not a note. Below is only the text on it, read-only: propose_note_edit cannot change it.\n\n${content}`,
+    label: fmt("Read “{title}”", { title: page.title }),
+  };
+}
+
 // ノートは変更しない。編集案を検証して保存し画面に出す。ユーザーが適用するまでノートは動かない。
 async function proposePageEdit(args: unknown, userId: string, sessionId: string, excludeMessageIds: string[]): Promise<ToolRun> {
   const value = args && typeof args === "object" ? args as Record<string, unknown> : {};
@@ -158,8 +174,11 @@ async function proposePageEdit(args: unknown, userId: string, sessionId: string,
   if (!pageId) return toolError("noteId must be a non-empty string.");
   if (!Number.isSafeInteger(value.version)) return toolError("version must be the integer shown by read_note.");
   if (value.title !== null && value.title !== undefined && typeof value.title !== "string") return toolError("title must be a string or null.");
-  const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true } });
+  const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, kind: true, title: true, blocks: true, version: true } });
   if (!page) return toolError("Note not found.", msg("Note not found"));
+  // ホワイトボード・スライドの本体はノートのブロックではない。ノートの編集案として書き換えさせない。
+  const kind = pageKindOf(page);
+  if (isCanvasKind(kind)) return toolError(`This page is ${KIND_NAMES[kind]}, not a note, so propose_note_edit cannot change it. Tell the user it cannot be edited from chat yet.`);
   if (page.version !== value.version) {
     return toolError(`The note changed after you read it (it is now version ${page.version}). Call read_note again and redo the edits.`, msg("Note changed since it was read"));
   }
@@ -247,8 +266,13 @@ export async function runPageTool(name: string, args: unknown, userId: string, s
   if (name === "read_note") {
     const pageId = input(args, "noteId");
     if (!pageId) return { content: "noteId must be a non-empty string.", isError: true, label: msg("Invalid note read") };
-    const page = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, title: true, blocks: true, version: true, updatedAt: true } });
+    const page = await prisma.notePage.findFirst({
+      where: { id: pageId, userId, deletedAt: null },
+      select: { id: true, kind: true, title: true, blocks: true, version: true, updatedAt: true, canvas: { select: { segments: true } } },
+    });
     if (!page) return { content: "Note not found.", isError: true, label: msg("Note not found") };
+    const kind = pageKindOf(page);
+    if (isCanvasKind(kind)) return readCanvasPage({ ...page, segments: page.canvas?.segments }, kind);
     const markdown = `# ${page.title}\n\n${blocksToMarkdown(page.blocks, 0, { n: 0 })}`;
     const content = markdown.length > MAX_READ_CHARS
       ? `${markdown.slice(0, MAX_READ_CHARS)}\n\n[Truncated: the note is longer than ${MAX_READ_CHARS} characters.]`

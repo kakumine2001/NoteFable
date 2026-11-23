@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 空白聊天页输入栏上方的「最近编辑」（Android ui/ChatRecentNotes.kt；网页 412×915 下实测）：
 /// 标题行（13 / 600 灰，右边"全部笔记" 13 灰 + ChevronRight 14，触控区高 48），下面一排可以横向滚动的卡片（间距 8）。
-/// 卡片 152×101、圆角 14.4、白底 1px 描边、内边距 11×13、行距 4：32 的图标格（圆角 8、浅底；表情 16 或 FileText 18）、
+/// 卡片 152×101、圆角 14.4、白底 1px 描边、内边距 11×13、行距 4：32 的图标格（圆角 8、浅底；表情 16 或页面类型图标 18）、
 /// 标题 14 / 600 单行、状态 12 灰（"添加" / ✓ "已添加"）。点卡片把笔记加到下一条消息（再点取消），已添加的是浅蓝底蓝描边；
 /// 加满了、或正在上传附件时没添加的变淡（.55）不能点。右上角 48 的 ↗ 打开那篇笔记。
 struct ChatRecentNotes: View {
@@ -43,7 +43,7 @@ struct ChatRecentNotes: View {
                             page: page,
                             attached: selected.contains { $0.id == page.id },
                             canToggle: canToggleRecentNote(page.id, selected: selected, enabled: enabled),
-                            onToggle: { onToggle(ChatProjectNote(id: page.id, title: page.title, icon: page.icon)) },
+                            onToggle: { onToggle(ChatProjectNote(page: page)) },
                             onOpen: { onOpen(page.id) }
                         )
                     }
@@ -71,7 +71,7 @@ private struct ChatRecentNoteCard: View {
         Button(action: onToggle) {
             VStack(alignment: .leading, spacing: 4) {
                 Group {
-                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 18)
+                    NoteIconGlyph(page.icon, emojiSize: 16, iconSize: 18, kind: page.kind)
                 }
                 .frame(width: 32, height: 32)
                 .background(Sm.sidebar, in: RoundedRectangle(cornerRadius: 8))

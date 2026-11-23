@@ -5,6 +5,7 @@ import { useId, useState, type ReactNode } from "react";
 import { AnswerMenu } from "@/components/answer-actions";
 import { useT } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
+import { pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
 import { pageSettingsOf, type NotePageFont, type NotePageSettings, type NotePageSummary } from "@/types/notes";
 
 const FONTS: { key: NotePageFont; label: string }[] = [
@@ -19,6 +20,7 @@ function ToggleItem({ icon, label, checked, onToggle }: { icon?: ReactNode; labe
 }
 
 // ノートの上部バーの「…」（Notion のページメニュー）。表示設定・ロック・お気に入り・複製・サブページ・移動・書き出し・ゴミ箱。
+// ページの種類で出す項目を変える：書体・小さい文字・全幅・Markdown の書き出しはノートだけ（PAGE_KIND_FEATURES）。
 export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDuplicate, onAddSubpage, onMove, onExport, onTrash }: {
   page: NotePageSummary;
   busy: boolean;
@@ -35,6 +37,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
   const id = useId();
   const [menu, setMenu] = useState<{ anchor: DOMRect; trigger: HTMLButtonElement; focusLast: boolean } | null>(null);
   const settings = pageSettingsOf(page);
+  const features = pageKindFeatures(pageKindOf(page));
   const close = () => setMenu(null);
   // 操作を選んだらメニューを閉じてから実行する（ダイアログ・画面遷移と重ならないように）。
   const run = (action: () => void) => () => { close(); action(); };
@@ -50,16 +53,18 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
       <Ellipsis size={20} />
     </button>
     {menu && <AnswerMenu id={id} label={t("Page options")} className="notes-page-menu" anchor={menu.anchor} trigger={menu.trigger} focusLast={menu.focusLast} onClose={close}>
-      <div className="notes-menu-label">{t("Style")}</div>
-      <div className="notes-menu-fonts">
-        {FONTS.map((font) => <button key={font.key} type="button" role="menuitemradio" aria-checked={settings.font === font.key}
-          className={`notes-menu-font notes-font-${font.key}`} onClick={() => onSettings({ font: font.key })}>
-          <span className="notes-menu-font-sample" aria-hidden="true">Ag</span>{t(font.label)}
-        </button>)}
-      </div>
-      <hr className="chat-menu-divider" />
-      <ToggleItem label={t("Small text")} checked={settings.smallText} onToggle={() => onSettings({ smallText: !settings.smallText })} />
-      <ToggleItem label={t("Full width")} checked={settings.fullWidth} onToggle={() => onSettings({ fullWidth: !settings.fullWidth })} />
+      {features.typography && <>
+        <div className="notes-menu-label">{t("Style")}</div>
+        <div className="notes-menu-fonts">
+          {FONTS.map((font) => <button key={font.key} type="button" role="menuitemradio" aria-checked={settings.font === font.key}
+            className={`notes-menu-font notes-font-${font.key}`} onClick={() => onSettings({ font: font.key })}>
+            <span className="notes-menu-font-sample" aria-hidden="true">Ag</span>{t(font.label)}
+          </button>)}
+        </div>
+        <hr className="chat-menu-divider" />
+        <ToggleItem label={t("Small text")} checked={settings.smallText} onToggle={() => onSettings({ smallText: !settings.smallText })} />
+        <ToggleItem label={t("Full width")} checked={settings.fullWidth} onToggle={() => onSettings({ fullWidth: !settings.fullWidth })} />
+      </>}
       <ToggleItem icon={<Lock size={16} aria-hidden="true" />} label={t("Lock page")} checked={settings.locked} onToggle={() => onSettings({ locked: !settings.locked })} />
       <hr className="chat-menu-divider" />
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(() => onFavorite(!page.favoritedAt))}>
@@ -69,7 +74,7 @@ export function NotePageMenu({ page, busy, error, onSettings, onFavorite, onDupl
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onDuplicate)}><Copy size={16} aria-hidden="true" />{t("Duplicate")}</button>
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onAddSubpage)}><FilePlus2 size={16} aria-hidden="true" />{t("Add a page inside")}</button>
       <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onMove)}><FolderInput size={16} aria-hidden="true" />{t("Move to")}</button>
-      {onExport && <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onExport)}><Download size={16} aria-hidden="true" />{t("Export Markdown")}</button>}
+      {onExport && features.markdownExport && <button type="button" role="menuitem" className="chat-menu-item" onClick={run(onExport)}><Download size={16} aria-hidden="true" />{t("Export Markdown")}</button>}
       <hr className="chat-menu-divider" />
       <button type="button" role="menuitem" className="chat-menu-item is-danger" onClick={run(onTrash)}><Trash2 size={16} aria-hidden="true" />{t("Move to Trash")}</button>
       {error && <p role="alert" className="answer-menu-error">{localizeSystemText(error, t)}</p>}

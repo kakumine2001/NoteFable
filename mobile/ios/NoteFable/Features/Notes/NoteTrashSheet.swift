@@ -159,7 +159,7 @@ private struct NoteTrashSheetContent: View {
     }
 }
 
-/// 回收站里的一篇：图标 24（表情 17 / 文件图标 16）+ 间距 12 + 标题 15 / 500 和时间 12 灰；下一行是靠行尾的按钮
+/// 回收站里的一篇：图标 24（表情 17 / 页面类型图标 16）+ 间距 12 + 标题 15 / 500 和时间 12 灰；下一行是靠行尾的按钮
 /// （“恢复”“永久删除”，点了“永久删除”换成“永久删除？”“取消”“永久删除”）。
 @MainActor
 private struct NoteTrashRow: View {
@@ -172,7 +172,7 @@ private struct NoteTrashRow: View {
         let notes = app.notes
         VStack(alignment: .leading, spacing: 6.4) {
             HStack(spacing: 12) {
-                NoteIconGlyph(item.icon, emojiSize: 17, iconSize: 16)
+                NoteIconGlyph(item.icon, emojiSize: 17, iconSize: 16, kind: item.kind)
                     .frame(width: 24, height: 24)
                 VStack(alignment: .leading, spacing: 1.6) {
                     Text(item.title)

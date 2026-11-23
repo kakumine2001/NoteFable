@@ -1,14 +1,16 @@
 "use client";
 
 import { createReactInlineContentSpec } from "@blocknote/react";
-import { CalendarDays, FileText } from "lucide-react";
+import { CalendarDays } from "lucide-react";
 import { createContext, useContext, useRef } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { NoteIcon } from "@/components/note-icon";
 import { isNoteDate } from "@/lib/note-mention";
+import { PageKindIcon } from "@/components/page-kind-icon";
+import type { PageKind } from "@/lib/page-kinds";
 
 // Notion の「@」メンション: ページへのリンク（いまのタイトルとアイコンを表示し、押すとそのページを開く）と日付。
-export type MentionPage = { id: string; title: string; icon: string | null };
+export type MentionPage = { id: string; kind?: PageKind; title: string; icon: string | null };
 
 export type NoteMentionContextValue = {
   // 自分のページの一覧。まだ読んでいない間は null（/note-embed では「@」を初めて打った時に読む）。
@@ -60,7 +62,7 @@ export const createMentionSpec = createReactInlineContentSpec(
         title={missing ? t("This page is not available") : label}
         onMouseDown={(event) => event.preventDefault()}
         onClick={(event) => { event.preventDefault(); if (!missing) openPage(pageId); }}>
-        <span className="note-mention-icon" aria-hidden><NoteIcon icon={page?.icon} fallback={<FileText size={14} strokeWidth={1.8} />} /></span>
+        <span className="note-mention-icon" aria-hidden><NoteIcon icon={page?.icon} fallback={<PageKindIcon kind={page?.kind} size={14} strokeWidth={1.8} />} /></span>
         <span className="note-mention-title">{label}</span>
       </a>;
     },

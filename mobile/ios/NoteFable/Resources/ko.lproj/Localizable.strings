@@ -352,6 +352,11 @@
 "language_effective" = "현재 언어";
 "language_no_results" = "언어를 찾을 수 없어요.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "노트";
+"page_kind_whiteboard" = "화이트보드";
+"page_kind_slides" = "슬라이드";
+
 /* strings_pages.xml */
 "pg_favorites" = "즐겨찾기";
 "pg_no_pages_inside" = "하위 페이지 없음";

@@ -47,6 +47,12 @@ enum SearchHit: Equatable, Sendable, Identifiable {
         return false
     }
 
+    /// 笔记结果的页面类型（没有图标时按它画默认图标）；聊天是 nil。
+    var pageKind: PageKind? {
+        guard case .note(let result) = self else { return nil }
+        return result.pageKind
+    }
+
     /// 列表里的键：笔记和聊天的 ID 可能相同，所以带上种类。
     var key: String { (isChat ? "chat:" : "note:") + id }
 }

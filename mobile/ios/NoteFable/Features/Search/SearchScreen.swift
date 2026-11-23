@@ -8,7 +8,7 @@ import SwiftUI
 //     Chats 标签页且有项目时右侧是项目筛选（高 40、最宽 48%、1px 线、圆角 6、左右 6.4、16 灰）。
 //   结果区（上 5.6、左右 6.4、下 12）：分组标题 12 / 600 灰（上 8、左右 9.6、下 4）；
 //     行 最小高 52、内边距 9.6、圆角 6、间距 10.4，当前行 --notion-hover 底；图标区 22.4（上 0.8，表情 16 / 图标 16 灰）；
-//     标题 15 / 500 单行，后面 8 处项目名 12 浅灰（最宽 40%）；摘录 13 行高 1.4 灰、最多两行，命中词黄色底 rgba(255,207,0,.4)；
+//     标题 15 / 500 单行，后面 8 处项目名 / 白板、幻灯片的类型名 12 浅灰（最宽 40%）；摘录 13 行高 1.4 灰、最多两行，命中词黄色底 rgba(255,207,0,.4)；
 //     附件命中时摘录前是 回形针 12 + "in 文件名" 12 / 500 正文色；日期 12 浅灰，上距 2.4。
 //   空 / 失败 / 无结果：内边距 20×12.8、间距 6.4，标题 15 / 600 正文色，说明 14 行高 21 灰；“检索中”是转圈 16 + 14 灰字，间距 8。
 //   键盘提示（"Use ↑ ↓ to move…"）在触屏上不显示（@media (hover: none)）。
@@ -172,12 +172,12 @@ private struct SearchPanel: View {
         }
     }
 
-    /// 选了一条结果：聊天结果切到聊天并定位到命中的消息；笔记结果用结果里的标题和图标打开（列表还没读过也能开）。
+    /// 选了一条结果：聊天结果切到聊天并定位到命中的消息；笔记结果用结果里的标题、图标和页面类型打开（列表还没读过也能开）。
     /// 两个入口都会先关掉检索面板和抽屉（和网页一样先关检索再跳转）。
     private func select(_ hit: SearchHit) {
         switch hit {
         case .note(let note):
-            router.openNote(note.id, title: note.title, icon: note.icon)
+            router.openNote(note.id, title: note.title, icon: note.icon, kind: note.pageKind)
         case .chat(let chat):
             router.openChat(chat.id, messageId: chat.messageId)
         }
@@ -380,7 +380,7 @@ private struct SearchResultRow: View {
             HStack(alignment: .top, spacing: 10.4) {
                 NFIconTile(
                     emoji: hit.icon,
-                    fallback: hit.isChat ? Lucide.messageSquareText : Lucide.fileText,
+                    fallback: hit.pageKind.map(pageKindIcon) ?? Lucide.messageSquareText,
                     box: 22.4, glyph: 16
                 )
                 .padding(.top, 0.8)
@@ -392,13 +392,11 @@ private struct SearchResultRow: View {
                             .foregroundStyle(Sm.text)
                             .lineLimit(1)
                         if let projectName {
-                            // 项目名保持自己的宽度（最宽约 40%），标题用剩下的、放不下省略。
-                            Text(projectName)
-                                .font(.nf(12))
-                                .foregroundStyle(Sm.faint)
-                                .lineLimit(1)
-                                .frame(maxWidth: 116, alignment: .leading)
-                                .fixedSize(horizontal: true, vertical: false)
+                            headLabel(projectName)
+                        }
+                        // 白板、幻灯片在标题后面加类型名（和项目名同样的小字），打开前就知道会看到什么；笔记是默认，不加（网页 search-dialog.tsx）。
+                        if let kindLabel = hit.kindLabel {
+                            headLabel(L(kindLabel))
                         }
                     }
                     if !hit.snippet.isEmpty {
@@ -424,6 +422,17 @@ private struct SearchResultRow: View {
             .frame(minHeight: 52, alignment: .top)
         }
         .buttonStyle(.pressable(background: active ? Sm.hover : Color.clear, cornerRadius: 6))
+    }
+
+    /// 标题后面的小字（.search-row-project：聊天的项目名、白板 / 幻灯片的类型名）：保持自己的宽度（最宽约 40%），
+    /// 标题用剩下的、放不下省略。
+    private func headLabel(_ text: String) -> some View {
+        Text(text)
+            .font(.nf(12))
+            .foregroundStyle(Sm.faint)
+            .lineLimit(1)
+            .frame(maxWidth: 116, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     /// 摘录：前面是说话人（"You: " / "NoteFable: "），命中附件正文时换成回形针 + "in 文件名"（不显示说话人）。

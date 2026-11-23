@@ -63,12 +63,12 @@ internal fun ChatRecentNotes(
                             .background(if (attached) Sm.AccentSoft else Color.Transparent)
                             .border(1.dp, if (attached) Sm.AccentLine else Sm.Border, shape)
                             .toggleable(value = attached, enabled = canToggle, role = Role.Checkbox) {
-                                onToggle(ChatProjectNote(page.id, page.title, page.icon))
+                                onToggle(ChatProjectNote(page.id, page.title, page.icon, page.kind))
                             }.padding(horizontal = 13.dp, vertical = 11.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Box(Modifier.size(32.dp).background(Sm.Sidebar, RoundedCornerShape(8.dp)), contentAlignment = Alignment.Center) {
-                            NoteIcon(page.icon, 16.sp, 18.dp, Sm.Muted)
+                            NoteIcon(page.icon, 16.sp, 18.dp, Sm.Muted, page.kind)
                         }
                         Text(title, color = Sm.Text, fontSize = 14.sp, lineHeight = 21.sp, fontWeight = FontWeight.SemiBold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)

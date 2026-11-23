@@ -352,6 +352,11 @@
 "language_effective" = "اللغة الحالية";
 "language_no_results" = "لم يتم العثور على لغات.";
 
+/* strings_page_kinds.xml */
+"page_kind_note" = "ملاحظة";
+"page_kind_whiteboard" = "السبورة";
+"page_kind_slides" = "الشرائح";
+
 /* strings_pages.xml */
 "pg_favorites" = "المفضلة";
 "pg_no_pages_inside" = "لا توجد صفحات فرعية";

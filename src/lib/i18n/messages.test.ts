@@ -3,8 +3,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import ts from "typescript";
 import { en as blockNoteEn } from "@blocknote/core/locales";
-import { Converter } from "opencc-js";
 import { describe, expect, it } from "vitest";
+import { toTraditional } from "../../../scripts/zh-hant-terms";
 import { BLOCKNOTE_LOCALES_DIR, renderUpstreamBlockNoteLocale, UPSTREAM_BLOCKNOTE_LOCALES } from "../../../scripts/gen-blocknote-locales";
 import { cachedBlockNoteDictionary, loadBlockNoteDictionary } from "./blocknote-locales";
 import { LOCALES, type Locale } from "./locale";
@@ -83,8 +83,7 @@ describe.each(TRANSLATED_LOCALES)("%s UI and server dictionary", (locale) => {
 
 describe("Traditional Chinese dictionary", () => {
   it("is regenerated from the Simplified Chinese dictionaries (npx tsx scripts/generate-zh-hant.ts)", () => {
-    const convert = Converter({ from: "cn", to: "twp" });
-    const expected = Object.fromEntries(Object.entries({ ...zh, ...zhServer }).map(([key, value]) => [key, convert(value)]));
+    const expected = Object.fromEntries(Object.entries({ ...zh, ...zhServer }).map(([key, value]) => [key, toTraditional(value)]));
     expect(zhHant).toEqual(expected);
   });
 });

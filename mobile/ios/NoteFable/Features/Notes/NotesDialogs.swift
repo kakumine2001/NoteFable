@@ -374,7 +374,7 @@ private struct MoveNoteDialog: View {
             moveToPage(target.page.id)
         } label: {
             HStack(spacing: 8) {
-                NFIconTile(emoji: target.page.icon, fallback: Lucide.fileText, box: 20, glyph: 15)
+                NFIconTile(emoji: target.page.icon, fallback: pageKindIcon(target.page.kind), box: 20, glyph: 15)
                 Text(target.page.title)
                     .font(.nf(15, weight: checked ? 600 : 400))
                     .foregroundStyle(Sm.text)

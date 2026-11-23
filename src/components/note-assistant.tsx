@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, FileText, History, Paperclip, SquarePen, X } from "lucide-react";
+import { ArrowUp, History, Paperclip, SquarePen, X } from "lucide-react";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
@@ -33,6 +33,7 @@ import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, 
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
 import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
+import { PageKindIcon } from "@/components/page-kind-icon";
 
 // よく使う頼み事。押すとそのまま送る。
 const QUICK_ACTIONS = [
@@ -774,7 +775,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
               <li key={page.id}>
                 <button type="button" className="note-ai-attachment" disabled={busy} aria-label={t("Remove {title}", { title: page.title || t("Untitled") })}
                   onClick={() => { setError(""); setAttachedPages((list) => list.filter((item) => item.id !== page.id)); }}>
-                  {page.icon ? <span aria-hidden="true"><NoteIcon icon={page.icon} /></span> : <FileText size={13} aria-hidden="true" />}
+                  {page.icon ? <span aria-hidden="true"><NoteIcon icon={page.icon} /></span> : <PageKindIcon kind={page.kind} size={13} aria-hidden="true" />}
                   <span className="truncate">{page.title || t("Untitled")}</span>
                   <X size={13} aria-hidden="true" />
                 </button>

@@ -4,6 +4,7 @@ import { assertNoteFilesOwner } from "@/lib/note-files";
 import { claimNoteFiles } from "@/lib/stored-files";
 import { createRevision } from "@/lib/note-revisions";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
+import { isCanvasKind, NOT_A_NOTE_ERRORS, pageKindOf } from "@/lib/page-kinds";
 import { prisma } from "@/lib/prisma";
 import { msg } from "@/lib/i18n/translate";
 
@@ -106,8 +107,9 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
         const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "APPLIED" } });
         if (!claimed.count) return null;
         // 提案を作った時点の版と一致する時だけ書く（ゴミ箱のノートには書かない）。外れたら「適用済み」への切り替えごと取り消す。
+        // ノート以外（ホワイトボード・スライド）には書かない（本体はノートのブロックではない）。
         const current = await tx.notePage.findFirst({
-          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null },
+          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null, kind: "note" },
           select: { id: true, title: true, icon: true, blocks: true, version: true },
         });
         if (!current) throw new Conflict();
@@ -116,7 +118,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
         // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
         await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", title: current.title, icon: current.icon, blocks: current.blocks, version: current.version });
         const changed = await tx.notePage.updateMany({
-          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null },
+          where: { id: payload.pageId, userId, version: payload.baseVersion, deletedAt: null, kind: "note" },
           data: { title: content.title, blocks: content.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
         });
         if (!changed.count) throw new Conflict();
@@ -144,8 +146,11 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
   } catch (error) {
     if (error instanceof Conflict) {
       const payload = row.payload as EditPayload;
-      const exists = await prisma.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null }, select: { id: true } });
-      return exists ? fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal.")) : fail(404, msg("Note not found."));
+      const exists = await prisma.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null }, select: { id: true, kind: true } });
+      if (!exists) return fail(404, msg("Note not found."));
+      const kind = pageKindOf(exists);
+      if (isCanvasKind(kind)) return fail(409, NOT_A_NOTE_ERRORS[kind]);
+      return fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal."));
     }
     if (error instanceof NoteValidationError) return fail(error.status, error.message);
     throw error;
