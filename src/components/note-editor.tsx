@@ -4,11 +4,12 @@ import { BlockNoteSchema, COLORS_DEFAULT, createCodeBlockSpec, createExtension, 
 import { codeBlockOptions, syntaxHighlighter } from "@blocknote/code-block";
 import { BlockNoteView } from "@blocknote/ariakit";
 import { SideMenuExtension, SuggestionMenu, filterSuggestionItems, insertOrUpdateBlockForSlashMenu } from "@blocknote/core/extensions";
-import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FileReplaceButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
+import { BasicTextStyleButton, BlockColorsItem, ColorStyleButton, CreateLinkButton, DragHandleButton, DragHandleMenu, FileCaptionButton, FileDeleteButton, FileDownloadButton, FilePanel, FilePanelController, FilePreviewButton, FileRenameButton, FormattingToolbar, FormattingToolbarController, SideMenu, SideMenuController, SuggestionMenuController, TableCellMergeButton, TableColumnHeaderItem, TableRowHeaderItem, getDefaultReactSlashMenuItems, useBlockNoteEditor, useComponentsContext, useCreateBlockNote, useDictionary, useEditorState, useExtensionState, usePortalElement, type DefaultReactSuggestionItem, type FilePanelProps, type SuggestionMenuProps } from "@blocknote/react";
 import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Columns3, Columns4, Copy, Heading1, Lightbulb, Loader2, Radical, Sigma, Sparkles, Trash2, Heading2, Heading3, List, ListOrdered, Minus, Plus, Quote, Table, Text, Type, Upload } from "lucide-react";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
+import { externalFilesGuard } from "@/components/note-external-files";
 import { storageLimitFromUpload } from "@/lib/storage-limit-client";
 import { StorageLimitError } from "@/lib/usage-plans";
 import { normalizeQuote } from "@/lib/chat-quote";
@@ -281,13 +282,14 @@ function NoteSideMenu() {
 }
 
 // 画像・ファイルの追加パネル。Notion の「Embed link」は出さず、アップロードだけにする。
-function NoteFilePanel(props: FilePanelProps) {
+// onUploaded: アップロードしてブロックを差し替えたあと（差し替えのポップオーバーを閉じる）。
+function NoteFilePanel({ onUploaded, ...props }: FilePanelProps & { onUploaded?: () => void }) {
   const t = useT();
-  return <FilePanel {...props} tabs={[{ name: t("Upload"), tabPanel: <NoteUploadTab {...props} /> }]} />;
+  return <FilePanel {...props} tabs={[{ name: t("Upload"), tabPanel: <NoteUploadTab {...props} onUploaded={onUploaded} /> }]} />;
 }
 
 // ブラウザ標準の「Choose File」ではなく、アプリの見た目のボタンで選ばせる。進行中と失敗も画面に出す。
-function NoteUploadTab({ blockId }: FilePanelProps) {
+function NoteUploadTab({ blockId, onUploaded }: FilePanelProps & { onUploaded?: () => void }) {
   const t = useT();
   const editor = useBlockNoteEditor(schema);
   const [state, setState] = useState<{ phase: "idle" | "uploading" | "failed"; message?: string }>({ phase: "idle" });
@@ -309,6 +311,9 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
       const result = await editor.uploadFile?.(file, blockId);
       // 待っている間にブロックが消されたら何もしない。
       if (result && editor.getBlock(blockId)) editor.updateBlock(blockId, typeof result === "string" ? { props: { url: result, name: file.name } } : result);
+      // 追加のパネルはブロックが埋まると閉じるが、差し替えのパネルは開いたままなので、元の表示に戻して閉じる。
+      setState({ phase: "idle" });
+      onUploaded?.();
     } catch (error) {
       setState({ phase: "failed", message: error instanceof Error && error.message ? error.message : msg("Upload failed. Try again.") });
     } finally {
@@ -327,6 +332,35 @@ function NoteUploadTab({ blockId }: FilePanelProps) {
         {state.phase === "failed" ? t(state.message ?? "", { size: MAX_NOTE_FILE_BYTES / 1024 / 1024 }) : t("Up to 4 MB.")}
       </p>
     </div>
+  );
+}
+
+// 画像・ファイルの差し替え。BlockNote 標準の「Replace」は標準のパネル（外部リンクを入れる「Embed」付き）を開くが、
+// ノートは自分のサービスのファイルしか持てず（validateNoteContent）、外部リンクを入れると保存できなくなる。
+// 追加のときと同じ、アップロードだけのパネルを開く（失敗や容量の上限の理由もパネルに出る）。
+export function NoteFileReplaceButton() {
+  const editor = useBlockNoteEditor(schema);
+  const Components = useComponentsContext()!;
+  const portalElement = usePortalElement();
+  const dict = useDictionary();
+  const [open, setOpen] = useState(false);
+  const block = useEditorState({ editor, selector: () => {
+    if (!editor.isEditable) return undefined;
+    const selected = editor.getSelection()?.blocks ?? [editor.getTextCursorPosition().block];
+    return selected.length === 1 && (selected[0].type === "image" || selected[0].type === "file") ? selected[0] : undefined;
+  } });
+  if (!block) return null;
+  const label = dict.formatting_toolbar.file_replace.tooltip[block.type] || dict.formatting_toolbar.file_replace.tooltip.file;
+  return (
+    // 閉じたらエディターへフォーカスを戻す（スマホでキーボードとツールバーが消えないように。標準のボタンと同じ）。
+    <Components.Generic.Popover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) editor.focus(); }} portalElement={portalElement}>
+      <Components.Generic.Popover.Trigger>
+        <Components.FormattingToolbar.Button className="bn-button" mainTooltip={label} label={label} icon={<Upload size={16} />} />
+      </Components.Generic.Popover.Trigger>
+      <Components.Generic.Popover.Content className="bn-popover-content bn-panel-popover" variant="panel-popover">
+        <NoteFilePanel blockId={block.id} onUploaded={() => { setOpen(false); editor.focus(); }} />
+      </Components.Generic.Popover.Content>
+    </Components.Generic.Popover.Root>
   );
 }
 
@@ -367,7 +401,7 @@ function NoteFormattingToolbar() {
   }));
   if (media) return <FormattingToolbar>
     <FileCaptionButton />
-    <FileReplaceButton />
+    <NoteFileReplaceButton />
     <FileRenameButton />
     <FileDownloadButton />
     <FilePreviewButton />
@@ -512,7 +546,7 @@ function NoteEditorBody({ blocks, onChange, editable, editorRef, onFocusTitle, o
   const uploadEditorRef = useRef<{ getBlock: (id: string) => { props: unknown } | undefined; removeBlocks: (ids: string[]) => unknown } | null>(null);
   const editor = useCreateBlockNote({
     schema,
-    extensions: [syntaxHighlighter],
+    extensions: [syntaxHighlighter, externalFilesGuard],
     tabBehavior: "prefer-indent",
     // 表: 見出しの行・列、セルの結合と分割、セルごとの文字色・背景色（いずれも BlockNote の既定では無効）。
     tables: { headers: true, splitCells: true, cellBackgroundColor: true, cellTextColor: true },
