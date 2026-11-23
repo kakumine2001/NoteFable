@@ -43,7 +43,29 @@ export const GUEST_NETWORK_LIMITS: Record<UsageKind, number> = { chat: 100, imag
 // 「回答を報告」の 1 日の回数（報告は開発者へのメールになるので、送らせすぎない）。未ログインは同じネットワークでも数える。
 export const REPORT_LIMITS = { user: 10, guestNetwork: 20 };
 
+const MIB = 1024 * 1024;
+
+// ファイル置き場（Private Vercel Blob）に置ける合計の容量（バイト）。チャットの添付画像・生成した画像・ノートのファイル・
+// カバー・プロフィール画像など、その利用者のファイルをすべて足して数える（src/lib/stored-files.ts）。
+// 超えると新しいアップロードを断る（置いてあるファイルはそのまま）。表示は 1024 進で「MB」「GB」（4 MiB を「4 MB」と書くのと同じ）。
+export const STORAGE_LIMITS: Record<UsageTier, number> = {
+  guest: 100 * MIB,
+  member: 500 * MIB,
+  pro: 10 * 1024 * MIB,
+};
+
+// ワークスペース（ノートの画像・ファイル、カバー、ページアイコン。今後のホワイトボードやスライドの画像も）に
+// アップロードできる 1 ファイルの上限。Vercel Functions の受信上限 4.5 MB に multipart の余白を残す。
+// チャットの添付は別（Blob へ直接送るので 1 ファイル 20 MiB、upload-limits.ts）。
+export const MAX_STORED_FILE_BYTES = 4 * MIB;
+
+// Android / iOS の安装包に入れる上限（assets/usage-limits.json、scripts/gen-native-usage-limits.ts）。回数に容量（バイト）を足したもの。
+export function nativeUsageLimits() {
+  return Object.fromEntries((Object.keys(USAGE_LIMITS) as UsageTier[]).map((tier) => [tier, { ...USAGE_LIMITS[tier], storage: STORAGE_LIMITS[tier] }]));
+}
+
 export const USAGE_LIMIT_CODE = "usage_limit";
+export const STORAGE_LIMIT_CODE = "storage_limit";
 
 // 429 の本文 { error, code: "usage_limit", tier, kind } を画面側で区別するための例外。
 export class UsageLimitError extends Error {
@@ -60,4 +82,35 @@ export function usageLimitErrorFrom(status: number, data: unknown): UsageLimitEr
   const body = data as Record<string, unknown>;
   if (body.code !== USAGE_LIMIT_CODE || typeof body.error !== "string" || !TIERS.includes(String(body.tier))) return null;
   return new UsageLimitError(body.error, body.tier as UsageTier, body.kind === "image" ? "image" : "chat");
+}
+
+// 413 の本文 { error, code: "storage_limit", tier, used, limit } を画面側で区別するための例外。
+// used / limit はバイト数。画面は tier を見て、未ログインならログイン、無料ならアップグレードを勧める。
+export class StorageLimitError extends Error {
+  constructor(message: string, readonly tier: UsageTier, readonly used: number, readonly limit: number) {
+    super(message);
+    this.name = "StorageLimitError";
+  }
+}
+
+const byteCount = (value: unknown) => typeof value === "number" && Number.isSafeInteger(value) && value >= 0 ? value : null;
+
+export function storageLimitErrorFrom(status: number, data: unknown): StorageLimitError | null {
+  if (status !== 413 || !data || typeof data !== "object") return null;
+  const body = data as Record<string, unknown>;
+  const used = byteCount(body.used);
+  const limit = byteCount(body.limit);
+  if (body.code !== STORAGE_LIMIT_CODE || typeof body.error !== "string" || !TIERS.includes(String(body.tier)) || used === null || limit === null) return null;
+  return new StorageLimitError(body.error, body.tier as UsageTier, used, limit);
+}
+
+// 容量の表示（「12.5 MB」「10 GB」）。1024 進で、単位は KB / MB / GB（言語によらず同じ）。数字の区切りは表示言語に合わせる。
+export function formatStorageSize(bytes: number, tag = "en") {
+  const value = Math.max(0, bytes);
+  const [amount, unit] = value >= 1024 * MIB ? [value / (1024 * MIB), "GB"] : value >= MIB ? [value / MIB, "MB"] : [value / 1024, "KB"];
+  // 10 未満だけ小数第 1 位まで出す（0.4 MB、2.5 GB）。KB は整数。
+  const digits = unit !== "KB" && amount < 10 ? 1 : 0;
+  // 切り捨てて、使用量が実際より多く見えないようにする（上限ちょうどの 500 MB を 500 MB と出す）。
+  const shown = Math.floor(amount * 10 ** digits) / 10 ** digits;
+  return `${new Intl.NumberFormat(tag, { maximumFractionDigits: digits }).format(shown)} ${unit}`;
 }

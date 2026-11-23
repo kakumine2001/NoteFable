@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { NoteValidationError, validateNoteContent } from "./note-document";
 import { noteFileKeyParts, noteFileUrl, parseNoteFileUrl, safeFileName } from "./note-file-keys";
-import { assertNoteFilesOwner, classifyUpload } from "./note-files";
+import { assertNoteFilesOwner, classifyUpload, noteFilePaths } from "./note-files";
 import { blocksToMarkdown, markdownToBlocks, type NoteBlock } from "./note-markdown";
 import { applyPageEdits } from "./page-edit";
 
@@ -132,5 +132,13 @@ describe("media blocks and the AI edit tools", () => {
     const text = blocksToMarkdown(blocks);
     expect(text.startsWith("new intro\n[Image: pic.png — A cat]\nbelow the image")).toBe(true);
     expect(text).toContain("[File: a.pdf]");
+  });
+});
+
+describe("files a note refers to", () => {
+  it("collects each uploaded file once, from nested blocks too, and skips empty uploads", () => {
+    const nested = { id: "p", type: "paragraph", props: {}, content: [], children: [media("file", { url: url("user1", "pdf", "a.pdf") }), media("image")] };
+    expect(noteFilePaths([media("image"), nested, media("image", { url: "" })]).sort()).toEqual([`note-files/user1/${UUID}.pdf`, `note-files/user1/${UUID}.png`]);
+    expect(noteFilePaths(null)).toEqual([]);
   });
 });

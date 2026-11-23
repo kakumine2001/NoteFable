@@ -408,7 +408,7 @@
 "plan_past_due" = "上次扣款失败。请更新付款方式以继续使用 Pro。";
 "plan_load_failed" = "无法加载你的方案。";
 "plan_offer_title" = "NoteFable Pro · 每月 %1$s";
-"plan_offer_body" = "每月 %1$s 条消息、生成 %2$d 张图片。随时可以取消。";
+"plan_offer_body" = "每月 %1$s 条消息、生成 %2$d 张图片，以及 %3$s 存储空间。随时可以取消。";
 "plan_upgrade" = "升级到 Pro";
 "plan_manage_play" = "在 Google Play 上管理订阅";
 "plan_welcome" = "欢迎使用 NoteFable Pro";
@@ -420,6 +420,13 @@
 "plan_trial_start" = "开始 %1$d 天免费试用";
 "plan_trial_note" = "前 %1$d 天免费，之后每月 %2$s。试用结束前取消就不会扣费。";
 "plan_trial_ends" = "免费试用将于 %1$s 结束，之后 Pro 每月 ¥%2$d。";
+"plan_storage" = "存储空间";
+"plan_storage_help" = "删除的文件约一周后释放空间。回收站和版本历史中的文件仍计入用量。";
+"storage_limit_title" = "存储空间不足";
+"storage_limit_used" = "已使用 %1$s，共 %2$s。";
+"storage_limit_sign_in" = "登录后可使用 %1$s 存储空间。";
+"storage_limit_upgrade" = "升级 Pro（每月 %2$s），可使用 %1$s 存储空间。";
+"storage_limit_delete" = "删除不再需要的文件即可释放空间。";
 
 /* strings_report.xml */
 "report_answer" = "报告回答";

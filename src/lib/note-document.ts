@@ -4,6 +4,7 @@ import { parseNoteFileUrl } from "@/lib/note-file-keys";
 import { validMention } from "@/lib/note-mention";
 import { COLUMN, COLUMN_LIST, MAX_STORED_COLUMNS, validColumnWidth } from "@/lib/note-columns";
 import type { NoteContent } from "@/types/notes";
+import { MAX_STORED_FILE_BYTES } from "@/lib/usage-plans";
 import { msg, fmt } from "@/lib/i18n/translate";
 
 export const NOTE_BLOCK_TYPES = ["paragraph", "heading", "bulletListItem", "numberedListItem", "checkListItem", "toggleListItem", "quote", "callout", "codeBlock", "divider", "table", "image", "file", "mathBlock", "columnList", "column"] as const;
@@ -32,8 +33,8 @@ export type NoteCover = keyof typeof NOTE_COVERS;
 // アップロード画像のカバーは「upload:page-covers/<所有者 ID>/<UUID>.<拡張子>」の形で保存する。
 // 所有者 ID をパスに含め、他人の画像キーを自分のページに付け替えられないようにする。
 const UPLOAD_COVER = /^upload:(page-covers\/([a-z0-9]{1,64})\/[0-9a-f-]{36}\.(?:jpg|png|webp|gif))$/;
-// Vercel Functions の受信上限 4.5 MB に multipart の余白を残す。
-export const MAX_COVER_BYTES = 4 * 1024 * 1024;
+// 1 ファイルの上限（ノートのファイルと同じ。数値は usage-plans.ts にまとめてある）。
+export const MAX_COVER_BYTES = MAX_STORED_FILE_BYTES;
 
 export function uploadedCoverPath(cover: unknown) {
   const match = typeof cover === "string" ? cover.match(UPLOAD_COVER) : null;

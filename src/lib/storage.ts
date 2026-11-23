@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { mkdir, readFile, rm, writeFile } from "fs/promises";
+import { mkdir, readdir, readFile, rm, stat, writeFile } from "fs/promises";
 import path from "path";
 import { optionalEnv } from "@/lib/env";
 import { msg } from "@/lib/i18n/translate";
@@ -61,18 +61,20 @@ export function getImageExtension(mimeType: string) {
   return IMAGE_EXTENSIONS[mimeType] ?? ".bin";
 }
 
-export async function writeStoredImage(buffer: Buffer, mimeType: string) {
-  // 画像は日付ごとのフォルダに分け、ファイル名は UUID にする。
-  // DB には storage root からの相対パスだけを保存し、環境ごとの保存先変更に追従しやすくする。
-  const date = new Date();
-  const folder = path.join(
+// チャットの画像の保存先。日付ごとのフォルダに分け、ファイル名は UUID にする。
+// DB には storage root からの相対パスだけを保存し、環境ごとの保存先変更に追従しやすくする。
+export function newChatImagePath(mimeType: string, date = new Date()) {
+  const folder = [
     "images",
     String(date.getUTCFullYear()),
     String(date.getUTCMonth() + 1).padStart(2, "0"),
     String(date.getUTCDate()).padStart(2, "0"),
-  );
-  const filename = `${randomUUID()}${getImageExtension(mimeType)}`;
-  return writeStoredImageAt(path.join(folder, filename), buffer, mimeType);
+  ].join("/");
+  return `${folder}/${randomUUID()}${getImageExtension(mimeType)}`;
+}
+
+export async function writeStoredImage(buffer: Buffer, mimeType: string) {
+  return writeStoredImageAt(newChatImagePath(mimeType), buffer, mimeType);
 }
 
 // 保存先を呼び出し側で決める版。書き込み前にパスを DB に登録したい場合に使う。
@@ -182,4 +184,56 @@ export async function getStoredImageReadUrl(storagePath: string) {
   const validUntil = Date.now() + 5 * 60 * 1000;
   const token = await issueSignedToken({ pathname, operations: ["get"], validUntil });
   return (await presignUrl(token, { operation: "get", pathname, access: "private", validUntil })).presignedUrl;
+}
+
+// Blob のトークンがあるのに Vercel の本番・プレビュー以外で動いている（ローカル開発が本番と同じファイル置き場を使っている）。
+// このときは自分の DB に無いファイルも置き場にあるので、置き場の一覧をもとに消したり数えたりしない（stored-files.ts）。
+export function sharesForeignStorage() {
+  if (!hasVercelBlobToken()) return false;
+  const env = process.env.VERCEL_ENV;
+  return env !== "production" && env !== "preview";
+}
+
+export type StoredFileListing = { path: string; size: number; uploadedAt: Date };
+
+// prefix（"note-files/" など、"/" で終わるフォルダ）の下のファイルを、cursor の続きから最大 limit 件返す。
+// 次がなければ cursor は undefined。ファイル置き場の記録の棚卸しと、置き去りの一時ファイルの掃除が使う。
+export async function listStoredFiles(prefix: string, cursor?: string, limit = 1000): Promise<{ files: StoredFileListing[]; cursor?: string }> {
+  const folder = normalizeStoragePath(prefix).replace(/\\/g, "/");
+  if (!prefix.endsWith("/")) throw new Error("Invalid storage prefix.");
+  const safeFolder = folder.endsWith("/") ? folder : `${folder}/`;
+
+  if (hasVercelBlobToken()) {
+    const { list } = await import("@vercel/blob");
+    const page = await list({ prefix: safeFolder, cursor, limit });
+    return {
+      files: page.blobs.map((blob) => ({ path: blob.pathname, size: blob.size, uploadedAt: new Date(blob.uploadedAt) })),
+      cursor: page.hasMore ? page.cursor : undefined,
+    };
+  }
+
+  // ローカルのファイル置き場。パスの順に並べ、cursor は最後に返したパス（それより後から続ける）。
+  assertStorageConfigured();
+  const root = getStorageRoot();
+  const found: StoredFileListing[] = [];
+  async function walk(relative: string) {
+    let entries;
+    try { entries = await readdir(path.join(/*turbopackIgnore: true*/ root, relative), { withFileTypes: true }); } catch (error) {
+      if ((error as NodeJS.ErrnoException)?.code === "ENOENT") return;
+      throw error;
+    }
+    for (const entry of entries) {
+      const child = `${relative}${entry.name}`;
+      if (entry.isDirectory()) await walk(`${child}/`);
+      else if (entry.isFile()) {
+        const info = await stat(path.join(/*turbopackIgnore: true*/ root, child));
+        found.push({ path: child, size: info.size, uploadedAt: info.mtime });
+      }
+    }
+  }
+  await walk(safeFolder);
+  found.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
+  const rest = cursor ? found.filter((file) => file.path > cursor) : found;
+  const files = rest.slice(0, limit);
+  return { files, cursor: rest.length > limit ? files.at(-1)!.path : undefined };
 }

@@ -172,6 +172,11 @@ data class ChatUiState(
     val guestLimit: String? = null,
     /** 免费用户撞到上限（tier = member）时是 "chat" 或 "image"：输入栏上方显示 Pro 的升级提示（网页 UpgradePrompt）。 */
     val upgradeLimit: String? = null,
+    /**
+     * 文件存储空间不够、附件或图片生成被拒绝（413 storage_limit）：输入栏上方说明原因和用量，
+     * 并按档位给登录或升级的入口（网页 StorageLimitPrompt）。关掉、登录或退出后清空。
+     */
+    val storageLimit: StorageLimitInfo? = null,
     /** 还在拷贝、校验的附件（粘贴的图片、刚选的文件）有几批；没处理完前不能发送，否则它们会漏掉、跑到下一条里。 */
     val importing: Int = 0,
     /**
@@ -511,7 +516,7 @@ class ChatViewModel(
                 sessions = emptyList(), sessionsLoading = true, sessionsFailed = false,
                 activeSessionId = null, messages = emptyList(), messagesLoading = false, messagesFailed = false,
                 files = if (it.upload == null) emptyList() else it.files, attachedPages = emptyList(),
-                notice = null, guestLimit = null, upgradeLimit = null, reveal = null, rejectedEdit = null,
+                notice = null, guestLimit = null, upgradeLimit = null, storageLimit = null, reveal = null, rejectedEdit = null,
                 draftIcon = null, characterOutcome = null,
             )
         }
@@ -824,6 +829,10 @@ class ChatViewModel(
         _state.update { it.copy(upgradeLimit = null) }
     }
 
+    fun dismissStorageLimit() {
+        _state.update { it.copy(storageLimit = null) }
+    }
+
     fun setImageMode(on: Boolean) {
         // 关掉「生成图片」正是"带着笔记不能生成图片"提示要用户做的事：提示随之消失。
         _state.update { it.copy(imageMode = on, notice = if (!on && it.notice == ComposerNotice.PagesInImageMode) null else it.notice) }
@@ -1103,7 +1112,15 @@ class ChatViewModel(
             withContext(NonCancellable) { backend.discardUploads(tickets) }
             // 用户已经去了别的聊天：不在那边的输入栏报错（网页只在 navigationIntent 没变时 setSendError）。
             val report = error !is CancellationException && navigation == navigationCount
-            _state.update { it.copy(upload = null, notice = if (report) ComposerNotice.UploadFailed else it.notice) }
+            // 存储空间不够：不是网络问题，说明原因并给登录 / 升级的入口（文字和附件还在输入栏）。
+            val storage = error.storageLimitInfo()
+            _state.update {
+                it.copy(
+                    upload = null,
+                    notice = if (report && storage == null) ComposerNotice.UploadFailed else it.notice,
+                    storageLimit = if (report && storage != null) storage else it.storageLimit,
+                )
+            }
             if (report) flashOutcome(keyOf(_state.value), CharacterOutcome.Error)
             flushRestores()
             if (error is CancellationException) throw error
@@ -1149,7 +1166,8 @@ class ChatViewModel(
         if (run.epoch != epoch) return
         if (failed != null) flashOutcome(run.key, CharacterOutcome.Error)
         val assistantId = turn.assistantId
-        val limited = failed is ApiException && failed.isUsageLimit
+        // 次数上限和存储空间上限都没有保存这次发送：原文和附件放回输入栏，气泡里只显示服务端的说明。
+        val limited = failed is ApiException && (failed.isUsageLimit || failed.isStorageLimit)
         // 还没拿到会话 ID 的新聊天失败了，而用户已经离开它：这个聊天再也打不开（网页发送前就建好了会话，
         // 侧栏里能找回）。把提问和附件放回输入栏，不留看不到的缓存。撞到上限也一样（未登录时照常显示登录提示）。
         if (failed != null && run.key.startsWith(NEW_CHAT_PREFIX) && run.key != keyOf(_state.value)) {
@@ -1164,14 +1182,16 @@ class ChatViewModel(
             cache[run.key]?.firstOrNull { it.id == assistantId }?.let { it.content.isEmpty() && it.activity.isEmpty() } != false
         ) {
             setCached(run.key, before)
-            val guest = limited && (failed as ApiException).tier == "guest"
-            val member = limited && (failed as ApiException).tier == "member"
+            val usageLimited = failed is ApiException && failed.isUsageLimit
+            val guest = usageLimited && (failed as ApiException).tier == "guest"
+            val member = usageLimited && (failed as ApiException).tier == "member"
             _state.update {
                 val shown = keyOf(it) == run.key
                 it.copy(
                     notice = if (shown) ComposerNotice.Failed(chatFailureDetail(failed)) else it.notice,
                     guestLimit = if (guest) (if ((failed as ApiException).kind == "image") "image" else "chat") else it.guestLimit,
                     upgradeLimit = if (member) (if ((failed as ApiException).kind == "image") "image" else "chat") else it.upgradeLimit,
+                    storageLimit = failed.storageLimitInfo() ?: it.storageLimit,
                     // 改写的文字不丢：那条提问的编辑框带着它重新打开。
                     rejectedEdit = if (shown && turn.edit != null) turn.edit else it.rejectedEdit,
                 )
@@ -1210,6 +1230,10 @@ class ChatViewModel(
      */
     private fun restoreRejected(turn: Turn, error: ApiException) {
         restoreDraft(turn)
+        error.storageLimitInfo()?.let { storage ->
+            _state.update { it.copy(storageLimit = storage) }
+            return
+        }
         val kind = if (error.kind == "image") "image" else "chat"
         if (error.tier == "guest") _state.update { it.copy(guestLimit = kind) }
         if (error.tier == "member") _state.update { it.copy(upgradeLimit = kind) }

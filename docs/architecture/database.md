@@ -66,7 +66,7 @@ erDiagram
     Message ||--o{ Attachment : has
     User ||--o{ NotePage : owns
     User ||--o{ NoteEmbedding : owns
-    User ||--o{ NoteCoverAsset : uploads
+    User ||--o{ StoredFile : "owns (set null)"
     User ||--o{ NoteGroup : owns
     NoteGroup ||--o{ NotePage : groups
     NotePage ||--o{ NotePage : "sub-pages (set null)"
@@ -120,13 +120,23 @@ erDiagram
         datetime createdAt
     }
 
-    NoteCoverAsset {
+    StoredFile {
         string path PK
-        string userId FK
-        datetime releasedAt
-        datetime deletingAt
-        datetime checkedAt
+        string userId FK "nullable, null after account deletion"
+        enum kind "NOTE_FILE, NOTE_COVER, CHAT_IMAGE, AVATAR, APP_ICON"
+        int size "bytes, nullable for files found by the inventory"
+        datetime releasedAt "nullable, unreferenced since"
+        datetime deletingAt "nullable"
+        datetime checkedAt "nullable"
         datetime createdAt
+    }
+
+    MaintenanceJob {
+        string name PK
+        datetime runAfter
+        datetime lockedUntil "nullable"
+        json state "nullable"
+        datetime updatedAt
     }
 
     NotePage {
@@ -307,12 +317,13 @@ erDiagram
 关系：
 
 ```text
-User 1 -> N Session / ChatProject / NotePage / NoteCoverAsset / NoteProposal / NoteGroup / NoteRevision
+User 1 -> N Session / ChatProject / NotePage / NoteProposal / NoteGroup / NoteRevision
+User 1 -> N StoredFile（SetNull）
 ```
 
-删除用户会级联删除上述全部关联记录。
+删除用户会级联删除上述全部关联记录；`StoredFile` 例外，只把 `userId` 置空（见下文 `StoredFile`）。
 
-**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/app/api/account/route.ts` 在按用户的账务锁（`withUserBillingLock`）内先停止计费：有 Stripe 客户时立即取消订阅、过期未完成结账并删掉 Stripe 客户（`cancelCustomerBilling`），有 Google Play 购买令牌时停止自动续费（`cancelPlayRenewal`），任一步失败就返回 502、不删除（见 [billing.md](billing.md)）；随后调用 `deleteAccount`（`src/lib/account-deletion.ts`）在同一事务里收集聊天附件图片路径，删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案、封面记录都靠外键 `onDelete: Cascade` 一起删除。行删掉以后再删文件：聊天附件图片逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/`、`app-icons/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀）；文件在响应之后（`after()`）删，失败只把路径记进日志，不回滚（行已不在，没人能再读到）。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
+**删除账号**（Google Play 的账号删除要求）：已登录用户在网页或 App 的“设置 → 删除账号”确认后调用 `DELETE /api/account`（同源或不带 `Origin` 的原生请求；未登录 401）。`src/app/api/account/route.ts` 在按用户的账务锁（`withUserBillingLock`）内先停止计费：有 Stripe 客户时立即取消订阅、过期未完成结账并删掉 Stripe 客户（`cancelCustomerBilling`），有 Google Play 购买令牌时停止自动续费（`cancelPlayRenewal`），任一步失败就返回 502、不删除（见 [billing.md](billing.md)）；随后调用 `deleteAccount`（`src/lib/account-deletion.ts`）在同一事务里收集聊天附件图片路径和这个用户的 `StoredFile` 路径，把这些 `StoredFile` 行标成删除中（`deletingAt`），删掉这个邮箱的 `EmailLoginCode`、`UsageCounter` 里 `user:<id>` 的行，写入 `DeletedAccount`（见下），并删掉 `User` 行本身——会话、消息、附件、笔记、历史版本、分组、项目、提案都靠外键 `onDelete: Cascade` 一起删除；`StoredFile` 行留下（`userId` 置空）。行删掉以后再删文件：收集到的文件逐个删，`note-files/<id>/`、`page-covers/<id>/`、`avatars/<id>/`、`chat-uploads/<id>/`、`app-icons/<id>/` 整个目录删（`deleteStoredPrefix` 只接受以 `/` 结尾、至少两层的目录，避免误删别人的前缀），删成功的文件再删掉它的 `StoredFile` 行；文件在响应之后（`after()`）删，失败把路径记进日志，删除中的行留给文件清理（见 `StoredFile`）下次重试。响应用过期 Cookie 清掉 Auth.js 会话；`notefable_device` 保留（它可能指向这个设备另一条匿名的行，清掉就回不到那些数据；指向被删的行时，下一次请求会建新的匿名行）。网页和 App 都先等资料保存队列清空再发删除。公开说明页是 `/delete-account`。
 
 ### DeletedAccount
 
@@ -336,15 +347,67 @@ User 1 -> N Session / ChatProject / NotePage / NoteCoverAsset / NoteProposal / N
 
 ### NotePage
 
-站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个 emoji，或与上传封面同样形式的 `upload:page-covers/<userId>/<uuid>.<ext>` 图片键（同样只能引用自己目录下的键、同样登记在 `NoteCoverAsset`），`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面登记在 `NoteCoverAsset`（`path` 主键、`userId`、`releasedAt`、`deletingAt`、`checkedAt`（有索引））：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`），行已不存在则拒绝保存。`collectUnusedCovers()`（`src/lib/note-covers.ts`）按 `checkedAt` 从旧到新巡查，先给不再被引用的行（页面的 `cover`、页面的 `icon` 和编辑历史的 `icon` 都不引用）记录 `releasedAt`，记录后再次确认引用，避免与保存同时发生时误记。连续未使用 7 天后用条件更新设置 `deletingAt`（此后不能再被引用），删除存储中的图片成功后才删除该行，失败的在下次运行重试；目前没有定时任务调用它（Vercel Cron 已移除），未引用的封面图片会留在存储中，需要时再接入；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。只处理本数据库登记的封面，因此与本地开发共享 Blob 存储也不会误删。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
+站内笔记页面，与聊天 `Session` 独立。`userId` 关联 `User`，删除用户时级联删除。`blocks` 保存 BlockNote 原生 JSON 的区块顺序、稳定 ID、文字装饰和嵌套关系；页面标题另存 `title`。`icon` 是单个 emoji，或与上传封面同样形式的 `upload:page-covers/<userId>/<uuid>.<ext>` 图片键（同样只能引用自己目录下的键、同样登记在 `NoteCoverAsset`），`cover` 是 `src/lib/note-document.ts` 中 `NOTE_COVERS` 的预设键，或 `upload:page-covers/<userId>/<uuid>.<ext>` 形式的上传图片键（不接受任意 URL）；`coverPosition` 是上传封面的纵向位置（0–100）。未设置时均为 null。上传封面路径包含所属用户 ID，服务端只允许引用自己目录下的键；上传封面和图片图标登记在 `StoredFile`（`kind = NOTE_COVER`，见下文）：上传时先建行（`releasedAt` 为当前时间）再写入存储；保存页面引用上传封面时在同一事务内把该行设为使用中（`releasedAt = null`，`claimCover`），行已不存在或已在删除中则拒绝保存。不再被引用（页面的 `cover`、页面的 `icon` 和编辑历史的 `icon` 都不引用，Trash 里的页面也算引用）7 天后由文件清理删除；与保存竞争时以同一行的锁决定结果，不会留下指向已删除图片的页面。PATCH 省略 `icon`/`cover`/`coverPosition` 时保留已保存的值，兼容旧客户端与旧草稿。
 
 `version` 从 0 开始，每次保存原子递增。更新条件同时包含页面 ID、当前用户 ID 和预期版本；版本冲突返回 409，防止另一标签页的内容被覆盖。`(userId, updatedAt)` 索引仍保留；页面列表现按 `position` 升序、`createdAt` 降序和 `id` 降序返回。所有页面读写限制在当前用户（匿名设备或已登录账号）。具体保存和草稿恢复流程见 [notes-flow.md](notes-flow.md)。
 
 `deletedAt` 可空（`20261015100000_note_trash_and_revisions` 追加，索引 `(userId, deletedAt)`）。`null` 是正常笔记；有值表示笔记在 Trash（回收站）里，是软删除：`DELETE /api/pages/:id` 只写 `deletedAt`，不删行，`version`、`position`、`groupId`、正文和封面都原样保留，所以此前“`DELETE` 删除页面行”的说法已不成立。保留期 30 天（常量 `TRASH_RETENTION_DAYS`，定义在 `src/types/notes.ts`，客户端文案与服务端共用）：期限内可由 `POST /api/pages/trash/:id` 把 `deletedAt` 置回 `null` 复原，期限之后复原被拒绝，行由惰性清理永久删除（没有定时任务，规则见下文“保留与级联”和 [notes-flow.md](notes-flow.md)）。复原和放入 Trash 都经 `updateMany`，会刷新 `@updatedAt`，但不增加 `version`。
 
-**读写规则：** 所有“活着的笔记”的读取和写入都必须带 `deletedAt: null`（列表、单页读写、移动分组、重排、搜索、AI 工具、提案适用、笔记助手的 `noteId` 校验、项目参考笔记的读取，原生 SQL 里是 `p."deletedAt" IS NULL`）；只有 Trash 相关的接口读取 `deletedAt` 非空的行。新增查询笔记的代码时不要漏掉这个条件，否则回收站里的笔记会重新出现在列表、搜索或 AI 回答里。上传封面的引用统计（`referencedPaths()`）则有意不看 `deletedAt`：Trash 里的笔记仍引用它的封面，保留期内封面图片不会被回收；笔记被永久删除、行消失之后，才按原有的 7 天宽限期释放封面。
+**读写规则：** 所有“活着的笔记”的读取和写入都必须带 `deletedAt: null`（列表、单页读写、移动分组、重排、搜索、AI 工具、提案适用、笔记助手的 `noteId` 校验、项目参考笔记的读取，原生 SQL 里是 `p."deletedAt" IS NULL`）；只有 Trash 相关的接口读取 `deletedAt` 非空的行。新增查询笔记的代码时不要漏掉这个条件，否则回收站里的笔记会重新出现在列表、搜索或 AI 回答里。上传文件的引用统计（`src/lib/stored-files.ts` 的 `referencedPaths()`）则有意不看 `deletedAt`：Trash 里的笔记仍引用它的封面和文件，保留期内不会被回收；笔记被永久删除、行消失之后，才按 7 天宽限期释放。
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
+
+### StoredFile
+
+文件仓库（Private Vercel Blob，本地开发没有 Blob token 时是 `NOTEFABLE_STORAGE_DIR`）里每个文件一行（`20261123000000_stored_files` 新增，代码 `src/lib/stored-files.ts`）。它同时用于**按套餐的存储上限**和**未引用文件的清理**，接替了只管封面的 `NoteCoverAsset`（迁移时连同状态搬进来后删表）。
+
+| 列 | 说明 |
+| --- | --- |
+| `path` | 主键，存储路径 |
+| `userId` | 所属用户，可空；外键 `ON DELETE SET NULL`：删除账号后行留下（等文件删掉再删行） |
+| `kind` | `StoredFileKind`：`NOTE_FILE`（`note-files/<用户>/`，笔记的图片块、文件块）、`NOTE_COVER`（`page-covers/<用户>/`，封面和页面图片图标）、`CHAT_IMAGE`（`images/YYYY/MM/DD/`，聊天附件图片和生成的图片）、`AVATAR`（`avatars/<用户>/`）、`APP_ICON`（`app-icons/<用户>/`） |
+| `size` | 字节数。可空：迁移时搬来的封面和后来盘点到的旧文件在盘点补上之前为 null，用量按 0 算 |
+| `releasedAt` | 确认不再被引用（或刚上传、还没被引用）的时刻；null 是使用中 |
+| `deletingAt` | 开始删除的时刻：之后不能再被引用，文件删掉后删行 |
+| `checkedAt` | 清理任务最后一次确认引用的时刻（从旧到新巡查） |
+
+索引：`(userId)`（用量合计）、`(releasedAt)`、`(checkedAt)`。
+
+**先建行再写文件。** 所有写入经 `storeFile()`：在按用户的 advisory lock（`notefable-storage:<userId>`）里合计用量、检查上限、建行（`releasedAt` = 现在），提交后才写文件；写失败就把行标成删除中。所以文件仓库里不会出现没有行的文件（`chat-uploads/` 的临时上传除外，见下）。
+
+**存储上限。** 用量 = 这个用户 `deletingAt` 为空的行的 `size` 合计（SQL `SUM`，可以超过 2³¹）。上限在 `src/lib/usage-plans.ts` 的 `STORAGE_LIMITS`（游客 100 MiB、登录免费 500 MiB、Pro 10 GiB，显示为 MB / GB），工作区上传的单文件上限 `MAX_STORED_FILE_BYTES`（4 MiB）也在那里；聊天附件仍按 `upload-limits.ts`（每个 20 MiB）。超出时抛 `StorageLimitError`，接口返回 413 `{ error, code: "storage_limit", tier, used, limit }`（`storageLimitResponse`，`noteApiError` 也认它）。检查点：
+
+| 入口 | 规则 |
+| --- | --- |
+| `POST /api/pages/covers`、`POST /api/pages/files` | 新文件放得下才收（`storeFile` 检查） |
+| `POST /api/uploads`（聊天附件的上传凭证） | 只算会留下的图片（文本、PDF 只取文字）：`assertStorageRoom` 先拒，避免先上传再失败 |
+| `/api/chat` 保存附件图片 | `prepareAttachments(files, budget, user)` 逐张 `storeFile`（并发时的最后一道）；放不下时退还这次聊天次数、返回 413 |
+| `/api/images` | 生成前 `assertStorageRoom(user, 参考图大小)`：已满（用量 ≥ 上限）或参考图放不下就不调用 OpenAI、不计次数；生成后的图片和参考图不再检查（费用已产生），可能略超上限 |
+| AI 把聊天图片复制进笔记（`note-attachments.ts`） | 复制也是新文件，放不下时工具向模型返回错误，提案不建立 |
+| 头像、设置里的图标 | 计入用量但不拒绝（只是替换一张，旧的立即删除） |
+
+已有的文件在超限后照常可读、可用；复制笔记、分支聊天、编辑发言共用原文件，不增加用量。
+
+**引用（使用中）。** 保存笔记的各个路径在同一事务里把引用到的文件设为使用中：封面和图标用 `claimCover`（行不在或在删除中就拒绝保存），正文的图片块、文件块用 `claimNoteFiles`（只改 `releasedAt` 不为空的行；找不到或在删除中不阻止保存）——`PATCH /api/pages/:id`、`createNotePage`（新建、Save to page、Create page）、导入、历史恢复、适用 AI 提案。各类文件“被谁引用”由 `REFERENCE_CHECKS` 判断：
+
+| kind | 引用来源 |
+| --- | --- |
+| `NOTE_FILE` | 持有者的全部 `NotePage.blocks`（含 Trash）、`NoteRevision.blocks`、`PENDING` 的 `NoteProposal.payload`：把 JSON 转成文本，用 `NOTE_FILE_REFERENCE` 正则取出文件 UUID（编码与否、大小写都认）。将来白板、幻灯片等把文件 URL 存在别的表时，加进 `NOTE_FILE_SOURCES` |
+| `NOTE_COVER` | `NotePage.cover` / `NotePage.icon`（含 Trash）、`NoteRevision.icon` |
+| `CHAT_IMAGE` | 任意 `Attachment.imageStoragePath`（含切换版本可回去的非 active 消息；分支、编辑的复制行共用路径）；`Attachment` 为此加了 `(imageStoragePath)` 索引 |
+| `AVATAR` / `APP_ICON` | 所属用户的 `User.avatarImage` / `User.appIconImage` |
+
+新增一种存文件的内容时：在 `StoredFileKind` 和 `STORED_FILE_PREFIXES` 加一项、在 `REFERENCE_CHECKS` 写它的引用来源，写入一律用 `storeFile`，保存时用 `claimStoredFiles` 设为使用中，用量和清理随之生效。
+
+**清理（`collectUnusedFiles`）。** ① `userId` 为空（账号已删）的行直接标成删除中；② 使用中的行按 `checkedAt` 从旧到新巡查（每次最多 4×500 行），没有引用的记 `releasedAt`，记完再确认一次，期间被引用的改回使用中；③ `releasedAt` 超过 7 天（`FILE_GRACE_MS`）的再确认引用，仍没有就用条件更新设 `deletingAt`（与保存的 claim 抢同一行的锁：保存在前则条件不成立，清理在前则保存被拒或不再认领）；④ 删除中的行先删文件、成功后删行，失败的下次重试。所以从笔记里删掉的图片在编辑历史、Trash、待确认提案都不再引用它之后约一周被删；删掉的聊天的图片也一样。
+
+**盘点（`inventoryStoredFiles`）。** 按 kind 的目录分页列出文件仓库（Blob `list()`，每页 1,000 个），把没有行的旧文件补成行（`releasedAt` = 现在：有引用的会在宽限期满时确认后转回使用中，没有的随后被删），给 `size` 为 null 的行补上大小。只补持有者在本数据库里能确定的文件（用户目录的用户存在、聊天图片有本库的附件指向），别的环境放进同一仓库的文件不碰。盘点做完一轮后 7 天再做下一轮，进度存在 `MaintenanceJob.state`。
+
+**什么时候运行（没有 Cron）。** `runStorageMaintenance()` 在请求之后（`after()`）尝试运行：封面、笔记文件上传、聊天附件凭证和 `GET /api/billing`（打开设置的方案页）都会触发；用 `MaintenanceJob` 行做租约（同一时刻只有一个、两次之间至少 6 小时、每次最多约 20 秒，超时的部分下次继续）。每次依次：删掉超过 2 小时的 `chat-uploads/` 临时上传（全站，补充每个用户下次上传时的清理）、盘点、清理。**本地开发用着与生产共享的 Blob token 时（有 token 但 `VERCEL_ENV` 不是 production / preview）完全不运行**，避免用本地数据库的引用去删生产的文件（`sharesForeignStorage`）。Preview 有自己的 Blob store，照常运行。
+
+### MaintenanceJob
+
+后台清理任务的租约与进度（`20261123000000_stored_files` 新增）。`name` 主键（目前只有 `storage`），`runAfter` 之前不运行，`lockedUntil` 是正在运行的标记（过期后别的请求可以接手），`state` 存盘点的进度（kind 的序号、`list()` 的 cursor、上一轮完成时间）。
 
 ### NoteEmbedding
 
@@ -467,7 +530,7 @@ Session 1 -> N Message
 其中：
 
 - 文本/PDF：主要使用 `extractedText`（入库时最多 120,000 字符，也参与跨 Chats 搜索）
-- 图片：主要使用 `imageStoragePath`
+- 图片：主要使用 `imageStoragePath`（文件另登记在 `StoredFile`，计入用户的存储用量；有 `(imageStoragePath)` 索引供清理时查引用）
 - 图片二进制不存 PostgreSQL
 
 关系：
@@ -509,6 +572,13 @@ NoteRevisionReason
 UserPlan
 - FREE
 - PRO
+
+StoredFileKind
+- NOTE_FILE
+- NOTE_COVER
+- CHAT_IMAGE
+- AVATAR
+- APP_ICON
 ```
 
 ## 保留与级联
@@ -519,8 +589,9 @@ UserPlan
 | 编辑历史（`NoteRevision`） | 每篇笔记最多 50 份（`AUTO` 30 份且不超过 90 天，`AI_EDIT` / `RESTORE` 合计 20 份）；自动快照最短间隔 10 分钟；超出时删最旧的 | 随笔记或用户级联删除 |
 | 项目参考笔记（`ChatProjectNote`） | 每个项目最多 5 篇；Trash 里的笔记保留关联但不使用 | 随项目、随笔记的永久删除级联删除 |
 | 发言附加的笔记（`MessageNote`） | 每条发言最多 5 篇；Trash 里的笔记保留关联但不使用、不显示 | 随消息（会话）、随笔记的永久删除级联删除 |
+| 存储中的文件（`StoredFile`） | 被引用期间保留（笔记、Trash、编辑历史、待确认提案、聊天附件、头像 / 图标）；不再被引用 7 天后删除文件和行 | 删除用户时行保留（`userId` 置空、标为删除中），文件删掉后删行 |
 
-**没有定时任务清理 Trash。** 超期笔记在三个时机被永久删除：用户打开 Trash 列表（`GET /api/pages/trash`，先清理再列出，清理失败也不会把超期笔记列出来）、把某篇笔记放进 Trash（`DELETE /api/pages/:id`，尽力清理，失败只记日志）、清空 Trash（`DELETE /api/pages/trash`，删除 Trash 笔记，不论是否超期；界面带 `before` 只删到用户确认时看到的最新一条）。长期不操作的用户，其超期笔记会一直留在库里直到下一次这样的操作，但任何接口都看不到它们。若将来要定时清理，复用 `purgeExpiredNotes()`（`src/lib/note-trash.ts`）即可；注意笔记图片和文件目前没有垃圾回收，如果将来新增，必须同时扫描 Trash 里的笔记和 `NoteRevision.blocks` 的引用，否则历史恢复后会出现指向已删除文件的块。
+**没有定时任务清理 Trash。** 超期笔记在三个时机被永久删除：用户打开 Trash 列表（`GET /api/pages/trash`，先清理再列出，清理失败也不会把超期笔记列出来）、把某篇笔记放进 Trash（`DELETE /api/pages/:id`，尽力清理，失败只记日志）、清空 Trash（`DELETE /api/pages/trash`，删除 Trash 笔记，不论是否超期；界面带 `before` 只删到用户确认时看到的最新一条）。长期不操作的用户，其超期笔记会一直留在库里直到下一次这样的操作，但任何接口都看不到它们。若将来要定时清理，复用 `purgeExpiredNotes()`（`src/lib/note-trash.ts`）即可。笔记的图片和文件由 `StoredFile` 的清理任务回收，它的引用统计包括 Trash 里的笔记和 `NoteRevision.blocks`，所以历史恢复后不会出现指向已删除文件的块。
 
 ## 为什么 Attachment 不直接存图片
 
@@ -555,7 +626,7 @@ Schema 变更应同时更新：
 2. `prisma/migrations/`
 3. 本文档 ERD
 
-`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。
+`20261015100000_note_trash_and_revisions`（枚举 `NoteRevisionReason`、可空列 `NotePage.deletedAt` 及索引、`NoteRevision` 表）和 `20261015110000_chat_project_context`（可空列 `ChatProject.instructions`、`ChatProjectNote` 表）都只追加，不改写或删除已有数据；现有笔记的 `deletedAt` 为 `NULL`，即“正常笔记”。两者随 Vercel 构建里的 `prisma migrate deploy` 部署到 Neon。`20261116100000_message_notes`（`MessageNote` 表）同样只新增表，不动已有数据。`20261117000000_message_branches` 给 `Message` 追加可空的 `parentId` 和默认 true 的 `active`，不回填：已有消息全部是显示状态，父节点按创建顺序推出。`20261117010000_chat_stop_and_selected_version` 追加可空的 `Session.stopRequestedAt`（停止生成的请求时间，生成中的回答每秒读一次）和 `Message.selectedAt`。`20261122120000_note_embeddings` 追加 `NoteEmbedding` 表，不动已有数据。`20261123000000_stored_files` 新建 `StoredFileKind`、`StoredFile`、`MaintenanceJob`，把 `NoteCoverAsset` 的行（连同使用中 / 删除中的状态，`size` 为 null）搬进 `StoredFile` 后删掉旧表，把已有的聊天图片（`Attachment.imageStoragePath`，大小取 `Attachment.size`，持有者取会话）登记为使用中，并给 `Attachment.imageStoragePath` 加索引；笔记文件、头像、图标等其余旧文件由上线后的盘点补登记。部署窗口内仍在运行的旧版本写 `NoteCoverAsset` 会失败（上传封面、保存带上传封面的笔记），几分钟后新版本接手即恢复，草稿会重试。
 
 聊天行右侧显示三点按钮，置顶/取消置顶、重命名、移动项目和删除确认均在三点菜单内。列表先显示置顶聊天，再显示项目和未分组聊天；同区内按手动 `position` 顺序排列，未手动排序的新聊天先显示；修改内容不会挪动已排好的顺序。`PATCH /api/sessions/[sessionId]` 接受 `title`（1–120 字符）、`pinned`、`projectId`，项目归属同时验证所有者；元数据更新沿用图标的并发时间戳保护。`/api/chat-projects` 与 `/api/chat-projects/[projectId]` 提供项目列表、新建、改名与删除。新增表和字段通过 `20261015000000_chat_projects` 非破坏迁移部署。
 

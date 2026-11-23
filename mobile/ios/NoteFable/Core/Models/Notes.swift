@@ -397,6 +397,9 @@ enum EmbedMessage: Equatable, Sendable {
     case openPage(id: String)
     /// [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。
     case flushed(requestId: String, ok: Bool, kept: Bool = false)
+    /// 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（used / limit 是字节）。App 在编辑器上方显示提示。
+    /// 只有 bootstrap 里声明了 `canShowStorageLimit()` 的 App 才会收到。
+    case storageLimit(tier: String, used: Int, limit: Int)
 
     /// 不认识或格式不对的消息返回 nil（网页先加了新消息类型也不会让 App 出错）。
     static func parse(_ json: String) -> EmbedMessage? {
@@ -418,6 +421,9 @@ enum EmbedMessage: Equatable, Sendable {
             case "openPage":
                 guard let id = try text(fields["id"]), !id.isEmpty else { return nil }
                 return .openPage(id: id)
+            case "storageLimit":
+                guard let tier = try text(fields["tier"]), let used = fields["used"]?.intValue, let limit = fields["limit"]?.intValue else { return nil }
+                return .storageLimit(tier: tier, used: used, limit: limit)
             case "flushed":
                 return .flushed(
                     requestId: try text(fields["requestId"]) ?? "",

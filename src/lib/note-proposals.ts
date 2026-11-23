@@ -1,6 +1,7 @@
 import type { Prisma } from "@/generated/prisma/client";
 import { NoteValidationError, validateNoteContent } from "@/lib/note-document";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles } from "@/lib/stored-files";
 import { createRevision } from "@/lib/note-revisions";
 import type { PageCreateProposal, PageEditProposal } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
@@ -117,6 +118,8 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
           data: { title: content.title, blocks: content.blocks as unknown as Prisma.InputJsonValue, version: { increment: 1 } },
         });
         if (!changed.count) throw new Conflict();
+        // 提案のためにコピーした画像は、ここからノートの本文が参照する。
+        await claimNoteFiles(tx, content.blocks, userId);
         return tx.notePage.findFirst({ where: { id: payload.pageId, userId, deletedAt: null } });
       });
       if (!page) return afterLostClaim();
@@ -133,6 +136,7 @@ export async function applyProposal(userId: string, id: string): Promise<ApplyRe
         data: { userId, title: content.title, icon: content.icon, cover: null, coverPosition: null, blocks: content.blocks as unknown as Prisma.InputJsonValue },
       });
       await tx.noteProposal.update({ where: { id }, data: { appliedPageId: created.id } });
+      await claimNoteFiles(tx, content.blocks, userId);
       return created;
     });
     if (page) return { ok: true, status: "applied", kind: "create", page };

@@ -14,7 +14,7 @@
     <string name="plan_past_due">فشلت عملية الدفع الأخيرة. حدّث وسيلة الدفع للاحتفاظ باشتراك Pro.</string>
     <string name="plan_load_failed">تعذّر تحميل خطتك.</string>
     <string name="plan_offer_title">NoteFable Pro · %1$s شهرياً</string>
-    <string name="plan_offer_body">%1$s من الرسائل و%2$d من عمليات توليد الصور شهرياً. يمكنك الإلغاء في أي وقت.</string>
+    <string name="plan_offer_body">%1$s من الرسائل و%2$d من عمليات توليد الصور شهرياً، و%3$s من مساحة التخزين. يمكنك الإلغاء في أي وقت.</string>
     <string name="plan_upgrade">الترقية إلى Pro</string>
     <string name="plan_manage_play">إدارة الاشتراك على Google Play</string>
     <string name="plan_welcome">مرحباً بك في NoteFable Pro</string>
@@ -26,4 +26,11 @@
     <string name="plan_trial_start">ابدأ تجربة مجانية لمدة %1$d من الأيام</string>
     <string name="plan_trial_note">مجاناً لمدة %1$d من الأيام، ثم %2$s شهرياً. ألغِ الاشتراك قبل انتهاء الفترة التجريبية ولن يُخصم منك أي مبلغ.</string>
     <string name="plan_trial_ends">تنتهي فترتك التجريبية المجانية في %1$s. وبعد ذلك يكون اشتراك Pro بسعر ¥%2$d شهرياً.</string>
+    <string name="plan_storage">التخزين</string>
+    <string name="plan_storage_help">تتحرر مساحة الملفات المحذوفة بعد نحو أسبوع. تظل الملفات الموجودة في سلة المهملات أو سجل الإصدارات محسوبة.</string>
+    <string name="storage_limit_title">مساحة التخزين غير كافية</string>
+    <string name="storage_limit_used">لقد استخدمت %1$s من %2$s.</string>
+    <string name="storage_limit_sign_in">سجّل الدخول للحصول على %1$s من مساحة التخزين.</string>
+    <string name="storage_limit_upgrade">احصل على %1$s من مساحة التخزين مع Pro مقابل %2$s شهرياً.</string>
+    <string name="storage_limit_delete">احذف الملفات التي لم تعد بحاجة إليها لتحرير مساحة.</string>
 </resources>

@@ -235,4 +235,6 @@ export const ptBRServer: Record<string, string> = {
   "File is too long for one note: {name}": "O arquivo é longo demais para uma única nota: {name}",
   "Note icon must be a single emoji or an uploaded image.": "O ícone da nota deve ser um único emoji ou uma imagem enviada.",
   "This icon image is no longer available. Choose another icon.": "Esta imagem de ícone não está mais disponível. Escolha outro ícone.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Não há espaço de armazenamento suficiente. Entre para ter mais espaço ou exclua os arquivos de que você não precisa mais.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Não há espaço de armazenamento suficiente. Exclua os arquivos de que você não precisa mais para liberar espaço.",
 };

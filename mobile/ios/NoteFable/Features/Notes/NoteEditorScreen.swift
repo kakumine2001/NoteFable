@@ -44,6 +44,12 @@ struct NoteEditorScreen: View {
                 .padding(.horizontal, 24)
                 .padding(.vertical, 8)
             }
+            if let storage = state.storageLimit {
+                // 上传因存储空间不够被拒绝（网页 StorageLimitPrompt）：说明原因和用量，未登录时给登录入口。
+                GuestLimitPrompt(storage: storage, attachmentsLost: false) { notes.dismissStorageLimit() }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+            }
             NoteEditorWebView(
                 editor: open.editor, app: app, router: router,
                 appIcon: app.appIcon.icon, language: app.language.uiLocale,

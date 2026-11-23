@@ -23,3 +23,16 @@ export function assertNoteFilesOwner(blocks: unknown, userId: string, depth = 0)
     assertNoteFilesOwner(block?.children, userId, depth + 1);
   }
 }
+
+// 本文の画像ブロック・ファイルブロックが指すファイルの保存先（note-files/<利用者>/…）。重複は除く。
+export function noteFilePaths(blocks: unknown, found = new Set<string>(), depth = 0) {
+  if (!Array.isArray(blocks) || depth > 8) return [...found];
+  for (const block of blocks as { type?: unknown; props?: { url?: unknown }; children?: unknown }[]) {
+    if ((block?.type === "image" || block?.type === "file") && block.props) {
+      const parsed = parseNoteFileUrl(block.props.url);
+      if (parsed && parsed !== "empty") found.add(parsed.path);
+    }
+    noteFilePaths(block?.children, found, depth + 1);
+  }
+  return [...found];
+}

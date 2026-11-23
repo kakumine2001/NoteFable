@@ -47,6 +47,8 @@ sequenceDiagram
 
 ## 前端发送的数据
 
+附件里的图片会留在文件仓库，计入用户的文件存储（[database.md](database.md#storedfile)）：`POST /api/uploads` 发上传凭证前先检查这批图片放不放得下（文本、PDF 只取文字，不算），放不下返回 413 `{ error, code: "storage_limit", tier, used, limit }`；`/api/chat` 保存图片时再逐张检查（并发时的最后一道），放不下时退还这次次数并返回同样的 413。网页（`/app` 和笔记 AI 面板）收到时不发送，文字和附件留在输入栏，输入栏上方显示 `StorageLimitPrompt`（用量、游客的登录按钮、免费用户的 Pro 升级按钮、“删除不需要的文件”）；Android / iOS 相同（iOS 没有升级按钮）。
+
 `/api/chat` 在调用模型前预占一次聊天额度（未登录与免费登录按天计，Pro 按账期计），笔记内 AI 助手和“整理成笔记”（Create page，见下文）也使用同一份额度。满额时返回 `429`（`{ error, code: "usage_limit", tier, kind }`）；游客看到可关闭的登录引导（`GuestLimitPrompt`，点开与侧栏相同的 Google / 邮箱登录弹窗），已登录免费用户在启用订阅时看到升级引导（`UpgradePrompt`）。流式回答必须正常完成；失败或取消且没有交付正文或编辑提案时退还次数，已经交付的部分正文或提案仍计数。具体档位、并发控制与重置时间见[用量计数](database.md#usagecounter)与[付费方案](billing.md)。
 
 `src/app/[locale]/app/page.tsx`（`/app` 工作区）和 `src/components/note-assistant.tsx` 会构建：

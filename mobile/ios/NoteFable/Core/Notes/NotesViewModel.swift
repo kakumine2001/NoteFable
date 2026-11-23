@@ -326,8 +326,14 @@ final class NotesViewModel {
         case .missing: onEditorMissing(editor)
         case .trashed: onEditorTrashed(editor)
         case .openPage(let id): openNoteFromLink(id)
+        case .storageLimit(let tier, let used, let limit):
+            update { $0.storageLimit = StorageLimitInfo(tier: tier, used: used, limit: limit) }
         case .flushed: break
         }
+    }
+
+    func dismissStorageLimit() {
+        update { $0.storageLimit = nil }
     }
 
     // 下面的 [editor] 是发消息的编辑器（[OpenNote.editor]）。它就是打开着的编辑器时，换成它现在显示的页面 id。

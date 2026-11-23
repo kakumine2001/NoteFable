@@ -22,6 +22,8 @@ struct GuestLimitPrompt: View {
     private let kind: String
     private let attachmentsLost: Bool
     private let onClose: (() -> Void)?
+    /// 存储空间不够的提示（网页 StorageLimitPrompt）：标题和说明换成存储空间的，图标是 HardDrive。
+    private let storage: StorageLimitInfo?
 
     @Environment(AppEnvironment.self) private var app
     @Environment(AppRouter.self) private var router
@@ -42,11 +44,51 @@ struct GuestLimitPrompt: View {
         self.kind = kind
         self.attachmentsLost = attachmentsLost
         self.onClose = onClose
+        self.storage = nil
+    }
+
+    /// 上传（或生成图片）因为文件存储空间不够被拒绝时（网页 StorageLimitPrompt）：总是说明原因和用量；
+    /// 未登录且服务端开了登录时才有"登录"按钮。iOS 还没有购买流程，免费用户和 Pro 只说明原因（不提升级）。
+    /// - Parameter onClose: ✕ 和"以后再说"；不给就是 `app.chat.dismissStorageLimit()`。
+    init(storage: StorageLimitInfo, attachmentsLost: Bool, onClose: (() -> Void)? = nil) {
+        self.kind = "chat"
+        self.attachmentsLost = attachmentsLost
+        self.onClose = onClose
+        self.storage = storage
+    }
+
+    /// 有"登录"按钮（次数上限的提示总是有；存储空间的只在未登录、服务端开了登录时）。
+    private var offersSignIn: Bool {
+        guard let storage else { return true }
+        let account = app.account.state
+        return storage.tier == "guest" && account.configured && account.user == nil
+    }
+
+    private var titleText: String {
+        storage != nil ? L("storage_limit_title") : L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat")
+    }
+
+    private var bodyText: String {
+        let limits = app.usageLimits?.member ?? UsageLimit(chat: 0, image: 0)
+        guard let storage else { return L("guest_limit_body", limits.chat, limits.image) }
+        let locale = Locale(identifier: AppLanguage.acceptLanguage(AppLanguage.uiLocale))
+        var lines = [L("storage_limit_used", formatStorageSize(storage.used, locale: locale), formatStorageSize(storage.limit, locale: locale))]
+        if offersSignIn, let member = limits.storage, member > 0 {
+            lines.append(L("storage_limit_sign_in", formatStorageSize(member, locale: locale)))
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// 说明下面的补充：存储空间的提示先说"删掉不要的文件"，登录会丢附件时再加一句。
+    private var noteLines: [String] {
+        var lines: [String] = []
+        if storage != nil { lines.append(L("storage_limit_delete")) }
+        if attachmentsLost && offersSignIn { lines.append(L("guest_limit_attachments_lost")) }
+        return lines
     }
 
     var body: some View {
         let shape = RoundedRectangle(cornerRadius: 12)
-        let limits = app.usageLimits?.member ?? UsageLimit(chat: 0, image: 0)
         let reduced = reduceMotion
         let enterValue = reduced ? 1 : enter
 
@@ -54,30 +96,31 @@ struct GuestLimitPrompt: View {
             RoundedRectangle(cornerRadius: 10)
                 .fill(Sm.blue)
                 .frame(width: 34, height: 34)
-                .overlay { LucideIcon(Lucide.sparkles, size: 18, strokeWidth: 2.1, color: .white) }
+                .overlay { LucideIcon(storage != nil ? Lucide.hardDrive : Lucide.sparkles, size: 18, strokeWidth: 2.1, color: .white) }
                 .modifier(GuestLimitPopEffect(progress: reduced ? 1 : pop))
                 .accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 0) {
-                Text(L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat"))
+                Text(titleText)
                     .font(.nf(15, weight: 600))
                     .nfLineHeight(21, fontSize: 15)
                     .foregroundStyle(Sm.ink)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(L("guest_limit_body", limits.chat, limits.image))
+                Text(bodyText)
                     .font(.nf(13.5))
                     .nfLineHeight(20.925, fontSize: 13.5)
                     .foregroundStyle(Sm.muted)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 2)
-                if attachmentsLost {
-                    Text(L("guest_limit_attachments_lost"))
+                ForEach(noteLines, id: \.self) { line in
+                    Text(line)
                         .font(.nf(13.5))
                         .nfLineHeight(20.925, fontSize: 13.5)
                         .foregroundStyle(Sm.muted)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 2)
                 }
+                if offersSignIn {
                 VStack(spacing: 8) {
                     GuestLimitSignInButton(label: L("sign_in"), sheen: reduced ? 1.2 : sheen, halo: reduced ? 0 : halo) {
                         router.openSignIn()
@@ -93,6 +136,7 @@ struct GuestLimitPrompt: View {
                     .buttonStyle(.pressable(pressedBackground: nil))
                 }
                 .padding(.top, 12)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
@@ -147,6 +191,8 @@ struct GuestLimitPrompt: View {
     private func close() {
         if let onClose {
             onClose()
+        } else if storage != nil {
+            app.chat.dismissStorageLimit()
         } else {
             app.chat.dismissGuestLimit()
         }
@@ -157,10 +203,7 @@ struct GuestLimitPrompt: View {
         guard !started else { return }
         started = true
         // 读屏：和网页 aria-live="polite" 一样念出标题。
-        UIAccessibility.post(
-            notification: .announcement,
-            argument: L(kind == "image" ? "guest_limit_title_image" : "guest_limit_title_chat")
-        )
+        UIAccessibility.post(notification: .announcement, argument: titleText)
         guard !reduceMotion else { return }
         withAnimation(.timingCurve(0.2, 0.9, 0.3, 1.15, duration: 0.42)) { enter = 1 }
         withAnimation(.timingCurve(0.3, 1.6, 0.5, 1, duration: 0.62).delay(0.18)) { pop = 1 }

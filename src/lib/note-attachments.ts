@@ -2,7 +2,9 @@ import { randomUUID } from "node:crypto";
 import { MAX_NOTE_FILE_BYTES, NOTE_IMAGE_EXTENSIONS, isNoteImageUrl, noteFileUrl, safeFileName, sniffImage } from "@/lib/note-file-keys";
 import { PageEditError } from "@/lib/page-edit";
 import { prisma } from "@/lib/prisma";
-import { readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { readStoredImage } from "@/lib/storage";
+import { storeFile } from "@/lib/stored-files";
+import { StorageLimitError } from "@/lib/usage-plans";
 
 // チャットに添付された画像を、AI の編集案からノートの画像ブロックとして使えるようにする。
 // モデルは「![説明](attachment:<添付 ID>)」と書くだけで、サーバーが同じ会話の自分の添付かを確かめ、
@@ -102,7 +104,15 @@ export function createAttachmentResolver(userId: string, sessionId: string, excl
       const name = fitName(path, safeFileName(image.filename) || `image.${extension}`, extension);
       const url = noteFileUrl(path, name);
       if (!isNoteImageUrl(url)) throw new PageEditError(`attachment:${image.id} cannot be placed in a note.`);
-      await writeStoredImageAt(path, image.buffer, image.mime);
+      // コピーも新しいファイルなので、持ち主の容量に数える（入らなければ、モデルに理由を返して提案を作らない）。
+      try {
+        await storeFile(userId, { path, kind: "NOTE_FILE", buffer: image.buffer, mimeType: image.mime });
+      } catch (error) {
+        if (error instanceof StorageLimitError) {
+          throw new PageEditError(`attachment:${image.id} could not be copied into the note because the user's file storage is full. Tell the user their storage is full; they can delete files they no longer need${error.tier === "pro" ? "" : error.tier === "guest" ? " or sign in for more space" : " or upgrade to Pro for more space"}.`);
+        }
+        throw error;
+      }
       urls.set(image.id, url);
     }
 

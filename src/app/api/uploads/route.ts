@@ -5,6 +5,9 @@ import { optionalEnv } from "@/lib/env";
 import { issueUploadTicket, validateUploadMetadata, verifyUploadTicket } from "@/lib/chat-upload-ticket";
 import { cleanupExpiredChatUploads, parseUploadReferences, removeChatUploads } from "@/lib/chat-uploads";
 import { AttachmentValidationError } from "@/lib/files";
+import { isSupportedImageMimeType } from "@/lib/image-types";
+import { assertStorageRoom, scheduleStorageMaintenance, storageLimitResponse } from "@/lib/stored-files";
+import { StorageLimitError } from "@/lib/usage-plans";
 import { readLimitedBody } from "@/lib/note-upload";
 import { msg } from "@/lib/i18n/translate";
 
@@ -29,10 +32,15 @@ export async function POST(request: Request) {
     }
     const metadata = validateUploadMetadata(body.files);
     if (process.env.VERCEL === "1" && !optionalEnv("BLOB_READ_WRITE_TOKEN")) throw new Error(msg("Attachment storage is unavailable."));
+    // 送信のあとも残るのは画像だけ（文章・PDF は文字を取り出して消す）。画像が容量に入らなければ、送る前に断る。
+    const imageBytes = metadata.filter((file) => isSupportedImageMimeType(file.type)).reduce((sum, file) => sum + file.size, 0);
+    if (imageBytes) await assertStorageRoom(user, imageBytes);
     await cleanupExpiredChatUploads(user.id);
     const uploads = await Promise.all(metadata.map((file) => issueUploadTicket(user.id, file)));
+    scheduleStorageMaintenance();
     return NextResponse.json({ uploads, mode: optionalEnv("BLOB_READ_WRITE_TOKEN") ? "blob" : "local" });
   } catch (error) {
+    if (error instanceof StorageLimitError) return storageLimitResponse(error);
     return NextResponse.json({ error: error instanceof AttachmentValidationError ? error.message : msg("Unable to prepare attachment upload. Please try again.") }, { status: error instanceof AttachmentValidationError ? error.status : 400 });
   }
 }

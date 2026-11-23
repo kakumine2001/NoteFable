@@ -5,8 +5,8 @@ import { noteApiError } from "@/lib/note-api";
 import { readLimitedBody } from "@/lib/note-upload";
 import { COVER_CONTENT_TYPES, sniffCoverImage } from "@/lib/note-covers";
 import { MAX_COVER_BYTES, uploadedCoverPath } from "@/lib/note-document";
-import { prisma } from "@/lib/prisma";
-import { getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { getImageExtension, readStoredImage } from "@/lib/storage";
+import { scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
@@ -35,11 +35,10 @@ export async function POST(request: Request) {
     if (!mimeType) return NextResponse.json({ error: msg("Upload a JPEG, PNG, WebP or GIF image.") }, { status: 400 });
     const user = await getOrCreateUser();
     const storagePath = `page-covers/${user.id}/${randomUUID()}${getImageExtension(mimeType)}`;
-    // 先に資産行を作り、画像の書き込みが途中で止まっても追跡できない画像を残さない。
-    // まだどのページにも付いていないため、作成時点を解放時刻にする。使われなければ日次処理で回収される。
-    await prisma.noteCoverAsset.create({ data: { path: storagePath, userId: user.id, releasedAt: new Date() } });
-    // 書き込みが失敗しても行は残す。応答だけ失われて画像が保存済みの場合も、日次処理が画像と行を回収する。
-    await writeStoredImageAt(storagePath, buffer, mimeType);
+    // 容量の空きを確かめて記録してから書く（容量に数え、どのページにも使われなければ後片付けが消す）。
+    // 上限なら 413（code: "storage_limit"）。
+    await storeFile(user, { path: storagePath, kind: "NOTE_COVER", buffer, mimeType });
+    scheduleStorageMaintenance();
     return NextResponse.json({ cover: `upload:${storagePath}` }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

@@ -235,4 +235,6 @@ export const ruServer: Record<string, string> = {
   "File is too long for one note: {name}": "Файл слишком длинный для одной заметки: {name}",
   "Note icon must be a single emoji or an uploaded image.": "Значок заметки должен быть одним эмодзи или загруженным изображением.",
   "This icon image is no longer available. Choose another icon.": "Это изображение значка больше недоступно. Выберите другой значок.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "Осталось недостаточно места в хранилище. Войдите, чтобы получить больше места, или удалите ненужные файлы.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "Осталось недостаточно места в хранилище. Удалите ненужные файлы, чтобы освободить место.",
 };

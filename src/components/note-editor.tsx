@@ -9,6 +9,7 @@ import { CalendarDays, Check, CheckSquare, ChevronRight, Code2, Columns2, Column
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type Ref } from "react";
 import "@blocknote/ariakit/style.css";
 import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
+import { storageLimitFromUpload } from "@/lib/storage-limit-client";
 import { normalizeQuote } from "@/lib/chat-quote";
 import { useTheme } from "@/lib/theme";
 import { createCalloutBlockSpec } from "@/components/note-callout";
@@ -127,6 +128,9 @@ async function uploadNoteFile(file: File) {
   form.append("file", file);
   const response = await fetch("/api/pages/files", { method: "POST", body: form });
   const data = await response.json().catch(() => null) as { url?: string; name?: string; error?: string } | null;
+  // 容量の上限なら、ノートの画面に案内を出す（貼り付け・ドロップのときは、ここで投げた文がどこにも出ないため）。
+  const storage = storageLimitFromUpload(response.status, data);
+  if (storage) throw storage;
   // BlockNote の貼り付け・ドロップからも呼ばれるので、サーバーの文がないときも読める文を必ず入れる。
   if (!response.ok || !data?.url) throw new Error(data?.error || msg("Upload failed. Try again."));
   return { props: { url: data.url, name: data.name ?? file.name } };

@@ -235,4 +235,6 @@ export const thServer: Record<string, string> = {
   "File is too long for one note: {name}": "ไฟล์ยาวเกินไปสำหรับโน้ตเดียว: {name}",
   "Note icon must be a single emoji or an uploaded image.": "ไอคอนโน้ตต้องเป็นอีโมจิหนึ่งตัวหรือรูปภาพที่อัปโหลด",
   "This icon image is no longer available. Choose another icon.": "รูปไอคอนนี้ใช้ไม่ได้แล้ว โปรดเลือกไอคอนอื่น",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "พื้นที่จัดเก็บเหลือไม่พอ ลงชื่อเข้าใช้เพื่อรับพื้นที่เพิ่ม หรือลบไฟล์ที่ไม่ต้องการแล้ว",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "พื้นที่จัดเก็บเหลือไม่พอ ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง",
 };

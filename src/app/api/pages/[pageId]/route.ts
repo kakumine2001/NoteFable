@@ -5,6 +5,7 @@ import { getOrCreateUser } from "@/lib/auth";
 import { noteApiError } from "@/lib/note-api";
 import { assertCoverOwner, claimCover } from "@/lib/note-covers";
 import { assertNoteFilesOwner } from "@/lib/note-files";
+import { claimNoteFiles } from "@/lib/stored-files";
 import { readNoteRequest, validateNoteUpdate } from "@/lib/note-document";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { snapshotBeforeSave } from "@/lib/note-revisions";
@@ -37,6 +38,7 @@ export async function PATCH(request: Request, context: Context) {
     const result = await prisma.$transaction(async (tx) => {
       if (update.present.includes("cover")) await claimCover(tx, update.cover, user.id);
       if (update.present.includes("icon")) await claimCover(tx, update.icon, user.id, "icon");
+      await claimNoteFiles(tx, update.blocks, user.id);
       // 上書きされる前の状態を、間隔を空けて履歴に残す。版が違う保存（競合・再送）では何も入らない。
       await snapshotBeforeSave(tx, { noteId: pageId, userId: user.id, version: update.version });
       const changed = await tx.notePage.updateMany({

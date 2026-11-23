@@ -6,6 +6,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
@@ -239,6 +240,11 @@ sealed interface EmbedMessage {
     data class OpenPage(val id: String) : EmbedMessage
     /** [kept]：没保存成功，但草稿已存在 WebView 里、之后会重试（不是冲突）。这时可以先离开。 */
     data class Flushed(val requestId: String, val ok: Boolean, val kept: Boolean = false) : EmbedMessage
+    /**
+     * 笔记里的图片、文件、封面或图标因为文件存储空间不够上传失败（[used] / [limit] 是字节）。App 在编辑器上方显示
+     * 和聊天一样的提示（登录 / 升级）。只有声明了 `canShowStorageLimit()` 的 App 才会收到。
+     */
+    data class StorageLimit(val tier: String, val used: Long, val limit: Long) : EmbedMessage
 
     companion object {
         /** 不认识或格式不对的消息返回 null（网页先加了新消息类型也不会让 App 出错）。 */
@@ -255,6 +261,11 @@ sealed interface EmbedMessage {
                 "missing" -> Missing
                 "trashed" -> Trashed
                 "openPage" -> OpenPage(obj.str("id")?.takeIf { it.isNotBlank() } ?: return@runCatching null)
+                "storageLimit" -> StorageLimit(
+                    obj.str("tier") ?: return@runCatching null,
+                    obj["used"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
+                    obj["limit"]?.jsonPrimitive?.longOrNull ?: return@runCatching null,
+                )
                 "flushed" -> Flushed(
                     obj.str("requestId").orEmpty(),
                     obj["ok"]?.jsonPrimitive?.booleanOrNull == true,

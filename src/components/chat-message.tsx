@@ -188,7 +188,7 @@ export const ChatMessage = memo(function ChatMessage({
             {message.content && (
               // 本文の揃った回答は、本文の一部を選ぶと「NoteFable に聞く」で引用できる（quote-selection.tsx）。提案カードは対象外。
               <div data-quotable={shouldShowAnswerActions ? "" : undefined}>
-                <AssistantMarkdown content={message.usageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />
+                <AssistantMarkdown content={message.usageLimit || message.storageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />
               </div>
             )}
             {proposals.map((proposal) => proposal.kind === "proposal"

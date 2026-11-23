@@ -14,7 +14,7 @@
     <string name="plan_past_due">การชำระเงินครั้งล่าสุดไม่สำเร็จ กรุณาอัปเดตวิธีการชำระเงินเพื่อใช้งาน Pro ต่อ</string>
     <string name="plan_load_failed">ไม่สามารถโหลดแผนการใช้งานของคุณได้</string>
     <string name="plan_offer_title">NoteFable Pro · %1$s/เดือน</string>
-    <string name="plan_offer_body">%1$s ข้อความ และการสร้างรูปภาพ %2$d ครั้งต่อเดือน ยกเลิกได้ทุกเมื่อ</string>
+    <string name="plan_offer_body">%1$s ข้อความ การสร้างรูปภาพ %2$d ครั้งต่อเดือน และพื้นที่จัดเก็บ %3$s ยกเลิกได้ทุกเมื่อ</string>
     <string name="plan_upgrade">อัปเกรดเป็น Pro</string>
     <string name="plan_manage_play">จัดการการสมัครสมาชิกบน Google Play</string>
     <string name="plan_welcome">ยินดีต้อนรับสู่ NoteFable Pro</string>
@@ -26,4 +26,11 @@
     <string name="plan_trial_start">เริ่มทดลองใช้ฟรี %1$d วัน</string>
     <string name="plan_trial_note">ทดลองใช้ฟรี %1$d วัน หลังจากนั้น %2$s/เดือน หากยกเลิกก่อนหมดช่วงทดลองใช้จะไม่ถูกเรียกเก็บเงิน</string>
     <string name="plan_trial_ends">ช่วงทดลองใช้ฟรีของคุณจะสิ้นสุดในวันที่ %1$s หลังจากนั้น Pro จะมีค่าบริการ ¥%2$d/เดือน</string>
+    <string name="plan_storage">พื้นที่จัดเก็บ</string>
+    <string name="plan_storage_help">พื้นที่ของไฟล์ที่ลบจะว่างประมาณหนึ่งสัปดาห์หลังจากนั้น ไฟล์ในถังขยะหรือประวัติเวอร์ชันยังนับรวมอยู่</string>
+    <string name="storage_limit_title">พื้นที่จัดเก็บไม่พอ</string>
+    <string name="storage_limit_used">คุณใช้ไปแล้ว %1$s จาก %2$s</string>
+    <string name="storage_limit_sign_in">ลงชื่อเข้าใช้เพื่อรับพื้นที่จัดเก็บ %1$s</string>
+    <string name="storage_limit_upgrade">รับพื้นที่จัดเก็บ %1$s ด้วย Pro ในราคา %2$s/เดือน</string>
+    <string name="storage_limit_delete">ลบไฟล์ที่ไม่ต้องการแล้วเพื่อเพิ่มพื้นที่ว่าง</string>
 </resources>

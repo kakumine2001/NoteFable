@@ -1,13 +1,13 @@
 "use client";
 
-import { Sparkles, X } from "lucide-react";
+import { HardDrive, Sparkles, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { SignInButton } from "@/components/sign-in-dialog";
 import { useI18n, useT } from "@/components/i18n-provider";
 import { useAccount } from "@/lib/account-store";
 import { goToBilling, loadPlan } from "@/lib/billing-client";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
-import { PRO_PRICE_JPY, USAGE_LIMITS, type UsageKind } from "@/lib/usage-plans";
+import { PRO_PRICE_JPY, STORAGE_LIMITS, USAGE_LIMITS, formatStorageSize, type UsageKind, type UsageTier } from "@/lib/usage-plans";
 
 // 未ログインの利用者が 1 日の上限に達したとき、入力欄の上に出すログインの案内。
 // どのログインも使えない環境（未設定）や、すでにログイン済みなら何も出さない。
@@ -96,6 +96,69 @@ export function UpgradePrompt({ kind, onClose, onBeforeUpgrade, attachmentsLost 
           </button>
           <button type="button" className="guest-limit-later" onClick={onClose}>{t("Not now")}</button>
         </div>
+      </div>
+      <button type="button" className="guest-limit-close" onClick={onClose} aria-label={t("Close")} title={t("Close")}>
+        <X size={16} />
+      </button>
+    </section>
+  );
+}
+
+// ファイル置き場の容量が足りず、アップロード（または画像の生成）が断られたときの案内。どの段階でも理由と使用量を出し、
+// 未ログインならログイン、ログイン済みの無料ならアップグレード（申し込みが使えるとき）を勧める。Pro は不要なファイルを消すよう伝える。
+// actions: false はログイン・アップグレードのボタンを出さない（アプリに埋め込んだノートの編集画面。ログインや購入はアプリ側で行う）。
+export function StorageLimitPrompt({ limit, onClose, onBeforeSignIn, onBeforeUpgrade, attachmentsLost = false, actions = true, className = "notion-page-column mb-3" }: {
+  limit: { tier: UsageTier; used: number; limit: number };
+  onClose: () => void;
+  onBeforeSignIn?: () => void;
+  onBeforeUpgrade?: () => void;
+  attachmentsLost?: boolean;
+  actions?: boolean;
+  className?: string;
+}) {
+  const { t, tag } = useI18n();
+  const { account } = useAccount();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const canSignIn = actions && limit.tier === "guest" && Boolean(account?.configured) && !account?.user;
+  const canUpgrade = actions && limit.tier === "member" && Boolean(account?.billing) && Boolean(account?.user);
+  const trialDays = account?.trialDays ?? 0;
+
+  async function startUpgrade() {
+    setBusy(true); setError("");
+    onBeforeUpgrade?.();
+    try {
+      await goToBilling("checkout");
+    } catch (reason) {
+      setError(reason instanceof Error && reason.message ? reason.message : msg("Could not open the payment page. Please try again."));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className={`guest-limit-prompt ${className}`} role="status" aria-live="polite">
+      <span className="guest-limit-icon" aria-hidden="true"><HardDrive size={18} strokeWidth={2.1} /></span>
+      <div className="min-w-0 flex-1">
+        <p className="guest-limit-title">{t("Not enough storage space")}</p>
+        <p className="guest-limit-body">{t("You've used {used} of {limit}.", { used: formatStorageSize(limit.used, tag), limit: formatStorageSize(limit.limit, tag) })}</p>
+        {canSignIn && <p className="guest-limit-body">{t("Sign in to get {storage} of storage.", { storage: formatStorageSize(STORAGE_LIMITS.member, tag) })}</p>}
+        {canUpgrade && <p className="guest-limit-body">{t("Get {storage} of storage with Pro for ¥{price}/month.", { storage: formatStorageSize(STORAGE_LIMITS.pro, tag), price: PRO_PRICE_JPY })}</p>}
+        {canUpgrade && trialDays > 0 && <p className="guest-limit-body">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: trialDays, price: PRO_PRICE_JPY })}</p>}
+        <p className="guest-limit-body">{t("Delete files you no longer need to free up space.")}</p>
+        {attachmentsLost && canSignIn && <p className="guest-limit-body">{t("Attachments aren't kept when you sign in. Add them again afterward.")}</p>}
+        {attachmentsLost && canUpgrade && <p className="guest-limit-body">{t("Attachments aren't kept when you go to the payment page. Add them again afterward.")}</p>}
+        {error && <p role="alert" className="guest-limit-body guest-limit-error">{localizeSystemText(error, t)}</p>}
+        {(canSignIn || canUpgrade) && (
+          <div className="guest-limit-actions">
+            {canSignIn && <SignInButton className="guest-limit-signin" onBeforeSignIn={onBeforeSignIn} />}
+            {canUpgrade && (
+              <button type="button" className="signin-open-button guest-limit-signin" disabled={busy} onClick={() => void startUpgrade()}>
+                {busy ? t("Opening…") : trialDays > 0 ? t("Start {days}-day free trial", { days: trialDays }) : t("Upgrade to Pro")}
+              </button>
+            )}
+            <button type="button" className="guest-limit-later" onClick={onClose}>{t("Not now")}</button>
+          </div>
+        )}
       </div>
       <button type="button" className="guest-limit-close" onClick={onClose} aria-label={t("Close")} title={t("Close")}>
         <X size={16} />

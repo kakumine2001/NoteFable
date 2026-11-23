@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({ updateMany: vi.fn(), findFirst: vi.fn(), claim
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "mine" }) }));
 vi.mock("@/lib/prisma", () => ({ databaseSchema: "notefable", prisma: {
   notePage: { updateMany: mocks.updateMany, findFirst: mocks.findFirst },
-  $transaction: async (run: (tx: unknown) => unknown) => run({ notePage: { updateMany: mocks.updateMany }, noteCoverAsset: { updateMany: mocks.claim } }),
+  $transaction: async (run: (tx: unknown) => unknown) => run({ notePage: { updateMany: mocks.updateMany }, storedFile: { updateMany: mocks.claim } }),
 } }));
 import { PUT } from "./route";
 

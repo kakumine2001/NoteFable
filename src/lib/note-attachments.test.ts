@@ -7,7 +7,10 @@ vi.mock("@/lib/prisma", () => ({
   databaseSchema: "notefable",
   prisma: { attachment: { findMany: mocks.findMany, findFirst: mocks.findFirst }, notePage: { findFirst: mocks.pageFindFirst }, noteProposal: { create: mocks.createProposal } },
 }));
-vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImageAt: mocks.write }));
+vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read }));
+vi.mock("@/lib/stored-files", () => ({
+  storeFile: async (_owner: unknown, file: { path: string; buffer: Buffer; mimeType: string }) => { await mocks.write(file.path, file.buffer, file.mimeType); return file.path; },
+}));
 import { noteFileUrl, parseNoteFileUrl } from "./note-file-keys";
 import { runPageTool } from "./page-tools";
 

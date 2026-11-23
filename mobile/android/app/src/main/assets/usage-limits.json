@@ -1,14 +1,17 @@
 {
   "guest": {
     "chat": 20,
-    "image": 10
+    "image": 10,
+    "storage": 104857600
   },
   "member": {
     "chat": 40,
-    "image": 20
+    "image": 20,
+    "storage": 524288000
   },
   "pro": {
     "chat": 2000,
-    "image": 60
+    "image": 60,
+    "storage": 10737418240
   }
 }

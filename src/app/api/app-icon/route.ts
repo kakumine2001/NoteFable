@@ -6,7 +6,8 @@ import { msg } from "@/lib/i18n/translate";
 import { NoteValidationError } from "@/lib/note-document";
 import { readSmallJson } from "@/lib/note-groups";
 import { prisma } from "@/lib/prisma";
-import { StoredImageNotFoundError, deleteStoredImage, getImageExtension, readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { StoredImageNotFoundError, getImageExtension, readStoredImage } from "@/lib/storage";
+import { discardStoredFiles, storeFile } from "@/lib/stored-files";
 
 export const runtime = "nodejs";
 
@@ -81,7 +82,8 @@ export async function PUT(request: Request) {
     const input = parseAppIconInput(body.icon);
 
     const storagePath = input.kind === "image" ? `${APP_ICON_ROOT}/${user.id}/${randomUUID()}${getImageExtension(input.mimeType)}` : null;
-    if (input.kind === "image") await writeStoredImageAt(storagePath!, input.bytes, input.mimeType);
+    // 容量に数えるが、上限では断らない（数十 KB の 1 枚を置き換えるだけで、古い画像はすぐ消す）。
+    if (input.kind === "image") await storeFile(user, { path: storagePath!, kind: "APP_ICON", buffer: input.bytes, mimeType: input.mimeType }, { enforce: false });
     const updatedAt = new Date();
     try {
       // 読んだときの画像のままの場合だけ置き換える（同時に別の端末が置き換えていたら、そちらの画像を消さないように、こちらを取り消す）。
@@ -92,11 +94,11 @@ export async function PUT(request: Request) {
       if (!result.count) throw new NoteValidationError(msg("Your icon changed somewhere else. Try again."), 409);
     } catch (error) {
       // 行を更新できなかったら、書いたばかりの画像は誰からも参照されないので消す。
-      if (storagePath) await deleteStoredImage(storagePath).catch(() => {});
+      if (storagePath) await discardStoredFiles([storagePath]);
       throw error;
     }
     // 置き換える前の画像を消す（消せなくても保存は成功のまま。残っても本人のフォルダにあり、アカウント削除で消える）。
-    if (user.appIconImage) await deleteStoredImage(user.appIconImage).catch(() => {});
+    if (user.appIconImage) await discardStoredFiles([user.appIconImage]);
 
     const icon = input.kind === "image" ? appIconDataUrl(input.bytes, input.mimeType) : input.value;
     return NextResponse.json({ icon, updatedAt: updatedAt.toISOString(), account: appIconAccountKey(user.id) }, NO_STORE);

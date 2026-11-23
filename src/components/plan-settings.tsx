@@ -5,7 +5,7 @@ import { useEffect, useId, useState } from "react";
 import { useI18n } from "@/components/i18n-provider";
 import { goToBilling, loadPlan, type PlanInfo } from "@/lib/billing-client";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
-import { USAGE_LIMITS } from "@/lib/usage-plans";
+import { STORAGE_LIMITS, USAGE_LIMITS, formatStorageSize } from "@/lib/usage-plans";
 
 // 設定画面の「プラン」。いまのプランとこの期間の使用量、申し込み（無料）か購読の管理（PRO）のボタンを出す。
 export function PlanSettings() {
@@ -85,11 +85,24 @@ export function PlanSettings() {
               );
             });
           })}
+          {plan.storage && (() => {
+            // ファイル置き場（チャットの画像・生成した画像・ノートのファイルやカバーなど）の使用量。
+            const { used, limit } = plan.storage;
+            const ratio = limit ? Math.min(1, used / limit) : 1;
+            return (
+              <div className="settings-plan-meter">
+                <dt>{t("Storage")}</dt>
+                <dd><span className="settings-plan-count">{formatStorageSize(used, tag)} / {formatStorageSize(limit, tag)}</span></dd>
+                <span className={`settings-plan-bar${ratio >= 1 ? " is-full" : ""}`} aria-hidden="true"><span style={{ width: `${ratio * 100}%` }} /></span>
+              </div>
+            );
+          })()}
         </dl>
+        {plan.storage && <p className="project-settings-help">{t("Files you delete free up space about a week later. Files in Trash or in version history still count.")}</p>}
         {!pro && plan.billing && (
           <div className="settings-plan-offer">
             <p className="settings-plan-offer-title"><Sparkles size={15} aria-hidden="true" />{t("NoteFable Pro · ¥{price}/month", { price: plan.priceJpy })}</p>
-            <p className="project-settings-help">{t("{chat} messages and {image} image generations a month. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image })}</p>
+            <p className="project-settings-help">{t("{chat} messages and {image} image generations a month, and {storage} of storage. Cancel anytime.", { chat: USAGE_LIMITS.pro.chat.toLocaleString(tag), image: USAGE_LIMITS.pro.image, storage: formatStorageSize(STORAGE_LIMITS.pro, tag) })}</p>
             {plan.trialDays > 0 && <p className="project-settings-help">{t("Free for {days} days, then ¥{price}/month. Cancel before the trial ends and you won't be charged.", { days: plan.trialDays, price: plan.priceJpy })}</p>}
             <button type="button" className="signin-open-button settings-plan-upgrade" disabled={busy} onClick={() => void open("checkout")}>
               {busy ? t("Opening…") : plan.trialDays > 0 ? t("Start {days}-day free trial", { days: plan.trialDays }) : t("Upgrade to Pro")}

@@ -5,7 +5,8 @@ import { noteApiError } from "@/lib/note-api";
 import { MAX_NOTE_FILE_BYTES, noteFileContentType, noteFileKeyParts, noteFileUrl, safeFileName } from "@/lib/note-file-keys";
 import { classifyUpload } from "@/lib/note-files";
 import { readLimitedBody } from "@/lib/note-upload";
-import { readStoredImage, writeStoredImageAt } from "@/lib/storage";
+import { readStoredImage } from "@/lib/storage";
+import { scheduleStorageMaintenance, storeFile } from "@/lib/stored-files";
 import { msg } from "@/lib/i18n/translate";
 
 export const runtime = "nodejs";
@@ -35,7 +36,9 @@ export async function POST(request: Request) {
     if (!kind) return NextResponse.json({ error: msg("This file type is not supported. Use an image (JPEG, PNG, WebP, GIF), PDF, text, Office, CSV, JSON, ZIP, MP3, WAV or MP4.") }, { status: 400 });
     const user = await getOrCreateUser();
     const path = `note-files/${user.id}/${randomUUID()}.${kind.extension}`;
-    await writeStoredImageAt(path, buffer, noteFileContentType(kind.extension));
+    // 容量の空きを確かめて記録してから書く。上限なら 413（code: "storage_limit"）。ノートに使われなければ後片付けが消す。
+    await storeFile(user, { path, kind: "NOTE_FILE", buffer, mimeType: noteFileContentType(kind.extension) });
+    scheduleStorageMaintenance();
     return NextResponse.json({ url: noteFileUrl(path, name), name, size: buffer.byteLength, kind: kind.kind }, { status: 201 });
   } catch (error) { return noteApiError(error); }
 }

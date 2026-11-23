@@ -235,4 +235,6 @@ export const esServer: Record<string, string> = {
   "File is too long for one note: {name}": "El archivo es demasiado largo para una sola nota: {name}",
   "Note icon must be a single emoji or an uploaded image.": "El icono de la nota debe ser un solo emoji o una imagen subida.",
   "This icon image is no longer available. Choose another icon.": "Esta imagen de icono ya no está disponible. Elige otro icono.",
+  "There isn't enough storage space left. Sign in for more space, or delete files you no longer need.": "No queda suficiente espacio de almacenamiento. Inicia sesión para tener más espacio o elimina los archivos que ya no necesites.",
+  "There isn't enough storage space left. Delete files you no longer need to free up space.": "No queda suficiente espacio de almacenamiento. Elimina los archivos que ya no necesites para liberar espacio.",
 };

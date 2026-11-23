@@ -122,6 +122,10 @@ class NoteEmbedBridge(
     @JavascriptInterface
     fun canOpenPage(): Boolean = true
 
+    /** 网页据此把"存储空间不够"交给 App 显示（`storageLimit` 消息）；旧版 App 没有这个方法，网页就在编辑器里只说明原因。 */
+    @JavascriptInterface
+    fun canShowStorageLimit(): Boolean = true
+
     /** Swap the dictionary without reloading the note, its draft or AI stream. */
     fun pushLanguage(code: String) {
         webView?.evaluateJavascript("(function(){var e=window.notefableEmbed;if(e&&typeof e.language==='function')e.language(${JSONObject.quote(code)})})()", null)
@@ -272,6 +276,8 @@ fun NoteEditorScreen(
     page: com.kakumine.notefable.data.NotePageSummary? = null,
     menu: NotePageMenuActions? = null,
     onShare: (() -> Unit)? = null,
+    /** 编辑器上方的提示（上传因存储空间不够被拒绝时的 [StorageLimitPrompt]）。 */
+    prompt: (@Composable () -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val currentOnMessage by rememberUpdatedState(onMessage)
@@ -382,6 +388,7 @@ fun NoteEditorScreen(
         if (notice != null) {
             ErrorBar(notice, null, Modifier.padding(horizontal = 24.dp, vertical = 8.dp).clickable(onClick = onDismissNotice))
         }
+        if (prompt != null) Box(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { prompt() }
 
         val lang = embedLanguage()
         androidx.compose.runtime.key(generation) { AndroidView(

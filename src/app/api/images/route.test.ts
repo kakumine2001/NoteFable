@@ -1,10 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ findSession: vi.fn(), history: vi.fn(), createMessage: vi.fn(), read: vi.fn(), write: vi.fn(), fetch: vi.fn(), consumeUsage: vi.fn(), refundUsage: vi.fn() }));
+const mocks = vi.hoisted(() => ({ findSession: vi.fn(), history: vi.fn(), createMessage: vi.fn(), read: vi.fn(), write: vi.fn(), fetch: vi.fn(), consumeUsage: vi.fn(), refundUsage: vi.fn(), room: vi.fn(), discard: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ getOrCreateUser: async () => ({ id: "owner" }) }));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({ ...await importOriginal<object>(), consumeUsage: mocks.consumeUsage, refundUsage: mocks.refundUsage, clientNetworkKey: () => null }));
 vi.mock("@/lib/env", () => ({ optionalEnv: () => undefined, requireEnv: () => "test-key" }));
-vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, writeStoredImage: mocks.write }));
+vi.mock("@/lib/storage", () => ({ readStoredImage: mocks.read, newChatImagePath: () => "images/new.png" }));
+vi.mock("@/lib/stored-files", async (importOriginal) => ({
+  storageLimitResponse: (await importOriginal<typeof import("@/lib/stored-files")>()).storageLimitResponse,
+  assertStorageRoom: mocks.room,
+  discardStoredFiles: mocks.discard,
+  storeFile: async (_owner: unknown, file: { buffer: Buffer; mimeType: string }) => mocks.write(file.buffer, file.mimeType),
+}));
 vi.mock("@/lib/prisma", () => ({ prisma: {
   session: { findFirst: mocks.findSession, create: async () => ({ id: "new", title: "New" }), updateMany: async () => ({}), update: async () => ({}) },
   // findFirst は表示中の枝の末尾（次の発言の親）。
@@ -34,6 +40,16 @@ describe("image generation conversation wiring", () => {
     mocks.fetch.mockResolvedValue(new Response(JSON.stringify({ data: [{ b64_json: Buffer.from("generated").toString("base64") }] })));
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
+
+  it("refuses with the storage limit before calling the provider or counting a generation", async () => {
+    const { StorageLimitError } = await import("@/lib/usage-plans");
+    mocks.room.mockRejectedValueOnce(new StorageLimitError("full", "member", 600, 500));
+    const response = await POST(request());
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: "full", code: "storage_limit", tier: "member", used: 600, limit: 500 });
+    expect(mocks.consumeUsage).not.toHaveBeenCalled();
+    expect(mocks.fetch).not.toHaveBeenCalled();
+  });
 
   it("returns the image limit before calling the provider", async () => {
     mocks.consumeUsage.mockResolvedValueOnce({ ok: false, tier: "guest", message: "limit" });
