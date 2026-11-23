@@ -127,7 +127,9 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   // ページの種類。一覧の 1 件（/note-embed では開いたページの 1 件だけ）か、読み込んだページの行が持つ。
   const activeKind = pageKindOf(activeSummary?.kind ? activeSummary : active?.page);
   // ホワイトボード・スライドのエディター（種類の表でエディターがあり、画面に登録があるときだけ）。
-  const CanvasEditor = isCanvasKind(activeKind) && pageKindFeatures(activeKind).editor ? CANVAS_EDITORS[activeKind] : undefined;
+  // 本体を持たないキュー（本体なしの応答から作られたもの）には作らない（空の本体で編集を始めさせない）。
+  const canvasData = active?.content.data ?? active?.page.data;
+  const CanvasEditor = isCanvasKind(activeKind) && pageKindFeatures(activeKind).editor && canvasData ? CANVAS_EDITORS[activeKind] : undefined;
   const canvasEditorOpen = Boolean(CanvasEditor && active && activeId && !listMode && !loading);
   const editable = !busy && !settings.locked;
   const pageClass = active && activeId && !listMode
@@ -174,7 +176,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     : active && activeId && !listMode && isCanvasKind(activeKind) ? (CanvasEditor ? <div className="canvas-editor-shell">
       <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
       <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
-        data={active.content.data ?? active.page.data ?? {}} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+        data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
         // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
         onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
         onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }} />
