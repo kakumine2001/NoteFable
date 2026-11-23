@@ -795,7 +795,8 @@ private fun NotesHomeList(
         val zone = sectionZone(section.kind)
         val heading = if (kinds.size > 1) stringResource(sectionLabel(section.kind)) else if (state.groups.isNotEmpty()) stringResource(R.string.no_project) else null
         key(zone) {
-            DisposableEffect(zone) {
+            // 小标题不显示时（项目都删了等）投放区也去掉：不然放在原来的位置上，子页面会被移出父页面。
+            DisposableEffect(zone, heading != null) {
                 drag.zoneContainers[zone] = null
                 drag.zoneAccepts[zone] = section.kind.wire
                 onDispose { drag.zones.remove(zone); drag.zoneContainers.remove(zone); drag.zoneAccepts.remove(zone) }

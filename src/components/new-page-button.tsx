@@ -9,13 +9,14 @@ import { PAGE_KIND_LABELS, type PageKind } from "@/lib/page-kinds";
 // 新しいページを作るボタン（#168）。作れる種類（kinds、creatablePageKinds）が 1 つなら、押すとすぐその種類を作る
 // （ノートしか作れない間は今までの「New note」と同じ 1 回の操作）。2 つ以上なら、押すと種類のメニュー（ノート・スライド・ホワイトボード）を開く。
 // サイドバーの「新建」、プロジェクトの「+」、ページ行の「+」が使う。分区の「+」とホームの作成ボタンは種類が決まっているので使わない。
-export function NewPageButton({ kinds, busy, onCreate, className, label, menuLabel, children }: {
+export function NewPageButton({ kinds, busy, onCreate, className, label, title = label, menuLabel, children }: {
   kinds: readonly PageKind[];
   busy: boolean;
   onCreate: (kind: PageKind) => void;
   className: string;
-  // ボタンの読み上げ名と title（中身がアイコンだけのとき）。
+  // ボタンの読み上げ名（中身がアイコンだけのとき）と、ツールチップ（省略は label）。
   label?: string;
+  title?: string;
   // 種類のメニューの読み上げ名。
   menuLabel: string;
   children: ReactNode;
@@ -27,7 +28,7 @@ export function NewPageButton({ kinds, busy, onCreate, className, label, menuLab
   // AnswerMenu は onClose が変わると開き直すので、同じ関数を渡し続ける。
   const close = useCallback(() => setMenu(null), []);
   return <>
-    <button type="button" className={className} disabled={busy} aria-label={label} title={label}
+    <button type="button" className={className} disabled={busy} aria-label={label} title={title}
       aria-haspopup={multiple ? "menu" : undefined} aria-expanded={multiple ? !!menu : undefined} aria-controls={multiple && menu ? id : undefined}
       onClick={(event) => {
         if (!multiple) { onCreate(kinds[0] ?? "note"); return; }

@@ -159,7 +159,7 @@ export function NotesSidebar({ pages, activeId, busy, home, onHome, onCreate, on
         <span className="truncate text-sm">{page.title}</span>
       </ReorderRowButton>
       <NewPageButton kinds={kinds} busy={busy} onCreate={(kind) => create({ kind, parentId: page.id })} className="notion-row-action"
-        label={t("Add a page inside {title}", { title: page.title })} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
+        label={t("Add a page inside {title}", { title: page.title })} title={t("Add a page inside")} menuLabel={t("Add a page inside {title}", { title: page.title })}><Plus size={14} /></NewPageButton>
       <button type="button" disabled={busy} onClick={() => setMoving(page)} className="notion-row-action notes-move-action" aria-label={t("Move {title} to a project", { title: page.title })} title={t("Move to project")}><FolderInput size={14} /></button>
       <button type="button" disabled={busy} onClick={() => setDeleting(page)} className="notion-row-action" aria-label={t("Move {title} to Trash", { title: page.title })} title={t("Move to Trash")}><Trash2 size={14} /></button>
     </div>

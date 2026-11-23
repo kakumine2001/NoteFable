@@ -326,9 +326,9 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
       const copyParent = copy && activeId ? pages.find((entry) => entry.id === activeId)?.parentId ?? null : null;
       const parent = copy ? copyParent : parentId;
       const pageKind = copy && current ? pageKindOf(current.page) : kind;
-      // プロジェクトは親がないときだけ（サブページのプロジェクトは親に従う）。副本は元のページと同じプロジェクトに作る。
-      const copyGroup = copy && activeId && !parent ? pages.find((entry) => entry.id === activeId)?.groupId ?? null : null;
-      const group = parent ? null : copy ? copyGroup : groupId;
+      // プロジェクトは親がないときだけ（サブページのプロジェクトは親に従う）。競合の副本には付けない：一覧の groupId は
+      // 別の端末で消されたプロジェクトを指したままのことがあり、404 で下書きを救えなくなる（副本は今までどおりプロジェクトなし）。
+      const group = copy || parent ? null : groupId;
       const { page } = await pageRequest("/api/pages", "POST", newPageBody(pageKind, content, parent, group));
       if (copy && current) {
         const latest = current.latest ?? current.page;
