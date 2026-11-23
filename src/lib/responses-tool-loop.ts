@@ -1,4 +1,4 @@
-import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
+import { MAX_TOOL_ROUNDS, parseToolArguments, runToolCalls, storedToolText, toResponsesToolOutput, type ToolDefinition, type ToolRunner } from "@/lib/chat-tools";
 import { closeQuietly, consumeSseData } from "@/lib/sse";
 import { msg } from "@/lib/i18n/translate";
 
@@ -107,7 +107,7 @@ export async function createResponsesToolStream({
           if (!runTool) throw new Error(msg("The model requested an unavailable tool. Please retry."));
           const runs = await runToolCalls(calls, runTool, send);
           if (abort.signal.aborted) return closeQuietly(controller);
-          const results = runs.map((run, index) => ({ type: "function_call_output", call_id: calls[index].id, output: run.content }));
+          const results = runs.map((run, index) => ({ type: "function_call_output", call_id: calls[index].id, output: toResponsesToolOutput(run) }));
           // 再送時に function_call だけが残らないよう、コンテキストにも結果を組で入れる。
           context?.push(...results);
           if (round === MAX_TOOL_ROUNDS - 1) throw new Error(msg("Tool round limit reached. Please retry."));

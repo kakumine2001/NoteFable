@@ -47,7 +47,7 @@ import { isPageShared, pageSettingsOf, TRASH_RETENTION_DAYS } from "@/types/note
 import { NotesSidebar } from "@/components/notes-sidebar";
 import { SearchDialog, useSearchShortcut } from "@/components/search-dialog";
 import type { WorkspaceView } from "@/components/workspace-nav";
-import { NOTE_CHAT_SAVED_EVENT } from "@/components/note-assistant";
+import { NOTE_CHAT_SAVED_EVENT } from "@/components/page-assistant";
 import { NotesWorkspace } from "@/components/notes-workspace";
 import { SplitNotePane } from "@/components/split-note-pane";
 import { recentPages } from "@/lib/notes-home-text";

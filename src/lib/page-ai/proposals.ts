@@ -1,0 +1,332 @@
+import type { Prisma } from "@/generated/prisma/client";
+import { NoteValidationError } from "@/lib/note-document";
+import { createRevision } from "@/lib/note-revisions";
+import { descendantIds, lockNoteOrder } from "@/lib/note-tree-server";
+import { isCanvasKind, NOT_A_NOTE_ERRORS, pageKindOf, type PageKind } from "@/lib/page-kinds";
+import { prisma } from "@/lib/prisma";
+import { fmt, msg } from "@/lib/i18n/translate";
+import type { CreateDraft, EditDraft, ProposalImage, ProposedContent, ValidatedContent } from "@/lib/page-ai/adapter";
+import { adapterFor } from "@/lib/page-ai/registry";
+import { loadFullPage } from "@/lib/page-ai/storage";
+import type { PageCreateProposal, PageEditProposal, ProposalChange, ProposalStatus } from "@/lib/page-ai/types";
+
+// AI の提案（ページの編集・新規作成）の保存・適用・破棄・元に戻す。ページの種類によらない（内容の検証と書き方はアダプター）。
+// 適用は 1 回のトランザクションにまとめ、「適用済み」への切り替えを先に取った 1 回だけがページを書く。
+// そのため再送や二重クリックでも、ページが二重に作られたり、同じ編集が 2 回当たったりしない。
+// 編集の適用は、上書きする直前の状態を同じトランザクションで履歴（AI_EDIT）に残し、元に戻すときはその履歴へ戻す。
+
+// NoteProposal.payload に保存する形。proposed は適用で書く内容（画面には返さない）、images は縮小画像の本体（画面には URL で返す）。
+type EditPayload = {
+  pageId: string; pageTitle: string; baseVersion: number; title?: { before: string; after: string };
+  changes: ProposalChange[]; proposed: ProposedContent; images?: ProposalImage[];
+};
+type CreatePayload = {
+  title: string; icon: string | null; content: string; parentId?: string | null; parentTitle?: string;
+  changes?: ProposalChange[]; proposed: ProposedContent; images?: ProposalImage[];
+};
+
+// 画面とやり取りする形（chat-activity.ts の proposal / create_proposal と同じ項目に、状態を足したもの）。
+export type ProposalView =
+  | ({ kind: "proposal" } & PageEditProposal)
+  | ({ kind: "create_proposal" } & PageCreateProposal);
+
+type Row = {
+  id: string;
+  kind: "EDIT" | "CREATE";
+  status: "PENDING" | "APPLIED" | "DISCARDED" | "UNDONE";
+  pageKind: PageKind;
+  payload: unknown;
+  appliedPageId: string | null;
+  autoApplied: boolean;
+  appliedVersion: number | null;
+  revisionId: string | null;
+};
+
+const ROW_SELECT = {
+  id: true, kind: true, status: true, pageKind: true, payload: true, appliedPageId: true, autoApplied: true, appliedVersion: true, revisionId: true,
+} as const;
+
+const STATUS: Record<Row["status"], ProposalStatus> = { PENDING: "pending", APPLIED: "applied", DISCARDED: "discarded", UNDONE: "undone" };
+
+// 1 つの提案に保存する縮小画像の上限（数と 1 枚の大きさ）。カードの見た目のためだけなので、超えた分は保存しない。
+const MAX_PROPOSAL_IMAGES = 8;
+const MAX_PROPOSAL_IMAGE_BASE64 = 350_000;
+
+function imageUrl(id: string, change: number, side: "before" | "after") {
+  return `/api/proposals/${encodeURIComponent(id)}/image?change=${change}&side=${side}`;
+}
+
+// 保存した縮小画像は、本体ではなく URL（持ち主を確かめて返すエンドポイント）にして画面へ渡す。
+function withImages(id: string, changes: ProposalChange[] | undefined, images: ProposalImage[] | undefined): ProposalChange[] | undefined {
+  if (!changes) return undefined;
+  return changes.map((change, index) => {
+    const has = (side: "before" | "after") => images?.some((image) => image.change === index && image.side === side);
+    return { ...change, ...(has("before") ? { beforeImage: imageUrl(id, index, "before") } : {}), ...(has("after") ? { afterImage: imageUrl(id, index, "after") } : {}) };
+  });
+}
+
+// 画面に返す形。適用に使う内容（proposed の本文・本体）と縮小画像の本体は、サーバーの保存分だけを使うので返さない。
+// proposed.blocks は常に空の配列（古いアプリは配列があることを確かめる）。
+export function toProposalView(row: Row): ProposalView {
+  const status = STATUS[row.status];
+  const state = {
+    id: row.id, status, appliedPageId: row.appliedPageId, pageKind: row.pageKind,
+    ...(row.autoApplied ? { autoApplied: true } : {}),
+    ...(status === "applied" && row.appliedVersion !== null ? { undoable: true } : {}),
+  };
+  if (row.kind === "EDIT") {
+    const { proposed, images, changes, ...rest } = row.payload as EditPayload;
+    return { ...rest, changes: withImages(row.id, changes, images) ?? [], proposed: { title: proposed.title, blocks: [] }, ...state, kind: "proposal" };
+  }
+  const { proposed, images, changes, ...rest } = row.payload as CreatePayload;
+  const shown = withImages(row.id, changes, images);
+  return { ...rest, ...(shown ? { changes: shown } : {}), proposed: { title: proposed.title, icon: proposed.icon ?? null, blocks: [] }, ...state, kind: "create_proposal" };
+}
+
+// 保存された提案の形を、使う前に確かめる。形が壊れていると、条件の欠けた更新を投げかねない。
+function editPayload(payload: unknown): EditPayload | null {
+  const p = payload as Partial<EditPayload> | null;
+  return p && typeof p.pageId === "string" && p.pageId.length > 0 && Number.isSafeInteger(p.baseVersion) && typeof p.proposed?.title === "string"
+    && (Array.isArray(p.proposed.blocks) || (typeof p.proposed.data === "object" && p.proposed.data !== null)) ? p as EditPayload : null;
+}
+function createPayload(payload: unknown): CreatePayload | null {
+  const p = payload as Partial<CreatePayload> | null;
+  return p && typeof p.proposed?.title === "string"
+    && (Array.isArray(p.proposed.blocks) || (typeof p.proposed.data === "object" && p.proposed.data !== null)) ? p as CreatePayload : null;
+}
+
+function keptImages(images: ProposalImage[] | undefined) {
+  return (images ?? []).filter((image) => image.base64.length <= MAX_PROPOSAL_IMAGE_BASE64).slice(0, MAX_PROPOSAL_IMAGES);
+}
+
+export type SaveInput =
+  | { kind: "EDIT"; pageKind: PageKind; page: { id: string; title: string; version: number }; draft: EditDraft }
+  | { kind: "CREATE"; pageKind: PageKind; draft: CreateDraft; parentTitle?: string };
+
+export async function saveProposal(userId: string, sessionId: string, input: SaveInput): Promise<ProposalView> {
+  const images = keptImages(input.draft.images);
+  const payload: EditPayload | CreatePayload = input.kind === "EDIT"
+    ? {
+        pageId: input.page.id, pageTitle: input.page.title, baseVersion: input.page.version,
+        ...(input.draft.title ? { title: input.draft.title } : {}), changes: input.draft.changes, proposed: input.draft.proposed,
+        ...(images.length ? { images } : {}),
+      }
+    : {
+        title: input.draft.title, icon: input.draft.icon, content: input.draft.content,
+        ...(input.draft.parentId ? { parentId: input.draft.parentId, ...(input.parentTitle !== undefined ? { parentTitle: input.parentTitle } : {}) } : {}),
+        ...(input.draft.changes?.length ? { changes: input.draft.changes } : {}), proposed: input.draft.proposed,
+        ...(images.length ? { images } : {}),
+      };
+  const row = await prisma.noteProposal.create({
+    data: { userId, sessionId, kind: input.kind, pageKind: input.pageKind, payload: payload as unknown as Prisma.InputJsonValue },
+    select: ROW_SELECT,
+  });
+  return toProposalView(row as Row);
+}
+
+// 回答を保存したあとで、その回答が出した提案を紐付ける。
+export async function attachProposals(userId: string, ids: string[], messageId: string, db: Pick<typeof prisma, "noteProposal"> = prisma) {
+  if (!ids.length) return;
+  await db.noteProposal.updateMany({ where: { id: { in: ids }, userId }, data: { messageId } });
+}
+
+export async function findProposal(userId: string, id: string): Promise<Row | null> {
+  return await prisma.noteProposal.findFirst({ where: { id, userId }, select: ROW_SELECT }) as Row | null;
+}
+
+export async function proposalView(userId: string, id: string): Promise<ProposalView | null> {
+  const row = await findProposal(userId, id);
+  return row ? toProposalView(row) : null;
+}
+
+export type ApplyResult =
+  | { ok: true; status: "applied"; kind: "edit" | "create"; page: unknown }
+  | { ok: false; httpStatus: number; error: string };
+
+export type UndoResult =
+  | { ok: true; status: "undone"; kind: "edit"; page: unknown }
+  | { ok: true; status: "undone"; kind: "create"; trashedIds: string[] }
+  | { ok: false; httpStatus: number; error: string };
+
+class Conflict extends Error {}
+
+const fail = (httpStatus: number, error: string) => ({ ok: false as const, httpStatus, error });
+
+// 適用済みなら、そのときの結果（いまのページ）をそのまま返す。
+async function appliedResult(userId: string, row: Row): Promise<ApplyResult> {
+  const pageId = row.appliedPageId ?? (row.kind === "EDIT" ? editPayload(row.payload)?.pageId : null);
+  const page = pageId ? await loadFullPage(userId, pageId) : null;
+  if (!page) return fail(404, msg("This note no longer exists."));
+  return { ok: true, status: "applied", kind: row.kind === "EDIT" ? "edit" : "create", page };
+}
+
+// 編集を書けなかった理由（ページが消えた・種類が違う・版が進んだ）。
+async function editConflict(userId: string, row: Row, pageId: string): Promise<ApplyResult> {
+  const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true, kind: true } });
+  if (!exists) return fail(404, msg("Note not found."));
+  const kind = pageKindOf(exists);
+  if (kind !== row.pageKind && row.pageKind === "note" && isCanvasKind(kind)) return fail(409, NOT_A_NOTE_ERRORS[kind]);
+  return fail(409, msg("This note changed after the proposal was made. Ask again to get a fresh proposal."));
+}
+
+// auto は AI パネルの「自動適用」（利用者が確認せずに適用した）。
+export async function applyProposal(userId: string, id: string, { auto = false }: { auto?: boolean } = {}): Promise<ApplyResult> {
+  const row = await findProposal(userId, id);
+  if (!row) return fail(404, msg("Proposal not found."));
+  if (row.status === "DISCARDED") return fail(409, msg("This proposal was discarded."));
+  if (row.status === "UNDONE") return fail(409, msg("This change was undone."));
+  if (row.status === "APPLIED") return appliedResult(userId, row);
+  const edit = row.kind === "EDIT" ? editPayload(row.payload) : null;
+  const create = row.kind === "CREATE" ? createPayload(row.payload) : null;
+  if (!edit && !create) return fail(409, msg("This proposal is no longer valid. Ask again to get a fresh proposal."));
+  const adapter = adapterFor(row.pageKind);
+
+  // 適用の権利を取れなかった時は、取った相手（または破棄した相手）の結果をもう一度読んで返す。
+  const afterLostClaim = async (): Promise<ApplyResult> => {
+    const latest = await findProposal(userId, id);
+    if (!latest) return fail(404, msg("Proposal not found."));
+    if (latest.status === "APPLIED") return appliedResult(userId, latest);
+    return fail(409, latest.status === "UNDONE" ? msg("This change was undone.") : msg("This proposal was discarded."));
+  };
+
+  try {
+    // 保存時と同じ検証を、DB から読んだ内容にもかける。
+    const content: ValidatedContent = adapter.validate(userId, (edit ?? create)!.proposed);
+    const applied = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "APPLIED", autoApplied: auto } });
+      if (!claimed.count) return null;
+      if (edit) {
+        // 提案を作った時点の版と一致する時だけ書く（ゴミ箱のページ・種類の違うページには書かない）。外れたら「適用済み」への切り替えごと取り消す。
+        const current = await tx.notePage.findFirst({
+          where: { id: edit.pageId, userId, version: edit.baseVersion, deletedAt: null, kind: row.pageKind },
+          select: { id: true, title: true, icon: true, blocks: true, version: true },
+        });
+        if (!current) throw new Conflict();
+        const version = current.version;
+        // 上書きする直前の状態を履歴に残す。この後の書き込みが失敗して巻き戻れば、履歴も一緒に消える。
+        const snapshot = await adapter.snapshot(tx, current);
+        const revisionId = await createRevision(tx, { noteId: current.id, userId, reason: "AI_EDIT", ...snapshot, version, kind: row.pageKind });
+        if (!await adapter.write(tx, { id: current.id, userId, version }, content, { ai: true })) throw new Conflict();
+        await tx.noteProposal.update({ where: { id }, data: { appliedPageId: current.id, appliedVersion: version + 1, revisionId } });
+        return current.id;
+      }
+      const created = await adapter.createPage(tx, userId, content, create!.parentId ?? null);
+      await tx.noteProposal.update({ where: { id }, data: { appliedPageId: created.id, appliedVersion: created.version } });
+      return created.id;
+    }, { timeout: 20_000 });
+    if (!applied) return afterLostClaim();
+    const page = await loadFullPage(userId, applied);
+    if (!page) return fail(404, msg("This note no longer exists."));
+    return { ok: true, status: "applied", kind: edit ? "edit" : "create", page };
+  } catch (error) {
+    if (error instanceof Conflict) return editConflict(userId, row, edit!.pageId);
+    if (error instanceof NoteValidationError) return fail(error.status, error.message);
+    throw error;
+  }
+}
+
+export async function discardProposal(userId: string, id: string): Promise<{ ok: true; status: "discarded" } | { ok: false; httpStatus: number; error: string }> {
+  const changed = await prisma.noteProposal.updateMany({ where: { id, userId, status: "PENDING" }, data: { status: "DISCARDED" } });
+  if (changed.count) return { ok: true, status: "discarded" };
+  const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { status: true } });
+  if (!row) return { ok: false, httpStatus: 404, error: msg("Proposal not found.") };
+  return row.status === "DISCARDED" ? { ok: true, status: "discarded" } : { ok: false, httpStatus: 409, error: msg("This proposal was already applied.") };
+}
+
+class Changed extends Error {}
+
+// 適用した提案を元に戻す。編集は適用前の履歴（AI_EDIT）の内容へ戻し（いまの状態は RESTORE の履歴に残すので、戻したこともまた戻せる）、
+// 新規は作ったページ（とサブページ）をゴミ箱へ移す（30 日以内なら復元できる）。
+// 編集を戻せるのは、ページが適用した版のまま（その後に誰も書いていない）ときだけ。書かれていたら 409（ページの履歴から戻す）。
+export async function undoProposal(userId: string, id: string): Promise<UndoResult> {
+  const row = await findProposal(userId, id);
+  if (!row) return fail(404, msg("Proposal not found."));
+  if (row.status === "UNDONE") return undoneResult(userId, row);
+  if (row.status !== "APPLIED") return fail(409, msg("Only an applied change can be undone."));
+  const adapter = adapterFor(row.pageKind);
+
+  if (row.kind === "CREATE") {
+    const trashed = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "APPLIED" }, data: { status: "UNDONE" } });
+      if (!claimed.count) return null;
+      if (!row.appliedPageId) return [];
+      // 同時に別のページをこのページの下へ移されても、取り残さない（ページの削除と同じ）。
+      await lockNoteOrder(tx, userId);
+      const subtree = [row.appliedPageId, ...await descendantIds(tx, userId, row.appliedPageId)];
+      const result = await tx.notePage.updateMany({ where: { id: { in: subtree }, userId, deletedAt: null }, data: { deletedAt: new Date() } });
+      return result.count ? subtree : [];
+    });
+    if (!trashed) return undoneAfterLostClaim(userId, id);
+    return { ok: true, status: "undone", kind: "create", trashedIds: trashed };
+  }
+
+  if (!row.appliedPageId || row.appliedVersion === null || !row.revisionId) {
+    return fail(409, msg("This change can't be undone here. Restore an earlier version from the page history."));
+  }
+  const pageId = row.appliedPageId;
+  try {
+    const done = await prisma.$transaction(async (tx) => {
+      const claimed = await tx.noteProposal.updateMany({ where: { id, userId, status: "APPLIED" }, data: { status: "UNDONE" } });
+      if (!claimed.count) return false;
+      const current = await tx.notePage.findFirst({
+        where: { id: pageId, userId, version: row.appliedVersion!, deletedAt: null, kind: row.pageKind },
+        select: { id: true, title: true, icon: true, blocks: true, version: true },
+      });
+      if (!current) throw new Changed();
+      const revision = await tx.noteRevision.findFirst({ where: { id: row.revisionId!, noteId: pageId, userId }, select: { title: true, icon: true, blocks: true, data: true } });
+      if (!revision) throw new Changed();
+      // 保存と同じ検証を、履歴の内容にもかける（履歴からの復元と同じ）。
+      const content = adapter.validate(userId, adapter.fromSnapshot(revision));
+      const snapshot = await adapter.snapshot(tx, current);
+      await createRevision(tx, { noteId: current.id, userId, reason: "RESTORE", ...snapshot, version: current.version, kind: row.pageKind });
+      if (!await adapter.write(tx, { id: current.id, userId, version: current.version }, content, { ai: false })) throw new Changed();
+      return true;
+    }, { timeout: 20_000 });
+    if (!done) return undoneAfterLostClaim(userId, id);
+    const page = await loadFullPage(userId, pageId);
+    if (!page) return fail(404, msg("Note not found."));
+    return { ok: true, status: "undone", kind: "edit", page };
+  } catch (error) {
+    if (error instanceof Changed) {
+      const exists = await prisma.notePage.findFirst({ where: { id: pageId, userId, deletedAt: null }, select: { id: true } });
+      return exists ? fail(409, msg("This page changed after the AI edit. Restore an earlier version from the page history.")) : fail(404, msg("Note not found."));
+    }
+    if (error instanceof NoteValidationError) return fail(409, fmt("This version cannot be restored. {detail}", { detail: error.message }));
+    throw error;
+  }
+}
+
+// すでに元に戻した提案。もう一度押されても同じ結果を返す。
+async function undoneResult(userId: string, row: Row): Promise<UndoResult> {
+  if (row.kind === "CREATE") return { ok: true, status: "undone", kind: "create", trashedIds: [] };
+  const page = row.appliedPageId ? await loadFullPage(userId, row.appliedPageId) : null;
+  if (!page) return fail(404, msg("Note not found."));
+  return { ok: true, status: "undone", kind: "edit", page };
+}
+
+async function undoneAfterLostClaim(userId: string, id: string): Promise<UndoResult> {
+  const latest = await findProposal(userId, id);
+  if (!latest) return fail(404, msg("Proposal not found."));
+  return latest.status === "UNDONE" ? undoneResult(userId, latest) : fail(409, msg("Only an applied change can be undone."));
+}
+
+// 提案に保存した縮小画像（改前・改後）。持ち主の提案のものだけ。
+export async function proposalImage(userId: string, id: string, change: number, side: "before" | "after") {
+  const row = await prisma.noteProposal.findFirst({ where: { id, userId }, select: { payload: true } });
+  const images = (row?.payload as { images?: ProposalImage[] } | null)?.images;
+  const image = Array.isArray(images) ? images.find((entry) => entry && entry.change === change && entry.side === side) : undefined;
+  if (!image || typeof image.base64 !== "string" || !["image/png", "image/jpeg", "image/webp"].includes(image.mimeType)) return null;
+  return { mimeType: image.mimeType, bytes: Buffer.from(image.base64, "base64") };
+}
+
+// 履歴の表示用に、セッションの提案を回答ごとにまとめる。回答に紐付いていない提案は出さない。
+export async function proposalsByMessage(userId: string, sessionId: string) {
+  const rows = await prisma.noteProposal.findMany({
+    where: { sessionId, userId, messageId: { not: null } },
+    orderBy: { createdAt: "asc" },
+    select: { ...ROW_SELECT, messageId: true },
+  });
+  const grouped = new Map<string, ProposalView[]>();
+  for (const { messageId, ...row } of rows) grouped.set(messageId!, [...(grouped.get(messageId!) ?? []), toProposalView(row as Row)]);
+  return grouped;
+}

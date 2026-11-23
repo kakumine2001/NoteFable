@@ -150,8 +150,12 @@ export function AnswerMenu({ id, anchor, trigger, focusLast, onClose, children, 
   </dialog>;
 }
 
-// AI の回答を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
-export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; onClose: () => void }) {
+// 通報する AI の内容：チャットの回答、AI の提案カード（ページの編集・新規の案）、AI が書いたページ。
+export type ReportTarget = { messageId: string } | { proposalId: string } | { pageId: string };
+
+// AI の回答・AI が作った内容を開発者に通報する（Google Play の AI 生成コンテンツのポリシー）。理由は任意。送った内容は運営者のメールに届く。
+export function ReportDialog({ target, onClose }: { target: ReportTarget; onClose: () => void }) {
+  const answer = "messageId" in target;
   const t = useT();
   const ref = useRef<HTMLDialogElement>(null);
   const titleId = useId();
@@ -167,7 +171,7 @@ export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; 
     setBusy(true); setError("");
     try {
       const response = await fetch("/api/reports", {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ messageId, reason: reason.trim() }),
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...target, reason: reason.trim() }),
       });
       const data = await response.json().catch(() => null) as { error?: unknown } | null;
       if (!response.ok) throw new Error(typeof data?.error === "string" && data.error ? data.error : msg("Could not send the report."));
@@ -181,14 +185,16 @@ export function ReportAnswerDialog({ messageId, onClose }: { messageId: string; 
   return <dialog ref={ref} aria-labelledby={titleId} className="notes-dialog answer-report-dialog"
     onCancel={(event) => { event.preventDefault(); close(); }}>
     {sent ? <div role="status">
-      <h2 id={titleId} className="text-base font-semibold">{t("Report this answer")}</h2>
+      <h2 id={titleId} className="text-base font-semibold">{answer ? t("Report this answer") : t("Report AI content")}</h2>
       <p className="mt-2 text-sm text-[var(--notion-muted)]">{t("Report sent. Thank you.")}</p>
       <div className="mt-5 flex justify-end">
         <button type="button" autoFocus className="notion-button notion-button-primary" onClick={onClose}>{t("Done")}</button>
       </div>
     </div> : <form onSubmit={(event) => { event.preventDefault(); void send(); }}>
-      <h2 id={titleId} className="text-base font-semibold">{t("Report this answer")}</h2>
-      <p className="mt-2 text-sm text-[var(--notion-muted)]">{t("Tell us what’s wrong with this answer. It is sent to the NoteFable team together with your question.")}</p>
+      <h2 id={titleId} className="text-base font-semibold">{answer ? t("Report this answer") : t("Report AI content")}</h2>
+      <p className="mt-2 text-sm text-[var(--notion-muted)]">{answer
+        ? t("Tell us what’s wrong with this answer. It is sent to the NoteFable team together with your question.")
+        : t("Tell us what’s wrong with this AI content. It is sent to the NoteFable team together with the content.")}</p>
       <textarea autoFocus value={reason} maxLength={1000} disabled={busy} onChange={(event) => setReason(event.target.value)}
         placeholder={t("What’s wrong? (optional)")} aria-label={t("What’s wrong? (optional)")} className="notes-dialog-input answer-report-reason" />
       {error && <p role="alert" className="mt-2 text-sm text-[#b91c1c]">{localizeSystemText(error, t)}</p>}
@@ -215,7 +221,7 @@ export function ReportAnswerButton({ messageId }: { messageId: string }) {
       <button type="button" className="answer-action" onClick={() => setOpen(true)} aria-label={t("Report answer")} title={t("Report answer")}>
         <Flag size={16} strokeWidth={1.9} />
       </button>
-      {open && <ReportAnswerDialog messageId={messageId} onClose={() => setOpen(false)} />}
+      {open && <ReportDialog target={{ messageId }} onClose={() => setOpen(false)} />}
     </div>
   );
 }
@@ -365,7 +371,7 @@ export function AnswerActions({ messageId, content, sessionId, conversationTitle
       </AnswerMenu>}
       {!menu && <span role="status" aria-live="polite" className="sr-only">{status}</span>}
       {!menu && error && <span role="alert" className="answer-actions-error">{localizeSystemText(error.message, t)}</span>}
-      {reporting && <ReportAnswerDialog messageId={messageId} onClose={() => setReporting(false)} />}
+      {reporting && <ReportDialog target={{ messageId }} onClose={() => setReporting(false)} />}
     </div>
   );
 }

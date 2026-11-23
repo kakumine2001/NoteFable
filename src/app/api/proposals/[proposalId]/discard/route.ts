@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
-import { discardProposal } from "@/lib/note-proposals";
+import { discardProposal } from "@/lib/page-ai/proposals";
 import { msg } from "@/lib/i18n/translate";
 
 type Context = { params: Promise<{ proposalId: string }> };

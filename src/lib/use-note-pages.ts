@@ -8,6 +8,7 @@ import { runTransition } from "@/lib/view-transition";
 import { descendantIdsOf } from "@/lib/note-tree";
 import { isImportableMarkdownFile, MAX_IMPORT_FILE_BYTES, MAX_IMPORT_FILES, MAX_IMPORT_TOTAL_BYTES } from "@/lib/note-io";
 import { isCanvasKind, pageKindOf } from "@/lib/page-kinds";
+import { PAGES_TRASHED_EVENT } from "@/lib/proposal-sync";
 import type { NoteGroupSummary, NotePage, NotePageSettings, NotePageSummary } from "@/types/notes";
 import { fmt, msg } from "@/lib/i18n/translate";
 
@@ -79,7 +80,11 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         && existing.shareEnabled === meta.shareEnabled && existing.shareExpiresAt === meta.shareExpiresAt) return current;
       // 所属グループ・親・位置は移動と並べ替えの操作だけが決める（並べ替えの最中に届いた古い値で戻さない）。
       // 種類は変わらない。種類を持たない応答で消さない。
-      return current.map((entry) => entry.id === page.id ? { ...page, ...meta, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId } : entry);
+      // AI が書いた目印（aiUpdatedAt）も、持たない応答で消さない。
+      return current.map((entry) => entry.id === page.id ? {
+        ...page, ...meta, kind: page.kind ?? entry.kind, groupId: entry.groupId, position: entry.position, parentId: entry.parentId,
+        aiUpdatedAt: page.aiUpdatedAt !== undefined ? page.aiUpdatedAt : entry.aiUpdatedAt,
+      } : entry);
     });
   }, []);
 
@@ -252,13 +257,34 @@ export function useNotePages(enabled: boolean, { embedded = false }: { embedded?
         ...entry, favoritedAt: page.favoritedAt ?? null, fullWidth: page.fullWidth, smallText: page.smallText, font: page.font, locked: page.locked,
       } : entry));
     }
+    // AI の提案で作ったページを「元に戻す」でゴミ箱へ移した（サブページも一緒）。一覧と保存キューから外し、開いていたら閉じる。
+    function onPagesTrashed(event: Event) {
+      const ids = (event as CustomEvent<{ ids?: unknown } | undefined>).detail?.ids;
+      if (!Array.isArray(ids) || !ids.length) return;
+      const removed = new Set(ids.filter((id): id is string => typeof id === "string"));
+      for (const id of removed) {
+        queues.current.delete(id);
+        try { localStorage.removeItem(DRAFT_PREFIX + id); } catch { /* 古い下書きを、復元後の本文に重ねない。 */ }
+      }
+      runTransition(() => setPages((current) => current.filter((page) => !removed.has(page.id))), "list");
+      if (displayedId.current && removed.has(displayedId.current)) {
+        displayedId.current = null;
+        setActiveId(null);
+        setActive(undefined);
+        const url = new URL(window.location.href);
+        url.searchParams.delete("page");
+        window.history.replaceState(null, "", url);
+      }
+    }
     window.addEventListener("notefable:page-meta", onPageMeta);
     window.addEventListener("notefable:page-updated", onPageUpdated);
     window.addEventListener("notefable:page-created", onPageCreated);
+    window.addEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
     return () => {
       window.removeEventListener("notefable:page-meta", onPageMeta);
       window.removeEventListener("notefable:page-updated", onPageUpdated);
       window.removeEventListener("notefable:page-created", onPageCreated);
+      window.removeEventListener(PAGES_TRASHED_EVENT, onPagesTrashed);
     };
   }, [upsertSummary, markMeta]);
 

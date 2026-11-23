@@ -26,6 +26,8 @@ export type NotePageSummary = {
   // 公開共有の状態（トップバーの共有ボタンの強調表示に使う）。古い応答にはない。
   shareEnabled?: boolean;
   shareExpiresAt?: string | null;
+  // AI が最後に内容を書いた時刻（ISO 文字列）。null・無しは AI が書いていない。ページのメニューに「AI の内容を報告」を出す目印。
+  aiUpdatedAt?: string | null;
   createdAt: string;
   updatedAt: string;
 };

@@ -6,7 +6,7 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
-import { NoteAssistant } from "@/components/note-assistant";
+import { PageAssistant } from "@/components/page-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
@@ -143,8 +143,13 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
         onWorkspaceChange={onWorkspaceChange} onReorder={notes.reorder} onMoveNote={notes.moveNote} onCreateGroup={notes.createGroup} onMoveToPage={notes.moveToPage} />
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
     // ホワイトボード・スライドは、エディターができるまで読み取り専用の仮の画面（ノートのエディター・AI ボタンは出さない。保存もしない）。
-    : active && activeId && !listMode && isCanvasKind(activeKind) ? <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
-      title={active.content.title} icon={active.content.icon} data={active.page.data} />
+    : active && activeId && !listMode && isCanvasKind(activeKind) ? <>
+      <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind}
+        title={active.content.title} icon={active.content.icon} data={active.page.data} />
+      {/* AI パネル（AI 操控底座）。エディター（#152・#149）ができたら、選んだ要素・スライドを selection で渡す。いまは読むだけ。 */}
+      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded} hidden={split} />
+    </>
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
@@ -183,9 +188,9 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
-      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
+        selection={aiSelection ? { text: aiSelection } : null} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />

@@ -11,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 
 // 検証済みの本文から新しいページを作る。POST /api/pages と回答からの保存（/api/pages/from-answer）が同じ手順を通る。
 // parentId を渡すとそのページのサブページになり、グループは親と同じになる。
-export async function createNotePage(userId: string, content: NoteContent, { parentId = null }: { parentId?: string | null } = {}) {
+// ai は AI が書いた本文（Create page）。ページの「AI の内容を報告」の目印（aiUpdatedAt）を付ける。
+export async function createNotePage(userId: string, content: NoteContent, { parentId = null, ai = false }: { parentId?: string | null; ai?: boolean } = {}) {
   assertCoverOwner(content.cover, userId);
   assertCoverOwner(content.icon, userId, "icon");
   assertNoteFilesOwner(content.blocks, userId);
@@ -20,7 +21,10 @@ export async function createNotePage(userId: string, content: NoteContent, { par
     await claimCover(tx, content.cover, userId);
     await claimCover(tx, content.icon, userId, "icon");
     await claimNoteFiles(tx, content.blocks, userId);
-    return tx.notePage.create({ data: { userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition, blocks: content.blocks as unknown as Prisma.InputJsonValue } });
+    return tx.notePage.create({ data: {
+      userId, parentId, groupId, title: content.title, icon: content.icon, cover: content.cover, coverPosition: content.coverPosition,
+      blocks: content.blocks as unknown as Prisma.InputJsonValue, ...(ai ? { aiUpdatedAt: new Date() } : {}),
+    } });
   });
 }
 

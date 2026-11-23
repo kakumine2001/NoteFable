@@ -90,7 +90,8 @@ export async function POST(request: Request, context: RouteContext) {
       cutOff: generated.cutOff,
     });
     const content = validateNoteContent({ title, icon: null, cover: null, coverPosition: null, blocks });
-    const page = await createNotePage(user.id, content);
+    // AI が書いたページなので、ページのメニューから AI の内容として報告できるようにする。
+    const page = await createNotePage(user.id, content, { ai: true });
     scheduleNoteEmbeddingSync(user.id, [page.id]);
     return NextResponse.json({ page, partial: transcript.omitted }, { status: 201 });
   } catch (error) {

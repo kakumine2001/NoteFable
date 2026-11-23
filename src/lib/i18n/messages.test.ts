@@ -172,7 +172,7 @@ describe("API user-facing error marking", () => {
 
     const targets = [
       ...listFiles(path.join(srcRoot, "app", "api")),
-      path.join(srcRoot, "lib", "note-proposals.ts"),
+      path.join(srcRoot, "lib", "page-ai", "proposals.ts"),
     ].filter((file) => {
       const rel = path.relative(srcRoot, file).replaceAll("\\", "/");
       return /\.ts$/.test(rel) && !/\.(test|spec)\.ts$/.test(rel) && !NON_USER_FACING_API_PATHS.some((skip) => rel.startsWith(skip));
