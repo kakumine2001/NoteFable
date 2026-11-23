@@ -153,7 +153,7 @@ export const de: Record<string, string> = {
   "Could not save the icon on this device.": "Das Icon konnte auf diesem Gerät nicht gespeichert werden.",
   "Could not save the project settings. Please try again.": "Die Projekteinstellungen konnten nicht gespeichert werden. Bitte versuche es erneut.",
   "Could not save the project. Please try again.": "Das Projekt konnte nicht gespeichert werden. Bitte versuche es erneut.",
-  "Could not save to page. Try again.": "Speichern als Notiz fehlgeschlagen. Versuche es erneut.",
+  "Could not save to page. Try again.": "Konnte nicht als Notiz gespeichert werden. Versuche es erneut.",
   "Could not save.": "Speichern fehlgeschlagen.",
   "Could not sign out. Please try again.": "Abmelden fehlgeschlagen. Bitte versuche es erneut.",
   "Could not upload that photo. Check your connection and try again.": "Dieses Foto konnte nicht hochgeladen werden. Prüfe deine Verbindung und versuche es erneut.",
