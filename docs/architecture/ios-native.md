@@ -11,6 +11,13 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 - 聊天、侧栏、搜索、笔记列表、设置是原生界面；笔记编辑器和 Android 一样用 WebView（`WKWebView`）加载 `/note-embed`；桥消息（`EmbedMessage`）与 Android 相同，`openPage`（页面提及被点）走 `NotesViewModel.openNoteFromLink`。页面图标是上传图片时（`Core/Models/Notes.swift` 的 `NoteIcons`），`NFIconTile` / `NoteIconGlyph` 用 `RemoteImage` 带 App 的 Cookie 读 `/api/pages/covers?key=`，和表情一样大、圆角 3；原生的图标选择器还只能选表情（**上传图片图标尚未实现**，编辑器里网页的选择器可以上传）。
 - 编辑器里的分栏（`columnList` / `column`，见 [notes-flow.md](notes-flow.md)）由内嵌的网页编辑器处理，App 不读块的结构；手机宽度下栏竖着排，不能拖动调宽。
 - 页面类型（笔记 / 白板 / 幻灯片）的行为和 Android 相同，规则见 [android-native.md](android-native.md) 的“页面类型”一条和 [notes-flow.md](notes-flow.md) 的“页面类型”。对应的代码：`Core/Models/Notes.swift` 的 `PageKind`（`features` 照抄网页 `PAGE_KIND_FEATURES`；缺字段、null、不认识或不是字符串的值都按笔记）、`pageKindLabel`，`OpenNote.kind`（`ready` 带来时以它为准），菜单的开关 `NotePageToggle.visible(for:)`，检索结果的类型名 `SearchHit.kindLabel`；默认图标 `pageKindIcon`（`DesignSystem/Lucide.swift` 的 `Lucide.shapes` / `Lucide.presentation`），经 `NFIconTile` 的 `fallback` 和 `NoteIconGlyph` 的 `kind`。单元测试：`PageKindTests`，`NotesViewModelTests` 和 `SVGPathDataTests` 里的类型 / 图标路径各一条。图标、“…”菜单、分享按钮、检索的类型名这些界面改动只经过语法检查和 CI 编译，没在模拟器或真机上看过。
+- AI 的页面提案卡片（#158，网页 `page-proposal.tsx`）不分页面类型：笔记、白板、幻灯片的编辑 / 新建提案是同一张卡片，改动的文字和缩略图由服务端各类型的适配器做好（`src/lib/page-ai/types.ts`），卡片照着画。对应的代码：
+  - 解析在 `Core/Chat/Activity.swift`：`pageKind`（缺了或不认识按笔记）、`autoApplied`、`undoable`、`status` 多了 `undone`；新建提案的 `parentId` / `parentTitle` / `changes`；改动的 `op` 是 `ProposalOp`（多了 add / update / move / reorder，不认识的按 update），`target`（`ProposalChangeTarget`：第几张幻灯片、白板的元素）、`beforeImage` / `afterImage`（只收本站的相对地址，别的当没有）。仍然要求 `proposed.blocks` 是数组（服务端总给空数组）。
+  - 文案在 `Core/Chat/ProposalCopy.swift`：标题（编辑都是“对“…”的修改建议”，新建按类型）、读屏名（笔记 / 页面）、主按钮（应用 / 创建笔记 / 创建白板 / 创建幻灯片）、徽标（自动应用的写“已自动应用 / 已自动创建”，另有“已放弃”“已撤销”）、改动的小标题（笔记的第几块 / 开头，幻灯片第几张，白板元素的文字或个数，别的类型没有对象时只写操作）、子页面的“位于“…”中”。
+  - 撤销是 `ProposalStore.undo`（`POST /api/proposals/:id/undo`，`ProposalApi.undo` 读回 `page` 或移进回收站的 `ids`）。卡片显示的状态（`stateOf`，网页 `useProposalState`）：服务端说已放弃 / 已撤销的以服务端为准；服务端说已应用的，只用本机的撤销中、已撤销和撤销失败（还是“已应用”，带原因）；没处理的用本机的。“撤销”键在服务端说能撤销（`undoable`）或刚在这台设备上应用过时出现，撤销中转圈；失败显示服务端原句（系统文翻译）或“无法撤销这项修改。”。撤销编辑提案后和应用后一样刷新笔记列表、把恢复后的页面交给开着的编辑器（`pageUpdated`）；撤销新建提案后 `NotesViewModel.onPagesTrashed` 先从列表拿掉移进回收站的页面（含子页面）、关掉开着的那篇，再刷新（`AppEnvironment.onProposalChange`）。
+  - 界面在 `Features/Chat/Answer/ProposalCard.swift`：按钮行待确认是“应用 / 放弃”，已应用是“打开笔记 / 打开页面” + “撤销”，撤销过的编辑提案还能打开，撤销过的新建提案写“这个页面已移到回收站。”。缩略图改前、改后并排（最高 176，红 / 绿边框），地址只给提案的主人，经 `RemoteImageLoader` 带 App 的 Cookie 读，读到之前按 16:9 留底色。和网页不同：撤销中不再显示不能点的“应用 / 放弃”（网页这时还显示）。
+  - 报告 AI 内容：`Core/API/ReportApi.swift` 的 `ReportTarget`（回答 `messageId`、提案 `proposalId`、页面 `pageId`，请求体里只放一个）、`Core/Account/ReportModel.swift`、`Features/Chat/Answer/ReportDialog.swift`（`.reportDialog(_:isPresented:)`；标题和说明回答是 `report_title` / `report_help`，提案和页面是 `report_ai_content` / `report_ai_help`）。卡片标题行最右的旗子报告这个提案；页面“…”菜单在 `NotePageSummary.aiUpdatedAt` 不是 nil 时有“报告 AI 内容”（`notePageReportable`）。编辑器里网页的 AI 面板应用的修改不经原生，所以这一项要等笔记列表下次刷新（回到列表、重新打开）才出现。
+  - 单元测试：`ActivityTests`（新字段、对象、缩略图地址、旧提案的默认值）、`ProposalCopyTests`、`ProposalStoreTests`（撤销、状态优先级、undo 和报告的请求体）、`AccountModelsTests`（报告提案 / 页面）、`NotesApiTests`（`aiUpdatedAt`）、`NotesViewModelTests` / `AppEnvironmentTests`（移进回收站的页面）。卡片、报告窗口和菜单项只经过语法检查和 CI 编译，没在模拟器或真机上看过。
 
 **功能规则不在本文重复**：后台生成、附件、使用上限、回答导出、笔记、搜索跳转、头像等规则以 [android-native.md](android-native.md) 为准，本文只写 iOS 特有的结构和差异。改了其中一端的行为，另一端和网页要在同一个任务里一起改（见 `AGENTS.md`）。
 
@@ -20,7 +27,7 @@ iOS 客户端是 Android 客户端（[android-native.md](android-native.md)）�
 
 | 部分 | 验证方式 | 状态 |
 | --- | --- | --- |
-| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 660 多项单元测试通过（大部分移植自 Android 的单元测试） |
+| `Core/`（网络、接口、解析、ViewModel） | Linux 容器里 `swift test`，以及 CI 的 macOS `swift test` | 690 多项单元测试通过（大部分移植自 Android 的单元测试） |
 | `DesignSystem/`、`Features/`、`App/`（SwiftUI / UIKit） | CI 的模拟器无签名构建（`ios-pr.yml`） | 能编译；界面效果、手势、键盘、WebView 交互未经人工验证 |
 
 上线前还缺：

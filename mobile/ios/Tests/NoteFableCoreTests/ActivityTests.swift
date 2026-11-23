@@ -40,9 +40,13 @@ final class ActivityTests: XCTestCase {
         let json = #"{"type":"proposal","id":"pr1","pageId":"p1","pageTitle":"Notes","baseVersion":2,"changes":[{"op":"delete","block":1,"before":"x"}],"proposed":{"title":"Notes","blocks":[]}}"#
         let expected = Proposal.Edit(
             id: "pr1", pageId: "p1", pageTitle: "Notes", baseVersion: 2,
-            changes: [ProposalChange(op: "delete", block: 1, before: "x")]
+            changes: [ProposalChange(op: .delete, block: 1, before: "x")]
         )
         XCTAssertEqual(apply(json), [.proposal(.edit(expected))])
+        // 旧服务端没有的字段：按笔记、没有自动应用、不能撤销。
+        XCTAssertEqual(expected.pageKind, .note)
+        XCTAssertFalse(expected.autoApplied)
+        XCTAssertFalse(expected.undoable)
         XCTAssertNil(event(json.replacingOccurrences(of: #""baseVersion":2"#, with: #""baseVersion":"2""#)))
         XCTAssertNil(event(json.replacingOccurrences(of: #"{"title":"Notes","blocks":[]}"#, with: #"{"title":"x"}"#)))
     }
@@ -52,6 +56,90 @@ final class ActivityTests: XCTestCase {
         XCTAssertEqual(apply(json), [.proposal(.create(Proposal.Create(id: "np1", title: "Plan", icon: nil, content: "- a")))])
         XCTAssertNil(event(json.replacingOccurrences(of: #""content":"- a""#, with: #""content":1"#)))
         XCTAssertNil(event(json.replacingOccurrences(of: #","blocks":[]}"#, with: "}")))
+    }
+
+    // ---- 不分页面类型的提案（白板、幻灯片、自动应用、撤销；src/lib/page-ai/types.ts） ----
+
+    func testReadsTheTargetsThumbnailsAndStateOfAnEditToAnyKindOfPage() {
+        let json = #"{"type":"proposal","id":"pr2","pageId":"s1","pageTitle":"Deck","baseVersion":7,"# +
+            #""pageKind":"slides","status":"applied","appliedPageId":"s1","autoApplied":true,"undoable":true,"# +
+            #""changes":[{"op":"update","block":0,"target":{"type":"slide","number":2},"before":"Old","after":"New","# +
+            #""beforeImage":"/api/proposals/pr2/image?change=0&side=before","afterImage":"/api/proposals/pr2/image?change=0&side=after"},"# +
+            #"{"op":"add","block":0,"target":{"type":"elements","count":1,"name":"Sticky"}},"# +
+            #"{"op":"move","block":0,"target":{"type":"elements","count":3,"name":""}},"# +
+            #"{"op":"reorder","block":0,"target":{"type":"slide","number":"3"}},"# +
+            #"{"op":"transmogrify","block":0,"target":{"type":"galaxy"},"afterImage":"https://elsewhere.test/x.png"},"# +
+            #"{"op":"delete","block":0,"beforeImage":"//elsewhere.test/x.png","afterImage":5},"# +
+            #"{"block":1},"nope"],"proposed":{"title":"Deck","blocks":[]}}"#
+        let expected = Proposal.Edit(
+            id: "pr2", pageId: "s1", pageTitle: "Deck", baseVersion: 7,
+            changes: [
+                ProposalChange(
+                    op: .update, block: 0, target: .slide(number: 2), before: "Old", after: "New",
+                    beforeImage: "/api/proposals/pr2/image?change=0&side=before", afterImage: "/api/proposals/pr2/image?change=0&side=after"
+                ),
+                ProposalChange(op: .add, block: 0, target: .elements(count: 1, name: "Sticky")),
+                // 空的名字和没有一样。
+                ProposalChange(op: .move, block: 0, target: .elements(count: 3)),
+                // 对象的形状不对：只剩操作。
+                ProposalChange(op: .reorder, block: 0),
+                // 不认识的操作按 update；别的站点的缩略图不收（要带 Cookie 读）。
+                ProposalChange(op: .update, block: 0),
+                ProposalChange(op: .delete, block: 0),
+            ],
+            status: "applied", appliedPageId: "s1", pageKind: .slides, autoApplied: true, undoable: true
+        )
+        XCTAssertEqual(apply(json), [.proposal(.edit(expected))])
+        let proposal = Proposal.edit(expected)
+        XCTAssertEqual(proposal.pageKind, .slides)
+        XCTAssertTrue(proposal.autoApplied)
+        XCTAssertTrue(proposal.undoable)
+        XCTAssertEqual(proposal.changes.count, 6)
+        // 不认识的页面类型按笔记。
+        XCTAssertEqual(Activity.parseEditProposal(JSONValue.parse(json.replacingOccurrences(of: #""slides""#, with: #""spreadsheet""#))!)?.pageKind, .note)
+        XCTAssertEqual(ProposalOp.allCases.map(\.rawValue), ["replace", "insert_after", "delete", "add", "update", "move", "reorder"])
+    }
+
+    func testReadsANewPageInsideAParentWithItsThumbnails() {
+        let json = #"{"type":"create_proposal","id":"np2","title":"Board","icon":"🎨","content":"Ideas","parentId":"p9","parentTitle":"","# +
+            #""pageKind":"whiteboard","status":"undone","appliedPageId":"w1","# +
+            #""changes":[{"op":"add","block":0,"target":{"type":"elements","count":4},"afterImage":"/api/proposals/np2/image?change=0&side=after"}],"# +
+            #""proposed":{"title":"Board","icon":"🎨","blocks":[]}}"#
+        let expected = Proposal.Create(
+            id: "np2", title: "Board", icon: "🎨", content: "Ideas", status: "undone", appliedPageId: "w1",
+            parentId: "p9", parentTitle: "",
+            changes: [
+                ProposalChange(op: .add, block: 0, target: .elements(count: 4), afterImage: "/api/proposals/np2/image?change=0&side=after"),
+            ],
+            pageKind: .whiteboard
+        )
+        XCTAssertEqual(apply(json), [.proposal(.create(expected))])
+        // 不是数组的 changes 当没有；旧的新建提案没有父页面。
+        let plain = Activity.parseCreateProposal(JSONValue.parse(json.replacingOccurrences(of: #""changes":["#, with: #""changes":5,"x":["#))!)
+        XCTAssertEqual(plain?.changes, [])
+        let old = Activity.parseCreateProposal(
+            JSONValue.parse(#"{"id":"np3","title":"Plan","content":"","proposed":{"title":"Plan","blocks":[]}}"#)!
+        )
+        XCTAssertNil(old?.parentTitle)
+        XCTAssertEqual(old?.pageKind, .note)
+        XCTAssertFalse(old?.undoable ?? true)
+    }
+
+    func testStoredProposalsKeepTheUndoneStatusAndTheNewFields() {
+        let stored = Activity.parseStoredProposals(
+            JSONValue.parse(
+                #"[{"kind":"proposal","id":"pr1","pageId":"w1","pageTitle":"Board","baseVersion":3,"changes":[],"# +
+                    #""proposed":{"title":"Board","blocks":[]},"status":"undone","appliedPageId":"w1","pageKind":"whiteboard"},"# +
+                    #"{"kind":"create_proposal","id":"np1","title":"Deck","icon":null,"content":"","# +
+                    #""proposed":{"title":"Deck","icon":null,"blocks":[]},"status":"applied","appliedPageId":"s2","pageKind":"slides","autoApplied":true,"undoable":true}]"#
+            )
+        )
+        XCTAssertEqual(stored.map(\.status), ["undone", "applied"])
+        XCTAssertEqual(stored.map(\.pageKind), [.whiteboard, .slides])
+        XCTAssertEqual(stored.map(\.autoApplied), [false, true])
+        XCTAssertEqual(stored.map(\.undoable), [false, true])
+        XCTAssertEqual(stored.map(\.editedPageId), ["w1", nil])
+        XCTAssertEqual(stored.map(\.appliedPageId), ["w1", "s2"])
     }
 
     func testTracksAPageToolFromRunningToItsFinishedLabel() {

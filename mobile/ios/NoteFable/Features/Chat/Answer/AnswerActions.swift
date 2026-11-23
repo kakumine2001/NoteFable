@@ -81,7 +81,7 @@ struct AnswerActions: View {
         }
         // 读取对话时离开这条回答（滚出屏幕）就不再弹出保存位置的选择。
         .onDisappear { downloadTask?.cancel() }
-        .reportAnswerDialog(messageId: message.id, isPresented: $reporting)
+        .reportDialog(.answer(messageId: message.id), isPresented: $reporting)
         .fileExporter(
             isPresented: $exporting,
             document: exportDocument,
@@ -150,7 +150,7 @@ struct AnswerActions: View {
         }
         .disabled(downloading)
         if stored {
-            ActionsMenuItem(L("report_answer"), icon: AnswerIcons.flag) {
+            ActionsMenuItem(L("report_answer"), icon: Lucide.flag) {
                 menuOpen = false
                 reporting = true
             }
@@ -294,12 +294,12 @@ struct AnswerReportOnlyAction: View {
 
     var body: some View {
         if !messageId.hasPrefix(ChatViewModel.LOCAL_ID_PREFIX) {
-            NFIconButton(AnswerIcons.flag, label: L("report_answer"), size: 36, iconSize: 16, strokeWidth: 1.9) {
+            NFIconButton(Lucide.flag, label: L("report_answer"), size: 36, iconSize: 16, strokeWidth: 1.9) {
                 reporting = true
             }
             .padding(.top, 6.4)
             .padding(.leading, -10.4)
-            .reportAnswerDialog(messageId: messageId, isPresented: $reporting)
+            .reportDialog(.answer(messageId: messageId), isPresented: $reporting)
         }
     }
 }

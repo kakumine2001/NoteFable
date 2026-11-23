@@ -117,6 +117,8 @@ struct NotePageSummary: Encodable, Equatable, Sendable, Identifiable {
     var shareExpiresAt: String? = nil
     /// 页面类型（笔记 / 白板 / 幻灯片）。旧服务端不返回，按笔记。
     var kind: PageKind = .note
+    /// AI 最后一次写这个页面内容的时刻（ISO）；nil 是 AI 没写过（或旧服务端）。有值时页面的"…"菜单里有"报告 AI 内容"。
+    var aiUpdatedAt: String? = nil
 
     func isShared(now: Date = Date()) -> Bool {
         guard shareEnabled else { return false }
@@ -140,7 +142,7 @@ extension NotePageSummary: Decodable {
             fullWidth: try f.or("fullWidth", false), smallText: try f.or("smallText", false),
             font: try f.or("font", "default"), locked: try f.or("locked", false),
             shareEnabled: try f.or("shareEnabled", false), shareExpiresAt: try f.opt("shareExpiresAt"),
-            kind: try f.or("kind", .note)
+            kind: try f.or("kind", .note), aiUpdatedAt: try f.opt("aiUpdatedAt")
         )
     }
 }

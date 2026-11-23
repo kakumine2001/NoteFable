@@ -24,6 +24,7 @@ private struct TestProposal: ProposalTarget {
     var status: String? = nil
     var editedPageId: String? = nil
     var appliedPageId: String? = nil
+    var undoable: Bool = false
 }
 
 @MainActor
@@ -46,6 +47,7 @@ final class AppEnvironmentTests: XCTestCase {
             log.add(request.path)
             switch request.path {
             case "/api/proposals/pr1/apply": return FakeTransport.Reply(#"{"page":{"id":"p1","title":"T"}}"#)
+            case "/api/proposals/np1/undo": return FakeTransport.Reply(#"{"status":"undone","kind":"create","ids":["n1","n2"]}"#)
             case "/api/attachments/a1/image": return FakeTransport.Reply("image-bytes", headers: ["Content-Type": "image/png"])
             default: return FakeTransport.Reply("{}", status: 503)
             }
@@ -218,6 +220,25 @@ final class AppEnvironmentTests: XCTestCase {
         await eventually { self.log.count("/api/pages") > before }
         await settleMainActor()
         XCTAssertEqual(log.count("/api/pages"), before + 1)
+    }
+
+    func testUndoingANewPageClosesItAndRefreshesTheNotes() async throws {
+        let environment = try makeEnvironment()
+        environment.start()
+        defer { environment.stop() }
+
+        // AI 建的那篇正开着（从卡片的"打开页面"进去的）。
+        environment.notes.openNote("n1", title: "Board", icon: nil, kind: .whiteboard)
+        await eventually { environment.notes.state.open?.id == "n1" }
+        let before = log.count("/api/pages")
+        let proposal = TestProposal(id: "np1", status: "applied", appliedPageId: "n1", undoable: true)
+        let task = try XCTUnwrap(environment.proposals.undo(proposal))
+        await task.value
+        XCTAssertEqual(environment.proposals.stateOf(proposal).status, .undone)
+        // 移进回收站的页面关掉（不用再存），列表按服务端刷新。
+        await eventually { environment.notes.state.open == nil }
+        await eventually { self.log.count("/api/pages") > before }
+        XCTAssertEqual(log.count("/api/proposals/np1/undo"), 1)
     }
 
     // MARK: - AppRouter
