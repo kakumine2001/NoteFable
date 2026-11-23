@@ -4,7 +4,7 @@ import { applyDarkModeFilter } from "@excalidraw/excalidraw";
 import {
   AlignCenterHorizontal, AlignCenterVertical, AlignEndHorizontal, AlignEndVertical, AlignHorizontalDistributeCenter, AlignStartHorizontal,
   AlignStartVertical, AlignVerticalDistributeCenter, ArrowDownToLine, ArrowUpToLine, ChevronDown, ChevronUp, ChevronsDown, ChevronsUp, Copy, Group,
-  Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
+  ExternalLink, Link2, Lock, LockOpen, Plus, Trash2, Ungroup, AlignLeft, AlignCenter, AlignRight, FlipHorizontal2, FlipVertical2,
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { useT } from "@/components/i18n-provider";
@@ -72,13 +72,14 @@ const ARROWHEADS: { value: string | null; label: string }[] = [
   { value: "dot", label: msg("Dot") }, { value: "bar", label: msg("Bar") },
 ];
 
-export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, textOnly = false }: {
+export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, onLink, onOpenLink, textOnly = false }: {
   ui: WhiteboardUiState;
   drawMode: "pen" | "highlighter" | null;
   compact: boolean;
   theme: "light" | "dark";
   actions: WhiteboardActions | null;
   onLink: () => void;
+  onOpenLink: (link: string) => void;
   // 文字の入力中（文字の見た目だけを出す）。
   textOnly?: boolean;
 }) {
@@ -199,7 +200,8 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
         <IconAction label={t("Duplicate")} onClick={() => run("duplicateSelection")}><Copy size={15} /></IconAction>
         {!collapsed && <IconAction label={t("Flip horizontal")} onClick={() => run("flipHorizontal")}><FlipHorizontal2 size={15} /></IconAction>}
         {!collapsed && <IconAction label={t("Flip vertical")} onClick={() => run("flipVertical")}><FlipVertical2 size={15} /></IconAction>}
-        <IconAction label={t("Add link")} onClick={onLink}><Link2 size={15} /></IconAction>
+        <IconAction label={ui.link ? t("Edit link") : t("Add link")} onClick={onLink}><Link2 size={15} /></IconAction>
+        {ui.link && <IconAction label={t("Open link")} onClick={() => onOpenLink(ui.link!)}><ExternalLink size={15} /></IconAction>}
         <IconAction label={ui.allLocked ? t("Unlock") : t("Lock")} onClick={() => run("toggleElementLock")}>{ui.allLocked ? <LockOpen size={15} /> : <Lock size={15} />}</IconAction>
         <IconAction label={t("Delete")} danger onClick={() => run("deleteSelectedElements")}><Trash2 size={15} /></IconAction>
       </div>

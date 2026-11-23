@@ -1,13 +1,12 @@
 "use client";
 
-import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, languages, newElementWith } from "@excalidraw/excalidraw";
+import { CaptureUpdateAction, convertToExcalidrawElements, Excalidraw, FONT_FAMILY, getCommonBounds, getSceneVersion, newElementWith } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, AppState, BinaryFiles, BinaryFileData } from "@excalidraw/excalidraw/types";
 import type { ExcalidrawElement, FileId, NonDeletedExcalidrawElement } from "@excalidraw/excalidraw/element/types";
 import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import "@excalidraw/excalidraw/index.css";
 import "./whiteboard.css";
 import { useI18n } from "@/components/i18n-provider";
-import { LOCALE_TAGS, type Locale } from "@/lib/i18n/locale";
 import { localizeSystemText, msg, type TranslateVars } from "@/lib/i18n/translate";
 import { useTheme } from "@/lib/theme";
 import { postToNative } from "@/lib/native-bridge";
@@ -15,14 +14,17 @@ import { MAX_NOTE_FILE_BYTES } from "@/lib/note-file-keys";
 import { StorageLimitError } from "@/lib/usage-plans";
 import { useMediaQuery } from "@/lib/use-media-query";
 import { connectWhiteboardActions, type WhiteboardActions } from "@/lib/whiteboard/excalidraw-bridge";
-import { deliverExport, exportWhiteboard, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
+import { exportWhiteboard, type WhiteboardExportFormat } from "@/lib/whiteboard/export";
+import { saveExportFile } from "@/lib/export-file";
 import { pageCardLabel, pageIdFromLink, pageLinkUrl } from "@/lib/whiteboard/links";
 import { importPdfPages, MAX_PDF_IMPORT_PAGES, type PdfImportResult } from "@/lib/whiteboard/pdf-import";
 import { consumeWhiteboardReveal, WHITEBOARD_REVEAL_EVENT, type WhiteboardRevealDetail } from "@/lib/whiteboard/reveal";
-import { isEmbeddedDataUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { fitStoredWhiteboard, isEmbeddedDataUrl, sceneToStored, storedToScene, type StoredWhiteboard, type WhiteboardElement } from "@/lib/whiteboard/scene";
+import { MAX_CANVAS_BYTES } from "@/lib/canvas-document";
 import { uploadWhiteboardImage } from "@/lib/whiteboard/upload";
 import { WhiteboardChrome, isDrawingTool, toolType, type WhiteboardTool, type WhiteboardUiState } from "@/components/whiteboard/whiteboard-ui";
 import { WhiteboardLinkDialog } from "@/components/whiteboard/whiteboard-link-dialog";
+import { excalidrawLang, useKeepDocumentLanguage } from "@/components/whiteboard/excalidraw-locale";
 import { WhiteboardMinimap } from "@/components/whiteboard/whiteboard-minimap";
 import type { MentionPage } from "@/components/note-mention";
 
@@ -32,33 +34,6 @@ import type { MentionPage } from "@/components/note-mention";
 
 // 図形用のフォントは自分のサイトから配る（scripts/copy-whiteboard-assets.mjs が public/whiteboard/fonts へ写す）。CDN からは読まない。
 if (typeof window !== "undefined") (window as unknown as { EXCALIDRAW_ASSET_PATH?: string }).EXCALIDRAW_ASSET_PATH = "/whiteboard/";
-
-// NoteFable の言語 → Excalidraw の言語コード。Excalidraw は訳が 85% 以上の言語だけを持つので、無いものは英語にする。
-// Excalidraw の文言はほとんど出ない（画面は自前）。残るのは枠の既定の名前・読み上げ用の文など。
-const EXCALIDRAW_LANGS: Record<Locale, string> = {
-  en: "en", zh: "zh-CN", "zh-Hant": "zh-TW", ja: "ja-JP", ko: "ko-KR", es: "es-ES", fr: "fr-FR", de: "de-DE", "pt-BR": "pt-BR",
-  it: "it-IT", id: "id-ID", vi: "vi-VN", th: "th-TH", hi: "hi-IN", ar: "ar-SA", tr: "tr-TR", ru: "ru-RU",
-};
-export function excalidrawLang(locale: Locale) {
-  const code = EXCALIDRAW_LANGS[locale];
-  return languages.some((language) => language.code === code) ? code : "en";
-}
-
-// Excalidraw は言語を設定するたびに <html lang/dir> を自分の言語に書き換える。NoteFable の設定（I18nProvider）に戻し続ける。
-export function useKeepDocumentLanguage(locale: Locale, dir: "ltr" | "rtl") {
-  useEffect(() => {
-    const root = document.documentElement;
-    const lang = LOCALE_TAGS[locale];
-    const restore = () => {
-      if (root.lang !== lang) root.lang = lang;
-      if (root.dir !== dir) root.dir = dir;
-    };
-    restore();
-    const observer = new MutationObserver(restore);
-    observer.observe(root, { attributes: true, attributeFilter: ["lang", "dir"] });
-    return () => observer.disconnect();
-  }, [locale, dir]);
-}
 
 // ページの表示位置（スクロール・拡大率）は端末ごとに覚える（本体には入れない：動かすたびに版を進めない）。
 const VIEWPORT_PREFIX = "notefable:whiteboard-viewport:v1:";
@@ -117,7 +92,8 @@ type DrawMode = "pen" | "highlighter";
 type ToolStyle = { strokeColor: string; opacity: number; strokeWidthKey: string; variability: string };
 const PEN_DEFAULT: ToolStyle = { strokeColor: "#1e1e1e", opacity: 100, strokeWidthKey: "medium", variability: "variable" };
 // 蛍光ペンは半透明の太い線（下の文字や画像が透けて見える）。
-const HIGHLIGHTER_DEFAULT: ToolStyle = { strokeColor: "#ffd43b", opacity: 40, strokeWidthKey: "bold", variability: "constant" };
+// 太さは Excalidraw の手書き線の extraBold（画面の選択肢より太い。蛍光ペンだけが使う）。
+const HIGHLIGHTER_DEFAULT: ToolStyle = { strokeColor: "#ffd43b", opacity: 40, strokeWidthKey: "extraBold", variability: "constant" };
 type StyleKeys = "currentItemStrokeColor" | "currentItemOpacity" | "currentItemStrokeWidthKey" | "currentItemStrokeVariability";
 function styleOf(appState: AppState): ToolStyle {
   return { strokeColor: appState.currentItemStrokeColor, opacity: appState.currentItemOpacity, strokeWidthKey: appState.currentItemStrokeWidthKey, variability: appState.currentItemStrokeVariability };
@@ -204,7 +180,9 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       appState: api.getAppState(),
       uploaded: uploadedUrls.current,
     });
-    onChangeRef.current(stored);
+    // 上限（2 MB）に近いときだけ、手書きの線の点を間引いて収める（ふだんは点をそのまま残す）。
+    const { data: fitted } = fitStoredWhiteboard(stored, Math.floor(MAX_CANVAS_BYTES.whiteboard * 0.95));
+    onChangeRef.current(fitted);
   }, [api]);
 
   const scheduleSave = useCallback(() => {
@@ -271,6 +249,12 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     if (editable) startUploads(elements, files);
     if (signatureOf(elements, appState) !== lastSignature.current) scheduleSave();
   }, [editable, readUi, scheduleSave, signatureOf, startUploads]);
+
+  // 開発中だけ、ブラウザーのコンソールから確かめられるよう editor の API を置く（本番のビルドには入らない）。
+  useEffect(() => {
+    if (process.env.NODE_ENV === "production" || !api) return;
+    (window as unknown as { __notefableWhiteboard?: unknown }).__notefableWhiteboard = api;
+  }, [api]);
 
   // 最初の内容を「保存済み」として覚える（開いただけでは保存しない）。
   useEffect(() => {
@@ -439,6 +423,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     api.selection.select(created[0].id);
   }, [api, sceneCenter, t]);
 
+  // パネルの「リンクを開く」：アプリ内のページはその場で、外部のリンクは新しいタブで。
+  const openLink = useCallback((link: string) => {
+    const id = pageIdFromLink(link, window.location.origin);
+    if (id) { if (!onOpenPage?.(id)) window.open(pageLinkUrl(id), "_blank", "noopener,noreferrer"); return; }
+    if (/^(https?:|mailto:)/i.test(link)) window.open(link, "_blank", "noopener,noreferrer");
+  }, [onOpenPage]);
+
   const openLinkDialog = useCallback(() => {
     if (!api) return;
     const state = api.getAppState();
@@ -456,11 +447,13 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
     setBusy(t("Exporting…"));
     try {
       const file = await exportWhiteboard(api, format, props.title);
-      if (!(await deliverExport(file, embedded))) setNotice({ text: msg("Update the app to save exported files.") });
+      const result = await saveExportFile(file.blob, file.fileName);
+      if (result === "unsupported") setNotice({ text: msg("Update the app to save exported files.") });
+      else if (result === "failed") setNotice({ text: msg("Could not export the whiteboard.") });
     } catch (error) {
       setNotice({ text: error instanceof Error && error.message ? error.message : msg("Could not export the whiteboard.") });
     } finally { setBusy(null); }
-  }, [api, busy, embedded, props.title, t]);
+  }, [api, busy, props.title, t]);
 
   // ---- PDF の取り込み：ページごとに画像にして、枠に入れて縦に並べる ----
   const insertPdf = useCallback((result: PdfImportResult) => {
@@ -532,7 +525,7 @@ export default function WhiteboardEditor(props: WhiteboardEditorProps) {
       />
       {ui && api && <WhiteboardChrome ui={ui} drawMode={drawMode} editable={editable} embedded={embedded} compact={compact} theme={theme} actions={actionsRef.current}
         title={props.title} icon={props.icon} onTitleChange={props.onTitleChange} onIconChange={props.onIconChange}
-        onSelectTool={selectTool} onLink={openLinkDialog} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
+        onSelectTool={selectTool} onLink={openLinkDialog} onOpenLink={openLink} onInsertPageCard={() => setLinkDialog({ mode: "card" })}
         onExport={(format) => void runExport(format)} onImportPdf={() => pdfInputRef.current?.click()}
         onFitToContent={fitToContent} onCanvasBackground={(color) => api.updateScene({ appState: { viewBackgroundColor: color }, captureUpdate: CaptureUpdateAction.IMMEDIATELY })}
         onPenMode={(penMode) => api.updateScene({ appState: { penMode }, captureUpdate: CaptureUpdateAction.NEVER })}
@@ -580,6 +573,8 @@ function deriveUiState(selected: readonly NonDeletedExcalidrawElement[], appStat
     penMode: appState.penMode,
     penDetected: appState.penDetected,
     viewBackgroundColor: appState.viewBackgroundColor,
+    // 1 つだけ選んでいる要素のリンク（選んでいる間は Excalidraw がリンクの印を描かないので、パネルから開く）。
+    link: selected.length === 1 ? selected[0].link ?? null : null,
     style: {
       strokeColor: common((element) => element.strokeColor, appState.currentItemStrokeColor),
       backgroundColor: common((element) => element.backgroundColor, appState.currentItemBackgroundColor),

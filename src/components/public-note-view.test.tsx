@@ -40,7 +40,7 @@ function share(blocks: Block[]): ResolvedPublicShare {
     token: "token",
     root: { id: "page", userId: "user", title: "Math", icon: null, shareIncludeSubpages: false, shareExpiresAt: null },
     page: {
-      id: "page", userId: "user", title: "Math", icon: null, cover: null, coverPosition: null, blocks,
+      id: "page", userId: "user", kind: "note", title: "Math", icon: null, cover: null, coverPosition: null, blocks,
       fullWidth: false, smallText: false, font: "default", updatedAt: new Date(0),
     },
     breadcrumbs: [{ id: "page", title: "Math", icon: null }],

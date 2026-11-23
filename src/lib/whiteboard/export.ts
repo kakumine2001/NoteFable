@@ -2,7 +2,6 @@ import { exportScene } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { NonDeletedExcalidrawElement, ExcalidrawFrameLikeElement } from "@excalidraw/excalidraw/element/types";
 import { msg } from "@/lib/i18n/translate";
-import { nativeCanSaveFile, postToNative } from "@/lib/native-bridge";
 import { buildPdf, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
 
 // ホワイトボードの書き出し（PNG・SVG・PDF）。いつも浅色（白地）で書き出す（印刷・共有しても読みやすいように）。
@@ -108,24 +107,4 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
   }
   const bytes = buildPdf(pages, { title: title === "Untitled" ? undefined : title });
   return { blob: new Blob([bytes as BlobPart], { type: mimeType }), fileName, mimeType };
-}
-
-// 書き出したファイルを渡す：アプリの中（/note-embed）ではアプリに保存してもらい、ブラウザーではダウンロードする。
-// アプリがファイルを受け取れない（古いアプリ）ときは false（呼び出し側が理由を出す）。
-export async function deliverExport(file: ExportedFile, embedded: boolean): Promise<boolean> {
-  if (embedded) {
-    if (!nativeCanSaveFile()) return false;
-    const dataUrl = await blobToDataUrl(file.blob);
-    return postToNative({ type: "saveFile", name: file.fileName, mimeType: file.mimeType, data: dataUrl.slice(dataUrl.indexOf(",") + 1) });
-  }
-  const url = URL.createObjectURL(file.blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = file.fileName;
-  link.style.display = "none";
-  document.body.append(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 10_000);
-  return true;
 }

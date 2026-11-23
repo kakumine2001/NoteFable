@@ -11,6 +11,8 @@ import { createEmbedApi, installEmbedApi, pageMeta, postToNative, readNativeAppI
 import { parseThemePreference, saveThemePreference } from "@/lib/theme";
 import { useNotePages } from "@/lib/use-note-pages";
 import { pageKindOf } from "@/lib/page-kinds";
+import { revealNoteBlock } from "@/lib/search-reveal";
+import { requestWhiteboardReveal } from "@/lib/whiteboard/reveal";
 
 const noop = () => {};
 
@@ -32,6 +34,8 @@ export function NoteEmbed() {
   const [model, setModel] = useState(defaultModel);
   const [reasoning, setReasoning] = useState<string>(() => getModelOption(defaultModel).defaultReasoning);
   const activeRef = useRef(active);
+  // 開いたページの読み込みが終わってから動かす（ページの種類で動かし方が違う）。
+  const revealRef = useRef<{ pageId: string; target: string } | null>(null);
   const backupErrorRef = useRef(notes.backupError);
   const sent = useRef({ readyId: "", meta: "", state: "", goneId: "" });
   const { select } = notes;
@@ -49,6 +53,10 @@ export function NoteEmbed() {
       setPageId(id);
     });
     if (!id) { postToNative({ type: "missing" }); return; }
+    // reveal：検索の結果から開いたとき、一致したブロック（ノート）・要素（ホワイトボード）まで動かす。
+    const reveal = params.get("reveal");
+    // 読み込みの前に預けておく（読み込み後の描画で下の effect が受け取る）。
+    if (reveal && /^[A-Za-z0-9_-]{1,120}$/.test(reveal)) revealRef.current = { pageId: id, target: reveal };
     void select(id, "none").then((opened) => { if (!opened) postToNative({ type: "missing" }); });
   }, [select, options]);
 
@@ -103,6 +111,14 @@ export function NoteEmbed() {
       postToNative({ type: "missing" });
     }
   }, [active, activeId, loading, title, icon, status, gone, kind]);
+
+  useEffect(() => {
+    const request = revealRef.current;
+    if (!request || !active || activeId !== request.pageId || loading) return;
+    revealRef.current = null;
+    if (kind === "whiteboard") requestWhiteboardReveal(request.pageId, request.target);
+    else void revealNoteBlock(request.target);
+  }, [active, activeId, loading, kind]);
 
   const retry = async () => { if (pageId) await select(pageId, "none"); };
 

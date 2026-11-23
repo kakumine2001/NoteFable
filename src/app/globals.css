@@ -3911,3 +3911,15 @@ body.notes-column-resizing, body.notes-column-resizing * { cursor: col-resize !i
   --public-note-pink-text: #da208f; --public-note-pink-bg: #ad1a72;
   --public-note-callout-bg: rgba(255, 255, 255, 0.05);
 }
+
+/* 公開リンクのホワイトボード（src/components/public-note-view.tsx の PublicWhiteboardView）。キャンバスは上のバーの下いっぱい。 */
+.public-whiteboard-shell { display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
+.public-whiteboard-main { position: relative; display: flex; flex: 1; min-height: 0; flex-direction: column; }
+.public-whiteboard-frame { position: relative; display: flex; flex: 1; min-height: 0; }
+.public-whiteboard-status { margin: auto; color: var(--notion-muted); font-size: 14px; }
+.public-whiteboard-subpages { flex: none; max-height: 30vh; overflow-y: auto; padding: 8px 16px 16px; border-top: 1px solid var(--notion-border); }
+
+/* 編集履歴のホワイトボードの版の絵（src/components/whiteboard/whiteboard-thumbnail.tsx）。 */
+.whiteboard-thumbnail { border-radius: 10px; background: var(--notion-hover); padding: 12px; }
+.whiteboard-thumbnail-image svg { display: block; width: 100%; height: auto; max-height: 52vh; }
+.whiteboard-thumbnail[data-state="loading"] .whiteboard-thumbnail-image { display: none; }

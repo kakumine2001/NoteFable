@@ -6,6 +6,10 @@ import { AssistantMarkdown, PREVIEW_MATH_PIPE } from "@/components/assistant-mar
 import { TABLE_SEPARATOR, blocksToMarkdown, inlineMathEnd, splitTableRow } from "@/lib/note-markdown";
 import { extractCanvasSegments } from "@/lib/canvas-document";
 import { isCanvasKind, type CanvasKind, type PageKind } from "@/lib/page-kinds";
+import dynamic from "next/dynamic";
+
+// ホワイトボードの版の絵（Excalidraw を使うので、ホワイトボードの版を開いた時だけ読む）。
+const WhiteboardThumbnail = dynamic(() => import("@/components/whiteboard/whiteboard-thumbnail"), { ssr: false });
 import { useBackToClose } from "@/lib/use-back-to-close";
 import type { NotePage, NoteRevisionDetail, NoteRevisionReason, NoteRevisionSummary } from "@/types/notes";
 import "@/components/note-trash-history.css";
@@ -85,6 +89,11 @@ function CanvasRevisionPreview({ data, kind: given }: { data: Record<string, unk
   // 種類はページのもの（サーバーが返す）。古いサーバーの応答だけ本体の形から決める。
   const kind: CanvasKind = isCanvasKind(given) ? given : Array.isArray(data.slides) ? "slides" : "whiteboard";
   const segments = extractCanvasSegments(kind, data);
+  // ホワイトボードは絵で見せ、その下に文字を並べる。
+  if (kind === "whiteboard") return <>
+    <WhiteboardThumbnail data={data} />
+    {segments.length > 0 && <ol className="canvas-placeholder-text mt-4" data-page-kind={kind}>{segments.map((segment) => <li key={segment.id}><span>{segment.text}</span></li>)}</ol>}
+  </>;
   if (!segments.length) return <p className="canvas-placeholder-empty">{t("This page has no text yet.")}</p>;
   return <ol className="canvas-placeholder-text" data-page-kind={kind}>{segments.map((segment, index) => <li key={segment.id}>
     {kind === "slides" && <span className="canvas-placeholder-index" aria-hidden="true">{index + 1}</span>}<span>{segment.text}</span>

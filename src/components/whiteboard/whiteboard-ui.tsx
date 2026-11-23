@@ -44,6 +44,7 @@ export type WhiteboardUiState = {
   penMode: boolean;
   penDetected: boolean;
   viewBackgroundColor: string;
+  link: string | null;
   style: WhiteboardStyle;
 };
 
@@ -79,6 +80,7 @@ export type WhiteboardChromeProps = {
   onIconChange: (icon: string | null) => void;
   onSelectTool: (tool: WhiteboardTool) => void;
   onLink: () => void;
+  onOpenLink: (link: string) => void;
   onInsertPageCard: () => void;
   onExport: (format: "png" | "svg" | "pdf") => void;
   onImportPdf: () => void;
@@ -102,8 +104,8 @@ export function WhiteboardChrome(props: WhiteboardChromeProps) {
     <WhiteboardMenu {...props} />
     {editable && <WhiteboardToolbar {...props} />}
     {editable && (ui.selectedCount > 0 || isDrawingTool(ui.tool)) && !ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme}
-      actions={props.actions} onLink={props.onLink} />}
-    {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} textOnly />}
+      actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} />}
+    {editable && ui.editingText && <WhiteboardStylePanel ui={ui} drawMode={props.drawMode} compact={compact} theme={props.theme} actions={props.actions} onLink={props.onLink} onOpenLink={props.onOpenLink} textOnly />}
     <WhiteboardZoomBar {...props} />
     {props.minimapOpen && props.minimap}
     {props.contentHidden && <button type="button" className="whiteboard-back-to-content" onClick={props.onFitToContent}>

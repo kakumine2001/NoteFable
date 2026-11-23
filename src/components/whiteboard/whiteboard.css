@@ -408,3 +408,16 @@
 
 /* 文字を編集しているときの Excalidraw のテキスト入力は、自前のパネルより下に置く */
 .whiteboard .excalidraw-textEditorContainer { z-index: 3; }
+
+/* ---- 公開リンクの読み取り専用ビュー（public-whiteboard-canvas.tsx）：拡大縮小は終了側の下 ---- */
+.public-whiteboard .public-whiteboard-zoom { top: auto; bottom: var(--wb-bottom); inset-inline-end: 12px; }
+.public-whiteboard-empty {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  margin: 0;
+  color: var(--notion-faint);
+  font-size: 15px;
+  pointer-events: none;
+}

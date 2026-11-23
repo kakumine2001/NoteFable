@@ -3,7 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { splitHosts } from "@/lib/hosts";
 import { isShareRowActive, isValidShareToken, sharePageUrl } from "@/lib/note-share";
 import { PAGE_SUMMARY_SELECT } from "@/lib/note-tree-server";
-import { PAGE_KINDS, pageKindFeatures, pageKindOf } from "@/lib/page-kinds";
+import { PAGE_KINDS, pageKindFeatures, pageKindOf, type PageKind } from "@/lib/page-kinds";
 import { databaseSchema, prisma } from "@/lib/prisma";
 import type { NotePageFont, NoteShareAncestor, NoteShareState } from "@/types/notes";
 
@@ -63,7 +63,8 @@ export function shareOriginForRequest(request: Request): string {
   return new URL(request.url).origin;
 }
 
-export type PublicShareCrumb = { id: string; title: string; icon: string | null };
+// kind はページの種類（パンくず・サブページの一覧のアイコン）。
+export type PublicShareCrumb = { id: string; title: string; icon: string | null; kind?: PageKind };
 
 export type ResolvedPublicShare = {
   token: string;
@@ -78,6 +79,8 @@ export type ResolvedPublicShare = {
   page: {
     id: string;
     userId: string;
+    // ノートは本文（blocks）を描き、ホワイトボードは本体（NoteCanvas）を /s/:token/scene から読んで描く。
+    kind: PageKind;
     title: string;
     icon: string | null;
     cover: string | null;
@@ -133,7 +136,7 @@ export async function resolvePublicShare(
   if (!root || !shareable(root) || !isShareRowActive(root, now)) return null;
 
   let target = root;
-  const breadcrumbs: PublicShareCrumb[] = [{ id: root.id, title: root.title, icon: root.icon }];
+  const breadcrumbs: PublicShareCrumb[] = [{ id: root.id, title: root.title, icon: root.icon, kind: pageKindOf(root) }];
 
   if (requestedPageId && requestedPageId !== root.id) {
     if (!root.shareIncludeSubpages) return null;
@@ -144,7 +147,7 @@ export async function resolvePublicShare(
     if (!requested || !shareable(requested) || requested.shareExcludeFromParent) return null;
 
     // 要求ページから親をたどり、すべての途中ページが未削除かつ非除外で root に到達するか確かめる。
-    const chain: PublicShareCrumb[] = [{ id: requested.id, title: requested.title, icon: requested.icon }];
+    const chain: PublicShareCrumb[] = [{ id: requested.id, title: requested.title, icon: requested.icon, kind: pageKindOf(requested) }];
     let reachedRoot = false;
     if (requested.parentId === root.id) {
       reachedRoot = true;
@@ -156,7 +159,7 @@ export async function resolvePublicShare(
           break;
         }
         if (ancestor.shareExcludeFromParent || !shareable(ancestor)) return null;
-        chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon });
+        chain.push({ id: ancestor.id, title: ancestor.title, icon: ancestor.icon, kind: pageKindOf(ancestor) });
       }
     }
     if (!reachedRoot) return null;
@@ -169,8 +172,8 @@ export async function resolvePublicShare(
     ? await prisma.notePage.findMany({
         where: { userId: root.userId, parentId: target.id, deletedAt: null, shareExcludeFromParent: false, kind: { in: SHAREABLE_KINDS } },
         orderBy: [{ position: "asc" }, { createdAt: "desc" }, { id: "desc" }],
-        select: { id: true, title: true, icon: true },
-      })
+        select: { id: true, title: true, icon: true, kind: true },
+      }).then((rows) => rows.map((row) => ({ id: row.id, title: row.title, icon: row.icon, kind: pageKindOf(row) })))
     : [];
 
   return {
@@ -186,6 +189,7 @@ export async function resolvePublicShare(
     page: {
       id: target.id,
       userId: target.userId,
+      kind: pageKindOf(target),
       title: target.title,
       icon: target.icon,
       cover: target.cover,

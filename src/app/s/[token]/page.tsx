@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
-import { PublicNoteUnavailable, PublicNoteView } from "@/components/public-note-view";
+import { PublicNoteUnavailable, PublicNoteView, PublicWhiteboardView } from "@/components/public-note-view";
 import { LOCALE_COOKIE, parsePreference, resolveLocale } from "@/lib/i18n/locale";
 import { resolvePublicShare } from "@/lib/note-share-server";
 
@@ -31,5 +31,7 @@ export default async function PublicSharedNotePage({ params }: Props) {
   const [{ token }, locale] = await Promise.all([params, requestLocale()]);
   const resolved = await resolvePublicShare(token);
   if (!resolved) return <PublicNoteUnavailable locale={locale} />;
+  // ホワイトボードは拡大縮小・移動だけができる読み取り専用のビュー。
+  if (resolved.page.kind === "whiteboard") return <PublicWhiteboardView data={resolved} locale={locale} />;
   return <PublicNoteView data={resolved} locale={locale} />;
 }
