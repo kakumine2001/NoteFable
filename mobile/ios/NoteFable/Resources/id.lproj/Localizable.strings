@@ -266,6 +266,31 @@
 "image_download" = "Unduh gambar";
 "generated_image" = "Gambar hasil buatan AI";
 "ai_reply" = "Balasan AI";
+"proposal_report" = "Laporkan konten AI";
+"proposal_undo" = "Urungkan";
+"proposal_undone" = "Dibatalkan";
+"proposal_undo_failed" = "Tidak dapat membatalkan perubahan.";
+"proposal_applied_auto" = "Diterapkan otomatis";
+"proposal_created_auto" = "Dibuat otomatis";
+"proposal_moved_to_trash" = "Halaman dipindahkan ke Sampah.";
+"proposal_open_page" = "Buka halaman";
+"proposal_new_page_label" = "Usulan halaman baru";
+"proposal_edit_page_label" = "Usulan edit halaman";
+"proposal_new_whiteboard_title" = "Papan tulis baru “%1$s”";
+"proposal_new_slides_title" = "Slide baru “%1$s”";
+"proposal_create_whiteboard" = "Buat papan tulis";
+"proposal_create_slides" = "Buat slide";
+"proposal_empty_page" = "Halaman kosong";
+"proposal_inside" = "Di dalam “%1$s”";
+"proposal_op_add" = "Tambah";
+"proposal_op_update" = "Perbarui";
+"proposal_op_move" = "Pindahkan";
+"proposal_op_reorder" = "Ubah urutan";
+"proposal_op_slide" = "%1$s · slide ke-%2$s";
+"proposal_op_named" = "%1$s · “%2$s”";
+"proposal_op_elements" = "%1$s · %2$s elemen";
+"proposal_before" = "Sebelum";
+"proposal_after" = "Sesudah";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Lampirkan halaman";
@@ -451,6 +476,8 @@
 "report_sending" = "Mengirim…";
 "report_sent" = "Laporan terkirim. Terima kasih.";
 "report_failed" = "Tidak dapat mengirim laporan.";
+"report_ai_content" = "Laporkan konten AI";
+"report_ai_help" = "Beri tahu kami apa yang salah dengan konten AI ini. Laporan dikirim ke tim NoteFable beserta kontennya.";
 
 /* strings_search.xml */
 "search" = "Cari";

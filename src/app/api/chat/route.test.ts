@@ -25,7 +25,7 @@ mocks.findSession.mockResolvedValue(defaultSession);
 mocks.findStop.mockResolvedValue({ stopRequestedAt: null });
 mocks.findMessage.mockResolvedValue(null);
 
-vi.mock("@/lib/page-tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
+vi.mock("@/lib/page-ai/tools", async (importOriginal) => ({ ...await importOriginal<object>(), runPageTool: mocks.runPageTool }));
 vi.mock("@/lib/chat-project-context", async (importOriginal) => ({ ...await importOriginal<object>(), loadProjectContext: mocks.loadProjectContext }));
 
 vi.mock("@/lib/auth", () => ({
@@ -110,7 +110,7 @@ describe("DeepSeek chat response boundary", () => {
     ])).toBe("通常の回答\n\nSources:\n- [Apple Support](<https://support.apple.com/zh-cn>)");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
     // DeepSeek-V4.1-Flash には deepseek_web_search と Notes の function ツールを送り、tool_choice は常に auto にする。
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["deepseek_web_search", "search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["deepseek_web_search", "search_notes", "list_pages", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toBe("auto");
     expect(body.instructions).toContain("When web search supplies facts, include clickable Markdown links to the sources in the answer.");
     expect(historyQuery()).not.toHaveProperty("take");
@@ -275,7 +275,7 @@ describe("OpenAI web search", () => {
       .filter((line) => line.startsWith("data: "))
       .map((line) => JSON.parse(line.slice(6))).filter((data) => typeof data === "string").join("");
     const body = JSON.parse(mocks.fetch.mock.calls[0][1].body);
-    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_notes", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
+    expect(body.tools.map((tool: { type: string; name?: string }) => tool.name ?? tool.type)).toEqual(["web_search", "search_notes", "list_pages", "read_note", "list_chat_attachments", "propose_note_edit", "propose_note_create"]);
     expect(body.tool_choice).toEqual(choice);
     expect(text).toContain("[Example News](<https://example.com/news>)");
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe(text);
@@ -364,7 +364,7 @@ describe("Pages tools across providers", () => {
     form.set("sessionId", "existing");
     form.set("webSearch", "off");
     const raw = await (await POST(new Request("http://localhost/api/chat", { method: "POST", body: form }))).text();
-    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, "user", "session", []);
+    expect(mocks.runPageTool).toHaveBeenCalledWith("read_note", { noteId: "p1", userId: "other" }, expect.objectContaining({ userId: "user", sessionId: "session", excludeMessageIds: [], autoApply: false }));
     expect(raw).toContain('"activity":{"type":"tool","id"');
     expect(mocks.createMessage.mock.calls.at(-1)?.[0].data.content).toBe("It says hi.");
     expect(JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions ?? JSON.parse(mocks.fetch.mock.calls[0][1].body).system).toContain("search_notes");
@@ -911,7 +911,7 @@ describe("editing a message and regenerating an answer", () => {
 `).join("")));
     mocks.runPageTool.mockResolvedValue({ content: "[]", label: "Listed attachments" });
     await post({ regenerate: "a1" });
-    expect(mocks.runPageTool).toHaveBeenCalledWith("list_chat_attachments", {}, "user", "session", ["a1", "u2", "a2"]);
+    expect(mocks.runPageTool).toHaveBeenCalledWith("list_chat_attachments", {}, expect.objectContaining({ userId: "user", sessionId: "session", excludeMessageIds: ["a1", "u2", "a2"] }));
   });
 
   it("saves an answer as hidden when its message was switched away while it was being written", async () => {

@@ -154,4 +154,30 @@ describe("chat requests made from inside a note", () => {
     const withoutNote = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
     expect(withoutNote).not.toContain("selected a specific excerpt");
   });
+  it("turns on auto-apply only for requests from a page's AI panel, and tells the model its changes are applied", async () => {
+    await send({ noteId: "note1", autoApply: "1" });
+    const on = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(on).toContain("turned on auto-apply");
+    expect(on).not.toContain("never say a note was updated");
+    mocks.fetch.mockClear();
+    await send({ autoApply: "1" });
+    const plain = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(plain).not.toContain("auto-apply");
+    expect(plain).toContain("never say a note was updated");
+  });
+
+  it("tells the model which whiteboard elements were selected, and rejects malformed selections", async () => {
+    mocks.findNote.mockResolvedValue({ id: "board1", title: "Plan", kind: "whiteboard" });
+    await send({ noteId: "board1", noteSelection: "1", selectionIds: JSON.stringify(["e1", "e2", "e1"]) });
+    const instructions = JSON.parse(mocks.fetch.mock.calls[0][1].body).instructions as string;
+    expect(instructions).toContain("The user is asking from inside their whiteboard");
+    expect(instructions).toContain(`selected these elements in it (their IDs as shown by read_note): ${JSON.stringify(["e1", "e2"])}`);
+    expect(instructions).toContain("You cannot change it with the tools.");
+    expect(instructions).toContain("Whiteboards and slide decks can't be changed with the tools yet");
+    for (const bad of ["{", JSON.stringify("e1"), JSON.stringify([1]), JSON.stringify([""]), JSON.stringify(Array.from({ length: 101 }, (_, i) => `e${i}`))]) {
+      mocks.fetch.mockClear();
+      expect((await send({ noteId: "board1", selectionIds: bad })).status).toBe(400);
+      expect(mocks.fetch).not.toHaveBeenCalled();
+    }
+  });
 });

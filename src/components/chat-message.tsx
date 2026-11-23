@@ -8,7 +8,7 @@ import { UserMessageEditor, UserTurnActions, VersionNav, type TurnActions } from
 import { AssistantMarkdown } from "@/components/assistant-markdown";
 import { ChatActivity } from "@/components/chat-activity";
 import type { ProgressStep } from "@/lib/chat-activity";
-import { PageCreateProposal, PageEditProposal } from "@/components/page-edit-proposal";
+import { PageProposal } from "@/components/page-proposal";
 import { isImageMimeType } from "@/lib/client-files";
 import { useModels } from "@/components/models-provider";
 import { AppIcon } from "@/components/app-icon";
@@ -192,9 +192,7 @@ export const ChatMessage = memo(function ChatMessage({
                 <AssistantMarkdown content={message.usageLimit || message.storageLimit ? t(message.content) : localizeFailureText(message.content, t, failure)} />
               </div>
             )}
-            {proposals.map((proposal) => proposal.kind === "proposal"
-              ? <PageEditProposal key={proposal.id} proposal={proposal} />
-              : <PageCreateProposal key={proposal.id} proposal={proposal} />)}
+            {proposals.map((proposal) => <PageProposal key={proposal.id} proposal={proposal} />)}
           </div>
         ) : editing && actions ? (
           <div className="notion-user-block">

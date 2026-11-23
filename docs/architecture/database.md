@@ -161,6 +161,7 @@ erDiagram
         boolean shareIncludeSubpages
         datetime shareExpiresAt "nullable"
         boolean shareExcludeFromParent
+        datetime aiUpdatedAt "nullable, last time the AI wrote it"
         json blocks
         int version
         datetime deletedAt "nullable, in Trash when set"
@@ -239,9 +240,13 @@ erDiagram
         string sessionId FK
         string messageId "nullable"
         enum kind "EDIT or CREATE"
-        enum status "PENDING, APPLIED, DISCARDED"
+        enum status "PENDING, APPLIED, DISCARDED, UNDONE"
+        enum pageKind "note, whiteboard or slides"
         json payload
         string appliedPageId "nullable"
+        boolean autoApplied
+        int appliedVersion "nullable"
+        string revisionId "nullable"
         datetime createdAt
         datetime updatedAt
     }
@@ -369,6 +374,8 @@ User 1 -> N StoredFile（SetNull）
 
 `parentId`、`favoritedAt`、`fullWidth`、`smallText`、`font`、`locked`（`20261116000000_note_page_tree_settings` 追加，索引 `(parentId)`）。`parentId` 是自引用外键，指向父页面（子页面），父页面行被永久删除时置空（`SetNull`）；子页面的 `groupId` 与最上位的祖先一致。`favoritedAt` 非空即为收藏。其余四列是页面的显示设置和锁定。这些都是元数据：由专用接口用原生 SQL 写入，不增加 `version`、不刷新 `updatedAt`（与重排相同），子树的查询用 `WITH RECURSIVE`（`src/lib/note-tree-server.ts`）。规则见 [notes-flow.md](notes-flow.md#子页面收藏与页面设置)。
 
+`aiUpdatedAt`（可空，`20261124000000_page_ai_harness` 追加）是 AI 最后一次写这页内容的时间：适用（含自动应用）AI 提案、Create page 建页时设置，撤销不清除。非空的页面在“…”菜单里显示 “Report AI content”（Google Play 的 AI 生成内容政策），页面摘要（`PAGE_SUMMARY_SELECT`）带着它。
+
 `kind`（枚举 `PageKind`：`note` / `whiteboard` / `slides`，默认 `note`，`20261123000000_page_kinds` 追加）是页面类型，新建后不变。白板和幻灯片的 `blocks` 是空数组，本体在 `NoteCanvas`；类型的规则见 [notes-flow.md](notes-flow.md#页面类型笔记--白板--幻灯片)。读取正文的代码要按 `kind` 分开处理：笔记读 `blocks`，白板 / 幻灯片的检索和聊天上下文读 `NoteCanvas.segments`，不要遍历 `NoteCanvas.data`。
 
 ### NoteCanvas
@@ -451,7 +458,9 @@ Notes 的单层分组（文件夹）。`userId` 关联 `User`，删除用户时�
 
 ### NoteProposal
 
-AI 提出的笔记修改或新建提案。`kind` 为 `EDIT`（修改已有笔记）或 `CREATE`（新建），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`。`payload` 保存画面要显示的内容和适用时要写入的标题与块（编辑还包含目标笔记 ID 和提案时的基准版本）；`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）；`appliedPageId` 是新建提案适用后创建的笔记 ID，重复适用时据此返回同一笔记。`userId` 和 `sessionId` 删除时级联删除。适用在一个事务里先把 `PENDING` 改为 `APPLIED`，再确认目标笔记仍是活着的（`deletedAt` 为空）且版本等于提案的基准版本，把覆盖前的状态写成一份 `AI_EDIT` 的 `NoteRevision`，最后才写笔记，所以并发或重发都只会生效一次；版本不一致或笔记已进 Trash 时事务回滚（含刚写的历史），提案保持待确认，响应是 409（笔记已变）或 404（笔记不存在或在 Trash）。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。流程见 [chat-flow.md](chat-flow.md)。
+AI 提出的页面修改或新建提案（AI 操控底座，[chat-flow.md](chat-flow.md#编辑案与确认)），三种页面共用。`kind` 为 `EDIT`（修改已有页面）或 `CREATE`（新建），`pageKind` 是目标 / 要建的页面类型（默认 `note`，决定由哪个适配器校验和写入），`status` 为 `PENDING`（待确认）、`APPLIED`、`DISCARDED`、`UNDONE`。`payload` 保存画面要显示的内容（`changes` 等）和适用时要写入的内容 `proposed`（笔记是标题与块，白板 / 幻灯片是本体 `data`；编辑还包含目标页面 ID 和提案时的基准版本，新建可带父页面）以及适配器给的缩略图 `images`（base64，经 `GET /api/proposals/:id/image` 只返回给本人）；返回给浏览器时不带 `proposed` 的内容和缩略图本体。`messageId` 在回答保存后填入，用来在历史里把提案挂回那条回答（为 null 的不显示）。适用时记下 `appliedPageId`（新建是建出的页面，编辑是目标页面；重复适用时据此返回同一页面，举报 AI 写过的页面时据此列出提案，索引 `(userId, appliedPageId)`）、`appliedVersion`（适用后的页面版本）、`revisionId`（同一事务里写的 `AI_EDIT` 历史）和 `autoApplied`（AI 面板的“自动应用”，用户没有逐条确认）。`userId` 和 `sessionId` 删除时级联删除。
+
+适用在一个事务里先把 `PENDING` 改为 `APPLIED`，再确认目标页面仍是活着的（`deletedAt` 为空）、类型与 `pageKind` 相同、版本等于提案的基准版本，把覆盖前的状态写成一份 `AI_EDIT` 的 `NoteRevision`，最后按保存的规则写页面（版本 +1，`aiUpdatedAt` 设为现在），所以并发或重发都只会生效一次；版本不一致或页面已进 Trash 时事务回滚（含刚写的历史），提案保持待确认，响应是 409（页面已变）或 404（页面不存在或在 Trash）。撤销（`APPLIED` → `UNDONE`）：编辑只在页面仍是 `appliedVersion` 时，把当前状态写成 `RESTORE` 历史，再写回 `revisionId` 那份历史的内容；新建把建出的页面及其子页面移入 Trash。迁移 `20261124000000_page_ai_harness` 追加了 `pageKind`、`autoApplied`、`appliedVersion`、`revisionId`、状态 `UNDONE` 和 `NotePage.aiUpdatedAt`，并把已适用的编辑提案的 `appliedPageId` 补成目标页面、给适用过 AI 提案的页面补上 `aiUpdatedAt`（之前适用的提案没有 `appliedVersion`，不能撤销）。索引 `(sessionId, createdAt)` 用于读取会话历史，`messageId` 索引用于按回答查找。
 
 ### ChatProject
 
@@ -581,6 +590,7 @@ NoteProposalStatus
 - PENDING
 - APPLIED
 - DISCARDED
+- UNDONE（适用后又撤销：编辑回到适用前，新建的页面移入 Trash）
 
 NoteRevisionReason
 - AUTO

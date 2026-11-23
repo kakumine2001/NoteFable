@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getOrCreateUser } from "@/lib/auth";
-import { applyProposal } from "@/lib/note-proposals";
+import { applyProposal } from "@/lib/page-ai/proposals";
 import { scheduleNoteEmbeddingSync } from "@/lib/note-embeddings";
 import { msg } from "@/lib/i18n/translate";
 

@@ -14,8 +14,10 @@ import { MAX_CLAUDE_IMAGE_BYTES, MAX_CLAUDE_IMAGE_TOTAL_BYTES, MAX_UPLOAD_FILE_B
 import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { storageLimitResponse } from "@/lib/stored-files";
 import { StorageLimitError } from "@/lib/usage-plans";
-import { attachProposals } from "@/lib/note-proposals";
-import { PAGE_TOOL_DEFINITIONS, runPageTool } from "@/lib/page-tools";
+import { attachProposals } from "@/lib/page-ai/proposals";
+import { pageToolDefinitions, runPageTool } from "@/lib/page-ai/tools";
+import { allAdapters } from "@/lib/page-ai/registry";
+import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS } from "@/lib/page-ai/types";
 import { buildHistoryInput } from "@/lib/chat-history";
 import { generateChatTitle } from "@/lib/chat-title";
 import { buildAnthropicRequest, createAnthropicStream } from "@/lib/anthropic-messages";
@@ -56,6 +58,17 @@ import { isCanvasKind, type PageKind } from "@/lib/page-kinds";
 
 export const runtime = "nodejs";
 
+// ホワイトボード・スライドで選んだ要素・スライドの ID（JSON の文字列の配列）。無ければ空、形が違えば null（400）。
+function parseSelectionIds(value: FormDataEntryValue | null): string[] | null {
+  if (value === null || value === "") return [];
+  if (typeof value !== "string") return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(value); } catch { return null; }
+  if (!Array.isArray(parsed) || parsed.length > MAX_SELECTION_IDS) return null;
+  if (!parsed.every((id) => typeof id === "string" && id.length > 0 && id.length <= MAX_SELECTION_ID_LENGTH)) return null;
+  return [...new Set(parsed as string[])];
+}
+
 function makeTitle(message: string) {
   // 改行や連続スペースを 1 つの空白にして、一覧表示で崩れないタイトルにする。
   // 回答から引用して聞いた発言は、引用ではなく質問の部分から作る。
@@ -64,11 +77,42 @@ function makeTitle(message: string) {
   return compact.length > 42 ? `${compact.slice(0, 42)}...` : compact || "New chat";
 }
 
+const capitalize = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
+
+// ページの種類の呼び名（システム指示の中だけで使う）。
+const KIND_NOUNS: Record<PageKind, { one: string; many: string; parts: string }> = {
+  note: { one: "note", many: "notes", parts: "blocks" },
+  whiteboard: { one: "whiteboard", many: "whiteboards", parts: "elements" },
+  slides: { one: "slide deck", many: "slide decks", parts: "slides" },
+};
+
+type InstructionOptions = {
+  webSearchMode: WebSearchMode;
+  // モデルが Workspace のツール（AI 操控底座）を使えるか。
+  pageTools?: boolean;
+  // ページの AI パネルから送った、またはパネルで始めた会話を Chats で続けているときのページ。
+  note?: { id: string; title: string; kind?: PageKind; continuedInChats?: boolean };
+  project?: ProjectContext | null;
+  customInstructions?: string | null;
+  attachedNotes?: AttachedContextNote[];
+  // エディターで選んだ範囲について聞いた（text は文字が発言の先頭に引用として入っている。ids は選んだ要素・スライド）。
+  selection?: { text: boolean; ids: string[] } | null;
+  // AI パネルの「自動適用」。提案はすぐ適用され、利用者はカードから元に戻せる。
+  autoApply?: boolean;
+  // preview_page を渡したか（画像を読めるモデルで、描けるアダプターがあるとき）。
+  preview?: boolean;
+};
+
 // 全プロバイダーが共通で使うシステム指示を組み立てる。
 // 片方だけ書き換えて挙動がずれるのを防ぐため、必ずこの関数経由で生成する。
-function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note?: { id: string; title: string; kind?: PageKind; continuedInChats?: boolean }, project?: ProjectContext | null, customInstructions?: string | null, attachedNotes: AttachedContextNote[] = [], noteSelection = false) {
+function buildInstructions({ webSearchMode, pageTools = false, note, project, customInstructions, attachedNotes = [], selection = null, autoApply = false, preview = false }: InstructionOptions) {
   const custom = formatCustomInstructions(customInstructions);
   const attached = formatAttachedNotes(attachedNotes, pageTools);
+  // 操作のツールがまだ無い種類（AI からは読むだけ）。#153・#150 でアダプターに操作を足すと、ここから外れる。
+  const readOnly = allAdapters().filter((adapter) => !adapter.edit && adapter.kind !== "note").map((adapter) => KIND_NOUNS[adapter.kind].many);
+  const editTools = allAdapters().filter((adapter) => adapter.edit && adapter.kind !== "note").map((adapter) => `${adapter.edit!.tool.name} for ${KIND_NOUNS[adapter.kind].many}`);
+  const noteNoun = KIND_NOUNS[note?.kind ?? "note"];
+  const noteReadOnly = readOnly.includes(noteNoun.many);
   return [
     "You are NoteFable, a concise, friendly AI study assistant. Help users learn clearly.",
     "Answer in the user's language unless they ask otherwise.",
@@ -79,22 +123,33 @@ function buildInstructions(webSearchMode: WebSearchMode, pageTools = false, note
     "Write math in LaTeX: $...$ inline, and $$...$$ on its own lines for displayed formulas. Write a literal dollar sign as \\$.",
     ...(pageTools
       ? [
-          "You can search and read the user's own notes, kept in their NoteFable Workspace, with the search_notes and read_note tools (search_notes matches by meaning as well as keywords). Use them when the user refers to their notes or Workspace or asks about personal records, plans, or topics they may have saved in their notes; skip searching for general questions unrelated to their notes, and never guess what a note says.",
-          // ワークスペースには 3 種類のページがある。AI が直せるのはノートだけ（ホワイトボード・スライドの AI 操作は #158）。
-          "The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes finds all of them and shows each page's kind; read_note shows a whiteboard or slide deck as its text only. Only notes can be changed or created with the tools: never try to edit a whiteboard or slide deck with propose_note_edit, and tell the user it can't be edited from chat yet.",
-          "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the note changes only after they apply it, so never say a note was updated.",
+          "You can search and read the user's own notes, kept in their NoteFable Workspace, with the search_notes and read_note tools (search_notes matches by meaning as well as keywords), and browse them with list_pages. Use them when the user refers to their notes or Workspace or asks about personal records, plans, or topics they may have saved in their notes; skip searching for general questions unrelated to their notes, and never guess what a note says.",
+          // ワークスペースには 3 種類のページがある。種類ごとの操作はアダプター（src/lib/page-ai/）が持ち、無い種類は読むだけ。
+          `The user's Workspace holds three kinds of pages: notes, whiteboards and slide decks. search_notes and list_pages find all of them and show each page's kind; read_note shows a whiteboard or slide deck as its text, with the IDs of its elements or slides.${editTools.length ? ` Change those only with their own tools: ${editTools.join(", ")}.` : ""}${readOnly.length ? ` ${capitalize(readOnly.join(" and "))} can't be changed with the tools yet: never try to edit one with propose_note_edit, and tell the user it can't be edited from chat yet.` : ""}`,
+          autoApply
+            // AI パネルの「自動適用」。提案はすぐ適用され、履歴にも残り、利用者はカードから元に戻せる。
+            ? "To change a note, call read_note first and then propose_note_edit. The user turned on auto-apply in this panel: your proposals are applied right away (the previous version stays in the page history and the user can undo the change from the card). Follow each tool result: say a page was changed or created only when the result says it was applied."
+            : "To change a note, call read_note first and then propose_note_edit. That only shows the user a proposal to review; the note changes only after they apply it, so never say a note was updated.",
           "Notes can hold uploaded images and files, shown to you as [Image: …] / [File: …]; propose_note_edit may replace or delete those blocks. When the user wants an image they sent in this chat placed in a note, call list_chat_attachments and put the line ![caption](attachment:ID), alone on its own line, in the proposal's markdown.",
-          "To make a new note, call propose_note_create. It also only shows a proposal until the user applies it, so never say a note was created.",
+          autoApply
+            ? "To make a new note, call propose_note_create (parentId puts it inside another page)."
+            : "To make a new note, call propose_note_create (parentId puts it inside another page). It also only shows a proposal until the user applies it, so never say a note was created.",
+          ...(preview ? ["When the layout, colors or drawings of a whiteboard or slide matter, call preview_page to see it as an image."] : []),
           ...(note && isCanvasKind(note.kind)
             ? [
-                // ホワイトボード・スライドから始めた会話。本文の文字は読めるが、変えられない（AI での操作は #153・#150）。
-                `${note.continuedInChats ? "This conversation was started from inside the user's" : "The user is asking from inside their"} ${note.kind === "whiteboard" ? "whiteboard" : "slide deck"} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read its text. You cannot change it with the note tools.`,
+                // ホワイトボード・スライドから始めた会話。読むだけの種類なら、本文の文字は読めるが変えられない（操作は #153・#150）。
+                `${note.continuedInChats ? "This conversation was started from inside the user's" : "The user is asking from inside their"} ${noteNoun.one} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about it: call read_note with this noteId to read it.${noteReadOnly ? " You cannot change it with the tools." : ""}`,
+                ...(selection?.ids.length
+                  ? [`The user selected these ${noteNoun.parts} in it (their IDs as shown by read_note): ${JSON.stringify(selection.ids)}. Their text, if any, is quoted at the start of the message. Focus on them unless the user clearly means the whole ${noteNoun.one}.`]
+                  : selection?.text
+                  ? [`The user selected part of it (quoted at the start of their message). Focus on that part unless they clearly mean the whole ${noteNoun.one}.`]
+                  : []),
               ]
             : note
             ? [
                 // ノートを開いたまま呼ばれた時と、その会話を Chats で続けている時。タイトルはユーザーのデータなので JSON 文字列として渡す。
-                `${note.continuedInChats ? "This conversation was started from inside the editor of the user's note" : "The user is asking from inside the editor of their note"} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about this note: call read_note with this noteId first, then use propose_note_edit with the version it returns. Change only what was asked and leave the rest of the note as it is. The note changes only after the user applies your proposal.`,
-                ...(noteSelection
+                `${note.continuedInChats ? "This conversation was started from inside the editor of the user's note" : "The user is asking from inside the editor of their note"} ${JSON.stringify(note.title.slice(0, 80))} (noteId: ${note.id}). Unless they clearly mean something else, treat requests as being about this note: call read_note with this noteId first, then use propose_note_edit with the version it returns. Change only what was asked and leave the rest of the note as it is.${autoApply ? "" : " The note changes only after the user applies your proposal."}`,
+                ...(selection?.text
                   ? [
                       "The user selected a specific excerpt in this note (quoted at the start of their message). Focus your answer and propose_note_edit changes strictly on the block(s) matching that excerpt unless they explicitly ask to edit other parts of the note.",
                     ]
@@ -373,6 +428,11 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
   const noteId = String(formData.get("noteId") ?? "").trim();
   // ノートエディターで選択した範囲に対する依頼かどうか（noteId がある時だけ有効）。
   const noteSelection = Boolean(noteId && formData.get("noteSelection") === "1");
+  // ホワイトボード・スライドで選んだ要素・スライドの ID（noteId がある時だけ有効）。
+  const selectionIds = noteId ? parseSelectionIds(formData.get("selectionIds")) : [];
+  if (selectionIds === null) return NextResponse.json({ error: msg("Invalid request.") }, { status: 400 });
+  // AI パネルの「自動適用」（noteId がある時だけ有効）。提案をすぐ適用し、利用者はカードから元に戻せる。
+  const autoApply = Boolean(noteId && formData.get("autoApply") === "1");
   // クライアントから送られたモデル ID を、許可済み ID のどれかへ正規化する。
   const registry = getModelRegistry();
   const model = normalizeModel(formData.get("model"), registry);
@@ -830,11 +890,13 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
         }
         // OpenAI と DeepSeek はストリーム形式が少し違う。
         // この API で差分を吸収し、フロントエンドには常にプレーンテキストの連続 chunk として返す。
-        const pageTools = modelOption.supportsPageTools ? PAGE_TOOL_DEFINITIONS : [];
+        const pageTools = modelOption.supportsPageTools ? pageToolDefinitions({ vision: modelOption.supportsImageInput }) : [];
         // ツールは常にこのリクエストの所有者として実行する。モデルは userId を指定できない。
         const runTool = modelOption.supportsPageTools
           ? async (name: string, args: unknown) => {
-              const run = await runPageTool(name, args, user.id, session.id, replacedIds);
+              const run = await runPageTool(name, args, {
+                userId: user.id, sessionId: session.id, excludeMessageIds: replacedIds, autoApply, vision: modelOption.supportsImageInput,
+              });
               for (const event of run.events ?? []) {
                 const id = (event as { id?: unknown }).id;
                 if (typeof id === "string") proposalIds.push(id);
@@ -842,9 +904,13 @@ async function handleChat(request: Request, usageRef: { ticket?: UsageTicket }) 
               return run;
             }
           : undefined;
-        const instructions = buildInstructions(webSearchMode, modelOption.supportsPageTools, contextNote ? { ...contextNote, continuedInChats: !note } : undefined, projectContext,
+        const instructions = buildInstructions({
+          webSearchMode, pageTools: modelOption.supportsPageTools, note: contextNote ? { ...contextNote, continuedInChats: !note } : undefined, project: projectContext,
           // カスタム指示はログインした利用者の設定。匿名の行に値が残っていても使わない。
-          isAccountUser(user) ? user.customInstructions : null, attachedNotes, noteSelection);
+          customInstructions: isAccountUser(user) ? user.customInstructions : null, attachedNotes,
+          selection: noteSelection || selectionIds.length ? { text: noteSelection, ids: selectionIds } : null, autoApply,
+          preview: pageTools.some((tool) => tool.name === "preview_page"),
+        });
         const upstream =
           modelOption.provider === "anthropic"
             ? await createAnthropicStream(buildAnthropicRequest({

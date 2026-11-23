@@ -72,7 +72,7 @@ import { AppIcon, NoteFableLogo } from "./app-icon";
 import { AppIconSettings } from "./app-icon-settings";
 import { ChatMessage } from "./chat-message";
 import { Mascot } from "./mascot";
-import { deriveNoteAssistantCharacterStates } from "./note-assistant";
+import { deriveNoteAssistantCharacterStates } from "./page-assistant";
 
 describe("product-wide character touchpoints & AI reply de-branding", () => {
   beforeEach(() => {

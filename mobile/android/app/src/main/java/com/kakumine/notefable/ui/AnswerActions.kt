@@ -247,7 +247,7 @@ internal fun AnswerMoreButton(state: AnswerMoreState) {
         LucideIcon(Lucide.Ellipsis, 18.dp, Sm.Muted, strokeWidth = 1.9f)
         if (state.menuOpen) AnswerMenu(state, save, onSave = ::saveToNotes, onDownload = ::download)
     }
-    if (state.reporting) ReportAnswerDialog(state.messageId, onClose = { state.reporting = false })
+    if (state.reporting) ReportDialog(com.kakumine.notefable.data.ReportTarget.Answer(state.messageId), onClose = { state.reporting = false })
 }
 
 /** 菜单关着时的错误（例如保存文件失败），在操作行下方：左 8、上 2.4、13/1.4、#933b34。 */

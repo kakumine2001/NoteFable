@@ -21,10 +21,16 @@ class NotesApiTest {
     @Test
     fun `reads pages and groups`() = runBlocking {
         MockWebServer().use { server ->
-            server.enqueue(MockResponse().setBody("""{"pages":[{"id":"a","title":"T","icon":null,"version":2,"groupId":"g","position":0,"createdAt":"x","updatedAt":"y"}],"groups":[{"id":"g","name":"G","position":0}]}"""))
+            server.enqueue(MockResponse().setBody(
+                """{"pages":[{"id":"a","title":"T","icon":null,"version":2,"groupId":"g","position":0,"createdAt":"x","updatedAt":"y","aiUpdatedAt":null},""" +
+                    """{"id":"b","title":"AI","version":1,"position":1,"createdAt":"x","updatedAt":"y","aiUpdatedAt":"2026-11-23T09:00:00.000Z"}],""" +
+                    """"groups":[{"id":"g","name":"G","position":0}]}""",
+            ))
             val list = server.api().notes()
-            assertEquals("g", list.pages.single().groupId)
+            assertEquals("g", list.pages.first().groupId)
             assertEquals("G", list.groups.single().name)
+            // AI 写过内容的页面带 aiUpdatedAt（页面菜单的"报告 AI 内容"），没写过的是 null；旧服务端不返回也是 null。
+            assertEquals(listOf(null, "2026-11-23T09:00:00.000Z"), list.pages.map { it.aiUpdatedAt })
             assertEquals("/api/pages", server.next().path)
         }
     }

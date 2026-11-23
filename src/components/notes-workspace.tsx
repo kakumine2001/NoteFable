@@ -7,7 +7,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NoteEditorHandle } from "@/components/note-editor";
 import { CanvasPagePlaceholder } from "@/components/canvas-page-placeholder";
 import { CANVAS_EDITORS } from "@/components/canvas-editors";
-import { NoteAssistant } from "@/components/note-assistant";
+import { PageAssistant } from "@/components/page-assistant";
 import { NotePageHeader } from "@/components/note-page-header";
 import { NewPageButtons, NotesHome } from "@/components/notes-home";
 import { WorkspaceSwitch, type WorkspaceView } from "@/components/workspace-nav";
@@ -20,6 +20,8 @@ import { creatablePageKinds, isCanvasKind, pageKindFeatures, pageKindOf } from "
 import type { NewPageRequest } from "@/lib/workspace-sections";
 import { STORAGE_LIMIT_EVENT, type StorageLimitDetail } from "@/lib/storage-limit-client";
 import { pageSettingsOf } from "@/types/notes";
+import type { PageSelection } from "@/lib/page-ai/types";
+import { normalizeQuote } from "@/lib/chat-quote";
 
 const NoteEditor = dynamic(() => import("@/components/note-editor"), {
   ssr: false, loading: () => <EditorLoading />,
@@ -112,8 +114,11 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
   const { t, locale } = useI18n();
   const { active, activeId, loading, busy, error, actionError } = notes;
   // エディターで選んで「Ask AI」に渡した抜粋と、アシスタントを開く合図。どのノートのものかを持ち、別のノートへ移ったら効かない。
-  const [aiAsk, setAiAsk] = useState<{ noteId: string; text: string | null; signal: number } | null>(null);
-  const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.text : null;
+  // ホワイトボード・スライドのエディターは、選んだ要素・スライドの ID も渡す（PageSelection）。
+  const [aiAsk, setAiAsk] = useState<{ noteId: string; selection: PageSelection | null; signal: number } | null>(null);
+  // ホワイトボード・スライドのエディターが空けた AI ボタンの置き場所（CanvasEditorProps.aiSlot の目印）。
+  const [aiAnchor, setAiAnchor] = useState<HTMLElement | null>(null);
+  const aiSelection = aiAsk && aiAsk.noteId === activeId ? aiAsk.selection : null;
   const aiOpenSignal = aiAsk && aiAsk.noteId === activeId ? aiAsk.signal : 0;
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const editorRef = useRef<NoteEditorHandle>(null);
@@ -171,17 +176,32 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
     ) : loading && (!listMode || !(notes.pages.length || notes.groups.length)) ? <div className="notes-column pt-24"><p className="notes-loading">{listMode ? t("Loading notes…") : t("Loading note…")}</p></div>
     // ホワイトボード・スライドは種類ごとのエディター（canvas-editors.tsx）。エディターがまだ無い種類は読み取り専用の仮の画面
     // （ノートのエディター・AI ボタンは出さない。保存もしない）。
-    : active && activeId && !listMode && isCanvasKind(activeKind) ? (CanvasEditor ? <div className="canvas-editor-shell">
-      <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
-      <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
-        data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
-        // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
-        onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
-        onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }} />
-    </div> : <>
-      {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
-      <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
-    </>)
+    : active && activeId && !listMode && isCanvasKind(activeKind) ? <>
+      {CanvasEditor ? <div className="canvas-editor-shell">
+        <div className="canvas-editor-warnings"><NoteSaveWarnings notes={notes} /></div>
+        <CanvasEditor key={`${activeId}:${notes.editorEpoch}`} pageId={activeId} kind={activeKind} title={active.content.title} icon={active.content.icon}
+          data={canvasData!} version={active.version} editable={editable} embedded={embedded} split={split} saveStatus={active.status}
+          // 同じ内容の通知（作成・削除の途中で editable が替わったときなど）では、要らない保存を走らせない。
+          onChange={(data) => { if (data !== active.content.data) active.edit({ ...active.content, data }); }}
+          onTitleChange={(title) => { if (title !== active.content.title) active.edit({ ...active.content, title }); }}
+          // 選んだ要素・スライドについて AI に聞く（AI パネルを開き、選んだものを文脈として渡す）。
+          onAskAi={(selection) => {
+            // 分割表示では AI パネルを出さないので、ノートと同じく選んだ文字を左のチャットへ渡す。
+            if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
+            setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+          }}
+          // 分割表示では AI ボタンを出さないので、置き場所も作らない。
+          aiSlot={split ? undefined : <span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />} />
+      </div> : <>
+        {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
+        <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
+      </>}
+      {/* AI パネル（AI 操控底座）。エディターが選んだ要素・スライドを selection で渡す。AI が操作できない種類は読むだけ。 */}
+      <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
+        onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
+        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
+        openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
+    </>
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
         onPatch={(patch) => active.edit({ ...active.content, ...patch })}
@@ -206,14 +226,14 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
           }}
           onAskAi={(text) => {
             if (split && onAskSelectionInChat) { onAskSelectionInChat(text); return; }
-            setAiAsk((current) => ({ noteId: activeId, text, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
+            setAiAsk((current) => ({ noteId: activeId, selection: { text }, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
           }}
           // 作成・削除の間（busy）に editable が切り替わると、エディターは内容が同じでも変更通知を出す。編集として扱うと、不要な保存（ゴミ箱へ移したノートへの保存を含む）が走る。
           onChange={(blocks) => { if (!isUnchanged(blocks, active.content.blocks)) active.edit({ ...active.content, blocks }); }} />
       </div>
-      <NoteAssistant key={activeId} noteId={activeId} noteTitle={active.content.title} model={model} reasoning={reasoning}
+      <PageAssistant key={activeId} pageId={activeId} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
-        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, text: null } : current))} openSignal={aiOpenSignal} hidden={split} />
+        selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))} openSignal={aiOpenSignal} hidden={split} />
     </> : embedded ? !error && <div className="notes-column pt-24"><p className="notes-loading">{t("Loading note…")}</p></div>
     : !error && <>{!listMode && <div className="notes-column"><div className="notion-home-switch lg:hidden"><WorkspaceSwitch view="pages" onChange={onWorkspaceChange} /></div></div>}<div className="notes-column notes-empty">
       <FileText size={28} strokeWidth={1.4} className="text-[var(--notion-faint)]" />

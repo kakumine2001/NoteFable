@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowUp, History, Paperclip, SquarePen, X } from "lucide-react";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
+import { ArrowUp, History, Paperclip, SquarePen, X, Zap } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent, type PointerEvent, type UIEvent } from "react";
 import { createPortal } from "react-dom";
 import { AppIcon } from "@/components/app-icon";
 import { ANSWER_RESIZED_EVENT } from "@/components/assistant-markdown";
@@ -10,7 +10,7 @@ import { AttachMenu } from "@/components/attach-sheet";
 import { ChatMessage } from "@/components/chat-message";
 import { ModelSelect } from "@/components/model-controls";
 import { useModels } from "@/components/models-provider";
-import { composeQuotedMessage, splitQuotedMessage } from "@/lib/chat-quote";
+import { composeQuotedMessage, normalizeQuote, splitQuotedMessage } from "@/lib/chat-quote";
 import { cleanupClientUploads, uploadChatFiles } from "@/lib/client-chat-upload";
 import { createUploadFile, getClipboardImageFiles, getUploadRequestError, getUploadSelectionError, getUploadValidationError, revokeUploadPreviews } from "@/lib/client-files";
 import { GuestLimitPrompt, StorageLimitPrompt, UpgradePrompt } from "@/components/guest-limit-prompt";
@@ -29,11 +29,17 @@ import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
-import { clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
+import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
 import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
 import { PageKindIcon } from "@/components/page-kind-icon";
+import { ProposalHostContext } from "@/components/page-proposal";
+import { PAGE_KIND_FEATURES, type PageKind } from "@/lib/page-kinds";
+import { MAX_SELECTION_ID_LENGTH, MAX_SELECTION_IDS, type PageSelection } from "@/lib/page-ai/types";
+import { loadAutoApply, saveAutoApply } from "@/lib/ai-auto-apply";
+
+type QuickAction = { label: string; prompt: string };
 
 // よく使う頼み事。押すとそのまま送る。
 const QUICK_ACTIONS = [
@@ -53,7 +59,44 @@ const SELECTION_ACTIONS = [
   { label: msg("Translate"), prompt: "Translate the quoted excerpt naturally into English (or into the note's main language if it is already English). Do not edit the note unless asked." },
 ] as const;
 
-const ACTION_LABEL_BY_PROMPT = new Map<string, string>([...QUICK_ACTIONS, ...SELECTION_ACTIONS].map((action) => [action.prompt, action.label]));
+// ホワイトボード・スライドの頼み事。AI が操作できるようになるまで（#153・#150）、答えるだけのもの。
+const WHITEBOARD_ACTIONS = [
+  { label: msg("Summarize"), prompt: "Summarize this whiteboard in a few bullet points, in its own language. Do not change it." },
+  { label: msg("Find gaps"), prompt: "Point out what is missing or unclear on this whiteboard, in its own language. Do not change it." },
+  { label: msg("Suggest next steps"), prompt: "Suggest concrete next steps based on this whiteboard, in its own language. Do not change it." },
+] as const;
+const SLIDES_ACTIONS = [
+  { label: msg("Summarize"), prompt: "Summarize this slide deck in a few bullet points, in its own language. Do not change it." },
+  { label: msg("Suggest improvements"), prompt: "Suggest how to improve this slide deck (structure, clarity and wording), in its own language. Do not change it." },
+] as const;
+// ホワイトボード・スライドで選んだ要素・スライドについての頼み事。
+const CANVAS_SELECTION_ACTIONS = [
+  { label: msg("Summarize"), prompt: "Summarize the selected items in their own language. Do not change the page unless asked." },
+  { label: msg("Explain"), prompt: "Explain the selected items clearly in their own language. Do not change the page unless asked." },
+  { label: msg("Find gaps"), prompt: "Point out what is missing or unclear in the selected items, in their own language. Do not change the page unless asked." },
+] as const;
+
+const ACTION_LABEL_BY_PROMPT = new Map<string, string>([...QUICK_ACTIONS, ...SELECTION_ACTIONS, ...WHITEBOARD_ACTIONS, ...SLIDES_ACTIONS, ...CANVAS_SELECTION_ACTIONS].map((action) => [action.prompt, action.label]));
+
+// 種類ごとの既定の頼み事（エディターが quickActions を渡せば、そちらを使う）。
+const DEFAULT_ACTIONS: Record<PageKind, { quick: readonly QuickAction[]; selection: readonly QuickAction[] }> = {
+  note: { quick: QUICK_ACTIONS, selection: SELECTION_ACTIONS },
+  whiteboard: { quick: WHITEBOARD_ACTIONS, selection: CANVAS_SELECTION_ACTIONS },
+  slides: { quick: SLIDES_ACTIONS, selection: CANVAS_SELECTION_ACTIONS },
+};
+
+// 種類ごとの文言。
+const KIND_TEXT: Record<PageKind, { title: string; placeholder: string; history: string; readOnly: string }> = {
+  note: { title: msg("Ask AI about this note"), placeholder: msg("Ask AI to edit this note…"), history: msg("Chats in this note"), readOnly: "" },
+  whiteboard: {
+    title: msg("Ask AI about this whiteboard"), placeholder: msg("Ask AI about this whiteboard…"), history: msg("Chats on this page"),
+    readOnly: msg("Ask the AI about this whiteboard. It can read the text on it but can't change it yet."),
+  },
+  slides: {
+    title: msg("Ask AI about this slide deck"), placeholder: msg("Ask AI about this slide deck…"), history: msg("Chats on this page"),
+    readOnly: msg("Ask the AI about this slide deck. It can read the text on it but can't change it yet."),
+  },
+};
 
 // ノートの AI パネルで会話が増えた・進んだことを、Chats の一覧（/app のサイドバー）へ知らせるイベント。
 export const NOTE_CHAT_SAVED_EVENT = "notefable:note-chat-saved";
@@ -63,11 +106,13 @@ type NoteChat = { id: string; title: string; updatedAt: string };
 
 // 保存された会話を読み直すとき、定型ボタンで送った長い指示文は、送ったときと同じ短い名前に戻して見せる。
 // 選んだ範囲に対するボタンは「引用 + 指示文」で保存されるので、引用は残して指示文だけ戻す。
-export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string): Message[] {
+// extra はエディターが渡した頼み事のボタン（既定の表に無いもの）。
+export function restoreNoteChatMessages(messages: Message[], t: (key: string) => string, extra: readonly QuickAction[] = []): Message[] {
+  const labels = extra.length ? new Map([...ACTION_LABEL_BY_PROMPT, ...extra.map((action) => [action.prompt, action.label] as const)]) : ACTION_LABEL_BY_PROMPT;
   return messages.map((message) => {
     if (message.role !== "USER") return message;
     const { quote, body } = splitQuotedMessage(message.content);
-    const label = ACTION_LABEL_BY_PROMPT.get(body.trim());
+    const label = labels.get(body.trim());
     return label ? { ...message, content: composeQuotedMessage(quote, t(label)) } : message;
   });
 }
@@ -137,12 +182,15 @@ async function streamChat(
   });
 }
 
-// ノートを開いたまま使う AI アシスタント。丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
-// ノートは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。
-// 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ノートの編集には使わない）。
-export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false }: {
-  noteId: string;
-  noteTitle: string;
+// ページ（ノート・ホワイトボード・スライド）を開いたまま使う AI アシスタント（AI 操控底座の AI パネル。docs/architecture/notes-flow.md）。
+// 丸いボタン（初めは右下。好きな場所へドラッグでき、位置はこのブラウザに覚える）で開き、頼んだ内容は「編集案」として出る。
+// ページは、編集案の Apply を押すまで変わらない（チャットと同じ仕組み）。「自動適用」を入れると、編集案はすぐ適用され、カードから元に戻せる。
+// 入力欄はチャットと同じ機能を持つ：「＋」メニュー（ファイル・写真、ノートの添付）とモデル選択。画像の作成だけは置かない（ページの編集には使わない）。
+// ホワイトボード・スライドのエディターは、選んだ要素・スライドを selection（文字と ID）で渡す。
+export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: noteTitle, model, reasoning, onModelChange, onReasoningChange, flush, embedded = false, selection = null, onClearSelection, openSignal = 0, hidden = false, quickActions, selectionActions, anchor = null }: {
+  pageId: string;
+  pageKind?: PageKind;
+  pageTitle: string;
   model: string;
   reasoning: string;
   // モデルと推論強度を変える（チャットの選択と共通）。渡されないとき（Android アプリの /note-embed）は選択欄を出さない。
@@ -152,15 +200,36 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   flush: () => Promise<boolean>;
   // Android アプリの /note-embed。アプリ内ではウェブの決済（Stripe）に誘導しない（Google Play のルール）。
   embedded?: boolean;
-  // エディターの書式ツールバー「Ask AI」から渡された選択テキスト。
-  selection?: string | null;
+  // エディターで選んだ範囲（ノートの書式ツールバー「Ask AI」の文字、ホワイトボード・スライドの要素・スライド）。
+  selection?: PageSelection | null;
   onClearSelection?: () => void;
   // 増えるたびにパネルを開いて入力欄へフォーカスする。
   openSignal?: number;
   // 分割表示（チャットと並べて表示）時は右下の丸いボタンを隠す。
   hidden?: boolean;
+  // エディターごとの頼み事のボタン（省略すると種類ごとの既定）。
+  quickActions?: readonly QuickAction[];
+  selectionActions?: readonly QuickAction[];
+  // エディターが用意したボタンの置き場所（CanvasEditorProps.aiSlot の目印）。動かしていないボタンはここに重ねる。
+  anchor?: HTMLElement | null;
 }) {
   const { t, tag } = useI18n();
+  // 提案カードに、このパネルのページを伝える（そのページへの「開く」は出さない）。
+  const proposalHost = useMemo(() => ({ currentPageId: noteId }), [noteId]);
+  const kindText = KIND_TEXT[pageKind];
+  const actions = quickActions ?? DEFAULT_ACTIONS[pageKind].quick;
+  const pickedActions = selectionActions ?? DEFAULT_ACTIONS[pageKind].selection;
+  // AI がこの種類のページを変えられるか（読むだけの種類には「自動適用」を出さない）。
+  const editable = PAGE_KIND_FEATURES[pageKind].aiEdit;
+  // 「自動適用」はこのブラウザに種類ごとに覚える。既定は「提案 → 確認」。
+  const [autoApply, setAutoApply] = useState(false);
+  useEffect(() => { queueMicrotask(() => setAutoApply(loadAutoApply(pageKind))); }, [pageKind]);
+  const autoApplyOn = editable && autoApply;
+  // エディターが渡した文字も、ノートの「Ask AI」と同じく整えて長さを抑える（normalizeQuote）。
+  const selectionText = selection?.text ? normalizeQuote(selection.text) : "";
+  // サーバーが受け付ける形にそろえる（重複・空・長すぎる ID を外し、上限の数まで）。上限を超えた選択でも送れなくならない。
+  const selectionIds = [...new Set((selection?.ids ?? []).filter((id) => id && id.length <= MAX_SELECTION_ID_LENGTH))].slice(0, MAX_SELECTION_IDS);
+  const hasSelection = Boolean(selectionText || selectionIds.length);
   const [open, setOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   // このノートで始めた会話の一覧（新しい順）と、いま開いている会話。会話はサーバーに保存され、Chats の一覧にも出る。
@@ -239,8 +308,8 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   inputValueRef.current = input;
   // 選んだ範囲はこの画面の状態で、再読み込みやノートの切り替えで消える。預けるときは引用として本文に入れ、
   // 戻したあと「これを書き直して」がノート全体に向かないようにする。
-  const selectionRef = useRef(selection);
-  selectionRef.current = selection;
+  const selectionRef = useRef(selectionText);
+  selectionRef.current = selectionText;
   const draftToKeep = (text: string) => (text.trim() ? composeQuotedMessage(selectionRef.current, text) : "");
   const composerMountedRef = useKeepDraftOnLeave(`note:${noteId}`, () => (guestLimitHitRef.current ? draftToKeep(inputValueRef.current) : null));
   const lastOpenSignalRef = useRef(openSignal);
@@ -255,8 +324,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const phone = useMediaQuery("(max-width: 639px)");
   const close = () => setOpen(false);
 
-  // 丸いボタンの位置。null は動かしていない（CSS の既定位置＝右下）。
+  // 丸いボタンの位置。null は動かしていない（エディターの置き場所があればそこ、なければ CSS の既定位置＝右下）。
   const [fabPosition, setFabPosition] = useState<FabPosition | null>(() => (typeof window === "undefined" ? null : loadFabPosition()));
+  const [anchorPosition, setAnchorPosition] = useState<FabPosition | null>(null);
   const [viewport, setViewport] = useState(() => (typeof window === "undefined" ? { width: 0, height: 0, rem: 16 } : viewportSize()));
   const [dragging, setDragging] = useState(false);
   // last は、このドラッグで最後に置いた位置（まだ動かしていなければ null）。
@@ -265,8 +335,26 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const skipClick = useRef(false);
   // CSS の .note-ai-fab と同じ大きさ（3.25rem、スマホは 3.5rem）。
   const fabSize = (phone ? 3.5 : 3.25) * viewport.rem;
-  // 画面が小さくなっても、ボタンは必ず画面の中に置く。
-  const fab = fabPosition && clampFabPosition(fabPosition, fabSize, viewport.width, viewport.height);
+  // 画面が小さくなっても、ボタンは必ず画面の中に置く。動かした位置が、エディターの置き場所より優先。
+  const placed = fabPosition ?? anchorPosition;
+  const fab = placed && clampFabPosition(placed, fabSize, viewport.width, viewport.height);
+  // エディターの置き場所にいる間は、エディターの重なり順に合わせる（エディターのシート・メニューの下になる）。
+  const anchored = !fabPosition && !!anchorPosition;
+
+  // エディターの置き場所を測り直す。目印の親たち（置き場所を含む面）の大きさが変わったとき
+  // （メモ欄の開閉、サイドバーの開閉、隠れていたワークスペースが表示されたときなど）と、画面の大きさが変わったとき。
+  useEffect(() => {
+    if (!anchor) { setAnchorPosition(null); return; }
+    const measure = () => {
+      const { width, height } = viewportSize();
+      setAnchorPosition(anchorFabPosition(anchor.getBoundingClientRect(), width, height));
+    };
+    measure();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
+    for (const element of anchorAncestors<Element>(anchor, document.body)) observer?.observe(element);
+    window.addEventListener("resize", measure);
+    return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
+  }, [anchor]);
 
   useEffect(() => {
     const onResize = () => setViewport(viewportSize());
@@ -331,7 +419,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
   useEffect(() => {
     if (open && !phone) inputRef.current?.focus();
-  }, [open, phone, selection]);
+  }, [open, phone, selectionText, selectionIds.length]);
 
   // 新しい発言や回答が増えたら下へ送る。ただし、読み返すために上へ戻っている間は動かさない。
   useEffect(() => {
@@ -398,7 +486,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       const response = await fetch(`/api/sessions/${id}/messages`, { cache: "no-store" });
       if (response.status === 404) return "missing" as const;
       const data = response.ok ? await response.json().catch(() => null) : null;
-      return data && Array.isArray(data.messages) ? restoreNoteChatMessages(data.messages as Message[], t) : null;
+      return data && Array.isArray(data.messages) ? restoreNoteChatMessages(data.messages as Message[], t, [...actions, ...pickedActions]) : null;
     } catch {
       return null;
     }
@@ -524,8 +612,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   async function send(text: string, display?: string) {
     const content = text.trim();
     if (!content || sending.current || loadingRef.current) return;
-    // 選んだ範囲があれば、引用として発言の先頭に付けて送る。
-    const activeSelection = selection?.trim() || "";
+    // 選んだ範囲があれば、引用として発言の先頭に付けて送る。要素・スライドの ID は別の欄で送る。
+    const activeSelection = selectionText;
+    const activeIds = selectionIds;
     const payloadText = activeSelection ? composeQuotedMessage(activeSelection, content) : content;
     const displayText = activeSelection ? composeQuotedMessage(activeSelection, display ?? content) : (display ?? content);
     const sentFiles = display === undefined ? files : [];
@@ -596,7 +685,9 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
     body.append("reasoning", reasoning);
     body.append("webSearch", "off");
     body.append("noteId", noteId);
-    if (activeSelection) body.append("noteSelection", "1");
+    if (activeSelection || activeIds.length) body.append("noteSelection", "1");
+    if (activeIds.length) body.append("selectionIds", JSON.stringify(activeIds));
+    if (autoApplyOn) body.append("autoApply", "1");
     if (sessionId.current) body.append("sessionId", sessionId.current);
     if (tickets.length) body.append("uploads", JSON.stringify(tickets));
     if (sentPages.length) body.append("pages", JSON.stringify(sentPages.map((page) => page.id)));
@@ -613,7 +704,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
           savedId = id;
           notePanelTurns.add(id);
           accepted = true;
-          if (activeSelection) onClearSelection?.();
+          if (activeSelection || activeIds.length) onClearSelection?.();
           if (display === undefined) {
             setFiles((list) => list.filter((item) => !sentFiles.includes(item)));
             setAttachedPages((list) => list.filter((page) => !sentPages.includes(page)));
@@ -694,12 +785,16 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
   const relative = new Intl.RelativeTimeFormat(tag, { numeric: "auto" });
 
   const panel = (
-    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-modal={phone || undefined} aria-label={t("Ask AI about this note")}>
+    <div ref={attach} className={`note-ai-panel ${phone ? "is-sheet" : ""}`} style={panelStyle} role="dialog" aria-modal={phone || undefined} aria-label={t(kindText.title)}>
       {phone && <div className="sheet-grip" {...bind}><div className="model-sheet-grab" aria-hidden="true" /></div>}
       <header className="note-ai-header">
         <AppIcon size={24} state={replyCharacterState} animated={replyCharacterState !== "idle" && replyCharacterState !== "hidden"} />
-        <span className="note-ai-title" title={noteTitle}>{chatTitle || t("Ask AI about this note")}</span>
-        <button type="button" className={`notion-icon-button grid ${historyOpen ? "is-active" : ""}`} aria-label={t("Chats in this note")} title={t("Chats in this note")} aria-pressed={historyOpen}
+        <span className="note-ai-title" title={noteTitle}>{chatTitle || t(kindText.title)}</span>
+        {/* 「自動適用」：入れると AI の編集案をすぐ適用する（ページの履歴に残り、カードから元に戻せる）。 */}
+        {editable && <button type="button" className={`notion-icon-button grid note-ai-auto ${autoApplyOn ? "is-active" : ""}`} aria-pressed={autoApplyOn}
+          aria-label={t("Auto-apply")} title={autoApplyOn ? t("Auto-apply is on: AI changes are applied right away. You can undo them.") : t("Auto-apply AI changes (you can undo them)")}
+          onClick={() => { const next = !autoApplyOn; setAutoApply(next); saveAutoApply(pageKind, next); }}><Zap size={16} /></button>}
+        <button type="button" className={`notion-icon-button grid ${historyOpen ? "is-active" : ""}`} aria-label={t(kindText.history)} title={t(kindText.history)} aria-pressed={historyOpen}
           onClick={() => { if (!historyOpen) { setHistoryOpenedAt(Date.now()); void loadChats(); } setHistoryOpen(!historyOpen); }}><History size={16} /></button>
         <button type="button" className="notion-icon-button grid" disabled={busy || (!chatId && messages.length === 0 && !historyOpen && !loadingChat)} aria-label={t("New chat")} title={t("New chat")} onClick={newChat}><SquarePen size={16} /></button>
         <button type="button" className="notion-icon-button grid" onClick={close} aria-label={t("Close")}><X size={16} /></button>
@@ -707,7 +802,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
       {historyOpen ? (
         <div className="note-ai-list note-ai-history">
-          <p className="note-ai-history-heading">{t("Chats in this note")}</p>
+          <p className="note-ai-history-heading">{t(kindText.history)}</p>
           {!chats ? <p className="note-ai-history-empty" role="status">{t(chatsFailed ? "Could not load the history." : "Loading…")}</p>
             : chats.length === 0 ? <p className="note-ai-history-empty">{t("No chats")}</p> : (
             <ul>
@@ -727,18 +822,21 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       <div ref={listRef} className="note-ai-list" onScroll={onListScroll}>
         {loadingChat ? <p className="note-ai-history-empty" role="status">{t("Loading…")}</p> : messages.length === 0 ? (
           <div className="note-ai-empty">
-            <p>{t("Tell the AI how to change this note. You review its proposal before anything changes.")}</p>
+            <p>{!editable ? t(kindText.readOnly)
+              : autoApplyOn ? t("Tell the AI how to change this page. Its changes are applied right away, and you can undo them.")
+              : pageKind === "note" ? t("Tell the AI how to change this note. You review its proposal before anything changes.")
+              : t("Tell the AI how to change this page. You review its proposal before anything changes.")}</p>
             {/* 範囲を選んでいる間は、範囲用のボタン（入力欄の上）だけを出す。 */}
-            {!selection && <div className="note-ai-chips">
-              {QUICK_ACTIONS.map((action) => (
+            {!hasSelection && <div className="note-ai-chips">
+              {actions.map((action) => (
                 <button key={action.label} type="button" className="note-ai-chip" disabled={busy || loadingChat} onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
             </div>}
           </div>
-        ) : messages.map((message) => (
+        ) : <ProposalHostContext.Provider value={proposalHost}>{messages.map((message) => (
           <ChatMessage key={message.id} message={message} isStreaming={streaming && message.id === activeTurnAssistantId} thinkingSeconds={seconds}
             characterState={message.id === activeTurnAssistantId ? replyCharacterState : undefined} characterSize={24} />
-        ))}
+        ))}</ProposalHostContext.Provider>}
       </div>
       )}
 
@@ -751,17 +849,17 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
       {(uploadError || error) && <p className="note-ai-error" role="alert">{uploadError || t(error)}</p>}
       {/* チャットの入力欄と同じ理由で、ページ翻訳の対象から外す（書き換えられると React の更新が失敗する）。 */}
       <form className="note-ai-form" onSubmit={submit} translate="no">
-        {selection && (
+        {hasSelection && (
           <div className="note-ai-selection">
-            <div className="chat-quote note-ai-quote" role="group" aria-label={t("Selected text")}>
-              <span className="chat-quote-text">{selection}</span>
+            <div className="chat-quote note-ai-quote" role="group" aria-label={selectionText ? t("Selected text") : t("Selected items")}>
+              <span className="chat-quote-text">{selectionText || t("{count} items selected", { count: selectionIds.length })}</span>
               <button type="button" className="chat-quote-remove" disabled={busy} onClick={() => onClearSelection?.()}
                 aria-label={t("Remove selection")} title={t("Remove selection")}>
                 <X size={14} aria-hidden="true" />
               </button>
             </div>
             <div className="note-ai-chips note-ai-selection-chips">
-              {SELECTION_ACTIONS.map((action) => (
+              {pickedActions.map((action) => (
                 <button key={action.label} type="button" className="note-ai-chip is-compact" disabled={busy || loadingChat}
                   onClick={() => void send(action.prompt, t(action.label))}>{t(action.label)}</button>
               ))}
@@ -804,7 +902,7 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
               event.preventDefault();
               addFiles(pasted);
             }}
-            placeholder={t("Ask AI to edit this note…")} aria-label={t("Instruction for the AI")} className="note-ai-input" />
+            placeholder={t(kindText.placeholder)} aria-label={t("Instruction for the AI")} className="note-ai-input" />
           <div className="note-ai-tools">
             <AttachMenu className="relative" backToClose={phone} disabled={busy} onFilesChange={(event) => { addFiles(Array.from(event.target.files ?? [])); event.target.value = ""; }}
               onAttachPages={() => setPageDialogOpen(true)} />
@@ -822,11 +920,11 @@ export function NoteAssistant({ noteId, noteTitle, model, reasoning, onModelChan
 
   return (
     <>
-      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""}`}
+      <button ref={fabRef} type="button" className={`note-ai-fab ${open ? "is-open" : ""} ${dragging ? "is-dragging" : ""} ${anchored ? "is-anchored" : ""}`}
         style={fab ? { right: fab.right, bottom: fab.bottom } : undefined}
         onPointerDown={onFabPointerDown} onPointerMove={onFabPointerMove} onPointerUp={onFabPointerEnd} onPointerCancel={onFabPointerEnd}
         onClick={() => { if (skipClick.current) { skipClick.current = false; return; } setOpen((current) => !current); }}
-        aria-label={t("Ask AI about this note")} aria-expanded={open} title={t("Ask AI")}>
+        aria-label={t(kindText.title)} aria-expanded={open} title={t("Ask AI")}>
         <AppIcon size={phone ? 42 : 40} state={noteCharacterState} animated />
       </button>
       {open && (phone

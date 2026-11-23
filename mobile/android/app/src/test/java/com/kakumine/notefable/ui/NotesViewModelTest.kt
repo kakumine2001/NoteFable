@@ -440,6 +440,27 @@ class NotesViewModelTest {
     }
 
     @Test
+    fun `pages trashed elsewhere leave the list and close the open one without saving`() = runTest(dispatcher) {
+        val backend = FakeNotes()
+        backend.pages.add(NotePageSummary("c", "Mitosis", null, groupId = "g1", parentId = "a", createdAt = "2026-11-14T00:00:02Z"))
+        val vm = notesVm(backend)
+        vm.openNote("c")
+        advanceUntilIdle()
+        vm.flushEditor = { error("must not save a page that is already in the trash") }
+        // 撤销 AI 新建的页面：服务端把它和子页面移进了回收站（网页 notefable:pages-trashed）。
+        vm.onPagesTrashed(listOf("a", "c"))
+        assertNull(vm.state.value.open)
+        assertEquals(listOf("b"), vm.state.value.pages.map { it.id })
+        // 没开着的页面只从列表里去掉；空的不做任何事。
+        vm.openNote("b")
+        advanceUntilIdle()
+        vm.onPagesTrashed(emptyList())
+        vm.onPagesTrashed(listOf("zzz"))
+        assertEquals("b", vm.state.value.open?.id)
+        assertEquals(listOf("b"), vm.state.value.pages.map { it.id })
+    }
+
+    @Test
     fun `trashing the open note saves it first and refuses when it cannot`() = runTest(dispatcher) {
         val backend = FakeNotes()
         val vm = notesVm(backend)

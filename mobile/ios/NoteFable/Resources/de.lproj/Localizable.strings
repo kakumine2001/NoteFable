@@ -266,6 +266,31 @@
 "image_download" = "Bild herunterladen";
 "generated_image" = "Erstelltes Bild";
 "ai_reply" = "KI-Antwort";
+"proposal_report" = "KI-Inhalt melden";
+"proposal_undo" = "Rückgängig";
+"proposal_undone" = "Rückgängig gemacht";
+"proposal_undo_failed" = "Die Änderung konnte nicht rückgängig gemacht werden.";
+"proposal_applied_auto" = "Automatisch übernommen";
+"proposal_created_auto" = "Automatisch erstellt";
+"proposal_moved_to_trash" = "Die Seite wurde in den Papierkorb verschoben.";
+"proposal_open_page" = "Seite öffnen";
+"proposal_new_page_label" = "Vorgeschlagene neue Seite";
+"proposal_edit_page_label" = "Vorgeschlagene Seitenänderung";
+"proposal_new_whiteboard_title" = "Neues Whiteboard „%1$s“";
+"proposal_new_slides_title" = "Neue Folien „%1$s“";
+"proposal_create_whiteboard" = "Whiteboard erstellen";
+"proposal_create_slides" = "Folien erstellen";
+"proposal_empty_page" = "Leere Seite";
+"proposal_inside" = "In „%1$s“";
+"proposal_op_add" = "Hinzufügen";
+"proposal_op_update" = "Aktualisieren";
+"proposal_op_move" = "Verschieben";
+"proposal_op_reorder" = "Neu anordnen";
+"proposal_op_slide" = "%1$s · Folie %2$s";
+"proposal_op_named" = "%1$s · „%2$s“";
+"proposal_op_elements" = "%1$s · %2$s Elemente";
+"proposal_before" = "Vorher";
+"proposal_after" = "Nachher";
 
 /* strings_chat_pages.xml */
 "attach_pages" = "Seiten anhängen";
@@ -451,6 +476,8 @@
 "report_sending" = "Wird gesendet…";
 "report_sent" = "Meldung gesendet. Vielen Dank.";
 "report_failed" = "Die Meldung konnte nicht gesendet werden.";
+"report_ai_content" = "KI-Inhalt melden";
+"report_ai_help" = "Sag uns, was an diesem KI-Inhalt nicht stimmt. Die Meldung wird zusammen mit dem Inhalt an das NoteFable-Team gesendet.";
 
 /* strings_search.xml */
 "search" = "Suchen";

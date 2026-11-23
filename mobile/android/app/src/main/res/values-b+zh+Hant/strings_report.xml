@@ -10,4 +10,6 @@
     <string name="report_sending">正在傳送…</string>
     <string name="report_sent">報告已傳送，謝謝。</string>
     <string name="report_failed">無法傳送報告。</string>
+    <string name="report_ai_content">報告 AI 內容</string>
+    <string name="report_ai_help">告訴我們這段 AI 內容有什麼問題。它會和這段內容一起傳送給 NoteFable 團隊。</string>
 </resources>
