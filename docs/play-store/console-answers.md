@@ -94,7 +94,7 @@ Google Play 的 AI 生成内容政策要求能在应用内举报冒犯性的 AI 
 1. ~~Play 应用签名~~：已完成（Google 生成的应用签名密钥，使用中）。首次上传 AAB 时选"使用 Google 生成的应用签名密钥"（`bundleRelease`，用上传密钥签名，见 [android.md](../architecture/android.md#正式签名与-google-play)）。每次上传前 `versionCode` 加 1。
 2. ~~在 Google Cloud 新建 Android OAuth 客户端~~：已完成：`NoteFable-Android`（Play 应用签名的 SHA-1）是唯一的 Android 客户端，登记 debug 签名和上传密钥的旧客户端已删除（见 [android.md](../architecture/android.md#正式签名与-google-play)）。
 3. ~~启用订阅 `notefable_pro` 的基础方案 `monthly`~~：已完成（连同 `free-trial-30d` 优惠一并启用）。
-4. ~~填写应用内容声明与商店信息~~：已完成；后续改动文案或图片（见 [listing.md](listing.md) 和 `mobile/android/play-store/`）时再到 Console 同步。
+4. ~~填写应用内容声明与商店信息~~：已完成。之后文字或图片的改动（[listing.md](listing.md) 和 `mobile/android/play-store/`）随功能 PR 一起改；Play Console 的商店信息分批同步：进行中的功能都进了 Google Play 的版本（或所有者要求）后，一次把 Console 改成和仓库一致（见 `AGENTS.md`）。应用内容声明、订阅商品和价格不分批，随需要它们的版本一起更新。
 5. 把测试账号加到"许可测试"，从测试轨道安装 App，真机走一遍：购买 → 报告（设置里变成 Pro）→ RTDN 到达 → 在 Play 里取消（到期前仍是 Pro）→ 删除账号停止续费。许可测试的订阅按几分钟一个周期续订，便于看续费和到期。
 6. 封闭测试进行中（2026-11-22 启动，目标满足 12 名以上测试人员连续 14 天；期间按计划向 Alpha 发 2–3 次更新）。
 7. 正式版：封闭测试满 14 天后在 Play Console（Reports → Production Access Report）申请正式版权限，选择国家 / 地区并提交审核。
