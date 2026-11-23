@@ -80,7 +80,7 @@ describe("creating whiteboards and slide decks", () => {
     const board = await create(json({ kind: "whiteboard", title: "x", data: { elements: [{ id: "f", type: "freedraw", points: huge }] } }));
     expect(board.status).toBe(413);
     expect((await board.json()).error).toBe("This page is larger than 2 MB and cannot be saved.");
-    // kind が本体のあとにあっても、最上位なら見分ける（本体の中の "kind" には惑わされない）。
+    // kind が先頭でなくても、最上位なら見分ける（本体の中の "kind" には惑わされない）。
     const deck = await create(new Request("http://localhost/api/pages", { method: "POST", body: `{"title":"x","kind":"slides","data":{"slides":[{"id":"s","kind":"note","notes":"${huge}"}]}}` }));
     expect((await deck.json()).error).toBe("This page is larger than 2 MB and cannot be saved.");
     // kind が読めなかった先にあっても、本体（data）があって本文（blocks）がなければホワイトボード・スライドの文。
