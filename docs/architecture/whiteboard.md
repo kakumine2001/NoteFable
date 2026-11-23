@@ -27,9 +27,9 @@
 
 ## 保存
 
-- 走笔记同一个保存队列（`NoteSaveQueue`，#169 的 `canvas-save.ts`）：编辑器在内容变化 400ms 后（画线、拖动途中不算）把场景转成保存用的形（`sceneToStored`，`src/lib/whiteboard/scene.ts`）交给队列，队列再按一秒防抖 `PATCH { title, icon, data, version }`。只改视野、选择不会保存。
+- 走笔记同一个保存队列（`NoteSaveQueue`，#169 的 `canvas-save.ts`）：编辑器在内容变化 400ms 后（画线、拖动途中不算）把场景转成保存用的形（`sceneToStored`，`src/lib/whiteboard/scene.ts`）交给队列，队列再按一秒防抖 `PATCH { title, icon, data, version }`。只改视野、选择不会保存。关闭编辑器（换页）、页面被隐藏（`visibilitychange` / `pagehide`）、App 关闭编辑页前的 `notefableEmbed.flush()` 时，不等 400ms，立刻把还没交出去的变化交给队列（`src/lib/canvas-flush.ts` 的 `registerCanvasFlusher`；App 的 flush 还会等上传中的图片最多 10 秒）。
 - 保存的形和 Excalidraw 的 scene 同构：`{ elements, files?, appState? }`。删掉的元素不存（撤销历史只在打开的页面内存里），坐标保留两位小数，`appState` 只存底色、网格、吸附。
-- **图片**：Excalidraw 把贴进来 / 拖进来 / 用图片工具插入的图片放成 `data:` URL。编辑器把它们上传到 `POST /api/pages/files`（SVG 等先转成 PNG），`files[id].dataURL` 存成 `/api/pages/files?key=…` 的地址；上传完成前这个图片元素（和绑在上面的文字）不进保存。上传因存储空间不够被拒时（413 `storage_limit`）删掉这张图，由笔记画面的存储提示说明；其他失败在画布上提示。单张图片上限沿用 4 MiB（Excalidraw 先把长边缩到 2560px）。
+- **图片**：Excalidraw 把贴进来 / 拖进来 / 用图片工具插入的图片放成 `data:` URL。编辑器把它们上传到 `POST /api/pages/files`（SVG 等先转成 PNG），`files[id].dataURL` 存成 `/api/pages/files?key=…` 的地址；上传完成前这个图片元素（和绑在上面的文字）不进保存。上传因存储空间不够被拒时（413 `storage_limit`）删掉这张图，由笔记画面的存储提示说明；其他失败在画布上提示。关闭编辑器后才上传完的图片，也会用最后的场景补进保存。既不是 `data:` 也不是自己的 note-files 地址的图片（例如从公开链接的视图复制来的），读得到就同样上传，读不到就删掉并提示。单张图片上限沿用 4 MiB（Excalidraw 先把长边缩到 2560px）。
 - **大小**：整份本体最多 2 MB（服务端上限）。超过 95% 时，保存前用 Ramer–Douglas–Peucker 逐级精简手写线的点（`fitStoredWhiteboard`，平时不精简，以免改变按速度变化的线宽）；仍然超过就由服务端返回 413，提示在画布上方的保存提示里。
 
 ## 链接与页面卡片
@@ -40,8 +40,8 @@
 
 ## 导入 PDF 与导出
 
-- **导入 PDF**（菜单或“更多工具”）：pdf.js（`pdfjs-dist`，Apache-2.0）在浏览器里逐页渲染成 JPEG（长边最多 2000px、约 350 万像素，超过 4 MiB 再压），逐页上传，每页放进一个框（“文件名 · 页码”），图片锁定以便直接在上面批注。最多 50 页、文件最多 50 MB；为了手机内存，一次只渲染一页、渲染完立刻释放画布。
-- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个框一页，按从上到下、从左到右排；没有框就整块一页）。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
+- **导入 PDF**（菜单或“更多工具”）：pdf.js（`pdfjs-dist`，Apache-2.0）在浏览器里逐页渲染成 JPEG（长边最多 2000px、约 350 万像素，超过 4 MiB 再压），逐页上传，每页放进一个框（“文件名 · 页码”），图片锁定以便直接在上面批注。最多 50 页、文件最多 50 MB；为了手机内存，一次只渲染一页、渲染完立刻释放画布。中途某一页失败（存储空间不够、网络）时，已经上传的页照样放进白板，并提示“只导入了前 N 页”。
+- **导出**：PNG（2 倍，像素上限 1600 万）、SVG（图片内嵌成 data URL、字体内嵌）、PDF（每个框一页，按从上到下、从左到右排；没有框就整块一页）。PDF 由自写的小写入器生成（`pdf-writer.ts`，每页一张图，可逆的 Flate，不支持时用 JPEG；照片、导入的 PDF 这类 Flate 超过 2 MiB 且 JPEG 不到一半时改用 JPEG），没有新增依赖。文件交给 `saveExportFile`（`src/lib/export-file.ts`）：浏览器里下载；App 里分块交给原生保存（见下）。
 
 ## 搜索、历史、公开链接
 
@@ -53,7 +53,7 @@
 
 - 白板和笔记一样在 `/note-embed?page=<id>` 里打开，桥接照旧（`ready` 带 `kind`）。触屏上默认是抓手（单指拖动），切到画笔后单指画、双指缩放平移。
 - 用绘图工具（抓手以外）时发 `{type:"drawing", active}`，App 据此在屏幕两侧各排除 200dp 的系统返回手势（Android 每条边的上限）；白板页上 App 的侧栏滑动和 iOS 的边缘返回都关闭（只用顶栏的返回）。
-- 导出文件：App 声明 `canSaveFile()` 时，网页发 `fileStart {id, name, mime, size}` → `fileChunk {id, index, data}`（base64，每块原始 512 KiB）×n → `fileEnd {id}`（中途失败发 `fileAbort`），App 写临时文件后让用户选保存位置。旧版 App 提示“请更新应用”。各端的实现见 [android-native.md](android-native.md)、[ios-native.md](ios-native.md)。
+- 导出文件：App 声明 `canSaveFile()` 时，网页发 `fileStart {id, name, mime, size}` → `fileChunk {id, index, data}`（base64，每块原始 512 KiB）×n → `fileEnd {id}`（中途失败发 `fileAbort`），App 写临时文件后让用户选保存位置。旧版 App 提示“请更新应用”。超过 App 能收的 64 MiB（`MAX_APP_FILE_BYTES`，和两端的 `ExportFileAssembler` 一致）时不发送，提示文件太大。各端的实现见 [android-native.md](android-native.md)、[ios-native.md](ios-native.md)。
 
 ## 给 AI（#153）留的口
 
