@@ -152,18 +152,21 @@ struct NotesErrorBar: View {
     }
 }
 
-/// 笔记图标：设置了表情就显示表情，否则是 lucide 的 FileText。表情和图标的大小分开给（回收站里是 17 / 16）。
+/// 笔记图标：设置了表情 / 上传的图片就显示它，否则是页面类型的图标（`pageKindIcon`：笔记 FileText、白板 Shapes、幻灯片 Presentation，
+/// 网页 NoteIcon 的 fallback = PageKindIcon）。表情和图标的大小分开给（回收站里是 17 / 16）。
 struct NoteIconGlyph: View {
     private let icon: String?
     private let emojiSize: CGFloat
     private let iconSize: CGFloat
     private let color: Color
+    private let kind: PageKind
 
-    init(_ icon: String?, emojiSize: CGFloat, iconSize: CGFloat, color: Color = Sm.muted) {
+    init(_ icon: String?, emojiSize: CGFloat, iconSize: CGFloat, color: Color = Sm.muted, kind: PageKind = .note) {
         self.icon = icon
         self.emojiSize = emojiSize
         self.iconSize = iconSize
         self.color = color
+        self.kind = kind
     }
 
     var body: some View {
@@ -178,7 +181,7 @@ struct NoteIconGlyph: View {
                     .lineLimit(1)
                     .fixedSize()
             } else {
-                LucideIcon(Lucide.fileText, size: iconSize, color: color)
+                LucideIcon(pageKindIcon(kind), size: iconSize, color: color)
             }
         }
         .accessibilityHidden(true)

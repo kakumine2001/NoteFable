@@ -3,6 +3,70 @@ import Foundation
 // 笔记列表、项目（分组）、回收站的服务端 JSON，字段与 src/types/notes.ts 和 src/app/api/pages 一致。
 // 笔记正文不在这里：编辑器是网页的 /note-embed，App 只管列表和导航。
 
+/// 页面类型能用的功能（网页 src/lib/page-kinds.ts 的 PageKindFeatures / PAGE_KIND_FEATURES，Android `PageKindFeatures`，几边一起改）。
+/// 服务端也按同一张表拒绝笔记专用的操作（400，`code: "wrong_page_kind"`）。白板（#152）、幻灯片（#149）的编辑器和公开视图做好后改成 true。
+struct PageKindFeatures: Equatable, Sendable {
+    /// 有能编辑它的编辑器；没有的类型 /note-embed 显示只读的占位画面。
+    var editor: Bool
+    /// Markdown 导出（GET /api/pages/:id/export）。
+    var markdownExport: Bool
+    /// 字体、小字号、全宽（页面设置里只影响正文外观的几项）。锁定所有类型都能用。
+    var typography: Bool
+    /// 公开分享（/s/:token）：只有有公开视图的类型。
+    var publicShare: Bool
+    /// AI 的编辑提案（propose_note_edit 和应用）。
+    var aiEdit: Bool
+}
+
+/// 工作区页面的类型（网页 PAGE_KINDS，Android `PageKind`）：笔记、白板、幻灯片，建好后不会变。JSON 里是小写的 "note" / "whiteboard" / "slides"；
+/// 旧服务端没有这个字段，null 和不认识的值也都按笔记（网页 pageKindOf）。三种都用同一个 /note-embed 打开，白板和幻灯片由网页显示只读的占位画面。
+enum PageKind: String, CaseIterable, Sendable {
+    case note
+    case whiteboard
+    case slides
+
+    /// JSON 里的值。
+    var wire: String { rawValue }
+
+    var features: PageKindFeatures {
+        switch self {
+        case .note:
+            return PageKindFeatures(editor: true, markdownExport: true, typography: true, publicShare: true, aiEdit: true)
+        case .whiteboard, .slides:
+            return PageKindFeatures(editor: false, markdownExport: false, typography: false, publicShare: false, aiEdit: false)
+        }
+    }
+
+    /// 白板和幻灯片：正文不是 BlockNote，另存在 NoteCanvas（网页 isCanvasKind）。
+    var isCanvas: Bool { self != .note }
+
+    /// 没有或不认识的值按笔记。
+    static func of(_ value: String?) -> PageKind {
+        value.flatMap(PageKind.init(rawValue:)) ?? .note
+    }
+}
+
+extension PageKind: Codable {
+    /// 读到不是字符串（数字、对象）或不认识的类型时按笔记，不让整个列表因为一个字段读不出来。
+    init(from decoder: Decoder) throws {
+        self = PageKind.of(try? decoder.singleValueContainer().decode(String.self))
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        try container.encode(wire)
+    }
+}
+
+/// 页面类型的名字（网页 PAGE_KIND_LABELS，Android `pageKindLabel`）的文案键：检索结果里白板 / 幻灯片标题后面的小字。
+func pageKindLabel(_ kind: PageKind) -> String {
+    switch kind {
+    case .note: return "page_kind_note"
+    case .whiteboard: return "page_kind_whiteboard"
+    case .slides: return "page_kind_slides"
+    }
+}
+
 /// 笔记图标：表情一个，或者和封面同样形式的上传图片（`upload:page-covers/<所有者>/<UUID>.<扩展名>`，网页 src/lib/note-icon.ts、
 /// Android `NoteIcons`）。图片返回要读的相对路径（带 App 的 Cookie、服务端核对归属），表情返回 nil。
 enum NoteIcons {
@@ -51,6 +115,8 @@ struct NotePageSummary: Encodable, Equatable, Sendable, Identifiable {
     /// 公开分享状态（用于顶栏分享按钮高亮）。
     var shareEnabled: Bool = false
     var shareExpiresAt: String? = nil
+    /// 页面类型（笔记 / 白板 / 幻灯片）。旧服务端不返回，按笔记。
+    var kind: PageKind = .note
 
     func isShared(now: Date = Date()) -> Bool {
         guard shareEnabled else { return false }
@@ -73,7 +139,8 @@ extension NotePageSummary: Decodable {
             updatedAt: try f.or("updatedAt", ""), parentId: try f.opt("parentId"), favoritedAt: try f.opt("favoritedAt"),
             fullWidth: try f.or("fullWidth", false), smallText: try f.or("smallText", false),
             font: try f.or("font", "default"), locked: try f.or("locked", false),
-            shareEnabled: try f.or("shareEnabled", false), shareExpiresAt: try f.opt("shareExpiresAt")
+            shareEnabled: try f.or("shareEnabled", false), shareExpiresAt: try f.opt("shareExpiresAt"),
+            kind: try f.or("kind", .note)
         )
     }
 }
@@ -212,6 +279,8 @@ struct NoteTrashItem: Encodable, Equatable, Sendable, Identifiable {
     var icon: String? = nil
     var deletedAt: String
     var purgeAt: String
+    /// 页面类型（没有图标时按它画默认图标）。旧服务端不返回，按笔记。
+    var kind: PageKind = .note
 }
 
 extension NoteTrashItem: Decodable {
@@ -219,7 +288,7 @@ extension NoteTrashItem: Decodable {
         let f = try DtoFields(decoder)
         self.init(
             id: try f.req("id"), title: try f.or("title", ""), icon: try f.opt("icon"),
-            deletedAt: try f.req("deletedAt"), purgeAt: try f.req("purgeAt")
+            deletedAt: try f.req("deletedAt"), purgeAt: try f.req("purgeAt"), kind: try f.or("kind", .note)
         )
     }
 }
@@ -388,7 +457,8 @@ let TRASH_RETENTION_DAYS = 30
 /// `window.webkit.messageHandlers.<名字>.postMessage(json)` 的对象（还有同步返回的 `appIcon()` / `language()` / `theme()`），
 /// 收到的 JSON 文本交给 [parse]。
 enum EmbedMessage: Equatable, Sendable {
-    case ready(id: String, title: String, icon: String?)
+    /// [kind]：网页读到的页面类型；旧网页不发时是 nil（这时不改 App 这边已知的类型）。
+    case ready(id: String, title: String, icon: String?, kind: PageKind? = nil)
     case meta(title: String, icon: String?)
     case saveState(state: String)
     case missing
@@ -405,7 +475,9 @@ enum EmbedMessage: Equatable, Sendable {
             switch try text(fields["type"]) {
             case "ready":
                 guard let page = fields["page"]?.objectValue, let id = try text(page["id"]) else { return nil }
-                return .ready(id: id, title: try text(page["title"]) ?? "", icon: try text(page["icon"]))
+                // 只认字符串（和 Android 一样）；不认识的值按笔记。
+                let kind = page["kind"]?.stringValue.map { PageKind.of($0) }
+                return .ready(id: id, title: try text(page["title"]) ?? "", icon: try text(page["icon"]), kind: kind)
             case "meta":
                 return .meta(title: try text(fields["title"]) ?? "", icon: try text(fields["icon"]))
             case "saveState":

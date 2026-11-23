@@ -203,9 +203,9 @@ final class NotesViewModel {
         }
     }
 
-    /// 打开笔记。[title] / [icon] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
+    /// 打开笔记。[title] / [icon] / [kind] 给不在已读列表里的笔记用（检索结果：列表可能还没读过）；
     /// 笔记已不存在时编辑器会报 missing，和网页一样回到列表。
-    func openNote(_ id: String, title: String? = nil, icon: String? = nil) {
+    func openNote(_ id: String, title: String? = nil, icon: String? = nil, kind: PageKind = .note) {
         let current = state
         if current.open?.id == id {
             if current.workspace != .notes { update { $0.workspace = .notes } }
@@ -213,9 +213,9 @@ final class NotesViewModel {
         }
         let open: OpenNote
         if let page = current.pages.first(where: { $0.id == id }) {
-            open = OpenNote(page.id, page.title, page.icon)
+            open = OpenNote(page: page)
         } else if let title {
-            open = OpenNote(id, title, icon)
+            open = OpenNote(id, title, icon, kind: kind)
         } else {
             return
         }
@@ -224,7 +224,7 @@ final class NotesViewModel {
         leaveThen(before: { _ = await pending?.done.wait() }) { [self] in
             var target = open
             if pending != nil, let page = state.pages.first(where: { $0.id == id }) {
-                target = OpenNote(page.id, page.title, page.icon)
+                target = OpenNote(page: page)
             }
             update {
                 $0.workspace = .notes
@@ -293,7 +293,7 @@ final class NotesViewModel {
                 update {
                     $0.workspace = .notes
                     $0.pages = Self.upsert($0.pages, page)
-                    $0.open = OpenNote(page.id, page.title, page.icon)
+                    $0.open = OpenNote(page: page)
                     $0.saveState = nil
                     $0.notice = nil
                     $0.busy = false
@@ -320,7 +320,7 @@ final class NotesViewModel {
     /// 界面收到编辑器 [editor]（[OpenNote.editor]）发来的消息时调用。flushed 由 [NoteEmbedBridge] 自己处理。
     func onEditorMessage(_ editor: String, _ message: EmbedMessage) {
         switch message {
-        case .ready(let id, let title, let icon): onEditorReady(editor, pageId: id, title: title, icon: icon)
+        case .ready(let id, let title, let icon, let kind): onEditorReady(editor, pageId: id, title: title, icon: icon, kind: kind)
         case .meta(let title, let icon): onEditorMeta(editor, title: title, icon: icon)
         case .saveState(let state): onEditorSaveState(editor, state)
         case .missing: onEditorMissing(editor)
@@ -338,14 +338,18 @@ final class NotesViewModel {
 
     /// 编辑器读好了页面 [pageId]。和打开着的不是同一页时，是冲突后"另存为新笔记"换到了副本：
     /// 打开着的笔记换成副本（WebView 不重新加载），原来那篇的列表项不动，重读列表把副本加进来。
-    func onEditorReady(_ editor: String, pageId: String, title: String, icon: String?) {
+    /// [kind] 是网页读到的页面类型（旧网页不发时是 nil，不改已知的类型）：从检索结果打开、列表里还没有这一篇时先按笔记显示，这里改对。
+    func onEditorReady(_ editor: String, pageId: String, title: String, icon: String?, kind: PageKind? = nil) {
         if let open = state.open, open.editor == editor, open.id != pageId {
             update {
-                $0.open = OpenNote(pageId, title, icon, editor: open.editor)
+                $0.open = OpenNote(pageId, title, icon, editor: open.editor, kind: kind ?? open.kind)
                 $0.saveState = nil
             }
             refresh()
             return
+        }
+        if let kind, let open = state.open, open.editor == editor, open.kind != kind {
+            update { $0.open?.kind = kind }
         }
         onEditorMeta(editor, title: title, icon: icon)
     }
@@ -649,7 +653,7 @@ final class NotesViewModel {
                         state.pages = Self.applyOrder(merged, result.order)
                     }
                 }
-                if applied { openNote(result.page.id, title: result.page.title, icon: result.page.icon) }
+                if applied { openNote(result.page.id, title: result.page.title, icon: result.page.icon, kind: result.page.kind) }
             } catch {
                 if owner == identity {
                     let cancelled = isCancellation(error)
@@ -753,7 +757,7 @@ final class NotesViewModel {
                     state.busy = false
                 }
             }
-            if applied, let first = created.first { openNote(first.id, title: first.title, icon: first.icon) }
+            if applied, let first = created.first { openNote(first.id, title: first.title, icon: first.icon, kind: first.kind) }
         } catch {
             if owner == identity {
                 let cancelled = isCancellation(error)

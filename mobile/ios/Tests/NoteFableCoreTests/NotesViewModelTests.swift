@@ -440,6 +440,37 @@ final class NotesViewModelTests: XCTestCase {
     }
 
     @MainActor
+    func testTheOpenPageTakesItsKindFromTheListASearchResultOrTheEditor() async {
+        let backend = NotesTestBackend()
+        backend.pages.append(NotePageSummary(id: "w", title: "Board", icon: nil, createdAt: "2026-11-13T00:00:00Z", kind: .whiteboard))
+        let vm = await notesVm(backend)
+        vm.flushEditor = { FlushResult(true) }
+        vm.openNote("w")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("w", "Board", nil, kind: .whiteboard))
+
+        // 列表里没有（检索结果，列表可能还没读过）：用结果带的类型。
+        vm.openNote("s", title: "Deck", icon: nil, kind: .slides)
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("s", "Deck", nil, kind: .slides))
+        // 网页的 ready 不带类型（旧网页）时保留已知的；带着时以它为准。
+        vm.onEditorMessage("s", .ready(id: "s", title: "Deck", icon: nil))
+        XCTAssertEqual(vm.state.open?.kind, .slides)
+        vm.onEditorMessage("s", .ready(id: "s", title: "Deck", icon: nil, kind: .whiteboard))
+        XCTAssertEqual(vm.state.open?.kind, .whiteboard)
+        // 别的编辑器（已经换掉的 WebView）发来的不算。
+        vm.onEditorMessage("other", .ready(id: "s", title: "Deck", icon: nil, kind: .slides))
+        XCTAssertEqual(vm.state.open?.kind, .whiteboard)
+
+        // 复制白板：打开的复制件也是白板。
+        vm.openNote("w")
+        await notesSettle()
+        vm.duplicate("w")
+        await notesSettle()
+        XCTAssertEqual(vm.state.open, OpenNote("copy", "Copy (1)", nil, kind: .whiteboard))
+    }
+
+    @MainActor
     func testIdentityChangeSavesTheOpenNoteFirstAndDropsAPendingNavigation() async {
         let vm = await notesVm()
         vm.openNote("a")

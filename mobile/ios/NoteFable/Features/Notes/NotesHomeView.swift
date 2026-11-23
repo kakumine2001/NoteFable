@@ -2,7 +2,7 @@ import SwiftUI
 
 // 笔记首页（网页 NotesHome，手机；Android ui/NotesUi.kt 的 NotesHome）：没有打开笔记时显示。左右 24、下 96；顶部 Chat / Note 切换（上距 4）；
 // “Notes”32 / 750、行高 48、字距 −0.04em，上 8 下 12；项目小标题 13 / 600 灰 + 数量 13 浅灰，外边距 20 / 4 / 4；
-// 每行最小高 56、下边 1px 线；图标区 28（表情 20 / 文件图标 20 浅灰）、间距 13.6、标题 17 / 500、日期 13 灰；
+// 每行最小高 56、下边 1px 线；图标区 28（表情 20 / 页面类型图标 20 浅灰）、间距 13.6、标题 17 / 500、日期 13 灰；
 // 右侧 44×48 的“移到项目”（图标 18 浅灰）。下面“新笔记”（高 40、圆角 8、墨色）、“新项目”和“导入 Markdown”（高 40 文字按钮），放不下就换行。
 // 笔记行长按后可以拖动排序；标题“Notes”和“No project”小标题是“移出项目”的投放区，项目小标题是“移进项目”的。
 
@@ -255,7 +255,7 @@ private struct NotesHomeItem: View {
                 if !reorder.swallowsTap() { notes.openNote(pageId) }
             } label: {
                 HStack(spacing: 13.6) {
-                    NFIconTile(emoji: page.icon, fallback: Lucide.fileText, box: 28, glyph: 20, color: Sm.faint)
+                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 20, color: Sm.faint)
                     Text(page.title)
                         .font(.nf(17, weight: 500))
                         .nfLineHeight(25.5, fontSize: 17)
@@ -315,7 +315,7 @@ private struct NotesHomeFavoriteItem: View {
             notes.openNote(pageId)
         } label: {
             HStack(spacing: 13.6) {
-                NFIconTile(emoji: page.icon, fallback: Lucide.fileText, box: 28, glyph: 20, color: Sm.faint)
+                NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 20, color: Sm.faint)
                 Text(page.title)
                     .font(.nf(17, weight: 500))
                     .nfLineHeight(25.5, fontSize: 17)

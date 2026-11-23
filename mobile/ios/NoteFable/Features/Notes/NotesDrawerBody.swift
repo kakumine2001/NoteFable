@@ -228,7 +228,7 @@ private struct NotesDrawerTree: View {
 
 // MARK: - 笔记行
 
-/// 笔记行：高 44、圆角 6.4；展开箭头（20×28、左距 2、Chevron 14 浅灰）；图标按钮 40（表情 15 或文件图标 15 灰，点开表情选择器）；
+/// 笔记行：高 44、圆角 6.4；展开箭头（20×28、左距 2、Chevron 14 浅灰）；图标按钮 40（表情 15 或页面类型图标 15 灰，点开表情选择器）；
 /// 标题 14（长按它拖动排序）；右侧“在里面新建”“移到项目”“移到回收站”三个 25.6 的小按钮。当前打开的行浅蓝底加行首的蓝条。
 /// 拖动中被拖的行半透明，目标行上 / 下 2px 蓝线（这时不画蓝条）。
 @MainActor
@@ -254,7 +254,7 @@ private struct NotesDrawerRow: View {
                 Button {
                     openNote()
                 } label: {
-                    NFIconTile(emoji: page.icon, fallback: Lucide.fileText, box: 40, glyph: 15)
+                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 40, glyph: 15)
                 }
                 .buttonStyle(.pressable(pressedBackground: nil))
                 .disabled(busy)
@@ -328,7 +328,7 @@ private struct NotesDrawerRow: View {
         return Button {
             picking.toggle()
         } label: {
-            NFIconTile(emoji: page.icon, fallback: Lucide.fileText, box: 40, glyph: 15)
+            NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 40, glyph: 15)
         }
         .buttonStyle(.pressable(background: picking ? Sm.hover : Color.clear, cornerRadius: 4))
         .disabled(busy)
@@ -369,7 +369,7 @@ private struct NotesDrawerRow: View {
 
 // MARK: - 收藏的行
 
-/// Favorites 的行：高 44；图标区 28（左距 4，表情 / 文件图标 15 灰，不能点）；标题 14；
+/// Favorites 的行：高 44；图标区 28（左距 4，表情 / 页面类型图标 15 灰，不能点）；标题 14；
 /// 右侧“从收藏中移除”25.6 的小按钮（StarOff 14）。当前打开的行浅蓝底。
 @MainActor
 private struct NotesDrawerFavoriteRow: View {
@@ -388,7 +388,7 @@ private struct NotesDrawerFavoriteRow: View {
                 notes.openNote(pageId)
             } label: {
                 HStack(spacing: 0) {
-                    NFIconTile(emoji: page.icon, fallback: Lucide.fileText, box: 28, glyph: 15)
+                    NFIconTile(emoji: page.icon, fallback: pageKindIcon(page.kind), box: 28, glyph: 15)
                         .padding(.leading, 4)
                     Text(page.title)
                         .font(.nf(14, weight: active ? 550 : 400))

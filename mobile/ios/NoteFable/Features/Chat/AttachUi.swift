@@ -165,7 +165,7 @@ struct PendingPages: View {
     }
 }
 
-/// 笔记标签（网页 page.tsx 输入栏上方的、chat-message.tsx 发言下面的）：圆角 4、1px 描边、浅底、12 灰字，图标是表情或 FileText。
+/// 笔记标签（网页 page.tsx 输入栏上方的、chat-message.tsx 发言下面的）：圆角 4、1px 描边、浅底、12 灰字，图标是表情或页面类型图标。
 /// 输入栏上方的可移除（`removable`：内边距 10×6、间距 8、图标 13、右边 ✕ 13，读屏念"移除…"）；
 /// 发言下面的点了打开笔记（内边距 8×4、间距 4、图标 12）。
 struct PageChip: View {
@@ -177,7 +177,7 @@ struct PageChip: View {
         let title = page.title.isEmpty ? L("sb_untitled") : page.title
         Button(action: action) {
             HStack(spacing: removable ? 8 : 4) {
-                NoteIconGlyph(page.icon, emojiSize: 12, iconSize: removable ? 13 : 12)
+                NoteIconGlyph(page.icon, emojiSize: 12, iconSize: removable ? 13 : 12, kind: page.kind)
                 Text(title)
                     .font(.nf(12))
                     .foregroundStyle(Sm.muted)
