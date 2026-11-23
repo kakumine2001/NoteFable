@@ -1,18 +1,24 @@
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Locale } from "@/lib/i18n/locale";
 import { renderKatex, type KatexApi } from "@/lib/katex-render";
 import type { ResolvedPublicShare } from "@/lib/note-share-server";
-import { PublicNoteView } from "./public-note-view";
 
 // 数式のスタイルは next/dynamic のチャンク（Next.js の中でだけ読み込める）なので、目印に置き換えて「出したか」だけを見る。
 vi.mock("@/components/public-note-math-styles", () => ({ PublicMathStyles: () => <i data-katex-styles="" /> }));
 
-// KaTeX 本体を読み込んだか（数式の無いページでは読み込まない）。最初の読み込みで 1 になる。
-const katexLoads = vi.hoisted(() => ({ count: 0 }));
-vi.mock("katex", async (importOriginal) => {
-  katexLoads.count++;
-  return importOriginal();
+// KaTeX 本体を読み込んだか（数式の無いページでは読み込まない）。テストごとにモジュールを読み直して数え直すので、順番に依存しない。
+const katexLoads = { count: 0, fail: false };
+
+beforeEach(() => {
+  vi.resetModules();
+  katexLoads.count = 0;
+  katexLoads.fail = false;
+  vi.doMock("katex", async (importOriginal) => {
+    katexLoads.count++;
+    if (katexLoads.fail) throw new Error("katex unavailable");
+    return importOriginal();
+  });
 });
 
 type Block = { id: string; type: string; props?: Record<string, unknown>; content?: unknown; children?: Block[] };
@@ -38,17 +44,17 @@ function share(blocks: Block[]): ResolvedPublicShare {
 }
 
 async function render(blocks: Block[], locale: Locale = "en") {
+  const { PublicNoteView } = await import("./public-note-view");
   return renderToStaticMarkup(await PublicNoteView({ data: share(blocks), locale }));
 }
 
 const count = (html: string, needle: string) => html.split(needle).length - 1;
 
 async function realKatex() {
-  const mod = await import("katex");
+  const mod = await vi.importActual<{ default?: KatexApi }>("katex");
   return (mod.default ?? mod) as KatexApi;
 }
 
-// 最初のテストは KaTeX がまだ読み込まれていないことを見るので、この describe の中の順番を変えない。
 describe("public note math", () => {
   it("loads neither KaTeX nor its styles for a page without math", async () => {
     const html = await render([
@@ -115,5 +121,15 @@ describe("public note math", () => {
     expect(html).toContain("\\frac{1}{");
     expect(html).toContain("child of an empty equation");
     expect(html).not.toContain("notes-math-block");
+  });
+
+  it("still shows the page with TeX source when KaTeX cannot be loaded", async () => {
+    katexLoads.fail = true;
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const html = await render([paragraph([text("Area "), inlineMath("\\pi r^2")]), mathBlock("a^2")]);
+    expect(katexLoads.count).toBe(1);
+    expect(html).toContain('<span dir="ltr" class="notes-math-inline"><code class="notes-math-fallback">\\pi r^2</code></span>');
+    expect(html).toContain('<code class="notes-math-fallback">a^2</code>');
+    expect(html).not.toContain("data-katex-styles");
   });
 });
