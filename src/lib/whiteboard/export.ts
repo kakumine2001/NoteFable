@@ -1,14 +1,14 @@
-import { exportScene } from "@excalidraw/excalidraw";
+import { exportScene, getCommonBounds, isInvisiblySmallElement } from "@excalidraw/excalidraw";
 import type { ExcalidrawImperativeAPI, BinaryFiles } from "@excalidraw/excalidraw/types";
 import type { NonDeletedExcalidrawElement, ExcalidrawFrameLikeElement } from "@excalidraw/excalidraw/element/types";
 import { msg } from "@/lib/i18n/translate";
 import { buildPdf, rgbaToRgb, type PdfImage, type PdfPage } from "@/lib/whiteboard/pdf-writer";
-import { exportFileName, frameOrder, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
+import { exportFileName, planPdfPages, type FrameRelation, type WhiteboardExportFormat } from "@/lib/whiteboard/export-utils";
 
 export type { WhiteboardExportFormat };
 
 // ホワイトボードの書き出し（PNG・SVG・PDF）。いつも浅色（白地）で書き出す（印刷・共有しても読みやすいように）。
-// PDF は枠（Frame）ごとに 1 ページ。枠が無ければ全体を 1 ページにする。
+// PDF は中身のある枠（Frame）ごとに 1 ページで、どの枠にも入っていない要素は最後の 1 ページ。枠が無ければ全体を 1 ページにする（planPdfPages）。
 // 画像は note-files の URL のまま描ける（同じサイト）が、SVG はファイルの外で開くので、画像を data: に埋め込む。
 
 export type ExportedFile = { blob: Blob; fileName: string; mimeType: string };
@@ -73,8 +73,25 @@ async function canvasToPdfImage(canvas: HTMLCanvasElement): Promise<PdfImage> {
   return jpegOf(canvas);
 }
 
+// 要素と枠の外接矩形の関係（ページ割りに使う。Excalidraw の枠の書き出しも外接矩形の重なりで中身を選ぶ）。
+function frameRelation() {
+  const cache = new Map<string, readonly [number, number, number, number]>();
+  const bounds = (element: NonDeletedExcalidrawElement) => {
+    let value = cache.get(element.id);
+    if (!value) { value = getCommonBounds([element]); cache.set(element.id, value); }
+    return value;
+  };
+  return (element: NonDeletedExcalidrawElement, frame: NonDeletedExcalidrawElement): FrameRelation => {
+    const [ax1, ay1, ax2, ay2] = bounds(element);
+    const [bx1, by1, bx2, by2] = bounds(frame);
+    if (ax2 < bx1 || ax1 > bx2 || ay2 < by1 || ay1 > by2) return "none";
+    return ax1 >= bx1 && ay1 >= by1 && ax2 <= bx2 && ay2 <= by2 ? "inside" : "overlap";
+  };
+}
+
 export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: WhiteboardExportFormat, title: string): Promise<ExportedFile> {
-  const elements = api.getSceneElements();
+  // 書き出しでは消える、大きさの無い要素（点 1 つの線など）しか無いときも「空」と言う（何も描かれない画像を作らない）。
+  const elements = api.getSceneElements().filter((element) => !isInvisiblySmallElement(element));
   if (!elements.length) throw new Error(msg("This whiteboard is empty."));
   const mimeType = MIME[format];
   const fileName = exportFileName(title, format);
@@ -88,16 +105,16 @@ export async function exportWhiteboard(api: ExcalidrawImperativeAPI, format: Whi
     const blob = await exportScene({ type: "png", data: sceneData(api, elements, api.getFiles()), config: { padding: PADDING, theme: "light", scale: scaleFor(2) } });
     return { blob, fileName, mimeType };
   }
-  const frames = frameOrder(elements.filter((element) => element.type === "frame" || element.type === "magicframe") as unknown as ExcalidrawFrameLikeElement[]);
   const pages: PdfPage[] = [];
-  const targets: (ExcalidrawFrameLikeElement | null)[] = frames.length ? frames : [null];
-  for (const frame of targets) {
+  const files = api.getFiles();
+  for (const page of planPdfPages(elements, frameRelation())) {
+    const frame = page.kind === "frame" ? page.frame as ExcalidrawFrameLikeElement : null;
     // 実際に使った倍率を覚えておき、元の大きさ（1 CSS ピクセル = 0.75 ポイント）のページにする。
     let used = 2;
     const pick = scaleFor(2);
     const canvas = await exportScene({
       type: "canvas",
-      data: sceneData(api, elements, api.getFiles()),
+      data: sceneData(api, page.kind === "rest" ? page.elements : elements, files),
       config: { theme: "light", scale: (width: number, height: number) => (used = pick(width, height)), ...(frame ? { exportingFrame: frame as never, padding: 0 } : { padding: PADDING }) },
     });
     try {
