@@ -36,6 +36,12 @@ export async function copyCanvas(tx: Tx, fromId: string, toId: string) {
     SELECT ${toId}, c."data", c."segments", c."hash", c."size", (now() AT TIME ZONE 'UTC') FROM ${canvasTable()} c WHERE c."noteId" = ${fromId}`);
 }
 
+// 公開共有のページの本体（resolvePublicShare が持ち主・公開・ゴミ箱を確かめた後に呼ぶ）。
+export async function readCanvasDataForShare(noteId: string): Promise<CanvasData | null> {
+  const row = await prisma.noteCanvas.findFirst({ where: { noteId, note: { deletedAt: null } }, select: { data: true } });
+  return (row?.data as CanvasData | undefined) ?? null;
+}
+
 // 本人の、ゴミ箱に入っていないページの本体。
 export async function readCanvasData(userId: string, noteId: string): Promise<CanvasData | null> {
   const row = await prisma.noteCanvas.findFirst({ where: { noteId, note: { userId, deletedAt: null } }, select: { data: true } });

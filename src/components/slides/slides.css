@@ -300,3 +300,25 @@
 .slides-sheet-close { position: sticky; top: 0; z-index: 1; display: block; width: 100%; padding: 10px 16px; background: var(--notion-bg); color: var(--nf-accent); font-size: 15px; font-weight: 600; text-align: end; }
 .slides-sheet-open { position: absolute; right: 12px; bottom: 120px; z-index: 5; display: inline-flex; height: 36px; align-items: center; gap: 6px; padding: 0 12px; border-radius: 18px; background: var(--notion-bg); box-shadow: 0 2px 10px rgba(0, 0, 0, 0.18); color: var(--notion-text); font-size: 13px; }
 .slides-editor.is-embedded .slides-toolbar { border-top: 0; }
+
+/* ---- 公開の放映ページ（/s/:token） ---- */
+.public-slides-shell { min-height: 100dvh; background: var(--notion-sidebar); color: var(--notion-text); }
+.public-slides { display: flex; min-height: 100dvh; flex-direction: column; }
+.public-slides-topbar { display: flex; align-items: center; gap: 12px; padding: 10px 20px; border-bottom: 1px solid var(--notion-border); background: var(--notion-bg); }
+.public-slides-title { min-width: 0; flex: 1; margin: 0; overflow: hidden; font-size: 16px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.slides-present-button.is-standalone { border-radius: 8px; }
+.public-slides-main { display: flex; min-height: 0; flex: 1; flex-direction: column; align-items: center; gap: 12px; padding: 20px 16px 24px; }
+.public-slides-stage { display: flex; width: min(1280px, 100%); height: min(72vh, calc((100vw - 32px) * 9 / 16)); align-items: center; justify-content: center; }
+.public-slides-frame { box-shadow: 0 1px 3px rgba(15, 23, 42, 0.18), 0 8px 28px rgba(15, 23, 42, 0.12); }
+.public-slides-nav { display: flex; align-items: center; gap: 8px; }
+.public-slides-nav button { display: grid; width: 36px; height: 36px; place-items: center; border-radius: 8px; color: var(--notion-text); }
+.public-slides-nav button:hover:not(:disabled) { background: var(--notion-hover); }
+.public-slides-nav button:disabled { opacity: 0.35; }
+.public-slides-counter { min-width: 64px; color: var(--notion-muted); font-size: 13px; font-variant-numeric: tabular-nums; text-align: center; }
+.public-slides-strip { display: flex; max-width: 100%; gap: 8px; overflow-x: auto; margin: 0; padding: 4px; list-style: none; }
+.public-slides-strip .slides-thumb-button.is-current { outline-color: #3b82f6; }
+@media (max-width: 640px) {
+  .public-slides-topbar { padding: 8px 12px; }
+  .public-slides-topbar .public-note-brand span { display: none; }
+  .public-slides-main { padding: 12px 8px 16px; }
+}

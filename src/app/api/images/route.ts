@@ -26,6 +26,10 @@ import { loadChatUploads, parseUploadReferences } from "@/lib/chat-uploads";
 import { buildUpstreamErrorMessage, sanitizeErrorMessage } from "@/lib/upstream-errors";
 import { msg } from "@/lib/i18n/translate";
 import { getModelRegistry } from "@/lib/model-registry";
+import { createImageApiGeneration, findGeneratedImage, type ImageApiResponse } from "@/lib/image-generation";
+
+// 生成画像の取り出しは共通のモジュール（src/lib/image-generation.ts）。テストからはここ経由でも読める。
+export { findGeneratedImage };
 import { ROOT_PARENT } from "@/lib/chat-branches";
 import { loadActiveLeafId } from "@/lib/chat-branch-store";
 
@@ -56,14 +60,6 @@ type ImageInputAttachment = {
   buffer: Buffer;
 };
 
-type ImageApiResponse = {
-  data?: {
-    b64_json?: unknown;
-  }[];
-  error?: {
-    message?: string;
-  } | null;
-};
 
 const SUPPORTED_SIZES = new Set(["1024x1024", "1024x1536", "1536x1024", "auto"]);
 const SUPPORTED_QUALITIES = new Set(["low", "medium", "high", "auto"]);
@@ -146,16 +142,6 @@ function getErrorMessage(error: unknown) {
   return sanitizeErrorMessage(error, "Image generation failed.");
 }
 
-export function findGeneratedImage(data?: ImageApiResponse): string | undefined {
-  // Images API は data[0].b64_json に完成画像を返す。
-  const image = data?.data?.find(
-    (item): item is { b64_json: string } =>
-      typeof item.b64_json === "string" && item.b64_json.length > 0,
-  );
-
-  return image?.b64_json;
-}
-
 function summarizeImageApiResponse(data?: ImageApiResponse) {
   // Images API の結果も base64 を出さず、画像数だけ記録する。
   return {
@@ -198,50 +184,6 @@ async function prepareImageInputs(files: File[]) {
 function isSupportedImageGenerationInput(file: File) {
   // Images API が安定して受け取る画像形式だけを許可する。
   return SUPPORTED_IMAGE_GENERATION_INPUT_TYPES.has(file.type || "application/octet-stream");
-}
-
-async function createImageApiGeneration(
-  prompt: string,
-  size: ImageSize,
-  quality: ImageQuality,
-) {
-  // テキストだけの画像生成は Images API を使う。互換プロキシ経由の Responses 画像ツールは
-  // 同期完了前に 524 HTML で切られることがある。
-  const apiKey = requireEnv("OPENAI_API_KEY");
-  const baseURL = optionalEnv("OPENAI_BASE_URL") || "https://api.openai.com/v1";
-
-  const response = await fetch(`${baseURL.replace(/\/$/, "")}/images/generations`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json; charset=utf-8",
-    },
-    body: stringifyJsonForProxy({
-      model: optionalEnv("OPENAI_IMAGE_MODEL") || DEFAULT_IMAGE_MODEL,
-      prompt,
-      n: 1,
-      size: toImageApiSize(size),
-      quality: toImageApiQuality(quality),
-      output_format: "png",
-    }),
-  });
-
-  const text = await response.text();
-  let data: ImageApiResponse = {};
-
-  try {
-    data = text ? (JSON.parse(text) as ImageApiResponse) : {};
-  } catch {
-    data = {};
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data.error?.message ?? buildUpstreamErrorMessage("OpenAI", response.status, text),
-    );
-  }
-
-  return data;
 }
 
 async function createImageApiEdit(

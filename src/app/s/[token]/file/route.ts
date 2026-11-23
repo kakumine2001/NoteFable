@@ -3,6 +3,7 @@ import { noteFileContentType, noteFileKeyParts, safeFileName } from "@/lib/note-
 import { extractBlockFileKeys } from "@/lib/note-share";
 import { resolvePublicShare } from "@/lib/note-share-server";
 import { readStoredImage } from "@/lib/storage";
+import { publicDeckFilePaths } from "@/lib/slides/public-deck";
 
 export const runtime = "nodejs";
 
@@ -20,7 +21,8 @@ export async function GET(request: Request, { params }: Params) {
     const resolved = await resolvePublicShare(token, pageId);
     if (!resolved || key.ownerId !== resolved.page.userId) return new NextResponse(null, { status: 404 });
 
-    const referenced = extractBlockFileKeys(resolved.page.blocks);
+    // スライドは見せる枚（隠していない枚）の画像だけ、ノートは本文のブロックが参照するファイルだけ。
+    const referenced = resolved.page.kind === "slides" ? publicDeckFilePaths(resolved.page.data) : extractBlockFileKeys(resolved.page.blocks);
     if (!referenced.has(key.path)) return new NextResponse(null, { status: 404 });
 
     let data: Buffer;

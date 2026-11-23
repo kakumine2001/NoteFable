@@ -2,6 +2,7 @@
 
 import { Check, Copy, ExternalLink, Globe, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import type { PageKind } from "@/lib/page-kinds";
 import { useI18n } from "@/components/i18n-provider";
 import { localizeSystemText, msg } from "@/lib/i18n/translate";
 import { expiryFromPreset, type ShareExpiryPreset } from "@/lib/note-share";
@@ -27,11 +28,14 @@ function formatExpiry(iso: string, locale: string): string {
 
 export function NoteShareDialog({
   pageId,
+  kind = "note",
   beforePublish,
   onUpdated,
   onClose,
 }: {
   pageId: string;
+  // スライドは公開の木の「葉」で、サブページを含める設定は無い（そのスライドだけを放映で見せる）。
+  kind?: PageKind;
   beforePublish?: (includeSubpages: boolean) => Promise<boolean>;
   onUpdated?: (page: NotePageSummary) => void;
   onClose: () => void;
@@ -227,7 +231,7 @@ export function NoteShareDialog({
               ) : (
                 <p className="notes-share-desc">{t("Publish this note so anyone with the link can view it.")}</p>
               )}
-              <button
+              {kind !== "slides" && <button
                 type="button"
                 role="switch"
                 aria-checked={draftIncludeSubpages}
@@ -237,7 +241,7 @@ export function NoteShareDialog({
               >
                 <span className="flex-1 text-start">{t("Include sub-pages")}</span>
                 <span className="notes-menu-switch" data-on={draftIncludeSubpages} aria-hidden="true" />
-              </button>
+              </button>}
               <button
                 type="button"
                 disabled={busy}
@@ -262,7 +266,7 @@ export function NoteShareDialog({
                 </div>
               ) : null}
 
-              <button
+              {kind !== "slides" && <button
                 type="button"
                 role="switch"
                 aria-checked={share.includeSubpages}
@@ -272,7 +276,7 @@ export function NoteShareDialog({
               >
                 <span className="flex-1 text-start">{t("Include sub-pages")}</span>
                 <span className="notes-menu-switch" data-on={share.includeSubpages} aria-hidden="true" />
-              </button>
+              </button>}
 
               <div className="notes-share-expiry">
                 <div className="notes-share-expiry-row">
