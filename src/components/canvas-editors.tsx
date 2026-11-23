@@ -33,6 +33,7 @@ export type CanvasEditorProps = {
   onAskAi?: (selection: PageSelection) => void;
   // AI ボタンの置き場所。エディターは自分の操作を避けた場所（スライドは単ページ編集の面の右下）にこれを置く。
   // 中身は見えない目印で、ボタンを動かしていない間はそこにボタンが重なる（page-assistant.tsx の anchor）。
+  // 目印を包む枠は押せなくなる（note-assistant.css）。分割表示では渡さない。
   aiSlot?: ReactNode;
 };
 

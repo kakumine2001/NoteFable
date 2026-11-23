@@ -29,7 +29,7 @@ import { msg } from "@/lib/i18n/translate";
 import { failureText } from "@/lib/failure-text";
 import { relativeTime } from "@/lib/notes-home-text";
 import { chatsTurns, notePanelTurns } from "@/lib/session-turns";
-import { anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
+import { anchorAncestors, anchorFabPosition, clampFabPosition, FAB_DRAG_THRESHOLD, loadFabPosition, panelPlacement, saveFabPosition, type FabPosition } from "@/lib/fab-position";
 import { StorageLimitError, UsageLimitError, storageLimitErrorFrom, usageLimitErrorFrom } from "@/lib/usage-plans";
 import { nativeCanShowStorageLimit, postToNative } from "@/lib/native-bridge";
 import { NoteIcon } from "@/components/note-icon";
@@ -341,8 +341,8 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
   // エディターの置き場所にいる間は、エディターの重なり順に合わせる（エディターのシート・メニューの下になる）。
   const anchored = !fabPosition && !!anchorPosition;
 
-  // エディターの置き場所を測り直す。置き場所を含む面（目印の位置の基準になる親たち）の大きさが変わったとき
-  // （メモ欄の開閉、サイドバーの開閉など）と、画面の大きさが変わったとき。
+  // エディターの置き場所を測り直す。目印の親たち（置き場所を含む面）の大きさが変わったとき
+  // （メモ欄の開閉、サイドバーの開閉、隠れていたワークスペースが表示されたときなど）と、画面の大きさが変わったとき。
   useEffect(() => {
     if (!anchor) { setAnchorPosition(null); return; }
     const measure = () => {
@@ -351,7 +351,7 @@ export function PageAssistant({ pageId: noteId, pageKind = "note", pageTitle: no
     };
     measure();
     const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(measure);
-    for (let element: Element | null = anchor, depth = 0; element && depth < 4; element = (element as HTMLElement).offsetParent, depth++) observer?.observe(element);
+    for (const element of anchorAncestors<Element>(anchor, document.body)) observer?.observe(element);
     window.addEventListener("resize", measure);
     return () => { observer?.disconnect(); window.removeEventListener("resize", measure); };
   }, [anchor]);

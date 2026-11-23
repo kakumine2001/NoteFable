@@ -32,6 +32,14 @@ export function anchorFabPosition(rect: { right: number; bottom: number; width: 
   return { right: viewportWidth - rect.right, bottom: viewportHeight - rect.bottom };
 }
 
+// 置き場所の位置が変わるときに大きさが変わる要素：目印から stop（body）の手前までの親すべて。
+// offsetParent と違い、ワークスペースが隠れている（display: none）間に作られても辿れる。
+export function anchorAncestors<T extends { parentElement: T | null }>(anchor: T, stop: T | null): T[] {
+  const out: T[] = [];
+  for (let element: T | null = anchor; element && element !== stop; element = element.parentElement) out.push(element);
+  return out;
+}
+
 export function loadFabPosition(): FabPosition | null {
   try {
     const value: unknown = JSON.parse(window.localStorage.getItem(STORAGE_KEY) ?? "null");

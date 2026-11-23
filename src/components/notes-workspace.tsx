@@ -190,7 +190,8 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
             if (split && onAskSelectionInChat) { const text = normalizeQuote(selection.text); if (text) onAskSelectionInChat(text); return; }
             setAiAsk((current) => ({ noteId: activeId, selection, signal: (current?.noteId === activeId ? current.signal : 0) + 1 }));
           }}
-          aiSlot={<span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />} />
+          // 分割表示では AI ボタンを出さないので、置き場所も作らない。
+          aiSlot={split ? undefined : <span ref={setAiAnchor} className="page-ai-anchor" aria-hidden="true" />} />
       </div> : <>
         {(!!active.error || !!notes.backupError) && <div className="notes-column pt-6"><NoteSaveWarnings notes={notes} /></div>}
         <CanvasPagePlaceholder key={`${activeId}:${notes.editorEpoch}`} kind={activeKind} title={active.content.title} icon={active.content.icon} data={active.page.data} />
@@ -199,7 +200,7 @@ export function NotesWorkspace({ notes, listMode, model, reasoning, onModelChang
       <PageAssistant key={activeId} pageId={activeId} pageKind={activeKind} pageTitle={active.content.title} model={model} reasoning={reasoning}
         onModelChange={onModelChange} onReasoningChange={onReasoningChange} flush={() => active.flush()} embedded={embedded}
         selection={aiSelection} onClearSelection={() => setAiAsk((current) => (current?.noteId === activeId ? { ...current, selection: null } : current))}
-        openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor ? aiAnchor : null} />
+        openSignal={aiOpenSignal} hidden={split} anchor={CanvasEditor && !split ? aiAnchor : null} />
     </>
     : active && activeId && !listMode ? <>
       <NotePageHeader content={active.content} editable={editable} titleRef={titleRef}
