@@ -120,15 +120,15 @@ export function WhiteboardStylePanel({ ui, drawMode, compact, theme, actions, on
       <Swatches picks={backgroundPicks} current={style.backgroundColor} display={color} onPick={(value) => run("changeBackgroundColor", { color: value })} />
     </Section>}
     {showWidth && <Section label={t("Stroke width")}>
-      <Choice options={[{ value: "thin", label: t("Thin"), icon: <WidthIcon size={1} /> }, { value: "medium", label: t("Medium"), icon: <WidthIcon size={2.5} /> }, { value: "bold", label: t("Bold"), icon: <WidthIcon size={4.5} /> }]}
+      <Choice options={[{ value: "thin", label: t("Thin"), icon: <WidthIcon size={1} /> }, { value: "medium", label: t("Medium"), icon: <WidthIcon size={2.5} /> }, { value: "bold", label: t("Thick"), icon: <WidthIcon size={4.5} /> }]}
         current={style.strokeWidthKey ?? widthKeyOf(style.strokeWidth, freedraw)} onPick={(value) => run("changeStrokeWidth", value)} />
     </Section>}
     {!collapsed && <>
       {freedraw && drawMode !== "highlighter" && <Section label={t("Pressure")}>
         <Choice options={[{ value: "variable", label: t("Pressure-sensitive") }, { value: "constant", label: t("Even width") }]} current={style.variability} onPick={(value) => run("changeFreedrawMode", value)} />
       </Section>}
-      {showBackground && style.backgroundColor && style.backgroundColor !== "transparent" && !only("stickynote") && <Section label={t("Fill")}>
-        <Choice options={[{ value: "solid", label: t("Solid") }, { value: "hachure", label: t("Hatch") }, { value: "cross-hatch", label: t("Cross-hatch") }]} current={style.fillStyle} onPick={(value) => run("changeFillStyle", value)} />
+      {showBackground && style.backgroundColor && style.backgroundColor !== "transparent" && !only("stickynote") && <Section label={t("Fill style")}>
+        <Choice options={[{ value: "solid", label: t("Solid fill") }, { value: "hachure", label: t("Hatch") }, { value: "cross-hatch", label: t("Cross-hatch") }]} current={style.fillStyle} onPick={(value) => run("changeFillStyle", value)} />
       </Section>}
       {showStrokeStyle && <Section label={t("Line style")}>
         <Choice options={[{ value: "solid", label: t("Solid") }, { value: "dashed", label: t("Dashed") }, { value: "dotted", label: t("Dotted") }]} current={style.strokeStyle} onPick={(value) => run("changeStrokeStyle", value)} />
